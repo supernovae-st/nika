@@ -593,11 +593,7 @@ fn parse_infer_action(file: FileId, node: &Node) -> Result<RawInferAction, Parse
                 system: get_string_field(file, m, "system")?,
                 temperature: get_f64_field(file, m, "temperature")?,
                 max_tokens: get_u32_field(file, m, "max_tokens")?,
-                thinking: get_bool_field(file, m, "thinking")?.or(get_bool_field(
-                    file,
-                    m,
-                    "extended_thinking",
-                )?),
+                thinking: get_bool_field(file, m, "extended_thinking")?,
                 thinking_budget: get_u32_field(file, m, "thinking_budget")?,
                 content,
                 response_format: get_string_field(file, m, "response_format")?,
@@ -738,8 +734,7 @@ fn parse_exec_action(file: FileId, node: &Node) -> Result<RawExecAction, ParseEr
             Ok(RawExecAction {
                 command,
                 shell: get_bool_field(file, m, "shell")?,
-                working_dir: get_string_field(file, m, "working_dir")?
-                    .or(get_string_field(file, m, "cwd")?),
+                working_dir: get_string_field(file, m, "cwd")?,
                 env: parse_string_map(file, m, "env")?,
                 // timeout_ms is the primary field (milliseconds).
                 // timeout is the schema alias (seconds) — convert to ms.
@@ -850,23 +845,16 @@ fn parse_agent_action(file: FileId, node: &Node) -> Result<RawAgentAction, Parse
         }
     };
 
-    // Agent uses 'prompt' as primary field, 'goal' as legacy fallback
-    let prompt = get_string_field(file, m, "prompt")?
-        .or(get_string_field(file, m, "goal")?)
-        .ok_or_else(|| ParseError {
-            kind: ParseErrorKind::MissingField,
-            span,
-            message: "agent action requires 'prompt' field (or legacy 'goal')".to_string(),
-        })?;
+    let prompt = get_string_field(file, m, "prompt")?.ok_or_else(|| ParseError {
+        kind: ParseErrorKind::MissingField,
+        span,
+        message: "agent action requires 'prompt' field".to_string(),
+    })?;
 
     Ok(RawAgentAction {
         prompt,
         tools: parse_string_array(file, m, "tools")?,
-        max_iterations: get_u32_field(file, m, "max_iterations")?.or(get_u32_field(
-            file,
-            m,
-            "max_turns",
-        )?),
+        max_turns: get_u32_field(file, m, "max_turns")?,
         max_tokens: get_u32_field(file, m, "max_tokens")?,
         from: get_string_field(file, m, "from")?,
         skills: parse_string_array(file, m, "skills")?,
@@ -958,8 +946,7 @@ fn parse_for_each(
                 RawForEach {
                     items: Spanned::new(items_str, span),
                     as_var: get_string_field(file, map, "as")?,
-                    parallel: get_u32_field(file, map, "concurrency")?
-                        .or(get_u32_field(file, map, "parallel")?),
+                    parallel: get_u32_field(file, map, "concurrency")?,
                     fail_fast: get_bool_field(file, map, "fail_fast")?,
                 },
                 span,
@@ -971,8 +958,7 @@ fn parse_for_each(
                 RawForEach {
                     items: Spanned::new(s.as_str().to_string(), span),
                     as_var: get_string_field(file, map, "as")?,
-                    parallel: get_u32_field(file, map, "concurrency")?
-                        .or(get_u32_field(file, map, "parallel")?),
+                    parallel: get_u32_field(file, map, "concurrency")?,
                     fail_fast: get_bool_field(file, map, "fail_fast")?,
                 },
                 span,
@@ -997,15 +983,17 @@ fn parse_retry(
             let span = marked_span_to_span(file, m.span());
             Ok(Some(Spanned::new(
                 RawRetryConfig {
-                    max_attempts: get_u32_field(file, m, "max_attempts")?
-                        .or(get_u32_field(file, m, "max")?),
-                    delay_ms: get_u64_field(file, m, "delay_ms")?
-                        .or(get_u64_field(file, m, "delay")?),
-                    backoff: get_f64_field(file, m, "backoff")?.or(get_f64_field(
+                    max_attempts: get_u32_field(file, m, "max_attempts")?.or(get_u32_field(
                         file,
                         m,
-                        "backoff_multiplier",
+                        "max_retries",
                     )?),
+                    delay_ms: match get_u64_field(file, m, "delay_ms")? {
+                        Some(v) => Some(v),
+                        None => get_u64_field(file, m, "delay")?
+                            .map(|s| Spanned::new(s.value * 1000, s.span)),
+                    },
+                    backoff: get_f64_field(file, m, "backoff")?,
                 },
                 span,
             )))
@@ -1102,8 +1090,7 @@ fn parse_output(
                 RawOutputConfig {
                     format: get_string_field(file, m, "format")?,
                     schema: parse_json_value(file, m, "schema")?,
-                    schema_ref: get_string_field(file, m, "schema_ref")?
-                        .or(get_string_field(file, m, "$ref")?),
+                    schema_ref: get_string_field(file, m, "schema_ref")?,
                     max_retries: get_u32_field(file, m, "max_retries")?,
                 },
                 span,
@@ -1467,8 +1454,7 @@ fn parse_imports(
     file_id: FileId,
     map: &marked_yaml::types::MarkedMappingNode,
 ) -> Result<Option<Spanned<Vec<Spanned<RawImportSpec>>>>, ParseError> {
-    // Accept both "imports:" (canonical) and "include:" (legacy alias)
-    let imports_node = match map.get_node("imports").or_else(|| map.get_node("include")) {
+    let imports_node = match map.get_node("imports") {
         Some(node) => node,
         None => return Ok(None),
     };
@@ -1816,7 +1802,7 @@ tasks:
       system: "You are a helpful assistant"
       temperature: 0.7
       max_tokens: 1000
-      thinking: true
+      extended_thinking: true
       thinking_budget: 8000
 "#;
         let workflow = parse(yaml, FileId(0)).unwrap();
@@ -1964,7 +1950,7 @@ tasks:
                 let tools = action.value.tools.as_ref().unwrap();
                 assert_eq!(tools.value.len(), 2);
                 assert_eq!(tools.value[0].value, "nika:read");
-                assert_eq!(action.value.max_iterations.as_ref().unwrap().value, 10);
+                assert_eq!(action.value.max_turns.as_ref().unwrap().value, 10);
             }
             _ => panic!("Expected Agent action"),
         }
@@ -1993,7 +1979,7 @@ tasks:
     }
 
     #[test]
-    fn test_parse_agent_goal_legacy_fallback() {
+    fn test_parse_agent_goal_removed() {
         let yaml = r#"
 schema: "nika/workflow@0.12"
 tasks:
@@ -2002,16 +1988,11 @@ tasks:
       goal: "Legacy goal syntax"
       max_turns: 5
 "#;
-        let workflow = parse(yaml, FileId(0)).unwrap();
-        let task = workflow.get_task("research").unwrap();
-
-        match &task.value.action {
-            Some(RawTaskAction::Agent(action)) => {
-                // Legacy `goal:` should still work as fallback
-                assert_eq!(action.value.prompt.value, "Legacy goal syntax");
-            }
-            _ => panic!("Expected Agent action"),
-        }
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_err(), "goal alias should be rejected");
+        let err = result.unwrap_err();
+        assert_eq!(err.kind, ParseErrorKind::MissingField);
+        assert!(err.message.contains("prompt"));
     }
 
     // =========================================================================

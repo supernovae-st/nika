@@ -178,8 +178,8 @@ pub struct RawAgentAction {
     /// Available tools for the agent
     pub tools: Option<Spanned<Vec<Spanned<String>>>>,
 
-    /// Maximum iterations before stopping
-    pub max_iterations: Option<Spanned<u32>>,
+    /// Maximum turns before stopping
+    pub max_turns: Option<Spanned<u32>>,
 
     /// Maximum tokens per response
     pub max_tokens: Option<Spanned<u32>>,

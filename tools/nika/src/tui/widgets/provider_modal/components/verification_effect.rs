@@ -54,9 +54,12 @@ const ASCII_CHARS: &[char] = &[
     '@', '#', '$', '%', '&', '*', '+', '-', '=', '<', '>', '/', '\\', '|',
 ];
 
-/// Provider verification status
+/// Provider connection-check status (for Matrix verification animation)
+///
+/// Distinct from `provider_selector::VerifyStatus` which tracks the
+/// verification-cache lifecycle (Unknown/Verifying/Verified/Failed).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum VerifyStatus {
+pub enum ConnectionCheckStatus {
     /// Still checking
     #[default]
     Checking,
@@ -68,24 +71,24 @@ pub enum VerifyStatus {
     NotConfigured,
 }
 
-impl VerifyStatus {
+impl ConnectionCheckStatus {
     /// Get color for this status
     pub fn color(&self) -> Color {
         match self {
-            VerifyStatus::Checking => COLOR_STATUS_CHECKING,
-            VerifyStatus::Connected => COLOR_STATUS_CONNECTED,
-            VerifyStatus::Failed => COLOR_STATUS_FAILED,
-            VerifyStatus::NotConfigured => COLOR_STATUS_UNCONFIGURED,
+            ConnectionCheckStatus::Checking => COLOR_STATUS_CHECKING,
+            ConnectionCheckStatus::Connected => COLOR_STATUS_CONNECTED,
+            ConnectionCheckStatus::Failed => COLOR_STATUS_FAILED,
+            ConnectionCheckStatus::NotConfigured => COLOR_STATUS_UNCONFIGURED,
         }
     }
 
     /// Get status indicator
     pub fn indicator(&self) -> &'static str {
         match self {
-            VerifyStatus::Checking => "⏳",
-            VerifyStatus::Connected => "✓",
-            VerifyStatus::Failed => "✗",
-            VerifyStatus::NotConfigured => "○",
+            ConnectionCheckStatus::Checking => "⏳",
+            ConnectionCheckStatus::Connected => "✓",
+            ConnectionCheckStatus::Failed => "✗",
+            ConnectionCheckStatus::NotConfigured => "○",
         }
     }
 }
@@ -96,7 +99,7 @@ pub struct VerifyEntry {
     /// Provider name
     pub name: String,
     /// Current status
-    pub status: VerifyStatus,
+    pub status: ConnectionCheckStatus,
     /// Animation frame
     pub frame: u8,
     /// Reveal progress (0.0 = scrambled, 1.0 = revealed)
@@ -109,7 +112,7 @@ impl VerifyEntry {
     pub fn new(name: &str) -> Self {
         Self {
             name: name.to_string(),
-            status: VerifyStatus::Checking,
+            status: ConnectionCheckStatus::Checking,
             frame: 0,
             progress: 0.0,
             seed: name
@@ -124,7 +127,7 @@ impl VerifyEntry {
         self.frame = self.frame.wrapping_add(1);
 
         // Auto-advance progress when checking (slow reveal effect)
-        if self.status == VerifyStatus::Checking {
+        if self.status == ConnectionCheckStatus::Checking {
             // Progress advances slowly during checking
             self.progress = (self.progress + 0.02).min(0.7); // Cap at 70% during check
         } else {
@@ -134,13 +137,13 @@ impl VerifyEntry {
     }
 
     /// Set final status and start rapid reveal
-    pub fn set_status(&mut self, status: VerifyStatus) {
+    pub fn set_status(&mut self, status: ConnectionCheckStatus) {
         self.status = status;
     }
 
     /// Check if animation is complete
     pub fn is_complete(&self) -> bool {
-        self.progress >= 1.0 && self.status != VerifyStatus::Checking
+        self.progress >= 1.0 && self.status != ConnectionCheckStatus::Checking
     }
 
     /// Generate a scrambled character
@@ -257,10 +260,10 @@ impl Widget for VerificationEffect<'_> {
             // Latency/error suffix when revealed
             if entry.is_complete() && x + 5 < area.x + area.width {
                 let suffix = match entry.status {
-                    VerifyStatus::Connected => " ✓",
-                    VerifyStatus::Failed => " ✗",
-                    VerifyStatus::NotConfigured => " ○",
-                    VerifyStatus::Checking => "",
+                    ConnectionCheckStatus::Connected => " ✓",
+                    ConnectionCheckStatus::Failed => " ✗",
+                    ConnectionCheckStatus::NotConfigured => " ○",
+                    ConnectionCheckStatus::Checking => "",
                 };
                 buf.set_string(
                     x,
@@ -337,7 +340,7 @@ impl VerificationState {
     }
 
     /// Update a provider's status
-    pub fn set_status(&mut self, index: usize, status: VerifyStatus) {
+    pub fn set_status(&mut self, index: usize, status: ConnectionCheckStatus) {
         if let Some(entry) = self.entries.get_mut(index) {
             entry.set_status(status);
         }
@@ -353,7 +356,7 @@ impl VerificationState {
     /// Reset all entries
     pub fn reset(&mut self) {
         for entry in &mut self.entries {
-            entry.status = VerifyStatus::Checking;
+            entry.status = ConnectionCheckStatus::Checking;
             entry.progress = 0.0;
             entry.frame = 0;
         }
@@ -370,28 +373,34 @@ mod tests {
 
     #[test]
     fn test_verify_status_colors() {
-        assert_eq!(VerifyStatus::Connected.color(), COLOR_STATUS_CONNECTED);
-        assert_eq!(VerifyStatus::Failed.color(), COLOR_STATUS_FAILED);
         assert_eq!(
-            VerifyStatus::NotConfigured.color(),
+            ConnectionCheckStatus::Connected.color(),
+            COLOR_STATUS_CONNECTED
+        );
+        assert_eq!(ConnectionCheckStatus::Failed.color(), COLOR_STATUS_FAILED);
+        assert_eq!(
+            ConnectionCheckStatus::NotConfigured.color(),
             COLOR_STATUS_UNCONFIGURED
         );
-        assert_eq!(VerifyStatus::Checking.color(), COLOR_STATUS_CHECKING);
+        assert_eq!(
+            ConnectionCheckStatus::Checking.color(),
+            COLOR_STATUS_CHECKING
+        );
     }
 
     #[test]
     fn test_verify_status_indicators() {
-        assert_eq!(VerifyStatus::Connected.indicator(), "✓");
-        assert_eq!(VerifyStatus::Failed.indicator(), "✗");
-        assert_eq!(VerifyStatus::NotConfigured.indicator(), "○");
-        assert_eq!(VerifyStatus::Checking.indicator(), "⏳");
+        assert_eq!(ConnectionCheckStatus::Connected.indicator(), "✓");
+        assert_eq!(ConnectionCheckStatus::Failed.indicator(), "✗");
+        assert_eq!(ConnectionCheckStatus::NotConfigured.indicator(), "○");
+        assert_eq!(ConnectionCheckStatus::Checking.indicator(), "⏳");
     }
 
     #[test]
     fn test_verify_entry_new() {
         let entry = VerifyEntry::new("Claude");
         assert_eq!(entry.name, "Claude");
-        assert_eq!(entry.status, VerifyStatus::Checking);
+        assert_eq!(entry.status, ConnectionCheckStatus::Checking);
         assert_eq!(entry.progress, 0.0);
         assert_eq!(entry.frame, 0);
     }
@@ -408,7 +417,7 @@ mod tests {
     #[test]
     fn test_verify_entry_tick_revealed() {
         let mut entry = VerifyEntry::new("Test");
-        entry.set_status(VerifyStatus::Connected);
+        entry.set_status(ConnectionCheckStatus::Connected);
 
         // Tick multiple times
         for _ in 0..10 {
@@ -430,12 +439,12 @@ mod tests {
     fn test_verify_entry_render_text_full_reveal() {
         let mut entry = VerifyEntry::new("Test");
         entry.progress = 1.0;
-        entry.status = VerifyStatus::Connected;
+        entry.status = ConnectionCheckStatus::Connected;
 
         let result = entry.render_text();
         // All characters should be revealed with status color
         for (_ch, color) in result {
-            assert_eq!(color, VerifyStatus::Connected.color());
+            assert_eq!(color, ConnectionCheckStatus::Connected.color());
         }
     }
 
@@ -460,8 +469,8 @@ mod tests {
     #[test]
     fn test_verification_state_set_status() {
         let mut state = VerificationState::new_providers();
-        state.set_status(0, VerifyStatus::Connected);
-        assert_eq!(state.entries[0].status, VerifyStatus::Connected);
+        state.set_status(0, ConnectionCheckStatus::Connected);
+        assert_eq!(state.entries[0].status, ConnectionCheckStatus::Connected);
     }
 
     #[test]
@@ -476,13 +485,13 @@ mod tests {
     #[test]
     fn test_verification_state_reset() {
         let mut state = VerificationState::new_providers();
-        state.set_status(0, VerifyStatus::Connected);
+        state.set_status(0, ConnectionCheckStatus::Connected);
         state.tick();
 
         state.reset();
 
         assert_eq!(state.frame, 0);
-        assert_eq!(state.entries[0].status, VerifyStatus::Checking);
+        assert_eq!(state.entries[0].status, ConnectionCheckStatus::Checking);
         assert_eq!(state.entries[0].progress, 0.0);
     }
 
@@ -492,7 +501,7 @@ mod tests {
 
         // Set all 6 to connected
         for i in 0..6 {
-            state.set_status(i, VerifyStatus::Connected);
+            state.set_status(i, ConnectionCheckStatus::Connected);
         }
 
         // Tick until complete

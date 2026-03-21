@@ -792,7 +792,7 @@ fn analyze_agent(raw: &RawAgentAction) -> AnalyzedAgentAction {
             .as_ref()
             .map(|s| s.value.iter().map(|v| v.value.clone()).collect())
             .unwrap_or_default(),
-        max_iterations: raw.max_iterations.as_ref().map(|s| s.value),
+        max_iterations: raw.max_turns.as_ref().map(|s| s.value),
         max_tokens: raw.max_tokens.as_ref().map(|s| s.value),
         from: raw.from.as_ref().map(|s| s.value.clone()),
         skills: raw
@@ -1823,7 +1823,7 @@ mod tests {
             RawAgentAction {
                 prompt: Spanned::new("Do something".to_string(), make_span(0, 12)),
                 tools: None,
-                max_iterations: None,
+                max_turns: None,
                 max_tokens: None,
                 from: None,
                 skills: None,
@@ -1936,7 +1936,7 @@ mod tests {
             RawAgentAction {
                 prompt: Spanned::new("Goal".to_string(), make_span(0, 4)),
                 tools: None,
-                max_iterations: None,
+                max_turns: None,
                 max_tokens: None,
                 from: None,
                 skills: None,

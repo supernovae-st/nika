@@ -506,15 +506,15 @@ impl ProviderModalState {
 
     /// Update verification entry when provider status changes
     pub fn sync_verification_status(&mut self, index: usize) {
-        use super::components::VerifyStatus;
+        use super::components::ConnectionCheckStatus;
 
         if let Some(status) = self.provider_statuses.get(index) {
             let verify_status = match status {
-                ConnectionStatus::Unknown => VerifyStatus::Checking,
-                ConnectionStatus::Checking => VerifyStatus::Checking,
-                ConnectionStatus::Connected { .. } => VerifyStatus::Connected,
-                ConnectionStatus::Failed { .. } => VerifyStatus::Failed,
-                ConnectionStatus::NotConfigured => VerifyStatus::NotConfigured,
+                ConnectionStatus::Unknown => ConnectionCheckStatus::Checking,
+                ConnectionStatus::Checking => ConnectionCheckStatus::Checking,
+                ConnectionStatus::Connected { .. } => ConnectionCheckStatus::Connected,
+                ConnectionStatus::Failed { .. } => ConnectionCheckStatus::Failed,
+                ConnectionStatus::NotConfigured => ConnectionCheckStatus::NotConfigured,
             };
             self.verification_state.set_status(index, verify_status);
         }
@@ -1580,7 +1580,7 @@ mod tests {
         for entry in &state.verification_state.entries {
             assert_eq!(
                 entry.status,
-                super::super::components::VerifyStatus::Checking
+                super::super::components::ConnectionCheckStatus::Checking
             );
             assert_eq!(entry.progress, 0.0);
         }
@@ -1588,7 +1588,7 @@ mod tests {
 
     #[test]
     fn test_sync_verification_status() {
-        use super::super::components::VerifyStatus;
+        use super::super::components::ConnectionCheckStatus;
 
         let mut state = ProviderModalState::default();
         state.set_provider_status(0, ConnectionStatus::Connected { latency_ms: 100 });
@@ -1603,15 +1603,15 @@ mod tests {
         // Verification status should be synced
         assert_eq!(
             state.verification_state.entries[0].status,
-            VerifyStatus::Connected
+            ConnectionCheckStatus::Connected
         );
         assert_eq!(
             state.verification_state.entries[1].status,
-            VerifyStatus::Failed
+            ConnectionCheckStatus::Failed
         );
         assert_eq!(
             state.verification_state.entries[2].status,
-            VerifyStatus::NotConfigured
+            ConnectionCheckStatus::NotConfigured
         );
     }
 
@@ -1628,7 +1628,7 @@ mod tests {
 
     #[test]
     fn test_verification_auto_deactivates_when_complete() {
-        use super::super::components::VerifyStatus;
+        use super::super::components::ConnectionCheckStatus;
 
         let mut state = ProviderModalState::default();
         state.start_verification();
@@ -1638,7 +1638,7 @@ mod tests {
         for i in 0..6 {
             state
                 .verification_state
-                .set_status(i, VerifyStatus::Connected);
+                .set_status(i, ConnectionCheckStatus::Connected);
         }
 
         // Tick until complete
@@ -1652,7 +1652,7 @@ mod tests {
 
     #[test]
     fn test_sync_all_verification_statuses() {
-        use super::super::components::VerifyStatus;
+        use super::super::components::ConnectionCheckStatus;
 
         let mut state = ProviderModalState::default();
 
@@ -1672,27 +1672,27 @@ mod tests {
 
         assert_eq!(
             state.verification_state.entries[0].status,
-            VerifyStatus::Connected
+            ConnectionCheckStatus::Connected
         );
         assert_eq!(
             state.verification_state.entries[1].status,
-            VerifyStatus::Checking
+            ConnectionCheckStatus::Checking
         );
         assert_eq!(
             state.verification_state.entries[2].status,
-            VerifyStatus::Failed
+            ConnectionCheckStatus::Failed
         );
         assert_eq!(
             state.verification_state.entries[3].status,
-            VerifyStatus::NotConfigured
+            ConnectionCheckStatus::NotConfigured
         );
         assert_eq!(
             state.verification_state.entries[4].status,
-            VerifyStatus::Checking
+            ConnectionCheckStatus::Checking
         );
         assert_eq!(
             state.verification_state.entries[5].status,
-            VerifyStatus::Connected
+            ConnectionCheckStatus::Connected
         );
     }
 

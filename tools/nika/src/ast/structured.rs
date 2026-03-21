@@ -191,8 +191,7 @@ impl<'de> Deserialize<'de> for StructuredOutputSpec {
                         "enable_extractor" => {
                             enable_extractor = Some(map.next_value()?);
                         }
-                        // Accept both new and legacy field names
-                        "enable_tool_injection" | "enable_tool_use" => {
+                        "enable_tool_injection" => {
                             enable_tool_injection = Some(map.next_value()?);
                         }
                         "enable_retry" => {
@@ -322,13 +321,14 @@ enable_repair: false
     }
 
     #[test]
-    fn legacy_enable_tool_use_still_works() {
+    fn legacy_enable_tool_use_is_ignored() {
         let yaml = r#"
 schema: ./test.json
 enable_tool_use: false
 "#;
         let spec: StructuredOutputSpec = serde_yaml::from_str(yaml).unwrap();
-        assert_eq!(spec.enable_tool_injection, Some(false));
+        // enable_tool_use is no longer recognized; only enable_tool_injection works
+        assert_eq!(spec.enable_tool_injection, None);
     }
 
     #[test]

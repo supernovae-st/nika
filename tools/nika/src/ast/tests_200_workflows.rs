@@ -7163,7 +7163,7 @@ tasks:
 fn x03_include_path_spec() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
-include:
+imports:
   - path: ./lib/seo-tasks.nika.yaml
     prefix: seo_
 tasks:
@@ -7180,7 +7180,7 @@ tasks:
 fn x04_include_multiple_specs() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
-include:
+imports:
   - path: ./lib/common.nika.yaml
     prefix: common_
   - path: ./lib/media.nika.yaml
@@ -8218,9 +8218,9 @@ tasks:
     }
 }
 
-/// Bug 7: $ref alias for schema_ref also works.
+/// $ref alias was removed (clashes with JSON Schema). Only schema_ref works.
 #[test]
-fn ac02_bug7_dollar_ref_alias() {
+fn ac02_dollar_ref_alias_removed() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
 tasks:
@@ -8232,11 +8232,29 @@ tasks:
 "#;
     let w = ok(yaml);
     let output = w.tasks[0].output.as_ref().expect("output should exist");
+    // $ref no longer recognized; schema should be None
+    assert!(output.schema.is_none(), "$ref alias should no longer work");
+}
+
+/// schema_ref is the only way to reference an external schema.
+#[test]
+fn ac02b_schema_ref_works() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: ref_task
+    infer: "Generate JSON"
+    output:
+      format: json
+      schema_ref: "./schemas/entity.json"
+"#;
+    let w = ok(yaml);
+    let output = w.tasks[0].output.as_ref().expect("output should exist");
     match &output.schema {
         Some(crate::ast::output::SchemaRef::File(path)) => {
             assert_eq!(path, "./schemas/entity.json");
         }
-        other => panic!("expected SchemaRef::File from $ref, got {:?}", other),
+        other => panic!("expected SchemaRef::File from schema_ref, got {:?}", other),
     }
 }
 

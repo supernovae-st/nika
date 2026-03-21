@@ -37,7 +37,7 @@ use super::ViewAction;
 use crate::ast::schema_validator::WorkflowSchemaValidator;
 use crate::ast::Workflow;
 use crate::error::NikaError;
-use crate::tui::diagnostics::DiagnosticsEngine;
+use crate::tui::diagnostics::{DiagnosticSeverity, DiagnosticsEngine};
 use crate::tui::edit_history::EditHistory;
 use crate::tui::git::{GitStatus, LineChange};
 use crate::tui::selection::{Position, Selection, SelectionSet};
@@ -1124,6 +1124,82 @@ impl TextBuffer {
         }
     }
 
+    /// Move cursor to beginning of line
+    pub fn cursor_home(&mut self) {
+        self.cursor_col = 0;
+    }
+
+    /// Move cursor to end of line
+    pub fn cursor_end(&mut self) {
+        if self.cursor_row < self.lines.len() {
+            self.cursor_col = self.lines[self.cursor_row].len();
+        }
+    }
+
+    /// Move cursor one page up
+    pub fn page_up(&mut self) {
+        let page = self.visible_height.get().saturating_sub(2);
+        self.cursor_row = self.cursor_row.saturating_sub(page);
+        self.clamp_cursor_col();
+        self.adjust_scroll();
+    }
+
+    /// Move cursor one page down
+    pub fn page_down(&mut self) {
+        let page = self.visible_height.get().saturating_sub(2);
+        self.cursor_row = (self.cursor_row + page).min(self.lines.len().saturating_sub(1));
+        self.clamp_cursor_col();
+        self.adjust_scroll();
+    }
+
+    /// Move cursor one word left (stop at word boundaries)
+    pub fn cursor_word_left(&mut self) {
+        if self.cursor_col == 0 {
+            if self.cursor_row > 0 {
+                self.cursor_row -= 1;
+                self.cursor_col = self.lines[self.cursor_row].len();
+            }
+            return;
+        }
+        let line = &self.lines[self.cursor_row];
+        let chars: Vec<char> = line.chars().collect();
+        let mut col = self.cursor_col.min(chars.len());
+        // Skip trailing whitespace
+        while col > 0 && chars[col - 1].is_whitespace() {
+            col -= 1;
+        }
+        // Skip word characters
+        while col > 0 && !chars[col - 1].is_whitespace() && !chars[col - 1].is_ascii_punctuation() {
+            col -= 1;
+        }
+        self.cursor_col = col;
+    }
+
+    /// Move cursor one word right (stop at word boundaries)
+    pub fn cursor_word_right(&mut self) {
+        let line = &self.lines[self.cursor_row];
+        let chars: Vec<char> = line.chars().collect();
+        if self.cursor_col >= chars.len() {
+            if self.cursor_row < self.lines.len() - 1 {
+                self.cursor_row += 1;
+                self.cursor_col = 0;
+            }
+            return;
+        }
+        let mut col = self.cursor_col;
+        // Skip word characters
+        while col < chars.len() && !chars[col].is_whitespace() && !chars[col].is_ascii_punctuation()
+        {
+            col += 1;
+        }
+        // Skip whitespace/punctuation
+        while col < chars.len() && (chars[col].is_whitespace() || chars[col].is_ascii_punctuation())
+        {
+            col += 1;
+        }
+        self.cursor_col = col;
+    }
+
     /// Insert a character at cursor
     pub fn insert_char(&mut self, c: char) {
         if let Some(line) = self.lines.get_mut(self.cursor_row) {
@@ -1134,18 +1210,36 @@ impl TextBuffer {
         }
     }
 
-    /// Insert a newline at cursor
+    /// Insert a newline at cursor with smart indent (preserves indentation,
+    /// adds extra indent after lines ending with ':' for YAML convenience)
     pub fn insert_newline(&mut self) {
-        if let Some(line) = self.lines.get_mut(self.cursor_row) {
-            let col = self.cursor_col.min(line.len());
-            let rest = line[col..].to_string();
-            line.truncate(col);
-            self.lines.insert(self.cursor_row + 1, rest);
-            self.cursor_row += 1;
-            self.cursor_col = 0;
-            self.modified = true; // track modification
-            self.adjust_scroll();
+        if self.cursor_row >= self.lines.len() {
+            return;
         }
+        let current_line = self.lines[self.cursor_row].clone();
+        let col = self.cursor_col.min(current_line.len());
+
+        // Detect indent of current line
+        let indent: String = current_line
+            .chars()
+            .take_while(|c| c.is_whitespace())
+            .collect();
+        // Extra indent after lines ending with ':'
+        let trimmed = current_line[..col].trim_end();
+        let extra = if trimmed.ends_with(':') { "  " } else { "" };
+
+        // Split current line at cursor
+        let after_cursor = &current_line[col..];
+        self.lines[self.cursor_row].truncate(col);
+
+        // Create new line with indent
+        let new_line = format!("{}{}{}", indent, extra, after_cursor.trim_start());
+        self.lines.insert(self.cursor_row + 1, new_line);
+
+        self.cursor_row += 1;
+        self.cursor_col = indent.len() + extra.len();
+        self.modified = true;
+        self.adjust_scroll();
     }
 
     /// Delete character before cursor (backspace)
@@ -1951,12 +2045,45 @@ impl YamlEditorPanel {
                 self.buffer.cursor_down();
                 ViewAction::None
             }
+            KeyCode::Left if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.buffer.cursor_word_left();
+                ViewAction::None
+            }
+            KeyCode::Right if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.buffer.cursor_word_right();
+                ViewAction::None
+            }
             KeyCode::Left => {
                 self.buffer.cursor_left();
                 ViewAction::None
             }
             KeyCode::Right => {
                 self.buffer.cursor_right();
+                ViewAction::None
+            }
+            KeyCode::Home | KeyCode::Char('0') => {
+                self.buffer.cursor_home();
+                ViewAction::None
+            }
+            KeyCode::End | KeyCode::Char('$') => {
+                self.buffer.cursor_end();
+                ViewAction::None
+            }
+            KeyCode::PageUp => {
+                self.buffer.page_up();
+                ViewAction::None
+            }
+            KeyCode::PageDown => {
+                self.buffer.page_down();
+                ViewAction::None
+            }
+            // Vim: 'w' for word-forward, 'b' for word-backward
+            KeyCode::Char('w') => {
+                self.buffer.cursor_word_right();
+                ViewAction::None
+            }
+            KeyCode::Char('b') => {
+                self.buffer.cursor_word_left();
                 ViewAction::None
             }
             _ => ViewAction::None,
@@ -2036,6 +2163,18 @@ impl YamlEditorPanel {
                 }
                 _ => {}
             }
+            // Ctrl+Arrow word movement (checked after Ctrl+char shortcuts)
+            match key.code {
+                KeyCode::Left => {
+                    self.buffer.cursor_word_left();
+                    return ViewAction::None;
+                }
+                KeyCode::Right => {
+                    self.buffer.cursor_word_right();
+                    return ViewAction::None;
+                }
+                _ => {}
+            }
         }
         // Ctrl+Shift+Z for redo
         if key
@@ -2106,6 +2245,40 @@ impl YamlEditorPanel {
                 } else {
                     self.buffer.clear_selection();
                 }
+                ViewAction::None
+            }
+            KeyCode::Home => {
+                if extending && !self.buffer.has_selection() {
+                    self.buffer.start_selection();
+                }
+                self.buffer.cursor_home();
+                if extending {
+                    self.buffer.sync_selection_to_cursor();
+                } else {
+                    self.buffer.clear_selection();
+                }
+                ViewAction::None
+            }
+            KeyCode::End => {
+                if extending && !self.buffer.has_selection() {
+                    self.buffer.start_selection();
+                }
+                self.buffer.cursor_end();
+                if extending {
+                    self.buffer.sync_selection_to_cursor();
+                } else {
+                    self.buffer.clear_selection();
+                }
+                ViewAction::None
+            }
+            KeyCode::PageUp => {
+                self.buffer.page_up();
+                self.buffer.clear_selection();
+                ViewAction::None
+            }
+            KeyCode::PageDown => {
+                self.buffer.page_down();
+                self.buffer.clear_selection();
                 ViewAction::None
             }
             KeyCode::Enter => {
@@ -2301,9 +2474,27 @@ impl YamlEditorPanel {
                     })
                     .unwrap_or_else(|| Span::raw(" "));
 
-                // Line number with git gutter prefix
+                // Diagnostic gutter icon (2 chars: icon + space)
+                let diag_gutter = if let Some(diag) = self.diagnostics.most_severe_on_line(i) {
+                    match diag.severity {
+                        DiagnosticSeverity::Error => {
+                            Span::styled("● ", Style::default().fg(Color::Rgb(243, 139, 168)))
+                        }
+                        DiagnosticSeverity::Warning => {
+                            Span::styled("▲ ", Style::default().fg(Color::Rgb(249, 226, 175)))
+                        }
+                        DiagnosticSeverity::Hint => {
+                            Span::styled("◆ ", Style::default().fg(Color::Rgb(137, 180, 250)))
+                        }
+                    }
+                } else {
+                    Span::raw("  ")
+                };
+
+                // Line number with git gutter + diagnostic gutter prefix
                 let mut spans = vec![
                     git_gutter,
+                    diag_gutter,
                     Span::styled(
                         format!("{:4} ", line_num),
                         Style::default().fg(theme.text_muted),
@@ -2351,6 +2542,38 @@ impl YamlEditorPanel {
         let paragraph = Paragraph::new(lines);
         frame.render_widget(paragraph, content_area);
 
+        // Post-render: apply diagnostic underlines directly to frame buffer
+        let scroll_offset = self.buffer.scroll_offset();
+        let gutter_width = 8u16; // git(1) + diag(2) + linenum(5)
+        for diag in self.diagnostics.diagnostics() {
+            if diag.start_line < scroll_offset || diag.start_line >= scroll_offset + visible_height
+            {
+                continue; // Off-screen
+            }
+            let underline_color = match diag.severity {
+                DiagnosticSeverity::Error => Color::Rgb(243, 139, 168),
+                DiagnosticSeverity::Warning => Color::Rgb(249, 226, 175),
+                DiagnosticSeverity::Hint => Color::Rgb(137, 180, 250),
+            };
+            let y = content_area.y + (diag.start_line - scroll_offset) as u16;
+            let start_x = content_area.x + gutter_width + diag.start_col as u16;
+            let end_col = if diag.end_line == diag.start_line {
+                diag.end_col
+            } else {
+                80
+            };
+            let end_x = content_area.x + gutter_width + end_col as u16;
+            for x in start_x..end_x.min(content_area.right()) {
+                if let Some(cell) = frame.buffer_mut().cell_mut((x, y)) {
+                    cell.set_style(
+                        cell.style()
+                            .fg(underline_color)
+                            .add_modifier(Modifier::UNDERLINED),
+                    );
+                }
+            }
+        }
+
         // Render ScrollIndicator with dynamic arrows
         let total_lines = self.buffer.lines().len();
         if total_lines > visible_height {
@@ -2370,7 +2593,7 @@ impl YamlEditorPanel {
             frame.render_widget(scroll_indicator, scrollbar_area);
         }
 
-        // Render status bar (Ln:Col | Mode | Schema)
+        // Render status bar (Ln:Col | Diagnostic | Mode | Schema)
         // Show cursor count when multi-cursor active
         let (cursor_row, cursor_col) = self.buffer.cursor();
         let mode_str = match self.mode {
@@ -2388,17 +2611,48 @@ impl YamlEditorPanel {
         } else {
             format!(" Ln {}, Col {} ", cursor_row + 1, cursor_col + 1)
         };
+
+        // Diagnostic message for cursor line (if any)
+        let diag_msg = self
+            .diagnostics
+            .most_severe_on_line(self.buffer.cursor().0)
+            .map(|d| {
+                let icon = match d.severity {
+                    DiagnosticSeverity::Error => "● ",
+                    DiagnosticSeverity::Warning => "▲ ",
+                    DiagnosticSeverity::Hint => "◆ ",
+                };
+                let color = match d.severity {
+                    DiagnosticSeverity::Error => Color::Rgb(243, 139, 168),
+                    DiagnosticSeverity::Warning => Color::Rgb(249, 226, 175),
+                    DiagnosticSeverity::Hint => Color::Rgb(137, 180, 250),
+                };
+                let text = format!("{}{}: {} ", icon, d.code, d.message);
+                (text, color)
+            });
+
         let status_right = format!(" {} | nika/workflow ", mode_str);
 
-        // Calculate padding for right-alignment
-        let padding = status_area.width as usize - status_left.len() - status_right.len();
-        let padding_str = " ".repeat(padding.max(0));
+        // Calculate padding for right-alignment (account for diagnostic message width)
+        let diag_width = diag_msg.as_ref().map_or(0, |(text, _)| text.len());
+        let used = status_left.len() + diag_width + status_right.len();
+        let padding = (status_area.width as usize).saturating_sub(used);
+        let padding_str = " ".repeat(padding);
 
-        let status_line = Line::from(vec![
-            Span::styled(status_left, Style::default().fg(theme.text_muted)),
-            Span::raw(padding_str),
-            Span::styled(status_right, Style::default().fg(theme.text_muted)),
-        ]);
+        let mut status_spans = vec![Span::styled(
+            status_left,
+            Style::default().fg(theme.text_muted),
+        )];
+        if let Some((text, color)) = diag_msg {
+            status_spans.push(Span::styled(text, Style::default().fg(color)));
+        }
+        status_spans.push(Span::raw(padding_str));
+        status_spans.push(Span::styled(
+            status_right,
+            Style::default().fg(theme.text_muted),
+        ));
+
+        let status_line = Line::from(status_spans);
 
         let status_paragraph = Paragraph::new(status_line)
             .style(Style::default().bg(theme.highlight).fg(theme.text_primary));
