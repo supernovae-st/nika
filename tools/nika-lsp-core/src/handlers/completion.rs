@@ -118,6 +118,55 @@ fn workflow_root_completions(prefix: &str) -> Vec<CompletionItem> {
             "Optional. Explicit dependency edges.",
             "7_edges",
         ),
+        item_snippet_fmt(
+            "provider",
+            CompletionItemKind::KEYWORD,
+            "provider: ${1|anthropic,openai,mistral,groq,deepseek,gemini,xai,native|}",
+            "Optional. Default LLM provider.",
+            "8_provider",
+        ),
+        item_snippet_fmt(
+            "model",
+            CompletionItemKind::KEYWORD,
+            "model: ${1:claude-sonnet-4-6}",
+            "Optional. Default model for all tasks.",
+            "8_model",
+        ),
+        item_snippet_fmt(
+            "description",
+            CompletionItemKind::KEYWORD,
+            "description: ${1:Workflow description}",
+            "Optional. Human-readable description.",
+            "9_description",
+        ),
+        item_snippet_fmt(
+            "skills",
+            CompletionItemKind::KEYWORD,
+            "skills:\n  ${1:alias}: ${2:./skills/skill.md}",
+            "Optional. Skill definitions for agent injection.",
+            "9_skills",
+        ),
+        item_snippet_fmt(
+            "agents",
+            CompletionItemKind::KEYWORD,
+            "agents:\n  ${1:agent-name}:\n    system: ${2:persona}\n    tools: [${3}]",
+            "Optional. Reusable agent definitions.",
+            "9_agents",
+        ),
+        item_snippet_fmt(
+            "artifacts",
+            CompletionItemKind::KEYWORD,
+            "artifacts:\n  ${1:default}:\n    path: ${2:./output}",
+            "Optional. Artifact output defaults.",
+            "9_artifacts",
+        ),
+        item_snippet_fmt(
+            "log",
+            CompletionItemKind::KEYWORD,
+            "log:\n  level: ${1|info,debug,warn,error|}\n  format: ${2|json,text|}",
+            "Optional. Logging configuration.",
+            "9_log",
+        ),
     ];
     filter_by_prefix(items, prefix)
 }
@@ -327,6 +376,8 @@ fn verb_block_completions(verb: &str, prefix: &str) -> Vec<CompletionItem> {
             item_snippet_fmt("stop_sequences", CompletionItemKind::PROPERTY, "stop_sequences: [${1}]", "Sequences that stop generation.", "5_stop_sequences"),
             item_snippet_fmt("scope", CompletionItemKind::PROPERTY, "scope: ${1}", "Agent scope preset.", "5_scope"),
             item_snippet_fmt("extended_thinking", CompletionItemKind::PROPERTY, "extended_thinking: true\nthinking_budget: ${1:8192}", "Enable extended thinking.", "6_extended_thinking"),
+            item_snippet_fmt("thinking_budget", CompletionItemKind::PROPERTY, "thinking_budget: ${1:8192}", "Token budget for extended thinking.", "6_thinking_budget"),
+            item_snippet_fmt("from", CompletionItemKind::PROPERTY, "from: ${1:agent-name}", "Reference a reusable agent definition.", "7_from"),
         ],
         _ => vec![],
     };

@@ -31,7 +31,7 @@ pub fn definition(text: &str, _offset: u32, context: &CursorContext) -> Option<D
             if name.contains('[') || name.contains(']') || name.contains(',') {
                 // Extract the last word (task ID the cursor is likely on)
                 let last = name
-                    .rsplit(|c: char| c == '[' || c == ',' || c == ' ')
+                    .rsplit(['[', ',', ' '])
                     .next()
                     .unwrap_or("")
                     .trim()

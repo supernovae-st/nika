@@ -266,11 +266,8 @@
           "description": "Model override for this task"
         },
         "retry": {
-          "type": "object",
-          "properties": {
-            "max_retries": { "type": "integer", "minimum": 0, "maximum": 10 },
-            "delay": { "type": "integer", "minimum": 0, "description": "Delay in seconds between retries" }
-          }
+          "$ref": "#/$defs/RetryConfig",
+          "description": "Retry configuration for this task (v0.19+)"
         },
         "depends_on": {
           "type": "array",

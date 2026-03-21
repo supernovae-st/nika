@@ -62,17 +62,20 @@ const TASK_KEYS: &[&str] = &[
     "decompose",
     "skills",
     "completion",
+    "log",
 ];
 const VERB_SUBKEYS: &[&str] = &[
     "prompt",
     "system",
     "temperature",
     "max_tokens",
+    "thinking",
     "extended_thinking",
     "thinking_budget",
     "command",
     "shell",
     "cwd",
+    "working_dir",
     "url",
     "method",
     "headers",
@@ -82,10 +85,12 @@ const VERB_SUBKEYS: &[&str] = &[
     "response",
     "follow_redirects",
     "mcp",
+    "server",
     "tool",
     "params",
     "resource",
     "max_turns",
+    "max_iterations",
     "depth_limit",
     "tools",
     "goal",
@@ -99,6 +104,19 @@ const VERB_SUBKEYS: &[&str] = &[
     "from",
     "token_budget",
     "stop_sequences",
+    // Retry sub-fields
+    "max_attempts",
+    "delay",
+    "delay_ms",
+    "backoff",
+    "backoff_multiplier",
+    // Decompose sub-fields
+    "strategy",
+    "traverse",
+    "mcp_server",
+    "max_items",
+    "max_depth",
+    // Guardrails sub-fields
     "judge_prompt",
     "judge_model",
     "pass_pattern",
@@ -112,6 +130,9 @@ const VERB_SUBKEYS: &[&str] = &[
     "max_cost_usd",
     "max_duration_secs",
     "save_progress",
+    // Content part fields
+    "type",
+    "text",
 ];
 
 pub fn semantic_tokens(text: &str) -> Vec<RawToken> {
@@ -174,9 +195,7 @@ pub fn semantic_tokens(text: &str) -> Vec<RawToken> {
                 TokenType::Verb
             } else if indent == 0 && TOP_KEYS.contains(&key) {
                 TokenType::Keyword
-            } else if TASK_KEYS.contains(&key) {
-                TokenType::Property
-            } else if VERB_SUBKEYS.contains(&key) {
+            } else if TASK_KEYS.contains(&key) || VERB_SUBKEYS.contains(&key) {
                 TokenType::Property
             } else if key == "type" {
                 TokenType::Type

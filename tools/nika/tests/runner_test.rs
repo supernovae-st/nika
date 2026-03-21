@@ -150,7 +150,7 @@ tasks:
         let task = &workflow.tasks[0];
         let fe = task.for_each.as_ref().unwrap();
 
-        assert_eq!(fe.parallel, Some(3));
+        assert_eq!(fe.concurrency, Some(3));
         assert!(!fe.fail_fast);
     }
 
@@ -171,7 +171,7 @@ tasks:
         let fe = task.for_each.as_ref().unwrap();
 
         // Default concurrency is 1 (sequential)
-        assert_eq!(fe.parallel, Some(1));
+        assert_eq!(fe.concurrency, Some(1));
         // Default fail_fast is true
         assert!(fe.fail_fast);
     }

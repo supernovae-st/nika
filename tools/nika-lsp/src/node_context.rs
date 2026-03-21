@@ -26,8 +26,8 @@ pub enum AstContext {
         task_id: Option<String>,
     },
 
-    /// Cursor is in a `use:` block, referencing other tasks
-    UseBlock {
+    /// Cursor is in a `with:` block, referencing other tasks
+    WithBlock {
         /// The alias being typed (if any)
         alias: Option<String>,
         /// Partial task reference being typed
@@ -156,7 +156,7 @@ pub fn find_context_at_position(content: &str, line: u32, character: u32) -> Con
                 if let Some(ref with_refs) = task.value.with_refs {
                     if offset_in_span(offset, &with_refs.span) {
                         return ContextResult {
-                            context: AstContext::UseBlock {
+                            context: AstContext::WithBlock {
                                 alias: None, // Would need finer span tracking
                                 partial_ref: word_at_cursor.clone(),
                             },
@@ -263,9 +263,9 @@ fn fallback_context_detection(
     let trimmed = current_line.trim();
 
     // Check for common patterns
-    if trimmed.starts_with("use:") || trimmed.starts_with("- ") && current_line.contains("use:") {
+    if trimmed.starts_with("with:") || trimmed.starts_with("- ") && current_line.contains("with:") {
         return ContextResult {
-            context: AstContext::UseBlock {
+            context: AstContext::WithBlock {
                 alias: None,
                 partial_ref: word_at_cursor.clone(),
             },
@@ -379,7 +379,7 @@ mod tests {
 
     #[test]
     fn test_workflow_root_context() {
-        let yaml = r#"schema: "nika/workflow@0.10"
+        let yaml = r#"schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -396,7 +396,7 @@ tasks:
 
     #[test]
     fn test_task_verb_context() {
-        let yaml = r#"schema: "nika/workflow@0.10"
+        let yaml = r#"schema: "nika/workflow@0.12"
 tasks:
   - id: test
     infer: "Hello"
@@ -411,29 +411,29 @@ tasks:
     }
 
     #[test]
-    fn test_use_block_context() {
-        let yaml = r#"schema: "nika/workflow@0.10"
+    fn test_with_block_context() {
+        let yaml = r#"schema: "nika/workflow@0.12"
 tasks:
   - id: first
     infer: "Step 1"
   - id: second
-    use:
-      data: first
+    with:
+      data: $first
     infer: "Step 2"
 "#;
-        // Position at line 6 (use:), after "data: "
+        // Position at line 6 (with:), after "data: "
         let result = find_context_at_position(yaml, 6, 10);
-        // Check it's some kind of use or task context
+        // Check it's some kind of with or task context
         // The exact detection depends on span boundaries
         assert!(
-            matches!(result.context, AstContext::UseBlock { .. })
+            matches!(result.context, AstContext::WithBlock { .. })
                 || matches!(result.context, AstContext::TaskVerb { .. })
         );
     }
 
     #[test]
     fn test_mcp_config_context() {
-        let yaml = r#"schema: "nika/workflow@0.10"
+        let yaml = r#"schema: "nika/workflow@0.12"
 mcp:
   servers:
     novanet:
@@ -449,7 +449,7 @@ tasks:
 
     #[test]
     fn test_invoke_context() {
-        let yaml = r#"schema: "nika/workflow@0.10"
+        let yaml = r#"schema: "nika/workflow@0.12"
 mcp:
   servers:
     novanet:
@@ -471,13 +471,13 @@ tasks:
     #[test]
     fn test_fallback_on_malformed_yaml() {
         // Incomplete YAML that won't parse
-        let yaml = r#"schema: "nika/workflow@0.10"
+        let yaml = r#"schema: "nika/workflow@0.12"
 tasks:
   - id: test
-    use:
+    with:
       data:
 "#;
-        // Should still detect use: context via fallback
+        // Should still detect with: context via fallback
         let result = find_context_at_position(yaml, 4, 10);
         // Fallback should detect something useful
         assert!(!matches!(result.context, AstContext::Unknown));
@@ -485,7 +485,7 @@ tasks:
 
     #[test]
     fn test_word_at_cursor() {
-        let yaml = r#"schema: "nika/workflow@0.10"
+        let yaml = r#"schema: "nika/workflow@0.12"
 provider: claude
 "#;
         let result = find_context_at_position(yaml, 1, 11);
@@ -494,11 +494,11 @@ provider: claude
 
     #[test]
     fn test_for_each_context() {
-        let yaml = r#"schema: "nika/workflow@0.10"
+        let yaml = r#"schema: "nika/workflow@0.12"
 tasks:
   - id: parallel
     for_each: ["a", "b", "c"]
-    infer: "Process {{use.item}}"
+    infer: "Process {{with.item}}"
 "#;
         let result = find_context_at_position(yaml, 3, 14);
         assert!(
@@ -509,7 +509,7 @@ tasks:
 
     #[test]
     fn test_schema_context() {
-        let yaml = r#"schema: "nika/workflow@0.10"
+        let yaml = r#"schema: "nika/workflow@0.12"
 tasks:
   - id: test
     infer: "Hello"
@@ -551,7 +551,7 @@ tasks:
 
     #[test]
     fn test_provider_context_in_infer() {
-        let yaml = r#"schema: "nika/workflow@0.10"
+        let yaml = r#"schema: "nika/workflow@0.12"
 tasks:
   - id: test
     provider: openai
@@ -570,7 +570,7 @@ tasks:
 
     #[test]
     fn test_agent_context() {
-        let yaml = r#"schema: "nika/workflow@0.10"
+        let yaml = r#"schema: "nika/workflow@0.12"
 tasks:
   - id: research
     agent:

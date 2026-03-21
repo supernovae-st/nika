@@ -189,6 +189,9 @@ fn field_hover(prefix: &str) -> Option<HoverResult> {
         "tool_choice" => "## `tool_choice:` — Tool Selection Mode\n\nControl agent tool usage.\n\n`auto` (default) · `required` · `none`",
         "scope" => "## `scope:` — Agent Scope Preset\n\n`full` (all tools) · `minimal` (restricted) · `debug` (verbose logging)",
         "resource" => "## `resource:` — MCP Resource URI\n\nRead a resource from an MCP server (mutually exclusive with `tool:`).\n\n```yaml\ninvoke:\n  mcp: novanet\n  resource: \"novanet://entity/qr-code\"\n```",
+        "provider" => "## `provider:` — Task Provider Override\n\nOverride the default LLM provider for this task.\n\n```yaml\nprovider: openai\n```\n\n**Providers:** `anthropic` · `openai` · `mistral` · `groq` · `deepseek` · `gemini` · `xai` · `native`",
+        "model" => "## `model:` — Task Model Override\n\nOverride the default model for this task.\n\n```yaml\nmodel: gpt-4o\n```",
+        "log" => "## `log:` — Task Logging Override\n\nOverride logging configuration for this task.\n\n```yaml\nlog:\n  level: debug\n```",
         _ => return None,
     };
     Some(HoverResult {

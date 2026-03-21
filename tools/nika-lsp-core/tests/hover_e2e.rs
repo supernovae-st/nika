@@ -164,7 +164,7 @@ tasks:
     };
     let r = hover(yaml, 0, &field_ctx);
     assert!(r.is_some(), "hover on 'id' field should return doc");
-    assert!(r.unwrap().contents.contains("Task ID"));
+    assert!(r.unwrap().contents.contains("Task Identifier"));
 }
 
 #[test]
@@ -212,7 +212,7 @@ fn hover_task_field_for_each() {
     };
     let r = hover("", 0, &ctx);
     assert!(r.is_some(), "hover on 'for_each' task field");
-    assert!(r.unwrap().contents.contains("Loop"));
+    assert!(r.unwrap().contents.contains("Parallel Iteration"));
 }
 
 #[test]
@@ -295,8 +295,7 @@ fn hover_content_image_detail() {
 }
 
 #[test]
-fn hover_content_image_url_returns_none() {
-    // ImageUrl and PartField are unmatched by content_hover -> None.
+fn hover_content_image_url() {
     let ctx = CursorContext::ContentPart {
         task_id: None,
         focus: ContentFocus::ImageUrl,
@@ -304,11 +303,12 @@ fn hover_content_image_url_returns_none() {
         prefix: "url:".into(),
     };
     let r = hover("", 0, &ctx);
-    assert!(r.is_none(), "ImageUrl focus should return None currently");
+    assert!(r.is_some(), "ImageUrl focus should return hover doc");
+    assert!(r.unwrap().contents.contains("Image URL"));
 }
 
 #[test]
-fn hover_content_part_field_returns_none() {
+fn hover_content_part_field() {
     let ctx = CursorContext::ContentPart {
         task_id: None,
         focus: ContentFocus::PartField,
@@ -316,7 +316,8 @@ fn hover_content_part_field_returns_none() {
         prefix: "text:".into(),
     };
     let r = hover("", 0, &ctx);
-    assert!(r.is_none(), "PartField focus should return None currently");
+    assert!(r.is_some(), "PartField focus should return hover doc");
+    assert!(r.unwrap().contents.contains("Content Part"));
 }
 
 #[test]
@@ -450,7 +451,7 @@ fn hover_with_block() {
     };
     let r = hover("", 0, &ctx);
     assert!(r.is_some(), "with block hover");
-    assert!(r.unwrap().contents.contains("with:"));
+    assert!(r.unwrap().contents.contains("Binding"));
 }
 
 #[test]
@@ -483,7 +484,7 @@ fn hover_template_expression() {
     };
     let r = hover("", 0, &ctx);
     assert!(r.is_some(), "template expression hover");
-    assert!(r.unwrap().contents.contains("Template"));
+    assert!(r.unwrap().contents.contains("Binding Reference"));
 }
 
 #[test]
@@ -566,39 +567,42 @@ fn hover_offset_past_end_returns_none() {
 // ===========================================================================
 
 #[test]
-fn hover_depends_on_context_returns_none() {
+fn hover_depends_on_context() {
     let ctx = CursorContext::DependsOn {
         task_id: None,
         existing_deps: vec!["step1".into()],
         prefix: "- ste".into(),
     };
     let r = hover("", 0, &ctx);
-    assert!(r.is_none(), "DependsOn context not handled by hover");
+    assert!(r.is_some(), "DependsOn context should return hover doc");
+    assert!(r.unwrap().contents.contains("Execution Dependencies"));
 }
 
 #[test]
-fn hover_for_each_context_returns_none() {
+fn hover_for_each_context() {
     let ctx = CursorContext::ForEach {
         task_id: None,
         loop_var: Some("item".into()),
         prefix: "items:".into(),
     };
     let r = hover("", 0, &ctx);
-    assert!(r.is_none(), "ForEach context not handled by hover");
+    assert!(r.is_some(), "ForEach context should return hover doc");
+    assert!(r.unwrap().contents.contains("Parallel Iteration"));
 }
 
 #[test]
-fn hover_mcp_config_returns_none() {
+fn hover_mcp_config() {
     let ctx = CursorContext::McpConfig {
         server_name: Some("novanet".into()),
         prefix: "command:".into(),
     };
     let r = hover("", 0, &ctx);
-    assert!(r.is_none(), "McpConfig context not handled by hover");
+    assert!(r.is_some(), "McpConfig should return MCP hover doc");
+    assert!(r.unwrap().contents.contains("MCP"));
 }
 
 #[test]
-fn hover_invoke_block_returns_none() {
+fn hover_invoke_block() {
     use nika_lsp_core::analysis::context::InvokeFocus;
     let ctx = CursorContext::InvokeBlock {
         task_id: None,
@@ -608,7 +612,8 @@ fn hover_invoke_block_returns_none() {
         prefix: String::new(),
     };
     let r = hover("", 0, &ctx);
-    assert!(r.is_none(), "InvokeBlock context not handled by hover");
+    assert!(r.is_some(), "InvokeBlock should return invoke verb hover");
+    assert!(r.unwrap().contents.contains("MCP"));
 }
 
 // ===========================================================================

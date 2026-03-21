@@ -658,7 +658,7 @@ tasks:
 
     let for_each = task.for_each.as_ref().unwrap();
     assert_eq!(for_each.as_var, "current_item");
-    assert_eq!(for_each.parallel, Some(3));
+    assert_eq!(for_each.concurrency, Some(3));
 }
 
 #[test]

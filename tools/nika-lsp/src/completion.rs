@@ -47,7 +47,7 @@ pub enum CompletionContext {
 fn ast_context_to_completion(ast_ctx: &AstContext, word: &str) -> CompletionContext {
     match ast_ctx {
         AstContext::TaskVerb { .. } => CompletionContext::TaskVerb,
-        AstContext::UseBlock { partial_ref, .. } => CompletionContext::UseReference {
+        AstContext::WithBlock { partial_ref, .. } => CompletionContext::UseReference {
             partial: partial_ref.clone(),
         },
         AstContext::McpConfig { .. } => CompletionContext::McpServer,
