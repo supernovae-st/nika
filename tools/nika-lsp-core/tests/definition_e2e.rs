@@ -662,3 +662,199 @@ tasks:
     let r5 = definition(yaml, tpl_offset, &ctx).expect("template -> enrich");
     assert_jumps_to_task(yaml, &r5, "enrich");
 }
+
+// ===========================================================================
+// 9. agent: from: -> jumps to agents: block definition
+// ===========================================================================
+
+#[test]
+fn agent_from_jumps_to_agents_block() {
+    let yaml = "\
+schema: nika/workflow@0.12
+agents:
+  researcher:
+    system: \"You are a researcher\"
+tasks:
+  - id: step1
+    agent:
+      from: researcher
+      prompt: \"Research this topic\"
+";
+    // Place offset on the `from: researcher` line so extract_field_value finds it.
+    let from_pos = yaml.find("from: researcher").expect("from: line must exist");
+    let offset = (from_pos + "from: res".len()) as u32;
+    let ctx = CursorContext::VerbBlock {
+        task_id: Some("step1".to_string()),
+        verb: "agent".to_string(),
+        existing_subfields: vec![],
+        prefix: "from:".to_string(),
+    };
+    let result = definition(yaml, offset, &ctx).expect("should jump to agent definition");
+    let span = &yaml[result.offset as usize..result.end_offset as usize];
+    assert!(
+        span.contains("researcher"),
+        "expected span to contain 'researcher', got: {span:?}"
+    );
+    assert!(
+        result.file.is_none(),
+        "expected same-file jump (file == None)"
+    );
+}
+
+// ===========================================================================
+// 10. mcp config -> jumps to server definition
+// ===========================================================================
+
+#[test]
+fn mcp_config_jumps_to_server() {
+    let yaml = "\
+schema: nika/workflow@0.12
+mcp:
+  novanet:
+    command: node
+tasks:
+  - id: step1
+    invoke:
+      mcp: novanet
+      tool: search
+";
+    let ctx = CursorContext::McpConfig {
+        server_name: Some("novanet".to_string()),
+        prefix: String::new(),
+    };
+    let result = definition(yaml, 0, &ctx).expect("should find mcp server definition");
+    let span = &yaml[result.offset as usize..result.end_offset as usize];
+    assert!(
+        span.contains("novanet"),
+        "expected span to contain 'novanet', got: {span:?}"
+    );
+    assert!(
+        result.file.is_none(),
+        "expected same-file jump (file == None)"
+    );
+}
+
+// ===========================================================================
+// 11. {{inputs.topic}} template -> jumps to inputs: root key
+// ===========================================================================
+
+#[test]
+fn template_inputs_jumps_to_inputs_block() {
+    let yaml = "\
+schema: nika/workflow@0.12
+inputs:
+  topic:
+    type: string
+    default: AI
+tasks:
+  - id: step1
+    infer:
+      prompt: \"Write about {{inputs.topic}}\"
+";
+    let ctx = CursorContext::Template {
+        task_id: Some("step1".to_string()),
+        available_bindings: vec![],
+        partial_expr: "inputs.topic".to_string(),
+        in_transform_chain: false,
+    };
+    let result = definition(yaml, 0, &ctx).expect("should jump to inputs: root key");
+    let span = &yaml[result.offset as usize..result.end_offset as usize];
+    assert!(
+        span.starts_with("inputs:"),
+        "expected span to start with 'inputs:', got: {span:?}"
+    );
+    assert!(
+        result.file.is_none(),
+        "expected same-file jump (file == None)"
+    );
+}
+
+// ===========================================================================
+// 12. {{context.files.brand}} template -> jumps to context: root key
+// ===========================================================================
+
+#[test]
+fn template_context_jumps_to_context_block() {
+    let yaml = "\
+schema: nika/workflow@0.12
+context:
+  files:
+    brand: ./brand.md
+tasks:
+  - id: step1
+    infer:
+      prompt: \"Use {{context.files.brand}} as reference\"
+";
+    let ctx = CursorContext::Template {
+        task_id: Some("step1".to_string()),
+        available_bindings: vec![],
+        partial_expr: "context.files.brand".to_string(),
+        in_transform_chain: false,
+    };
+    let result = definition(yaml, 0, &ctx).expect("should jump to context: root key");
+    let span = &yaml[result.offset as usize..result.end_offset as usize];
+    assert!(
+        span.starts_with("context:"),
+        "expected span to start with 'context:', got: {span:?}"
+    );
+    assert!(
+        result.file.is_none(),
+        "expected same-file jump (file == None)"
+    );
+}
+
+// ===========================================================================
+// 13. depends_on array prefix -> finds last task ID
+// ===========================================================================
+
+#[test]
+fn depends_on_array_finds_last_id() {
+    let yaml = "\
+schema: nika/workflow@0.12
+tasks:
+  - id: step1
+    exec:
+      command: echo one
+  - id: step2
+    exec:
+      command: echo two
+  - id: step3
+    depends_on: [step1, step2]
+    infer:
+      prompt: combine results
+";
+    let ctx = CursorContext::DependsOn {
+        task_id: Some("step3".to_string()),
+        existing_deps: vec![],
+        prefix: "[step1, step2".to_string(),
+    };
+    let result = definition(yaml, 0, &ctx).expect("should find step2 from array prefix");
+    assert_jumps_to_task(yaml, &result, "step2");
+}
+
+// ===========================================================================
+// 14. with: $ref -> traces through binding to task definition
+// ===========================================================================
+
+#[test]
+fn with_ref_traces_through_binding() {
+    let yaml = "\
+schema: nika/workflow@0.12
+tasks:
+  - id: step1
+    exec:
+      command: echo hello
+  - id: step2
+    with:
+      result: $step1
+    infer:
+      prompt: \"Got {{with.result}}\"
+";
+    let ctx = CursorContext::WithBlock {
+        task_id: Some("step2".to_string()),
+        alias: Some("result".to_string()),
+        partial_ref: "$step1".to_string(),
+    };
+    let result = definition(yaml, 0, &ctx).expect("should trace $step1 to task definition");
+    assert_jumps_to_task(yaml, &result, "step1");
+}
