@@ -70,7 +70,7 @@ pub fn server_capabilities() -> ServerCapabilities {
 
         // Features we don't support yet
         signature_help_provider: None,
-        references_provider: None,
+        references_provider: Some(OneOf::Left(true)),
         document_highlight_provider: None,
         document_formatting_provider: None,
         document_range_formatting_provider: None,
@@ -99,7 +99,12 @@ pub fn server_capabilities() -> ServerCapabilities {
         code_lens_provider: Some(CodeLensOptions {
             resolve_provider: Some(false),
         }),
-        document_link_provider: None,
+        document_link_provider: Some(DocumentLinkOptions {
+            resolve_provider: Some(false),
+            work_done_progress_options: WorkDoneProgressOptions {
+                work_done_progress: Some(false),
+            },
+        }),
         document_on_type_formatting_provider: None,
         declaration_provider: None,
         workspace_symbol_provider: None,

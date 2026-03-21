@@ -2385,7 +2385,5 @@ impl YamlEditorPanel {
     }
 }
 
-
-
 #[cfg(test)]
 mod tests;

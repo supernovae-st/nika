@@ -318,10 +318,7 @@ fn find_multiline_dep_references(
     // Check for `- <name>` pattern (list item without colon in the name)
     if let Some(item) = trimmed.strip_prefix("- ") {
         let dep = item.trim().trim_matches('"').trim_matches('\'');
-        if dep == task_id
-            && !dep.contains(':')
-            && is_inside_depends_on_block(text, line_num)
-        {
+        if dep == task_id && !dep.contains(':') && is_inside_depends_on_block(text, line_num) {
             if let Some(start_col) = find_value_column(lines[line_num], task_id) {
                 ranges.push(make_range(line_num, start_col, task_id.len()));
             }
@@ -343,7 +340,11 @@ fn find_with_references(
 
         // Check for $task_id or $task_id.field
         if let Some(after_dollar) = value.strip_prefix('$') {
-            let ref_id = after_dollar.split('.').next().unwrap_or(after_dollar).trim();
+            let ref_id = after_dollar
+                .split('.')
+                .next()
+                .unwrap_or(after_dollar)
+                .trim();
             if ref_id == task_id {
                 // Find the $ position in the original line and point to the task_id after it
                 if let Some(dollar_idx) = line.rfind('$') {
@@ -369,7 +370,7 @@ fn find_template_dollar_references(
         let abs_pos = search_start + pos;
         // The task_id starts after `{{$`
         let id_start = abs_pos + 3; // skip `{{$`
-        // Verify it ends with `}}` or `.something}}`
+                                    // Verify it ends with `}}` or `.something}}`
         let after = &line[id_start + task_id.len()..];
         if after.starts_with("}}") || after.starts_with('.') {
             ranges.push(make_range(line_num, id_start, task_id.len()));
@@ -392,7 +393,7 @@ fn find_template_alias_references(
         let abs_pos = search_start + pos;
         // The alias starts after `{{with.`
         let alias_start = abs_pos + 7; // skip `{{with.`
-        // Verify it ends with `}}` or `.field}}` or `|`
+                                       // Verify it ends with `}}` or `.field}}` or `|`
         let after = &line[alias_start + alias.len()..];
         if after.starts_with("}}")
             || after.starts_with('.')
@@ -652,7 +653,12 @@ mod tests {
     infer: "Something else""#;
         let refs = find_task_references(text, "lonely");
         // Should find only the definition itself
-        assert_eq!(refs.len(), 1, "Expected 1 reference (definition only), got: {:?}", refs);
+        assert_eq!(
+            refs.len(),
+            1,
+            "Expected 1 reference (definition only), got: {:?}",
+            refs
+        );
         assert_eq!(refs[0].start.line, 1);
     }
 

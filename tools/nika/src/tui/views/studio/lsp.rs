@@ -6,9 +6,7 @@
 use nika_lsp_core::analysis::context::detect_context;
 use nika_lsp_core::handler::LspHandler;
 
-use super::{
-    CodeActionDisplay, CodeActionState, CompletionEntry, HoverState, YamlEditorPanel,
-};
+use super::{CodeActionDisplay, CodeActionState, CompletionEntry, HoverState, YamlEditorPanel};
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // In-process LSP: Completion + Hover (Phase 4)

@@ -550,10 +550,7 @@ impl LanguageServer for NikaLanguageServer {
 
     // ===== Folding Ranges =====
 
-    async fn folding_range(
-        &self,
-        params: FoldingRangeParams,
-    ) -> Result<Option<Vec<FoldingRange>>> {
+    async fn folding_range(&self, params: FoldingRangeParams) -> Result<Option<Vec<FoldingRange>>> {
         let uri = &params.text_document.uri;
 
         let docs = self.documents.read().await;
@@ -580,6 +577,51 @@ impl LanguageServer for NikaLanguageServer {
             Ok(None)
         } else {
             Ok(Some(lenses))
+        }
+    }
+
+    // ===== References =====
+
+    async fn references(&self, params: ReferenceParams) -> Result<Option<Vec<Location>>> {
+        let uri = &params.text_document_position.text_document.uri;
+        let position = params.text_document_position.position;
+
+        let docs = self.documents.read().await;
+        let text = docs.get(uri).cloned().unwrap_or_default();
+
+        let task_id = match handlers::references::find_task_at_cursor(&text, position) {
+            Some(id) => id,
+            None => return Ok(None),
+        };
+
+        let ranges = handlers::references::find_task_references(&text, &task_id);
+        if ranges.is_empty() {
+            return Ok(None);
+        }
+
+        let locations: Vec<Location> = ranges
+            .into_iter()
+            .map(|range| Location {
+                uri: uri.clone(),
+                range,
+            })
+            .collect();
+        Ok(Some(locations))
+    }
+
+    // ===== Document Links =====
+
+    async fn document_link(&self, params: DocumentLinkParams) -> Result<Option<Vec<DocumentLink>>> {
+        let uri = &params.text_document.uri;
+
+        let docs = self.documents.read().await;
+        let text = docs.get(uri).cloned().unwrap_or_default();
+
+        let links = handlers::document_links::compute_document_links(&text);
+        if links.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(links))
         }
     }
 }

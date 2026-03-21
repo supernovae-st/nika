@@ -136,7 +136,10 @@ fn detect_block_folds(lines: &[&str], ranges: &mut Vec<FoldingRange>) {
         let starts_block = if trimmed.starts_with("- id:") {
             // Task item always starts a fold
             true
-        } else if SECTION_KEYS.iter().any(|k| trimmed == *k || trimmed.starts_with(k)) {
+        } else if SECTION_KEYS
+            .iter()
+            .any(|k| trimmed == *k || trimmed.starts_with(k))
+        {
             // Top-level or nested section key without inline value
             !has_inline_value(trimmed)
         } else if trimmed.contains(':') && !trimmed.starts_with('-') {
@@ -268,9 +271,7 @@ fn detect_comment_folds(lines: &[&str], ranges: &mut Vec<FoldingRange>) {
 #[cfg(feature = "lsp")]
 fn find_last_nonempty_line(lines: &[&str], from: usize, to: usize) -> Option<usize> {
     let to = to.min(lines.len());
-    (from..to)
-        .rev()
-        .find(|&j| !lines[j].trim().is_empty())
+    (from..to).rev().find(|&j| !lines[j].trim().is_empty())
 }
 
 #[cfg(test)]
@@ -312,9 +313,17 @@ tasks:
 
         let folds = fold_lines(text);
         // tasks: block (line 0 -> 3)
-        assert!(folds.contains(&(0, 3)), "tasks: block should fold: {:?}", folds);
+        assert!(
+            folds.contains(&(0, 3)),
+            "tasks: block should fold: {:?}",
+            folds
+        );
         // - id: step1 block (line 1 -> 3)
-        assert!(folds.contains(&(1, 3)), "task block should fold: {:?}", folds);
+        assert!(
+            folds.contains(&(1, 3)),
+            "task block should fold: {:?}",
+            folds
+        );
     }
 
     // ================================================================
@@ -333,11 +342,23 @@ tasks:
 
         let folds = fold_lines(text);
         // tasks: block spans line 0 -> 4
-        assert!(folds.contains(&(0, 4)), "tasks: block should span all tasks: {:?}", folds);
+        assert!(
+            folds.contains(&(0, 4)),
+            "tasks: block should span all tasks: {:?}",
+            folds
+        );
         // step1: line 1 -> 2
-        assert!(folds.contains(&(1, 2)), "first task should fold: {:?}", folds);
+        assert!(
+            folds.contains(&(1, 2)),
+            "first task should fold: {:?}",
+            folds
+        );
         // step2: line 3 -> 4
-        assert!(folds.contains(&(3, 4)), "second task should fold: {:?}", folds);
+        assert!(
+            folds.contains(&(3, 4)),
+            "second task should fold: {:?}",
+            folds
+        );
     }
 
     // ================================================================
@@ -357,7 +378,11 @@ tasks:
 
         let folds = fold_lines(text);
         // with: block line 2 -> 4
-        assert!(folds.contains(&(2, 4)), "with: block should fold: {:?}", folds);
+        assert!(
+            folds.contains(&(2, 4)),
+            "with: block should fold: {:?}",
+            folds
+        );
     }
 
     // ================================================================
@@ -378,13 +403,25 @@ mcp:
 
         let folds = fold_lines(text);
         // mcp: block line 0 -> 6
-        assert!(folds.contains(&(0, 6)), "mcp: should fold entire section: {:?}", folds);
+        assert!(
+            folds.contains(&(0, 6)),
+            "mcp: should fold entire section: {:?}",
+            folds
+        );
         // servers: block line 1 -> 6
         assert!(folds.contains(&(1, 6)), "servers: should fold: {:?}", folds);
         // novanet: block line 2 -> 4
-        assert!(folds.contains(&(2, 4)), "novanet: server should fold: {:?}", folds);
+        assert!(
+            folds.contains(&(2, 4)),
+            "novanet: server should fold: {:?}",
+            folds
+        );
         // perplexity: block line 5 -> 6
-        assert!(folds.contains(&(5, 6)), "perplexity: server should fold: {:?}", folds);
+        assert!(
+            folds.contains(&(5, 6)),
+            "perplexity: server should fold: {:?}",
+            folds
+        );
     }
 
     // ================================================================
@@ -407,7 +444,8 @@ tasks:
         // prompt: | block from line 3 -> 6
         assert!(
             folds.contains(&(3, 6)),
-            "multi-line string should fold: {:?}", folds
+            "multi-line string should fold: {:?}",
+            folds
         );
     }
 
@@ -443,7 +481,8 @@ tasks:
         // content: block line 3 -> 7
         assert!(
             folds.contains(&(3, 7)),
-            "content: array should fold: {:?}", folds
+            "content: array should fold: {:?}",
+            folds
         );
     }
 
@@ -493,7 +532,8 @@ schema: nika/workflow@0.12";
         // Comment block lines 0-2 with Comment kind
         assert!(
             kinds.contains(&(0, 2, Some(FoldingRangeKind::Comment))),
-            "comment block should fold with Comment kind: {:?}", kinds
+            "comment block should fold with Comment kind: {:?}",
+            kinds
         );
     }
 
@@ -535,7 +575,10 @@ tasks:
             folds.len() >= 8,
             "full workflow should have many folds, got {}: {:?}",
             folds.len(),
-            folds.iter().map(|r| (r.start_line, r.end_line)).collect::<Vec<_>>()
+            folds
+                .iter()
+                .map(|r| (r.start_line, r.end_line))
+                .collect::<Vec<_>>()
         );
     }
 }

@@ -1196,8 +1196,7 @@ pub fn resolve_for_shell<'a>(
             Ok(base_value) => {
                 // Auto-parse JSON strings (NIKA-253 fix, same as resolve()).
                 let effective_base =
-                    crate::binding::jsonpath::try_parse_json_str(&base_value)
-                        .unwrap_or(base_value);
+                    crate::binding::jsonpath::try_parse_json_str(&base_value).unwrap_or(base_value);
                 let mut value_ref: &Value = &effective_base;
                 let mut traversed_segments: SmallVec<[&str; 8]> = SmallVec::new();
                 traversed_segments.push(alias);
@@ -3770,12 +3769,7 @@ mod v028_template_tests {
         //
         // After the fix: auto-parse parses the JSON string into a Value::Object,
         // enabling .hash traversal.
-        let result = resolve(
-            "hash: {{with.chart_result.hash}}",
-            &bindings,
-            &store,
-        )
-        .unwrap();
+        let result = resolve("hash: {{with.chart_result.hash}}", &bindings, &store).unwrap();
         assert_eq!(
             result.as_ref(),
             "hash: blake3:af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262"
@@ -3808,17 +3802,10 @@ mod v028_template_tests {
         let mut with_values = FxHashMap::default();
         with_values.insert(
             "chart_out".to_string(),
-            Value::String(
-                r#"{"hash":"blake3:abc123","size_bytes":9999}"#.to_string(),
-            ),
+            Value::String(r#"{"hash":"blake3:abc123","size_bytes":9999}"#.to_string()),
         );
 
-        let result = resolve_with(
-            "{{chart_out.hash}}",
-            &with_values,
-            &ds,
-        )
-        .unwrap();
+        let result = resolve_with("{{chart_out.hash}}", &with_values, &ds).unwrap();
         assert_eq!(result.as_ref(), "blake3:abc123");
     }
 

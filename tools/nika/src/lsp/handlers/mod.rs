@@ -10,5 +10,6 @@ pub mod document_links;
 pub mod folding_ranges;
 pub mod hover;
 pub mod inlay_hints;
+pub mod references;
 pub mod semantic_tokens;
 pub mod symbols;

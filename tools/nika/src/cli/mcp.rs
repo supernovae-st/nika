@@ -9,13 +9,13 @@ use nika::{McpClient, McpConfig};
 /// MCP server management actions
 ///
 /// Manage MCP servers at global (~/.nika/mcp.yaml), project (.nika/mcp.yaml),
-/// or workflow levels. Supports 48 aliases for common MCP servers.
+/// or workflow levels. Supports 100 aliases for common MCP servers.
 #[derive(Subcommand)]
 pub enum McpAction {
     /// Add an MCP server to global or project config
     ///
     /// Supports aliases (neo4j, github, perplexity) or full npm packages.
-    /// Use `nika mcp aliases` to see all 48 available aliases.
+    /// Use `nika mcp aliases` to see all 100 available aliases.
     Add {
         /// Server name (alias like 'neo4j' or package like '@neo4j/mcp-neo4j')
         name: String,
@@ -78,9 +78,9 @@ pub enum McpAction {
         json: bool,
     },
 
-    /// List available MCP server aliases (48 total)
+    /// List available MCP server aliases (100 total)
     Aliases {
-        /// Filter by category (anthropic, databases, search, developer, productivity, ai)
+        /// Filter by category (anthropic, databases, search, developer, productivity, ai, image, communication, vectordb, analytics, ecommerce, cms, devops, social, maps)
         #[arg(short, long)]
         category: Option<String>,
     },
@@ -409,40 +409,57 @@ pub async fn handle_mcp_command(action: McpAction) -> Result<(), NikaError> {
         }
 
         McpAction::Aliases { category } => {
-            println!("{}", "MCP Server Aliases (48 total)".bold());
+            use nika::core::{pricing_label, McpPricing, CATEGORIES, MCP_ALIASES};
+
+            println!(
+                "{}",
+                format!("MCP Server Aliases ({} total)", MCP_ALIASES.len()).bold()
+            );
             println!("{}", "─".repeat(60));
+
+            // Helper: colorize pricing badge
+            let fmt_pricing = |p: McpPricing| -> colored::ColoredString {
+                match p {
+                    McpPricing::Free => pricing_label(p).green(),
+                    McpPricing::Freemium => pricing_label(p).yellow(),
+                    McpPricing::Paid => pricing_label(p).red(),
+                }
+            };
 
             if let Some(cat) = category {
                 let aliases = aliases_by_category(&cat);
                 if aliases.is_empty() {
+                    let known: Vec<&str> = CATEGORIES.iter().map(|(k, _)| *k).collect();
                     println!(
-                        "{} Unknown category '{}'. Available: anthropic, databases, search, developer, productivity, ai",
+                        "{} Unknown category '{}'. Available: {}",
                         "✗".red(),
-                        cat
+                        cat,
+                        known.join(", ")
                     );
                 } else {
                     println!();
                     println!("{}", cat.to_uppercase().bold());
-                    for (alias, package) in aliases {
-                        println!("  {:16} → {}", alias.cyan(), package.dimmed());
+                    for alias in aliases {
+                        println!(
+                            "  {:20} {:10} {}",
+                            alias.name.cyan(),
+                            fmt_pricing(alias.pricing),
+                            format!("-> {}", alias.package).dimmed()
+                        );
                     }
                 }
             } else {
-                // Show all categories
-                let categories = [
-                    ("anthropic", "Anthropic Official"),
-                    ("databases", "Databases"),
-                    ("search", "Search & Web"),
-                    ("developer", "Developer Tools"),
-                    ("productivity", "Productivity"),
-                    ("ai", "AI & Specialized"),
-                ];
-
-                for (cat_key, cat_name) in categories {
+                // Show all 15 categories
+                for (cat_key, cat_name) in CATEGORIES {
                     println!();
                     println!("{}", cat_name.bold());
-                    for (alias, package) in aliases_by_category(cat_key) {
-                        println!("  {:16} → {}", alias.cyan(), package.dimmed());
+                    for alias in aliases_by_category(cat_key) {
+                        println!(
+                            "  {:20} {:10} {}",
+                            alias.name.cyan(),
+                            fmt_pricing(alias.pricing),
+                            format!("-> {}", alias.package).dimmed()
+                        );
                     }
                 }
             }

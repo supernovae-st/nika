@@ -131,10 +131,13 @@ fn try_url_link(line: &str, line_idx: usize) -> Option<DocumentLink> {
 fn try_path_link(line: &str, line_idx: usize) -> Option<DocumentLink> {
     let trimmed = line.trim();
 
+    // Strip optional YAML list prefix (e.g., `- path:` → `path:`)
+    let key_part = trimmed.strip_prefix("- ").unwrap_or(trimmed);
+
     // Try both `path:` and `include:` prefixes
-    let (rest, tooltip) = if let Some(r) = trimmed.strip_prefix("path:") {
+    let (rest, tooltip) = if let Some(r) = key_part.strip_prefix("path:") {
         (r, "Open file")
-    } else if let Some(r) = trimmed.strip_prefix("include:") {
+    } else if let Some(r) = key_part.strip_prefix("include:") {
         (r, "Open included workflow")
     } else {
         return None;
@@ -183,11 +186,7 @@ fn try_path_link(line: &str, line_idx: usize) -> Option<DocumentLink> {
 ///
 /// Only active when inside a `context:` or `skills:` block.
 #[cfg(feature = "lsp")]
-fn try_section_file_link(
-    line: &str,
-    line_idx: usize,
-    section: Section,
-) -> Option<DocumentLink> {
+fn try_section_file_link(line: &str, line_idx: usize, section: Section) -> Option<DocumentLink> {
     let trimmed = line.trim();
 
     // Must be a key: value pair
@@ -238,10 +237,10 @@ fn try_section_file_link(
 /// Returns the inner value and whether quotes were present.
 #[cfg(feature = "lsp")]
 fn strip_quotes(s: &str) -> (&str, bool) {
-    if (s.starts_with('"') && s.ends_with('"')) || (s.starts_with('\'') && s.ends_with('\'')) {
-        if s.len() >= 2 {
-            return (&s[1..s.len() - 1], true);
-        }
+    if s.len() >= 2
+        && ((s.starts_with('"') && s.ends_with('"')) || (s.starts_with('\'') && s.ends_with('\'')))
+    {
+        return (&s[1..s.len() - 1], true);
     }
     (s, false)
 }
@@ -253,11 +252,7 @@ fn strip_quotes(s: &str) -> (&str, bool) {
 #[cfg(feature = "lsp")]
 fn find_value_range(line: &str, rest_trimmed: &str, value: &str, quoted: bool) -> (u32, u32) {
     // Find where `rest_trimmed` starts in the line
-    let rest_offset = if let Some(pos) = line.find(rest_trimmed) {
-        pos
-    } else {
-        0
-    };
+    let rest_offset = line.find(rest_trimmed).unwrap_or_default();
 
     if quoted {
         // Skip the opening quote
@@ -350,12 +345,14 @@ tasks:
         assert!(links
             .iter()
             .all(|l| l.tooltip.as_deref() == Some("Open context file")));
-        assert!(links
-            .iter()
-            .any(|l| l.target.as_ref().is_some_and(|u| u.as_str().contains("brand.md"))));
-        assert!(links
-            .iter()
-            .any(|l| l.target.as_ref().is_some_and(|u| u.as_str().contains("data.json"))));
+        assert!(links.iter().any(|l| l
+            .target
+            .as_ref()
+            .is_some_and(|u| u.as_str().contains("brand.md"))));
+        assert!(links.iter().any(|l| l
+            .target
+            .as_ref()
+            .is_some_and(|u| u.as_str().contains("data.json"))));
     }
 
     #[test]

@@ -89,7 +89,8 @@ pub use backend::{
     DownloadResult, LoadConfig, ModelInfo, NativeModelKind, PullProgress, VisionImage,
 };
 pub use mcp_aliases::{
-    aliases_by_category, list_aliases, resolve_alias, resolve_name, MCP_ALIASES,
+    aliases_by_category, list_aliases, pricing_label, resolve_alias, resolve_name, McpAlias,
+    McpPricing, CATEGORIES, MCP_ALIASES,
 };
 pub use mcp_config::{
     add_server_to_global, add_server_to_project, global_config_path, load_global_config,
