@@ -501,10 +501,17 @@ impl TuiState {
                 output_len,
                 call_id,
                 duration_ms,
-                cached: _,
+                cached,
                 is_error,
                 response,
             } => {
+                // Track MCP cache hit/miss
+                if *cached {
+                    self.metrics.mcp_cache_hits += 1;
+                } else {
+                    self.metrics.mcp_cache_misses += 1;
+                }
+
                 // Find and update the matching call by call_id
                 let tool_name = self
                     .mcp
@@ -700,13 +707,20 @@ impl TuiState {
             }
 
             EventKind::ProviderResponded {
+                task_id,
                 input_tokens,
                 output_tokens,
                 cache_read_tokens,
                 cost_usd,
                 ttft_ms,
+                finish_reason,
                 ..
             } => {
+                // Capture finish_reason on the task
+                if let Some(task) = self.tasks.get_mut(task_id.as_ref()) {
+                    task.finish_reason = Some(finish_reason.clone());
+                }
+
                 self.metrics.input_tokens += input_tokens;
                 self.metrics.output_tokens += output_tokens;
                 self.metrics.cache_read_tokens += cache_read_tokens;

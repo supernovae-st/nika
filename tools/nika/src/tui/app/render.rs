@@ -148,6 +148,7 @@ impl App {
                     let metrics = StatusMetrics::new()
                         .provider(provider)
                         .tokens(total_tokens)
+                        .cache_tokens(state.metrics.cache_read_tokens)
                         .mcp(mcp_connected, mcp_total)
                         .connection(if mcp_total > 0 {
                             ConnectionStatus::Connected

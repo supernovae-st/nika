@@ -913,6 +913,7 @@ fn test_reset_for_retry_resets_failed_tasks() {
             provider: None,
             model: None,
             prompt_len: None,
+            finish_reason: None,
         },
     );
     state.tasks.insert(
@@ -931,6 +932,7 @@ fn test_reset_for_retry_resets_failed_tasks() {
             provider: None,
             model: None,
             prompt_len: None,
+            finish_reason: None,
         },
     );
 
@@ -1232,6 +1234,7 @@ fn test_filtered_task_ids_matches_type() {
             provider: None,
             model: None,
             prompt_len: None,
+            finish_reason: None,
         },
     );
     state.tasks.insert(
@@ -1250,6 +1253,7 @@ fn test_filtered_task_ids_matches_type() {
             provider: None,
             model: None,
             prompt_len: None,
+            finish_reason: None,
         },
     );
 

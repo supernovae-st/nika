@@ -219,6 +219,8 @@ pub struct StatusMetrics {
     pub provider: Provider,
     /// Total tokens used in session
     pub tokens: Option<u64>,
+    /// Cache-read tokens (prompt caching)
+    pub cache_tokens: u64,
     /// Number of connected MCP servers
     pub mcp_connected: usize,
     /// Total MCP servers configured
@@ -245,6 +247,11 @@ impl StatusMetrics {
 
     pub fn tokens(mut self, tokens: u64) -> Self {
         self.tokens = Some(tokens);
+        self
+    }
+
+    pub fn cache_tokens(mut self, cache_tokens: u64) -> Self {
+        self.cache_tokens = cache_tokens;
         self
     }
 
@@ -585,6 +592,18 @@ impl Widget for StatusBar<'_> {
                     " tokens",
                     Style::default().fg(self.theme.text_secondary),
                 ));
+                // Show cache-read tokens when present
+                if metrics.cache_tokens > 0 {
+                    let cache_str = if metrics.cache_tokens >= 1_000 {
+                        format!(" (cache: {:.1}k)", metrics.cache_tokens as f64 / 1_000.0)
+                    } else {
+                        format!(" (cache: {})", metrics.cache_tokens)
+                    };
+                    right_spans.push(Span::styled(
+                        cache_str,
+                        Style::default().fg(self.theme.text_muted),
+                    ));
+                }
             }
 
             // MCP connection status

@@ -294,6 +294,8 @@ pub struct TaskState {
     pub model: Option<String>,
     /// Prompt length in chars
     pub prompt_len: Option<usize>,
+    /// Finish reason from provider (e.g., "stop", "max_tokens", "tool_use")
+    pub finish_reason: Option<String>,
 }
 
 impl TaskState {
@@ -312,6 +314,7 @@ impl TaskState {
             provider: None,
             model: None,
             prompt_len: None,
+            finish_reason: None,
         }
     }
 }
@@ -447,6 +450,10 @@ pub struct Metrics {
     pub cost_usd: f64,
     /// MCP call count by tool
     pub mcp_calls: HashMap<String, usize>,
+    /// MCP cache hits (responses served from cache)
+    pub mcp_cache_hits: u32,
+    /// MCP cache misses (responses fetched fresh)
+    pub mcp_cache_misses: u32,
     /// Token history (for sparkline)
     pub token_history: Vec<u64>,
     /// Latency history in ms (for sparkline)
