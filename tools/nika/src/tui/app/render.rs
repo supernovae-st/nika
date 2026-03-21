@@ -1,7 +1,7 @@
 //! App Frame Rendering
 //!
 //! Contains frame rendering logic for the unified TUI architecture.
-//! Studio, Runner, Chat, Settings (Scheduler removed)
+//! Studio, Command, Control (3-view architecture)
 
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::Style;
@@ -131,7 +131,7 @@ impl App {
                         .status(if paused { "PAUSED" } else { "" });
                     frame.render_widget(header, chunks[0]);
 
-                    // Render view content based on current view (4-view architecture)
+                    // Render view content based on current view (3-view architecture)
                     match current_view {
                         TuiView::Studio => {
                             studio_view.render(frame, chunks[1], state, theme);

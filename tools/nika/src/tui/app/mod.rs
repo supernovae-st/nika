@@ -94,7 +94,7 @@ pub struct App {
     pub(crate) retry_requested: bool,
     /// Launch wizard flag
     pub(crate) should_launch_wizard: bool,
-    // ═══ 4-View Architecture + Navigation 2.0 ═══
+    // ═══ 3-View Architecture + Navigation 2.0 ═══
     /// Current active view
     pub(crate) current_view: TuiView,
     /// Current input mode (Normal, Insert, Command, Search)
@@ -201,7 +201,7 @@ impl App {
             status_message: None,
             retry_requested: false,
             should_launch_wizard: false,
-            // 4-view architecture - start in Monitor mode for workflow execution
+            // 3-view architecture - start in Monitor mode for workflow execution
             current_view: TuiView::Command,
             input_mode: InputMode::Normal,
             command_view,
@@ -268,7 +268,7 @@ impl App {
             status_message: None,
             retry_requested: false,
             should_launch_wizard: false,
-            // 4-view architecture - start in Studio mode for standalone
+            // 3-view architecture - start in Studio mode for standalone
             current_view: TuiView::Studio,
             input_mode: InputMode::Normal,
             command_view,
@@ -375,14 +375,13 @@ impl App {
         self
     }
 
-    /// Run the TUI with unified 4-view architecture
+    /// Run the TUI with unified 3-view architecture
     ///
-    /// This is the new entry point that supports all 4 views with unified
+    /// This is the new entry point that supports all 3 views with unified
     /// navigation. The views are:
-    /// - Chat (1/a): AI agent conversation
-    /// - Home (2/h): Workflow browser
-    /// - Studio (3/s): YAML editor
-    /// - Monitor (4/m): Execution monitoring (existing 4-panel view)
+    /// - Studio (1/s): YAML editor + file browser
+    /// - Command (2/c): Chat + Monitor modes (Ctrl+M to toggle)
+    /// - Control (3/x): Configuration and preferences
     ///
     /// Returns `Ok(true)` if the wizard should be launched after TUI exit
     pub async fn run_unified(mut self) -> Result<bool> {

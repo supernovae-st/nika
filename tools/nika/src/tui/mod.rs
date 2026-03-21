@@ -1,32 +1,31 @@
 //! Terminal User Interface Module
 //!
-//! Feature-gated TUI with 4-view architecture.
+//! Feature-gated TUI with 3-view architecture.
 //!
 //! # Entry Points
 //!
 //! - `nika` → Studio view (3-panel: Browser | Editor | DAG)
-//! - `nika chat` → Chat view (conversational agent)
+//! - `nika chat` → Command view (Chat mode)
 //! - `nika studio` → Studio view (YAML editor)
-//! - `nika workflow.yaml` → Runner view (run workflow)
+//! - `nika workflow.yaml` → Command view (Monitor mode)
 //!
-//! # 4-View Architecture
+//! # 3-View Architecture
 //!
 //! ```text
 //! ┌─────────────────────────────────────────────────────────────────┐
-//! │  [1] Studio  │ [2] Runner │ [3] Chat │ [4] Settings            │
+//! │  [1] Studio  │ [2] Command │ [3] Control                       │
 //! ├─────────────────────────────────────────────────────────────────┤
 //! │                                                                 │
 //! │  Studio:    3-panel layout (Browser | Editor | DAG Preview)    │
-//! │  Runner:    Real-time execution monitor (DAG, Reasoning)       │
-//! │  Chat:      Conversational agent, 5-verb support, MCP tools    │
-//! │  Settings:  Configuration and preferences                      │
+//! │  Command:   Chat + Monitor modes (Ctrl+M to toggle)           │
+//! │  Control:   Configuration and preferences                      │
 //! │                                                                 │
 //! └─────────────────────────────────────────────────────────────────┘
 //! ```
 //!
 //! # Navigation
 //!
-//! - `1-4` - Switch views (Normal mode)
+//! - `1-3` - Switch views (Normal mode)
 //! - `?` - Show help
 //! - `Ctrl+C` (2x) - Quit
 //!
@@ -298,7 +297,7 @@ pub async fn run_tui(workflow_path: &std::path::Path) -> crate::error::Result<()
     });
 
     // 5. Create and run TUI with event receiver
-    // Use run_unified() for the 4-view architecture (Studio/Runner/Chat/Settings)
+    // Use run_unified() for the 3-view architecture (Studio/Command/Control)
     let app = App::new(workflow_path)?.with_broadcast_receiver(event_rx);
     let tui_result = app.run_unified().await.map(|_| ());
 
@@ -381,7 +380,7 @@ pub async fn run_tui_standalone() -> crate::error::Result<()> {
     // Create standalone state
     let state = StandaloneState::new(root);
 
-    // Create and run standalone app with unified 5-view architecture
+    // Create and run standalone app with unified 3-view architecture
     // Starts in Studio view (3-panel: Browser | Editor | DAG)
     let app = App::new_standalone(state)?;
     let launch_wizard = app.run_unified().await?;
@@ -464,7 +463,7 @@ pub async fn run_tui_studio(workflow: Option<std::path::PathBuf>) -> crate::erro
 /// Run the TUI with customizable options (view and workflow)
 ///
 /// This is the entry point for `nika ui [--view <view>] [workflow]` command.
-/// Supports all 4 views: Studio, Runner, Chat, Settings.
+/// Supports all 3 views: Studio, Command, Control.
 ///
 /// # Arguments
 ///
@@ -565,7 +564,7 @@ pub async fn run_tui_with_options(
 /// Run the TUI Setup Wizard (standalone)
 ///
 /// This is the entry point for `nika setup` command.
-/// Runs a full-screen setup wizard separate from the 4-view TUI.
+/// Runs a full-screen setup wizard separate from the 3-view TUI.
 #[cfg(feature = "tui")]
 pub async fn run_tui_wizard() -> crate::error::Result<()> {
     use crossterm::{

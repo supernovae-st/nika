@@ -2,11 +2,11 @@
 //!
 //! ```text
 //! ┌────────────────────────────────────────────────────────────────────────────┐
-//! │  🦋 NIKA │ 1:Studio │ 2:Runner │ 3:Chat │ 4:⚙                             │
+//! │  🦋 NIKA │ 1:Studio │ 2:Command │ 3:⚙                                     │
 //! └────────────────────────────────────────────────────────────────────────────┘
 //! ```
 //!
-//! 4-Views Architecture.
+//! 3-Views Architecture.
 
 use ratatui::{
     buffer::Buffer,
@@ -21,12 +21,11 @@ use crate::tui::theme::Theme;
 use crate::tui::views::TuiView;
 
 /// Tab names for each view
-/// Order: Studio, Runner, Chat, Settings
+/// Order: Studio, Command, Control
 const TAB_NAMES: &[(&str, TuiView)] = &[
     ("Studio", TuiView::Studio),
-    ("Runner", TuiView::Command),
-    ("Chat", TuiView::Command),
-    ("⚙", TuiView::Control), // Settings uses icon for brevity
+    ("Command", TuiView::Command),
+    ("⚙", TuiView::Control), // Control uses icon for brevity
 ];
 
 /// Header configuration
@@ -289,11 +288,10 @@ mod tests {
 
     #[test]
     fn test_tab_names_v022() {
-        // Verify 4-view architecture: Studio, Runner, Chat, Settings
-        assert_eq!(TAB_NAMES.len(), 4);
+        // Verify 3-view architecture: Studio, Command, Control
+        assert_eq!(TAB_NAMES.len(), 3);
         assert_eq!(TAB_NAMES[0], ("Studio", TuiView::Studio));
-        assert_eq!(TAB_NAMES[1], ("Runner", TuiView::Command));
-        assert_eq!(TAB_NAMES[2], ("Chat", TuiView::Command));
-        assert_eq!(TAB_NAMES[3], ("⚙", TuiView::Control));
+        assert_eq!(TAB_NAMES[1], ("Command", TuiView::Command));
+        assert_eq!(TAB_NAMES[2], ("⚙", TuiView::Control));
     }
 }

@@ -1,7 +1,7 @@
 //! Wizard View for Nika Setup
 //!
 //! Full-screen setup wizard launched via `nika setup`.
-//! NOT part of the 4-view TuiView navigation - runs standalone.
+//! NOT part of the 3-view TuiView navigation - runs standalone.
 //!
 //! # Option D Architecture (Hybrid)
 //!

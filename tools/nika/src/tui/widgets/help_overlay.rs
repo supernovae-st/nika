@@ -27,9 +27,8 @@ pub const HELP_SECTIONS: &[HelpSection] = &[
         keybindings: &[
             ("Tab / Shift+Tab", "Cycle views"),
             ("1 / s", "Studio"),
-            ("2 / r", "Runner"),
-            ("3 / c", "Chat"),
-            ("4 / ,", "Settings"),
+            ("2 / c", "Command"),
+            ("3 / x", "Control"),
             ("Ctrl+P", "Command palette"),
             ("?  or  F1", "Toggle help"),
             ("Escape", "Close overlay / Cancel"),
@@ -67,12 +66,13 @@ pub const HELP_SECTIONS: &[HelpSection] = &[
         ],
     },
     HelpSection {
-        title: "Runner View",
+        title: "Command View",
         keybindings: &[
             ("j / k", "Navigate tasks"),
             ("t", "Cycle sub-tab"),
             ("Enter", "Expand task detail"),
             ("Space", "Toggle section"),
+            ("Ctrl+M", "Toggle Chat/Monitor mode"),
         ],
     },
     HelpSection {

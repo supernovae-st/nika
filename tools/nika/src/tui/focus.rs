@@ -1,14 +1,14 @@
 //! Focus State for Panel Navigation
 //!
 //! Manages which panel is currently focused and provides Tab/Shift+Tab navigation.
-//! Updated for 4-Views Architecture
+//! Updated for 3-Views Architecture
 
 use super::views::TuiView;
 
-/// Panel identifiers for 4-view architecture
+/// Panel identifiers for 3-view architecture
 ///
 /// Each view has its own set of panels that can receive focus.
-/// Views: Studio (default), Runner, Chat, Settings
+/// Views: Studio (default), Command, Control
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PanelId {
     // ═══ Studio View (s) ═══

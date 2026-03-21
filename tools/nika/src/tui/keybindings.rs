@@ -269,7 +269,7 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
                 });
             }
         }
-        // Studio view (4-view architecture: unified 3-panel layout)
+        // Studio view (3-view architecture: unified 3-panel layout)
         TuiView::Studio => {
             if mode == InputMode::Normal {
                 bindings.push(Keybinding {
@@ -304,7 +304,7 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
                 });
             }
         }
-        // Settings is auxiliary view with minimal keybindings
+        // Control is auxiliary view with minimal keybindings
         TuiView::Control => {
             // Settings uses default navigation (Tab, Esc, arrows)
             // No additional view-specific bindings needed

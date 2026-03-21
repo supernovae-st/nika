@@ -1909,7 +1909,7 @@ impl YamlEditorPanel {
                 }
             }
             // View switching: number keys
-            // 1=Studio (current), 2=Runner, 3=Chat, 4=Settings
+            // 1=Studio (current), 2=Command, 3=Control
             KeyCode::Char('2') => ViewAction::SwitchView(TuiView::Command),
             KeyCode::Char('3') => ViewAction::SwitchView(TuiView::Command),
             KeyCode::Char('4') => ViewAction::SwitchView(TuiView::Control),
