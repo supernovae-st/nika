@@ -75,6 +75,9 @@ impl NikaLanguageServer {
             diagnostics.push(self.parse_error_to_diagnostic(&parse_error, text));
         }
 
+        // Check model compatibility (after Phase 2 analysis)
+        diagnostics.extend(self.model_compatibility_diagnostics(uri, text));
+
         // Publish diagnostics
         self.client
             .publish_diagnostics(uri.clone(), diagnostics, None)
@@ -113,6 +116,99 @@ impl NikaLanguageServer {
             data: None,
         }
     }
+
+    /// Check each task's model against the ModelCatalog for compatibility issues.
+    fn model_compatibility_diagnostics(&self, uri: &Uri, source: &str) -> Vec<Diagnostic> {
+        check_model_compatibility(&self.ast_index, uri, source)
+    }
+}
+
+/// Check each task's model against the ModelCatalog for compatibility issues.
+///
+/// Produces WARNING diagnostics for deprecated models (NIKA-033) and ERROR
+/// diagnostics for capability mismatches (NIKA-032), e.g. extended_thinking
+/// with a non-Claude model.
+///
+/// Extracted as a free function for testability (no `NikaLanguageServer` needed).
+#[cfg(feature = "lsp")]
+fn check_model_compatibility(ast_index: &AstIndex, uri: &Uri, source: &str) -> Vec<Diagnostic> {
+    use crate::ast::analyzed::{AnalyzedTaskAction, OutputFormat};
+    use crate::lsp::model_intel::{self, IssueSeverity, TaskModelConfig};
+
+    let cached = match ast_index.get(uri) {
+        Some(c) => c,
+        None => return Vec::new(),
+    };
+
+    let analyzed = match cached.analyzed.as_ref() {
+        Some(a) => a,
+        None => return Vec::new(),
+    };
+
+    let mut diagnostics = Vec::new();
+
+    for task in &analyzed.tasks {
+        // Build TaskModelConfig from the analyzed task
+        let model_id = task.model.clone();
+        if model_id.is_none() {
+            continue; // No model specified, nothing to check
+        }
+
+        let (extended_thinking, tool_choice_required) = match &task.action {
+            AnalyzedTaskAction::Infer(infer) => (infer.thinking.unwrap_or(false), false),
+            AnalyzedTaskAction::Agent(agent) => {
+                let et = agent.extended_thinking.unwrap_or(false);
+                let tc = agent
+                    .tool_choice
+                    .as_deref()
+                    .map_or(false, |v| v == "required");
+                (et, tc)
+            }
+            _ => (false, false),
+        };
+
+        let json_output = task
+            .output
+            .as_ref()
+            .map_or(false, |o| o.format == OutputFormat::Json);
+
+        let config = TaskModelConfig {
+            model_id,
+            provider: task.provider.clone(),
+            extended_thinking,
+            json_output,
+            tool_choice_required,
+        };
+
+        let issues = model_intel::check_compatibility(&config);
+        for issue in issues {
+            let severity = match issue.severity {
+                IssueSeverity::Error => DiagnosticSeverity::ERROR,
+                IssueSeverity::Warning => DiagnosticSeverity::WARNING,
+            };
+
+            // Use the task span for positioning
+            let range = span_to_range(&task.span, source);
+
+            diagnostics.push(Diagnostic {
+                range,
+                severity: Some(severity),
+                code: Some(NumberOrString::String(issue.code.to_string())),
+                code_description: None,
+                source: Some("nika".to_string()),
+                message: issue.message,
+                related_information: None,
+                tags: if issue.code == "NIKA-033" {
+                    Some(vec![DiagnosticTag::DEPRECATED])
+                } else {
+                    None
+                },
+                data: None,
+            });
+        }
+    }
+
+    diagnostics
 }
 
 #[cfg(feature = "lsp")]
@@ -363,5 +459,210 @@ mod tests {
     #[test]
     fn test_server_stub_compiles() {
         // Just verify the module compiles without lsp feature
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_deprecated_model_emits_warning_diagnostic() {
+        use super::*;
+        use tower_lsp_server::ls_types::Uri;
+
+        let ast_index = AstIndex::new();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
+        let text = r#"schema: nika/workflow@0.12
+workflow: test
+
+tasks:
+  - id: step1
+    model: gpt-4-turbo
+    infer: "Hello"
+"#;
+
+        ast_index.parse_document(&uri, text, 1);
+        let diags = check_model_compatibility(&ast_index, &uri, text);
+
+        assert!(
+            !diags.is_empty(),
+            "Should emit diagnostics for deprecated model"
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.severity == Some(DiagnosticSeverity::WARNING)
+                    && d.code == Some(NumberOrString::String("NIKA-033".to_string()))),
+            "Should have NIKA-033 warning for deprecated model: {:?}",
+            diags
+        );
+        // Check deprecated tag
+        let deprecated_diag = diags
+            .iter()
+            .find(|d| d.code == Some(NumberOrString::String("NIKA-033".to_string())))
+            .unwrap();
+        assert!(
+            deprecated_diag
+                .tags
+                .as_ref()
+                .map_or(false, |t| t.contains(&DiagnosticTag::DEPRECATED)),
+            "NIKA-033 should have DEPRECATED tag"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_extended_thinking_with_non_claude_emits_error() {
+        use super::*;
+        use tower_lsp_server::ls_types::Uri;
+
+        let ast_index = AstIndex::new();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
+        let text = r#"schema: nika/workflow@0.12
+workflow: test
+
+tasks:
+  - id: step1
+    model: gpt-4o
+    infer:
+      prompt: "Hello"
+      extended_thinking: true
+"#;
+
+        ast_index.parse_document(&uri, text, 1);
+        let diags = check_model_compatibility(&ast_index, &uri, text);
+
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.severity == Some(DiagnosticSeverity::ERROR)
+                    && d.code == Some(NumberOrString::String("NIKA-032".to_string()))),
+            "Should have NIKA-032 error for extended_thinking with non-Claude model: {:?}",
+            diags
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_extended_thinking_with_claude_no_error() {
+        use super::*;
+        use tower_lsp_server::ls_types::Uri;
+
+        let ast_index = AstIndex::new();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
+        let text = r#"schema: nika/workflow@0.12
+workflow: test
+
+tasks:
+  - id: step1
+    model: claude-sonnet-4-6
+    infer:
+      prompt: "Hello"
+      extended_thinking: true
+"#;
+
+        ast_index.parse_document(&uri, text, 1);
+        let diags = check_model_compatibility(&ast_index, &uri, text);
+
+        assert!(
+            !diags.iter().any(
+                |d| d.code == Some(NumberOrString::String("NIKA-032".to_string()))
+                    && d.severity == Some(DiagnosticSeverity::ERROR)
+            ),
+            "Should NOT have NIKA-032 error for Claude with extended_thinking"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_active_model_no_deprecation_diagnostic() {
+        use super::*;
+        use tower_lsp_server::ls_types::Uri;
+
+        let ast_index = AstIndex::new();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
+        let text = r#"schema: nika/workflow@0.12
+workflow: test
+
+tasks:
+  - id: step1
+    model: gpt-4o
+    infer: "Hello"
+"#;
+
+        ast_index.parse_document(&uri, text, 1);
+        let diags = check_model_compatibility(&ast_index, &uri, text);
+
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code == Some(NumberOrString::String("NIKA-033".to_string()))),
+            "Should NOT emit NIKA-033 for active model"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_no_model_no_diagnostics() {
+        use super::*;
+        use tower_lsp_server::ls_types::Uri;
+
+        let ast_index = AstIndex::new();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
+        let text = r#"schema: nika/workflow@0.12
+workflow: test
+
+tasks:
+  - id: step1
+    infer: "Hello"
+"#;
+
+        ast_index.parse_document(&uri, text, 1);
+        let diags = check_model_compatibility(&ast_index, &uri, text);
+
+        assert!(
+            diags.is_empty(),
+            "Should emit no model diagnostics when no model specified"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_unknown_model_no_diagnostics() {
+        use super::*;
+        use tower_lsp_server::ls_types::Uri;
+
+        let ast_index = AstIndex::new();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
+        let text = r#"schema: nika/workflow@0.12
+workflow: test
+
+tasks:
+  - id: step1
+    model: some-custom-model
+    infer: "Hello"
+"#;
+
+        ast_index.parse_document(&uri, text, 1);
+        let diags = check_model_compatibility(&ast_index, &uri, text);
+
+        assert!(
+            diags.is_empty(),
+            "Should emit no diagnostics for unknown/custom model"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_unparseable_document_no_crash() {
+        use super::*;
+        use tower_lsp_server::ls_types::Uri;
+
+        let ast_index = AstIndex::new();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
+        let text = "this is not valid yaml: [[[";
+
+        ast_index.parse_document(&uri, text, 1);
+        let diags = check_model_compatibility(&ast_index, &uri, text);
+
+        // Should not crash, just return empty
+        let _ = diags;
     }
 }
