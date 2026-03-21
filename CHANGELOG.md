@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### LSP — Phase C Intelligence + Full Sync
+
+#### Added
+- **Inlay hints** (5 types) — timeout seconds, binding source, dependency count, max_turns iterations, concurrency parallel
+- **CodeLens** (3 types) — "Validate" on schema line, "Run Workflow" on tasks line, task count badge
+- **Workflow root completions** — provider, model, description, skills, agents, artifacts, log now auto-complete at top level
+- **Agent completions** — `from:` (reusable agent ref) + `thinking_budget:` added
+- **Hover docs** — provider, model, log task-level overrides documented
+- **Semantic token keywords** — +20 keywords: aliases (thinking, working_dir, max_iterations, server), retry sub-fields (max_attempts, delay, backoff), decompose sub-fields (strategy, traverse, mcp_server, max_items, max_depth), content parts
+
+#### Fixed
+- **10 hover_e2e test failures** — updated test expectations to match expanded hover handler (DependsOn, ForEach, InvokeBlock, McpConfig, ContentFocus now return docs)
+- **Semantic token overflow** — tokens now sorted by (line, start_char) before delta-encoding (prevents subtraction overflow on interleaved tokens)
+- **Completion sort_text uniqueness** — root completions use unique sort keys (prevents non-deterministic ordering)
+- **Clippy** — char array pattern + identical if-block dedup across all 3 LSP crates
+
+#### Changed
+- **UseBlock → WithBlock** — standalone nika-lsp context detection updated from legacy `use:` to `with:` syntax
+- **Schema version** — standalone nika-lsp tests updated from v0.10 to v0.12
+- **Parse bridge** — `artifacts` and `log` added to `KNOWN_TOP_LEVEL_KEYS`
+- **TextMate grammar** — +3 task fields (provider, model, log) + ~20 verb sub-fields (aliases, retry config, decompose config)
+- **AST field renames** — `thinking` → `extended_thinking` (infer), `max_iterations` → `max_turns` (agent), `working_dir` → `cwd` (exec), `parallel` → `concurrency` (for_each)
+
 ### Performance (P0: TUI Quick Wins)
 
 5 targeted optimizations reducing per-frame rendering overhead:
