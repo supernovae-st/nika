@@ -1,7 +1,6 @@
 //! Editor Sync Contract Tests
 //!
 //! These tests define the expected behavior of `nika sync *` commands.
-//! After v0.28 fusion, `nika` is the primary CLI (spn is deprecated).
 //!
 //! # Tests (8 total)
 //!
@@ -44,7 +43,7 @@ fn contract_sync_detects_editors() {
     );
 }
 
-/// Contract: `spn sync` writes editor MCP config
+/// Contract: `nika sync` writes editor MCP config
 #[test]
 fn contract_sync_writes_config() {
     // Document the config locations:
@@ -94,7 +93,7 @@ fn contract_sync_status() {
     );
 }
 
-/// Contract: `spn sync --enable <editor>` enables editor sync
+/// Contract: `nika sync --enable <editor>` enables editor sync
 #[test]
 fn contract_sync_enable_editor() {
     let _output = run_nika(&["sync", "--enable", "--help"]);
@@ -115,7 +114,7 @@ fn contract_sync_enable_editor() {
     );
 }
 
-/// Contract: `spn sync --disable <editor>` disables editor sync
+/// Contract: `nika sync --disable <editor>` disables editor sync
 #[test]
 fn contract_sync_disable_editor() {
     let output = run_nika(&["sync", "--help"]);
@@ -134,7 +133,7 @@ fn contract_sync_disable_editor() {
     );
 }
 
-/// Contract: `spn sync --diff <editor>` shows pending changes
+/// Contract: `nika sync --diff <editor>` shows pending changes
 #[test]
 fn contract_sync_diff() {
     let output = run_nika(&["sync", "--help"]);

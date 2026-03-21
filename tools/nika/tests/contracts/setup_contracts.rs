@@ -148,7 +148,7 @@ fn contract_setup_nika() {
     );
 }
 
-/// Contract: `spn setup novanet` runs NovaNet-specific installer
+/// Contract: `nika setup novanet` runs NovaNet-specific installer
 #[test]
 fn contract_setup_novanet() {
     let output = run_nika(&["setup", "novanet", "--help"]);
@@ -216,7 +216,7 @@ fn contract_setup_creates_directories() {
 fn contract_setup_validates_completion() {
     // After setup completes, it should validate:
     // 1. At least one provider is configured
-    // 2. spn.yaml is valid (if created)
+    // 2. nika.yaml is valid (if created)
     // 3. Daemon can start (if configured)
 
     // This is a behavioral contract tested via doctor command

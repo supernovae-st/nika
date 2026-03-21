@@ -4,7 +4,7 @@
 //!
 //! # Tests (15 total)
 //!
-//! 1. provider list returns all 12 providers (Ollama removed in v0.27)
+//! 1. provider list returns all 13 providers (7 LLM + 6 MCP)
 //! 2. provider list shows status for each
 //! 3. provider set stores in keychain
 //! 4. provider get retrieves masked
@@ -22,7 +22,7 @@
 
 use super::common::{run_nika, KNOWN_PROVIDERS, LLM_PROVIDERS};
 
-/// Contract: `nika provider list` returns all 6 LLM providers
+/// Contract: `nika provider list` returns all 7 LLM providers
 #[test]
 fn contract_provider_list_returns_all_providers() {
     let output = run_nika(&["provider", "list"]);
@@ -31,7 +31,7 @@ fn contract_provider_list_returns_all_providers() {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
 
-    // All 6 LLM providers should be listed
+    // All 7 LLM providers should be listed
     // MCP providers (neo4j, github, etc.) are managed via `nika mcp`, not `nika provider`
     for provider in LLM_PROVIDERS {
         assert!(
@@ -260,6 +260,7 @@ fn contract_env_var_fallback_for_all_providers() {
         ("groq", "GROQ_API_KEY"),
         ("deepseek", "DEEPSEEK_API_KEY"),
         ("gemini", "GEMINI_API_KEY"),
+        ("xai", "XAI_API_KEY"),
         // NOTE: Ollama removed in v0.27 — use provider: native with mistral.rs instead
         ("neo4j", "NEO4J_PASSWORD"),
         ("github", "GITHUB_TOKEN"),
@@ -269,7 +270,7 @@ fn contract_env_var_fallback_for_all_providers() {
         ("supadata", "SUPADATA_API_KEY"),
     ];
 
-    // Verify the mapping is complete (12 providers after Ollama removal in v0.27)
+    // Verify the mapping is complete (13 providers: 7 LLM + 6 MCP)
     assert_eq!(
         env_var_mapping.len(),
         KNOWN_PROVIDERS.len(),
