@@ -103,7 +103,7 @@ pub enum AnalyzedTaskAction {
     Invoke(AnalyzedInvokeAction),
 
     /// Autonomous agent
-    Agent(AnalyzedAgentAction),
+    Agent(Box<AnalyzedAgentAction>),
 }
 
 impl Default for AnalyzedTaskAction {
@@ -329,6 +329,12 @@ pub struct AnalyzedAgentAction {
 
     /// Scope preset (full, minimal, debug)
     pub scope: Option<String>,
+    /// Guardrails for validating agent outputs.
+    pub guardrails: Vec<crate::ast::guardrails::GuardrailConfig>,
+    /// Completion behavior configuration.
+    pub completion: Option<crate::ast::completion::CompletionConfig>,
+    /// Execution limits for cost control.
+    pub limits: Option<crate::ast::limits::LimitsConfig>,
 
     /// Span of the action
     pub span: Span,

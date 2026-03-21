@@ -669,7 +669,7 @@ fn analyze_action(raw: &RawTaskAction, ctx: &mut AnalyzerContext) -> AnalyzedTas
         RawTaskAction::Exec(s) => AnalyzedTaskAction::Exec(analyze_shell_cmd(&s.value)),
         RawTaskAction::Fetch(s) => AnalyzedTaskAction::Fetch(analyze_fetch(&s.value, ctx)),
         RawTaskAction::Invoke(s) => AnalyzedTaskAction::Invoke(analyze_invoke(&s.value)),
-        RawTaskAction::Agent(s) => AnalyzedTaskAction::Agent(analyze_agent(&s.value)),
+        RawTaskAction::Agent(s) => AnalyzedTaskAction::Agent(Box::new(analyze_agent(&s.value))),
     }
 }
 
@@ -809,6 +809,9 @@ fn analyze_agent(raw: &RawAgentAction) -> AnalyzedAgentAction {
             .map(|s| s.value.iter().map(|v| v.value.clone()).collect())
             .unwrap_or_default(),
         scope: raw.scope.as_ref().map(|s| s.value.clone()),
+        guardrails: raw.guardrails.clone(),
+        completion: raw.completion.clone(),
+        limits: raw.limits.clone(),
         span: raw.prompt.span,
     }
 }
@@ -1807,7 +1810,7 @@ mod tests {
         use crate::ast::raw::RawAgentAction;
 
         let mut task = make_raw_task("task1");
-        task.action = Some(RawTaskAction::Agent(Spanned::new(
+        task.action = Some(RawTaskAction::Agent(Box::new(Spanned::new(
             RawAgentAction {
                 prompt: Spanned::new("Do something".to_string(), make_span(0, 12)),
                 tools: None,
@@ -1827,9 +1830,12 @@ mod tests {
                 tool_choice: None,
                 stop_sequences: None,
                 scope: None,
+                guardrails: Vec::new(),
+                completion: None,
+                limits: None,
             },
             make_span(0, 50),
-        )));
+        ))));
 
         // Using v0.1 which doesn't support agent
         let raw = make_raw_workflow("nika/workflow@0.1", vec![task]);
@@ -1917,7 +1923,7 @@ mod tests {
             },
             make_span(0, 30),
         ));
-        task.action = Some(RawTaskAction::Agent(Spanned::new(
+        task.action = Some(RawTaskAction::Agent(Box::new(Spanned::new(
             RawAgentAction {
                 prompt: Spanned::new("Goal".to_string(), make_span(0, 4)),
                 tools: None,
@@ -1937,9 +1943,12 @@ mod tests {
                 tool_choice: None,
                 stop_sequences: None,
                 scope: None,
+                guardrails: Vec::new(),
+                completion: None,
+                limits: None,
             },
             make_span(0, 50),
-        )));
+        ))));
 
         // Using v0.1 which doesn't support either
         let raw = make_raw_workflow("nika/workflow@0.1", vec![task]);

@@ -155,7 +155,7 @@ pub(crate) fn lower_action(
             invoke: lower_invoke(a),
         },
         AnalyzedTaskAction::Agent(a) => TaskAction::Agent {
-            agent: lower_agent(a, provider, model),
+            agent: lower_agent(*a, provider, model),
         },
     }
 }
@@ -283,9 +283,9 @@ fn lower_agent(
         } else {
             Some(agent.skills)
         },
-        completion: None,
-        guardrails: Vec::new(),
-        limits: None,
+        completion: agent.completion,
+        guardrails: agent.guardrails,
+        limits: agent.limits,
     }
 }
 
@@ -725,7 +725,7 @@ fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
             timeout_ms: invoke.timeout.map(|s| s * 1000),
             span: Span::dummy(),
         }),
-        TaskAction::Agent { agent } => AnalyzedTaskAction::Agent(AnalyzedAgentAction {
+        TaskAction::Agent { agent } => AnalyzedTaskAction::Agent(Box::new(AnalyzedAgentAction {
             prompt: agent.prompt.clone(),
             tools: agent.tools.clone(),
             max_iterations: agent.max_turns,
@@ -746,8 +746,11 @@ fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
             tool_choice: agent.tool_choice.as_ref().map(|tc| tc.as_str().to_string()),
             stop_sequences: agent.stop_sequences.clone(),
             scope: agent.scope.clone(),
+            guardrails: agent.guardrails.clone(),
+            completion: agent.completion.clone(),
+            limits: agent.limits.clone(),
             span: Span::dummy(),
-        }),
+        })),
     }
 }
 
@@ -1047,7 +1050,7 @@ mod tests {
         let mut wf = dummy_workflow();
         let id = wf.task_table.insert("researcher");
         wf.tasks.push(AnalyzedTask {
-            action: AnalyzedTaskAction::Agent(AnalyzedAgentAction {
+            action: AnalyzedTaskAction::Agent(Box::new(AnalyzedAgentAction {
                 prompt: "Research AI papers".to_string(),
                 tools: vec!["nika:read".to_string(), "nika:write".to_string()],
                 max_iterations: Some(10),
@@ -1064,8 +1067,11 @@ mod tests {
                 tool_choice: None,
                 stop_sequences: vec![],
                 scope: None,
+                guardrails: Vec::new(),
+                completion: None,
+                limits: None,
                 span: Span::dummy(),
-            }),
+            })),
             provider: Some("claude".to_string()),
             ..dummy_task(id, "researcher")
         });
@@ -1961,7 +1967,7 @@ mod tests {
         let mut wf = dummy_workflow();
         let id = wf.task_table.insert("agent_task");
         wf.tasks.push(AnalyzedTask {
-            action: AnalyzedTaskAction::Agent(AnalyzedAgentAction {
+            action: AnalyzedTaskAction::Agent(Box::new(AnalyzedAgentAction {
                 prompt: "do something".to_string(),
                 tools: vec![],
                 max_iterations: Some(5),
@@ -1978,8 +1984,11 @@ mod tests {
                 tool_choice: None,
                 stop_sequences: vec![],
                 scope: None,
+                guardrails: Vec::new(),
+                completion: None,
+                limits: None,
                 span: Span::dummy(),
-            }),
+            })),
             ..dummy_task(id, "agent_task")
         });
         let lowered = lower(wf).unwrap();
@@ -2524,6 +2533,9 @@ mod tests {
                 tool_choice: Some(input.to_string()),
                 stop_sequences: vec![],
                 scope: None,
+                guardrails: Vec::new(),
+                completion: None,
+                limits: None,
                 span: Span::dummy(),
             };
             let params = lower_agent(agent, None, None);
@@ -2557,6 +2569,9 @@ mod tests {
                 tool_choice: Some(invalid.to_string()),
                 stop_sequences: vec![],
                 scope: None,
+                guardrails: Vec::new(),
+                completion: None,
+                limits: None,
                 span: Span::dummy(),
             };
             let params = lower_agent(agent, None, None);

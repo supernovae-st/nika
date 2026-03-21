@@ -828,10 +828,10 @@ mod tests {
                 ("writer", &["research"], &["research"]),
             ],
             "writer",
-            AnalyzedTaskAction::Agent(AnalyzedAgentAction {
+            AnalyzedTaskAction::Agent(Box::new(AnalyzedAgentAction {
                 prompt: "Write about {{with.topic}}".to_string(),
                 ..Default::default()
-            }),
+            })),
             with_spec,
         );
 
@@ -1144,10 +1144,10 @@ mod tests {
 
     #[test]
     fn extract_templates_agent_goal() {
-        let action = AnalyzedTaskAction::Agent(AnalyzedAgentAction {
+        let action = AnalyzedTaskAction::Agent(Box::new(AnalyzedAgentAction {
             prompt: "Research {{with.topic}}".to_string(),
             ..Default::default()
-        });
+        }));
         let templates = extract_templates_from_action(&action);
         assert_eq!(templates.len(), 1);
         assert_eq!(templates[0], "Research {{with.topic}}");

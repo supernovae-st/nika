@@ -427,7 +427,9 @@ fn parse_action(
     if let Some(node) = map.get_node("agent") {
         let action = parse_agent_action(file, node)?;
         let span = node_to_span(file, node);
-        return Ok(Some(RawTaskAction::Agent(Spanned::new(action, span))));
+        return Ok(Some(RawTaskAction::Agent(Box::new(Spanned::new(
+            action, span,
+        )))));
     }
 
     // No verb found — check for common misspellings before returning None.
@@ -880,6 +882,9 @@ fn parse_agent_action(file: FileId, node: &Node) -> Result<RawAgentAction, Parse
         tool_choice: get_string_field(file, m, "tool_choice")?,
         stop_sequences: parse_string_array(file, m, "stop_sequences")?,
         scope: get_string_field(file, m, "scope")?,
+        guardrails: parse_guardrails_field(file, m)?,
+        completion: parse_optional_serde_field(file, m, "completion")?,
+        limits: parse_optional_serde_field(file, m, "limits")?,
     })
 }
 
@@ -1165,6 +1170,26 @@ fn parse_guardrails_field(
             })
         }
         None => Ok(Vec::new()),
+    }
+}
+
+fn parse_optional_serde_field<T: serde::de::DeserializeOwned>(
+    file: FileId,
+    map: &marked_yaml::types::MarkedMappingNode,
+    field_name: &str,
+) -> Result<Option<T>, ParseError> {
+    match map.get_node(field_name) {
+        Some(node) => {
+            let span = node_to_span(file, node);
+            let json_value = node_to_json(node);
+            let parsed = serde_json::from_value(json_value).map_err(|e| ParseError {
+                kind: ParseErrorKind::InvalidType,
+                span,
+                message: format!("invalid {field_name} config: {e}"),
+            })?;
+            Ok(Some(parsed))
+        }
+        None => Ok(None),
     }
 }
 

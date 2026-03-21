@@ -23,7 +23,7 @@ pub enum RawTaskAction {
     Invoke(Spanned<RawInvokeAction>),
 
     /// Autonomous agent: agent: { prompt: "..." }
-    Agent(Spanned<RawAgentAction>),
+    Agent(Box<Spanned<RawAgentAction>>),
 }
 
 impl Default for RawTaskAction {
@@ -225,6 +225,12 @@ pub struct RawAgentAction {
 
     /// Scope preset (full, minimal, debug)
     pub scope: Option<Spanned<String>>,
+    /// Guardrails for validating agent outputs.
+    pub guardrails: Vec<crate::ast::guardrails::GuardrailConfig>,
+    /// Completion behavior configuration.
+    pub completion: Option<crate::ast::completion::CompletionConfig>,
+    /// Execution limits for cost control.
+    pub limits: Option<crate::ast::limits::LimitsConfig>,
 }
 
 #[cfg(test)]
@@ -250,7 +256,7 @@ mod tests {
         let invoke = RawTaskAction::Invoke(Spanned::dummy(RawInvokeAction::default()));
         assert_eq!(invoke.verb_name(), "invoke");
 
-        let agent = RawTaskAction::Agent(Spanned::dummy(RawAgentAction::default()));
+        let agent = RawTaskAction::Agent(Box::new(Spanned::dummy(RawAgentAction::default())));
         assert_eq!(agent.verb_name(), "agent");
     }
 

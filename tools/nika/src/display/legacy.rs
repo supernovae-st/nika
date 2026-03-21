@@ -1148,11 +1148,11 @@ mod tests {
             id: TaskId::new(0),
             name: "agent_task".to_string(),
             description: None,
-            action: AnalyzedTaskAction::Agent(AnalyzedAgentAction {
+            action: AnalyzedTaskAction::Agent(Box::new(AnalyzedAgentAction {
                 prompt: "Do something".to_string(),
                 mcp: vec!["novanet".to_string(), "github".to_string()],
                 ..AnalyzedAgentAction::default()
-            }),
+            })),
             provider: None,
             model: None,
             with_spec: WithSpec::default(),
