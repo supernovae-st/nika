@@ -96,6 +96,12 @@ impl ExecBox {
         self
     }
 
+    /// Set render mode
+    pub fn with_render_mode(mut self, mode: RenderMode) -> Self {
+        self.render_mode = mode;
+        self
+    }
+
     /// Set pulse intensity for border animation (clamped to 0.0-1.0)
     pub fn with_pulse_intensity(mut self, intensity: f32) -> Self {
         self.pulse_intensity = intensity.clamp(0.0, 1.0);
@@ -178,11 +184,36 @@ impl ExecBox {
     /// Convert to list items for scrollable List widget
     pub fn to_list_items(&self, _ctx: &StreamingContext) -> Vec<ListItem<'static>> {
         let verb = VerbColor::Exec;
+        let verb_color = verb.rgb();
+        let dim_style = Style::default().fg(compat::SLATE_500);
+
+        // Compact mode: single line summary
+        if self.render_mode == RenderMode::Compact {
+            let status = self.state.icon();
+            let suffix = self.state.suffix();
+            let line = Line::from(vec![
+                Span::styled(
+                    format!("{}: ", verb.icon_label()),
+                    Style::default().fg(verb_color),
+                ),
+                Span::styled(
+                    Self::truncate(&self.command, 30),
+                    Style::default().fg(compat::SLATE_200),
+                ),
+                Span::styled(format!("  {} ", status), Style::default().fg(verb_color)),
+                Span::styled(suffix.into_owned(), dim_style),
+                Span::styled(
+                    format!(" │ {} lines", self.stdout.lines().count()),
+                    dim_style,
+                ),
+            ]);
+            return vec![ListItem::new(line)];
+        }
+
         let border_color = self
             .state
             .border_color_with_pulse(verb.rgb(), self.pulse_intensity);
         let border_style = Style::default().fg(border_color);
-        let dim_style = Style::default().fg(compat::SLATE_500);
         let content_style = Style::default().fg(compat::SLATE_200);
         let stderr_style = Style::default().fg(compat::AMBER_400); // Amber
 

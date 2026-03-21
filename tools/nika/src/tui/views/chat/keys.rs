@@ -5,6 +5,8 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use tui_input::InputRequest;
 
+use std::path::PathBuf;
+
 use super::{is_cmd_pressed, ChatPanel, ChatView};
 use crate::tui::command::{Command, ExportFormat, ModelProvider, HELP_TEXT};
 use crate::tui::file_resolve::FileResolver;
@@ -137,6 +139,7 @@ impl ChatView {
                                 }
                                 ViewAction::None
                             }
+                            Command::Run { path } => ViewAction::RunWorkflow(PathBuf::from(path)),
                             Command::Infer { prompt } | Command::Chat { message: prompt } => {
                                 ViewAction::ChatInfer(prompt)
                             }
@@ -790,6 +793,7 @@ impl ChatView {
                     }
                     Some(ViewAction::None)
                 }
+                Command::Run { path } => Some(ViewAction::RunWorkflow(PathBuf::from(path))),
                 Command::Infer { prompt } | Command::Chat { message: prompt } => {
                     let base_dir = std::env::current_dir().unwrap_or_default();
                     let expanded = FileResolver::resolve(&prompt, &base_dir);

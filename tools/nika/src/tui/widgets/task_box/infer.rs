@@ -173,6 +173,12 @@ impl InferBox {
         self.decrypt.reveal_all();
     }
 
+    /// Set render mode
+    pub fn with_render_mode(mut self, mode: RenderMode) -> Self {
+        self.render_mode = mode;
+        self
+    }
+
     /// Enable/disable decrypt effect
     pub fn with_decrypt_effect(mut self, enabled: bool) -> Self {
         self.use_decrypt_effect = enabled;
@@ -266,11 +272,36 @@ impl InferBox {
     /// Convert to list items for scrollable List widget
     pub fn to_list_items(&self, ctx: &StreamingContext) -> Vec<ListItem<'static>> {
         let verb = VerbColor::Infer;
+        let verb_color = verb.rgb();
+        let dim_style = Style::default().fg(compat::SLATE_500);
+
+        // Compact mode: single line summary
+        if self.render_mode == RenderMode::Compact {
+            let status = self.state.icon();
+            let suffix = self.state.suffix();
+            let line = Line::from(vec![
+                Span::styled(
+                    format!("{}: ", verb.icon_label()),
+                    Style::default().fg(verb_color),
+                ),
+                Span::styled(
+                    Self::truncate(&self.model, 20),
+                    Style::default().fg(compat::SLATE_400),
+                ),
+                Span::styled(format!("  {} ", status), Style::default().fg(verb_color)),
+                Span::styled(suffix.into_owned(), dim_style),
+                Span::styled(
+                    format!(" │ {}→{} tok", self.tokens_in, self.tokens_out),
+                    dim_style,
+                ),
+            ]);
+            return vec![ListItem::new(line)];
+        }
+
         let border_color = self
             .state
             .border_color_with_pulse(verb.rgb(), self.pulse_intensity);
         let border_style = Style::default().fg(border_color);
-        let dim_style = Style::default().fg(compat::SLATE_500);
         let content_style = Style::default().fg(compat::SLATE_200);
 
         let status_icon = self.state.icon();

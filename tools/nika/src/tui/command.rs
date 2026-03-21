@@ -79,6 +79,9 @@ pub enum Command {
         format: ExportFormat,
         path: Option<String>,
     },
+
+    /// `/run <path>` - Run a workflow file
+    Run { path: String },
 }
 
 /// Export format for chat sessions
@@ -155,6 +158,9 @@ impl Command {
                 "/mcp" => Self::parse_mcp_args(args),
                 "/clear" => Command::Clear,
                 "/export" => Self::parse_export_args(args),
+                "/run" => Command::Run {
+                    path: args.to_string(),
+                },
                 _ => {
                     // Unknown command, treat as chat message
                     Command::Chat {
@@ -500,6 +506,7 @@ impl Command {
             Command::Clear => "clear",
             Command::Mcp { .. } => "mcp",
             Command::Export { .. } => "export",
+            Command::Run { .. } => "run",
         }
     }
 
@@ -523,6 +530,7 @@ impl Command {
             Command::Clear => false,
             Command::Mcp { .. } => false,
             Command::Export { .. } => false, // Export is never "empty"
+            Command::Run { path } => path.is_empty(),
         }
     }
 
@@ -616,6 +624,7 @@ Nika Chat Commands:
   /agent <goal>             Multi-turn agent (--max-turns N) (--mcp servers)
   /mcp [list|select|toggle] MCP server management
   /model <provider>         Switch LLM (openai, claude, mistral, groq, deepseek, native)
+  /run <path>               Run a workflow file (.nika.yaml)
   /export [path]            Export chat to JSON file
   /clear                    Clear chat history
   /help or /?               Show this help
