@@ -1,3 +1,6 @@
+// Legacy completions — retained for MCP discovery fallback only.
+// Will be removed after full delegation to nika-lsp-core (Phase B cleanup).
+#![allow(dead_code)]
 //! Completion provider for Nika workflows.
 //!
 //! Provides intelligent autocompletion for:
