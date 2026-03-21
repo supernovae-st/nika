@@ -215,11 +215,13 @@ The LSP respects the following settings (when supported by your editor):
 
 ## Supported Schema Versions
 
-- `nika/workflow@0.9` (current)
+- `nika/workflow@0.12` (current)
+- `nika/workflow@0.11`
+- `nika/workflow@0.10`
+- `nika/workflow@0.9`
 - `nika/workflow@0.8`
 - `nika/workflow@0.5`
 - `nika/workflow@0.3`
-- `nika/workflow@0.1`
 
 ## Development
 

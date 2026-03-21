@@ -4,10 +4,10 @@
 
 **Open-source agentic YAML workflow engine for AI**
 
-[![Version](https://img.shields.io/badge/v0.35.2-7c3aed?style=flat-square&logo=semver&logoColor=white)](tools/nika/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/v0.35.4-7c3aed?style=flat-square&logo=semver&logoColor=white)](tools/nika/CHANGELOG.md)
 [![Rust](https://img.shields.io/badge/rust_1.86+-f97316?style=flat-square&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/AGPL--3.0-22c55e?style=flat-square&logo=gnu&logoColor=white)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-6735+_passing-10b981?style=flat-square)](https://github.com/supernovae-st/nika/actions)
+[![Tests](https://img.shields.io/badge/tests-6846+_passing-10b981?style=flat-square)](https://github.com/supernovae-st/nika/actions)
 
 </div>
 
@@ -80,7 +80,7 @@ Every task uses exactly one verb. That's the entire API.
 ## Features
 
 ```
-8 LLM providers    26 media tools     9 extract modes    4 TUI views
+8 LLM providers    26 media tools     9 extract modes    3 TUI views
 DAG execution      for_each loops     pipe transforms    structured output
 Vision support     CAS storage        NDJSON traces      MCP native
 ```
@@ -180,7 +180,7 @@ Workflows are parsed into a three-phase AST (Raw, Analyzed, Lowered), validated 
 
 ```
 +-----------------------------------------------------------------------------+
-| Nika Studio                                                  v0.35.2        |
+| Nika Studio                                                  v0.35.4        |
 |-----------------------------------------------------------------------------|
 | +- Files ----------+ +- Editor ------------------------------------------+ |
 | | > workflows/     | |  1 | schema: "nika/workflow@0.12"                 | |
@@ -197,7 +197,7 @@ Workflows are parsed into a three-phase AST (Raw, Analyzed, Lowered), validated 
 |                      |      '-------> @3 evaluate --'                    | |
 |                      +---------------------------------------------------+ |
 |-----------------------------------------------------------------------------|
-| [1/s] Studio  [2/r] Runner  [3/c] Chat  [4/,] Settings                     |
+| [1/s] Studio  [2/c] Command  [3/x] Control                                 |
 +-----------------------------------------------------------------------------+
 ```
 
@@ -229,7 +229,7 @@ cd nika && cargo install --path tools/nika
 
 ```bash
 nika --version
-# nika 0.35.2
+# nika 0.35.4
 ```
 
 ### Provider Setup
@@ -291,7 +291,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 git clone https://github.com/supernovae-st/nika.git
 cd nika
 cargo build                       # Build
-cargo test --lib                  # Run 6735+ tests (safe, no keychain)
+cargo test --lib                  # Run 6846+ tests (safe, no keychain)
 cargo clippy -- -D warnings       # Zero warnings policy
 ```
 
@@ -300,8 +300,8 @@ cargo clippy -- -D warnings       # Zero warnings policy
 <div align="center">
 
 ```
-Nika v0.35.2 | Schema @0.12 | Rust 1.86+ | AGPL-3.0
-6735+ tests | 110k LOC | 0 clippy warnings | 0.x.x forever
+Nika v0.35.4 | Schema @0.12 | Rust 1.86+ | AGPL-3.0
+6846+ tests | 110k LOC | 0 clippy warnings | 0.x.x forever
 ```
 
 [SuperNovae Studio](https://supernovae.studio) -- [nika.sh](https://nika.sh) -- [GitHub](https://github.com/supernovae-st/nika)

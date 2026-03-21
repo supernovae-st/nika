@@ -22,7 +22,7 @@ Nika connects to NovaNet via MCP only (Zero Cypher rule). Use `invoke:` verb.
 
 ## TUI Views
 
-`1/s` Studio | `2/r` Runner | `3/c` Chat | `4/,` Settings
+`1/s` Studio | `2/c` Command | `3/x` Control
 
 ## Commands
 

@@ -201,9 +201,9 @@ src/
 │   └── rig_agent_loop.rs # RigAgentLoop with rig::AgentBuilder
 ├── mcp/          # MCP client (rmcp v0.16)
 ├── provider/     # rig-core provider (RigProvider wrapper)
-├── event/        # Observability (34 event types)
+├── event/        # Observability (41 event types)
 ├── binding/      # Data flow ({{with.alias}}, {{context.files.*}})
-└── tui/          # Terminal UI (4 views, 40+ widgets)
+└── tui/          # Terminal UI (3 views, 40+ widgets)
 ```
 
 ## Commands
@@ -228,14 +228,14 @@ nika trace export <id>        # Export to JSON
 ## Testing
 
 ```bash
-cargo test --lib              # All 6,735+ tests (safe — no keychain)
+cargo test --lib              # All 6,846+ tests (safe — no keychain)
 cargo test mcp                # MCP tests
 cargo test --features integration  # Real MCP tests
 cargo test tui                # TUI widget tests
 ```
 
-### Test Breakdown (v0.35.2)
-- **6,735+ lib tests** + 34 property tests
+### Test Breakdown (v0.35.4)
+- **6,846+ lib tests** + 34 property tests
 - Zero clippy warnings
 - Schema @0.12 validation in CI
 
