@@ -17,6 +17,7 @@ use super::{BoxState, RenderMode, StreamingContext, TokenVelocity, VerbColor};
 use crate::tui::tokens::compat;
 use crate::tui::unicode::display_width;
 use crate::tui::widgets::matrix_decrypt::{DecryptVerb, StreamingDecrypt};
+use crate::tui::widgets::micro;
 
 /// InferBox data and rendering
 #[derive(Debug, Clone)]
@@ -487,6 +488,16 @@ impl InferBox {
         );
         let metrics_line = Line::from(vec![Span::styled(metrics, dim_style)]);
         items.push(ListItem::new(metrics_line));
+
+        // Throughput micro-widget (sparkline with peak)
+        if !self.velocity.is_empty() {
+            let samples = self.velocity.samples();
+            let throughput =
+                micro::throughput_meter(self.velocity.average(), &samples, self.velocity.peak());
+            let mut spans = vec![Span::styled("│ ", border_style)];
+            spans.extend(throughput.spans);
+            items.push(ListItem::new(Line::from(spans)));
+        }
 
         // Bottom border
         let bottom = Line::from(vec![Span::styled(

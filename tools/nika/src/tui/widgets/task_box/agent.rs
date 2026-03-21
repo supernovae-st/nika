@@ -17,6 +17,7 @@ use super::{BoxState, RenderMode, TaskBox, TokenVelocity, VerbColor};
 use crate::tui::tokens::compat;
 use crate::tui::unicode::display_width;
 use crate::tui::utils::format_number_compact;
+use crate::tui::widgets::micro;
 
 /// AgentBox data and rendering
 #[derive(Debug, Clone)]
@@ -377,6 +378,14 @@ impl AgentBox {
                     Span::styled(velocity_sparkline, metric_style),
                     Span::styled(" │", border_style),
                 ])));
+
+                // Cost accumulator micro-widget
+                if self.cost > 0.0 {
+                    let cost_line = micro::cost_accumulator(self.cost, 0.0, None);
+                    let mut spans = vec![Span::styled("│ ", border_style)];
+                    spans.extend(cost_line.spans);
+                    items.push(ListItem::new(Line::from(spans)));
+                }
 
                 // Children section
                 if !self.children.is_empty() {
