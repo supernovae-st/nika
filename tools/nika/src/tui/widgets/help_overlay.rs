@@ -35,7 +35,7 @@ pub const HELP_SECTIONS: &[HelpSection] = &[
         ],
     },
     HelpSection {
-        title: "Chat View",
+        title: "Command View (Chat Mode)",
         keybindings: &[
             ("Enter", "Send message"),
             ("Ctrl+Enter", "New line"),
@@ -66,7 +66,7 @@ pub const HELP_SECTIONS: &[HelpSection] = &[
         ],
     },
     HelpSection {
-        title: "Command View",
+        title: "Command View (Monitor Mode)",
         keybindings: &[
             ("j / k", "Navigate tasks"),
             ("t", "Cycle sub-tab"),

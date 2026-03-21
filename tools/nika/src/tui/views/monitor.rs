@@ -1195,7 +1195,7 @@ impl View for MonitorView {
         };
 
         format!(
-            "Runner • {} • {}/{} • {:.0}% • {} tok{} • {} • [{}]",
+            "Monitor • {} • {}/{} • {:.0}% • {} tok{} • {} • [{}]",
             phase, completed, task_count, progress, token_str, velocity_str, cost_str, mode_str
         )
     }
@@ -1509,8 +1509,8 @@ mod tests {
         let view = MonitorView::new();
         let state = TuiState::new("test");
         let status = view.status_line(&state);
-        // Status line now says "Runner" instead of "Monitor"
-        assert!(status.contains("Runner"));
+        // Status line should say "Monitor"
+        assert!(status.contains("Monitor"));
         assert!(status.contains("Preflight"));
     }
 

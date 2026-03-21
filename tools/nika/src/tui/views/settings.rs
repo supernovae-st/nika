@@ -545,7 +545,7 @@ impl View for SettingsView {
 
     fn status_line(&self, _state: &TuiState) -> String {
         format!(
-            "Settings • {} selected | [1-3] Theme • [w] Wizard",
+            "Control • {} selected | [1-3] Theme • [w] Wizard",
             self.section.title()
         )
     }
