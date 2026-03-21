@@ -49,7 +49,7 @@ pub use agent::AgentBox;
 pub use exec::ExecBox;
 pub use fetch::FetchBox;
 pub use infer::InferBox;
-pub use invoke::InvokeBox;
+pub use invoke::{BuiltinHint, InvokeBox};
 
 use crossterm::event::KeyCode;
 use ratatui::{
@@ -264,6 +264,22 @@ impl TaskBox {
             ((frame as f32 / 30.0).sin() + 1.0) / 2.0
         } else {
             0.0
+        }
+    }
+
+    /// Set pulse intensity on the inner box struct.
+    ///
+    /// This propagates the computed pulse value into each variant's
+    /// `pulse_intensity` field so that `to_list_items()` renders
+    /// animated borders for running tasks.
+    pub fn set_pulse_intensity(&mut self, intensity: f32) {
+        let clamped = intensity.clamp(0.0, 1.0);
+        match self {
+            TaskBox::Infer(b) => b.pulse_intensity = clamped,
+            TaskBox::Exec(b) => b.pulse_intensity = clamped,
+            TaskBox::Fetch(b) => b.pulse_intensity = clamped,
+            TaskBox::Invoke(b) => b.pulse_intensity = clamped,
+            TaskBox::Agent(b) => b.pulse_intensity = clamped,
         }
     }
 }

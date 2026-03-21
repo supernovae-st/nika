@@ -621,6 +621,16 @@ impl ChatView {
                 InlineContent::Task(task_box) => task_box.tick(),
             }
         }
+        // Update pulse intensity for running TaskBoxes
+        let frame = self.frame as u64;
+        for content in &mut self.inline_content {
+            if let InlineContent::Task(task_box) = content {
+                if task_box.state().is_running() {
+                    let intensity = ((frame as f32 / 30.0).sin() + 1.0) / 2.0;
+                    task_box.set_pulse_intensity(intensity);
+                }
+            }
+        }
         // WOW: Tick flash effects
         self.tick_flash();
         // Tick matrix decrypt animation (reveal progress)
