@@ -318,6 +318,15 @@ pub struct AnalyzedAgentAction {
     /// Max spawn_agent recursion depth
     pub depth_limit: Option<u32>,
 
+    /// Tool choice behavior: auto, required, none
+    pub tool_choice: Option<String>,
+
+    /// Sequences that stop generation (passed to LLM)
+    pub stop_sequences: Vec<String>,
+
+    /// Scope preset (full, minimal, debug)
+    pub scope: Option<String>,
+
     /// Span of the action
     pub span: Span,
 }

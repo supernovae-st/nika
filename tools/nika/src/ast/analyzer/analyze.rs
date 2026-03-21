@@ -798,6 +798,13 @@ fn analyze_agent(raw: &RawAgentAction) -> AnalyzedAgentAction {
         extended_thinking: raw.extended_thinking.as_ref().map(|s| s.value),
         thinking_budget: raw.thinking_budget.as_ref().map(|s| s.value),
         depth_limit: raw.depth_limit.as_ref().map(|s| s.value),
+        tool_choice: raw.tool_choice.as_ref().map(|s| s.value.clone()),
+        stop_sequences: raw
+            .stop_sequences
+            .as_ref()
+            .map(|s| s.value.iter().map(|v| v.value.clone()).collect())
+            .unwrap_or_default(),
+        scope: raw.scope.as_ref().map(|s| s.value.clone()),
         span: raw.prompt.span,
     }
 }
@@ -1813,6 +1820,9 @@ mod tests {
                 extended_thinking: None,
                 thinking_budget: None,
                 depth_limit: None,
+                tool_choice: None,
+                stop_sequences: None,
+                scope: None,
             },
             make_span(0, 50),
         )));
@@ -1920,6 +1930,9 @@ mod tests {
                 extended_thinking: None,
                 thinking_budget: None,
                 depth_limit: None,
+                tool_choice: None,
+                stop_sequences: None,
+                scope: None,
             },
             make_span(0, 50),
         )));

@@ -213,6 +213,15 @@ pub struct RawAgentAction {
 
     /// Max spawn_agent recursion depth
     pub depth_limit: Option<Spanned<u32>>,
+
+    /// Tool choice behavior: auto, required, none
+    pub tool_choice: Option<Spanned<String>>,
+
+    /// Sequences that stop generation (passed to LLM)
+    pub stop_sequences: Option<Spanned<Vec<Spanned<String>>>>,
+
+    /// Scope preset (full, minimal, debug)
+    pub scope: Option<Spanned<String>>,
 }
 
 #[cfg(test)]

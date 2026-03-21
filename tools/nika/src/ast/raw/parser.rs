@@ -764,6 +764,9 @@ fn parse_agent_action(file: FileId, node: &Node) -> Result<RawAgentAction, Parse
         extended_thinking: get_bool_field(file, m, "extended_thinking")?,
         thinking_budget: get_u32_field(file, m, "thinking_budget")?,
         depth_limit: get_u32_field(file, m, "depth_limit")?,
+        tool_choice: get_string_field(file, m, "tool_choice")?,
+        stop_sequences: parse_string_array(file, m, "stop_sequences")?,
+        scope: get_string_field(file, m, "scope")?,
     })
 }
 

@@ -242,6 +242,17 @@ fn lower_agent(
     provider: Option<String>,
     model: Option<String>,
 ) -> AgentParams {
+    // Parse tool_choice string to ToolChoice enum
+    let tool_choice = agent
+        .tool_choice
+        .as_deref()
+        .and_then(|s| match s.to_lowercase().as_str() {
+            "auto" => Some(crate::ast::agent::ToolChoice::Auto),
+            "required" => Some(crate::ast::agent::ToolChoice::Required),
+            "none" => Some(crate::ast::agent::ToolChoice::None),
+            _ => None,
+        });
+
     AgentParams {
         prompt: agent.prompt,
         system: agent.system,
@@ -251,12 +262,12 @@ fn lower_agent(
         tools: agent.tools,
         max_turns: agent.max_iterations,
         token_budget: agent.token_budget,
-        stop_sequences: Vec::new(),
-        scope: None,
+        stop_sequences: agent.stop_sequences,
+        scope: agent.scope,
         extended_thinking: agent.extended_thinking,
         thinking_budget: agent.thinking_budget.map(u64::from),
         depth_limit: agent.depth_limit,
-        tool_choice: None,
+        tool_choice,
         temperature: agent.temperature.map(|t| t as f32),
         max_tokens: agent.max_tokens,
         skills: if agent.skills.is_empty() {
@@ -723,6 +734,9 @@ fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
             extended_thinking: agent.extended_thinking,
             thinking_budget: agent.thinking_budget.map(|v| v as u32),
             depth_limit: agent.depth_limit,
+            tool_choice: agent.tool_choice.as_ref().map(|tc| tc.as_str().to_string()),
+            stop_sequences: agent.stop_sequences.clone(),
+            scope: agent.scope.clone(),
             span: Span::dummy(),
         }),
     }
@@ -1037,6 +1051,9 @@ mod tests {
                 extended_thinking: None,
                 thinking_budget: None,
                 depth_limit: None,
+                tool_choice: None,
+                stop_sequences: vec![],
+                scope: None,
                 span: Span::dummy(),
             }),
             provider: Some("claude".to_string()),
@@ -1948,6 +1965,9 @@ mod tests {
                 extended_thinking: None,
                 thinking_budget: None,
                 depth_limit: None,
+                tool_choice: None,
+                stop_sequences: vec![],
+                scope: None,
                 span: Span::dummy(),
             }),
             ..dummy_task(id, "agent_task")
