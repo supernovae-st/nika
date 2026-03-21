@@ -823,3 +823,69 @@ tasks:
         other => panic!("Expected ProviderContext, got {other:?}"),
     }
 }
+
+// ===========================================================================
+// 16. Error recovery context detection
+// ===========================================================================
+
+#[test]
+fn recovery_context_on_broken_yaml() {
+    use nika_lsp_core::analysis::context::detect_context_with_recovery;
+    let yaml = "schema: nika/workflow@0.12\ntasks:\n  - id: step1\n    infer\n      prompt: hello";
+    // Cursor on "prompt:" line inside broken infer (no colon)
+    let offset = yaml.find("prompt").unwrap() as u32;
+    let ctx = detect_context_with_recovery(yaml, offset);
+    // Should still detect something useful, not Unknown
+    // The recovery parser should help identify the verb context
+    assert!(
+        !matches!(ctx, CursorContext::Unknown { .. }),
+        "Recovery should detect context on broken YAML, got: {ctx:?}"
+    );
+}
+
+#[test]
+fn recovery_empty_document() {
+    use nika_lsp_core::analysis::context::detect_context_with_recovery;
+    let ctx = detect_context_with_recovery("", 0);
+    assert!(
+        matches!(ctx, CursorContext::WorkflowRoot { .. }),
+        "Recovery on empty document should be WorkflowRoot, got: {ctx:?}"
+    );
+}
+
+#[test]
+fn recovery_huge_offset() {
+    use nika_lsp_core::analysis::context::detect_context_with_recovery;
+    let ctx = detect_context_with_recovery("schema: test", 99999);
+    assert!(
+        matches!(ctx, CursorContext::Unknown { .. }),
+        "Recovery with huge offset should be Unknown, got: {ctx:?}"
+    );
+}
+
+// ===========================================================================
+// 17. CRLF and Unicode robustness
+// ===========================================================================
+
+#[test]
+fn crlf_line_detection() {
+    let yaml = "schema: nika/workflow@0.12\r\ntasks:\r\n  - id: step1\r\n    infer: hello\r\n";
+    let offset = yaml.find("infer").unwrap() as u32;
+    let ctx = detect_context(yaml, offset, None);
+    // Should detect verb context despite CRLF
+    assert!(
+        !matches!(ctx, CursorContext::Unknown { .. }),
+        "CRLF should not break context detection, got: {ctx:?}"
+    );
+}
+
+#[test]
+fn unicode_in_task_id() {
+    let yaml = "schema: nika/workflow@0.12\ntasks:\n  - id: étape1\n    infer: hello\n";
+    let offset = yaml.find("infer").unwrap() as u32;
+    let ctx = detect_context(yaml, offset, None);
+    assert!(
+        !matches!(ctx, CursorContext::Unknown { .. }),
+        "Unicode in task ID should not break context detection, got: {ctx:?}"
+    );
+}
