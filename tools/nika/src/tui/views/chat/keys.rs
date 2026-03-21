@@ -594,8 +594,10 @@ impl ChatView {
                 self.scroll_down();
                 Some(ViewAction::None)
             }
-            // 's' when empty opens Settings
-            KeyCode::Char('s') if self.input.value().is_empty() => Some(ViewAction::OpenControl),
+            // 's' when empty switches to Studio
+            KeyCode::Char('s') if self.input.value().is_empty() => {
+                Some(ViewAction::SwitchView(TuiView::Studio))
+            }
             // 'm' when empty cycles TaskBox render mode
             KeyCode::Char('m') if self.input.value().is_empty() => {
                 self.cycle_task_box_render_mode();

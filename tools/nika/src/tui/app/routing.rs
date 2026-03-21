@@ -232,12 +232,10 @@ impl App {
                     .add_user_message(format!("/infer {}", prompt));
                 self.set_status("Inferring...");
                 self.spawn_chat_command(move |mut agent, tx| async move {
-                    agent.set_stream_chunk_tx(tx);
-                    agent
-                        .infer(&prompt)
-                        .await
-                        .map(|_| ())
-                        .map_err(|e| e.to_string())
+                    agent.set_stream_chunk_tx(tx.clone());
+                    let response = agent.infer(&prompt).await.map_err(|e| e.to_string())?;
+                    let _ = tx.send(StreamChunk::Done(response)).await;
+                    Ok(())
                 });
             }
             ViewAction::ChatExec(cmd) => {

@@ -396,6 +396,15 @@ impl View for CommandView {
             return ViewAction::None;
         }
 
+        // Esc/q in Monitor mode: switch back to Chat (not Studio)
+        if self.mode == CommandMode::Monitor
+            && matches!(key.code, KeyCode::Esc | KeyCode::Char('q'))
+            && key.modifiers.is_empty()
+        {
+            self.mode = CommandMode::Chat;
+            return ViewAction::None;
+        }
+
         match self.mode {
             CommandMode::Chat => self.chat.handle_key(key, state),
             CommandMode::Monitor => self.monitor.handle_key(key, state),

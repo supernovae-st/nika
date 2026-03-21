@@ -690,10 +690,9 @@ impl View for StudioView {
             (KeyCode::Char('T'), _) | (KeyCode::Char('t'), KeyModifiers::CONTROL) => {
                 return ViewAction::ToggleTheme;
             }
-            // View switching: number keys 2-4
+            // View switching: number keys 2-3
             (KeyCode::Char('2'), _) => return ViewAction::SwitchView(TuiView::Command),
-            (KeyCode::Char('3'), _) => return ViewAction::SwitchView(TuiView::Command),
-            (KeyCode::Char('4'), _) => return ViewAction::SwitchView(TuiView::Control),
+            (KeyCode::Char('3'), _) => return ViewAction::SwitchView(TuiView::Control),
             _ => {}
         }
 
@@ -1910,8 +1909,7 @@ impl YamlEditorPanel {
             // View switching: number keys
             // 1=Studio (current), 2=Command, 3=Control
             KeyCode::Char('2') => ViewAction::SwitchView(TuiView::Command),
-            KeyCode::Char('3') => ViewAction::SwitchView(TuiView::Command),
-            KeyCode::Char('4') => ViewAction::SwitchView(TuiView::Control),
+            KeyCode::Char('3') => ViewAction::SwitchView(TuiView::Control),
             KeyCode::Up | KeyCode::Char('k') => {
                 self.buffer.cursor_up();
                 ViewAction::None

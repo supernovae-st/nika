@@ -115,6 +115,9 @@ impl App {
                     }
                     self.command_view.chat.show_error(&err);
                 }
+                StreamChunk::Thinking(text) => {
+                    self.command_view.chat.append_thinking(&text);
+                }
                 _ => {}
             }
         }
