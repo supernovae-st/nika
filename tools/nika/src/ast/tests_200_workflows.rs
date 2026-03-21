@@ -40,7 +40,7 @@ fn wrap(task_yaml: &str) -> String {
         .lines()
         .map(|line| format!("    {line}\n"))
         .collect();
-    format!("schema: \"nika/workflow@0.12\"\ntasks:\n  - id: t1\n{indented}")
+    format!("schema: \"nika/workflow@0.12\"\nprovider: mock\nmodel: test-model\ntasks:\n  - id: t1\n{indented}")
 }
 
 /// Helper: parse a workflow and expect success.

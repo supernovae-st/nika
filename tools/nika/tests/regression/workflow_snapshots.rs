@@ -332,6 +332,7 @@ fn snapshot_error_unknown_task() {
     let errors = analyze_errors(
         r#"
 schema: nika/workflow@0.12
+model: test-model
 tasks:
   - id: task1
     depends_on: [nonexistent]
@@ -347,6 +348,7 @@ fn snapshot_error_duplicate_task() {
     let errors = analyze_errors(
         r#"
 schema: nika/workflow@0.12
+model: test-model
 tasks:
   - id: dup
     infer: "hello"
@@ -363,6 +365,7 @@ fn snapshot_error_invalid_schema() {
     let errors = analyze_errors(
         r#"
 schema: nika/workflow@99.99
+model: test-model
 tasks:
   - id: task1
     infer: "hello"
@@ -377,6 +380,7 @@ fn snapshot_error_cyclic_dependency() {
     let errors = analyze_errors(
         r#"
 schema: nika/workflow@0.12
+model: test-model
 tasks:
   - id: a
     depends_on: [b]
@@ -396,6 +400,7 @@ fn snapshot_error_invalid_value() {
     let errors = analyze_errors(
         r#"
 schema: nika/workflow@0.12
+model: test-model
 tasks:
   - id: $bad_id
     infer: "hello"
@@ -411,6 +416,7 @@ fn snapshot_error_missing_field() {
     let errors = analyze_errors(
         r#"
 schema: nika/workflow@0.12
+model: test-model
 mcp:
   servers:
     broken:
@@ -430,6 +436,7 @@ fn snapshot_error_unsupported_feature() {
     let warnings = analyze_warnings(
         r#"
 schema: nika/workflow@0.12
+model: test-model
 mcp:
   servers:
     remote:
@@ -448,6 +455,7 @@ fn snapshot_error_invalid_binding() {
     let errors = analyze_errors(
         r#"
 schema: nika/workflow@0.12
+model: test-model
 tasks:
   - id: task1
     with:

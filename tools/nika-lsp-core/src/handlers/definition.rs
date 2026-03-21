@@ -65,12 +65,37 @@ pub fn definition(text: &str, _offset: u32, context: &CursorContext) -> Option<D
             }
         }
 
-        // Verb block: if on the verb keyword, no definition to jump to
-        // but if inside invoke: { mcp: server } → could jump to mcp config
+        // Verb block: handle sub-field jumps
         CursorContext::InvokeBlock {
             mcp_server: Some(server),
             ..
         } => find_mcp_server_def(text, server),
+
+        // Verb sub-field: from: agent_name → agents: block definition
+        CursorContext::VerbBlock { prefix, verb, .. } if verb == "agent" => {
+            let key = prefix.trim().trim_end_matches(':');
+            if key == "from" {
+                // Extract the value after "from:" on this line
+                if let Some(from_val) = extract_field_value(text, _offset, "from") {
+                    find_agent_def(text, &from_val)
+                } else {
+                    None
+                }
+            } else if key == "skills" {
+                find_root_key(text, "skills")
+            } else {
+                None
+            }
+        }
+
+        // McpConfig: jump from server reference to its definition
+        CursorContext::McpConfig {
+            server_name: Some(name),
+            ..
+        } => find_mcp_server_def(text, name),
+
+        // ForEach: no specific definition target
+        CursorContext::ForEach { .. } => None,
 
         _ => None,
     }
@@ -164,6 +189,67 @@ fn find_mcp_server_def(text: &str, server: &str) -> Option<DefinitionResult> {
     None
 }
 
+/// Find an agent definition in the `agents:` block.
+fn find_agent_def(text: &str, name: &str) -> Option<DefinitionResult> {
+    if name.is_empty() {
+        return None;
+    }
+    let needle = format!("  {}:", name);
+    let mut in_agents = false;
+    let mut offset = 0u32;
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed == "agents:" {
+            in_agents = true;
+        } else if in_agents && !trimmed.is_empty() && !line.starts_with(' ') {
+            in_agents = false; // Left agents block
+        }
+        if in_agents && line.starts_with(&needle) {
+            return Some(DefinitionResult {
+                offset,
+                end_offset: offset + line.len() as u32,
+                file: None,
+            });
+        }
+        offset += line.len() as u32 + 1;
+    }
+    None
+}
+
+/// Extract the value of a field from the line at the given offset.
+fn extract_field_value(text: &str, offset: u32, field: &str) -> Option<String> {
+    let start = (offset as usize).min(text.len());
+    // Find the line containing the offset
+    let line_start = text[..start].rfind('\n').map_or(0, |p| p + 1);
+    let line_end = text[start..]
+        .find('\n')
+        .map_or(text.len(), |p| start + p);
+    let line = &text[line_start..line_end];
+    let trimmed = line.trim();
+
+    let prefix = format!("{field}:");
+    if let Some(rest) = trimmed.strip_prefix(&prefix) {
+        let val = rest.trim().trim_matches('"').trim_matches('\'');
+        if !val.is_empty() {
+            return Some(val.to_string());
+        }
+    }
+    // Also search nearby lines (field might be on adjacent line)
+    for search_line in text[line_start.saturating_sub(200)..line_end.min(text.len())]
+        .lines()
+        .take(10)
+    {
+        let t = search_line.trim();
+        if let Some(rest) = t.strip_prefix(&prefix) {
+            let val = rest.trim().trim_matches('"').trim_matches('\'');
+            if !val.is_empty() {
+                return Some(val.to_string());
+            }
+        }
+    }
+    None
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Tests
 // ═══════════════════════════════════════════════════════════════════════════
@@ -189,6 +275,15 @@ inputs:
   topic:
     type: string
 
+skills:
+  research: ./skills/research.md
+  summarize: ./skills/summarize.md
+
+agents:
+  researcher:
+    system: \"You are a researcher\"
+    tools: [perplexity/search]
+
 tasks:
   - id: step1
     infer: \"Generate\"
@@ -198,6 +293,12 @@ tasks:
       data: $step1
     infer: \"Process {{with.data}}\"
     depends_on: [step1]
+
+  - id: step3
+    agent:
+      from: researcher
+      prompt: \"Research topic\"
+      skills: [research]
 ";
 
     #[test]
@@ -329,6 +430,27 @@ tasks:
             mcp_server: Some("novanet".to_string()),
             tool_name: None,
             focus: crate::analysis::context::InvokeFocus::McpServer,
+            prefix: String::new(),
+        };
+        assert!(definition(SAMPLE, 0, &ctx).is_some());
+    }
+
+    #[test]
+    fn agent_def_found() {
+        let r = find_agent_def(SAMPLE, "researcher").unwrap();
+        let slice = &SAMPLE[r.offset as usize..r.end_offset as usize];
+        assert!(slice.contains("researcher"));
+    }
+
+    #[test]
+    fn agent_def_not_found() {
+        assert!(find_agent_def(SAMPLE, "nonexistent").is_none());
+    }
+
+    #[test]
+    fn mcp_config_jumps_to_server() {
+        let ctx = CursorContext::McpConfig {
+            server_name: Some("novanet".to_string()),
             prefix: String::new(),
         };
         assert!(definition(SAMPLE, 0, &ctx).is_some());

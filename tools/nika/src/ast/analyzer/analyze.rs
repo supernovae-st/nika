@@ -2357,7 +2357,8 @@ mod tests {
             make_span(0, 30),
         ));
 
-        let raw = make_raw_workflow("nika/workflow@0.12", vec![task]);
+        let mut raw = make_raw_workflow("nika/workflow@0.12", vec![task]);
+        raw.model = Some(Spanned::new("test-model".to_string(), make_span(0, 10)));
         let result = analyze(raw);
 
         // Should succeed (retry on infer is not an error)

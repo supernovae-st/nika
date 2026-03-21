@@ -172,6 +172,7 @@ tasks:
 fn test_error_collection_multiple_errors() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 
 tasks:
   - id: task1
@@ -220,6 +221,7 @@ tasks:
 fn test_error_collection_invalid_schema() {
     let yaml = r#"
 schema: "nika/workflow@0.999"
+model: test-model
 
 tasks:
   - id: test
@@ -242,6 +244,7 @@ tasks:
 fn test_error_message_includes_code() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 
 tasks:
   - id: test
@@ -274,6 +277,7 @@ tasks:
 fn test_span_tracking_preserved() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 
 tasks:
   - id: test_task
@@ -342,6 +346,7 @@ tasks:
 fn test_feature_gate_for_each_v01_rejected() {
     let yaml = r#"
 schema: "nika/workflow@0.1"
+model: test-model
 
 tasks:
   - id: parallel
@@ -366,6 +371,7 @@ tasks:
 fn test_feature_gate_for_each_v03_accepted() {
     let yaml = r#"
 schema: "nika/workflow@0.3"
+model: test-model
 
 tasks:
   - id: parallel
@@ -411,6 +417,7 @@ tasks:
 fn test_feature_gate_agent_v01_rejected() {
     let yaml = r#"
 schema: "nika/workflow@0.1"
+model: test-model
 
 tasks:
   - id: ai_agent
@@ -428,6 +435,7 @@ tasks:
 fn test_feature_gate_upgrade_suggestion() {
     let yaml = r#"
 schema: "nika/workflow@0.1"
+model: test-model
 
 tasks:
   - id: parallel
@@ -474,6 +482,7 @@ fn test_schema_version_parsed_correctly() {
         let yaml = format!(
             r#"
 schema: "{}"
+model: test-model
 
 tasks:
   - id: test
@@ -507,6 +516,7 @@ tasks:
 fn test_schema_version_suggestion_on_typo() {
     let yaml = r#"
 schema: "nika/workflow@0.01"
+model: test-model
 
 tasks:
   - id: test
@@ -536,6 +546,7 @@ tasks:
 fn test_task_ids_are_interned() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 
 tasks:
   - id: task_a
@@ -588,6 +599,7 @@ tasks:
 fn test_mcp_servers_analyzed() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 
 mcp:
   servers:
@@ -633,6 +645,7 @@ tasks:
 fn test_for_each_analyzed() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 
 tasks:
   - id: parallel_task
@@ -665,6 +678,7 @@ tasks:
 fn test_retry_analyzed() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 
 tasks:
   - id: retryable_task

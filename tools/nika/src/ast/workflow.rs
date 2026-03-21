@@ -413,6 +413,7 @@ mod tests {
     fn test_workflow_parse_minimal() {
         let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: hello
     infer: "Say hello"
@@ -423,7 +424,7 @@ tasks:
         assert_eq!(workflow.provider, "claude"); // default
         assert_eq!(workflow.tasks.len(), 1);
         assert_eq!(workflow.tasks[0].id, "hello");
-        assert!(workflow.model.is_none());
+        assert_eq!(workflow.model.as_deref(), Some("test-model"));
         assert!(workflow.mcp.is_none());
         assert_eq!(workflow.flow_count(), 0);
     }
@@ -448,6 +449,7 @@ tasks:
     fn test_workflow_parse_multiple_tasks() {
         let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: task1
     infer: "First task"
@@ -758,6 +760,7 @@ tasks:
     fn test_workflow_compute_hash_consistency() {
         let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: task1
     infer: "Test"
@@ -774,12 +777,14 @@ tasks:
     fn test_workflow_compute_hash_differs_with_schema() {
         let yaml_v10 = r#"
 schema: "nika/workflow@0.10"
+model: test-model
 tasks:
   - id: task1
     infer: "Test"
 "#;
         let yaml_v12 = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: task1
     infer: "Test"
@@ -798,12 +803,14 @@ tasks:
     fn test_workflow_compute_hash_differs_with_tasks() {
         let yaml_1task = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: task1
     infer: "Test"
 "#;
         let yaml_2tasks = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: task1
     infer: "Test"
@@ -984,6 +991,7 @@ infer: "Test"
     fn test_workflow_default_provider_is_claude() {
         let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: task1
     infer: "Test"
