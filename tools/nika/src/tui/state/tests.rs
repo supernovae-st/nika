@@ -2,7 +2,11 @@
 //!
 //! Extracted from state.rs to reduce file size.
 
+use std::sync::Arc;
+
 use super::*;
+use crate::event::EventKind;
+use crate::tui::theme::{MissionPhase, TaskStatus};
 
 /// Use actual package version in tests to avoid version drift
 const TEST_VERSION: &str = env!("CARGO_PKG_VERSION");

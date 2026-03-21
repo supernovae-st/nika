@@ -49,7 +49,9 @@ use crate::tui::focus::PanelId;
 use crate::tui::state::TuiState;
 use crate::tui::theme::{MissionPhase, TaskStatus, Theme, VerbColor};
 use crate::tui::unicode::truncate_to_width;
-use crate::tui::widgets::{task_box::RenderMode, DagAscii, NodeBoxData, NodeBoxMode};
+use crate::tui::widgets::{
+    task_box::RenderMode, DagAscii, NodeBoxData, NodeBoxMode, ScrollIndicator,
+};
 
 /// Monitor View state
 ///
@@ -523,11 +525,29 @@ impl MonitorView {
             .collect();
 
         // Apply scroll offset
+        let total_items = items.len();
         let skip = self.scroll[Self::panel_index(PanelId::RunnerMission)];
+        let visible_count = inner_area.height as usize;
         let visible_items: Vec<ListItem> = items.into_iter().skip(skip).collect();
 
         let list = List::new(visible_items);
         frame.render_widget(list, inner_area);
+
+        // Scroll indicator when content overflows
+        if total_items > visible_count {
+            let scrollbar_area = Rect {
+                x: inner_area.x + inner_area.width.saturating_sub(1),
+                y: inner_area.y,
+                width: 1,
+                height: inner_area.height,
+            };
+            let indicator = ScrollIndicator::new()
+                .position(skip, total_items, visible_count)
+                .thumb_style(Style::default().fg(theme.scrollbar_thumb))
+                .track_style(Style::default().fg(theme.scrollbar_track))
+                .show_arrows(true);
+            frame.render_widget(indicator, scrollbar_area);
+        }
     }
 
     /// Render Mission Control TaskIO tab
@@ -602,11 +622,31 @@ impl MonitorView {
             }
         }
 
+        let total_lines = content.lines().count();
+        let visible_count = area.height as usize;
+        let scroll_offset = self.scroll[Self::panel_index(PanelId::RunnerDag)];
+
         let paragraph = Paragraph::new(content)
             .style(Style::default().fg(theme.text_primary))
             .wrap(ratatui::widgets::Wrap { trim: false })
-            .scroll((self.scroll[Self::panel_index(PanelId::RunnerDag)] as u16, 0));
+            .scroll((scroll_offset as u16, 0));
         frame.render_widget(paragraph, area);
+
+        // Scroll indicator when YAML content overflows
+        if total_lines > visible_count {
+            let scrollbar_area = Rect {
+                x: area.x + area.width.saturating_sub(1),
+                y: area.y,
+                width: 1,
+                height: area.height,
+            };
+            let indicator = ScrollIndicator::new()
+                .position(scroll_offset, total_lines, visible_count)
+                .thumb_style(Style::default().fg(theme.scrollbar_thumb))
+                .track_style(Style::default().fg(theme.scrollbar_track))
+                .show_arrows(true);
+            frame.render_widget(indicator, scrollbar_area);
+        }
     }
 
     /// Render DAG Execution panel (Panel 2) using DagAscii widget
@@ -771,8 +811,27 @@ impl MonitorView {
             )]));
             frame.render_widget(empty, inner_area);
         } else {
+            let total_items = items.len();
+            let visible_count = inner_area.height as usize;
             let list = List::new(items);
             frame.render_widget(list, inner_area);
+
+            // Scroll indicator when MCP calls overflow panel
+            if total_items > visible_count {
+                let scroll_offset = self.scroll_offset(PanelId::RunnerNovanet);
+                let scrollbar_area = Rect {
+                    x: inner_area.x + inner_area.width.saturating_sub(1),
+                    y: inner_area.y,
+                    width: 1,
+                    height: inner_area.height,
+                };
+                let indicator = ScrollIndicator::new()
+                    .position(scroll_offset, total_items, visible_count)
+                    .thumb_style(Style::default().fg(theme.scrollbar_thumb))
+                    .track_style(Style::default().fg(theme.scrollbar_track))
+                    .show_arrows(true);
+                frame.render_widget(indicator, scrollbar_area);
+            }
         }
     }
 
@@ -796,14 +855,31 @@ impl MonitorView {
             "No MCP call selected".to_string()
         };
 
+        let total_lines = content.lines().count();
+        let visible_count = area.height as usize;
+        let scroll_offset = self.scroll[Self::panel_index(PanelId::RunnerNovanet)];
+
         let paragraph = Paragraph::new(content)
             .style(Style::default().fg(theme.text_primary))
             .wrap(ratatui::widgets::Wrap { trim: true })
-            .scroll((
-                self.scroll[Self::panel_index(PanelId::RunnerNovanet)] as u16,
-                0,
-            ));
+            .scroll((scroll_offset as u16, 0));
         frame.render_widget(paragraph, area);
+
+        // Scroll indicator when JSON content overflows
+        if total_lines > visible_count {
+            let scrollbar_area = Rect {
+                x: area.x + area.width.saturating_sub(1),
+                y: area.y,
+                width: 1,
+                height: area.height,
+            };
+            let indicator = ScrollIndicator::new()
+                .position(scroll_offset, total_lines, visible_count)
+                .thumb_style(Style::default().fg(theme.scrollbar_thumb))
+                .track_style(Style::default().fg(theme.scrollbar_track))
+                .show_arrows(true);
+            frame.render_widget(indicator, scrollbar_area);
+        }
     }
 
     /// Render Agent Reasoning panel (Panel 4)
@@ -913,8 +989,27 @@ impl MonitorView {
             )]));
             frame.render_widget(empty, inner_area);
         } else {
+            let total_items = items.len();
+            let visible_count = inner_area.height as usize;
             let list = List::new(items);
             frame.render_widget(list, inner_area);
+
+            // Scroll indicator when agent turns overflow panel
+            if total_items > visible_count {
+                let scroll_offset = self.scroll_offset(PanelId::RunnerReasoning);
+                let scrollbar_area = Rect {
+                    x: inner_area.x + inner_area.width.saturating_sub(1),
+                    y: inner_area.y,
+                    width: 1,
+                    height: inner_area.height,
+                };
+                let indicator = ScrollIndicator::new()
+                    .position(scroll_offset, total_items, visible_count)
+                    .thumb_style(Style::default().fg(theme.scrollbar_thumb))
+                    .track_style(Style::default().fg(theme.scrollbar_track))
+                    .show_arrows(true);
+                frame.render_widget(indicator, scrollbar_area);
+            }
         }
     }
 
@@ -940,14 +1035,31 @@ impl MonitorView {
             "No agent turn selected".to_string()
         };
 
+        let total_lines = content.lines().count();
+        let visible_count = area.height as usize;
+        let scroll_offset = self.scroll[Self::panel_index(PanelId::RunnerReasoning)];
+
         let paragraph = Paragraph::new(content)
             .style(Style::default().fg(theme.text_primary))
             .wrap(ratatui::widgets::Wrap { trim: true })
-            .scroll((
-                self.scroll[Self::panel_index(PanelId::RunnerReasoning)] as u16,
-                0,
-            ));
+            .scroll((scroll_offset as u16, 0));
         frame.render_widget(paragraph, area);
+
+        // Scroll indicator when thinking content overflows
+        if total_lines > visible_count {
+            let scrollbar_area = Rect {
+                x: area.x + area.width.saturating_sub(1),
+                y: area.y,
+                width: 1,
+                height: area.height,
+            };
+            let indicator = ScrollIndicator::new()
+                .position(scroll_offset, total_lines, visible_count)
+                .thumb_style(Style::default().fg(theme.scrollbar_thumb))
+                .track_style(Style::default().fg(theme.scrollbar_track))
+                .show_arrows(true);
+            frame.render_widget(indicator, scrollbar_area);
+        }
     }
 
     /// Render Agent Steps tab
@@ -976,14 +1088,31 @@ impl MonitorView {
             "No agent turn selected".to_string()
         };
 
+        let total_lines = content.lines().count();
+        let visible_count = area.height as usize;
+        let scroll_offset = self.scroll[Self::panel_index(PanelId::RunnerReasoning)];
+
         let paragraph = Paragraph::new(content)
             .style(Style::default().fg(theme.text_primary))
             .wrap(ratatui::widgets::Wrap { trim: true })
-            .scroll((
-                self.scroll[Self::panel_index(PanelId::RunnerReasoning)] as u16,
-                0,
-            ));
+            .scroll((scroll_offset as u16, 0));
         frame.render_widget(paragraph, area);
+
+        // Scroll indicator when steps content overflows
+        if total_lines > visible_count {
+            let scrollbar_area = Rect {
+                x: area.x + area.width.saturating_sub(1),
+                y: area.y,
+                width: 1,
+                height: area.height,
+            };
+            let indicator = ScrollIndicator::new()
+                .position(scroll_offset, total_lines, visible_count)
+                .thumb_style(Style::default().fg(theme.scrollbar_thumb))
+                .track_style(Style::default().fg(theme.scrollbar_track))
+                .show_arrows(true);
+            frame.render_widget(indicator, scrollbar_area);
+        }
     }
     // Render_footer() removed - global StatusBar handles metrics now
 }

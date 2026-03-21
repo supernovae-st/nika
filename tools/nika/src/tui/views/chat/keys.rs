@@ -13,6 +13,7 @@ use crate::tui::file_resolve::FileResolver;
 use crate::tui::views::{TuiView, ViewAction};
 use crate::tui::widgets::provider_modal::ModalEventHandler;
 use crate::tui::widgets::task_box::RenderMode;
+use crate::tui::widgets::ConfirmAction;
 
 use super::hints::{detect_verb_in_input, verb_placeholder};
 
@@ -21,6 +22,27 @@ use super::hints::{detect_verb_in_input, verb_placeholder};
 // ═══════════════════════════════════════════════════════════════════════════════
 
 impl ChatView {
+    /// Handle key events when confirmation dialog is visible.
+    ///
+    /// Y or Enter = confirm the action, N or Escape = cancel.
+    pub(super) fn handle_confirm_dialog_key(&mut self, key: KeyEvent) -> ViewAction {
+        match key.code {
+            // Confirm: Y or Enter
+            KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Enter => {
+                let action = self.pending_confirm.take();
+                match action {
+                    Some(ConfirmAction::ClearChat) => ViewAction::ChatClear,
+                    None => ViewAction::None,
+                }
+            }
+            // Cancel: N, Escape, or any other key
+            _ => {
+                self.pending_confirm = None;
+                ViewAction::None
+            }
+        }
+    }
+
     /// Handle key events when help overlay is visible
     pub(super) fn handle_help_overlay_key(&mut self, key: KeyEvent) -> ViewAction {
         match key.code {
@@ -85,7 +107,10 @@ impl ChatView {
                                 self.add_nika_message(HELP_TEXT.to_string(), None);
                                 ViewAction::None
                             }
-                            Command::Clear => ViewAction::ChatClear,
+                            Command::Clear => {
+                                self.pending_confirm = Some(ConfirmAction::ClearChat);
+                                ViewAction::None
+                            }
                             Command::Exec { command } => ViewAction::ChatExec(command),
                             Command::Fetch { url, method } => ViewAction::ChatFetch(url, method),
                             Command::FetchError {
@@ -714,7 +739,10 @@ impl ChatView {
                     self.add_nika_message(HELP_TEXT.to_string(), None);
                     Some(ViewAction::None)
                 }
-                Command::Clear => Some(ViewAction::ChatClear),
+                Command::Clear => {
+                    self.pending_confirm = Some(ConfirmAction::ClearChat);
+                    Some(ViewAction::None)
+                }
                 Command::Exec { command } => Some(ViewAction::ChatExec(command)),
                 Command::Fetch { url, method } => Some(ViewAction::ChatFetch(url, method)),
                 Command::FetchError {

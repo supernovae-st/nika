@@ -70,6 +70,9 @@ use crate::tui::widgets::{
     ChatTaskVerb,
     CommandPalette,
     CommandPaletteState,
+    // Confirmation dialog
+    ConfirmAction,
+    ConfirmDialog,
     ContextItem,
     CurrentVerb,
     DagEdgeData,
@@ -258,6 +261,9 @@ pub struct ChatView {
 
     /// Help overlay state (toggle with ? or F1)
     pub help_overlay: HelpOverlayState,
+
+    /// Pending confirmation dialog (shown before destructive actions)
+    pub pending_confirm: Option<ConfirmAction>,
 
     /// Edit history for input field (Ctrl+Z/Ctrl+Y)
     pub edit_history: EditHistory,
@@ -488,6 +494,7 @@ impl ChatView {
 
             // Help Overlay
             help_overlay: HelpOverlayState::new(),
+            pending_confirm: None,
 
             // Edit History (Undo/Redo)
             edit_history: EditHistory::default(),
@@ -815,12 +822,22 @@ impl View for ChatView {
             MentionAutocomplete::new(&self.mention_autocomplete)
                 .render(popup_area, frame.buffer_mut());
         }
+
+        // 9. Confirmation dialog overlay (highest z-order — blocks all input)
+        if let Some(ref action) = self.pending_confirm {
+            ConfirmDialog::new(action).render(area, frame.buffer_mut());
+        }
     }
 
     fn handle_key(&mut self, key: KeyEvent, _state: &mut TuiState) -> ViewAction {
         // ───────────────────────────────────────────────────────────────────────────
         // Overlay dispatches (highest priority)
         // ───────────────────────────────────────────────────────────────────────────
+
+        // Handle confirmation dialog when visible (blocks all other input)
+        if self.pending_confirm.is_some() {
+            return self.handle_confirm_dialog_key(key);
+        }
 
         // Handle help overlay when visible
         if self.help_overlay.visible {

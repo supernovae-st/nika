@@ -25,6 +25,7 @@ mod chat_edge_line;
 mod chat_node_box;
 mod chat_task_queue;
 mod command_palette;
+mod confirm_dialog;
 mod dag_ascii;
 // Internal to dag_ascii: edge rendering, some items staged
 #[allow(dead_code)]
@@ -86,9 +87,11 @@ pub mod progress;
 pub use animation::{AnimationState, AnimationTicker, Easing};
 // Chat DAG widgets
 pub use chat_dag_panel::{ChatDagPanel, DagEdgeData, DagNodeData};
+// Confirmation dialog
 pub use chat_edge_line::{ChatEdgeLine, ChatPosition};
 pub use chat_node_box::{ChatNodeBox, ChatNodeKind, ChatNodeState};
 pub use chat_task_queue::{ChatTaskQueue, ChatTaskQueueItem, ChatTaskState, ChatTaskVerb};
+pub use confirm_dialog::{ConfirmAction, ConfirmDialog};
 pub use provider_modal::*;
 // Provider selector types (data-only, widget rendering stripped)
 pub use provider_selector::{
