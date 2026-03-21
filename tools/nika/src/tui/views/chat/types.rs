@@ -165,27 +165,6 @@ impl ChatMode {
 // Helper Types
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// Failed MCP call data for display
-#[allow(dead_code)]
-#[derive(Debug, Clone)]
-pub struct FailedMcpCall {
-    pub server: String,
-    pub tool: String,
-    pub error: String,
-    pub can_retry: bool,
-    pub is_timeout: bool,
-}
-
-/// Line position for text editing
-#[allow(dead_code)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct LinePosition {
-    /// Line number (0-indexed)
-    pub line: usize,
-    /// Column number (0-indexed)
-    pub column: usize,
-}
-
 /// Text selection state
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
@@ -313,7 +292,6 @@ impl ChatSession {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// Stores info about a failed MCP call for retry
-/// Different from FailedMcpCall which is for display - this one stores params for retry
 #[derive(Debug, Clone)]
 pub struct McpRetryInfo {
     /// Tool name that was called

@@ -101,41 +101,11 @@ impl ChatView {
 // Helper Functions
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// Convert character offset to byte offset in a UTF-8 string
-/// This handles multi-byte characters correctly
-#[allow(dead_code)]
-pub(super) fn char_to_byte_offset(s: &str, char_offset: usize) -> usize {
-    s.char_indices()
-        .nth(char_offset)
-        .map(|(i, _)| i)
-        .unwrap_or(s.len())
-}
-
 // centered_rect moved to widgets/utils.rs (shared utility)
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_char_to_byte_offset_ascii() {
-        let s = "hello world";
-        assert_eq!(char_to_byte_offset(s, 0), 0);
-        assert_eq!(char_to_byte_offset(s, 5), 5);
-        assert_eq!(char_to_byte_offset(s, 11), 11);
-        assert_eq!(char_to_byte_offset(s, 100), 11); // Beyond end returns len
-    }
-
-    #[test]
-    fn test_char_to_byte_offset_unicode() {
-        let s = "héllo 🦋 wörld";
-        // h=1, é=2, l=1, l=1, o=1, ' '=1, 🦋=4, ' '=1, w=1, ö=2, r=1, l=1, d=1
-        assert_eq!(char_to_byte_offset(s, 0), 0); // 'h'
-        assert_eq!(char_to_byte_offset(s, 1), 1); // 'é' starts at byte 1
-        assert_eq!(char_to_byte_offset(s, 2), 3); // 'l' starts at byte 3 (after 2-byte é)
-        assert_eq!(char_to_byte_offset(s, 6), 7); // '🦋' starts at byte 7
-        assert_eq!(char_to_byte_offset(s, 7), 11); // ' ' after butterfly starts at byte 11
-    }
 
     #[test]
     fn test_centered_rect() {

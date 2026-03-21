@@ -37,7 +37,6 @@
 
 mod agent_state;
 mod cache;
-#[allow(dead_code)]
 mod chat_overlay;
 mod mcp_state;
 mod notification;

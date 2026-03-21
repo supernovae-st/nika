@@ -41,8 +41,28 @@
 
 use std::cell::OnceCell;
 
+use ratatui::style::Color;
+
 use super::theme::{Theme, ThemeMode};
 use super::tokens::{CosmicVariant, TokenResolver};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// COLOR HELPERS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Lighten an RGB color by a multiplicative factor (>1.0 = brighter).
+///
+/// Non-RGB colors pass through unchanged.
+fn lighten_color(color: Color, factor: f32) -> Color {
+    match color {
+        Color::Rgb(r, g, b) => Color::Rgb(
+            (r as f32 * factor).min(255.0) as u8,
+            (g as f32 * factor).min(255.0) as u8,
+            (b as f32 * factor).min(255.0) as u8,
+        ),
+        other => other,
+    }
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // COSMIC THEME ADAPTER
@@ -265,6 +285,41 @@ impl Theme {
             scrollbar_thumb: semantic.scrollbar_thumb,
             scrollbar_track: semantic.scrollbar_track,
             scrollbar_arrows: semantic.scrollbar_arrows,
+
+            // ═══ DIAGNOSTICS ═══
+            diagnostic_error: resolver.status_error(),
+            diagnostic_warning: resolver.status_warning(),
+            diagnostic_hint: resolver.status_info(),
+
+            // ═══ POPUP / OVERLAY ═══
+            popup_bg: resolver.bg_secondary(),
+            popup_border: resolver.border_default(),
+            popup_selected: resolver.bg_hover(),
+
+            // ═══ VERB GLOW ═══
+            verb_infer_glow: lighten_color(semantic.verb_infer, 1.3),
+            verb_exec_glow: lighten_color(semantic.verb_exec, 1.3),
+            verb_fetch_glow: lighten_color(semantic.verb_fetch, 1.3),
+            verb_invoke_glow: lighten_color(semantic.verb_invoke, 1.3),
+            verb_agent_glow: lighten_color(semantic.verb_agent, 1.3),
+
+            // ═══ TREE WIDGET ═══
+            tree_directory: Color::Rgb(137, 180, 250), // Blue
+            tree_file: resolver.text_secondary(),
+            tree_hidden: resolver.text_muted(),
+            tree_ecosystem: Color::Rgb(249, 226, 175), // Yellow
+            tree_ecosystem_glow: Color::Rgb(250, 179, 135), // Peach
+            tree_indent_guide: resolver.text_muted(),
+
+            // ═══ SYNTAX HIGHLIGHTING ═══
+            syntax_keyword: Color::Rgb(203, 166, 247), // Mauve
+            syntax_string: Color::Rgb(166, 227, 161),  // Green
+            syntax_number: Color::Rgb(250, 179, 135),  // Peach
+            syntax_comment: Color::Rgb(108, 112, 134), // Overlay0
+            syntax_verb: Color::Rgb(203, 166, 247),    // Mauve
+            syntax_template: Color::Rgb(148, 226, 213), // Teal
+            syntax_mcp_server: Color::Rgb(116, 199, 236), // Sapphire
+            syntax_task_id: Color::Rgb(249, 226, 175), // Yellow
         }
     }
 
@@ -437,6 +492,33 @@ mod tests {
         assert_ne!(theme.mcp_describe, Color::Reset);
         assert_ne!(theme.border_normal, Color::Reset);
         assert_ne!(theme.scrollbar_thumb, Color::Reset);
+
+        // Phase 1 expansion fields
+        assert_ne!(theme.diagnostic_error, Color::Reset);
+        assert_ne!(theme.diagnostic_warning, Color::Reset);
+        assert_ne!(theme.diagnostic_hint, Color::Reset);
+        assert_ne!(theme.popup_bg, Color::Reset);
+        assert_ne!(theme.popup_border, Color::Reset);
+        assert_ne!(theme.popup_selected, Color::Reset);
+        assert_ne!(theme.verb_infer_glow, Color::Reset);
+        assert_ne!(theme.verb_exec_glow, Color::Reset);
+        assert_ne!(theme.verb_fetch_glow, Color::Reset);
+        assert_ne!(theme.verb_invoke_glow, Color::Reset);
+        assert_ne!(theme.verb_agent_glow, Color::Reset);
+        assert_ne!(theme.tree_directory, Color::Reset);
+        assert_ne!(theme.tree_file, Color::Reset);
+        assert_ne!(theme.tree_hidden, Color::Reset);
+        assert_ne!(theme.tree_ecosystem, Color::Reset);
+        assert_ne!(theme.tree_ecosystem_glow, Color::Reset);
+        assert_ne!(theme.tree_indent_guide, Color::Reset);
+        assert_ne!(theme.syntax_keyword, Color::Reset);
+        assert_ne!(theme.syntax_string, Color::Reset);
+        assert_ne!(theme.syntax_number, Color::Reset);
+        assert_ne!(theme.syntax_comment, Color::Reset);
+        assert_ne!(theme.syntax_verb, Color::Reset);
+        assert_ne!(theme.syntax_template, Color::Reset);
+        assert_ne!(theme.syntax_mcp_server, Color::Reset);
+        assert_ne!(theme.syntax_task_id, Color::Reset);
     }
 
     #[test]

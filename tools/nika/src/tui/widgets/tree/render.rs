@@ -38,9 +38,6 @@ pub mod chars {
     pub const COLLAPSED_FALLBACK: &str = "▶";
     /// Expanded folder arrow (fallback)
     pub const EXPANDED_FALLBACK: &str = "▼";
-    /// Spacer (empty indent)
-    #[allow(dead_code)]
-    pub const SPACER: &str = "  ";
 }
 
 /// Tree widget for rendering file trees
@@ -139,10 +136,8 @@ impl<'a> TreeWidget<'a> {
                 id: node.id,
                 name: node.name.clone(),
                 kind: node.kind,
-                depth: node.depth,
                 is_directory: node.is_directory(),
                 is_expanded: state.is_expanded(node.id),
-                is_last: ancestors.last().copied().unwrap_or(true),
                 ancestors: ancestors.to_vec(),
                 git_status: node.git_status,
             });
@@ -304,12 +299,8 @@ struct FlatNode {
     id: u64,
     name: String,
     kind: NodeKind,
-    #[allow(dead_code)]
-    depth: usize,
     is_directory: bool,
     is_expanded: bool,
-    #[allow(dead_code)]
-    is_last: bool,
     ancestors: Vec<bool>,
     git_status: Option<super::GitStatus>,
 }

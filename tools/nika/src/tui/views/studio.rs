@@ -2070,13 +2070,11 @@ impl YamlEditorPanel {
     }
 
     /// Get current line number (1-indexed)
-    #[allow(dead_code)] // Will be used for status line display
     pub fn current_line(&self) -> usize {
         self.buffer.cursor().0 + 1
     }
 
     /// Get current column (1-indexed)
-    #[allow(dead_code)] // Will be used for status line display
     pub fn current_col(&self) -> usize {
         self.buffer.cursor().1 + 1
     }
@@ -3370,9 +3368,6 @@ impl YamlHighlight {
     const BOOL: Color = Color::Rgb(108, 113, 196);
     /// Comment color (Solarized base01 - muted)
     const COMMENT: Color = Color::Rgb(88, 110, 117);
-    /// Default text color (reserved for future use)
-    #[allow(dead_code)]
-    const DEFAULT: Color = Color::Reset;
     /// Nika verbs (Solarized MAGENTA) - infer, exec, fetch, invoke, agent 🦋
     const VERB: Color = Color::Rgb(211, 54, 130);
     /// Nika structure keywords (Solarized yellow)

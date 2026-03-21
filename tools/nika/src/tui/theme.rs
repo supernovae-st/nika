@@ -614,6 +614,51 @@ pub struct Theme {
     pub scrollbar_thumb: Color,  // Main thumb color (visible indicator)
     pub scrollbar_track: Color,  // Track background (subtle)
     pub scrollbar_arrows: Color, // Arrow symbols (accent)
+
+    // ═══════════════════════════════════════════
+    // DIAGNOSTICS
+    // ═══════════════════════════════════════════
+    pub diagnostic_error: Color,
+    pub diagnostic_warning: Color,
+    pub diagnostic_hint: Color,
+
+    // ═══════════════════════════════════════════
+    // POPUP / OVERLAY
+    // ═══════════════════════════════════════════
+    pub popup_bg: Color,
+    pub popup_border: Color,
+    pub popup_selected: Color,
+
+    // ═══════════════════════════════════════════
+    // VERB GLOW (brighter variant for active/hover)
+    // ═══════════════════════════════════════════
+    pub verb_infer_glow: Color,
+    pub verb_exec_glow: Color,
+    pub verb_fetch_glow: Color,
+    pub verb_invoke_glow: Color,
+    pub verb_agent_glow: Color,
+
+    // ═══════════════════════════════════════════
+    // TREE WIDGET
+    // ═══════════════════════════════════════════
+    pub tree_directory: Color,
+    pub tree_file: Color,
+    pub tree_hidden: Color,
+    pub tree_ecosystem: Color,
+    pub tree_ecosystem_glow: Color,
+    pub tree_indent_guide: Color,
+
+    // ═══════════════════════════════════════════
+    // SYNTAX HIGHLIGHTING
+    // ═══════════════════════════════════════════
+    pub syntax_keyword: Color,
+    pub syntax_string: Color,
+    pub syntax_number: Color,
+    pub syntax_comment: Color,
+    pub syntax_verb: Color,
+    pub syntax_template: Color,
+    pub syntax_mcp_server: Color,
+    pub syntax_task_id: Color,
 }
 
 impl Default for Theme {
