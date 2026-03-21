@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.37.0](https://github.com/supernovae-st/nika/releases/tag/v0.37.0) - 2026-03-21
+
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║  🦋 NIKA v0.37.0 — SCHEMA @0.12 ONLY                                         ║
+║  Zero users = zero backward compatibility                                    ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║                                                                               ║
+║  v0.36.1  MCP Rich Aliases + CLI (113 aliases, pricing tiers)                ║
+║  v0.36.2  LSP Intelligence + Guardrails (retry loop, hover docs)             ║
+║  v0.36.3  Nuclear Cleanup (-78K lines, 104 docs deleted)                     ║
+║  v0.36.4  Runtime Polish + Zombie Purge (stop_sequences, -2,810 lines)       ║
+║  v0.37.0  Schema @0.12 Only (breaking: old schemas rejected)                ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+```
+
+See [tools/nika/CHANGELOG.md](tools/nika/CHANGELOG.md) for detailed per-release notes (v0.36.1 → v0.37.0).
+
+### Breaking
+- **Schema @0.1 through @0.11 rejected** — only `nika/workflow@0.12` accepted
+
+### Highlights
+- **113 MCP aliases** with rich structs (pricing, categories)
+- **Guardrail retry loop** for agents (`on_failure: retry`)
+- **stop_sequences** via additional_params workaround (all 8 providers)
+- **LSP enriched**: 35 hover docs, 3 code actions, syntax errors, "did you mean?"
+- **Nuclear cleanup**: -78K lines docs, legacy.rs extracted, 5 widgets stripped
+- **Contract tests**: 42x spn→nika, all counts updated
+- **Schema simplified**: 12 enum variants → 1, all feature gates removed
+- **nika-lsp**: MIT → AGPL-3.0-or-later
+
 ## [0.36.0](https://github.com/supernovae-st/nika/releases/tag/v0.36.0) - 2026-03-21
 
 ```

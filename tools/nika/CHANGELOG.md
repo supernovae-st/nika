@@ -7,6 +7,93 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.37.0](https://github.com/supernovae-st/nika/releases/tag/v0.37.0) - 2026-03-21
+
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║  🦋 NIKA v0.37.0 — SCHEMA @0.12 ONLY                                         ║
+║  Zero users = zero backward compatibility                                    ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║                                                                               ║
+║  BREAKING: Old schemas (@0.1-@0.11) are now rejected                         ║
+║  SchemaVersion enum: 12 variants → 1 (V12 only)                             ║
+║  13 supports_*() methods deleted | 7 feature gates deleted                   ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+```
+
+### Breaking
+- **Schema @0.1 through @0.11 rejected** — only `nika/workflow@0.12` accepted
+- `SchemaVersion` enum reduced to single `V12` variant
+
+### Removed
+- 13 `supports_*()` methods — all features always available in @0.12
+- `validate_feature_gates()` + `validate_task_feature_gates()` — no version gating
+- 11 `migration_hint()` entries
+- 11 dead feature gate tests
+
+### Added
+- **LSP symbols handler** enriched — 5 new task children + 3 root sections
+- `validate_task_semantics()` — retry-on-non-fetch warning preserved
+
+### Changed
+- **nika-lsp license**: MIT → AGPL-3.0-or-later
+- All crates bumped to 0.37.0
+
+## [0.36.4](https://github.com/supernovae-st/nika/releases/tag/v0.36.4) - 2026-03-21
+
+### Added
+- **stop_sequences via additional_params** — provider-specific key mapping (Anthropic: stop_sequences, OpenAI: stop, Gemini: stopSequences). Resolves 4 TODO(stop_sequences).
+- **ARCHITECTURE.md** rewritten for v0.36.0
+
+### Fixed
+- Inlay hints + code lens hardened from code review
+- Workflow model wired into agent path (remove hardcoded defaults)
+- Remaining 3 contract test spn→nika edits
+
+### Removed
+- **5 zombie widgets stripped** (-2,810 lines): agent_steps, provider_selector, sparkline, infer_stream_box, verb_input — rendering code removed, data types preserved
+
+## [0.36.3](https://github.com/supernovae-st/nika/releases/tag/v0.36.3) - 2026-03-21
+
+### Removed
+- **spec/SPEC.md** — frozen artifact (said "3 verbs"), README is source of truth
+- **104 superseded docs** (-77K lines): brainstorm/, old research, audits, verification, completed plans
+- **legacy.rs** — 6 live symbols extracted to summary.rs + dag_render.rs, 1,000 lines dead code deleted
+- **migration/ scripts** (14 files) — completed crate migration
+- **LSP dead code** (-380 LOC)
+
+### Changed
+- **Contract tests nuclear** — 42x spn→nika, MCP_ALIAS_COUNT 48→113, +xAI, delete run_spn()
+- **Internal README** deduplicated — dev reference only
+- Test badges: 8,000+ → 7,400+ (accurate count: 7,382 with LSP)
+- 23 new LSP E2E tests (bridge recovery, completions, definitions)
+
+## [0.36.2](https://github.com/supernovae-st/nika/releases/tag/v0.36.2) - 2026-03-21
+
+### Added
+- **Guardrail retry loop** for agent (`on_failure: retry`)
+- **Tree-sitter syntax errors** surfaced as NIKA-SYNTAX diagnostics in LSP
+- **"Did you mean?"** suggestions in LSP error diagnostics
+- **35 verb sub-field hover docs** + extract mode table in LSP
+- **3 new code actions** — invoke/agent expand, missing task id quickfix
+- **MissingModel analyzer error** (NIKA-034)
+- **Error recovery** wired into LSP context detection
+
+### Fixed
+- LSP completion placement: guardrails to verb level, resource field added
+
+## [0.36.1](https://github.com/supernovae-st/nika/releases/tag/v0.36.1) - 2026-03-21
+
+### Added
+- **MCP aliases → rich structs** with pricing tiers (Free/Freemium/Paid) and 17 categories
+- **113 MCP aliases** (expanded from 100: lifestyle + marketing categories)
+- **`nika features`** CLI command — show compiled feature flags
+- **LSP references + document links** handlers wired
+
+### Changed
+- MCP alias data model: string → struct with command, args, env, pricing, category
+
 ## [0.36.0](https://github.com/supernovae-st/nika/releases/tag/v0.36.0) - 2026-03-21
 
 ```

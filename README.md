@@ -4,7 +4,7 @@
 
 **Semantic YAML workflow engine for AI**
 
-[![Version](https://img.shields.io/badge/v0.36.0-7c3aed?style=flat-square&logo=semver&logoColor=white)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/v0.37.0-7c3aed?style=flat-square&logo=semver&logoColor=white)](CHANGELOG.md)
 [![Schema](https://img.shields.io/badge/schema-nika/workflow@0.12-0ea5e9?style=flat-square)](docs/schema/)
 [![Rust](https://img.shields.io/badge/rust_1.86+-f97316?style=flat-square&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/AGPL--3.0-22c55e?style=flat-square&logo=gnu&logoColor=white)](LICENSE)
@@ -430,7 +430,7 @@ Three views for the complete workflow lifecycle:
 
 ```
 +-----------------------------------------------------------------------------+
-| Nika Studio                                                  v0.36.0        |
+| Nika Studio                                                  v0.37.0        |
 |-----------------------------------------------------------------------------|
 | +- Files ----------+ +- Editor ------------------------------------------+ |
 | | > workflows/     | |  1 | schema: "nika/workflow@0.12"                 | |
@@ -768,7 +768,7 @@ cd nika && cargo install --path tools/nika
 ### Verify
 
 ```bash
-nika --version       # nika 0.36.0
+nika --version       # nika 0.37.0
 nika doctor          # Full system health check
 ```
 
@@ -895,7 +895,7 @@ NovaNet (Brain)              Nika (Body)
 
 <div align="center">
 
-**Nika v0.36.0** | Schema `nika/workflow@0.12` | Rust 1.86+ | AGPL-3.0
+**Nika v0.37.0** | Schema `nika/workflow@0.12` | Rust 1.86+ | AGPL-3.0
 
 7400+ tests | 100k+ LOC | 0 clippy warnings | 0.x.x forever
 
