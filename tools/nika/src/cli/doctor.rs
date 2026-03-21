@@ -95,6 +95,12 @@ pub async fn handle_doctor_command(full: bool, format: &str, quiet: bool) -> Res
         checks.push(check_mcp_connectivity().await);
     }
 
+    // 10. Check LSP availability (compiled-in feature)
+    checks.push(check_lsp_available());
+
+    // 11. Check editor integration (VS Code + extension)
+    checks.extend(check_editor_integration());
+
     // Output results
     if format == "json" {
         output_doctor_json(&checks)?;
@@ -460,6 +466,115 @@ async fn check_mcp_connectivity() -> DiagnosticCheck {
         "MCP",
         "MCP connectivity check (requires configured servers)",
     )
+}
+
+fn check_lsp_available() -> DiagnosticCheck {
+    if cfg!(feature = "lsp") {
+        DiagnosticCheck::pass("LSP", "Language server compiled in (nika lsp)")
+    } else {
+        DiagnosticCheck::warn(
+            "LSP",
+            "Language server not available (compiled without lsp feature)",
+            "Reinstall with: cargo install nika --features lsp, or: brew reinstall nika",
+        )
+    }
+}
+
+fn check_editor_integration() -> Vec<DiagnosticCheck> {
+    let mut checks = vec![];
+
+    // Detect VS Code (or common forks) — check PATH and platform-specific locations
+    // (binary_path, short_cmd_for_suggestions, display_name)
+    let editors: Vec<(String, &str, &str)> = {
+        let mut v: Vec<(String, &str, &str)> = vec![
+            ("code".to_string(), "code", "VS Code"),
+            ("cursor".to_string(), "cursor", "Cursor"),
+            ("windsurf".to_string(), "windsurf", "Windsurf"),
+        ];
+        // macOS: VS Code CLI may not be in PATH but the .app bundle exists
+        #[cfg(target_os = "macos")]
+        {
+            v.push((
+                "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code".to_string(),
+                "code",
+                "VS Code",
+            ));
+            v.push((
+                "/Applications/Cursor.app/Contents/Resources/app/bin/cursor".to_string(),
+                "cursor",
+                "Cursor",
+            ));
+        }
+        v
+    };
+    let mut found_editor: Option<(String, &str, &str, String)> = None;
+
+    for (bin, short_cmd, name) in &editors {
+        if let Ok(output) = std::process::Command::new(bin).arg("--version").output() {
+            if output.status.success() {
+                let version = String::from_utf8_lossy(&output.stdout);
+                let first_line = version.lines().next().unwrap_or("unknown").to_string();
+                found_editor = Some((bin.clone(), short_cmd, name, first_line));
+                break;
+            }
+        }
+    }
+
+    match found_editor {
+        Some((ref bin, short_cmd, name, version)) => {
+            checks.push(DiagnosticCheck::pass(
+                "Editor",
+                format!("{} {} detected", name, version),
+            ));
+
+            // Check if nika-lang extension is installed
+            match std::process::Command::new(bin)
+                .args(["--list-extensions"])
+                .output()
+            {
+                Ok(output) if output.status.success() => {
+                    let extensions = String::from_utf8_lossy(&output.stdout);
+                    if extensions.lines().any(|l| {
+                        let trimmed = l.trim().to_lowercase();
+                        trimmed == "supernovae-studio.nika-lang"
+                    }) {
+                        checks.push(DiagnosticCheck::pass(
+                            "Extension",
+                            "nika-lang extension installed",
+                        ));
+                    } else {
+                        checks.push(DiagnosticCheck::warn(
+                            "Extension",
+                            "nika-lang extension not installed",
+                            format!(
+                                "Install with: {} --install-extension supernovae-studio.nika-lang",
+                                short_cmd
+                            ),
+                        ));
+                    }
+                }
+                _ => {
+                    checks.push(DiagnosticCheck::warn(
+                        "Extension",
+                        "Cannot query installed extensions",
+                        format!(
+                            "Install with: {} --install-extension supernovae-studio.nika-lang",
+                            short_cmd
+                        ),
+                    ));
+                }
+            }
+        }
+        None => {
+            checks.push(DiagnosticCheck::warn(
+                "Editor",
+                "No supported editor detected (VS Code, Cursor, Windsurf)",
+                "Install VS Code and add 'code' to PATH for LSP integration",
+            ));
+        }
+    }
+
+    checks
 }
 
 fn output_doctor_text(checks: &[DiagnosticCheck], quiet: bool) {
