@@ -25,7 +25,7 @@ default = ["tui", "nika-daemon", "native-inference", "media-core", "fetch-extrac
 #   - lsp: editor-specific, not needed for CLI users
 # Everything else is default. Run `nika media tools` to verify.
 tui = ["dep:ratatui", "dep:crossterm", "dep:tui-input", "dep:arboard", "dep:nucleo", "dep:tree-sitter", "dep:tree-sitter-yaml", "dep:streaming-iterator", "dep:git2", "dep:openssl"]
-lsp = ["dep:tower-lsp-server", "dep:nika-lsp-core", "tokio/io-std", "tokio/io-util"]  # Language Server Protocol support (v0.23)
+lsp = ["dep:tower-lsp-server", "tokio/io-std", "tokio/io-util"]  # Language Server Protocol support (v0.23)
 nika-daemon = ["dep:spn-client"]  # Use nika daemon for unified secret management (v0.27)
 native-keychain = ["dep:keyring"]  # OS keychain support (macOS Keychain, Windows Credential Manager, Linux Secret Service)
 native-inference = ["dep:mistralrs", "dep:async-stream"]  # Native LLM inference via mistral.rs (local GGUF models)
@@ -192,7 +192,7 @@ terminal_size = "0.4"  # Terminal dimensions for responsive CLI output (always-o
 
 # LSP Server (feature-gated) - v0.22 Language Server Protocol support
 tower-lsp-server = { version = "0.23", optional = true }
-nika-lsp-core = { path = "../nika-lsp-core", version = "0.35.4", optional = true }
+nika-lsp-core = { path = "../nika-lsp-core", version = "0.35.4" }  # Always available (pure sync library, used by TUI completion + LSP)
 
 # Media pipeline (2 genuinely new + 4 zero-cost promotes from transitive)
 blake3 = { version = "1.8", features = ["mmap"] }

@@ -536,33 +536,32 @@
           "default": 3,
           "description": "Maximum retry attempts (default: 3)"
         },
-        "backoff_ms": {
+        "max_retries": {
           "type": "integer",
-          "minimum": 100,
-          "maximum": 60000,
-          "default": 1000,
-          "description": "Initial backoff in milliseconds (default: 1000)"
+          "minimum": 1,
+          "maximum": 10,
+          "default": 3,
+          "description": "Alias for max_attempts (default: 3)"
         },
         "delay_ms": {
           "type": "integer",
           "minimum": 100,
           "maximum": 60000,
           "default": 1000,
-          "description": "Alias for backoff_ms -- initial delay in milliseconds (default: 1000)"
+          "description": "Delay between retries in milliseconds (default: 1000)"
         },
-        "multiplier": {
-          "type": "number",
+        "delay": {
+          "type": "integer",
           "minimum": 1,
-          "maximum": 5,
-          "default": 2,
-          "description": "Backoff multiplier for exponential backoff (default: 2.0)"
+          "maximum": 60,
+          "description": "Delay between retries in seconds (converted to ms)"
         },
         "backoff": {
           "type": "number",
           "minimum": 1,
           "maximum": 5,
           "default": 2,
-          "description": "Alias for multiplier -- backoff multiplier (default: 2.0)"
+          "description": "Backoff multiplier for exponential backoff (default: 2.0)"
         }
       }
     },
