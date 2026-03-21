@@ -220,7 +220,7 @@ mod tests {
 
     #[test]
     fn test_extract_task_ids_from_ast() {
-        let yaml = r#"schema: "nika/workflow@0.10"
+        let yaml = r#"schema: "nika/workflow@0.12"
 tasks:
   - id: step1
     infer: "Hello"
@@ -241,7 +241,7 @@ tasks:
     #[test]
     fn test_extract_task_ids_fallback() {
         // Incomplete YAML that won't parse
-        let yaml = r#"schema: "nika/workflow@0.10"
+        let yaml = r#"schema: "nika/workflow@0.12"
 tasks:
   - id: step1
     infer:
@@ -254,7 +254,7 @@ tasks:
 
     #[test]
     fn test_find_task_definitions() {
-        let yaml = r#"schema: "nika/workflow@0.10"
+        let yaml = r#"schema: "nika/workflow@0.12"
 tasks:
   - id: first
     infer: "Hello"
@@ -273,7 +273,7 @@ tasks:
 
     #[test]
     fn test_find_task_by_id() {
-        let yaml = r#"schema: "nika/workflow@0.10"
+        let yaml = r#"schema: "nika/workflow@0.12"
 tasks:
   - id: target_task
     infer: "Find me"
@@ -298,7 +298,7 @@ tasks:
 
     #[test]
     fn test_parse_workflow_success() {
-        let yaml = r#"schema: "nika/workflow@0.10"
+        let yaml = r#"schema: "nika/workflow@0.12"
 tasks:
   - id: test
     infer: "Hello"
@@ -318,7 +318,7 @@ tasks:
 
     #[test]
     fn test_get_task_line_range() {
-        let yaml = r#"schema: "nika/workflow@0.10"
+        let yaml = r#"schema: "nika/workflow@0.12"
 tasks:
   - id: my_task
     infer: "Hello"
@@ -345,7 +345,7 @@ tasks:
 
     #[test]
     fn test_quoted_task_ids() {
-        let yaml = r#"schema: "nika/workflow@0.10"
+        let yaml = r#"schema: "nika/workflow@0.12"
 tasks:
   - id: "quoted-id"
     infer: "Hello"
