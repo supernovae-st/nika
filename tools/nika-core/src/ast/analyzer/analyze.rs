@@ -101,10 +101,10 @@ pub fn validate(raw: &RawWorkflow) -> AnalyzeResult<()> {
     let mut ctx = AnalyzerContext::new();
 
     // 1. Validate schema version
-    let version = analyze_schema(raw, &mut ctx).unwrap_or(SchemaVersion::V01);
+    let _version = analyze_schema(raw, &mut ctx).unwrap_or(SchemaVersion::V12);
 
-    // 2. Validate version-gated features
-    validate_feature_gates(raw, version, &mut ctx);
+    // Semantic checks (not version-gated — apply to all @0.12 workflows)
+    validate_task_semantics(raw, &mut ctx);
 
     // 2.5. Collect include prefixes (tasks with these prefixes are resolved post-analysis)
     collect_include_prefixes(raw, &mut ctx);
@@ -215,8 +215,7 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
         workflow.schema_version = version;
     }
 
-    // 2. Validate version-gated features
-    validate_feature_gates(&raw, workflow.schema_version, &mut ctx);
+    // 2. Version-gated features removed: only @0.12 supported (zero backward compat)
 
     // 3. Extract metadata
     workflow.name = raw.workflow.as_ref().map(|s| s.value.clone());
@@ -415,169 +414,33 @@ fn analyze_schema(raw: &RawWorkflow, ctx: &mut AnalyzerContext) -> Option<Schema
     }
 }
 
-/// Validate version-gated features.
-///
-/// Checks that features used in the workflow are available in the declared schema version.
-fn validate_feature_gates(raw: &RawWorkflow, version: SchemaVersion, ctx: &mut AnalyzerContext) {
-    let version_str = version.as_str();
-
-    // Check MCP servers
-    if let Some(ref mcp) = raw.mcp {
-        if !version.supports_mcp() {
-            ctx.add_error(AnalyzeError::unsupported_feature(
-                mcp.span,
-                "mcp",
-                version_str,
-                "nika/workflow@0.2",
-            ));
-        }
-    }
-
-    // Check context files
-    if let Some(ref context) = raw.context {
-        if !version.supports_context() {
-            ctx.add_error(AnalyzeError::unsupported_feature(
-                context.span,
-                "context",
-                version_str,
-                "nika/workflow@0.9",
-            ));
-        }
-    }
-
-    // Check imports
-    if let Some(ref imports) = raw.imports {
-        if !version.supports_imports() {
-            ctx.add_error(AnalyzeError::unsupported_feature(
-                imports.span,
-                "imports",
-                version_str,
-                "nika/workflow@0.12",
-            ));
-        }
-    }
-
-    // Check inputs
-    if let Some(ref inputs) = raw.inputs {
-        if !version.supports_inputs() {
-            ctx.add_error(AnalyzeError::unsupported_feature(
-                inputs.span,
-                "inputs",
-                version_str,
-                "nika/workflow@0.10",
-            ));
-        }
-    }
-
-    // Check task-level features
+/// Validate semantic constraints on tasks (not version-gated).
+fn validate_task_semantics(raw: &RawWorkflow, ctx: &mut AnalyzerContext) {
     for task in raw.tasks.value.iter() {
-        validate_task_feature_gates(&task.value, version, version_str, ctx);
-    }
-}
-
-/// Validate version-gated features in a task.
-fn validate_task_feature_gates(
-    task: &RawTask,
-    version: SchemaVersion,
-    version_str: &str,
-    ctx: &mut AnalyzerContext,
-) {
-    // Check for_each
-    if let Some(ref for_each) = task.for_each {
-        if !version.supports_for_each() {
-            ctx.add_error(AnalyzeError::unsupported_feature(
-                for_each.span,
-                "for_each",
-                version_str,
-                "nika/workflow@0.3",
-            ));
-        }
-    }
-
-    // Check retry
-    if let Some(ref retry) = task.retry {
-        if !version.supports_retry() {
-            ctx.add_error(AnalyzeError::unsupported_feature(
-                retry.span,
-                "retry",
-                version_str,
-                "nika/workflow@0.3",
-            ));
-        }
-
         // retry: is only effective on fetch: tasks — warn on other verbs
-        if let Some(ref action) = task.action {
-            let verb_name = match action {
-                RawTaskAction::Fetch(_) => None,
-                RawTaskAction::Infer(_) => Some("infer"),
-                RawTaskAction::Exec(_) => Some("exec"),
-                RawTaskAction::Invoke(_) => Some("invoke"),
-                RawTaskAction::Agent(_) => Some("agent"),
-            };
-            if let Some(verb_name) = verb_name {
-                ctx.add_warning(
-                    AnalyzeError::new(
-                        AnalyzeErrorKind::InvalidValue,
-                        retry.span,
-                        format!(
-                            "'retry' has no effect on '{}' tasks (only 'fetch' supports retry)",
-                            verb_name
-                        ),
-                    )
-                    .with_suggestion("move retry to a fetch task, or remove it"),
-                );
-            }
-        }
-    }
-
-    // Check with: bindings
-    if let Some(ref with_refs) = task.with_refs {
-        if !version.supports_with() {
-            ctx.add_error(AnalyzeError::unsupported_feature(
-                with_refs.span,
-                "with",
-                version_str,
-                "nika/workflow@0.12",
-            ));
-        }
-    }
-
-    // Check depends_on:
-    if let Some(ref depends_on) = task.depends_on {
-        if !version.supports_depends_on() {
-            ctx.add_error(AnalyzeError::unsupported_feature(
-                depends_on.span,
-                "depends_on",
-                version_str,
-                "nika/workflow@0.12",
-            ));
-        }
-    }
-
-    // Check invoke/agent verbs
-    if let Some(ref action) = task.action {
-        match action {
-            RawTaskAction::Invoke(invoke) => {
-                if !version.supports_invoke_agent() {
-                    ctx.add_error(AnalyzeError::unsupported_feature(
-                        invoke.span,
-                        "invoke verb",
-                        version_str,
-                        "nika/workflow@0.2",
-                    ));
+        if let Some(ref retry) = task.value.retry {
+            if let Some(ref action) = task.value.action {
+                let verb_name = match action {
+                    RawTaskAction::Fetch(_) => None,
+                    RawTaskAction::Infer(_) => Some("infer"),
+                    RawTaskAction::Exec(_) => Some("exec"),
+                    RawTaskAction::Invoke(_) => Some("invoke"),
+                    RawTaskAction::Agent(_) => Some("agent"),
+                };
+                if let Some(verb_name) = verb_name {
+                    ctx.add_warning(
+                        AnalyzeError::new(
+                            AnalyzeErrorKind::InvalidValue,
+                            retry.span,
+                            format!(
+                                "'retry' has no effect on '{}' tasks (only 'fetch' supports retry)",
+                                verb_name
+                            ),
+                        )
+                        .with_suggestion("move retry to a fetch task, or remove it"),
+                    );
                 }
             }
-            RawTaskAction::Agent(agent) => {
-                if !version.supports_invoke_agent() {
-                    ctx.add_error(AnalyzeError::unsupported_feature(
-                        agent.span,
-                        "agent verb",
-                        version_str,
-                        "nika/workflow@0.2",
-                    ));
-                }
-            }
-            _ => {}
         }
     }
 }
