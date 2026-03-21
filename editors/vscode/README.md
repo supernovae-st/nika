@@ -18,12 +18,18 @@ Language support for [Nika](https://github.com/SuperNovae-studio/nika) `.nika.ya
 The `nika` binary must be installed and accessible in your PATH.
 
 ```bash
-# Install from source
+# Install via Homebrew (includes LSP support)
+brew tap supernovae-st/tap && brew install nika
+
+# Or install from source
 cd nika/tools/nika
 cargo install --path . --features lsp
 
-# Verify
+# Verify LSP is available
 nika lsp --help
+
+# Check full setup (LSP + editor + extension)
+nika doctor
 ```
 
 ## Extension Settings
