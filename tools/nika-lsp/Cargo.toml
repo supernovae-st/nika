@@ -42,7 +42,7 @@ serde_json = "1"
 nika = { path = "../nika", version = "0.35.4" }
 
 # Protocol-agnostic LSP intelligence (shared with embedded nika lsp)
-nika-lsp-core = { path = "../nika-lsp-core" }
+nika-lsp-core = { path = "../nika-lsp-core", version = "0.35.4" }
 
 # Text manipulation (rope for efficient edits)
 ropey = "1.6"
