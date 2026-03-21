@@ -15,6 +15,53 @@ use super::{BoxState, RenderMode, StreamingContext, VerbColor};
 use crate::tui::tokens::compat;
 use crate::tui::unicode::display_width;
 
+/// Specialized rendering hints for known builtin tools.
+/// Detected at InvokeBox construction time from the tool name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum BuiltinHint {
+    #[default]
+    Generic,
+    /// nika:read, nika:glob, nika:grep
+    FileRead,
+    /// nika:write, nika:edit
+    FileWrite,
+    /// nika:thumbnail, nika:convert, nika:strip, nika:metadata, nika:optimize, nika:svg_render
+    MediaThumbnail,
+    /// nika:pipeline
+    MediaPipeline,
+    /// nika:import
+    Import,
+    /// nika:assert
+    Assert,
+    /// nika:complete
+    Complete,
+    /// nika:sleep
+    Sleep,
+}
+
+impl BuiltinHint {
+    /// Detect the builtin hint from a tool name.
+    pub fn from_tool_name(name: &str) -> Self {
+        match name {
+            "nika:read" | "nika:glob" | "nika:grep" => Self::FileRead,
+            "nika:write" | "nika:edit" => Self::FileWrite,
+            "nika:thumbnail" | "nika:convert" | "nika:strip" | "nika:metadata"
+            | "nika:optimize" | "nika:svg_render" => Self::MediaThumbnail,
+            "nika:pipeline" => Self::MediaPipeline,
+            "nika:import" => Self::Import,
+            "nika:assert" => Self::Assert,
+            "nika:complete" => Self::Complete,
+            "nika:sleep" => Self::Sleep,
+            _ => Self::Generic,
+        }
+    }
+
+    /// Returns true if this hint corresponds to a known builtin tool.
+    pub fn is_builtin(&self) -> bool {
+        !matches!(self, Self::Generic)
+    }
+}
+
 /// InvokeBox data and rendering
 #[derive(Debug, Clone)]
 pub struct InvokeBox {
@@ -50,13 +97,17 @@ pub struct InvokeBox {
     pub pulse_intensity: f32,
     /// Render mode (Compact/Expanded/Full)
     pub render_mode: RenderMode,
+    /// Specialized rendering hint for known builtin tools
+    pub builtin_hint: BuiltinHint,
 }
 
 impl InvokeBox {
     /// Create a new InvokeBox
     pub fn new(tool: impl Into<String>, server: impl Into<String>) -> Self {
+        let tool = tool.into();
+        let builtin_hint = BuiltinHint::from_tool_name(&tool);
         Self {
-            tool: tool.into(),
+            tool,
             server: server.into(),
             params: serde_json::Value::Null,
             result: None,
@@ -70,6 +121,7 @@ impl InvokeBox {
             result_pretty_cached: None,
             pulse_intensity: 0.0,
             render_mode: RenderMode::default(),
+            builtin_hint,
         }
     }
 
@@ -203,6 +255,138 @@ impl InvokeBox {
         }
     }
 
+    /// Extract a string field from a JSON value, returning None if missing or wrong type.
+    fn json_str_field<'a>(value: &'a serde_json::Value, key: &str) -> Option<&'a str> {
+        value.get(key).and_then(|v| v.as_str())
+    }
+
+    /// Build a compact summary line for a known builtin tool.
+    /// Returns None for Generic hint (caller falls back to default display).
+    fn builtin_compact_summary(&self) -> Option<Vec<Span<'static>>> {
+        let dim = Style::default().fg(compat::SLATE_500);
+        let success = Style::default().fg(compat::GREEN_500);
+        let error = Style::default().fg(compat::RED_500);
+
+        match self.builtin_hint {
+            BuiltinHint::FileRead => {
+                let path = Self::json_str_field(&self.params, "path")
+                    .or_else(|| Self::json_str_field(&self.params, "pattern"))
+                    .unwrap_or("?");
+                let path_display = Self::truncate(path, 40);
+                let mut spans = vec![
+                    Span::styled("\u{1F4D6} ", Style::default()),
+                    Span::styled(path_display, Style::default().fg(compat::SLATE_200)),
+                ];
+                if let Some(ref result) = self.result {
+                    let summary = Self::json_str_field(result, "summary")
+                        .map(|s| s.to_string())
+                        .or_else(|| result.as_array().map(|a| format!("{} matches", a.len())))
+                        .or_else(|| result.as_str().map(|s| format!("{} chars", s.len())))
+                        .unwrap_or_else(|| "done".to_string());
+                    spans.push(Span::styled(" \u{2502} ", dim));
+                    spans.push(Span::styled(summary, success));
+                }
+                Some(spans)
+            }
+            BuiltinHint::FileWrite => {
+                let path = Self::json_str_field(&self.params, "path")
+                    .or_else(|| Self::json_str_field(&self.params, "file_path"))
+                    .unwrap_or("?");
+                let path_display = Self::truncate(path, 40);
+                let mut spans = vec![
+                    Span::styled("\u{270D} ", Style::default()),
+                    Span::styled(path_display, Style::default().fg(compat::SLATE_200)),
+                ];
+                if let Some(ref result) = self.result {
+                    let size = Self::json_str_field(result, "bytes_written")
+                        .map(|s| s.to_string())
+                        .or_else(|| {
+                            result
+                                .get("bytes_written")
+                                .and_then(|v| v.as_u64())
+                                .map(|n| format!("{n} bytes"))
+                        })
+                        .unwrap_or_else(|| "wrote".to_string());
+                    spans.push(Span::styled(" \u{2502} ", dim));
+                    spans.push(Span::styled(format!("wrote {size}"), success));
+                }
+                Some(spans)
+            }
+            BuiltinHint::MediaThumbnail => {
+                let mut spans = vec![Span::styled("\u{2361} ", Style::default())];
+                if let Some(ref result) = self.result {
+                    let dims = result.get("width").and_then(|w| w.as_u64()).and_then(|w| {
+                        result
+                            .get("height")
+                            .and_then(|h| h.as_u64())
+                            .map(|h| (w, h))
+                    });
+                    if let Some((w, h)) = dims {
+                        spans.push(Span::styled(
+                            format!("{w}x{h}"),
+                            Style::default().fg(compat::SLATE_200),
+                        ));
+                    }
+                    if let Some(fmt) = Self::json_str_field(result, "format") {
+                        spans.push(Span::styled(" \u{2502} ", dim));
+                        spans.push(Span::styled(
+                            fmt.to_string(),
+                            Style::default().fg(compat::CYAN_500),
+                        ));
+                    }
+                    if let Some(size) = result.get("size").and_then(|v| v.as_u64()) {
+                        spans.push(Span::styled(" \u{2502} ", dim));
+                        let display = if size > 1_048_576 {
+                            format!("{:.1} MB", size as f64 / 1_048_576.0)
+                        } else if size > 1024 {
+                            format!("{:.1} KB", size as f64 / 1024.0)
+                        } else {
+                            format!("{size} B")
+                        };
+                        spans.push(Span::styled(display, success));
+                    }
+                } else {
+                    let tool_short = self.tool.strip_prefix("nika:").unwrap_or(&self.tool);
+                    spans.push(Span::styled(
+                        tool_short.to_string(),
+                        Style::default().fg(compat::SLATE_200),
+                    ));
+                }
+                Some(spans)
+            }
+            BuiltinHint::Assert => {
+                if self.error.is_some() {
+                    Some(vec![Span::styled("\u{2717} assertion failed", error)])
+                } else if self.result.is_some() {
+                    Some(vec![Span::styled("\u{2713} condition passed", success)])
+                } else {
+                    Some(vec![Span::styled(
+                        "assert...",
+                        Style::default().fg(compat::SLATE_200),
+                    )])
+                }
+            }
+            BuiltinHint::Complete => {
+                let mut spans = vec![Span::styled("\u{1F3C1} completed", success)];
+                if let Some(ref result) = self.result {
+                    if let Some(conf) = result.get("confidence").and_then(|v| v.as_f64()) {
+                        spans.push(Span::styled(" \u{2502} ", dim));
+                        spans.push(Span::styled(
+                            format!("conf {conf:.0}%"),
+                            Style::default().fg(compat::SLATE_200),
+                        ));
+                    }
+                }
+                Some(spans)
+            }
+            BuiltinHint::MediaPipeline | BuiltinHint::Import | BuiltinHint::Sleep => {
+                // These use the default compact rendering for now
+                None
+            }
+            BuiltinHint::Generic => None,
+        }
+    }
+
     /// Format JSON value for single-line display
     #[allow(dead_code)]
     fn format_json_oneline(value: &serde_json::Value, max_len: usize) -> String {
@@ -250,6 +434,21 @@ impl InvokeBox {
         // Compact mode: single line
         if self.render_mode == RenderMode::Compact {
             let status_icon = self.state.icon();
+
+            // Try builtin-specialized compact display first
+            if let Some(builtin_spans) = self.builtin_compact_summary() {
+                let mut spans = vec![
+                    Span::styled(
+                        format!("{}: {} ", verb.icon_label(), self.tool),
+                        Style::default().fg(verb_color),
+                    ),
+                    Span::styled(format!("{} ", status_icon), Style::default().fg(verb_color)),
+                ];
+                spans.extend(builtin_spans);
+                return vec![ListItem::new(Line::from(spans))];
+            }
+
+            // Generic fallback (non-builtin tools)
             let line = Line::from(vec![
                 Span::styled(
                     format!("{}: {} ", verb.icon_label(), self.tool),
@@ -792,5 +991,190 @@ mod tests {
         assert!(content.contains("INVOKE"));
         assert!(content.contains("novanet_describe"));
         assert!(content.contains("✅"));
+    }
+
+    // === BuiltinHint Tests ===
+
+    #[test]
+    fn test_builtin_hint_file_read() {
+        assert_eq!(
+            BuiltinHint::from_tool_name("nika:read"),
+            BuiltinHint::FileRead
+        );
+        assert_eq!(
+            BuiltinHint::from_tool_name("nika:glob"),
+            BuiltinHint::FileRead
+        );
+        assert_eq!(
+            BuiltinHint::from_tool_name("nika:grep"),
+            BuiltinHint::FileRead
+        );
+    }
+
+    #[test]
+    fn test_builtin_hint_file_write() {
+        assert_eq!(
+            BuiltinHint::from_tool_name("nika:write"),
+            BuiltinHint::FileWrite
+        );
+        assert_eq!(
+            BuiltinHint::from_tool_name("nika:edit"),
+            BuiltinHint::FileWrite
+        );
+    }
+
+    #[test]
+    fn test_builtin_hint_media_thumbnail() {
+        assert_eq!(
+            BuiltinHint::from_tool_name("nika:thumbnail"),
+            BuiltinHint::MediaThumbnail
+        );
+        assert_eq!(
+            BuiltinHint::from_tool_name("nika:convert"),
+            BuiltinHint::MediaThumbnail
+        );
+        assert_eq!(
+            BuiltinHint::from_tool_name("nika:strip"),
+            BuiltinHint::MediaThumbnail
+        );
+        assert_eq!(
+            BuiltinHint::from_tool_name("nika:metadata"),
+            BuiltinHint::MediaThumbnail
+        );
+        assert_eq!(
+            BuiltinHint::from_tool_name("nika:optimize"),
+            BuiltinHint::MediaThumbnail
+        );
+        assert_eq!(
+            BuiltinHint::from_tool_name("nika:svg_render"),
+            BuiltinHint::MediaThumbnail
+        );
+    }
+
+    #[test]
+    fn test_builtin_hint_media_pipeline() {
+        assert_eq!(
+            BuiltinHint::from_tool_name("nika:pipeline"),
+            BuiltinHint::MediaPipeline
+        );
+    }
+
+    #[test]
+    fn test_builtin_hint_import() {
+        assert_eq!(
+            BuiltinHint::from_tool_name("nika:import"),
+            BuiltinHint::Import
+        );
+    }
+
+    #[test]
+    fn test_builtin_hint_assert() {
+        assert_eq!(
+            BuiltinHint::from_tool_name("nika:assert"),
+            BuiltinHint::Assert
+        );
+    }
+
+    #[test]
+    fn test_builtin_hint_complete() {
+        assert_eq!(
+            BuiltinHint::from_tool_name("nika:complete"),
+            BuiltinHint::Complete
+        );
+    }
+
+    #[test]
+    fn test_builtin_hint_sleep() {
+        assert_eq!(
+            BuiltinHint::from_tool_name("nika:sleep"),
+            BuiltinHint::Sleep
+        );
+    }
+
+    #[test]
+    fn test_builtin_hint_generic_fallback() {
+        assert_eq!(
+            BuiltinHint::from_tool_name("novanet_describe"),
+            BuiltinHint::Generic
+        );
+        assert_eq!(
+            BuiltinHint::from_tool_name("some_external_tool"),
+            BuiltinHint::Generic
+        );
+        assert_eq!(
+            BuiltinHint::from_tool_name("nika:unknown"),
+            BuiltinHint::Generic
+        );
+    }
+
+    #[test]
+    fn test_builtin_hint_is_builtin() {
+        assert!(!BuiltinHint::Generic.is_builtin());
+        assert!(BuiltinHint::FileRead.is_builtin());
+        assert!(BuiltinHint::FileWrite.is_builtin());
+        assert!(BuiltinHint::MediaThumbnail.is_builtin());
+        assert!(BuiltinHint::MediaPipeline.is_builtin());
+        assert!(BuiltinHint::Import.is_builtin());
+        assert!(BuiltinHint::Assert.is_builtin());
+        assert!(BuiltinHint::Complete.is_builtin());
+        assert!(BuiltinHint::Sleep.is_builtin());
+    }
+
+    #[test]
+    fn test_builtin_hint_default() {
+        assert_eq!(BuiltinHint::default(), BuiltinHint::Generic);
+    }
+
+    #[test]
+    fn test_invoke_box_sets_builtin_hint() {
+        let read_box = InvokeBox::new("nika:read", "builtin");
+        assert_eq!(read_box.builtin_hint, BuiltinHint::FileRead);
+
+        let external_box = InvokeBox::new("novanet_describe", "novanet");
+        assert_eq!(external_box.builtin_hint, BuiltinHint::Generic);
+
+        let thumb_box = InvokeBox::new("nika:thumbnail", "builtin");
+        assert_eq!(thumb_box.builtin_hint, BuiltinHint::MediaThumbnail);
+    }
+
+    #[test]
+    fn test_builtin_compact_summary_file_read() {
+        let box_ = InvokeBox::new("nika:read", "builtin")
+            .with_params(serde_json::json!({"path": "/tmp/test.txt"}))
+            .with_result(serde_json::json!("file contents here"))
+            .with_render_mode(RenderMode::Compact);
+
+        let summary = box_.builtin_compact_summary();
+        assert!(summary.is_some());
+    }
+
+    #[test]
+    fn test_builtin_compact_summary_assert_pass() {
+        let box_ = InvokeBox::new("nika:assert", "builtin")
+            .with_result(serde_json::json!({"passed": true}))
+            .with_render_mode(RenderMode::Compact);
+
+        let spans = box_.builtin_compact_summary().unwrap();
+        let text: String = spans.iter().map(|s| s.content.to_string()).collect();
+        assert!(text.contains("condition passed"));
+    }
+
+    #[test]
+    fn test_builtin_compact_summary_assert_fail() {
+        let box_ = InvokeBox::new("nika:assert", "builtin")
+            .with_error("expected 200 got 404")
+            .with_render_mode(RenderMode::Compact);
+
+        let spans = box_.builtin_compact_summary().unwrap();
+        let text: String = spans.iter().map(|s| s.content.to_string()).collect();
+        assert!(text.contains("assertion failed"));
+    }
+
+    #[test]
+    fn test_builtin_compact_summary_generic_returns_none() {
+        let box_ =
+            InvokeBox::new("novanet_describe", "novanet").with_render_mode(RenderMode::Compact);
+
+        assert!(box_.builtin_compact_summary().is_none());
     }
 }
