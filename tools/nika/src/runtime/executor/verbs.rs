@@ -1796,9 +1796,13 @@ impl TaskExecutor {
             .clone()
             .unwrap_or_else(|| self.default_provider.to_string());
 
-        // Ensure resolved_agent has the provider set for run_auto() dispatch
+        // Ensure resolved_agent has provider + model set for run_auto() dispatch
         let resolved_agent = AgentParams {
             provider: Some(provider_name.clone()),
+            model: resolved_agent
+                .model
+                .clone()
+                .or_else(|| self.default_model.as_ref().map(|m| m.to_string())),
             ..resolved_agent
         };
 

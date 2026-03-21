@@ -104,12 +104,12 @@ impl RigAgentLoop {
         // Create Anthropic client from environment
         let client = anthropic::Client::from_env();
 
-        // Get model name (default to claude-sonnet-4-6) — owned for cost calculation after &mut self borrow
+        // Get model name — validated by analyzer (NIKA-034)
         let model_name = self
             .params
             .model
             .clone()
-            .unwrap_or_else(|| "claude-sonnet-4-6".to_string());
+            .expect("model is required -- validated by analyzer");
         let model = client.completion_model(&model_name);
 
         // Take ownership of tools (they'll be consumed by the builder)
@@ -211,12 +211,12 @@ impl RigAgentLoop {
         // Create OpenAI client from environment
         let client = openai::Client::from_env();
 
-        // Get model name (default to gpt-4o) — owned for cost calculation after &mut self borrow
+        // Get model name — validated by analyzer (NIKA-034)
         let model_name = self
             .params
             .model
             .clone()
-            .unwrap_or_else(|| "gpt-4o".to_string());
+            .expect("model is required -- validated by analyzer");
         let model = client.completion_model(&model_name);
 
         // Take ownership of tools (they'll be consumed by the builder)

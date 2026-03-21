@@ -1314,6 +1314,7 @@ async fn wave2_chat_continue_missing_gemini_dispatch() {
 
     let params = AgentParams {
         prompt: "Test Gemini dispatch".to_string(),
+        model: Some("gemini-2.0-flash".to_string()),
         ..Default::default()
     };
     let event_log = EventLog::new();

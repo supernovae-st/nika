@@ -119,7 +119,11 @@ impl RigAgentLoop {
         prompt: &str,
     ) -> Result<RigAgentLoopResult, NikaError> {
         let client = anthropic::Client::from_env();
-        let model_name = self.params.model.as_deref().unwrap_or("claude-sonnet-4-6");
+        let model_name = self
+            .params
+            .model
+            .as_deref()
+            .expect("model is required -- validated by analyzer");
         let model = client.completion_model(model_name);
 
         let turn_index = self.turn_count + 1;
@@ -211,7 +215,11 @@ impl RigAgentLoop {
         prompt: &str,
     ) -> Result<RigAgentLoopResult, NikaError> {
         let client = openai::Client::from_env();
-        let model_name = self.params.model.as_deref().unwrap_or("gpt-4o");
+        let model_name = self
+            .params
+            .model
+            .as_deref()
+            .expect("model is required -- validated by analyzer");
         let model = client.completion_model(model_name);
 
         let turn_index = self.turn_count + 1;
@@ -306,7 +314,7 @@ impl RigAgentLoop {
             .params
             .model
             .as_deref()
-            .unwrap_or(rig::providers::mistral::MISTRAL_LARGE);
+            .expect("model is required -- validated by analyzer");
         let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
         let agent = client
             .agent(model_name)
@@ -372,7 +380,7 @@ impl RigAgentLoop {
             .params
             .model
             .as_deref()
-            .unwrap_or("llama-3.3-70b-versatile");
+            .expect("model is required -- validated by analyzer");
         let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
         let agent = client
             .agent(model_name)
@@ -441,7 +449,7 @@ impl RigAgentLoop {
             .params
             .model
             .as_deref()
-            .unwrap_or(rig::providers::deepseek::DEEPSEEK_CHAT);
+            .expect("model is required -- validated by analyzer");
         let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
         let agent = client
             .agent(model_name)
@@ -503,7 +511,11 @@ impl RigAgentLoop {
         use rig::completion::Chat;
 
         let client = rig::providers::gemini::Client::from_env();
-        let model_name = self.params.model.as_deref().unwrap_or("gemini-2.0-flash");
+        let model_name = self
+            .params
+            .model
+            .as_deref()
+            .expect("model is required -- validated by analyzer");
         let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
         let agent = client
             .agent(model_name)

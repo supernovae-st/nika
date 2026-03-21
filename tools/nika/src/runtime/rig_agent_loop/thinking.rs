@@ -315,8 +315,12 @@ impl RigAgentLoop {
         // Create Anthropic client from environment
         let client = anthropic::Client::from_env();
 
-        // Get model name (default to claude-sonnet-4-6)
-        let model_name = self.params.model.as_deref().unwrap_or("claude-sonnet-4-6");
+        // Get model name — validated by analyzer (NIKA-034)
+        let model_name = self
+            .params
+            .model
+            .as_deref()
+            .expect("model is required -- validated by analyzer");
         let model = client.completion_model(model_name);
 
         // Build completion request with thinking enabled
