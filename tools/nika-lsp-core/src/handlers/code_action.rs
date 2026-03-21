@@ -3,13 +3,16 @@
 //! Protocol-agnostic: returns `Vec<CodeActionEntry>` with text edits.
 //! The tower-lsp shim converts to `CodeActionResponse`.
 //!
-//! ## Actions provided
+//! ## Actions provided (9 total)
 //! - Add missing `schema:` version (QuickFix)
+//! - Upgrade `@0.11`/`@0.10` schema to `@0.12` (QuickFix)
 //! - Expand shorthand `infer: "prompt"` to block form (Refactor)
 //! - Expand shorthand `exec: "cmd"` to block form (Refactor)
-//! - Add missing `depends_on:` when `with:` references are present (QuickFix)
+//! - Expand shorthand `fetch: "url"` to block form (Refactor)
+//! - Expand shorthand `invoke: "tool"` to block form (Refactor)
+//! - Expand shorthand `agent: "goal"` to block form (Refactor)
 //! - Add missing `id:` field to task (QuickFix)
-//! - Convert `@0.11` schema to `@0.12` (QuickFix)
+//! - Add default `provider:` to workflow (QuickFix)
 
 /// Protocol-agnostic code action entry.
 #[derive(Debug, Clone)]
@@ -158,7 +161,68 @@ pub fn code_actions(text: &str, start_offset: u32, _end_offset: u32) -> Vec<Code
         }
     }
 
-    // 6. Add provider if missing (only at workflow level)
+    // 6. Expand shorthand invoke: "tool" → block form
+    if let Some(rest) = trimmed.strip_prefix("invoke:") {
+        let tool = rest.trim().trim_matches('"').trim_matches('\'');
+        if !tool.is_empty() && !tool.contains('\n') && !tool.contains(':') {
+            actions.push(CodeActionEntry {
+                title: "Expand invoke to block form".into(),
+                kind: CodeActionKind::Refactor,
+                is_preferred: false,
+                edit: Some(TextEdit {
+                    offset: line_start as u32,
+                    end_offset: line_end as u32,
+                    new_text: format!(
+                        "{indent}invoke:\n{indent}  mcp: novanet\n{indent}  tool: {tool}\n{indent}  params:\n{indent}    {{}}"
+                    ),
+                }),
+            });
+        }
+    }
+
+    // 7. Expand shorthand agent: "goal" → block form
+    if let Some(rest) = trimmed.strip_prefix("agent:") {
+        let goal = rest.trim().trim_matches('"').trim_matches('\'');
+        if !goal.is_empty() && !goal.contains('\n') {
+            actions.push(CodeActionEntry {
+                title: "Expand agent to block form".into(),
+                kind: CodeActionKind::Refactor,
+                is_preferred: false,
+                edit: Some(TextEdit {
+                    offset: line_start as u32,
+                    end_offset: line_end as u32,
+                    new_text: format!(
+                        "{indent}agent:\n{indent}  prompt: |\n{indent}    {goal}\n{indent}  max_turns: 10"
+                    ),
+                }),
+            });
+        }
+    }
+
+    // 8. Add missing id: to task (cursor on - without id:)
+    if trimmed == "-" || (trimmed.starts_with("- ") && !trimmed.contains("id:")) {
+        // Check if this looks like inside a tasks: block (has a verb or field)
+        let next_lines: Vec<&str> = text[line_end..].lines().take(5).collect();
+        let has_verb = next_lines.iter().any(|l| {
+            let t = l.trim();
+            t.starts_with("infer:") || t.starts_with("exec:") || t.starts_with("fetch:")
+                || t.starts_with("invoke:") || t.starts_with("agent:")
+        });
+        if has_verb {
+            actions.push(CodeActionEntry {
+                title: "Add task id".into(),
+                kind: CodeActionKind::QuickFix,
+                is_preferred: true,
+                edit: Some(TextEdit {
+                    offset: line_start as u32,
+                    end_offset: line_end as u32,
+                    new_text: format!("{indent}- id: task_name\n{indent}  "),
+                }),
+            });
+        }
+    }
+
+    // 9. Add provider if missing (only at workflow level)
     if text.contains("tasks:") && !text.contains("provider:") {
         // Find where to insert (after schema: or workflow:, or at top)
         let insert_offset = text
@@ -267,6 +331,59 @@ mod tests {
         let schema_action = actions.iter().find(|a| a.title.contains("schema")).unwrap();
         assert!(schema_action.is_preferred);
         assert_eq!(schema_action.kind, CodeActionKind::QuickFix);
+    }
+
+    #[test]
+    fn expand_invoke_shorthand() {
+        let text = "    invoke: \"novanet_search\"\n";
+        let offset = text.find("invoke").unwrap() as u32;
+        let actions = code_actions(text, offset, offset);
+        let expand = actions.iter().find(|a| a.title.contains("Expand invoke"));
+        assert!(expand.is_some());
+        let edit = expand.unwrap().edit.as_ref().unwrap();
+        assert!(edit.new_text.contains("tool: novanet_search"));
+    }
+
+    #[test]
+    fn expand_agent_shorthand() {
+        let text = "    agent: \"Research AI papers\"\n";
+        let offset = text.find("agent").unwrap() as u32;
+        let actions = code_actions(text, offset, offset);
+        let expand = actions.iter().find(|a| a.title.contains("Expand agent"));
+        assert!(expand.is_some());
+        let edit = expand.unwrap().edit.as_ref().unwrap();
+        assert!(edit.new_text.contains("prompt:"));
+        assert!(edit.new_text.contains("max_turns:"));
+    }
+
+    #[test]
+    fn no_expand_invoke_block() {
+        let text = "    invoke:\n      tool: x\n";
+        let offset = text.find("invoke").unwrap() as u32;
+        let actions = code_actions(text, offset, offset);
+        assert!(!actions.iter().any(|a| a.title.contains("Expand invoke")));
+    }
+
+    #[test]
+    fn add_task_id_when_missing() {
+        let text = "tasks:\n  -\n    infer: \"hello\"\n";
+        let offset = text.find('-').unwrap() as u32;
+        let actions = code_actions(text, offset, offset);
+        assert!(
+            actions.iter().any(|a| a.title.contains("task id")),
+            "Expected 'Add task id' action, got: {:?}",
+            actions.iter().map(|a| &a.title).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn schema_check_ignores_comments() {
+        let text = "# schema: old version\nworkflow: test\ntasks:\n";
+        let actions = code_actions(text, 0, 0);
+        assert!(
+            actions.iter().any(|a| a.title.contains("Add schema")),
+            "Should offer Add schema when only comment has schema:"
+        );
     }
 
     #[test]
