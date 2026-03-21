@@ -113,6 +113,30 @@ pub fn document_symbols(text: &str) -> Vec<SymbolEntry> {
                 end_offset: end,
                 children: srvs,
             });
+        } else if trimmed.starts_with("artifacts:") {
+            symbols.push(SymbolEntry {
+                name: "artifacts".into(),
+                kind: SymbolKind::Module,
+                offset: offset as u32,
+                end_offset: (offset + line.len()) as u32,
+                children: vec![],
+            });
+        } else if trimmed.starts_with("log:") && !line.starts_with(' ') {
+            symbols.push(SymbolEntry {
+                name: "log".into(),
+                kind: SymbolKind::Property,
+                offset: offset as u32,
+                end_offset: (offset + line.len()) as u32,
+                children: vec![],
+            });
+        } else if trimmed.starts_with("model:") && !line.starts_with(' ') {
+            symbols.push(SymbolEntry {
+                name: trimmed.to_string(),
+                kind: SymbolKind::Property,
+                offset: offset as u32,
+                end_offset: (offset + line.len()) as u32,
+                children: vec![],
+            });
         }
     }
     symbols
@@ -152,35 +176,27 @@ fn extract_tasks(lines: &[&str], start: usize, text: &str) -> Vec<SymbolEntry> {
                         });
                     }
                 }
-                if ct.starts_with("with:") {
-                    let co = byte_off(text, j);
-                    children.push(SymbolEntry {
-                        name: "with".into(),
-                        kind: SymbolKind::Variable,
-                        offset: co as u32,
-                        end_offset: (co + lines[j].len()) as u32,
-                        children: vec![],
-                    });
-                }
-                if ct.starts_with("depends_on:") {
-                    let co = byte_off(text, j);
-                    children.push(SymbolEntry {
-                        name: "depends_on".into(),
-                        kind: SymbolKind::Property,
-                        offset: co as u32,
-                        end_offset: (co + lines[j].len()) as u32,
-                        children: vec![],
-                    });
-                }
-                if ct.starts_with("content:") {
-                    let co = byte_off(text, j);
-                    children.push(SymbolEntry {
-                        name: "content".into(),
-                        kind: SymbolKind::Property,
-                        offset: co as u32,
-                        end_offset: (co + lines[j].len()) as u32,
-                        children: vec![],
-                    });
+                // Task sub-fields as outline children
+                for (field, sk) in [
+                    ("with:", SymbolKind::Variable),
+                    ("depends_on:", SymbolKind::Property),
+                    ("content:", SymbolKind::Property),
+                    ("for_each:", SymbolKind::Property),
+                    ("retry:", SymbolKind::Property),
+                    ("guardrails:", SymbolKind::Property),
+                    ("artifact:", SymbolKind::Property),
+                    ("decompose:", SymbolKind::Property),
+                ] {
+                    if ct.starts_with(field) {
+                        let co = byte_off(text, j);
+                        children.push(SymbolEntry {
+                            name: field.trim_end_matches(':').into(),
+                            kind: sk,
+                            offset: co as u32,
+                            end_offset: (co + lines[j].len()) as u32,
+                            children: vec![],
+                        });
+                    }
                 }
                 j += 1;
             }
@@ -262,5 +278,25 @@ mod tests {
     fn mcp_servers() {
         let s = document_symbols("mcp:\n  srv1:\n    cmd: x\n  srv2:\n    cmd: y\n");
         assert!(s[0].name.contains("2"));
+    }
+    #[test]
+    fn task_new_children() {
+        let s = document_symbols(
+            "tasks:\n  - id: a\n    infer: x\n    for_each: [1,2]\n    retry:\n      max: 3\n    guardrails:\n      - type: length\n",
+        );
+        let task = &s[0].children[0];
+        assert!(task.children.iter().any(|c| c.name == "for_each"));
+        assert!(task.children.iter().any(|c| c.name == "retry"));
+        assert!(task.children.iter().any(|c| c.name == "guardrails"));
+    }
+    #[test]
+    fn root_artifacts_and_log() {
+        let s = document_symbols("schema: v0.12\nartifacts:\n  default: ./out\nlog:\n  level: info\nmodel: gpt-4o\n");
+        assert!(s.iter().any(|e| e.name == "artifacts"), "missing artifacts");
+        assert!(s.iter().any(|e| e.name == "log"), "missing log");
+        assert!(
+            s.iter().any(|e| e.name.starts_with("model:")),
+            "missing model"
+        );
     }
 }
