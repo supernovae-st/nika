@@ -398,9 +398,7 @@ fn verb_completions() -> Vec<CompletionItem> {
         CompletionItem {
             label: "infer".to_string(),
             kind: Some(CompletionItemKind::KEYWORD),
-            insert_text: Some(
-                "infer:\n  prompt: ${1:your prompt here}\n  ${0}".to_string(),
-            ),
+            insert_text: Some("infer:\n  prompt: ${1:your prompt here}\n  ${0}".to_string()),
             insert_text_format: Some(InsertTextFormat::SNIPPET),
             documentation: Some(Documentation::String(
                 "LLM text generation. Shorthand accepts a string.".to_string(),
@@ -422,13 +420,9 @@ fn verb_completions() -> Vec<CompletionItem> {
         CompletionItem {
             label: "fetch".to_string(),
             kind: Some(CompletionItemKind::KEYWORD),
-            insert_text: Some(
-                "fetch:\n  url: ${1:https://}\n  ${0}".to_string(),
-            ),
+            insert_text: Some("fetch:\n  url: ${1:https://}\n  ${0}".to_string()),
             insert_text_format: Some(InsertTextFormat::SNIPPET),
-            documentation: Some(Documentation::String(
-                "HTTP request.".to_string(),
-            )),
+            documentation: Some(Documentation::String("HTTP request.".to_string())),
             detail: Some("Verb".to_string()),
             ..Default::default()
         },
@@ -440,9 +434,7 @@ fn verb_completions() -> Vec<CompletionItem> {
                     .to_string(),
             ),
             insert_text_format: Some(InsertTextFormat::SNIPPET),
-            documentation: Some(Documentation::String(
-                "MCP tool invocation.".to_string(),
-            )),
+            documentation: Some(Documentation::String("MCP tool invocation.".to_string())),
             detail: Some("Verb".to_string()),
             ..Default::default()
         },

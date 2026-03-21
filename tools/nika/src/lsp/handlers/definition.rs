@@ -1129,7 +1129,10 @@ tasks:
             "Should find definition for task in depends_on"
         );
         if let Some(GotoDefinitionResponse::Scalar(location)) = response {
-            assert_eq!(location.range.start.line, 2, "Should point to step1 id line");
+            assert_eq!(
+                location.range.start.line, 2,
+                "Should point to step1 id line"
+            );
         } else {
             panic!("Expected GotoDefinitionResponse::Scalar");
         }
