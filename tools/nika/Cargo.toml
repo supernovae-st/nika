@@ -19,7 +19,7 @@ name = "nika"
 path = "src/main.rs"
 
 [features]
-default = ["tui", "nika-daemon", "native-inference", "media-core"]
+default = ["tui", "nika-daemon", "native-inference", "media-core", "fetch-extract", "fetch-article", "fetch-feed", "media-chart"]
 # NOTE: native-keychain removed from default — use env vars for API keys.
 # Re-enable with: cargo build --features native-keychain
 tui = ["dep:ratatui", "dep:crossterm", "dep:tui-input", "dep:arboard", "dep:nucleo", "dep:tree-sitter", "dep:tree-sitter-yaml", "dep:streaming-iterator", "dep:git2", "dep:openssl"]

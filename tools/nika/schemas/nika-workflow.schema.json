@@ -543,12 +543,26 @@
           "default": 1000,
           "description": "Initial backoff in milliseconds (default: 1000)"
         },
+        "delay_ms": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 60000,
+          "default": 1000,
+          "description": "Alias for backoff_ms -- initial delay in milliseconds (default: 1000)"
+        },
         "multiplier": {
           "type": "number",
           "minimum": 1,
           "maximum": 5,
           "default": 2,
           "description": "Backoff multiplier for exponential backoff (default: 2.0)"
+        },
+        "backoff": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 5,
+          "default": 2,
+          "description": "Alias for multiplier -- backoff multiplier (default: 2.0)"
         }
       }
     },
