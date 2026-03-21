@@ -19,7 +19,9 @@ name = "nika"
 path = "src/main.rs"
 
 [features]
-default = ["tui", "nika-daemon", "native-keychain", "native-inference", "media-core"]
+default = ["tui", "nika-daemon", "native-inference", "media-core"]
+# NOTE: native-keychain removed from default — use env vars for API keys.
+# Re-enable with: cargo build --features native-keychain
 tui = ["dep:ratatui", "dep:crossterm", "dep:tui-input", "dep:arboard", "dep:nucleo", "dep:tree-sitter", "dep:tree-sitter-yaml", "dep:streaming-iterator", "dep:git2", "dep:openssl"]
 lsp = ["dep:tower-lsp-server", "dep:nika-lsp-core", "tokio/io-std", "tokio/io-util"]  # Language Server Protocol support (v0.23)
 nika-daemon = ["dep:spn-client"]  # Use nika daemon for unified secret management (v0.27)

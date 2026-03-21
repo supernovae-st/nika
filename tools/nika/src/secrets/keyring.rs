@@ -25,6 +25,7 @@ use colored::Colorize;
 use crate::core::provider_to_env_var;
 
 /// Service name for keyring entries.
+#[cfg(feature = "native-keychain")]
 const SERVICE_NAME: &str = "nika";
 
 /// Keyring error types.
@@ -358,6 +359,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg(feature = "native-keychain")]
     fn test_service_name_is_nika() {
         assert_eq!(SERVICE_NAME, "nika");
     }
