@@ -161,7 +161,7 @@ fn check_model_compatibility(ast_index: &AstIndex, uri: &Uri, source: &str) -> V
                 let tc = agent
                     .tool_choice
                     .as_deref()
-                    .map_or(false, |v| v == "required");
+                    .is_some_and(|v| v == "required");
                 (et, tc)
             }
             _ => (false, false),
@@ -170,7 +170,7 @@ fn check_model_compatibility(ast_index: &AstIndex, uri: &Uri, source: &str) -> V
         let json_output = task
             .output
             .as_ref()
-            .map_or(false, |o| o.format == OutputFormat::Json);
+            .is_some_and(|o| o.format == OutputFormat::Json);
 
         let config = TaskModelConfig {
             model_id,
@@ -502,7 +502,7 @@ tasks:
             deprecated_diag
                 .tags
                 .as_ref()
-                .map_or(false, |t| t.contains(&DiagnosticTag::DEPRECATED)),
+                .is_some_and(|t| t.contains(&DiagnosticTag::DEPRECATED)),
             "NIKA-033 should have DEPRECATED tag"
         );
     }
