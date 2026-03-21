@@ -75,7 +75,7 @@ pub fn server_capabilities() -> ServerCapabilities {
         document_formatting_provider: None,
         document_range_formatting_provider: None,
         rename_provider: None,
-        folding_range_provider: None,
+        folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
         selection_range_provider: None,
         linked_editing_range_provider: None,
         semantic_tokens_provider: Some(SemanticTokensServerCapabilities::SemanticTokensOptions(

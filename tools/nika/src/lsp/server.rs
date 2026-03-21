@@ -548,6 +548,25 @@ impl LanguageServer for NikaLanguageServer {
         }
     }
 
+    // ===== Folding Ranges =====
+
+    async fn folding_range(
+        &self,
+        params: FoldingRangeParams,
+    ) -> Result<Option<Vec<FoldingRange>>> {
+        let uri = &params.text_document.uri;
+
+        let docs = self.documents.read().await;
+        let text = docs.get(uri).cloned().unwrap_or_default();
+
+        let ranges = handlers::folding_ranges::compute_folding_ranges(&text);
+        if ranges.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(ranges))
+        }
+    }
+
     // ===== Code Lens =====
 
     async fn code_lens(&self, params: CodeLensParams) -> Result<Option<Vec<CodeLens>>> {
