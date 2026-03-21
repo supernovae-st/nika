@@ -1,0 +1,11 @@
+schema: nika/workflow@0.12
+workflow: test-unclosed-brace
+tasks:
+  - id: transform
+    with: { data: $step1, format: json
+    infer:
+      model: gpt-4
+      prompt: Transform {{with.data}} to {{with.format}}
+  - id: step1
+    exec:
+      command: echo '{"key": "value"}'

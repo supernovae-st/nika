@@ -1,0 +1,13 @@
+schema: nika/workflow@0.12
+workflow: test-bad-indent
+tasks:
+  - id: gen
+    infer:
+      model: gpt-4
+       prompt: This line has extra indent
+     content: true
+  - id: run
+      exec:
+    command: echo done
+        with:
+      key: value

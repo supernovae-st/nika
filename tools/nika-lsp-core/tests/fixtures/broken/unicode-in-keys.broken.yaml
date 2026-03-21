@@ -1,0 +1,12 @@
+schema: nika/workflow@0.12
+workflow: test-unicode-keys
+tâches:
+  - identifiant: génération
+    inférer:
+      modèle: gpt-4
+      prompt: héllo wörld
+    contenu: true
+    dépend_de: [étape1]
+  - identifiant: étape1
+    exécuter:
+      commande: echo prêt

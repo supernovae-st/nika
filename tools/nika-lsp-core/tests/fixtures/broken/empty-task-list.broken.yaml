@@ -1,0 +1,3 @@
+schema: nika/workflow@0.12
+workflow: test-empty-tasks
+tasks:

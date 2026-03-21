@@ -1,0 +1,15 @@
+schema: nika/workflow@0.12
+workflow: test-mixed-tabs-spaces
+tasks:
+  - id: gen
+		infer:
+      model: gpt-4
+			prompt: hello
+    content: true
+	- id: run
+    exec:
+			command: echo done
+  - id: fetch_data
+	fetch:
+      url: http://example.com
+	  method: GET

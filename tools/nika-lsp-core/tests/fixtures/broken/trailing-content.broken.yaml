@@ -1,0 +1,20 @@
+schema: nika/workflow@0.12
+workflow: test-trailing-content
+tasks:
+  - id: gen
+    infer:
+      model: gpt-4
+      prompt: Generate something useful
+    content: true
+  - id: run
+    exec:
+      command: echo done
+---
+this is not valid yaml anymore
+random garbage { [ (
+schema: another/thing
+] } )
+completely broken trailing content %^&*!@#
+tasks:
+  - this looks like yaml but follows a document separator
+    and has bad indentation too

@@ -1,0 +1,19 @@
+schema: nika/workflow@0.12
+workflow: test-multi-error
+tasks:
+  - id:
+    infer
+      model gpt-4
+      prompt: First task is broken
+    depends_on: [missing_step
+    content true
+  - id: step2
+    exec:
+      command
+    with: { key: value
+  - id: step3
+    fetch:
+      url http://example.com
+      method: GET
+      headers:
+        Authorization Bearer token

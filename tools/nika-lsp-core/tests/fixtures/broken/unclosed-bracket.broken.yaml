@@ -1,0 +1,14 @@
+schema: nika/workflow@0.12
+workflow: test-unclosed-bracket
+tasks:
+  - id: step3
+    depends_on: [step1, step2
+    infer:
+      model: gpt-4
+      prompt: This depends on missing bracket closure
+  - id: step1
+    exec:
+      command: echo one
+  - id: step2
+    exec:
+      command: echo two

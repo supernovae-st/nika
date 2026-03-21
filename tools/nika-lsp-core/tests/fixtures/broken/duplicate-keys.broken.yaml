@@ -1,0 +1,12 @@
+schema: nika/workflow@0.12
+workflow: test-duplicate-keys
+tasks:
+  - id: step1
+    id: step2
+    infer:
+      model: gpt-4
+      model: claude-3
+      prompt: Which model wins?
+      prompt: Or this prompt?
+    content: true
+    content: false

@@ -1876,3 +1876,72 @@ fn all_task_field_items_have_insert_text() {
         );
     }
 }
+
+// ===========================================================================
+// Verb-level field completions (invoke, infer, agent, fetch)
+// ===========================================================================
+
+#[test]
+fn invoke_has_resource_completion() {
+    let yaml = "schema: nika/workflow@0.12\ntasks:\n  - id: step1\n    invoke:\n      ";
+    let items = complete_at(yaml, 4, 6);
+    assert_has_label(&items, "resource");
+}
+
+#[test]
+fn infer_has_guardrails_completion() {
+    let yaml = "schema: nika/workflow@0.12\ntasks:\n  - id: step1\n    infer:\n      ";
+    let items = complete_at(yaml, 4, 6);
+    assert_has_label(&items, "guardrails");
+}
+
+#[test]
+fn agent_has_guardrails_completion() {
+    let yaml = "schema: nika/workflow@0.12\ntasks:\n  - id: step1\n    agent:\n      ";
+    let items = complete_at(yaml, 4, 6);
+    assert_has_label(&items, "guardrails");
+}
+
+#[test]
+fn fetch_no_retry_in_verb_block() {
+    let yaml = "schema: nika/workflow@0.12\ntasks:\n  - id: step1\n    fetch:\n      ";
+    let items = complete_at(yaml, 4, 6);
+    assert_no_label(&items, "retry");
+}
+
+#[test]
+fn task_field_no_guardrails() {
+    let yaml = "schema: nika/workflow@0.12\ntasks:\n  - id: step1\n    ";
+    let items = complete_at(yaml, 3, 4);
+    assert_no_label(&items, "guardrails");
+}
+
+#[test]
+fn agent_has_from_completion() {
+    let yaml = "schema: nika/workflow@0.12\ntasks:\n  - id: step1\n    agent:\n      ";
+    let items = complete_at(yaml, 4, 6);
+    assert_has_label(&items, "from");
+}
+
+#[test]
+fn agent_has_thinking_budget_completion() {
+    let yaml = "schema: nika/workflow@0.12\ntasks:\n  - id: step1\n    agent:\n      ";
+    let items = complete_at(yaml, 4, 6);
+    assert_has_label(&items, "thinking_budget");
+}
+
+// ===========================================================================
+// Workflow root includes newer keys
+// ===========================================================================
+
+#[test]
+fn workflow_root_has_all_new_keys() {
+    let items = complete_at("", 0, 0);
+    assert_has_label(&items, "provider");
+    assert_has_label(&items, "model");
+    assert_has_label(&items, "description");
+    assert_has_label(&items, "skills");
+    assert_has_label(&items, "agents");
+    assert_has_label(&items, "artifacts");
+    assert_has_label(&items, "log");
+}

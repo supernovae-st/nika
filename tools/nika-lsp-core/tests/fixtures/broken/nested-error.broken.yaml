@@ -1,0 +1,23 @@
+schema: nika/workflow@0.12
+workflow: test-nested-error
+tasks:
+  - id: gen
+    infer:
+      model: gpt-4
+      prompt: Generate a report
+    content:
+      format: markdown
+      sections:
+        - title: Introduction
+          body: Hello
+        - title: Analysis
+          data:
+            metrics:
+              accuracy 0.95
+              precision: 0.92
+              recall
+            chart:
+              type bar
+              labels: [a, b, c
+        - title: Conclusion
+          body: Done

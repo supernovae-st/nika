@@ -1,0 +1,10 @@
+schema: nika/workflow@0.12
+workflow: test-missing-value
+tasks:
+  - id:
+    infer:
+      model:
+      prompt: Generate something
+  - id: step2
+    exec:
+      command: echo done

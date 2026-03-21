@@ -1,0 +1,15 @@
+schema: nika/workflow@0.12
+workflow: test-broken-mcp
+mcp:
+  novanet:
+    command
+    args: [serve]
+  tools:
+    transport stdio
+    url: http://localhost:3000
+tasks:
+  - id: call
+    invoke:
+      tool: novanet.query
+      input:
+        query: "find nodes"
