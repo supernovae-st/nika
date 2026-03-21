@@ -430,7 +430,116 @@ fn parse_action(
         return Ok(Some(RawTaskAction::Agent(Spanned::new(action, span))));
     }
 
+    // No verb found — check for common misspellings before returning None.
+    // Known non-verb task keys that are legitimate without a verb (e.g. decompose tasks).
+    let known_non_verb_keys: &[&str] = &[
+        "id",
+        "description",
+        "provider",
+        "model",
+        "with",
+        "depends_on",
+        "output",
+        "for_each",
+        "retry",
+        "decompose",
+        "structured",
+        "artifact",
+        "log",
+        "concurrency",
+        "fail_fast",
+        "timeout",
+    ];
+
+    let task_keys: Vec<String> = map.iter().map(|(k, _)| k.as_str().to_string()).collect();
+    let unrecognized: Vec<&str> = task_keys
+        .iter()
+        .map(|s| s.as_str())
+        .filter(|k| !verb_keys.contains(k) && !known_non_verb_keys.contains(k))
+        .collect();
+
+    if !unrecognized.is_empty() {
+        // Check if any unrecognized key looks like a misspelled verb
+        let misspellings: Vec<(&str, &str)> = unrecognized
+            .iter()
+            .filter_map(|key| {
+                verb_keys.iter().find_map(|verb| {
+                    if is_likely_misspelling(key, verb) {
+                        Some((*key, *verb))
+                    } else {
+                        None
+                    }
+                })
+            })
+            .collect();
+
+        if !misspellings.is_empty() {
+            let suggestions: Vec<String> = misspellings
+                .iter()
+                .map(|(key, verb)| format!("'{}' (did you mean '{}'?)", key, verb))
+                .collect();
+            let span = marked_span_to_span(file, map.span());
+            return Err(ParseError {
+                kind: ParseErrorKind::MissingField,
+                span,
+                message: format!(
+                    "no valid verb found. Expected one of: {}. Possible misspelling: {}",
+                    verb_keys.join(", "),
+                    suggestions.join(", ")
+                ),
+            });
+        }
+    }
+
     Ok(None)
+}
+
+/// Check if `input` is a likely misspelling of `target` using edit distance.
+/// Returns true if the strings are within edit distance 2 and share a common prefix.
+fn is_likely_misspelling(input: &str, target: &str) -> bool {
+    if input == target {
+        return false;
+    }
+    let len_diff = (input.len() as isize - target.len() as isize).unsigned_abs();
+    if len_diff > 2 {
+        return false;
+    }
+    // Simple Levenshtein distance check (bounded to 2)
+    levenshtein_bounded(input, target, 2) <= 2
+}
+
+/// Bounded Levenshtein distance. Returns distance or `bound + 1` if exceeded.
+fn levenshtein_bounded(a: &str, b: &str, bound: usize) -> usize {
+    let a_bytes = a.as_bytes();
+    let b_bytes = b.as_bytes();
+    let m = a_bytes.len();
+    let n = b_bytes.len();
+
+    if m.abs_diff(n) > bound {
+        return bound + 1;
+    }
+
+    let mut prev: Vec<usize> = (0..=n).collect();
+    let mut curr = vec![0; n + 1];
+
+    for i in 1..=m {
+        curr[0] = i;
+        let mut min_in_row = curr[0];
+        for j in 1..=n {
+            let cost = if a_bytes[i - 1] == b_bytes[j - 1] {
+                0
+            } else {
+                1
+            };
+            curr[j] = (prev[j] + 1).min(curr[j - 1] + 1).min(prev[j - 1] + cost);
+            min_in_row = min_in_row.min(curr[j]);
+        }
+        if min_in_row > bound {
+            return bound + 1;
+        }
+        std::mem::swap(&mut prev, &mut curr);
+    }
+    prev[n]
 }
 
 /// Parse infer action - supports both shorthand (string) and full form (mapping).
