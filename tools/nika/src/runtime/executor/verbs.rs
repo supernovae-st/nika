@@ -540,11 +540,16 @@ impl TaskExecutor {
                         "Structured output validated successfully"
                     );
 
-                    // Return validated JSON as string
-                    return Ok(result.value.to_string());
+                    // Return validated JSON as string — check guardrails first
+                    let structured_output = result.value.to_string();
+                    self.check_infer_guardrails(task_id, infer, &structured_output)?;
+                    return Ok(structured_output);
                 }
             }
         }
+
+        // Run guardrails before returning the final output
+        self.check_infer_guardrails(task_id, infer, &stream_result.text)?;
 
         Ok(stream_result.text)
     }
@@ -747,6 +752,64 @@ impl TaskExecutor {
         });
 
         Ok(vision_result)
+    }
+
+    /// Run guardrails configured on an infer task against the output.
+    ///
+    /// Emits GuardrailPassed/GuardrailFailed events and returns an error
+    /// if any guardrail with `on_failure: fail` triggers.
+    fn check_infer_guardrails(
+        &self,
+        task_id: &Arc<str>,
+        infer: &InferParams,
+        output: &str,
+    ) -> Result<(), NikaError> {
+        if infer.guardrails.is_empty() {
+            return Ok(());
+        }
+
+        use crate::ast::guardrails::{immediate_failures, run_sync_guardrails};
+        let results = run_sync_guardrails(&infer.guardrails, output);
+
+        for result in &results {
+            if result.passed {
+                self.event_log.emit(EventKind::GuardrailPassed {
+                    task_id: Arc::clone(task_id),
+                    guardrail_type: result.guardrail_type.clone(),
+                    description: result.guardrail_id.clone(),
+                });
+            } else {
+                self.event_log.emit(EventKind::GuardrailFailed {
+                    task_id: Arc::clone(task_id),
+                    guardrail_type: result.guardrail_type.clone(),
+                    description: result.guardrail_id.clone(),
+                    message: result
+                        .message
+                        .clone()
+                        .unwrap_or_else(|| "Guardrail check failed".to_string()),
+                });
+            }
+        }
+
+        let failures = immediate_failures(&results);
+        if !failures.is_empty() {
+            let msgs: Vec<String> = failures
+                .iter()
+                .map(|r| {
+                    format!(
+                        "{}: {}",
+                        r.guardrail_type,
+                        r.message.as_deref().unwrap_or("failed")
+                    )
+                })
+                .collect();
+            return Err(NikaError::GuardrailViolation {
+                task_id: task_id.to_string(),
+                violations: msgs,
+            });
+        }
+
+        Ok(())
     }
 
     pub(super) async fn run_exec(

@@ -561,6 +561,7 @@ impl Runner {
                 .content
                 .as_ref()
                 .map(|parts| parts.iter().cloned().map(Into::into).collect()),
+            guardrails: Vec::new(),
         };
 
         Some((schema, max_retries, infer_params))

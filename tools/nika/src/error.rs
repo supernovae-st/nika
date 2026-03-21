@@ -396,6 +396,12 @@ pub enum NikaError {
     #[error("[NIKA-116] Extended thinking capture failed: {reason}")]
     ThinkingCaptureFailed { reason: String },
 
+    #[error("[NIKA-112] Guardrail violation in task '{task_id}': {}", violations.join(", "))]
+    GuardrailViolation {
+        task_id: String,
+        violations: Vec<String>,
+    },
+
     // ═══════════════════════════════════════════
     // RESILIENCE ERRORS (120-129)
     // ═══════════════════════════════════════════
@@ -700,6 +706,7 @@ impl NikaError {
             Self::AgentValidationError { .. } => "NIKA-113",
             Self::AgentExecutionError { .. } => "NIKA-115",
             Self::ThinkingCaptureFailed { .. } => "NIKA-116",
+            Self::GuardrailViolation { .. } => "NIKA-112",
             // Resilience errors
             Self::Timeout { .. } => "NIKA-121",
             Self::McpToolCallFailed { .. } => "NIKA-125",
@@ -882,6 +889,9 @@ impl FixSuggestion for NikaError {
             }
             NikaError::ThinkingCaptureFailed { .. } => {
                 Some("Check Claude API response and streaming connection")
+            }
+            NikaError::GuardrailViolation { .. } => {
+                Some("One or more guardrails failed. Check guardrail config or adjust on_failure action")
             }
             // Resilience errors
             NikaError::Timeout { .. } => Some("Increase timeout or check for slow operations"),

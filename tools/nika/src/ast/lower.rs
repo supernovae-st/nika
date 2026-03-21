@@ -191,6 +191,7 @@ fn lower_infer(
         content: infer
             .content
             .map(|parts| parts.into_iter().map(Into::into).collect()),
+        guardrails: infer.guardrails,
     }
 }
 
@@ -679,6 +680,7 @@ fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
                     ResponseFormat::Markdown => "markdown".to_string(),
                 }
             }),
+            guardrails: infer.guardrails.clone(),
             span: Span::dummy(),
         }),
         TaskAction::Exec { exec } => AnalyzedTaskAction::Exec(AnalyzedExecAction {
@@ -898,6 +900,7 @@ mod tests {
                 thinking_budget: Some(8192),
                 content: None,
                 response_format: None,
+                guardrails: Vec::new(),
                 span: Span::dummy(),
             }),
             provider: Some("mistral".to_string()),
@@ -2563,6 +2566,90 @@ mod tests {
                 invalid,
                 params.tool_choice
             );
+        }
+    }
+
+    #[test]
+    fn lower_infer_guardrails_preserved() {
+        use crate::ast::guardrails::{GuardrailConfig, LengthGuardrail, OnFailure};
+
+        let mut wf = dummy_workflow();
+        let id = wf.task_table.insert("guarded");
+        wf.tasks.push(AnalyzedTask {
+            action: AnalyzedTaskAction::Infer(AnalyzedInferAction {
+                prompt: "Summarize".to_string(),
+                guardrails: vec![GuardrailConfig::Length(LengthGuardrail {
+                    id: Some("word_count".to_string()),
+                    min_words: Some(10),
+                    max_words: Some(200),
+                    min_chars: None,
+                    max_chars: None,
+                    message: None,
+                    on_failure: OnFailure::Fail,
+                })],
+                ..Default::default()
+            }),
+            ..dummy_task(id, "guarded")
+        });
+
+        let lowered = lower(wf).unwrap();
+        match &lowered.tasks[0].action {
+            TaskAction::Infer { infer } => {
+                assert_eq!(infer.guardrails.len(), 1);
+                assert_eq!(infer.guardrails[0].guardrail_type(), "length");
+                assert_eq!(infer.guardrails[0].on_failure(), OnFailure::Fail);
+            }
+            _ => panic!("expected Infer action"),
+        }
+    }
+
+    #[test]
+    fn unlower_infer_guardrails_roundtrip() {
+        use crate::ast::guardrails::{GuardrailConfig, LengthGuardrail, OnFailure};
+
+        // Build regex guardrail via serde (compiled field is private)
+        let regex_guardrail: GuardrailConfig = serde_json::from_value(serde_json::json!({
+            "type": "regex",
+            "id": "starts_with_summary",
+            "pattern": "^Summary:",
+            "message": "Must start with Summary:",
+            "on_failure": "fail"
+        }))
+        .expect("valid regex guardrail JSON");
+
+        let mut wf = dummy_workflow();
+        let id = wf.task_table.insert("validated");
+        wf.tasks.push(AnalyzedTask {
+            action: AnalyzedTaskAction::Infer(AnalyzedInferAction {
+                prompt: "Write a summary".to_string(),
+                guardrails: vec![
+                    GuardrailConfig::Length(LengthGuardrail {
+                        id: None,
+                        min_words: Some(50),
+                        max_words: None,
+                        min_chars: None,
+                        max_chars: None,
+                        message: None,
+                        on_failure: OnFailure::default(),
+                    }),
+                    regex_guardrail,
+                ],
+                ..Default::default()
+            }),
+            ..dummy_task(id, "validated")
+        });
+
+        let lowered = lower(wf).unwrap();
+        let unlowered = unlower(lowered).unwrap();
+
+        match &unlowered.tasks[0].action {
+            AnalyzedTaskAction::Infer(infer) => {
+                assert_eq!(infer.guardrails.len(), 2);
+                assert_eq!(infer.guardrails[0].guardrail_type(), "length");
+                assert_eq!(infer.guardrails[1].guardrail_type(), "regex");
+                assert_eq!(infer.guardrails[1].on_failure(), OnFailure::Fail);
+            }
+            _ => panic!("expected Infer action after roundtrip"),
         }
     }
 }

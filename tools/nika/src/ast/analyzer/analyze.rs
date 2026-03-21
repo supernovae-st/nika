@@ -688,6 +688,7 @@ fn analyze_infer(raw: &RawInferAction) -> AnalyzedInferAction {
             .as_ref()
             .map(|spanned| spanned.value.iter().map(analyze_content_part).collect()),
         response_format: raw.response_format.as_ref().map(|s| s.value.clone()),
+        guardrails: raw.guardrails.clone(),
         span: raw.prompt.span,
     }
 }

@@ -74,6 +74,8 @@ pub struct InferParams {
     pub thinking_budget: Option<u64>,
     /// Multimodal content parts for vision models (text + images)
     pub content: Option<Vec<crate::ast::content::ContentPart>>,
+    /// Guardrails for validating infer output
+    pub guardrails: Vec<crate::ast::guardrails::GuardrailConfig>,
 }
 
 impl<'de> Deserialize<'de> for InferParams {
@@ -106,6 +108,8 @@ impl<'de> Deserialize<'de> for InferParams {
                 thinking_budget: Option<u64>,
                 #[serde(default)]
                 content: Option<Vec<crate::ast::content::ContentPart>>,
+                #[serde(default)]
+                guardrails: Vec<crate::ast::guardrails::GuardrailConfig>,
             },
         }
 
@@ -121,6 +125,7 @@ impl<'de> Deserialize<'de> for InferParams {
                 extended_thinking: None,
                 thinking_budget: None,
                 content: None,
+                guardrails: Vec::new(),
             }),
             InferParamsHelper::Full {
                 prompt,
@@ -133,6 +138,7 @@ impl<'de> Deserialize<'de> for InferParams {
                 extended_thinking,
                 thinking_budget,
                 content,
+                guardrails,
             } => Ok(InferParams {
                 prompt,
                 provider,
@@ -144,6 +150,7 @@ impl<'de> Deserialize<'de> for InferParams {
                 extended_thinking,
                 thinking_budget,
                 content,
+                guardrails,
             }),
         }
     }

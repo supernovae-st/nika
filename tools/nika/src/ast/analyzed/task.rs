@@ -152,6 +152,9 @@ pub struct AnalyzedInferAction {
     /// Expected response format: text, json, markdown
     pub response_format: Option<String>,
 
+    /// Guardrails for validating infer output
+    pub guardrails: Vec<crate::ast::guardrails::GuardrailConfig>,
+
     /// Span of the action
     pub span: Span,
 }

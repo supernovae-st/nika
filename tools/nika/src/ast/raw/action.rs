@@ -82,6 +82,9 @@ pub struct RawInferAction {
 
     /// Expected response format: text, json, markdown
     pub response_format: Option<Spanned<String>>,
+
+    /// Guardrails for validating infer output
+    pub guardrails: Vec<crate::ast::guardrails::GuardrailConfig>,
 }
 
 /// Parameters for the `exec` verb (shell command execution).

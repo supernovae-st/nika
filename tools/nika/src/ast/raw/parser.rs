@@ -565,6 +565,7 @@ fn parse_infer_action(file: FileId, node: &Node) -> Result<RawInferAction, Parse
             thinking_budget: None,
             content: None,
             response_format: None,
+            guardrails: Vec::new(),
         }),
         // Full form: infer: { prompt: "...", temperature: ..., content: [...] }
         Node::Mapping(m) => {
@@ -583,6 +584,8 @@ fn parse_infer_action(file: FileId, node: &Node) -> Result<RawInferAction, Parse
             // If content is present but no prompt, use empty prompt (validated later)
             let prompt = prompt.unwrap_or_else(|| Spanned::new(String::new(), span));
 
+            let guardrails = parse_guardrails_field(file, m)?;
+
             Ok(RawInferAction {
                 prompt,
                 system: get_string_field(file, m, "system")?,
@@ -596,6 +599,7 @@ fn parse_infer_action(file: FileId, node: &Node) -> Result<RawInferAction, Parse
                 thinking_budget: get_u32_field(file, m, "thinking_budget")?,
                 content,
                 response_format: get_string_field(file, m, "response_format")?,
+                guardrails,
             })
         }
         _ => Err(ParseError {
@@ -1137,6 +1141,30 @@ fn parse_structured(
             Ok(Some(spec))
         }
         None => Ok(None),
+    }
+}
+
+/// Parse the `guardrails:` field from an infer or agent mapping.
+///
+/// Guardrails are a YAML sequence of objects, each with a `type` field.
+/// Uses serde deserialization via `GuardrailConfig` which is `#[serde(tag = "type")]`.
+///
+/// Returns an empty Vec if the field is absent.
+fn parse_guardrails_field(
+    file: FileId,
+    map: &marked_yaml::types::MarkedMappingNode,
+) -> Result<Vec<crate::ast::guardrails::GuardrailConfig>, ParseError> {
+    match map.get_node("guardrails") {
+        Some(node) => {
+            let span = node_to_span(file, node);
+            let json_value = node_to_json(node);
+            serde_json::from_value(json_value).map_err(|e| ParseError {
+                kind: ParseErrorKind::InvalidType,
+                span,
+                message: format!("invalid guardrails config: {e}"),
+            })
+        }
+        None => Ok(Vec::new()),
     }
 }
 
@@ -2664,5 +2692,85 @@ tasks:
 "#;
         let result = parse(yaml, FileId(0));
         assert!(result.is_ok(), "image_url should parse: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_parse_infer_with_guardrails() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: summarize
+    infer:
+      prompt: "Summarize this article"
+      guardrails:
+        - type: length
+          min_words: 50
+          max_words: 200
+        - type: regex
+          pattern: "^Summary:"
+          message: "Output must start with 'Summary:'"
+"#;
+        let workflow = parse(yaml, FileId(0)).unwrap();
+        let task = workflow.get_task("summarize").unwrap();
+
+        match &task.value.action {
+            Some(RawTaskAction::Infer(action)) => {
+                assert_eq!(action.value.prompt.value, "Summarize this article");
+                assert_eq!(action.value.guardrails.len(), 2);
+                assert_eq!(action.value.guardrails[0].guardrail_type(), "length");
+                assert_eq!(action.value.guardrails[1].guardrail_type(), "regex");
+            }
+            _ => panic!("Expected Infer action"),
+        }
+    }
+
+    #[test]
+    fn test_parse_infer_shorthand_no_guardrails() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: quick
+    infer: "Generate a headline"
+"#;
+        let workflow = parse(yaml, FileId(0)).unwrap();
+        let task = workflow.get_task("quick").unwrap();
+
+        match &task.value.action {
+            Some(RawTaskAction::Infer(action)) => {
+                assert!(
+                    action.value.guardrails.is_empty(),
+                    "Shorthand infer should have no guardrails"
+                );
+            }
+            _ => panic!("Expected Infer action"),
+        }
+    }
+
+    #[test]
+    fn test_parse_infer_guardrails_on_failure_fail() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: strict
+    infer:
+      prompt: "Generate strict output"
+      guardrails:
+        - type: length
+          min_words: 10
+          on_failure: fail
+"#;
+        let workflow = parse(yaml, FileId(0)).unwrap();
+        let task = workflow.get_task("strict").unwrap();
+
+        match &task.value.action {
+            Some(RawTaskAction::Infer(action)) => {
+                assert_eq!(action.value.guardrails.len(), 1);
+                assert_eq!(
+                    action.value.guardrails[0].on_failure(),
+                    crate::ast::guardrails::OnFailure::Fail
+                );
+            }
+            _ => panic!("Expected Infer action"),
+        }
     }
 }
