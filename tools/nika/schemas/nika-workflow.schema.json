@@ -256,6 +256,22 @@
           "$ref": "#/$defs/StructuredOutputSpec",
           "description": "Structured output validation with 4-layer defense (v0.21+)"
         },
+        "provider": {
+          "type": "string",
+          "enum": ["claude", "openai", "mistral", "groq", "deepseek", "gemini", "xai", "grok", "native", "mock"],
+          "description": "Provider override for this task"
+        },
+        "model": {
+          "type": "string",
+          "description": "Model override for this task"
+        },
+        "retry": {
+          "type": "object",
+          "properties": {
+            "max_retries": { "type": "integer", "minimum": 0, "maximum": 10 },
+            "delay": { "type": "integer", "minimum": 0, "description": "Delay in seconds between retries" }
+          }
+        },
         "depends_on": {
           "type": "array",
           "items": {
@@ -494,7 +510,7 @@
         },
         "extract": {
           "type": "string",
-          "enum": ["markdown", "text", "selector", "metadata", "links", "jsonpath"],
+          "enum": ["markdown", "article", "text", "selector", "metadata", "links", "jsonpath", "feed", "llm_txt"],
           "description": "Extraction mode for response body"
         },
         "selector": {
@@ -545,22 +561,21 @@
         },
         "tool": {
           "type": "string",
-          "description": "Tool name to call (mutually exclusive with resource)"
+          "description": "Tool name to call"
         },
         "params": {
           "type": "object",
           "description": "Parameters to pass to the tool"
         },
-        "resource": {
-          "type": "string",
-          "description": "Resource URI to read (mutually exclusive with tool)"
+        "timeout": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Timeout in seconds for the MCP tool call"
         }
       },
       "oneOf": [
         { "required": ["mcp", "tool"] },
-        { "required": ["mcp", "resource"] },
         { "required": ["server", "tool"] },
-        { "required": ["server", "resource"] },
         {
           "required": ["tool"],
           "properties": {
@@ -571,8 +586,7 @@
           "not": {
             "anyOf": [
               { "required": ["mcp"] },
-              { "required": ["server"] },
-              { "required": ["resource"] }
+              { "required": ["server"] }
             ]
           }
         }
@@ -735,9 +749,6 @@
           "maximum": 10,
           "default": 2,
           "description": "Maximum retry attempts on validation failure (v0.10)"
-        },
-        "fallback_value": {
-          "description": "Default value to use if validation fails after all retries (v0.22)"
         }
       }
     },
