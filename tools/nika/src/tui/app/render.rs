@@ -150,12 +150,15 @@ impl App {
                         .tokens(total_tokens)
                         .cache_tokens(state.metrics.cache_read_tokens)
                         .mcp(mcp_connected, mcp_total)
-                        .connection(if mcp_total > 0 {
+                        .connection(if mcp_connected > 0 && mcp_connected == mcp_total {
                             ConnectionStatus::Connected
+                        } else if mcp_total > 0 {
+                            ConnectionStatus::Connecting
                         } else {
                             ConnectionStatus::Disconnected
                         });
                     let status_bar = StatusBar::new(current_view, theme)
+                        .frame(state.frame)
                         .mode(input_mode)
                         .metrics(metrics)
                         .custom_text(status_text);
