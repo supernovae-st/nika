@@ -52,6 +52,38 @@ pub fn document_symbols(text: &str) -> Vec<SymbolEntry> {
                 end_offset: end,
                 children: tasks,
             });
+        } else if trimmed.starts_with("provider:") {
+            symbols.push(SymbolEntry {
+                name: trimmed.to_string(),
+                kind: SymbolKind::Property,
+                offset: offset as u32,
+                end_offset: (offset + line.len()) as u32,
+                children: vec![],
+            });
+        } else if trimmed.starts_with("context:") {
+            symbols.push(SymbolEntry {
+                name: "context".into(),
+                kind: SymbolKind::Module,
+                offset: offset as u32,
+                end_offset: (offset + line.len()) as u32,
+                children: vec![],
+            });
+        } else if trimmed.starts_with("include:") {
+            symbols.push(SymbolEntry {
+                name: "include".into(),
+                kind: SymbolKind::Module,
+                offset: offset as u32,
+                end_offset: (offset + line.len()) as u32,
+                children: vec![],
+            });
+        } else if trimmed.starts_with("inputs:") {
+            symbols.push(SymbolEntry {
+                name: "inputs".into(),
+                kind: SymbolKind::Module,
+                offset: offset as u32,
+                end_offset: (offset + line.len()) as u32,
+                children: vec![],
+            });
         } else if trimmed.starts_with("mcp:") {
             let srvs = extract_mcp(&lines, i + 1, text);
             let end = srvs

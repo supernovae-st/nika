@@ -46,11 +46,46 @@ const TASK_KEYS: &[&str] = &[
     "retry",
     "timeout",
     "guardrails",
+    "guard",
     "limits",
     "provider",
     "model",
     "description",
     "structured",
+    "output",
+    "on_error",
+    "as",
+    "concurrency",
+    "fail_fast",
+];
+const VERB_SUBKEYS: &[&str] = &[
+    "prompt",
+    "system",
+    "temperature",
+    "max_tokens",
+    "extended_thinking",
+    "thinking_budget",
+    "command",
+    "shell",
+    "cwd",
+    "url",
+    "method",
+    "headers",
+    "body",
+    "extract",
+    "selector",
+    "response",
+    "follow_redirects",
+    "mcp",
+    "tool",
+    "params",
+    "resource",
+    "max_turns",
+    "depth_limit",
+    "tools",
+    "goal",
+    "detail",
+    "source",
 ];
 
 pub fn semantic_tokens(text: &str) -> Vec<RawToken> {
@@ -114,6 +149,8 @@ pub fn semantic_tokens(text: &str) -> Vec<RawToken> {
             } else if indent == 0 && TOP_KEYS.contains(&key) {
                 TokenType::Keyword
             } else if TASK_KEYS.contains(&key) {
+                TokenType::Property
+            } else if VERB_SUBKEYS.contains(&key) {
                 TokenType::Property
             } else if key == "type" {
                 TokenType::Type
