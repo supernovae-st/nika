@@ -28,7 +28,7 @@
 //! │  └── Helper functions (find_model, resolve_model, auto_select_quantization) │
 //! │                                                                             │
 //! │  mcp_aliases.rs                                                             │
-//! │  ├── MCP_ALIASES: &[(&str, &str)] (48 aliases)                              │
+//! │  ├── MCP_ALIASES: &[(&str, &str)] (100 aliases)                              │
 //! │  └── Helper functions (resolve_alias, list_aliases)                         │
 //! │                                                                             │
 //! │  backend.rs                                                                 │

@@ -44,7 +44,7 @@
 29. [Security Model](#16-security-model)
 30. [Observability & Traces](#17-observability--traces)
 31. [CLI](#18-cli)
-32. [TUI — 4-View Architecture](#19-tui--4-view-architecture)
+32. [TUI — 3-View Architecture](#19-tui--3-view-architecture)
 33. [LSP](#20-lsp)
 34. [Stack & Numbers](#21-stack--numbers)
 35. [Complete Module Map](#22-complete-module-map)
@@ -1225,7 +1225,7 @@ flowchart TB
     subgraph NIKA["Nika Runtime"]
         direction TB
         CLI["CLI\nnika *.nika.yaml\nnika chat\nnika studio"]
-        TUI["TUI\n4 views\nratatui"]
+        TUI["TUI\n3 views\nratatui"]
         LSP_MOD["LSP\nYAML validation\ncompletions"]
 
         subgraph CORE_EXEC["Execution Core"]
@@ -1251,7 +1251,7 @@ flowchart TB
         subgraph MGMT["Management (v0.27 spn fusion)"]
             PROV_CMD["nika provider\nAPI keys"]
             MODEL_CMD["nika model\nlocal models"]
-            MCP_CMD["nika mcp\n48 aliases"]
+            MCP_CMD["nika mcp\n100 aliases"]
             SYNC_CMD["nika sync\neditors"]
             JOBS_CMD["nika jobs\nbackground"]
         end
@@ -2434,7 +2434,7 @@ nika model list                   # List local models
 nika model pull <name>            # Download from HuggingFace
 nika model info <name>            # Model details
 
-nika mcp add <name>               # Add MCP server (48 aliases)
+nika mcp add <name>               # Add MCP server (100 aliases)
 nika mcp remove <name>            # Remove server
 nika mcp list                     # List configured
 nika mcp test <name>              # Test connection
@@ -2573,10 +2573,10 @@ Source: `lsp/` (13 files)
 | Builtin tools | 12 (+ 6 introspection in v0.30 = 18) |
 | Cloud providers | 7 (Anthropic, OpenAI, Mistral, Groq, DeepSeek, Gemini, Perplexity) |
 | Local provider | 1 (mistral.rs / GGUF) |
-| MCP aliases | 48 preconfigured |
+| MCP aliases | 100 preconfigured |
 | Known models | 16+ curated |
-| Known providers | 18 (6 LLM + 11 MCP + 1 local) |
-| TUI views | 4 (Home, Studio, Runner, Chat) |
+| Known providers | 20 (8 LLM + 11 MCP + 1 local) |
+| TUI views | 3 (Studio, Command, Control) |
 | TUI widgets | 100+ |
 | Event types | 22+ |
 | Error codes | 40+ (NIKA-025 through NIKA-289) |
@@ -2614,7 +2614,7 @@ flowchart TB
         end
 
         subgraph UI_LAYER["UI Layer"]
-            TUI_M["tui/ (153 files)\n4 views, 100+ widgets\nstate, themes, sessions"]
+            TUI_M["tui/ (153 files)\n3 views, 100+ widgets\nstate, themes, sessions"]
             LSP_M["lsp/ (13 files)\ncompletion, hover\ndefinition, diagnostics"]
             INIT_M["init/ (10 files)\nworkflow wizard\n6 template tiers"]
         end
@@ -2672,7 +2672,7 @@ flowchart TB
 | Structured output (4 layers) | Shipped | v0.19-v0.24 | `runtime/structured_output.rs` |
 | fail_fast + DependencyFailed | Shipped | v0.24 | `runtime/executor/` |
 | Artifact system (atomic writes) | Shipped | v0.18 | `io/` |
-| 4-view TUI | Shipped | v0.20-v0.22 | `tui/views/` |
+| 3-view TUI | Shipped | v0.20-v0.22 | `tui/views/` |
 | Studio (editor + browser + DAG) | Shipped | v0.8-v0.22 | `tui/views/studio.rs` |
 | spn→nika CLI fusion | Shipped | v0.27 | `core/`, `secrets/`, `jobs/`, `sync/`, `setup/` |
 | 12 builtin tools | Shipped | v0.15 | `runtime/builtin/` |

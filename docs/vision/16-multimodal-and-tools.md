@@ -842,7 +842,7 @@ However, unmaintained status is concerning. Alternatives worth evaluating:
 #### MCP Server Recommendations for `MCP_ALIASES`
 
 Based on this research, the following servers are recommended for inclusion in Nika's MCP alias
-registry (currently 48 aliases in `src/core/mcp_aliases.rs`):
+registry (currently 100 aliases in `src/core/mcp_aliases.rs`):
 
 | Alias | Server | Priority | npm/PyPI | Rationale |
 |-------|--------|:--------:|----------|-----------|

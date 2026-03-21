@@ -55,7 +55,7 @@ mindmap
       Checkpoints
     BUILD
       LSP 3-crate
-      TUI 4-view
+      TUI 3-view
       ModelCatalog
       42 Widgets
     OBSERVE
@@ -99,7 +99,7 @@ flowchart TB
 
 | Module | Files | Lines | Role |
 |--------|------:|------:|------|
-| **tui** | 164 | 91.5K | Terminal UI (4 views: Studio, Runner, Chat, Settings) |
+| **tui** | 164 | 91.5K | Terminal UI (3 views: Studio, Command, Control) |
 | **runtime** | 39 | 24.8K | Execution engine, agent loop, spawn, transforms |
 | **ast** | 37 | 21.8K | Two-phase YAML parser (Raw -> Analyzed) |
 | **binding** | 9 | 10.9K | Data flow, lazy bindings, transform engine |
@@ -640,7 +640,7 @@ Additional: Home/Browse (workflow browser, fuzzy search, history), Wizard (first
 
 - **Resolution chain:** daemon -> keychain -> environment variables
 - **spn daemon IPC:** Unix socket at `~/.spn/daemon.sock`
-- **18 known providers:** 6 LLM + 11 MCP + 1 Local
+- **20 known providers:** 8 LLM + 11 MCP + 1 Local
 
 ---
 

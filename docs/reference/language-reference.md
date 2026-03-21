@@ -1,7 +1,7 @@
 # Nika Workflow Language Reference
 
 > **Version**: 0.19 Foundation
-> **Schema**: `nika/workflow@0.10`
+> **Schema**: `nika/workflow@0.12`
 
 This document is the authoritative reference for the Nika workflow language.
 
@@ -31,7 +31,7 @@ Nika is a semantic YAML workflow engine for multi-step AI workflows. Workflows a
 ### Minimal Example
 
 ```yaml
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: hello-world
 
 tasks:
@@ -46,7 +46,7 @@ tasks:
 Every workflow must declare its schema version:
 
 ```yaml
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 ```
 
 ### Valid Schema Versions
@@ -62,20 +62,22 @@ schema: "nika/workflow@0.10"
 | `nika/workflow@0.7` | Deprecated | Retry config |
 | `nika/workflow@0.8` | Deprecated | Flow endpoints |
 | `nika/workflow@0.9` | Deprecated | Context files |
-| `nika/workflow@0.10` | **Current** | Full feature set |
+| `nika/workflow@0.10` | Deprecated | Full feature set |
+| `nika/workflow@0.11` | Deprecated | Media pipeline |
+| `nika/workflow@0.12` | **Current** | Vision, extract, guardrails |
 
 ### Schema Validation
 
 Invalid schema versions produce an error with suggestions:
 
 ```
-error[E003]: invalid schema version 'nika/workfow@0.10'
+error[E003]: invalid schema version 'nika/workfow@0.12'
   --> workflow.yaml:1:9
    |
- 1 | schema: "nika/workfow@0.10"
+ 1 | schema: "nika/workfow@0.12"
    |         ^^^^^^^^^^^^^^^^^^^
    |
-   = help: did you mean 'nika/workflow@0.10'?
+   = help: did you mean 'nika/workflow@0.12'?
 ```
 
 ---
@@ -100,7 +102,7 @@ error[E003]: invalid schema version 'nika/workfow@0.10'
 ### Full Example
 
 ```yaml
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: code-review
 description: "Automated code review workflow"
 provider: claude
@@ -199,7 +201,7 @@ Send a prompt to an LLM and get a response.
     system: "You are a technical writer"
     temperature: 0.7
     max_tokens: 1000
-    thinking: true
+    extended_thinking: true
     thinking_budget: 4096
 ```
 
@@ -209,7 +211,7 @@ Send a prompt to an LLM and get a response.
 | `system` | string | None | System prompt override |
 | `temperature` | float | 1.0 | Sampling temperature (0.0-2.0) |
 | `max_tokens` | int | None | Maximum response tokens |
-| `thinking` | bool | false | Enable extended thinking |
+| `extended_thinking` | bool | false | Enable extended thinking |
 | `thinking_budget` | int | None | Thinking token budget |
 
 ### 2. `exec` - Shell Command
@@ -226,7 +228,7 @@ Execute a shell command.
   exec:
     command: "npm test"
     shell: true
-    working_dir: "./frontend"
+    cwd: "./frontend"
     env:
       NODE_ENV: test
     timeout_ms: 60000
@@ -238,7 +240,7 @@ Execute a shell command.
 |-------|------|---------|-------------|
 | `command` | string | **Required** | Command to execute |
 | `shell` | bool | false | Run through shell |
-| `working_dir` | string | None | Working directory |
+| `cwd` | string | None | Working directory |
 | `env` | object | None | Environment variables |
 | `timeout_ms` | int | None | Timeout in milliseconds |
 | `capture_stdout` | bool | true | Capture stdout |
@@ -310,12 +312,12 @@ Run an autonomous agent with tools.
 ```yaml
 - id: researcher
   agent:
-    goal: "Research the topic and compile findings"
+    prompt: "Research the topic and compile findings"
     tools:
       - web_search
       - read_file
       - write_file
-    max_iterations: 10
+    max_turns: 10
     max_tokens: 4096
     skills:
       - research-methodology
@@ -323,9 +325,9 @@ Run an autonomous agent with tools.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `goal` | string | **Required** | Agent's objective |
+| `prompt` | string | **Required** | Agent's objective |
 | `tools` | array | None | Available tools |
-| `max_iterations` | int | None | Maximum iterations |
+| `max_turns` | int | None | Maximum turns |
 | `max_tokens` | int | None | Max tokens per response |
 | `from` | string | None | Agent definition reference |
 | `skills` | array | None | Skills to inject |
@@ -542,4 +544,4 @@ output        ::= "output:" { format: format [schema: schema] }
 
 ---
 
-*Last updated: v0.19 Foundation*
+*Last updated: v0.36.0 — Schema @0.12*

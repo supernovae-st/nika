@@ -885,7 +885,7 @@ Built-in per-provider pricing tables:
   └───────────────────────────────────────────────────────────────┘
 ```
 
-### 6.2 The 48 MCP Aliases
+### 6.2 The 100 MCP Aliases
 
 Pre-configured shortcuts for popular MCP servers. `nika mcp add perplexity` expands to the full npm package.
 
@@ -1365,7 +1365,7 @@ nika provider migrate                      # Env vars → keychain
 nika mcp list [-w WORKFLOW] [--global] [--project]
 nika mcp add <NAME|ALIAS> [--command X] [--args ...]
 nika mcp remove <NAME>
-nika mcp aliases [-c CATEGORY]             # Show 48 aliases
+nika mcp aliases [-c CATEGORY]             # Show 100 aliases
 nika mcp test <WORKFLOW> <SERVER>          # Test connectivity
 nika mcp tools <WORKFLOW> <SERVER>         # List server tools
 
@@ -1401,7 +1401,7 @@ nika schema [SUBCOMMAND]                   # Schema versions
 | **MCP support** | Native (rmcp v0.16) | Via adapter | None | None | None |
 | **Observability** | 34-event NDJSON traces | LangSmith (paid) | CrewAI logs | Built-in | Built-in |
 | **IDE support** | LSP + VS Code extension | None | None | Visual editor | None |
-| **TUI** | 4-view ratatui terminal | None | None | Web UI | Web UI |
+| **TUI** | 3-view ratatui terminal | None | None | Web UI | Web UI |
 | **Binary size** | Single binary (~30MB) | pip install (100+ deps) | pip install | Docker | pip install |
 | **Startup time** | Instant | 2-5s (Python import) | 2-5s | Container boot | 1-3s |
 | **Structured output** | 4-layer defense | Manual parsing | Basic | Template-based | N/A |

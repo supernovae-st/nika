@@ -68,7 +68,7 @@ pub struct WizardView {
     providers: Vec<ProviderItem>,
     /// Available editors
     editors: Vec<EditorItem>,
-    /// Available MCP servers (subset of 48 aliases)
+    /// Available MCP servers (subset of 100 aliases)
     mcp_servers: Vec<&'static str>,
     /// Input buffer for API key entry
     input_buffer: String,

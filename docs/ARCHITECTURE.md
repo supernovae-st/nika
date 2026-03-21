@@ -25,7 +25,7 @@ Nika is a DAG workflow runner for AI tasks that connects to knowledge graphs via
 │  │    Executor     │  ← Parallel task execution (for_each)      │
 │  └─────────────────┘                                            │
 │       │                                                         │
-│       ├── infer  → LLM (6 providers: Claude, OpenAI, etc)       │
+│       ├── infer  → LLM (8 providers: Claude, OpenAI, etc)       │
 │       ├── exec   → Shell                                        │
 │       ├── fetch  → HTTP Client                                  │
 │       ├── invoke → MCP Client (tools + resources)               │
@@ -36,7 +36,7 @@ Nika is a DAG workflow runner for AI tasks that connects to knowledge graphs via
 │  │   RunContext     │  ← Task results for downstream             │
 │  └─────────────────┘                                            │
 │                                                                 │
-│  TUI: 4 Views (Chat, Home, Studio, Monitor)                    │
+│  TUI: 3 Views (Studio, Command, Control)                       │
 │       Full Streaming + Real-time Trace Visualization           │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
@@ -308,8 +308,8 @@ NEO4J (61 nodes, 182 arcs)
 - `spawn_agent` - Nested agents with depth limits ✅
 - `decompose:` - Runtime DAG expansion ✅
 - `lazy:` bindings - Deferred context loading ✅
-- Full streaming - All 6 providers with real-time token delivery ✅
-- TUI 4-view architecture - Chat, Home, Studio, Monitor ✅
+- Full streaming - All 8 providers with real-time token delivery ✅
+- TUI 3-view architecture - Studio, Command, Control ✅
 - Edit history - Undo/Redo in Studio with intelligent coalescing ✅
 - Session persistence - Auto-save chat conversations ✅
 - Config system - `.nika/config.toml` for user preferences ✅

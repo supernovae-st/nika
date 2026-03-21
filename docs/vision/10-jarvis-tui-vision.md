@@ -625,7 +625,7 @@ TECHNICAL LABELS:
 - "5 Semantic Verbs" near kernel
 - "27 Transforms" near BIND section
 - "4 Validation Layers" near STRUCTURED_OUTPUT
-- "48 MCP Aliases" near MCP crown
+- "100 MCP Aliases" near MCP crown
 
 COLOR PALETTE:
 - Background: #002b36 (dark blue-gray, like blueprint paper)

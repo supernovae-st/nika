@@ -107,7 +107,7 @@ L'architecture complete de Nika v0.30+ avec tous les layers interconnectes.
 ║  │   ├── nika:sleep                              ├── browser:navigate                   │ ║
 ║  │   ├── nika:records                            ├── github:create_pr                   │ ║
 ║  │   ├── nika:orchestrate                              ├── slack:send_message                 │ ║
-║  │   ├── nika:dag_state                          └── ... (48 MCP aliases)               │ ║
+║  │   ├── nika:dag_state                          └── ... (100 MCP aliases)               │ ║
 ║  │   ├── nika:budget                                                                    │ ║
 ║  │   ├── nika:task_status                                                               │ ║
 ║  │   ├── nika:vision (Tier 1)                                                           │ ║
@@ -314,7 +314,7 @@ nika update                          # Update all packages
 #  MCP SERVER MANAGEMENT
 # ═══════════════════════════════════════════════════════════════════════════════
 
-nika mcp add image-gen               # Add MCP server (48 aliases)
+nika mcp add image-gen               # Add MCP server (100 aliases)
 nika mcp add novanet                 # Add NovaNet MCP
 nika mcp list                        # List configured servers
 nika mcp test neo4j                  # Test server connection
@@ -568,7 +568,7 @@ Les satellites utilisent les MCP tools comme "mains" pour executer des actions s
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
 
-### Available MCP Servers (48 aliases via `nika mcp add`)
+### Available MCP Servers (100 aliases via `nika mcp add`)
 
 | Category | Server | Key Tools |
 |----------|--------|-----------|
@@ -1066,7 +1066,7 @@ Ce document capture l'ecosysteme coherent de Nika v0.30+ :
 ║  └── Workers specialises avec model + accepts/produces + tools                ║
 ║                                                                               ║
 ║  🔧 TOOLS                                                                      ║
-║  └── 20 builtins + MCP tools (48 aliases) comme "mains"                       ║
+║  └── 20 builtins + MCP tools (100 aliases) comme "mains"                       ║
 ║                                                                               ║
 ║  💾 DATA (3-Tier Memory)                                                       ║
 ║  ├── HOT: RunContext (RAM, un run)                                            ║

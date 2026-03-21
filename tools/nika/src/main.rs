@@ -292,6 +292,9 @@ enum Commands {
         action: cli::schema::SchemaAction,
     },
 
+    /// Show compiled feature flags and capabilities
+    Features,
+
     /// Check system health and diagnose issues
     #[command(visible_alias = "d")]
     Doctor {
@@ -376,6 +379,205 @@ enum Commands {
         #[arg(long, default_value = "9257")]
         port: u16,
     },
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
+// FEATURES
+// ═══════════════════════════════════════════════════════════════════════════
+
+fn print_features() {
+    use colored::Colorize;
+
+    println!(
+        "{}",
+        format!("Nika v{} -- Compiled Features", env!("CARGO_PKG_VERSION")).bold()
+    );
+    println!();
+
+    // Core features
+    println!("{}", "Core".bold().underline());
+    print_feature("tui", cfg!(feature = "tui"), "Terminal UI (ratatui)");
+    print_feature(
+        "native-inference",
+        cfg!(feature = "native-inference"),
+        "Local GGUF models (mistral.rs)",
+    );
+    print_feature("lsp", cfg!(feature = "lsp"), "Language Server Protocol");
+    print_feature(
+        "nika-daemon",
+        cfg!(feature = "nika-daemon"),
+        "Unified secret management",
+    );
+    println!();
+
+    // Media Tier 2
+    println!("{}", "Media (Tier 2 -- media-core)".bold().underline());
+    print_feature(
+        "media-thumbnail",
+        cfg!(feature = "media-thumbnail"),
+        "SIMD image resize",
+    );
+    print_feature(
+        "media-metadata",
+        cfg!(feature = "media-metadata"),
+        "EXIF/audio metadata",
+    );
+    print_feature(
+        "media-optimize",
+        cfg!(feature = "media-optimize"),
+        "Lossless PNG optimization",
+    );
+    print_feature(
+        "media-svg",
+        cfg!(feature = "media-svg"),
+        "SVG to PNG rasterization",
+    );
+    println!();
+
+    // Media Tier 3
+    println!("{}", "Media (Tier 3 -- opt-in)".bold().underline());
+    print_feature(
+        "media-phash",
+        cfg!(feature = "media-phash"),
+        "Perceptual image hashing",
+    );
+    print_feature(
+        "media-pdf",
+        cfg!(feature = "media-pdf"),
+        "PDF text extraction",
+    );
+    print_feature(
+        "media-chart",
+        cfg!(feature = "media-chart"),
+        "Chart generation (bar/line/pie)",
+    );
+    print_feature(
+        "media-provenance",
+        cfg!(feature = "media-provenance"),
+        "C2PA content credentials",
+    );
+    print_feature("media-qr", cfg!(feature = "media-qr"), "QR code validation");
+    print_feature(
+        "media-iqa",
+        cfg!(feature = "media-iqa"),
+        "Image quality assessment (DSSIM)",
+    );
+    print_feature(
+        "media-compression",
+        cfg!(feature = "media-compression"),
+        "Zstd CAS compression",
+    );
+    println!();
+
+    // Fetch extraction
+    println!("{}", "Fetch Extraction".bold().underline());
+    print_feature(
+        "fetch-html",
+        cfg!(feature = "fetch-html"),
+        "CSS selectors + metadata + links",
+    );
+    print_feature(
+        "fetch-markdown",
+        cfg!(feature = "fetch-markdown"),
+        "HTML to Markdown",
+    );
+    print_feature(
+        "fetch-article",
+        cfg!(feature = "fetch-article"),
+        "Readability extraction",
+    );
+    print_feature(
+        "fetch-feed",
+        cfg!(feature = "fetch-feed"),
+        "RSS/Atom/JSON Feed",
+    );
+    println!();
+
+    // Summary
+    let total = count_features();
+    println!("{}", format!("{total}/22 features enabled").bold());
+    println!(
+        "{}",
+        "Run `nika media tools` for detailed tool status".dimmed()
+    );
+}
+
+fn print_feature(name: &str, enabled: bool, desc: &str) {
+    use colored::Colorize;
+    if enabled {
+        println!("  {} {:20} {}", "✓".green(), name, desc);
+    } else {
+        println!(
+            "  {} {:20} {} {}",
+            "✗".red(),
+            name,
+            desc.dimmed(),
+            "(cargo install nika --features ...)".dimmed()
+        );
+    }
+}
+
+fn count_features() -> usize {
+    let mut count = 0;
+    if cfg!(feature = "tui") {
+        count += 1;
+    }
+    if cfg!(feature = "native-inference") {
+        count += 1;
+    }
+    if cfg!(feature = "lsp") {
+        count += 1;
+    }
+    if cfg!(feature = "nika-daemon") {
+        count += 1;
+    }
+    if cfg!(feature = "media-thumbnail") {
+        count += 1;
+    }
+    if cfg!(feature = "media-metadata") {
+        count += 1;
+    }
+    if cfg!(feature = "media-optimize") {
+        count += 1;
+    }
+    if cfg!(feature = "media-svg") {
+        count += 1;
+    }
+    if cfg!(feature = "media-phash") {
+        count += 1;
+    }
+    if cfg!(feature = "media-pdf") {
+        count += 1;
+    }
+    if cfg!(feature = "media-chart") {
+        count += 1;
+    }
+    if cfg!(feature = "media-provenance") {
+        count += 1;
+    }
+    if cfg!(feature = "media-qr") {
+        count += 1;
+    }
+    if cfg!(feature = "media-iqa") {
+        count += 1;
+    }
+    if cfg!(feature = "media-compression") {
+        count += 1;
+    }
+    if cfg!(feature = "fetch-html") {
+        count += 1;
+    }
+    if cfg!(feature = "fetch-markdown") {
+        count += 1;
+    }
+    if cfg!(feature = "fetch-article") {
+        count += 1;
+    }
+    if cfg!(feature = "fetch-feed") {
+        count += 1;
+    }
+    count
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -533,6 +735,11 @@ async fn main() {
         Some(Commands::Config { action }) => cli::config::handle_config_command(action, quiet),
 
         Some(Commands::Schema { action }) => cli::schema::handle_schema_command(action, quiet),
+
+        Some(Commands::Features) => {
+            print_features();
+            Ok(())
+        }
 
         Some(Commands::Doctor { full, format }) => {
             cli::doctor::handle_doctor_command(full, &format, quiet).await
