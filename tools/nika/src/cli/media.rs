@@ -544,6 +544,54 @@ fn handle_tools() {
             "Add C2PA content credentials (provenance)",
             cfg!(feature = "media-provenance"),
         ),
+        (
+            "nika:verify",
+            "media-provenance",
+            "Verify C2PA content credentials + EU AI Act compliance",
+            cfg!(feature = "media-provenance"),
+        ),
+        (
+            "nika:qr_validate",
+            "media-qr",
+            "QR code decode + scan quality score (0-100)",
+            cfg!(feature = "media-qr"),
+        ),
+        (
+            "nika:quality",
+            "media-iqa",
+            "Image quality assessment (DSSIM/SSIM comparison)",
+            cfg!(feature = "media-iqa"),
+        ),
+        (
+            "nika:html_to_md",
+            "fetch-markdown",
+            "Convert HTML to clean Markdown",
+            cfg!(feature = "fetch-markdown"),
+        ),
+        (
+            "nika:css_select",
+            "fetch-html",
+            "CSS selector extraction from HTML",
+            cfg!(feature = "fetch-html"),
+        ),
+        (
+            "nika:extract_metadata",
+            "fetch-html",
+            "Extract OG, Twitter Cards, JSON-LD metadata",
+            cfg!(feature = "fetch-html"),
+        ),
+        (
+            "nika:extract_links",
+            "fetch-html",
+            "Rich link classification (internal/external/nav)",
+            cfg!(feature = "fetch-html"),
+        ),
+        (
+            "nika:readability",
+            "fetch-article",
+            "Article content extraction (Mozilla Readability)",
+            cfg!(feature = "fetch-article"),
+        ),
     ];
 
     for (name, feature, desc, enabled) in &tools_tier3 {
