@@ -8,7 +8,7 @@
 [![Schema](https://img.shields.io/badge/schema-nika/workflow@0.12-0ea5e9?style=flat-square)](docs/schema/)
 [![Rust](https://img.shields.io/badge/rust_1.86+-f97316?style=flat-square&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/AGPL--3.0-22c55e?style=flat-square&logo=gnu&logoColor=white)](LICENSE)
-[![Tests](https://img.shields.io/badge/8000+_tests-10b981?style=flat-square)](https://github.com/supernovae-st/nika/actions)
+[![Tests](https://img.shields.io/badge/7400+_tests-10b981?style=flat-square)](https://github.com/supernovae-st/nika/actions)
 
 *5 verbs. 8 providers. 43 builtin tools. One YAML file.*
 
@@ -863,7 +863,7 @@ git clone https://github.com/supernovae-st/nika.git
 cd nika
 
 cargo build                       # Build
-cargo test --lib                  # Run 8000+ tests (safe, no keychain popups)
+cargo test --lib                  # Run 7400+ tests (safe, no keychain popups)
 cargo clippy -- -D warnings       # Zero warnings policy
 ```
 
@@ -897,7 +897,7 @@ NovaNet (Brain)              Nika (Body)
 
 **Nika v0.36.0** | Schema `nika/workflow@0.12` | Rust 1.86+ | AGPL-3.0
 
-8000+ tests | 100k+ LOC | 0 clippy warnings | 0.x.x forever
+7400+ tests | 100k+ LOC | 0 clippy warnings | 0.x.x forever
 
 [SuperNovae Studio](https://supernovae.studio) — [QR Code AI](https://qrcode-ai.com) — [GitHub](https://github.com/supernovae-st/nika)
 

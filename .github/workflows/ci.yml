@@ -9,7 +9,7 @@
 # 5. build: Release build verification
 # 6. summary: PR comment with results
 #
-# Nika v0.36.0 — Schema @0.12 + Registry + Security | 8,000+ tests
+# Nika v0.36.0 — Schema @0.12 + Registry + Security | 7,400+ tests
 
 name: CI
 
