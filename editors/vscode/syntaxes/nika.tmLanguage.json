@@ -50,7 +50,7 @@
       }
     },
     "top-level-keys": {
-      "match": "^(tasks|mcp|context|include|inputs|skills|agents|artifacts|log|edges)(:)",
+      "match": "^(tasks|mcp|context|include|imports|inputs|skills|agents|artifacts|log|edges|pkg|description)(:)",
       "captures": {
         "1": { "name": "keyword.control.top-level.nika" },
         "2": { "name": "punctuation.separator.key-value.nika" }
@@ -80,7 +80,7 @@
       }
     },
     "verb-sub-fields": {
-      "match": "^\\s+(prompt|model|temperature|system|max_tokens|thinking|extended_thinking|thinking_budget|response_format|command|shell|cwd|working_dir|env|url|method|headers|body|json|extract|selector|response|follow_redirects|mcp|server|tool|resource|params|max_turns|max_iterations|depth_limit|tools|goal|tool_choice|scope|from|token_budget|stop_sequences|source|detail|signal|confidence|mode|on_failure|on_limit_reached|judge_prompt|judge_model|pass_pattern|pattern|negate|type|text|max_attempts|delay|delay_ms|backoff|backoff_multiplier|strategy|traverse|mcp_server|max_items|max_depth|max_cost_usd|max_duration_secs|save_progress)(:)",
+      "match": "^\\s+(prompt|model|temperature|system|max_tokens|thinking|extended_thinking|thinking_budget|response_format|content|command|shell|cwd|working_dir|env|timeout|timeout_ms|url|method|headers|body|json|extract|selector|response|follow_redirects|mcp|server|tool|resource|params|max_turns|max_iterations|depth_limit|tools|goal|tool_choice|scope|from|token_budget|stop_sequences|source|detail|signal|confidence|mode|on_failure|on_limit_reached|judge_prompt|judge_model|pass_pattern|pattern|negate|type|text|max_attempts|delay|delay_ms|backoff|backoff_multiplier|strategy|traverse|mcp_server|max_items|max_depth|max_cost_usd|max_duration_secs|save_progress)(:)",
       "captures": {
         "1": { "name": "variable.other.property.nika" },
         "2": { "name": "punctuation.separator.key-value.nika" }
