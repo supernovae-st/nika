@@ -21,6 +21,7 @@
 //! - NIKA-130-139: TUI errors
 //! - NIKA-140-151: AST analysis errors (Phase 2 analyzer)
 //! - NIKA-160-164: Parse errors (Phase 1 parser — ParseErrorKind)
+//! - NIKA-165-166: Policy/Boot errors (renumbered to avoid 160/161 collision)
 //!
 //! Extended ranges:
 //! - NIKA-200-209: File Tool errors (ToolErrorCode in src/tools/mod.rs)
@@ -424,16 +425,18 @@ pub enum NikaError {
     StartupError { phase: String, reason: String },
 
     // ═══════════════════════════════════════════
-    // POLICY ERRORS (160-169)
+    // POLICY ERRORS (165-166)
+    // Renumbered from 160-161 to avoid collision with ParseErrorKind::Syntax (NIKA-160)
+    // and ParseErrorKind::MissingField (NIKA-161) in src/ast/raw/parser.rs
     // ═══════════════════════════════════════════
-    #[error("[NIKA-160] Policy violation: {reason}")]
+    #[error("[NIKA-165] Policy violation: {reason}")]
     #[diagnostic(
         code(nika::policy_violation),
         help("Check .nika/config.toml [policy] section or use --allow flag")
     )]
     PolicyViolation { reason: String },
 
-    #[error("[NIKA-161] Boot sequence failed in phase '{phase}': {reason}")]
+    #[error("[NIKA-166] Boot sequence failed in phase '{phase}': {reason}")]
     #[diagnostic(
         code(nika::boot_failed),
         help("Run 'nika doctor' to diagnose boot issues")
@@ -735,9 +738,9 @@ impl NikaError {
             Self::StructuredOutputValidationFailed { .. } => "NIKA-301",
             Self::StructuredOutputRepairFailed { .. } => "NIKA-302",
             Self::StructuredOutputAllLayersFailed { .. } => "NIKA-303",
-            // Policy errors
-            Self::PolicyViolation { .. } => "NIKA-160",
-            Self::BootFailed { .. } => "NIKA-161",
+            // Policy errors (renumbered from 160/161 to avoid ParseErrorKind collision)
+            Self::PolicyViolation { .. } => "NIKA-165",
+            Self::BootFailed { .. } => "NIKA-166",
             // Runtime errors
             Self::DecomposeTimeout { .. } => "NIKA-171",
         }
