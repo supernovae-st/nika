@@ -5,7 +5,7 @@
 # Unified use: syntax:
 #   alias: task.path [?? default]
 #
-schema: "nika/workflow@0.1"
+schema: "nika/workflow@0.12"
 
 provider: mock
 model: gpt-4o-mini

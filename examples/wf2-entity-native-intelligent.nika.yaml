@@ -26,7 +26,7 @@
 #   - NovaNet MCP server running
 #   - Neo4j database with entities and SEOKeywords
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workdepends_on: wf2-entity-native-intelligent
 description: "Generate complete EntityNative with SEO-derived slug (ADR-030/032/033)"
 
@@ -109,15 +109,15 @@ tasks:
 
   - id: get_entity_context
     description: "Get full generation context for the entity"
-    use:
+    with:
       parsed: parse_input
     depends_on: [parse_input]
     invoke:
       mcp: novanet
       tool: novanet_context
       params:
-        focus_key: "entity:{{use.parsed.entity_key}}"
-        locale: "{{use.parsed.locale}}"
+        focus_key: "entity:{{with.parsed.entity_key}}"
+        locale: "{{with.parsed.locale}}"
         mode: assemble
         strategy: breadth
         token_budget: 8000
@@ -132,14 +132,14 @@ tasks:
 
   - id: get_locale_atoms
     description: "Get locale-specific knowledge atoms (terms, expressions)"
-    use:
+    with:
       parsed: parse_input
     depends_on: [parse_input]
     invoke:
       mcp: novanet
       tool: novanet_context
       params:
-        locale: "{{use.parsed.locale}}"
+        locale: "{{with.parsed.locale}}"
         mode: knowledge
         atom_type: all
         limit: 100
@@ -150,7 +150,7 @@ tasks:
 
   - id: get_entity_details
     description: "Describe the entity for semantic understanding"
-    use:
+    with:
       parsed: parse_input
     depends_on: [parse_input]
     invoke:
@@ -158,7 +158,7 @@ tasks:
       tool: novanet_describe
       params:
         describe: entity
-        entity_key: "{{use.parsed.entity_key}}"
+        entity_key: "{{with.parsed.entity_key}}"
     output:
       format: json
     artifact:
@@ -170,7 +170,7 @@ tasks:
 
   - id: query_seo_keywords
     description: "Find SEOKeywords that target this entity (via TARGETS arc)"
-    use:
+    with:
       parsed: parse_input
     depends_on: [parse_input]
     invoke:
@@ -178,7 +178,7 @@ tasks:
       tool: novanet_search
       params:
         mode: walk
-        start_key: "{{use.parsed.full_key}}"
+        start_key: "{{with.parsed.full_key}}"
         direction: outgoing
         arc_kinds: ["TARGETS_KEYWORD"]
         target_kinds: ["SEOKeyword"]
@@ -191,7 +191,7 @@ tasks:
 
   - id: query_parent_page
     description: "Find parent Page to get parent slug (for no-repetition rule)"
-    use:
+    with:
       parsed: parse_input
     depends_on: [parse_input]
     invoke:
@@ -199,7 +199,7 @@ tasks:
       tool: novanet_search
       params:
         mode: walk
-        start_key: "entity:{{use.parsed.entity_key}}"
+        start_key: "entity:{{with.parsed.entity_key}}"
         direction: incoming
         arc_kinds: ["REPRESENTS"]
         target_kinds: ["Page"]
@@ -212,14 +212,14 @@ tasks:
 
   - id: query_convergence
     description: "Calculate convergence boost (multiple EntityNatives targeting same keyword)"
-    use:
+    with:
       parsed: parse_input
     depends_on: [parse_input]
     invoke:
       mcp: novanet
       tool: novanet_search
       params:
-        query: "{{use.parsed.locale}}"
+        query: "{{with.parsed.locale}}"
         mode: fulltext
         kinds: ["SEOKeyword"]
         limit: 10
@@ -234,7 +234,7 @@ tasks:
 
   - id: calculate_slug_scores
     description: "Apply ADR-032 slugification scoring formula"
-    use:
+    with:
       parsed: parse_input
       keywords: query_seo_keywords
       parent: query_parent_page
@@ -249,23 +249,23 @@ tasks:
 
         ## INPUT DATA
 
-        **Entity Key**: {{use.parsed.entity_key}}
-        **Locale**: {{use.parsed.locale}}
+        **Entity Key**: {{with.parsed.entity_key}}
+        **Locale**: {{with.parsed.locale}}
 
         **Entity Details**:
-        {{use.entity | to_yaml}}
+        {{with.entity | to_yaml}}
 
         **Generation Context** (includes denomination_forms if exists):
-        {{use.context | to_yaml}}
+        {{with.context | to_yaml}}
 
         **Targeted SEOKeywords**:
-        {{use.keywords | to_yaml}}
+        {{with.keywords | to_yaml}}
 
         **Parent Page Context** (for no-repetition rule):
-        {{use.parent | to_yaml}}
+        {{with.parent | to_yaml}}
 
         **Convergence Analysis** (keywords targeted by multiple entities):
-        {{use.convergence | to_yaml}}
+        {{with.convergence | to_yaml}}
 
         ## ADR-032 SCORING FORMULA
 
@@ -389,7 +389,7 @@ tasks:
 
   - id: generate_entity_native
     description: "Generate complete EntityNative with denomination_forms including url"
-    use:
+    with:
       parsed: parse_input
       context: get_entity_context
       atoms: get_locale_atoms
@@ -399,24 +399,24 @@ tasks:
       prompt: |
         # EntityNative Content Generation (ADR-033)
 
-        You are generating a complete EntityNative for {{use.parsed.locale}}.
+        You are generating a complete EntityNative for {{with.parsed.locale}}.
 
         ## INPUT CONTEXT
 
-        **Entity Key**: {{use.parsed.entity_key}}
-        **Locale**: {{use.parsed.locale}}
+        **Entity Key**: {{with.parsed.entity_key}}
+        **Locale**: {{with.parsed.locale}}
 
         **Entity Definition**:
-        {{use.entity | to_yaml}}
+        {{with.entity | to_yaml}}
 
         **Generation Context**:
-        {{use.context | to_yaml}}
+        {{with.context | to_yaml}}
 
         **Locale Knowledge Atoms**:
-        {{use.atoms | to_yaml}}
+        {{with.atoms | to_yaml}}
 
         **Slug Analysis Result**:
-        {{use.slug_analysis | to_yaml}}
+        {{with.slug_analysis | to_yaml}}
 
         ## ADR-033: DENOMINATION FORMS (ABSOLUTE RULE)
 
@@ -432,7 +432,7 @@ tasks:
 
         ## LOCALE-SPECIFIC RULES
 
-        For {{use.parsed.locale}}:
+        For {{with.parsed.locale}}:
         - Use locale-appropriate formality level
         - Use native terminology from knowledge atoms
         - The url form MUST be the winning_slug from analysis
@@ -442,12 +442,12 @@ tasks:
         Generate a complete EntityNative record with:
 
         1. **denomination_forms**: All 4 forms (text, title, abbrev, url)
-           - url MUST be: "{{use.slug_analysis.winning_slug}}"
+           - url MUST be: "{{with.slug_analysis.winning_slug}}"
 
         2. **display_name**: Native localized name (use title form)
 
         3. **description**: 150-200 words, compelling, SEO-aware
-           - Write ENTIRELY in {{use.parsed.locale}}
+           - Write ENTIRELY in {{with.parsed.locale}}
            - Use knowledge atoms for native phrasing
 
         4. **meta_title**: Exactly 50-60 characters, include primary keyword
@@ -515,7 +515,7 @@ tasks:
 
   - id: validate_write
     description: "Validate EntityNative update before persisting (novanet_write dry_run)"
-    use:
+    with:
       parsed: parse_input
       content: generate_entity_native
     invoke:
@@ -525,26 +525,26 @@ tasks:
         dry_run: true
         operation: update_props
         class: EntityNative
-        key: "{{use.parsed.full_key}}"
+        key: "{{with.parsed.full_key}}"
         properties:
           denomination_forms:
             - type: text
-              value: "{{use.content.denomination_forms.text}}"
+              value: "{{with.content.denomination_forms.text}}"
               priority: 1
             - type: title
-              value: "{{use.content.denomination_forms.title}}"
+              value: "{{with.content.denomination_forms.title}}"
               priority: 1
             - type: abbrev
-              value: "{{use.content.denomination_forms.abbrev}}"
+              value: "{{with.content.denomination_forms.abbrev}}"
               priority: 1
             - type: url
-              value: "{{use.content.denomination_forms.url}}"
+              value: "{{with.content.denomination_forms.url}}"
               priority: 1
-          display_name: "{{use.content.display_name}}"
-          description: "{{use.content.description}}"
-          meta_title: "{{use.content.meta_title}}"
-          meta_description: "{{use.content.meta_description}}"
-        locale: "{{use.parsed.locale}}"
+          display_name: "{{with.content.display_name}}"
+          description: "{{with.content.description}}"
+          meta_title: "{{with.content.meta_title}}"
+          meta_description: "{{with.content.meta_description}}"
+        locale: "{{with.parsed.locale}}"
     output:
       format: json
     artifact:
@@ -558,38 +558,38 @@ tasks:
 
   - id: write_entity_native
     description: "Persist updated EntityNative with denomination_forms.url"
-    use:
+    with:
       parsed: parse_input
       content: generate_entity_native
       validation: validate_write
     # Only proceed if validation passed
-    when: "{{use.validation.valid}}"
+    when: "{{with.validation.valid}}"
     invoke:
       mcp: novanet
       tool: novanet_write
       params:
         operation: update_props
         class: EntityNative
-        key: "{{use.parsed.full_key}}"
+        key: "{{with.parsed.full_key}}"
         properties:
           denomination_forms:
             - type: text
-              value: "{{use.content.denomination_forms.text}}"
+              value: "{{with.content.denomination_forms.text}}"
               priority: 1
             - type: title
-              value: "{{use.content.denomination_forms.title}}"
+              value: "{{with.content.denomination_forms.title}}"
               priority: 1
             - type: abbrev
-              value: "{{use.content.denomination_forms.abbrev}}"
+              value: "{{with.content.denomination_forms.abbrev}}"
               priority: 1
             - type: url
-              value: "{{use.content.denomination_forms.url}}"
+              value: "{{with.content.denomination_forms.url}}"
               priority: 1
-          display_name: "{{use.content.display_name}}"
-          description: "{{use.content.description}}"
-          meta_title: "{{use.content.meta_title}}"
-          meta_description: "{{use.content.meta_description}}"
-        locale: "{{use.parsed.locale}}"
+          display_name: "{{with.content.display_name}}"
+          description: "{{with.content.description}}"
+          meta_title: "{{with.content.meta_title}}"
+          meta_description: "{{with.content.meta_description}}"
+        locale: "{{with.parsed.locale}}"
     output:
       format: json
     artifact:
@@ -603,7 +603,7 @@ tasks:
 
   - id: audit_result
     description: "Run quality audit after write (CSR metrics)"
-    use:
+    with:
       parsed: parse_input
     depends_on: [write_entity_native, parse_input]
     invoke:
@@ -613,7 +613,7 @@ tasks:
         target: coverage
         scope:
           class: EntityNative
-          locale: "{{use.parsed.locale}}"
+          locale: "{{with.parsed.locale}}"
         limit: 10
     output:
       format: json
@@ -626,7 +626,7 @@ tasks:
 
   - id: generate_summary
     description: "Generate workflow execution summary"
-    use:
+    with:
       parsed: parse_input
       content: generate_entity_native
       slug: calculate_slug_scores
@@ -640,35 +640,35 @@ tasks:
 
         ## Results
 
-        **EntityNative**: {{use.parsed.full_key}}
-        **Locale**: {{use.parsed.locale}}
+        **EntityNative**: {{with.parsed.full_key}}
+        **Locale**: {{with.parsed.locale}}
 
         ### Slug Derivation (ADR-032)
 
-        **Winning Slug**: {{use.slug.winning_slug}}
-        **Source**: {{use.slug.slug_source}}
-        **Rationale**: {{use.slug.rationale}}
+        **Winning Slug**: {{with.slug.winning_slug}}
+        **Source**: {{with.slug.slug_source}}
+        **Rationale**: {{with.slug.rationale}}
 
-        **Candidates Analyzed**: {{use.slug.candidates | length}}
+        **Candidates Analyzed**: {{with.slug.candidates | length}}
 
         ### Denomination Forms (ADR-033)
 
         | Form | Value |
         |------|-------|
-        | text | {{use.content.denomination_forms.text}} |
-        | title | {{use.content.denomination_forms.title}} |
-        | abbrev | {{use.content.denomination_forms.abbrev}} |
-        | url | {{use.content.denomination_forms.url}} |
+        | text | {{with.content.denomination_forms.text}} |
+        | title | {{with.content.denomination_forms.title}} |
+        | abbrev | {{with.content.denomination_forms.abbrev}} |
+        | url | {{with.content.denomination_forms.url}} |
 
         ### Write Result
 
-        **Success**: {{use.write.success}}
-        **Updated Properties**: {{use.write.updated_properties | to_yaml}}
+        **Success**: {{with.write.success}}
+        **Updated Properties**: {{with.write.updated_properties | to_yaml}}
 
         ### Quality Audit (CSR)
 
-        **Coverage CSR**: {{use.audit.csr.rate}}
-        **Issues Found**: {{use.audit.summary.total_issues}}
+        **Coverage CSR**: {{with.audit.csr.rate}}
+        **Issues Found**: {{with.audit.summary.total_issues}}
 
         ---
 
@@ -689,7 +689,7 @@ tasks:
 
   - id: final_output
     description: "Display execution summary"
-    use:
+    with:
       parsed: parse_input
       content: generate_entity_native
       slug: calculate_slug_scores
@@ -699,22 +699,22 @@ tasks:
       echo "  🎯 WF2: ENTITYNATIVE INTELLIGENT WORKFLOW COMPLETE"
       echo "═══════════════════════════════════════════════════════════════"
       echo ""
-      echo "Entity:     {{use.parsed.entity_key}}"
-      echo "Locale:     {{use.parsed.locale}}"
-      echo "Full Key:   {{use.parsed.full_key}}"
+      echo "Entity:     {{with.parsed.entity_key}}"
+      echo "Locale:     {{with.parsed.locale}}"
+      echo "Full Key:   {{with.parsed.full_key}}"
       echo ""
       echo "SLUG DERIVATION (ADR-032):"
-      echo "  Winning Slug: {{use.slug.winning_slug}}"
-      echo "  Source:       {{use.slug.slug_source}}"
+      echo "  Winning Slug: {{with.slug.winning_slug}}"
+      echo "  Source:       {{with.slug.slug_source}}"
       echo ""
       echo "DENOMINATION FORMS (ADR-033):"
-      echo "  text:   {{use.content.denomination_forms.text}}"
-      echo "  title:  {{use.content.denomination_forms.title}}"
-      echo "  abbrev: {{use.content.denomination_forms.abbrev}}"
-      echo "  url:    {{use.content.denomination_forms.url}}"
+      echo "  text:   {{with.content.denomination_forms.text}}"
+      echo "  title:  {{with.content.denomination_forms.title}}"
+      echo "  abbrev: {{with.content.denomination_forms.abbrev}}"
+      echo "  url:    {{with.content.denomination_forms.url}}"
       echo ""
       echo "WRITE RESULT:"
-      echo "  Success: {{use.write.success}}"
+      echo "  Success: {{with.write.success}}"
       echo ""
       echo "Artifacts:"
       echo "  📂 context/          - Entity context, locale atoms"

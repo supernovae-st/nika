@@ -11,7 +11,7 @@
 # Usage:
 #   cargo run -- run examples/novanet-multi-query.nika.yaml
 
-schema: "nika/workflow@0.3"
+schema: "nika/workflow@0.12"
 provider: mock
 
 mcp:

@@ -9,7 +9,7 @@
 #
 # Expected output: Schema overview from NovaNet knowledge graph
 
-schema: "nika/workflow@0.3"
+schema: "nika/workflow@0.12"
 provider: claude
 
 mcp:

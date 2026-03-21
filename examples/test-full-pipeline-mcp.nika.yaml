@@ -9,7 +9,7 @@
 # Usage:
 #   cd tools/nika && cargo run -- run ../../examples/test-full-pipeline-mcp.nika.yaml
 
-schema: "nika/workflow@0.3"
+schema: "nika/workflow@0.12"
 workflow: test-full-pipeline-mcp
 description: Test MCP integration with binding and file output
 provider: claude

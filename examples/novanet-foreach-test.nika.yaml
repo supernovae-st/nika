@@ -6,7 +6,7 @@
 # Usage:
 #   cargo run -- run examples/novanet-foreach-test.nika.yaml
 
-schema: "nika/workflow@0.3"
+schema: "nika/workflow@0.12"
 provider: mock
 
 mcp:
@@ -28,7 +28,7 @@ tasks:
       mcp: novanet
       tool: novanet_search
       params:
-        query: "{{use.pattern}}"
+        query: "{{with.pattern}}"
         mode: fulltext
         kinds: ["Entity"]
         limit: 3

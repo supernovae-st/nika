@@ -5,7 +5,7 @@
 # Usage:
 #   cd tools/nika && cargo run -- run ../../examples/test-file-output-shell.nika.yaml
 
-schema: "nika/workflow@0.3"
+schema: "nika/workflow@0.12"
 workflow: test-file-output-shell
 description: Test MCP with file output (shell mode)
 provider: mock

@@ -8,7 +8,7 @@
 # Usage:
 #   cd tools/nika && cargo run -- run ../../examples/test-seo-discovery.nika.yaml
 
-schema: "nika/workflow@0.3"
+schema: "nika/workflow@0.12"
 workflow: test-seo-discovery
 description: Test NovaNet + DataForSEO integration for keyword discovery
 provider: claude

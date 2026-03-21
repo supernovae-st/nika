@@ -19,7 +19,7 @@
 # Usage:
 #   cd tools/nika && cargo run -- run ../../examples/test-extended-thinking.nika.yaml
 
-schema: "nika/workflow@0.9"
+schema: "nika/workflow@0.12"
 workflow: test-extended-thinking
 description: Extended thinking for complex analysis with NovaNet context
 provider: claude

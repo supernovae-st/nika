@@ -5,7 +5,7 @@
 # Usage:
 #   cd tools/nika && cargo run -- run ../../examples/test-novanet-simple.nika.yaml
 
-schema: "nika/workflow@0.3"
+schema: "nika/workflow@0.12"
 workflow: test-novanet-simple
 description: Test NovaNet MCP integration with binding
 provider: claude

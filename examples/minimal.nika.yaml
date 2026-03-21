@@ -1,5 +1,5 @@
 # Minimal workflow - single task
-schema: "nika/workflow@0.1"
+schema: "nika/workflow@0.12"
 
 provider: openai
 model: gpt-4o-mini

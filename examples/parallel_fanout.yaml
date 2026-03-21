@@ -1,4 +1,4 @@
-schema: "nika/workflow@0.1"
+schema: "nika/workflow@0.12"
 provider: mock
 
 tasks:

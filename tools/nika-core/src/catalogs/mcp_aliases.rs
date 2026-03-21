@@ -1,6 +1,6 @@
 //! MCP server aliases -- short names to npm package mappings.
 //!
-//! This module provides 100 aliases for common MCP servers, allowing users
+//! This module provides 113 aliases for common MCP servers, allowing users
 //! to add servers by short name instead of full npm package path.
 //!
 //! ## Usage
@@ -42,7 +42,7 @@ pub struct McpAlias {
     pub pricing: McpPricing,
 }
 
-/// MCP server aliases (100 total).
+/// MCP server aliases (114 total).
 ///
 /// Maps short names to npm package names for common MCP servers.
 ///
@@ -62,7 +62,9 @@ pub struct McpAlias {
 /// - **CMS & Content (6)**: WordPress, Contentful, Sanity, etc.
 /// - **Infrastructure & DevOps (6)**: Docker, Kubernetes, Terraform, etc.
 /// - **Social Media (6)**: Twitter, LinkedIn, YouTube, etc.
-/// - **Maps & Location (4)**: Mapbox, HERE, OpenWeather, etc.
+/// - **Lifestyle (8)**: Spotify, Airbnb, Uber, OpenWeather, etc.
+/// - **Marketing (6)**: Mailchimp, Google Ads, Meta Ads, etc.
+/// - **Maps & Location (3)**: Mapbox, HERE, IPInfo
 pub static MCP_ALIASES: &[McpAlias] = &[
     // =============================================================================
     // ANTHROPIC OFFICIAL (8)
@@ -683,7 +685,97 @@ pub static MCP_ALIASES: &[McpAlias] = &[
         pricing: McpPricing::Free,
     },
     // =============================================================================
-    // MAPS & LOCATION (4)
+    // LIFESTYLE (8)
+    // =============================================================================
+    McpAlias {
+        name: "spotify",
+        package: "spotify-mcp",
+        category: "lifestyle",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "airbnb",
+        package: "airbnb-mcp",
+        category: "lifestyle",
+        pricing: McpPricing::Paid,
+    },
+    McpAlias {
+        name: "uber",
+        package: "uber-mcp",
+        category: "lifestyle",
+        pricing: McpPricing::Paid,
+    },
+    McpAlias {
+        name: "openweather",
+        package: "openweather-mcp",
+        category: "lifestyle",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "news-api",
+        package: "newsapi-mcp",
+        category: "lifestyle",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "recipe",
+        package: "recipe-mcp",
+        category: "lifestyle",
+        pricing: McpPricing::Free,
+    },
+    McpAlias {
+        name: "imdb",
+        package: "imdb-mcp",
+        category: "lifestyle",
+        pricing: McpPricing::Free,
+    },
+    McpAlias {
+        name: "wolfram",
+        package: "wolfram-mcp",
+        category: "lifestyle",
+        pricing: McpPricing::Freemium,
+    },
+    // =============================================================================
+    // MARKETING (6)
+    // =============================================================================
+    McpAlias {
+        name: "mailchimp",
+        package: "mailchimp-mcp",
+        category: "marketing",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "google-ads",
+        package: "google-ads-mcp",
+        category: "marketing",
+        pricing: McpPricing::Paid,
+    },
+    McpAlias {
+        name: "meta-ads",
+        package: "meta-ads-mcp",
+        category: "marketing",
+        pricing: McpPricing::Paid,
+    },
+    McpAlias {
+        name: "buffer",
+        package: "buffer-mcp",
+        category: "marketing",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "semrush",
+        package: "semrush-mcp",
+        category: "marketing",
+        pricing: McpPricing::Paid,
+    },
+    McpAlias {
+        name: "canva",
+        package: "canva-mcp",
+        category: "marketing",
+        pricing: McpPricing::Freemium,
+    },
+    // =============================================================================
+    // MAPS & LOCATION (3)
     // =============================================================================
     McpAlias {
         name: "mapbox",
@@ -694,12 +786,6 @@ pub static MCP_ALIASES: &[McpAlias] = &[
     McpAlias {
         name: "here",
         package: "here-mcp",
-        category: "maps",
-        pricing: McpPricing::Freemium,
-    },
-    McpAlias {
-        name: "openweather",
-        package: "openweather-mcp",
         category: "maps",
         pricing: McpPricing::Freemium,
     },
@@ -727,6 +813,8 @@ pub static CATEGORIES: &[(&str, &str)] = &[
     ("cms", "CMS & Content"),
     ("devops", "Infrastructure & DevOps"),
     ("social", "Social Media"),
+    ("lifestyle", "Lifestyle"),
+    ("marketing", "Marketing"),
     ("maps", "Maps & Location"),
 ];
 
@@ -769,7 +857,7 @@ pub fn is_alias(name: &str) -> bool {
 /// use nika_core::catalogs::mcp_aliases::list_aliases;
 ///
 /// let aliases = list_aliases();
-/// assert!(aliases.len() >= 100);
+/// assert!(aliases.len() >= 113);
 /// ```
 pub fn list_aliases() -> Vec<&'static str> {
     MCP_ALIASES.iter().map(|a| a.name).collect()
@@ -830,7 +918,7 @@ mod tests {
 
     #[test]
     fn test_mcp_aliases_count() {
-        assert_eq!(MCP_ALIASES.len(), 100);
+        assert_eq!(MCP_ALIASES.len(), 113);
     }
 
     #[test]
@@ -857,7 +945,7 @@ mod tests {
     #[test]
     fn test_list_aliases() {
         let aliases = list_aliases();
-        assert_eq!(aliases.len(), 100);
+        assert_eq!(aliases.len(), 113);
         assert!(aliases.contains(&"neo4j"));
         assert!(aliases.contains(&"github"));
         assert!(aliases.contains(&"perplexity"));
@@ -880,7 +968,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aliases_by_category_all_15() {
+    fn test_aliases_by_category_all_17() {
         let expected = [
             ("anthropic", 8),
             ("databases", 8),
@@ -896,7 +984,9 @@ mod tests {
             ("cms", 6),
             ("devops", 6),
             ("social", 6),
-            ("maps", 4),
+            ("lifestyle", 8),
+            ("marketing", 6),
+            ("maps", 3),
         ];
         for (cat, count) in expected {
             let aliases = aliases_by_category(cat);
@@ -981,7 +1071,7 @@ mod tests {
 
     #[test]
     fn test_categories_count() {
-        assert_eq!(CATEGORIES.len(), 15);
+        assert_eq!(CATEGORIES.len(), 17);
     }
 
     #[test]

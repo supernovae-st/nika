@@ -12,7 +12,7 @@
 #
 # Expected output: Content generated in English, French, and Spanish
 
-schema: "nika/workflow@0.3"
+schema: "nika/workflow@0.12"
 provider: claude
 
 mcp:
@@ -34,6 +34,6 @@ tasks:
       tool: novanet_context
       params:
         focus_key: "qr-code"
-        locale: "{{use.locale}}"
+        locale: "{{with.locale}}"
         mode: block
         token_budget: 2000

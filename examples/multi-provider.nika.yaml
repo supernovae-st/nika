@@ -2,7 +2,7 @@
 #
 # DAG: topic → [claude_view, openai_view] → synthesis
 #
-schema: "nika/workflow@0.1"
+schema: "nika/workflow@0.12"
 
 provider: openai
 model: gpt-4o-mini

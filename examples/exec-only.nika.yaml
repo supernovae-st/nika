@@ -2,7 +2,7 @@
 #
 # DAG: [list_files, show_date] → combine
 #
-schema: "nika/workflow@0.1"
+schema: "nika/workflow@0.12"
 
 tasks:
   - id: list_files

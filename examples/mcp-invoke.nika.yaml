@@ -7,7 +7,7 @@
 #   1. Start NovaNet MCP server: cargo run -p novanet-mcp
 #   2. Run this workflow: nika run examples/mcp-invoke.nika.yaml
 
-schema: "nika/workflow@0.2"
+schema: "nika/workflow@0.12"
 provider: claude
 
 # Define MCP server connections

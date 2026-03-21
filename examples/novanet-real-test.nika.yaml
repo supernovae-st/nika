@@ -6,7 +6,7 @@
 # Usage:
 #   cargo run -- run examples/novanet-real-test.nika.yaml
 
-schema: "nika/workflow@0.2"
+schema: "nika/workflow@0.12"
 provider: mock
 
 mcp:

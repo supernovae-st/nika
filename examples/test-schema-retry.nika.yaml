@@ -17,7 +17,7 @@
 # Usage:
 #   cd tools/nika && cargo run -- run ../../examples/test-schema-retry.nika.yaml
 
-schema: "nika/workflow@0.9"
+schema: "nika/workflow@0.12"
 workflow: test-schema-retry
 description: Test structured output enforcement with retry loop and NovaNet discovery
 provider: claude

@@ -23,7 +23,7 @@
 #     --input locale="fr-FR" \
 #     --input entity_key="entity:qr-code"
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: c3-block-generation
 description: "Generate a single BlockNative for a block x locale pair (C3 pipeline)"
 
@@ -113,7 +113,7 @@ tasks:
 
   - id: generate_content
     description: "LLM generates block payload using context + BlockType schema"
-    use:
+    with:
       context: assemble_context
       block_type: load_block_type
     agent:
@@ -128,10 +128,10 @@ tasks:
         **Block**: {{inputs.block_key}}
 
         ## Context from Knowledge Graph
-        {{use.context | to_yaml}}
+        {{with.context | to_yaml}}
 
         ## Block Type Schema
-        {{use.block_type | to_yaml}}
+        {{with.block_type | to_yaml}}
 
         ## BlockType Payload Schemas
 
@@ -174,7 +174,7 @@ tasks:
 
   - id: validate_write
     description: "Dry-run validation against schema before persisting"
-    use:
+    with:
       payload: generate_content
     invoke:
       mcp: novanet
@@ -188,7 +188,7 @@ tasks:
           locale: "{{inputs.locale}}"
           block_key: "{{inputs.block_key}}"
           locale_key: "{{inputs.locale}}"
-          payload: "{{use.payload}}"
+          payload: "{{with.payload}}"
           source: "nika:c3-pipeline"
           generator_version: "nika:c3-pipeline:v1.0.0"
           version: 1
@@ -207,10 +207,10 @@ tasks:
 
   - id: write_block_native
     description: "Write BlockNative to Neo4j (auto-creates HAS_NATIVE, NATIVE_OF, FOR_LOCALE arcs)"
-    use:
+    with:
       payload: generate_content
       validation: validate_write
-    when: "{{use.validation.ready_to_write}}"
+    when: "{{with.validation.ready_to_write}}"
     invoke:
       mcp: novanet
       tool: novanet_write
@@ -223,7 +223,7 @@ tasks:
           locale: "{{inputs.locale}}"
           block_key: "{{inputs.block_key}}"
           locale_key: "{{inputs.locale}}"
-          payload: "{{use.payload}}"
+          payload: "{{with.payload}}"
           source: "nika:c3-pipeline"
           generator_version: "nika:c3-pipeline:v1.0.0"
           version: 1
@@ -242,7 +242,7 @@ tasks:
 
   - id: summary
     description: "Display execution result"
-    use:
+    with:
       validation: validate_write
       write: write_block_native
     exec: |
@@ -254,8 +254,8 @@ tasks:
       echo "Locale:   {{inputs.locale}}"
       echo "Key:      {{inputs.block_key}}@{{inputs.locale}}"
       echo ""
-      echo "Validation: {{use.validation.ready_to_write}}"
-      echo "Write:      {{use.write.success}}"
+      echo "Validation: {{with.validation.ready_to_write}}"
+      echo "Write:      {{with.write.success}}"
       echo ""
       echo "================================================================"
 

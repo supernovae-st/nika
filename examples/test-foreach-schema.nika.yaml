@@ -17,7 +17,7 @@
 # Usage:
 #   cd tools/nika && cargo run -- run ../../examples/test-foreach-schema.nika.yaml
 
-schema: "nika/workflow@0.9"
+schema: "nika/workflow@0.12"
 workflow: test-foreach-schema
 description: for_each binding references with schema validation and NovaNet discovery
 provider: claude
@@ -69,7 +69,7 @@ tasks:
       locales: discover_locales
       entity: discover_entity
     for_each: "$locales.rows"
-    for_each_var: locale
+    as: locale
     infer:
       prompt: |
         # Tagline Generation Task

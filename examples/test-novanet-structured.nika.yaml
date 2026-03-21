@@ -18,7 +18,7 @@
 # Usage:
 #   cd tools/nika && cargo run -- run ../../examples/test-novanet-structured.nika.yaml
 
-schema: "nika/workflow@0.9"
+schema: "nika/workflow@0.12"
 workflow: test-novanet-structured
 description: NovaNet MCP integration with structured output enforcement
 provider: claude

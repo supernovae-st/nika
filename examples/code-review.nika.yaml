@@ -5,7 +5,7 @@
 #
 # Usage: nika run examples/code-review.nika.yaml
 
-schema: "nika/workflow@0.1"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:

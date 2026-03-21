@@ -5,7 +5,7 @@
 #
 # Usage: nika run examples/for-each-locales.nika.yaml
 
-schema: "nika/workflow@0.3"
+schema: "nika/workflow@0.12"
 
 tasks:
   # Process multiple locales in parallel
@@ -13,10 +13,10 @@ tasks:
     for_each: ["en-US", "fr-FR", "de-DE", "es-ES"]
     as: locale
     exec:
-      command: "echo Processing locale: {{use.locale}}"
+      command: "echo Processing locale: {{with.locale}}"
 
   # Process numbers with default 'item' variable
   - id: process_numbers
     for_each: [1, 2, 3, 4, 5]
     exec:
-      command: "echo Number: {{use.item}}"
+      command: "echo Number: {{with.item}}"

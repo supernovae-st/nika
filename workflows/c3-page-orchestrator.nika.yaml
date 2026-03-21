@@ -22,7 +22,7 @@
 #     --input page_key="page:qr-code" \
 #     --input locale="fr-FR"
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: c3-page-orchestrator
 description: "Generate all BlockNatives for a page and assemble PageNative (C3 pipeline)"
 
@@ -103,7 +103,7 @@ tasks:
 
   - id: generate_blocks
     description: "Generate BlockNatives for each block, ordered by position"
-    use:
+    with:
       page_structure: discover_page
       page_context: get_page_context
     agent:
@@ -114,10 +114,10 @@ tasks:
         in locale "{{inputs.locale}}".
 
         ## Page Structure (from graph walk)
-        {{use.page_structure | to_yaml}}
+        {{with.page_structure | to_yaml}}
 
         ## Page Context
-        {{use.page_context | to_yaml}}
+        {{with.page_context | to_yaml}}
 
         ## Instructions
 
@@ -186,7 +186,7 @@ tasks:
 
   - id: assemble_page_native
     description: "Collect all BlockNative payloads and update PageNative.assembled"
-    use:
+    with:
       blocks: generate_blocks
     agent:
       prompt: |
@@ -196,7 +196,7 @@ tasks:
         have been generated.
 
         ## Block Generation Results
-        {{use.blocks | to_yaml}}
+        {{with.blocks | to_yaml}}
 
         ## Assembly Instructions
 
@@ -275,7 +275,7 @@ tasks:
 
   - id: summary
     description: "Display execution result"
-    use:
+    with:
       blocks: generate_blocks
       assembly: assemble_page_native
       audit_result: audit
@@ -287,11 +287,11 @@ tasks:
       echo "Page:     {{inputs.page_key}}"
       echo "Locale:   {{inputs.locale}}"
       echo ""
-      echo "Blocks:   {{use.blocks.total}} total"
-      echo "Success:  {{use.blocks.succeeded}}"
-      echo "Failed:   {{use.blocks.failed}}"
+      echo "Blocks:   {{with.blocks.total}} total"
+      echo "Success:  {{with.blocks.succeeded}}"
+      echo "Failed:   {{with.blocks.failed}}"
       echo ""
-      echo "PageNative assembled: {{use.assembly.success}}"
+      echo "PageNative assembled: {{with.assembly.success}}"
       echo ""
       echo "================================================================"
 
