@@ -29,6 +29,8 @@ pub enum ProviderKind {
     Groq,
     DeepSeek,
     Gemini,
+    /// xAI (Grok) provider
+    XAi,
     /// Native local provider - GGUF models via mistral.rs
     Native,
 }
@@ -43,6 +45,7 @@ impl ProviderKind {
             "groq" => Some(Self::Groq),
             "deepseek" => Some(Self::DeepSeek),
             "gemini" | "google" => Some(Self::Gemini),
+            "xai" | "grok" | "x-ai" => Some(Self::XAi),
             "native" => Some(Self::Native),
             _ => None,
         }
@@ -57,6 +60,7 @@ impl ProviderKind {
             Self::Groq => "Groq",
             Self::DeepSeek => "DeepSeek",
             Self::Gemini => "Gemini",
+            Self::XAi => "xAI",
             Self::Native => "Native",
         }
     }
@@ -226,6 +230,22 @@ static GEMINI_PRICING: LazyLock<HashMap<&'static str, ModelPricing>> = LazyLock:
     m
 });
 
+/// xAI (Grok) models pricing
+static XAI_PRICING: LazyLock<HashMap<&'static str, ModelPricing>> = LazyLock::new(|| {
+    let mut m = HashMap::new();
+    // Grok-3
+    m.insert("grok-3", ModelPricing::new(3.0, 15.0));
+    // Grok-3 Fast
+    m.insert("grok-3-fast", ModelPricing::new(0.6, 4.0));
+    // Grok-3 Mini
+    m.insert("grok-3-mini", ModelPricing::new(0.3, 0.5));
+    // Grok-3 Mini Fast
+    m.insert("grok-3-mini-fast", ModelPricing::new(0.1, 0.4));
+    // Grok-2
+    m.insert("grok-2", ModelPricing::new(2.0, 10.0));
+    m
+});
+
 // ═══════════════════════════════════════════════════════════════════════════
 // DEFAULT PRICING (fallback)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -253,6 +273,7 @@ pub fn get_model_pricing(provider: ProviderKind, model: &str) -> ModelPricing {
         ProviderKind::Groq => GROQ_PRICING.get(model),
         ProviderKind::DeepSeek => DEEPSEEK_PRICING.get(model),
         ProviderKind::Gemini => GEMINI_PRICING.get(model),
+        ProviderKind::XAi => XAI_PRICING.get(model),
         ProviderKind::Native => return FREE_PRICING,
     };
 

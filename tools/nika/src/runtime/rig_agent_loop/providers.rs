@@ -400,8 +400,12 @@ impl RigAgentLoop {
             .clone()
             .unwrap_or_else(|| "grok-3-fast".to_string());
         let client = rig::providers::xai::Client::from_env();
-        self.run_generic_provider_impl(client, &model_name, None)
-            .await
+        self.run_generic_provider_impl(
+            client,
+            &model_name,
+            Some(crate::provider::cost::ProviderKind::XAi),
+        )
+        .await
     }
 
     /// Generic provider runner implementation
