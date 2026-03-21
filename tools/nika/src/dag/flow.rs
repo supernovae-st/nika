@@ -462,6 +462,9 @@ impl Dag {
                     .cloned()
                     .unwrap_or_else(|| intern(&task.id));
                 for dep in deps {
+                    if dep == &task.id {
+                        continue; // Skip self-references
+                    }
                     if !task_set.contains(dep.as_str()) {
                         return Err(NikaError::MissingDependency {
                             task_id: task.id.clone(),
@@ -1226,6 +1229,73 @@ mod tests {
         let dag = result.unwrap();
         assert!(dag.has_path("produce", "process"));
         assert!(dag.has_path("process", "aggregate"));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // BUG #7: from_workflow self-reference in depends_on
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_from_workflow_self_reference_skipped() {
+        // A task that lists itself in depends_on should not create a self-edge.
+        // Previously this could cause a cycle or deadlock at runtime.
+        use crate::ast::{Task, TaskAction, Workflow};
+
+        let workflow = Workflow {
+            schema: "nika/workflow@0.12".to_string(),
+            provider: "test".to_string(),
+            model: None,
+            mcp: None,
+            context: None,
+            include: None,
+            agents: None,
+            skills: None,
+            artifacts: None,
+            log: None,
+            inputs: None,
+            tasks: vec![Arc::new(Task {
+                id: "a".to_string(),
+                with_spec: None,
+                output: None,
+                decompose: None,
+                for_each: None,
+                for_each_as: None,
+                concurrency: None,
+                fail_fast: None,
+                action: TaskAction::Exec {
+                    exec: crate::ast::ExecParams {
+                        command: "echo hello".to_string(),
+                        shell: Some(false),
+                        env: None,
+                        timeout: None,
+                        cwd: None,
+                    },
+                },
+                artifact: None,
+                log: None,
+                depends_on: Some(vec!["a".to_string()]), // self-reference!
+                structured: None,
+            })],
+        };
+
+        let result = Dag::from_workflow(&workflow);
+        assert!(
+            result.is_ok(),
+            "Self-reference in depends_on should be silently skipped: {:?}",
+            result.err()
+        );
+
+        let dag = result.unwrap();
+        // Task should have no dependencies (self-reference was skipped)
+        assert!(
+            dag.get_dependencies("a").is_empty(),
+            "Self-reference should not create a dependency edge"
+        );
+        // DAG should be acyclic
+        assert!(
+            dag.detect_cycles().is_ok(),
+            "No cycle after skipping self-ref"
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════

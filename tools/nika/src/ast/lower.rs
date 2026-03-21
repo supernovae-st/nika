@@ -250,7 +250,13 @@ fn lower_agent(
             "auto" => Some(crate::ast::agent::ToolChoice::Auto),
             "required" => Some(crate::ast::agent::ToolChoice::Required),
             "none" => Some(crate::ast::agent::ToolChoice::None),
-            _ => None,
+            other => {
+                tracing::warn!(
+                    tool_choice = other,
+                    "invalid tool_choice value (expected \"auto\", \"required\", or \"none\"), ignoring"
+                );
+                None
+            }
         });
 
     AgentParams {
@@ -2480,6 +2486,81 @@ mod tests {
                 );
             }
             _ => panic!("expected Invoke action"),
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Bug 9: invalid tool_choice should warn and map to None
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn lower_agent_valid_tool_choice_values() {
+        for (input, expected_variant) in [
+            ("auto", "Auto"),
+            ("required", "Required"),
+            ("none", "None"),
+            ("AUTO", "Auto"), // case-insensitive
+            ("Required", "Required"),
+        ] {
+            let agent = AnalyzedAgentAction {
+                prompt: "test".to_string(),
+                tools: vec![],
+                max_iterations: None,
+                max_tokens: None,
+                from: None,
+                skills: vec![],
+                mcp: vec![],
+                system: None,
+                temperature: None,
+                token_budget: None,
+                extended_thinking: None,
+                thinking_budget: None,
+                depth_limit: None,
+                tool_choice: Some(input.to_string()),
+                stop_sequences: vec![],
+                scope: None,
+                span: Span::dummy(),
+            };
+            let params = lower_agent(agent, None, None);
+            assert!(
+                params.tool_choice.is_some(),
+                "valid tool_choice '{}' should produce Some({})",
+                input,
+                expected_variant
+            );
+        }
+    }
+
+    #[test]
+    fn lower_agent_invalid_tool_choice_maps_to_none() {
+        // Invalid values should be mapped to None (with a tracing::warn)
+        for invalid in ["foo", "always", "any", ""] {
+            let agent = AnalyzedAgentAction {
+                prompt: "test".to_string(),
+                tools: vec![],
+                max_iterations: None,
+                max_tokens: None,
+                from: None,
+                skills: vec![],
+                mcp: vec![],
+                system: None,
+                temperature: None,
+                token_budget: None,
+                extended_thinking: None,
+                thinking_budget: None,
+                depth_limit: None,
+                tool_choice: Some(invalid.to_string()),
+                stop_sequences: vec![],
+                scope: None,
+                span: Span::dummy(),
+            };
+            let params = lower_agent(agent, None, None);
+            assert!(
+                params.tool_choice.is_none(),
+                "invalid tool_choice '{}' should map to None, got {:?}",
+                invalid,
+                params.tool_choice
+            );
         }
     }
 }

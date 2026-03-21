@@ -334,7 +334,13 @@ impl TaskExecutor {
                         });
 
                         match provider
-                            .infer_with_tools(&prompt, tools, model, infer.max_tokens)
+                            .infer_with_tools(
+                                &prompt,
+                                tools,
+                                model,
+                                infer.max_tokens,
+                                resolved_system.as_deref(),
+                            )
                             .await
                         {
                             Ok(tool_result) => {
