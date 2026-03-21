@@ -381,6 +381,14 @@
               "description": "Multimodal vision content parts (v0.34+).",
               "items": { "$ref": "#/$defs/ContentPart" }
             },
+            "provider": {
+              "type": "string",
+              "description": "Provider override for this task"
+            },
+            "model": {
+              "type": "string",
+              "description": "Model override for this task"
+            },
             "guardrails": {
               "type": "array",
               "description": "Guardrails for validating infer output (v0.12+)",
@@ -559,6 +567,20 @@
           "maximum": 5,
           "default": 2,
           "description": "Backoff multiplier for exponential backoff (default: 2.0)"
+        },
+        "backoff_ms": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 60000,
+          "default": 1000,
+          "description": "Serde alias for delay_ms (delay between retries in milliseconds)"
+        },
+        "multiplier": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 5,
+          "default": 2,
+          "description": "Serde alias for backoff (backoff multiplier)"
         }
       }
     },
@@ -1028,8 +1050,9 @@
           "items": {
             "type": "object",
             "properties": {
-              "regex": { "type": "string" },
-              "name": { "type": "string" }
+              "value": { "type": "string", "description": "The pattern string" },
+              "type": { "type": "string", "enum": ["exact", "contains", "regex"], "description": "Pattern match type" },
+              "name": { "type": "string", "description": "Pattern name for identification" }
             }
           }
         },
@@ -1037,7 +1060,21 @@
           "type": "object",
           "properties": {
             "threshold": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.7 },
-            "max_retries": { "type": "integer", "minimum": 0, "default": 2 }
+            "on_low": {
+              "type": "object",
+              "properties": {
+                "action": { "type": "string", "enum": ["retry", "escalate", "accept"], "default": "retry" },
+                "max_retries": { "type": "integer", "minimum": 0, "default": 2 },
+                "feedback": { "type": "string" }
+              }
+            }
+          }
+        },
+        "instruction": {
+          "type": "object",
+          "properties": {
+            "tone": { "type": "string" },
+            "lang": { "type": "string" }
           }
         }
       }
