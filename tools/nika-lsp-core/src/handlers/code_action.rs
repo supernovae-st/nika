@@ -49,8 +49,12 @@ pub struct TextEdit {
 pub fn code_actions(text: &str, start_offset: u32, _end_offset: u32) -> Vec<CodeActionEntry> {
     let mut actions = Vec::new();
 
-    // 1. Add schema version if missing
-    if !text.contains("schema:") {
+    // 1. Add schema version if missing (skip comments)
+    let has_schema = text.lines().any(|l| {
+        let t = l.trim();
+        !t.starts_with('#') && t.starts_with("schema:")
+    });
+    if !has_schema {
         actions.push(CodeActionEntry {
             title: "Add schema version (@0.12)".into(),
             kind: CodeActionKind::QuickFix,
@@ -80,14 +84,18 @@ pub fn code_actions(text: &str, start_offset: u32, _end_offset: u32) -> Vec<Code
         }
     }
 
-    // Get the line at the cursor
-    let line_start = text[..start_offset as usize]
+    // Get the line at the cursor (with char boundary safety)
+    let start = (start_offset as usize).min(text.len());
+    if !text.is_char_boundary(start) {
+        return actions;
+    }
+    let line_start = text[..start]
         .rfind('\n')
         .map(|p| p + 1)
         .unwrap_or(0);
-    let line_end = text[start_offset as usize..]
+    let line_end = text[start..]
         .find('\n')
-        .map(|p| start_offset as usize + p)
+        .map(|p| start + p)
         .unwrap_or(text.len());
     let line = &text[line_start..line_end];
     let trimmed = line.trim();

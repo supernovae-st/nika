@@ -492,15 +492,18 @@ impl LanguageServer for NikaLanguageServer {
     async fn did_change_configuration(&self, params: DidChangeConfigurationParams) {
         tracing::info!("Configuration changed: {:?}", params.settings);
 
-        // Re-analyze all open documents with potentially new settings
+        // Re-analyze all open documents and re-publish diagnostics
         let docs = self.documents.read().await;
         let uris: Vec<_> = docs.uris().cloned().collect();
-        for uri in &uris {
-            if let Some(text) = docs.get(uri) {
-                self.ast_index.parse_document(uri, text, 0);
-            }
-        }
+        let texts: Vec<_> = uris
+            .iter()
+            .filter_map(|uri| docs.get(uri).map(|t| (uri.clone(), t.clone())))
+            .collect();
         drop(docs);
+
+        for (uri, text) in &texts {
+            self.analyze_document(uri, text).await;
+        }
 
         self.client
             .log_message(MessageType::INFO, "Configuration updated")

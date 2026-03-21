@@ -179,11 +179,29 @@ pub fn detect_context(
         };
     }
 
-    // Convert byte offset to line/character.
+    // Convert byte offset to line/character (handles \n, \r\n, \r).
     let before = &text[..offset];
-    let line_idx = before.matches('\n').count();
-    let last_newline = before.rfind('\n').map_or(0, |p| p + 1);
-    let char_idx = offset - last_newline;
+    let mut line_idx = 0usize;
+    let mut last_line_start = 0usize;
+    let bytes = before.as_bytes();
+    let mut bi = 0;
+    while bi < before.len() {
+        if bytes[bi] == b'\r' {
+            line_idx += 1;
+            bi += 1;
+            if bi < before.len() && bytes[bi] == b'\n' {
+                bi += 1; // \r\n = single line break
+            }
+            last_line_start = bi;
+        } else if bytes[bi] == b'\n' {
+            line_idx += 1;
+            bi += 1;
+            last_line_start = bi;
+        } else {
+            bi += 1;
+        }
+    }
+    let char_idx = offset - last_line_start;
 
     let lines: Vec<&str> = text.lines().collect();
     if lines.is_empty() {
@@ -449,9 +467,7 @@ fn find_enclosing_task_id(lines: &[&str], line_idx: usize) -> Option<String> {
         if let Some(rest) = trimmed.strip_prefix("- id:") {
             return Some(rest.trim().trim_matches('"').trim_matches('\'').to_string());
         }
-        if let Some(rest) = trimmed.strip_prefix("-id:") {
-            return Some(rest.trim().trim_matches('"').trim_matches('\'').to_string());
-        }
+        // Note: "-id:" (no space) is invalid YAML, removed dead branch
         // Handle multiline task def:  `- \n    id: foo`
         if trimmed.starts_with("id:") {
             let line_indent = lines[i].len() - trimmed.len();
@@ -588,7 +604,7 @@ fn extract_with_bindings(lines: &[&str], line_idx: usize) -> Vec<String> {
 
     for line in lines
         .iter()
-        .take(lines.len().min(line_idx + 20))
+        .take(find_next_task_line(lines, task_start))
         .skip(task_start)
     {
         let trimmed = line.trim();
@@ -627,6 +643,16 @@ fn find_task_start_line(lines: &[&str], line_idx: usize) -> usize {
         }
     }
     0
+}
+
+/// Find the line index where the next task starts (or end of file).
+fn find_next_task_line(lines: &[&str], from_line: usize) -> usize {
+    lines
+        .iter()
+        .enumerate()
+        .skip(from_line + 1)
+        .find(|(_, l)| l.trim().starts_with("- id:"))
+        .map_or(lines.len(), |(i, _)| i)
 }
 
 /// Extract depends_on entries from the current context.
@@ -780,7 +806,7 @@ fn find_verb_for_task(lines: &[&str], line_idx: usize) -> Option<String> {
     let task_start = find_task_start_line(lines, line_idx);
     for line in lines
         .iter()
-        .take(lines.len().min(line_idx + 15))
+        .take(find_next_task_line(lines, task_start))
         .skip(task_start)
     {
         let trimmed = line.trim();

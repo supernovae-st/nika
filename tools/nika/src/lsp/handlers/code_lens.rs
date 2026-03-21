@@ -23,7 +23,7 @@ pub fn compute_code_lenses(text: &str, _uri: &Uri) -> Vec<CodeLens> {
             },
             end: Position {
                 line: i as u32,
-                character: line.len() as u32,
+                character: line.chars().map(|c| c.len_utf16()).sum::<usize>() as u32,
             },
         };
 
@@ -67,7 +67,7 @@ pub fn compute_code_lenses(text: &str, _uri: &Uri) -> Vec<CodeLens> {
                             task_count,
                             if task_count == 1 { "" } else { "s" }
                         ),
-                        command: String::new(), // No-op command, just informational
+                        command: "nika.showTasks".to_string(),
                         arguments: None,
                     }),
                     data: None,

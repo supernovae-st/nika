@@ -9,6 +9,12 @@
 #[cfg(feature = "lsp")]
 use tower_lsp_server::ls_types::*;
 
+/// Count UTF-16 code units in a string (LSP spec requires UTF-16 offsets).
+#[cfg(feature = "lsp")]
+fn utf16_len(s: &str) -> u32 {
+    s.chars().map(|c| c.len_utf16()).sum::<usize>() as u32
+}
+
 /// Compute inlay hints for the given document range.
 #[cfg(feature = "lsp")]
 pub fn compute_inlay_hints(text: &str, range: Range) -> Vec<InlayHint> {
@@ -44,7 +50,7 @@ pub fn compute_inlay_hints(text: &str, range: Range) -> Vec<InlayHint> {
                 hints.push(InlayHint {
                     position: Position {
                         line: i as u32,
-                        character: line.len() as u32,
+                        character: utf16_len(line),
                     },
                     label: InlayHintLabel::String(label),
                     kind: Some(InlayHintKind::TYPE),
@@ -103,7 +109,7 @@ pub fn compute_inlay_hints(text: &str, range: Range) -> Vec<InlayHint> {
                     hints.push(InlayHint {
                         position: Position {
                             line: i as u32,
-                            character: line.len() as u32,
+                            character: utf16_len(line),
                         },
                         label: InlayHintLabel::String(format!(
                             " ({} dep{})",
@@ -130,7 +136,7 @@ pub fn compute_inlay_hints(text: &str, range: Range) -> Vec<InlayHint> {
                 hints.push(InlayHint {
                     position: Position {
                         line: i as u32,
-                        character: line.len() as u32,
+                        character: utf16_len(line),
                     },
                     label: InlayHintLabel::String(" iterations".to_string()),
                     kind: Some(InlayHintKind::TYPE),
@@ -152,7 +158,7 @@ pub fn compute_inlay_hints(text: &str, range: Range) -> Vec<InlayHint> {
                 hints.push(InlayHint {
                     position: Position {
                         line: i as u32,
-                        character: line.len() as u32,
+                        character: utf16_len(line),
                     },
                     label: InlayHintLabel::String(" parallel".to_string()),
                     kind: Some(InlayHintKind::TYPE),

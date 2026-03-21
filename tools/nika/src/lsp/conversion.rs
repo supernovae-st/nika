@@ -68,7 +68,7 @@ pub fn offset_to_position(offset: usize, source: &str) -> Position {
             i += 1;
         } else {
             // Multi-byte UTF-8: decode char for correct UTF-16 length
-            let ch = source[i..].chars().next().unwrap();
+            let ch = source[i..].chars().next().unwrap_or('\u{FFFD}');
             col += ch.len_utf16() as u32;
             i += ch.len_utf8();
         }
@@ -126,7 +126,7 @@ pub fn position_to_offset(pos: Position, source: &str) -> usize {
             current_col += 1;
             i += 1;
         } else {
-            let ch = source[i..].chars().next().unwrap();
+            let ch = source[i..].chars().next().unwrap_or('\u{FFFD}');
             current_col += ch.len_utf16() as u32;
             i += ch.len_utf8();
         }

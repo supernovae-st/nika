@@ -328,7 +328,7 @@ fn transform_hover(expr: &str) -> Option<HoverResult> {
 
 const FOREACH_DOC: &str = "## `for_each:` — Parallel Iteration\n\n\
     Execute task for each item in an array.\n\n\
-    ```yaml\nfor_each: [\"fr-FR\", \"en-US\", \"de-DE\"]\nas: locale\nconcurrency: 5\nfail_fast: true\ninfer: \"Generate for {{with.locale}}\"\n```";
+    ```yaml\nfor_each: [\"fr-FR\", \"en-US\", \"de-DE\"]\nas: locale\nconcurrency: 5\nfail_fast: true\ninfer: \"Generate for {{locale}}\"\n```";
 
 const MCP_DOC: &str = "## `mcp:` — MCP Server Configuration\n\n\
     Configure MCP servers for `invoke:` and `agent:` tasks.\n\n\
