@@ -134,7 +134,7 @@ The `fetch:` verb supports `extract:` for HTML post-processing and `response:` f
 ### Response modes
 - `response: full` — JSON with status, headers, body, final URL
 - `response: binary` — Store in CAS, return hash for media pipeline
-- No response field — Raw body text (backward compatible)
+- No response field — Raw body text (default)
 
 ## Media Tools (v0.34.0)
 
