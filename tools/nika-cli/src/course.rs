@@ -502,7 +502,19 @@ fn cmd_check(level_arg: Option<String>) -> Result<(), NikaError> {
         })?;
 
         // Run standard checks based on level
-        let checks = build_checks_for_level(level.number, &yaml);
+        let mut checks = build_checks_for_level(level.number, &yaml);
+
+        // QW #4: Run real AST validation (Phase 1 + Phase 2)
+        match nika_engine::ast::parse_analyzed(&yaml) {
+            Ok(_) => checks.push(nika_engine::init::course::checks::CheckResult {
+                name: "nika check (AST)",
+                verdict: CheckVerdict::Pass,
+            }),
+            Err(e) => checks.push(nika_engine::init::course::checks::CheckResult {
+                name: "nika check (AST)",
+                verdict: CheckVerdict::Fail(e.to_string()),
+            }),
+        }
 
         let ex_report = ExerciseReport {
             exercise_id: ex_id.clone(),
@@ -571,6 +583,60 @@ fn cmd_check(level_arg: Option<String>) -> Result<(), NikaError> {
             total
         );
         println!("  {}", "Tip: use `nika course hint` for help.".dimmed());
+    }
+
+    // QW #6: Star scoring
+    if total > 0 {
+        let star_correctness = report.all_passed();
+        let total_bonuses: usize = report.exercises.iter().map(|e| e.bonus_count()).sum();
+        let star_elegance = total_bonuses > 0;
+        let key = level.number.to_string();
+        let hints_used = progress
+            .levels
+            .get(&key)
+            .map(|lp| lp.hints_used)
+            .unwrap_or(0);
+        let star_no_hints = hints_used == 0;
+
+        let star_count = star_correctness as u8 + star_elegance as u8 + star_no_hints as u8;
+
+        let stars: String = (0..3)
+            .map(|i| if i < star_count { '\u{2605}' } else { '\u{2606}' })
+            .collect();
+
+        println!();
+        println!(
+            "  Level {:02} {}: {} ({}/3 stars)",
+            level.number,
+            level.name,
+            stars.yellow(),
+            star_count
+        );
+        println!(
+            "  - {} Correctness: {}/{}{}",
+            if star_correctness { "\u{2605}" } else { "\u{2606}" },
+            passed,
+            total,
+            if star_correctness { " pass" } else { "" }
+        );
+        println!(
+            "  - {} Elegance: {}",
+            if star_elegance { "\u{2605}" } else { "\u{2606}" },
+            if star_elegance {
+                format!("{} bonus(es) unlocked", total_bonuses)
+            } else {
+                "no bonus checks passed yet".to_string()
+            }
+        );
+        println!(
+            "  - {} No hints: {}",
+            if star_no_hints { "\u{2605}" } else { "\u{2606}" },
+            if star_no_hints {
+                "solved without hints".to_string()
+            } else {
+                format!("used {} hint(s)", hints_used)
+            }
+        );
     }
     println!();
 
@@ -644,8 +710,26 @@ fn cmd_hint(exercise_arg: Option<String>) -> Result<(), NikaError> {
     let (level_num, ex_num) = match exercise_arg {
         Some(ref id) => parse_exercise_id(id)?,
         None => {
-            // Auto-detect from next exercise
-            find_current_exercise(&progress)?
+            // QW #7: Smart detection -- find first non-passed exercise
+            match find_current_exercise(&progress) {
+                Ok(found) => found,
+                Err(_) => {
+                    println!();
+                    println!(
+                        "  {} {}",
+                        "***".green().bold(),
+                        "All exercises complete! Move to the next level."
+                            .green()
+                            .bold()
+                    );
+                    println!(
+                        "  {}",
+                        "Run `nika course status` to see your constellation.".dimmed()
+                    );
+                    println!();
+                    return Ok(());
+                }
+            }
         }
     };
 
