@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "nika",
     "nika-core",
+    "nika-event",
     "nika-lsp-core",
     "nika-lsp",
 ]
@@ -18,6 +19,7 @@ rust-version = "1.86"
 [workspace.dependencies]
 # Internal crates
 nika-core = { path = "nika-core", version = "0.37.0" }
+nika-event = { path = "nika-event", version = "0.37.0" }
 nika-lsp-core = { path = "nika-lsp-core", version = "0.37.0" }
 
 # Async

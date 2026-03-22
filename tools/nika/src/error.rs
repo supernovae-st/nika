@@ -637,6 +637,15 @@ pub enum NikaError {
     },
 }
 
+impl From<nika_event::EventError> for NikaError {
+    fn from(e: nika_event::EventError) -> Self {
+        match e {
+            nika_event::EventError::TraceWrite(io) => NikaError::IoError(io),
+            nika_event::EventError::Serialization(json) => NikaError::JsonError(json),
+        }
+    }
+}
+
 impl NikaError {
     /// Get the error code (e.g., "NIKA-001")
     pub fn code(&self) -> &'static str {

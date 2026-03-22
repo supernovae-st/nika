@@ -3,7 +3,7 @@
 //! Writes events to newline-delimited JSON files for debugging and replay.
 
 use crate::error::Result;
-use crate::event::{Event, EventLog};
+use crate::log::{Event, EventLog};
 use std::fs::{self, File};
 use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
@@ -38,12 +38,15 @@ impl TraceWriter {
                 .chars()
                 .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == 'T')
         {
-            return Err(crate::error::NikaError::ValidationError {
-                reason: format!(
-                    "Invalid generation_id: must be alphanumeric with hyphens/underscores only, got: {}",
-                    generation_id
+            return Err(crate::error::EventError::TraceWrite(
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    format!(
+                        "Invalid generation_id: must be alphanumeric with hyphens/underscores only, got: {}",
+                        generation_id
+                    ),
                 ),
-            });
+            ));
         }
 
         // Ensure trace directory exists
@@ -324,7 +327,7 @@ mod tests {
 
     #[test]
     fn test_trace_writer_writes_event() {
-        use crate::event::EventKind;
+        use crate::log::EventKind;
         use serde_json::json;
         use tempfile::TempDir;
 

@@ -54,8 +54,9 @@ fetch-feed = ["dep:feed-rs"]
 fetch-extract = ["fetch-html", "fetch-markdown"]
 
 [dependencies]
-# Core AST and analysis (protocol-agnostic)
+# Core crates
 nika-core = { workspace = true }
+nika-event = { workspace = true }
 
 # CLI
 clap = { workspace = true }
