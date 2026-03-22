@@ -38,12 +38,14 @@
 //! These types represent the "what" — static structure parsed from YAML.
 //! For execution, see the `runtime` module.
 
-// Pipeline stages (local — diverged from nika-core, have extra fields)
-pub mod analyzed;
-pub mod analyzer;
+// Pipeline stages — re-exported from nika-core (synced in v0.37.0)
+pub use nika_core::ast::analyzed;
+pub use nika_core::ast::analyzer;
 pub mod lower;
-pub mod raw;
-pub mod schema;
+pub use nika_core::ast::raw;
+pub mod schema {
+    pub use nika_core::ast::schema::*;
+}
 
 // Re-export from nika-core: identical type modules
 // These modules were deleted from nika (identical copies) and are now
@@ -79,16 +81,26 @@ pub mod structured {
 #[cfg(test)]
 mod tests_200_workflows;
 
+// Re-export from nika-core: modules synced with CoreError variants
+pub mod completion {
+    pub use nika_core::ast::completion::*;
+}
+pub mod guardrails {
+    pub use nika_core::ast::guardrails::*;
+}
+pub mod include {
+    pub use nika_core::ast::include::*;
+}
+pub mod limits {
+    pub use nika_core::ast::limits::*;
+}
+
 // Runtime types (consumed by runner/executor — depend on NikaError)
 mod action;
 mod agent;
-pub mod completion;
-pub mod guardrails;
 pub mod import_loader;
-pub mod include;
 pub mod include_loader;
 mod invoke;
-pub mod limits;
 pub mod loader;
 pub mod pkg_resolver;
 pub mod schema_validator;

@@ -26,7 +26,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::sync::LazyLock;
 
-use super::entry::{BindingEntry, BindingSpec};
+use super::{BindingEntry, BindingSpec};
 
 /// A reference to a previous chat message.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -637,6 +637,20 @@ pub enum NikaError {
     },
 }
 
+impl From<nika_core::error::CoreError> for NikaError {
+    fn from(e: nika_core::error::CoreError) -> Self {
+        match e {
+            nika_core::error::CoreError::InvalidPath { path } => NikaError::InvalidPath { path },
+            nika_core::error::CoreError::InvalidDefault { raw, reason } => {
+                NikaError::InvalidDefault { raw, reason }
+            }
+            nika_core::error::CoreError::ValidationError { reason } => {
+                NikaError::ValidationError { reason }
+            }
+        }
+    }
+}
+
 impl From<nika_event::EventError> for NikaError {
     fn from(e: nika_event::EventError) -> Self {
         match e {

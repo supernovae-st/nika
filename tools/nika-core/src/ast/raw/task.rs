@@ -85,6 +85,8 @@ pub struct RawOutputConfig {
     pub schema: Option<Spanned<serde_json::Value>>,
     /// Schema reference: file path or inline
     pub schema_ref: Option<Spanned<String>>,
+    /// Maximum retries on validation failure
+    pub max_retries: Option<Spanned<u32>>,
 }
 
 /// For-each iteration configuration.
@@ -94,8 +96,8 @@ pub struct RawForEach {
     pub items: Spanned<String>,
     /// Loop variable name (default: "item")
     pub as_var: Option<Spanned<String>>,
-    /// Maximum parallelism
-    pub parallel: Option<Spanned<u32>>,
+    /// Maximum concurrency
+    pub concurrency: Option<Spanned<u32>>,
     /// Stop all iterations on first error (default: true)
     pub fail_fast: Option<Spanned<bool>>,
 }

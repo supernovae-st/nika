@@ -24,6 +24,7 @@ semver = { workspace = true }
 jsonschema = { workspace = true }
 xxhash-rust = { workspace = true }
 chrono = { workspace = true }
+regex = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }

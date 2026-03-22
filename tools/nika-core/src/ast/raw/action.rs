@@ -23,7 +23,7 @@ pub enum RawTaskAction {
     Invoke(Spanned<RawInvokeAction>),
 
     /// Autonomous agent: agent: { prompt: "..." }
-    Agent(Spanned<RawAgentAction>),
+    Agent(Box<Spanned<RawAgentAction>>),
 }
 
 impl Default for RawTaskAction {
@@ -72,13 +72,19 @@ pub struct RawInferAction {
     pub max_tokens: Option<Spanned<u32>>,
 
     /// Enable extended thinking (Claude)
-    pub thinking: Option<Spanned<bool>>,
+    pub extended_thinking: Option<Spanned<bool>>,
 
     /// Thinking budget tokens
     pub thinking_budget: Option<Spanned<u32>>,
 
     /// Multimodal content parts (text + images) for vision models
     pub content: Option<Spanned<Vec<crate::ast::content::RawContentPart>>>,
+
+    /// Expected response format: text, json, markdown
+    pub response_format: Option<Spanned<String>>,
+
+    /// Guardrails for validating infer output
+    pub guardrails: Vec<crate::ast::guardrails::GuardrailConfig>,
 }
 
 /// Parameters for the `exec` verb (shell command execution).
@@ -91,7 +97,7 @@ pub struct RawExecAction {
     pub shell: Option<Spanned<bool>>,
 
     /// Working directory
-    pub working_dir: Option<Spanned<String>>,
+    pub cwd: Option<Spanned<String>>,
 
     /// Environment variables
     pub env: Option<Spanned<IndexMap<Spanned<String>, Spanned<String>>>>,
@@ -172,8 +178,8 @@ pub struct RawAgentAction {
     /// Available tools for the agent
     pub tools: Option<Spanned<Vec<Spanned<String>>>>,
 
-    /// Maximum iterations before stopping
-    pub max_iterations: Option<Spanned<u32>>,
+    /// Maximum turns before stopping
+    pub max_turns: Option<Spanned<u32>>,
 
     /// Maximum tokens per response
     pub max_tokens: Option<Spanned<u32>>,
@@ -210,6 +216,21 @@ pub struct RawAgentAction {
 
     /// Max spawn_agent recursion depth
     pub depth_limit: Option<Spanned<u32>>,
+
+    /// Tool choice behavior: auto, required, none
+    pub tool_choice: Option<Spanned<String>>,
+
+    /// Sequences that stop generation (passed to LLM)
+    pub stop_sequences: Option<Spanned<Vec<Spanned<String>>>>,
+
+    /// Scope preset (full, minimal, debug)
+    pub scope: Option<Spanned<String>>,
+    /// Guardrails for validating agent outputs.
+    pub guardrails: Vec<crate::ast::guardrails::GuardrailConfig>,
+    /// Completion behavior configuration.
+    pub completion: Option<crate::ast::completion::CompletionConfig>,
+    /// Execution limits for cost control.
+    pub limits: Option<crate::ast::limits::LimitsConfig>,
 }
 
 #[cfg(test)]
@@ -235,7 +256,7 @@ mod tests {
         let invoke = RawTaskAction::Invoke(Spanned::dummy(RawInvokeAction::default()));
         assert_eq!(invoke.verb_name(), "invoke");
 
-        let agent = RawTaskAction::Agent(Spanned::dummy(RawAgentAction::default()));
+        let agent = RawTaskAction::Agent(Box::new(Spanned::dummy(RawAgentAction::default())));
         assert_eq!(agent.verb_name(), "agent");
     }
 

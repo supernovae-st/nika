@@ -3493,7 +3493,7 @@ mod v028_template_tests {
 
     /// Helper: build RunContext + ResolvedBindings for media template tests.
     fn media_template_fixtures() -> (RunContext, ResolvedBindings) {
-        use crate::binding::entry::{BindingEntry, BindingSpec};
+        use crate::binding::{BindingEntry, BindingSpec};
 
         let store = RunContext::new();
 
@@ -3756,10 +3756,10 @@ mod v028_template_tests {
         );
 
         // Binding: chart_result: $gen_chart
-        let mut spec: crate::binding::entry::BindingSpec = FxHashMap::default();
+        let mut spec: crate::binding::BindingSpec = FxHashMap::default();
         spec.insert(
             "chart_result".to_string(),
-            crate::binding::entry::BindingEntry::new("gen_chart"),
+            crate::binding::BindingEntry::new("gen_chart"),
         );
         let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
 

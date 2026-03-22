@@ -47,7 +47,6 @@
 //!                    Resolved prompt
 //! ```
 
-mod entry;
 pub mod jsonpath;
 pub mod mention;
 mod resolve;
@@ -57,15 +56,14 @@ mod validate;
 // Re-export from nika-core: identical modules
 pub use nika_core::binding::transform;
 pub use nika_core::binding::types;
-
-// Re-export public types
-pub use entry::{
-    parse_binding_entry, parse_with_entry, BindingEntry, BindingSpec, WithEntry,
-    WithEntryParseError, WithSpec,
-};
+// Re-export entry types from nika-core
 pub use mention::{
     has_parallel_marker, mentions_to_bindings, parse_mentions, resolve_mention,
     strip_parallel_marker, text_to_bindings, Mention, MentionResolutionError, ResolvedMention,
+};
+pub use nika_core::binding::{
+    parse_binding_entry, parse_with_entry, BindingEntry, BindingSpec, WithEntry,
+    WithEntryParseError, WithSpec,
 };
 pub use resolve::{LazyBinding, ResolvedBindings};
 pub use template::{

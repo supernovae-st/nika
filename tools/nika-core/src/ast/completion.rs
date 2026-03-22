@@ -29,7 +29,7 @@
 use regex::Regex;
 use serde::Deserialize;
 
-use crate::error::NikaError;
+use crate::error::CoreError;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Constants
@@ -253,10 +253,10 @@ impl CompletionConfig {
     }
 
     /// Validate the completion configuration.
-    pub fn validate(&self) -> Result<(), NikaError> {
+    pub fn validate(&self) -> Result<(), CoreError> {
         // Pattern mode requires at least one pattern
         if self.mode == CompletionMode::Pattern && self.patterns.is_empty() {
-            return Err(NikaError::ValidationError {
+            return Err(CoreError::ValidationError {
                 reason: "completion.mode: pattern requires at least one pattern definition".into(),
             });
         }
@@ -264,7 +264,7 @@ impl CompletionConfig {
         // Validate confidence threshold
         if let Some(conf) = &self.confidence {
             if conf.threshold < 0.0 || conf.threshold > 1.0 {
-                return Err(NikaError::ValidationError {
+                return Err(CoreError::ValidationError {
                     reason: format!(
                         "confidence.threshold must be between 0.0 and 1.0, got {}",
                         conf.threshold
@@ -276,7 +276,7 @@ impl CompletionConfig {
         // Validate regex patterns
         for pattern in &self.patterns {
             if pattern.pattern_type == PatternType::Regex && Regex::new(&pattern.value).is_err() {
-                return Err(NikaError::ValidationError {
+                return Err(CoreError::ValidationError {
                     reason: format!("Invalid regex pattern: {}", pattern.value),
                 });
             }

@@ -427,10 +427,121 @@ fn parse_action(
     if let Some(node) = map.get_node("agent") {
         let action = parse_agent_action(file, node)?;
         let span = node_to_span(file, node);
-        return Ok(Some(RawTaskAction::Agent(Spanned::new(action, span))));
+        return Ok(Some(RawTaskAction::Agent(Box::new(Spanned::new(
+            action, span,
+        )))));
+    }
+
+    // No verb found — check for common misspellings before returning None.
+    // Known non-verb task keys that are legitimate without a verb (e.g. decompose tasks).
+    let known_non_verb_keys: &[&str] = &[
+        "id",
+        "description",
+        "provider",
+        "model",
+        "with",
+        "depends_on",
+        "output",
+        "for_each",
+        "retry",
+        "decompose",
+        "structured",
+        "artifact",
+        "log",
+        "concurrency",
+        "fail_fast",
+        "timeout",
+    ];
+
+    let task_keys: Vec<String> = map.iter().map(|(k, _)| k.as_str().to_string()).collect();
+    let unrecognized: Vec<&str> = task_keys
+        .iter()
+        .map(|s| s.as_str())
+        .filter(|k| !verb_keys.contains(k) && !known_non_verb_keys.contains(k))
+        .collect();
+
+    if !unrecognized.is_empty() {
+        // Check if any unrecognized key looks like a misspelled verb
+        let misspellings: Vec<(&str, &str)> = unrecognized
+            .iter()
+            .filter_map(|key| {
+                verb_keys.iter().find_map(|verb| {
+                    if is_likely_misspelling(key, verb) {
+                        Some((*key, *verb))
+                    } else {
+                        None
+                    }
+                })
+            })
+            .collect();
+
+        if !misspellings.is_empty() {
+            let suggestions: Vec<String> = misspellings
+                .iter()
+                .map(|(key, verb)| format!("'{}' (did you mean '{}'?)", key, verb))
+                .collect();
+            let span = marked_span_to_span(file, map.span());
+            return Err(ParseError {
+                kind: ParseErrorKind::MissingField,
+                span,
+                message: format!(
+                    "no valid verb found. Expected one of: {}. Possible misspelling: {}",
+                    verb_keys.join(", "),
+                    suggestions.join(", ")
+                ),
+            });
+        }
     }
 
     Ok(None)
+}
+
+/// Check if `input` is a likely misspelling of `target` using edit distance.
+/// Returns true if the strings are within edit distance 2 and share a common prefix.
+fn is_likely_misspelling(input: &str, target: &str) -> bool {
+    if input == target {
+        return false;
+    }
+    let len_diff = (input.len() as isize - target.len() as isize).unsigned_abs();
+    if len_diff > 2 {
+        return false;
+    }
+    // Simple Levenshtein distance check (bounded to 2)
+    levenshtein_bounded(input, target, 2) <= 2
+}
+
+/// Bounded Levenshtein distance. Returns distance or `bound + 1` if exceeded.
+fn levenshtein_bounded(a: &str, b: &str, bound: usize) -> usize {
+    let a_bytes = a.as_bytes();
+    let b_bytes = b.as_bytes();
+    let m = a_bytes.len();
+    let n = b_bytes.len();
+
+    if m.abs_diff(n) > bound {
+        return bound + 1;
+    }
+
+    let mut prev: Vec<usize> = (0..=n).collect();
+    let mut curr = vec![0; n + 1];
+
+    for i in 1..=m {
+        curr[0] = i;
+        let mut min_in_row = curr[0];
+        for j in 1..=n {
+            let cost = if a_bytes[i - 1] == b_bytes[j - 1] {
+                0
+            } else {
+                1
+            };
+            curr[j] = (prev[j] + 1).min(curr[j - 1] + 1).min(prev[j - 1] + cost);
+            min_in_row = min_in_row.min(curr[j]);
+        }
+        if min_in_row > bound {
+            return bound + 1;
+        }
+        std::mem::swap(&mut prev, &mut curr);
+    }
+    prev[n]
 }
 
 /// Parse infer action - supports both shorthand (string) and full form (mapping).
@@ -452,9 +563,11 @@ fn parse_infer_action(file: FileId, node: &Node) -> Result<RawInferAction, Parse
             system: None,
             temperature: None,
             max_tokens: None,
-            thinking: None,
+            extended_thinking: None,
             thinking_budget: None,
             content: None,
+            response_format: None,
+            guardrails: Vec::new(),
         }),
         // Full form: infer: { prompt: "...", temperature: ..., content: [...] }
         Node::Mapping(m) => {
@@ -473,18 +586,18 @@ fn parse_infer_action(file: FileId, node: &Node) -> Result<RawInferAction, Parse
             // If content is present but no prompt, use empty prompt (validated later)
             let prompt = prompt.unwrap_or_else(|| Spanned::new(String::new(), span));
 
+            let guardrails = parse_guardrails_field(file, m)?;
+
             Ok(RawInferAction {
                 prompt,
                 system: get_string_field(file, m, "system")?,
                 temperature: get_f64_field(file, m, "temperature")?,
                 max_tokens: get_u32_field(file, m, "max_tokens")?,
-                thinking: get_bool_field(file, m, "thinking")?.or(get_bool_field(
-                    file,
-                    m,
-                    "extended_thinking",
-                )?),
+                extended_thinking: get_bool_field(file, m, "extended_thinking")?,
                 thinking_budget: get_u32_field(file, m, "thinking_budget")?,
                 content,
+                response_format: get_string_field(file, m, "response_format")?,
+                guardrails,
             })
         }
         _ => Err(ParseError {
@@ -606,7 +719,7 @@ fn parse_exec_action(file: FileId, node: &Node) -> Result<RawExecAction, ParseEr
         Node::Scalar(s) => Ok(RawExecAction {
             command: Spanned::new(s.as_str().to_string(), span),
             shell: None,
-            working_dir: None,
+            cwd: None,
             env: None,
             timeout_ms: None,
         }),
@@ -621,8 +734,7 @@ fn parse_exec_action(file: FileId, node: &Node) -> Result<RawExecAction, ParseEr
             Ok(RawExecAction {
                 command,
                 shell: get_bool_field(file, m, "shell")?,
-                working_dir: get_string_field(file, m, "working_dir")?
-                    .or(get_string_field(file, m, "cwd")?),
+                cwd: get_string_field(file, m, "cwd")?,
                 env: parse_string_map(file, m, "env")?,
                 // timeout_ms is the primary field (milliseconds).
                 // timeout is the schema alias (seconds) — convert to ms.
@@ -733,23 +845,16 @@ fn parse_agent_action(file: FileId, node: &Node) -> Result<RawAgentAction, Parse
         }
     };
 
-    // Agent uses 'prompt' as primary field, 'goal' as legacy fallback
-    let prompt = get_string_field(file, m, "prompt")?
-        .or(get_string_field(file, m, "goal")?)
-        .ok_or_else(|| ParseError {
-            kind: ParseErrorKind::MissingField,
-            span,
-            message: "agent action requires 'prompt' field (or legacy 'goal')".to_string(),
-        })?;
+    let prompt = get_string_field(file, m, "prompt")?.ok_or_else(|| ParseError {
+        kind: ParseErrorKind::MissingField,
+        span,
+        message: "agent action requires 'prompt' field".to_string(),
+    })?;
 
     Ok(RawAgentAction {
         prompt,
         tools: parse_string_array(file, m, "tools")?,
-        max_iterations: get_u32_field(file, m, "max_iterations")?.or(get_u32_field(
-            file,
-            m,
-            "max_turns",
-        )?),
+        max_turns: get_u32_field(file, m, "max_turns")?,
         max_tokens: get_u32_field(file, m, "max_tokens")?,
         from: get_string_field(file, m, "from")?,
         skills: parse_string_array(file, m, "skills")?,
@@ -762,6 +867,12 @@ fn parse_agent_action(file: FileId, node: &Node) -> Result<RawAgentAction, Parse
         extended_thinking: get_bool_field(file, m, "extended_thinking")?,
         thinking_budget: get_u32_field(file, m, "thinking_budget")?,
         depth_limit: get_u32_field(file, m, "depth_limit")?,
+        tool_choice: get_string_field(file, m, "tool_choice")?,
+        stop_sequences: parse_string_array(file, m, "stop_sequences")?,
+        scope: get_string_field(file, m, "scope")?,
+        guardrails: parse_guardrails_field(file, m)?,
+        completion: parse_optional_serde_field(file, m, "completion")?,
+        limits: parse_optional_serde_field(file, m, "limits")?,
     })
 }
 
@@ -835,8 +946,7 @@ fn parse_for_each(
                 RawForEach {
                     items: Spanned::new(items_str, span),
                     as_var: get_string_field(file, map, "as")?,
-                    parallel: get_u32_field(file, map, "concurrency")?
-                        .or(get_u32_field(file, map, "parallel")?),
+                    concurrency: get_u32_field(file, map, "concurrency")?,
                     fail_fast: get_bool_field(file, map, "fail_fast")?,
                 },
                 span,
@@ -848,8 +958,7 @@ fn parse_for_each(
                 RawForEach {
                     items: Spanned::new(s.as_str().to_string(), span),
                     as_var: get_string_field(file, map, "as")?,
-                    parallel: get_u32_field(file, map, "concurrency")?
-                        .or(get_u32_field(file, map, "parallel")?),
+                    concurrency: get_u32_field(file, map, "concurrency")?,
                     fail_fast: get_bool_field(file, map, "fail_fast")?,
                 },
                 span,
@@ -874,15 +983,17 @@ fn parse_retry(
             let span = marked_span_to_span(file, m.span());
             Ok(Some(Spanned::new(
                 RawRetryConfig {
-                    max_attempts: get_u32_field(file, m, "max_attempts")?
-                        .or(get_u32_field(file, m, "max")?),
-                    delay_ms: get_u64_field(file, m, "delay_ms")?
-                        .or(get_u64_field(file, m, "delay")?),
-                    backoff: get_f64_field(file, m, "backoff")?.or(get_f64_field(
+                    max_attempts: get_u32_field(file, m, "max_attempts")?.or(get_u32_field(
                         file,
                         m,
-                        "backoff_multiplier",
+                        "max_retries",
                     )?),
+                    delay_ms: match get_u64_field(file, m, "delay_ms")? {
+                        Some(v) => Some(v),
+                        None => get_u64_field(file, m, "delay")?
+                            .map(|s| Spanned::new(s.value * 1000, s.span)),
+                    },
+                    backoff: get_f64_field(file, m, "backoff")?,
                 },
                 span,
             )))
@@ -979,8 +1090,8 @@ fn parse_output(
                 RawOutputConfig {
                     format: get_string_field(file, m, "format")?,
                     schema: parse_json_value(file, m, "schema")?,
-                    schema_ref: get_string_field(file, m, "schema_ref")?
-                        .or(get_string_field(file, m, "$ref")?),
+                    schema_ref: get_string_field(file, m, "schema_ref")?,
+                    max_retries: get_u32_field(file, m, "max_retries")?,
                 },
                 span,
             )))
@@ -1020,6 +1131,50 @@ fn parse_structured(
                     message: format!("invalid structured output config: {e}"),
                 })?;
             Ok(Some(spec))
+        }
+        None => Ok(None),
+    }
+}
+
+/// Parse the `guardrails:` field from an infer or agent mapping.
+///
+/// Guardrails are a YAML sequence of objects, each with a `type` field.
+/// Uses serde deserialization via `GuardrailConfig` which is `#[serde(tag = "type")]`.
+///
+/// Returns an empty Vec if the field is absent.
+fn parse_guardrails_field(
+    file: FileId,
+    map: &marked_yaml::types::MarkedMappingNode,
+) -> Result<Vec<crate::ast::guardrails::GuardrailConfig>, ParseError> {
+    match map.get_node("guardrails") {
+        Some(node) => {
+            let span = node_to_span(file, node);
+            let json_value = node_to_json(node);
+            serde_json::from_value(json_value).map_err(|e| ParseError {
+                kind: ParseErrorKind::InvalidType,
+                span,
+                message: format!("invalid guardrails config: {e}"),
+            })
+        }
+        None => Ok(Vec::new()),
+    }
+}
+
+fn parse_optional_serde_field<T: serde::de::DeserializeOwned>(
+    file: FileId,
+    map: &marked_yaml::types::MarkedMappingNode,
+    field_name: &str,
+) -> Result<Option<T>, ParseError> {
+    match map.get_node(field_name) {
+        Some(node) => {
+            let span = node_to_span(file, node);
+            let json_value = node_to_json(node);
+            let parsed = serde_json::from_value(json_value).map_err(|e| ParseError {
+                kind: ParseErrorKind::InvalidType,
+                span,
+                message: format!("invalid {field_name} config: {e}"),
+            })?;
+            Ok(Some(parsed))
         }
         None => Ok(None),
     }
@@ -1136,6 +1291,9 @@ pub fn parse(source: &str, file_id: FileId) -> Result<RawWorkflow, ParseError> {
         }
         None => None,
     };
+
+    // Parse workflow-level skills mapping (alias -> path)
+    workflow.skills = parse_string_map(file_id, map, "skills")?;
 
     // Parse tasks
     workflow.tasks = parse_tasks(file_id, map)?;
@@ -1296,8 +1454,7 @@ fn parse_imports(
     file_id: FileId,
     map: &marked_yaml::types::MarkedMappingNode,
 ) -> Result<Option<Spanned<Vec<Spanned<RawImportSpec>>>>, ParseError> {
-    // Accept both "imports:" (canonical) and "include:" (legacy alias)
-    let imports_node = match map.get_node("imports").or_else(|| map.get_node("include")) {
+    let imports_node = match map.get_node("imports") {
         Some(node) => node,
         None => return Ok(None),
     };
@@ -1645,7 +1802,7 @@ tasks:
       system: "You are a helpful assistant"
       temperature: 0.7
       max_tokens: 1000
-      thinking: true
+      extended_thinking: true
       thinking_budget: 8000
 "#;
         let workflow = parse(yaml, FileId(0)).unwrap();
@@ -1660,7 +1817,7 @@ tasks:
                 );
                 assert!((action.value.temperature.as_ref().unwrap().value - 0.7).abs() < 0.001);
                 assert_eq!(action.value.max_tokens.as_ref().unwrap().value, 1000);
-                assert!(action.value.thinking.as_ref().unwrap().value);
+                assert!(action.value.extended_thinking.as_ref().unwrap().value);
                 assert_eq!(action.value.thinking_budget.as_ref().unwrap().value, 8000);
             }
             _ => panic!("Expected Infer action"),
@@ -1708,7 +1865,7 @@ tasks:
             Some(RawTaskAction::Exec(action)) => {
                 assert_eq!(action.value.command.value, "npm run build");
                 assert!(action.value.shell.as_ref().unwrap().value);
-                assert_eq!(action.value.working_dir.as_ref().unwrap().value, "/app");
+                assert_eq!(action.value.cwd.as_ref().unwrap().value, "/app");
                 assert_eq!(action.value.timeout_ms.as_ref().unwrap().value, 30000);
                 let env = action.value.env.as_ref().unwrap();
                 assert!(env.value.values().any(|v| v.value == "production"));
@@ -1755,8 +1912,7 @@ tasks:
       tool: novanet_context
       mcp: novanet
       params:
-        mode: "page"
-        focus_key: "qr-code"
+        entity: "qr-code"
         locale: "fr-FR"
 "#;
         let workflow = parse(yaml, FileId(0)).unwrap();
@@ -1794,7 +1950,7 @@ tasks:
                 let tools = action.value.tools.as_ref().unwrap();
                 assert_eq!(tools.value.len(), 2);
                 assert_eq!(tools.value[0].value, "nika:read");
-                assert_eq!(action.value.max_iterations.as_ref().unwrap().value, 10);
+                assert_eq!(action.value.max_turns.as_ref().unwrap().value, 10);
             }
             _ => panic!("Expected Agent action"),
         }
@@ -1823,7 +1979,7 @@ tasks:
     }
 
     #[test]
-    fn test_parse_agent_goal_legacy_fallback() {
+    fn test_parse_agent_goal_removed() {
         let yaml = r#"
 schema: "nika/workflow@0.12"
 tasks:
@@ -1832,16 +1988,11 @@ tasks:
       goal: "Legacy goal syntax"
       max_turns: 5
 "#;
-        let workflow = parse(yaml, FileId(0)).unwrap();
-        let task = workflow.get_task("research").unwrap();
-
-        match &task.value.action {
-            Some(RawTaskAction::Agent(action)) => {
-                // Legacy `goal:` should still work as fallback
-                assert_eq!(action.value.prompt.value, "Legacy goal syntax");
-            }
-            _ => panic!("Expected Agent action"),
-        }
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_err(), "goal alias should be rejected");
+        let err = result.unwrap_err();
+        assert_eq!(err.kind, ParseErrorKind::MissingField);
+        assert!(err.message.contains("prompt"));
     }
 
     // =========================================================================
@@ -2055,7 +2206,7 @@ tasks:
         let for_each = task.value.for_each.as_ref().unwrap();
         assert!(for_each.value.items.value.contains("["));
         assert_eq!(for_each.value.as_var.as_ref().unwrap().value, "item");
-        assert_eq!(for_each.value.parallel.as_ref().unwrap().value, 3);
+        assert_eq!(for_each.value.concurrency.as_ref().unwrap().value, 3);
     }
 
     #[test]
@@ -2550,5 +2701,85 @@ tasks:
 "#;
         let result = parse(yaml, FileId(0));
         assert!(result.is_ok(), "image_url should parse: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_parse_infer_with_guardrails() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: summarize
+    infer:
+      prompt: "Summarize this article"
+      guardrails:
+        - type: length
+          min_words: 50
+          max_words: 200
+        - type: regex
+          pattern: "^Summary:"
+          message: "Output must start with 'Summary:'"
+"#;
+        let workflow = parse(yaml, FileId(0)).unwrap();
+        let task = workflow.get_task("summarize").unwrap();
+
+        match &task.value.action {
+            Some(RawTaskAction::Infer(action)) => {
+                assert_eq!(action.value.prompt.value, "Summarize this article");
+                assert_eq!(action.value.guardrails.len(), 2);
+                assert_eq!(action.value.guardrails[0].guardrail_type(), "length");
+                assert_eq!(action.value.guardrails[1].guardrail_type(), "regex");
+            }
+            _ => panic!("Expected Infer action"),
+        }
+    }
+
+    #[test]
+    fn test_parse_infer_shorthand_no_guardrails() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: quick
+    infer: "Generate a headline"
+"#;
+        let workflow = parse(yaml, FileId(0)).unwrap();
+        let task = workflow.get_task("quick").unwrap();
+
+        match &task.value.action {
+            Some(RawTaskAction::Infer(action)) => {
+                assert!(
+                    action.value.guardrails.is_empty(),
+                    "Shorthand infer should have no guardrails"
+                );
+            }
+            _ => panic!("Expected Infer action"),
+        }
+    }
+
+    #[test]
+    fn test_parse_infer_guardrails_on_failure_fail() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: strict
+    infer:
+      prompt: "Generate strict output"
+      guardrails:
+        - type: length
+          min_words: 10
+          on_failure: fail
+"#;
+        let workflow = parse(yaml, FileId(0)).unwrap();
+        let task = workflow.get_task("strict").unwrap();
+
+        match &task.value.action {
+            Some(RawTaskAction::Infer(action)) => {
+                assert_eq!(action.value.guardrails.len(), 1);
+                assert_eq!(
+                    action.value.guardrails[0].on_failure(),
+                    crate::ast::guardrails::OnFailure::Fail
+                );
+            }
+            _ => panic!("Expected Infer action"),
+        }
     }
 }

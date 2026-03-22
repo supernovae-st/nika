@@ -65,6 +65,12 @@ pub struct AnalyzedWorkflow {
     /// Reusable agent definitions (name → config)
     pub agents: Option<IndexMap<String, AgentDef>>,
 
+    /// Workflow-level skills mapping (alias -> file path)
+    ///
+    /// Carried from the `skills:` block in the workflow YAML.
+    /// Used by `TaskExecutor` to wire skill injection into agent loops.
+    pub skills_map: std::collections::HashMap<String, String>,
+
     /// Span of the entire workflow
     pub span: Span,
 }
@@ -86,6 +92,7 @@ impl Default for AnalyzedWorkflow {
             artifacts: None,
             log: None,
             agents: None,
+            skills_map: std::collections::HashMap::new(),
             span: Span::dummy(),
         }
     }

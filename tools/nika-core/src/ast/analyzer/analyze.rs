@@ -101,22 +101,27 @@ pub fn validate(raw: &RawWorkflow) -> AnalyzeResult<()> {
     let mut ctx = AnalyzerContext::new();
 
     // 1. Validate schema version
-    let _version = analyze_schema(raw, &mut ctx).unwrap_or(SchemaVersion::V12);
+    let version = analyze_schema(raw, &mut ctx).unwrap_or(SchemaVersion::V01);
 
-    // Semantic checks (not version-gated — apply to all @0.12 workflows)
-    validate_task_semantics(raw, &mut ctx);
+    // 2. Validate version-gated features
+    validate_feature_gates(raw, version, &mut ctx);
 
     // 2.5. Collect include prefixes (tasks with these prefixes are resolved post-analysis)
     collect_include_prefixes(raw, &mut ctx);
 
     // 2b. Validate model is specified when LLM verbs are used
     let has_workflow_model = raw.model.is_some();
-    let workflow_provider = raw.provider.as_ref().map(|p| p.value.as_str()).unwrap_or("");
+    let workflow_provider = raw
+        .provider
+        .as_ref()
+        .map(|p| p.value.as_str())
+        .unwrap_or("");
     for raw_task in &raw.tasks.value {
         let task = &raw_task.value;
-        let uses_llm = task.action.as_ref().is_some_and(|a| {
-            matches!(&a, RawTaskAction::Infer(_) | RawTaskAction::Agent(_))
-        });
+        let uses_llm = task
+            .action
+            .as_ref()
+            .is_some_and(|a| matches!(&a, RawTaskAction::Infer(_) | RawTaskAction::Agent(_)));
         let has_task_model = task.model.is_some();
         let provider_name = task
             .provider
@@ -215,8 +220,8 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
         workflow.schema_version = version;
     }
 
-    // 2. Semantic checks (retry warnings, etc.)
-    validate_task_semantics(&raw, &mut ctx);
+    // 2. Validate version-gated features
+    validate_feature_gates(&raw, workflow.schema_version, &mut ctx);
 
     // 3. Extract metadata
     workflow.name = raw.workflow.as_ref().map(|s| s.value.clone());
@@ -228,9 +233,10 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
     let has_workflow_model = workflow.model.is_some();
     for raw_task in &raw.tasks.value {
         let task = &raw_task.value;
-        let uses_llm = task.action.as_ref().is_some_and(|a| {
-            matches!(a, RawTaskAction::Infer(_) | RawTaskAction::Agent(_))
-        });
+        let uses_llm = task
+            .action
+            .as_ref()
+            .is_some_and(|a| matches!(a, RawTaskAction::Infer(_) | RawTaskAction::Agent(_)));
         let has_task_model = task.model.is_some();
 
         // Provider 'mock' is exempt (no real API calls)
@@ -353,6 +359,15 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
         }
     }
 
+    // 6d-ii. Carry workflow-level skills mapping (alias -> path)
+    if let Some(ref skills_spanned) = raw.skills {
+        for (alias_spanned, path_spanned) in &skills_spanned.value {
+            workflow
+                .skills_map
+                .insert(alias_spanned.value.clone(), path_spanned.value.clone());
+        }
+    }
+
     // 6e. Validate tasks array is non-empty
     if raw.tasks.value.is_empty() {
         ctx.errors.push(AnalyzeError::new(
@@ -377,11 +392,14 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
         }
     }
 
+    // Copy task table to workflow BEFORE cycle detection so that
+    // detect_cycles_dfs can resolve TaskId → name via workflow.task_table.
+    // Previously the table was copied AFTER detection, leaving it empty and
+    // producing error messages like "cyclic dependency detected: " with no names.
+    workflow.task_table = ctx.task_table.clone();
+
     // 9. Detect cyclic dependencies
     detect_cycles(&workflow, &mut ctx);
-
-    // Copy task table to workflow
-    workflow.task_table = ctx.task_table;
 
     // Build result
     if ctx.errors.is_empty() {
@@ -415,33 +433,169 @@ fn analyze_schema(raw: &RawWorkflow, ctx: &mut AnalyzerContext) -> Option<Schema
     }
 }
 
-/// Validate semantic constraints on tasks (not version-gated).
-fn validate_task_semantics(raw: &RawWorkflow, ctx: &mut AnalyzerContext) {
+/// Validate version-gated features.
+///
+/// Checks that features used in the workflow are available in the declared schema version.
+fn validate_feature_gates(raw: &RawWorkflow, version: SchemaVersion, ctx: &mut AnalyzerContext) {
+    let version_str = version.as_str();
+
+    // Check MCP servers
+    if let Some(ref mcp) = raw.mcp {
+        if !version.supports_mcp() {
+            ctx.add_error(AnalyzeError::unsupported_feature(
+                mcp.span,
+                "mcp",
+                version_str,
+                "nika/workflow@0.2",
+            ));
+        }
+    }
+
+    // Check context files
+    if let Some(ref context) = raw.context {
+        if !version.supports_context() {
+            ctx.add_error(AnalyzeError::unsupported_feature(
+                context.span,
+                "context",
+                version_str,
+                "nika/workflow@0.9",
+            ));
+        }
+    }
+
+    // Check imports
+    if let Some(ref imports) = raw.imports {
+        if !version.supports_imports() {
+            ctx.add_error(AnalyzeError::unsupported_feature(
+                imports.span,
+                "imports",
+                version_str,
+                "nika/workflow@0.12",
+            ));
+        }
+    }
+
+    // Check inputs
+    if let Some(ref inputs) = raw.inputs {
+        if !version.supports_inputs() {
+            ctx.add_error(AnalyzeError::unsupported_feature(
+                inputs.span,
+                "inputs",
+                version_str,
+                "nika/workflow@0.10",
+            ));
+        }
+    }
+
+    // Check task-level features
     for task in raw.tasks.value.iter() {
+        validate_task_feature_gates(&task.value, version, version_str, ctx);
+    }
+}
+
+/// Validate version-gated features in a task.
+fn validate_task_feature_gates(
+    task: &RawTask,
+    version: SchemaVersion,
+    version_str: &str,
+    ctx: &mut AnalyzerContext,
+) {
+    // Check for_each
+    if let Some(ref for_each) = task.for_each {
+        if !version.supports_for_each() {
+            ctx.add_error(AnalyzeError::unsupported_feature(
+                for_each.span,
+                "for_each",
+                version_str,
+                "nika/workflow@0.3",
+            ));
+        }
+    }
+
+    // Check retry
+    if let Some(ref retry) = task.retry {
+        if !version.supports_retry() {
+            ctx.add_error(AnalyzeError::unsupported_feature(
+                retry.span,
+                "retry",
+                version_str,
+                "nika/workflow@0.3",
+            ));
+        }
+
         // retry: is only effective on fetch: tasks — warn on other verbs
-        if let Some(ref retry) = task.value.retry {
-            if let Some(ref action) = task.value.action {
-                let verb_name = match action {
-                    RawTaskAction::Fetch(_) => None,
-                    RawTaskAction::Infer(_) => Some("infer"),
-                    RawTaskAction::Exec(_) => Some("exec"),
-                    RawTaskAction::Invoke(_) => Some("invoke"),
-                    RawTaskAction::Agent(_) => Some("agent"),
-                };
-                if let Some(verb_name) = verb_name {
-                    ctx.add_warning(
-                        AnalyzeError::new(
-                            AnalyzeErrorKind::InvalidValue,
-                            retry.span,
-                            format!(
-                                "'retry' has no effect on '{}' tasks (only 'fetch' supports retry)",
-                                verb_name
-                            ),
-                        )
-                        .with_suggestion("move retry to a fetch task, or remove it"),
-                    );
+        if let Some(ref action) = task.action {
+            let verb_name = match action {
+                RawTaskAction::Fetch(_) => None,
+                RawTaskAction::Infer(_) => Some("infer"),
+                RawTaskAction::Exec(_) => Some("exec"),
+                RawTaskAction::Invoke(_) => Some("invoke"),
+                RawTaskAction::Agent(_) => Some("agent"),
+            };
+            if let Some(verb_name) = verb_name {
+                ctx.add_warning(
+                    AnalyzeError::new(
+                        AnalyzeErrorKind::InvalidValue,
+                        retry.span,
+                        format!(
+                            "'retry' has no effect on '{}' tasks (only 'fetch' supports retry)",
+                            verb_name
+                        ),
+                    )
+                    .with_suggestion("move retry to a fetch task, or remove it"),
+                );
+            }
+        }
+    }
+
+    // Check with: bindings
+    if let Some(ref with_refs) = task.with_refs {
+        if !version.supports_with() {
+            ctx.add_error(AnalyzeError::unsupported_feature(
+                with_refs.span,
+                "with",
+                version_str,
+                "nika/workflow@0.12",
+            ));
+        }
+    }
+
+    // Check depends_on:
+    if let Some(ref depends_on) = task.depends_on {
+        if !version.supports_depends_on() {
+            ctx.add_error(AnalyzeError::unsupported_feature(
+                depends_on.span,
+                "depends_on",
+                version_str,
+                "nika/workflow@0.12",
+            ));
+        }
+    }
+
+    // Check invoke/agent verbs
+    if let Some(ref action) = task.action {
+        match action {
+            RawTaskAction::Invoke(invoke) => {
+                if !version.supports_invoke_agent() {
+                    ctx.add_error(AnalyzeError::unsupported_feature(
+                        invoke.span,
+                        "invoke verb",
+                        version_str,
+                        "nika/workflow@0.2",
+                    ));
                 }
             }
+            RawTaskAction::Agent(agent) => {
+                if !version.supports_invoke_agent() {
+                    ctx.add_error(AnalyzeError::unsupported_feature(
+                        agent.span,
+                        "agent verb",
+                        version_str,
+                        "nika/workflow@0.2",
+                    ));
+                }
+            }
+            _ => {}
         }
     }
 }
@@ -510,7 +664,7 @@ fn analyze_task(
 
     // Analyze action
     if let Some(ref action) = raw.action {
-        task.action = analyze_action(action);
+        task.action = analyze_action(action, ctx);
 
         // Merge agent-block provider/model into task if not set at task level
         if let RawTaskAction::Agent(ref agent_spanned) = action {
@@ -606,13 +760,13 @@ fn analyze_task(
 }
 
 /// Analyze task action.
-fn analyze_action(raw: &RawTaskAction) -> AnalyzedTaskAction {
+fn analyze_action(raw: &RawTaskAction, ctx: &mut AnalyzerContext) -> AnalyzedTaskAction {
     match raw {
         RawTaskAction::Infer(s) => AnalyzedTaskAction::Infer(analyze_infer(&s.value)),
         RawTaskAction::Exec(s) => AnalyzedTaskAction::Exec(analyze_shell_cmd(&s.value)),
-        RawTaskAction::Fetch(s) => AnalyzedTaskAction::Fetch(analyze_fetch(&s.value)),
+        RawTaskAction::Fetch(s) => AnalyzedTaskAction::Fetch(analyze_fetch(&s.value, ctx)),
         RawTaskAction::Invoke(s) => AnalyzedTaskAction::Invoke(analyze_invoke(&s.value)),
-        RawTaskAction::Agent(s) => AnalyzedTaskAction::Agent(analyze_agent(&s.value)),
+        RawTaskAction::Agent(s) => AnalyzedTaskAction::Agent(Box::new(analyze_agent(&s.value))),
     }
 }
 
@@ -624,12 +778,14 @@ fn analyze_infer(raw: &RawInferAction) -> AnalyzedInferAction {
         system: raw.system.as_ref().map(|s| s.value.clone()),
         temperature: raw.temperature.as_ref().map(|s| s.value),
         max_tokens: raw.max_tokens.as_ref().map(|s| s.value),
-        thinking: raw.thinking.as_ref().map(|s| s.value),
+        extended_thinking: raw.extended_thinking.as_ref().map(|s| s.value),
         thinking_budget: raw.thinking_budget.as_ref().map(|s| s.value),
         content: raw
             .content
             .as_ref()
             .map(|spanned| spanned.value.iter().map(analyze_content_part).collect()),
+        response_format: raw.response_format.as_ref().map(|s| s.value.clone()),
+        guardrails: raw.guardrails.clone(),
         span: raw.prompt.span,
     }
 }
@@ -638,7 +794,7 @@ fn analyze_shell_cmd(raw: &RawExecAction) -> AnalyzedExecAction {
     AnalyzedExecAction {
         command: raw.command.value.clone(),
         shell: raw.shell.as_ref().map(|s| s.value).unwrap_or(false),
-        working_dir: raw.working_dir.as_ref().map(|s| s.value.clone()),
+        cwd: raw.cwd.as_ref().map(|s| s.value.clone()),
         env: raw
             .env
             .as_ref()
@@ -654,12 +810,25 @@ fn analyze_shell_cmd(raw: &RawExecAction) -> AnalyzedExecAction {
     }
 }
 
-fn analyze_fetch(raw: &RawFetchAction) -> AnalyzedFetchAction {
-    let method = raw
-        .method
-        .as_ref()
-        .and_then(|s| HttpMethod::parse(&s.value))
-        .unwrap_or(HttpMethod::Get);
+fn analyze_fetch(raw: &RawFetchAction, ctx: &mut AnalyzerContext) -> AnalyzedFetchAction {
+    let method = match raw.method.as_ref() {
+        Some(s) if !s.value.is_empty() => match HttpMethod::parse(&s.value) {
+            Some(m) => m,
+            None => {
+                ctx.add_warning(AnalyzeError::new(
+                    AnalyzeErrorKind::InvalidValue,
+                    s.span,
+                    format!(
+                        "unknown HTTP method '{}', defaulting to GET. \
+                         Valid methods: GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS",
+                        s.value
+                    ),
+                ));
+                HttpMethod::Get
+            }
+        },
+        _ => HttpMethod::Get,
+    };
 
     AnalyzedFetchAction {
         url: raw.url.value.clone(),
@@ -711,7 +880,7 @@ fn analyze_agent(raw: &RawAgentAction) -> AnalyzedAgentAction {
             .as_ref()
             .map(|s| s.value.iter().map(|v| v.value.clone()).collect())
             .unwrap_or_default(),
-        max_iterations: raw.max_iterations.as_ref().map(|s| s.value),
+        max_turns: raw.max_turns.as_ref().map(|s| s.value),
         max_tokens: raw.max_tokens.as_ref().map(|s| s.value),
         from: raw.from.as_ref().map(|s| s.value.clone()),
         skills: raw
@@ -730,6 +899,16 @@ fn analyze_agent(raw: &RawAgentAction) -> AnalyzedAgentAction {
         extended_thinking: raw.extended_thinking.as_ref().map(|s| s.value),
         thinking_budget: raw.thinking_budget.as_ref().map(|s| s.value),
         depth_limit: raw.depth_limit.as_ref().map(|s| s.value),
+        tool_choice: raw.tool_choice.as_ref().map(|s| s.value.clone()),
+        stop_sequences: raw
+            .stop_sequences
+            .as_ref()
+            .map(|s| s.value.iter().map(|v| v.value.clone()).collect())
+            .unwrap_or_default(),
+        scope: raw.scope.as_ref().map(|s| s.value.clone()),
+        guardrails: raw.guardrails.clone(),
+        completion: raw.completion.clone(),
+        limits: raw.limits.clone(),
         span: raw.prompt.span,
     }
 }
@@ -747,6 +926,8 @@ fn analyze_output(
     AnalyzedOutput {
         format,
         schema: raw.schema.as_ref().map(|s| s.value.clone()),
+        schema_ref: raw.schema_ref.as_ref().map(|s| s.value.clone()),
+        max_retries: raw.max_retries.as_ref().map(|s| s.value),
         span: raw.format.as_ref().map(|s| s.span).unwrap_or(Span::dummy()),
     }
 }
@@ -833,7 +1014,7 @@ fn analyze_for_each(raw: &crate::ast::raw::RawForEach, span: Span) -> AnalyzedFo
             .as_ref()
             .map(|s| s.value.clone())
             .unwrap_or_else(|| "item".to_string()),
-        parallel: Some(raw.parallel.as_ref().map(|s| s.value).unwrap_or(1)),
+        concurrency: Some(raw.concurrency.as_ref().map(|s| s.value).unwrap_or(1)),
         fail_fast: raw.fail_fast.as_ref().map(|s| s.value).unwrap_or(true),
         span,
     }
@@ -1612,6 +1793,300 @@ mod tests {
     }
 
     // ====================================================================
+    // Feature gating tests
+    // ====================================================================
+
+    #[test]
+    fn test_feature_gate_for_each_v01_fails() {
+        use crate::ast::raw::RawForEach;
+
+        let mut task = make_raw_task("task1");
+        task.for_each = Some(Spanned::new(
+            RawForEach {
+                items: Spanned::new("[\"a\", \"b\"]".to_string(), make_span(0, 10)),
+                as_var: None,
+                concurrency: None,
+                fail_fast: None,
+            },
+            make_span(0, 50),
+        ));
+
+        // Using v0.1 which doesn't support for_each
+        let raw = make_raw_workflow("nika/workflow@0.1", vec![task]);
+        let result = analyze(raw);
+
+        assert!(result.is_err());
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.kind == AnalyzeErrorKind::UnsupportedFeature));
+        assert!(result.errors[0].message.contains("for_each"));
+    }
+
+    #[test]
+    fn test_feature_gate_for_each_v03_succeeds() {
+        use crate::ast::raw::RawForEach;
+
+        let mut task = make_raw_task("task1");
+        task.for_each = Some(Spanned::new(
+            RawForEach {
+                items: Spanned::new("[\"a\", \"b\"]".to_string(), make_span(0, 10)),
+                as_var: None,
+                concurrency: None,
+                fail_fast: None,
+            },
+            make_span(0, 50),
+        ));
+
+        // Using v0.3 which supports for_each
+        let raw = make_raw_workflow("nika/workflow@0.3", vec![task]);
+        let result = analyze(raw);
+
+        // Should not have UnsupportedFeature errors
+        assert!(!result
+            .errors
+            .iter()
+            .any(|e| e.kind == AnalyzeErrorKind::UnsupportedFeature));
+    }
+
+    #[test]
+    fn test_feature_gate_retry_v02_fails() {
+        use crate::ast::raw::RawRetryConfig;
+
+        let mut task = make_raw_task("task1");
+        task.retry = Some(Spanned::new(
+            RawRetryConfig {
+                max_attempts: Some(Spanned::new(3, make_span(0, 1))),
+                delay_ms: None,
+                backoff: None,
+            },
+            make_span(0, 30),
+        ));
+
+        // Using v0.2 which doesn't support retry
+        let raw = make_raw_workflow("nika/workflow@0.2", vec![task]);
+        let result = analyze(raw);
+
+        assert!(result.is_err());
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.kind == AnalyzeErrorKind::UnsupportedFeature));
+        assert!(result.errors[0].message.contains("retry"));
+    }
+
+    #[test]
+    fn test_feature_gate_invoke_v01_fails() {
+        use crate::ast::raw::RawInvokeAction;
+
+        let mut task = make_raw_task("task1");
+        task.action = Some(RawTaskAction::Invoke(Spanned::new(
+            RawInvokeAction {
+                tool: Spanned::new("novanet:search".to_string(), make_span(0, 14)),
+                mcp: None,
+                params: None,
+                timeout_ms: None,
+            },
+            make_span(0, 50),
+        )));
+
+        // Using v0.1 which doesn't support invoke
+        let raw = make_raw_workflow("nika/workflow@0.1", vec![task]);
+        let result = analyze(raw);
+
+        assert!(result.is_err());
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.kind == AnalyzeErrorKind::UnsupportedFeature));
+        assert!(result.errors[0].message.contains("invoke"));
+    }
+
+    #[test]
+    fn test_feature_gate_agent_v01_fails() {
+        use crate::ast::raw::RawAgentAction;
+
+        let mut task = make_raw_task("task1");
+        task.action = Some(RawTaskAction::Agent(Box::new(Spanned::new(
+            RawAgentAction {
+                prompt: Spanned::new("Do something".to_string(), make_span(0, 12)),
+                tools: None,
+                max_turns: None,
+                max_tokens: None,
+                from: None,
+                skills: None,
+                provider: None,
+                model: None,
+                mcp: None,
+                system: None,
+                temperature: None,
+                token_budget: None,
+                extended_thinking: None,
+                thinking_budget: None,
+                depth_limit: None,
+                tool_choice: None,
+                stop_sequences: None,
+                scope: None,
+                guardrails: Vec::new(),
+                completion: None,
+                limits: None,
+            },
+            make_span(0, 50),
+        ))));
+
+        // Using v0.1 which doesn't support agent
+        let raw = make_raw_workflow("nika/workflow@0.1", vec![task]);
+        let result = analyze(raw);
+
+        assert!(result.is_err());
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.kind == AnalyzeErrorKind::UnsupportedFeature));
+        assert!(result.errors[0].message.contains("agent"));
+    }
+
+    #[test]
+    fn test_feature_gate_with_v11_fails() {
+        let mut task = make_raw_task("task1");
+        add_with_ref(&mut task, "data", "$other");
+
+        // Doesn't support with:
+        let raw = make_raw_workflow("nika/workflow@0.11", vec![task]);
+        let result = analyze(raw);
+
+        assert!(result.is_err());
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.kind == AnalyzeErrorKind::UnsupportedFeature));
+    }
+
+    #[test]
+    fn test_feature_gate_depends_on_v11_fails() {
+        let mut task = make_raw_task("task1");
+        add_depends_on(&mut task, &["other"]);
+
+        // Doesn't support depends_on:
+        let raw = make_raw_workflow("nika/workflow@0.11", vec![task]);
+        let result = analyze(raw);
+
+        assert!(result.is_err());
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.kind == AnalyzeErrorKind::UnsupportedFeature));
+    }
+
+    #[test]
+    fn test_feature_gate_imports_v11_fails() {
+        use crate::ast::raw::RawImportSpec;
+
+        let mut raw = make_raw_workflow("nika/workflow@0.11", vec![make_raw_task("task1")]);
+        raw.imports = Some(Spanned::new(
+            vec![Spanned::new(
+                RawImportSpec {
+                    path: Spanned::new("./setup.nika.yaml".to_string(), make_span(0, 17)),
+                    prefix: None,
+                    span: make_span(0, 20),
+                },
+                make_span(0, 20),
+            )],
+            make_span(0, 30),
+        ));
+
+        let result = analyze(raw);
+
+        assert!(result.is_err());
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.kind == AnalyzeErrorKind::UnsupportedFeature));
+    }
+
+    #[test]
+    fn test_feature_gate_multiple_errors() {
+        use crate::ast::raw::{RawAgentAction, RawForEach};
+
+        let mut task = make_raw_task("task1");
+
+        // Add both for_each and agent action
+        task.for_each = Some(Spanned::new(
+            RawForEach {
+                items: Spanned::new("[\"a\"]".to_string(), make_span(0, 5)),
+                as_var: None,
+                concurrency: None,
+                fail_fast: None,
+            },
+            make_span(0, 30),
+        ));
+        task.action = Some(RawTaskAction::Agent(Box::new(Spanned::new(
+            RawAgentAction {
+                prompt: Spanned::new("Goal".to_string(), make_span(0, 4)),
+                tools: None,
+                max_turns: None,
+                max_tokens: None,
+                from: None,
+                skills: None,
+                provider: None,
+                model: None,
+                mcp: None,
+                system: None,
+                temperature: None,
+                token_budget: None,
+                extended_thinking: None,
+                thinking_budget: None,
+                depth_limit: None,
+                tool_choice: None,
+                stop_sequences: None,
+                scope: None,
+                guardrails: Vec::new(),
+                completion: None,
+                limits: None,
+            },
+            make_span(0, 50),
+        ))));
+
+        // Using v0.1 which doesn't support either
+        let raw = make_raw_workflow("nika/workflow@0.1", vec![task]);
+        let result = analyze(raw);
+
+        // Should have multiple UnsupportedFeature errors
+        let feature_errors: Vec<_> = result
+            .errors
+            .iter()
+            .filter(|e| e.kind == AnalyzeErrorKind::UnsupportedFeature)
+            .collect();
+        assert_eq!(feature_errors.len(), 2);
+    }
+
+    #[test]
+    fn test_feature_gate_error_message_format() {
+        use crate::ast::raw::RawForEach;
+
+        let mut task = make_raw_task("task1");
+        task.for_each = Some(Spanned::new(
+            RawForEach {
+                items: Spanned::new("[\"x\"]".to_string(), make_span(0, 5)),
+                as_var: None,
+                concurrency: None,
+                fail_fast: None,
+            },
+            make_span(0, 30),
+        ));
+
+        let raw = make_raw_workflow("nika/workflow@0.1", vec![task]);
+        let result = analyze(raw);
+
+        assert!(result.is_err());
+        let err = &result.errors[0];
+        assert!(err.message.contains("requires schema version"));
+        assert!(err.message.contains("nika/workflow@0.3"));
+        assert!(err.message.contains("nika/workflow@0.1"));
+        assert!(err.suggestion.as_ref().unwrap().contains("upgrade"));
+    }
+
+    // ====================================================================
     // Metadata extraction
     // ====================================================================
 
@@ -1776,6 +2251,30 @@ mod tests {
             .any(|e| e.kind == AnalyzeErrorKind::CyclicDependency));
     }
 
+    #[test]
+    fn test_validate_feature_gate() {
+        use crate::ast::raw::RawForEach;
+
+        let mut task = make_raw_task("task1");
+        task.for_each = Some(Spanned::new(
+            RawForEach {
+                items: Spanned::new("[\"a\"]".to_string(), make_span(0, 5)),
+                as_var: None,
+                concurrency: None,
+                fail_fast: None,
+            },
+            make_span(0, 30),
+        ));
+
+        let raw = make_raw_workflow("nika/workflow@0.1", vec![task]);
+        let result = validate(&raw);
+
+        assert!(result.is_err());
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.kind == AnalyzeErrorKind::UnsupportedFeature));
+    }
 
     #[test]
     fn test_validate_agrees_with_analyze() {
@@ -2199,7 +2698,7 @@ mod tests {
     #[test]
     fn test_context_files_transferred_to_analyzed() {
         let task = make_raw_task("greet");
-        let mut raw = make_raw_workflow("nika/workflow@0.12", vec![task]);
+        let mut raw = make_raw_workflow("nika/workflow@0.9", vec![task]);
 
         // Add context with two files
         let mut files = IndexMap::new();

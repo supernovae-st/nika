@@ -58,6 +58,12 @@ pub struct RawWorkflow {
     /// Reusable agent definitions
     pub agents: Option<Spanned<serde_json::Value>>,
 
+    /// Workflow-level skills mapping (alias -> file path)
+    ///
+    /// Parsed from `skills:` block at workflow root. Maps skill aliases to
+    /// file paths (local or `pkg:` URIs) for prompt augmentation.
+    pub skills: Option<Spanned<indexmap::IndexMap<Spanned<String>, Spanned<String>>>>,
+
     /// Task definitions (order matters for implicit flow)
     pub tasks: Spanned<Vec<Spanned<RawTask>>>,
 

@@ -835,7 +835,6 @@ fn unlower_mcp_servers(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::analyzed::*;
     use crate::ast::schema::SchemaVersion;
     use crate::binding::WithSpec;
     use crate::source::Span;

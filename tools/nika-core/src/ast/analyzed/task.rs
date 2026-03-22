@@ -103,7 +103,7 @@ pub enum AnalyzedTaskAction {
     Invoke(AnalyzedInvokeAction),
 
     /// Autonomous agent
-    Agent(AnalyzedAgentAction),
+    Agent(Box<AnalyzedAgentAction>),
 }
 
 impl Default for AnalyzedTaskAction {
@@ -141,13 +141,19 @@ pub struct AnalyzedInferAction {
     pub max_tokens: Option<u32>,
 
     /// Enable extended thinking
-    pub thinking: Option<bool>,
+    pub extended_thinking: Option<bool>,
 
     /// Thinking budget tokens
     pub thinking_budget: Option<u32>,
 
     /// Multimodal content parts for vision (analyzed, spans stripped)
     pub content: Option<Vec<crate::ast::content::AnalyzedContentPart>>,
+
+    /// Expected response format: text, json, markdown
+    pub response_format: Option<String>,
+
+    /// Guardrails for validating infer output
+    pub guardrails: Vec<crate::ast::guardrails::GuardrailConfig>,
 
     /// Span of the action
     pub span: Span,
@@ -163,7 +169,7 @@ pub struct AnalyzedExecAction {
     pub shell: bool,
 
     /// Working directory
-    pub working_dir: Option<String>,
+    pub cwd: Option<String>,
 
     /// Environment variables
     pub env: IndexMap<String, String>,
@@ -282,8 +288,8 @@ pub struct AnalyzedAgentAction {
     /// Available tools
     pub tools: Vec<String>,
 
-    /// Maximum iterations
-    pub max_iterations: Option<u32>,
+    /// Maximum turns
+    pub max_turns: Option<u32>,
 
     /// Maximum tokens per response
     pub max_tokens: Option<u32>,
@@ -315,6 +321,21 @@ pub struct AnalyzedAgentAction {
     /// Max spawn_agent recursion depth
     pub depth_limit: Option<u32>,
 
+    /// Tool choice behavior: auto, required, none
+    pub tool_choice: Option<String>,
+
+    /// Sequences that stop generation (passed to LLM)
+    pub stop_sequences: Vec<String>,
+
+    /// Scope preset (full, minimal, debug)
+    pub scope: Option<String>,
+    /// Guardrails for validating agent outputs.
+    pub guardrails: Vec<crate::ast::guardrails::GuardrailConfig>,
+    /// Completion behavior configuration.
+    pub completion: Option<crate::ast::completion::CompletionConfig>,
+    /// Execution limits for cost control.
+    pub limits: Option<crate::ast::limits::LimitsConfig>,
+
     /// Span of the action
     pub span: Span,
 }
@@ -327,6 +348,12 @@ pub struct AnalyzedOutput {
 
     /// JSON Schema for validation (validated)
     pub schema: Option<serde_json::Value>,
+
+    /// Schema reference: file path or named ref (from `schema_ref:` / `$ref:`)
+    pub schema_ref: Option<String>,
+
+    /// Maximum retries on validation failure
+    pub max_retries: Option<u32>,
 
     /// Span of the output config
     pub span: Span,
@@ -372,7 +399,7 @@ pub struct AnalyzedForEach {
     pub as_var: String,
 
     /// Maximum concurrency (None = unlimited)
-    pub parallel: Option<u32>,
+    pub concurrency: Option<u32>,
 
     /// Fail fast on first error (default: true)
     pub fail_fast: bool,
@@ -386,7 +413,7 @@ impl Default for AnalyzedForEach {
         Self {
             items: String::new(),
             as_var: "item".to_string(),
-            parallel: Some(1), // Default to sequential
+            concurrency: Some(1), // Default to sequential
             fail_fast: true,
             span: Span::dummy(),
         }
@@ -514,7 +541,7 @@ mod tests {
     fn test_analyzed_for_each_default() {
         let for_each = AnalyzedForEach::default();
         assert_eq!(for_each.as_var, "item");
-        assert_eq!(for_each.parallel, Some(1)); // Sequential by default
+        assert_eq!(for_each.concurrency, Some(1)); // Sequential by default
         assert!(for_each.fail_fast);
     }
 

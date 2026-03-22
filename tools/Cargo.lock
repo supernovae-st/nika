@@ -5410,6 +5410,7 @@ dependencies = [
  "miette",
  "pretty_assertions",
  "proptest",
+ "regex",
  "rustc-hash 2.1.1",
  "semver",
  "serde",

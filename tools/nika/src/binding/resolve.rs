@@ -46,9 +46,9 @@ use super::jsonpath;
 use crate::error::NikaError;
 use crate::store::RunContext;
 
-use super::entry::{BindingEntry, BindingSpec, WithEntry, WithSpec};
 use super::transform::TransformExpr;
 use super::types::{BindingPath, BindingSource, BindingType, PathSegment};
+use super::{BindingEntry, BindingSpec, WithEntry, WithSpec};
 
 /// Lazy binding state - either resolved or pending
 ///
@@ -2612,7 +2612,7 @@ mod tests {
 
     #[test]
     fn source_task_id_from_binding_spec() {
-        use crate::binding::entry::BindingEntry;
+        use crate::binding::BindingEntry;
 
         let mut spec = BindingSpec::default();
         spec.insert("forecast".to_string(), BindingEntry::new("weather.summary"));
@@ -2686,7 +2686,7 @@ mod tests {
 
     #[test]
     fn binding_spec_resolves_invoke_output_hash() {
-        use crate::binding::entry::BindingEntry;
+        use crate::binding::BindingEntry;
 
         let store = store_with_media_chain();
         let mut spec = BindingSpec::default();
@@ -2700,7 +2700,7 @@ mod tests {
 
     #[test]
     fn binding_spec_resolves_invoke_output_nested_metadata() {
-        use crate::binding::entry::BindingEntry;
+        use crate::binding::BindingEntry;
 
         let store = store_with_media_chain();
         let mut spec = BindingSpec::default();
@@ -2717,7 +2717,7 @@ mod tests {
 
     #[test]
     fn binding_spec_resolves_invoke_output_mime_type() {
-        use crate::binding::entry::BindingEntry;
+        use crate::binding::BindingEntry;
 
         let store = store_with_media_chain();
         let mut spec = BindingSpec::default();
@@ -2735,7 +2735,7 @@ mod tests {
 
     #[test]
     fn binding_spec_resolves_media_ref_hash() {
-        use crate::binding::entry::BindingEntry;
+        use crate::binding::BindingEntry;
 
         let store = store_with_media_chain();
         let mut spec = BindingSpec::default();
@@ -2752,7 +2752,7 @@ mod tests {
 
     #[test]
     fn binding_spec_resolves_media_ref_enriched_width() {
-        use crate::binding::entry::BindingEntry;
+        use crate::binding::BindingEntry;
 
         let store = store_with_media_chain();
         let mut spec = BindingSpec::default();
@@ -2769,7 +2769,7 @@ mod tests {
 
     #[test]
     fn binding_spec_resolves_media_ref_mime_type() {
-        use crate::binding::entry::BindingEntry;
+        use crate::binding::BindingEntry;
 
         let store = store_with_media_chain();
         let mut spec = BindingSpec::default();
@@ -2785,7 +2785,7 @@ mod tests {
 
     #[test]
     fn binding_spec_resolves_media_full_array() {
-        use crate::binding::entry::BindingEntry;
+        use crate::binding::BindingEntry;
 
         let store = store_with_media_chain();
         let mut spec = BindingSpec::default();
@@ -2803,7 +2803,7 @@ mod tests {
 
     #[test]
     fn binding_spec_chained_gen_media_and_thumb_output() {
-        use crate::binding::entry::BindingEntry;
+        use crate::binding::BindingEntry;
 
         let store = store_with_media_chain();
         let mut spec = BindingSpec::default();
@@ -2841,7 +2841,7 @@ mod tests {
 
     #[test]
     fn binding_spec_lazy_media_ref_resolves_on_access() {
-        use crate::binding::entry::BindingEntry;
+        use crate::binding::BindingEntry;
 
         let store = store_with_media_chain();
         let mut spec = BindingSpec::default();

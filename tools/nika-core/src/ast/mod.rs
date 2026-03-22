@@ -48,8 +48,10 @@ pub mod content;
 // Type modules
 pub mod agent_def;
 pub mod artifact;
+pub mod completion;
 pub mod context;
 pub mod decompose;
+pub mod guardrails;
 pub mod include;
 pub mod limits;
 pub mod logging;
