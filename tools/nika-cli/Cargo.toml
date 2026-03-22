@@ -52,6 +52,10 @@ regex = { workspace = true }
 humantime = { workspace = true }
 infer = "0.19"
 
+# Interactive wizard
+cliclack = "0.5"
+console = "0.16"
+
 # Logging
 tracing = { workspace = true }
 

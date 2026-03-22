@@ -4,6 +4,7 @@
 //! TUI-dependent handlers (provider, new_wizard) remain in the nika binary crate.
 
 pub mod course;
+pub mod init_wizard;
 pub mod trace;
 
 pub mod init;
