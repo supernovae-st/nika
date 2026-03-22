@@ -5,6 +5,7 @@
 
 // Re-export all non-TUI handlers from nika-cli
 pub use nika_cli::config;
+pub use nika_cli::course;
 pub use nika_cli::doctor;
 pub use nika_cli::init;
 pub use nika_cli::mcp;

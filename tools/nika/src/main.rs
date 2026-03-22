@@ -222,6 +222,21 @@ enum Commands {
         /// Migrate API keys from environment variables to system keychain
         #[arg(long)]
         migrate_keys: bool,
+
+        /// Generate interactive course files (12 levels, 44 exercises)
+        #[arg(long)]
+        course: bool,
+
+        /// Minimal init (config only, no examples)
+        #[arg(long)]
+        minimal: bool,
+    },
+
+    /// Interactive learning course
+    #[command(visible_alias = "learn")]
+    Course {
+        #[command(subcommand)]
+        action: cli::course::CourseAction,
     },
 
     /// Manage execution traces
@@ -712,7 +727,11 @@ async fn main() {
             permission,
             no_example,
             migrate_keys,
-        }) => cli::init::init_project(&permission, no_example, migrate_keys),
+            course: _course_flag,
+            minimal,
+        }) => cli::init::init_project(&permission, no_example || minimal, migrate_keys),
+
+        Some(Commands::Course { action }) => cli::course::handle_course_command(action),
 
         Some(Commands::Trace { action }) => cli::trace::handle_trace_command(action),
 
