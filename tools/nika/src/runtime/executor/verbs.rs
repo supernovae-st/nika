@@ -410,10 +410,24 @@ impl TaskExecutor {
                                 }
                             }
                             Err(e) => {
+                                // BUG 10: MaxTurnError(0) is an expected skip, not a real error.
+                                // This happens when the provider doesn't support tool_choice
+                                // or when structured output uses a fast-path bypass.
+                                let err_str = e.to_string();
+                                let is_expected_skip = err_str.contains("MaxTurnError")
+                                    || err_str.contains("max turn limit: 0");
+                                let error_msg = if is_expected_skip {
+                                    "tool injection skipped (not supported by provider)".to_string()
+                                } else {
+                                    err_str
+                                };
+
                                 debug!(
                                     task_id = %task_id,
-                                    error = %e,
-                                    "Layer 0 failed, falling through to streaming"
+                                    error = %error_msg,
+                                    skipped = is_expected_skip,
+                                    "Layer 0 {}, falling through to streaming",
+                                    if is_expected_skip { "skipped" } else { "failed" }
                                 );
                                 self.event_log.emit(EventKind::StructuredOutputAttempt {
                                     task_id: Arc::clone(task_id),
@@ -421,7 +435,7 @@ impl TaskExecutor {
                                     layer_name: "tool_injection".to_string(),
                                     attempt: 1,
                                     success: false,
-                                    error: Some(e.to_string()),
+                                    error: Some(error_msg),
                                 });
                                 // Fall through to streaming path
                             }
