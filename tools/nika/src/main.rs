@@ -310,6 +310,12 @@ enum Commands {
     /// Show compiled feature flags and capabilities
     Features,
 
+    /// Browse and extract showcase workflows
+    Showcase {
+        #[command(subcommand)]
+        action: cli::showcase::ShowcaseAction,
+    },
+
     /// Check system health and diagnose issues
     #[command(visible_alias = "d")]
     Doctor {
@@ -787,6 +793,10 @@ async fn main() {
         Some(Commands::Features) => {
             print_features();
             Ok(())
+        }
+
+        Some(Commands::Showcase { action }) => {
+            cli::showcase::handle_showcase_command(action, quiet)
         }
 
         Some(Commands::Doctor { full, format }) => {

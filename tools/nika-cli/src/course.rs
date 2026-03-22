@@ -2,7 +2,9 @@
 //!
 //! 8 subcommands: status, next, check, hint, reset, run, info, watch
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::time::SystemTime;
 
 use clap::Subcommand;
 use colored::Colorize;
@@ -981,13 +983,107 @@ fn cmd_info(level_arg: Option<String>) -> Result<(), NikaError> {
     Ok(())
 }
 
-/// nika course watch — watch mode (placeholder)
+/// nika course watch — rustlings-style auto-check on file save
 fn cmd_watch() -> Result<(), NikaError> {
+    let root = find_course_root()?;
+    let progress = load_progress(&root)?;
+
+    let (level_num, _) = find_current_exercise(&progress)?;
+    let level = levels::by_number(level_num).ok_or_else(|| NikaError::ValidationError {
+        reason: format!("Level {} not found", level_num),
+    })?;
+
+    let level_dir = root.join(format!("{:02}-{}", level.number, level.slug));
+
+    if !level_dir.is_dir() {
+        return Err(NikaError::ValidationError {
+            reason: format!(
+                "Level directory not found: {}. Run `nika init --course` first.",
+                level_dir.display()
+            ),
+        });
+    }
+
     println!();
-    println!("  {} Watch mode coming in Phase 6.", "i".cyan().bold());
-    println!("  {}", "For now, use: nika course check <level>".dimmed());
+    println!(
+        "  {} Watching Level {:02}: {} for changes...",
+        ">>>".cyan().bold(),
+        level.number,
+        level.name.bold()
+    );
+    println!("  {}", level_dir.display().to_string().dimmed());
+    println!("  {}", "Press Ctrl+C to stop.".dimmed());
     println!();
-    Ok(())
+
+    let mut mtimes: HashMap<PathBuf, SystemTime> = HashMap::new();
+    seed_mtimes(&level_dir, &mut mtimes);
+
+    loop {
+        if let Some(changed_path) = scan_for_changes(&level_dir, &mut mtimes) {
+            print!("\x1b[2J\x1b[H");
+            println!();
+            println!(
+                "  {} File changed: {}",
+                ">>>".cyan().bold(),
+                changed_path
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .cyan()
+            );
+            println!();
+
+            // Re-run level checks (reuses cmd_check infrastructure + updates progress)
+            let _ = cmd_check(Some(level.number.to_string()));
+
+            println!("  {}", "Watching... Ctrl+C to stop".dimmed());
+        }
+
+        std::thread::sleep(std::time::Duration::from_millis(500));
+    }
+}
+
+fn seed_mtimes(level_dir: &Path, mtimes: &mut HashMap<PathBuf, SystemTime>) {
+    if let Ok(entries) = std::fs::read_dir(level_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if is_nika_yaml(&path) {
+                if let Ok(meta) = std::fs::metadata(&path) {
+                    if let Ok(mtime) = meta.modified() {
+                        mtimes.insert(path, mtime);
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn scan_for_changes(
+    level_dir: &Path,
+    mtimes: &mut HashMap<PathBuf, SystemTime>,
+) -> Option<PathBuf> {
+    let entries = std::fs::read_dir(level_dir).ok()?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !is_nika_yaml(&path) {
+            continue;
+        }
+        let mtime = match std::fs::metadata(&path).and_then(|m| m.modified()) {
+            Ok(t) => t,
+            Err(_) => continue,
+        };
+        let changed = mtimes.get(&path).is_none_or(|prev| *prev != mtime);
+        if changed {
+            mtimes.insert(path.clone(), mtime);
+            return Some(path);
+        }
+    }
+    None
+}
+
+fn is_nika_yaml(path: &Path) -> bool {
+    path.extension().is_some_and(|e| e == "yaml")
+        && path.to_string_lossy().ends_with(".nika.yaml")
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
