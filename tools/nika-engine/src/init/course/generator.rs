@@ -13,6 +13,7 @@ use crate::error::{NikaError, Result};
 
 use super::exercises::ExerciseContent;
 use super::levels::LEVELS;
+use super::missions;
 use super::progress::CourseProgress;
 
 /// Configuration for course generation
@@ -134,7 +135,7 @@ default = "{}"
         fs::create_dir_all(&solutions_dir).map_err(NikaError::IoError)?;
 
         // Write MISSION.md
-        let mission = generate_mission(level);
+        let mission = missions::get_mission(level.slug);
         fs::write(level_dir.join("MISSION.md"), mission).map_err(NikaError::IoError)?;
 
         // Write exercises for this level
@@ -181,70 +182,6 @@ fn substitute_placeholders(content: &str, config: &CourseConfig) -> String {
     content
         .replace("{{PROVIDER}}", &config.provider)
         .replace("{{MODEL}}", &config.model)
-}
-
-/// Generate MISSION.md content for a level
-fn generate_mission(level: &super::levels::Level) -> String {
-    let boss_tag = if level.boss { " — BOSS BATTLE \u{1f3f4}" } else { "" };
-
-    format!(
-        r#"# Level {:02} — {}{boss_tag}
-
-> {}
-
-## What You'll Learn
-
-This level has {} exercises that teach you:
-{}
-
-## Exercises
-
-{}
-
-## Getting Started
-
-```bash
-# Check your progress
-nika course status
-
-# Validate your work
-nika course check {}
-
-# Need help?
-nika course hint
-```
-
-## When You're Done
-
-All exercises passing? Move on:
-
-```bash
-nika course next
-```
-
----
-
-*"Every workflow you master is a capability they kept for themselves. Not anymore."*
-"#,
-        level.number,
-        level.name,
-        level.description,
-        level.exercise_count,
-        format_features(level),
-        format_exercise_list(level),
-        level.number,
-    )
-}
-
-fn format_features(level: &super::levels::Level) -> String {
-    format!("- {}", level.description)
-}
-
-fn format_exercise_list(level: &super::levels::Level) -> String {
-    (1..=level.exercise_count)
-        .map(|n| format!("| {:02} | Exercise {:02} | ★ |", n, n))
-        .collect::<Vec<_>>()
-        .join("\n")
 }
 
 /// Generate course README.md
@@ -326,18 +263,16 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_mission() {
-        let level = &LEVELS[0];
-        let mission = generate_mission(level);
-        assert!(mission.contains("Level 01"));
+    fn test_get_mission_jailbreak() {
+        let mission = missions::get_mission("jailbreak");
         assert!(mission.contains("Jailbreak"));
-        assert!(mission.contains("exercises"));
+        assert!(mission.contains("What You'll Learn"));
+        assert!(mission.contains("Exercises"));
     }
 
     #[test]
-    fn test_generate_mission_boss() {
-        let level = &LEVELS[11]; // SuperNovae
-        let mission = generate_mission(level);
+    fn test_get_mission_boss() {
+        let mission = missions::get_mission("supernovae");
         assert!(mission.contains("BOSS BATTLE"));
         assert!(mission.contains("SuperNovae"));
     }

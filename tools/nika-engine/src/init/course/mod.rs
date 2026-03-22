@@ -10,4 +10,5 @@ pub mod exercises_advanced;
 pub mod generator;
 pub mod hints;
 pub mod levels;
+pub mod missions;
 pub mod progress;
