@@ -1,7 +1,7 @@
 # Nika Crate Split — Master Plan
 
 **Date**: 2026-03-22
-**Status**: In Progress — Session 1 complete
+**Status**: In Progress — Session 1 complete (AST blocker resolved)
 **Estimated duration**: 25-35 hours across 5-7 sessions
 **Approach**: Autonomous execution with code review checkpoints
 
@@ -22,11 +22,27 @@ nika's AST (raw/, analyzed/, analyzer/) has DIVERGED from nika-core's copies:
 This divergence blocks extraction of: nika-dag, nika-mcp, nika-media, nika-runtime.
 All these modules depend on nika's local AST types, creating circular deps if extracted.
 
+### AST Divergence — RESOLVED
+Synced nika-core's AST with nika's version (nika is source of truth):
+- Copied raw/, analyzed/, analyzer/ from nika to nika-core
+- Added guardrails.rs, completion.rs, schema.rs to nika-core
+- Added regex dependency to nika-core
+- Deleted 20 more files from nika, replaced with re-exports
+- Added From<CoreError> for NikaError conversion
+- Total: 31 duplicate files eliminated, ~15k lines removed from nika
+
+**Test counts after full dedup:**
+- nika-core: 689 tests
+- nika-event: 128 tests
+- nika: 6288 tests
+- Total: 7105 (up from 7045 due to regression tests added)
+
 ### Next Session Plan
-**Priority: Reconcile AST divergence (prerequisite for all further extractions)**
-1. Sync nika-core's raw/analyzed/analyzer with nika's versions (nika is source of truth)
-2. Make nika re-export ALL AST types from nika-core (like we did for 11 other modules)
-3. Then proceed with dag → mcp → media → runtime → tui extractions
+1. Extract nika-dag (now unblocked by AST sync)
+2. Extract nika-mcp (now unblocked)
+3. Extract nika-media
+4. Extract nika-runtime (the big one)
+5. Extract nika-tui
 
 ## Target Architecture
 
