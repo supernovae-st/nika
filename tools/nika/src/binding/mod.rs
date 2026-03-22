@@ -52,9 +52,11 @@ pub mod jsonpath;
 pub mod mention;
 mod resolve;
 mod template;
-pub mod transform;
-pub mod types;
 mod validate;
+
+// Re-export from nika-core: identical modules
+pub use nika_core::binding::transform;
+pub use nika_core::binding::types;
 
 // Re-export public types
 pub use entry::{

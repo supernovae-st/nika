@@ -38,30 +38,51 @@
 //! These types represent the "what" — static structure parsed from YAML.
 //! For execution, see the `runtime` module.
 
-// Pipeline stages
+// Pipeline stages (local — diverged from nika-core, have extra fields)
 pub mod analyzed;
 pub mod analyzer;
 pub mod lower;
 pub mod raw;
 pub mod schema;
 
-// Security - YAML bomb protection
-pub mod budget;
-
-// Vision/multimodal content parts
-pub mod content;
+// Re-export from nika-core: identical type modules
+// These modules were deleted from nika (identical copies) and are now
+// served from nika-core to eliminate duplication.
+pub mod budget {
+    pub use nika_core::ast::budget::*;
+}
+pub mod content {
+    pub use nika_core::ast::content::*;
+}
+pub mod agent_def {
+    pub use nika_core::ast::agent_def::*;
+}
+pub mod artifact {
+    pub use nika_core::ast::artifact::*;
+}
+pub mod context {
+    pub use nika_core::ast::context::*;
+}
+pub mod decompose {
+    pub use nika_core::ast::decompose::*;
+}
+pub mod logging {
+    pub use nika_core::ast::logging::*;
+}
+pub mod output {
+    pub use nika_core::ast::output::*;
+}
+pub mod structured {
+    pub use nika_core::ast::structured::*;
+}
 
 #[cfg(test)]
 mod tests_200_workflows;
 
-// Runtime types (consumed by runner/executor)
+// Runtime types (consumed by runner/executor — depend on NikaError)
 mod action;
 mod agent;
-mod agent_def;
-pub mod artifact;
 pub mod completion;
-pub mod context;
-pub mod decompose;
 pub mod guardrails;
 pub mod import_loader;
 pub mod include;
@@ -69,12 +90,9 @@ pub mod include_loader;
 mod invoke;
 pub mod limits;
 pub mod loader;
-pub mod logging;
-pub mod output;
 pub mod pkg_resolver;
 pub mod schema_validator;
 pub mod skill_def;
-pub mod structured;
 mod workflow;
 
 // Re-export all public types

@@ -144,14 +144,14 @@ impl From<AnalyzedContentPart> for ContentPart {
 }
 
 /// Convert a raw detail string to ImageDetail.
-pub(crate) fn parse_detail(detail: Option<&Spanned<String>>) -> ImageDetail {
+pub fn parse_detail(detail: Option<&Spanned<String>>) -> ImageDetail {
     detail
         .map(|s| ImageDetail::from_str_lossy(&s.value))
         .unwrap_or_default()
 }
 
 /// Analyze a raw content part into an analyzed content part.
-pub(crate) fn analyze_content_part(raw: &RawContentPart) -> AnalyzedContentPart {
+pub fn analyze_content_part(raw: &RawContentPart) -> AnalyzedContentPart {
     match raw {
         RawContentPart::Text { text } => AnalyzedContentPart::Text {
             text: text.value.clone(),
