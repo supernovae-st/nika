@@ -385,7 +385,9 @@ impl TransformOp {
             TransformOp::ParseJson => match value {
                 Value::Null => Err(TransformError::NullInput { op: "parse_json" }),
                 Value::String(s) => {
-                    serde_json::from_str(s).map_err(|_| TransformError::TypeMismatch {
+                    // Strip markdown code blocks: ```json\n...\n``` or ```\n...\n```
+                    let cleaned = strip_markdown_code_block(s);
+                    serde_json::from_str(&cleaned).map_err(|_| TransformError::TypeMismatch {
                         op: "parse_json",
                         expected: "valid JSON string",
                         got: format!("\"{}\"", truncate(s, 50)),
@@ -689,6 +691,28 @@ fn truncate(s: &str, max: usize) -> String {
             end -= 1;
         }
         format!("{}...", &s[..end])
+    }
+}
+
+/// Strip markdown code block wrappers from a string.
+/// Handles: `` ```json\n...\n``` ``, `` ```\n...\n``` ``, and bare strings.
+fn strip_markdown_code_block(s: &str) -> String {
+    let trimmed = s.trim();
+    if trimmed.starts_with("```") {
+        // Find the end of the opening fence line
+        let after_fence = if let Some(newline_pos) = trimmed.find('\n') {
+            &trimmed[newline_pos + 1..]
+        } else {
+            return trimmed.to_string();
+        };
+        // Remove closing fence
+        if let Some(stripped) = after_fence.strip_suffix("```") {
+            stripped.trim().to_string()
+        } else {
+            after_fence.trim().to_string()
+        }
+    } else {
+        trimmed.to_string()
     }
 }
 
@@ -1431,6 +1455,34 @@ mod tests {
             TransformOp::ParseJson.apply(&json!(true)).unwrap(),
             json!(true)
         );
+    }
+
+    #[test]
+    fn parse_json_strips_markdown_code_block() {
+        let input = json!("```json\n{\"name\": \"test\"}\n```");
+        let result = TransformOp::ParseJson.apply(&input).unwrap();
+        assert_eq!(result, json!({"name": "test"}));
+    }
+
+    #[test]
+    fn parse_json_strips_generic_code_block() {
+        let input = json!("```\n[1, 2, 3]\n```");
+        let result = TransformOp::ParseJson.apply(&input).unwrap();
+        assert_eq!(result, json!([1, 2, 3]));
+    }
+
+    #[test]
+    fn parse_json_handles_bare_json() {
+        let input = json!("{\"key\": \"value\"}");
+        let result = TransformOp::ParseJson.apply(&input).unwrap();
+        assert_eq!(result, json!({"key": "value"}));
+    }
+
+    #[test]
+    fn parse_json_strips_whitespace_around_code_block() {
+        let input = json!("  ```json\n  [\"a\", \"b\"]\n  ```  ");
+        let result = TransformOp::ParseJson.apply(&input).unwrap();
+        assert_eq!(result, json!(["a", "b"]));
     }
 
     #[test]
