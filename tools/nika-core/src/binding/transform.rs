@@ -229,7 +229,18 @@ impl TransformOp {
                     let taken: Vec<Value> = arr.iter().take(*n).cloned().collect();
                     Ok(Value::Array(taken))
                 }
-                _ => Err(type_mismatch("first", "array", value)),
+                Value::String(s) => {
+                    // Truncate string to N characters
+                    let truncated: String = s.chars().take(*n).collect();
+                    Ok(Value::String(truncated))
+                }
+                Value::Object(_) => {
+                    // Serialize object to JSON string and truncate to N characters
+                    let json = serde_json::to_string(value).unwrap_or_default();
+                    let truncated: String = json.chars().take(*n).collect();
+                    Ok(Value::String(truncated))
+                }
+                _ => Err(type_mismatch("first", "array, string, or object", value)),
             },
             TransformOp::LastN(n) => match value {
                 Value::Null => Err(TransformError::NullInput { op: "last" }),
@@ -373,6 +384,10 @@ impl TransformOp {
                         got: format!("\"{}\"", truncate(s, 50)),
                     })
                 }
+                // Idempotent: already-parsed values pass through unchanged.
+                // This handles auto-parsed exec outputs where Nika converts
+                // JSON strings to values before transforms run.
+                Value::Array(_) | Value::Object(_) => Ok(value.clone()),
                 _ => Err(type_mismatch("parse_json", "string", value)),
             },
 
@@ -1352,5 +1367,62 @@ mod tests {
     fn to_bool_invalid_string() {
         let err = TransformOp::ToBool.apply(&json!("maybe")).unwrap_err();
         assert!(matches!(err, TransformError::TypeMismatch { .. }));
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Bug fix tests
+    // ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn first_n_on_object_serializes_and_truncates() {
+        // BUG 3: first(N) on an object should serialize to JSON and truncate
+        let obj = json!({"links": [1, 2, 3], "count": 3});
+        let result = TransformOp::FirstN(10).apply(&obj).unwrap();
+        // Should be a truncated JSON string
+        assert!(result.is_string());
+        let s = result.as_str().unwrap();
+        assert_eq!(s.len(), 10);
+    }
+
+    #[test]
+    fn first_n_on_object_full() {
+        // first(N) with N larger than JSON length returns full JSON
+        let obj = json!({"a": 1});
+        let result = TransformOp::FirstN(1000).apply(&obj).unwrap();
+        assert!(result.is_string());
+        assert_eq!(result.as_str().unwrap(), r#"{"a":1}"#);
+    }
+
+    #[test]
+    fn first_n_on_string_truncates() {
+        let result = TransformOp::FirstN(5).apply(&json!("hello world")).unwrap();
+        assert_eq!(result, json!("hello"));
+    }
+
+    #[test]
+    fn parse_json_idempotent_on_array() {
+        // BUG 7: parse_json on an already-parsed array should be a no-op
+        let arr = json!([1, 2, 3]);
+        let result = TransformOp::ParseJson.apply(&arr).unwrap();
+        assert_eq!(result, json!([1, 2, 3]));
+    }
+
+    #[test]
+    fn parse_json_idempotent_on_object() {
+        // BUG 7: parse_json on an already-parsed object should be a no-op
+        let obj = json!({"key": "value"});
+        let result = TransformOp::ParseJson.apply(&obj).unwrap();
+        assert_eq!(result, json!({"key": "value"}));
+    }
+
+    #[test]
+    fn to_json_then_length_returns_char_count() {
+        // BUG 8: to_json | length should return string character count
+        let obj = json!({"countries": ["FR", "US"]});
+        let json_str = TransformOp::ToJson.apply(&obj).unwrap();
+        assert!(json_str.is_string());
+        let length = TransformOp::Length.apply(&json_str).unwrap();
+        // Should be the character count of the JSON string, not 1
+        assert!(length.as_u64().unwrap() > 1);
     }
 }
