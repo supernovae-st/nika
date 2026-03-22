@@ -113,7 +113,9 @@ fn find_filename_for_quant(
 pub async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<(), NikaError> {
     use colored::Colorize;
     use nika_engine::core::{find_model, KNOWN_MODELS};
-    use nika_engine::provider::{default_model_dir, DownloadRequest, HuggingFaceStorage, PullProgress};
+    use nika_engine::provider::{
+        default_model_dir, DownloadRequest, HuggingFaceStorage, PullProgress,
+    };
 
     let storage =
         HuggingFaceStorage::new(default_model_dir()).map_err(|e| NikaError::ConfigError {
