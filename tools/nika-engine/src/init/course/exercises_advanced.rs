@@ -1475,9 +1475,9 @@ const PIXEL_PIRATE_01_TEMPLATE: &str = r##"# ===================================
 #   nika:thumbhash     — 25-byte compact image placeholder
 #   nika:dominant_color — Color palette extraction
 #
-# CAS hash pattern: {{with.alias.media[0].hash}}
-#   When fetch response: binary stores a file, it creates a media array.
-#   media[0].hash is the CAS hash for use with all nika:* tools.
+# CAS hash pattern: {{with.alias.hash}}
+#   When fetch response: binary stores a file, it returns a JSON object.
+#   .hash is the CAS hash for use with all nika:* tools.
 #
 # INSTRUCTIONS:
 #   1. Fill in the correct tool names and CAS hash references
@@ -1502,7 +1502,7 @@ tasks:
     invoke:
       tool: "TODO: nika tool for dimensions"
       params:
-        hash: "TODO: CAS hash reference (use {{with.img.media[0].hash}})"
+        hash: "TODO: CAS hash reference (use {{with.img.hash}})"
 
   # TODO: Generate a thumbhash placeholder
   - id: get_thumbhash
@@ -1546,7 +1546,7 @@ tasks:
     invoke:
       tool: "nika:dimensions"
       params:
-        hash: "{{with.img.media[0].hash}}"
+        hash: "{{with.img.hash}}"
     artifact:
       path: output/dimensions.json
       format: json
@@ -1558,7 +1558,7 @@ tasks:
     invoke:
       tool: "nika:thumbhash"
       params:
-        hash: "{{with.img.media[0].hash}}"
+        hash: "{{with.img.hash}}"
     artifact:
       path: output/thumbhash.json
       format: json
@@ -1570,7 +1570,7 @@ tasks:
     invoke:
       tool: "nika:dominant_color"
       params:
-        hash: "{{with.img.media[0].hash}}"
+        hash: "{{with.img.hash}}"
         count: 5
     artifact:
       path: output/colors.json
@@ -1633,15 +1633,26 @@ tasks:
         hash: "TODO: CAS hash"
         format: "TODO: target format"
 
-  # TODO: Optimize a PNG losslessly
-  - id: optimize
+  # TODO: Convert to PNG first (optimize only works on PNG!)
+  - id: convert_png
     depends_on: [download]
     with:
       photo: $download
     invoke:
-      tool: "TODO: nika tool for optimization"
+      tool: "TODO: nika tool for conversion"
       params:
         hash: "TODO: CAS hash"
+        format: "TODO: target format (png)"
+
+  # TODO: Optimize the PNG losslessly
+  - id: optimize
+    depends_on: [convert_png]
+    with:
+      png: $convert_png
+    invoke:
+      tool: "TODO: nika tool for optimization"
+      params:
+        hash: "TODO: CAS hash from convert_png"
         level: 3
 "##;
 
@@ -1669,7 +1680,7 @@ tasks:
     invoke:
       tool: "nika:thumbnail"
       params:
-        hash: "{{with.photo.media[0].hash}}"
+        hash: "{{with.photo.hash}}"
         width: 256
         format: "jpeg"
     artifact:
@@ -1683,21 +1694,34 @@ tasks:
     invoke:
       tool: "nika:convert"
       params:
-        hash: "{{with.photo.media[0].hash}}"
+        hash: "{{with.photo.hash}}"
         format: "webp"
         quality: 85
     artifact:
       path: output/photo-converted.webp
       format: binary
 
-  - id: optimize
+  - id: convert_png
     depends_on: [download]
     with:
       photo: $download
     invoke:
+      tool: "nika:convert"
+      params:
+        hash: "{{with.photo.hash}}"
+        format: "png"
+    artifact:
+      path: output/photo-converted.png
+      format: binary
+
+  - id: optimize
+    depends_on: [convert_png]
+    with:
+      png: $convert_png
+    invoke:
       tool: "nika:optimize"
       params:
-        hash: "{{with.photo.media[0].hash}}"
+        hash: "{{with.png.hash}}"
         level: 3
         strip: true
     artifact:
@@ -1785,7 +1809,7 @@ tasks:
     invoke:
       tool: "nika:pipeline"
       params:
-        hash: "{{with.photo.media[0].hash}}"
+        hash: "{{with.photo.hash}}"
         steps:
           - op: thumbnail
             width: 400
@@ -1850,7 +1874,7 @@ tasks:
       # TODO: Use content: array with image + text parts
       content:
         - type: "TODO: part type for image"
-          source: "TODO: CAS hash (use {{with.photo.media[0].hash}})"
+          source: "TODO: CAS hash (use {{with.photo.hash}})"
           detail: "TODO: detail level (low or high)"
         - type: "TODO: part type for text"
           text: "TODO: your prompt asking the LLM to describe the image"
@@ -1880,7 +1904,7 @@ tasks:
     infer:
       content:
         - type: image
-          source: "{{with.photo.media[0].hash}}"
+          source: "{{with.photo.hash}}"
           detail: high
         - type: text
           text: |
@@ -2142,7 +2166,7 @@ tasks:
     invoke:
       tool: "nika:dimensions"
       params:
-        hash: "{{with.img.media[0].hash}}"
+        hash: "{{with.img.hash}}"
 
   - id: colors_photo
     depends_on: [download_photo]
@@ -2151,7 +2175,7 @@ tasks:
     invoke:
       tool: "nika:dominant_color"
       params:
-        hash: "{{with.img.media[0].hash}}"
+        hash: "{{with.img.hash}}"
         count: 5
 
   # Phase 3: Process with pipeline
@@ -2162,7 +2186,7 @@ tasks:
     invoke:
       tool: "nika:pipeline"
       params:
-        hash: "{{with.photo.media[0].hash}}"
+        hash: "{{with.photo.hash}}"
         steps:
           - op: thumbnail
             width: 400
@@ -2198,7 +2222,7 @@ tasks:
       # TODO: Build content: array with image (chart) + text (analysis)
       content:
         - type: "TODO: image part"
-          source: "TODO: chart CAS hash via {{with.chart_img.media[0].hash}}"
+          source: "TODO: chart CAS hash via {{with.chart_img.hash}}"
           detail: high
         - type: "TODO: text part"
           text: |
@@ -2238,7 +2262,7 @@ tasks:
     invoke:
       tool: "nika:dimensions"
       params:
-        hash: "{{with.img.media[0].hash}}"
+        hash: "{{with.img.hash}}"
 
   - id: colors_photo
     depends_on: [download_photo]
@@ -2247,7 +2271,7 @@ tasks:
     invoke:
       tool: "nika:dominant_color"
       params:
-        hash: "{{with.img.media[0].hash}}"
+        hash: "{{with.img.hash}}"
         count: 5
 
   - id: process_photo
@@ -2257,7 +2281,7 @@ tasks:
     invoke:
       tool: "nika:pipeline"
       params:
-        hash: "{{with.photo.media[0].hash}}"
+        hash: "{{with.photo.hash}}"
         steps:
           - op: thumbnail
             width: 400
@@ -2293,7 +2317,7 @@ tasks:
     infer:
       content:
         - type: image
-          source: "{{with.chart_img.media[0].hash}}"
+          source: "{{with.chart_img.hash}}"
           detail: high
         - type: text
           text: |
@@ -2561,10 +2585,14 @@ tasks:
       # TODO: Set completion mode
       completion:
         mode: "TODO"
-      # TODO: Add guardrails (length check)
+      # TODO: Add guardrails (length + keyword check)
       guardrails:
-        - type: "TODO"
+        - type: "TODO: length or regex?"
           min_words: "TODO"
+          on_failure: retry
+        - type: "TODO: length or regex?"
+          pattern: "TODO: regex to require 'insights' keyword"
+          message: "TODO: error message"
           on_failure: retry
 
   # Phase 3: Summary
@@ -2644,6 +2672,10 @@ tasks:
         - type: length
           min_words: 150
           on_failure: retry
+        - type: regex
+          pattern: "(?i)insight"
+          message: "Research brief must include insights"
+          on_failure: retry
     artifact:
       path: output/research-brief.md
 
@@ -2668,7 +2700,13 @@ const SUPERNOVAE_05_TEMPLATE: &str = r##"# =====================================
 # =============================================================================
 #
 # ALL 5 VERBS in one workflow: exec, fetch, invoke, infer, agent.
-# Plus: MCP, media pipeline, structured output, vision.
+# Plus: MCP, media pipeline, structured output, vision, limits.
+#
+# NEW CONCEPT — limits: block (inside agent:)
+#   max_turns:         — Max loop iterations
+#   max_tokens:        — Total token budget (input + output)
+#   max_cost_usd:      — Cost ceiling per execution
+#   max_duration_secs: — Wall-clock timeout
 #
 # This is the FINAL BOSS. It requires mastery of ALL 11 previous levels.
 #
@@ -2732,7 +2770,7 @@ tasks:
     invoke:
       tool: "nika:pipeline"
       params:
-        hash: "{{with.img.media[0].hash}}"
+        hash: "{{with.img.hash}}"
         steps:
           - op: thumbnail
             width: 300
@@ -2761,7 +2799,7 @@ tasks:
     infer:
       content:
         - type: image
-          source: "{{with.chart.media[0].hash}}"
+          source: "{{with.chart.hash}}"
           detail: high
         - type: text
           text: |
@@ -2799,10 +2837,8 @@ tasks:
       mcp: "TODO: MCP server list"
       # TODO: Give the agent builtin tools
       tools: "TODO: tool list"
-      # TODO: Set safety limits
-      max_turns: "TODO"
+      # TODO: Set per-response token limit
       max_tokens: "TODO"
-      token_budget: "TODO"
       # TODO: Set completion mode
       completion:
         mode: "TODO"
@@ -2811,6 +2847,13 @@ tasks:
         - type: "TODO"
           min_words: "TODO"
           on_failure: retry
+      # TODO: Add limits block (turns, cost, duration, token budget)
+      # This is the BOSS way to control agent resources.
+      limits:
+        max_turns: "TODO"
+        max_tokens: "TODO: total token budget"
+        max_cost_usd: "TODO"
+        max_duration_secs: "TODO"
 
   # Completion log (exec)
   - id: done
@@ -2886,7 +2929,7 @@ tasks:
     invoke:
       tool: "nika:pipeline"
       params:
-        hash: "{{with.img.media[0].hash}}"
+        hash: "{{with.img.hash}}"
         steps:
           - op: thumbnail
             width: 300
@@ -2918,7 +2961,7 @@ tasks:
     infer:
       content:
         - type: image
-          source: "{{with.chart.media[0].hash}}"
+          source: "{{with.chart.hash}}"
           detail: high
         - type: text
           text: |
@@ -2957,9 +3000,7 @@ tasks:
         Use nika_log for progress. Call nika_complete when done.
       mcp: [filesystem]
       tools: [builtin]
-      max_turns: 8
       max_tokens: 2000
-      token_budget: 12000
       completion:
         mode: explicit
       guardrails:
@@ -2968,6 +3009,7 @@ tasks:
           on_failure: retry
       limits:
         max_turns: 10
+        max_tokens: 50000
         max_cost_usd: 1.00
         max_duration_secs: 180
     artifact:
@@ -3126,7 +3168,11 @@ mod tests {
     #[test]
     fn test_supernovae_boss_is_comprehensive() {
         let boss_exercises = get_advanced_exercises("supernovae");
-        assert_eq!(boss_exercises.len(), 5, "SuperNovae boss must have 5 exercises");
+        assert_eq!(
+            boss_exercises.len(),
+            5,
+            "SuperNovae boss must have 5 exercises"
+        );
 
         // Boss 5 (Full Stack) should reference all 5 verbs
         let full_stack = get_advanced_exercise("supernovae", 5).unwrap();
