@@ -1,0 +1,105 @@
+# =============================================================================
+# DAG Pattern 12: Data Warehouse ETL
+# =============================================================================
+#
+# Extract from 3 independent sources in parallel, transform each
+# independently, load all into a single target, then verify integrity.
+#
+#   extract_crm ──▶ transform_crm ──┐
+#                                     │
+#   extract_erp ──▶ transform_erp ──┼──▶ load ──▶ verify
+#                                     │
+#   extract_web ──▶ transform_web ──┘
+#
+# Edges: 8
+# Max parallelism: 3 (extract phase) then 3 (transform phase)
+# Key concept: paired extract+transform pipelines merging at load
+# =============================================================================
+
+schema: nika/workflow@0.12
+workflow: dag-etl-warehouse
+description: "Extract 3 sources -> transform each -> load -> verify"
+
+tasks:
+  # ── Extract phase (parallel) ──────────────────────────────────────────────
+  - id: extract_crm
+    description: "Extract customer data from CRM"
+    exec:
+      command: |
+        echo '{"source":"crm","records":1250,"fields":["id","name","email","tier"],"extracted_at":"2026-03-22T10:00:00Z"}'
+      shell: true
+
+  - id: extract_erp
+    description: "Extract order data from ERP"
+    exec:
+      command: |
+        echo '{"source":"erp","records":8430,"fields":["order_id","customer_id","total","status"],"extracted_at":"2026-03-22T10:00:01Z"}'
+      shell: true
+
+  - id: extract_web
+    description: "Extract analytics from web logs"
+    exec:
+      command: |
+        echo '{"source":"web","records":52100,"fields":["session_id","page","duration_ms","referrer"],"extracted_at":"2026-03-22T10:00:02Z"}'
+      shell: true
+
+  # ── Transform phase (parallel, each depends on its extract) ───────────────
+  - id: transform_crm
+    description: "Clean and normalize CRM data"
+    depends_on: [extract_crm]
+    with:
+      raw: $extract_crm
+    exec:
+      command: |
+        echo '{"source":"crm","records_in":1250,"records_out":1243,"dropped":7,"reason":"invalid email","transform":"normalize_emails"}'
+      shell: true
+
+  - id: transform_erp
+    description: "Clean and normalize ERP data"
+    depends_on: [extract_erp]
+    with:
+      raw: $extract_erp
+    exec:
+      command: |
+        echo '{"source":"erp","records_in":8430,"records_out":8412,"dropped":18,"reason":"orphan orders","transform":"join_customers"}'
+      shell: true
+
+  - id: transform_web
+    description: "Clean and normalize web analytics"
+    depends_on: [extract_web]
+    with:
+      raw: $extract_web
+    exec:
+      command: |
+        echo '{"source":"web","records_in":52100,"records_out":48900,"dropped":3200,"reason":"bot traffic","transform":"filter_bots"}'
+      shell: true
+
+  # ── Load phase (waits for all transforms) ─────────────────────────────────
+  - id: load
+    description: "Load all transformed data into warehouse"
+    depends_on: [transform_crm, transform_erp, transform_web]
+    with:
+      crm: $transform_crm
+      erp: $transform_erp
+      web: $transform_web
+    exec:
+      command: |
+        echo "=== Loading into Warehouse ==="
+        echo "CRM:  {{with.crm}}"
+        echo "ERP:  {{with.erp}}"
+        echo "Web:  {{with.web}}"
+        echo '{"stage":"load","total_records":58555,"tables_updated":3,"status":"complete"}'
+      shell: true
+
+  # ── Verify phase ──────────────────────────────────────────────────────────
+  - id: verify
+    description: "Verify data integrity post-load"
+    depends_on: [load]
+    with:
+      load_result: $load
+    exec:
+      command: |
+        echo "=== ETL Verification ==="
+        echo "Load result: {{with.load_result}}"
+        echo '{"verification":"pass","row_counts_match":true,"null_check":"pass","foreign_keys":"valid"}'
+      shell: true

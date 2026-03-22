@@ -1,0 +1,68 @@
+# =============================================================================
+# DAG Pattern 02: Diamond
+# =============================================================================
+#
+# Classic diamond: one source fans out to 3 parallel branches, then a
+# single merge task collects all results. The most common DAG pattern.
+#
+#         ┌──▶ B ──┐
+#   A ────┼──▶ C ──┼────▶ E
+#         └──▶ D ──┘
+#
+# Edges: 6
+# Max parallelism: 3 (B, C, D run concurrently)
+# Critical path: A -> slowest(B,C,D) -> E
+# =============================================================================
+
+schema: nika/workflow@0.12
+workflow: dag-diamond
+description: "A -> B+C+D -> E — fan-out + fan-in diamond"
+
+tasks:
+  - id: source
+    description: "Generate data for 3 parallel branches"
+    exec:
+      command: "echo 'RAW_DATA_PAYLOAD'"
+      shell: true
+
+  - id: branch_upper
+    description: "Process data: uppercase path"
+    depends_on: [source]
+    with:
+      data: $source
+    exec:
+      command: "echo '{{with.data}}' | tr '[:lower:]' '[:upper:]'"
+      shell: true
+
+  - id: branch_hash
+    description: "Process data: hash path"
+    depends_on: [source]
+    with:
+      data: $source
+    exec:
+      command: "echo -n '{{with.data}}' | md5 2>/dev/null || echo -n '{{with.data}}' | md5sum | cut -d' ' -f1"
+      shell: true
+
+  - id: branch_count
+    description: "Process data: character count path"
+    depends_on: [source]
+    with:
+      data: $source
+    exec:
+      command: "echo -n '{{with.data}}' | wc -c | tr -d ' '"
+      shell: true
+
+  - id: merge
+    description: "Merge all 3 branches into final result"
+    depends_on: [branch_upper, branch_hash, branch_count]
+    with:
+      upper: $branch_upper
+      hash: $branch_hash
+      count: $branch_count
+    exec:
+      command: |
+        echo "=== Diamond Merge ==="
+        echo "Upper:  {{with.upper}}"
+        echo "Hash:   {{with.hash}}"
+        echo "Length: {{with.count}}"
+      shell: true

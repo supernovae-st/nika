@@ -1,0 +1,96 @@
+# =============================================================================
+# DAG Pattern 14: Microservice Health Check
+# =============================================================================
+#
+# Check 5 independent microservices in parallel, aggregate all results,
+# then alert if any service is unhealthy.
+#
+#   svc_auth ─────┐
+#   svc_api ──────┤
+#   svc_db ───────┼──▶ aggregate ──▶ alert
+#   svc_cache ────┤
+#   svc_queue ────┘
+#
+# Edges: 7
+# Max parallelism: 5 (all health checks run concurrently)
+# Key concept: wide fan-in from many independent sources
+# =============================================================================
+
+schema: nika/workflow@0.12
+workflow: dag-microservice-health
+description: "Check 5 services parallel -> aggregate -> alert if any down"
+
+tasks:
+  # ── Parallel health checks ────────────────────────────────────────────────
+  - id: svc_auth
+    description: "Check authentication service"
+    exec:
+      command: |
+        echo '{"service":"auth","status":"healthy","latency_ms":12,"version":"2.4.1","uptime":"14d"}'
+      shell: true
+
+  - id: svc_api
+    description: "Check API gateway"
+    exec:
+      command: |
+        echo '{"service":"api","status":"healthy","latency_ms":8,"version":"3.1.0","uptime":"14d","rps":2400}'
+      shell: true
+
+  - id: svc_db
+    description: "Check database cluster"
+    exec:
+      command: |
+        echo '{"service":"db","status":"degraded","latency_ms":145,"version":"16.2","uptime":"7d","connections":89,"max_connections":100}'
+      shell: true
+
+  - id: svc_cache
+    description: "Check cache layer"
+    exec:
+      command: |
+        echo '{"service":"cache","status":"healthy","latency_ms":2,"version":"7.2.4","uptime":"30d","hit_rate":0.94}'
+      shell: true
+
+  - id: svc_queue
+    description: "Check message queue"
+    exec:
+      command: |
+        echo '{"service":"queue","status":"healthy","latency_ms":5,"version":"3.13.0","uptime":"30d","pending":142}'
+      shell: true
+
+  # ── Aggregate all results ─────────────────────────────────────────────────
+  - id: aggregate
+    description: "Aggregate all 5 service health results"
+    depends_on: [svc_auth, svc_api, svc_db, svc_cache, svc_queue]
+    with:
+      auth: $svc_auth
+      api: $svc_api
+      db: $svc_db
+      cache: $svc_cache
+      queue: $svc_queue
+    exec:
+      command: |
+        echo "=== Health Aggregation ==="
+        echo "Auth:  {{with.auth}}"
+        echo "API:   {{with.api}}"
+        echo "DB:    {{with.db}}"
+        echo "Cache: {{with.cache}}"
+        echo "Queue: {{with.queue}}"
+        echo ""
+        echo '{"total":5,"healthy":4,"degraded":1,"down":0,"overall":"DEGRADED"}'
+      shell: true
+
+  # ── Alert decision ────────────────────────────────────────────────────────
+  - id: alert
+    description: "Generate alert if any service is not healthy"
+    depends_on: [aggregate]
+    with:
+      health: $aggregate
+    exec:
+      command: |
+        echo "=== Alert Report ==="
+        echo "{{with.health}}"
+        echo ""
+        echo "ALERT: Database cluster is DEGRADED (89/100 connections)"
+        echo "Action: Scale up database or investigate connection leaks"
+        echo "Severity: WARNING"
+      shell: true

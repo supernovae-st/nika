@@ -1,0 +1,93 @@
+# =============================================================================
+# DAG Pattern 13: Content Review Pipeline
+# =============================================================================
+#
+# A draft goes through 3 parallel review checks (grammar, style,
+# fact-check), all results merge into an editor review, which produces
+# the final approved version.
+#
+#                ┌──▶ grammar    ──┐
+#   draft ──────┼──▶ style      ──┼──▶ editor_review ──▶ approved
+#                └──▶ fact_check ──┘
+#
+# Edges: 7
+# Max parallelism: 3 (grammar, style, fact_check)
+# Key concept: multi-reviewer pattern with editorial gate
+# =============================================================================
+
+schema: nika/workflow@0.12
+workflow: dag-content-review
+description: "draft -> grammar+style+fact-check parallel -> editor review -> approved"
+
+tasks:
+  # ── Draft ─────────────────────────────────────────────────────────────────
+  - id: draft
+    description: "Generate initial article draft"
+    exec:
+      command: |
+        echo "WebAssembly (WASM) is revolutionizing server-side computing. Companies like Cloudflare and Fastly have deployed WASM at the edge, achieving cold start times under 1ms. The technology, originally designed for browsers, now supports server workloads through WASI (WebAssembly System Interface). Rust and Go are the primary languages targeting WASM compilation."
+      shell: true
+
+  # ── Parallel reviews ──────────────────────────────────────────────────────
+  - id: grammar
+    description: "Grammar and spelling check"
+    depends_on: [draft]
+    with:
+      text: $draft
+    exec:
+      command: |
+        echo '{"reviewer":"grammar","issues":0,"score":98,"notes":"Clean prose, no grammatical errors detected."}'
+      shell: true
+
+  - id: style
+    description: "Style and tone check"
+    depends_on: [draft]
+    with:
+      text: $draft
+    exec:
+      command: |
+        echo '{"reviewer":"style","issues":1,"score":85,"notes":"Consider breaking the long second sentence. Passive voice in clause 3."}'
+      shell: true
+
+  - id: fact_check
+    description: "Fact verification check"
+    depends_on: [draft]
+    with:
+      text: $draft
+    exec:
+      command: |
+        echo '{"reviewer":"fact_check","issues":0,"score":95,"notes":"Cold start claims verified. WASI reference accurate. Companies confirmed."}'
+      shell: true
+
+  # ── Editor review (waits for all checks) ──────────────────────────────────
+  - id: editor_review
+    description: "Editor reviews all feedback and makes final call"
+    depends_on: [grammar, style, fact_check]
+    with:
+      grammar_result: $grammar
+      style_result: $style
+      fact_result: $fact_check
+      original: $draft
+    exec:
+      command: |
+        echo "=== Editor Review ==="
+        echo "Grammar:    {{with.grammar_result}}"
+        echo "Style:      {{with.style_result}}"
+        echo "Fact-check: {{with.fact_result}}"
+        echo ""
+        echo '{"decision":"approve_with_minor_edits","overall_score":93,"action":"fix style issue in sentence 2"}'
+      shell: true
+
+  # ── Final approval ────────────────────────────────────────────────────────
+  - id: approved
+    description: "Produce final approved version"
+    depends_on: [editor_review]
+    with:
+      review: $editor_review
+    exec:
+      command: |
+        echo "=== Content Approved ==="
+        echo "Review: {{with.review}}"
+        echo "Status: APPROVED"
+        echo "Ready for publication"
+      shell: true

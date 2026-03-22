@@ -1,0 +1,79 @@
+# =============================================================================
+# DAG Pattern 10: Multi-Source Merge
+# =============================================================================
+#
+# Fetch data from 3 independent API endpoints in parallel, combine
+# all results in a merge task, then analyze and produce a final report.
+#
+#   fetch_ip ──────┐
+#                   │
+#   fetch_uuid ────┼──▶ combine ──▶ analyze ──▶ report
+#                   │
+#   fetch_headers ─┘
+#
+# Edges: 5
+# Max parallelism: 3 (all fetches run concurrently)
+# Key concept: real HTTP fan-out + data merging
+# =============================================================================
+
+schema: nika/workflow@0.12
+workflow: dag-multi-source-merge
+description: "Fetch 3 APIs parallel -> combine -> analyze -> report"
+
+tasks:
+  - id: fetch_ip
+    description: "Fetch public IP information"
+    fetch:
+      url: "https://httpbin.org/ip"
+      method: GET
+
+  - id: fetch_uuid
+    description: "Fetch a random UUID"
+    fetch:
+      url: "https://httpbin.org/uuid"
+      method: GET
+
+  - id: fetch_headers
+    description: "Fetch request headers echo"
+    fetch:
+      url: "https://httpbin.org/headers"
+      method: GET
+
+  - id: combine
+    description: "Combine all 3 API responses"
+    depends_on: [fetch_ip, fetch_uuid, fetch_headers]
+    with:
+      ip: $fetch_ip
+      uuid: $fetch_uuid
+      headers: $fetch_headers
+    exec:
+      command: |
+        echo "=== Combined API Data ==="
+        echo "IP Data:     {{with.ip}}"
+        echo "UUID Data:   {{with.uuid}}"
+        echo "Header Data: {{with.headers}}"
+      shell: true
+
+  - id: analyze
+    description: "Analyze the combined dataset"
+    depends_on: [combine]
+    with:
+      combined: $combine
+    exec:
+      command: |
+        echo "Analysis: 3 sources merged successfully"
+        echo "Sources: httpbin.org/ip, httpbin.org/uuid, httpbin.org/headers"
+        echo "Status: all endpoints responded"
+      shell: true
+
+  - id: report
+    description: "Generate final multi-source report"
+    depends_on: [analyze]
+    with:
+      analysis: $analyze
+    exec:
+      command: |
+        echo "=== Multi-Source Merge Report ==="
+        echo "{{with.analysis}}"
+        echo "Pipeline: fetch(3) -> combine -> analyze -> report"
+      shell: true

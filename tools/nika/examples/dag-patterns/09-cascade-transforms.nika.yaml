@@ -1,0 +1,82 @@
+# =============================================================================
+# DAG Pattern 09: Cascade with Transforms
+# =============================================================================
+#
+# A linear pipeline where each task applies a different pipe transform
+# to the output of the previous task. Demonstrates chained with:
+# transforms: trim -> upper -> lower -> base64 -> report.
+#
+#   raw ──▶ trim ──▶ upper ──▶ lower ──▶ encode ──▶ summary
+#            |        |         |          |
+#          trim     upper     lower      base64
+#
+# Edges: 5
+# Max parallelism: 1
+# Key concept: with: pipe transforms at every stage
+# =============================================================================
+
+schema: nika/workflow@0.12
+workflow: dag-cascade-transforms
+description: "Sequential transform cascade: trim -> upper -> lower -> encode -> summary"
+
+tasks:
+  - id: raw
+    description: "Generate raw input with messy whitespace"
+    exec:
+      command: "echo '   SuperNovae Workflow Engine v0.38   '"
+      shell: true
+
+  - id: trimmed
+    description: "Step 1: trim whitespace"
+    depends_on: [raw]
+    with:
+      clean: $raw | trim
+    exec:
+      command: "echo '{{with.clean}}'"
+      shell: true
+
+  - id: uppercased
+    description: "Step 2: convert to uppercase"
+    depends_on: [trimmed]
+    with:
+      loud: $trimmed | upper
+    exec:
+      command: "echo '{{with.loud}}'"
+      shell: true
+
+  - id: lowercased
+    description: "Step 3: convert to lowercase"
+    depends_on: [uppercased]
+    with:
+      quiet: $uppercased | lower
+    exec:
+      command: "echo '{{with.quiet}}'"
+      shell: true
+
+  - id: encoded
+    description: "Step 4: base64 encode"
+    depends_on: [lowercased]
+    with:
+      input: $lowercased
+    exec:
+      command: "echo -n '{{with.input}}' | base64"
+      shell: true
+
+  - id: summary
+    description: "Show all transform stages"
+    depends_on: [encoded]
+    with:
+      original: $raw | trim
+      step1: $trimmed
+      step2: $uppercased
+      step3: $lowercased
+      step4: $encoded
+    exec:
+      command: |
+        echo "=== Transform Cascade ==="
+        echo "Original:  {{with.original}}"
+        echo "Trimmed:   {{with.step1}}"
+        echo "Uppercase: {{with.step2}}"
+        echo "Lowercase: {{with.step3}}"
+        echo "Base64:    {{with.step4}}"
+      shell: true
