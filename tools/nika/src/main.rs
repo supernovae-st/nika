@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 use nika::ast::output::SchemaRef;
 use nika::ast::schema_validator::WorkflowSchemaValidator;
-use nika::ast::{expand_includes, parse_workflow, TaskAction};
+use nika::ast::{expand_includes, parse_analyzed, parse_workflow, TaskAction};
 use nika::dag::{validate_bindings, Dag};
 use nika::error::NikaError;
 use nika::mcp::validation::{McpValidator, ValidationConfig};
@@ -1117,6 +1117,35 @@ async fn validate_workflow(file: &str, quiet: bool) -> Result<(), NikaError> {
     }
     let schemas_elapsed = t.elapsed();
 
+    // Phase 7: Provider API keys (BUG 6 / NIKA-032)
+    let t = Instant::now();
+    let mut provider_warnings: Vec<String> = Vec::new();
+    {
+        let mut providers_used = std::collections::HashSet::new();
+        providers_used.insert(workflow.provider.clone());
+
+        // Collect per-task providers from analyzed AST
+        if let Ok(analyzed) = parse_analyzed(&yaml) {
+            for task in &analyzed.tasks {
+                if let Some(ref p) = task.provider {
+                    providers_used.insert(p.clone());
+                }
+            }
+        }
+
+        for provider_name in &providers_used {
+            if let Some(provider) = nika::core::find_provider(provider_name) {
+                if provider.requires_key && !provider.has_env_key() {
+                    provider_warnings.push(format!(
+                        "{} not set (provider '{}' used in workflow)",
+                        provider.env_var, provider_name
+                    ));
+                }
+            }
+        }
+    }
+    let providers_elapsed = t.elapsed();
+
     if !quiet {
         print_check_header(file, false, env!("CARGO_PKG_VERSION"));
 
@@ -1189,6 +1218,27 @@ async fn validate_workflow(file: &str, quiet: bool) -> Result<(), NikaError> {
             errors: vec![],
             hints: vec![],
         });
+
+        // Phase 7: Provider API keys
+        if provider_warnings.is_empty() {
+            print_phase(&PhaseResult {
+                name: "providers",
+                passed: true,
+                detail: "all API keys present".to_string(),
+                duration_ms: providers_elapsed.as_millis() as u64,
+                errors: vec![],
+                hints: vec![],
+            });
+        } else {
+            print_phase(&PhaseResult {
+                name: "providers",
+                passed: false,
+                detail: format!("{} missing API key(s)", provider_warnings.len()),
+                duration_ms: providers_elapsed.as_millis() as u64,
+                errors: provider_warnings.clone(),
+                hints: vec!["Run 'nika provider set <name>' to configure API keys".to_string()],
+            });
+        }
 
         // Show DAG visualization for multi-task workflows
         if workflow.tasks.len() > 1 {
