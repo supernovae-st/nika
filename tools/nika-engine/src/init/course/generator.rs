@@ -6,6 +6,7 @@
 //!
 //! All content is embedded in the binary via exercises.rs — no network needed.
 
+use std::env;
 use std::fs;
 use std::path::PathBuf;
 
@@ -15,6 +16,27 @@ use super::exercises::ExerciseContent;
 use super::levels::LEVELS;
 use super::missions;
 use super::progress::CourseProgress;
+
+/// Env-var-to-provider mapping for auto-detection.
+const PROVIDER_ENV_VARS: &[(&str, &str, &str)] = &[
+    ("ANTHROPIC_API_KEY", "claude", "claude-sonnet-4-6"),
+    ("OPENAI_API_KEY", "openai", "gpt-4o"),
+    ("GROQ_API_KEY", "groq", "llama-3.3-70b-versatile"),
+    ("MISTRAL_API_KEY", "mistral", "mistral-large-latest"),
+    ("DEEPSEEK_API_KEY", "deepseek", "deepseek-chat"),
+    ("GEMINI_API_KEY", "gemini", "gemini-2.0-flash"),
+    ("XAI_API_KEY", "xai", "grok-3-fast"),
+];
+
+/// Auto-detect an LLM provider from environment variables.
+pub fn detect_provider() -> (&'static str, &'static str) {
+    for &(var, slug, model) in PROVIDER_ENV_VARS {
+        if env::var(var).map(|v| !v.is_empty()).unwrap_or(false) {
+            return (slug, model);
+        }
+    }
+    ("claude", "claude-sonnet-4-6")
+}
 
 /// Configuration for course generation
 #[derive(Debug, Clone)]
@@ -31,10 +53,11 @@ pub struct CourseConfig {
 
 impl Default for CourseConfig {
     fn default() -> Self {
+        let (provider, model) = detect_provider();
         Self {
             dest: PathBuf::from("nika-course"),
-            provider: "claude".into(),
-            model: "claude-sonnet-4-6".into(),
+            provider: provider.into(),
+            model: model.into(),
             theme: "liberation".into(),
         }
     }
@@ -287,13 +310,14 @@ mod tests {
         assert!(readme.contains("Liberation Journey"));
         assert!(readme.contains("Jailbreak"));
         assert!(readme.contains("SuperNovae"));
-        assert!(readme.contains("claude"));
+        assert!(readme.contains(&config.provider));
     }
 
     #[test]
     fn test_default_config() {
         let config = CourseConfig::default();
-        assert_eq!(config.provider, "claude");
+        let (expected_provider, _) = detect_provider();
+        assert_eq!(config.provider, expected_provider);
         assert_eq!(config.theme, "liberation");
         assert_eq!(config.dest, PathBuf::from("nika-course"));
     }

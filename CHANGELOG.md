@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `course run`: executes exercise via subprocess (uses current_exe for reliable dispatch)
+- `course check`: real AST validation via `parse_analyzed` in addition to text checks
+- `course check`: 3-star scoring system (all pass / clean run / no hints)
+- `course hint`: auto-detects first incomplete exercise when no argument given
+- `course watch`: polling-based auto-check on file save (500ms interval, per-level)
+- Provider auto-detection at course generation (scans env vars, first match wins)
+
 ## [0.39.0](https://github.com/supernovae-st/nika/releases/tag/v0.39.0) — 2026-03-22
 
 ### Added
