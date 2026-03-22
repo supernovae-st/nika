@@ -727,9 +727,37 @@ async fn main() {
             permission,
             no_example,
             migrate_keys,
-            course: _course_flag,
+            course,
             minimal,
-        }) => cli::init::init_project(&permission, no_example || minimal, migrate_keys),
+        }) => {
+            if course {
+                // Generate interactive course
+                use nika_engine::init::course::generator::{generate_course, CourseConfig};
+                let config = CourseConfig {
+                    dest: std::path::PathBuf::from("nika-course"),
+                    ..CourseConfig::default()
+                };
+                match generate_course(&config) {
+                    Ok(result) => {
+                        println!(
+                            "\n  {} Course generated! {} levels, {} exercises\n  Location: {}\n  Run: cd {} && nika course status\n",
+                            "✓".green(),
+                            result.levels,
+                            result.exercises,
+                            result.root.display(),
+                            result.root.display(),
+                        );
+                        Ok(())
+                    }
+                    Err(e) => {
+                        eprintln!("Course generation failed: {e}");
+                        Err(e)
+                    }
+                }
+            } else {
+                cli::init::init_project(&permission, no_example || minimal, migrate_keys)
+            }
+        }
 
         Some(Commands::Course { action }) => cli::course::handle_course_command(action),
 

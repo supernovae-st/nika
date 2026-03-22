@@ -113,8 +113,13 @@ default = "{}"
     let progress_path = nika_dir.join("course-progress.toml");
     progress.save(&progress_path)?;
 
-    // Collect all exercises
-    let all_exercises = super::exercises::EXERCISES;
+    // Collect all exercises (L1-6 + L7-12)
+    let all_exercises: Vec<&super::exercises::ExerciseContent> = {
+        let mut v: Vec<&super::exercises::ExerciseContent> = Vec::new();
+        for e in super::exercises::EXERCISES { v.push(e); }
+        for e in super::exercises_advanced::EXERCISES_ADVANCED { v.push(e); }
+        v
+    };
 
     let mut exercise_count = 0;
     let mut solution_count = 0;
@@ -136,6 +141,7 @@ default = "{}"
         let level_exercises: Vec<&ExerciseContent> = all_exercises
             .iter()
             .filter(|e| e.level_slug == level.slug)
+            .copied()
             .collect();
 
         for exercise in &level_exercises {
