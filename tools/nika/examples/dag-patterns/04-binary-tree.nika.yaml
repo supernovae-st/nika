@@ -1,0 +1,85 @@
+# =============================================================================
+# DAG Pattern 04: Binary Tree
+# =============================================================================
+#
+# A root task fans out to 2 children, each of which fans out to 2 more.
+# 3 levels deep, 7 total tasks. A complete binary tree DAG.
+#
+#              A
+#            /   \
+#          B       C
+#         / \     / \
+#        D   E   F   G
+#
+# Edges: 6
+# Max parallelism: 4 (D, E, F, G at leaf level)
+# Critical path: A -> B|C -> D|E|F|G (depth 3)
+# =============================================================================
+
+schema: nika/workflow@0.12
+workflow: dag-binary-tree
+description: "A -> B+C, B -> D+E, C -> F+G — complete binary tree"
+
+tasks:
+  # ── Level 0: Root ──────────────────────────────────────────────────────────
+  - id: root
+    description: "Root node — generate seed"
+    exec:
+      command: "echo 'ROOT'"
+      shell: true
+
+  # ── Level 1: Two branches ─────────────────────────────────────────────────
+  - id: left
+    description: "Left subtree root"
+    depends_on: [root]
+    with:
+      parent: $root
+    exec:
+      command: "echo 'LEFT({{with.parent}})'"
+      shell: true
+
+  - id: right
+    description: "Right subtree root"
+    depends_on: [root]
+    with:
+      parent: $root
+    exec:
+      command: "echo 'RIGHT({{with.parent}})'"
+      shell: true
+
+  # ── Level 2: Four leaves ──────────────────────────────────────────────────
+  - id: left_left
+    description: "Left-left leaf"
+    depends_on: [left]
+    with:
+      parent: $left
+    exec:
+      command: "echo 'LL({{with.parent}})'"
+      shell: true
+
+  - id: left_right
+    description: "Left-right leaf"
+    depends_on: [left]
+    with:
+      parent: $left
+    exec:
+      command: "echo 'LR({{with.parent}})'"
+      shell: true
+
+  - id: right_left
+    description: "Right-left leaf"
+    depends_on: [right]
+    with:
+      parent: $right
+    exec:
+      command: "echo 'RL({{with.parent}})'"
+      shell: true
+
+  - id: right_right
+    description: "Right-right leaf"
+    depends_on: [right]
+    with:
+      parent: $right
+    exec:
+      command: "echo 'RR({{with.parent}})'"
+      shell: true

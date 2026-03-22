@@ -1,0 +1,154 @@
+# =============================================================================
+# COURSE 15 — Multi-Source Binding
+# =============================================================================
+#
+# Demonstrates advanced binding patterns:
+#   - 3 tasks produce different data
+#   - with: aliases bind from all 3
+#   - Templates combine multiple sources with transforms
+#
+# Data: simulated CI/CD pipeline with build, test, and deploy outputs.
+# Shows real multi-source data aggregation with transform chains.
+# =============================================================================
+
+schema: nika/workflow@0.12
+workflow: course-multi-source-binding
+
+tasks:
+  # == Phase 1: Three independent data sources ==
+
+  - id: build_info
+    exec: 'printf ''{"project":"nika","version":"0.38.0","commit":"a1b2c3d","artifacts":["nika-linux-x64","nika-darwin-arm64","nika-windows-x64"],"duration_ms":42567}'''
+    description: "Build system output: project metadata and artifacts"
+
+  - id: test_results
+    exec: 'printf ''{"total":7142,"passed":7138,"failed":2,"skipped":2,"coverage":94.3,"slow_tests":["test_full_pipeline","test_stress_1000"]}'''
+    description: "Test runner output: counts, coverage, slow tests"
+
+  - id: deploy_config
+    exec: 'printf ''{"environment":"staging","region":"eu-west-1","replicas":3,"health_check":"/healthz","tags":["v0.38.0","pre-release","automated"]}'''
+    description: "Deployment configuration: target environment"
+
+  # == Phase 2: Single-source bindings with transforms ==
+
+  - id: build_summary
+    depends_on: [build_info]
+    with:
+      project: $build_info.project | upper
+      version: $build_info.version
+      artifact_count: $build_info.artifacts | length
+      artifact_list: $build_info.artifacts | join(", ")
+    exec:
+      command: |
+        echo "=== Build Summary ==="
+        echo "Project:   {{with.project}}"
+        echo "Version:   {{with.version}}"
+        echo "Artifacts: {{with.artifact_count}} ({{with.artifact_list}})"
+      shell: true
+    description: "Build info with upper, length, join transforms"
+
+  - id: test_summary
+    depends_on: [test_results]
+    with:
+      total: $test_results.total
+      passed: $test_results.passed
+      failed: $test_results.failed
+      coverage: $test_results.coverage | to_number | round(1)
+      slow: $test_results.slow_tests | join(", ")
+    exec:
+      command: |
+        echo "=== Test Summary ==="
+        echo "Results: {{with.passed}}/{{with.total}} passed, {{with.failed}} failed"
+        echo "Coverage: {{with.coverage}}%"
+        echo "Slow tests: {{with.slow}}"
+      shell: true
+    description: "Test results with round, join transforms"
+
+  - id: deploy_summary
+    depends_on: [deploy_config]
+    with:
+      env: $deploy_config.environment | upper
+      region: $deploy_config.region
+      replicas: $deploy_config.replicas
+      tags: $deploy_config.tags | sort | join(" / ")
+    exec:
+      command: |
+        echo "=== Deploy Summary ==="
+        echo "Target: {{with.env}} ({{with.region}})"
+        echo "Replicas: {{with.replicas}}"
+        echo "Tags: {{with.tags}}"
+      shell: true
+    description: "Deploy config with upper, sort, join transforms"
+
+  # == Phase 3: Multi-source binding — the main event ==
+
+  - id: pipeline_report
+    depends_on: [build_info, test_results, deploy_config]
+    with:
+      # From build
+      project: $build_info.project | upper
+      version: $build_info.version
+      commit: $build_info.commit
+      artifacts: $build_info.artifacts | length
+      # From tests
+      test_total: $test_results.total
+      test_passed: $test_results.passed
+      test_failed: $test_results.failed
+      coverage: $test_results.coverage | to_number | round(1)
+      # From deploy
+      env: $deploy_config.environment
+      region: $deploy_config.region
+      tags: $deploy_config.tags | sort | join(", ")
+    exec:
+      command: |
+        echo "================================================"
+        echo "  CI/CD PIPELINE REPORT"
+        echo "================================================"
+        echo "Project:    {{with.project}} v{{with.version}} ({{with.commit}})"
+        echo "Artifacts:  {{with.artifacts}} binaries built"
+        echo "Tests:      {{with.test_passed}}/{{with.test_total}} ({{with.coverage}}% coverage)"
+        echo "Failures:   {{with.test_failed}}"
+        echo "Deploy:     {{with.env}} @ {{with.region}}"
+        echo "Tags:       {{with.tags}}"
+        echo "================================================"
+      shell: true
+    description: "Multi-source binding: 3 tasks -> 1 report with transforms"
+
+  # == Phase 4: Cross-source computed values ==
+
+  - id: release_decision
+    depends_on: [build_info, test_results, deploy_config]
+    with:
+      failed: $test_results.failed
+      coverage: $test_results.coverage | to_number | round(0)
+      env: $deploy_config.environment | upper
+      version: $build_info.version
+      artifact_first: $build_info.artifacts | first
+      tag_count: $deploy_config.tags | length
+      slow_count: $test_results.slow_tests | length
+    exec:
+      command: |
+        echo "=== Release Decision ==="
+        echo "Version:       {{with.version}}"
+        echo "Primary build: {{with.artifact_first}}"
+        echo "Failures:      {{with.failed}}"
+        echo "Coverage:      {{with.coverage}}%"
+        echo "Environment:   {{with.env}}"
+        echo "Tags:          {{with.tag_count}}"
+        echo "Slow tests:    {{with.slow_count}}"
+      shell: true
+    description: "Cross-source computed values with first, length, round"
+
+  - id: verify
+    depends_on: [build_summary, test_summary, deploy_summary, pipeline_report, release_decision]
+    with:
+      b: $build_summary | trim
+      t: $test_summary | trim
+      p: $pipeline_report | trim
+    exec:
+      command: |
+        echo "=== Multi-Source Binding: ALL VERIFIED ==="
+        echo "3 independent sources -> multi-source with: -> combined report"
+        echo "Transforms used: upper, length, join, sort, round, first, to_number"
+      shell: true
+    description: "Verify multi-source binding patterns"

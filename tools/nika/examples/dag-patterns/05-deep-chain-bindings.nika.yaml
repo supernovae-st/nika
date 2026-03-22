@@ -1,0 +1,66 @@
+# =============================================================================
+# DAG Pattern 05: Deep Chain with Bindings
+# =============================================================================
+#
+# A 5-step pipeline where each task reads from the previous via with:
+# bindings. Each step transforms the data using pipe transforms.
+#
+#   A ──▶ B ──▶ C ──▶ D ──▶ E
+#         |      |      |      |
+#       trim   upper  lower  length
+#
+# Edges: 4
+# Max parallelism: 1
+# Key concept: with: bindings + pipe transforms at each step
+# =============================================================================
+
+schema: nika/workflow@0.12
+workflow: dag-deep-chain-bindings
+description: "A -> B(trim) -> C(upper) -> D(lower) -> E(report) — transform pipeline"
+
+tasks:
+  - id: generate
+    description: "Produce raw data with whitespace"
+    exec:
+      command: "echo '   Hello, Nika Workflow Engine   '"
+      shell: true
+
+  - id: clean
+    description: "Trim whitespace from raw data"
+    depends_on: [generate]
+    with:
+      raw: $generate | trim
+    exec:
+      command: "echo '{{with.raw}}'"
+      shell: true
+
+  - id: shout
+    description: "Convert to uppercase"
+    depends_on: [clean]
+    with:
+      cleaned: $clean | upper
+    exec:
+      command: "echo '{{with.cleaned}}'"
+      shell: true
+
+  - id: whisper
+    description: "Convert to lowercase"
+    depends_on: [shout]
+    with:
+      shouted: $shout | lower
+    exec:
+      command: "echo '{{with.shouted}}'"
+      shell: true
+
+  - id: report
+    description: "Final report with all transformations"
+    depends_on: [whisper]
+    with:
+      final: $whisper
+      original: $generate | trim
+    exec:
+      command: |
+        echo "=== Transform Pipeline ==="
+        echo "Original: {{with.original}}"
+        echo "Final:    {{with.final}}"
+      shell: true

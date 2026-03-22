@@ -1,0 +1,86 @@
+# =============================================================================
+# ERROR HANDLING DEMO 09: Structured Output Validation
+# =============================================================================
+#
+# The structured: field enforces JSON Schema on LLM output. When the output
+# doesn't match the schema, Nika's 4-layer StructuredOutputEngine kicks in:
+#
+#   Layer 0: Tool injection (DynamicSubmitTool) — provider-side enforcement
+#   Layer 1: rig Extractor — Rust-side JSON extraction
+#   Layer 2: JSON Schema validation — jsonschema crate
+#   Layer 3: LLM repair — send errors back to LLM for self-correction
+#
+# With max_retries, the engine will attempt repair up to N times before
+# giving up with NIKA-301 (StructuredOutputValidationFailed).
+#
+# DEMONSTRATES:
+#   - structured: with inline JSON Schema
+#   - max_retries for schema validation repair
+#   - NIKA-300 (StructuredOutputExtractionFailed) on bad output
+#   - NIKA-301 (StructuredOutputValidationFailed) on schema mismatch
+#
+# NOTE: This workflow requires a configured LLM provider.
+#       Set ANTHROPIC_API_KEY or OPENAI_API_KEY before running.
+#       Change provider/model below to match your setup.
+#
+# EXPECTED BEHAVIOR:
+#   "strict_output" succeeds -> LLM generates valid JSON matching schema
+#                   OR fails -> NIKA-300/301 if LLM output doesn't match
+#
+# RUN: nika run 09-structured-validation.nika.yaml
+# =============================================================================
+
+schema: "nika/workflow@0.12"
+
+workflow: error-structured-validation
+
+provider: claude
+model: claude-sonnet-4-6
+
+tasks:
+  # Ask the LLM to generate structured output matching a specific schema.
+  # The structured: field validates the response against the JSON Schema.
+  # If validation fails, the engine retries with repair up to 3 times.
+  - id: strict_output
+    infer:
+      prompt: |
+        Generate a JSON object describing a fictional programming language.
+        Include: name (string), year_created (integer), paradigms (array of strings),
+        and is_compiled (boolean). Make it creative but realistic.
+      system: "You are a precise JSON generator. Output ONLY valid JSON, no markdown."
+      temperature: 0.3
+      max_tokens: 200
+    structured:
+      schema:
+        type: object
+        properties:
+          name:
+            type: string
+            minLength: 1
+          year_created:
+            type: integer
+            minimum: 1950
+            maximum: 2030
+          paradigms:
+            type: array
+            items:
+              type: string
+            minItems: 1
+          is_compiled:
+            type: boolean
+        required:
+          - name
+          - year_created
+          - paradigms
+          - is_compiled
+        additionalProperties: false
+      max_retries: 3
+
+  # Use the validated output — guaranteed to match the schema
+  - id: report
+    depends_on: [strict_output]
+    with:
+      lang: $strict_output
+    exec:
+      command: "echo 'Structured output validated successfully: {{with.lang}}'"
+      shell: true

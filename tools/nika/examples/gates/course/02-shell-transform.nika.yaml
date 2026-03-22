@@ -1,0 +1,72 @@
+# =============================================================================
+# COURSE 02 — Shell Transform
+# =============================================================================
+#
+# The `shell` transform interprets a task's output as a shell command and
+# escapes it for safe injection into exec: commands. Prevents injection
+# attacks when building commands dynamically from task output.
+#
+# Data: dynamically generated shell commands from task output.
+# =============================================================================
+
+schema: nika/workflow@0.12
+workflow: course-shell-transform
+
+tasks:
+  # -- Generate a command dynamically --
+  - id: build_command
+    exec: "echo 'echo hello from dynamic command'"
+    description: "Task output IS a shell command"
+
+  # -- Use shell transform to safely inject it --
+  - id: run_dynamic
+    depends_on: [build_command]
+    with:
+      cmd: $build_command | trim | shell
+    exec:
+      command: "echo 'Shell output: {{with.cmd}}'"
+      shell: true
+    description: "shell transform escapes the command for safe injection"
+
+  # -- Generate a command with special characters --
+  - id: build_special
+    exec: "echo 'echo Today is $(date +%Y-%m-%d)'"
+    description: "Command with shell expansion"
+
+  - id: run_special
+    depends_on: [build_special]
+    with:
+      cmd: $build_special | trim | shell
+    exec:
+      command: "echo 'Special: {{with.cmd}}'"
+      shell: true
+    description: "shell transform handles special characters safely"
+
+  # -- Chain: generate, trim, shell, then use in template --
+  - id: build_pipeline
+    exec: "echo 'ls -la /tmp | head -5'"
+    description: "A pipeline command as output"
+
+  - id: use_pipeline
+    depends_on: [build_pipeline]
+    with:
+      pipeline: $build_pipeline | trim | shell
+    exec:
+      command: "echo 'Pipeline command: {{with.pipeline}}'"
+      shell: true
+    description: "shell transform on pipeline command"
+
+  - id: verify
+    depends_on: [run_dynamic, run_special, use_pipeline]
+    with:
+      a: $run_dynamic | trim
+      b: $run_special | trim
+      c: $use_pipeline | trim
+    exec:
+      command: |
+        echo "=== Shell Transform: VERIFIED ==="
+        echo "Dynamic:  {{with.a}}"
+        echo "Special:  {{with.b}}"
+        echo "Pipeline: {{with.c}}"
+      shell: true
+    description: "Verify all shell transform results"

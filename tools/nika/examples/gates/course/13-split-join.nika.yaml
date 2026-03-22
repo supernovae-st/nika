@@ -1,0 +1,101 @@
+# =============================================================================
+# COURSE 13 — Split and Join
+# =============================================================================
+#
+# Demonstrates the split(S) and join(S) utility transforms:
+#   split(S) | sort | join(S)
+#
+# Data: CSV-style strings that need parsing, transformation, and reassembly.
+# Shows split -> transform -> join as a text processing pipeline.
+# =============================================================================
+
+schema: nika/workflow@0.12
+workflow: course-split-join
+
+tasks:
+  # -- Source: comma-separated tags --
+  - id: csv_tags
+    exec: "echo 'rust,python,go,typescript,java,rust,python'"
+    description: "CSV string with duplicate programming language tags"
+
+  # -- split(",") to array --
+  - id: split_tags
+    depends_on: [csv_tags]
+    with:
+      val: $csv_tags | trim | split(",")
+    exec: "echo 'SPLIT={{with.val}}'"
+    description: "split(','): CSV string -> array"
+
+  # -- split -> sort --
+  - id: sorted_tags
+    depends_on: [csv_tags]
+    with:
+      val: $csv_tags | trim | split(",") | sort
+    exec: "echo 'SORTED={{with.val}}'"
+    description: "split then sort: alphabetical order"
+
+  # -- split -> sort -> unique --
+  - id: unique_tags
+    depends_on: [csv_tags]
+    with:
+      val: $csv_tags | trim | split(",") | sort | unique
+    exec: "echo 'UNIQUE={{with.val}}'"
+    description: "split -> sort -> unique: clean deduplicated list"
+
+  # -- split -> sort -> join(" -> ") --
+  - id: reformatted
+    depends_on: [csv_tags]
+    with:
+      val: $csv_tags | trim | split(",") | sort | join(" -> ")
+    exec: "echo 'REFORMATTED={{with.val}}'"
+    description: "Full pipeline: split -> sort -> join(' -> ')"
+
+  # -- split -> unique -> join(", ") --
+  - id: clean_display
+    depends_on: [csv_tags]
+    with:
+      val: $csv_tags | trim | split(",") | sort | unique | join(", ")
+    exec: "echo 'CLEAN={{with.val}}'"
+    description: "Clean display: split -> sort -> unique -> join(', ')"
+
+  # -- Different separator: semicolons --
+  - id: semicolon_data
+    exec: "echo 'error;warning;info;debug;error;info'"
+    description: "Semicolon-separated log levels"
+
+  - id: parse_levels
+    depends_on: [semicolon_data]
+    with:
+      val: $semicolon_data | trim | split(";") | sort | unique | join(" -> ")
+    exec: "echo 'LOG_LEVELS={{with.val}}'"
+    description: "Parse semicolons: split(;) -> sort -> unique -> join(' -> ')"
+
+  # -- Count after split --
+  - id: counts
+    depends_on: [csv_tags]
+    with:
+      total: $csv_tags | trim | split(",") | length
+      unique: $csv_tags | trim | split(",") | unique | length
+    exec:
+      command: |
+        echo "Total tags:  {{with.total}}"
+        echo "Unique tags: {{with.unique}}"
+      shell: true
+    description: "Count total vs unique after split"
+
+  - id: verify
+    depends_on: [split_tags, sorted_tags, unique_tags, reformatted, clean_display, parse_levels, counts]
+    with:
+      s: $split_tags | trim
+      r: $reformatted | trim
+      c: $clean_display | trim
+      l: $parse_levels | trim
+    exec:
+      command: |
+        echo "=== Split and Join: split(S)|join(S) VERIFIED ==="
+        echo "Split:       {{with.s}}"
+        echo "Reformatted: {{with.r}}"
+        echo "Clean:       {{with.c}}"
+        echo "Levels:      {{with.l}}"
+      shell: true
+    description: "Verify split and join operations"

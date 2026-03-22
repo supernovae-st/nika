@@ -1,0 +1,75 @@
+# =============================================================================
+# SHOWCASE 07 — Agent Code Reviewer
+# =============================================================================
+# requires_llm: true
+# category: advanced
+#
+# An autonomous agent that explores a codebase using file tools,
+# identifies patterns and issues, produces a structured review report.
+
+schema: "nika/workflow@0.12"
+workflow: agent-code-reviewer
+provider: "{{PROVIDER}}"
+model: "{{MODEL}}"
+
+tasks:
+  - id: code_review
+    agent:
+      system: |
+        You are a senior code reviewer with file tools.
+        1. Use nika_glob to find source files
+        2. Use nika_read to examine key files
+        3. Use nika_grep to search for issues (unwrap, TODO, unsafe)
+        4. Call nika_complete with your findings
+      prompt: "Review the current project for quality issues."
+      tools:
+        - "nika:glob"
+        - "nika:read"
+        - "nika:grep"
+      max_turns: 8
+      max_tokens: 2000
+      token_budget: 20000
+      completion:
+        mode: explicit
+      guardrails:
+        - type: length
+          min_words: 200
+          on_failure: retry
+        - type: regex
+          pattern: "(?i)(issue|finding|recommendation)"
+          message: "Review must include findings"
+          on_failure: retry
+
+  - id: structured_report
+    depends_on: [code_review]
+    with:
+      review: $code_review
+    infer:
+      prompt: "Convert this code review into structured JSON: {{with.review}}"
+      response_format: json
+      temperature: 0.1
+      max_tokens: 2000
+    structured:
+      schema:
+        type: object
+        properties:
+          project_name:
+            type: string
+          overall_score:
+            type: integer
+          findings:
+            type: array
+            items:
+              type: object
+              properties:
+                severity:
+                  type: string
+                description:
+                  type: string
+              required: [severity, description]
+          summary:
+            type: string
+        required: [project_name, overall_score, findings, summary]
+    artifact:
+      path: output/code-review-report.json
+      format: json

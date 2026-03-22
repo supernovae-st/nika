@@ -1,0 +1,79 @@
+# =============================================================================
+# SHOWCASE 05 — Website Screenshot Analyzer
+# =============================================================================
+# requires_llm: true
+# category: advanced
+#
+# Fetches a website as markdown, extracts metadata and links,
+# downloads an image, then uses vision for a UX audit.
+
+schema: "nika/workflow@0.12"
+workflow: website-screenshot-analyzer
+provider: "{{PROVIDER}}"
+model: "{{MODEL}}"
+
+tasks:
+  - id: page_content
+    fetch:
+      url: "https://github.com"
+      extract: markdown
+      timeout: 20
+
+  - id: page_metadata
+    fetch:
+      url: "https://github.com"
+      extract: metadata
+      timeout: 20
+    artifact:
+      path: output/page-metadata.json
+      format: json
+
+  - id: page_links
+    fetch:
+      url: "https://github.com"
+      extract: links
+      timeout: 20
+
+  - id: page_screenshot
+    fetch:
+      url: "https://httpbin.org/image/png"
+      response: binary
+      timeout: 15
+
+  - id: page_colors
+    depends_on: [page_screenshot]
+    with:
+      img: $page_screenshot
+    invoke:
+      tool: "nika:dominant_color"
+      params:
+        hash: "{{with.img.media[0].hash}}"
+        count: 8
+
+  - id: ux_audit
+    depends_on: [page_content, page_metadata, page_links, page_screenshot, page_colors]
+    with:
+      content: $page_content
+      metadata: $page_metadata
+      links: $page_links
+      screenshot: $page_screenshot
+      colors: $page_colors
+    infer:
+      content:
+        - type: image
+          source: "{{with.screenshot.media[0].hash}}"
+          detail: high
+        - type: text
+          text: |
+            UX audit of this website:
+
+            Content: {{with.content | first(2000)}}
+            Metadata: {{with.metadata}}
+            Links: {{with.links}}
+            Colors: {{with.colors}}
+
+            Analyze visual hierarchy, SEO, navigation, accessibility, and UX score (1-100).
+      temperature: 0.3
+      max_tokens: 2000
+    artifact:
+      path: output/ux-audit-report.md

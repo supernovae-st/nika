@@ -1,0 +1,95 @@
+# =============================================================================
+# COURSE 05 — Array Slicing
+# =============================================================================
+#
+# Demonstrates array slicing transforms:
+#   first | last | first(N) | last(N)
+#
+# Data: a ranked list of AI models by benchmark score.
+# Slice from both ends with fixed and parameterized counts.
+# =============================================================================
+
+schema: nika/workflow@0.12
+workflow: course-array-slicing
+
+tasks:
+  # -- Source: ranked AI models --
+  - id: models
+    exec: 'echo ''["claude-opus","gpt-4o","gemini-pro","llama-405b","mistral-large","command-r-plus","deepseek-v3","qwen-72b"]'''
+    description: "8 AI models ranked by benchmark score"
+
+  # -- first: get the top-ranked model --
+  - id: top_model
+    depends_on: [models]
+    with:
+      val: $models | first
+    exec: "echo 'TOP_MODEL={{with.val}}'"
+    description: "first: single top-ranked model"
+
+  # -- last: get the lowest-ranked model --
+  - id: bottom_model
+    depends_on: [models]
+    with:
+      val: $models | last
+    exec: "echo 'BOTTOM_MODEL={{with.val}}'"
+    description: "last: single lowest-ranked model"
+
+  # -- first(3): top 3 models --
+  - id: top_three
+    depends_on: [models]
+    with:
+      val: $models | first(3)
+    exec: "echo 'TOP_3={{with.val}}'"
+    description: "first(3): top 3 models"
+
+  # -- last(3): bottom 3 models --
+  - id: bottom_three
+    depends_on: [models]
+    with:
+      val: $models | last(3)
+    exec: "echo 'BOTTOM_3={{with.val}}'"
+    description: "last(3): bottom 3 models"
+
+  # -- first(5): top 5 --
+  - id: top_five
+    depends_on: [models]
+    with:
+      val: $models | first(5)
+    exec: "echo 'TOP_5={{with.val}}'"
+    description: "first(5): top half of models"
+
+  # -- last(2): bottom 2 --
+  - id: bottom_two
+    depends_on: [models]
+    with:
+      val: $models | last(2)
+    exec: "echo 'BOTTOM_2={{with.val}}'"
+    description: "last(2): bottom 2 models"
+
+  # -- Chain: first(4) -> last(2) = positions 3-4 --
+  - id: middle_of_top
+    depends_on: [models]
+    with:
+      val: $models | first(4) | last(2)
+    exec: "echo 'MIDDLE_OF_TOP4={{with.val}}'"
+    description: "Chain: first(4) -> last(2) = positions 3-4"
+
+  # -- Combine first and last for comparison --
+  - id: summary
+    depends_on: [models]
+    with:
+      total: $models | length
+      leader: $models | first
+      trailer: $models | last
+      top: $models | first(3) | join(", ")
+      bottom: $models | last(3) | join(", ")
+    exec:
+      command: |
+        echo "=== Array Slicing: first|last|first(N)|last(N) VERIFIED ==="
+        echo "Total models:  {{with.total}}"
+        echo "Leader:        {{with.leader}}"
+        echo "Trailer:       {{with.trailer}}"
+        echo "Top 3:         {{with.top}}"
+        echo "Bottom 3:      {{with.bottom}}"
+      shell: true
+    description: "Summary of all slicing operations"

@@ -1,0 +1,72 @@
+# =============================================================================
+# DAG Pattern 08: Pipeline with Error Aggregation
+# =============================================================================
+#
+# Three independent validation checks run in parallel. A merge task
+# aggregates all results. A final report summarizes pass/fail status.
+#
+#     ┌──▶ check_syntax ──┐
+#     │                    │
+#     ├──▶ check_types  ──┼──▶ aggregate ──▶ report
+#     │                    │
+#     └──▶ check_style ──┘
+#
+# Edges: 6
+# Max parallelism: 3
+# Key concept: parallel validation + error aggregation
+# =============================================================================
+
+schema: nika/workflow@0.12
+workflow: dag-parallel-checks
+description: "3 parallel checks -> merge errors -> final report"
+
+tasks:
+  - id: check_syntax
+    description: "Syntax validation check"
+    exec:
+      command: |
+        echo '{"check":"syntax","status":"pass","errors":0,"warnings":1,"message":"trailing comma on line 42"}'
+      shell: true
+
+  - id: check_types
+    description: "Type validation check"
+    exec:
+      command: |
+        echo '{"check":"types","status":"fail","errors":2,"warnings":0,"message":"i32 vs u64 mismatch on line 17; unused generic on line 88"}'
+      shell: true
+
+  - id: check_style
+    description: "Style validation check"
+    exec:
+      command: |
+        echo '{"check":"style","status":"pass","errors":0,"warnings":3,"message":"line length 102>100; missing doc comment; snake_case violation"}'
+      shell: true
+
+  - id: aggregate
+    description: "Aggregate all check results"
+    depends_on: [check_syntax, check_types, check_style]
+    with:
+      syntax: $check_syntax
+      types: $check_types
+      style: $check_style
+    exec:
+      command: |
+        echo "=== Validation Summary ==="
+        echo "Syntax: {{with.syntax}}"
+        echo "Types:  {{with.types}}"
+        echo "Style:  {{with.style}}"
+      shell: true
+
+  - id: report
+    description: "Generate final pass/fail report"
+    depends_on: [aggregate]
+    with:
+      results: $aggregate
+    exec:
+      command: |
+        echo "=== Final Validation Report ==="
+        echo "{{with.results}}"
+        echo ""
+        echo "Verdict: NEEDS FIXES (type errors found)"
+        echo "Action: Fix 2 type errors before merge"
+      shell: true

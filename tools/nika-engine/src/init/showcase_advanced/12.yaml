@@ -1,0 +1,111 @@
+# =============================================================================
+# SHOWCASE 12 — Data ETL Pipeline
+# =============================================================================
+# requires_llm: true
+# category: advanced
+#
+# Extract-Transform-Load: fetches API data, transforms with exec:,
+# enriches with LLM, validates with structured output, writes artifacts.
+
+schema: "nika/workflow@0.12"
+workflow: data-etl-pipeline
+provider: "{{PROVIDER}}"
+model: "{{MODEL}}"
+
+tasks:
+  - id: extract_users
+    fetch:
+      url: "https://jsonplaceholder.typicode.com/users"
+      timeout: 15
+    artifact:
+      path: output/etl/raw-users.json
+      format: json
+
+  - id: extract_posts
+    fetch:
+      url: "https://jsonplaceholder.typicode.com/posts"
+      timeout: 15
+
+  - id: extract_comments
+    fetch:
+      url: "https://jsonplaceholder.typicode.com/comments?postId=1"
+      timeout: 15
+
+  - id: transform_data
+    depends_on: [extract_users, extract_posts]
+    with:
+      users: $extract_users
+      posts: $extract_posts
+    exec:
+      command: "echo '{\"total_users\": 10, \"total_posts\": 100, \"avg_posts_per_user\": 10}'"
+      shell: true
+    artifact:
+      path: output/etl/transform-summary.json
+      format: json
+
+  - id: enrich_data
+    depends_on: [transform_data, extract_comments]
+    with:
+      summary: $transform_data
+      comments: $extract_comments
+    infer:
+      prompt: |
+        Enrich this data: Summary: {{with.summary}} Comments: {{with.comments | first(1500)}}
+        Return JSON with user_activity, content_quality, data_quality_flags.
+      response_format: json
+      temperature: 0.3
+      max_tokens: 1200
+    structured:
+      schema:
+        type: object
+        properties:
+          enrichment_timestamp:
+            type: string
+          user_activity:
+            type: object
+            properties:
+              pattern:
+                type: string
+            required: [pattern]
+          data_quality_flags:
+            type: array
+            items:
+              type: string
+        required: [enrichment_timestamp, user_activity, data_quality_flags]
+    artifact:
+      path: output/etl/enriched-data.json
+      format: json
+
+  - id: validate_and_load
+    depends_on: [enrich_data]
+    with:
+      enriched: $enrich_data
+    infer:
+      prompt: |
+        Validate ETL output: {{with.enriched}}
+        Return pipeline_status, quality_score, validation_passed, ready_for_production.
+      response_format: json
+      temperature: 0.1
+      max_tokens: 1000
+    structured:
+      schema:
+        type: object
+        properties:
+          pipeline_status:
+            type: string
+          quality_score:
+            type: integer
+          validation_passed:
+            type: boolean
+          ready_for_production:
+            type: boolean
+        required: [pipeline_status, quality_score, validation_passed, ready_for_production]
+    artifact:
+      path: output/etl/load-report.json
+      format: json
+
+  - id: etl_complete
+    depends_on: [validate_and_load]
+    with:
+      report: $validate_and_load
+    exec: "echo 'ETL pipeline complete. Report: {{with.report}}'"

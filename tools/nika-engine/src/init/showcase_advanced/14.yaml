@@ -1,0 +1,101 @@
+# =============================================================================
+# SHOWCASE 14 — Guardrailed Agent
+# =============================================================================
+# requires_llm: true
+# category: advanced
+#
+# Agent with comprehensive safety: guardrails (length, regex),
+# limits (cost, turns, duration, tokens), and structured output.
+
+schema: "nika/workflow@0.12"
+workflow: guardrailed-agent
+provider: "{{PROVIDER}}"
+model: "{{MODEL}}"
+
+inputs:
+  topic:
+    type: string
+    default: "Rust memory safety patterns"
+
+tasks:
+  - id: research_agent
+    agent:
+      system: |
+        You are a technical writer. Include "recommendation" and "example" in output.
+        Use nika_log for progress, nika_complete for final output.
+      prompt: |
+        Write documentation on: {{inputs.topic}}
+        Include: overview, 3 patterns with examples, pitfalls, recommendations.
+      tools: [builtin]
+      max_turns: 6
+      max_tokens: 2000
+      token_budget: 15000
+      completion:
+        mode: explicit
+      guardrails:
+        - type: length
+          min_words: 300
+          max_words: 2000
+          on_failure: retry
+        - type: regex
+          pattern: "(?i)recommendation"
+          message: "Must include recommendations"
+          on_failure: retry
+        - type: regex
+          pattern: "(?i)example"
+          message: "Must include examples"
+          on_failure: retry
+      limits:
+        max_turns: 6
+        max_tokens: 30000
+        max_cost_usd: 0.50
+        max_duration_secs: 120
+
+  - id: structure_docs
+    depends_on: [research_agent]
+    with:
+      docs: $research_agent
+    infer:
+      prompt: "Convert to structured JSON: {{with.docs}}"
+      response_format: json
+      temperature: 0.1
+      max_tokens: 2000
+    structured:
+      schema:
+        type: object
+        properties:
+          title:
+            type: string
+          overview:
+            type: string
+          patterns:
+            type: array
+            items:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+              required: [name, description]
+          recommendations:
+            type: array
+            items:
+              type: string
+        required: [title, overview, patterns, recommendations]
+    artifact:
+      path: output/structured-docs.json
+      format: json
+
+  - id: quick_reference
+    depends_on: [structure_docs]
+    with:
+      structured: $structure_docs
+    infer:
+      prompt: |
+        Create a quick-reference cheat sheet from: {{with.structured}}
+        Use a table, numbered pitfalls, and 3 golden rules.
+      temperature: 0.3
+      max_tokens: 800
+    artifact:
+      path: output/quick-reference.md

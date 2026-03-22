@@ -1,0 +1,104 @@
+# =============================================================================
+# SHOWCASE 11 — Content Factory
+# =============================================================================
+# requires_llm: true
+# category: advanced
+#
+# Generates content for multiple topics, translates to multiple
+# languages, produces per-file artifacts with structured output.
+
+schema: "nika/workflow@0.12"
+workflow: content-factory
+provider: "{{PROVIDER}}"
+model: "{{MODEL}}"
+
+inputs:
+  audience:
+    type: string
+    default: "senior developers"
+
+tasks:
+  - id: research
+    fetch:
+      url: "https://news.ycombinator.com/"
+      extract: article
+      timeout: 20
+
+  - id: outline
+    depends_on: [research]
+    with:
+      sources: $research
+    infer:
+      prompt: |
+        Create outlines for 3 blog posts for {{inputs.audience}}.
+        Sources: {{with.sources | first(2000)}}
+        Return JSON: { posts: [{ title, sections: [{ heading, key_points }], word_target }] }
+      response_format: json
+      temperature: 0.5
+      max_tokens: 1500
+    structured:
+      schema:
+        type: object
+        properties:
+          posts:
+            type: array
+            items:
+              type: object
+              properties:
+                title:
+                  type: string
+                word_target:
+                  type: integer
+              required: [title, word_target]
+        required: [posts]
+
+  - id: write_content
+    depends_on: [outline]
+    with:
+      plan: $outline
+    for_each:
+      - { topic: "AI Workflow Engines", tone: "technical deep-dive" }
+      - { topic: "Rust for Production", tone: "pragmatic guide" }
+      - { topic: "Open Source in 2025", tone: "opinion piece" }
+    as: brief
+    concurrency: 3
+    infer:
+      system: "You are an expert technical writer for {{inputs.audience}}."
+      prompt: |
+        Write a 500-word blog post on "{{with.brief.topic}}" ({{with.brief.tone}}).
+        Outline: {{with.plan | first(1000)}}
+      temperature: 0.6
+      max_tokens: 1200
+
+  - id: translate
+    depends_on: [write_content]
+    with:
+      content: $write_content
+    for_each:
+      - { code: "fr-FR", name: "French" }
+      - { code: "es-ES", name: "Spanish" }
+      - { code: "de-DE", name: "German" }
+    as: lang
+    concurrency: 3
+    infer:
+      prompt: |
+        Translate into {{with.lang.name}} ({{with.lang.code}}):
+        {{with.content | first(3000)}}
+        Keep Markdown formatting. Technical terms stay in English.
+      temperature: 0.3
+      max_tokens: 3000
+
+  - id: quality_report
+    depends_on: [write_content, translate]
+    with:
+      originals: $write_content
+      translations: $translate
+    infer:
+      prompt: |
+        Quality report for content factory:
+        Originals: {{with.originals | first(1000)}}
+        Translations: {{with.translations | first(1000)}}
+      temperature: 0.3
+      max_tokens: 800
+    artifact:
+      path: output/content-quality-report.md

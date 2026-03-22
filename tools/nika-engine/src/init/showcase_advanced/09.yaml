@@ -1,0 +1,82 @@
+# =============================================================================
+# SHOWCASE 09 — Research Agent with Web Sources
+# =============================================================================
+# requires_llm: true
+# category: advanced
+#
+# Fetches from multiple web sources, feeds to a research agent with
+# MCP filesystem access, produces a synthesis report.
+
+schema: "nika/workflow@0.12"
+workflow: research-agent-with-web
+provider: "{{PROVIDER}}"
+model: "{{MODEL}}"
+
+mcp:
+  filesystem:
+    command: "npx"
+    args:
+      - "-y"
+      - "@anthropic/mcp-filesystem"
+
+tasks:
+  - id: source_blog
+    fetch:
+      url: "https://blog.rust-lang.org/"
+      extract: markdown
+      timeout: 20
+
+  - id: source_feed
+    fetch:
+      url: "https://blog.rust-lang.org/feed.xml"
+      extract: feed
+      timeout: 15
+
+  - id: source_hn
+    fetch:
+      url: "https://news.ycombinator.com/"
+      extract: article
+      timeout: 20
+
+  - id: research_agent
+    depends_on: [source_blog, source_feed, source_hn]
+    with:
+      blog: $source_blog
+      feed: $source_feed
+      hn: $source_hn
+    agent:
+      system: "You are a senior tech researcher with filesystem and builtin tools."
+      prompt: |
+        Analyze these sources and produce a research brief:
+        Blog: {{with.blog | first(2000)}}
+        Feed: {{with.feed | first(1500)}}
+        HN: {{with.hn | first(1500)}}
+        Identify top 5 trends. Call nika_complete with your brief.
+      mcp: [filesystem]
+      tools: [builtin]
+      max_turns: 8
+      max_tokens: 2000
+      token_budget: 18000
+      completion:
+        mode: explicit
+      guardrails:
+        - type: length
+          min_words: 250
+          on_failure: retry
+        - type: regex
+          pattern: "(?i)trend"
+          message: "Must identify trends"
+          on_failure: retry
+    artifact:
+      path: output/research-brief.md
+
+  - id: executive_summary
+    depends_on: [research_agent]
+    with:
+      research: $research_agent
+    infer:
+      prompt: "Write a 200-word executive summary: {{with.research}}"
+      temperature: 0.3
+      max_tokens: 500
+    artifact:
+      path: output/executive-summary.md

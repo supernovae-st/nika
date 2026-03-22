@@ -1,0 +1,64 @@
+# =============================================================================
+# SHOWCASE 13 — Multi-Step Agent
+# =============================================================================
+# requires_llm: true
+# category: advanced
+#
+# A long-running agent with 10 turns that writes, reads, and refines
+# files. Demonstrates explicit completion mode.
+
+schema: "nika/workflow@0.12"
+workflow: multi-step-agent
+provider: "{{PROVIDER}}"
+model: "{{MODEL}}"
+
+tasks:
+  - id: gather_context
+    exec: "echo '{\"project\": \"nika\", \"language\": \"rust\", \"task\": \"generate test plan\"}'"
+
+  - id: test_planner
+    depends_on: [gather_context]
+    with:
+      context: $gather_context
+    agent:
+      system: |
+        You are a QA engineer. Use file tools methodically:
+        1. nika_glob to find sources
+        2. nika_read to examine key files
+        3. nika_write to write test plan to .scratch/test-plan.md
+        4. nika_log for progress
+        5. nika_complete with the final plan
+      prompt: |
+        Project: {{with.context}}
+        Create a test plan covering unit tests, integration tests, edge cases.
+      tools:
+        - "nika:glob"
+        - "nika:read"
+        - "nika:write"
+        - "nika:log"
+      max_turns: 10
+      max_tokens: 2000
+      token_budget: 25000
+      completion:
+        mode: explicit
+      guardrails:
+        - type: length
+          min_words: 300
+          on_failure: retry
+        - type: regex
+          pattern: "(?i)test (plan|case|scenario)"
+          message: "Must contain test plan content"
+          on_failure: retry
+    artifact:
+      path: output/test-plan.md
+
+  - id: plan_summary
+    depends_on: [test_planner]
+    with:
+      plan: $test_planner
+    infer:
+      prompt: "Summarize in 5 bullets: {{with.plan | first(3000)}}"
+      temperature: 0.3
+      max_tokens: 500
+    artifact:
+      path: output/test-plan-summary.md

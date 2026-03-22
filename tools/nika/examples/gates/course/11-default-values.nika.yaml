@@ -1,0 +1,99 @@
+# =============================================================================
+# COURSE 11 — Default Values
+# =============================================================================
+#
+# Demonstrates null-safety transforms:
+#   default(V) transform + ?? fallback operator
+#
+# Data: partial JSON objects simulating incomplete API responses.
+# Shows both the transform and operator approaches to null handling.
+# =============================================================================
+
+schema: nika/workflow@0.12
+workflow: course-default-values
+
+tasks:
+  # -- Source: incomplete user profile --
+  - id: partial_profile
+    exec: 'printf ''{"name":"Alice","email":"alice@example.com","phone":null}'''
+    description: "User profile with missing phone field"
+
+  - id: empty_object
+    exec: "echo '{}'"
+    description: "Empty JSON object — all fields missing"
+
+  # -- ?? operator: simple fallback --
+  - id: fallback_exists
+    depends_on: [partial_profile]
+    with:
+      name: $partial_profile.name ?? "Unknown"
+    exec: "echo 'NAME={{with.name}}'"
+    description: "?? when field exists: no fallback needed"
+
+  - id: fallback_missing
+    depends_on: [partial_profile]
+    with:
+      phone: $partial_profile.phone ?? "not-provided"
+    exec: "echo 'PHONE={{with.phone}}'"
+    description: "?? when field is null: fallback triggers"
+
+  - id: fallback_absent
+    depends_on: [partial_profile]
+    with:
+      role: $partial_profile.role ?? "user"
+    exec: "echo 'ROLE={{with.role}}'"
+    description: "?? when field does not exist at all: fallback triggers"
+
+  # -- ?? chain: multi-level fallback --
+  - id: fallback_chain
+    depends_on: [partial_profile, empty_object]
+    with:
+      val: $empty_object.priority ?? $partial_profile.priority ?? "normal"
+    exec: "echo 'PRIORITY={{with.val}}'"
+    description: "?? chain: try source A, then B, then literal"
+
+  # -- default(V) transform --
+  - id: default_transform
+    depends_on: [partial_profile]
+    with:
+      val: $partial_profile.nickname | default(anonymous)
+    exec: "echo 'DEFAULT={{with.val}}'"
+    description: "default(V): provide fallback value via transform"
+
+  # -- ?? with env var fallback --
+  - id: env_fallback
+    with:
+      region: $env.NIKA_REGION ?? "us-east-1"
+    exec: "echo 'REGION={{with.region}}'"
+    description: "?? with env var: fallback when env not set"
+
+  # -- Combine default() with transforms --
+  - id: fallback_with_transform
+    depends_on: [partial_profile]
+    with:
+      display: $partial_profile.nickname | default(anonymous) | upper
+    exec: "echo 'DISPLAY={{with.display}}'"
+    description: "default() followed by transform: fallback then uppercase"
+
+  - id: verify
+    depends_on: [fallback_exists, fallback_missing, fallback_absent, fallback_chain, default_transform, env_fallback, fallback_with_transform]
+    with:
+      a: $fallback_exists | trim
+      b: $fallback_missing | trim
+      c: $fallback_absent | trim
+      d: $fallback_chain | trim
+      e: $default_transform | trim
+      f: $env_fallback | trim
+      g: $fallback_with_transform | trim
+    exec:
+      command: |
+        echo "=== Default Values: ??|default(V) VERIFIED ==="
+        echo "Exists:    {{with.a}}"
+        echo "Missing:   {{with.b}}"
+        echo "Absent:    {{with.c}}"
+        echo "Chain:     {{with.d}}"
+        echo "Default:   {{with.e}}"
+        echo "Env:       {{with.f}}"
+        echo "Transform: {{with.g}}"
+      shell: true
+    description: "Verify all default/fallback patterns"

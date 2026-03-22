@@ -1,0 +1,46 @@
+# =============================================================================
+# DAG Pattern 03: Wide Parallel
+# =============================================================================
+#
+# Five fully independent tasks with zero edges between them.
+# Maximum parallelism — all tasks can execute simultaneously.
+#
+#   A
+#   B
+#   C     (all independent, no edges)
+#   D
+#   E
+#
+# Edges: 0
+# Max parallelism: 5 (all tasks run concurrently)
+# Critical path: longest single task
+# =============================================================================
+
+schema: nika/workflow@0.12
+workflow: dag-wide-parallel
+description: "A+B+C+D+E all independent — maximum parallelism, 0 edges"
+
+tasks:
+  - id: check_hostname
+    description: "Get system hostname"
+    exec: "hostname"
+
+  - id: check_date
+    description: "Get current UTC date"
+    exec:
+      command: "date -u '+%Y-%m-%dT%H:%M:%SZ'"
+      shell: true
+
+  - id: check_user
+    description: "Get current user"
+    exec: "whoami"
+
+  - id: check_shell
+    description: "Get current shell"
+    exec:
+      command: "echo $SHELL"
+      shell: true
+
+  - id: check_pwd
+    description: "Get working directory"
+    exec: "pwd"

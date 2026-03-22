@@ -1,0 +1,56 @@
+# =============================================================================
+# SECURITY DEMO 01: Command Blocklist
+# =============================================================================
+#
+# Nika's exec: verb has a built-in command blocklist that prevents
+# dangerous operations like `rm -rf /`, `sudo`, and pipe-to-shell attacks.
+# Commands are checked AFTER Unicode NFKC normalization to prevent bypass
+# via confusable characters (e.g., fullwidth or math bold).
+#
+# DEMONSTRATES:
+#   - NIKA-053 (BlockedCommand): triggered when a blocklisted pattern is found
+#   - Safe commands pass through without issue
+#   - Blocklist catches: rm -rf /, sudo, eval, pipe-to-shell, fork bombs
+#
+# EXPECTED BEHAVIOR:
+#   Task "safe_echo" succeeds    -> exec: passes security check
+#   Task "safe_ls" succeeds      -> standard commands are fine
+#   Task "blocked_rm" FAILS      -> NIKA-053: "rm -rf /" blocked
+#   Task "report" is SKIPPED     -> depends_on failed task
+#
+# RUN: nika run 01-command-blocklist.nika.yaml
+#      (workflow will partially fail — that's the point!)
+# =============================================================================
+
+schema: "nika/workflow@0.12"
+
+workflow: security-command-blocklist
+
+tasks:
+  # SAFE: simple echo command — passes blocklist check
+  - id: safe_echo
+    exec: "echo 'Hello from a safe command!'"
+
+  # SAFE: listing files is harmless
+  - id: safe_ls
+    depends_on: [safe_echo]
+    exec: "ls -la"
+
+  # SAFE: safe use of shell features (no blocklisted patterns)
+  - id: safe_shell
+    depends_on: [safe_ls]
+    exec:
+      command: "echo 'Current user:' && whoami && echo 'Date:' && date"
+      shell: true
+
+  # BLOCKED: "rm -rf /" is on the blocklist
+  # This task will fail with NIKA-053
+  - id: blocked_rm
+    depends_on: [safe_shell]
+    exec: "rm -rf /"
+
+  # SKIPPED: this task depends on "blocked_rm" which fails
+  # Demonstrates NIKA-026 (DependencyChainFailed) cascade
+  - id: report
+    depends_on: [blocked_rm]
+    exec: "echo 'This will never execute — blocked_rm was rejected'"

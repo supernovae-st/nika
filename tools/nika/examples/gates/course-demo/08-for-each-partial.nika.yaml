@@ -1,0 +1,73 @@
+# =============================================================================
+# ERROR HANDLING DEMO 08: for_each with fail_fast: false
+# =============================================================================
+#
+# By default, for_each stops all iterations on the first error (fail_fast: true).
+# Setting fail_fast: false allows remaining iterations to continue even when
+# some items fail. This enables partial-result workflows.
+#
+# Use cases:
+#   - Processing a batch where some items may be invalid
+#   - Sending notifications to multiple endpoints (some may be down)
+#   - Data pipeline where partial results are better than no results
+#
+# DEMONSTRATES:
+#   - for_each with fail_fast: false
+#   - Some iterations fail, others succeed
+#   - Downstream task still runs and can see partial results
+#   - Concurrency control with concurrency: 2
+#
+# EXPECTED BEHAVIOR:
+#   "process" iteration "alpha"   succeeds
+#   "process" iteration "FAIL"    FAILS (exit 1)
+#   "process" iteration "bravo"   succeeds
+#   "process" iteration "FAIL"    FAILS (exit 1)
+#   "process" iteration "charlie" succeeds
+#   "aggregate" task              succeeds -> reports partial results
+#
+# RUN: nika run 08-for-each-partial.nika.yaml
+# =============================================================================
+
+schema: "nika/workflow@0.12"
+
+workflow: error-for-each-partial
+
+tasks:
+  # Process a list of items where some are designed to fail.
+  # fail_fast: false means ALL items are attempted regardless of failures.
+  - id: process
+    for_each:
+      - "alpha"
+      - "FAIL_1"
+      - "bravo"
+      - "FAIL_2"
+      - "charlie"
+    as: item
+    fail_fast: false
+    concurrency: 2
+    exec:
+      command: |
+        ITEM="{{with.item}}"
+        echo "Processing: $ITEM"
+        if echo "$ITEM" | grep -q "FAIL"; then
+          echo "ERROR: Item '$ITEM' is invalid — failing on purpose"
+          exit 1
+        fi
+        echo "SUCCESS: Item '$ITEM' processed correctly"
+      shell: true
+
+  # Aggregate results — this runs even though some iterations failed.
+  # In a real workflow, you'd use with: bindings to inspect partial results.
+  - id: aggregate
+    depends_on: [process]
+    exec:
+      command: |
+        echo "=== Partial Results Report ==="
+        echo "Total items: 5"
+        echo "Expected successes: 3 (alpha, bravo, charlie)"
+        echo "Expected failures: 2 (FAIL_1, FAIL_2)"
+        echo ""
+        echo "With fail_fast: false, all 5 items were attempted."
+        echo "With fail_fast: true (default), only items before"
+        echo "the first failure would have been processed."
+      shell: true

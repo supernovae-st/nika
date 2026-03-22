@@ -222,6 +222,21 @@ enum Commands {
         /// Migrate API keys from environment variables to system keychain
         #[arg(long)]
         migrate_keys: bool,
+
+        /// Generate interactive course files (12 levels, 44 exercises)
+        #[arg(long)]
+        course: bool,
+
+        /// Minimal init (config only, no examples)
+        #[arg(long)]
+        minimal: bool,
+    },
+
+    /// Interactive learning course
+    #[command(visible_alias = "learn")]
+    Course {
+        #[command(subcommand)]
+        action: cli::course::CourseAction,
     },
 
     /// Manage execution traces
@@ -712,7 +727,39 @@ async fn main() {
             permission,
             no_example,
             migrate_keys,
-        }) => cli::init::init_project(&permission, no_example, migrate_keys),
+            course,
+            minimal,
+        }) => {
+            if course {
+                // Generate interactive course
+                use nika_engine::init::course::generator::{generate_course, CourseConfig};
+                let config = CourseConfig {
+                    dest: std::path::PathBuf::from("nika-course"),
+                    ..CourseConfig::default()
+                };
+                match generate_course(&config) {
+                    Ok(result) => {
+                        println!(
+                            "\n  {} Course generated! {} levels, {} exercises\n  Location: {}\n  Run: cd {} && nika course status\n",
+                            "✓".green(),
+                            result.levels,
+                            result.exercises,
+                            result.root.display(),
+                            result.root.display(),
+                        );
+                        Ok(())
+                    }
+                    Err(e) => {
+                        eprintln!("Course generation failed: {e}");
+                        Err(e)
+                    }
+                }
+            } else {
+                cli::init::init_project(&permission, no_example || minimal, migrate_keys)
+            }
+        }
+
+        Some(Commands::Course { action }) => cli::course::handle_course_command(action),
 
         Some(Commands::Trace { action }) => cli::trace::handle_trace_command(action),
 

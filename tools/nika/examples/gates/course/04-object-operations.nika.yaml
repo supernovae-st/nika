@@ -1,0 +1,78 @@
+# =============================================================================
+# COURSE 04 — Object Operations
+# =============================================================================
+#
+# Demonstrates collection transforms on objects:
+#   keys | values | length
+#
+# Data: a real server configuration object with nested fields.
+# Each transform extracts different views of the same object.
+# =============================================================================
+
+schema: nika/workflow@0.12
+workflow: course-object-operations
+
+tasks:
+  # -- Source: realistic server config --
+  - id: server_config
+    exec: 'printf ''{"hostname":"prod-api-01","region":"eu-west-1","cpu_cores":8,"memory_gb":32,"status":"healthy"}'''
+    description: "Server configuration as JSON object"
+
+  # -- Extract keys --
+  - id: config_keys
+    depends_on: [server_config]
+    with:
+      val: $server_config | keys
+    exec: "echo 'KEYS={{with.val}}'"
+    description: "keys: extract all field names"
+
+  # -- Extract values --
+  - id: config_values
+    depends_on: [server_config]
+    with:
+      val: $server_config | values
+    exec: "echo 'VALUES={{with.val}}'"
+    description: "values: extract all field values"
+
+  # -- Count fields --
+  - id: field_count
+    depends_on: [server_config]
+    with:
+      count: $server_config | length
+    exec: "echo 'FIELD_COUNT={{with.count}}'"
+    description: "length: count number of fields in object"
+
+  # -- Chain: keys -> sort -> join --
+  - id: sorted_keys
+    depends_on: [server_config]
+    with:
+      val: $server_config | keys | sort | join(", ")
+    exec: "echo 'SORTED_KEYS={{with.val}}'"
+    description: "Chain: keys -> sort -> join for readable key list"
+
+  # -- Chain: values -> length --
+  - id: value_count
+    depends_on: [server_config]
+    with:
+      val: $server_config | values | length
+    exec: "echo 'VALUE_COUNT={{with.val}}'"
+    description: "Chain: values -> length matches field count"
+
+  - id: verify
+    depends_on: [config_keys, config_values, field_count, sorted_keys, value_count]
+    with:
+      k: $config_keys | trim
+      v: $config_values | trim
+      c: $field_count | trim
+      sk: $sorted_keys | trim
+      vc: $value_count | trim
+    exec:
+      command: |
+        echo "=== Object Operations: keys|values|length VERIFIED ==="
+        echo "Keys:        {{with.k}}"
+        echo "Values:      {{with.v}}"
+        echo "Field count: {{with.c}}"
+        echo "Sorted keys: {{with.sk}}"
+        echo "Value count: {{with.vc}}"
+      shell: true
+    description: "Verify all object operations"

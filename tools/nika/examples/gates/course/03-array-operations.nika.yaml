@@ -1,0 +1,93 @@
+# =============================================================================
+# COURSE 03 — Array Operations
+# =============================================================================
+#
+# Demonstrates collection transforms on arrays:
+#   sort | unique | first(N) | join(S)
+#
+# Data: a real list of programming languages with duplicates and disorder.
+# Pipeline: sort -> unique -> first(3) -> join(",")
+# =============================================================================
+
+schema: nika/workflow@0.12
+workflow: course-array-operations
+
+tasks:
+  # -- Source: unsorted array with duplicates --
+  - id: languages
+    exec: 'echo ''["rust","python","go","rust","typescript","python","java","go","rust","elixir"]'''
+    description: "Programming languages with duplicates"
+
+  # -- Sort alphabetically --
+  - id: sorted
+    depends_on: [languages]
+    with:
+      val: $languages | sort
+    exec: "echo 'SORTED={{with.val}}'"
+    description: "sort: alphabetical order"
+
+  # -- Remove duplicates --
+  - id: deduped
+    depends_on: [languages]
+    with:
+      val: $languages | unique
+    exec: "echo 'UNIQUE={{with.val}}'"
+    description: "unique: remove duplicate entries"
+
+  # -- Take first 3 --
+  - id: top_three
+    depends_on: [languages]
+    with:
+      val: $languages | sort | unique | first(3)
+    exec: "echo 'FIRST_3={{with.val}}'"
+    description: "first(3): take first 3 after sort+unique"
+
+  # -- Join with comma --
+  - id: joined
+    depends_on: [languages]
+    with:
+      val: $languages | sort | unique | join(", ")
+    exec: "echo 'JOINED={{with.val}}'"
+    description: "join: combine array elements with separator"
+
+  # -- Full pipeline: sort -> unique -> first(3) -> join(",") --
+  - id: full_pipeline
+    depends_on: [languages]
+    with:
+      val: $languages | sort | unique | first(3) | join(",")
+    exec: "echo 'PIPELINE={{with.val}}'"
+    description: "Full pipeline: sort -> unique -> first(3) -> join(',')"
+
+  # -- Count elements at each stage --
+  - id: counts
+    depends_on: [languages]
+    with:
+      raw_count: $languages | length
+      unique_count: $languages | unique | length
+      top3_count: $languages | sort | unique | first(3) | length
+    exec:
+      command: |
+        echo "Raw:    {{with.raw_count}} items"
+        echo "Unique: {{with.unique_count}} items"
+        echo "Top 3:  {{with.top3_count}} items"
+      shell: true
+    description: "Track array length through pipeline stages"
+
+  - id: verify
+    depends_on: [sorted, deduped, top_three, joined, full_pipeline, counts]
+    with:
+      s: $sorted | trim
+      u: $deduped | trim
+      t: $top_three | trim
+      j: $joined | trim
+      p: $full_pipeline | trim
+    exec:
+      command: |
+        echo "=== Array Operations: sort|unique|first(N)|join VERIFIED ==="
+        echo "Sorted:   {{with.s}}"
+        echo "Unique:   {{with.u}}"
+        echo "Top 3:    {{with.t}}"
+        echo "Joined:   {{with.j}}"
+        echo "Pipeline: {{with.p}}"
+      shell: true
+    description: "Verify all array operations"

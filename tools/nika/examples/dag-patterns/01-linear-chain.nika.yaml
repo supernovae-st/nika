@@ -1,0 +1,63 @@
+# =============================================================================
+# DAG Pattern 01: Linear Chain
+# =============================================================================
+#
+# The simplest DAG: a strict sequence of 5 tasks, each depending on the
+# previous one. Data flows forward through with: bindings.
+#
+#   A ──▶ B ──▶ C ──▶ D ──▶ E
+#
+# Edges: 4
+# Max parallelism: 1
+# Critical path: all 5 tasks
+# =============================================================================
+
+schema: nika/workflow@0.12
+workflow: dag-linear-chain
+description: "A -> B -> C -> D -> E — strict sequential execution"
+
+tasks:
+  - id: step_a
+    description: "Generate initial seed data"
+    exec:
+      command: "echo '{\"value\": 1, \"label\": \"seed\"}'"
+      shell: true
+
+  - id: step_b
+    description: "Double the value"
+    depends_on: [step_a]
+    with:
+      prev: $step_a
+    exec:
+      command: "echo '{\"value\": 2, \"label\": \"doubled\", \"source\": \"step_a\"}'"
+      shell: true
+
+  - id: step_c
+    description: "Add metadata"
+    depends_on: [step_b]
+    with:
+      prev: $step_b
+    exec:
+      command: "echo '{\"value\": 4, \"label\": \"enriched\", \"source\": \"step_b\", \"stage\": 3}'"
+      shell: true
+
+  - id: step_d
+    description: "Validate the accumulated data"
+    depends_on: [step_c]
+    with:
+      prev: $step_c
+    exec:
+      command: "echo '{\"valid\": true, \"checks_passed\": 3, \"source\": \"step_c\"}'"
+      shell: true
+
+  - id: step_e
+    description: "Final output with full lineage"
+    depends_on: [step_d]
+    with:
+      prev: $step_d
+    exec:
+      command: |
+        echo "=== Linear Chain Complete ==="
+        echo "Final validation: {{with.prev}}"
+        echo "Pipeline: A -> B -> C -> D -> E"
+      shell: true

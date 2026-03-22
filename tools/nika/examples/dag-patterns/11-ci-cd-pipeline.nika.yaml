@@ -1,0 +1,93 @@
+# =============================================================================
+# DAG Pattern 11: CI/CD Pipeline
+# =============================================================================
+#
+# Simulates a realistic CI/CD pipeline: checkout, then build+test+lint
+# run in parallel, then deploy only after all 3 pass.
+#
+#                ┌──▶ build ──┐
+#   checkout ────┼──▶ test  ──┼──▶ deploy ──▶ notify
+#                └──▶ lint  ──┘
+#
+# Edges: 7
+# Max parallelism: 3 (build, test, lint)
+# Critical path: checkout -> slowest(build,test,lint) -> deploy -> notify
+# =============================================================================
+
+schema: nika/workflow@0.12
+workflow: dag-ci-cd-pipeline
+description: "checkout -> build+test+lint parallel -> deploy -> notify"
+
+tasks:
+  # ── Stage 1: Checkout ─────────────────────────────────────────────────────
+  - id: checkout
+    description: "Simulate git checkout and prepare workspace"
+    exec:
+      command: |
+        echo '{"repo":"supernovae/nika","branch":"main","commit":"abc1234","files_changed":12}'
+      shell: true
+
+  # ── Stage 2: Parallel CI checks ───────────────────────────────────────────
+  - id: build
+    description: "Compile the project"
+    depends_on: [checkout]
+    with:
+      repo: $checkout
+    exec:
+      command: |
+        echo "Building {{with.repo}}..."
+        echo '{"stage":"build","status":"success","duration_ms":4200,"warnings":0,"artifacts":["target/release/nika"]}'
+      shell: true
+
+  - id: test
+    description: "Run test suite"
+    depends_on: [checkout]
+    with:
+      repo: $checkout
+    exec:
+      command: |
+        echo "Testing {{with.repo}}..."
+        echo '{"stage":"test","status":"success","total":7100,"passed":7100,"failed":0,"skipped":3,"duration_ms":8500}'
+      shell: true
+
+  - id: lint
+    description: "Run clippy + fmt check"
+    depends_on: [checkout]
+    with:
+      repo: $checkout
+    exec:
+      command: |
+        echo "Linting {{with.repo}}..."
+        echo '{"stage":"lint","status":"success","clippy_warnings":0,"fmt_issues":0,"duration_ms":1200}'
+      shell: true
+
+  # ── Stage 3: Deploy (only if all checks pass) ─────────────────────────────
+  - id: deploy
+    description: "Deploy to production"
+    depends_on: [build, test, lint]
+    with:
+      build_result: $build
+      test_result: $test
+      lint_result: $lint
+    exec:
+      command: |
+        echo "=== Deployment Gate ==="
+        echo "Build:  {{with.build_result}}"
+        echo "Tests:  {{with.test_result}}"
+        echo "Lint:   {{with.lint_result}}"
+        echo ""
+        echo '{"stage":"deploy","status":"deployed","environment":"production","version":"0.38.0"}'
+      shell: true
+
+  # ── Stage 4: Notify ───────────────────────────────────────────────────────
+  - id: notify
+    description: "Send deployment notification"
+    depends_on: [deploy]
+    with:
+      deployment: $deploy
+    exec:
+      command: |
+        echo "=== CI/CD Complete ==="
+        echo "Deployment: {{with.deployment}}"
+        echo "Pipeline: checkout -> [build|test|lint] -> deploy -> notify"
+      shell: true

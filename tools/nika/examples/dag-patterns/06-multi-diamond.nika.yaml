@@ -1,0 +1,114 @@
+# =============================================================================
+# DAG Pattern 06: Multi-Diamond
+# =============================================================================
+#
+# Two independent diamonds sharing a common source, with a final merge
+# that joins the output of both diamonds. Tests complex fan-out/fan-in.
+#
+#              A
+#            / | \
+#          B   C   E
+#          |   |   |
+#          └─D─┘   F
+#            |     |
+#            └──H──┘
+#
+# Diamond 1: A -> B+C -> D
+# Diamond 2: A -> E+F (E depends on A, F depends on E... simplified to A -> E, A -> F)
+# Actually: A -> B,C (diamond 1), A -> E,F (diamond 2), D+G -> H
+#
+#         ┌──▶ B ──┐
+#   A ────┤        ├──▶ D ──┐
+#         └──▶ C ──┘        │
+#         ┌──▶ E ──┐        ├──▶ H
+#   A ────┤        ├──▶ G ──┘
+#         └──▶ F ──┘
+#
+# Edges: 10
+# Max parallelism: 4 (B, C, E, F)
+# Critical path: A -> slowest diamond -> H
+# =============================================================================
+
+schema: nika/workflow@0.12
+workflow: dag-multi-diamond
+description: "Two diamonds from shared source, merged at final node"
+
+tasks:
+  # ── Shared source ──────────────────────────────────────────────────────────
+  - id: source
+    description: "Shared source for both diamonds"
+    exec:
+      command: "echo 'MULTI_DIAMOND_INPUT'"
+      shell: true
+
+  # ── Diamond 1: text analysis ──────────────────────────────────────────────
+  - id: d1_upper
+    description: "Diamond 1: uppercase branch"
+    depends_on: [source]
+    with:
+      data: $source
+    exec:
+      command: "echo '{{with.data}}' | tr '[:lower:]' '[:upper:]'"
+      shell: true
+
+  - id: d1_reverse
+    description: "Diamond 1: reverse branch"
+    depends_on: [source]
+    with:
+      data: $source
+    exec:
+      command: "echo '{{with.data}}' | rev"
+      shell: true
+
+  - id: d1_merge
+    description: "Diamond 1: merge text analysis"
+    depends_on: [d1_upper, d1_reverse]
+    with:
+      upper: $d1_upper
+      reversed: $d1_reverse
+    exec:
+      command: "echo 'D1[{{with.upper}}|{{with.reversed}}]'"
+      shell: true
+
+  # ── Diamond 2: metrics ────────────────────────────────────────────────────
+  - id: d2_length
+    description: "Diamond 2: character count"
+    depends_on: [source]
+    with:
+      data: $source
+    exec:
+      command: "echo -n '{{with.data}}' | wc -c | tr -d ' '"
+      shell: true
+
+  - id: d2_words
+    description: "Diamond 2: word count"
+    depends_on: [source]
+    with:
+      data: $source
+    exec:
+      command: "echo '{{with.data}}' | wc -w | tr -d ' '"
+      shell: true
+
+  - id: d2_merge
+    description: "Diamond 2: merge metrics"
+    depends_on: [d2_length, d2_words]
+    with:
+      chars: $d2_length
+      words: $d2_words
+    exec:
+      command: "echo 'D2[chars={{with.chars}},words={{with.words}}]'"
+      shell: true
+
+  # ── Final merge: both diamonds ────────────────────────────────────────────
+  - id: final
+    description: "Merge results from both diamonds"
+    depends_on: [d1_merge, d2_merge]
+    with:
+      text_analysis: $d1_merge
+      metrics: $d2_merge
+    exec:
+      command: |
+        echo "=== Multi-Diamond Complete ==="
+        echo "Text:    {{with.text_analysis}}"
+        echo "Metrics: {{with.metrics}}"
+      shell: true

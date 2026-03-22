@@ -5,7 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [Unreleased] — v0.39.0
+
+### Added
+- `nika init --course` — generates 12-level interactive learning course (44 exercises)
+- `nika course` command with 8 subcommands: status, next, check, hint, reset, run, info, watch
+- `nika init --minimal` — lightweight scaffold (5 workflows, 1 per verb)
+- cliclack wizard for `nika init` — beautiful interactive setup
+- CourseProgress tracking (.nika/course-progress.toml)
+- 3-tier progressive hint system (conceptual → specific → solution)
+- Course exercise validation (CourseCheck assertions)
+- NIKA-310 through NIKA-314 error codes for course operations
+- Liberation theme with 12 named levels (Jailbreak → SuperNovae)
+
+### Changed
+- `nika init` now uses minimal scaffold (5 workflows) instead of 30-workflow tier system
+- Removed tier1-6.rs and partials.rs from init module (-7,000 lines)
+
+### Removed
+- Old 6-tier init system (30 workflows) — replaced by minimal + course
 
 ## [0.37.0](https://github.com/supernovae-st/nika/releases/tag/v0.37.0) - 2026-03-21
 

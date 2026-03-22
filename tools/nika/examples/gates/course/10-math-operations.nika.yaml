@@ -1,0 +1,124 @@
+# =============================================================================
+# COURSE 10 — Math Operations
+# =============================================================================
+#
+# Demonstrates all 4 numeric transforms:
+#   round(N) | abs | ceil | floor
+#
+# Data: real sensor readings with noisy decimal values.
+# Each transform shows a different numeric operation.
+# =============================================================================
+
+schema: nika/workflow@0.12
+workflow: course-math-operations
+
+tasks:
+  # -- Source: sensor readings --
+  - id: temperature
+    exec: "echo '-17.6543'"
+    description: "Temperature sensor: negative float with many decimals"
+
+  - id: humidity
+    exec: "echo '73.218'"
+    description: "Humidity sensor: positive float"
+
+  - id: pressure
+    exec: "echo '1013.5678'"
+    description: "Barometric pressure: large float"
+
+  # -- round(2): round to 2 decimal places --
+  - id: round_temp
+    depends_on: [temperature]
+    with:
+      val: $temperature | to_number | round(2)
+    exec: "echo 'ROUND_2={{with.val}}'"
+    description: "round(2): -17.6543 -> -17.65"
+
+  # -- round(0): round to integer --
+  - id: round_zero
+    depends_on: [temperature]
+    with:
+      val: $temperature | to_number | round(0)
+    exec: "echo 'ROUND_0={{with.val}}'"
+    description: "round(0): -17.6543 -> -18"
+
+  # -- abs: absolute value --
+  - id: abs_temp
+    depends_on: [temperature]
+    with:
+      val: $temperature | to_number | abs
+    exec: "echo 'ABS={{with.val}}'"
+    description: "abs: -17.6543 -> 17.6543"
+
+  # -- ceil: round up --
+  - id: ceil_temp
+    depends_on: [temperature]
+    with:
+      val: $temperature | to_number | ceil
+    exec: "echo 'CEIL={{with.val}}'"
+    description: "ceil: -17.6543 -> -17 (ceiling rounds toward +inf)"
+
+  # -- floor: round down --
+  - id: floor_temp
+    depends_on: [temperature]
+    with:
+      val: $temperature | to_number | floor
+    exec: "echo 'FLOOR={{with.val}}'"
+    description: "floor: -17.6543 -> -18 (floor rounds toward -inf)"
+
+  # -- Chain: abs -> round(1) --
+  - id: chain_abs_round
+    depends_on: [temperature]
+    with:
+      val: $temperature | to_number | abs | round(1)
+    exec: "echo 'ABS_ROUND={{with.val}}'"
+    description: "Chain: abs -> round(1) for clean positive value"
+
+  # -- All ops on positive value --
+  - id: positive_ops
+    depends_on: [humidity]
+    with:
+      rounded: $humidity | to_number | round(1)
+      ceiled: $humidity | to_number | ceil
+      floored: $humidity | to_number | floor
+    exec:
+      command: |
+        echo "Humidity 73.218:"
+        echo "  round(1) = {{with.rounded}}"
+        echo "  ceil     = {{with.ceiled}}"
+        echo "  floor    = {{with.floored}}"
+      shell: true
+    description: "All numeric ops on positive float"
+
+  # -- Precision: round(1) vs round(3) --
+  - id: precision
+    depends_on: [pressure]
+    with:
+      r1: $pressure | to_number | round(1)
+      r2: $pressure | to_number | round(2)
+      r3: $pressure | to_number | round(3)
+    exec:
+      command: |
+        echo "Pressure 1013.5678:"
+        echo "  round(1) = {{with.r1}}"
+        echo "  round(2) = {{with.r2}}"
+        echo "  round(3) = {{with.r3}}"
+      shell: true
+    description: "Compare rounding precision levels"
+
+  - id: verify
+    depends_on: [round_temp, round_zero, abs_temp, ceil_temp, floor_temp, chain_abs_round, positive_ops, precision]
+    with:
+      r: $round_temp | trim
+      a: $abs_temp | trim
+      c: $ceil_temp | trim
+      f: $floor_temp | trim
+    exec:
+      command: |
+        echo "=== Math Operations: round|abs|ceil|floor VERIFIED ==="
+        echo "round(2): {{with.r}}"
+        echo "abs:      {{with.a}}"
+        echo "ceil:     {{with.c}}"
+        echo "floor:    {{with.f}}"
+      shell: true
+    description: "Verify all numeric transforms"

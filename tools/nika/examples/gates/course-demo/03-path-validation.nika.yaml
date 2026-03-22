@@ -1,0 +1,74 @@
+# =============================================================================
+# SECURITY DEMO 03: Path Validation (File Tool Sandbox)
+# =============================================================================
+#
+# Nika's file tools (nika:read, nika:write, nika:edit, nika:glob, nika:grep)
+# enforce a path boundary: all file operations must stay within the workflow's
+# working directory. Attempts to escape via "../" or absolute paths outside
+# the sandbox trigger NIKA-204 (PathOutOfBounds).
+#
+# This prevents workflows from:
+#   - Reading sensitive files (/etc/passwd, ~/.ssh/id_rsa)
+#   - Traversal attacks via ../../ paths
+#   - Symlink attacks pointing outside the project
+#
+# DEMONSTRATES:
+#   - NIKA-204 (PathOutOfBounds): path traversal blocked
+#   - NIKA-208 (FileNotFound): legitimate read of non-existent file
+#   - Safe reads within the working directory succeed
+#
+# EXPECTED BEHAVIOR:
+#   "write_safe"      succeeds -> writing inside working dir is fine
+#   "read_safe"       succeeds -> reading the file we just wrote
+#   "read_traversal"  FAILS    -> NIKA-204: "../../../etc/passwd" is outside sandbox
+#   "read_absolute"   FAILS    -> NIKA-204: "/etc/hosts" is outside sandbox
+#   "cleanup"         SKIPPED  -> depends on failed tasks (cascade)
+#
+# RUN: nika run 03-path-validation.nika.yaml
+# =============================================================================
+
+schema: "nika/workflow@0.12"
+
+workflow: security-path-validation
+
+tasks:
+  # Setup: write a file inside the working directory (safe)
+  - id: write_safe
+    invoke:
+      tool: "nika:write"
+      params:
+        file_path: ".scratch/security-demo.txt"
+        content: "This file was created safely inside the sandbox."
+
+  # SAFE: reading a file we just wrote — inside working directory
+  - id: read_safe
+    depends_on: [write_safe]
+    invoke:
+      tool: "nika:read"
+      params:
+        file_path: ".scratch/security-demo.txt"
+
+  # BLOCKED: path traversal attack — trying to escape the sandbox
+  # "../../../etc/passwd" resolves outside the working directory
+  # Triggers NIKA-204 (PathOutOfBounds)
+  - id: read_traversal
+    depends_on: [write_safe]
+    invoke:
+      tool: "nika:read"
+      params:
+        file_path: "../../../etc/passwd"
+
+  # BLOCKED: absolute path outside working directory
+  # Even without ".." — absolute paths are checked against the sandbox
+  # Triggers NIKA-204 (PathOutOfBounds)
+  - id: read_absolute
+    depends_on: [write_safe]
+    invoke:
+      tool: "nika:read"
+      params:
+        file_path: "/etc/hosts"
+
+  # Cleanup: remove scratch file (only runs if traversal tasks somehow passed)
+  - id: cleanup
+    depends_on: [read_safe, read_traversal, read_absolute]
+    exec: "rm -f .scratch/security-demo.txt"

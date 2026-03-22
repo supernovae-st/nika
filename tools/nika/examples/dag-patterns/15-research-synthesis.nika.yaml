@@ -1,0 +1,92 @@
+# =============================================================================
+# DAG Pattern 15: Research Synthesis
+# =============================================================================
+#
+# Search 3 databases in parallel, use for_each to analyze each result set,
+# synthesize all analyses, and produce a final research report.
+#
+#   search_arxiv ──────┐
+#                       │
+#   search_github ─────┼──▶ analyze (for_each) ──▶ synthesize ──▶ report
+#                       │
+#   search_docs ───────┘
+#
+# Edges: 6
+# Max parallelism: 3 (searches) then for_each concurrent analysis
+# Key concept: parallel search + for_each iteration + synthesis
+# =============================================================================
+
+schema: nika/workflow@0.12
+workflow: dag-research-synthesis
+description: "Search 3 databases parallel -> for_each analyze -> synthesize -> report"
+
+tasks:
+  # ── Parallel searches ─────────────────────────────────────────────────────
+  - id: search_arxiv
+    description: "Search academic papers"
+    exec:
+      command: |
+        echo '{"source":"arxiv","query":"WebAssembly server-side","results":3,"papers":["WASM Runtime Security Model 2025","Edge Computing with WASI","Sandboxed Microservices via WASM"]}'
+      shell: true
+
+  - id: search_github
+    description: "Search open source repositories"
+    exec:
+      command: |
+        echo '{"source":"github","query":"wasm server runtime","results":3,"repos":["bytecodealliance/wasmtime","nickel-lang/nickel","nickel-lang/organist"]}'
+      shell: true
+
+  - id: search_docs
+    description: "Search technical documentation"
+    exec:
+      command: |
+        echo '{"source":"docs","query":"WASI specification","results":3,"docs":["WASI Preview 2 Spec","Component Model RFC","wit-bindgen Reference"]}'
+      shell: true
+
+  # ── For-each analysis over the 3 source results ──────────────────────────
+  - id: analyze
+    description: "Analyze each search result set"
+    depends_on: [search_arxiv, search_github, search_docs]
+    for_each: ["arxiv", "github", "docs"]
+    as: source_name
+    exec:
+      command: |
+        echo "Analyzing {{with.source_name}} results..."
+        echo '{"source":"{{with.source_name}}","relevance":"high","key_finding":"WASM adoption accelerating in 2026","confidence":0.85}'
+      shell: true
+
+  # ── Synthesize all analyses ───────────────────────────────────────────────
+  - id: synthesize
+    description: "Synthesize findings across all 3 sources"
+    depends_on: [analyze]
+    with:
+      arxiv: $search_arxiv
+      github: $search_github
+      docs: $search_docs
+      analyses: $analyze
+    exec:
+      command: |
+        echo "=== Research Synthesis ==="
+        echo "Academic:  {{with.arxiv}}"
+        echo "OSS:       {{with.github}}"
+        echo "Docs:      {{with.docs}}"
+        echo "Analyses:  {{with.analyses}}"
+        echo ""
+        echo '{"synthesis":"Cross-source agreement on WASM maturity","sources_consulted":3,"total_results":9,"consensus":"strong"}'
+      shell: true
+
+  # ── Final report ──────────────────────────────────────────────────────────
+  - id: report
+    description: "Generate final research report"
+    depends_on: [synthesize]
+    with:
+      synthesis: $synthesize
+    exec:
+      command: |
+        echo "=== Research Synthesis Report ==="
+        echo "{{with.synthesis}}"
+        echo ""
+        echo "Conclusion: Strong cross-source evidence for WASM server adoption"
+        echo "Confidence: HIGH"
+        echo "Recommendation: Evaluate for edge workloads in Q2 2026"
+      shell: true

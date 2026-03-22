@@ -1,0 +1,92 @@
+# =============================================================================
+# DAG Pattern 07: Conditional Fan-Out
+# =============================================================================
+#
+# A source task generates data. Three analyzer tasks each receive the same
+# data but process it differently — simulating conditional processing where
+# each branch handles a different aspect of the input.
+#
+#              source
+#            /   |   \
+#     analyze  analyze  analyze
+#     _json   _text    _csv
+#            \   |   /
+#             report
+#
+# Edges: 6
+# Max parallelism: 3
+# Key concept: same input, different processing per branch
+# =============================================================================
+
+schema: nika/workflow@0.12
+workflow: dag-conditional-fan-out
+description: "Source -> 3 different analyses (JSON, text, CSV) -> report"
+
+tasks:
+  - id: source
+    description: "Generate multi-format data payload"
+    exec:
+      command: |
+        echo '{"name":"nika","type":"engine","version":"0.38","formats":["json","text","csv"]}'
+      shell: true
+
+  - id: analyze_json
+    description: "Analyze as JSON: extract keys"
+    depends_on: [source]
+    with:
+      data: $source
+    exec:
+      command: |
+        echo "JSON Analysis:"
+        echo "  Keys found: name, type, version, formats"
+        echo "  Depth: 2 (root + formats array)"
+        echo "  Valid: true"
+      shell: true
+
+  - id: analyze_text
+    description: "Analyze as plain text: character metrics"
+    depends_on: [source]
+    with:
+      data: $source
+    exec:
+      command: |
+        LEN=$(echo -n '{{with.data}}' | wc -c | tr -d ' ')
+        WORDS=$(echo '{{with.data}}' | wc -w | tr -d ' ')
+        echo "Text Analysis:"
+        echo "  Characters: $LEN"
+        echo "  Words: $WORDS"
+        echo "  Encoding: UTF-8"
+      shell: true
+
+  - id: analyze_csv
+    description: "Analyze as CSV-like: count delimiters"
+    depends_on: [source]
+    with:
+      data: $source
+    exec:
+      command: |
+        COMMAS=$(echo '{{with.data}}' | tr -cd ',' | wc -c | tr -d ' ')
+        COLONS=$(echo '{{with.data}}' | tr -cd ':' | wc -c | tr -d ' ')
+        echo "CSV Analysis:"
+        echo "  Commas: $COMMAS"
+        echo "  Colons: $COLONS"
+        echo "  Fields (est): $((COMMAS + 1))"
+      shell: true
+
+  - id: report
+    description: "Merge all 3 analysis results"
+    depends_on: [analyze_json, analyze_text, analyze_csv]
+    with:
+      json: $analyze_json
+      text: $analyze_text
+      csv: $analyze_csv
+    exec:
+      command: |
+        echo "=== Format Analysis Report ==="
+        echo ""
+        echo "{{with.json}}"
+        echo ""
+        echo "{{with.text}}"
+        echo ""
+        echo "{{with.csv}}"
+      shell: true

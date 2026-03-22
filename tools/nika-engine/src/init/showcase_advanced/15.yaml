@@ -1,0 +1,199 @@
+# =============================================================================
+# SHOWCASE 15 — Full Orchestration (Diamond DAG)
+# =============================================================================
+# requires_llm: true
+# category: advanced
+#
+# All 5 verbs, MCP, media pipeline, vision, structured output,
+# for_each, guardrails, limits, diamond DAG with 12 tasks.
+
+schema: "nika/workflow@0.12"
+workflow: full-orchestration
+provider: "{{PROVIDER}}"
+model: "{{MODEL}}"
+
+mcp:
+  filesystem:
+    command: "npx"
+    args:
+      - "-y"
+      - "@anthropic/mcp-filesystem"
+
+inputs:
+  project_name:
+    type: string
+    default: "SuperNovae Tech Audit"
+  target_url:
+    type: string
+    default: "https://github.com"
+
+tasks:
+  - id: setup
+    exec:
+      command: "echo '{\"started\": \"now\", \"project\": \"{{inputs.project_name}}\"}'"
+      shell: true
+
+  - id: scrape_content
+    depends_on: [setup]
+    fetch:
+      url: "{{inputs.target_url}}"
+      extract: markdown
+      timeout: 20
+
+  - id: scrape_metadata
+    depends_on: [setup]
+    fetch:
+      url: "{{inputs.target_url}}"
+      extract: metadata
+      timeout: 20
+
+  - id: scrape_links
+    depends_on: [setup]
+    fetch:
+      url: "{{inputs.target_url}}"
+      extract: links
+      timeout: 20
+
+  - id: download_image
+    depends_on: [setup]
+    fetch:
+      url: "https://httpbin.org/image/png"
+      response: binary
+      timeout: 15
+
+  - id: process_image
+    depends_on: [download_image]
+    with:
+      img: $download_image
+    invoke:
+      tool: "nika:pipeline"
+      params:
+        hash: "{{with.img.media[0].hash}}"
+        steps:
+          - op: thumbnail
+            width: 600
+          - op: strip
+          - op: convert
+            format: webp
+    artifact:
+      path: output/orchestration/processed.webp
+      format: binary
+
+  - id: generate_chart
+    depends_on: [setup]
+    invoke:
+      tool: "nika:chart"
+      params:
+        type: "bar"
+        title: "{{inputs.project_name}} Metrics"
+        width: 900
+        height: 600
+        series:
+          - name: "Score"
+            data: [85, 72, 91, 68, 77]
+          - name: "Target"
+            data: [80, 80, 80, 80, 80]
+        labels: ["SEO", "A11y", "Perf", "Security", "UX"]
+
+  - id: vision_analysis
+    depends_on: [scrape_content, scrape_metadata, scrape_links, process_image, generate_chart]
+    with:
+      content: $scrape_content
+      metadata: $scrape_metadata
+      links: $scrape_links
+      chart: $generate_chart
+    infer:
+      content:
+        - type: image
+          source: "{{with.chart.media[0].hash}}"
+          detail: high
+        - type: text
+          text: |
+            Tech audit for "{{inputs.project_name}}":
+            Content: {{with.content | first(1500)}}
+            Metadata: {{with.metadata}}
+            Links: {{with.links}}
+            Produce structured scores per category.
+      response_format: json
+      temperature: 0.3
+      max_tokens: 1500
+    structured:
+      schema:
+        type: object
+        properties:
+          overall_score:
+            type: integer
+          critical_issues:
+            type: array
+            items:
+              type: string
+          quick_wins:
+            type: array
+            items:
+              type: string
+        required: [overall_score, critical_issues, quick_wins]
+    artifact:
+      path: output/orchestration/analysis.json
+      format: json
+
+  - id: category_deep_dives
+    depends_on: [vision_analysis]
+    with:
+      analysis: $vision_analysis
+    for_each:
+      - { area: "SEO", focus: "meta tags, structured data" }
+      - { area: "Accessibility", focus: "ARIA, contrast" }
+      - { area: "Performance", focus: "load times, caching" }
+    as: category
+    concurrency: 3
+    infer:
+      prompt: |
+        Deep dive into {{with.category.area}} ({{with.category.focus}}):
+        Context: {{with.analysis | first(1000)}}
+        Provide assessment, top 3 issues, and fix list.
+      temperature: 0.4
+      max_tokens: 800
+
+  - id: synthesis_agent
+    depends_on: [vision_analysis, category_deep_dives, process_image]
+    with:
+      analysis: $vision_analysis
+      deep_dives: $category_deep_dives
+      image: $process_image
+    agent:
+      system: "You are the lead auditor. Use MCP and builtin tools."
+      prompt: |
+        Final report for "{{inputs.project_name}}":
+        Analysis: {{with.analysis}}
+        Deep dives: {{with.deep_dives}}
+        Image: {{with.image}}
+        Include score, issues, quick wins, 30-day roadmap.
+        Call nika_complete when done.
+      mcp: [filesystem]
+      tools: [builtin]
+      max_turns: 8
+      max_tokens: 2500
+      token_budget: 25000
+      completion:
+        mode: explicit
+      guardrails:
+        - type: length
+          min_words: 400
+          on_failure: retry
+        - type: regex
+          pattern: "(?i)roadmap"
+          message: "Must include a roadmap"
+          on_failure: retry
+      limits:
+        max_turns: 8
+        max_tokens: 50000
+        max_cost_usd: 2.00
+        max_duration_secs: 300
+    artifact:
+      path: output/orchestration/final-report.md
+
+  - id: completion_log
+    depends_on: [synthesis_agent]
+    with:
+      report: $synthesis_agent
+    exec: "echo '=== {{inputs.project_name}} COMPLETE === All 5 verbs. Diamond DAG. ==='"

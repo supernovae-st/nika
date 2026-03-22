@@ -1,0 +1,74 @@
+# =============================================================================
+# SECURITY DEMO 04: Environment Variable Sanitization
+# =============================================================================
+#
+# When Nika spawns child processes for exec: tasks, it automatically strips
+# sensitive environment variables (API keys, secrets, tokens) to prevent
+# accidental leakage. This is a defense-in-depth measure.
+#
+# Stripped variables include all known LLM provider keys:
+#   ANTHROPIC_API_KEY, OPENAI_API_KEY, MISTRAL_API_KEY, GROQ_API_KEY, etc.
+#
+# Plus common sensitive vars:
+#   AWS_SECRET_ACCESS_KEY, GITHUB_TOKEN, DATABASE_URL, JWT_SECRET,
+#   STRIPE_SECRET_KEY, PRIVATE_KEY, ENCRYPTION_KEY, and more.
+#
+# Custom env: variables declared on the task are still passed through,
+# but blocked env var NAMES like LD_PRELOAD are rejected (NIKA-053).
+#
+# DEMONSTRATES:
+#   - API keys are invisible to child processes
+#   - Custom env: variables work fine
+#   - Dangerous env var names (LD_PRELOAD) are blocked
+#
+# EXPECTED BEHAVIOR:
+#   "check_api_keys"   succeeds -> prints empty for API key vars
+#   "custom_env"       succeeds -> custom env vars are passed through
+#   "blocked_env_name" FAILS    -> NIKA-053: LD_PRELOAD is a blocked env var name
+#
+# RUN: nika run 04-env-sanitization.nika.yaml
+# =============================================================================
+
+schema: "nika/workflow@0.12"
+
+workflow: security-env-sanitization
+
+tasks:
+  # Show that API keys are NOT available in child processes.
+  # Even if ANTHROPIC_API_KEY is set in the parent shell, the child
+  # process will see an empty value because Nika strips it.
+  - id: check_api_keys
+    exec:
+      command: |
+        echo "=== Environment Sanitization Demo ==="
+        echo "ANTHROPIC_API_KEY: '${ANTHROPIC_API_KEY:-<not set>}'"
+        echo "OPENAI_API_KEY: '${OPENAI_API_KEY:-<not set>}'"
+        echo "GITHUB_TOKEN: '${GITHUB_TOKEN:-<not set>}'"
+        echo "AWS_SECRET_ACCESS_KEY: '${AWS_SECRET_ACCESS_KEY:-<not set>}'"
+        echo "=== All sensitive vars stripped ==="
+      shell: true
+
+  # Custom env variables declared on the task ARE passed through.
+  # Only the hardcoded sensitive list is stripped.
+  - id: custom_env
+    depends_on: [check_api_keys]
+    exec:
+      command: |
+        echo "MY_APP_NAME: ${MY_APP_NAME}"
+        echo "MY_APP_VERSION: ${MY_APP_VERSION}"
+        echo "Custom vars work fine!"
+      shell: true
+      env:
+        MY_APP_NAME: "nika-security-demo"
+        MY_APP_VERSION: "1.0.0"
+
+  # BLOCKED: env var names that enable library injection are rejected.
+  # LD_PRELOAD can be used to inject shared libraries into processes —
+  # Nika blocks this at the env validation layer.
+  # Triggers NIKA-053 (BlockedCommand via env var validation)
+  - id: blocked_env_name
+    depends_on: [custom_env]
+    exec:
+      command: "echo 'This should not run'"
+      env:
+        LD_PRELOAD: "/tmp/evil.so"

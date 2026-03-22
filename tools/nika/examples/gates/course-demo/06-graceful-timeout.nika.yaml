@@ -1,0 +1,75 @@
+# =============================================================================
+# ERROR HANDLING DEMO 06: Graceful Timeout
+# =============================================================================
+#
+# Every exec: and fetch: task can declare a timeout. When the timeout expires,
+# the task is killed and the error is captured — the workflow engine continues
+# processing independent tasks rather than hanging forever.
+#
+# Timeout syntax:
+#   timeout: 5        — 5 seconds (parser converts to ms internally)
+#   timeout_ms: 5000  — 5000 milliseconds (explicit)
+#
+# When a timeout fires:
+#   - exec: child process is killed (SIGKILL)
+#   - NIKA-121 (Timeout) or NIKA-096 (Execution) error is raised
+#   - Dependent tasks are skipped (NIKA-026 DependencyChainFailed)
+#   - Independent tasks continue running
+#
+# DEMONSTRATES:
+#   - NIKA-121 / NIKA-096: task timed out
+#   - Independent tasks still execute after timeout
+#   - Dependent tasks cascade-fail cleanly
+#
+# EXPECTED BEHAVIOR:
+#   "fast_task"     succeeds -> completes well within timeout
+#   "slow_task"     FAILS    -> sleep 100 exceeds 2s timeout (NIKA-096/121)
+#   "needs_slow"    SKIPPED  -> depends_on slow_task which timed out
+#   "independent"   succeeds -> no dependency on slow_task, runs in parallel
+#   "final_report"  succeeds -> depends only on fast_task and independent
+#
+# RUN: nika run 06-graceful-timeout.nika.yaml
+# =============================================================================
+
+schema: "nika/workflow@0.12"
+
+workflow: error-graceful-timeout
+
+tasks:
+  # This task completes instantly — well within any timeout
+  - id: fast_task
+    exec: "echo 'Fast task completed instantly!'"
+
+  # This task will TIMEOUT: sleep 100 but timeout is 2 seconds.
+  # The process is killed after 2s and an error is recorded.
+  - id: slow_task
+    exec:
+      command: "echo 'Starting slow operation...' && sleep 100 && echo 'Done!'"
+      shell: true
+      timeout: 2
+
+  # SKIPPED: depends on slow_task which timed out.
+  # Demonstrates NIKA-026 dependency cascade — this task never starts.
+  - id: needs_slow
+    depends_on: [slow_task]
+    exec: "echo 'This depends on slow_task — will be skipped'"
+
+  # INDEPENDENT: no dependency on slow_task.
+  # This runs in parallel and succeeds regardless of the timeout.
+  - id: independent
+    depends_on: [fast_task]
+    exec: "echo 'I run independently — timeout on slow_task does not affect me!'"
+
+  # Final report: depends only on tasks that succeed.
+  # Demonstrates that the workflow continues past failures.
+  - id: final_report
+    depends_on: [fast_task, independent]
+    exec:
+      command: |
+        echo "=== Timeout Demo Results ==="
+        echo "fast_task:   PASSED"
+        echo "slow_task:   TIMED OUT (expected)"
+        echo "needs_slow:  SKIPPED (expected)"
+        echo "independent: PASSED"
+        echo "Workflow continued past the timeout!"
+      shell: true
