@@ -293,6 +293,9 @@ schema: "nika/workflow@0.12"
 
 workflow: hello-world
 
+provider: "{{PROVIDER}}"
+model: "{{MODEL}}"
+
 tasks:
   - id: hello
     infer: "Say hello to the world in 3 different languages. Keep it short and fun!"
@@ -1074,7 +1077,7 @@ const FORK_BOMB_02_TEMPLATE: &str = r##"# ======================================
 # CONCEPTS:
 #   - for_each: [list of items] — iterate over a static list
 #   - as: variable_name — name for the current item
-#   - {{as.variable}} — access the current item in templates
+#   - {{with.variable}} — access the current item in templates (as: value goes into with:)
 #
 # RUN: nika run 02-for-each-basic.nika.yaml
 # =============================================================================
@@ -1087,12 +1090,12 @@ tasks:
   # TODO: Create a task "greet_languages" with:
   #       - for_each: ["English", "French", "Japanese"]
   #       - as: lang
-  #       - exec: command that prints "Hello in {{as.lang}}!"
+  #       - exec: command that prints "Hello in {{with.lang}}!"
 
   # TODO: Create a task "process_numbers" with:
   #       - for_each: [1, 2, 3, 4, 5]
   #       - as: num
-  #       - exec: command that prints "Processing item {{as.num}}..."
+  #       - exec: command that prints "Processing item {{with.num}}..."
 "##;
 
 const FORK_BOMB_02_SOLUTION: &str = r##"# =============================================================================
@@ -1108,14 +1111,14 @@ tasks:
     for_each: ["English", "French", "Japanese"]
     as: lang
     exec:
-      command: "echo 'Hello in {{as.lang}}!'"
+      command: "echo 'Hello in {{with.lang}}!'"
       shell: true
 
   - id: process_numbers
     for_each: [1, 2, 3, 4, 5]
     as: num
     exec:
-      command: "echo 'Processing item {{as.num}}...'"
+      command: "echo 'Processing item {{with.num}}...'"
       shell: true
 "##;
 
@@ -1177,7 +1180,7 @@ tasks:
     concurrency: 2
     fail_fast: false
     exec:
-      command: "echo 'Processing: {{as.item}}'"
+      command: "echo 'Processing: {{with.item}}'"
       shell: true
 "##;
 
@@ -1211,7 +1214,7 @@ tasks:
   #       - with: { endpoints: $urls | parse_json }
   #       - for_each: "{{with.endpoints}}"
   #       - as: url
-  #       - fetch: with url: "{{as.url}}"
+  #       - fetch: with url: "{{with.url}}"
 
   # TODO: Create a task "done" that depends on fetch_all
   #       exec: prints a completion message
@@ -1239,7 +1242,7 @@ tasks:
     for_each: "{{with.endpoints}}"
     as: url
     fetch:
-      url: "{{as.url}}"
+      url: "{{with.url}}"
 
   - id: done
     depends_on: [fetch_all]
@@ -1265,6 +1268,7 @@ const ROOT_ACCESS_01_TEMPLATE: &str = r##"# ====================================
 #   - context.files: load .md, .json, .txt files
 #   - {{context.files.alias}} to inject file contents
 #   - Separating data from workflow logic
+#   - provider: / model: required for infer: tasks
 #
 # RUN: nika run 01-context-files.nika.yaml
 # =============================================================================
@@ -1273,20 +1277,21 @@ schema: "nika/workflow@0.12"
 
 workflow: context-files
 
+# TODO: Add provider and model (use {{PROVIDER}} and {{MODEL}} placeholders)
+
 # TODO: Add a context block with files:
 #       context:
 #         files:
-#           readme: ./README.md
-#           config: ./config.json
+#           readme: ./MISSION.md
 #
-# (These files need to exist. Create simple test files first.)
+# (MISSION.md exists in this level directory)
 
 tasks:
   # TODO: Create a task "summarize" that uses context files
   #       in an infer: prompt via {{context.files.readme}}
 
-  # TODO: Create a task "show_config" that uses exec: to echo
-  #       the config file contents via {{context.files.config}}
+  # TODO: Create a task "show_context" that depends on summarize
+  #       exec: command confirming context was loaded
 "##;
 
 const ROOT_ACCESS_01_SOLUTION: &str = r##"# =============================================================================
@@ -1297,85 +1302,103 @@ schema: "nika/workflow@0.12"
 
 workflow: context-files
 
+provider: "{{PROVIDER}}"
+model: "{{MODEL}}"
+
 context:
   files:
-    readme: ./README.md
-    config: ./config.json
+    readme: ./MISSION.md
 
 tasks:
   - id: summarize
     infer:
       prompt: |
-        Summarize this README in 3 bullet points:
+        Summarize this document in 3 bullet points:
 
         {{context.files.readme}}
       max_tokens: 200
 
-  - id: show_config
+  - id: show_context
+    depends_on: [summarize]
     exec:
-      command: "echo 'Config loaded: {{context.files.config}}'"
+      command: "echo 'Context was loaded and used for summarization.'"
       shell: true
 "##;
 
 // ── 04-02: Imports ─────────────────────────────────────────────────────────
 
 const ROOT_ACCESS_02_TEMPLATE: &str = r##"# =============================================================================
-# LEVEL 4 — EXERCISE 2: Imports (DAG Fusion)
+# LEVEL 4 — EXERCISE 2: Multi-Step Data Pipeline
 # =============================================================================
 #
-# Split large workflows into reusable modules with imports:.
-# Imported tasks are fused into the main DAG with a prefix.
+# Build a 4-stage data pipeline: extract, transform, validate, load.
+# Combine fetch:, exec:, with: bindings, and depends_on into a real pipeline.
 #
 # CONCEPTS:
-#   - imports: to include tasks from another workflow file
-#   - prefix: to namespace imported task IDs
-#   - Cross-file depends_on with prefixed IDs
+#   - Multi-stage pipeline with depends_on chaining
+#   - Data flowing through with: bindings at each stage
+#   - Mixing verbs (fetch + exec) in a single workflow
+#   - Pipeline pattern: extract → transform → validate → load
 #
 # RUN: nika run 02-imports.nika.yaml
 # =============================================================================
 
 schema: "nika/workflow@0.12"
 
-workflow: imports-demo
-
-# TODO: Add an imports block:
-#       imports:
-#         - source: ./data-pipeline.nika.yaml
-#           prefix: data
+workflow: data-pipeline
 
 tasks:
-  # TODO: Create a task "process" that depends on an imported task
-  #       depends_on: [data.fetch_data] (prefix + task_id from imported file)
+  # TODO: Create a task "extract" that fetches data from an API
+  #       fetch: url: "https://httpbin.org/json"
 
-  # TODO: Create a task "report" that depends on "process"
-  #       This shows how local and imported tasks coexist in one DAG
+  # TODO: Create a task "transform" that processes the fetched data
+  #       - depends_on: [extract]
+  #       - with: { raw: $extract | parse_json }
+  #       - exec: command that transforms the data
+
+  # TODO: Create a task "validate" that checks the transformed data
+  #       - depends_on: [transform]
+  #       - with: { data: $transform }
+  #       - exec: command that validates the output
+
+  # TODO: Create a task "load" that finalizes the pipeline
+  #       - depends_on: [validate]
+  #       - exec: command that reports completion
 "##;
 
 const ROOT_ACCESS_02_SOLUTION: &str = r##"# =============================================================================
-# LEVEL 4 — EXERCISE 2: Imports (Solution)
+# LEVEL 4 — EXERCISE 2: Multi-Step Data Pipeline (Solution)
 # =============================================================================
 
 schema: "nika/workflow@0.12"
 
-workflow: imports-demo
-
-imports:
-  - source: ./data-pipeline.nika.yaml
-    prefix: data
+workflow: data-pipeline
 
 tasks:
-  - id: process
-    depends_on: [data.fetch_data]
+  - id: extract
+    fetch:
+      url: "https://httpbin.org/json"
+
+  - id: transform
+    depends_on: [extract]
     with:
-      raw: $data.fetch_data
+      raw: $extract | parse_json
     exec:
-      command: "echo 'Processing imported data: {{with.raw}}'"
+      command: "echo 'Transformed data from: {{with.raw}}'"
       shell: true
 
-  - id: report
-    depends_on: [process]
+  - id: validate
+    depends_on: [transform]
+    with:
+      data: $transform
     exec:
-      command: "echo 'Import pipeline complete.'"
+      command: "echo 'Validation passed for: {{with.data}}'"
+      shell: true
+
+  - id: load
+    depends_on: [validate]
+    exec:
+      command: "echo 'Pipeline complete. Data loaded successfully.'"
       shell: true
 "##;
 
@@ -1459,13 +1482,14 @@ const SHAPESHIFTER_01_TEMPLATE: &str = r##"# ===================================
 # LEVEL 5 — EXERCISE 1: Structured Output
 # =============================================================================
 #
-# Force LLM output to match a JSON Schema. The output_schema: field
-# validates the response and rejects anything that doesn't conform.
+# Force LLM output to match a JSON Schema. The structured: block at
+# task level validates the response and rejects anything that doesn't conform.
 #
 # CONCEPTS:
-#   - output_schema: with JSON Schema definition
+#   - structured: block with schema: (inline JSON Schema)
 #   - type, properties, required fields
 #   - LLM output validated against the schema automatically
+#   - provider: / model: required for infer: tasks
 #
 # RUN: nika run 01-structured-output.nika.yaml
 # =============================================================================
@@ -1474,20 +1498,23 @@ schema: "nika/workflow@0.12"
 
 workflow: structured-output
 
+# TODO: Add provider and model (use {{PROVIDER}} and {{MODEL}} placeholders)
+
 tasks:
-  # TODO: Create a task "extract_info" with infer: that includes:
-  #       - prompt: asking the LLM to extract structured data
-  #       - output_schema:
-  #           type: object
-  #           properties:
-  #             name:
-  #               type: string
-  #             category:
-  #               type: string
-  #               enum: ["tech", "science", "art"]
-  #             confidence:
-  #               type: number
-  #           required: [name, category, confidence]
+  # TODO: Create a task "extract_info" with:
+  #       - structured: block at task level with schema:
+  #           schema:
+  #             type: object
+  #             properties:
+  #               name:
+  #                 type: string
+  #               category:
+  #                 type: string
+  #                 enum: ["tech", "science", "art"]
+  #               confidence:
+  #                 type: number
+  #             required: [name, category, confidence]
+  #       - infer: with prompt asking the LLM to extract structured data
 
   # TODO: Create a task "use_structured" that depends on extract_info
   #       - with: { result: $extract_info | parse_json }
@@ -1502,13 +1529,13 @@ schema: "nika/workflow@0.12"
 
 workflow: structured-output
 
+provider: "{{PROVIDER}}"
+model: "{{MODEL}}"
+
 tasks:
   - id: extract_info
-    infer:
-      prompt: |
-        Classify this topic: "Quantum computing breakthrough at MIT"
-        Extract the name, category, and your confidence score (0-1).
-      output_schema:
+    structured:
+      schema:
         type: object
         properties:
           name:
@@ -1519,6 +1546,10 @@ tasks:
           confidence:
             type: number
         required: [name, category, confidence]
+    infer:
+      prompt: |
+        Classify this topic: "Quantum computing breakthrough at MIT"
+        Extract the name, category, and your confidence score (0-1).
 
   - id: use_structured
     depends_on: [extract_info]
@@ -1538,13 +1569,14 @@ const SHAPESHIFTER_02_TEMPLATE: &str = r##"# ===================================
 # LEVEL 5 — EXERCISE 2: Artifacts
 # =============================================================================
 #
-# Save task output to disk with the artifact: block. Supports 4 modes:
-# text (default), json, binary, and append.
+# Save task output to disk with the artifact: block.
+# format: controls serialization (text, json, yaml, binary).
+# mode: controls write behavior (overwrite, append, unique, fail).
 #
 # CONCEPTS:
 #   - artifact: block with path: template
-#   - format: text | json | binary | append
-#   - Path templates: output/{{task.id}}.txt
+#   - format: text | json | yaml | binary (serialization)
+#   - mode: overwrite | append | unique | fail (write behavior)
 #   - Artifacts saved relative to .nika/artifacts/
 #
 # RUN: nika run 02-artifacts.nika.yaml
@@ -1571,7 +1603,7 @@ tasks:
   #       - exec: a command that produces a log line
   #       - artifact:
   #           path: output/pipeline.log
-  #           format: append
+  #           mode: append
 "##;
 
 const SHAPESHIFTER_02_SOLUTION: &str = r##"# =============================================================================
@@ -1606,7 +1638,7 @@ tasks:
       shell: true
     artifact:
       path: output/pipeline.log
-      format: append
+      mode: append
 "##;
 
 // ── 05-03: Schema Retry ────────────────────────────────────────────────────
@@ -1616,11 +1648,12 @@ const SHAPESHIFTER_03_TEMPLATE: &str = r##"# ===================================
 # =============================================================================
 #
 # When the LLM output fails schema validation, Nika can auto-retry
-# with feedback about what went wrong. Combine output_schema with retry:.
+# with feedback about what went wrong. Combine structured: with retry:.
 #
 # CONCEPTS:
-#   - output_schema: + retry: for resilient structured output
+#   - structured: + retry: for resilient structured output
 #   - retry: { max_attempts: 3 } on schema validation failures
+#   - structured: { max_retries: 3 } for schema-level retries
 #   - The LLM receives the validation error and corrects itself
 #
 # RUN: nika run 03-schema-retry.nika.yaml
@@ -1630,14 +1663,13 @@ schema: "nika/workflow@0.12"
 
 workflow: schema-retry
 
+# TODO: Add provider and model (use {{PROVIDER}} and {{MODEL}} placeholders)
+
 tasks:
   # TODO: Create a task "strict_extraction" with:
-  #       - retry:
-  #           max_attempts: 3
-  #           delay_ms: 500
-  #       - infer:
-  #           prompt: asking for a list of exactly 3 items
-  #           output_schema:
+  #       - retry: { max_attempts: 3, delay_ms: 500 }
+  #       - structured: block with schema: and max_retries:
+  #           schema:
   #             type: object
   #             properties:
   #               items:
@@ -1651,6 +1683,7 @@ tasks:
   #                 minItems: 3
   #                 maxItems: 3
   #             required: [items]
+  #       - infer: prompt asking for a list of exactly 3 items
 
   # TODO: Create a task "display" that reads the validated output
   #       - with: { data: $strict_extraction | parse_json }
@@ -1665,16 +1698,16 @@ schema: "nika/workflow@0.12"
 
 workflow: schema-retry
 
+provider: "{{PROVIDER}}"
+model: "{{MODEL}}"
+
 tasks:
   - id: strict_extraction
     retry:
       max_attempts: 3
       delay_ms: 500
-    infer:
-      prompt: |
-        List exactly 3 programming languages with a popularity score from 0 to 100.
-        Return as JSON with an "items" array containing objects with "name" and "score".
-      output_schema:
+    structured:
+      schema:
         type: object
         properties:
           items:
@@ -1690,6 +1723,11 @@ tasks:
             minItems: 3
             maxItems: 3
         required: [items]
+      max_retries: 3
+    infer:
+      prompt: |
+        List exactly 3 programming languages with a popularity score from 0 to 100.
+        Return as JSON with an "items" array containing objects with "name" and "score".
 
   - id: display
     depends_on: [strict_extraction]
@@ -1918,6 +1956,9 @@ const PAY_PER_DREAM_03_SOLUTION: &str = r##"# ==================================
 schema: "nika/workflow@0.12"
 
 workflow: system-prompts
+
+provider: "{{PROVIDER}}"
+model: "{{MODEL}}"
 
 tasks:
   - id: poet
