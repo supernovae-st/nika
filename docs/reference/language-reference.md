@@ -544,4 +544,4 @@ output        ::= "output:" { format: format [schema: schema] }
 
 ---
 
-*Last updated: v0.36.0 — Schema @0.12*
+*Last updated: v0.37.0 — Schema @0.12*

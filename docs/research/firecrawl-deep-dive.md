@@ -389,14 +389,14 @@ fetch:
   url: "https://example.com/article"
   method: GET
   headers:
-    User-Agent: "Nika/0.35"
+    User-Agent: "Nika/0.37.0"
 
 # Enhanced fetch: verb (local scraping)
 fetch:
   url: "https://example.com/article"
   method: GET
   headers:
-    User-Agent: "Nika/0.35"
+    User-Agent: "Nika/0.37.0"
   extract:
     format: markdown          # htmd conversion
     only_main_content: true   # dom_smoothie article extraction
