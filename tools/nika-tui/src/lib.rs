@@ -76,7 +76,7 @@ pub use config::{
 pub use cosmic_theme::CosmicTheme;
 pub use edit_history::EditHistory;
 pub use file_resolve::FileResolver;
-pub use focus::{FocusState, PanelId as NavPanelId};
+pub use focus::PanelId as NavPanelId;
 pub use highlight::{
     HighlightCapture, HighlightTheme, Highlighter, SolarizedTheme, TreeSitterHighlighter,
 };
@@ -93,7 +93,7 @@ pub use standalone::{BrowserEntry, HistoryEntry, StandalonePanel, StandaloneStat
 pub use state::{
     // Animation frame constants
     AgentTurnState,
-    PanelId,
+    MonitorPanel,
     PanelScrollState,
     TuiMode,
     TuiState,

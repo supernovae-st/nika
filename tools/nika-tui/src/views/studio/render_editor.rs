@@ -5,6 +5,7 @@
 //! scroll indicators, completion popup, hover tooltip, and code action overlay.
 
 use std::collections::HashMap;
+use std::fmt::Write;
 
 use ratatui::{
     layout::Rect,
@@ -129,6 +130,9 @@ impl YamlEditorPanel {
                     .map(|gs| gs.line_changes(p).changes_map())
             });
 
+        // PERF: Reusable buffer for line number formatting (~40 calls/frame)
+        let mut line_buf = String::with_capacity(8);
+
         let lines: Vec<Line> = self
             .buffer
             .lines()
@@ -178,11 +182,14 @@ impl YamlEditorPanel {
                 };
 
                 // Line number with git gutter + diagnostic gutter prefix
+                // PERF: Reuse line_buf instead of format! allocation per line
+                line_buf.clear();
+                write!(line_buf, "{:4} ", line_num).unwrap();
                 let mut spans = vec![
                     git_gutter,
                     diag_gutter,
                     Span::styled(
-                        format!("{:4} ", line_num),
+                        line_buf.clone(),
                         Style::default().fg(theme.text_muted),
                     ),
                 ];

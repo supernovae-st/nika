@@ -13,53 +13,53 @@ const TEST_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[test]
 fn test_panel_id_next_cycles() {
-    assert_eq!(PanelId::Progress.next(), PanelId::Dag);
-    assert_eq!(PanelId::Agent.next(), PanelId::Progress);
+    assert_eq!(MonitorPanel::Progress.next(), MonitorPanel::Dag);
+    assert_eq!(MonitorPanel::Agent.next(), MonitorPanel::Progress);
 }
 
 #[test]
 fn test_panel_id_prev_cycles() {
-    assert_eq!(PanelId::Progress.prev(), PanelId::Agent);
-    assert_eq!(PanelId::Dag.prev(), PanelId::Progress);
+    assert_eq!(MonitorPanel::Progress.prev(), MonitorPanel::Agent);
+    assert_eq!(MonitorPanel::Dag.prev(), MonitorPanel::Progress);
 }
 
 #[test]
 fn test_panel_id_all_returns_all_panels() {
-    let all = PanelId::all();
+    let all = MonitorPanel::all();
     assert_eq!(all.len(), 4);
-    assert_eq!(all[0], PanelId::Progress);
-    assert_eq!(all[1], PanelId::Dag);
-    assert_eq!(all[2], PanelId::NovaNet);
-    assert_eq!(all[3], PanelId::Agent);
+    assert_eq!(all[0], MonitorPanel::Progress);
+    assert_eq!(all[1], MonitorPanel::Dag);
+    assert_eq!(all[2], MonitorPanel::NovaNet);
+    assert_eq!(all[3], MonitorPanel::Agent);
 }
 
 #[test]
 fn test_panel_id_number() {
-    assert_eq!(PanelId::Progress.number(), 1);
-    assert_eq!(PanelId::Dag.number(), 2);
-    assert_eq!(PanelId::NovaNet.number(), 3);
-    assert_eq!(PanelId::Agent.number(), 4);
+    assert_eq!(MonitorPanel::Progress.number(), 1);
+    assert_eq!(MonitorPanel::Dag.number(), 2);
+    assert_eq!(MonitorPanel::NovaNet.number(), 3);
+    assert_eq!(MonitorPanel::Agent.number(), 4);
 }
 
 #[test]
 fn test_panel_id_title() {
-    assert_eq!(PanelId::Progress.title(), "MISSION CONTROL");
-    assert_eq!(PanelId::Dag.title(), "DAG EXECUTION");
-    assert_eq!(PanelId::NovaNet.title(), "NOVANET STATION");
-    assert_eq!(PanelId::Agent.title(), "AGENT REASONING");
+    assert_eq!(MonitorPanel::Progress.title(), "MISSION CONTROL");
+    assert_eq!(MonitorPanel::Dag.title(), "DAG EXECUTION");
+    assert_eq!(MonitorPanel::NovaNet.title(), "NOVANET STATION");
+    assert_eq!(MonitorPanel::Agent.title(), "AGENT REASONING");
 }
 
 #[test]
 fn test_panel_id_icon() {
-    assert_eq!(PanelId::Progress.icon(), "◉");
-    assert_eq!(PanelId::Dag.icon(), "⎔");
-    assert_eq!(PanelId::NovaNet.icon(), "⊛");
-    assert_eq!(PanelId::Agent.icon(), "⊕");
+    assert_eq!(MonitorPanel::Progress.icon(), "◉");
+    assert_eq!(MonitorPanel::Dag.icon(), "⎔");
+    assert_eq!(MonitorPanel::NovaNet.icon(), "⊛");
+    assert_eq!(MonitorPanel::Agent.icon(), "⊕");
 }
 
 #[test]
 fn test_panel_id_complete_cycle() {
-    let mut current = PanelId::Progress;
+    let mut current = MonitorPanel::Progress;
     let mut count = 0;
 
     // Cycle through all panels
@@ -69,13 +69,13 @@ fn test_panel_id_complete_cycle() {
     }
 
     // Should be back to Progress after 4 cycles
-    assert_eq!(current, PanelId::Progress);
+    assert_eq!(current, MonitorPanel::Progress);
     assert_eq!(count, 4);
 }
 
 #[test]
 fn test_panel_id_reverse_cycle() {
-    let mut current = PanelId::Progress;
+    let mut current = MonitorPanel::Progress;
     let mut count = 0;
 
     // Reverse cycle through all panels
@@ -85,7 +85,7 @@ fn test_panel_id_reverse_cycle() {
     }
 
     // Should be back to Progress after 4 reverse cycles
-    assert_eq!(current, PanelId::Progress);
+    assert_eq!(current, MonitorPanel::Progress);
     assert_eq!(count, 4);
 }
 
@@ -100,16 +100,16 @@ fn test_workflow_state_progress() {
 #[test]
 fn test_tui_state_focus_navigation() {
     let mut state = TuiState::new("test.yaml");
-    assert_eq!(state.ui.focus, PanelId::Progress);
+    assert_eq!(state.ui.focus, MonitorPanel::Progress);
 
     state.focus_next();
-    assert_eq!(state.ui.focus, PanelId::Dag);
+    assert_eq!(state.ui.focus, MonitorPanel::Dag);
 
     state.focus_panel(4);
-    assert_eq!(state.ui.focus, PanelId::Agent);
+    assert_eq!(state.ui.focus, MonitorPanel::Agent);
 
     state.focus_prev();
-    assert_eq!(state.ui.focus, PanelId::NovaNet);
+    assert_eq!(state.ui.focus, MonitorPanel::NovaNet);
 }
 
 #[test]
@@ -119,7 +119,7 @@ fn test_tui_state_cycle_tab() {
     let mut state = TuiState::new("test.yaml");
 
     // Test Mission tab cycling (Progress → TaskIO → Output → Progress)
-    state.ui.focus = PanelId::Progress;
+    state.ui.focus = MonitorPanel::Progress;
     assert_eq!(state.ui.mission_tab, MissionTab::Progress);
     state.cycle_tab();
     assert_eq!(state.ui.mission_tab, MissionTab::TaskIO);
@@ -129,7 +129,7 @@ fn test_tui_state_cycle_tab() {
     assert_eq!(state.ui.mission_tab, MissionTab::Progress);
 
     // Test Dag tab cycling (Graph ↔ Yaml)
-    state.ui.focus = PanelId::Dag;
+    state.ui.focus = MonitorPanel::Dag;
     assert_eq!(state.ui.dag_tab, DagTab::Graph);
     state.cycle_tab();
     assert_eq!(state.ui.dag_tab, DagTab::Yaml);
@@ -137,7 +137,7 @@ fn test_tui_state_cycle_tab() {
     assert_eq!(state.ui.dag_tab, DagTab::Graph);
 
     // Test NovaNet tab cycling (Summary ↔ FullJson)
-    state.ui.focus = PanelId::NovaNet;
+    state.ui.focus = MonitorPanel::NovaNet;
     assert_eq!(state.ui.novanet_tab, NovanetTab::Summary);
     state.cycle_tab();
     assert_eq!(state.ui.novanet_tab, NovanetTab::FullJson);
@@ -145,7 +145,7 @@ fn test_tui_state_cycle_tab() {
     assert_eq!(state.ui.novanet_tab, NovanetTab::Summary);
 
     // Test Reasoning tab cycling (Turns → Thinking → Steps → Turns)
-    state.ui.focus = PanelId::Agent;
+    state.ui.focus = MonitorPanel::Agent;
     assert_eq!(state.ui.reasoning_tab, ReasoningTab::Turns);
     state.cycle_tab();
     assert_eq!(state.ui.reasoning_tab, ReasoningTab::Thinking);
@@ -1701,27 +1701,27 @@ fn test_dirty_flags_is_panel_dirty() {
         all: true,
         ..Default::default()
     };
-    assert!(flags.is_panel_dirty(PanelId::Progress));
-    assert!(flags.is_panel_dirty(PanelId::Dag));
-    assert!(flags.is_panel_dirty(PanelId::NovaNet));
-    assert!(flags.is_panel_dirty(PanelId::Agent));
+    assert!(flags.is_panel_dirty(MonitorPanel::Progress));
+    assert!(flags.is_panel_dirty(MonitorPanel::Dag));
+    assert!(flags.is_panel_dirty(MonitorPanel::NovaNet));
+    assert!(flags.is_panel_dirty(MonitorPanel::Agent));
 
     // Individual flags
     flags.all = false;
-    assert!(!flags.is_panel_dirty(PanelId::Progress));
+    assert!(!flags.is_panel_dirty(MonitorPanel::Progress));
 
     flags.progress = true;
-    assert!(flags.is_panel_dirty(PanelId::Progress));
-    assert!(!flags.is_panel_dirty(PanelId::Dag));
+    assert!(flags.is_panel_dirty(MonitorPanel::Progress));
+    assert!(!flags.is_panel_dirty(MonitorPanel::Dag));
 
     flags.dag = true;
-    assert!(flags.is_panel_dirty(PanelId::Dag));
+    assert!(flags.is_panel_dirty(MonitorPanel::Dag));
 
     flags.novanet = true;
-    assert!(flags.is_panel_dirty(PanelId::NovaNet));
+    assert!(flags.is_panel_dirty(MonitorPanel::NovaNet));
 
     flags.reasoning = true;
-    assert!(flags.is_panel_dirty(PanelId::Agent));
+    assert!(flags.is_panel_dirty(MonitorPanel::Agent));
 }
 
 #[test]

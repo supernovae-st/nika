@@ -82,14 +82,10 @@ impl ChatView {
             selection_bg: colors.selection_bg,
         };
 
-        // Pre-compute thinking visibility
-        let thinking_visible: Vec<bool> = (0..self.messages.len())
-            .map(|i| self.is_thinking_visible(i))
-            .collect();
-
         // ── Phase 1: Build message items ─────────────────────────────────────
+        // PERF: thinking visibility checked inline instead of pre-computing Vec<bool>
         let mut items =
-            self.build_message_items(theme, &colors, content_width, &thinking_visible, &sel_ctx);
+            self.build_message_items(theme, &colors, content_width, &sel_ctx);
 
         // ── Phase 2: Render inline content (MCP calls, Infer streams) ────────
         inline::render_inline_content(&self.inline_content, &colors, &mut items);

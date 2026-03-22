@@ -60,8 +60,6 @@ impl<'a> Header<'a> {
         self
     }
 
-    /// Header background — slightly lighter than main bg for visual separation
-    const HEADER_BG: Color = Color::Rgb(20, 24, 41);
     /// Active tab highlight — verb violet
     const TAB_ACTIVE_BG: Color = Color::Rgb(139, 92, 246);
     /// Inactive tab text — slate-400
@@ -191,7 +189,7 @@ impl Widget for Header<'_> {
         all_spans.extend(right_spans);
 
         let line = Line::from(all_spans);
-        let paragraph = Paragraph::new(line).style(Style::default().bg(Self::HEADER_BG));
+        let paragraph = Paragraph::new(line).style(Style::default().bg(self.theme.header_bg));
 
         paragraph.render(area, buf);
     }
@@ -222,7 +220,7 @@ impl Header<'_> {
         ];
 
         let line = Line::from(spans);
-        let paragraph = Paragraph::new(line).style(Style::default().bg(Self::HEADER_BG));
+        let paragraph = Paragraph::new(line).style(Style::default().bg(self.theme.header_bg));
         paragraph.render(area, buf);
     }
 }

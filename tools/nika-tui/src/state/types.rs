@@ -34,12 +34,12 @@ pub const FRAME_DIV_NORMAL: u8 = 6;
 pub const FRAME_DIV_GLACIAL: u8 = 15;
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// PANEL IDENTIFIERS
+// MONITOR MONITOR PANEL IDENTIFIERS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// Panel identifier for focus management
+/// Panel identifier for the 4-panel Monitor/Runner layout.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum PanelId {
+pub enum MonitorPanel {
     /// Panel 1: Mission Control / Progress
     Progress,
     /// Panel 2: DAG Execution
@@ -50,64 +50,64 @@ pub enum PanelId {
     Agent,
 }
 
-impl PanelId {
+impl MonitorPanel {
     /// Get all panels in order
-    pub fn all() -> &'static [PanelId] {
+    pub fn all() -> &'static [MonitorPanel] {
         &[
-            PanelId::Progress,
-            PanelId::Dag,
-            PanelId::NovaNet,
-            PanelId::Agent,
+            MonitorPanel::Progress,
+            MonitorPanel::Dag,
+            MonitorPanel::NovaNet,
+            MonitorPanel::Agent,
         ]
     }
 
     /// Get next panel (wrapping)
-    pub fn next(&self) -> PanelId {
+    pub fn next(&self) -> MonitorPanel {
         match self {
-            PanelId::Progress => PanelId::Dag,
-            PanelId::Dag => PanelId::NovaNet,
-            PanelId::NovaNet => PanelId::Agent,
-            PanelId::Agent => PanelId::Progress,
+            MonitorPanel::Progress => MonitorPanel::Dag,
+            MonitorPanel::Dag => MonitorPanel::NovaNet,
+            MonitorPanel::NovaNet => MonitorPanel::Agent,
+            MonitorPanel::Agent => MonitorPanel::Progress,
         }
     }
 
     /// Get previous panel (wrapping)
-    pub fn prev(&self) -> PanelId {
+    pub fn prev(&self) -> MonitorPanel {
         match self {
-            PanelId::Progress => PanelId::Agent,
-            PanelId::Dag => PanelId::Progress,
-            PanelId::NovaNet => PanelId::Dag,
-            PanelId::Agent => PanelId::NovaNet,
+            MonitorPanel::Progress => MonitorPanel::Agent,
+            MonitorPanel::Dag => MonitorPanel::Progress,
+            MonitorPanel::NovaNet => MonitorPanel::Dag,
+            MonitorPanel::Agent => MonitorPanel::NovaNet,
         }
     }
 
     /// Get panel number (1-indexed for display)
     pub fn number(&self) -> u8 {
         match self {
-            PanelId::Progress => 1,
-            PanelId::Dag => 2,
-            PanelId::NovaNet => 3,
-            PanelId::Agent => 4,
+            MonitorPanel::Progress => 1,
+            MonitorPanel::Dag => 2,
+            MonitorPanel::NovaNet => 3,
+            MonitorPanel::Agent => 4,
         }
     }
 
     /// Get panel title
     pub fn title(&self) -> &'static str {
         match self {
-            PanelId::Progress => "MISSION CONTROL",
-            PanelId::Dag => "DAG EXECUTION",
-            PanelId::NovaNet => "NOVANET STATION",
-            PanelId::Agent => "AGENT REASONING",
+            MonitorPanel::Progress => "MISSION CONTROL",
+            MonitorPanel::Dag => "DAG EXECUTION",
+            MonitorPanel::NovaNet => "NOVANET STATION",
+            MonitorPanel::Agent => "AGENT REASONING",
         }
     }
 
     /// Get panel icon
     pub fn icon(&self) -> &'static str {
         match self {
-            PanelId::Progress => "◉",
-            PanelId::Dag => "⎔",
-            PanelId::NovaNet => "⊛",
-            PanelId::Agent => "⊕",
+            MonitorPanel::Progress => "◉",
+            MonitorPanel::Dag => "⎔",
+            MonitorPanel::NovaNet => "⊛",
+            MonitorPanel::Agent => "⊕",
         }
     }
 }
@@ -538,15 +538,15 @@ impl DirtyFlags {
     }
 
     /// Check if specific panel is dirty
-    pub fn is_panel_dirty(&self, panel: PanelId) -> bool {
+    pub fn is_panel_dirty(&self, panel: MonitorPanel) -> bool {
         if self.all {
             return true;
         }
         match panel {
-            PanelId::Progress => self.progress,
-            PanelId::Dag => self.dag,
-            PanelId::NovaNet => self.novanet,
-            PanelId::Agent => self.reasoning,
+            MonitorPanel::Progress => self.progress,
+            MonitorPanel::Dag => self.dag,
+            MonitorPanel::NovaNet => self.novanet,
+            MonitorPanel::Agent => self.reasoning,
         }
     }
 }
@@ -556,22 +556,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_panel_id_navigation() {
-        assert_eq!(PanelId::Progress.next(), PanelId::Dag);
-        assert_eq!(PanelId::Dag.next(), PanelId::NovaNet);
-        assert_eq!(PanelId::NovaNet.next(), PanelId::Agent);
-        assert_eq!(PanelId::Agent.next(), PanelId::Progress);
+    fn test_monitor_panel_navigation() {
+        assert_eq!(MonitorPanel::Progress.next(), MonitorPanel::Dag);
+        assert_eq!(MonitorPanel::Dag.next(), MonitorPanel::NovaNet);
+        assert_eq!(MonitorPanel::NovaNet.next(), MonitorPanel::Agent);
+        assert_eq!(MonitorPanel::Agent.next(), MonitorPanel::Progress);
 
-        assert_eq!(PanelId::Progress.prev(), PanelId::Agent);
-        assert_eq!(PanelId::Dag.prev(), PanelId::Progress);
+        assert_eq!(MonitorPanel::Progress.prev(), MonitorPanel::Agent);
+        assert_eq!(MonitorPanel::Dag.prev(), MonitorPanel::Progress);
     }
 
     #[test]
-    fn test_panel_id_metadata() {
-        assert_eq!(PanelId::Progress.number(), 1);
-        assert_eq!(PanelId::Dag.number(), 2);
-        assert_eq!(PanelId::Progress.title(), "MISSION CONTROL");
-        assert_eq!(PanelId::Progress.icon(), "◉");
+    fn test_monitor_panel_metadata() {
+        assert_eq!(MonitorPanel::Progress.number(), 1);
+        assert_eq!(MonitorPanel::Dag.number(), 2);
+        assert_eq!(MonitorPanel::Progress.title(), "MISSION CONTROL");
+        assert_eq!(MonitorPanel::Progress.icon(), "◉");
     }
 
     #[test]

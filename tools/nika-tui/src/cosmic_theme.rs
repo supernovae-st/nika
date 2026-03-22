@@ -320,6 +320,17 @@ impl Theme {
             syntax_template: Color::Rgb(148, 226, 213), // Teal
             syntax_mcp_server: Color::Rgb(116, 199, 236), // Sapphire
             syntax_task_id: Color::Rgb(249, 226, 175), // Yellow
+
+            // HEADER / STATUS BAR
+            header_bg: if semantic.is_dark() {
+                Color::Rgb(20, 24, 41) // Custom navy (dark themes)
+            } else {
+                Color::Rgb(236, 239, 244) // Slate-150-ish (light theme)
+            },
+            status_parsing_a: semantic.accent_tertiary,
+            status_parsing_b: semantic.accent_secondary,
+            status_executing_a: semantic.status_warning,
+            status_executing_b: semantic.verb_exec,
         }
     }
 

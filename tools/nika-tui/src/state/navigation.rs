@@ -3,7 +3,7 @@
 //! Contains panel focus, MCP call navigation, filter/search,
 //! status messages, clipboard copy, and agent icon helpers.
 
-use super::types::{McpCall, PanelId};
+use super::types::{McpCall, MonitorPanel};
 use super::TuiState;
 
 use crate::theme::TaskStatus;
@@ -75,10 +75,10 @@ impl TuiState {
     /// Focus specific panel by number (1-indexed)
     pub fn focus_panel(&mut self, num: u8) {
         self.ui.focus = match num {
-            1 => PanelId::Progress,
-            2 => PanelId::Dag,
-            3 => PanelId::NovaNet,
-            4 => PanelId::Agent,
+            1 => MonitorPanel::Progress,
+            2 => MonitorPanel::Dag,
+            3 => MonitorPanel::NovaNet,
+            4 => MonitorPanel::Agent,
             _ => self.ui.focus,
         };
     }
@@ -86,10 +86,10 @@ impl TuiState {
     /// Cycle tab in the currently focused panel
     pub fn cycle_tab(&mut self) {
         match self.ui.focus {
-            PanelId::Progress => self.ui.mission_tab = self.ui.mission_tab.next(),
-            PanelId::Dag => self.ui.dag_tab = self.ui.dag_tab.next(),
-            PanelId::NovaNet => self.ui.novanet_tab = self.ui.novanet_tab.next(),
-            PanelId::Agent => self.ui.reasoning_tab = self.ui.reasoning_tab.next(),
+            MonitorPanel::Progress => self.ui.mission_tab = self.ui.mission_tab.next(),
+            MonitorPanel::Dag => self.ui.dag_tab = self.ui.dag_tab.next(),
+            MonitorPanel::NovaNet => self.ui.novanet_tab = self.ui.novanet_tab.next(),
+            MonitorPanel::Agent => self.ui.reasoning_tab = self.ui.reasoning_tab.next(),
         }
     }
 
@@ -290,7 +290,7 @@ impl TuiState {
     /// - Agent panel: Agent turns or thinking content
     pub fn get_copyable_content(&self) -> Option<String> {
         match self.ui.focus {
-            PanelId::Progress => {
+            MonitorPanel::Progress => {
                 // Priority: final output > current task output > metrics summary
                 if let Some(ref output) = self.workflow.final_output {
                     Some(serde_json::to_string_pretty(output.as_ref()).unwrap_or_default())
@@ -312,7 +312,7 @@ impl TuiState {
                     ))
                 }
             }
-            PanelId::Dag => {
+            MonitorPanel::Dag => {
                 // Return task list with statuses
                 let mut lines = vec!["# DAG Tasks".to_string()];
                 for task_id in &self.task_order {
@@ -336,7 +336,7 @@ impl TuiState {
                 }
                 Some(lines.join("\n"))
             }
-            PanelId::NovaNet => {
+            MonitorPanel::NovaNet => {
                 // Return selected MCP call or all calls
                 if let Some(idx) = self.mcp.selected_idx {
                     self.mcp.calls.get(idx).map(|call| {
@@ -385,7 +385,7 @@ impl TuiState {
                     None
                 }
             }
-            PanelId::Agent => {
+            MonitorPanel::Agent => {
                 // Return agent turns or thinking content
                 if self.agent.turns.is_empty() {
                     return None;

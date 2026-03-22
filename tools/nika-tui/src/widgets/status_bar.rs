@@ -11,7 +11,7 @@ use std::borrow::Cow;
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Paragraph, Widget},
 };
@@ -435,9 +435,6 @@ impl<'a> StatusBar<'a> {
     }
 }
 
-/// Status bar background — matches header for visual consistency
-const STATUS_BAR_BG: Color = Color::Rgb(20, 24, 41);
-
 impl Widget for StatusBar<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         if area.width == 0 || area.height == 0 {
@@ -445,7 +442,8 @@ impl Widget for StatusBar<'_> {
         }
 
         // Fill the entire row with the status bar background first
-        let bg_style = Style::default().bg(STATUS_BAR_BG);
+        let header_bg = self.theme.header_bg;
+        let bg_style = Style::default().bg(header_bg);
         for x in area.x..area.x + area.width {
             buf[(x, area.y)].set_style(bg_style);
         }
@@ -510,19 +508,19 @@ impl Widget for StatusBar<'_> {
                 let phase_color = match metrics.phase {
                     WorkflowPhase::Idle => self.theme.text_muted,
                     WorkflowPhase::Parsing | WorkflowPhase::Validating => {
-                        // Animated pulse between sapphire and blue (Catppuccin Mocha)
+                        // Animated pulse between theme parsing colors
                         if (self.frame / 8) % 2 == 0 {
-                            Color::Rgb(116, 199, 236) // Sapphire
+                            self.theme.status_parsing_a
                         } else {
-                            Color::Rgb(137, 180, 250) // Blue
+                            self.theme.status_parsing_b
                         }
                     }
                     WorkflowPhase::Executing => {
-                        // Animated pulse between yellow and peach (Catppuccin Mocha)
+                        // Animated pulse between theme executing colors
                         if (self.frame / 8) % 2 == 0 {
-                            Color::Rgb(249, 226, 175) // Yellow
+                            self.theme.status_executing_a
                         } else {
-                            Color::Rgb(250, 179, 135) // Peach
+                            self.theme.status_executing_b
                         }
                     }
                     WorkflowPhase::Completed => self.theme.status_success,
@@ -623,11 +621,11 @@ impl Widget for StatusBar<'_> {
                 let conn_color = match metrics.connection {
                     ConnectionStatus::Connected => self.theme.status_success,
                     ConnectionStatus::Connecting => {
-                        // Animated pulse between yellow and peach (Catppuccin Mocha)
+                        // Animated pulse between theme executing colors
                         if (self.frame / 8) % 2 == 0 {
-                            Color::Rgb(249, 226, 175) // Yellow
+                            self.theme.status_executing_a
                         } else {
-                            Color::Rgb(250, 179, 135) // Peach
+                            self.theme.status_executing_b
                         }
                     }
                     ConnectionStatus::Disconnected => self.theme.text_muted,
@@ -668,7 +666,7 @@ impl Widget for StatusBar<'_> {
 
         // Render left side
         let left_line = Line::from(left_spans);
-        let left_paragraph = Paragraph::new(left_line).style(Style::default().bg(STATUS_BAR_BG));
+        let left_paragraph = Paragraph::new(left_line).style(Style::default().bg(header_bg));
         left_paragraph.render(area, buf);
 
         // Render right side (right-aligned)

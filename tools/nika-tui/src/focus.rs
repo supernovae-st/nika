@@ -1,7 +1,7 @@
-//! Focus State for Panel Navigation
+//! Panel Navigation for 3-View Architecture
 //!
-//! Manages which panel is currently focused and provides Tab/Shift+Tab navigation.
-//! Updated for 3-Views Architecture
+//! Defines `PanelId` -- the canonical panel identifiers for the 3-view TUI
+//! (Studio, Command, Control). Each view has its own set of focusable panels.
 
 use super::views::TuiView;
 
@@ -11,7 +11,7 @@ use super::views::TuiView;
 /// Views: Studio (default), Command, Control
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PanelId {
-    // ═══ Studio View (s) ═══
+    // === Studio View (s) ===
     /// File browser panel
     StudioFiles,
     /// YAML editor panel
@@ -21,7 +21,7 @@ pub enum PanelId {
     /// Diagnostics panel
     StudioDiagnostics,
 
-    // ═══ Runner View (r) ═══
+    // === Runner View (r) ===
     /// Mission control panel
     RunnerMission,
     /// DAG visualization
@@ -31,7 +31,7 @@ pub enum PanelId {
     /// Agent reasoning panel
     RunnerReasoning,
 
-    // ═══ Chat Playground (3) ═══
+    // === Chat Playground (3) ===
     /// Conversation history
     ChatConversation,
     /// Text input field
@@ -92,138 +92,9 @@ impl PanelId {
     }
 }
 
-/// Focus state manager for keyboard navigation
-#[derive(Debug, Clone)]
-pub struct FocusState {
-    /// Currently focused panel
-    current: PanelId,
-    /// Focus history stack for back navigation
-    stack: Vec<PanelId>,
-}
-
-impl FocusState {
-    /// Create new focus state with initial panel
-    pub fn new(initial: PanelId) -> Self {
-        Self {
-            current: initial,
-            stack: Vec::with_capacity(8),
-        }
-    }
-
-    /// Get currently focused panel
-    pub fn current(&self) -> PanelId {
-        self.current
-    }
-
-    /// Focus a specific panel, pushing current to stack
-    pub fn focus(&mut self, panel: PanelId) {
-        if panel != self.current {
-            self.stack.push(self.current);
-            self.current = panel;
-            // Keep stack bounded
-            if self.stack.len() > 16 {
-                self.stack.remove(0);
-            }
-        }
-    }
-
-    /// Move to next panel in current view (Tab)
-    pub fn next_panel(&mut self) {
-        let view = self.current.view();
-        let panels = PanelId::panels_for_view(view);
-        if let Some(idx) = panels.iter().position(|&p| p == self.current) {
-            let next_idx = (idx + 1) % panels.len();
-            self.focus(panels[next_idx]);
-        }
-    }
-
-    /// Move to previous panel in current view (Shift+Tab)
-    pub fn prev_panel(&mut self) {
-        let view = self.current.view();
-        let panels = PanelId::panels_for_view(view);
-        if let Some(idx) = panels.iter().position(|&p| p == self.current) {
-            let prev_idx = if idx == 0 { panels.len() - 1 } else { idx - 1 };
-            self.focus(panels[prev_idx]);
-        }
-    }
-
-    /// Go back to previous focus (if any)
-    pub fn back(&mut self) -> bool {
-        if let Some(prev) = self.stack.pop() {
-            self.current = prev;
-            true
-        } else {
-            false
-        }
-    }
-
-    /// Check if a panel is currently focused
-    pub fn is_focused(&self, panel: PanelId) -> bool {
-        self.current == panel
-    }
-
-    /// Reset focus to default panel for a view
-    pub fn reset_to_view(&mut self, view: TuiView) {
-        let default = PanelId::default_for_view(view);
-        self.stack.clear();
-        self.current = default;
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_new_focus_state() {
-        let state = FocusState::new(PanelId::StudioFiles);
-        assert_eq!(state.current(), PanelId::StudioFiles);
-    }
-
-    #[test]
-    fn test_focus_changes_current() {
-        let mut state = FocusState::new(PanelId::StudioFiles);
-        state.focus(PanelId::StudioDag);
-        assert_eq!(state.current(), PanelId::StudioDag);
-    }
-
-    #[test]
-    fn test_focus_pushes_to_stack() {
-        let mut state = FocusState::new(PanelId::StudioFiles);
-        state.focus(PanelId::StudioDag);
-        assert!(state.back());
-        assert_eq!(state.current(), PanelId::StudioFiles);
-    }
-
-    #[test]
-    fn test_next_panel_cycles() {
-        let mut state = FocusState::new(PanelId::StudioFiles);
-        state.next_panel();
-        assert_eq!(state.current(), PanelId::StudioEditor);
-        state.next_panel();
-        assert_eq!(state.current(), PanelId::StudioDag);
-        state.next_panel();
-        assert_eq!(state.current(), PanelId::StudioDiagnostics);
-        state.next_panel();
-        assert_eq!(state.current(), PanelId::StudioFiles); // Cycles back
-    }
-
-    #[test]
-    fn test_prev_panel_cycles() {
-        let mut state = FocusState::new(PanelId::StudioFiles);
-        state.prev_panel();
-        assert_eq!(state.current(), PanelId::StudioDiagnostics); // Wraps to end
-    }
-
-    #[test]
-    fn test_reset_to_view() {
-        let mut state = FocusState::new(PanelId::StudioFiles);
-        state.focus(PanelId::StudioDag);
-        state.focus(PanelId::StudioEditor);
-        state.reset_to_view(TuiView::Command);
-        assert_eq!(state.current(), PanelId::ChatInput);
-        assert!(!state.back()); // Stack cleared
-    }
 
     #[test]
     fn test_panels_for_view() {
@@ -250,5 +121,21 @@ mod tests {
         assert_eq!(PanelId::ChatInput.view(), TuiView::Command);
         // Runner panels
         assert_eq!(PanelId::RunnerDag.view(), TuiView::Command);
+    }
+
+    #[test]
+    fn test_default_for_view() {
+        assert_eq!(
+            PanelId::default_for_view(TuiView::Studio),
+            PanelId::StudioEditor
+        );
+        assert_eq!(
+            PanelId::default_for_view(TuiView::Command),
+            PanelId::ChatInput
+        );
+        assert_eq!(
+            PanelId::default_for_view(TuiView::Control),
+            PanelId::StudioEditor
+        );
     }
 }

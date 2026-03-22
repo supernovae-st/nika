@@ -5,7 +5,7 @@
 //!
 //! ## Module Structure
 //!
-//! - `types` - Core types (PanelId, TuiMode, WorkflowState, TaskState, etc.)
+//! - `types` - Core types (MonitorPanel, TuiMode, WorkflowState, TaskState, etc.)
 //! - `scroll` - Panel scroll state management
 //! - `notification` - Notification system
 //! - `settings` - Settings overlay state
@@ -73,7 +73,7 @@ pub use types::{
     DirtyFlags,
     McpCall,
     Metrics,
-    PanelId,
+    MonitorPanel,
     SpawnedAgent,
     TaskState,
     TemplateResolution,

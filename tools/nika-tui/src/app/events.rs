@@ -48,8 +48,9 @@ impl App {
         }
 
         // Process events
-        let events: Vec<_> = self.event_buffer.drain(..).collect();
-        for event in events {
+        // PERF: swap-and-drain to avoid Vec allocation every tick
+        let mut events = std::mem::take(&mut self.event_buffer);
+        for event in events.drain(..) {
             match &event.kind {
                 EventKind::WorkflowCompleted { .. } => {
                     self.workflow_done = true;
@@ -61,6 +62,8 @@ impl App {
             }
             self.state.handle_event(&event.kind, event.timestamp_ms);
         }
+        // Give back the (now empty but heap-allocated) buffer for reuse
+        self.event_buffer = events;
 
         // Poll LLM responses
         self.poll_llm_responses();

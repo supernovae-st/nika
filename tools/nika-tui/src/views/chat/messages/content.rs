@@ -36,28 +36,18 @@ impl ChatView {
         theme: &Theme,
         colors: &RenderColors,
         content_width: usize,
-        thinking_visible: &[bool],
         sel_ctx: &SelectionContext,
     ) -> Vec<ListItem<'a>> {
         self.messages
             .iter()
             .enumerate()
             .flat_map(|(idx, msg)| {
-                self.render_single_message(
-                    idx,
-                    msg,
-                    theme,
-                    colors,
-                    content_width,
-                    thinking_visible,
-                    sel_ctx,
-                )
+                self.render_single_message(idx, msg, theme, colors, content_width, sel_ctx)
             })
             .collect()
     }
 
     /// Render a single chat message into a vector of `ListItem`s.
-    #[allow(clippy::too_many_arguments)]
     fn render_single_message<'a>(
         &self,
         idx: usize,
@@ -65,7 +55,6 @@ impl ChatView {
         theme: &Theme,
         colors: &RenderColors,
         content_width: usize,
-        thinking_visible: &[bool],
         sel_ctx: &SelectionContext,
     ) -> Vec<ListItem<'a>> {
         // Skip "Thinking..." placeholder during streaming
@@ -171,8 +160,9 @@ impl ChatView {
         }
 
         // Add thinking display if present
+        // PERF: inline check instead of pre-computed Vec<bool>
         if let Some(ref thinking) = msg.thinking {
-            let is_visible = thinking_visible.get(idx).copied().unwrap_or(false);
+            let is_visible = self.is_thinking_visible(idx);
             render_thinking(thinking, is_visible, color, colors, &mut lines);
         }
 

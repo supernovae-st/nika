@@ -7,7 +7,7 @@
 
 use ratatui::{
     layout::Rect,
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     text::{Line, Span, Text},
     widgets::{Block, Borders, List, ListItem, Paragraph},
     Frame,
@@ -141,7 +141,7 @@ impl MonitorView {
                                 ),
                             ]))
                             .style(if is_selected {
-                                Style::default().bg(Color::Rgb(30, 30, 40))
+                                Style::default().bg(theme.background)
                             } else {
                                 Style::default()
                             }),
@@ -204,7 +204,7 @@ impl MonitorView {
                     }
 
                     Some(ListItem::new(Text::from(lines)).style(if is_selected {
-                        Style::default().bg(Color::Rgb(30, 30, 40))
+                        Style::default().bg(theme.background)
                     } else {
                         Style::default()
                     }))

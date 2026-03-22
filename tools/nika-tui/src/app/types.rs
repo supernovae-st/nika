@@ -2,7 +2,7 @@
 //!
 //! Contains the Action enum and other shared types for the TUI application.
 
-use super::super::state::{PanelId, TuiMode};
+use super::super::state::{MonitorPanel, TuiMode};
 use super::super::views::{TuiView, ViewAction};
 
 /// Action resulting from input handling
@@ -53,7 +53,7 @@ pub enum Action {
     ToggleTheme,
     // ═══ Mouse Actions (TIER 3.1) ═══
     /// Click on a panel to focus it
-    MouseClickPanel(PanelId),
+    MouseClickPanel(MonitorPanel),
     /// Scroll up
     MouseScrollUp,
     /// Scroll down
@@ -248,9 +248,9 @@ mod tests {
 
     #[test]
     fn test_mouse_click_panel() {
-        let action = Action::MouseClickPanel(PanelId::Dag);
+        let action = Action::MouseClickPanel(MonitorPanel::Dag);
         match action {
-            Action::MouseClickPanel(panel) => assert_eq!(panel, PanelId::Dag),
+            Action::MouseClickPanel(panel) => assert_eq!(panel, MonitorPanel::Dag),
             _ => panic!("Expected MouseClickPanel"),
         }
     }

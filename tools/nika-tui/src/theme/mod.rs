@@ -218,6 +218,18 @@ pub struct Theme {
     pub syntax_template: Color,
     pub syntax_mcp_server: Color,
     pub syntax_task_id: Color,
+
+    // HEADER / STATUS BAR
+    /// Background for header and status bar (slightly lighter than main bg)
+    pub header_bg: Color,
+    /// Pulse color A for parsing/validating phase animation
+    pub status_parsing_a: Color,
+    /// Pulse color B for parsing/validating phase animation
+    pub status_parsing_b: Color,
+    /// Pulse color A for executing phase animation
+    pub status_executing_a: Color,
+    /// Pulse color B for executing phase animation
+    pub status_executing_b: Color,
 }
 
 impl Default for Theme {

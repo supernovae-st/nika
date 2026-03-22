@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 
-use super::types::{PanelId, TuiMode};
+use super::types::{MonitorPanel, TuiMode};
 use crate::theme::ThemeMode;
 use crate::views::{DagTab, MissionTab, NovanetTab, ReasoningTab};
 
@@ -16,11 +16,11 @@ use crate::views::{DagTab, MissionTab, NovanetTab, ReasoningTab};
 #[derive(Debug)]
 pub struct UiState {
     /// Currently focused panel
-    pub focus: PanelId,
+    pub focus: MonitorPanel,
     /// Current interaction mode
     pub mode: TuiMode,
     /// Scroll offset per panel
-    pub scroll: HashMap<PanelId, usize>,
+    pub scroll: HashMap<MonitorPanel, usize>,
     /// Theme mode: dark or light
     pub theme_mode: ThemeMode,
 
@@ -38,7 +38,7 @@ pub struct UiState {
 impl Default for UiState {
     fn default() -> Self {
         Self {
-            focus: PanelId::Progress,
+            focus: MonitorPanel::Progress,
             mode: TuiMode::Normal,
             scroll: HashMap::new(),
             theme_mode: ThemeMode::default(),
@@ -55,7 +55,7 @@ impl UiState {
         Self::default()
     }
 
-    pub fn set_focus(&mut self, panel: PanelId) {
+    pub fn set_focus(&mut self, panel: MonitorPanel) {
         self.focus = panel;
     }
 
@@ -63,11 +63,11 @@ impl UiState {
         self.mode = mode;
     }
 
-    pub fn scroll_offset(&self, panel: &PanelId) -> usize {
+    pub fn scroll_offset(&self, panel: &MonitorPanel) -> usize {
         self.scroll.get(panel).copied().unwrap_or(0)
     }
 
-    pub fn set_scroll(&mut self, panel: PanelId, offset: usize) {
+    pub fn set_scroll(&mut self, panel: MonitorPanel, offset: usize) {
         self.scroll.insert(panel, offset);
     }
 }
@@ -79,7 +79,7 @@ mod tests {
     #[test]
     fn test_ui_state_default() {
         let ui = UiState::new();
-        assert_eq!(ui.focus, PanelId::Progress);
+        assert_eq!(ui.focus, MonitorPanel::Progress);
         assert!(matches!(ui.mode, TuiMode::Normal));
         assert!(ui.scroll.is_empty());
     }
@@ -87,8 +87,8 @@ mod tests {
     #[test]
     fn test_ui_state_focus() {
         let mut ui = UiState::new();
-        ui.set_focus(PanelId::Agent);
-        assert_eq!(ui.focus, PanelId::Agent);
+        ui.set_focus(MonitorPanel::Agent);
+        assert_eq!(ui.focus, MonitorPanel::Agent);
     }
 
     #[test]
@@ -101,8 +101,8 @@ mod tests {
     #[test]
     fn test_ui_state_scroll() {
         let mut ui = UiState::new();
-        assert_eq!(ui.scroll_offset(&PanelId::Dag), 0);
-        ui.set_scroll(PanelId::Dag, 42);
-        assert_eq!(ui.scroll_offset(&PanelId::Dag), 42);
+        assert_eq!(ui.scroll_offset(&MonitorPanel::Dag), 0);
+        ui.set_scroll(MonitorPanel::Dag, 42);
+        assert_eq!(ui.scroll_offset(&MonitorPanel::Dag), 42);
     }
 }
