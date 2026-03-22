@@ -93,10 +93,7 @@ pub fn detect_providers() -> Vec<DetectedProvider> {
 
 /// Return the slug of the first available provider, or `None` if none found.
 pub fn first_available_provider(detected: &[DetectedProvider]) -> Option<&'static str> {
-    detected
-        .iter()
-        .find(|d| d.available)
-        .map(|d| d.info.slug)
+    detected.iter().find(|d| d.available).map(|d| d.info.slug)
 }
 
 // ─── Init mode ──────────────────────────────────────────────────────────────
@@ -245,18 +242,25 @@ pub fn run_init_wizard(yes: bool) -> Result<WizardResult, NikaError> {
         summary.to_string()
     };
 
-    cliclack::note(provider_note, status_lines)
-        .map_err(NikaError::IoError)?;
+    cliclack::note(provider_note, status_lines).map_err(NikaError::IoError)?;
 
     // ── Step 3: Mode selection ──────────────────────────────────────────
     let mode: InitMode = cliclack::select("What do you want to do?")
-        .item(InitMode::Project, "Start a project", "Full scaffold with examples")
+        .item(
+            InitMode::Project,
+            "Start a project",
+            "Full scaffold with examples",
+        )
         .item(
             InitMode::Course,
             "Learn Nika (interactive course)",
             "12 levels, 44 exercises",
         )
-        .item(InitMode::Scaffold, "Quick scaffold", "Config only, no examples")
+        .item(
+            InitMode::Scaffold,
+            "Quick scaffold",
+            "Config only, no examples",
+        )
         .interact()
         .map_err(NikaError::IoError)?;
 
@@ -355,7 +359,10 @@ mod tests {
         env::set_var("ANTHROPIC_API_KEY", "sk-test-123");
         let detected = detect_providers();
         let claude = detected.iter().find(|d| d.info.slug == "claude").unwrap();
-        assert!(claude.available, "Claude should be available when env is set");
+        assert!(
+            claude.available,
+            "Claude should be available when env is set"
+        );
         env::remove_var("ANTHROPIC_API_KEY");
     }
 
@@ -456,7 +463,9 @@ mod tests {
         let chars = theme.spinner_chars();
         // Braille characters are in Unicode block U+2800..U+28FF
         assert!(
-            chars.chars().all(|c| ('\u{2800}'..='\u{28FF}').contains(&c)),
+            chars
+                .chars()
+                .all(|c| ('\u{2800}'..='\u{28FF}').contains(&c)),
             "Spinner chars should all be Braille unicode: got {chars:?}"
         );
     }
