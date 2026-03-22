@@ -401,8 +401,33 @@ fn parse_action(
 
     // Check for infer verb
     if let Some(node) = map.get_node("infer") {
-        let action = parse_infer_action(file, node)?;
+        let mut action = parse_infer_action(file, node)?;
         let span = node_to_span(file, node);
+
+        // For shorthand `infer: "prompt"`, merge task-level LLM fields that
+        // would otherwise be silently ignored (they are siblings in the task
+        // mapping, not children of the infer node).
+        if matches!(node, Node::Scalar(_)) {
+            if action.max_tokens.is_none() {
+                action.max_tokens = get_u32_field(file, map, "max_tokens")?;
+            }
+            if action.temperature.is_none() {
+                action.temperature = get_f64_field(file, map, "temperature")?;
+            }
+            if action.system.is_none() {
+                action.system = get_string_field(file, map, "system")?;
+            }
+            if action.extended_thinking.is_none() {
+                action.extended_thinking = get_bool_field(file, map, "extended_thinking")?;
+            }
+            if action.thinking_budget.is_none() {
+                action.thinking_budget = get_u32_field(file, map, "thinking_budget")?;
+            }
+            if action.response_format.is_none() {
+                action.response_format = get_string_field(file, map, "response_format")?;
+            }
+        }
+
         return Ok(Some(RawTaskAction::Infer(Spanned::new(action, span))));
     }
     // Check for exec verb
@@ -1786,6 +1811,98 @@ tasks:
                 assert_eq!(action.value.prompt.value, "Generate a headline");
                 assert!(action.value.temperature.is_none());
                 assert!(action.value.system.is_none());
+            }
+            _ => panic!("Expected Infer action"),
+        }
+    }
+
+    #[test]
+    fn test_parse_infer_shorthand_with_task_level_max_tokens_and_temperature() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: test
+    infer: "Say hello"
+    max_tokens: 20
+    temperature: 0.5
+"#;
+        let workflow = parse(yaml, FileId(0)).unwrap();
+        let task = workflow.get_task("test").unwrap();
+
+        match &task.value.action {
+            Some(RawTaskAction::Infer(action)) => {
+                assert_eq!(action.value.prompt.value, "Say hello");
+                assert_eq!(action.value.max_tokens.as_ref().unwrap().value, 20);
+                assert!(
+                    (action.value.temperature.as_ref().unwrap().value - 0.5).abs() < 0.001
+                );
+            }
+            _ => panic!("Expected Infer action"),
+        }
+    }
+
+    #[test]
+    fn test_parse_infer_shorthand_with_task_level_system() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: test
+    infer: "Translate this"
+    system: "You are a translator"
+    temperature: 0.3
+"#;
+        let workflow = parse(yaml, FileId(0)).unwrap();
+        let task = workflow.get_task("test").unwrap();
+
+        match &task.value.action {
+            Some(RawTaskAction::Infer(action)) => {
+                assert_eq!(action.value.prompt.value, "Translate this");
+                assert_eq!(
+                    action.value.system.as_ref().unwrap().value,
+                    "You are a translator"
+                );
+                assert!(
+                    (action.value.temperature.as_ref().unwrap().value - 0.3).abs() < 0.001
+                );
+            }
+            _ => panic!("Expected Infer action"),
+        }
+    }
+
+    #[test]
+    fn test_parse_infer_shorthand_with_all_task_level_fields() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: test
+    infer: "Think deeply"
+    system: "Be thorough"
+    max_tokens: 4096
+    temperature: 0.9
+    extended_thinking: true
+    thinking_budget: 8000
+    response_format: json
+"#;
+        let workflow = parse(yaml, FileId(0)).unwrap();
+        let task = workflow.get_task("test").unwrap();
+
+        match &task.value.action {
+            Some(RawTaskAction::Infer(action)) => {
+                assert_eq!(action.value.prompt.value, "Think deeply");
+                assert_eq!(
+                    action.value.system.as_ref().unwrap().value,
+                    "Be thorough"
+                );
+                assert_eq!(action.value.max_tokens.as_ref().unwrap().value, 4096);
+                assert!(
+                    (action.value.temperature.as_ref().unwrap().value - 0.9).abs() < 0.001
+                );
+                assert!(action.value.extended_thinking.as_ref().unwrap().value);
+                assert_eq!(action.value.thinking_budget.as_ref().unwrap().value, 8000);
+                assert_eq!(
+                    action.value.response_format.as_ref().unwrap().value,
+                    "json"
+                );
             }
             _ => panic!("Expected Infer action"),
         }
