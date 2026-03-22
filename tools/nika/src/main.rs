@@ -746,10 +746,11 @@ async fn main() {
                 match generate_course(&config) {
                     Ok(result) => {
                         println!(
-                            "\n  {} Course generated! {} levels, {} exercises\n  Location: {}\n  Run: cd {} && nika course status\n",
+                            "\n  {} Course generated! {} levels, {} exercises\n  Provider: {} (auto-detected)\n  Location: {}\n  Run: cd {} && nika course status\n",
                             "✓".green(),
                             result.levels,
                             result.exercises,
+                            result.provider,
                             result.root.display(),
                             result.root.display(),
                         );

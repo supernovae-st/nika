@@ -239,15 +239,6 @@ fn exercise_path(root: &Path, level: u8, exercise: u8) -> PathBuf {
 
 // ─── Status icons ───────────────────────────────────────────────────────────
 
-fn level_status_icon(status: &LevelStatus) -> &'static str {
-    match status {
-        LevelStatus::Locked => "  ",
-        LevelStatus::Unlocked => "  ",
-        LevelStatus::InProgress => "  ",
-        LevelStatus::Completed => "  ",
-    }
-}
-
 fn exercise_status_icon(status: &ExerciseStatus) -> &'static str {
     match status {
         ExerciseStatus::NotStarted => "  ",
@@ -259,42 +250,71 @@ fn exercise_status_icon(status: &ExerciseStatus) -> &'static str {
 
 // ─── Command implementations ────────────────────────────────────────────────
 
-/// nika course status — constellation map
+/// nika course status -- enhanced constellation map
 fn cmd_status() -> Result<(), NikaError> {
     let root = find_course_root()?;
     let progress = load_progress(&root)?;
-
-    println!();
-    println!("{}", "  NIKA COURSE -- Constellation Map".bold());
-    println!();
 
     let completed_levels = progress.completed_levels();
     let total_levels = LEVELS.len();
     let completed_ex = progress.completed_exercises();
     let total_ex = levels::total_exercises();
 
-    // Progress bar
-    let bar_width = 30;
-    let filled = (completed_ex as f64 / total_ex as f64 * bar_width as f64) as usize;
-    let bar: String = (0..bar_width)
-        .map(|i| if i < filled { '#' } else { '-' })
-        .collect();
+    println!();
     println!(
-        "  [{}] {}/{} exercises  ({}/{} levels)",
-        bar.cyan(),
-        completed_ex.to_string().green(),
-        total_ex,
-        completed_levels.to_string().green(),
-        total_levels
+        "  {}",
+        "Nika Course -- Your Liberation Journey".cyan().bold()
     );
     println!();
 
-    // Level list
-    for level in LEVELS {
+    let level_statuses: Vec<(&Level, LevelStatus)> = LEVELS
+        .iter()
+        .map(|l| {
+            let key = l.number.to_string();
+            let status = progress
+                .levels
+                .get(&key)
+                .map(|lp| lp.status.clone())
+                .unwrap_or(LevelStatus::Locked);
+            (l, status)
+        })
+        .collect();
+
+    for row in 0..2 {
+        let start = row * 6;
+        let end = (start + 6).min(level_statuses.len());
+        let slice = &level_statuses[start..end];
+
+        let mut star_line = String::from("  ");
+        for (i, (level, status)) in slice.iter().enumerate() {
+            star_line.push_str(&constellation_star(status, level.boss));
+            if i < slice.len() - 1 {
+                star_line.push_str(&"----".dimmed().to_string());
+            }
+        }
+        println!("{star_line}");
+
+        let mut num_line = String::from("  ");
+        for (i, (level, status)) in slice.iter().enumerate() {
+            let num = format!("{:02}", level.number);
+            let colored_num = match status {
+                LevelStatus::Completed => num.green().to_string(),
+                LevelStatus::InProgress => num.yellow().to_string(),
+                LevelStatus::Unlocked => num.cyan().to_string(),
+                LevelStatus::Locked => num.dimmed().to_string(),
+            };
+            num_line.push_str(&colored_num);
+            if i < slice.len() - 1 {
+                num_line.push_str("    ");
+            }
+        }
+        println!("{num_line}");
+        println!();
+    }
+
+    for (level, status) in &level_statuses {
         let key = level.number.to_string();
         let lp = progress.levels.get(&key);
-        let status = lp.map(|l| &l.status).unwrap_or(&LevelStatus::Locked);
-        let icon = level_status_icon(status);
 
         let ex_done = lp
             .map(|l| {
@@ -305,62 +325,114 @@ fn cmd_status() -> Result<(), NikaError> {
             })
             .unwrap_or(0);
 
-        let num = format!("{:02}", level.number);
+        let perfect_count = lp
+            .map(|l| {
+                l.exercises
+                    .values()
+                    .filter(|s| **s == ExerciseStatus::Perfect)
+                    .count()
+            })
+            .unwrap_or(0);
+
+        let star = constellation_star(status, level.boss);
         let name = level.name;
-        let ex_str = format!("{}/{}", ex_done, level.exercise_count);
+
+        let pct = if level.exercise_count > 0 {
+            (ex_done as f64 / level.exercise_count as f64 * 100.0) as u8
+        } else {
+            0
+        };
+
+        let stars_str = if *status == LevelStatus::Completed {
+            let total = level.exercise_count as usize;
+            if perfect_count == total {
+                format!("  {}", "***".yellow())
+            } else if perfect_count >= total / 2 {
+                format!("  {}{}", "**".yellow(), "*".dimmed())
+            } else {
+                format!("  {}{}", "*".yellow(), "**".dimmed())
+            }
+        } else {
+            String::new()
+        };
 
         let line = match status {
             LevelStatus::Locked => {
                 format!(
-                    "  {} {} {} {}",
-                    icon,
-                    num.dimmed(),
+                    "  {} {:<16}  {}",
+                    star,
                     name.dimmed(),
-                    ex_str.dimmed()
+                    "locked".dimmed()
                 )
             }
             LevelStatus::Unlocked => {
-                format!("  {} {} {} {}", icon, num.cyan(), name.bold(), ex_str)
+                format!("  {} {:<16}  {}", star, name.bold(), "ready".cyan())
             }
             LevelStatus::InProgress => {
                 format!(
-                    "  {} {} {} {}",
-                    icon,
-                    num.yellow(),
+                    "  {} {:<16}  {:>3}%",
+                    star,
                     name.yellow().bold(),
-                    ex_str.yellow()
+                    pct.to_string().yellow()
                 )
             }
             LevelStatus::Completed => {
                 format!(
-                    "  {} {} {} {}",
-                    icon,
-                    num.green(),
+                    "  {} {:<16}  {:>3}%{}",
+                    star,
                     name.green(),
-                    ex_str.green()
+                    "100".green(),
+                    stars_str
                 )
             }
         };
         println!("{line}");
 
-        // Show boss indicator
         if level.boss {
-            println!("        {}", "[BOSS LEVEL]".red().bold());
+            println!("                       {}", "BOSS".red().bold());
         }
     }
 
     println!();
+    println!(
+        "  Progress: {}/{} levels | {}/{} exercises",
+        completed_levels.to_string().green(),
+        total_levels,
+        completed_ex.to_string().green(),
+        total_ex,
+    );
+
     if progress.metadata.total_hints_used > 0 {
         println!(
             "  Hints used: {}",
             progress.metadata.total_hints_used.to_string().yellow()
         );
     }
+
+    println!();
     println!("  {}", "Run `nika course next` to continue.".dimmed());
     println!();
 
     Ok(())
 }
+
+/// Constellation star icon for a level based on its status
+fn constellation_star(status: &LevelStatus, boss: bool) -> String {
+    if boss {
+        match status {
+            LevelStatus::Completed => "*".yellow().bold().to_string(),
+            _ => "*".dimmed().to_string(),
+        }
+    } else {
+        match status {
+            LevelStatus::Completed => "*".green().bold().to_string(),
+            LevelStatus::InProgress => "+".yellow().bold().to_string(),
+            LevelStatus::Unlocked => "+".cyan().to_string(),
+            LevelStatus::Locked => "o".dimmed().to_string(),
+        }
+    }
+}
+
 
 /// nika course next — find next exercise
 fn cmd_next() -> Result<(), NikaError> {
@@ -861,8 +933,9 @@ fn cmd_run(exercise_arg: &str) -> Result<(), NikaError> {
     println!("  {}", format!("nika run {}", path.display()).dimmed());
     println!();
 
-    // Shell out to `nika run`
-    let status = std::process::Command::new("nika")
+    // QW #2: Shell out using current executable for reliable dispatch
+    let exe = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("nika"));
+    let status = std::process::Command::new(&exe)
         .arg("run")
         .arg(&path)
         .status()

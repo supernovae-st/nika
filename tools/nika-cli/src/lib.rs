@@ -5,6 +5,7 @@
 
 pub mod course;
 pub mod init_wizard;
+pub mod showcase;
 pub mod trace;
 
 pub mod init;
