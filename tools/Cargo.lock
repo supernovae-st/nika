@@ -5330,6 +5330,7 @@ dependencies = [
  "mime_guess",
  "mistralrs",
  "nika-core",
+ "nika-event",
  "nika-lsp-core",
  "nix 0.29.0",
  "nom-exif",
@@ -5417,6 +5418,23 @@ dependencies = [
  "smallvec 1.15.1",
  "strsim 0.11.1",
  "thiserror 1.0.69",
+ "tracing",
+ "xxhash-rust",
+]
+
+[[package]]
+name = "nika-event"
+version = "0.37.0"
+dependencies = [
+ "chrono",
+ "parking_lot",
+ "pretty_assertions",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
  "tracing",
  "xxhash-rust",
 ]

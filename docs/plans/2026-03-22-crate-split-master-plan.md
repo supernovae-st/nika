@@ -1,9 +1,32 @@
 # Nika Crate Split — Master Plan
 
 **Date**: 2026-03-22
-**Status**: Draft → Executing
+**Status**: In Progress — Session 1 complete
 **Estimated duration**: 25-35 hours across 5-7 sessions
 **Approach**: Autonomous execution with code review checkpoints
+
+## Session 1 Progress (2026-03-22)
+
+### Completed
+- [x] Phase 0: Workspace setup (tools/Cargo.toml, unified deps across 4 crates)
+- [x] Phase 0: AST/binding dedup (11 files deleted, 5084 lines eliminated)
+- [x] Phase 0: Bug fixes ported to nika-core (Bug 30: |length unicode, Bug 46: |sort numeric)
+- [x] Phase 1: nika-event extracted (4278 lines, 128 tests, EventError defined)
+
+### Blocked — AST Divergence
+nika's AST (raw/, analyzed/, analyzer/) has DIVERGED from nika-core's copies:
+- Field renames: `thinking` → `extended_thinking`, `working_dir` → `cwd`, `max_iterations` → `max_turns`
+- Extra fields in nika: `response_format`, `guardrails`, `tool_choice`
+- `Agent(Spanned<>)` vs `Agent(Box<Spanned<>>)` (boxing difference)
+
+This divergence blocks extraction of: nika-dag, nika-mcp, nika-media, nika-runtime.
+All these modules depend on nika's local AST types, creating circular deps if extracted.
+
+### Next Session Plan
+**Priority: Reconcile AST divergence (prerequisite for all further extractions)**
+1. Sync nika-core's raw/analyzed/analyzer with nika's versions (nika is source of truth)
+2. Make nika re-export ALL AST types from nika-core (like we did for 11 other modules)
+3. Then proceed with dag → mcp → media → runtime → tui extractions
 
 ## Target Architecture
 
