@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 use colored::Colorize;
 
-use nika::ast::parse_workflow;
+use nika::ast::{parse_analyzed, parse_workflow};
 use nika::error::NikaError;
 
 /// Workflow management actions
@@ -323,6 +323,41 @@ pub async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Res
                         "NIKA-141".to_string(),
                         format!("Duplicate task ID: '{}'", task.id),
                     ));
+                }
+            }
+
+            // Check provider API keys (BUG 6 / NIKA-032)
+            // Parse the analyzed workflow to access per-task providers
+            {
+                let mut providers_used: std::collections::HashSet<String> =
+                    std::collections::HashSet::new();
+
+                // Workflow default provider
+                providers_used.insert(workflow.provider.clone());
+
+                // Per-task providers from analyzed AST
+                if let Ok(analyzed) = parse_analyzed(&content) {
+                    for task in &analyzed.tasks {
+                        if let Some(ref p) = task.provider {
+                            providers_used.insert(p.clone());
+                        }
+                    }
+                }
+
+                // Check each provider for its env var
+                for provider_name in &providers_used {
+                    if let Some(provider) = nika::core::find_provider(provider_name) {
+                        if provider.requires_key && !provider.has_env_key() {
+                            issues.push((
+                                "warn".to_string(),
+                                "NIKA-032".to_string(),
+                                format!(
+                                    "{} not set (provider '{}' used in workflow)",
+                                    provider.env_var, provider_name
+                                ),
+                            ));
+                        }
+                    }
                 }
             }
 
