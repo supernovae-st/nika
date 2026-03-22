@@ -195,12 +195,9 @@ fn normalize_path(path: &Path) -> PathBuf {
 
 /// Error type for path boundary validation
 ///
-/// Contains the paths and reason for conversion to context-specific error types.
+/// Contains the target path and reason for conversion to context-specific error types.
 #[derive(Debug, Clone)]
 pub struct PathBoundaryError {
-    /// The base path that was validated against
-    #[allow(dead_code)] // Populated for error context, read by Display impl indirectly
-    pub base_path: PathBuf,
     /// The target path that failed validation
     pub target_path: PathBuf,
     /// Human-readable reason for the failure
@@ -249,13 +246,11 @@ pub fn validate_canonicalized_boundary(
     target_path: &Path,
 ) -> Result<(), PathBoundaryError> {
     let canonical_base = base_path.canonicalize().map_err(|e| PathBoundaryError {
-        base_path: base_path.to_path_buf(),
         target_path: target_path.to_path_buf(),
         reason: format!("Cannot resolve base path '{}': {}", base_path.display(), e),
     })?;
 
     let canonical_target = target_path.canonicalize().map_err(|e| PathBoundaryError {
-        base_path: base_path.to_path_buf(),
         target_path: target_path.to_path_buf(),
         reason: format!(
             "Cannot resolve target path '{}': {}",
@@ -266,7 +261,6 @@ pub fn validate_canonicalized_boundary(
 
     if !canonical_target.starts_with(&canonical_base) {
         return Err(PathBoundaryError {
-            base_path: base_path.to_path_buf(),
             target_path: target_path.to_path_buf(),
             reason: format!(
                 "Path traversal detected: '{}' is outside project boundary '{}'",
