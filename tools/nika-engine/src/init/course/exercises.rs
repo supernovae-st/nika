@@ -509,8 +509,6 @@ tasks:
     infer: "List 3 benefits of declarative workflow engines. Be concise."
 
   - id: detailed_analysis
-    provider: "{{PROVIDER}}"
-    model: "{{MODEL}}"
     infer:
       prompt: "Explain the difference between imperative and declarative automation in 2 paragraphs."
       system: "You are a software architecture instructor. Use clear examples."
@@ -519,8 +517,6 @@ tasks:
 
   - id: final_summary
     depends_on: [quick_draft, detailed_analysis]
-    provider: "{{PROVIDER}}"
-    model: "{{MODEL}}"
     infer:
       prompt: "Write a one-sentence conclusion about why declarative workflows matter."
       temperature: 0.3
@@ -1801,8 +1797,8 @@ model: "{{MODEL}}"
 
 tasks:
   - id: fast_draft
-    provider: "{{PROVIDER}}"
-    model: "{{MODEL}}"
+    provider: openai
+    model: "gpt-4o-mini"
     infer:
       prompt: "Write a 3-sentence pitch for an AI-powered recipe generator app."
       temperature: 0.8
@@ -1812,8 +1808,8 @@ tasks:
     depends_on: [fast_draft]
     with:
       draft: $fast_draft
-    provider: "{{PROVIDER}}"
-    model: "{{MODEL}}"
+    provider: groq
+    model: "llama-3.3-70b-versatile"
     infer:
       prompt: |
         Improve this pitch for clarity and impact. Keep it to 3 sentences:
@@ -1826,8 +1822,8 @@ tasks:
     depends_on: [quality_review]
     with:
       review: $quality_review
-    provider: "{{PROVIDER}}"
-    model: "{{MODEL}}"
+    provider: gemini
+    model: "gemini-2.0-flash"
     infer:
       prompt: |
         Rate this pitch from 1-10 and explain why in one sentence:

@@ -769,15 +769,15 @@ tasks:
   log_it:
     invoke:
       tool: nika:log
-      input:
+      params:
         message: "Pipeline started"
         level: info
 
   check:
     invoke:
       tool: nika:assert
-      input:
-        condition: "{{with.count}} > 0"
+      params:
+        condition: true
         message: "Expected positive count"
 ```
 
@@ -791,19 +791,19 @@ tasks:
   find_configs:
     invoke:
       tool: nika:glob
-      input:
+      params:
         pattern: "**/*.toml"
 
   read_config:
     invoke:
       tool: nika:read
-      input:
-        path: "config.toml"
+      params:
+        file_path: "config.toml"
 
   search:
     invoke:
       tool: nika:grep
-      input:
+      params:
         pattern: "TODO"
         path: "src/"
 ```
@@ -816,8 +816,8 @@ The ultimate composition tool. One workflow calls another.
 tasks:
   run_sub:
     invoke:
-      tool: nika:workflow
-      input:
+      tool: nika:run
+      params:
         path: "helpers/transform.nika.yaml"
 ```
 
@@ -1171,7 +1171,7 @@ tasks:
   list_files:
     invoke:
       tool: filesystem/list_directory
-      input:
+      params:
         path: "/tmp"
 ```
 
@@ -1185,7 +1185,7 @@ tasks:
   query_knowledge:
     invoke:
       tool: novanet/search
-      input:
+      params:
         query: "What do we know about this project?"
 ```
 
@@ -1279,7 +1279,7 @@ tasks:
   import_photo:
     invoke:
       tool: nika:import
-      input:
+      params:
         path: "photo.jpg"
 
   make_thumbnail:
@@ -1287,7 +1287,7 @@ tasks:
       photo: $import_photo
     invoke:
       tool: nika:thumbnail
-      input:
+      params:
         hash: "{{with.photo.hash}}"
         width: 200
         height: 200
@@ -1332,7 +1332,7 @@ tasks:
   process:
     invoke:
       tool: nika:pipeline
-      input:
+      params:
         source: "{{with.photo.hash}}"
         steps:
           - thumbnail: { width: 400, height: 400 }
@@ -1448,8 +1448,8 @@ tasks:
       result: $analyze
     invoke:
       tool: nika:write
-      input:
-        path: "output/analysis.json"
+      params:
+        file_path: "output/analysis.json"
         content: "{{with.result | json}}"
     depends_on: [analyze]
 
@@ -1457,7 +1457,7 @@ tasks:
   done:
     invoke:
       tool: nika:log
-      input:
+      params:
         message: "Pipeline complete"
         level: info
     depends_on: [save]

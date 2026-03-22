@@ -380,11 +380,10 @@ const SWISS_KNIFE_02_SOLUTION: &str = r##"# ====================================
 schema: "nika/workflow@0.12"
 
 tasks:
-  # Clean up from previous runs (nika:write fails if file exists)
+  # Ensure idempotent: remove file from previous runs
   - id: cleanup
     exec:
       command: rm -f .scratch/swiss-knife-report.txt
-      shell: true
 
   - id: write_file
     depends_on: [cleanup]
@@ -427,7 +426,8 @@ tasks:
     invoke:
       tool: "nika:glob"
       params:
-        pattern: ".scratch/*.txt"
+        pattern: "*.txt"
+        path: ".scratch"
 "##;
 
 // ── 07-03: Sub-Workflows ─────────────────────────────────────────────────────
@@ -535,7 +535,7 @@ const GONE_ROGUE_01_TEMPLATE: &str = r##"# =====================================
 #   token_budget:  — Total token budget across ALL turns
 #   tool_choice:   — "auto" (default), "required", "none"
 #
-# provider: and model: go at TASK level (same indent as agent:)
+# provider: and model: go at WORKFLOW level (inherited by all tasks)
 #
 # INSTRUCTIONS:
 #   1. Fill in the TODO markers below
@@ -544,10 +544,11 @@ const GONE_ROGUE_01_TEMPLATE: &str = r##"# =====================================
 
 schema: "nika/workflow@0.12"
 
+provider: "{{PROVIDER}}"
+model: "{{MODEL}}"
+
 tasks:
   - id: analyzer
-    provider: "{{PROVIDER}}"
-    model: "{{MODEL}}"
     agent:
       prompt: |
         You are a project analysis agent. Your mission:
@@ -573,10 +574,11 @@ const GONE_ROGUE_01_SOLUTION: &str = r##"# =====================================
 
 schema: "nika/workflow@0.12"
 
+provider: "{{PROVIDER}}"
+model: "{{MODEL}}"
+
 tasks:
   - id: analyzer
-    provider: "{{PROVIDER}}"
-    model: "{{MODEL}}"
     agent:
       prompt: |
         You are a project analysis agent. Your mission:
@@ -616,11 +618,12 @@ const GONE_ROGUE_02_TEMPLATE: &str = r##"# =====================================
 
 schema: "nika/workflow@0.12"
 
+provider: "{{PROVIDER}}"
+model: "{{MODEL}}"
+
 tasks:
   # Agent 1: Research (explicit completion)
   - id: explicit_agent
-    provider: "{{PROVIDER}}"
-    model: "{{MODEL}}"
     agent:
       prompt: |
         Research 3 innovative use cases for YAML workflow engines.
@@ -640,8 +643,6 @@ tasks:
     depends_on: [explicit_agent]
     with:
       research: $explicit_agent
-    provider: "{{PROVIDER}}"
-    model: "{{MODEL}}"
     agent:
       prompt: |
         Review these use cases and pick the single best one:
@@ -668,10 +669,11 @@ const GONE_ROGUE_02_SOLUTION: &str = r##"# =====================================
 
 schema: "nika/workflow@0.12"
 
+provider: "{{PROVIDER}}"
+model: "{{MODEL}}"
+
 tasks:
   - id: explicit_agent
-    provider: "{{PROVIDER}}"
-    model: "{{MODEL}}"
     agent:
       prompt: |
         Research 3 innovative use cases for YAML workflow engines.
@@ -689,8 +691,6 @@ tasks:
     depends_on: [explicit_agent]
     with:
       research: $explicit_agent
-    provider: "{{PROVIDER}}"
-    model: "{{MODEL}}"
     agent:
       prompt: |
         Review these use cases and pick the single best one:
@@ -736,10 +736,11 @@ const GONE_ROGUE_03_TEMPLATE: &str = r##"# =====================================
 
 schema: "nika/workflow@0.12"
 
+provider: "{{PROVIDER}}"
+model: "{{MODEL}}"
+
 tasks:
   - id: writer_agent
-    provider: "{{PROVIDER}}"
-    model: "{{MODEL}}"
     agent:
       prompt: |
         Write a technical article about declarative workflow engines.
@@ -779,10 +780,11 @@ const GONE_ROGUE_03_SOLUTION: &str = r##"# =====================================
 
 schema: "nika/workflow@0.12"
 
+provider: "{{PROVIDER}}"
+model: "{{MODEL}}"
+
 tasks:
   - id: writer_agent
-    provider: "{{PROVIDER}}"
-    model: "{{MODEL}}"
     agent:
       prompt: |
         Write a technical article about declarative workflow engines.
@@ -836,6 +838,9 @@ const DATA_HEIST_01_TEMPLATE: &str = r##"# =====================================
 
 schema: "nika/workflow@0.12"
 
+provider: "{{PROVIDER}}"
+model: "{{MODEL}}"
+
 tasks:
   # TODO: Fetch a webpage and convert to full Markdown
   - id: as_markdown
@@ -857,8 +862,6 @@ tasks:
     with:
       markdown: $as_markdown
       article: $as_article
-    provider: "{{PROVIDER}}"
-    model: "{{MODEL}}"
     infer:
       prompt: |
         Compare these two extraction modes:
@@ -878,6 +881,9 @@ const DATA_HEIST_01_SOLUTION: &str = r##"# =====================================
 # =============================================================================
 
 schema: "nika/workflow@0.12"
+
+provider: "{{PROVIDER}}"
+model: "{{MODEL}}"
 
 tasks:
   - id: as_markdown
@@ -901,8 +907,6 @@ tasks:
     with:
       markdown: $as_markdown
       article: $as_article
-    provider: "{{PROVIDER}}"
-    model: "{{MODEL}}"
     infer:
       prompt: |
         Compare these two extraction modes:
@@ -1178,7 +1182,7 @@ const OPEN_PROTOCOL_01_TEMPLATE: &str = r##"# ==================================
 #   1. Nika launches the MCP server process
 #   2. Server exposes its tool list via the MCP protocol
 #   3. Nika discovers tools at runtime (list_directory, read_file, etc.)
-#   4. invoke: routes calls to the correct server automatically
+#   4. invoke: with mcp: field routes calls to the named server
 #
 # SETUP: npm install -g @anthropic/mcp-filesystem
 #
@@ -1201,6 +1205,7 @@ tasks:
   # TODO: List files using an MCP tool
   - id: list_files
     invoke:
+      mcp: filesystem
       tool: "TODO: MCP tool name (e.g. list_directory)"
       params:
         path: "TODO: directory to list"
@@ -1209,6 +1214,7 @@ tasks:
   - id: read_file
     depends_on: [list_files]
     invoke:
+      mcp: filesystem
       tool: "TODO: MCP tool name (e.g. read_file)"
       params:
         path: "TODO: file path to read"
@@ -1230,6 +1236,7 @@ mcp:
 tasks:
   - id: list_files
     invoke:
+      mcp: filesystem
       tool: "list_directory"
       params:
         path: "."
@@ -1237,6 +1244,7 @@ tasks:
   - id: read_file
     depends_on: [list_files]
     invoke:
+      mcp: filesystem
       tool: "read_file"
       params:
         path: "./01-mcp-basics.nika.yaml"
@@ -1266,6 +1274,9 @@ const OPEN_PROTOCOL_02_TEMPLATE: &str = r##"# ==================================
 
 schema: "nika/workflow@0.12"
 
+provider: "{{PROVIDER}}"
+model: "{{MODEL}}"
+
 mcp:
   filesystem:
     command: "npx"
@@ -1275,8 +1286,6 @@ mcp:
 
 tasks:
   - id: explorer
-    provider: "{{PROVIDER}}"
-    model: "{{MODEL}}"
     agent:
       prompt: |
         You are a file explorer agent. Your mission:
@@ -1302,6 +1311,9 @@ const OPEN_PROTOCOL_02_SOLUTION: &str = r##"# ==================================
 
 schema: "nika/workflow@0.12"
 
+provider: "{{PROVIDER}}"
+model: "{{MODEL}}"
+
 mcp:
   filesystem:
     command: "npx"
@@ -1311,8 +1323,6 @@ mcp:
 
 tasks:
   - id: explorer
-    provider: "{{PROVIDER}}"
-    model: "{{MODEL}}"
     agent:
       prompt: |
         You are a file explorer agent. Your mission:
@@ -1369,6 +1379,7 @@ tasks:
   # TODO: Get the knowledge graph schema
   - id: get_schema
     invoke:
+      mcp: novanet
       tool: "novanet:schema"
       params: {}
 
@@ -1376,6 +1387,7 @@ tasks:
   - id: search_nodes
     depends_on: [get_schema]
     invoke:
+      mcp: novanet
       tool: "novanet:search"
       params:
         label: "TODO: node label to search for"
@@ -1385,6 +1397,7 @@ tasks:
   - id: create_node
     depends_on: [search_nodes]
     invoke:
+      mcp: novanet
       tool: "novanet:create"
       params:
         label: "TODO: node label"
@@ -1412,6 +1425,7 @@ mcp:
 tasks:
   - id: get_schema
     invoke:
+      mcp: novanet
       tool: "novanet:schema"
       params: {}
     artifact:
@@ -1421,6 +1435,7 @@ tasks:
   - id: search_nodes
     depends_on: [get_schema]
     invoke:
+      mcp: novanet
       tool: "novanet:search"
       params:
         label: "Concept"
@@ -1432,6 +1447,7 @@ tasks:
   - id: create_node
     depends_on: [search_nodes]
     invoke:
+      mcp: novanet
       tool: "novanet:create"
       params:
         label: "Concept"
@@ -1815,6 +1831,9 @@ const PIXEL_PIRATE_04_TEMPLATE: &str = r##"# ===================================
 
 schema: "nika/workflow@0.12"
 
+provider: "{{PROVIDER}}"
+model: "{{MODEL}}"
+
 tasks:
   - id: download_photo
     fetch:
@@ -1827,8 +1846,6 @@ tasks:
     depends_on: [download_photo]
     with:
       photo: $download_photo
-    provider: "{{PROVIDER}}"
-    model: "{{MODEL}}"
     infer:
       # TODO: Use content: array with image + text parts
       content:
@@ -1846,6 +1863,9 @@ const PIXEL_PIRATE_04_SOLUTION: &str = r##"# ===================================
 
 schema: "nika/workflow@0.12"
 
+provider: "{{PROVIDER}}"
+model: "{{MODEL}}"
+
 tasks:
   - id: download_photo
     fetch:
@@ -1857,8 +1877,6 @@ tasks:
     depends_on: [download_photo]
     with:
       photo: $download_photo
-    provider: "{{PROVIDER}}"
-    model: "{{MODEL}}"
     infer:
       content:
         - type: image
