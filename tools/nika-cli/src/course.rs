@@ -1410,11 +1410,12 @@ tasks:
     }
 
     #[test]
-    fn test_level_status_icons_are_non_empty() {
-        assert!(!level_status_icon(&LevelStatus::Locked).is_empty());
-        assert!(!level_status_icon(&LevelStatus::Unlocked).is_empty());
-        assert!(!level_status_icon(&LevelStatus::InProgress).is_empty());
-        assert!(!level_status_icon(&LevelStatus::Completed).is_empty());
+    fn test_constellation_star_non_empty() {
+        assert!(!constellation_star(&LevelStatus::Locked, false).is_empty());
+        assert!(!constellation_star(&LevelStatus::Unlocked, false).is_empty());
+        assert!(!constellation_star(&LevelStatus::InProgress, false).is_empty());
+        assert!(!constellation_star(&LevelStatus::Completed, false).is_empty());
+        assert!(!constellation_star(&LevelStatus::Completed, true).is_empty());
     }
 
     #[test]
