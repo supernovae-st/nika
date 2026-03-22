@@ -690,7 +690,7 @@ const HOT_WIRE_02_TEMPLATE: &str = r##"# =======================================
 # CONCEPTS:
 #   - Dot notation: {{with.data.field.nested}}
 #   - Array indexing: {{with.data.items[0]}}
-#   - Default operator: {{with.data.missing ?? "fallback"}}
+#   - Default operator in with: block: email: $task.user.email ?? "fallback"
 #   - parse_json transform to convert string output to JSON
 #
 # RUN: nika run 02-nested-json.nika.yaml
@@ -715,10 +715,10 @@ tasks:
   #         - {{with.data.score}} (top-level field)
 
   # TODO: Create a task "with_defaults" with:
-  #       - with: block binding data: $json_source | parse_json
-  #       - exec: command that uses the ?? default operator:
-  #         - {{with.data.user.email ?? "no-email@example.com"}}
-  #         - {{with.data.missing_field ?? "not found"}}
+  #       - with: block that uses ?? in the binding (NOT in the template):
+  #         email: $json_source.user.email ?? "unknown"
+  #         missing: $json_source.missing_field ?? "not-found"
+  #       - exec: command that uses {{with.email}} and {{with.missing}}
 "##;
 
 const HOT_WIRE_02_SOLUTION: &str = r##"# =============================================================================
@@ -748,11 +748,12 @@ tasks:
 
   - id: with_defaults
     with:
-      data: $json_source | parse_json
+      email: $json_source.user.email ?? "unknown"
+      missing: $json_source.missing_field ?? "not-found"
     exec:
       command: |
-        echo "Email: {{with.data.user.email ?? "no-email@example.com"}}"
-        echo "Missing: {{with.data.missing_field ?? "not found"}}"
+        echo "Email: {{with.email}}"
+        echo "Missing: {{with.missing}}"
       shell: true
 "##;
 
