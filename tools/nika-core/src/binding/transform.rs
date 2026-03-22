@@ -387,8 +387,9 @@ impl TransformOp {
                 // Idempotent: already-parsed values pass through unchanged.
                 // This handles auto-parsed exec outputs where Nika converts
                 // JSON strings to values before transforms run.
-                Value::Array(_) | Value::Object(_) => Ok(value.clone()),
-                _ => Err(type_mismatch("parse_json", "string", value)),
+                Value::Array(_) | Value::Object(_) | Value::Number(_) | Value::Bool(_) => {
+                    Ok(value.clone())
+                }
             },
 
             // ── Numeric ──────────────────────────────────────
@@ -1413,6 +1414,16 @@ mod tests {
         let obj = json!({"key": "value"});
         let result = TransformOp::ParseJson.apply(&obj).unwrap();
         assert_eq!(result, json!({"key": "value"}));
+    }
+
+    #[test]
+    fn parse_json_idempotent_on_number_and_bool() {
+        // parse_json on auto-parsed primitives should be a no-op
+        assert_eq!(TransformOp::ParseJson.apply(&json!(42)).unwrap(), json!(42));
+        assert_eq!(
+            TransformOp::ParseJson.apply(&json!(true)).unwrap(),
+            json!(true)
+        );
     }
 
     #[test]

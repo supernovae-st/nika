@@ -436,8 +436,12 @@ pub async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Res
                     }
 
                     if has_errors {
+                        let error_count = issues
+                            .iter()
+                            .filter(|(level, _, _)| level == "error")
+                            .count();
                         return Err(NikaError::ValidationError {
-                            reason: format!("{} validation error(s) found", issues.len()),
+                            reason: format!("{} validation error(s) found", error_count),
                         });
                     }
                 }

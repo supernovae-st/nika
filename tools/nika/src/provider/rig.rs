@@ -146,6 +146,7 @@ pub fn is_reasoning_model(model_id: &str) -> bool {
         || lower == "o4-mini"
         || lower.starts_with("o1-")
         || lower.starts_with("o3-")
+        || lower == "o4"
         || lower.starts_with("o4-")
         // OpenAI GPT-5 (reasoning by default)
         || lower == "gpt-5"
@@ -2951,6 +2952,7 @@ mod tests {
         assert!(is_reasoning_model("o3"));
         assert!(is_reasoning_model("o3-mini"));
         assert!(is_reasoning_model("o3-pro"));
+        assert!(is_reasoning_model("o4"));
         assert!(is_reasoning_model("o4-mini"));
         assert!(is_reasoning_model("o1-2024-12-17"));
     }
