@@ -7,15 +7,15 @@ Source code for `nika` binary. See `nika/CLAUDE.md` for user-facing docs.
 ```
 tools/
 ├── nika/           Binary (2k lines) — CLI entry point
-├── nika-engine/    Execution engine (115k) — embeddable runtime
-├── nika-core/      AST, types, catalogs (30k) — zero I/O
+├── nika-engine/    Execution engine (134k) — embeddable runtime
+├── nika-core/      AST, types, catalogs (23k) — zero I/O
 ├── nika-event/     EventLog, TraceWriter (4k)
-├── nika-mcp/       MCP client, rmcp (7.5k)
+├── nika-mcp/       MCP client, rmcp (9k)
 ├── nika-media/     CAS store, processor (3.5k)
-├── nika-cli/       CLI subcommands (5.5k)
-├── nika-tui/       Terminal UI (90k) — ratatui
+├── nika-cli/       CLI subcommands (8k)
+├── nika-tui/       Terminal UI (92k) — ratatui
 ├── nika-lsp-core/  LSP intelligence (9k)
-└── nika-lsp/       LSP binary (2k)
+└── nika-lsp/       LSP binary (2.5k)
 ```
 
 ## Source Tree (nika-engine)
@@ -32,7 +32,7 @@ src/
 │   ├── runner.rs        #   Main workflow runner
 │   ├── executor/        #   Task executor (verb dispatch)
 │   ├── rig_agent_loop/  #   Agent loop (per-provider)
-│   ├── builtin/         #   12 core + 26 media/fetch tools (nika:thumbnail, etc.)
+│   ├── builtin/         #   12 core + 24 media/fetch tools (nika:thumbnail, etc.)
 │   │   └── media/       #   Media tools: import, thumbnail, chart, provenance, etc.
 │   └── security.rs      #   Command blocklist + env validation
 ├── provider/            # LLM providers (rig-core cloud + mistral.rs native + cost.rs)
@@ -84,7 +84,8 @@ src/
 | 140-151 | AST analysis (Phase 2) |
 | 160-164 | Policy/Boot errors |
 | 170-179 | Runtime (decompose) |
-| 200-219 | File tools + Builtin tools |
+| 200-214 | File tools + Builtin tools |
+| 215-219 | File I/O errors (215 = FileAlreadyExists) |
 | 250 | Context error |
 | 251-259 | Media pipeline |
 | 260-269 | Package URI errors |
@@ -97,10 +98,10 @@ src/
 ## Testing
 
 ```bash
-cargo test --workspace --lib             # All crates (7716+, safe — no keychain)
+cargo test --workspace --lib             # All crates (7784+, safe — no keychain)
 cargo test --lib                         # nika binary tests only
-cargo test -p nika-engine --lib          # Engine tests only (3840)
-cargo test -p nika-tui --lib             # TUI tests only (2055)
+cargo test -p nika-engine --lib          # Engine tests only (4060)
+cargo test -p nika-tui --lib             # TUI tests only (2117)
 cargo test --features lsp               # Include LSP tests
 cargo clippy --workspace -- -D warnings  # Zero warnings policy
 ```
@@ -120,7 +121,7 @@ cargo clippy --workspace -- -D warnings  # Zero warnings policy
 - **Logging:** `tracing` macros
 - **Tests:** TDD preferred. `insta` for snapshots. `cargo test --lib` always.
 
-## Vision Support (v0.34.0 — PR4)
+## Vision Support (since v0.34.0)
 
 The `infer:` verb supports multimodal `content:` for sending images to vision-capable LLMs:
 
@@ -143,7 +144,7 @@ infer:
   - Note: GGUF models are text-only — vision requires VisionModelBuilder + ISQ from safetensors
 - Unsupported: DeepSeek (returns VisionNotSupported error)
 
-## Fetch Extraction (v0.35.0 — PR5)
+## Fetch Extraction (since v0.35.0)
 
 The `fetch:` verb supports `extract:` for HTML post-processing and `response:` for output modes:
 
@@ -163,9 +164,9 @@ The `fetch:` verb supports `extract:` for HTML post-processing and `response:` f
 - `response: binary` — Store in CAS, return hash for media pipeline
 - No response field — Raw body text (default)
 
-## Media Tools (v0.34.0)
+## Media Tools (since v0.34.0)
 
-26 builtin media tools accessible via `invoke: nika:*`, organized in 3 tiers:
+24 builtin media tools accessible via `invoke: nika:*`, organized in 3 tiers:
 
 ### Tier 1 — Always-on (5 tools)
 
