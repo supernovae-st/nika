@@ -1,0 +1,125 @@
+# =============================================================================
+# SHOWCASE 01 — Image Optimization Pipeline
+# =============================================================================
+# requires_llm: true
+# category: advanced
+#
+# Downloads an image, runs it through a multi-step media pipeline
+# (thumbnail + strip + optimize + convert), then uses vision to
+# compare original vs optimized and produce an analysis report.
+
+schema: "nika/workflow@0.12"
+workflow: image-optimization-pipeline
+provider: "{{PROVIDER}}"
+model: "{{MODEL}}"
+
+tasks:
+  - id: download_original
+    fetch:
+      url: "https://picsum.photos/1200/800.jpg"
+      response: binary
+      timeout: 20
+
+  - id: original_dims
+    depends_on: [download_original]
+    with:
+      img: $download_original
+    invoke:
+      tool: "nika:dimensions"
+      params:
+        hash: "{{with.img.media[0].hash}}"
+
+  - id: make_thumbnail
+    depends_on: [download_original]
+    with:
+      img: $download_original
+    invoke:
+      tool: "nika:thumbnail"
+      params:
+        hash: "{{with.img.media[0].hash}}"
+        width: 400
+    artifact:
+      path: output/thumbnail.jpg
+      format: binary
+
+  - id: optimize_pipeline
+    depends_on: [download_original]
+    with:
+      img: $download_original
+    invoke:
+      tool: "nika:pipeline"
+      params:
+        hash: "{{with.img.media[0].hash}}"
+        steps:
+          - op: thumbnail
+            width: 800
+          - op: strip
+          - op: convert
+            format: webp
+    artifact:
+      path: output/optimized.webp
+      format: binary
+
+  - id: optimize_thumb
+    depends_on: [make_thumbnail]
+    with:
+      thumb: $make_thumbnail
+    invoke:
+      tool: "nika:optimize"
+      params:
+        hash: "{{with.thumb.media[0].hash}}"
+    artifact:
+      path: output/optimized-thumb.png
+      format: binary
+
+  - id: color_palette
+    depends_on: [download_original]
+    with:
+      img: $download_original
+    invoke:
+      tool: "nika:dominant_color"
+      params:
+        hash: "{{with.img.media[0].hash}}"
+        count: 6
+    artifact:
+      path: output/colors.json
+      format: json
+
+  - id: analysis_report
+    depends_on: [original_dims, optimize_pipeline, color_palette, optimize_thumb]
+    with:
+      dims: $original_dims
+      optimized: $optimize_pipeline
+      colors: $color_palette
+      thumb: $optimize_thumb
+    infer:
+      content:
+        - type: image
+          source: "{{with.optimized.media[0].hash}}"
+          detail: high
+        - type: text
+          text: |
+            Analyze this image optimization pipeline:
+
+            ## Original Dimensions
+            {{with.dims}}
+
+            ## Color Palette
+            {{with.colors}}
+
+            ## Pipeline Output
+            {{with.optimized}}
+
+            ## Thumbnail
+            {{with.thumb}}
+
+            Write a technical report covering:
+            1. Compression ratio achieved
+            2. Visual quality assessment of the optimized image above
+            3. Color palette analysis and dominant tones
+            4. WebP format advantages for this image
+            5. Recommendations for production web delivery
+      temperature: 0.3
+      max_tokens: 1500
+    artifact:
+      path: output/optimization-report.md

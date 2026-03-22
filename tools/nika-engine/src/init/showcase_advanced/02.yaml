@@ -1,0 +1,81 @@
+# =============================================================================
+# SHOWCASE 02 — QR Code Validator
+# =============================================================================
+# requires_llm: true
+# category: advanced
+#
+# Downloads a QR code image, validates it with scan score analysis,
+# extracts dimensions and thumbhash, then uses an LLM to produce
+# a comprehensive QR quality report.
+
+schema: "nika/workflow@0.12"
+workflow: qr-code-validator
+provider: "{{PROVIDER}}"
+model: "{{MODEL}}"
+
+tasks:
+  - id: fetch_qr
+    fetch:
+      url: "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=https://github.com/supernovae-studio/nika"
+      response: binary
+      timeout: 15
+
+  - id: validate_qr
+    depends_on: [fetch_qr]
+    with:
+      qr: $fetch_qr
+    invoke:
+      tool: "nika:qr_validate"
+      params:
+        hash: "{{with.qr.media[0].hash}}"
+    artifact:
+      path: output/qr-validation.json
+      format: json
+
+  - id: qr_dims
+    depends_on: [fetch_qr]
+    with:
+      qr: $fetch_qr
+    invoke:
+      tool: "nika:dimensions"
+      params:
+        hash: "{{with.qr.media[0].hash}}"
+
+  - id: qr_thumbhash
+    depends_on: [fetch_qr]
+    with:
+      qr: $fetch_qr
+    invoke:
+      tool: "nika:thumbhash"
+      params:
+        hash: "{{with.qr.media[0].hash}}"
+
+  - id: qr_report
+    depends_on: [validate_qr, qr_dims, qr_thumbhash]
+    with:
+      validation: $validate_qr
+      dims: $qr_dims
+      thumbhash: $qr_thumbhash
+    infer:
+      prompt: |
+        Analyze these QR code validation results and write a quality report:
+
+        ## Validation Results
+        {{with.validation}}
+
+        ## Image Dimensions
+        {{with.dims}}
+
+        ## Thumbhash
+        {{with.thumbhash}}
+
+        Include:
+        1. Scan score interpretation (0-100 scale)
+        2. Decoded content analysis
+        3. Image size assessment for scanning reliability
+        4. Recommendations for QR code improvements
+        5. Mobile scanning compatibility notes
+      temperature: 0.3
+      max_tokens: 1200
+    artifact:
+      path: output/qr-quality-report.md

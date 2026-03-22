@@ -1,0 +1,85 @@
+# =============================================================================
+# SHOWCASE 08 — Agent File Organizer
+# =============================================================================
+# requires_llm: true
+# category: advanced
+#
+# An autonomous agent that scans directory contents, classifies files,
+# and writes an organized inventory with recommendations.
+
+schema: "nika/workflow@0.12"
+workflow: agent-file-organizer
+provider: "{{PROVIDER}}"
+model: "{{MODEL}}"
+
+tasks:
+  - id: file_scan
+    agent:
+      system: |
+        You are a file organization specialist.
+        1. Use nika_glob to find all files
+        2. Use nika_read to examine key files
+        3. Use nika_log to track progress
+        4. Call nika_complete with your organized inventory
+      prompt: "Scan and organize all files in this project."
+      tools:
+        - "nika:glob"
+        - "nika:read"
+        - "nika:log"
+      max_turns: 10
+      max_tokens: 1500
+      token_budget: 15000
+      completion:
+        mode: explicit
+      guardrails:
+        - type: length
+          min_words: 100
+          on_failure: retry
+
+  - id: write_inventory
+    depends_on: [file_scan]
+    with:
+      scan_results: $file_scan
+    infer:
+      prompt: |
+        Convert this file scan into structured JSON: {{with.scan_results}}
+      response_format: json
+      temperature: 0.2
+      max_tokens: 1500
+    structured:
+      schema:
+        type: object
+        properties:
+          total_files:
+            type: integer
+          categories:
+            type: array
+            items:
+              type: object
+              properties:
+                name:
+                  type: string
+                file_count:
+                  type: integer
+              required: [name, file_count]
+          recommendations:
+            type: array
+            items:
+              type: string
+        required: [total_files, categories, recommendations]
+    artifact:
+      path: output/file-inventory.json
+      format: json
+
+  - id: markdown_report
+    depends_on: [write_inventory]
+    with:
+      inventory: $write_inventory
+    infer:
+      prompt: |
+        Generate a Markdown report from: {{with.inventory}}
+        Include tables and a "Quick Actions" section.
+      temperature: 0.4
+      max_tokens: 1200
+    artifact:
+      path: output/file-organization-report.md

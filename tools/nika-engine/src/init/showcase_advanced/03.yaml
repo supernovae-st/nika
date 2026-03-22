@@ -1,0 +1,74 @@
+# =============================================================================
+# SHOWCASE 03 — PDF Text Extractor & Summarizer
+# =============================================================================
+# requires_llm: true
+# category: advanced
+#
+# Downloads a PDF document, extracts text content, then uses an LLM
+# to produce a structured summary with key points and metadata.
+
+schema: "nika/workflow@0.12"
+workflow: pdf-text-extractor
+provider: "{{PROVIDER}}"
+model: "{{MODEL}}"
+
+tasks:
+  - id: fetch_pdf
+    fetch:
+      url: "https://www.w3.org/WAI/WCAG21/Techniques/pdf/img/table-word.pdf"
+      response: binary
+      timeout: 30
+
+  - id: extract_text
+    depends_on: [fetch_pdf]
+    with:
+      pdf: $fetch_pdf
+    invoke:
+      tool: "nika:pdf_extract"
+      params:
+        hash: "{{with.pdf.media[0].hash}}"
+    artifact:
+      path: output/pdf-extracted-text.txt
+
+  - id: summarize
+    depends_on: [extract_text]
+    with:
+      text: $extract_text
+    infer:
+      prompt: |
+        Summarize this extracted PDF content:
+
+        {{with.text | first(4000)}}
+
+        Provide:
+        1. Document title and type
+        2. Executive summary (3-5 sentences)
+        3. Key points as bullet list
+        4. Notable data or statistics mentioned
+        5. Target audience assessment
+      temperature: 0.3
+      max_tokens: 1500
+    structured:
+      schema:
+        type: object
+        properties:
+          title:
+            type: string
+          document_type:
+            type: string
+          summary:
+            type: string
+          key_points:
+            type: array
+            items:
+              type: string
+          statistics:
+            type: array
+            items:
+              type: string
+          target_audience:
+            type: string
+        required: [title, document_type, summary, key_points]
+    artifact:
+      path: output/pdf-summary.json
+      format: json

@@ -1,0 +1,82 @@
+# =============================================================================
+# SHOWCASE 06 — Multi-Provider Debate
+# =============================================================================
+# requires_llm: true
+# category: advanced
+#
+# Sends the same question to 3 perspectives in parallel using for_each,
+# then uses a judge LLM to evaluate with structured output.
+
+schema: "nika/workflow@0.12"
+workflow: multi-provider-debate
+provider: "{{PROVIDER}}"
+model: "{{MODEL}}"
+
+inputs:
+  debate_topic:
+    type: string
+    default: "Should AI systems be required to explain their reasoning?"
+
+tasks:
+  - id: debate_round
+    for_each:
+      - { name: "Pragmatist", style: "Focus on costs and benefits." }
+      - { name: "Ethicist", style: "Focus on fairness and transparency." }
+      - { name: "Technologist", style: "Focus on technical feasibility." }
+    as: perspective
+    concurrency: 3
+    infer:
+      system: "You are the {{with.perspective.name}}. {{with.perspective.style}}"
+      prompt: |
+        Topic: {{inputs.debate_topic}}
+        Present your position with 3 key arguments in 200 words.
+      temperature: 0.7
+      max_tokens: 600
+
+  - id: judge_evaluation
+    depends_on: [debate_round]
+    with:
+      arguments: $debate_round
+    infer:
+      prompt: |
+        Judge these debate perspectives on "{{inputs.debate_topic}}":
+        {{with.arguments}}
+        Score each on coherence, evidence, persuasiveness (1-10). Declare a winner.
+      response_format: json
+      temperature: 0.2
+      max_tokens: 1500
+    structured:
+      schema:
+        type: object
+        properties:
+          evaluations:
+            type: array
+            items:
+              type: object
+              properties:
+                perspective:
+                  type: string
+                total:
+                  type: integer
+              required: [perspective, total]
+          winner:
+            type: string
+          reasoning:
+            type: string
+        required: [evaluations, winner, reasoning]
+    artifact:
+      path: output/debate-results.json
+      format: json
+
+  - id: synthesis
+    depends_on: [judge_evaluation]
+    with:
+      results: $judge_evaluation
+    infer:
+      prompt: |
+        Based on this debate: {{with.results}}
+        Write a 200-word synthesis combining the best arguments.
+      temperature: 0.5
+      max_tokens: 500
+    artifact:
+      path: output/debate-synthesis.md

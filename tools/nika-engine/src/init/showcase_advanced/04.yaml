@@ -1,0 +1,86 @@
+# =============================================================================
+# SHOWCASE 04 — Data-Driven Chart Generator
+# =============================================================================
+# requires_llm: true
+# category: advanced
+#
+# Gathers system data via exec:, uses an LLM to analyze, generates
+# chart images, then creates a visual report using vision.
+
+schema: "nika/workflow@0.12"
+workflow: chart-generator
+provider: "{{PROVIDER}}"
+model: "{{MODEL}}"
+
+tasks:
+  - id: gather_data
+    exec: "echo '{\"cpu_cores\": 8, \"memory_gb\": 16, \"disk_usage_pct\": 67}'"
+
+  - id: analyze_data
+    depends_on: [gather_data]
+    with:
+      metrics: $gather_data
+    infer:
+      prompt: |
+        Given these system metrics: {{with.metrics}}
+        Return JSON with chart_type, title, and 3 insights.
+      response_format: json
+      temperature: 0.4
+      max_tokens: 800
+
+  - id: resource_chart
+    invoke:
+      tool: "nika:chart"
+      params:
+        type: "bar"
+        title: "System Resource Usage"
+        width: 900
+        height: 600
+        series:
+          - name: "Current"
+            data: [67, 45, 78, 52]
+          - name: "Threshold"
+            data: [80, 80, 80, 80]
+        labels: ["Disk %", "Memory %", "CPU %", "Swap %"]
+    artifact:
+      path: output/resource-chart.png
+      format: binary
+
+  - id: trend_chart
+    invoke:
+      tool: "nika:chart"
+      params:
+        type: "line"
+        title: "Load Average Trend (24h)"
+        width: 900
+        height: 500
+        series:
+          - name: "1-min avg"
+            data: [3.2, 2.8, 2.1, 1.5, 1.2, 2.4, 3.1, 2.7]
+        labels: ["00:00", "03:00", "06:00", "09:00", "12:00", "15:00", "18:00", "21:00"]
+    artifact:
+      path: output/trend-chart.png
+      format: binary
+
+  - id: visual_report
+    depends_on: [resource_chart, trend_chart, analyze_data]
+    with:
+      resources: $resource_chart
+      trends: $trend_chart
+      analysis: $analyze_data
+    infer:
+      content:
+        - type: image
+          source: "{{with.resources.media[0].hash}}"
+          detail: high
+        - type: image
+          source: "{{with.trends.media[0].hash}}"
+          detail: high
+        - type: text
+          text: |
+            Two system monitoring charts above. LLM analysis: {{with.analysis}}
+            Write a monitoring report covering utilization, trends, and recommendations.
+      temperature: 0.3
+      max_tokens: 1500
+    artifact:
+      path: output/system-report.md

@@ -1,0 +1,64 @@
+# =============================================================================
+# SHOWCASE 10 — Parallel Web Scraper
+# =============================================================================
+# requires_llm: true
+# category: advanced
+#
+# Scrapes 10 websites in parallel using for_each, extracts markdown,
+# summarizes each, then produces a consolidated intelligence report.
+
+schema: "nika/workflow@0.12"
+workflow: parallel-web-scraper
+provider: "{{PROVIDER}}"
+model: "{{MODEL}}"
+
+tasks:
+  - id: scrape_sites
+    for_each:
+      - { url: "https://blog.rust-lang.org/", name: "Rust Blog" }
+      - { url: "https://github.blog/", name: "GitHub Blog" }
+      - { url: "https://news.ycombinator.com/", name: "Hacker News" }
+      - { url: "https://www.rust-lang.org/", name: "Rust Homepage" }
+      - { url: "https://crates.io/", name: "Crates.io" }
+      - { url: "https://docs.rs/", name: "Docs.rs" }
+      - { url: "https://httpbin.org/", name: "HTTPBin" }
+      - { url: "https://jsonplaceholder.typicode.com/", name: "JSON Placeholder" }
+      - { url: "https://www.wikipedia.org/", name: "Wikipedia" }
+      - { url: "https://developer.mozilla.org/", name: "MDN Web Docs" }
+    as: site
+    concurrency: 5
+    fetch:
+      url: "{{with.site.url}}"
+      extract: markdown
+      timeout: 20
+
+  - id: summarize_pages
+    depends_on: [scrape_sites]
+    with:
+      pages: $scrape_sites
+    for_each:
+      - { idx: 0, name: "Rust Blog" }
+      - { idx: 1, name: "GitHub Blog" }
+      - { idx: 2, name: "Hacker News" }
+    as: page
+    concurrency: 3
+    infer:
+      prompt: |
+        Summarize "{{with.page.name}}" in 100 words:
+        {{with.pages | first(3000)}}
+      temperature: 0.3
+      max_tokens: 300
+
+  - id: intelligence_report
+    depends_on: [summarize_pages]
+    with:
+      summaries: $summarize_pages
+    infer:
+      system: "You are an intelligence analyst."
+      prompt: |
+        Create a technology intelligence report from: {{with.summaries}}
+        Include: Executive Overview, Key Themes, Emerging Patterns, Actions.
+      temperature: 0.3
+      max_tokens: 1500
+    artifact:
+      path: output/intelligence-report.md
