@@ -1434,6 +1434,44 @@ impl TaskExecutor {
                         let result_value: serde_json::Value = serde_json::from_str(&result)
                             .unwrap_or_else(|_| serde_json::Value::String(result.clone()));
 
+                        // Stage MediaRef if the builtin tool returned CAS media data.
+                        // Without this, artifact format: binary gets empty media_refs → NIKA-281.
+                        if let serde_json::Value::Object(ref obj) = result_value {
+                            if let (Some(hash), Some(mime_type)) = (
+                                obj.get("hash").and_then(|v| v.as_str()),
+                                obj.get("mime_type").and_then(|v| v.as_str()),
+                            ) {
+                                let size_bytes =
+                                    obj.get("size_bytes").and_then(|v| v.as_u64()).unwrap_or(0);
+                                let path = obj
+                                    .get("path")
+                                    .and_then(|v| v.as_str())
+                                    .map(std::path::PathBuf::from)
+                                    .unwrap_or_default();
+                                let extension = obj
+                                    .get("extension")
+                                    .and_then(|v| v.as_str())
+                                    .map(String::from)
+                                    .unwrap_or_else(|| {
+                                        crate::media::detect::mime_to_extension(mime_type)
+                                    });
+                                let media_ref = crate::media::MediaRef {
+                                    hash: hash.to_string(),
+                                    mime_type: mime_type.to_string(),
+                                    size_bytes,
+                                    path,
+                                    extension,
+                                    created_by: task_id.to_string(),
+                                    metadata: obj
+                                        .get("metadata")
+                                        .and_then(|v| v.as_object())
+                                        .cloned()
+                                        .unwrap_or_default(),
+                                };
+                                datastore.set_media(task_id, vec![media_ref]);
+                            }
+                        }
+
                         // EMIT: McpResponse event for builtin tool (success)
                         self.event_log.emit(EventKind::McpResponse {
                             task_id: Arc::clone(task_id),

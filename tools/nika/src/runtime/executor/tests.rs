@@ -497,6 +497,63 @@ async fn test_execute_invoke_mcp_not_configured() {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// BUILTIN MEDIA TOOL MEDIA STAGING TESTS
+// ═══════════════════════════════════════════════════════════════
+
+/// Builtin tools that return JSON with hash/path/mime_type fields
+/// must stage a MediaRef in the datastore so that artifact format: binary
+/// can find it. Without this, write_binary_artifact() gets empty media_refs → NIKA-281.
+#[tokio::test]
+async fn test_builtin_invoke_stages_media_ref() {
+    let event_log = EventLog::new();
+    let executor = TaskExecutor::new("mock", None, None, event_log);
+    let bindings = ResolvedBindings::new();
+    let datastore = RunContext::new();
+
+    // Create a temp file to import into CAS
+    let tmp_dir = tempfile::tempdir().unwrap();
+    let img_path = tmp_dir.path().join("test.png");
+    // Minimal valid PNG (8-byte header)
+    std::fs::write(&img_path, [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]).unwrap();
+
+    let action = TaskAction::Invoke {
+        invoke: InvokeParams {
+            mcp: None,
+            tool: Some("nika:import".to_string()),
+            params: Some(json!({"path": img_path.to_string_lossy()})),
+            resource: None,
+            timeout: None,
+        },
+    };
+
+    let task_id: Arc<str> = Arc::from("test_builtin_media");
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await
+        .unwrap();
+
+    // Verify the JSON output has hash (existing behavior)
+    let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+    assert!(parsed["hash"].as_str().unwrap().starts_with("blake3:"));
+
+    // After execute, the datastore MUST have a staged MediaRef
+    let media_refs = datastore.take_media(&task_id);
+    assert_eq!(
+        media_refs.len(),
+        1,
+        "builtin media tool must stage exactly 1 MediaRef"
+    );
+
+    let mr = &media_refs[0];
+    assert!(
+        mr.hash.starts_with("blake3:"),
+        "MediaRef hash must be blake3-prefixed"
+    );
+    assert_eq!(mr.created_by, "test_builtin_media");
+    assert!(mr.size_bytes > 0);
+}
+
+// ═══════════════════════════════════════════════════════════════
 // BINDING RESOLUTION TESTS
 // ═══════════════════════════════════════════════════════════════
 

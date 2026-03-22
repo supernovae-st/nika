@@ -205,6 +205,52 @@ async fn write_single_artifact(
 
     // Binary format: resolve source to CAS path and copy
     if format == ArtifactFormat::Binary {
+        // Defense-in-depth: if media_refs is empty, try to construct a MediaRef
+        // from the task output JSON. This handles cases where set_media() was not
+        // called (e.g., older code paths) but the output contains CAS hash/path.
+        let fallback_refs;
+        let effective_media_refs = if media_refs.is_empty() {
+            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(output) {
+                if let (Some(hash), Some(path_str)) = (
+                    parsed.get("hash").and_then(|v| v.as_str()),
+                    parsed.get("path").and_then(|v| v.as_str()),
+                ) {
+                    debug!(
+                        task_id = %task_id,
+                        hash = %hash,
+                        "Binary artifact fallback: constructing MediaRef from output JSON"
+                    );
+                    fallback_refs = vec![MediaRef {
+                        hash: hash.to_string(),
+                        mime_type: parsed
+                            .get("mime_type")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("application/octet-stream")
+                            .to_string(),
+                        size_bytes: parsed
+                            .get("size_bytes")
+                            .and_then(|v| v.as_u64())
+                            .unwrap_or(0),
+                        path: std::path::PathBuf::from(path_str),
+                        extension: parsed
+                            .get("extension")
+                            .and_then(|v| v.as_str())
+                            .map(String::from)
+                            .unwrap_or_default(),
+                        created_by: task_id.to_string(),
+                        metadata: serde_json::Map::new(),
+                    }];
+                    &fallback_refs
+                } else {
+                    media_refs
+                }
+            } else {
+                media_refs
+            }
+        } else {
+            media_refs
+        };
+
         return write_binary_artifact(
             task_id,
             output_spec,
@@ -212,7 +258,7 @@ async fn write_single_artifact(
             writer,
             bindings,
             datastore,
-            media_refs,
+            effective_media_refs,
         )
         .await;
     }
@@ -1687,6 +1733,70 @@ mod tests {
             result.errors[0].contains("no media"),
             "Error should mention no media: {}",
             result.errors[0]
+        );
+    }
+
+    // ═══════════════════════════════════════════════════
+    // Binary artifact fallback from output JSON
+    // ═══════════════════════════════════════════════════
+
+    /// Defense-in-depth: when media_refs is empty but the task output
+    /// contains JSON with hash/path fields (e.g., from fetch binary or
+    /// builtin media tools before the set_media fix), the artifact
+    /// processor should construct a MediaRef from the output and succeed.
+    #[tokio::test]
+    async fn test_binary_artifact_fallback_from_output_json() {
+        let base = tempdir().unwrap();
+        let artifact_dir = base.path().join(".nika/artifacts");
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+
+        // Create a CAS file that the fallback MediaRef will point to
+        let cas_dir = base.path().join(".nika/media/store/ab");
+        std::fs::create_dir_all(&cas_dir).unwrap();
+        let cas_file = cas_dir.join("fallback_cas");
+        std::fs::write(&cas_file, b"fake png data").unwrap();
+
+        let bindings = ResolvedBindings::default();
+        let datastore = RunContext::new();
+
+        let spec = ArtifactSpec::Single(ArtifactOutput {
+            path: "output.png".to_string(),
+            source: None,
+            template: None,
+            format: Some(ArtifactFormat::Binary),
+            mode: None,
+        });
+
+        // Task output is JSON string with hash/path (like fetch binary returns)
+        let output_json = serde_json::json!({
+            "hash": "blake3:fallback_cas",
+            "mime_type": "image/png",
+            "size_bytes": 13,
+            "path": cas_file.to_string_lossy(),
+        });
+
+        let result = process_task_artifacts(
+            "task_fallback",
+            &output_json.to_string(),
+            &spec,
+            None,
+            base.path(),
+            None,
+            &bindings,
+            &datastore,
+            &[], // Empty media_refs — simulates pre-fix state
+        )
+        .await;
+
+        assert_eq!(
+            result.written, 1,
+            "Fallback should write 1 artifact, errors: {:?}",
+            result.errors
+        );
+        assert!(
+            result.errors.is_empty(),
+            "No errors expected: {:?}",
+            result.errors
         );
     }
 
