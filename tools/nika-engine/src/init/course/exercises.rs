@@ -243,6 +243,13 @@ pub fn get_exercise(level_slug: &str, num: u8) -> Option<&'static ExerciseConten
         .find(|e| e.level_slug == level_slug && e.exercise_num == num)
 }
 
+/// Get ALL exercises across all levels (1-12)
+pub fn all_exercises() -> Vec<&'static ExerciseContent> {
+    let mut all: Vec<&'static ExerciseContent> = EXERCISES.iter().collect();
+    all.extend(super::exercises_advanced::EXERCISES_ADVANCED.iter());
+    all
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 // LEVEL 01: JAILBREAK
 // ═════════════════════════════════════════════════════════════════════════════
