@@ -90,6 +90,7 @@ src/
 | 280-285 | Artifacts + Media (path, write, size, integrity, cleanup, lock) |
 | 290-297 | Media tools (tool error, format, dependency, timeout, args, pipeline, security) |
 | 300-309 | Structured output |
+| 310-319 | Course errors |
 
 ## Testing
 
