@@ -457,13 +457,13 @@ tasks:
         message: "TODO: starting message"
 
   # TODO: Use nika:run to invoke a child workflow
-  # Hint: params: { path: "02-file-tools.nika.yaml" }
+  # Hint: params: { workflow: "02-file-tools.nika.yaml" }
   - id: run_child
     depends_on: [log_parent_start]
     invoke:
       tool: "nika:run"
       params:
-        path: "TODO: path to child workflow"
+        workflow: "TODO: path to child workflow"
 
   # TODO: Log the result from the child workflow
   - id: log_parent_done
@@ -496,7 +496,7 @@ tasks:
     invoke:
       tool: "nika:run"
       params:
-        path: "02-file-tools.nika.yaml"
+        workflow: "02-file-tools.nika.yaml"
 
   - id: log_parent_done
     depends_on: [run_child]

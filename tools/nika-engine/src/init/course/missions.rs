@@ -818,7 +818,7 @@ tasks:
     invoke:
       tool: nika:run
       params:
-        path: "helpers/transform.nika.yaml"
+        workflow: "helpers/transform.nika.yaml"
 ```
 
 Build small, reusable workflows. Compose them into larger systems.
