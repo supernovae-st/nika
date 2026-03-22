@@ -29,7 +29,7 @@ fn open_100_files_all_snapshots_correct() {
 
         let snap = db
             .snapshot(&uri)
-            .expect(&format!("snapshot missing for file_{i}"));
+            .unwrap_or_else(|| panic!("snapshot missing for file_{i}"));
         assert_eq!(&*snap.text, &expected, "text mismatch for file_{i}");
         assert_eq!(
             snap.line_index.line_count(),
@@ -528,7 +528,7 @@ async fn concurrent_writes_to_different_files() {
             let uri = format!("file:///concurrent/batch_{batch}/file_{i}.yaml");
             let snap = db
                 .snapshot(&uri)
-                .expect(&format!("missing batch_{batch}/file_{i}"));
+                .unwrap_or_else(|| panic!("missing batch_{batch}/file_{i}"));
             let expected = format!("batch: {batch}\nfile: {i}\n");
             assert_eq!(&*snap.text, &expected);
         }

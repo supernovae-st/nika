@@ -913,7 +913,7 @@ mod tests {
         let pw = partial(yaml);
         assert_eq!(pw.tasks.len(), 1);
         let task = &pw.tasks[0];
-        assert!(task.span.len() > 0);
+        assert!(!task.span.is_empty());
         let task_text = &yaml[task.span.start as usize..task.span.end as usize];
         assert!(task_text.contains("id: gen"));
         assert!(task_text.contains("infer:"));

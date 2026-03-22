@@ -5333,6 +5333,7 @@ dependencies = [
  "nika-event",
  "nika-lsp-core",
  "nika-mcp",
+ "nika-media",
  "nix 0.29.0",
  "nom-exif",
  "nucleo",
@@ -5508,6 +5509,34 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tracing",
+]
+
+[[package]]
+name = "nika-media"
+version = "0.37.0"
+dependencies = [
+ "base64 0.22.1",
+ "blake3",
+ "bytes",
+ "color-thief",
+ "futures",
+ "image",
+ "imagesize",
+ "infer",
+ "miette",
+ "mime",
+ "mime_guess",
+ "nika-mcp",
+ "pretty_assertions",
+ "reflink-copy",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 1.0.69",
+ "thumbhash",
+ "tokio",
+ "tracing",
+ "zstd",
 ]
 
 [[package]]

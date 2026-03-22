@@ -1158,6 +1158,7 @@ mod tests {
 
 // ── Security: env var validation (inlined from runtime/security.rs) ──────
 
+#[allow(clippy::items_after_test_module)]
 const BLOCKED_ENV_VARS: &[&str] = &[
     "PATH",
     "HOME",
@@ -1170,6 +1171,7 @@ const BLOCKED_ENV_VARS: &[&str] = &[
     "DYLD_INSERT_LIBRARIES",
 ];
 
+#[allow(clippy::items_after_test_module)]
 fn is_valid_env_var_name(name: &str) -> bool {
     let mut chars = name.chars();
     match chars.next() {
@@ -1179,6 +1181,7 @@ fn is_valid_env_var_name(name: &str) -> bool {
     chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
+#[allow(clippy::items_after_test_module)]
 fn validate_env_vars(vars: &[(String, String)]) -> Result<()> {
     for (key, _) in vars {
         if !is_valid_env_var_name(key) {

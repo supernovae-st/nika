@@ -5,6 +5,7 @@ members = [
     "nika-core",
     "nika-event",
     "nika-mcp",
+    "nika-media",
     "nika-lsp-core",
     "nika-lsp",
 ]
@@ -22,6 +23,7 @@ rust-version = "1.86"
 nika-core = { path = "nika-core", version = "0.37.0" }
 nika-event = { path = "nika-event", version = "0.37.0" }
 nika-mcp = { path = "nika-mcp", version = "0.37.0" }
+nika-media = { path = "nika-media", version = "0.37.0" }
 nika-lsp-core = { path = "nika-lsp-core", version = "0.37.0" }
 
 # Async

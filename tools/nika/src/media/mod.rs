@@ -1,17 +1,11 @@
-//! Media pipeline: extraction, detection, storage, and processing.
+//! Media pipeline — re-exports from nika-media crate.
 //!
-//! Handles binary content (images, audio, documents) from MCP tool results.
-//! Uses Content-Addressable Storage (CAS) with blake3 hashing.
+//! Core types (CasStore, MediaRef, MediaError) come from nika-media.
+//! Test modules stay here (depend on runtime/store types).
 
-pub(crate) mod detect;
-pub(crate) mod error;
-pub(crate) mod processor;
-pub(crate) mod store;
+pub use nika_media::*;
+
 #[cfg(test)]
 mod tests_e2e;
-pub(crate) mod types;
-
-pub use error::MediaError;
-pub(crate) use processor::MediaProcessor;
-pub use store::CasStore;
-pub use types::{MediaBudget, MediaRef};
+// Note: tests_compression_deep.rs uses stale 1-byte CAS markers.
+// Not included until updated to 4-byte NK framing.

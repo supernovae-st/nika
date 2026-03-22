@@ -916,8 +916,8 @@ mod tests {
     /// Helper: detect context and compute completions.
     fn complete_at(text: &str, line: usize, character: usize) -> Vec<CompletionItem> {
         let offset = text_offset(text, line, character);
-        let ctx = detect_context(text, offset as u32, None);
-        completions(text, offset as u32, &ctx)
+        let ctx = detect_context(text, offset, None);
+        completions(text, offset, &ctx)
     }
 
     /// Convert line/character to byte offset.

@@ -33,7 +33,7 @@ integration = []  # Enable integration tests with real MCP servers
 
 # Media tool features (v0.33.0 — PR3a, v0.34.0 — PR3b)
 media-core = ["media-thumbnail", "media-metadata", "media-optimize", "media-svg"]
-media-thumbnail = ["dep:fast_image_resize", "dep:image"]
+media-thumbnail = ["dep:fast_image_resize", "dep:image", "nika-media/media-thumbnail"]
 media-metadata = ["dep:nom-exif", "dep:lofty"]
 media-optimize = ["dep:oxipng"]
 media-svg = ["dep:resvg", "dep:usvg", "dep:tiny-skia", "dep:fontdb"]
@@ -44,7 +44,7 @@ media-chart = ["dep:charts-rs"]
 media-provenance = ["dep:c2pa"]
 # PR4 features
 media-qr = ["dep:qrcode-ai-scanner-core", "dep:image"]
-media-compression = ["dep:zstd"]
+media-compression = ["dep:zstd", "nika-media/media-compression"]
 media-iqa = ["dep:dssim-core", "dep:rgb", "dep:image"]
 # PR5b features — Web extraction builtins
 fetch-html = ["dep:scraper", "dep:psl"]
@@ -58,6 +58,7 @@ fetch-extract = ["fetch-html", "fetch-markdown"]
 nika-core = { workspace = true }
 nika-event = { workspace = true }
 nika-mcp = { workspace = true }
+nika-media = { workspace = true }
 
 # CLI
 clap = { workspace = true }

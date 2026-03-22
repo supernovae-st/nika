@@ -189,6 +189,7 @@ pub fn get_line_at_position(content: &str, line: u32) -> Option<&str> {
 ///
 /// Returns (start_offset, end_offset) for the word containing the offset.
 /// A "word" is defined as alphanumeric characters plus underscore and hyphen.
+#[allow(dead_code)]
 pub fn word_boundaries_at_offset(content: &str, offset: ByteOffset) -> (ByteOffset, ByteOffset) {
     let offset = offset.as_usize().min(content.len());
     let bytes = content.as_bytes();
@@ -209,11 +210,13 @@ pub fn word_boundaries_at_offset(content: &str, offset: ByteOffset) -> (ByteOffs
 }
 
 /// Extract the word at a given byte offset.
+#[allow(dead_code)]
 pub fn word_at_offset(content: &str, offset: ByteOffset) -> &str {
     let (start, end) = word_boundaries_at_offset(content, offset);
     &content[start.as_usize()..end.as_usize()]
 }
 
+#[allow(dead_code)]
 fn is_word_char(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_' || b == b'-'
 }

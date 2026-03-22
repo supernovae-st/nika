@@ -7,7 +7,7 @@
 
 use std::sync::Arc;
 
-use crate::mcp::types::ContentBlock;
+use nika_mcp::ContentBlock;
 
 use super::detect::detect_mime;
 use super::error::MediaError;
@@ -243,10 +243,21 @@ impl MediaProcessor {
 fn compute_thumbhash_for_enrichment(data: &[u8]) -> Option<String> {
     #[cfg(feature = "media-thumbnail")]
     {
-        // SECURITY: Use decode_image_safe() with Limits — never load_from_memory() directly.
+        // SECURITY: Use image::Limits — never load_from_memory() directly.
         // Enrichment is best-effort, so errors silently return None.
-        use crate::runtime::builtin::media::safety::decode_image_safe;
-        let img = decode_image_safe(data).ok()?;
+        let img = {
+            use image::ImageReader;
+            use std::io::Cursor;
+            let mut reader = ImageReader::new(Cursor::new(data))
+                .with_guessed_format()
+                .ok()?;
+            let mut limits = image::Limits::default();
+            limits.max_alloc = Some(256 * 1024 * 1024); // 256 MB
+            limits.max_image_width = Some(16384);
+            limits.max_image_height = Some(16384);
+            reader.limits(limits);
+            reader.decode().ok()?
+        };
         let small = img.resize(100, 100, image::imageops::FilterType::Triangle);
         let rgba = small.to_rgba8();
         let (w, h) = rgba.dimensions();
@@ -266,8 +277,8 @@ fn compute_thumbhash_for_enrichment(data: &[u8]) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mcp::types::ContentBlock;
     use base64::Engine;
+    use nika_mcp::ContentBlock;
 
     fn make_processor_with_dir() -> (MediaProcessor, tempfile::TempDir) {
         let dir = tempfile::tempdir().unwrap();

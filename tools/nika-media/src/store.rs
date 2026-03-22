@@ -337,7 +337,7 @@ impl CasStore {
 
         // Atomic write via O_EXCL (create_new). On success: new file.
         // On AlreadyExists: dedup hit. On other error: clean up partial file.
-        match crate::io::atomic::write_fail(&final_path, write_data).await {
+        match write_fail_if_exists(&final_path, write_data).await {
             Ok(()) => {
                 // New file stored successfully
             }
@@ -1420,4 +1420,18 @@ mod tests {
             "Symlink at CAS path must be treated as existing file (O_EXCL semantics)"
         );
     }
+}
+
+/// Write data to a file, failing if the file already exists (O_EXCL semantics).
+/// Inlined from nika's io::atomic module.
+#[allow(clippy::items_after_test_module)]
+async fn write_fail_if_exists(path: &Path, data: impl AsRef<[u8]>) -> std::io::Result<()> {
+    use std::io::Write;
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)?;
+    file.write_all(data.as_ref())?;
+    file.sync_all()?;
+    Ok(())
 }

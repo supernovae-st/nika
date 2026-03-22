@@ -58,6 +58,7 @@ pub fn parse_workflow(content: &str) -> ParsedWorkflow {
 ///
 /// This replaces the string-based `extract_task_ids()` in backend.rs
 /// with proper AST traversal.
+#[allow(dead_code)]
 pub fn extract_task_ids_from_ast(content: &str) -> Vec<String> {
     let parsed = parse_workflow(content);
 
@@ -78,6 +79,7 @@ pub fn extract_task_ids_from_ast(content: &str) -> Vec<String> {
 /// Fallback task ID extraction using string patterns.
 ///
 /// Used when AST parsing fails (e.g., incomplete YAML during editing).
+#[allow(dead_code)]
 fn extract_task_ids_fallback(content: &str) -> Vec<String> {
     let mut task_ids = Vec::new();
 

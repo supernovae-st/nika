@@ -419,7 +419,12 @@ fn deeply_nested_10_levels() {
     // Should not panic and should resolve to something (likely ContentPart
     // because "content:" is an ancestor).
     assert!(
-        !matches!(c, CursorContext::Unknown { .. }) || matches!(c, CursorContext::Unknown { .. }),
+        // Deeply nested should not panic — any context result is valid.
+        // If we got here without panicking, the test passes.
+        {
+            let _ = &c;
+            true
+        },
         "Deeply nested (10 levels) should not panic -- got {c:?}"
     );
     // The real assertion: it did not panic. But let's also verify it found
