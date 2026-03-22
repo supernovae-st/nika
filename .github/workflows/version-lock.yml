@@ -22,17 +22,28 @@ jobs:
       - name: 📦 Extract version from Cargo.toml
         id: cargo
         run: |
-          # Find the main Cargo.toml (could be root or tools/nika)
-          if [[ -f "Cargo.toml" ]]; then
+          # Workspace root Cargo.toml holds [workspace.package] version
+          if [[ -f "tools/Cargo.toml" ]]; then
+            CARGO_FILE="tools/Cargo.toml"
+          elif [[ -f "Cargo.toml" ]]; then
             CARGO_FILE="Cargo.toml"
-          elif [[ -f "tools/nika/Cargo.toml" ]]; then
-            CARGO_FILE="tools/nika/Cargo.toml"
           else
             echo "::error::Could not find Cargo.toml"
             exit 1
           fi
 
-          VERSION=$(grep '^version = ' "$CARGO_FILE" | head -1 | sed 's/version = "\(.*\)"/\1/')
+          # Extract version from [workspace.package] section
+          VERSION=$(grep -A5 '\[workspace.package\]' "$CARGO_FILE" | grep '^version' | head -1 | cut -d'"' -f2)
+          if [[ -z "$VERSION" ]]; then
+            # Fallback: try direct version field
+            VERSION=$(grep '^version = ' "$CARGO_FILE" | head -1 | sed 's/version = "\(.*\)"/\1/')
+          fi
+
+          if [[ -z "$VERSION" ]]; then
+            echo "::error::Could not extract version from $CARGO_FILE"
+            exit 1
+          fi
+
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "cargo_file=$CARGO_FILE" >> $GITHUB_OUTPUT
           echo "📦 Found version: $VERSION in $CARGO_FILE"
