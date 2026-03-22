@@ -38,7 +38,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 
 # Nika validation (workspace dependency)
-nika = { path = "../nika", version = "0.37.0" }
+nika = { path = "../nika", version = "0.38.0" }
 
 # Protocol-agnostic LSP intelligence
 nika-lsp-core = { workspace = true }

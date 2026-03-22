@@ -293,7 +293,7 @@ tasks:
       headers:
         Accept: "application/json"
         X-Custom-Header: "Nika-Workflow"
-        User-Agent: "Nika/0.37.0"
+        User-Agent: "Nika/0.38.0"
 
   # ─────────────────────────────────────────────────────────────────────────────
   # POST WITH JSON BODY (String Method)

@@ -7,6 +7,22 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.38.0](https://github.com/supernovae-st/nika/releases/tag/v0.38.0) - 2026-03-22
+
+### Changed
+- **Workspace crate split** — monolithic `nika` split into 10 workspace crates:
+  - `nika` (2k lines) — Binary entry point
+  - `nika-engine` (115k) — Embeddable execution engine
+  - `nika-core` (30k) — AST, types, catalogs (zero I/O)
+  - `nika-event` (4k) — EventLog, TraceWriter
+  - `nika-mcp` (7.5k) — MCP client, rmcp adapter
+  - `nika-media` (3.5k) — CAS store, media processor
+  - `nika-cli` (5.5k) — CLI subcommand handlers
+  - `nika-tui` (90k) — Terminal UI (ratatui)
+  - `nika-lsp-core` (9k) — Protocol-agnostic LSP intelligence
+  - `nika-lsp` (2k) — LSP binary
+- All crates bumped to 0.38.0
+
 ## [0.37.0](https://github.com/supernovae-st/nika/releases/tag/v0.37.0) - 2026-03-21
 
 ```

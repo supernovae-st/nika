@@ -5281,7 +5281,7 @@ dependencies = [
 
 [[package]]
 name = "nika"
-version = "0.37.0"
+version = "0.38.0"
 dependencies = [
  "camino",
  "chrono",
@@ -5333,7 +5333,7 @@ dependencies = [
 
 [[package]]
 name = "nika-cli"
-version = "0.37.0"
+version = "0.38.0"
 dependencies = [
  "chrono",
  "clap",
@@ -5353,7 +5353,7 @@ dependencies = [
 
 [[package]]
 name = "nika-core"
-version = "0.37.0"
+version = "0.38.0"
 dependencies = [
  "chrono",
  "indexmap 2.13.0",
@@ -5378,7 +5378,7 @@ dependencies = [
 
 [[package]]
 name = "nika-engine"
-version = "0.37.0"
+version = "0.38.0"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -5487,7 +5487,7 @@ dependencies = [
 
 [[package]]
 name = "nika-event"
-version = "0.37.0"
+version = "0.38.0"
 dependencies = [
  "chrono",
  "parking_lot",
@@ -5504,7 +5504,7 @@ dependencies = [
 
 [[package]]
 name = "nika-lsp"
-version = "0.37.0"
+version = "0.38.0"
 dependencies = [
  "dashmap",
  "nika",
@@ -5525,7 +5525,7 @@ dependencies = [
 
 [[package]]
 name = "nika-lsp-core"
-version = "0.37.0"
+version = "0.38.0"
 dependencies = [
  "dashmap",
  "insta",
@@ -5546,7 +5546,7 @@ dependencies = [
 
 [[package]]
 name = "nika-mcp"
-version = "0.37.0"
+version = "0.38.0"
 dependencies = [
  "async-trait",
  "backon",
@@ -5573,7 +5573,7 @@ dependencies = [
 
 [[package]]
 name = "nika-media"
-version = "0.37.0"
+version = "0.38.0"
 dependencies = [
  "base64 0.22.1",
  "blake3",
@@ -5601,7 +5601,7 @@ dependencies = [
 
 [[package]]
 name = "nika-tui"
-version = "0.37.0"
+version = "0.38.0"
 dependencies = [
  "arboard",
  "camino",

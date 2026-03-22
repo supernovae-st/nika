@@ -2,19 +2,30 @@
 
 Source code for `nika` binary. See `nika/CLAUDE.md` for user-facing docs.
 
-## Source Tree
+## Workspace Structure
+
+```
+tools/
+├── nika/           Binary (2k lines) — CLI entry point
+├── nika-engine/    Execution engine (115k) — embeddable runtime
+├── nika-core/      AST, types, catalogs (30k) — zero I/O
+├── nika-event/     EventLog, TraceWriter (4k)
+├── nika-mcp/       MCP client, rmcp (7.5k)
+├── nika-media/     CAS store, processor (3.5k)
+├── nika-cli/       CLI subcommands (5.5k)
+├── nika-tui/       Terminal UI (90k) — ratatui
+├── nika-lsp-core/  LSP intelligence (9k)
+└── nika-lsp/       LSP binary (2k)
+```
+
+## Source Tree (nika-engine)
 
 ```
 src/
-├── main.rs              # CLI entry (clap)
 ├── lib.rs               # Public API
 ├── error.rs             # NikaError (NIKA-XXX codes)
 ├── config.rs            # Configuration types
-├── core/                # Zero-dep definitions (providers, models, mcp_aliases)
 ├── ast/                 # Three-phase: Raw → Analyzed → Lower
-│   ├── raw/             #   Phase 1: YAML → Raw AST (parser.rs)
-│   ├── analyzed/        #   Phase 2: Validated, resolved AST
-│   ├── analyzer/        #   Phase 2: Validation + transformation
 │   └── lower.rs         #   Phase 3: Analyzed → Runtime types
 ├── dag/                 # DAG validation + cycle detection (flow.rs, indexed.rs)
 ├── runtime/             # Execution engine
@@ -24,21 +35,31 @@ src/
 │   ├── builtin/         #   12 core + 26 media/fetch tools (nika:thumbnail, etc.)
 │   │   └── media/       #   Media tools: import, thumbnail, chart, provenance, etc.
 │   └── security.rs      #   Command blocklist + env validation
-├── mcp/                 # MCP client (rmcp adapter, pool, retry, validation)
 ├── provider/            # LLM providers (rig-core cloud + mistral.rs native + cost.rs)
 ├── binding/             # Data flow: templates, transforms, JSONPath, resolve
 ├── tools/               # File tools: read, write, edit, glob, grep
-├── event/               # NDJSON trace events + EventLog
-├── cli/                 # CLI subcommands (doctor, new, init, trace, mcp, etc.)
+├── display/             # Header + check renderers
 ├── init/                # nika init templates (6 tiers, 30 workflows)
 ├── io/                  # Atomic file I/O
 ├── source/              # Source spans + registry
 ├── store/               # RunContext + TaskResult
 ├── util/                # Constants, fs helpers, string interner
 ├── registry/            # Package registry client
-├── secrets/             # OS Keychain + daemon IPC
-├── tui/                 # Terminal UI (ratatui, 6 views)
-└── lsp/                 # Language Server Protocol (feature-gated)
+└── secrets/             # OS Keychain + daemon IPC
+```
+
+## Source Tree (nika-core)
+
+```
+src/
+├── lib.rs               # Public API
+├── core/                # Zero-dep definitions (providers, models, mcp_aliases)
+├── ast/                 # AST types (Raw, Analyzed, Analyzer, Schema)
+│   ├── raw/             #   Phase 1: YAML → Raw AST (parser.rs)
+│   ├── analyzed/        #   Phase 2: Validated, resolved AST
+│   ├── analyzer/        #   Phase 2: Validation + transformation
+│   └── schema.rs        #   Schema types
+└── binding/             # Transform catalog
 ```
 
 ## Error Codes
@@ -73,9 +94,12 @@ src/
 ## Testing
 
 ```bash
-cargo test --lib             # Unit tests (7400+, safe — no keychain)
-cargo test --features lsp    # Include LSP tests
-cargo clippy -- -D warnings  # Zero warnings policy
+cargo test --workspace --lib             # All crates (7100+, safe — no keychain)
+cargo test --lib                         # nika binary tests only
+cargo test -p nika-engine --lib          # Engine tests only (3840)
+cargo test -p nika-tui --lib             # TUI tests only (2055)
+cargo test --features lsp               # Include LSP tests
+cargo clippy --workspace -- -D warnings  # Zero warnings policy
 ```
 
 **WARNING:** `cargo test` (without `--lib`) runs contract tests that trigger macOS Keychain popups. Always use `--lib` for safe testing.
