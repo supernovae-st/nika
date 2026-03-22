@@ -9,7 +9,7 @@
 # 5. build: Release build verification
 # 6. summary: PR comment with results
 #
-# Nika v0.37.0 — Schema @0.12 + Registry + Security | 7,400+ tests
+# Nika v0.39.0 — Schema @0.12 + Registry + Security | 7,400+ tests
 
 name: CI
 
@@ -34,7 +34,7 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -Dwarnings
-  NIKA_VERSION: v0.37.0
+  NIKA_VERSION: v0.39.0
   # Minimum Rust version (matches Cargo.toml rust-version)
   # Note: Using stable to get latest; deps require 1.88+ (time crate)
   RUST_VERSION: stable
@@ -81,13 +81,13 @@ jobs:
         run: cargo fmt --all --check
 
       - name: Run clippy (all features)
-        run: cargo clippy --workspace --all-targets --features tui,jobs -- -D warnings
+        run: cargo clippy --workspace --all-targets --features tui -- -D warnings
 
       - name: Run clippy (no default features)
         run: cargo clippy --workspace --all-targets --no-default-features -- -D warnings
 
       - name: Check documentation
-        run: cargo doc --workspace --no-deps --features tui,jobs
+        run: cargo doc --workspace --no-deps --features tui
         env:
           RUSTDOCFLAGS: -Dwarnings
 
@@ -135,7 +135,7 @@ jobs:
       - name: Run unit tests with nextest
         id: nextest
         run: |
-          cargo nextest run --workspace --features tui,jobs 2>&1 | tee test-results.txt
+          cargo nextest run --workspace --features tui 2>&1 | tee test-results.txt
           # Extract summary for PR comment
           PASSED=$(grep -E "^\s*\d+ tests passed" test-results.txt | grep -oE '\d+' | head -1 || echo "0")
           FAILED=$(grep -E "^\s*\d+ tests failed" test-results.txt | grep -oE '\d+' | head -1 || echo "0")
@@ -143,7 +143,7 @@ jobs:
           echo "failed=$FAILED" >> "$GITHUB_OUTPUT"
 
       - name: Run doc tests
-        run: cargo test --workspace --doc --features tui,jobs
+        run: cargo test --workspace --doc --features tui
 
       - name: Upload test results
         if: always()
@@ -184,8 +184,8 @@ jobs:
 
       - name: Generate coverage report
         run: |
-          cargo llvm-cov --workspace --features tui,jobs --lcov --output-path lcov.info
-          cargo llvm-cov report --workspace --features tui,jobs --summary-only | tee coverage-summary.txt
+          cargo llvm-cov --workspace --features tui --lcov --output-path lcov.info
+          cargo llvm-cov report --workspace --features tui --summary-only | tee coverage-summary.txt
 
       - name: Extract coverage percentage
         id: coverage
