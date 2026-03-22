@@ -1,7 +1,7 @@
 //! CLI subcommand handlers
 //!
 //! Re-exports from the `nika-cli` crate, plus TUI-dependent handlers
-//! that stay in the binary crate (provider, new_wizard).
+//! that stay in the binary crate (provider).
 
 // Re-export all non-TUI handlers from nika-cli
 pub use nika_cli::config;
@@ -22,5 +22,6 @@ pub use nika_cli::model;
 #[cfg(feature = "tui")]
 pub mod provider;
 
+// new_wizard moved to nika-tui crate
 #[cfg(feature = "tui")]
-pub mod new_wizard;
+pub use nika_tui::new_wizard;

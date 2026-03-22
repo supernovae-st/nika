@@ -5,6 +5,6 @@
 
 pub use nika_engine::*;
 
-// Feature-gated modules that stay in the nika binary crate
+// TUI crate re-export (feature-gated)
 #[cfg(feature = "tui")]
-pub mod tui;
+pub use nika_tui as tui;

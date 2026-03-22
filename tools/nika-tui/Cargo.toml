@@ -1,0 +1,99 @@
+[package]
+name = "nika-tui"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Nika TUI — Terminal user interface with 3-view architecture (Studio/Command/Control)"
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = true
+
+[features]
+default = []
+nika-daemon = ["nika-engine/nika-daemon"]
+native-inference = ["nika-engine/native-inference"]
+media-core = ["nika-engine/media-core"]
+media-thumbnail = ["nika-engine/media-thumbnail"]
+media-metadata = ["nika-engine/media-metadata"]
+media-optimize = ["nika-engine/media-optimize"]
+media-svg = ["nika-engine/media-svg"]
+media-phash = ["nika-engine/media-phash"]
+media-pdf = ["nika-engine/media-pdf"]
+media-chart = ["nika-engine/media-chart"]
+media-provenance = ["nika-engine/media-provenance"]
+media-qr = ["nika-engine/media-qr"]
+media-compression = ["nika-engine/media-compression"]
+media-iqa = ["nika-engine/media-iqa"]
+fetch-html = ["nika-engine/fetch-html"]
+fetch-markdown = ["nika-engine/fetch-markdown"]
+fetch-article = ["nika-engine/fetch-article"]
+fetch-feed = ["nika-engine/fetch-feed"]
+fetch-extract = ["nika-engine/fetch-extract"]
+
+[dependencies]
+# Engine crate (all engine logic — NOT nika to avoid circular dep)
+nika-engine = { workspace = true }
+
+# LSP core (for TUI completion/analysis)
+nika-lsp-core = { workspace = true }
+
+# Async runtime
+tokio = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+
+# Errors
+thiserror = { workspace = true }
+
+# TUI framework
+ratatui = "0.30"
+crossterm = { version = "0.29", features = ["event-stream"] }
+tui-input = { version = "0.15", features = ["crossterm"] }
+
+# Clipboard
+arboard = "3.4"
+
+# Fuzzy matching
+nucleo = "0.5"
+
+# Syntax Highlighting
+tree-sitter = "0.24"
+tree-sitter-yaml = "0.7"
+streaming-iterator = "0.1"
+
+# Git integration
+git2 = "0.19"
+openssl = { version = "0.10", features = ["vendored"] }
+
+# Unicode text handling
+unicode-width = "0.2"
+terminal_size = "0.4"
+
+# Utilities
+colored = { workspace = true }
+chrono = { workspace = true }
+regex = { workspace = true }
+parking_lot = { workspace = true }
+rustc-hash = { workspace = true }
+camino = { workspace = true }
+ignore = { workspace = true }
+xxhash-rust = { workspace = true }
+uuid = { workspace = true }
+dirs = "5.0"
+humantime = { workspace = true }
+rand = { workspace = true }
+reqwest = { workspace = true }
+infer = "0.19"
+
+# Logging
+tracing = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+insta = { workspace = true }
+pretty_assertions = { workspace = true }
+serial_test = "3.1"
