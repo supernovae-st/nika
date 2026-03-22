@@ -130,6 +130,30 @@ pub struct InferOptions {
     pub system: Option<String>,
 }
 
+/// Check if a model ID is a reasoning model that does not support `temperature`.
+///
+/// OpenAI reasoning models (o-series, gpt-5) and DeepSeek Reasoner reject
+/// `temperature` with HTTP 400. We strip it with a warning instead of crashing.
+pub fn is_reasoning_model(model_id: &str) -> bool {
+    let lower = model_id.to_lowercase();
+    // OpenAI o-series reasoning models
+    lower == "o1"
+        || lower == "o1-mini"
+        || lower == "o1-pro"
+        || lower == "o3"
+        || lower == "o3-mini"
+        || lower == "o3-pro"
+        || lower == "o4-mini"
+        || lower.starts_with("o1-")
+        || lower.starts_with("o3-")
+        || lower.starts_with("o4-")
+        // OpenAI GPT-5 (reasoning by default)
+        || lower == "gpt-5"
+        || lower.starts_with("gpt-5-")
+        // DeepSeek Reasoner
+        || lower == "deepseek-reasoner"
+}
+
 /// Provider type enum for rig-core providers
 ///
 /// Nika leverages rig-core's native multi-provider support.
@@ -697,6 +721,19 @@ impl RigProvider {
             .unwrap_or_else(|| self.default_model());
         let max_tokens = options.max_tokens.unwrap_or(8192);
 
+        // Strip temperature for reasoning models (BUG 5 / NIKA-031)
+        let effective_temperature = if options.temperature.is_some() && is_reasoning_model(model_id)
+        {
+            tracing::warn!(
+                model = %model_id,
+                "temperature ignored for reasoning model '{}' (not supported)",
+                model_id
+            );
+            None
+        } else {
+            options.temperature
+        };
+
         // Use system prompt as preamble (not concatenated into user prompt)
         let user_prompt = prompt.to_string();
 
@@ -706,7 +743,7 @@ impl RigProvider {
                 if let Some(system) = &options.system {
                     builder = builder.preamble(system);
                 }
-                if let Some(temp) = options.temperature {
+                if let Some(temp) = effective_temperature {
                     builder = builder.temperature(temp);
                 }
                 let agent = builder.build();
@@ -720,7 +757,7 @@ impl RigProvider {
                 if let Some(system) = &options.system {
                     builder = builder.preamble(system);
                 }
-                if let Some(temp) = options.temperature {
+                if let Some(temp) = effective_temperature {
                     builder = builder.temperature(temp);
                 }
                 let agent = builder.build();
@@ -734,7 +771,7 @@ impl RigProvider {
                 if let Some(system) = &options.system {
                     builder = builder.preamble(system);
                 }
-                if let Some(temp) = options.temperature {
+                if let Some(temp) = effective_temperature {
                     builder = builder.temperature(temp);
                 }
                 let agent = builder.build();
@@ -748,7 +785,7 @@ impl RigProvider {
                 if let Some(system) = &options.system {
                     builder = builder.preamble(system);
                 }
-                if let Some(temp) = options.temperature {
+                if let Some(temp) = effective_temperature {
                     builder = builder.temperature(temp);
                 }
                 let agent = builder.build();
@@ -762,7 +799,7 @@ impl RigProvider {
                 if let Some(system) = &options.system {
                     builder = builder.preamble(system);
                 }
-                if let Some(temp) = options.temperature {
+                if let Some(temp) = effective_temperature {
                     builder = builder.temperature(temp);
                 }
                 let agent = builder.build();
@@ -776,7 +813,7 @@ impl RigProvider {
                 if let Some(system) = &options.system {
                     builder = builder.preamble(system);
                 }
-                if let Some(temp) = options.temperature {
+                if let Some(temp) = effective_temperature {
                     builder = builder.temperature(temp);
                 }
                 let agent = builder.build();
@@ -790,7 +827,7 @@ impl RigProvider {
                 if let Some(system) = &options.system {
                     builder = builder.preamble(system);
                 }
-                if let Some(temp) = options.temperature {
+                if let Some(temp) = effective_temperature {
                     builder = builder.temperature(temp);
                 }
                 let agent = builder.build();
@@ -803,7 +840,7 @@ impl RigProvider {
             RigProvider::Native(runtime) => {
                 // Native inference uses ChatOptions from native module
                 let chat_options = super::native::ChatOptions {
-                    temperature: options.temperature.map(|t| t as f32),
+                    temperature: effective_temperature.map(|t| t as f32),
                     max_tokens: options.max_tokens,
                     ..Default::default()
                 };
@@ -1400,6 +1437,19 @@ impl RigProvider {
         let mut response_parts: Vec<String> = Vec::new();
         let mut result = StreamResult::default();
 
+        // Strip temperature for reasoning models (BUG 5 / NIKA-031)
+        let effective_temperature = if options.temperature.is_some() && is_reasoning_model(model_id)
+        {
+            tracing::warn!(
+                model = %model_id,
+                "temperature ignored for reasoning model '{}' (not supported)",
+                model_id
+            );
+            None
+        } else {
+            options.temperature
+        };
+
         // Helper: build request with options and start streaming
         // Uses preamble() for system prompt (not string concatenation) to ensure
         // providers treat it as a system message, not user text.
@@ -1412,7 +1462,7 @@ impl RigProvider {
                 if let Some(ref system) = options.system {
                     rb = rb.preamble(system.clone());
                 }
-                if let Some(temp) = options.temperature {
+                if let Some(temp) = effective_temperature {
                     rb = rb.temperature(temp);
                 }
                 model
@@ -1471,7 +1521,7 @@ impl RigProvider {
                     prompt.to_string()
                 };
                 let chat_options = super::native::ChatOptions {
-                    temperature: options.temperature.map(|t| t as f32),
+                    temperature: effective_temperature.map(|t| t as f32),
                     max_tokens: options.max_tokens,
                     ..Default::default()
                 };
@@ -2887,5 +2937,48 @@ mod tests {
             content: OneOrMany::many(parts).unwrap(),
         };
         assert!(matches!(msg, Message::User { .. }));
+    }
+
+    // =========================================================================
+    // Reasoning Model Detection Tests (BUG 5 / NIKA-031)
+    // =========================================================================
+
+    #[test]
+    fn reasoning_model_o_series() {
+        assert!(is_reasoning_model("o1"));
+        assert!(is_reasoning_model("o1-mini"));
+        assert!(is_reasoning_model("o1-pro"));
+        assert!(is_reasoning_model("o3"));
+        assert!(is_reasoning_model("o3-mini"));
+        assert!(is_reasoning_model("o3-pro"));
+        assert!(is_reasoning_model("o4-mini"));
+        assert!(is_reasoning_model("o1-2024-12-17"));
+    }
+
+    #[test]
+    fn reasoning_model_gpt5() {
+        assert!(is_reasoning_model("gpt-5"));
+        assert!(is_reasoning_model("gpt-5-turbo"));
+    }
+
+    #[test]
+    fn reasoning_model_deepseek() {
+        assert!(is_reasoning_model("deepseek-reasoner"));
+    }
+
+    #[test]
+    fn reasoning_model_case_insensitive() {
+        assert!(is_reasoning_model("O1"));
+        assert!(is_reasoning_model("GPT-5"));
+    }
+
+    #[test]
+    fn non_reasoning_models() {
+        assert!(!is_reasoning_model("gpt-4o"));
+        assert!(!is_reasoning_model("gpt-4o-mini"));
+        assert!(!is_reasoning_model("claude-sonnet-4"));
+        assert!(!is_reasoning_model("deepseek-chat"));
+        assert!(!is_reasoning_model("gemini-2.0-flash"));
+        assert!(!is_reasoning_model("grok-3"));
     }
 }
