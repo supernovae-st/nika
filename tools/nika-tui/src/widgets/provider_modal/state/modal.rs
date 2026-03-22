@@ -190,8 +190,9 @@ impl ProviderModalState {
         if self.cached_cloud_label.is_none() {
             let label = if let Some(ref model) = self.active_model {
                 // Shorten model name for display (keep up to 20 chars)
-                let short = if model.len() > 20 {
-                    format!("{}...", &model[..17])
+                let short = if model.chars().count() > 20 {
+                    let truncated: String = model.chars().take(17).collect();
+                    format!("{}...", truncated)
                 } else {
                     model.clone()
                 };

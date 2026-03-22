@@ -26,11 +26,17 @@ impl McpState {
         Self::default()
     }
 
+    /// Maximum number of MCP calls to retain
+    const MAX_CALLS: usize = 200;
+
     /// Add an MCP call and return its sequence number
     pub fn add_call(&mut self, mut call: McpCall) -> usize {
         let seq = self.seq;
         call.seq = seq;
         self.seq += 1;
+        if self.calls.len() >= Self::MAX_CALLS {
+            self.calls.remove(0);
+        }
         self.calls.push(call);
         seq
     }

@@ -12,11 +12,21 @@ use nika_engine::util::fs::atomic_write;
 
 use super::{categorize_error, ChatMessage, ChatView, ExecutionResult, MessageRole, WorkflowRole};
 
+/// Maximum number of messages to retain in the chat view
+const MAX_MESSAGES: usize = 500;
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Message Operations
 // ═══════════════════════════════════════════════════════════════════════════════
 
 impl ChatView {
+    /// Enforce message cap, dropping oldest messages when over limit
+    fn enforce_message_cap(&mut self) {
+        if self.messages.len() > MAX_MESSAGES {
+            self.messages.drain(..self.messages.len() - MAX_MESSAGES);
+        }
+    }
+
     /// Add a user message
     pub fn add_user_message(&mut self, content: String) {
         // Trigger rain on first real user message (after welcome)
@@ -35,6 +45,7 @@ impl ChatView {
             execution: None,
             thinking: None,
         });
+        self.enforce_message_cap();
         self.history.push(content.clone());
         self.history_index = None;
         // When user sends a message, they want to see the response
@@ -62,6 +73,7 @@ impl ChatView {
             execution,
             thinking: None,
         });
+        self.enforce_message_cap();
         self.auto_scroll_to_bottom(); // Auto-scroll on new message
                                       // Sync DAG when messages change
         self.maybe_sync_dag();
@@ -89,6 +101,7 @@ impl ChatView {
             execution,
             thinking,
         });
+        self.enforce_message_cap();
         self.auto_scroll_to_bottom(); // Auto-scroll on new message
                                       // Sync DAG when messages change
         self.maybe_sync_dag();
@@ -112,6 +125,7 @@ impl ChatView {
             execution: None,
             thinking: None,
         });
+        self.enforce_message_cap();
         self.auto_scroll_to_bottom(); // Auto-scroll on new message
                                       // Sync DAG when messages change
         self.maybe_sync_dag();

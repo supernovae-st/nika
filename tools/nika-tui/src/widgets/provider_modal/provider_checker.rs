@@ -173,6 +173,8 @@ impl ProviderChecker {
         let key = std::env::var("GEMINI_API_KEY").map_err(|_| "No API key")?;
 
         // Gemini uses Google's generativelanguage API
+        // SEC: use |_| to avoid leaking the API key in error messages,
+        // since the key is embedded in the URL query string.
         self.client
             .get(format!(
                 "https://generativelanguage.googleapis.com/v1beta/models?key={}",
@@ -180,7 +182,7 @@ impl ProviderChecker {
             ))
             .send()
             .await
-            .map_err(|e| format!("Connection failed: {}", e))?
+            .map_err(|_| "Gemini: connection failed".to_string())?
             .error_for_status()
             .map_err(|e| format!("API error: {}", e.status().map_or(0, |s| s.as_u16())))?;
 

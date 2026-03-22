@@ -136,8 +136,7 @@ impl HomeView {
             // 1=Studio, 2=Command, 3=Control
             KeyCode::Char('1') => return ViewAction::SwitchView(TuiView::Studio),
             KeyCode::Char('2') => return ViewAction::SwitchView(TuiView::Command),
-            KeyCode::Char('3') => return ViewAction::SwitchView(TuiView::Command),
-            KeyCode::Char('4') => return ViewAction::SwitchView(TuiView::Control),
+            KeyCode::Char('3') => return ViewAction::SwitchView(TuiView::Control),
 
             // Validate selected workflow
             KeyCode::Char('v') => {

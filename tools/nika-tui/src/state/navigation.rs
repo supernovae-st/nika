@@ -159,14 +159,20 @@ impl TuiState {
     /// Add character to filter query
     pub fn filter_push(&mut self, c: char) {
         self.filter_query.insert(self.filter_cursor, c);
-        self.filter_cursor += 1;
+        self.filter_cursor += c.len_utf8();
     }
 
     /// Remove character before cursor (backspace)
     pub fn filter_backspace(&mut self) {
         if self.filter_cursor > 0 {
-            self.filter_cursor -= 1;
-            self.filter_query.remove(self.filter_cursor);
+            // Find the previous char boundary
+            let prev = self.filter_query[..self.filter_cursor]
+                .char_indices()
+                .next_back()
+                .map(|(i, _)| i)
+                .unwrap_or(0);
+            self.filter_query.remove(prev);
+            self.filter_cursor = prev;
         }
     }
 
@@ -180,14 +186,24 @@ impl TuiState {
     /// Move cursor left
     pub fn filter_cursor_left(&mut self) {
         if self.filter_cursor > 0 {
-            self.filter_cursor -= 1;
+            // Find the previous char boundary
+            self.filter_cursor = self.filter_query[..self.filter_cursor]
+                .char_indices()
+                .next_back()
+                .map(|(i, _)| i)
+                .unwrap_or(0);
         }
     }
 
     /// Move cursor right
     pub fn filter_cursor_right(&mut self) {
         if self.filter_cursor < self.filter_query.len() {
-            self.filter_cursor += 1;
+            // Advance past the current char
+            self.filter_cursor = self.filter_query[self.filter_cursor..]
+                .char_indices()
+                .nth(1)
+                .map(|(i, _)| self.filter_cursor + i)
+                .unwrap_or(self.filter_query.len());
         }
     }
 

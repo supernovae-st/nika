@@ -88,7 +88,7 @@ impl App {
 
             // ═══ Pause/Step ═══
             Action::TogglePause => {
-                self.state.workflow.paused = !self.state.workflow.paused;
+                self.state.toggle_pause();
             }
             Action::Step => {
                 // Step one event while paused (single-step debugging)

@@ -24,6 +24,8 @@ impl TuiState {
         } else {
             self.workflow.phase = MissionPhase::Countdown;
         }
+        self.dirty.progress = true;
+        self.dirty.status = true;
     }
 
     /// Check if execution is paused (unified accessor)
@@ -138,6 +140,8 @@ impl TuiState {
         // Clear MCP calls (keep for reference? or clear?)
         // For now, keep them as history but mark workflow as ready for retry
         self.mcp.seq = 0;
+
+        self.dirty.mark_all();
 
         reset_tasks
     }

@@ -22,7 +22,10 @@ use ratatui::{
 };
 use std::time::{Duration, Instant};
 
+use unicode_width::UnicodeWidthStr;
+
 use crate::tokens::compat;
+use crate::unicode::truncate_to_width;
 
 /// Timeout before which-key popup appears (ms)
 const POPUP_DELAY_MS: u64 = 300;
@@ -329,7 +332,7 @@ impl Widget for WhichKey<'_> {
             );
 
             // Icon (if any)
-            let icon_offset = key_display.len() as u16;
+            let icon_offset = UnicodeWidthStr::width(key_display.as_str()) as u16;
             if let Some(icon) = binding.icon {
                 buf.set_string(
                     x + icon_offset,
@@ -342,8 +345,8 @@ impl Widget for WhichKey<'_> {
             // Description
             let desc_offset = icon_offset + if binding.icon.is_some() { 2 } else { 0 };
             let max_desc_len = col_width.saturating_sub(desc_offset + 1) as usize;
-            let description = if binding.description.len() > max_desc_len {
-                format!("{}…", &binding.description[..max_desc_len - 1])
+            let description = if UnicodeWidthStr::width(binding.description) > max_desc_len {
+                truncate_to_width(binding.description, max_desc_len.saturating_sub(1))
             } else {
                 binding.description.to_string()
             };
