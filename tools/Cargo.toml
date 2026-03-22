@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "nika",
     "nika-engine",
+    "nika-cli",
     "nika-core",
     "nika-event",
     "nika-mcp",
@@ -21,6 +22,7 @@ rust-version = "1.86"
 
 [workspace.dependencies]
 # Internal crates
+nika-cli = { path = "nika-cli", version = "0.37.0" }
 nika-core = { path = "nika-core", version = "0.37.0" }
 nika-engine = { path = "nika-engine", version = "0.37.0" }
 nika-event = { path = "nika-event", version = "0.37.0" }

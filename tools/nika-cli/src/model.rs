@@ -2,7 +2,7 @@
 
 use clap::Subcommand;
 
-use nika::error::NikaError;
+use nika_engine::error::NikaError;
 
 /// Model management actions
 ///
@@ -88,10 +88,10 @@ pub enum ModelAction {
 /// Find filename for a given quantization string in a known model.
 /// Returns None if quant string is invalid or not available for this model.
 fn find_filename_for_quant(
-    model: &nika::core::KnownModel,
+    model: &nika_engine::core::KnownModel,
     quant_str: &str,
 ) -> Option<&'static str> {
-    use nika::core::Quantization;
+    use nika_engine::core::Quantization;
     let target = match quant_str.to_uppercase().as_str() {
         "Q4_K_S" => Quantization::Q4_K_S,
         "Q4_K_M" => Quantization::Q4_K_M,
@@ -112,8 +112,8 @@ fn find_filename_for_quant(
 /// Handle model management commands
 pub async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<(), NikaError> {
     use colored::Colorize;
-    use nika::core::{find_model, KNOWN_MODELS};
-    use nika::provider::{default_model_dir, DownloadRequest, HuggingFaceStorage, PullProgress};
+    use nika_engine::core::{find_model, KNOWN_MODELS};
+    use nika_engine::provider::{default_model_dir, DownloadRequest, HuggingFaceStorage, PullProgress};
 
     let storage =
         HuggingFaceStorage::new(default_model_dir()).map_err(|e| NikaError::ConfigError {
@@ -330,7 +330,7 @@ pub async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<()
                     let quant = path
                         .file_name()
                         .and_then(|f| f.to_str())
-                        .and_then(nika::provider::native::extract_quantization);
+                        .and_then(nika_engine::provider::native::extract_quantization);
 
                     println!("{}", format!("Model: {}", path.display()).bold());
                     println!("{}", "─".repeat(50));
@@ -426,8 +426,8 @@ pub async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<()
             isq,
             context_size,
         } => {
-            use nika::core::backend::{LoadConfig, NativeModelKind};
-            use nika::provider::native::InferenceBackend;
+            use nika_engine::core::backend::{LoadConfig, NativeModelKind};
+            use nika_engine::provider::native::InferenceBackend;
 
             if !quiet {
                 println!("{} Loading vision model: {}", "⬇".cyan(), model_id.bold());
@@ -456,7 +456,7 @@ pub async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<()
                 ..Default::default()
             };
 
-            let mut runtime = nika::provider::native::NativeRuntime::new();
+            let mut runtime = nika_engine::provider::native::NativeRuntime::new();
 
             // Load the vision model (downloads from HuggingFace, applies ISQ)
             runtime

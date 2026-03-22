@@ -5,7 +5,7 @@ use colored::Colorize;
 use std::fs;
 use std::path::PathBuf;
 
-use nika::error::NikaError;
+use nika_engine::error::NikaError;
 
 /// Configuration management actions
 #[derive(Subcommand)]
@@ -229,7 +229,7 @@ pub fn handle_config_command(action: ConfigAction, quiet: bool) -> Result<(), Ni
             }
 
             // Create default config
-            let default_config = include_str!("../../templates/config.toml");
+            let default_config = include_str!("../templates/config.toml");
             fs::write(&config_path, default_config)?;
 
             if !quiet {

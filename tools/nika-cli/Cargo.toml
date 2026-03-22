@@ -1,0 +1,60 @@
+[package]
+name = "nika-cli"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "CLI subcommand handlers for Nika"
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[features]
+default = ["nika-engine/default"]
+native-inference = ["nika-engine/native-inference"]
+# Forwarded features for cfg!() checks in media.rs and doctor.rs display code
+lsp = ["nika-engine/lsp"]
+media-core = ["nika-engine/media-core"]
+media-thumbnail = ["nika-engine/media-thumbnail"]
+media-metadata = ["nika-engine/media-metadata"]
+media-optimize = ["nika-engine/media-optimize"]
+media-svg = ["nika-engine/media-svg"]
+media-phash = ["nika-engine/media-phash"]
+media-pdf = ["nika-engine/media-pdf"]
+media-chart = ["nika-engine/media-chart"]
+media-provenance = ["nika-engine/media-provenance"]
+media-qr = ["nika-engine/media-qr"]
+media-compression = ["nika-engine/media-compression"]
+media-iqa = ["nika-engine/media-iqa"]
+fetch-html = ["nika-engine/fetch-html"]
+fetch-markdown = ["nika-engine/fetch-markdown"]
+fetch-article = ["nika-engine/fetch-article"]
+fetch-feed = ["nika-engine/fetch-feed"]
+
+[dependencies]
+# Engine crate (all engine logic)
+nika-engine = { workspace = true }
+
+# CLI
+clap = { workspace = true }
+
+# Async
+tokio = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+
+# Utilities
+colored = { workspace = true }
+chrono = { workspace = true }
+regex = { workspace = true }
+humantime = { workspace = true }
+infer = "0.19"
+
+# Logging
+tracing = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"] }

@@ -2,9 +2,9 @@
 
 use clap::Subcommand;
 
-use nika::ast::parse_workflow;
-use nika::error::NikaError;
-use nika::{McpClient, McpConfig};
+use nika_engine::ast::parse_workflow;
+use nika_engine::error::NikaError;
+use nika_engine::{McpClient, McpConfig};
 
 /// MCP server management actions
 ///
@@ -105,7 +105,7 @@ pub enum McpAction {
 /// Handle MCP server management commands
 pub async fn handle_mcp_command(action: McpAction) -> Result<(), NikaError> {
     use colored::Colorize;
-    use nika::core::{
+    use nika_engine::core::{
         add_server_to_global, add_server_to_project, aliases_by_category, global_config_path,
         load_global_config, load_merged_config, load_project_config, project_config_path,
         remove_server_from_global, remove_server_from_project, resolve_name,
@@ -408,7 +408,7 @@ pub async fn handle_mcp_command(action: McpAction) -> Result<(), NikaError> {
         }
 
         McpAction::Aliases { category } => {
-            use nika::core::{pricing_label, McpPricing, CATEGORIES, MCP_ALIASES};
+            use nika_engine::core::{pricing_label, McpPricing, CATEGORIES, MCP_ALIASES};
 
             println!(
                 "{}",

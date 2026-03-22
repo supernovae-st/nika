@@ -25,34 +25,37 @@ default = ["tui", "nika-engine/default"]
 #   - lsp: editor-specific, not needed for CLI users
 # Everything else is default via nika-engine/default.
 tui = ["dep:ratatui", "dep:crossterm", "dep:tui-input", "dep:arboard", "dep:nucleo", "dep:tree-sitter", "dep:tree-sitter-yaml", "dep:streaming-iterator", "dep:git2", "dep:openssl"]
-lsp = ["dep:tower-lsp-server", "tokio/io-std", "tokio/io-util", "nika-engine/lsp"]
 integration = []  # Enable integration tests with real MCP servers
 
-# Forwarded features to nika-engine
+# Forwarded features to nika-engine and nika-cli
 nika-daemon = ["nika-engine/nika-daemon"]
 native-keychain = ["nika-engine/native-keychain"]
-native-inference = ["nika-engine/native-inference"]
-media-core = ["nika-engine/media-core"]
-media-thumbnail = ["nika-engine/media-thumbnail"]
-media-metadata = ["nika-engine/media-metadata"]
-media-optimize = ["nika-engine/media-optimize"]
-media-svg = ["nika-engine/media-svg"]
-media-phash = ["nika-engine/media-phash"]
-media-pdf = ["nika-engine/media-pdf"]
-media-chart = ["nika-engine/media-chart"]
-media-provenance = ["nika-engine/media-provenance"]
-media-qr = ["nika-engine/media-qr"]
-media-compression = ["nika-engine/media-compression"]
-media-iqa = ["nika-engine/media-iqa"]
-fetch-html = ["nika-engine/fetch-html"]
-fetch-markdown = ["nika-engine/fetch-markdown"]
-fetch-article = ["nika-engine/fetch-article"]
-fetch-feed = ["nika-engine/fetch-feed"]
+native-inference = ["nika-engine/native-inference", "nika-cli/native-inference"]
+media-core = ["nika-engine/media-core", "nika-cli/media-core"]
+media-thumbnail = ["nika-engine/media-thumbnail", "nika-cli/media-thumbnail"]
+media-metadata = ["nika-engine/media-metadata", "nika-cli/media-metadata"]
+media-optimize = ["nika-engine/media-optimize", "nika-cli/media-optimize"]
+media-svg = ["nika-engine/media-svg", "nika-cli/media-svg"]
+media-phash = ["nika-engine/media-phash", "nika-cli/media-phash"]
+media-pdf = ["nika-engine/media-pdf", "nika-cli/media-pdf"]
+media-chart = ["nika-engine/media-chart", "nika-cli/media-chart"]
+media-provenance = ["nika-engine/media-provenance", "nika-cli/media-provenance"]
+media-qr = ["nika-engine/media-qr", "nika-cli/media-qr"]
+media-compression = ["nika-engine/media-compression", "nika-cli/media-compression"]
+media-iqa = ["nika-engine/media-iqa", "nika-cli/media-iqa"]
+fetch-html = ["nika-engine/fetch-html", "nika-cli/fetch-html"]
+fetch-markdown = ["nika-engine/fetch-markdown", "nika-cli/fetch-markdown"]
+fetch-article = ["nika-engine/fetch-article", "nika-cli/fetch-article"]
+fetch-feed = ["nika-engine/fetch-feed", "nika-cli/fetch-feed"]
 fetch-extract = ["nika-engine/fetch-extract"]
+lsp = ["dep:tower-lsp-server", "tokio/io-std", "tokio/io-util", "nika-engine/lsp", "nika-cli/lsp"]
 
 [dependencies]
 # Engine crate (all engine logic lives here now)
 nika-engine = { workspace = true }
+
+# CLI subcommand handlers
+nika-cli = { workspace = true }
 
 # CLI
 clap = { workspace = true }

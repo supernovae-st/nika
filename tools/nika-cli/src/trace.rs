@@ -4,8 +4,8 @@ use clap::Subcommand;
 use std::fs;
 use std::path::PathBuf;
 
-use nika::error::NikaError;
-use nika::Event;
+use nika_engine::error::NikaError;
+use nika_engine::Event;
 
 #[derive(Subcommand)]
 pub enum TraceAction {
@@ -45,7 +45,7 @@ pub enum TraceAction {
 pub fn handle_trace_command(action: TraceAction) -> Result<(), NikaError> {
     match action {
         TraceAction::List { limit } => {
-            let traces = nika::list_traces()?;
+            let traces = nika_engine::list_traces()?;
             let traces = match limit {
                 Some(n) => traces.into_iter().take(n).collect::<Vec<_>>(),
                 None => traces,
@@ -81,7 +81,7 @@ pub fn handle_trace_command(action: TraceAction) -> Result<(), NikaError> {
         }
 
         TraceAction::Show { id } => {
-            let traces = nika::list_traces()?;
+            let traces = nika_engine::list_traces()?;
             let trace = traces
                 .iter()
                 .find(|t| t.generation_id.contains(&id))
@@ -106,7 +106,7 @@ pub fn handle_trace_command(action: TraceAction) -> Result<(), NikaError> {
         }
 
         TraceAction::Export { id, format, output } => {
-            let traces = nika::list_traces()?;
+            let traces = nika_engine::list_traces()?;
             let trace = traces
                 .iter()
                 .find(|t| t.generation_id.contains(&id))
@@ -122,7 +122,7 @@ pub fn handle_trace_command(action: TraceAction) -> Result<(), NikaError> {
 
             let exported = match format.as_str() {
                 "json" => serde_json::to_string_pretty(&events)?,
-                "yaml" => nika::serde_yaml::to_string(&events).map_err(|e| {
+                "yaml" => nika_engine::serde_yaml::to_string(&events).map_err(|e| {
                     NikaError::SerializationError {
                         details: e.to_string(),
                     }
@@ -145,7 +145,7 @@ pub fn handle_trace_command(action: TraceAction) -> Result<(), NikaError> {
         }
 
         TraceAction::Clean { keep } => {
-            let traces = nika::list_traces()?;
+            let traces = nika_engine::list_traces()?;
             let to_delete: Vec<_> = traces.into_iter().skip(keep).collect();
             let count = to_delete.len();
 

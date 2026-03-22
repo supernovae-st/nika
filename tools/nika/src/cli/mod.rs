@@ -1,26 +1,26 @@
 //! CLI subcommand handlers
 //!
-//! Each module handles one `nika <subcommand>` group.
+//! Re-exports from the `nika-cli` crate, plus TUI-dependent handlers
+//! that stay in the binary crate (provider, new_wizard).
 
-pub mod trace;
-
-#[cfg(feature = "tui")]
-pub mod provider;
-
-pub mod init;
-pub mod mcp;
-pub mod pkg;
+// Re-export all non-TUI handlers from nika-cli
+pub use nika_cli::config;
+pub use nika_cli::doctor;
+pub use nika_cli::init;
+pub use nika_cli::mcp;
+pub use nika_cli::media;
+pub use nika_cli::new_cmd;
+pub use nika_cli::pkg;
+pub use nika_cli::schema;
+pub use nika_cli::trace;
+pub use nika_cli::workflow;
 
 #[cfg(feature = "native-inference")]
-pub mod model;
+pub use nika_cli::model;
 
-pub mod config;
-pub mod doctor;
-pub mod media;
-pub mod schema;
-pub mod workflow;
-
-pub mod new_cmd;
+// TUI-dependent handlers remain local
+#[cfg(feature = "tui")]
+pub mod provider;
 
 #[cfg(feature = "tui")]
 pub mod new_wizard;

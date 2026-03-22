@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use colored::Colorize;
 
-use nika::error::NikaError;
+use nika_engine::error::NikaError;
 
 #[allow(clippy::too_many_arguments)]
 pub fn handle_new_command(
@@ -21,7 +21,7 @@ pub fn handle_new_command(
     list: bool,
     quiet: bool,
 ) -> Result<(), NikaError> {
-    use nika::new::{
+    use nika_engine::new::{
         create_from_template, list_templates, NewWorkflowConfig, OutputFormat, Provider, Template,
         Verb,
     };
@@ -58,19 +58,7 @@ pub fn handle_new_command(
         || with_include
         || with_artifacts;
 
-    // If wizard flag is set, or no name and no flags, launch wizard
-    #[cfg(feature = "tui")]
-    if wizard || (name.is_none() && !_has_flags) {
-        let path = super::new_wizard::run_wizard(output_dir)?;
-        if !quiet {
-            println!("{} Created: {}", "SUCCESS!".green().bold(), path.display());
-            println!("  Run: nika {}", path.display());
-        }
-        return Ok(());
-    }
-
-    // Non-TUI mode: require name
-    #[cfg(not(feature = "tui"))]
+    // Wizard mode requires TUI (lives in the nika binary crate, not nika-cli)
     if wizard {
         return Err(NikaError::ValidationError {
             reason: "Wizard mode requires TUI feature. Use --template or flags instead."

@@ -5302,6 +5302,7 @@ dependencies = [
  "infer",
  "insta",
  "miette",
+ "nika-cli",
  "nika-engine",
  "nika-lsp-core",
  "nucleo",
@@ -5335,6 +5336,26 @@ dependencies = [
  "uuid 1.22.0",
  "wiremock",
  "xxhash-rust",
+]
+
+[[package]]
+name = "nika-cli"
+version = "0.37.0"
+dependencies = [
+ "chrono",
+ "clap",
+ "colored",
+ "humantime",
+ "image",
+ "infer",
+ "nika-engine",
+ "regex",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "toml 0.8.23",
+ "tracing",
 ]
 
 [[package]]

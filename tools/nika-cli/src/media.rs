@@ -11,8 +11,8 @@ use std::time::Duration;
 use clap::Subcommand;
 use colored::Colorize;
 
-use nika::error::NikaError;
-use nika::media::CasStore;
+use nika_engine::error::NikaError;
+use nika_engine::media::CasStore;
 
 /// Minimum GC age floor: 5 minutes (safety: prevent deleting in-flight media)
 const MIN_GC_AGE_SECS: u64 = 300;

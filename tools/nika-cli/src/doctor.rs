@@ -4,9 +4,9 @@ use std::fs;
 
 use colored::Colorize;
 
-use nika::error::NikaError;
+use nika_engine::error::NikaError;
 
-use super::config::find_nika_dir;
+use crate::config::find_nika_dir;
 
 #[derive(Debug, Clone)]
 struct DiagnosticCheck {
@@ -567,7 +567,7 @@ fn check_editor_integration() -> Vec<DiagnosticCheck> {
 
 fn output_doctor_text(checks: &[DiagnosticCheck], quiet: bool) {
     if !quiet {
-        nika::display::print_doctor_header(env!("CARGO_PKG_VERSION"));
+        nika_engine::display::print_doctor_header(env!("CARGO_PKG_VERSION"));
     }
 
     let mut pass_count = 0;
@@ -595,7 +595,7 @@ fn output_doctor_text(checks: &[DiagnosticCheck], quiet: bool) {
     }
 
     if !quiet {
-        nika::display::print_doctor_summary(pass_count, warn_count, fail_count);
+        nika_engine::display::print_doctor_summary(pass_count, warn_count, fail_count);
     }
 }
 

@@ -3,7 +3,7 @@
 use clap::Subcommand;
 use colored::Colorize;
 
-use nika::error::NikaError;
+use nika_engine::error::NikaError;
 
 /// Schema management actions
 #[derive(Subcommand)]
@@ -162,11 +162,11 @@ pub fn handle_schema_command(action: SchemaAction, quiet: bool) -> Result<(), Ni
                 }
 
                 // Try to parse the workflow to validate it
-                let result = nika::ast::raw::parse(&content, nika::source::FileId(0));
+                let result = nika_engine::ast::raw::parse(&content, nika_engine::source::FileId(0));
                 match result {
                     Ok(raw_workflow) => {
                         // Run analyzer for semantic validation
-                        let analyze_result = nika::ast::analyzer::analyze(raw_workflow);
+                        let analyze_result = nika_engine::ast::analyzer::analyze(raw_workflow);
                         if analyze_result.is_ok() {
                             if !quiet {
                                 println!("{} Workflow is valid", "✓".green());

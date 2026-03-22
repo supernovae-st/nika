@@ -5,8 +5,8 @@ use std::path::PathBuf;
 
 use colored::Colorize;
 
-use nika::ast::{parse_analyzed, parse_workflow};
-use nika::error::NikaError;
+use nika_engine::ast::{parse_analyzed, parse_workflow};
+use nika_engine::error::NikaError;
 
 /// Workflow management actions
 #[derive(Subcommand)]
@@ -67,25 +67,12 @@ pub enum WorkflowAction {
 pub async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Result<(), NikaError> {
     match action {
         WorkflowAction::Edit { file } => {
-            // Open workflow in Studio editor
-            #[cfg(feature = "tui")]
-            {
-                if !quiet {
-                    println!(
-                        "{} Opening {} in Studio editor...",
-                        "→".cyan(),
-                        file.display()
-                    );
-                }
-                nika::tui::run_tui_studio(Some(file)).await
-            }
-            #[cfg(not(feature = "tui"))]
-            {
-                let _ = (file, quiet); // Suppress unused warnings
-                Err(NikaError::ConfigError {
-                    reason: "TUI feature not enabled. Rebuild with `--features tui`".to_string(),
-                })
-            }
+            // TUI Studio editor lives in the nika binary crate, not nika-cli.
+            // When called from `nika`, main.rs overrides this via the tui module.
+            let _ = (file, quiet);
+            Err(NikaError::ConfigError {
+                reason: "TUI feature not enabled. Rebuild with `--features tui`".to_string(),
+            })
         }
 
         WorkflowAction::AddTask {
@@ -346,7 +333,7 @@ pub async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Res
 
                 // Check each provider for its env var
                 for provider_name in &providers_used {
-                    if let Some(provider) = nika::core::find_provider(provider_name) {
+                    if let Some(provider) = nika_engine::core::find_provider(provider_name) {
                         if provider.requires_key && !provider.has_env_key() {
                             issues.push((
                                 "warn".to_string(),
@@ -452,7 +439,7 @@ pub async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Res
     }
 }
 
-fn generate_ascii_dag(workflow: &nika::ast::Workflow) -> String {
+fn generate_ascii_dag(workflow: &nika_engine::ast::Workflow) -> String {
     let mut output = String::new();
     let name = "(unnamed)";
     output.push_str("┌─────────────────────────────────────────┐\n");
@@ -465,11 +452,11 @@ fn generate_ascii_dag(workflow: &nika::ast::Workflow) -> String {
     // Build task list with verb icons
     for task in &workflow.tasks {
         let verb_icon = match &task.action {
-            nika::ast::TaskAction::Infer { .. } => "⚡",
-            nika::ast::TaskAction::Exec { .. } => "📟",
-            nika::ast::TaskAction::Fetch { .. } => "🛰️",
-            nika::ast::TaskAction::Invoke { .. } => "🔌",
-            nika::ast::TaskAction::Agent { .. } => "🐔",
+            nika_engine::ast::TaskAction::Infer { .. } => "⚡",
+            nika_engine::ast::TaskAction::Exec { .. } => "📟",
+            nika_engine::ast::TaskAction::Fetch { .. } => "🛰️",
+            nika_engine::ast::TaskAction::Invoke { .. } => "🔌",
+            nika_engine::ast::TaskAction::Agent { .. } => "🐔",
         };
         let line = format!("│ {} {}", verb_icon, task.id);
         let line_padding = 40usize.saturating_sub(task.id.len() + 4);
@@ -493,7 +480,7 @@ fn generate_ascii_dag(workflow: &nika::ast::Workflow) -> String {
 }
 
 /// Generate DOT (Graphviz) DAG representation
-fn generate_dot_dag(workflow: &nika::ast::Workflow) -> String {
+fn generate_dot_dag(workflow: &nika_engine::ast::Workflow) -> String {
     let mut output = String::new();
     let name = "workflow";
     output.push_str(&format!("digraph {name} {{\n"));
@@ -503,11 +490,11 @@ fn generate_dot_dag(workflow: &nika::ast::Workflow) -> String {
     // Add nodes with styling based on verb
     for task in &workflow.tasks {
         let color = match &task.action {
-            nika::ast::TaskAction::Infer { .. } => "lightblue",
-            nika::ast::TaskAction::Exec { .. } => "lightgreen",
-            nika::ast::TaskAction::Fetch { .. } => "lightyellow",
-            nika::ast::TaskAction::Invoke { .. } => "lightpink",
-            nika::ast::TaskAction::Agent { .. } => "plum",
+            nika_engine::ast::TaskAction::Infer { .. } => "lightblue",
+            nika_engine::ast::TaskAction::Exec { .. } => "lightgreen",
+            nika_engine::ast::TaskAction::Fetch { .. } => "lightyellow",
+            nika_engine::ast::TaskAction::Invoke { .. } => "lightpink",
+            nika_engine::ast::TaskAction::Agent { .. } => "plum",
         };
         output.push_str(&format!(
             "  {} [label=\"{}\", fillcolor={}, style=\"rounded,filled\"];\n",
@@ -532,25 +519,25 @@ fn generate_dot_dag(workflow: &nika::ast::Workflow) -> String {
 }
 
 /// Generate Mermaid DAG representation
-fn generate_mermaid_dag(workflow: &nika::ast::Workflow) -> String {
+fn generate_mermaid_dag(workflow: &nika_engine::ast::Workflow) -> String {
     let mut output = String::new();
     output.push_str("```mermaid\ngraph LR\n");
 
     // Add nodes with styling
     for task in &workflow.tasks {
         let shape = match &task.action {
-            nika::ast::TaskAction::Infer { .. } => ("([", "])"), // Stadium
-            nika::ast::TaskAction::Exec { .. } => ("[", "]"),    // Rectangle
-            nika::ast::TaskAction::Fetch { .. } => ("{{", "}}"), // Hexagon
-            nika::ast::TaskAction::Invoke { .. } => ("[[", "]]"), // Subroutine
-            nika::ast::TaskAction::Agent { .. } => ("((", "))"), // Circle
+            nika_engine::ast::TaskAction::Infer { .. } => ("([", "])"), // Stadium
+            nika_engine::ast::TaskAction::Exec { .. } => ("[", "]"),    // Rectangle
+            nika_engine::ast::TaskAction::Fetch { .. } => ("{{", "}}"), // Hexagon
+            nika_engine::ast::TaskAction::Invoke { .. } => ("[[", "]]"), // Subroutine
+            nika_engine::ast::TaskAction::Agent { .. } => ("((", "))"), // Circle
         };
         let verb = match &task.action {
-            nika::ast::TaskAction::Infer { .. } => "infer",
-            nika::ast::TaskAction::Exec { .. } => "exec",
-            nika::ast::TaskAction::Fetch { .. } => "fetch",
-            nika::ast::TaskAction::Invoke { .. } => "invoke",
-            nika::ast::TaskAction::Agent { .. } => "agent",
+            nika_engine::ast::TaskAction::Infer { .. } => "infer",
+            nika_engine::ast::TaskAction::Exec { .. } => "exec",
+            nika_engine::ast::TaskAction::Fetch { .. } => "fetch",
+            nika_engine::ast::TaskAction::Invoke { .. } => "invoke",
+            nika_engine::ast::TaskAction::Agent { .. } => "agent",
         };
         output.push_str(&format!(
             "  {}{}{} : {}{}\n",

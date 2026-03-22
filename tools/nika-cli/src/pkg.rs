@@ -4,8 +4,8 @@ use clap::Subcommand;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use nika::error::NikaError;
-use nika::serde_yaml;
+use nika_engine::error::NikaError;
+use nika_engine::serde_yaml;
 
 /// Package management actions
 ///
@@ -91,7 +91,7 @@ pub enum PkgAction {
 /// Manages packages (workflows, skills, schemas) stored in ~/.nika/packages/
 pub async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
     use colored::Colorize;
-    use nika::registry::{list_installed, load_manifest, load_registry};
+    use nika_engine::registry::{list_installed, load_manifest, load_registry};
 
     match action {
         PkgAction::List { json } => {
@@ -158,7 +158,7 @@ pub async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
             version,
             dev: _dev,
         } => {
-            use nika::registry::{
+            use nika_engine::registry::{
                 ensure_nika_home, is_version_installed, package_dir, save_registry,
                 InstalledPackage, RegistryClient,
             };
@@ -254,7 +254,7 @@ pub async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
         }
 
         PkgAction::Remove { package, yes: _ } => {
-            use nika::registry::{package_dir, save_registry};
+            use nika_engine::registry::{package_dir, save_registry};
 
             println!("{} Removing package: {}", "🗑".red(), package);
 
@@ -309,7 +309,7 @@ pub async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
         }
 
         PkgAction::Install { frozen } => {
-            use nika::registry::{
+            use nika_engine::registry::{
                 ensure_nika_home, is_version_installed, package_dir, save_registry,
                 InstalledPackage, Lockfile, RegistryClient,
             };
@@ -497,7 +497,7 @@ pub async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
             r#type,
             limit,
         } => {
-            use nika::registry::RegistryClient;
+            use nika_engine::registry::RegistryClient;
 
             // Build search query - append type filter if provided
             let search_query = if let Some(ref t) = r#type {

@@ -758,20 +758,45 @@ async fn main() {
             with_artifacts,
             output_dir,
             list,
-        }) => cli::new_cmd::handle_new_command(
-            name,
-            wizard,
-            template,
-            verb,
-            provider,
-            output,
-            with_mcp,
-            with_include,
-            with_artifacts,
-            output_dir,
-            list,
-            quiet,
-        ),
+        }) => {
+            // Wizard mode requires TUI (lives in nika binary, not nika-cli)
+            #[cfg(feature = "tui")]
+            {
+                let has_flags = template.is_some()
+                    || verb.is_some()
+                    || provider.is_some()
+                    || output.is_some()
+                    || with_mcp
+                    || with_include
+                    || with_artifacts;
+                if wizard || (name.is_none() && !has_flags && !list) {
+                    let out_dir = output_dir.unwrap_or_else(|| PathBuf::from("."));
+                    let result = cli::new_wizard::run_wizard(out_dir);
+                    if let Ok(ref path) = result {
+                        if !quiet {
+                            println!("{} Created: {}", "SUCCESS!".green().bold(), path.display());
+                            println!("  Run: nika {}", path.display());
+                        }
+                    }
+                    handle_result(result.map(|_| ()));
+                    return;
+                }
+            }
+            cli::new_cmd::handle_new_command(
+                name,
+                wizard,
+                template,
+                verb,
+                provider,
+                output,
+                with_mcp,
+                with_include,
+                with_artifacts,
+                output_dir,
+                list,
+                quiet,
+            )
+        }
 
         Some(Commands::Workflow { action }) => {
             cli::workflow::handle_workflow_command(action, quiet).await

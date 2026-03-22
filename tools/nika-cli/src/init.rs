@@ -4,11 +4,11 @@ use std::fs;
 
 use colored::Colorize;
 
-use nika::error::NikaError;
-use nika::init::{
+use nika_engine::error::NikaError;
+use nika_engine::init::{
     get_all_context_files, get_all_partials, get_all_schemas, get_all_workflows, WORKFLOWS_README,
 };
-use nika::tools::PermissionMode;
+use nika_engine::tools::PermissionMode;
 
 /// Initialize a new Nika project
 ///
@@ -542,9 +542,8 @@ network:
     }
 
     // Migrate API keys from env vars to keychain if requested
-    #[cfg(feature = "tui")]
     if migrate_keys {
-        use nika::secrets::migrate_env_to_keyring;
+        use nika_engine::secrets::migrate_env_to_keyring;
         println!();
         println!(
             "{}",
@@ -569,13 +568,6 @@ network:
                 "NOTE: You can now remove these env vars from your shell config.".yellow()
             );
         }
-    }
-    #[cfg(not(feature = "tui"))]
-    if migrate_keys {
-        println!(
-            "{} Key migration requires TUI feature. Use: cargo build --features tui",
-            "Warning:".yellow()
-        );
     }
 
     Ok(())
