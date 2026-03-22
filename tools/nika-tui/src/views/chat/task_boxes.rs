@@ -6,6 +6,11 @@ use super::{
     ActivityItem, BoxState, ChatTaskState, ChatTaskVerb, ChatView, InlineContent, TaskBox,
 };
 
+/// Maximum number of inline content items to retain (oldest evicted on overflow)
+const MAX_INLINE_CONTENT: usize = 100;
+/// Maximum number of activity items to retain (oldest evicted on overflow)
+const MAX_ACTIVITY_ITEMS: usize = 50;
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // TaskBox Management
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -16,7 +21,6 @@ impl ChatView {
     /// This is the unified way to display verb-specific boxes in the chat.
     /// Each verb type (infer, exec, fetch, invoke, agent) has its own visual treatment.
     pub fn add_task_box(&mut self, task_box: TaskBox) {
-        // Add activity based on verb type
         let (verb_name, chat_verb) = match &task_box {
             TaskBox::Infer(_) => ("infer", ChatTaskVerb::Infer),
             TaskBox::Exec(_) => ("exec", ChatTaskVerb::Exec),
@@ -24,19 +28,22 @@ impl ChatView {
             TaskBox::Invoke(_) => ("invoke", ChatTaskVerb::Invoke),
             TaskBox::Agent(_) => ("agent", ChatTaskVerb::Agent),
         };
-
-        // Generate unique task ID for queue tracking
         let task_id = format!("task-{}-{}", verb_name, self.inline_content.len());
-
         self.activity_items
             .push(ActivityItem::hot(task_id.clone(), verb_name));
-
-        // Add to task queue and set state to Running
+        Self::enforce_cap(&mut self.activity_items, MAX_ACTIVITY_ITEMS);
         self.add_task_to_queue(&task_id, chat_verb);
         self.update_task_state(&task_id, ChatTaskState::Running, None);
-
         self.inline_content.push(InlineContent::Task(task_box));
+        Self::enforce_cap(&mut self.inline_content, MAX_INLINE_CONTENT);
         self.auto_scroll_to_bottom();
+    }
+
+    /// Evict oldest items from a Vec when it exceeds the given cap
+    pub(in crate::views::chat) fn enforce_cap<T>(vec: &mut Vec<T>, cap: usize) {
+        if vec.len() > cap {
+            vec.drain(..vec.len() - cap);
+        }
     }
 
     /// Update the last TaskBox (for streaming updates)
@@ -51,7 +58,6 @@ impl ChatView {
 
     /// Complete the last TaskBox with success (generic fallback)
     pub fn complete_last_task_box(&mut self, duration_ms: u64) {
-        // Determine verb type for queue update
         let verb = if let Some(InlineContent::Task(task_box)) = self.inline_content.last() {
             Some(match task_box {
                 TaskBox::Infer(_) => ChatTaskVerb::Infer,
@@ -63,12 +69,9 @@ impl ChatView {
         } else {
             None
         };
-
         if let Some(InlineContent::Task(task_box)) = self.inline_content.last_mut() {
             *task_box.state_mut() = BoxState::success(duration_ms);
         }
-
-        // Update task queue state
         if let Some(v) = verb {
             self.complete_last_running_task(v, duration_ms);
         }
@@ -78,15 +81,10 @@ impl ChatView {
 
     /// Complete the last RUNNING TaskBox::Infer
     pub fn complete_last_infer_box(&mut self, duration_ms: u64) {
-        // Transfer partial_response to InferBox before completing
-        // Option A: InferBox REPLACES the AI message bubble
         let response = std::mem::take(&mut self.partial_response);
-
-        // Find last Infer box that is Running
         for content in self.inline_content.iter_mut().rev() {
             if let InlineContent::Task(TaskBox::Infer(infer)) = content {
                 if infer.state.is_running() {
-                    // Set the response content so it displays in the widget
                     if !response.is_empty() {
                         infer.response = response.clone();
                     }
@@ -95,7 +93,6 @@ impl ChatView {
                 }
             }
         }
-        // Update task queue state
         self.complete_last_running_task(ChatTaskVerb::Infer, duration_ms);
         self.transition_activity_to_warm("infer");
         self.auto_scroll_to_bottom();
@@ -111,7 +108,6 @@ impl ChatView {
                 }
             }
         }
-        // Update task queue state
         self.complete_last_running_task(ChatTaskVerb::Exec, duration_ms);
         self.transition_activity_to_warm("exec");
         self.auto_scroll_to_bottom();
@@ -127,7 +123,6 @@ impl ChatView {
                 }
             }
         }
-        // Update task queue state
         self.complete_last_running_task(ChatTaskVerb::Fetch, duration_ms);
         self.transition_activity_to_warm("fetch");
         self.auto_scroll_to_bottom();
@@ -143,7 +138,6 @@ impl ChatView {
                 }
             }
         }
-        // Update task queue state
         self.complete_last_running_task(ChatTaskVerb::Invoke, duration_ms);
         self.transition_activity_to_warm("invoke");
         self.auto_scroll_to_bottom();
@@ -164,7 +158,6 @@ impl ChatView {
                 }
             }
         }
-        // Update task queue state
         self.complete_last_running_task(ChatTaskVerb::Invoke, duration_ms);
         self.transition_activity_to_warm("invoke");
         self.auto_scroll_to_bottom();
@@ -181,7 +174,6 @@ impl ChatView {
                 }
             }
         }
-        // Update task queue state
         self.fail_last_running_task(ChatTaskVerb::Invoke, duration_ms);
         self.auto_scroll_to_bottom();
     }
@@ -196,7 +188,6 @@ impl ChatView {
                 }
             }
         }
-        // Update task queue state
         self.complete_last_running_task(ChatTaskVerb::Agent, duration_ms);
         self.transition_activity_to_warm("agent");
         self.auto_scroll_to_bottom();
@@ -204,7 +195,6 @@ impl ChatView {
 
     /// Fail the last TaskBox with error
     pub fn fail_last_task_box(&mut self, error: &str, duration_ms: u64) {
-        // Determine verb type before failing for queue update
         let verb = if let Some(InlineContent::Task(task_box)) = self.inline_content.last() {
             Some(match task_box {
                 TaskBox::Infer(_) => ChatTaskVerb::Infer,
@@ -216,12 +206,9 @@ impl ChatView {
         } else {
             None
         };
-
         if let Some(InlineContent::Task(task_box)) = self.inline_content.last_mut() {
             *task_box.state_mut() = BoxState::failed(error, duration_ms);
         }
-
-        // Update task queue state
         if let Some(v) = verb {
             self.fail_last_running_task(v, duration_ms);
         }
@@ -229,26 +216,16 @@ impl ChatView {
     }
 
     /// Start an inference stream
-    ///
-    /// Don't create InferStream box - use streaming_decrypt for visual effect instead.
-    /// The streaming decrypt provides the matrix reveal effect, while InferStream boxes
-    /// were redundant and blocked the decrypt from showing.
     pub fn start_infer_stream(&mut self, model: &str, _tokens_in: u64, _max_tokens: u64) {
-        // Don't add to inline_content - let streaming_decrypt handle the visual
-        // The matrix decrypt effect is the WOW feature, not the INFER boxes
-
-        // Add to activity stack as hot (for Mission Control panel)
         self.activity_items.push(ActivityItem::hot(
             format!("infer-{}-{}", model, self.frame),
             "infer",
         ));
+        Self::enforce_cap(&mut self.activity_items, MAX_ACTIVITY_ITEMS);
     }
 
     /// Append content to current inference stream
-    /// Updated to handle TaskBox::Infer (tokens only) - Matrix effect handles text
     pub fn append_infer_content(&mut self, chunk: &str, tokens_out: u64) {
-        // Update TaskBox::Infer token count (if present)
-        // Handle Task(TaskBox::Infer)
         for content in self.inline_content.iter_mut().rev() {
             match content {
                 InlineContent::Task(TaskBox::Infer(infer)) if infer.state.is_running() => {
@@ -256,7 +233,6 @@ impl ChatView {
                     break;
                 }
                 InlineContent::InferStream(data) => {
-                    // Update if still used
                     data.append_content(chunk);
                     data.update_tokens(tokens_out);
                     break;
@@ -264,7 +240,6 @@ impl ChatView {
                 _ => continue,
             }
         }
-        // Matrix effect handles the actual text display via partial_response
         self.partial_response.push_str(chunk);
     }
 
@@ -273,7 +248,6 @@ impl ChatView {
         if let Some(InlineContent::InferStream(data)) = self.inline_content.last_mut() {
             data.complete();
         }
-        // Move activity from hot to warm
         self.transition_activity_to_warm("infer");
     }
 }

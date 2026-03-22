@@ -89,6 +89,12 @@ rand = { workspace = true }
 reqwest = { workspace = true }
 infer = "0.19"
 
+# Signal handling (terminal restore on SIGTERM/SIGHUP)
+signal-hook = "0.3"
+
+# Secret zeroization (API keys)
+zeroize = "1"
+
 # Logging
 tracing = { workspace = true }
 

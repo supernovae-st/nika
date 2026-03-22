@@ -440,6 +440,10 @@ const STATUS_BAR_BG: Color = Color::Rgb(20, 24, 41);
 
 impl Widget for StatusBar<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
+        if area.width == 0 || area.height == 0 {
+            return;
+        }
+
         // Fill the entire row with the status bar background first
         let bg_style = Style::default().bg(STATUS_BAR_BG);
         for x in area.x..area.x + area.width {

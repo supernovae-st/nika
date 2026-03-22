@@ -82,6 +82,10 @@ impl<'a> Header<'a> {
 
 impl Widget for Header<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
+        if area.width == 0 || area.height == 0 {
+            return;
+        }
+
         if area.width < 40 {
             // Compact mode for narrow terminals
             self.render_compact(area, buf);

@@ -1508,16 +1508,16 @@ fn test_dismiss_notification() {
     state.add_notification(Notification::info("2", 2000));
     state.add_notification(Notification::info("3", 3000));
 
-    // Dismiss most recent
+    // Dismiss most recent -- compact removes it, leaving ["1", "2"]
     state.dismiss_notification();
-    assert!(state.notifs.items[2].dismissed);
-    assert!(!state.notifs.items[1].dismissed);
-    assert!(!state.notifs.items[0].dismissed);
+    assert_eq!(state.notifs.items.len(), 2);
+    assert_eq!(state.notifs.items[0].message, "1");
+    assert_eq!(state.notifs.items[1].message, "2");
 
-    // Dismiss next most recent
+    // Dismiss next most recent -- compact removes it, leaving ["1"]
     state.dismiss_notification();
-    assert!(state.notifs.items[1].dismissed);
-    assert!(!state.notifs.items[0].dismissed);
+    assert_eq!(state.notifs.items.len(), 1);
+    assert_eq!(state.notifs.items[0].message, "1");
 }
 
 #[test]
@@ -3544,7 +3544,6 @@ fn test_mcp_connected_event() {
     state.handle_event(
         &EventKind::McpConnected {
             server_name: "novanet".to_string(),
-            tools: vec![],
         },
         100,
     );
@@ -3579,12 +3578,12 @@ fn test_mcp_retry_event() {
     state.dirty.clear();
     state.handle_event(
         &EventKind::McpRetry {
+            task_id: Arc::from("task1"),
             server_name: "novanet".to_string(),
             operation: "novanet_describe".to_string(),
             attempt: 2,
             max_attempts: 3,
             error: "timeout".to_string(),
-            backoff_ms: 1000,
         },
         200,
     );
@@ -3639,15 +3638,16 @@ fn test_slow_mcp_response_adds_warning() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// EVENT HANDLER: Latency History Cap (max 20)
+/// EVENT HANDLER: Latency History Cap (max 50)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 #[test]
-fn test_latency_history_capped_at_20() {
+fn test_latency_history_capped_at_50_via_mcp() {
     let mut state = TuiState::new("test.nika.yaml");
 
-    // Fill latency history to 20 with MCP responses
-    for i in 0..25 {
+    // Feed 60 MCP response events directly into latency_history
+    // The MCP response handler caps at 50 by removing the oldest entry
+    for i in 0u64..60 {
         state.handle_event(
             &EventKind::McpInvoke {
                 task_id: Arc::from("task1"),
@@ -3673,8 +3673,16 @@ fn test_latency_history_capped_at_20() {
         );
     }
 
-    // Should cap at 20
-    assert!(state.metrics.latency_history.len() <= 20);
+    // MCP response handler keeps last 50 values
+    assert_eq!(
+        state.metrics.latency_history.len(),
+        50,
+        "MCP latency history should cap at 50 entries"
+    );
+    // Oldest entries evicted: first remaining should be entry 11 (= (10+1)*10 = 110)
+    assert_eq!(state.metrics.latency_history[0], 110);
+    // Last entry should be entry 60 (= (59+1)*10 = 600)
+    assert_eq!(state.metrics.latency_history[49], 600);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -3979,33 +3987,6 @@ fn test_reset_for_retry_clears_agent_and_metrics() {
     assert_eq!(state.metrics.provider_calls, 0);
     assert!(state.current_task.is_none());
     assert_eq!(state.mcp.seq, 0);
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// WORKFLOW OPS: dismiss_error
-// ═══════════════════════════════════════════════════════════════════════════════
-
-#[test]
-fn test_dismiss_error_clears_message() {
-    let mut state = TuiState::new("test.nika.yaml");
-    state.workflow.error_message = Some("something failed".to_string());
-
-    state.dirty.clear();
-    let dismissed = state.dismiss_error();
-
-    assert!(dismissed);
-    assert!(state.workflow.error_message.is_none());
-    assert!(state.dirty.progress);
-    assert!(state.dirty.status);
-}
-
-#[test]
-fn test_dismiss_error_returns_false_when_no_error() {
-    let mut state = TuiState::new("test.nika.yaml");
-    assert!(state.workflow.error_message.is_none());
-
-    let dismissed = state.dismiss_error();
-    assert!(!dismissed);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

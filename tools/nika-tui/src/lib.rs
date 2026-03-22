@@ -197,6 +197,40 @@ fn install_panic_hook() {
     });
 }
 
+/// Install signal handlers for SIGTERM and SIGHUP.
+///
+/// These signals are sent when the terminal is closed (SIGHUP) or when the
+/// process is killed (SIGTERM). Without handlers, the terminal is left in raw
+/// mode, making the shell unusable until `reset` is run.
+///
+/// The handler restores terminal state (disable raw mode, leave alternate
+/// screen) and exits with the conventional 128+signal code.
+fn install_signal_handlers() {
+    use signal_hook::consts::{SIGHUP, SIGTERM};
+    use signal_hook::flag;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+
+    let term = Arc::new(AtomicBool::new(false));
+    flag::register(SIGTERM, Arc::clone(&term)).ok();
+    flag::register(SIGHUP, Arc::clone(&term)).ok();
+
+    let term_clone = Arc::clone(&term);
+    std::thread::spawn(move || {
+        loop {
+            if term_clone.load(Ordering::Relaxed) {
+                let _ = crossterm::terminal::disable_raw_mode();
+                let _ = crossterm::execute!(
+                    std::io::stdout(),
+                    crossterm::terminal::LeaveAlternateScreen
+                );
+                std::process::exit(128 + 15); // 128 + SIGTERM
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+    });
+}
+
 /// Run the TUI for a workflow
 ///
 /// This function:
@@ -211,6 +245,7 @@ pub async fn run_tui(workflow_path: &std::path::Path) -> nika_engine::error::Res
 
     // Install panic hook for terminal recovery
     install_panic_hook();
+    install_signal_handlers();
 
     // 1. Parse and validate workflow (use tokio::fs for non-blocking I/O)
     let yaml_content = tokio::fs::read_to_string(workflow_path)
@@ -316,6 +351,7 @@ pub async fn run_tui_standalone() -> nika_engine::error::Result<()> {
 
     // Install panic hook for terminal recovery
     install_panic_hook();
+    install_signal_handlers();
 
     // Find project root (look for Cargo.toml or .git)
     let root = find_project_root().unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
@@ -354,6 +390,7 @@ pub async fn run_tui_chat(
 
     // Install panic hook for terminal recovery
     install_panic_hook();
+    install_signal_handlers();
 
     // Find project root
     let root = find_project_root().unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
@@ -380,6 +417,7 @@ pub async fn run_tui_studio(
 
     // Install panic hook for terminal recovery
     install_panic_hook();
+    install_signal_handlers();
 
     // Find project root
     let root = find_project_root().unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
@@ -418,6 +456,7 @@ pub async fn run_tui_with_options(
 ) -> nika_engine::error::Result<()> {
     // Install panic hook for terminal recovery
     install_panic_hook();
+    install_signal_handlers();
 
     // Find project root
     let root = find_project_root().unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
@@ -480,6 +519,7 @@ pub fn run_tui_wizard() -> nika_engine::error::Result<()> {
 
     // Install panic hook for terminal recovery
     install_panic_hook();
+    install_signal_handlers();
 
     // Setup terminal
     enable_raw_mode().map_err(nika_engine::error::NikaError::IoError)?;

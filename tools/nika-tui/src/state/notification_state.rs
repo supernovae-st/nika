@@ -39,14 +39,15 @@ impl NotificationState {
         self.items.push(notification);
     }
 
-    /// Dismiss a notification by index
+    /// Dismiss a notification by index, then compact dismissed items
     pub fn dismiss(&mut self, index: usize) {
         if let Some(notif) = self.items.get_mut(index) {
             notif.dismissed = true;
         }
+        self.compact();
     }
 
-    /// Dismiss the most recent non-dismissed notification
+    /// Dismiss the most recent non-dismissed notification, then compact
     pub fn dismiss_latest(&mut self) {
         for notif in self.items.iter_mut().rev() {
             if !notif.dismissed {
@@ -54,13 +55,17 @@ impl NotificationState {
                 break;
             }
         }
+        self.compact();
     }
 
-    /// Dismiss all notifications
+    /// Dismiss all notifications (clears the list entirely)
     pub fn dismiss_all(&mut self) {
-        for notif in &mut self.items {
-            notif.dismissed = true;
-        }
+        self.items.clear();
+    }
+
+    /// Remove dismissed items to free memory
+    fn compact(&mut self) {
+        self.items.retain(|item| !item.dismissed);
     }
 
     /// Count of active (non-dismissed) notifications
@@ -103,7 +108,6 @@ mod tests {
             ns.push(Notification::info(format!("msg_{}", i), i as u64));
         }
         assert_eq!(ns.items.len(), 3);
-        // Oldest two were evicted
         assert_eq!(ns.items[0].message, "msg_2");
         assert_eq!(ns.items[1].message, "msg_3");
         assert_eq!(ns.items[2].message, "msg_4");
@@ -118,9 +122,12 @@ mod tests {
 
         assert_eq!(ns.active_count(), 3);
 
+        // Dismissing index 1 ("b") compacts it out of the list
         ns.dismiss(1);
         assert_eq!(ns.active_count(), 2);
-        assert!(ns.items[1].dismissed);
+        assert_eq!(ns.items.len(), 2);
+        assert_eq!(ns.items[0].message, "a");
+        assert_eq!(ns.items[1].message, "c");
 
         // Out of bounds is a no-op
         ns.dismiss(99);
@@ -136,7 +143,7 @@ mod tests {
 
         ns.dismiss_all();
         assert_eq!(ns.active_count(), 0);
-        assert_eq!(ns.items.len(), 2); // Still present, just dismissed
+        assert_eq!(ns.items.len(), 0);
     }
 
     #[test]
@@ -151,5 +158,19 @@ mod tests {
         assert_eq!(active.len(), 2);
         assert_eq!(active[0].message, "b");
         assert_eq!(active[1].message, "c");
+    }
+
+    #[test]
+    fn test_notification_state_compact_frees_memory() {
+        let mut ns = NotificationState::new();
+        ns.push(Notification::info("a", 0));
+        ns.push(Notification::warning("b", 1));
+        ns.push(Notification::error("c", 2));
+
+        ns.dismiss(0);
+        ns.dismiss(0); // Now dismisses "b" (which shifted to index 0)
+
+        assert_eq!(ns.items.len(), 1);
+        assert_eq!(ns.items[0].message, "c");
     }
 }

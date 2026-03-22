@@ -961,7 +961,7 @@ mod tests {
         // Should contain verb icon/label, tool name, and status
         assert!(content.contains("INVOKE"));
         assert!(content.contains("novanet_describe"));
-        assert!(content.contains("✅"));
+        assert!(content.contains("✓")); // checkmark (not emoji)
     }
 
     // === BuiltinHint Tests ===

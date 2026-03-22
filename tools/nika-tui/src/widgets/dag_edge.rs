@@ -392,22 +392,17 @@ impl<'a> DagEdge<'a> {
         // Render binding label
         if let Some(binding) = &self.binding {
             let label = binding.as_str();
-            let label_width = label.len() as u16;
+            let label_display_width = display_width(label) as u16;
 
             // Position label to the right of the edge
             let label_x = x.saturating_add(2);
             let label_y = y;
 
             if self.is_in_bounds(label_x, label_y, &area) {
-                // Truncate if needed
+                // Truncate if needed (unicode-safe)
                 let available_width = area.x + area.width - label_x;
-                let display_label = if label_width > available_width {
-                    let truncate_at = available_width.saturating_sub(3) as usize;
-                    if truncate_at > 0 {
-                        format!("{}...", &label[..truncate_at.min(label.len())])
-                    } else {
-                        String::new()
-                    }
+                let display_label = if label_display_width > available_width {
+                    truncate_to_width(label, available_width as usize)
                 } else {
                     label.to_string()
                 };
@@ -433,13 +428,8 @@ impl<'a> DagEdge<'a> {
                 let formatted = format!("{} {}", char::from_u32(0x2591).unwrap_or(' '), preview);
                 let available_width = (area.x + area.width).saturating_sub(preview_x) as usize;
 
-                let display_preview = if formatted.len() > available_width {
-                    let truncate_at = available_width.saturating_sub(4);
-                    if truncate_at > 0 {
-                        format!("{}...", &formatted[..truncate_at.min(formatted.len())])
-                    } else {
-                        String::new()
-                    }
+                let display_preview = if display_width(&formatted) > available_width {
+                    truncate_to_width(&formatted, available_width)
                 } else {
                     formatted
                 };

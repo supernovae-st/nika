@@ -7,6 +7,9 @@ use std::time::Instant;
 
 use ratatui::style::Color;
 
+use crate::icons;
+use crate::theme::Theme;
+
 /// Braille spinner frames for running state animation
 pub const BRAILLE_SPINNER: &[char] = &['⣾', '⣽', '⣻', '⢿', '⡿', '⣟', '⣯', '⣷'];
 
@@ -74,15 +77,15 @@ impl BoxState {
     /// Get the status icon for this state
     pub fn icon(&self) -> &'static str {
         match self {
-            Self::Queued => "⚪",
+            Self::Queued => icons::status::PENDING,
             Self::Running { frame, .. } => {
                 // Static str array for icon display (BRAILLE_SPINNER is char array)
                 const SPINNER_STR: &[&str] = &["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"];
                 SPINNER_STR[*frame % SPINNER_STR.len()]
             }
-            Self::Success { .. } => "✅",
-            Self::Failed { .. } => "❌",
-            Self::Skipped { .. } => "⏭️",
+            Self::Success { .. } => icons::status::SUCCESS,
+            Self::Failed { .. } => icons::status::FAILED,
+            Self::Skipped { .. } => icons::status::SKIPPED,
         }
     }
 
@@ -117,7 +120,10 @@ impl BoxState {
         }
     }
 
-    /// Get the border color for this state
+    /// Get the border color for this state (hardcoded fallback).
+    ///
+    /// **Deprecated**: Use `border_color_themed()` for theme-aware colors.
+    #[deprecated(note = "Use border_color_themed() for theme-aware colors")]
     pub fn border_color(&self, verb_color: Color) -> Color {
         match self {
             Self::Queued => Color::Rgb(100, 116, 139), // Slate 500
@@ -128,11 +134,25 @@ impl BoxState {
         }
     }
 
+    /// Get the border color for this state using the theme.
+    ///
+    /// Status colors come from the theme's semantic palette.
+    pub fn border_color_themed(&self, verb_color: Color, theme: &Theme) -> Color {
+        match self {
+            Self::Queued => theme.text_muted,
+            Self::Running { .. } => verb_color,
+            Self::Success { .. } => theme.status_success,
+            Self::Failed { .. } => theme.status_failed,
+            Self::Skipped { .. } => theme.text_muted,
+        }
+    }
+
     /// Get border color with pulse effect applied
     ///
     /// Only applies pulse to Running state; other states return normal border_color.
     /// Pulse brightens the color by interpolating toward white.
     pub fn border_color_with_pulse(&self, verb_color: Color, pulse_intensity: f32) -> Color {
+        #[allow(deprecated)]
         let base = self.border_color(verb_color);
 
         // Only pulse when running
@@ -143,6 +163,26 @@ impl BoxState {
         // Brighten color based on pulse_intensity (0.0-1.0)
         if let Color::Rgb(r, g, b) = base {
             let factor = 1.0 + (pulse_intensity * 0.3); // Max 30% brighter
+            let brighten = |c: u8| -> u8 { ((c as f32 * factor).min(255.0)) as u8 };
+            Color::Rgb(brighten(r), brighten(g), brighten(b))
+        } else {
+            base
+        }
+    }
+
+    /// Get border color with pulse effect applied (theme-aware).
+    pub fn border_color_with_pulse_themed(
+        &self,
+        verb_color: Color,
+        pulse_intensity: f32,
+        theme: &Theme,
+    ) -> Color {
+        let base = self.border_color_themed(verb_color, theme);
+        if !self.is_running() {
+            return base;
+        }
+        if let Color::Rgb(r, g, b) = base {
+            let factor = 1.0 + (pulse_intensity * 0.3);
             let brighten = |c: u8| -> u8 { ((c as f32 * factor).min(255.0)) as u8 };
             Color::Rgb(brighten(r), brighten(g), brighten(b))
         } else {
@@ -181,6 +221,7 @@ impl BoxState {
 }
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod tests {
     use super::*;
 
@@ -192,10 +233,10 @@ mod tests {
 
     #[test]
     fn test_state_icons() {
-        assert_eq!(BoxState::Queued.icon(), "⚪");
-        assert_eq!(BoxState::success(1000).icon(), "✅");
-        assert_eq!(BoxState::failed("error", 500).icon(), "❌");
-        assert_eq!(BoxState::skipped("dep failed").icon(), "⏭️");
+        assert_eq!(BoxState::Queued.icon(), icons::status::PENDING);
+        assert_eq!(BoxState::success(1000).icon(), icons::status::SUCCESS);
+        assert_eq!(BoxState::failed("error", 500).icon(), icons::status::FAILED);
+        assert_eq!(BoxState::skipped("dep failed").icon(), icons::status::SKIPPED);
     }
 
     #[test]
@@ -319,5 +360,43 @@ mod tests {
         let success = BoxState::success(1000);
         let color = success.border_color_with_pulse(verb_color, 1.0);
         assert_eq!(color, success.border_color(verb_color)); // Unchanged
+    }
+
+    // ═══ THEMED BORDER COLOR TESTS ═══
+
+    #[test]
+    fn test_border_color_themed_uses_theme_values() {
+        let theme = Theme::dark();
+        let verb_color = Color::Rgb(139, 92, 246);
+        assert_eq!(BoxState::Queued.border_color_themed(verb_color, &theme), theme.text_muted);
+        assert_eq!(BoxState::running().border_color_themed(verb_color, &theme), verb_color);
+        assert_eq!(BoxState::success(100).border_color_themed(verb_color, &theme), theme.status_success);
+        assert_eq!(BoxState::failed("err", 100).border_color_themed(verb_color, &theme), theme.status_failed);
+        assert_eq!(BoxState::skipped("dep").border_color_themed(verb_color, &theme), theme.text_muted);
+    }
+
+    #[test]
+    fn test_border_color_themed_differs_between_themes() {
+        let dark = Theme::dark();
+        let light = Theme::light();
+        let verb_color = Color::Rgb(139, 92, 246);
+        let success = BoxState::success(100);
+        assert_ne!(
+            success.border_color_themed(verb_color, &dark),
+            success.border_color_themed(verb_color, &light),
+        );
+    }
+
+    #[test]
+    fn test_border_color_with_pulse_themed() {
+        let theme = Theme::dark();
+        let verb_color = Color::Rgb(139, 92, 246);
+        let running = BoxState::running();
+        let base = running.border_color_themed(verb_color, &theme);
+        let pulsed = running.border_color_with_pulse_themed(verb_color, 1.0, &theme);
+        assert_ne!(base, pulsed);
+        let success = BoxState::success(100);
+        let color = success.border_color_with_pulse_themed(verb_color, 1.0, &theme);
+        assert_eq!(color, success.border_color_themed(verb_color, &theme));
     }
 }

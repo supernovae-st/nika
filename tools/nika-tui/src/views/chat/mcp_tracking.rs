@@ -21,12 +21,14 @@ impl ChatView {
     pub fn add_mcp_call(&mut self, tool: &str, server: &str, params: &str) {
         let data = McpCallData::new(tool, server).with_params(params);
         self.inline_content.push(InlineContent::McpCall(data));
+        Self::enforce_cap(&mut self.inline_content, 100);
 
         // Add to activity stack as hot
         self.activity_items.push(ActivityItem::hot(
             format!("mcp-{}", self.inline_content.len()),
             "invoke",
         ));
+        Self::enforce_cap(&mut self.activity_items, 50);
 
         // Update MCP server status to hot
         if let Some(server_info) = self

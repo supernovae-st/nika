@@ -11,15 +11,12 @@
 //!
 //! let mut cache = VerificationCache::new(Duration::from_secs(30));
 //!
-//! // Check if cached
+//! // Check if cached (returns None if expired)
 //! if let Some(entry) = cache.get_provider("claude") {
-//!     if cache.is_valid(entry) {
-//!         // Use cached result
-//!         return;
-//!     }
+//!     println!("cached: {:?}", entry.status);
 //! }
 //!
-//! // Store new result
+//! // Store new result (expired entries are purged automatically)
 //! cache.set_provider("claude".to_string(), entry);
 //! ```
 
@@ -98,7 +95,8 @@ impl VerificationEntry {
 /// TTL-based verification cache
 ///
 /// Stores verification results for providers and MCP servers with automatic
-/// expiration. Default TTL is 30 seconds.
+/// expiration. Default TTL is 30 seconds. Expired entries are purged on
+/// write operations and filtered out on read operations.
 #[derive(Debug)]
 pub struct VerificationCache {
     /// Cached provider verification results
@@ -125,24 +123,39 @@ impl VerificationCache {
         }
     }
 
-    /// Get a cached provider entry
+    /// Get a cached provider entry (returns None if expired)
     pub fn get_provider(&self, id: &str) -> Option<&VerificationEntry> {
-        self.providers.get(id)
+        self.providers
+            .get(id)
+            .filter(|e| e.verified_at.elapsed() < self.ttl)
     }
 
-    /// Get a cached MCP server entry
+    /// Get a cached MCP server entry (returns None if expired)
     pub fn get_mcp(&self, name: &str) -> Option<&VerificationEntry> {
-        self.mcp_servers.get(name)
+        self.mcp_servers
+            .get(name)
+            .filter(|e| e.verified_at.elapsed() < self.ttl)
     }
 
-    /// Store a provider verification result
+    /// Store a provider verification result, purging expired entries first
     pub fn set_provider(&mut self, id: String, entry: VerificationEntry) {
+        self.purge_expired();
         self.providers.insert(id, entry);
     }
 
-    /// Store an MCP server verification result
+    /// Store an MCP server verification result, purging expired entries first
     pub fn set_mcp(&mut self, name: String, entry: VerificationEntry) {
+        self.purge_expired();
         self.mcp_servers.insert(name, entry);
+    }
+
+    /// Remove all entries that have exceeded their TTL
+    pub fn purge_expired(&mut self) {
+        let ttl = self.ttl;
+        self.providers
+            .retain(|_, e| e.verified_at.elapsed() < ttl);
+        self.mcp_servers
+            .retain(|_, e| e.verified_at.elapsed() < ttl);
     }
 
     /// Check if an entry is still valid (within TTL)
@@ -152,16 +165,12 @@ impl VerificationCache {
 
     /// Check if a provider has a valid cached entry
     pub fn has_valid_provider(&self, id: &str) -> bool {
-        self.get_provider(id)
-            .map(|e| self.is_valid(e))
-            .unwrap_or(false)
+        self.get_provider(id).is_some()
     }
 
     /// Check if an MCP server has a valid cached entry
     pub fn has_valid_mcp(&self, name: &str) -> bool {
-        self.get_mcp(name)
-            .map(|e| self.is_valid(e))
-            .unwrap_or(false)
+        self.get_mcp(name).is_some()
     }
 
     /// Invalidate all cached entries
@@ -241,16 +250,12 @@ mod tests {
     #[test]
     fn test_cache_set_get_provider() {
         let mut cache = VerificationCache::new(Duration::from_secs(30));
-
         let entry = VerificationEntry::verified(
             Duration::from_millis(450),
             Some("claude-sonnet-4".to_string()),
         );
-
         cache.set_provider("claude".to_string(), entry);
-
         assert_eq!(cache.provider_count(), 1);
-
         let retrieved = cache.get_provider("claude").unwrap();
         assert_eq!(retrieved.status, VerifyStatus::Verified);
         assert_eq!(retrieved.latency, Some(Duration::from_millis(450)));
@@ -260,13 +265,9 @@ mod tests {
     #[test]
     fn test_cache_set_get_mcp() {
         let mut cache = VerificationCache::new(Duration::from_secs(30));
-
         let entry = VerificationEntry::verified_mcp(Duration::from_millis(45), 12);
-
         cache.set_mcp("novanet".to_string(), entry);
-
         assert_eq!(cache.mcp_count(), 1);
-
         let retrieved = cache.get_mcp("novanet").unwrap();
         assert_eq!(retrieved.status, VerifyStatus::Verified);
         assert_eq!(retrieved.latency, Some(Duration::from_millis(45)));
@@ -277,45 +278,31 @@ mod tests {
     fn test_cache_ttl_valid() {
         let cache = VerificationCache::new(Duration::from_secs(30));
         let entry = VerificationEntry::verified(Duration::from_millis(100), None);
-
-        // Fresh entry should be valid
         assert!(cache.is_valid(&entry));
     }
 
     #[test]
     fn test_cache_ttl_expired() {
-        // Very short TTL for testing
         let cache = VerificationCache::new(Duration::from_millis(10));
         let entry = VerificationEntry::verified(Duration::from_millis(100), None);
-
-        // Wait for expiry
         sleep(Duration::from_millis(15));
-
-        // Entry should now be invalid
         assert!(!cache.is_valid(&entry));
     }
 
     #[test]
     fn test_cache_has_valid_provider() {
         let mut cache = VerificationCache::new(Duration::from_secs(30));
-
-        // No entry yet
         assert!(!cache.has_valid_provider("claude"));
-
-        // Add entry
         cache.set_provider(
             "claude".to_string(),
             VerificationEntry::verified(Duration::from_millis(100), None),
         );
-
-        // Should be valid now
         assert!(cache.has_valid_provider("claude"));
     }
 
     #[test]
     fn test_cache_invalidate_all() {
         let mut cache = VerificationCache::new(Duration::from_secs(30));
-
         cache.set_provider(
             "claude".to_string(),
             VerificationEntry::verified(Duration::from_millis(100), None),
@@ -328,12 +315,9 @@ mod tests {
             "novanet".to_string(),
             VerificationEntry::verified_mcp(Duration::from_millis(50), 10),
         );
-
         assert_eq!(cache.provider_count(), 2);
         assert_eq!(cache.mcp_count(), 1);
-
         cache.invalidate_all();
-
         assert_eq!(cache.provider_count(), 0);
         assert_eq!(cache.mcp_count(), 0);
     }
@@ -341,7 +325,6 @@ mod tests {
     #[test]
     fn test_cache_invalidate_specific() {
         let mut cache = VerificationCache::new(Duration::from_secs(30));
-
         cache.set_provider(
             "claude".to_string(),
             VerificationEntry::verified(Duration::from_millis(100), None),
@@ -350,9 +333,7 @@ mod tests {
             "openai".to_string(),
             VerificationEntry::verified(Duration::from_millis(200), None),
         );
-
         cache.invalidate_provider("claude");
-
         assert_eq!(cache.provider_count(), 1);
         assert!(cache.get_provider("claude").is_none());
         assert!(cache.get_provider("openai").is_some());
@@ -361,10 +342,8 @@ mod tests {
     #[test]
     fn test_cache_failed_entry() {
         let mut cache = VerificationCache::new(Duration::from_secs(30));
-
         let entry = VerificationEntry::failed("Connection refused".to_string());
         cache.set_provider("native".to_string(), entry);
-
         let retrieved = cache.get_provider("native").unwrap();
         assert_eq!(retrieved.status, VerifyStatus::Failed);
         assert_eq!(retrieved.error, Some("Connection refused".to_string()));
@@ -382,7 +361,6 @@ mod tests {
     #[test]
     fn test_verified_provider_count() {
         let mut cache = VerificationCache::new(Duration::from_secs(30));
-
         cache.set_provider(
             "claude".to_string(),
             VerificationEntry::verified(Duration::from_millis(100), None),
@@ -395,14 +373,12 @@ mod tests {
             "native".to_string(),
             VerificationEntry::failed("Offline".to_string()),
         );
-
         assert_eq!(cache.verified_provider_count(), 2);
     }
 
     #[test]
     fn test_verified_mcp_count() {
         let mut cache = VerificationCache::new(Duration::from_secs(30));
-
         cache.set_mcp(
             "novanet".to_string(),
             VerificationEntry::verified_mcp(Duration::from_millis(50), 12),
@@ -411,7 +387,37 @@ mod tests {
             "firecrawl".to_string(),
             VerificationEntry::failed("Timeout".to_string()),
         );
-
         assert_eq!(cache.verified_mcp_count(), 1);
+    }
+
+    #[test]
+    fn test_purge_expired() {
+        let mut cache = VerificationCache::new(Duration::from_millis(10));
+        cache.set_provider(
+            "claude".to_string(),
+            VerificationEntry::verified(Duration::from_millis(100), None),
+        );
+        cache.set_mcp(
+            "novanet".to_string(),
+            VerificationEntry::verified_mcp(Duration::from_millis(50), 5),
+        );
+        assert_eq!(cache.provider_count(), 1);
+        assert_eq!(cache.mcp_count(), 1);
+        sleep(Duration::from_millis(15));
+        cache.purge_expired();
+        assert_eq!(cache.provider_count(), 0);
+        assert_eq!(cache.mcp_count(), 0);
+    }
+
+    #[test]
+    fn test_get_provider_filters_expired() {
+        let mut cache = VerificationCache::new(Duration::from_millis(10));
+        cache.set_provider(
+            "claude".to_string(),
+            VerificationEntry::verified(Duration::from_millis(100), None),
+        );
+        assert!(cache.get_provider("claude").is_some());
+        sleep(Duration::from_millis(15));
+        assert!(cache.get_provider("claude").is_none());
     }
 }

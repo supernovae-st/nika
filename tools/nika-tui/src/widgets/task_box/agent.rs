@@ -937,7 +937,7 @@ mod tests {
         let child =
             TaskBox::Invoke(InvokeBox::new("tool", "server").with_state(BoxState::success(100)));
         box_.add_child(child);
-        assert_eq!(box_.children_status_icons(), "✅");
+        assert_eq!(box_.children_status_icons(), "✓");  // checkmark
     }
 
     #[test]
@@ -963,8 +963,8 @@ mod tests {
         box_.add_child(child3);
 
         let icons = box_.children_status_icons();
-        assert!(icons.contains("✅")); // success
-        assert!(icons.contains("❌")); // failed
+        assert!(icons.contains("✓")); // success (checkmark)
+        assert!(icons.contains("✗")); // failed (cross)
                                        // Running icon is a spinner character
     }
 
@@ -1007,7 +1007,7 @@ mod tests {
         // - Children status icons
         assert!(compact.contains("🐔")); // Agent icon
         assert!(compact.contains("3/5")); // Turn progress
-        assert!(compact.contains("✅")); // Child status
+        assert!(compact.contains("✓")); // Child status (checkmark)
     }
 
     #[test]
@@ -1032,7 +1032,7 @@ mod tests {
 
         let compact = box_.compact_line(60);
 
-        assert!(compact.contains("✅")); // Success state
+        assert!(compact.contains("✓")); // Success state (checkmark)
         assert!(compact.contains("5/5")); // Turn progress
                                           // Should show truncated response preview
         assert!(compact.contains("The analysis"));

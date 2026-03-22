@@ -11,15 +11,18 @@ use ratatui::{
     widgets::Widget,
 };
 
+use crate::icons;
+use crate::tokens::compat;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // DEFAULT COLORS (fallbacks for theme-aware rendering)
 // ═══════════════════════════════════════════════════════════════════════════
 
-const DEFAULT_RUNNING_COLOR: Color = Color::Rgb(250, 204, 21); // yellow
-const DEFAULT_SUCCESS_COLOR: Color = Color::Rgb(34, 197, 94); // green
-const DEFAULT_FAILED_COLOR: Color = Color::Rgb(239, 68, 68); // red
-const DEFAULT_BORDER_COLOR: Color = Color::Rgb(16, 185, 129); // emerald
-const DEFAULT_MUTED_COLOR: Color = Color::Rgb(107, 114, 128); // gray
+const DEFAULT_RUNNING_COLOR: Color = compat::AMBER_500; // running/active
+const DEFAULT_SUCCESS_COLOR: Color = compat::GREEN_500; // success
+const DEFAULT_FAILED_COLOR: Color = compat::RED_500; // failed
+const DEFAULT_BORDER_COLOR: Color = compat::EMERALD_500; // invoke verb color
+const DEFAULT_MUTED_COLOR: Color = compat::GRAY_500; // muted text
 
 /// Status of an MCP call
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -38,8 +41,8 @@ impl McpCallStatus {
                 let idx = (frame as usize) % spinners.len();
                 (spinners[idx], DEFAULT_RUNNING_COLOR)
             }
-            Self::Success => ("✅", DEFAULT_SUCCESS_COLOR),
-            Self::Failed => ("❌", DEFAULT_FAILED_COLOR),
+            Self::Success => (icons::status::SUCCESS, DEFAULT_SUCCESS_COLOR),
+            Self::Failed => (icons::status::FAILED, DEFAULT_FAILED_COLOR),
         }
     }
 }
@@ -323,11 +326,11 @@ mod tests {
     #[test]
     fn test_status_indicators() {
         let (char, color) = McpCallStatus::Success.indicator(0);
-        assert_eq!(char, "✅");
+        assert_eq!(char, icons::status::SUCCESS);
         assert_eq!(color, DEFAULT_SUCCESS_COLOR);
 
         let (char, color) = McpCallStatus::Failed.indicator(0);
-        assert_eq!(char, "❌");
+        assert_eq!(char, icons::status::FAILED);
         assert_eq!(color, DEFAULT_FAILED_COLOR);
 
         // Running shows spinner

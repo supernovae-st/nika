@@ -251,11 +251,14 @@ impl ModalEventHandler {
 
     /// Handle input mode (API key entry)
     fn handle_input_mode(state: &mut ProviderModalState, key: KeyEvent) -> HandleResult {
+        use zeroize::Zeroize;
+
         match key.code {
             // Cancel input
             KeyCode::Esc => {
                 state.key_input_mode = false;
-                state.key_input_buffer.clear();
+                // SEC: Zeroize buffer to scrub API key material from memory
+                state.key_input_buffer.zeroize();
                 HandleResult::consumed()
             }
 
@@ -263,7 +266,8 @@ impl ModalEventHandler {
             KeyCode::Enter => {
                 let key_value = state.key_input_buffer.clone();
                 state.key_input_mode = false;
-                state.key_input_buffer.clear();
+                // SEC: Zeroize buffer to scrub API key material from memory
+                state.key_input_buffer.zeroize();
 
                 if !key_value.is_empty() {
                     HandleResult::consumed_with_action(ModalAction::SaveAndTestApiKey {

@@ -128,9 +128,12 @@ impl ProviderModalState {
 
     /// Close modal
     pub fn close(&mut self) {
+        use zeroize::Zeroize;
+
         self.visible = false;
         self.key_input_mode = false;
-        self.key_input_buffer.clear();
+        // SEC: Zeroize buffer to scrub API key material from memory
+        self.key_input_buffer.zeroize();
     }
 
     /// Tick animation frame (call on each frame update)

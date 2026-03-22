@@ -7,13 +7,16 @@ use std::time::Duration;
 
 use ratatui::style::Color;
 
+use crate::icons;
+use crate::tokens::compat;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // DEFAULT COLORS (kept for InferStatus::indicator)
 // ═══════════════════════════════════════════════════════════════════════════
 
-const DEFAULT_RUNNING_COLOR: Color = Color::Rgb(250, 204, 21); // yellow
-const DEFAULT_SUCCESS_COLOR: Color = Color::Rgb(34, 197, 94); // green
-const DEFAULT_FAILED_COLOR: Color = Color::Rgb(239, 68, 68); // red
+const DEFAULT_RUNNING_COLOR: Color = compat::AMBER_500; // running/active
+const DEFAULT_SUCCESS_COLOR: Color = compat::GREEN_500; // success
+const DEFAULT_FAILED_COLOR: Color = compat::RED_500; // failed
 
 /// Status of inference
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -32,8 +35,8 @@ impl InferStatus {
                 let idx = (frame as usize) % spinners.len();
                 (spinners[idx], DEFAULT_RUNNING_COLOR)
             }
-            Self::Complete => ("✅", DEFAULT_SUCCESS_COLOR),
-            Self::Failed => ("❌", DEFAULT_FAILED_COLOR),
+            Self::Complete => (icons::status::SUCCESS, DEFAULT_SUCCESS_COLOR),
+            Self::Failed => (icons::status::FAILED, DEFAULT_FAILED_COLOR),
         }
     }
 }
@@ -228,11 +231,11 @@ mod tests {
     #[test]
     fn test_status_indicators() {
         let (char, color) = InferStatus::Complete.indicator(0);
-        assert_eq!(char, "✅");
+        assert_eq!(char, icons::status::SUCCESS);
         assert_eq!(color, DEFAULT_SUCCESS_COLOR);
 
         let (char, color) = InferStatus::Failed.indicator(0);
-        assert_eq!(char, "❌");
+        assert_eq!(char, icons::status::FAILED);
         assert_eq!(color, DEFAULT_FAILED_COLOR);
 
         // Running shows spinner

@@ -6,12 +6,14 @@
 
 use ratatui::style::Color;
 
-// Solarized-inspired colors matching Nika's verb icons
-const COLOR_INFER: Color = Color::Rgb(108, 113, 196); // Violet
-const COLOR_EXEC: Color = Color::Rgb(181, 137, 0); // Yellow
-const COLOR_FETCH: Color = Color::Rgb(42, 161, 152); // Cyan
-const COLOR_INVOKE: Color = Color::Rgb(133, 153, 0); // Green
-const COLOR_AGENT: Color = Color::Rgb(236, 72, 153); // Pink
+use crate::theme::VerbColor;
+
+// Verb colors — delegated to canonical VerbColor from theme/verb.rs's verb icons
+const COLOR_INFER: Color = Color::Rgb(139, 92, 246); // Violet 500 (VerbColor::Infer)
+const COLOR_EXEC: Color = Color::Rgb(245, 158, 11); // Amber 500 (VerbColor::Exec)
+const COLOR_FETCH: Color = Color::Rgb(6, 182, 212); // Cyan 500 (VerbColor::Fetch)
+const COLOR_INVOKE: Color = Color::Rgb(16, 185, 129); // Emerald 500 (VerbColor::Invoke)
+const COLOR_AGENT: Color = Color::Rgb(244, 63, 94); // Rose 500 (VerbColor::Agent)
 
 /// Chat verb types - maps to Nika's 5 semantic verbs
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -47,14 +49,19 @@ impl ChatVerb {
         }
     }
 
-    /// Color for the verb
+    /// Color for the verb (delegates to canonical VerbColor)
     pub fn color(&self) -> Color {
+        self.verb_color().rgb()
+    }
+
+    /// Get the canonical VerbColor for this chat verb
+    pub fn verb_color(&self) -> VerbColor {
         match self {
-            ChatVerb::Infer => COLOR_INFER,
-            ChatVerb::Exec => COLOR_EXEC,
-            ChatVerb::Fetch => COLOR_FETCH,
-            ChatVerb::Invoke => COLOR_INVOKE,
-            ChatVerb::Agent => COLOR_AGENT,
+            ChatVerb::Infer => VerbColor::Infer,
+            ChatVerb::Exec => VerbColor::Exec,
+            ChatVerb::Fetch => VerbColor::Fetch,
+            ChatVerb::Invoke => VerbColor::Invoke,
+            ChatVerb::Agent => VerbColor::Agent,
         }
     }
 
@@ -369,11 +376,20 @@ mod tests {
 
     #[test]
     fn test_verb_colors() {
-        assert_eq!(ChatVerb::Infer.color(), COLOR_INFER);
-        assert_eq!(ChatVerb::Exec.color(), COLOR_EXEC);
-        assert_eq!(ChatVerb::Fetch.color(), COLOR_FETCH);
-        assert_eq!(ChatVerb::Invoke.color(), COLOR_INVOKE);
-        assert_eq!(ChatVerb::Agent.color(), COLOR_AGENT);
+        assert_eq!(ChatVerb::Infer.color(), VerbColor::Infer.rgb());
+        assert_eq!(ChatVerb::Exec.color(), VerbColor::Exec.rgb());
+        assert_eq!(ChatVerb::Fetch.color(), VerbColor::Fetch.rgb());
+        assert_eq!(ChatVerb::Invoke.color(), VerbColor::Invoke.rgb());
+        assert_eq!(ChatVerb::Agent.color(), VerbColor::Agent.rgb());
+    }
+
+    #[test]
+    fn test_verb_color_mapping() {
+        assert_eq!(ChatVerb::Infer.verb_color(), VerbColor::Infer);
+        assert_eq!(ChatVerb::Exec.verb_color(), VerbColor::Exec);
+        assert_eq!(ChatVerb::Fetch.verb_color(), VerbColor::Fetch);
+        assert_eq!(ChatVerb::Invoke.verb_color(), VerbColor::Invoke);
+        assert_eq!(ChatVerb::Agent.verb_color(), VerbColor::Agent);
     }
 
     #[test]

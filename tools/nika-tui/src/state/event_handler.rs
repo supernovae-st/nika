@@ -19,6 +19,9 @@ use super::TuiState;
 
 use crate::theme::{MissionPhase, TaskStatus};
 
+/// Maximum number of entries in token_history and latency_history sparklines
+const MAX_HISTORY_ENTRIES: usize = 50;
+
 impl TuiState {
     /// Handle an event from the runtime
     pub fn handle_event(&mut self, kind: &EventKind, timestamp_ms: u64) {
@@ -299,8 +302,8 @@ impl TuiState {
                     call.duration_ms = Some(*duration_ms);
                 }
 
-                // Track MCP latency for sparkline (keep last 20 values)
-                if self.metrics.latency_history.len() >= 20 {
+                // Track MCP latency for sparkline
+                if self.metrics.latency_history.len() >= MAX_HISTORY_ENTRIES {
                     self.metrics.latency_history.remove(0);
                 }
                 self.metrics.latency_history.push(*duration_ms);
@@ -419,6 +422,9 @@ impl TuiState {
                 // Update metrics
                 if let Some(last_turn) = self.agent.turns.last() {
                     if let Some(tokens) = last_turn.tokens {
+                        if self.metrics.token_history.len() >= MAX_HISTORY_ENTRIES {
+                            self.metrics.token_history.remove(0);
+                        }
                         self.metrics.token_history.push(tokens);
                     }
                 }
@@ -497,10 +503,16 @@ impl TuiState {
                 self.metrics.cache_read_tokens += cache_read_tokens;
                 self.metrics.total_tokens += input_tokens + output_tokens;
                 self.metrics.cost_usd += cost_usd;
+                if self.metrics.token_history.len() >= MAX_HISTORY_ENTRIES {
+                    self.metrics.token_history.remove(0);
+                }
                 self.metrics
                     .token_history
                     .push(input_tokens + output_tokens);
                 if let Some(ttft) = ttft_ms {
+                    if self.metrics.latency_history.len() >= MAX_HISTORY_ENTRIES {
+                        self.metrics.latency_history.remove(0);
+                    }
                     self.metrics.latency_history.push(*ttft);
                     // Calculate tokens/sec from TTFT and push to velocity tracker
                     // TTFT in ms, output_tokens is total - estimate avg rate

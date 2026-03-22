@@ -11,6 +11,7 @@ use ratatui::{
 };
 
 use crate::theme::{TaskStatus, Theme, VerbColor};
+use crate::tokens::compat;
 use crate::utils::truncate_str;
 use ratatui::style::Color;
 
@@ -19,27 +20,27 @@ use ratatui::style::Color;
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Progress bar color (green)
-const DEFAULT_PROGRESS_COLOR: Color = Color::Rgb(34, 197, 94);
+const DEFAULT_PROGRESS_COLOR: Color = compat::GREEN_500;
 /// Failed status color (red)
-const DEFAULT_FAILED_COLOR: Color = Color::Rgb(239, 68, 68);
+const DEFAULT_FAILED_COLOR: Color = compat::RED_500;
 /// Pending/muted content (gray-400)
-const DEFAULT_MUTED_CONTENT_COLOR: Color = Color::Rgb(156, 163, 175);
+const DEFAULT_MUTED_CONTENT_COLOR: Color = compat::GRAY_400;
 /// Active content (gray-100)
 const DEFAULT_ACTIVE_CONTENT_COLOR: Color = Color::Rgb(243, 244, 246);
 /// Pending badge (gray-500)
-const DEFAULT_PENDING_BADGE_COLOR: Color = Color::Rgb(107, 114, 128);
+const DEFAULT_PENDING_BADGE_COLOR: Color = compat::GRAY_500;
 /// Running badge (amber)
-const DEFAULT_RUNNING_BADGE_COLOR: Color = Color::Rgb(245, 158, 11);
+const DEFAULT_RUNNING_BADGE_COLOR: Color = compat::AMBER_500;
 /// Success badge (green)
-const DEFAULT_SUCCESS_BADGE_COLOR: Color = Color::Rgb(34, 197, 94);
+const DEFAULT_SUCCESS_BADGE_COLOR: Color = compat::GREEN_500;
 /// Paused badge (cyan)
-const DEFAULT_PAUSED_BADGE_COLOR: Color = Color::Rgb(6, 182, 212);
+const DEFAULT_PAUSED_BADGE_COLOR: Color = compat::CYAN_500;
 /// For_each indicator (violet)
-const DEFAULT_FOR_EACH_COLOR: Color = Color::Rgb(139, 92, 246);
+const DEFAULT_FOR_EACH_COLOR: Color = compat::VIOLET_500;
 /// Estimate text (gray-500)
-const DEFAULT_ESTIMATE_COLOR: Color = Color::Rgb(107, 114, 128);
+const DEFAULT_ESTIMATE_COLOR: Color = compat::GRAY_500;
 /// Secondary text (gray-400)
-const DEFAULT_SECONDARY_TEXT_COLOR: Color = Color::Rgb(156, 163, 175);
+const DEFAULT_SECONDARY_TEXT_COLOR: Color = compat::GRAY_400;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ANIMATION CONSTANTS

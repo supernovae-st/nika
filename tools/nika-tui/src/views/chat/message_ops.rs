@@ -14,6 +14,8 @@ use super::{categorize_error, ChatMessage, ChatView, ExecutionResult, MessageRol
 
 /// Maximum number of messages to retain in the chat view
 const MAX_MESSAGES: usize = 500;
+/// Maximum number of command history entries to retain
+const MAX_HISTORY: usize = 200;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Message Operations
@@ -47,6 +49,9 @@ impl ChatView {
         });
         self.enforce_message_cap();
         self.history.push(content.clone());
+        if self.history.len() > MAX_HISTORY {
+            self.history.drain(..self.history.len() - MAX_HISTORY);
+        }
         self.history_index = None;
         // When user sends a message, they want to see the response
         self.user_at_bottom = true;
