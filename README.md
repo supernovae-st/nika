@@ -50,6 +50,7 @@ nika run research.nika.yaml
 ## Table of Contents
 
 - [Quick Start](#quick-start)
+- [Learn Nika -- Interactive Course](#learn-nika--interactive-course)
 - [The 5 Verbs](#the-5-verbs)
 - [Data Flow](#data-flow)
 - [Providers](#providers)
@@ -98,12 +99,48 @@ nika run hello.nika.yaml
 nika ui hello.nika.yaml
 ```
 
-Nika scaffolds a complete project with 30 example workflows across 6 tiers:
+Scaffold a minimal project (5 workflows, one per verb):
 
 ```bash
 nika init my-project
 cd my-project
 nika run workflows/hello.nika.yaml
+```
+
+---
+
+## Learn Nika -- Interactive Course
+
+```bash
+nika init --course
+cd nika-course
+nika course status
+```
+
+12 progressive levels. 44 hands-on exercises. From shell commands to full AI orchestration.
+
+| Level | Name | What You Learn |
+|:------|:-----|:---------------|
+| 01 | Jailbreak | exec, fetch, infer -- the 3 core verbs |
+| 02 | Hot Wire | Data bindings, transforms, templates |
+| 03 | Fork Bomb | DAG patterns, parallel execution, for_each |
+| 04 | Root Access | Context files, imports, inputs |
+| 05 | Shapeshifter | Structured output, JSON Schema, artifacts |
+| 06 | Pay-Per-Dream | Multi-provider, native models, cost control |
+| 07 | Swiss Knife | 12 builtin tools, file operations |
+| 08 | Gone Rogue | Autonomous agents, skills, guardrails |
+| 09 | Data Heist | Web scraping, 9 extraction modes |
+| 10 | Open Protocol | MCP integration, NovaNet |
+| 11 | Pixel Pirate | Media pipeline, vision, 26 tools |
+| 12 | SuperNovae | Boss battle -- everything combined |
+
+Track progress, get hints, validate exercises:
+
+```bash
+nika course next      # Next exercise
+nika course check     # Validate your work
+nika course hint      # Progressive hints (no penalty!)
+nika course status    # Constellation map
 ```
 
 ---
@@ -696,8 +733,18 @@ nika chat                                # Direct chat mode
 nika studio workflow.nika.yaml           # Open Studio view
 
 # Initialization
-nika init                                # Create project with 30 example workflows
-nika init --no-example                   # Minimal project structure
+nika init                                # Minimal project (5 workflows, 1 per verb)
+nika init --course                       # Interactive 12-level course (44 exercises)
+
+# Course
+nika course status                       # Constellation progress map
+nika course next                         # Next exercise
+nika course check                        # Validate current exercise
+nika course hint                         # Progressive hints (no penalty)
+nika course run                          # Run current exercise workflow
+nika course info                         # Details about current exercise
+nika course reset                        # Reset progress
+nika course watch                        # Watch mode for exercises
 
 # Providers
 nika provider list                       # Show all providers with key status
