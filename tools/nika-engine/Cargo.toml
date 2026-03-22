@@ -18,6 +18,7 @@ default = ["native-inference", "media-core", "fetch-extract", "fetch-article", "
 nika-daemon = ["dep:spn-client"]  # Use nika daemon for unified secret management
 native-keychain = ["dep:keyring"]  # OS keychain support
 native-inference = ["dep:mistralrs", "dep:async-stream"]  # Native LLM inference via mistral.rs
+lsp = ["dep:tower-lsp-server", "dep:nika-lsp-core", "tokio/io-std", "tokio/io-util"]  # Language Server Protocol support
 
 # Media tool features
 media-core = ["media-thumbnail", "media-metadata", "media-optimize", "media-svg"]
@@ -179,6 +180,10 @@ htmd = { version = "0.5", optional = true }
 dom_smoothie = { version = "0.16", optional = true }
 feed-rs = { version = "2.3", optional = true }
 psl = { version = "2", optional = true }
+
+# LSP Server (feature-gated)
+tower-lsp-server = { version = "0.23", optional = true }
+nika-lsp-core = { workspace = true, optional = true }
 
 # Logging
 tracing = { workspace = true }

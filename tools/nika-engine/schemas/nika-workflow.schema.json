@@ -1,0 +1,1179 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nika.dev/schemas/workflow.json",
+  "title": "Nika Workflow",
+  "description": "Schema for .nika.yaml workflow files - DAG workflow runner for AI tasks",
+  "type": "object",
+  "required": ["schema", "tasks"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "type": "string",
+      "pattern": "^nika/workflow@0\\.[1-9][0-9]?$",
+      "description": "Workflow schema version (nika/workflow@0.1 through @0.99)",
+      "examples": ["nika/workflow@0.10", "nika/workflow@0.12"]
+    },
+    "workflow": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "Workflow identifier (lowercase alphanumeric with hyphens)",
+      "examples": ["generate-page", "seo-pipeline"]
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable workflow description"
+    },
+    "provider": {
+      "type": "string",
+      "enum": ["claude", "openai", "mistral", "groq", "deepseek", "gemini", "xai", "grok", "native", "mock"],
+      "default": "claude",
+      "description": "Default LLM provider for infer and agent tasks (native = local GGUF inference via mistral.rs)"
+    },
+    "model": {
+      "type": "string",
+      "description": "Required for LLM tasks. Model to use for infer/agent verbs (e.g., gpt-4o-mini, claude-sonnet-4-6)",
+      "examples": ["claude-sonnet-4-6", "gpt-4o-mini", "gemini-2.0-flash"]
+    },
+    "context": {
+      "$ref": "#/$defs/ContextSpec",
+      "description": "File loading at workflow start (v0.9+)"
+    },
+    "include": {
+      "type": "array",
+      "description": "External workflows to merge into DAG (v0.9+)",
+      "items": {
+        "$ref": "#/$defs/IncludeSpec"
+      }
+    },
+    "skills": {
+      "type": "object",
+      "description": "Workflow-level skills for prompt augmentation (v0.6+). Map of alias → skill file path.",
+      "additionalProperties": {
+        "type": "string",
+        "description": "Path to skill file (local or pkg: URI)",
+        "examples": ["./skills/writing.skill.md", "pkg:@spn/core@1.0.0/skills/coding.md"]
+      },
+      "examples": [{"seo": "./skills/seo.skill.md", "brand": "./skills/brand.skill.md"}]
+    },
+    "mcp": {
+      "type": "object",
+      "description": "MCP server configurations (v0.2+)",
+      "additionalProperties": {
+        "$ref": "#/$defs/McpServerConfig"
+      }
+    },
+    "tasks": {
+      "type": "array",
+      "description": "List of tasks to execute",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/Task"
+      }
+    },
+    "artifacts": {
+      "$ref": "#/$defs/ArtifactsConfig",
+      "description": "Workflow-level artifact defaults (v0.10+)"
+    },
+    "log": {
+      "$ref": "#/$defs/LogConfig",
+      "description": "Workflow-level logging configuration (v0.10+)"
+    },
+    "agents": {
+      "type": "object",
+      "description": "Reusable agent definitions (v0.6+)",
+      "additionalProperties": {
+        "$ref": "#/$defs/AgentDef"
+      }
+    },
+    "inputs": {
+      "type": "object",
+      "description": "Workflow input parameters (v0.10+)",
+      "additionalProperties": {}
+    }
+  },
+  "$defs": {
+    "ContextSpec": {
+      "type": "object",
+      "description": "Context file loading configuration (v0.9+)",
+      "additionalProperties": false,
+      "properties": {
+        "files": {
+          "type": "object",
+          "description": "File mappings (alias → path)",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "examples": [{"brand": "./context/brand.md", "config": "./settings.json"}]
+        },
+        "session": {
+          "type": "string",
+          "description": "Session file path for state restoration"
+        }
+      }
+    },
+    "IncludeSpec": {
+      "type": "object",
+      "description": "External workflow to merge (v0.9+ path, v0.17+ pkg)",
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Path to external .nika.yaml file"
+        },
+        "pkg": {
+          "type": "string",
+          "pattern": "^[a-z@][a-z0-9@/_.-]*$",
+          "description": "Package reference (v0.17+) e.g., pkg:@spn/workflows@1.0.0/seo.nika.yaml"
+        },
+        "prefix": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Prefix for included task IDs (namespace isolation)"
+        }
+      },
+      "oneOf": [
+        { "required": ["path"] },
+        { "required": ["pkg"] }
+      ]
+    },
+    "McpServerConfig": {
+      "type": "object",
+      "description": "Inline MCP server configuration",
+      "required": ["command"],
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "type": "string",
+          "description": "Command to spawn the MCP server",
+          "examples": ["cargo", "node", "python", "npx"]
+        },
+        "args": {
+          "type": "array",
+          "description": "Arguments to pass to the command",
+          "items": { "type": "string" },
+          "examples": [["run", "-p", "novanet-mcp"]]
+        },
+        "env": {
+          "type": "object",
+          "description": "Environment variables for the server process",
+          "additionalProperties": { "type": "string" }
+        },
+        "cwd": {
+          "type": "string",
+          "description": "Working directory for the server process"
+        }
+      }
+    },
+    "Task": {
+      "type": "object",
+      "description": "A task in the workflow DAG",
+      "required": ["id"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*$",
+          "description": "Unique task identifier (lowercase alphanumeric with underscores/hyphens)"
+        },
+        "with": {
+          "$ref": "#/$defs/BindingSpec",
+          "description": "Data bindings from previous task outputs"
+        },
+        "output": {
+          "$ref": "#/$defs/OutputPolicy",
+          "description": "Output format and validation"
+        },
+        "for_each": {
+          "oneOf": [
+            {
+              "type": "array",
+              "minItems": 1,
+              "items": {}
+            },
+            {
+              "type": "string",
+              "pattern": "^\\$[a-z][a-z0-9_.]*$",
+              "description": "Binding reference to an array (e.g., $locales, $inputs.items) (v0.22+ supports $inputs.*)"
+            },
+            {
+              "type": "string",
+              "pattern": "^\\{\\{(with|inputs|context)\\.[a-z][a-z0-9_.]*\\}\\}$",
+              "description": "Template binding to an array (e.g., {{with.items}}, {{inputs.locales}})"
+            }
+          ],
+          "description": "Array to iterate over in parallel (v0.3+)"
+        },
+        "as": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "default": "item",
+          "description": "Variable name for current iteration value"
+        },
+        "concurrency": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 1,
+          "description": "Maximum parallel executions for for_each"
+        },
+        "fail_fast": {
+          "type": "boolean",
+          "default": true,
+          "description": "Stop all iterations on first error"
+        },
+        "decompose": {
+          "$ref": "#/$defs/DecomposeSpec",
+          "description": "Runtime DAG expansion (v0.5+)"
+        },
+        "infer": {
+          "$ref": "#/$defs/InferParams",
+          "description": "LLM inference task"
+        },
+        "exec": {
+          "$ref": "#/$defs/ExecParams",
+          "description": "Shell command execution task"
+        },
+        "fetch": {
+          "$ref": "#/$defs/FetchParams",
+          "description": "HTTP request task"
+        },
+        "invoke": {
+          "$ref": "#/$defs/InvokeParams",
+          "description": "MCP tool call task (v0.2+)"
+        },
+        "agent": {
+          "$ref": "#/$defs/AgentParams",
+          "description": "Agentic execution task (v0.2+)"
+        },
+        "artifact": {
+          "$ref": "#/$defs/ArtifactSpec",
+          "description": "Task-level artifact output (v0.10+)"
+        },
+        "log": {
+          "$ref": "#/$defs/LogConfig",
+          "description": "Task-level logging override (v0.10+)"
+        },
+        "structured": {
+          "$ref": "#/$defs/StructuredOutputSpec",
+          "description": "Structured output validation with 4-layer defense (v0.21+)"
+        },
+        "provider": {
+          "type": "string",
+          "enum": ["claude", "openai", "mistral", "groq", "deepseek", "gemini", "xai", "grok", "native", "mock"],
+          "description": "Provider override for this task"
+        },
+        "model": {
+          "type": "string",
+          "description": "Model override for this task"
+        },
+        "retry": {
+          "$ref": "#/$defs/RetryConfig",
+          "description": "Retry configuration for this task (v0.19+)"
+        },
+        "depends_on": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]*$"
+          },
+          "description": "Task IDs that must complete before this task."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable task description"
+        }
+      },
+      "oneOf": [
+        { "required": ["id", "infer"] },
+        { "required": ["id", "exec"] },
+        { "required": ["id", "fetch"] },
+        { "required": ["id", "invoke"] },
+        { "required": ["id", "agent"] }
+      ]
+    },
+    "DecomposeSpec": {
+      "type": "object",
+      "description": "Runtime DAG expansion via MCP traversal (v0.5+)",
+      "required": ["strategy"],
+      "additionalProperties": false,
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "enum": ["semantic", "static", "nested"],
+          "description": "Expansion strategy"
+        },
+        "traverse": {
+          "type": "string",
+          "description": "Arc type to follow (for semantic strategy)"
+        },
+        "source": {
+          "type": "string",
+          "description": "Starting node reference (e.g., $entity)"
+        },
+        "mcp_server": {
+          "type": "string",
+          "default": "novanet",
+          "description": "MCP server to use for traversal (default: novanet)"
+        },
+        "max_items": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000,
+          "description": "Maximum items to expand"
+        },
+        "max_depth": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 3,
+          "description": "Maximum recursion depth for nested strategy (default: 3)"
+        }
+      }
+    },
+    "InferParams": {
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Simple prompt string (shorthand)"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "prompt": {
+              "type": "string",
+              "description": "LLM prompt (supports {{with.alias}} templates)"
+            },
+            "temperature": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 2,
+              "description": "LLM temperature (0.0-2.0, higher = more creative)"
+            },
+            "system": {
+              "type": "string",
+              "description": "System prompt (persona/behavior)"
+            },
+            "max_tokens": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000,
+              "description": "Maximum output tokens"
+            },
+            "response_format": {
+              "type": "string",
+              "enum": ["json", "text", "markdown"],
+              "description": "Expected response format (v0.10+)"
+            },
+            "extended_thinking": {
+              "type": "boolean",
+              "default": false,
+              "description": "Enable extended thinking (Claude only, v0.4+)"
+            },
+            "thinking_budget": {
+              "type": "integer",
+              "minimum": 1024,
+              "maximum": 65536,
+              "default": 4096,
+              "description": "Token budget for thinking (requires extended_thinking: true)"
+            },
+            "content": {
+              "type": "array",
+              "description": "Multimodal vision content parts (v0.34+).",
+              "items": { "$ref": "#/$defs/ContentPart" }
+            },
+            "provider": {
+              "type": "string",
+              "description": "Provider override for this task"
+            },
+            "model": {
+              "type": "string",
+              "description": "Model override for this task"
+            },
+            "guardrails": {
+              "type": "array",
+              "description": "Guardrails for validating infer output (v0.12+)",
+              "items": { "$ref": "#/$defs/GuardrailConfig" }
+            }
+          }
+        }
+      ]
+    },
+    "ContentPart": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["type", "text"],
+          "additionalProperties": false,
+          "properties": {
+            "type": { "const": "text" },
+            "text": { "type": "string" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "source"],
+          "additionalProperties": false,
+          "properties": {
+            "type": { "const": "image" },
+            "source": { "type": "string" },
+            "detail": { "type": "string", "enum": ["auto", "low", "high"], "default": "auto" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "url"],
+          "additionalProperties": false,
+          "properties": {
+            "type": { "const": "image_url" },
+            "url": { "type": "string", "format": "uri" },
+            "detail": { "type": "string", "enum": ["auto", "low", "high"], "default": "auto" }
+          }
+        }
+      ]
+    },
+    "ExecParams": {
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Simple command string (shorthand)"
+        },
+        {
+          "type": "object",
+          "required": ["command"],
+          "additionalProperties": false,
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "Shell command to execute (supports {{with.alias}} templates)"
+            },
+            "shell": {
+              "type": "boolean",
+              "default": false,
+              "description": "Execute via shell (default: false for security, set true for pipes/redirects)"
+            },
+            "timeout": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Timeout in seconds"
+            },
+            "cwd": {
+              "type": "string",
+              "description": "Working directory for command"
+            },
+            "env": {
+              "type": "object",
+              "description": "Environment variables to set for the command (v0.22+)",
+              "additionalProperties": { "type": "string" },
+              "examples": [{"NODE_ENV": "production", "DEBUG": "true"}]
+            }
+          }
+        }
+      ]
+    },
+    "FetchParams": {
+      "type": "object",
+      "required": ["url"],
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL to fetch"
+        },
+        "method": {
+          "type": "string",
+          "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
+          "default": "GET",
+          "description": "HTTP method"
+        },
+        "headers": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "HTTP headers"
+        },
+        "body": {
+          "type": "string",
+          "description": "Request body (for POST/PUT/PATCH)"
+        },
+        "json": {
+          "type": "object",
+          "description": "JSON body (auto-serialized, sets Content-Type: application/json) (v0.22+)",
+          "additionalProperties": true
+        },
+        "timeout": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Request timeout in seconds"
+        },
+        "retry": {
+          "$ref": "#/$defs/RetryConfig",
+          "description": "Retry configuration for failed requests (v0.19+)"
+        },
+        "follow_redirects": {
+          "type": "boolean",
+          "description": "Whether to follow HTTP redirects (defaults to true)"
+        },
+        "response": {
+          "type": "string",
+          "enum": ["full", "binary"],
+          "description": "Response mode: full (status + headers + body JSON) or binary (CAS store)"
+        },
+        "extract": {
+          "type": "string",
+          "enum": ["markdown", "article", "text", "selector", "metadata", "links", "jsonpath", "feed", "llm_txt"],
+          "description": "Extraction mode for response body"
+        },
+        "selector": {
+          "type": "string",
+          "description": "CSS selector or JSONPath expression (used with extract: selector, text, jsonpath)"
+        }
+      }
+    },
+    "RetryConfig": {
+      "type": "object",
+      "description": "Retry configuration with exponential backoff (v0.19+)",
+      "additionalProperties": false,
+      "properties": {
+        "max_attempts": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 3,
+          "description": "Maximum retry attempts (default: 3)"
+        },
+        "max_retries": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 3,
+          "description": "Alias for max_attempts (default: 3)"
+        },
+        "delay_ms": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 60000,
+          "default": 1000,
+          "description": "Delay between retries in milliseconds (default: 1000)"
+        },
+        "delay": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60,
+          "description": "Delay between retries in seconds (converted to ms)"
+        },
+        "backoff": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 5,
+          "default": 2,
+          "description": "Backoff multiplier for exponential backoff (default: 2.0)"
+        },
+        "backoff_ms": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 60000,
+          "default": 1000,
+          "description": "Serde alias for delay_ms (delay between retries in milliseconds)"
+        },
+        "multiplier": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 5,
+          "default": 2,
+          "description": "Serde alias for backoff (backoff multiplier)"
+        }
+      }
+    },
+    "InvokeParams": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mcp": {
+          "type": "string",
+          "description": "MCP server name (must match a key in workflow's mcp config)"
+        },
+        "server": {
+          "type": "string",
+          "description": "MCP server name (legacy alias for 'mcp', deprecated)"
+        },
+        "tool": {
+          "type": "string",
+          "description": "Tool name to call"
+        },
+        "params": {
+          "type": "object",
+          "description": "Parameters to pass to the tool"
+        },
+        "timeout": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Timeout in seconds for the MCP tool call"
+        },
+        "resource": {
+          "type": "string",
+          "description": "MCP resource URI to read (mutually exclusive with 'tool')"
+        }
+      },
+      "oneOf": [
+        { "required": ["mcp", "tool"] },
+        { "required": ["server", "tool"] },
+        {
+          "required": ["tool"],
+          "properties": {
+            "tool": {
+              "pattern": "^nika:"
+            }
+          },
+          "not": {
+            "anyOf": [
+              { "required": ["mcp"] },
+              { "required": ["server"] }
+            ]
+          }
+        },
+        { "required": ["mcp", "resource"] },
+        { "required": ["server", "resource"] }
+      ]
+    },
+    "AgentParams": {
+      "type": "object",
+      "required": ["prompt"],
+      "additionalProperties": false,
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "description": "User prompt for the agent"
+        },
+        "system": {
+          "type": "string",
+          "description": "System prompt (agent persona/behavior)"
+        },
+        "provider": {
+          "type": "string",
+          "enum": ["claude", "openai", "mistral", "groq", "deepseek", "gemini", "xai", "grok", "native", "mock"],
+          "description": "Provider override (native = local GGUF inference)"
+        },
+        "model": {
+          "type": "string",
+          "description": "Model override"
+        },
+        "mcp": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "MCP servers the agent can access"
+        },
+        "tools": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Builtin tools the agent can use (nika:read, nika:write, etc.)"
+        },
+        "max_turns": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 10,
+          "description": "Maximum agentic turns"
+        },
+        "depth_limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 3,
+          "description": "Maximum nested agent depth (spawn_agent protection)"
+        },
+        "temperature": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2,
+          "description": "LLM temperature"
+        },
+        "max_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000,
+          "description": "Maximum output tokens per turn (v0.18+)"
+        },
+        "token_budget": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Total token budget for agent execution (v0.5+)"
+        },
+        "extended_thinking": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable extended thinking (Claude only, v0.4+)"
+        },
+        "thinking_budget": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 65536,
+          "default": 4096,
+          "description": "Token budget for thinking (requires extended_thinking: true)"
+        },
+        "tool_choice": {
+          "type": "string",
+          "enum": ["auto", "required", "none"],
+          "default": "auto",
+          "description": "Tool selection behavior (v0.8+)"
+        },
+        "skills": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Skills to inject into agent context (v0.15.4+)"
+        },
+        "stop_sequences": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Sequences that stop generation"
+        },
+        "scope": {
+          "type": "string",
+          "enum": ["full", "minimal", "debug"],
+          "description": "Scope preset for agent capabilities (v0.10+)"
+        },
+        "completion": {
+          "$ref": "#/$defs/CompletionConfig"
+        },
+        "guardrails": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/GuardrailConfig" }
+        },
+        "limits": {
+          "$ref": "#/$defs/LimitsConfig"
+        }
+      }
+    },
+    "BindingSpec": {
+      "type": "object",
+      "description": "Data bindings from previous task outputs",
+      "additionalProperties": {
+        "oneOf": [
+          { "type": "string" },
+          { "$ref": "#/$defs/BindingValue" }
+        ]
+      }
+    },
+    "BindingValue": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Source task.field reference (v0.5+ lazy bindings)"
+        },
+        "from": {
+          "type": "string",
+          "description": "Source task.field reference (legacy)"
+        },
+        "lazy": {
+          "type": "boolean",
+          "default": false,
+          "description": "Defer resolution until first access (v0.5+)"
+        },
+        "default": {
+          "description": "Default value if source is null"
+        },
+        "transform": {
+          "type": "string",
+          "enum": ["json", "yaml", "string", "trim"],
+          "description": "Transform to apply"
+        }
+      }
+    },
+    "OutputPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "type": "string",
+          "enum": ["json", "yaml", "text", "markdown"],
+          "default": "text",
+          "description": "Expected output format"
+        },
+        "schema": {
+          "oneOf": [
+            { "type": "object", "description": "Inline JSON Schema object" },
+            { "type": "string", "description": "Path to JSON Schema file" }
+          ],
+          "description": "JSON Schema for output validation (inline object or file path)"
+        },
+        "max_retries": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10,
+          "default": 2,
+          "description": "Maximum retry attempts on validation failure (v0.10)"
+        }
+      }
+    },
+    "StructuredOutputSpec": {
+      "description": "Structured output validation with 4-layer defense (v0.21+)",
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Shorthand: path to JSON Schema file"
+        },
+        {
+          "type": "object",
+          "required": ["schema"],
+          "additionalProperties": false,
+          "properties": {
+            "schema": {
+              "oneOf": [
+                { "type": "object", "description": "Inline JSON Schema object" },
+                { "type": "string", "description": "Path to JSON Schema file" }
+              ],
+              "description": "JSON Schema for output validation (inline object or file path)"
+            },
+            "enable_extractor": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable Layer 1: rig Extractor (Rust type extraction)"
+            },
+            "enable_tool_injection": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable Layer 0: DynamicSubmitTool injection (v0.28+)"
+            },
+            "enable_tool_use": {
+              "type": "boolean",
+              "default": true,
+              "description": "Legacy alias for enable_tool_injection"
+            },
+            "enable_retry": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable Layer 3: Retry with feedback"
+            },
+            "enable_repair": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable Layer 4: LLM repair"
+            },
+            "max_retries": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10,
+              "default": 2,
+              "description": "Maximum retry attempts for Layer 3"
+            },
+            "repair_model": {
+              "type": "string",
+              "description": "Model to use for Layer 4 repair (defaults to task model)"
+            }
+          }
+        }
+      ],
+      "examples": [
+        "./schemas/user.json",
+        {
+          "schema": "./schemas/product.json",
+          "max_retries": 3,
+          "enable_repair": true
+        },
+        {
+          "schema": {
+            "type": "object",
+            "properties": { "name": { "type": "string" } },
+            "required": ["name"]
+          }
+        }
+      ]
+    },
+    "ArtifactsConfig": {
+      "type": "object",
+      "description": "Workflow-level artifact defaults (v0.10+)",
+      "additionalProperties": false,
+      "properties": {
+        "dir": {
+          "type": "string",
+          "description": "Base directory for artifacts (supports templates)"
+        },
+        "format": {
+          "type": "string",
+          "enum": ["text", "json", "yaml", "binary"],
+          "default": "text",
+          "description": "Default output format"
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["overwrite", "append", "unique", "fail"],
+          "default": "overwrite",
+          "description": "Default write mode"
+        },
+        "manifest": {
+          "type": "boolean",
+          "default": false,
+          "description": "Generate artifacts.json manifest at workflow end"
+        },
+        "max_size": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 104857600,
+          "description": "Maximum artifact size in bytes (default: 100MB)"
+        }
+      }
+    },
+    "ArtifactSpec": {
+      "oneOf": [
+        {
+          "type": "boolean",
+          "description": "Enable/disable artifact using workflow defaults"
+        },
+        {
+          "type": "object",
+          "description": "Single artifact with options",
+          "additionalProperties": false,
+          "required": ["path"],
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Output path (supports templates)"
+            },
+            "source": {
+              "type": "string",
+              "description": "Which binding to save (default: task result)"
+            },
+            "template": {
+              "type": "string",
+              "description": "Template string to render with {{with.*}} bindings (v0.22+)"
+            },
+            "format": {
+              "type": "string",
+              "enum": ["text", "json", "yaml", "binary"],
+              "description": "Output format override"
+            },
+            "mode": {
+              "type": "string",
+              "enum": ["overwrite", "append", "unique", "fail"],
+              "description": "Write mode override"
+            }
+          }
+        },
+        {
+          "type": "array",
+          "description": "Multiple artifacts",
+          "items": {
+            "type": "object",
+            "required": ["path"],
+            "properties": {
+              "path": { "type": "string" },
+              "source": { "type": "string" },
+              "template": { "type": "string", "description": "Template string (v0.22+)" },
+              "format": { "type": "string", "enum": ["text", "json", "yaml", "binary"] },
+              "mode": { "type": "string", "enum": ["overwrite", "append", "unique", "fail"] }
+            }
+          }
+        }
+      ]
+    },
+    "LogConfig": {
+      "type": "object",
+      "description": "Logging configuration (v0.10+)",
+      "additionalProperties": false,
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": ["trace", "debug", "info", "warn", "error"],
+          "default": "info",
+          "description": "Log level"
+        },
+        "format": {
+          "type": "string",
+          "enum": ["text", "json"],
+          "default": "text",
+          "description": "Log output format"
+        },
+        "console": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show logs in console output"
+        },
+        "file": {
+          "type": "string",
+          "description": "Log file path (supports {{context.meta.*}} templates)"
+        }
+      }
+    },
+    "GuardrailConfig": {
+      "type": "object",
+      "description": "Guardrail for validating outputs (v0.12+)",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["length", "schema", "regex", "llm"]
+        },
+        "id": { "type": "string" },
+        "on_failure": {
+          "type": "string",
+          "enum": ["retry", "escalate", "fail"],
+          "default": "retry"
+        },
+        "min_words": { "type": "integer", "minimum": 0 },
+        "max_words": { "type": "integer", "minimum": 0 },
+        "min_chars": { "type": "integer", "minimum": 0 },
+        "max_chars": { "type": "integer", "minimum": 0 },
+        "message": { "type": "string" },
+        "json_schema": { "type": "object" },
+        "pattern": { "type": "string" },
+        "negate": { "type": "boolean", "default": false },
+        "judge_prompt": { "type": "string" },
+        "pass_pattern": { "type": "string" },
+        "judge_model": { "type": "string" },
+        "judge_provider": { "type": "string" }
+      }
+    },
+    "CompletionConfig": {
+      "type": "object",
+      "description": "Agent completion behavior (v0.12+)",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["explicit", "natural", "pattern"],
+          "default": "natural"
+        },
+        "signal": {
+          "type": "object",
+          "properties": {
+            "tool": { "type": "string", "default": "nika:complete" },
+            "fields": {
+              "type": "object",
+              "properties": {
+                "required": { "type": "array", "items": { "type": "string" } },
+                "optional": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          }
+        },
+        "patterns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "value": { "type": "string", "description": "The pattern string" },
+              "type": { "type": "string", "enum": ["exact", "contains", "regex"], "description": "Pattern match type" },
+              "name": { "type": "string", "description": "Pattern name for identification" }
+            }
+          }
+        },
+        "confidence": {
+          "type": "object",
+          "properties": {
+            "threshold": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.7 },
+            "on_low": {
+              "type": "object",
+              "properties": {
+                "action": { "type": "string", "enum": ["retry", "escalate", "accept"], "default": "retry" },
+                "max_retries": { "type": "integer", "minimum": 0, "default": 2 },
+                "feedback": { "type": "string" }
+              }
+            }
+          }
+        },
+        "instruction": {
+          "type": "object",
+          "properties": {
+            "tone": { "type": "string" },
+            "lang": { "type": "string" }
+          }
+        }
+      }
+    },
+    "LimitsConfig": {
+      "type": "object",
+      "description": "Agent execution limits for cost control (v0.12+)",
+      "properties": {
+        "max_turns": { "type": "integer", "minimum": 0 },
+        "max_tokens": { "type": "integer", "minimum": 0 },
+        "max_cost_usd": { "type": "number", "minimum": 0 },
+        "max_duration_secs": { "type": "integer", "minimum": 0 },
+        "on_limit_reached": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": ["complete_partial", "fail", "escalate"],
+              "default": "complete_partial"
+            },
+            "save_progress": { "type": "boolean", "default": true },
+            "message": { "type": "string" }
+          }
+        }
+      }
+    },
+    "AgentDef": {
+      "type": "object",
+      "description": "Reusable agent definition (v0.6+)",
+      "properties": {
+        "system": {
+          "type": "string",
+          "description": "System prompt (agent persona/behavior)"
+        },
+        "provider": {
+          "type": "string",
+          "enum": ["claude", "openai", "mistral", "groq", "deepseek", "gemini", "xai", "grok", "native", "mock"],
+          "description": "Provider override (native = local GGUF inference)"
+        },
+        "model": {
+          "type": "string",
+          "description": "Model override"
+        },
+        "mcp": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "MCP servers the agent can access"
+        },
+        "tools": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Builtin tools the agent can use"
+        },
+        "skills": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Skills to inject into agent"
+        },
+        "max_turns": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 10,
+          "description": "Maximum agentic turns"
+        },
+        "depth_limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 3,
+          "description": "Maximum nested agent depth"
+        },
+        "temperature": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2,
+          "description": "LLM temperature"
+        },
+        "extended_thinking": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable extended thinking (Claude only, v0.4+)"
+        },
+        "thinking_budget": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 65536,
+          "default": 4096,
+          "description": "Token budget for thinking"
+        },
+        "from": {
+          "type": "string",
+          "description": "Reference to another agent definition (v0.13+)"
+        },
+        "file": {
+          "type": "string",
+          "description": "External agent definition file (legacy, use from: instead)"
+        }
+      }
+    }
+  }
+}

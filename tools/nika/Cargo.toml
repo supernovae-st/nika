@@ -19,141 +19,69 @@ name = "nika"
 path = "src/main.rs"
 
 [features]
-default = ["tui", "nika-daemon", "native-inference", "media-core", "fetch-extract", "fetch-article", "fetch-feed", "media-chart", "media-phash", "media-pdf", "media-iqa", "media-qr", "media-compression"]
+default = ["tui", "nika-engine/default"]
 # Only 2 features remain opt-in:
 #   - media-provenance (C2PA): heavy dep (openssl, crypto) + legal/compliance use case
 #   - lsp: editor-specific, not needed for CLI users
-# Everything else is default. Run `nika media tools` to verify.
+# Everything else is default via nika-engine/default.
 tui = ["dep:ratatui", "dep:crossterm", "dep:tui-input", "dep:arboard", "dep:nucleo", "dep:tree-sitter", "dep:tree-sitter-yaml", "dep:streaming-iterator", "dep:git2", "dep:openssl"]
-lsp = ["dep:tower-lsp-server", "tokio/io-std", "tokio/io-util"]  # Language Server Protocol support (v0.23)
-nika-daemon = ["dep:spn-client"]  # Use nika daemon for unified secret management (v0.27)
-native-keychain = ["dep:keyring"]  # OS keychain support (macOS Keychain, Windows Credential Manager, Linux Secret Service)
-native-inference = ["dep:mistralrs", "dep:async-stream"]  # Native LLM inference via mistral.rs (local GGUF models)
+lsp = ["dep:tower-lsp-server", "tokio/io-std", "tokio/io-util", "nika-engine/lsp"]
 integration = []  # Enable integration tests with real MCP servers
 
-# Media tool features (v0.33.0 — PR3a, v0.34.0 — PR3b)
-media-core = ["media-thumbnail", "media-metadata", "media-optimize", "media-svg"]
-media-thumbnail = ["dep:fast_image_resize", "dep:image", "nika-media/media-thumbnail"]
-media-metadata = ["dep:nom-exif", "dep:lofty"]
-media-optimize = ["dep:oxipng"]
-media-svg = ["dep:resvg", "dep:usvg", "dep:tiny-skia", "dep:fontdb"]
-# PR3b features
-media-phash = ["dep:image_hasher", "dep:image"]
-media-pdf = ["dep:pdf-extract"]
-media-chart = ["dep:charts-rs"]
-media-provenance = ["dep:c2pa"]
-# PR4 features
-media-qr = ["dep:qrcode-ai-scanner-core", "dep:image"]
-media-compression = ["dep:zstd", "nika-media/media-compression"]
-media-iqa = ["dep:dssim-core", "dep:rgb", "dep:image"]
-# PR5b features — Web extraction builtins
-fetch-html = ["dep:scraper", "dep:psl"]
-fetch-markdown = ["dep:htmd"]
-fetch-article = ["dep:dom_smoothie", "dep:scraper"]
-fetch-feed = ["dep:feed-rs"]
-fetch-extract = ["fetch-html", "fetch-markdown"]
+# Forwarded features to nika-engine
+nika-daemon = ["nika-engine/nika-daemon"]
+native-keychain = ["nika-engine/native-keychain"]
+native-inference = ["nika-engine/native-inference"]
+media-core = ["nika-engine/media-core"]
+media-thumbnail = ["nika-engine/media-thumbnail"]
+media-metadata = ["nika-engine/media-metadata"]
+media-optimize = ["nika-engine/media-optimize"]
+media-svg = ["nika-engine/media-svg"]
+media-phash = ["nika-engine/media-phash"]
+media-pdf = ["nika-engine/media-pdf"]
+media-chart = ["nika-engine/media-chart"]
+media-provenance = ["nika-engine/media-provenance"]
+media-qr = ["nika-engine/media-qr"]
+media-compression = ["nika-engine/media-compression"]
+media-iqa = ["nika-engine/media-iqa"]
+fetch-html = ["nika-engine/fetch-html"]
+fetch-markdown = ["nika-engine/fetch-markdown"]
+fetch-article = ["nika-engine/fetch-article"]
+fetch-feed = ["nika-engine/fetch-feed"]
+fetch-extract = ["nika-engine/fetch-extract"]
 
 [dependencies]
-# Core crates
-nika-core = { workspace = true }
-nika-event = { workspace = true }
-nika-mcp = { workspace = true }
-nika-media = { workspace = true }
+# Engine crate (all engine logic lives here now)
+nika-engine = { workspace = true }
 
 # CLI
 clap = { workspace = true }
 clap_complete = { workspace = true }
 
-# Async
+# Async runtime (main.rs + TUI)
 tokio = { workspace = true }
-tokio-util = { workspace = true }
-async-trait = { workspace = true }
-backon = { workspace = true }
 
-# Serialization
+# Serialization (used by cli/ and tui/)
 serde = { workspace = true }
 serde_json = { workspace = true }
 toml = { workspace = true }
 
-# YAML parsing
-serde-saphyr = { workspace = true }
-marked-yaml = { workspace = true }
-strsim = { workspace = true }
-indexmap = { workspace = true }
-
-# JSONPath (RFC 9535)
-serde_json_path = { workspace = true }
-
-# JSON Schema validation
-jsonschema = { workspace = true }
-
-# Errors
-thiserror = { workspace = true }
+# Errors (used by main.rs and tui/)
 miette = { workspace = true }
+thiserror = { workspace = true }
 
-# HTTP
-reqwest = { workspace = true }
-url = { workspace = true }
-
-# Cryptographic hashing
-sha2 = { workspace = true }
-
-# Secure credential storage
-keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"], optional = true }
-secrecy = "0.10"
-zeroize = "1.8"
-
-# Unix system calls
-nix = { version = "0.29", features = ["fs", "signal", "process"] }
-
-# Nika daemon client
-spn-client = { version = "0.3.4", optional = true }
-
-# Native inference via mistral.rs
-mistralrs = { version = "0.7", optional = true }
-async-stream = { version = "0.3", optional = true }
-
-# Git integration (TUI only)
-git2 = { version = "0.19", optional = true }
-openssl = { version = "0.10", features = ["vendored"], optional = true }
-
-# Utilities
-regex = { workspace = true }
+# Utilities (used by main.rs, cli/, tui/)
 colored = { workspace = true }
 dotenvy = "0.15"
-dashmap = { workspace = true }
-semver = { workspace = true }
-parking_lot = { workspace = true }
-smallvec = { workspace = true }
-rustc-hash = { workspace = true }
-uuid = { workspace = true }
-dirs = "5.0"
-xxhash-rust = { workspace = true }
-chrono = { workspace = true }
 rand = { workspace = true }
-humantime = { workspace = true }
-shlex = "1.3"
-shellexpand = "3.1"
-unicode-normalization = "0.1"
+chrono = { workspace = true }
+regex = { workspace = true }
+parking_lot = { workspace = true }
+reqwest = { workspace = true }
 
-# Package registry
-urlencoding = "2.1"
-flate2 = "1.1"
-tar = "0.4"
-
-# File System
-camino = { workspace = true }
-ignore = { workspace = true }
-globset = { workspace = true }
-
-# DAG
-petgraph = { workspace = true }
-
-# MCP
-rmcp = { workspace = true }
-
-# LLM Agent Framework
-rig-core = { workspace = true }
+# Logging (setup in main.rs)
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
 
 # TUI (feature-gated)
 ratatui = { version = "0.30", optional = true }
@@ -161,7 +89,7 @@ crossterm = { version = "0.29", features = ["event-stream"], optional = true }
 arboard = { version = "3.4", optional = true }
 nucleo = { version = "0.5", optional = true }
 
-# Syntax Highlighting
+# Syntax Highlighting (TUI)
 tree-sitter = { version = "0.24", optional = true }
 tree-sitter-yaml = { version = "0.7", optional = true }
 streaming-iterator = { version = "0.1", optional = true }
@@ -169,61 +97,27 @@ streaming-iterator = { version = "0.1", optional = true }
 # TUI Text Input
 tui-input = { version = "0.15", features = ["crossterm"], optional = true }
 
-# Unicode text handling
+# Unicode text handling (TUI)
 unicode-width = "0.2"
 terminal_size = "0.4"
+
+# Utilities (used by CLI and TUI)
+rustc-hash = { workspace = true }
+camino = { workspace = true }
+ignore = { workspace = true }
+xxhash-rust = { workspace = true }
+uuid = { workspace = true }
+dirs = "5.0"
+humantime = { workspace = true }
+infer = "0.19"
+
+# Git integration (TUI only)
+git2 = { version = "0.19", optional = true }
+openssl = { version = "0.10", features = ["vendored"], optional = true }
 
 # LSP Server (feature-gated)
 tower-lsp-server = { version = "0.23", optional = true }
 nika-lsp-core = { workspace = true }
-
-# Media pipeline
-blake3 = { workspace = true }
-reflink-copy = "0.1"
-infer = "0.19"
-base64 = { workspace = true }
-mime_guess = "2.0"
-mime = "0.3"
-bytes = "1"
-
-# Media tools — Tier 1
-imagesize = "0.14"
-thumbhash = "0.1"
-color-thief = "0.2"
-rayon = "1.10"
-
-# Media tools — Tier 2 (feature-gated)
-fast_image_resize = { version = "6.0", features = ["image"], optional = true }
-image = { version = "0.25", optional = true, default-features = false, features = ["png", "jpeg", "webp", "gif"] }
-nom-exif = { version = "2.7", optional = true }
-lofty = { version = "0.23", optional = true }
-oxipng = { version = "10.1", optional = true, default-features = false, features = ["parallel"] }
-resvg = { version = "0.47", optional = true }
-usvg = { version = "0.47", optional = true }
-tiny-skia = { version = "0.12", optional = true }
-fontdb = { version = "0.23", optional = true }
-
-# Media tools — Tier 3
-image_hasher = { version = "3.1", optional = true }
-pdf-extract = { version = "0.10", optional = true }
-charts-rs = { version = "0.3", optional = true, features = ["image-encoder"] }
-c2pa = { version = "0.78", optional = true, features = ["rust_native_crypto"] }
-qrcode-ai-scanner-core = { version = "0.2", optional = true }
-zstd = { version = "0.13", optional = true, default-features = false }
-dssim-core = { version = "3.4", optional = true }
-rgb = { version = "0.8", optional = true }
-
-# Web extraction tools
-scraper = { version = "0.22", optional = true, features = ["atomic"] }
-htmd = { version = "0.5", optional = true }
-dom_smoothie = { version = "0.16", optional = true }
-feed-rs = { version = "2.3", optional = true }
-psl = { version = "2", optional = true }
-
-# Logging
-tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
-futures = { version = "0.3.32", default-features = false, features = ["alloc"] }
 
 [dev-dependencies]
 tempfile = { workspace = true }
@@ -234,6 +128,10 @@ criterion = { version = "0.5", features = ["async_tokio"] }
 serial_test = "3.1"
 wiremock = "0.6"
 qrcode = "0.14"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"] }
+dashmap = { workspace = true }
+rig-core = { workspace = true }
+futures = { version = "0.3.32", default-features = false, features = ["alloc"] }
 
 # ═══════════════════════════════════════════════════════════════════════════
 # BENCHMARKS

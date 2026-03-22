@@ -35,8 +35,8 @@
 //! ```
 
 pub mod templates;
-#[cfg(feature = "tui")]
-pub mod wizard;
+// Note: wizard module lives in the `nika` binary crate (cli/new_wizard/)
+// because it depends on TUI crates (ratatui, crossterm).
 
 use crate::error::NikaError;
 use std::fs;

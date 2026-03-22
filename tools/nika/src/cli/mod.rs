@@ -21,3 +21,6 @@ pub mod schema;
 pub mod workflow;
 
 pub mod new_cmd;
+
+#[cfg(feature = "tui")]
+pub mod new_wizard;

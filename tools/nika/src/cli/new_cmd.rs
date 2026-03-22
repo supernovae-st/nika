@@ -61,7 +61,7 @@ pub fn handle_new_command(
     // If wizard flag is set, or no name and no flags, launch wizard
     #[cfg(feature = "tui")]
     if wizard || (name.is_none() && !_has_flags) {
-        let path = nika::new::wizard::run_wizard(output_dir)?;
+        let path = super::new_wizard::run_wizard(output_dir)?;
         if !quiet {
             println!("{} Created: {}", "SUCCESS!".green().bold(), path.display());
             println!("  Run: nika {}", path.display());
