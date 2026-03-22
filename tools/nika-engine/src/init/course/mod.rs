@@ -5,6 +5,9 @@
 //! hints, and progress tracking.
 
 pub mod checks;
+pub mod exercises;
+pub mod exercises_advanced;
+pub mod generator;
 pub mod hints;
 pub mod levels;
 pub mod progress;
