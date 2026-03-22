@@ -2,15 +2,18 @@
 
 # Nika
 
-**Semantic YAML workflow engine for AI**
+**Semantic YAML workflow engine for AI tasks**
 
-[![Version](https://img.shields.io/badge/v0.37.0-7c3aed?style=flat-square&logo=semver&logoColor=white)](CHANGELOG.md)
-[![Schema](https://img.shields.io/badge/schema-nika/workflow@0.12-0ea5e9?style=flat-square)](docs/schema/)
+[![crates.io](https://img.shields.io/crates/v/nika?style=flat-square&logo=rust&logoColor=white&color=e6522c)](https://crates.io/crates/nika)
+[![Version](https://img.shields.io/badge/v0.38.0-7c3aed?style=flat-square&logo=semver&logoColor=white)](CHANGELOG.md)
+[![Schema](https://img.shields.io/badge/schema-nika%2Fworkflow%400.12-0ea5e9?style=flat-square)](docs/schema/)
 [![Rust](https://img.shields.io/badge/rust_1.86+-f97316?style=flat-square&logo=rust&logoColor=white)](https://www.rust-lang.org/)
-[![License](https://img.shields.io/badge/AGPL--3.0-22c55e?style=flat-square&logo=gnu&logoColor=white)](LICENSE)
-[![Tests](https://img.shields.io/badge/7400+_tests-10b981?style=flat-square)](https://github.com/supernovae-st/nika/actions)
+[![License](https://img.shields.io/badge/AGPL--3.0--or--later-22c55e?style=flat-square&logo=gnu&logoColor=white)](LICENSE)
+[![Tests](https://img.shields.io/badge/7450+_tests-10b981?style=flat-square)](https://github.com/supernovae-st/nika/actions)
 
-*5 verbs. 8 providers. 43 builtin tools. One YAML file.*
+Write AI workflows in YAML. Five verbs, eight providers, forty-three builtin tools, one file.
+
+[Quick Start](#quick-start) | [The 5 Verbs](#the-5-verbs) | [Providers](#providers) | [Architecture](#architecture) | [Installation](#installation)
 
 </div>
 
@@ -44,11 +47,36 @@ nika run research.nika.yaml
 
 ---
 
+## Table of Contents
+
+- [Quick Start](#quick-start)
+- [The 5 Verbs](#the-5-verbs)
+- [Data Flow](#data-flow)
+- [Providers](#providers)
+- [Structured Output](#structured-output)
+- [MCP Integration](#mcp-integration)
+- [Builtin Tools](#builtin-tools)
+- [Agent Guardrails](#agent-guardrails)
+- [Terminal UI](#terminal-ui)
+- [Language Server](#language-server)
+- [Architecture](#architecture)
+- [CLI Reference](#cli-reference)
+- [Installation](#installation)
+- [Production Examples](#production-examples)
+- [Error Codes](#error-codes)
+- [Contributing](#contributing)
+- [Ecosystem](#ecosystem)
+
+---
+
 ## Quick Start
 
 ```bash
-# Install from source
-cargo install --git https://github.com/supernovae-st/nika.git
+# Install from crates.io
+cargo install nika
+
+# Or via Homebrew
+brew install supernovae-st/tap/nika
 
 # Set a provider key
 export ANTHROPIC_API_KEY=sk-ant-...
@@ -66,20 +94,44 @@ EOF
 # Run it
 nika run hello.nika.yaml
 
-# Or open the TUI
+# Or open the terminal UI
 nika ui hello.nika.yaml
+```
+
+Nika scaffolds a complete project with 30 example workflows across 6 tiers:
+
+```bash
+nika init my-project
+cd my-project
+nika run workflows/hello.nika.yaml
 ```
 
 ---
 
 ## The 5 Verbs
 
-Every task uses exactly one verb. That's the entire API.
+Every task uses exactly one verb. That is the entire API surface.
 
-### `infer:` — LLM Generation
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'lineColor': '#64748b'}}}%%
+flowchart LR
+    classDef verb fill:#6366f1,stroke:#4f46e5,stroke-width:2px,color:#ffffff
+    classDef target fill:#06b6d4,stroke:#0891b2,stroke-width:2px,color:#ffffff
+
+    INFER[infer]:::verb --> LLM[LLM Providers]:::target
+    EXEC[exec]:::verb --> SHELL[Shell]:::target
+    FETCH[fetch]:::verb --> HTTP[HTTP + Extraction]:::target
+    INVOKE[invoke]:::verb --> MCP[MCP Tools]:::target
+    AGENT[agent]:::verb --> LOOP[Multi-Turn Loop]:::target
+
+    accTitle: The 5 Nika Verbs
+    accDescr: Each verb targets a different execution backend
+```
+
+### `infer:` -- LLM Generation
 
 ```yaml
-# Shorthand
+# Shorthand — just a prompt string
 - id: quick
   infer: "Explain quantum computing in one paragraph"
 
@@ -114,14 +166,14 @@ Every task uses exactly one verb. That's the entire API.
     thinking_budget: 8192
 ```
 
-### `exec:` — Shell Commands
+### `exec:` -- Shell Commands
 
 ```yaml
 # Shorthand
 - id: status
   exec: "git log --oneline -5"
 
-# Full form with timeout
+# Full form with timeout and working directory
 - id: build
   exec:
     command: "cargo build --release"
@@ -129,7 +181,7 @@ Every task uses exactly one verb. That's the entire API.
     cwd: "./project"
 ```
 
-### `fetch:` — HTTP + Extraction
+### `fetch:` -- HTTP + Extraction
 
 ```yaml
 # API call with JSONPath extraction
@@ -151,16 +203,16 @@ Every task uses exactly one verb. That's the entire API.
     url: "https://hnrss.org/frontpage"
     extract: feed
 
-# Binary download to CAS
+# Binary download to content-addressable storage
 - id: download
   fetch:
     url: "https://example.com/image.png"
     response: binary
 ```
 
-**9 extract modes:** `markdown` `article` `text` `selector` `metadata` `links` `jsonpath` `feed` `llm_txt`
+**9 extract modes:** `markdown` | `article` | `text` | `selector` | `metadata` | `links` | `jsonpath` | `feed` | `llm_txt`
 
-### `invoke:` — MCP Tool Calls
+### `invoke:` -- MCP Tool Calls
 
 ```yaml
 # Call any MCP server tool
@@ -170,12 +222,20 @@ Every task uses exactly one verb. That's the entire API.
     tool: read_neo4j_cypher
     params:
       query: "MATCH (n:Entity) RETURN n.name LIMIT 10"
+
+# Call builtin tools directly
+- id: process
+  invoke:
+    tool: nika:thumbnail
+    params:
+      hash: "{{with.img.hash}}"
+      width: 800
 ```
 
-### `agent:` — Multi-Turn Agentic Loops
+### `agent:` -- Multi-Turn Agentic Loops
 
 ```yaml
-# Autonomous agent with tool access
+# Autonomous agent with tool access and guardrails
 - id: researcher
   agent:
     prompt: "Find and summarize recent AI safety papers"
@@ -194,6 +254,22 @@ Every task uses exactly one verb. That's the entire API.
 
 ## Data Flow
 
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'lineColor': '#64748b'}}}%%
+flowchart TD
+    classDef process fill:#6366f1,stroke:#4f46e5,stroke-width:2px,color:#ffffff
+    classDef data fill:#06b6d4,stroke:#0891b2,stroke-width:2px,color:#ffffff
+    classDef decision fill:#f59e0b,stroke:#d97706,stroke-width:2px,color:#ffffff
+
+    A[Task A output]:::data --> B["with: { data: $A }"]:::process
+    B --> T["{{with.data}}"]:::process
+    T --> P["| uppercase | trim"]:::decision
+    P --> R[Resolved value in prompt]:::data
+
+    accTitle: Data Flow
+    accDescr: Tasks pass data downstream via with bindings, templates, and pipe transforms
+```
+
 ### Bindings (`with:`)
 
 Tasks pass data to downstream tasks via `with:` blocks:
@@ -206,7 +282,7 @@ tasks:
   - id: process
     with:
       users: $fetch_data                           # Reference upstream output
-      count: $fetch_data.total ?? 0                # JSONPath + default
+      count: $fetch_data.total ?? 0                # JSONPath + default value
       name: $fetch_data.data[0].name ?? "Unknown"  # Nested path + fallback
     infer:
       prompt: "Found {{with.count}} users. First: {{with.name}}"
@@ -241,17 +317,17 @@ with:
 ```yaml
 - id: step_b
   depends_on: [step_a]         # Explicit dependency
-  with: { result: $step_a }    # Implicit dependency (auto-detected)
+  with: { result: $step_a }    # Implicit dependency (auto-detected from binding)
 ```
 
 ---
 
 ## Providers
 
-8 LLM providers via [rig-core](https://github.com/0xPlaygrounds/rig), plus local inference:
+Eight LLM providers via [rig-core](https://github.com/0xPlaygrounds/rig), plus local inference:
 
-| Provider | Env Variable | Models |
-|:---------|:-------------|:-------|
+| Provider | Env Variable | Example Models |
+|:---------|:-------------|:---------------|
 | **Claude** | `ANTHROPIC_API_KEY` | opus-4, sonnet-4, haiku-3.5 |
 | **OpenAI** | `OPENAI_API_KEY` | gpt-4o, gpt-4-turbo, o1 |
 | **Mistral** | `MISTRAL_API_KEY` | mistral-large, codestral |
@@ -281,7 +357,7 @@ tasks:
 
 ### Native Inference
 
-Run models locally via [mistral.rs](https://github.com/EricLBuehler/mistral.rs) — no API keys, no network:
+Run models locally via [mistral.rs](https://github.com/EricLBuehler/mistral.rs) -- no API keys, no network:
 
 ```bash
 nika model list                                    # Browse available models
@@ -291,47 +367,34 @@ nika model vision Qwen/Qwen2.5-VL-7B-Instruct     # Vision-capable models
 
 ---
 
-## Media Tools
+## Structured Output
 
-26 builtin media tools organized in 3 tiers, accessible via `invoke: nika:*`:
+Five-layer defense for guaranteed JSON schema compliance:
 
-### Tier 1 — Always On
+```yaml
+- id: extract
+  infer:
+    prompt: "Extract entities from: {{with.text}}"
+    output:
+      format: json
+      schema:
+        type: object
+        required: [entities]
+        properties:
+          entities:
+            type: array
+            items:
+              type: object
+              required: [name, type, confidence]
+```
 
-| Tool | Purpose |
-|:-----|:--------|
-| `nika:import` | Import any file into CAS (content-addressable storage) |
-| `nika:dimensions` | Image dimensions from headers (~0.1ms) |
-| `nika:thumbhash` | 25-byte compact image placeholder |
-| `nika:dominant_color` | Color palette extraction |
-| `nika:pipeline` | Chain operations in-memory (zero intermediate files) |
-
-### Tier 2 — Default (`media-core`)
-
-| Tool | Purpose |
-|:-----|:--------|
-| `nika:thumbnail` | SIMD-accelerated resize (Lanczos3) |
-| `nika:convert` | Format conversion (PNG/JPEG/WebP) |
-| `nika:strip` | Remove EXIF/metadata |
-| `nika:metadata` | Universal EXIF/audio/video metadata |
-| `nika:optimize` | Lossless PNG optimization (oxipng) |
-| `nika:svg_render` | SVG to PNG rasterization (resvg) |
-
-### Tier 3 — Opt-In
-
-| Tool | Feature Flag | Purpose |
-|:-----|:-------------|:--------|
-| `nika:phash` | `media-phash` | Perceptual image hashing |
-| `nika:compare` | `media-phash` | Visual similarity comparison |
-| `nika:pdf_extract` | `media-pdf` | PDF text extraction |
-| `nika:chart` | `media-chart` | Bar/line/pie charts from JSON |
-| `nika:provenance` | `media-provenance` | C2PA content credentials (sign) |
-| `nika:verify` | `media-provenance` | C2PA verification + EU AI Act compliance |
-| `nika:qr_validate` | `media-qr` | QR decode + 0-100 quality score |
-| `nika:quality` | `media-iqa` | Image quality assessment (DSSIM/SSIM) |
-
-Plus 5 web extraction tools: `nika:html_to_md`, `nika:css_select`, `nika:extract_metadata`, `nika:extract_links`, `nika:readability`
-
-All media is stored in a **Content-Addressable Store** (CAS) using blake3 hashing with zstd compression.
+| Layer | Strategy | When |
+|:------|:---------|:-----|
+| **0** | Provider-native schema enforcement (DynamicSubmitTool) | Always tried first |
+| **1** | rig Extractor (schemars) | Future |
+| **2** | Extract + Validate JSON | Fallback |
+| **3** | Retry with error feedback | On validation failure |
+| **4** | LLM repair call | Last resort |
 
 ---
 
@@ -365,44 +428,67 @@ tasks:
       max_turns: 10
 ```
 
-**100 MCP server aliases** built-in — use common names like `neo4j`, `filesystem`, `web_search`, `slack`, `github` and Nika auto-resolves the full server configuration.
+**100 MCP server aliases** are built in -- use common names like `neo4j`, `filesystem`, `web_search`, `slack`, `github` and Nika auto-resolves the full server configuration.
 
 ---
 
-## Structured Output
+## Builtin Tools
 
-5-layer defense for guaranteed JSON schema compliance:
+43 builtin tools accessible via `invoke: nika:*`, organized in three tiers.
 
-```yaml
-- id: extract
-  infer:
-    prompt: "Extract entities from: {{with.text}}"
-    output:
-      format: json
-      schema:
-        type: object
-        required: [entities]
-        properties:
-          entities:
-            type: array
-            items:
-              type: object
-              required: [name, type, confidence]
-```
+### Tier 1 -- Always On (5 tools)
 
-| Layer | Strategy | When |
-|:------|:---------|:-----|
-| **0** | Provider-native schema enforcement (DynamicSubmitTool) | Always tried first |
-| **1** | rig Extractor (schemars) | Future |
-| **2** | Extract + Validate JSON | Fallback |
-| **3** | Retry with error feedback | On validation failure |
-| **4** | LLM repair call | Last resort |
+| Tool | Purpose |
+|:-----|:--------|
+| `nika:import` | Import any file into CAS (content-addressable storage) |
+| `nika:dimensions` | Image dimensions from headers (~0.1ms) |
+| `nika:thumbhash` | 25-byte compact image placeholder |
+| `nika:dominant_color` | Color palette extraction |
+| `nika:pipeline` | Chain operations in-memory (zero intermediate files) |
+
+### Tier 2 -- Default, `media-core` (6 tools)
+
+| Tool | Purpose |
+|:-----|:--------|
+| `nika:thumbnail` | SIMD-accelerated resize (Lanczos3) |
+| `nika:convert` | Format conversion (PNG/JPEG/WebP) |
+| `nika:strip` | Remove EXIF/metadata |
+| `nika:metadata` | Universal EXIF/audio/video metadata |
+| `nika:optimize` | Lossless PNG optimization (oxipng) |
+| `nika:svg_render` | SVG to PNG rasterization (resvg) |
+
+### Tier 3 -- Opt-In (8 tools)
+
+| Tool | Feature Flag | Purpose |
+|:-----|:-------------|:--------|
+| `nika:phash` | `media-phash` | Perceptual image hashing |
+| `nika:compare` | `media-phash` | Visual similarity comparison |
+| `nika:pdf_extract` | `media-pdf` | PDF text extraction |
+| `nika:chart` | `media-chart` | Bar/line/pie charts from JSON data |
+| `nika:provenance` | `media-provenance` | C2PA content credentials (sign) |
+| `nika:verify` | `media-provenance` | C2PA verification + EU AI Act compliance |
+| `nika:qr_validate` | `media-qr` | QR decode + 0-100 quality score |
+| `nika:quality` | `media-iqa` | Image quality assessment (DSSIM/SSIM) |
+
+### Web Extraction (5 tools)
+
+| Tool | Feature Flag | Purpose |
+|:-----|:-------------|:--------|
+| `nika:html_to_md` | `fetch-markdown` | HTML to clean Markdown (htmd) |
+| `nika:css_select` | `fetch-html` | CSS selector extraction (scraper) |
+| `nika:extract_metadata` | `fetch-html` | OG, Twitter Cards, JSON-LD, SEO metadata |
+| `nika:extract_links` | `fetch-html` | Rich link classification (internal/external/nav/content) |
+| `nika:readability` | `fetch-article` | Article content extraction (dom_smoothie) |
+
+Plus 12 core file tools (read, write, edit, glob, grep, and more) and 7 agent tools (complete, feedback, etc.).
+
+All media is stored in a **Content-Addressable Store** (CAS) using blake3 hashing with zstd compression and reflink-copy.
 
 ---
 
 ## Agent Guardrails
 
-Validate and constrain agent outputs:
+Validate and constrain agent outputs at multiple levels:
 
 ```yaml
 - id: writer
@@ -424,13 +510,13 @@ Validate and constrain agent outputs:
 
 ---
 
-## TUI
+## Terminal UI
 
 Three views for the complete workflow lifecycle:
 
 ```
 +-----------------------------------------------------------------------------+
-| Nika Studio                                                  v0.37.0        |
+| Nika Studio                                                  v0.38.0        |
 |-----------------------------------------------------------------------------|
 | +- Files ----------+ +- Editor ------------------------------------------+ |
 | | > workflows/     | |  1 | schema: "nika/workflow@0.12"                 | |
@@ -468,17 +554,19 @@ Three views for the complete workflow lifecycle:
 
 ---
 
-## LSP
+## Language Server
 
 Full Language Server Protocol support for external editors:
 
 ```bash
-# Standalone LSP server
-cargo install --git https://github.com/supernovae-st/nika.git --bin nika-lsp
+# Standalone LSP binary
+cargo install nika-lsp
 
-# Or via VS Code extension
+# Via VS Code extension
 code --install-extension supernovae.nika-vscode
 ```
+
+16 capabilities:
 
 | Capability | Details |
 |:-----------|:--------|
@@ -494,46 +582,100 @@ code --install-extension supernovae.nika-vscode
 | **Document Links** | Clickable references to tasks and files |
 | **Folding Ranges** | Collapse tasks, with: blocks, MCP configs |
 | **References** | Find all references to a task ID |
+| **Rename** | Rename task IDs across all references |
+| **Formatting** | Standardize YAML formatting |
+| **Selection Range** | Smart expand/shrink selection |
+| **Signature Help** | Parameter hints for verbs and tools |
 
 ---
 
 ## Architecture
 
-```
-                    Three-Phase AST Pipeline
-                    ========================
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'lineColor': '#64748b'}}}%%
+flowchart TD
+    classDef process fill:#6366f1,stroke:#4f46e5,stroke-width:2px,color:#ffffff
+    classDef data fill:#06b6d4,stroke:#0891b2,stroke-width:2px,color:#ffffff
+    classDef decision fill:#f59e0b,stroke:#d97706,stroke-width:2px,color:#ffffff
+    classDef success fill:#10b981,stroke:#059669,stroke-width:2px,color:#ffffff
+    classDef external fill:#64748b,stroke:#475569,stroke-width:2px,color:#ffffff
 
-  .nika.yaml ──> Raw Parser ──> Analyzer ──> Lower ──> Runtime
-                  (spans)       (validate)   (types)     |
-                                                         |
-                 ┌───────────────────────────────────────┘
-                 |
-          ┌──────┴──────┐
-          │  DAG Engine  │
-          │  (petgraph)  │
-          └──────┬──────┘
-                 |
-     ┌───────────┼───────────┐
-     |           |           |
-  ┌──┴──┐  ┌────┴────┐  ┌───┴───┐
-  │infer│  │  fetch   │  │invoke │  + exec, agent
-  └──┬──┘  └────┬────┘  └───┬───┘
-     |           |           |
-  ┌──┴──────────┴───────────┴──┐
-  │        8 LLM Providers      │
-  │     MCP Server Pool         │
-  │     43 Builtin Tools        │
-  │     CAS Media Store         │
-  └─────────────────────────────┘
+    YAML[".nika.yaml"]:::data
+    RAW["Phase 1: Raw Parser (spans)"]:::process
+    ANA["Phase 2: Analyzer (validate)"]:::decision
+    LOW["Phase 3: Lower (runtime types)"]:::process
+    DAG["DAG Engine (petgraph)"]:::process
+
+    YAML --> RAW --> ANA --> LOW --> DAG
+
+    subgraph Execution
+        INF[infer]:::process
+        EXC[exec]:::process
+        FET[fetch]:::process
+        INV[invoke]:::process
+        AGT[agent]:::process
+    end
+
+    DAG --> INF & EXC & FET & INV & AGT
+
+    subgraph Backends
+        PROV["8 LLM Providers"]:::external
+        MCPS["MCP Server Pool"]:::external
+        BUILT["43 Builtin Tools"]:::success
+        CAS["CAS Media Store"]:::data
+    end
+
+    INF & AGT --> PROV
+    INV & AGT --> MCPS
+    INV --> BUILT
+    BUILT --> CAS
+
+    accTitle: Nika Architecture
+    accDescr: Three-phase AST pipeline feeding a DAG engine that dispatches to 5 verb executors backed by providers, MCP servers, builtin tools, and CAS
 ```
+
+### Three-Phase AST Pipeline
+
+Inspired by rustc, the AST passes through three distinct phases with increasing guarantees:
+
+1. **Raw** -- YAML is parsed with source spans preserved for error reporting
+2. **Analyzed** -- Validation, binding resolution, dependency detection, schema compliance
+3. **Lowered** -- Conversion to concrete runtime types ready for execution
 
 ### Key Design Decisions
 
-- **Three-phase AST** — Raw (spans) → Analyzed (validated) → Lowered (runtime). rustc-inspired, pure guarantees at each phase.
-- **Immutable DAG** — After construction, the dependency graph is frozen for safe concurrent execution.
-- **Content-Addressable Storage** — blake3 hashing, zstd compression, reflink-copy. Media never duplicated.
-- **Event Sourcing** — 41 event types, NDJSON traces, full replay capability.
-- **Zero Cypher** — Nika never talks to databases directly. All graph access goes through MCP.
+- **Immutable DAG** -- After construction, the dependency graph is frozen for safe concurrent execution via petgraph
+- **Content-Addressable Storage** -- blake3 hashing, zstd compression, reflink-copy; media is never duplicated
+- **Event Sourcing** -- 41 event types emitted as NDJSON traces with full replay capability
+- **Zero Cypher** -- Nika never talks to databases directly; all graph access goes through MCP
+
+### 10 Workspace Crates
+
+```
+nika/tools/
+├── nika/               Binary entry point (2k LOC) .... cargo install nika
+├── nika-engine/        Embeddable runtime (115k LOC) .. cargo add nika-engine
+│   ├── runtime/        DAG execution + 5 verb implementations
+│   ├── provider/       8 LLM providers (rig-core + mistral.rs)
+│   ├── dag/            Graph validation + execution ordering
+│   ├── binding/        Templates, transforms, JSONPath
+│   ├── tools/          File tools (read, write, edit, glob, grep)
+│   └── builtin/        43 builtin tools (file, media, web)
+├── nika-core/          AST, types, catalogs (30k LOC) -- zero I/O
+├── nika-event/         EventLog, TraceWriter (4k LOC)
+├── nika-mcp/           MCP client, rmcp adapter (7.5k LOC)
+├── nika-media/         CAS store, media processor (3.5k LOC)
+├── nika-cli/           CLI subcommands (5.5k LOC)
+├── nika-tui/           Terminal UI with ratatui (90k LOC)
+├── nika-lsp-core/      Protocol-agnostic LSP intelligence (9k LOC)
+└── nika-lsp/           Standalone LSP server binary (2k LOC)
+```
+
+To embed Nika's engine in your own Rust application without pulling in TUI or CLI dependencies:
+
+```bash
+cargo add nika-engine
+```
 
 ---
 
@@ -545,7 +687,7 @@ nika run workflow.nika.yaml              # Execute a workflow
 nika run workflow.nika.yaml --detail max # Verbose output with all events
 nika run workflow.nika.yaml --quiet      # Single-line summary
 nika check workflow.nika.yaml            # Validate without executing
-nika check workflow.nika.yaml --strict   # + MCP server connectivity
+nika check workflow.nika.yaml --strict   # + MCP server connectivity checks
 
 # Interactive
 nika ui                                  # Launch TUI
@@ -587,15 +729,73 @@ nika config list                         # Show all settings
 nika config get KEY                      # Get a setting
 nika config set KEY VALUE                # Set a setting
 
-# Schema
-nika schema list                         # List known schema versions
-nika schema validate workflow.nika.yaml  # Validate against schema
-
 # System
 nika doctor                              # Full system health check
 nika doctor --full                       # + LSP, editor, MSRV checks
 nika completion bash|zsh|fish            # Shell completions
 ```
+
+---
+
+## Installation
+
+### From crates.io
+
+```bash
+cargo install nika
+```
+
+### Homebrew
+
+```bash
+brew install supernovae-st/tap/nika
+```
+
+### From Source
+
+```bash
+git clone https://github.com/supernovae-st/nika.git
+cd nika
+cargo install --path tools/nika
+```
+
+### Verify
+
+```bash
+nika --version       # nika 0.38.0
+nika doctor          # Full system health check
+```
+
+### Feature Flags
+
+Nika ships with sensible defaults. Customize at build time:
+
+```bash
+# Minimal build (no TUI, no native inference, no media)
+cargo install --path tools/nika --no-default-features
+
+# With specific features
+cargo install --path tools/nika --features "tui,native-inference,media-core"
+```
+
+| Feature | Default | Description |
+|:--------|:--------|:------------|
+| `tui` | yes | Terminal UI (ratatui, tree-sitter, git2) |
+| `native-inference` | yes | Local GGUF models via mistral.rs |
+| `media-core` | yes | Tier 2 media tools (thumbnail, convert, etc.) |
+| `media-phash` | yes | Perceptual hashing + comparison |
+| `media-pdf` | yes | PDF text extraction |
+| `media-chart` | yes | Chart generation from JSON data |
+| `media-qr` | yes | QR code validation |
+| `media-iqa` | yes | Image quality assessment |
+| `media-provenance` | no | C2PA signing + verification |
+| `media-compression` | yes | zstd CAS compression |
+| `fetch-extract` | yes | HTML extraction (text, selector, metadata, links) |
+| `fetch-markdown` | yes | HTML to Markdown (htmd) |
+| `fetch-article` | yes | Article extraction (dom_smoothie) |
+| `fetch-feed` | yes | RSS/Atom/JSON Feed parsing |
+| `lsp` | no | Standalone LSP server binary |
+| `nika-daemon` | yes | Background daemon for key management |
 
 ---
 
@@ -750,93 +950,9 @@ tasks:
 
 ---
 
-## Installation
-
-### From Source (recommended)
-
-```bash
-cargo install --git https://github.com/supernovae-st/nika.git
-```
-
-### Clone and Build
-
-```bash
-git clone https://github.com/supernovae-st/nika.git
-cd nika && cargo install --path tools/nika
-```
-
-### Verify
-
-```bash
-nika --version       # nika 0.37.0
-nika doctor          # Full system health check
-```
-
-### Feature Flags
-
-Nika ships with 22 default features enabled. Customize at build time:
-
-```bash
-# Minimal (no TUI, no native inference, no media)
-cargo install --path tools/nika --no-default-features
-
-# With specific features
-cargo install --path tools/nika --features "tui,native-inference,media-core"
-```
-
-| Feature | Default | Description |
-|:--------|:--------|:------------|
-| `tui` | yes | Terminal UI (ratatui, tree-sitter, git2) |
-| `native-inference` | yes | Local GGUF models via mistral.rs |
-| `media-core` | yes | Tier 2 media tools (thumbnail, convert, etc.) |
-| `media-phash` | yes | Perceptual hashing + comparison |
-| `media-pdf` | yes | PDF text extraction |
-| `media-chart` | yes | Chart generation from JSON |
-| `media-qr` | yes | QR code validation |
-| `media-iqa` | yes | Image quality assessment |
-| `media-provenance` | no | C2PA signing + verification |
-| `media-compression` | yes | zstd CAS compression |
-| `fetch-extract` | yes | HTML extraction (text, selector, metadata, links) |
-| `fetch-markdown` | yes | HTML to Markdown (htmd) |
-| `fetch-article` | yes | Article extraction (dom_smoothie) |
-| `fetch-feed` | yes | RSS/Atom/JSON Feed parsing |
-| `lsp` | no | Standalone LSP server binary |
-| `nika-daemon` | yes | Background daemon for key management |
-
----
-
-## Project Structure
-
-```
-nika/
-├── tools/
-│   ├── nika/src/               # Main binary (100k+ LOC)
-│   │   ├── ast/                # Three-phase AST pipeline (40+ files)
-│   │   ├── runtime/            # DAG execution + 5 verb implementations
-│   │   │   ├── executor/       # Task dispatch + verb runners
-│   │   │   └── builtin/        # 43 builtin tools (file, media, web)
-│   │   ├── mcp/                # MCP client pool (rmcp 0.16)
-│   │   ├── provider/           # 8 LLM providers (rig-core + mistral.rs)
-│   │   ├── tui/                # Terminal UI (3 views, 40+ files)
-│   │   ├── binding/            # Data flow: templates, transforms, JSONPath
-│   │   ├── dag/                # Graph validation + execution ordering
-│   │   ├── event/              # 41 event types + NDJSON tracing
-│   │   ├── media/              # CAS store + blake3 + zstd
-│   │   └── cli/                # CLI subcommands
-│   ├── nika-core/              # Zero-dep AST core (fast compilation)
-│   ├── nika-lsp-core/          # Protocol-agnostic LSP intelligence
-│   └── nika-lsp/               # Standalone LSP server
-├── examples/                   # 32 example workflows
-├── editors/nika-vscode/        # VS Code extension
-├── docs/                       # Documentation
-└── spec/                       # Formal specification
-```
-
----
-
 ## Error Codes
 
-Nika uses structured error codes (`NIKA-XXX`) for every failure:
+Nika uses structured error codes (`NIKA-XXX`) for every failure mode:
 
 | Range | Category |
 |:------|:---------|
@@ -847,10 +963,19 @@ Nika uses structured error codes (`NIKA-XXX`) for every failure:
 | `040-049` | Template/binding resolution |
 | `050-059` | Security (path traversal, blocked commands) |
 | `060-069` | Output validation (JSON schema) |
+| `070-089` | With block + DAG validation |
+| `090-099` | JSONPath/IO/Execution |
 | `100-109` | MCP (connection, tool errors) |
 | `110-119` | Agent + Guardrails |
-| `200-219` | Builtin tools |
+| `120-129` | Resilience |
+| `140-151` | AST analysis (Phase 2) |
+| `160-164` | Policy/Boot |
+| `170-179` | Runtime (decompose) |
+| `200-219` | File tools + Builtin tools |
 | `251-259` | Media pipeline |
+| `260-269` | Package URI |
+| `270-279` | Skills |
+| `280-285` | Artifacts + Media |
 | `290-297` | Media tools |
 | `300-309` | Structured output |
 
@@ -862,20 +987,23 @@ Nika uses structured error codes (`NIKA-XXX`) for every failure:
 git clone https://github.com/supernovae-st/nika.git
 cd nika
 
-cargo build                       # Build
-cargo test --lib                  # Run 7400+ tests (safe, no keychain popups)
+cargo build                       # Build all 10 crates
+cargo test --lib                  # Run 7450+ tests (safe, no keychain popups)
 cargo clippy -- -D warnings       # Zero warnings policy
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+> **Warning:** `cargo test` (without `--lib`) runs contract tests that trigger macOS Keychain popups. Always use `cargo test --lib` for safe local testing.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for full guidelines.
 
 ### Conventions
 
-- **Tests first** — TDD preferred, edge cases always
-- **Error codes** — `NikaError` with `NIKA-XXX`, never `anyhow`
-- **AST phases** — Always Raw → Analyzed → Lower, never skip
-- **Extensions** — `.nika.yaml` for workflows
-- **Zero Cypher** — Use MCP `invoke:`, never direct database access
+- **Tests first** -- TDD preferred, edge cases always
+- **Error codes** -- `NikaError` with `NIKA-XXX`, never `anyhow`
+- **AST phases** -- Always Raw then Analyzed then Lower, never skip
+- **Extensions** -- `.nika.yaml` for workflows
+- **Zero Cypher** -- Use MCP `invoke:`, never direct database access
+- **Commits** -- `type(scope): description` with co-author lines
 
 ---
 
@@ -883,22 +1011,41 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 Nika is the workflow engine of the **SuperNovae** ecosystem:
 
-```
-NovaNet (Brain)              Nika (Body)
-├── Knowledge Graph    <──>  ├── YAML Workflows
-├── Node/Arc Schema    MCP   ├── 5 Verbs + DAG Engine
-├── MCP Server         ───>  ├── 8 LLM Providers
-└── Neo4j                    └── 43 Builtin Tools
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'lineColor': '#64748b'}}}%%
+flowchart LR
+    classDef brain fill:#8b5cf6,stroke:#7c3aed,stroke-width:2px,color:#ffffff
+    classDef body fill:#6366f1,stroke:#4f46e5,stroke-width:2px,color:#ffffff
+    classDef protocol fill:#f59e0b,stroke:#d97706,stroke-width:2px,color:#ffffff
+
+    subgraph NovaNet ["NovaNet (Brain)"]
+        KG[Knowledge Graph]:::brain
+        SCHEMA[Node/Arc Schema]:::brain
+        MCPSVR[MCP Server]:::brain
+        NEO[Neo4j]:::brain
+    end
+
+    subgraph Nika ["Nika (Body)"]
+        WF[YAML Workflows]:::body
+        VERBS[5 Verbs + DAG]:::body
+        PROVIDERS[8 LLM Providers]:::body
+        TOOLS[43 Builtin Tools]:::body
+    end
+
+    MCPSVR <-->|MCP Protocol| WF
+
+    accTitle: SuperNovae Ecosystem
+    accDescr: NovaNet serves as the brain with knowledge graph and MCP server, Nika serves as the body with workflow execution
 ```
 
 ---
 
 <div align="center">
 
-**Nika v0.37.0** | Schema `nika/workflow@0.12` | Rust 1.86+ | AGPL-3.0
+**Nika v0.38.0** | Schema `nika/workflow@0.12` | Rust 1.86+ | AGPL-3.0-or-later
 
-7400+ tests | 100k+ LOC | 0 clippy warnings | 0.x.x forever
+270k+ LOC across 10 crates | 7,450+ tests | 0 clippy warnings
 
-[SuperNovae Studio](https://supernovae.studio) — [QR Code AI](https://qrcode-ai.com) — [GitHub](https://github.com/supernovae-st/nika)
+[SuperNovae Studio](https://supernovae.studio) | [QR Code AI](https://qrcode-ai.com) | [GitHub](https://github.com/supernovae-st/nika)
 
 </div>
