@@ -34,7 +34,7 @@ use serde::{Deserialize, Serialize};
 /// # Example
 ///
 /// ```rust
-/// use nika::mcp::McpErrorCode;
+/// use nika_mcp::McpErrorCode;
 ///
 /// let code = McpErrorCode::from_code(-32602);
 /// assert_eq!(code, McpErrorCode::InvalidParams);

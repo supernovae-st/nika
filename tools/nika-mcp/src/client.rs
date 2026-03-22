@@ -6,7 +6,7 @@
 //! ## Usage
 //!
 //! ```rust,ignore
-//! use nika::mcp::{McpClient, McpConfig};
+//! use nika_mcp::{McpClient, McpConfig};
 //! use serde_json::json;
 //!
 //! // Create client from config

@@ -23,7 +23,7 @@
 //! ## Usage
 //!
 //! ```rust,ignore
-//! use nika::mcp::{JsonRpcRequest, JsonRpcResponse};
+//! use nika_mcp::{JsonRpcRequest, JsonRpcResponse};
 //! use serde_json::json;
 //!
 //! // Create a request

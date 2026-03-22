@@ -11,7 +11,7 @@
 //! ## Usage
 //!
 //! ```rust,ignore
-//! use nika::mcp::validation::{McpValidator, ValidationConfig};
+//! use nika_mcp::validation::{McpValidator, ValidationConfig};
 //!
 //! let validator = McpValidator::new(ValidationConfig::default());
 //! validator.cache().populate("novanet", &tools)?;

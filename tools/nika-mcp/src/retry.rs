@@ -113,7 +113,7 @@ pub fn is_retryable_mcp_error(error: &McpError) -> bool {
 /// # Example
 ///
 /// ```ignore
-/// use nika::mcp::retry::{retry_mcp_call, McpRetryConfig};
+/// use nika_mcp::retry::{retry_mcp_call, McpRetryConfig};
 ///
 /// let result = retry_mcp_call(
 ///     McpRetryConfig::default(),
