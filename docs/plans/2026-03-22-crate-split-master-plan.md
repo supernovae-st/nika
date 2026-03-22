@@ -37,12 +37,31 @@ Synced nika-core's AST with nika's version (nika is source of truth):
 - nika: 6288 tests
 - Total: 7105 (up from 7045 due to regression tests added)
 
-### Next Session Plan
-1. Extract nika-dag (now unblocked by AST sync)
-2. Extract nika-mcp (now unblocked)
-3. Extract nika-media
-4. Extract nika-runtime (the big one)
-5. Extract nika-tui
+### Session 1 Continued — nika-mcp + nika-media extracted
+- [x] Phase 3: nika-mcp extracted (7490 lines, 272 tests, McpError, isolates rmcp)
+- [x] Phase 4: nika-media extracted (3469 lines, 120 tests, CAS + processor)
+- [x] Phase 6: nika-tui attempted — BLOCKED by circular dependency
+  - nika-tui → nika (for runtime/provider) → nika-tui = CYCLE
+  - Cargo does NOT allow cycles even with feature gating
+  - **Requires nika-runtime extraction first** (breaks the cycle)
+
+**Final test counts:**
+- nika-core: 689 tests
+- nika-event: 128 tests
+- nika-mcp: 272 tests
+- nika-media: 120 tests
+- nika: 5895 tests
+- Total: 7104
+
+### Extraction Order (revised, based on learnings)
+1. ~~Phase 0: Workspace + dedup~~ DONE
+2. ~~Phase 1: nika-event~~ DONE
+3. ~~Phase 3: nika-mcp~~ DONE
+4. ~~Phase 4: nika-media~~ DONE
+5. Phase 2: nika-dag — BLOCKED (depends on Workflow/TaskAction runtime types)
+6. **Phase 5: nika-runtime** — CRITICAL PATH (unblocks dag + tui)
+7. Phase 6: nika-tui — BLOCKED until nika-runtime exists
+8. Phase 7-8: Cleanup + release
 
 ## Target Architecture
 
