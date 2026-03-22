@@ -131,13 +131,13 @@ pub async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaE
             let api_key = match (prompt, key) {
                 // If prompt flag is set or no key provided, read from stdin
                 (true, _) | (false, None) => {
-                    print!("Enter API key for {}: ", provider);
+                    print!("Enter API key for {provider}: ");
                     let _ = io::stdout().flush();
 
                     let mut input = String::new();
-                    io::stdin().read_line(&mut input).map_err(|e| {
-                        NikaError::Execution(format!("Failed to read input: {}", e))
-                    })?;
+                    io::stdin()
+                        .read_line(&mut input)
+                        .map_err(|e| NikaError::Execution(format!("Failed to read input: {e}")))?;
                     input.trim().to_string()
                 }
                 // Key provided as argument
@@ -151,7 +151,7 @@ pub async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaE
 
             // Store in keychain
             NikaKeyring::set(&provider, &api_key)
-                .map_err(|e| NikaError::Execution(format!("Failed to store key: {}", e)))?;
+                .map_err(|e| NikaError::Execution(format!("Failed to store key: {e}")))?;
 
             println!(
                 "{} API key for {} stored in system keychain",
@@ -164,7 +164,7 @@ pub async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaE
         ProviderAction::Get { provider } => {
             match NikaKeyring::get_masked(&provider) {
                 Some(masked) => {
-                    println!("{}: {}", provider, masked);
+                    println!("{provider}: {masked}");
                 }
                 None => {
                     let env_var = provider_to_env_var(&provider).unwrap_or("UNKNOWN_API_KEY");
@@ -191,7 +191,7 @@ pub async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaE
                     );
                 }
                 Err(e) => {
-                    return Err(NikaError::Execution(format!("Failed to delete key: {}", e)));
+                    return Err(NikaError::Execution(format!("Failed to delete key: {e}")));
                 }
             }
             Ok(())
@@ -222,7 +222,7 @@ pub async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaE
                     "✗".red(),
                     provider.bold()
                 );
-                println!("  Use 'nika provider set {}' to add your API key", provider);
+                println!("  Use 'nika provider set {provider}' to add your API key");
                 return Ok(());
             }
 
@@ -252,7 +252,7 @@ pub async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaE
                 }
                 _ => {
                     return Err(NikaError::ValidationError {
-                        reason: format!("Unknown provider: {}", provider),
+                        reason: format!("Unknown provider: {provider}"),
                     })
                 }
             };
@@ -262,7 +262,7 @@ pub async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaE
                 Ok(response) => {
                     println!("{} Connection successful!", "✓".green());
                     let truncated: String = response.chars().take(100).collect();
-                    println!("  Response: {}", truncated);
+                    println!("  Response: {truncated}");
                 }
                 Err(e) => {
                     println!("{} Connection failed: {}", "✗".red(), e);

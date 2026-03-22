@@ -46,8 +46,7 @@ pub fn init_project(
         other => {
             return Err(NikaError::ValidationError {
                 reason: format!(
-                    "Invalid permission mode: '{}'. Use: deny, plan, accept-edits, yolo",
-                    other
+                    "Invalid permission mode: '{other}'. Use: deny, plan, accept-edits, yolo"
                 ),
             });
         }
@@ -559,7 +558,7 @@ network:
             println!();
             println!("{}:", "Errors".red());
             for (provider, error) in &report.errors {
-                println!("  {} - {}", provider, error);
+                println!("  {provider} - {error}");
             }
         }
 

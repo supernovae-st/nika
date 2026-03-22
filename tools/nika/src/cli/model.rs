@@ -117,13 +117,13 @@ pub async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<()
 
     let storage =
         HuggingFaceStorage::new(default_model_dir()).map_err(|e| NikaError::ConfigError {
-            reason: format!("Failed to initialize storage: {}", e),
+            reason: format!("Failed to initialize storage: {e}"),
         })?;
 
     match action {
         ModelAction::List { json } => {
             let models = storage.list_models().map_err(|e| NikaError::ConfigError {
-                reason: format!("Failed to list models: {}", e),
+                reason: format!("Failed to list models: {e}"),
             })?;
 
             if json {
@@ -196,8 +196,7 @@ pub async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<()
                     let model =
                         find_model(model_name).ok_or_else(|| NikaError::ValidationError {
                             reason: format!(
-                            "Unknown model: '{}'. Use 'nika model list' to see available models.",
-                            model_name
+                            "Unknown model: '{model_name}'. Use 'nika model list' to see available models."
                         ),
                         })?;
 
@@ -211,7 +210,7 @@ pub async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<()
                                     model
                                         .quantizations
                                         .iter()
-                                        .map(|(q, _)| format!("{:?}", q))
+                                        .map(|(q, _)| format!("{q:?}"))
                                         .collect::<Vec<_>>()
                                 ),
                             }
@@ -283,7 +282,7 @@ pub async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<()
                 )
                 .await
                 .map_err(|e| NikaError::ConfigError {
-                    reason: format!("Download failed: {}", e),
+                    reason: format!("Download failed: {e}"),
                 })?;
 
             if !quiet {
@@ -315,7 +314,7 @@ pub async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<()
                     } else {
                         "not downloaded".dimmed().to_string()
                     };
-                    println!("    • {:?}: {} ({})", quant, filename, status);
+                    println!("    • {quant:?}: {filename} ({status})");
                 }
             } else {
                 // Try as local file path
@@ -335,14 +334,14 @@ pub async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<()
 
                     println!("{}", format!("Model: {}", path.display()).bold());
                     println!("{}", "─".repeat(50));
-                    println!("  Size:         {} MB", size_mb);
+                    println!("  Size:         {size_mb} MB");
                     println!(
                         "  Quantization: {}",
                         quant.unwrap_or_else(|| "Unknown".to_string())
                     );
                 } else {
                     return Err(NikaError::ValidationError {
-                        reason: format!("Model not found: {}", name),
+                        reason: format!("Model not found: {name}"),
                     });
                 }
             }
@@ -356,7 +355,7 @@ pub async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<()
             println!("{}", "─".repeat(50));
 
             let models = storage.list_models().map_err(|e| NikaError::ConfigError {
-                reason: format!("Failed to list models: {}", e),
+                reason: format!("Failed to list models: {e}"),
             })?;
 
             if models.is_empty() {
@@ -406,7 +405,7 @@ pub async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<()
                 std::io::stdin()
                     .read_line(&mut input)
                     .map_err(|e| NikaError::ValidationError {
-                        reason: format!("Failed to read from stdin: {}", e),
+                        reason: format!("Failed to read from stdin: {e}"),
                     })?;
                 if input.trim() != "yes" {
                     println!("{}", "Cancelled.".dimmed());
@@ -435,7 +434,7 @@ pub async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<()
                 if let Some(ref isq_level) = isq {
                     println!("  ISQ quantization: {}", isq_level.cyan());
                 }
-                println!("  Context size: {} tokens", context_size);
+                println!("  Context size: {context_size} tokens");
                 println!();
                 println!(
                     "{}",
@@ -464,7 +463,7 @@ pub async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<()
                 .load(std::path::PathBuf::new(), config)
                 .await
                 .map_err(|e| NikaError::ConfigError {
-                    reason: format!("Failed to load vision model: {}", e),
+                    reason: format!("Failed to load vision model: {e}"),
                 })?;
 
             if !quiet {
@@ -476,9 +475,9 @@ pub async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<()
 
                 println!("{} Vision model loaded successfully!", "✓".green());
                 println!("  Model:       {}", model_id.cyan());
-                println!("  Capability:  {}", vision_status);
+                println!("  Capability:  {vision_status}");
                 if let Some(ref isq_level) = isq {
-                    println!("  ISQ:         {}", isq_level);
+                    println!("  ISQ:         {isq_level}");
                 }
                 println!();
                 println!(
@@ -505,6 +504,6 @@ fn format_size(bytes: u64) -> String {
     } else if bytes >= KB {
         format!("{:.1} KB", bytes as f64 / KB as f64)
     } else {
-        format!("{} B", bytes)
+        format!("{bytes} B")
     }
 }

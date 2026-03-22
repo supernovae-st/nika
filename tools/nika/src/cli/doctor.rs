@@ -196,13 +196,13 @@ fn check_config_file() -> DiagnosticCheck {
             Ok(_) => DiagnosticCheck::pass("Config", "config.toml is valid TOML"),
             Err(e) => DiagnosticCheck::fail(
                 "Config",
-                format!("config.toml has syntax errors: {}", e),
+                format!("config.toml has syntax errors: {e}"),
                 "Run 'nika config edit' to fix",
             ),
         },
         Err(e) => DiagnosticCheck::fail(
             "Config",
-            format!("Cannot read config.toml: {}", e),
+            format!("Cannot read config.toml: {e}"),
             "Check file permissions",
         ),
     }
@@ -238,23 +238,20 @@ fn check_api_keys() -> Vec<DiagnosticCheck> {
             if val.is_empty() {
                 checks.push(DiagnosticCheck::warn(
                     "API Key",
-                    format!("{} key is empty ({})", provider, env_var),
-                    format!("Set a valid {} key", provider),
+                    format!("{provider} key is empty ({env_var})"),
+                    format!("Set a valid {provider} key"),
                 ));
             } else if !is_valid {
                 checks.push(DiagnosticCheck::warn(
                     "API Key",
-                    format!(
-                        "{} key format looks invalid ({}, {} chars)",
-                        provider, env_var, len
-                    ),
-                    format!("Verify your {} API key is correct", provider),
+                    format!("{provider} key format looks invalid ({env_var}, {len} chars)"),
+                    format!("Verify your {provider} API key is correct"),
                 ));
                 any_found = true;
             } else {
                 checks.push(DiagnosticCheck::pass(
                     "API Key",
-                    format!("{} configured ({}, {} chars)", provider, env_var, len),
+                    format!("{provider} configured ({env_var}, {len} chars)"),
                 ));
                 any_found = true;
             }
@@ -312,7 +309,7 @@ fn check_trace_directory() -> Vec<DiagnosticCheck> {
         Err(e) => {
             checks.push(DiagnosticCheck::fail(
                 "Traces",
-                format!("Trace directory not writable: {}", e),
+                format!("Trace directory not writable: {e}"),
                 "Check directory permissions",
             ));
             return checks;
@@ -339,13 +336,13 @@ fn check_trace_directory() -> Vec<DiagnosticCheck> {
         } else if count > 1_000 {
             checks.push(DiagnosticCheck::warn(
                 "Traces",
-                format!("{} trace files", count),
+                format!("{count} trace files"),
                 "Consider running 'nika trace clean --keep 100'",
             ));
         } else {
             checks.push(DiagnosticCheck::pass(
                 "Traces",
-                format!("{} trace files", count),
+                format!("{count} trace files"),
             ));
         }
     }
@@ -389,7 +386,7 @@ fn check_workflow_files() -> DiagnosticCheck {
             "Run 'nika init' or 'nika new my-workflow --template simple-infer'",
         )
     } else {
-        DiagnosticCheck::pass("Workflows", format!("{} workflow files found", total))
+        DiagnosticCheck::pass("Workflows", format!("{total} workflow files found"))
     }
 }
 
@@ -420,7 +417,7 @@ fn check_rust_version() -> DiagnosticCheck {
                     } else {
                         return DiagnosticCheck::warn(
                             "Rust",
-                            format!("{} (MSRV is {}.{})", version_str, MSRV_MAJOR, MSRV_MINOR),
+                            format!("{version_str} (MSRV is {MSRV_MAJOR}.{MSRV_MINOR})"),
                             "Update with: rustup update",
                         );
                     }
@@ -517,7 +514,7 @@ fn check_editor_integration() -> Vec<DiagnosticCheck> {
         Some((ref bin, short_cmd, name, version)) => {
             checks.push(DiagnosticCheck::pass(
                 "Editor",
-                format!("{} {} detected", name, version),
+                format!("{name} {version} detected"),
             ));
 
             // Check if nika-lang extension is installed
@@ -540,8 +537,7 @@ fn check_editor_integration() -> Vec<DiagnosticCheck> {
                             "Extension",
                             "nika-lang extension not installed",
                             format!(
-                                "Install with: {} --install-extension supernovae-studio.nika-lang",
-                                short_cmd
+                                "Install with: {short_cmd} --install-extension supernovae-studio.nika-lang"
                             ),
                         ));
                     }
@@ -551,8 +547,7 @@ fn check_editor_integration() -> Vec<DiagnosticCheck> {
                         "Extension",
                         "Cannot query installed extensions",
                         format!(
-                            "Install with: {} --install-extension supernovae-studio.nika-lang",
-                            short_cmd
+                            "Install with: {short_cmd} --install-extension supernovae-studio.nika-lang"
                         ),
                     ));
                 }

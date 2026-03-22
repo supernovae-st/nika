@@ -291,7 +291,7 @@ fn handle_stats(store: &CasStore, quiet: bool) -> Result<(), NikaError> {
     }
 
     println!("{}", "Media Store Statistics".bold());
-    println!("  Files:      {}", count);
+    println!("  Files:      {count}");
     println!("  Total size: {}", format_bytes(total_size));
     println!("  Shards:     {}", shards.len());
 
@@ -320,10 +320,7 @@ fn handle_clean(
 ) -> Result<(), NikaError> {
     // Parse duration
     let duration = humantime::parse_duration(older_than).map_err(|e| NikaError::ConfigError {
-        reason: format!(
-            "Invalid duration '{}': {}. Examples: 1h, 30m, 7d",
-            older_than, e
-        ),
+        reason: format!("Invalid duration '{older_than}': {e}. Examples: 1h, 30m, 7d"),
     })?;
 
     // Enforce minimum GC age (5 minutes)
@@ -423,7 +420,7 @@ pub(crate) fn format_bytes(bytes: u64) -> String {
     } else if bytes >= KB {
         format!("{:.1} KB", bytes as f64 / KB as f64)
     } else {
-        format!("{} B", bytes)
+        format!("{bytes} B")
     }
 }
 
@@ -506,7 +503,7 @@ fn handle_tools() {
         } else {
             status.red()
         };
-        println!("  {} {} — {} [{}]", status_colored, name, desc, feature);
+        println!("  {status_colored} {name} — {desc} [{feature}]");
     }
     println!();
 
@@ -601,7 +598,7 @@ fn handle_tools() {
         } else {
             status.red()
         };
-        println!("  {} {} — {} [{}]", status_colored, name, desc, feature);
+        println!("  {status_colored} {name} — {desc} [{feature}]");
     }
     println!();
 

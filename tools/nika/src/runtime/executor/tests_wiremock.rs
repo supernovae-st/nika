@@ -245,6 +245,52 @@ async fn wiremock_fetch_response_binary_stores_in_cas() {
     assert_eq!(parsed["size_bytes"], binary_data.len());
 }
 
+/// Fetch binary must stage a MediaRef in the datastore so that
+/// artifact format: binary can find it. Without this, NIKA-281 fires
+/// because write_binary_artifact() gets an empty media_refs slice.
+#[tokio::test]
+async fn wiremock_fetch_response_binary_stages_media_ref() {
+    let server = MockServer::start().await;
+    let binary_data = vec![0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]; // PNG magic
+    Mock::given(method("GET"))
+        .and(path("/media.png"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_bytes(binary_data.clone())
+                .insert_header("Content-Type", "image/png"),
+        )
+        .mount(&server)
+        .await;
+
+    let (executor, bindings, datastore, _) = setup();
+    let task_id: Arc<str> = Arc::from("wm_binary_media");
+    let mut params = fetch_params(&format!("{}/media.png", server.uri()), "GET");
+    params.response = Some("binary".to_string());
+    let action = TaskAction::Fetch { fetch: params };
+    let _result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await
+        .unwrap();
+
+    // After execute, the datastore MUST have a staged MediaRef
+    let media_refs = datastore.take_media(&task_id);
+    assert_eq!(
+        media_refs.len(),
+        1,
+        "fetch binary must stage exactly 1 MediaRef"
+    );
+
+    let mr = &media_refs[0];
+    assert!(
+        mr.hash.starts_with("blake3:"),
+        "MediaRef hash must be blake3-prefixed"
+    );
+    assert_eq!(mr.mime_type, "image/png");
+    assert_eq!(mr.size_bytes, binary_data.len() as u64);
+    assert_eq!(mr.created_by, "wm_binary_media");
+    assert!(mr.path.exists(), "CAS file must exist on disk");
+}
+
 // ═══════════════════════════════════════════════════════════════
 // Extraction Mode Tests
 // ═══════════════════════════════════════════════════════════════

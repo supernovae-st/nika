@@ -86,7 +86,7 @@ pub fn handle_trace_command(action: TraceAction) -> Result<(), NikaError> {
                 .iter()
                 .find(|t| t.generation_id.contains(&id))
                 .ok_or_else(|| NikaError::ValidationError {
-                    reason: format!("No trace matching '{}'", id),
+                    reason: format!("No trace matching '{id}'"),
                 })?;
 
             let content = fs::read_to_string(&trace.path)?;
@@ -111,7 +111,7 @@ pub fn handle_trace_command(action: TraceAction) -> Result<(), NikaError> {
                 .iter()
                 .find(|t| t.generation_id.contains(&id))
                 .ok_or_else(|| NikaError::ValidationError {
-                    reason: format!("No trace matching '{}'", id),
+                    reason: format!("No trace matching '{id}'"),
                 })?;
 
             let content = fs::read_to_string(&trace.path)?;
@@ -129,7 +129,7 @@ pub fn handle_trace_command(action: TraceAction) -> Result<(), NikaError> {
                 })?,
                 other => {
                     return Err(NikaError::ValidationError {
-                        reason: format!("Unknown format: {}. Use 'json' or 'yaml'", other),
+                        reason: format!("Unknown format: {other}. Use 'json' or 'yaml'"),
                     })
                 }
             };
@@ -139,7 +139,7 @@ pub fn handle_trace_command(action: TraceAction) -> Result<(), NikaError> {
                     fs::write(&path, &exported)?;
                     println!("Exported {} events to {}", events.len(), path.display());
                 }
-                None => println!("{}", exported),
+                None => println!("{exported}"),
             }
             Ok(())
         }
@@ -153,7 +153,7 @@ pub fn handle_trace_command(action: TraceAction) -> Result<(), NikaError> {
                 fs::remove_file(&trace.path)?;
             }
 
-            println!("Deleted {} old traces, kept {}", count, keep);
+            println!("Deleted {count} old traces, kept {keep}");
             Ok(())
         }
     }

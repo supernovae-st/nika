@@ -60,7 +60,7 @@ pub fn handle_schema_command(action: SchemaAction, quiet: bool) -> Result<(), Ni
                     let schema = extract_schema_version(&content);
 
                     if quiet {
-                        println!("{}", schema);
+                        println!("{schema}");
                     } else {
                         println!("{} {}", "Schema version:".cyan(), schema.green());
 
@@ -103,7 +103,7 @@ pub fn handle_schema_command(action: SchemaAction, quiet: bool) -> Result<(), Ni
 
                     for (version, desc) in &versions {
                         if quiet {
-                            println!("nika/workflow@{}", version);
+                            println!("nika/workflow@{version}");
                         } else {
                             let prefix = if *version == "0.12" {
                                 "→".green()
@@ -176,7 +176,7 @@ pub fn handle_schema_command(action: SchemaAction, quiet: bool) -> Result<(), Ni
                             let errors: Vec<String> = analyze_result
                                 .errors
                                 .iter()
-                                .map(|e| format!("  • {}", e))
+                                .map(|e| format!("  • {e}"))
                                 .collect();
                             if !quiet {
                                 println!("{} Validation failed:", "✗".red());
@@ -197,7 +197,7 @@ pub fn handle_schema_command(action: SchemaAction, quiet: bool) -> Result<(), Ni
                             println!("{} Parse error: {}", "✗".red(), e);
                         }
                         Err(NikaError::ValidationError {
-                            reason: format!("Parse error: {}", e),
+                            reason: format!("Parse error: {e}"),
                         })
                     }
                 }
@@ -257,7 +257,7 @@ pub fn handle_schema_command(action: SchemaAction, quiet: bool) -> Result<(), Ni
 
                 if failed > 0 {
                     Err(NikaError::ValidationError {
-                        reason: format!("{} file(s) failed validation", failed),
+                        reason: format!("{failed} file(s) failed validation"),
                     })
                 } else {
                     Ok(())
@@ -281,7 +281,7 @@ pub fn handle_schema_command(action: SchemaAction, quiet: bool) -> Result<(), Ni
                 let dir = std::path::Path::new(&path);
                 if !dir.is_dir() {
                     return Err(NikaError::ValidationError {
-                        reason: format!("{} is not a directory", path),
+                        reason: format!("{path} is not a directory"),
                     });
                 }
 
@@ -334,7 +334,7 @@ pub fn handle_schema_command(action: SchemaAction, quiet: bool) -> Result<(), Ni
 
                 if errors > 0 {
                     Err(NikaError::ValidationError {
-                        reason: format!("{} file(s) failed to upgrade", errors),
+                        reason: format!("{errors} file(s) failed to upgrade"),
                     })
                 } else {
                     Ok(())
@@ -474,11 +474,11 @@ fn upgrade_workflow_file(
     let schema_regex =
         regex::Regex::new(r#"schema:\s*["']?nika/workflow@[\d.]+["']?"#).map_err(|e| {
             NikaError::ParseError {
-                details: format!("Regex error: {}", e),
+                details: format!("Regex error: {e}"),
             }
         })?;
 
-    let new_schema_line = format!(r#"schema: "nika/workflow@{}""#, target_version);
+    let new_schema_line = format!(r#"schema: "nika/workflow@{target_version}""#);
     let updated = schema_regex
         .replace(&content, new_schema_line.as_str())
         .to_string();
@@ -486,7 +486,7 @@ fn upgrade_workflow_file(
     // If no replacement was made, the file might not have a schema line - add one
     let updated = if updated == content {
         // Prepend schema line at the beginning
-        format!("{}\n{}", new_schema_line, content)
+        format!("{new_schema_line}\n{content}")
     } else {
         updated
     };

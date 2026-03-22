@@ -115,47 +115,41 @@ pub async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Res
             // Build the new task YAML
             let new_task = match task_verb.as_str() {
                 "infer" => format!(
-                    r#"  - id: {}
+                    r#"  - id: {task_id}
     infer: "TODO: Add your prompt here"
-"#,
-                    task_id
+"#
                 ),
                 "exec" => format!(
-                    r#"  - id: {}
+                    r#"  - id: {task_id}
     exec: "echo 'TODO: Add your command here'"
-"#,
-                    task_id
+"#
                 ),
                 "fetch" => format!(
-                    r#"  - id: {}
+                    r#"  - id: {task_id}
     fetch:
       url: "https://example.com/api"
       method: GET
-"#,
-                    task_id
+"#
                 ),
                 "invoke" => format!(
-                    r#"  - id: {}
+                    r#"  - id: {task_id}
     invoke:
       mcp: novanet
       tool: novanet_context
       params: {{}}
-"#,
-                    task_id
+"#
                 ),
                 "agent" => format!(
-                    r#"  - id: {}
+                    r#"  - id: {task_id}
     agent:
       prompt: "TODO: Add your agent prompt here"
       max_turns: 5
-"#,
-                    task_id
+"#
                 ),
                 _ => {
                     return Err(NikaError::ValidationError {
                         reason: format!(
-                            "Unknown verb '{}'. Valid: infer, exec, fetch, invoke, agent",
-                            task_verb
+                            "Unknown verb '{task_verb}'. Valid: infer, exec, fetch, invoke, agent"
                         ),
                     });
                 }
@@ -249,7 +243,7 @@ pub async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Res
                 "mermaid" => generate_mermaid_dag(&workflow),
                 _ => {
                     return Err(NikaError::ValidationError {
-                        reason: format!("Unknown format '{}'. Valid: ascii, dot, mermaid", format),
+                        reason: format!("Unknown format '{format}'. Valid: ascii, dot, mermaid"),
                     });
                 }
             };
@@ -268,7 +262,7 @@ pub async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Res
                     }
                 }
                 None => {
-                    println!("{}", graph_output);
+                    println!("{graph_output}");
                 }
             }
 
@@ -306,8 +300,7 @@ pub async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Res
             } else if let Some(version) = schema.strip_prefix("nika/workflow@") {
                 if version != "0.12" && suggest {
                     suggestions.push(format!(
-                        "Consider upgrading from @{} to @0.12 for latest features",
-                        version
+                        "Consider upgrading from @{version} to @0.12 for latest features"
                     ));
                 }
             }
@@ -424,7 +417,7 @@ fn generate_ascii_dag(workflow: &nika::ast::Workflow) -> String {
     let mut output = String::new();
     let name = "(unnamed)";
     output.push_str("┌─────────────────────────────────────────┐\n");
-    output.push_str(&format!("│ DAG: {}", name));
+    output.push_str(&format!("│ DAG: {name}"));
     let padding = 40usize.saturating_sub(name.len() + 6);
     output.push_str(&" ".repeat(padding));
     output.push_str("│\n");
@@ -450,7 +443,7 @@ fn generate_ascii_dag(workflow: &nika::ast::Workflow) -> String {
         output.push_str("├─────────────────────────────────────────┤\n");
         output.push_str("│ Edges:                                  │\n");
         for (source, target) in &edges {
-            let flow_str = format!("  {} → {}", source, target);
+            let flow_str = format!("  {source} → {target}");
             let flow_padding = 39usize.saturating_sub(flow_str.len());
             output.push_str(&format!("│{}{}│\n", flow_str, " ".repeat(flow_padding)));
         }
@@ -464,7 +457,7 @@ fn generate_ascii_dag(workflow: &nika::ast::Workflow) -> String {
 fn generate_dot_dag(workflow: &nika::ast::Workflow) -> String {
     let mut output = String::new();
     let name = "workflow";
-    output.push_str(&format!("digraph {} {{\n", name));
+    output.push_str(&format!("digraph {name} {{\n"));
     output.push_str("  rankdir=LR;\n");
     output.push_str("  node [shape=box, style=rounded];\n\n");
 

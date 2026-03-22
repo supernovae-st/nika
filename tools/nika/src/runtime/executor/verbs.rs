@@ -1242,6 +1242,20 @@ impl TaskExecutor {
                         let store_result = self.cas.store(&bytes).await.map_err(|e| {
                             NikaError::Execution(format!("CAS store failed: {}", e))
                         })?;
+
+                        // Stage MediaRef so artifact format: binary can find it.
+                        // Without this, write_binary_artifact() gets empty media_refs → NIKA-281.
+                        let media_ref = crate::media::MediaRef {
+                            hash: store_result.hash.clone(),
+                            mime_type: content_type.clone(),
+                            size_bytes: bytes.len() as u64,
+                            path: store_result.path.clone(),
+                            extension: crate::media::detect::mime_to_extension(&content_type),
+                            created_by: task_id.to_string(),
+                            metadata: serde_json::Map::new(),
+                        };
+                        datastore.set_media(task_id, vec![media_ref]);
+
                         return Ok(serde_json::json!({
                             "hash": store_result.hash,
                             "mime_type": content_type,

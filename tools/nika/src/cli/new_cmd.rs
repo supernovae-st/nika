@@ -36,12 +36,12 @@ pub fn handle_new_command(
         }
         for (name, description, category) in list_templates() {
             if quiet {
-                println!("{}", name);
+                println!("{name}");
             } else {
                 println!(
                     "  {} {}",
-                    format!("{:<18}", name).green(),
-                    format!("[{}] {}", category, description).white()
+                    format!("{name:<18}").green(),
+                    format!("[{category}] {description}").white()
                 );
             }
         }
@@ -84,8 +84,7 @@ pub fn handle_new_command(
         let tmpl =
             Template::from_name(&template_name).ok_or_else(|| NikaError::ValidationError {
                 reason: format!(
-                    "Unknown template: '{}'. Use --list to see available templates.",
-                    template_name
+                    "Unknown template: '{template_name}'. Use --list to see available templates."
                 ),
             })?;
 
@@ -108,10 +107,7 @@ pub fn handle_new_command(
     let verb = verb
         .map(|v| {
             Verb::from_name(&v).ok_or_else(|| NikaError::ValidationError {
-                reason: format!(
-                    "Unknown verb: '{}'. Valid: infer, exec, fetch, invoke, agent",
-                    v
-                ),
+                reason: format!("Unknown verb: '{v}'. Valid: infer, exec, fetch, invoke, agent"),
             })
         })
         .transpose()?
@@ -122,8 +118,7 @@ pub fn handle_new_command(
         .map(|p| {
             Provider::from_name(&p).ok_or_else(|| NikaError::ValidationError {
                 reason: format!(
-                    "Unknown provider: '{}'. Valid: claude, openai, mistral, groq, deepseek, native",
-                    p
+                    "Unknown provider: '{p}'. Valid: claude, openai, mistral, groq, deepseek, native"
                 ),
             })
         })
@@ -134,7 +129,7 @@ pub fn handle_new_command(
     let output_format = output
         .map(|o| {
             OutputFormat::from_name(&o).ok_or_else(|| NikaError::ValidationError {
-                reason: format!("Unknown output format: '{}'. Valid: text, json, yaml", o),
+                reason: format!("Unknown output format: '{o}'. Valid: text, json, yaml"),
             })
         })
         .transpose()?

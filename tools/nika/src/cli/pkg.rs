@@ -125,7 +125,7 @@ pub async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
             let registry = load_registry()?;
 
             if let Some(installed) = registry.get(&package) {
-                println!("{}", format!("Package: {}", package).bold());
+                println!("{}", format!("Package: {package}").bold());
                 println!("{}", "─".repeat(60));
                 println!("  Version:   {}", installed.version.green());
                 println!("  Path:      {}", installed.manifest_path.dimmed());
@@ -134,7 +134,7 @@ pub async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
                 // Try to load manifest for more details
                 if let Ok(manifest) = load_manifest(&package, &installed.version) {
                     if let Some(ref desc) = manifest.description {
-                        println!("  Description: {}", desc);
+                        println!("  Description: {desc}");
                     }
                     if !manifest.skills.is_empty() {
                         println!();
@@ -147,7 +147,7 @@ pub async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
             } else {
                 println!("{} Package '{}' not installed", "ℹ".cyan(), package);
                 println!();
-                println!("To install: nika pkg add {}", package);
+                println!("To install: nika pkg add {package}");
             }
             Ok(())
         }
@@ -219,12 +219,12 @@ pub async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
                 .download_and_extract(&package, target_version, &target_dir)
                 .await
                 .map_err(|e| NikaError::ValidationError {
-                    reason: format!("Failed to download package: {}", e),
+                    reason: format!("Failed to download package: {e}"),
                 })?;
 
             // Update registry index
             let mut registry = load_registry()?;
-            let manifest_path = format!("packages/{}/{}/manifest.yaml", package, target_version);
+            let manifest_path = format!("packages/{package}/{target_version}/manifest.yaml");
             registry.insert(
                 package.clone(),
                 InstalledPackage::now(target_version.to_string(), manifest_path),
@@ -279,7 +279,7 @@ pub async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
                     pkg_dir.display().to_string().dimmed()
                 );
                 std::fs::remove_dir_all(&pkg_dir).map_err(|e| NikaError::ValidationError {
-                    reason: format!("Failed to remove package directory: {}", e),
+                    reason: format!("Failed to remove package directory: {e}"),
                 })?;
 
                 // Clean up empty parent directories
@@ -351,7 +351,7 @@ pub async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
 
             let manifest: ProjectManifest =
                 serde_yaml::from_str(&content).map_err(|e| NikaError::ParseError {
-                    details: format!("Failed to parse manifest: {}", e),
+                    details: format!("Failed to parse manifest: {e}"),
                 })?;
 
             if manifest.dependencies.is_empty() {
@@ -429,7 +429,7 @@ pub async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
                     Ok(_) => {
                         // Update registry
                         let manifest_path =
-                            format!("packages/{}/{}/manifest.yaml", name, target_version);
+                            format!("packages/{name}/{target_version}/manifest.yaml");
                         registry.insert(
                             name.clone(),
                             InstalledPackage::now(target_version.clone(), manifest_path),
@@ -501,7 +501,7 @@ pub async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
 
             // Build search query - append type filter if provided
             let search_query = if let Some(ref t) = r#type {
-                format!("{} type:{}", query, t)
+                format!("{query} type:{t}")
             } else {
                 query.clone()
             };
@@ -522,7 +522,7 @@ pub async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
             // Search registry (page=1, per_page=limit)
             let response = client.search(&search_query, 1, limit).await.map_err(|e| {
                 NikaError::ValidationError {
-                    reason: format!("Search failed: {}", e),
+                    reason: format!("Search failed: {e}"),
                 }
             })?;
 

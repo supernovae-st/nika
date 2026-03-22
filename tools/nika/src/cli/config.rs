@@ -77,19 +77,19 @@ pub fn handle_config_command(action: ConfigAction, quiet: bool) -> Result<(), Ni
                 // Parse TOML and convert to JSON
                 let value: toml::Value =
                     toml::from_str(&content).map_err(|e| NikaError::ValidationError {
-                        reason: format!("Invalid TOML: {}", e),
+                        reason: format!("Invalid TOML: {e}"),
                     })?;
                 let json = serde_json::to_string_pretty(&value).map_err(|e| {
                     NikaError::ValidationError {
-                        reason: format!("JSON conversion failed: {}", e),
+                        reason: format!("JSON conversion failed: {e}"),
                     }
                 })?;
-                println!("{}", json);
+                println!("{json}");
             } else {
                 println!("{}", "Nika Configuration".bold());
                 println!("{}", "─".repeat(40));
                 println!();
-                println!("{}", content);
+                println!("{content}");
             }
             Ok(())
         }
@@ -104,7 +104,7 @@ pub fn handle_config_command(action: ConfigAction, quiet: bool) -> Result<(), Ni
             let content = fs::read_to_string(&config_path)?;
             let value: toml::Value =
                 toml::from_str(&content).map_err(|e| NikaError::ValidationError {
-                    reason: format!("Invalid TOML: {}", e),
+                    reason: format!("Invalid TOML: {e}"),
                 })?;
 
             // Navigate to the key (dot-separated path)
@@ -113,17 +113,17 @@ pub fn handle_config_command(action: ConfigAction, quiet: bool) -> Result<(), Ni
                 current = current
                     .get(part)
                     .ok_or_else(|| NikaError::ValidationError {
-                        reason: format!("Key '{}' not found", key),
+                        reason: format!("Key '{key}' not found"),
                     })?;
             }
 
             // Print the value
             match current {
-                toml::Value::String(s) => println!("{}", s),
-                toml::Value::Integer(i) => println!("{}", i),
-                toml::Value::Float(f) => println!("{}", f),
-                toml::Value::Boolean(b) => println!("{}", b),
-                _ => println!("{}", current),
+                toml::Value::String(s) => println!("{s}"),
+                toml::Value::Integer(i) => println!("{i}"),
+                toml::Value::Float(f) => println!("{f}"),
+                toml::Value::Boolean(b) => println!("{b}"),
+                _ => println!("{current}"),
             }
             Ok(())
         }
@@ -140,7 +140,7 @@ pub fn handle_config_command(action: ConfigAction, quiet: bool) -> Result<(), Ni
                 content
                     .parse::<toml::Table>()
                     .map_err(|e| NikaError::ValidationError {
-                        reason: format!("Invalid TOML: {}", e),
+                        reason: format!("Invalid TOML: {e}"),
                     })?;
 
             // Navigate and set the value
@@ -166,11 +166,11 @@ pub fn handle_config_command(action: ConfigAction, quiet: bool) -> Result<(), Ni
                     current = current
                         .get_mut(*part)
                         .ok_or_else(|| NikaError::ValidationError {
-                            reason: format!("Config key '{}' not found", part),
+                            reason: format!("Config key '{part}' not found"),
                         })?
                         .as_table_mut()
                         .ok_or_else(|| NikaError::ValidationError {
-                            reason: format!("'{}' is not a table", part),
+                            reason: format!("'{part}' is not a table"),
                         })?;
                 }
             }
@@ -178,7 +178,7 @@ pub fn handle_config_command(action: ConfigAction, quiet: bool) -> Result<(), Ni
             // Write back
             let new_content =
                 toml::to_string_pretty(&doc).map_err(|e| NikaError::ValidationError {
-                    reason: format!("TOML serialization failed: {}", e),
+                    reason: format!("TOML serialization failed: {e}"),
                 })?;
             fs::write(&config_path, new_content)?;
 
@@ -204,7 +204,7 @@ pub fn handle_config_command(action: ConfigAction, quiet: bool) -> Result<(), Ni
                 .arg(&config_path)
                 .status()
                 .map_err(|e| NikaError::ValidationError {
-                    reason: format!("Failed to launch editor '{}': {}", editor, e),
+                    reason: format!("Failed to launch editor '{editor}': {e}"),
                 })?;
 
             if !status.success() {

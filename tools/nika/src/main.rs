@@ -659,7 +659,7 @@ async fn main() {
         None => {
             use clap::CommandFactory;
             if let Err(e) = Cli::command().print_help() {
-                eprintln!("Failed to print help: {}", e);
+                eprintln!("Failed to print help: {e}");
                 std::process::exit(1);
             }
             Ok(())
@@ -834,7 +834,7 @@ fn is_nika_workflow(file: &Path) -> bool {
 fn handle_result(result: Result<(), NikaError>) {
     if let Err(e) = result {
         let report = miette::Report::new(e);
-        eprintln!("{:?}", report);
+        eprintln!("{report:?}");
         std::process::exit(1);
     }
 }
@@ -855,8 +855,7 @@ async fn resolve_workflow_path(reference: &str) -> Result<PathBuf, NikaError> {
         let resolved =
             resolver::resolve_package_path(reference).map_err(|e| NikaError::WorkflowNotFound {
                 path: format!(
-                    "Package not found: {}. Error: {}. Try: nika pkg add {}",
-                    reference, e, reference
+                    "Package not found: {reference}. Error: {e}. Try: nika pkg add {reference}"
                 ),
             })?;
 
@@ -881,7 +880,7 @@ async fn resolve_workflow_path(reference: &str) -> Result<PathBuf, NikaError> {
     {
         let local_path = PathBuf::from(".nika")
             .join("workflows")
-            .join(format!("{}.nika.yaml", reference));
+            .join(format!("{reference}.nika.yaml"));
 
         if local_path.exists() {
             return Ok(local_path);
@@ -889,7 +888,7 @@ async fn resolve_workflow_path(reference: &str) -> Result<PathBuf, NikaError> {
 
         if !PathBuf::from(reference).exists() {
             return Err(NikaError::WorkflowNotFound {
-                path: format!("Workflow '{}' not found in .nika/workflows/ or current directory. Try: nika pkg search {}", reference, reference)
+                path: format!("Workflow '{reference}' not found in .nika/workflows/ or current directory. Try: nika pkg search {reference}")
             });
         }
     }
@@ -899,8 +898,7 @@ async fn resolve_workflow_path(reference: &str) -> Result<PathBuf, NikaError> {
     if !path.exists() {
         return Err(NikaError::WorkflowNotFound {
             path: format!(
-                "File not found: {}. Check the path or try: nika pkg search {}",
-                reference, reference
+                "File not found: {reference}. Check the path or try: nika pkg search {reference}"
             ),
         });
     }
@@ -989,7 +987,7 @@ async fn run_workflow(
 
     if !quiet && !output.is_empty() {
         println!("{}", "Output:".cyan().bold());
-        println!("{}", output);
+        println!("{output}");
     }
 
     Ok(())
@@ -1179,7 +1177,7 @@ async fn validate_workflow(file: &str, quiet: bool) -> Result<(), NikaError> {
 
         // Phase 6: Schemas
         let schemas_detail = if schema_count > 0 {
-            format!("{} validated", schema_count)
+            format!("{schema_count} validated")
         } else {
             "none required".to_string()
         };
@@ -1281,7 +1279,7 @@ async fn validate_schema_file(
             .await
             .map_err(|e| NikaError::SchemaFileNotFound {
                 task_id: task_id.to_string(),
-                path: format!("{}: {}", path, e),
+                path: format!("{path}: {e}"),
             })?;
 
     serde_json::from_str::<serde_json::Value>(&content).map_err(|e| {
@@ -1634,7 +1632,7 @@ async fn validate_workflow_strict(file: &str) -> Result<(), NikaError> {
 
     // Phase 6: Schemas
     let schemas_detail = if schema_count > 0 {
-        format!("{} validated", schema_count)
+        format!("{schema_count} validated")
     } else {
         "none required".to_string()
     };

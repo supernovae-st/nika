@@ -127,9 +127,8 @@ pub async fn handle_mcp_command(action: McpAction) -> Result<(), NikaError> {
             // Resolve alias to package name (or use as-is if it's a package)
             let package = resolve_name(&name).ok_or_else(|| NikaError::ValidationError {
                 reason: format!(
-                    "Unknown alias '{}'. Use 'nika mcp aliases' to see available aliases, \
-                     or specify a full npm package like '@org/package'",
-                    name
+                    "Unknown alias '{name}'. Use 'nika mcp aliases' to see available aliases, \
+                     or specify a full npm package like '@org/package'"
                 ),
             })?;
 
@@ -153,14 +152,14 @@ pub async fn handle_mcp_command(action: McpAction) -> Result<(), NikaError> {
             let (added, scope, path) = if use_global {
                 let added = add_server_to_global(&name, server).map_err(|e| {
                     NikaError::ValidationError {
-                        reason: format!("Failed to add to global config: {}", e),
+                        reason: format!("Failed to add to global config: {e}"),
                     }
                 })?;
                 (added, "global", global_config_path())
             } else {
                 let added = add_server_to_project(&name, server).map_err(|e| {
                     NikaError::ValidationError {
-                        reason: format!("Failed to add to project config: {}", e),
+                        reason: format!("Failed to add to project config: {e}"),
                     }
                 })?;
                 (added, "project", project_config_path())
@@ -211,7 +210,7 @@ pub async fn handle_mcp_command(action: McpAction) -> Result<(), NikaError> {
                 std::io::stdin()
                     .read_line(&mut input)
                     .map_err(|e| NikaError::ValidationError {
-                        reason: format!("Failed to read from stdin: {}", e),
+                        reason: format!("Failed to read from stdin: {e}"),
                     })?;
                 if !input.trim().eq_ignore_ascii_case("y") {
                     println!("{} Cancelled", "ℹ".cyan());
@@ -223,13 +222,13 @@ pub async fn handle_mcp_command(action: McpAction) -> Result<(), NikaError> {
             let (removed, scope) = if use_global {
                 let removed =
                     remove_server_from_global(&name).map_err(|e| NikaError::ValidationError {
-                        reason: format!("Failed to remove from global config: {}", e),
+                        reason: format!("Failed to remove from global config: {e}"),
                     })?;
                 (removed, "global")
             } else {
                 let removed =
                     remove_server_from_project(&name).map_err(|e| NikaError::ValidationError {
-                        reason: format!("Failed to remove from project config: {}", e),
+                        reason: format!("Failed to remove from project config: {e}"),
                     })?;
                 (removed, "project")
             };
@@ -287,7 +286,7 @@ pub async fn handle_mcp_command(action: McpAction) -> Result<(), NikaError> {
                             println!();
                             println!(
                                 "{}",
-                                format!("Use 'nika mcp test {} <server>' to test connection", file)
+                                format!("Use 'nika mcp test {file} <server>' to test connection")
                                     .dimmed()
                             );
                         }
@@ -306,7 +305,7 @@ pub async fn handle_mcp_command(action: McpAction) -> Result<(), NikaError> {
             if json {
                 // JSON output
                 let merged = load_merged_config().map_err(|e| NikaError::ValidationError {
-                    reason: format!("Failed to load config: {}", e),
+                    reason: format!("Failed to load config: {e}"),
                 })?;
                 println!("{}", serde_json::to_string_pretty(&merged.servers)?);
                 return Ok(());
@@ -481,7 +480,7 @@ pub async fn handle_mcp_command(action: McpAction) -> Result<(), NikaError> {
 
             // Get MCP config
             let mcp_servers = wf.mcp.as_ref().ok_or_else(|| NikaError::ValidationError {
-                reason: format!("No mcp: section in {}", workflow),
+                reason: format!("No mcp: section in {workflow}"),
             })?;
 
             let inline_config =
@@ -532,7 +531,7 @@ pub async fn handle_mcp_command(action: McpAction) -> Result<(), NikaError> {
 
             // Get MCP config
             let mcp_servers = wf.mcp.as_ref().ok_or_else(|| NikaError::ValidationError {
-                reason: format!("No mcp: section in {}", workflow),
+                reason: format!("No mcp: section in {workflow}"),
             })?;
 
             let inline_config =
@@ -562,7 +561,7 @@ pub async fn handle_mcp_command(action: McpAction) -> Result<(), NikaError> {
             let tools = client.list_tools().await?;
 
             println!();
-            println!("{}", format!("Tools from '{}'", server).bold());
+            println!("{}", format!("Tools from '{server}'").bold());
             println!("{}", "─".repeat(60));
 
             if tools.is_empty() {
@@ -574,7 +573,7 @@ pub async fn handle_mcp_command(action: McpAction) -> Result<(), NikaError> {
                         // Truncate long descriptions
                         let desc_truncated: String = desc.chars().take(80).collect();
                         if desc.len() > 80 {
-                            println!("    {}", format!("{}...", desc_truncated).dimmed());
+                            println!("    {}", format!("{desc_truncated}...").dimmed());
                         } else {
                             println!("    {}", desc_truncated.dimmed());
                         }
