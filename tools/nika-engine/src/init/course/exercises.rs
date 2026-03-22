@@ -2199,10 +2199,8 @@ mod tests {
 
     #[test]
     fn test_no_duplicate_exercises() {
-        for i in 0..EXERCISES.len() {
-            for j in (i + 1)..EXERCISES.len() {
-                let a = &EXERCISES[i];
-                let b = &EXERCISES[j];
+        for (i, a) in EXERCISES.iter().enumerate() {
+            for b in EXERCISES.iter().skip(i + 1) {
                 assert!(
                     !(a.level_slug == b.level_slug && a.exercise_num == b.exercise_num),
                     "Duplicate exercise: {}/{}",
