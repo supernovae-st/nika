@@ -26,9 +26,9 @@ use std::path::PathBuf;
 use nucleo::{Config, Matcher, Utf32Str};
 use ratatui::widgets::ListState;
 
-use nika_engine::ast::Workflow;
 use crate::standalone::{BrowserEntry, StandaloneState};
 use crate::widgets::tree::TreeState;
+use nika_engine::ast::Workflow;
 
 /// Preview mode for DAG preview panel
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

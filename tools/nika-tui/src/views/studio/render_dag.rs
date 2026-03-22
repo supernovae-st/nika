@@ -16,9 +16,9 @@ use ratatui::{
 
 use super::types::StudioFocus;
 use super::{StudioView, YamlEditorPanel};
-use nika_engine::ast::{Task, TaskAction, Workflow};
 use crate::theme::{TaskStatus, Theme, VerbColor};
 use crate::widgets::{DagAscii, NodeBoxData, NodeBoxMode};
+use nika_engine::ast::{Task, TaskAction, Workflow};
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // StudioView: DAG panel in 3-panel layout

@@ -836,14 +836,20 @@ fn parse_invoke_action(file: FileId, node: &Node) -> Result<RawInvokeAction, Par
         }
     };
 
-    let tool = get_string_field(file, m, "tool")?.ok_or_else(|| ParseError {
-        kind: ParseErrorKind::MissingField,
-        span,
-        message: "invoke action requires 'tool' field".to_string(),
-    })?;
+    let tool = get_string_field(file, m, "tool")?;
+    let resource = get_string_field(file, m, "resource")?;
+
+    if tool.is_none() && resource.is_none() {
+        return Err(ParseError {
+            kind: ParseErrorKind::MissingField,
+            span,
+            message: "invoke action requires 'tool' or 'resource' field".to_string(),
+        });
+    }
 
     Ok(RawInvokeAction {
         tool,
+        resource,
         params: parse_json_value(file, m, "params")?,
         mcp: get_string_field(file, m, "mcp")?.or(get_string_field(file, m, "server")?),
         timeout_ms: match get_u64_field(file, m, "timeout_ms")? {
@@ -1833,9 +1839,7 @@ tasks:
             Some(RawTaskAction::Infer(action)) => {
                 assert_eq!(action.value.prompt.value, "Say hello");
                 assert_eq!(action.value.max_tokens.as_ref().unwrap().value, 20);
-                assert!(
-                    (action.value.temperature.as_ref().unwrap().value - 0.5).abs() < 0.001
-                );
+                assert!((action.value.temperature.as_ref().unwrap().value - 0.5).abs() < 0.001);
             }
             _ => panic!("Expected Infer action"),
         }
@@ -1861,9 +1865,7 @@ tasks:
                     action.value.system.as_ref().unwrap().value,
                     "You are a translator"
                 );
-                assert!(
-                    (action.value.temperature.as_ref().unwrap().value - 0.3).abs() < 0.001
-                );
+                assert!((action.value.temperature.as_ref().unwrap().value - 0.3).abs() < 0.001);
             }
             _ => panic!("Expected Infer action"),
         }
@@ -1889,20 +1891,12 @@ tasks:
         match &task.value.action {
             Some(RawTaskAction::Infer(action)) => {
                 assert_eq!(action.value.prompt.value, "Think deeply");
-                assert_eq!(
-                    action.value.system.as_ref().unwrap().value,
-                    "Be thorough"
-                );
+                assert_eq!(action.value.system.as_ref().unwrap().value, "Be thorough");
                 assert_eq!(action.value.max_tokens.as_ref().unwrap().value, 4096);
-                assert!(
-                    (action.value.temperature.as_ref().unwrap().value - 0.9).abs() < 0.001
-                );
+                assert!((action.value.temperature.as_ref().unwrap().value - 0.9).abs() < 0.001);
                 assert!(action.value.extended_thinking.as_ref().unwrap().value);
                 assert_eq!(action.value.thinking_budget.as_ref().unwrap().value, 8000);
-                assert_eq!(
-                    action.value.response_format.as_ref().unwrap().value,
-                    "json"
-                );
+                assert_eq!(action.value.response_format.as_ref().unwrap().value, "json");
             }
             _ => panic!("Expected Infer action"),
         }
@@ -2037,7 +2031,7 @@ tasks:
 
         match &task.value.action {
             Some(RawTaskAction::Invoke(action)) => {
-                assert_eq!(action.value.tool.value, "novanet_context");
+                assert_eq!(action.value.tool.as_ref().unwrap().value, "novanet_context");
                 assert_eq!(action.value.mcp.as_ref().unwrap().value, "novanet");
                 assert!(action.value.params.is_some());
             }

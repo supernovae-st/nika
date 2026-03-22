@@ -69,9 +69,9 @@ mod tests;
 // Re-export public types
 pub use types::{ChatMessage, ChatRole, StreamingState};
 
+use crate::command::ModelProvider;
 use nika_engine::error::NikaError;
 use nika_engine::provider::rig::{RigProvider, StreamChunk};
-use crate::command::ModelProvider;
 use tokio::sync::mpsc;
 
 // ═══════════════════════════════════════════════════════════════════════════

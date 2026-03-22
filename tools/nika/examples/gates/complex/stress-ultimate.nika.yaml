@@ -56,7 +56,7 @@ tasks:
   - id: seed_prompt
     infer: "Generate a 1-sentence thesis about {{inputs.domain}} v{{inputs.version}}."
     provider: openai
-    model: gpt-4.1-mini
+    model: gpt-4o-mini
     max_tokens: 60
     description: "L0: LLM seed generation"
 
@@ -68,7 +68,7 @@ tasks:
       user: $env_snapshot.user ?? "unknown"
     infer: "Describe this dev environment in 1 sentence: {{with.env}}. User: {{with.user}}"
     provider: openai
-    model: gpt-4.1-mini
+    model: gpt-4o-mini
     max_tokens: 80
     description: "L1-left: Analyze env with fallback"
 
@@ -78,7 +78,7 @@ tasks:
       raw: $http_data
     infer: "Extract the URL and query params from: {{with.raw}}"
     provider: openai
-    model: gpt-4.1-mini
+    model: gpt-4o-mini
     max_tokens: 100
     structured:
       schema:
@@ -110,13 +110,15 @@ tasks:
       Thesis: {{with.thesis}}
       Write 1 sentence analyzing '{{with.topic}}' in the context of {{inputs.domain}}.
     provider: openai
-    model: gpt-4.1-mini
+    model: gpt-4o-mini
     max_tokens: 80
     description: "L2: for_each with concurrency, context, transforms, and inputs"
 
   # === LAYER 2b: Agent (parallel with for_each) ===
   - id: review_agent
     depends_on: [seed_prompt]
+    provider: openai
+    model: gpt-4o-mini
     with:
       thesis: $seed_prompt | trim
     agent:
@@ -127,7 +129,7 @@ tasks:
         2. Complete with your assessment
         Call nika_complete with result="thesis reviewed" confidence=0.85 reasoning="domain review"
       provider: openai
-      model: gpt-4.1-mini
+      model: gpt-4o-mini
       tools: [nika_complete, nika_log, nika_emit]
       max_turns: 4
       max_tokens: 150
@@ -146,7 +148,7 @@ tasks:
       Topics: {{with.topic_analyses}}
       2 sentences.
     provider: openai
-    model: gpt-4.1-mini
+    model: gpt-4o-mini
     max_tokens: 150
     description: "L3-left: Merge env + for_each results"
 
@@ -173,7 +175,7 @@ tasks:
       Right branch: {{with.right}}
       Original thesis: {{with.thesis}}
     provider: openai
-    model: gpt-4.1-mini
+    model: gpt-4o-mini
     max_tokens: 200
     structured:
       schema:
@@ -222,7 +224,7 @@ tasks:
       Findings: {{with.findings}}
       Risk: {{with.risk}}
     provider: openai
-    model: gpt-4.1-mini
+    model: gpt-4o-mini
     max_tokens: 200
     artifact:
       path: "ultimate-{{inputs.domain}}-v{{inputs.version}}.md"

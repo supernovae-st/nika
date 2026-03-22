@@ -266,8 +266,11 @@ pub struct AnalyzedInvokeAction {
     /// MCP server name (None = first available)
     pub server: Option<String>,
 
-    /// Tool name
+    /// Tool name (empty string if resource-only invoke)
     pub tool: String,
+
+    /// MCP resource URI (alternative to tool call)
+    pub resource: Option<String>,
 
     /// Tool parameters
     pub params: Option<serde_json::Value>,

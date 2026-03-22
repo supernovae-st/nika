@@ -5,8 +5,8 @@
 use std::sync::Arc;
 
 use super::*;
-use nika_engine::event::EventKind;
 use crate::theme::{MissionPhase, TaskStatus};
+use nika_engine::event::EventKind;
 
 /// Use actual package version in tests to avoid version drift
 const TEST_VERSION: &str = env!("CARGO_PKG_VERSION");

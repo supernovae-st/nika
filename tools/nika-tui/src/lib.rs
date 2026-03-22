@@ -50,6 +50,7 @@ pub mod icons;
 mod keybindings;
 mod layout;
 mod mode;
+pub mod new_wizard;
 pub mod providers;
 pub mod selection;
 pub mod session;
@@ -64,7 +65,6 @@ mod verification;
 pub mod views;
 pub mod widgets;
 pub mod wizard;
-pub mod new_wizard;
 
 pub use app::App;
 pub use cache::RenderCache;
@@ -373,7 +373,9 @@ pub async fn run_tui_chat(
 ///
 /// This is the entry point for `nika studio [workflow]` command.
 /// Starts directly in Studio view for YAML editing with live validation.
-pub async fn run_tui_studio(workflow: Option<std::path::PathBuf>) -> nika_engine::error::Result<()> {
+pub async fn run_tui_studio(
+    workflow: Option<std::path::PathBuf>,
+) -> nika_engine::error::Result<()> {
     use views::TuiView;
 
     // Install panic hook for terminal recovery
@@ -504,13 +506,17 @@ pub fn run_tui_wizard() -> nika_engine::error::Result<()> {
         if event::poll(std::time::Duration::from_millis(100))
             .map_err(nika_engine::error::NikaError::IoError)?
         {
-            if let Event::Key(key) = event::read().map_err(nika_engine::error::NikaError::IoError)? {
+            if let Event::Key(key) =
+                event::read().map_err(nika_engine::error::NikaError::IoError)?
+            {
                 // Only handle key press events
                 if key.kind == KeyEventKind::Press {
                     match wizard.handle_key(key, &mut tui_state) {
                         ViewAction::Quit => break Ok(()),
                         ViewAction::Error(msg) => {
-                            break Err(nika_engine::error::NikaError::ValidationError { reason: msg })
+                            break Err(nika_engine::error::NikaError::ValidationError {
+                                reason: msg,
+                            })
                         }
                         _ => {}
                     }

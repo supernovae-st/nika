@@ -725,6 +725,7 @@ fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
         TaskAction::Invoke { invoke } => AnalyzedTaskAction::Invoke(AnalyzedInvokeAction {
             server: invoke.mcp.clone(),
             tool: invoke.tool.clone().unwrap_or_default(),
+            resource: invoke.resource.clone(),
             params: invoke.params.clone(),
             // Convert seconds (runtime) back to milliseconds (analyzed)
             timeout_ms: invoke.timeout.map(|s| s * 1000),
@@ -1030,6 +1031,7 @@ mod tests {
             action: AnalyzedTaskAction::Invoke(AnalyzedInvokeAction {
                 server: Some("novanet".to_string()),
                 tool: "novanet_context".to_string(),
+                resource: None,
                 params: Some(serde_json::json!({"entity": "qr-code"})),
                 timeout_ms: None,
                 span: Span::dummy(),
@@ -1804,6 +1806,7 @@ mod tests {
             action: AnalyzedTaskAction::Invoke(AnalyzedInvokeAction {
                 server: Some("novanet".to_string()),
                 tool: "".to_string(), // resource-only invoke
+                resource: None,
                 params: None,
                 timeout_ms: Some(10000),
                 span: Span::dummy(),
@@ -2487,6 +2490,7 @@ mod tests {
             action: AnalyzedTaskAction::Invoke(AnalyzedInvokeAction {
                 server: Some("test".to_string()),
                 tool: "tool".to_string(),
+                resource: None,
                 params: None,
                 timeout_ms: Some(100),
                 span: Span::dummy(),

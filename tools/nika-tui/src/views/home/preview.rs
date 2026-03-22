@@ -15,9 +15,9 @@ use ratatui::{
 };
 
 use super::{HomeView, PreviewMode};
-use nika_engine::ast::{parse_workflow, TaskAction, Workflow};
 use crate::theme::{TaskStatus, Theme, VerbColor};
 use crate::widgets::{DagAscii, NodeBoxData, NodeBoxMode};
+use nika_engine::ast::{parse_workflow, TaskAction, Workflow};
 
 impl HomeView {
     // =========================================================================

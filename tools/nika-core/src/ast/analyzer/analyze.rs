@@ -859,16 +859,25 @@ fn analyze_fetch(raw: &RawFetchAction, ctx: &mut AnalyzerContext) -> AnalyzedFet
 }
 
 fn analyze_invoke(raw: &RawInvokeAction) -> AnalyzedInvokeAction {
-    let (server, tool) = raw.parse_tool_name();
+    let parsed = raw.parse_tool_name();
+    let (server, tool) = parsed.unwrap_or((None, ""));
+
+    let span = raw
+        .tool
+        .as_ref()
+        .map(|t| t.span)
+        .or_else(|| raw.resource.as_ref().map(|r| r.span))
+        .unwrap_or(Span::dummy());
 
     AnalyzedInvokeAction {
         server: server
             .map(|s| s.to_string())
             .or_else(|| raw.mcp.as_ref().map(|s| s.value.clone())),
         tool: tool.to_string(),
+        resource: raw.resource.as_ref().map(|s| s.value.clone()),
         params: raw.params.as_ref().map(|s| s.value.clone()),
         timeout_ms: raw.timeout_ms.as_ref().map(|s| s.value),
-        span: raw.tool.span,
+        span,
     }
 }
 
@@ -1882,7 +1891,8 @@ mod tests {
         let mut task = make_raw_task("task1");
         task.action = Some(RawTaskAction::Invoke(Spanned::new(
             RawInvokeAction {
-                tool: Spanned::new("novanet:search".to_string(), make_span(0, 14)),
+                tool: Some(Spanned::new("novanet:search".to_string(), make_span(0, 14))),
+                resource: None,
                 mcp: None,
                 params: None,
                 timeout_ms: None,

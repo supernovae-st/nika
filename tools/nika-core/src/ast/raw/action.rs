@@ -144,7 +144,11 @@ pub struct RawFetchAction {
 #[derive(Debug, Clone, Default)]
 pub struct RawInvokeAction {
     /// MCP tool name: "tool_name" or "server::tool_name"
-    pub tool: Spanned<String>,
+    /// Required unless `resource` is set.
+    pub tool: Option<Spanned<String>>,
+
+    /// MCP resource URI (alternative to tool call)
+    pub resource: Option<Spanned<String>>,
 
     /// Tool parameters (validated against MCP schema)
     pub params: Option<Spanned<serde_json::Value>>,
@@ -159,12 +163,14 @@ pub struct RawInvokeAction {
 impl RawInvokeAction {
     /// Parse server and tool name from the tool field.
     /// Returns (server, tool_name) where server may be None.
-    pub fn parse_tool_name(&self) -> (Option<&str>, &str) {
-        let tool = &self.tool.value;
-        if let Some((server, name)) = tool.split_once("::") {
-            (Some(server), name)
+    /// Returns None if no tool is specified (resource-only invoke).
+    pub fn parse_tool_name(&self) -> Option<(Option<&str>, &str)> {
+        let tool = self.tool.as_ref()?;
+        let tool_str = &tool.value;
+        if let Some((server, name)) = tool_str.split_once("::") {
+            Some((Some(server), name))
         } else {
-            (None, tool.as_str())
+            Some((None, tool_str.as_str()))
         }
     }
 }
@@ -264,19 +270,19 @@ mod tests {
     fn test_invoke_parse_tool_name() {
         // Simple tool name
         let simple = RawInvokeAction {
-            tool: Spanned::new("my_tool".to_string(), make_span(0, 7)),
+            tool: Some(Spanned::new("my_tool".to_string(), make_span(0, 7))),
             ..Default::default()
         };
-        let (server, name) = simple.parse_tool_name();
+        let (server, name) = simple.parse_tool_name().unwrap();
         assert_eq!(server, None);
         assert_eq!(name, "my_tool");
 
         // Server-qualified name
         let qualified = RawInvokeAction {
-            tool: Spanned::new("novanet::query".to_string(), make_span(0, 14)),
+            tool: Some(Spanned::new("novanet::query".to_string(), make_span(0, 14))),
             ..Default::default()
         };
-        let (server, name) = qualified.parse_tool_name();
+        let (server, name) = qualified.parse_tool_name().unwrap();
         assert_eq!(server, Some("novanet"));
         assert_eq!(name, "query");
     }

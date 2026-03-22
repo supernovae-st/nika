@@ -7657,13 +7657,11 @@ fn z11_fetch_json_body_with_array() {
 }
 
 #[test]
-fn z12_invoke_resource_requires_tool() {
-    // Through the three-phase pipeline, invoke requires 'tool' field.
-    // invoke with only resource and no tool is rejected by the analyzer.
+fn z12_invoke_resource_without_tool_is_valid() {
+    // invoke with resource and no tool is now valid (resource read mode)
     let yaml = wrap("invoke:\n  mcp: novanet\n  resource: entity://qr-code/en-US");
-    let e = err(&yaml);
-    let msg = format!("{e}");
-    assert!(msg.contains("tool") || msg.contains("NIKA"));
+    let wf = ok(&yaml);
+    assert_eq!(wf.tasks.len(), 1);
 }
 
 #[test]

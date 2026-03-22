@@ -40,12 +40,12 @@
 
 use std::path::PathBuf;
 
+use crate::chat_agent::ChatAgent;
+use crate::InputMode;
 use nika_engine::ast::expand_includes;
 use nika_engine::event::EventLog;
 use nika_engine::provider::rig::StreamChunk;
 use nika_engine::runtime::Runner;
-use crate::chat_agent::ChatAgent;
-use crate::InputMode;
 
 use super::super::views::{TuiView, View, ViewAction};
 use super::types::Action;

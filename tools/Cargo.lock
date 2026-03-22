@@ -5507,7 +5507,7 @@ name = "nika-lsp"
 version = "0.38.0"
 dependencies = [
  "dashmap",
- "nika",
+ "nika-engine",
  "nika-lsp-core",
  "parking_lot",
  "pretty_assertions",

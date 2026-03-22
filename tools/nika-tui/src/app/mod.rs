@@ -43,11 +43,11 @@ use ratatui::{backend::CrosstermBackend, layout::Rect, Terminal};
 use tokio::sync::{broadcast, mpsc};
 use tokio::task::AbortHandle;
 
+use crate::chat_agent::ChatAgent;
 use nika_engine::error::{NikaError, Result};
 use nika_engine::event::Event as NikaEvent;
 use nika_engine::mcp::McpClientPool;
 use nika_engine::provider::rig::StreamChunk;
-use crate::chat_agent::ChatAgent;
 
 use super::config::{ThemeName, TuiConfig};
 use super::cosmic_theme::CosmicTheme;

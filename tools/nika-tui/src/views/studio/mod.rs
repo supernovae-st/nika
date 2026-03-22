@@ -46,8 +46,6 @@ use ratatui::{
 
 use super::view_trait::View;
 use super::ViewAction;
-use nika_engine::ast::schema_validator::WorkflowSchemaValidator;
-use nika_engine::error::NikaError;
 use crate::diagnostics::DiagnosticsEngine;
 use crate::edit_history::EditHistory;
 use crate::git::GitStatus;
@@ -62,6 +60,8 @@ use crate::widgets::{
     centered_rect, CommandPalette, CommandPaletteState, MatrixRain, StatusMessage, WhichKey,
     WhichKeyState,
 };
+use nika_engine::ast::schema_validator::WorkflowSchemaValidator;
+use nika_engine::error::NikaError;
 use nika_engine::util::atomic_write;
 
 // ═══════════════════════════════════════════════════════════════════════════════

@@ -41,10 +41,10 @@ use super::ViewAction;
 pub(super) fn is_cmd_pressed(modifiers: KeyModifiers) -> bool {
     modifiers.contains(KeyModifiers::CONTROL) || modifiers.contains(KeyModifiers::SUPER)
 }
-use nika_engine::runtime::chat_workflow::{ChatWorkflow, Role as WorkflowRole};
 use crate::edit_history::EditHistory;
 use crate::state::{ChatPanel, PanelScrollState, TuiState};
 use crate::theme::{Theme, VerbColor};
+use nika_engine::runtime::chat_workflow::{ChatWorkflow, Role as WorkflowRole};
 
 // PERF: Pre-computed constants to avoid allocations in render loop
 const SEPARATOR_52: &str = "╰───────────────────────────────────────────────────╯"; // MCP box bottom
