@@ -1,0 +1,92 @@
+# =============================================================================
+# COURSE 06 — Flatten + Compact
+# =============================================================================
+#
+# Demonstrates array cleanup transforms:
+#   flatten | compact | sort
+#
+# Data: nested arrays with nulls from a multi-source data merge.
+# Pipeline: flatten nested -> compact nulls -> sort results.
+# =============================================================================
+
+schema: nika/workflow@0.12
+workflow: course-flatten-compact
+
+tasks:
+  # -- Source: nested arrays simulating multi-source merge --
+  - id: nested_data
+    exec: 'echo ''[["rust","go"],["python",null,"java"],[null,"typescript"],["elixir"]]'''
+    description: "Nested arrays with nulls from merging multiple data sources"
+
+  # -- Flatten: collapse nesting into single array --
+  - id: flattened
+    depends_on: [nested_data]
+    with:
+      val: $nested_data | flatten
+    exec: "echo 'FLATTENED={{with.val}}'"
+    description: "flatten: collapse nested arrays into flat array"
+
+  # -- Compact: remove nulls --
+  - id: compacted
+    depends_on: [nested_data]
+    with:
+      val: $nested_data | flatten | compact
+    exec: "echo 'COMPACTED={{with.val}}'"
+    description: "compact: remove null values after flatten"
+
+  # -- Full pipeline: flatten -> compact -> sort --
+  - id: clean_sorted
+    depends_on: [nested_data]
+    with:
+      val: $nested_data | flatten | compact | sort
+    exec: "echo 'CLEAN_SORTED={{with.val}}'"
+    description: "Pipeline: flatten -> compact -> sort for clean data"
+
+  # -- Count at each stage --
+  - id: stage_counts
+    depends_on: [nested_data]
+    with:
+      nested_count: $nested_data | length
+      flat_count: $nested_data | flatten | length
+      compact_count: $nested_data | flatten | compact | length
+    exec:
+      command: |
+        echo "Nested groups: {{with.nested_count}}"
+        echo "After flatten: {{with.flat_count}} items (includes nulls)"
+        echo "After compact: {{with.compact_count}} items (nulls removed)"
+      shell: true
+    description: "Track element counts through flatten/compact pipeline"
+
+  # -- Compact on flat array with nulls --
+  - id: flat_with_nulls
+    exec: 'echo ''["alpha",null,"beta",null,null,"gamma","delta",null]'''
+    description: "Flat array with scattered nulls"
+
+  - id: compact_flat
+    depends_on: [flat_with_nulls]
+    with:
+      before: $flat_with_nulls | length
+      after: $flat_with_nulls | compact | length
+      clean: $flat_with_nulls | compact | sort | join(", ")
+    exec:
+      command: |
+        echo "Before compact: {{with.before}} items"
+        echo "After compact:  {{with.after}} items"
+        echo "Clean sorted:   {{with.clean}}"
+      shell: true
+    description: "Compact on flat array: remove scattered nulls"
+
+  - id: verify
+    depends_on: [flattened, compacted, clean_sorted, stage_counts, compact_flat]
+    with:
+      flat: $flattened | trim
+      comp: $compacted | trim
+      clean: $clean_sorted | trim
+    exec:
+      command: |
+        echo "=== Flatten + Compact: VERIFIED ==="
+        echo "Flattened: {{with.flat}}"
+        echo "Compacted: {{with.comp}}"
+        echo "Clean:     {{with.clean}}"
+      shell: true
+    description: "Verify flatten and compact operations"

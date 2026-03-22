@@ -1,0 +1,40 @@
+# =============================================================================
+# INFRASTRUCTURE 12 — Config-Driven Workflow
+# =============================================================================
+#
+# Demonstrates: inputs providing runtime overrides while context
+# provides baseline defaults. The pattern separates "what can change
+# per-run" (inputs) from "what stays consistent" (context files).
+#
+# Context loads a JSON config with stable defaults.
+# Inputs let callers override specific values at runtime.
+# =============================================================================
+
+schema: "nika/workflow@0.12"
+workflow: infra-config-driven
+description: "Inputs override runtime behavior while context provides defaults"
+
+context:
+  files:
+    defaults: ./.scratch/context/config.json
+
+inputs:
+  deploy_target: "staging"
+  log_level: "debug"
+
+tasks:
+  - id: load_config
+    description: "Show the base configuration from context"
+    exec:
+      command: "echo 'Base config: {{context.files.defaults}}' | head -c 100"
+      shell: true
+
+  - id: apply_overrides
+    depends_on: [load_config]
+    description: "Apply input overrides to the configuration"
+    exec: "echo 'Deploy target: {{inputs.deploy_target}}, Log level: {{inputs.log_level}}'"
+
+  - id: deploy
+    depends_on: [apply_overrides]
+    description: "Execute deployment with merged configuration"
+    exec: "echo 'Deploying to {{inputs.deploy_target}} with log_level={{inputs.log_level}}'"

@@ -1,0 +1,96 @@
+# =============================================================================
+# COURSE 01 — String Transforms
+# =============================================================================
+#
+# Demonstrates all 5 string transforms chained on real data:
+#   upper | lower | trim | trim_start | trim_end
+#
+# Data: mixed-case log entry with leading/trailing whitespace.
+# Each task isolates one transform, then chains them to show order matters.
+# =============================================================================
+
+schema: nika/workflow@0.12
+workflow: course-string-transforms
+
+tasks:
+  # -- Source: a realistic log entry with messy whitespace and casing --
+  - id: raw_log
+    exec: "printf '   [WARN] Disk Usage at 87%% on /dev/sda1   '"
+    description: "Messy log entry with leading/trailing spaces and mixed case"
+
+  # -- Individual transforms --
+  - id: trimmed
+    depends_on: [raw_log]
+    with:
+      val: $raw_log | trim
+    exec: "echo 'TRIM=[{{with.val}}]'"
+    description: "trim: remove both leading and trailing whitespace"
+
+  - id: trim_start_only
+    depends_on: [raw_log]
+    with:
+      val: $raw_log | trim_start
+    exec: "echo 'TRIM_START=[{{with.val}}]'"
+    description: "trim_start: remove only leading whitespace"
+
+  - id: trim_end_only
+    depends_on: [raw_log]
+    with:
+      val: $raw_log | trim_end
+    exec: "echo 'TRIM_END=[{{with.val}}]'"
+    description: "trim_end: remove only trailing whitespace"
+
+  - id: uppercased
+    depends_on: [raw_log]
+    with:
+      val: $raw_log | trim | upper
+    exec: "echo 'UPPER=[{{with.val}}]'"
+    description: "upper: convert to uppercase (trim first to clean)"
+
+  - id: lowercased
+    depends_on: [raw_log]
+    with:
+      val: $raw_log | trim | lower
+    exec: "echo 'LOWER=[{{with.val}}]'"
+    description: "lower: convert to lowercase (trim first to clean)"
+
+  # -- Chain: order matters --
+  - id: chain_trim_upper_lower
+    depends_on: [raw_log]
+    with:
+      step1: $raw_log | trim
+      step2: $raw_log | trim | upper
+      step3: $raw_log | trim | upper | lower
+    exec:
+      command: |
+        echo "Step 1 (trim):              [{{with.step1}}]"
+        echo "Step 2 (trim|upper):        [{{with.step2}}]"
+        echo "Step 3 (trim|upper|lower):  [{{with.step3}}]"
+      shell: true
+    description: "Chain: trim -> upper -> lower shows transform ordering"
+
+  # -- Chain: all 5 in sequence --
+  - id: full_chain
+    depends_on: [raw_log]
+    with:
+      result: $raw_log | trim_start | trim_end | upper | lower | trim
+    exec: "echo 'FULL_CHAIN=[{{with.result}}]'"
+    description: "All 5 string transforms: trim_start -> trim_end -> upper -> lower -> trim"
+
+  # -- Verification --
+  - id: verify
+    depends_on: [trimmed, trim_start_only, trim_end_only, uppercased, lowercased, chain_trim_upper_lower, full_chain]
+    with:
+      a: $trimmed | trim
+      b: $uppercased | trim
+      c: $lowercased | trim
+      d: $full_chain | trim
+    exec:
+      command: |
+        echo "=== String Transforms: ALL 5 VERIFIED ==="
+        echo "trim:       {{with.a}}"
+        echo "upper:      {{with.b}}"
+        echo "lower:      {{with.c}}"
+        echo "full chain: {{with.d}}"
+      shell: true
+    description: "Verify all string transform results"

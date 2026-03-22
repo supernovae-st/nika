@@ -1,0 +1,7 @@
+{
+  "app_name": "MyApp",
+  "version": "2.1.0",
+  "deploy_target": "production",
+  "log_level": "info",
+  "features": ["auth", "analytics", "notifications"]
+}

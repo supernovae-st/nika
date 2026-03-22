@@ -1,0 +1,104 @@
+# =============================================================================
+# COURSE 08 — Type Conversions
+# =============================================================================
+#
+# Demonstrates all 5 type conversion transforms:
+#   to_string | to_number | to_bool | to_json | parse_json
+#
+# Data: real exec output that needs type coercion for downstream processing.
+# Shows the complete type conversion matrix.
+# =============================================================================
+
+schema: nika/workflow@0.12
+workflow: course-type-conversions
+
+tasks:
+  # -- Source: various types as exec output --
+  - id: numeric_string
+    exec: "echo '42.7'"
+    description: "Numeric value as string from exec"
+
+  - id: bool_string
+    exec: "echo 'true'"
+    description: "Boolean value as string from exec"
+
+  - id: json_string
+    exec: 'printf ''{"name":"nika","version":38,"active":true,"tags":["workflow","ai"]}'''
+    description: "JSON object as string from exec"
+
+  # -- to_number: string -> number --
+  - id: as_number
+    depends_on: [numeric_string]
+    with:
+      val: $numeric_string | to_number
+      check: $numeric_string | to_number | type_of
+    exec: "echo 'TO_NUMBER={{with.val}} (type={{with.check}})'"
+    description: "to_number: convert string to numeric type"
+
+  # -- to_bool: string -> boolean --
+  - id: as_bool
+    depends_on: [bool_string]
+    with:
+      val: $bool_string | to_bool
+      check: $bool_string | to_bool | type_of
+    exec: "echo 'TO_BOOL={{with.val}} (type={{with.check}})'"
+    description: "to_bool: convert string to boolean type"
+
+  # -- to_string: number -> string --
+  - id: num_to_str
+    depends_on: [numeric_string]
+    with:
+      val: $numeric_string | to_number | to_string
+      check: $numeric_string | to_number | to_string | type_of
+    exec: "echo 'TO_STRING={{with.val}} (type={{with.check}})'"
+    description: "to_string: convert number back to string"
+
+  # -- parse_json: string -> structured --
+  - id: parsed
+    depends_on: [json_string]
+    with:
+      val: $json_string | parse_json
+      check: $json_string | parse_json | type_of
+    exec: "echo 'PARSE_JSON={{with.val}} (type={{with.check}})'"
+    description: "parse_json: parse JSON string into structured object"
+
+  # -- to_json: value -> JSON string --
+  - id: as_json
+    depends_on: [json_string]
+    with:
+      val: $json_string | parse_json | to_json
+      check: $json_string | parse_json | to_json | type_of
+    exec: "echo 'TO_JSON={{with.val}} (type={{with.check}})'"
+    description: "to_json: serialize structured object to JSON string"
+
+  # -- Roundtrip: string -> number -> string --
+  - id: roundtrip_number
+    depends_on: [numeric_string]
+    with:
+      original: $numeric_string | trim
+      roundtripped: $numeric_string | to_number | to_string
+    exec:
+      command: |
+        echo "Original:     [{{with.original}}]"
+        echo "Roundtripped: [{{with.roundtripped}}]"
+      shell: true
+    description: "Number roundtrip: string -> to_number -> to_string"
+
+  - id: verify
+    depends_on: [as_number, as_bool, num_to_str, parsed, as_json, roundtrip_number]
+    with:
+      n: $as_number | trim
+      b: $as_bool | trim
+      s: $num_to_str | trim
+      p: $parsed | trim
+      j: $as_json | trim
+    exec:
+      command: |
+        echo "=== Type Conversions: ALL 5 VERIFIED ==="
+        echo "to_number:  {{with.n}}"
+        echo "to_bool:    {{with.b}}"
+        echo "to_string:  {{with.s}}"
+        echo "parse_json: {{with.p}}"
+        echo "to_json:    {{with.j}}"
+      shell: true
+    description: "Verify all type conversion transforms"

@@ -1,0 +1,35 @@
+# =============================================================================
+# INFRASTRUCTURE 08 — Artifact with Template Path
+# =============================================================================
+#
+# Demonstrates: using template expressions in artifact paths.
+# The artifact path uses the workflow name and task ID to create
+# a structured output directory automatically.
+#
+# This pattern keeps outputs organized when running many workflows.
+# =============================================================================
+
+schema: "nika/workflow@0.12"
+workflow: infra-artifact-template-path
+description: "Artifact paths with template-based directory structure"
+
+artifacts:
+  dir: ./.scratch/output/template-path
+
+tasks:
+  - id: gen_report
+    description: "Generate a report saved to a templated path"
+    exec: "echo 'Report generated at structured path'"
+    artifact:
+      path: "reports/gen_report.md"
+      format: text
+
+  - id: gen_summary
+    depends_on: [gen_report]
+    with:
+      report: $gen_report
+    description: "Generate a summary alongside the report"
+    exec: "echo 'Summary of: {{with.report}}'"
+    artifact:
+      path: "summaries/gen_summary.md"
+      format: text

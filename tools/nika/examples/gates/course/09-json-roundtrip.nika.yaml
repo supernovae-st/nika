@@ -1,0 +1,101 @@
+# =============================================================================
+# COURSE 09 — JSON Roundtrip
+# =============================================================================
+#
+# Deep dive into JSON serialization/deserialization:
+#   to_json | parse_json
+#
+# Proves data integrity through encode -> decode -> re-encode cycles.
+# Uses real structured data to show no information loss.
+# =============================================================================
+
+schema: nika/workflow@0.12
+workflow: course-json-roundtrip
+
+tasks:
+  # -- Source: realistic API response --
+  - id: api_response
+    exec: 'printf ''{"users":[{"id":1,"name":"Alice","roles":["admin","dev"]},{"id":2,"name":"Bob","roles":["dev"]}],"total":2,"page":1}'''
+    description: "Complex nested API response"
+
+  # -- Parse: string -> structured --
+  - id: parse_response
+    depends_on: [api_response]
+    with:
+      parsed: $api_response | parse_json
+    exec: "echo 'PARSED={{with.parsed}}'"
+    description: "parse_json: decode the API response"
+
+  # -- Re-encode: structured -> string --
+  - id: reencode
+    depends_on: [api_response]
+    with:
+      roundtripped: $api_response | parse_json | to_json
+    exec: "echo 'REENCODED={{with.roundtripped}}'"
+    description: "to_json: re-encode after parsing"
+
+  # -- Double roundtrip: parse -> encode -> parse -> encode --
+  - id: double_roundtrip
+    depends_on: [api_response]
+    with:
+      val: $api_response | parse_json | to_json | parse_json | to_json
+    exec: "echo 'DOUBLE_RT={{with.val}}'"
+    description: "Double roundtrip: parse -> encode -> parse -> encode"
+
+  # -- Access nested fields after parse --
+  - id: field_access
+    depends_on: [api_response]
+    with:
+      total: $api_response.total
+      page: $api_response.page
+    exec:
+      command: |
+        echo "Total: {{with.total}}"
+        echo "Page:  {{with.page}}"
+      shell: true
+    description: "Access nested fields through JSONPath"
+
+  # -- Parse then chain with collection transforms --
+  - id: parse_and_transform
+    depends_on: [api_response]
+    with:
+      user_count: $api_response.users | length
+      keys: $api_response | keys | sort | join(", ")
+    exec:
+      command: |
+        echo "User count: {{with.user_count}}"
+        echo "Top-level keys: {{with.keys}}"
+      shell: true
+    description: "parse_json + collection transforms on result"
+
+  # -- Simple value roundtrip --
+  - id: simple_values
+    exec: 'echo ''["hello","world",42,true,null]'''
+    description: "Mixed-type array"
+
+  - id: simple_roundtrip
+    depends_on: [simple_values]
+    with:
+      original: $simple_values | to_json
+      roundtripped: $simple_values | parse_json | to_json
+    exec:
+      command: |
+        echo "Original:     {{with.original}}"
+        echo "Roundtripped: {{with.roundtripped}}"
+      shell: true
+    description: "Roundtrip on mixed-type array"
+
+  - id: verify
+    depends_on: [parse_response, reencode, double_roundtrip, field_access, parse_and_transform, simple_roundtrip]
+    with:
+      p: $parse_response | trim
+      r: $reencode | trim
+      d: $double_roundtrip | trim
+    exec:
+      command: |
+        echo "=== JSON Roundtrip: to_json|parse_json VERIFIED ==="
+        echo "Parsed:         {{with.p}}"
+        echo "Reencoded:      {{with.r}}"
+        echo "Double RT:      {{with.d}}"
+      shell: true
+    description: "Verify JSON roundtrip integrity"

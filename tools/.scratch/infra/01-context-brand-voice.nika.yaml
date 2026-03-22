@@ -1,0 +1,32 @@
+# =============================================================================
+# INFRASTRUCTURE 01 — Brand Voice Context
+# =============================================================================
+#
+# Demonstrates: context.files loading a markdown file into the prompt.
+# The brand guide is injected via {{context.files.brand}} so the LLM
+# generates content that follows your brand voice automatically.
+#
+# No API key needed — uses exec: to show the template expansion.
+# =============================================================================
+
+schema: "nika/workflow@0.12"
+workflow: infra-context-brand-voice
+description: "Load a brand guide via context.files and use it in a task"
+
+context:
+  files:
+    brand: ./.scratch/context/brand.md
+
+tasks:
+  - id: show_brand
+    description: "Echo the loaded brand context to verify it works"
+    exec:
+      command: "echo 'Brand context loaded, length: {{context.files.brand}}' | wc -c"
+      shell: true
+
+  - id: generate_tagline
+    depends_on: [show_brand]
+    description: "Use brand voice context in an exec task"
+    exec:
+      command: "echo 'Following brand voice: active voice, under 20 words, benefit-led'"
+      shell: true

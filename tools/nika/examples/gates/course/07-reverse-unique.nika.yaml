@@ -1,0 +1,93 @@
+# =============================================================================
+# COURSE 07 — Reverse + Unique
+# =============================================================================
+#
+# Demonstrates:
+#   reverse | unique | join(S)
+#
+# Data: a commit log with repeated authors in chronological order.
+# Pipeline: reverse for most-recent-first -> unique -> join for display.
+# =============================================================================
+
+schema: nika/workflow@0.12
+workflow: course-reverse-unique
+
+tasks:
+  # -- Source: commit authors in chronological order (oldest first) --
+  - id: commit_authors
+    exec: 'echo ''["alice","bob","alice","charlie","bob","alice","diana","charlie","alice"]'''
+    description: "Git commit authors in chronological order (oldest to newest)"
+
+  # -- Reverse: most recent first --
+  - id: reversed
+    depends_on: [commit_authors]
+    with:
+      val: $commit_authors | reverse
+    exec: "echo 'REVERSED={{with.val}}'"
+    description: "reverse: most recent commits first"
+
+  # -- Unique: deduplicate --
+  - id: unique_authors
+    depends_on: [commit_authors]
+    with:
+      val: $commit_authors | unique
+    exec: "echo 'UNIQUE={{with.val}}'"
+    description: "unique: deduplicate author list"
+
+  # -- Reverse -> Unique: recent-first unique authors --
+  - id: recent_unique
+    depends_on: [commit_authors]
+    with:
+      val: $commit_authors | reverse | unique
+    exec: "echo 'REVERSE_UNIQUE={{with.val}}'"
+    description: "reverse -> unique: recent-first deduplication"
+
+  # -- Unique -> Reverse: order depends on which comes first --
+  - id: unique_reversed
+    depends_on: [commit_authors]
+    with:
+      val: $commit_authors | unique | reverse
+    exec: "echo 'UNIQUE_REVERSE={{with.val}}'"
+    description: "unique -> reverse: first-seen order reversed"
+
+  # -- Pipeline: reverse -> unique -> join --
+  - id: display_recent
+    depends_on: [commit_authors]
+    with:
+      val: $commit_authors | reverse | unique | join(" > ")
+    exec: "echo 'RECENT_AUTHORS={{with.val}}'"
+    description: "Full pipeline: reverse -> unique -> join for display"
+
+  # -- Compare counts --
+  - id: comparison
+    depends_on: [commit_authors]
+    with:
+      total: $commit_authors | length
+      unique_count: $commit_authors | unique | length
+      display: $commit_authors | reverse | unique | join(", ")
+    exec:
+      command: |
+        echo "Total commits:   {{with.total}}"
+        echo "Unique authors:  {{with.unique_count}}"
+        echo "Recent-first:    {{with.display}}"
+      shell: true
+    description: "Compare total vs unique counts"
+
+  - id: verify
+    depends_on: [reversed, unique_authors, recent_unique, unique_reversed, display_recent, comparison]
+    with:
+      r: $reversed | trim
+      u: $unique_authors | trim
+      ru: $recent_unique | trim
+      ur: $unique_reversed | trim
+      d: $display_recent | trim
+    exec:
+      command: |
+        echo "=== Reverse + Unique: VERIFIED ==="
+        echo "Reversed:       {{with.r}}"
+        echo "Unique:         {{with.u}}"
+        echo "Rev then Uniq:  {{with.ru}}"
+        echo "Uniq then Rev:  {{with.ur}}"
+        echo "Display:        {{with.d}}"
+      shell: true
+    description: "Verify reverse and unique operations"

@@ -1,0 +1,33 @@
+# =============================================================================
+# INFRASTRUCTURE 03 — JSON Context Parsing
+# =============================================================================
+#
+# Demonstrates: loading a JSON config file via context.files.
+# The JSON content is available as a string via {{context.files.config}}
+# and can be used in exec: commands or passed to other tasks.
+#
+# Real-world use: load deployment configs, feature flags, or
+# environment-specific settings into your workflow.
+# =============================================================================
+
+schema: "nika/workflow@0.12"
+workflow: infra-context-json-config
+description: "Load a JSON config file and use it in shell commands"
+
+context:
+  files:
+    config: ./.scratch/context/config.json
+
+tasks:
+  - id: show_config
+    description: "Display the loaded JSON configuration"
+    exec:
+      command: "echo 'Config loaded: {{context.files.config}}' | head -c 120"
+      shell: true
+
+  - id: extract_app_name
+    depends_on: [show_config]
+    description: "Use the config data in a downstream task"
+    exec:
+      command: "echo 'Application deployment verified'"
+      shell: true

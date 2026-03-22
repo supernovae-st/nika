@@ -1,0 +1,37 @@
+# =============================================================================
+# INFRASTRUCTURE 13 — Retry with Exponential Backoff
+# =============================================================================
+#
+# Demonstrates: retry: configuration with max_attempts, delay_ms,
+# and exponential backoff multiplier.
+#
+# retry:
+#   max_attempts: 3    — try up to 3 times total
+#   delay_ms: 1000     — wait 1s before first retry
+#   backoff: 2.0       — double the delay each retry (1s, 2s, 4s)
+#
+# Essential for unreliable external APIs and network calls.
+# =============================================================================
+
+schema: "nika/workflow@0.12"
+workflow: infra-retry-with-backoff
+description: "Fetch with retry, delay, and exponential backoff"
+
+tasks:
+  - id: fetch_api
+    description: "Call an API with retry protection"
+    fetch:
+      url: "https://httpbin.org/get"
+      method: GET
+      timeout: 10
+    retry:
+      max_attempts: 3
+      delay_ms: 1000
+      backoff: 2.0
+
+  - id: process
+    depends_on: [fetch_api]
+    with:
+      data: $fetch_api
+    description: "Process the fetched data after successful retry"
+    exec: "echo 'API response received after retries: {{with.data}}' | head -c 80"

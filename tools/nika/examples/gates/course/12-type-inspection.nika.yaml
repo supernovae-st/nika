@@ -1,0 +1,106 @@
+# =============================================================================
+# COURSE 12 — Type Inspection
+# =============================================================================
+#
+# Demonstrates the type_of utility transform on every JSON type:
+#   string | number | boolean | array | object | null
+#
+# Data: exec output of different types, type_of reveals the runtime type.
+# Shows type_of before and after transforms to track type changes.
+# =============================================================================
+
+schema: nika/workflow@0.12
+workflow: course-type-inspection
+
+tasks:
+  # -- Sources: one per JSON type --
+  - id: src_string
+    exec: "echo 'hello world'"
+    description: "Plain string value"
+
+  - id: src_number
+    exec: "echo '99.5'"
+    description: "Numeric string (still a string until to_number)"
+
+  - id: src_array
+    exec: 'echo ''["alpha","beta","gamma"]'''
+    description: "JSON array"
+
+  - id: src_object
+    exec: 'printf ''{"key":"value","count":3}'''
+    description: "JSON object"
+
+  # -- type_of on string --
+  - id: type_string
+    depends_on: [src_string]
+    with:
+      t: $src_string | type_of
+    exec: "echo 'STRING_TYPE={{with.t}}'"
+    description: "type_of on string: should be 'string'"
+
+  # -- type_of on number (after conversion) --
+  - id: type_number
+    depends_on: [src_number]
+    with:
+      before: $src_number | type_of
+      after: $src_number | to_number | type_of
+    exec: "echo 'BEFORE={{with.before}} AFTER={{with.after}}'"
+    description: "type_of before/after to_number conversion"
+
+  # -- type_of on array --
+  - id: type_array
+    depends_on: [src_array]
+    with:
+      t: $src_array | type_of
+    exec: "echo 'ARRAY_TYPE={{with.t}}'"
+    description: "type_of on array: should be 'array'"
+
+  # -- type_of on object --
+  - id: type_object
+    depends_on: [src_object]
+    with:
+      t: $src_object | type_of
+    exec: "echo 'OBJECT_TYPE={{with.t}}'"
+    description: "type_of on object: should be 'object'"
+
+  # -- type_of after transforms --
+  - id: type_after_first
+    depends_on: [src_array]
+    with:
+      array_type: $src_array | type_of
+      first_type: $src_array | first | type_of
+    exec: "echo 'ARRAY={{with.array_type}} FIRST={{with.first_type}}'"
+    description: "type_of changes after first: array -> string"
+
+  - id: type_after_keys
+    depends_on: [src_object]
+    with:
+      obj_type: $src_object | type_of
+      keys_type: $src_object | keys | type_of
+    exec: "echo 'OBJECT={{with.obj_type}} KEYS={{with.keys_type}}'"
+    description: "type_of changes after keys: object -> array"
+
+  - id: type_after_length
+    depends_on: [src_array]
+    with:
+      arr_type: $src_array | type_of
+      len_type: $src_array | length | type_of
+    exec: "echo 'ARRAY={{with.arr_type}} LENGTH={{with.len_type}}'"
+    description: "type_of changes after length: array -> number"
+
+  - id: verify
+    depends_on: [type_string, type_number, type_array, type_object, type_after_first, type_after_keys, type_after_length]
+    with:
+      s: $type_string | trim
+      n: $type_number | trim
+      a: $type_array | trim
+      o: $type_object | trim
+    exec:
+      command: |
+        echo "=== Type Inspection: type_of VERIFIED ==="
+        echo "String:  {{with.s}}"
+        echo "Number:  {{with.n}}"
+        echo "Array:   {{with.a}}"
+        echo "Object:  {{with.o}}"
+      shell: true
+    description: "Verify type_of on all JSON types"

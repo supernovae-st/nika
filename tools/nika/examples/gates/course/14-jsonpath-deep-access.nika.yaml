@@ -1,0 +1,117 @@
+# =============================================================================
+# COURSE 14 — JSONPath Deep Access
+# =============================================================================
+#
+# Demonstrates deep field access via JSONPath notation:
+#   $task.field.subfield + array indexing + ?? fallback
+#
+# Data: deeply nested JSON from a simulated API response.
+# Shows how to reach into nested structures without parse_json.
+# =============================================================================
+
+schema: nika/workflow@0.12
+workflow: course-jsonpath-deep-access
+
+tasks:
+  # -- Source: deeply nested API response --
+  - id: api_data
+    exec: 'printf ''{"status":"ok","data":{"users":[{"id":1,"name":"Alice","profile":{"role":"admin","team":"platform"}},{"id":2,"name":"Bob","profile":{"role":"dev","team":"backend"}}],"meta":{"total":2,"page":1,"per_page":20}}}'''
+    description: "Deeply nested API response with users, profiles, and metadata"
+
+  # -- Level 1: direct field access --
+  - id: status
+    depends_on: [api_data]
+    with:
+      val: $api_data.status
+    exec: "echo 'STATUS={{with.val}}'"
+    description: "Level 1: $task.field"
+
+  # -- Level 2: nested object access --
+  - id: meta_total
+    depends_on: [api_data]
+    with:
+      val: $api_data.data.meta.total
+    exec: "echo 'META_TOTAL={{with.val}}'"
+    description: "Level 2: $task.data.meta.total"
+
+  - id: meta_page
+    depends_on: [api_data]
+    with:
+      val: $api_data.data.meta.page
+    exec: "echo 'META_PAGE={{with.val}}'"
+    description: "Level 2: $task.data.meta.page"
+
+  # -- Level 3: array indexing --
+  - id: first_user
+    depends_on: [api_data]
+    with:
+      name: $api_data.data.users[0].name
+      role: $api_data.data.users[0].profile.role
+    exec: "echo 'FIRST_USER={{with.name}} ({{with.role}})'"
+    description: "Level 3: array index [0] with deep field access"
+
+  - id: second_user
+    depends_on: [api_data]
+    with:
+      name: $api_data.data.users[1].name
+      team: $api_data.data.users[1].profile.team
+    exec: "echo 'SECOND_USER={{with.name}} ({{with.team}})'"
+    description: "Level 3: array index [1] with deep field access"
+
+  # -- Deep access + transform --
+  - id: deep_transform
+    depends_on: [api_data]
+    with:
+      role: $api_data.data.users[0].profile.role | upper
+      team: $api_data.data.users[1].profile.team | upper
+    exec: "echo 'ROLE={{with.role}} TEAM={{with.team}}'"
+    description: "Deep access + upper transform"
+
+  # -- ?? fallback on missing deep path --
+  - id: missing_path
+    depends_on: [api_data]
+    with:
+      val: $api_data.data.users[0].profile.avatar ?? "no-avatar"
+    exec: "echo 'AVATAR={{with.val}}'"
+    description: "?? fallback when deep path does not exist"
+
+  - id: missing_index
+    depends_on: [api_data]
+    with:
+      val: $api_data.data.users[5].name ?? "index-out-of-range"
+    exec: "echo 'USER_5={{with.val}}'"
+    description: "?? fallback when array index is out of range"
+
+  # -- Combine multiple deep paths --
+  - id: combined
+    depends_on: [api_data]
+    with:
+      status: $api_data.status
+      total: $api_data.data.meta.total
+      admin: $api_data.data.users[0].name
+      admin_role: $api_data.data.users[0].profile.role
+    exec:
+      command: |
+        echo "=== JSONPath Deep Access: VERIFIED ==="
+        echo "Status:     {{with.status}}"
+        echo "Total:      {{with.total}}"
+        echo "Admin:      {{with.admin}} ({{with.admin_role}})"
+      shell: true
+    description: "Combine multiple deep path accesses in one task"
+
+  - id: verify
+    depends_on: [status, meta_total, meta_page, first_user, second_user, deep_transform, missing_path, missing_index, combined]
+    with:
+      s: $status | trim
+      t: $meta_total | trim
+      f: $first_user | trim
+      m: $missing_path | trim
+    exec:
+      command: |
+        echo "=== JSONPath: ALL PATTERNS VERIFIED ==="
+        echo "Direct:   {{with.s}}"
+        echo "Nested:   {{with.t}}"
+        echo "Indexed:  {{with.f}}"
+        echo "Fallback: {{with.m}}"
+      shell: true
+    description: "Verify all JSONPath access patterns"
