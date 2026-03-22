@@ -12,3 +12,7 @@ pub mod hints;
 pub mod levels;
 pub mod missions;
 pub mod progress;
+pub mod showcase;
+pub mod showcase_builtin;
+pub mod showcase_llm;
+pub mod templates;
