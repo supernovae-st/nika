@@ -21,7 +21,6 @@ pub mod course;
 mod minimal;
 mod schemas;
 mod showcase_advanced;
-mod showcase_fetch;
 mod showcase_infra;
 mod showcase_patterns;
 
@@ -29,7 +28,6 @@ pub use context::*;
 pub use minimal::*;
 pub use schemas::*;
 pub use showcase_advanced::*;
-pub use showcase_fetch::*;
 pub use showcase_infra::*;
 pub use showcase_patterns::*;
 
@@ -51,10 +49,9 @@ pub struct ContextFile {
     pub content: &'static str,
 }
 
-/// All workflows (5 minimal + 15 fetch + 15 patterns + 15 advanced + 15 infra)
+/// All workflows (5 minimal + 15 patterns + 15 advanced + 15 infra)
 pub fn get_all_workflows() -> Vec<WorkflowTemplate> {
     let mut all = minimal::get_minimal_workflows();
-    all.extend(showcase_fetch::get_showcase_fetch_workflows());
     all.extend(showcase_patterns::get_showcase_workflows());
     all.extend(showcase_advanced::get_showcase_advanced_workflows());
     all.extend(showcase_infra::get_showcase_infra_workflows());
@@ -117,7 +114,7 @@ nika course start
 | 05 | Shapeshifter | 3 | Transform — with: bindings |
 | 06 | Pay-Per-Dream | 3 | Structured output |
 | 07 | Swiss Knife | 3 | Builtin tools — invoke: |
-| 08 | Gone Rogue | 15 | Autonomous — agent: |
+| 08 | Gone Rogue | 3 | Autonomous — agent: |
 | 09 | Data Heist | 4 | Extraction — fetch: extract |
 | 10 | Open Protocol | 3 | MCP integration |
 | 11 | Pixel Pirate | 4 | Media pipeline |
@@ -150,8 +147,8 @@ mod tests {
         let workflows = get_all_workflows();
         assert_eq!(
             workflows.len(),
-            65,
-            "Should have 5 minimal + 15 fetch + 15 patterns + 15 advanced + 15 infra"
+            50,
+            "Should have 5 minimal + 15 patterns + 15 advanced + 15 infra"
         );
     }
 
@@ -295,11 +292,11 @@ mod tests {
 
     #[test]
     fn test_course_total_exercises() {
-        // 5+4+4+3+3+3+3+15+4+3+4+5 = 56
+        // 5+4+4+3+3+3+3+3+4+3+4+5 = 44
         assert_eq!(
             course::levels::total_exercises(),
-            56,
-            "Course should have 56 total exercises"
+            44,
+            "Course should have 44 total exercises"
         );
     }
 }
