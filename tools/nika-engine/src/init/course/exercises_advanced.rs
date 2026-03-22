@@ -334,7 +334,7 @@ tasks:
     invoke:
       tool: "nika:write"
       params:
-        file_path: "TODO: output path (e.g. output/report.txt)"
+        file_path: "TODO: output path (e.g. .scratch/report.txt)"
         content: "TODO: file content"
 
   # TODO: Read the file back using nika:read
@@ -370,7 +370,7 @@ tasks:
     invoke:
       tool: "nika:glob"
       params:
-        pattern: "TODO: glob pattern (e.g. output/*.txt)"
+        pattern: "TODO: glob pattern (e.g. .scratch/*.txt)"
 "##;
 
 const SWISS_KNIFE_02_SOLUTION: &str = r##"# =============================================================================
@@ -380,11 +380,18 @@ const SWISS_KNIFE_02_SOLUTION: &str = r##"# ====================================
 schema: "nika/workflow@0.12"
 
 tasks:
+  # Clean up from previous runs (nika:write fails if file exists)
+  - id: cleanup
+    exec:
+      command: rm -f .scratch/swiss-knife-report.txt
+      shell: true
+
   - id: write_file
+    depends_on: [cleanup]
     invoke:
       tool: "nika:write"
       params:
-        file_path: "output/swiss-knife-report.txt"
+        file_path: ".scratch/swiss-knife-report.txt"
         content: |
           Swiss Knife Report
           ==================
@@ -396,14 +403,14 @@ tasks:
     invoke:
       tool: "nika:read"
       params:
-        file_path: "output/swiss-knife-report.txt"
+        file_path: ".scratch/swiss-knife-report.txt"
 
   - id: edit_file
     depends_on: [read_file]
     invoke:
       tool: "nika:edit"
       params:
-        file_path: "output/swiss-knife-report.txt"
+        file_path: ".scratch/swiss-knife-report.txt"
         old_string: "Status: draft"
         new_string: "Status: verified by nika:edit"
 
@@ -413,14 +420,14 @@ tasks:
       tool: "nika:grep"
       params:
         pattern: "verified by nika:edit"
-        path: "./output"
+        path: ".scratch"
 
   - id: glob_files
     depends_on: [edit_file]
     invoke:
       tool: "nika:glob"
       params:
-        pattern: "output/*.txt"
+        pattern: ".scratch/*.txt"
 "##;
 
 // ── 07-03: Sub-Workflows ─────────────────────────────────────────────────────
