@@ -7,21 +7,115 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.39.0](https://github.com/supernovae-st/nika/releases/tag/v0.39.0) - 2026-03-22
+
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║  🦋 NIKA v0.39.0 — INTERACTIVE COURSE + INIT REDESIGN                        ║
+║  12 levels · 44 exercises · 200+ showcase workflows · cliclack wizard        ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║                                                                               ║
+║  🎓 `nika init --course` — Learn Nika interactively (Liberation theme)        ║
+║  ⚡ `nika init --minimal` — 5 workflows, 1 per verb, ready in seconds         ║
+║  🧙 `nika init` — cliclack wizard with provider auto-detection               ║
+║  📦 200+ embedded showcase workflows covering every Nika feature              ║
+║                                                                               ║
+║  42 commits | 133 files | +30,978 / -7,883 lines | 7,716 tests              ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+```
+
+### Breaking
+- **`nika init` redesigned** — old 6-tier system (30 workflows) replaced by 3-mode wizard
+  - Old: `tier-1-no-deps/` through `tier-6-everyday-magic/`
+  - New: Project (full scaffold) / Course (interactive) / Minimal (5 workflows)
+- **Error codes 310-319** added for course system (NIKA-310 through NIKA-319)
+
+### Added
+- **`nika course` subcommand** — 8 commands: `status`, `next`, `check`, `hint`, `reset`, `run`, `info`, `watch`
+- **12-level interactive course** — "Liberation" theme, 44 exercises with gated progression:
+  - L01 Jailbreak (exec) → L02 Hot Wire (fetch) → L03 Fork Bomb (DAG) → L04 Root Access (infer)
+  - L05 Shapeshifter (transforms) → L06 Pay-Per-Dream (structured output) → L07 Swiss Knife (tools)
+  - L08 Gone Rogue (agents) → L09 Data Heist (extraction) → L10 Open Protocol (MCP)
+  - L11 Pixel Pirate (media) → L12 SuperNovae (boss — everything combined)
+- **3-tier progressive hints** — conceptual → specific → near-solution (132 total hints)
+- **TOML progress tracking** — `.nika/course-progress.toml` with per-exercise scoring
+- **Exercise validation** — 8 check types (has_verb, has_with_bindings, has_schema, has_depends_on, min_tasks, no_todos)
+- **Rich MISSION.md** per level — lore, objectives, unlock conditions
+- **cliclack wizard** — branded NikaTheme (🦋 magenta), provider auto-detection (7 env vars), `--yes` for CI
+- **`nika init --minimal`** — 5 starter workflows (1 per verb) with inline docs
+- **200+ showcase workflows** — all 5 verbs, 27 transforms, 9 fetch modes, 26 media tools, DAG patterns, agents, MCP
+- **15 DAG pattern examples** in `examples/dag-patterns/`
+
+### Removed
+- 6 old tier generators (`tier1.rs` through `tier6.rs`, 6,858 lines)
+- `partials.rs` template system (469 lines)
+
+### Fixed
+- DAG render panic in tree widget
+- Empty prompt validation for `infer:` verb
+- 10 failing solution workflows fixed (22/22 now pass `nika check`)
+- Exercise path resolution from embedded data (not hardcoded patterns)
+- Go template conflict in docker-dashboard showcase
+- `nika:run` tool parameter (`workflow:` not `path:`)
+- `??` operator placement (must be in `with:` block, not templates)
+
+### Stats
+- 42 commits, 133 files changed
+- +30,978 / -7,883 lines (net +23,095)
+- 14 new course module files (~14,000 lines)
+- 7,716 tests passing, zero clippy warnings
+
 ## [0.38.0](https://github.com/supernovae-st/nika/releases/tag/v0.38.0) - 2026-03-22
 
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║  🦋 NIKA v0.38.0 — THE GREAT SPLIT                                           ║
+║  Monolithic binary → 10 workspace crates · embeddable engine                 ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║                                                                               ║
+║  nika-engine (115k) now embeddable — no TUI, no ratatui, no circular deps    ║
+║  nika-tui (90k) depends on nika-engine only — clean layering                 ║
+║  nika-lsp now depends on nika-engine (was full nika — massive bloat)         ║
+║                                                                               ║
+║  37 commits | 570 files | +37,373 / -30,723 lines | 7,453 tests             ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+```
+
 ### Changed
-- **Workspace crate split** — monolithic `nika` split into 10 workspace crates:
-  - `nika` (2k lines) — Binary entry point
-  - `nika-engine` (115k) — Embeddable execution engine
-  - `nika-core` (30k) — AST, types, catalogs (zero I/O)
-  - `nika-event` (4k) — EventLog, TraceWriter
-  - `nika-mcp` (7.5k) — MCP client, rmcp adapter
-  - `nika-media` (3.5k) — CAS store, media processor
-  - `nika-cli` (5.5k) — CLI subcommand handlers
-  - `nika-tui` (90k) — Terminal UI (ratatui)
+- **Workspace crate split** — monolithic `nika` (190k lines) split into 10 workspace crates:
+  - `nika` (2k lines) — Binary entry point + CLI router
+  - `nika-engine` (115k, 3,840 tests) — Embeddable execution engine
+  - `nika-core` (30k, 689 tests) — AST, types, catalogs (zero I/O)
+  - `nika-event` (4k, 128 tests) — EventLog, TraceWriter
+  - `nika-mcp` (7.5k, 272 tests) — MCP client, rmcp adapter
+  - `nika-media` (3.5k, 121 tests) — CAS store, media processor
+  - `nika-cli` (5.5k, 21 tests) — CLI subcommand handlers
+  - `nika-tui` (90k, 2,055 tests) — Terminal UI (ratatui)
   - `nika-lsp-core` (9k) — Protocol-agnostic LSP intelligence
-  - `nika-lsp` (2k) — LSP binary
+  - `nika-lsp` (2k) — LSP binary (now depends on nika-engine, not full nika)
+- **AST deduplication** — 31 files synced between nika-core and nika, ~15k lines deduplicated
+- **nika-lsp dependency trimmed** — no longer pulls ratatui/git2/tree-sitter (was full nika)
 - All crates bumped to 0.38.0
+
+### Added
+- **`invoke:` resource field** — `invoke:` now accepts both `tool:` and `resource:` (MCP resource operations)
+- **Provider API key validation** in `nika check` pipeline — detects missing keys before execution (NIKA-032)
+
+### Fixed
+- **NIKA-031** — temperature stripped for reasoning models (o1, o3, o4-mini, gpt-5, deepseek-reasoner)
+- **first(N) transform** — now handles objects and strings (was arrays-only)
+- **parse_json transform** — idempotent + auto-strips markdown ` ```json ` fences from LLM output
+- **Shorthand infer merge** — task-level `max_tokens`/`temperature` now merged into `infer: "prompt"` syntax
+- 3 critical workspace audit issues (TUI feature forwarding, LSP bloat, artifact paths)
+- 2 CAS compression test assertions in media
+
+### Stats
+- 37 commits, 570 files changed
+- +37,373 / -30,723 lines (net +6,650)
+- 7,453 tests across 10 crates (up from 7,102)
+- Zero clippy warnings workspace-wide
 
 ## [0.37.0](https://github.com/supernovae-st/nika/releases/tag/v0.37.0) - 2026-03-21
 
