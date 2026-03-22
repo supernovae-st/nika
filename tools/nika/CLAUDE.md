@@ -39,7 +39,9 @@ src/
 ├── binding/             # Data flow: templates, transforms, JSONPath, resolve
 ├── tools/               # File tools: read, write, edit, glob, grep
 ├── display/             # Header + check renderers
-├── init/                # nika init templates (6 tiers, 30 workflows)
+├── init/                # nika init (minimal scaffold + course generator)
+│   ├── course/          #   12-level interactive course (44 exercises)
+│   └── showcase_*.rs    #   Showcase workflow generators
 ├── io/                  # Atomic file I/O
 ├── source/              # Source spans + registry
 ├── store/               # RunContext + TaskResult
@@ -95,7 +97,7 @@ src/
 ## Testing
 
 ```bash
-cargo test --workspace --lib             # All crates (7100+, safe — no keychain)
+cargo test --workspace --lib             # All crates (7716+, safe — no keychain)
 cargo test --lib                         # nika binary tests only
 cargo test -p nika-engine --lib          # Engine tests only (3840)
 cargo test -p nika-tui --lib             # TUI tests only (2055)

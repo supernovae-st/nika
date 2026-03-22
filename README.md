@@ -5,7 +5,7 @@
 **Semantic YAML workflow engine for AI tasks**
 
 [![crates.io](https://img.shields.io/crates/v/nika?style=flat-square&logo=rust&logoColor=white&color=e6522c)](https://crates.io/crates/nika)
-[![Version](https://img.shields.io/badge/v0.38.0-7c3aed?style=flat-square&logo=semver&logoColor=white)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/v0.39.0-7c3aed?style=flat-square&logo=semver&logoColor=white)](CHANGELOG.md)
 [![Schema](https://img.shields.io/badge/schema-nika%2Fworkflow%400.12-0ea5e9?style=flat-square)](docs/schema/)
 [![Rust](https://img.shields.io/badge/rust_1.86+-f97316?style=flat-square&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/AGPL--3.0--or--later-22c55e?style=flat-square&logo=gnu&logoColor=white)](LICENSE)
