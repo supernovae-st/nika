@@ -1,0 +1,196 @@
+[package]
+name = "nika-engine"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Nika workflow engine — embeddable runtime, provider, DAG, and binding logic"
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = true
+
+[features]
+default = ["native-inference", "media-core", "fetch-extract", "fetch-article", "fetch-feed", "media-chart", "media-phash", "media-pdf", "media-iqa", "media-qr", "media-compression"]
+# Only 2 features remain opt-in:
+#   - media-provenance (C2PA): heavy dep (openssl, crypto) + legal/compliance use case
+#   - lsp: editor-specific, not needed for engine users
+# Everything else is default.
+nika-daemon = ["dep:spn-client"]  # Use nika daemon for unified secret management
+native-keychain = ["dep:keyring"]  # OS keychain support
+native-inference = ["dep:mistralrs", "dep:async-stream"]  # Native LLM inference via mistral.rs
+
+# Media tool features
+media-core = ["media-thumbnail", "media-metadata", "media-optimize", "media-svg"]
+media-thumbnail = ["dep:fast_image_resize", "dep:image", "nika-media/media-thumbnail"]
+media-metadata = ["dep:nom-exif", "dep:lofty"]
+media-optimize = ["dep:oxipng"]
+media-svg = ["dep:resvg", "dep:usvg", "dep:tiny-skia", "dep:fontdb"]
+media-phash = ["dep:image_hasher", "dep:image"]
+media-pdf = ["dep:pdf-extract"]
+media-chart = ["dep:charts-rs"]
+media-provenance = ["dep:c2pa"]
+media-qr = ["dep:qrcode-ai-scanner-core", "dep:image"]
+media-compression = ["dep:zstd", "nika-media/media-compression"]
+media-iqa = ["dep:dssim-core", "dep:rgb", "dep:image"]
+# Web extraction builtins
+fetch-html = ["dep:scraper", "dep:psl"]
+fetch-markdown = ["dep:htmd"]
+fetch-article = ["dep:dom_smoothie", "dep:scraper"]
+fetch-feed = ["dep:feed-rs"]
+fetch-extract = ["fetch-html", "fetch-markdown"]
+
+[dependencies]
+# Core crates
+nika-core = { workspace = true }
+nika-event = { workspace = true }
+nika-mcp = { workspace = true }
+nika-media = { workspace = true }
+
+# Async
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+async-trait = { workspace = true }
+backon = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+
+# YAML parsing
+serde-saphyr = { workspace = true }
+marked-yaml = { workspace = true }
+strsim = { workspace = true }
+indexmap = { workspace = true }
+
+# JSONPath (RFC 9535)
+serde_json_path = { workspace = true }
+
+# JSON Schema validation
+jsonschema = { workspace = true }
+
+# Errors
+thiserror = { workspace = true }
+miette = { workspace = true }
+
+# HTTP
+reqwest = { workspace = true }
+url = { workspace = true }
+
+# Cryptographic hashing
+sha2 = { workspace = true }
+
+# Secure credential storage
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"], optional = true }
+secrecy = "0.10"
+zeroize = "1.8"
+
+# Unix system calls
+nix = { version = "0.29", features = ["fs", "signal", "process"] }
+
+# Nika daemon client
+spn-client = { version = "0.3.4", optional = true }
+
+# Native inference via mistral.rs
+mistralrs = { version = "0.7", optional = true }
+async-stream = { version = "0.3", optional = true }
+
+# Utilities
+regex = { workspace = true }
+colored = { workspace = true }
+dotenvy = "0.15"
+dashmap = { workspace = true }
+semver = { workspace = true }
+parking_lot = { workspace = true }
+smallvec = { workspace = true }
+rustc-hash = { workspace = true }
+uuid = { workspace = true }
+dirs = "5.0"
+xxhash-rust = { workspace = true }
+chrono = { workspace = true }
+rand = { workspace = true }
+humantime = { workspace = true }
+shlex = "1.3"
+shellexpand = "3.1"
+unicode-normalization = "0.1"
+
+# Package registry
+urlencoding = "2.1"
+flate2 = "1.1"
+tar = "0.4"
+
+# File System
+camino = { workspace = true }
+ignore = { workspace = true }
+globset = { workspace = true }
+
+# DAG
+petgraph = { workspace = true }
+
+# MCP
+rmcp = { workspace = true }
+
+# LLM Agent Framework
+rig-core = { workspace = true }
+
+# Unicode text handling
+unicode-width = "0.2"
+terminal_size = "0.4"
+
+# Media pipeline
+blake3 = { workspace = true }
+reflink-copy = "0.1"
+infer = "0.19"
+base64 = { workspace = true }
+mime_guess = "2.0"
+mime = "0.3"
+bytes = "1"
+
+# Media tools — Tier 1
+imagesize = "0.14"
+thumbhash = "0.1"
+color-thief = "0.2"
+rayon = "1.10"
+
+# Media tools — Tier 2 (feature-gated)
+fast_image_resize = { version = "6.0", features = ["image"], optional = true }
+image = { version = "0.25", optional = true, default-features = false, features = ["png", "jpeg", "webp", "gif"] }
+nom-exif = { version = "2.7", optional = true }
+lofty = { version = "0.23", optional = true }
+oxipng = { version = "10.1", optional = true, default-features = false, features = ["parallel"] }
+resvg = { version = "0.47", optional = true }
+usvg = { version = "0.47", optional = true }
+tiny-skia = { version = "0.12", optional = true }
+fontdb = { version = "0.23", optional = true }
+
+# Media tools — Tier 3
+image_hasher = { version = "3.1", optional = true }
+pdf-extract = { version = "0.10", optional = true }
+charts-rs = { version = "0.3", optional = true, features = ["image-encoder"] }
+c2pa = { version = "0.78", optional = true, features = ["rust_native_crypto"] }
+qrcode-ai-scanner-core = { version = "0.2", optional = true }
+zstd = { version = "0.13", optional = true, default-features = false }
+dssim-core = { version = "3.4", optional = true }
+rgb = { version = "0.8", optional = true }
+
+# Web extraction tools
+scraper = { version = "0.22", optional = true, features = ["atomic"] }
+htmd = { version = "0.5", optional = true }
+dom_smoothie = { version = "0.16", optional = true }
+feed-rs = { version = "2.3", optional = true }
+psl = { version = "2", optional = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+futures = { version = "0.3.32", default-features = false, features = ["alloc"] }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+proptest = { workspace = true }
+insta = { workspace = true }
+pretty_assertions = { workspace = true }
+criterion = { version = "0.5", features = ["async_tokio"] }
+serial_test = "3.1"
+wiremock = "0.6"
+qrcode = "0.14"
