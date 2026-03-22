@@ -801,7 +801,7 @@ impl NikaError {
             // Startup errors
             Self::StartupError { .. } => "NIKA-150",
             // Tool errors (code is dynamic)
-            Self::ToolError { .. } => "NIKA-2XX",
+            Self::ToolError { .. } => "NIKA-200",
             // Builtin tool errors
             Self::BuiltinToolError { .. } => "NIKA-210",
             Self::BuiltinInvalidParams { .. } => "NIKA-212",
@@ -1768,7 +1768,7 @@ mod tests {
             code: "TOOL-001".to_string(),
             message: "File not found".to_string(),
         };
-        assert_eq!(err.code(), "NIKA-2XX");
+        assert_eq!(err.code(), "NIKA-200");
         let msg = err.to_string();
         assert!(msg.contains("TOOL-001"));
         assert!(msg.contains("File not found"));

@@ -120,12 +120,12 @@ fn render_v3_boxes(layer: &[String], tasks: &[DagTask]) {
     // Build box data
     let boxes: Vec<(&DagTask, String, usize)> = layer
         .iter()
-        .map(|id| {
-            let task = tasks.iter().find(|t| t.id == *id).unwrap();
+        .filter_map(|id| {
+            let task = tasks.iter().find(|t| t.id == *id)?;
             let icon = crate::display::icons::verb_plain(&task.verb);
             let label = format!("{} {}", icon, task.id);
             let dw = display_width(&label);
-            (task, label, dw)
+            Some((task, label, dw))
         })
         .collect();
 
