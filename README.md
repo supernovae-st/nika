@@ -553,7 +553,7 @@ Three views for the complete workflow lifecycle:
 
 ```
 +-----------------------------------------------------------------------------+
-| Nika Studio                                                  v0.39.0        |
+| Nika Studio                                                  v0.39.1        |
 |-----------------------------------------------------------------------------|
 | +- Files ----------+ +- Editor ------------------------------------------+ |
 | | > workflows/     | |  1 | schema: "nika/workflow@0.12"                 | |
@@ -809,7 +809,7 @@ cargo install --path tools/nika
 ### Verify
 
 ```bash
-nika --version       # nika 0.39.0
+nika --version       # nika 0.39.1
 nika doctor          # Full system health check
 ```
 
@@ -1089,7 +1089,7 @@ flowchart LR
 
 <div align="center">
 
-**Nika v0.39.0** | Schema `nika/workflow@0.12` | Rust 1.86+ | AGPL-3.0-or-later
+**Nika v0.39.1** | Schema `nika/workflow@0.12` | Rust 1.86+ | AGPL-3.0-or-later
 
 270k+ LOC across 10 crates | 7,450+ tests | 0 clippy warnings
 

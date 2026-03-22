@@ -7,6 +7,27 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.39.1](https://github.com/supernovae-st/nika/releases/tag/v0.39.1) - 2026-03-23
+
+### Added
+- **`nika course watch`** — polling-based auto-check on file save
+- **`--theme` init flag** — theme selection during project scaffold
+- **Enhanced constellation map** — star scoring + level status indicators
+- **`nika showcase`** command wired into CLI
+- **3 quick wins** for `nika course` — AST check, 3-star scoring, smart hint auto-detection
+
+### Fixed
+- **NIKA-210 collision** — `FileAlreadyExists` renumbered from NIKA-210 to NIKA-215 (collided with `BuiltinToolError`)
+- **NIKA-090 stale message** — removed "v0.1" reference, now says "unsupported syntax"
+- **13 critical + high TUI audit fixes** from mega-audit agents
+- `constellation_star` test updated after icon refactor
+- CI: version-lock now reads workspace Cargo.toml
+- CI: removed stale `jobs` feature flag
+
+### Stats
+- 14 commits, 41 files changed
+- +2,804 / -147 lines
+
 ## [0.39.0](https://github.com/supernovae-st/nika/releases/tag/v0.39.0) - 2026-03-22
 
 ```
