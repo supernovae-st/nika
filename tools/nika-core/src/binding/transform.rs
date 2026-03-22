@@ -209,7 +209,7 @@ impl TransformOp {
             TransformOp::Length => match value {
                 Value::Null => Ok(Value::Null), // propagating
                 Value::Array(arr) => Ok(Value::Number(arr.len().into())),
-                Value::String(s) => Ok(Value::Number(s.len().into())),
+                Value::String(s) => Ok(Value::Number(s.chars().count().into())),
                 Value::Object(obj) => Ok(Value::Number(obj.len().into())),
                 _ => Err(type_mismatch("length", "array, string, or object", value)),
             },
@@ -294,7 +294,14 @@ impl TransformOp {
                 Value::Null => Err(TransformError::NullInput { op: "sort" }),
                 Value::Array(arr) => {
                     let mut sorted = arr.clone();
-                    sorted.sort_by_key(|a| a.to_string());
+                    sorted.sort_by(|a, b| match (a.as_f64(), b.as_f64()) {
+                        (Some(x), Some(y)) => {
+                            x.partial_cmp(&y).unwrap_or(std::cmp::Ordering::Equal)
+                        }
+                        (Some(_), None) => std::cmp::Ordering::Less,
+                        (None, Some(_)) => std::cmp::Ordering::Greater,
+                        _ => a.to_string().cmp(&b.to_string()),
+                    });
                     Ok(Value::Array(sorted))
                 }
                 _ => Err(type_mismatch("sort", "array", value)),
@@ -1435,5 +1442,68 @@ mod tests {
         let length = TransformOp::Length.apply(&json_str).unwrap();
         // Should be the character count of the JSON string, not 1
         assert!(length.as_u64().unwrap() > 1);
+    }
+
+    /// Bug 30: |length must return character count, not byte count for Unicode.
+    #[test]
+    fn regression_bug30_length_unicode_chars_not_bytes() {
+        // "日本語" is 3 characters but 9 bytes in UTF-8
+        let result = TransformOp::Length.apply(&json!("日本語")).unwrap();
+        assert_eq!(
+            result,
+            json!(3),
+            "|length on Unicode string must count chars, not bytes"
+        );
+    }
+
+    /// Bug 30: additional Unicode edge cases for |length.
+    #[test]
+    fn regression_bug30_length_unicode_emoji() {
+        // Emoji: "👋🌍" is 2 characters but 8 bytes
+        let result = TransformOp::Length.apply(&json!("👋🌍")).unwrap();
+        assert_eq!(result, json!(2), "|length on emoji string must count chars");
+    }
+
+    /// Bug 30: |length on ASCII should remain unchanged.
+    #[test]
+    fn regression_bug30_length_ascii_unchanged() {
+        let result = TransformOp::Length.apply(&json!("abc")).unwrap();
+        assert_eq!(result, json!(3), "|length on ASCII string is still correct");
+    }
+
+    /// Bug 46: |sort must use numeric ordering for numbers, not lexicographic.
+    #[test]
+    fn regression_bug46_sort_numeric_ordering() {
+        let result = TransformOp::Sort.apply(&json!([1, 10, 2, 20, 3])).unwrap();
+        assert_eq!(
+            result,
+            json!([1, 2, 3, 10, 20]),
+            "|sort on numbers must use numeric ordering, not lexicographic"
+        );
+    }
+
+    /// Bug 46: |sort with mixed types (numbers and strings).
+    #[test]
+    fn regression_bug46_sort_mixed_types() {
+        let result = TransformOp::Sort.apply(&json!([10, 2, "b", "a"])).unwrap();
+        assert_eq!(result, json!([2, 10, "a", "b"]));
+    }
+
+    /// Bug 46: |sort preserves string lexicographic ordering.
+    #[test]
+    fn regression_bug46_sort_strings_unchanged() {
+        let result = TransformOp::Sort
+            .apply(&json!(["banana", "apple", "cherry"]))
+            .unwrap();
+        assert_eq!(result, json!(["apple", "banana", "cherry"]));
+    }
+
+    /// Bug 46: |sort with floats.
+    #[test]
+    fn regression_bug46_sort_floats() {
+        let result = TransformOp::Sort
+            .apply(&json!([1.5, 0.1, 2.3, 0.9]))
+            .unwrap();
+        assert_eq!(result, json!([0.1, 0.9, 1.5, 2.3]));
     }
 }

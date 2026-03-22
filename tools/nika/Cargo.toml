@@ -1,18 +1,18 @@
 [package]
 name = "nika"
-version = "0.37.0"
-edition = "2021"
-authors = ["Thibaut MÉLEN <thibaut@supernovae.studio>", "SuperNovae Studio <contact@supernovae.studio>"]
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
 description = "Semantic YAML workflow engine for AI tasks - DAG execution, MCP integration, multi-provider LLM support"
-license = "AGPL-3.0-or-later"
-repository = "https://github.com/supernovae-st/nika"
+license.workspace = true
+repository.workspace = true
 homepage = "https://supernovae.studio"
 documentation = "https://github.com/supernovae-st/nika#readme"
 keywords = ["ai", "workflows", "dag", "mcp", "llm"]
 categories = ["command-line-utilities", "development-tools"]
 publish = true
 readme = "README.md"
-rust-version = "1.86"
+rust-version.workspace = true
 
 [[bin]]
 name = "nika"
@@ -55,161 +55,141 @@ fetch-extract = ["fetch-html", "fetch-markdown"]
 
 [dependencies]
 # Core AST and analysis (protocol-agnostic)
-nika-core = { path = "../nika-core", version = "0.37.0" }
+nika-core = { workspace = true }
 
 # CLI
-clap = { version = "4.6", features = ["derive"] }
-clap_complete = "4.6"  # Shell completion generation
+clap = { workspace = true }
+clap_complete = { workspace = true }
 
 # Async
-tokio = { version = "1.49", features = ["rt-multi-thread", "macros", "process", "sync", "time", "fs", "signal"] }
-tokio-util = "0.7"  # CancellationToken for workflow abort
-async-trait = "0.1"
-backon = "1.3"  # Retry with exponential backoff (used by MCP + Jobs)
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+async-trait = { workspace = true }
+backon = { workspace = true }
 
 # Serialization
-serde = { version = "1.0", features = ["derive", "rc"] }
-serde_json = "1.0"
-toml = "0.8"
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
 
-# YAML parsing - serde-saphyr replaces deprecated serde_yaml
-# Migration: 2026-02-27 - serde_yaml v0.9.34 is deprecated (repo archived)
-# serde-saphyr is a drop-in replacement with: safe Rust, better errors, same API
-# See: docs/plans/2026-02-27-v014-complete-plan.md Section 14.1
-serde-saphyr = "0.0.20"
+# YAML parsing
+serde-saphyr = { workspace = true }
+marked-yaml = { workspace = true }
+strsim = { workspace = true }
+indexmap = { workspace = true }
 
-# v0.19 Foundation - Two-Phase IR Architecture
-# See: docs/plans/2026-03-04-v0.19-foundation-implementation.md
-marked-yaml = "0.8"     # YAML parsing with Span (line:col) tracking
-strsim = "0.11"         # Levenshtein distance for "did you mean?" suggestions
-indexmap = "2.7"        # Preserve key insertion order in YAML maps
-
-# JSONPath (RFC 9535) - replaces custom util/jsonpath.rs
-serde_json_path = "0.7"
+# JSONPath (RFC 9535)
+serde_json_path = { workspace = true }
 
 # JSON Schema validation
-jsonschema = "0.26"
+jsonschema = { workspace = true }
 
 # Errors
-thiserror = "1.0"
-miette = { version = "7.6", features = ["fancy"] }
+thiserror = { workspace = true }
+miette = { workspace = true }
 
 # HTTP
-reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls", "gzip", "brotli", "deflate"] }
-url = "2"  # URL parsing and validation
+reqwest = { workspace = true }
+url = { workspace = true }
 
-# Cryptographic hashing (v0.27 - HuggingFace checksum verification)
-sha2 = "0.10"
+# Cryptographic hashing
+sha2 = { workspace = true }
 
 # Secure credential storage
-# keyring is optional - only needed when NOT using nika-daemon
-# Docker builds don't include keyring (no OS keychain in containers)
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"], optional = true }
-secrecy = "0.10"   # SecretString wrapper (upgraded for spn-client compat)
-zeroize = "1.8"    # Auto-clear memory on drop
+secrecy = "0.10"
+zeroize = "1.8"
 
-# Unix system calls for PID file locking (flock) - v0.27 daemon
+# Unix system calls
 nix = { version = "0.29", features = ["fs", "signal", "process"] }
 
-# Nika daemon client for unified secret management (v0.27)
-# Solves macOS Keychain popup issue - daemon is sole keychain accessor
-# Enable with: cargo build --features nika-daemon
-# v0.3.4: Re-exports spn-core types (providers, validation, backend)
+# Nika daemon client
 spn-client = { version = "0.3.4", optional = true }
 
-# Native inference via mistral.rs (v0.27 - migrated from spn-native)
-# Enables local GGUF model inference without external dependencies
-# Features: PagedAttention for efficient memory, streaming support
+# Native inference via mistral.rs
 mistralrs = { version = "0.7", optional = true }
 async-stream = { version = "0.3", optional = true }
 
-# Git integration (v0.21.3 - Git gutter + file status) - TUI only
+# Git integration (TUI only)
 git2 = { version = "0.19", optional = true }
-
-# OpenSSL vendored for cross-compilation (required by git2 -> libgit2-sys -> openssl-sys)
-# Using vendored feature compiles OpenSSL statically, avoiding system OpenSSL dependency
-# Required for: musl static builds, cross-compilation (aarch64-linux-gnu), CI builds
 openssl = { version = "0.10", features = ["vendored"], optional = true }
 
 # Utilities
-regex = "1.11"
-colored = "2.1"
+regex = { workspace = true }
+colored = { workspace = true }
 dotenvy = "0.15"
-dashmap = "6.1"
-semver = "1.0"  # Semantic version parsing for package resolution
-parking_lot = "0.12"
-smallvec = "1.13"
-rustc-hash = "2.1"
-uuid = { version = "1.0", features = ["v4"] }
+dashmap = { workspace = true }
+semver = { workspace = true }
+parking_lot = { workspace = true }
+smallvec = { workspace = true }
+rustc-hash = { workspace = true }
+uuid = { workspace = true }
 dirs = "5.0"
-xxhash-rust = { version = "0.8", features = ["xxh3"] }
-chrono = "0.4"
-rand = "0.8"
-humantime = "2.1"  # Duration parsing for nika:sleep (v0.9.3)
-shlex = "1.3"  # Shell-free command parsing (v0.15.0 Security)
-shellexpand = "3.1"  # Env var expansion for MCP commands ($VAR, ${VAR}, ~)
-unicode-normalization = "0.1"  # NFKC normalization for blocklist bypass prevention (v0.27.1 Security)
+xxhash-rust = { workspace = true }
+chrono = { workspace = true }
+rand = { workspace = true }
+humantime = { workspace = true }
+shlex = "1.3"
+shellexpand = "3.1"
+unicode-normalization = "0.1"
 
-# Package registry (v0.28 - native pkg commands)
-urlencoding = "2.1"  # URL encoding for package names
-flate2 = "1.1"       # gzip decompression for tarballs
-tar = "0.4"          # Tarball extraction
+# Package registry
+urlencoding = "2.1"
+flate2 = "1.1"
+tar = "0.4"
 
-# File System - production-grade crates
-camino = "1.1"     # UTF-8 safe paths (Utf8PathBuf) - no OsStr panics
-ignore = "0.4"     # .gitignore/.ignore support (from ripgrep author)
-globset = "0.4"    # Fast glob pattern matching (from ripgrep author)
+# File System
+camino = { workspace = true }
+ignore = { workspace = true }
+globset = { workspace = true }
 
-# DAG - StableGraph for v0.9.0+ (stable NodeIndex after deletion)
-petgraph = { version = "0.6", features = ["serde-1"] }
+# DAG
+petgraph = { workspace = true }
 
-# MCP - Anthropic's official Rust SDK
-# See docs/research/2026-02-19-mcp-rust-crates.md for crate comparison
-rmcp = { version = "0.16", features = ["client", "transport-child-process"] }
+# MCP
+rmcp = { workspace = true }
 
-# LLM Agent Framework - replaces custom provider implementation
-# Native rmcp integration via .rmcp_tools() method
-# v0.32: Uses rmcp 0.16 (aligned with novanet-mcp and Nika direct dep)
-rig-core = { version = "0.32", features = ["rmcp"] }
+# LLM Agent Framework
+rig-core = { workspace = true }
 
 # TUI (feature-gated)
 ratatui = { version = "0.30", optional = true }
-crossterm = { version = "0.29", features = ["event-stream"], optional = true }  # Added event-stream for async events
-arboard = { version = "3.4", optional = true }  # Clipboard support
-nucleo = { version = "0.5", optional = true }  # Fuzzy file search (Helix quality)
+crossterm = { version = "0.29", features = ["event-stream"], optional = true }
+arboard = { version = "3.4", optional = true }
+nucleo = { version = "0.5", optional = true }
 
-# Syntax Highlighting - tree-sitter for incremental parsing
+# Syntax Highlighting
 tree-sitter = { version = "0.24", optional = true }
 tree-sitter-yaml = { version = "0.7", optional = true }
 streaming-iterator = { version = "0.1", optional = true }
 
 # TUI Text Input
-tui-input = { version = "0.15", features = ["crossterm"], optional = true }  # Chat input
+tui-input = { version = "0.15", features = ["crossterm"], optional = true }
 
-# Unicode text handling (from NovaNet patterns)
-unicode-width = "0.2"  # Display width for icon alignment (always-on for CLI renderer)
-terminal_size = "0.4"  # Terminal dimensions for responsive CLI output (always-on)
+# Unicode text handling
+unicode-width = "0.2"
+terminal_size = "0.4"
 
-# LSP Server (feature-gated) - v0.22 Language Server Protocol support
+# LSP Server (feature-gated)
 tower-lsp-server = { version = "0.23", optional = true }
-nika-lsp-core = { path = "../nika-lsp-core", version = "0.37.0" }  # Always available (pure sync library, used by TUI completion + LSP)
+nika-lsp-core = { workspace = true }
 
-# Media pipeline (2 genuinely new + 4 zero-cost promotes from transitive)
-blake3 = { version = "1.8", features = ["mmap"] }
-reflink-copy = "0.1"  # Cross-platform reflink (instant on APFS/btrfs, fallback copy on ext4)
+# Media pipeline
+blake3 = { workspace = true }
+reflink-copy = "0.1"
 infer = "0.19"
-base64 = "0.22"
+base64 = { workspace = true }
 mime_guess = "2.0"
 mime = "0.3"
 bytes = "1"
 
-# Media tools — Tier 1 (always on, zero/tiny deps)
-imagesize = "0.14"     # Header-only image dimensions (0 deps)
-thumbhash = "0.1"      # 25-byte compact image placeholder (0 deps)
-color-thief = "0.2"    # Dominant color palette extraction
-rayon = "1.10"         # ComputePool for CPU-bound media ops (isolated from tokio)
+# Media tools — Tier 1
+imagesize = "0.14"
+thumbhash = "0.1"
+color-thief = "0.2"
+rayon = "1.10"
 
-# Media tools — Tier 2 (feature-gated, optional)
+# Media tools — Tier 2 (feature-gated)
 fast_image_resize = { version = "6.0", features = ["image"], optional = true }
 image = { version = "0.25", optional = true, default-features = false, features = ["png", "jpeg", "webp", "gif"] }
 nom-exif = { version = "2.7", optional = true }
@@ -220,7 +200,7 @@ usvg = { version = "0.47", optional = true }
 tiny-skia = { version = "0.12", optional = true }
 fontdb = { version = "0.23", optional = true }
 
-# Media tools — Tier 3 (PR3b, opt-in)
+# Media tools — Tier 3
 image_hasher = { version = "3.1", optional = true }
 pdf-extract = { version = "0.10", optional = true }
 charts-rs = { version = "0.3", optional = true, features = ["image-encoder"] }
@@ -230,7 +210,7 @@ zstd = { version = "0.13", optional = true, default-features = false }
 dssim-core = { version = "3.4", optional = true }
 rgb = { version = "0.8", optional = true }
 
-# Web extraction tools — PR5b
+# Web extraction tools
 scraper = { version = "0.22", optional = true, features = ["atomic"] }
 htmd = { version = "0.5", optional = true }
 dom_smoothie = { version = "0.16", optional = true }
@@ -238,22 +218,22 @@ feed-rs = { version = "2.3", optional = true }
 psl = { version = "2", optional = true }
 
 # Logging
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
 futures = { version = "0.3.32", default-features = false, features = ["alloc"] }
 
 [dev-dependencies]
-tempfile = "3.27"
-proptest = "1.4"
-insta = { version = "1.34", features = ["yaml"] }
-pretty_assertions = "1.4"
+tempfile = { workspace = true }
+proptest = { workspace = true }
+insta = { workspace = true }
+pretty_assertions = { workspace = true }
 criterion = { version = "0.5", features = ["async_tokio"] }
 serial_test = "3.1"
 wiremock = "0.6"
-qrcode = "0.14"  # QR code generation for test fixtures
+qrcode = "0.14"
 
 # ═══════════════════════════════════════════════════════════════════════════
-# BENCHMARKS - Run with: cargo bench
+# BENCHMARKS
 # ═══════════════════════════════════════════════════════════════════════════
 
 [[bench]]
@@ -264,17 +244,4 @@ harness = false
 name = "task_execution"
 harness = false
 
-# ═══════════════════════════════════════════════════════════════════════════
-# PROFILES
-# ═══════════════════════════════════════════════════════════════════════════
-
-[profile.release]
-lto = "thin"
-codegen-units = 1
-strip = true
-
-[profile.dev]
-split-debuginfo = "unpacked"  # Faster incremental builds on macOS
-
-[profile.test]
-opt-level = 1  # Speed up test execution
+# Profiles are defined in workspace root (tools/Cargo.toml)

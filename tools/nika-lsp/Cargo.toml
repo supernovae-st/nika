@@ -1,18 +1,18 @@
 [package]
 name = "nika-lsp"
-version = "0.37.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
 description = "Language Server Protocol implementation for Nika workflows"
-license = "AGPL-3.0-or-later"
+license.workspace = true
 authors = ["Thibaut Melen <thibaut@supernovae.studio>"]
-repository = "https://github.com/supernovae-st/nika"
+repository.workspace = true
 homepage = "https://nika.sh"
 documentation = "https://docs.rs/nika-lsp"
 readme = "README.md"
 keywords = ["lsp", "yaml", "workflow", "nika"]
 categories = ["development-tools", "text-editors"]
 publish = true
-rust-version = "1.80"
+rust-version.workspace = true
 
 [package.metadata.docs.rs]
 all-features = true
@@ -27,39 +27,38 @@ path = "src/main.rs"
 tower-lsp-server = "0.23"
 
 # Async runtime
-tokio = { version = "1", features = ["full"] }
+tokio = { workspace = true, features = ["full"] }
 
 # Concurrent data structures
-dashmap = "6"
-parking_lot = "0.12"
+dashmap = { workspace = true }
+parking_lot = { workspace = true }
 
 # Serialization
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 # Nika validation (workspace dependency)
-# Path used for local dev, version used for crates.io publishing
 nika = { path = "../nika", version = "0.37.0" }
 
-# Protocol-agnostic LSP intelligence (shared with embedded nika lsp)
-nika-lsp-core = { path = "../nika-lsp-core", version = "0.37.0" }
+# Protocol-agnostic LSP intelligence
+nika-lsp-core = { workspace = true }
 
-# Text manipulation (rope for efficient edits)
+# Text manipulation
 ropey = "1.6"
 
 # Logging
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
 
 # Error handling
-thiserror = "2"
+thiserror = { workspace = true }
 
 # Template validation
-regex = "1"
+regex = { workspace = true }
 
 [dev-dependencies]
 tokio-test = "0.4"
-pretty_assertions = "1"
+pretty_assertions = { workspace = true }
 
 [features]
 default = []

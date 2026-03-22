@@ -1,0 +1,108 @@
+[workspace]
+resolver = "2"
+members = [
+    "nika",
+    "nika-core",
+    "nika-lsp-core",
+    "nika-lsp",
+]
+
+[workspace.package]
+version = "0.37.0"
+edition = "2021"
+authors = ["Thibaut MÉLEN <thibaut@supernovae.studio>", "SuperNovae Studio <contact@supernovae.studio>"]
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/supernovae-st/nika"
+rust-version = "1.86"
+
+[workspace.dependencies]
+# Internal crates
+nika-core = { path = "nika-core", version = "0.37.0" }
+nika-lsp-core = { path = "nika-lsp-core", version = "0.37.0" }
+
+# Async
+tokio = { version = "1.49", features = ["rt-multi-thread", "macros", "process", "sync", "time", "fs", "signal"] }
+tokio-util = "0.7"
+async-trait = "0.1"
+backon = "1.3"
+
+# Serialization
+serde = { version = "1.0", features = ["derive", "rc"] }
+serde_json = "1.0"
+serde-saphyr = "0.0.20"
+toml = "0.8"
+
+# YAML parsing
+marked-yaml = "0.8"
+strsim = "0.11"
+indexmap = "2.7"
+
+# JSON
+serde_json_path = "0.7"
+jsonschema = "0.26"
+
+# Errors
+thiserror = "1.0"
+miette = { version = "7.6", features = ["fancy"] }
+
+# HTTP
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls", "gzip", "brotli", "deflate"] }
+url = "2"
+
+# Crypto
+sha2 = "0.10"
+blake3 = { version = "1.8", features = ["mmap"] }
+
+# Concurrency
+dashmap = "6.1"
+parking_lot = "0.12"
+
+# Utilities
+regex = "1.11"
+colored = "2.1"
+semver = "1.0"
+smallvec = "1.13"
+rustc-hash = "2.1"
+uuid = { version = "1.0", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
+camino = "1.1"
+globset = "0.4"
+ignore = "0.4"
+base64 = "0.22"
+rand = "0.8"
+humantime = "2.1"
+
+# DAG
+petgraph = { version = "0.6", features = ["serde-1"] }
+
+# MCP
+rmcp = { version = "0.16", features = ["client", "transport-child-process"] }
+
+# LLM
+rig-core = { version = "0.32", features = ["rmcp"] }
+
+# CLI
+clap = { version = "4.6", features = ["derive"] }
+clap_complete = "4.6"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Dev
+tempfile = "3.27"
+insta = { version = "1.34", features = ["yaml"] }
+pretty_assertions = "1.4"
+proptest = "1.4"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
+
+[profile.dev]
+split-debuginfo = "unpacked"
+
+[profile.test]
+opt-level = 1
