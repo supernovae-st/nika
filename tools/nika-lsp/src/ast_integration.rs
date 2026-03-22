@@ -7,8 +7,8 @@
 //! 1. Raw AST (RawWorkflow) - from YAML parsing with spans
 //! 2. Analyzed AST (AnalyzedWorkflow) - after validation and reference resolution
 
-use nika::ast::raw::{parse, RawWorkflow};
-use nika::source::{FileId, Span};
+use nika_engine::ast::raw::{parse, RawWorkflow};
+use nika_engine::source::{FileId, Span};
 
 /// Result of parsing a workflow, containing both raw AST and any errors.
 #[derive(Debug)]

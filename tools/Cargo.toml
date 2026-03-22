@@ -25,7 +25,7 @@ rust-version = "1.86"
 # Internal crates
 nika-cli = { path = "nika-cli", version = "0.38.0" }
 nika-core = { path = "nika-core", version = "0.38.0" }
-nika-engine = { path = "nika-engine", version = "0.38.0" }
+nika-engine = { path = "nika-engine", version = "0.38.0", default-features = true }
 nika-tui = { path = "nika-tui", version = "0.38.0" }
 nika-event = { path = "nika-event", version = "0.38.0" }
 nika-mcp = { path = "nika-mcp", version = "0.38.0" }

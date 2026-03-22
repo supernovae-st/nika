@@ -37,8 +37,8 @@ parking_lot = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 
-# Nika validation (workspace dependency)
-nika = { path = "../nika", version = "0.38.0" }
+# Nika engine (only needs AST + source types — no default features to minimize deps)
+nika-engine = { path = "../nika-engine", version = "0.38.0", default-features = false }
 
 # Protocol-agnostic LSP intelligence
 nika-lsp-core = { workspace = true }

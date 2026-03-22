@@ -28,9 +28,9 @@ tui = ["dep:nika-tui"]
 integration = []  # Enable integration tests with real MCP servers
 
 # Forwarded features to nika-engine and nika-cli
-nika-daemon = ["nika-engine/nika-daemon"]
+nika-daemon = ["nika-engine/nika-daemon", "nika-tui?/nika-daemon"]
 native-keychain = ["nika-engine/native-keychain"]
-native-inference = ["nika-engine/native-inference", "nika-cli/native-inference"]
+native-inference = ["nika-engine/native-inference", "nika-cli/native-inference", "nika-tui?/native-inference"]
 media-core = ["nika-engine/media-core", "nika-cli/media-core"]
 media-thumbnail = ["nika-engine/media-thumbnail", "nika-cli/media-thumbnail"]
 media-metadata = ["nika-engine/media-metadata", "nika-cli/media-metadata"]
