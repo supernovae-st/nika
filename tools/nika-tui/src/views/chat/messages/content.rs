@@ -107,8 +107,8 @@ impl ChatView {
         // Dynamic separator at 75% width for visual balance
         let separator_len = (content_width * 75 / 100).saturating_sub(20);
         let separator_chars = separator_len.min(200);
-        let separator_bytes = separator_chars * 3; // Each '─' is 3 UTF-8 bytes
-        let dynamic_separator = &SEPARATOR_200[..separator_bytes];
+        let dynamic_separator: String =
+            SEPARATOR_200.chars().take(separator_chars).collect();
 
         // WOW: Add COPIED indicator when flashing
         let mut header_spans = vec![

@@ -304,7 +304,7 @@ pub enum NikaError {
     // ═══════════════════════════════════════════
     // JSONPATH / IO ERRORS (090-099)
     // ═══════════════════════════════════════════
-    #[error("[NIKA-090] JSONPath '{path}' is not supported in v0.1 (use $.a.b or $.a[0].b)")]
+    #[error("[NIKA-090] JSONPath '{path}' uses unsupported syntax (use simple paths like $.a.b or $.a[0].b)")]
     JsonPathUnsupported { path: String },
 
     #[error("[NIKA-093] IO error: {0}")]

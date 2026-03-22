@@ -10,6 +10,7 @@ use ratatui::{
 };
 
 use crate::theme::Theme;
+use crate::unicode::{display_width, truncate_to_width};
 
 // ===============================================================================
 // CONSTANTS (fallback defaults when theme is not provided)

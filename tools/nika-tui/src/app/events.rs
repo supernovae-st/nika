@@ -117,8 +117,11 @@ impl App {
     /// Processes key events and returns the appropriate Action.
     pub(crate) fn handle_unified_key(&mut self, code: KeyCode, modifiers: KeyModifiers) -> Action {
         // 1. Global shortcuts (always available)
+        // In Studio Insert mode, let Ctrl+C pass through to the view (copy)
         if let (KeyCode::Char('c'), KeyModifiers::CONTROL) = (code, modifiers) {
-            return self.handle_ctrl_c();
+            if !(self.current_view == TuiView::Studio && self.input_mode == InputMode::Insert) {
+                return self.handle_ctrl_c();
+            }
         }
 
         // 2. Quit (Normal mode only)
@@ -142,10 +145,11 @@ impl App {
         let is_normal = self.input_mode == InputMode::Normal;
 
         // In Control view, 1/2/3 are theme shortcuts — don't steal them for view switching.
+        // In Command view, 1-4 are Monitor panel focus keys — let the view handle them.
         // Alt+1-3 always works for view switching regardless of current view.
         let on_control = self.current_view == TuiView::Control;
         let on_command = self.current_view == TuiView::Command;
-        if alt_pressed || (is_normal && modifiers.is_empty() && !on_control) {
+        if alt_pressed || (is_normal && modifiers.is_empty() && !on_control && !on_command) {
             if let Some(view) = match code {
                 KeyCode::Char('1') => Some(TuiView::Studio),
                 KeyCode::Char('2') => Some(TuiView::Command),

@@ -163,8 +163,8 @@ pub enum ToolErrorCode {
     FileNotFound = 208,
     /// NIKA-209: old_string not unique in file
     OldStringNotUnique = 209,
-    /// NIKA-210: File already exists (for write)
-    FileAlreadyExists = 210,
+    /// NIKA-215: File already exists (for write)
+    FileAlreadyExists = 215,
     /// NIKA-211: Path must be absolute
     RelativePath = 211,
 }

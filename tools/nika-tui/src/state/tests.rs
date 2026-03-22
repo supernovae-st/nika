@@ -2633,3 +2633,1569 @@ fn test_json_cache_invalidation_on_task_change() {
     let (entries_after, _) = state.json_cache.stats();
     assert_eq!(entries_after, 0, "Cache entry should be removed");
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EVENT HANDLER: Happy Path Sequence
+// WorkflowStarted -> TaskScheduled -> TaskStarted -> TaskCompleted -> WorkflowCompleted
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_happy_path_full_sequence() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    // 1. WorkflowStarted
+    state.handle_event(
+        &EventKind::WorkflowStarted {
+            task_count: 2,
+            generation_id: "gen-happy".to_string(),
+            workflow_hash: "hash-happy".to_string(),
+            nika_version: TEST_VERSION.to_string(),
+        },
+        0,
+    );
+    assert_eq!(state.workflow.phase, MissionPhase::Countdown);
+    assert_eq!(state.workflow.task_count, 2);
+    assert!(state.workflow.started_at.is_some());
+    assert_eq!(
+        state.workflow.generation_id,
+        Some("gen-happy".to_string())
+    );
+
+    // 2. TaskScheduled x2
+    state.handle_event(
+        &EventKind::TaskScheduled {
+            task_id: Arc::from("task-a"),
+            dependencies: vec![],
+        },
+        10,
+    );
+    state.handle_event(
+        &EventKind::TaskScheduled {
+            task_id: Arc::from("task-b"),
+            dependencies: vec![Arc::from("task-a")],
+        },
+        10,
+    );
+    assert_eq!(state.tasks.len(), 2);
+    assert_eq!(state.task_order, vec!["task-a", "task-b"]);
+
+    // 3. TaskStarted (first task -> phase goes to Launch)
+    state.handle_event(
+        &EventKind::TaskStarted {
+            task_id: Arc::from("task-a"),
+            verb: "infer".into(),
+            inputs: serde_json::json!({"prompt": "hello"}),
+        },
+        100,
+    );
+    assert_eq!(state.workflow.phase, MissionPhase::Launch);
+    assert_eq!(state.current_task, Some("task-a".to_string()));
+    assert_eq!(state.tasks["task-a"].status, TaskStatus::Running);
+    assert!(state.tasks["task-a"].input.is_some());
+
+    // 4. TaskCompleted (first task)
+    state.handle_event(
+        &EventKind::TaskCompleted {
+            task_id: Arc::from("task-a"),
+            output: Arc::new(serde_json::json!({"result": "world"})),
+            duration_ms: 500,
+        },
+        600,
+    );
+    assert_eq!(state.tasks["task-a"].status, TaskStatus::Success);
+    assert_eq!(state.tasks["task-a"].duration_ms, Some(500));
+    assert_eq!(state.workflow.tasks_completed, 1);
+
+    // 5. TaskStarted (second task -> phase goes to Orbital)
+    state.handle_event(
+        &EventKind::TaskStarted {
+            task_id: Arc::from("task-b"),
+            verb: "exec".into(),
+            inputs: serde_json::json!({}),
+        },
+        700,
+    );
+    assert_eq!(state.workflow.phase, MissionPhase::Orbital);
+    assert_eq!(state.current_task, Some("task-b".to_string()));
+
+    // 6. TaskCompleted (second task)
+    state.handle_event(
+        &EventKind::TaskCompleted {
+            task_id: Arc::from("task-b"),
+            output: Arc::new(serde_json::json!({"status": "done"})),
+            duration_ms: 200,
+        },
+        900,
+    );
+    assert_eq!(state.workflow.tasks_completed, 2);
+
+    // 7. WorkflowCompleted
+    let final_output = serde_json::json!({"all": "done"});
+    state.handle_event(
+        &EventKind::WorkflowCompleted {
+            final_output: Arc::new(final_output.clone()),
+            total_duration_ms: 900,
+        },
+        900,
+    );
+    assert_eq!(state.workflow.phase, MissionPhase::MissionSuccess);
+    assert!(state.workflow.final_output.is_some());
+    assert_eq!(state.workflow.total_duration_ms, Some(900));
+    assert!(state.current_task.is_none());
+    assert!(state.is_success());
+    assert!(!state.is_failed());
+    assert!(!state.is_running());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EVENT HANDLER: Error Path Sequence
+// WorkflowStarted -> TaskStarted -> TaskFailed -> WorkflowFailed
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_error_path_full_sequence() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    // WorkflowStarted
+    state.handle_event(
+        &EventKind::WorkflowStarted {
+            task_count: 1,
+            generation_id: "gen-err".to_string(),
+            workflow_hash: "hash-err".to_string(),
+            nika_version: TEST_VERSION.to_string(),
+        },
+        0,
+    );
+
+    // TaskScheduled
+    state.handle_event(
+        &EventKind::TaskScheduled {
+            task_id: Arc::from("failing-task"),
+            dependencies: vec![],
+        },
+        10,
+    );
+
+    // TaskStarted
+    state.handle_event(
+        &EventKind::TaskStarted {
+            task_id: Arc::from("failing-task"),
+            verb: "infer".into(),
+            inputs: serde_json::json!({}),
+        },
+        100,
+    );
+    assert_eq!(state.workflow.phase, MissionPhase::Launch);
+
+    // TaskFailed
+    state.dirty.clear();
+    state.handle_event(
+        &EventKind::TaskFailed {
+            task_id: Arc::from("failing-task"),
+            error: "provider timeout".to_string(),
+            duration_ms: 30_000,
+        },
+        30_100,
+    );
+    assert_eq!(state.tasks["failing-task"].status, TaskStatus::Failed);
+    assert_eq!(
+        state.tasks["failing-task"].error,
+        Some("provider timeout".to_string())
+    );
+    assert_eq!(state.tasks["failing-task"].duration_ms, Some(30_000));
+    // Dirty flags for TaskFailed
+    assert!(state.dirty.progress);
+    assert!(state.dirty.dag);
+    assert!(state.dirty.status);
+
+    // WorkflowFailed
+    state.dirty.clear();
+    state.handle_event(
+        &EventKind::WorkflowFailed {
+            error: "Task 'failing-task' failed: provider timeout".to_string(),
+            failed_task: Some(Arc::from("failing-task")),
+        },
+        30_100,
+    );
+    assert_eq!(state.workflow.phase, MissionPhase::Abort);
+    assert!(state.workflow.error_message.is_some());
+    assert!(state.is_failed());
+    assert!(!state.is_success());
+    assert!(!state.is_running());
+    // Dirty flags for WorkflowFailed
+    assert!(state.dirty.progress);
+    assert!(state.dirty.status);
+    assert!(state.dirty.notifications);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EVENT HANDLER: MCP Lifecycle with Phase Transitions
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_mcp_lifecycle_phase_transitions() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    // Start workflow and task
+    state.handle_event(
+        &EventKind::WorkflowStarted {
+            task_count: 1,
+            generation_id: "gen-mcp".to_string(),
+            workflow_hash: "hash-mcp".to_string(),
+            nika_version: TEST_VERSION.to_string(),
+        },
+        0,
+    );
+    state.handle_event(
+        &EventKind::TaskScheduled {
+            task_id: Arc::from("invoke-task"),
+            dependencies: vec![],
+        },
+        10,
+    );
+    state.handle_event(
+        &EventKind::TaskStarted {
+            task_id: Arc::from("invoke-task"),
+            verb: "invoke".into(),
+            inputs: serde_json::json!({}),
+        },
+        100,
+    );
+
+    // MCP invoke -> phase changes to Rendezvous
+    state.dirty.clear();
+    state.handle_event(
+        &EventKind::McpInvoke {
+            task_id: Arc::from("invoke-task"),
+            call_id: "mcp-1".to_string(),
+            mcp_server: "novanet".to_string(),
+            tool: Some("novanet_describe".to_string()),
+            resource: None,
+            params: Some(serde_json::json!({"entity": "qr-code"})),
+        },
+        200,
+    );
+    assert_eq!(state.workflow.phase, MissionPhase::Rendezvous);
+    assert_eq!(state.mcp.calls.len(), 1);
+    assert_eq!(state.mcp.seq, 1);
+    assert!(state.dirty.novanet);
+    // Verify MCP metric tracking
+    assert_eq!(*state.metrics.mcp_calls.get("novanet_describe").unwrap(), 1);
+
+    // MCP response -> phase returns to Orbital
+    state.dirty.clear();
+    state.handle_event(
+        &EventKind::McpResponse {
+            task_id: Arc::from("invoke-task"),
+            call_id: "mcp-1".to_string(),
+            output_len: 512,
+            duration_ms: 150,
+            cached: false,
+            is_error: false,
+            response: Some(serde_json::json!({"name": "QR Code"})),
+        },
+        350,
+    );
+    assert_eq!(state.workflow.phase, MissionPhase::Orbital);
+    assert!(state.mcp.calls[0].completed);
+    assert_eq!(state.mcp.calls[0].duration_ms, Some(150));
+    assert!(state.dirty.novanet);
+    assert_eq!(state.metrics.mcp_cache_misses, 1);
+    assert_eq!(state.metrics.mcp_cache_hits, 0);
+    // Latency history updated
+    assert_eq!(state.metrics.latency_history.len(), 1);
+    assert_eq!(state.metrics.latency_history[0], 150);
+}
+
+#[test]
+fn test_mcp_cached_response_tracks_hit() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    state.handle_event(
+        &EventKind::McpInvoke {
+            task_id: Arc::from("task1"),
+            call_id: "cached-call".to_string(),
+            mcp_server: "novanet".to_string(),
+            tool: Some("novanet_describe".to_string()),
+            resource: None,
+            params: None,
+        },
+        100,
+    );
+    state.handle_event(
+        &EventKind::McpResponse {
+            task_id: Arc::from("task1"),
+            call_id: "cached-call".to_string(),
+            output_len: 256,
+            duration_ms: 5,
+            cached: true,
+            is_error: false,
+            response: None,
+        },
+        105,
+    );
+
+    assert_eq!(state.metrics.mcp_cache_hits, 1);
+    assert_eq!(state.metrics.mcp_cache_misses, 0);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EVENT HANDLER: WorkflowAborted
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_workflow_aborted_event() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    state.handle_event(
+        &EventKind::WorkflowStarted {
+            task_count: 3,
+            generation_id: "gen-abort".to_string(),
+            workflow_hash: "hash-abort".to_string(),
+            nika_version: TEST_VERSION.to_string(),
+        },
+        0,
+    );
+    state.current_task = Some("running-task".to_string());
+
+    state.dirty.clear();
+    state.handle_event(
+        &EventKind::WorkflowAborted {
+            reason: "User cancelled".to_string(),
+            duration_ms: 5000,
+            running_tasks: vec![Arc::from("running-task")],
+        },
+        5000,
+    );
+
+    assert_eq!(state.workflow.phase, MissionPhase::Abort);
+    assert!(state
+        .workflow
+        .error_message
+        .as_ref()
+        .unwrap()
+        .contains("Aborted"));
+    assert_eq!(state.workflow.total_duration_ms, Some(5000));
+    assert!(state.current_task.is_none());
+    assert!(state.dirty.progress);
+    assert!(state.dirty.status);
+    assert!(state.dirty.notifications);
+    // Notification mentions interrupted tasks
+    assert!(state
+        .notifs
+        .items
+        .last()
+        .unwrap()
+        .message
+        .contains("1 tasks interrupted"));
+}
+
+#[test]
+fn test_workflow_aborted_no_running_tasks() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    state.handle_event(
+        &EventKind::WorkflowAborted {
+            reason: "Timeout".to_string(),
+            duration_ms: 60_000,
+            running_tasks: vec![],
+        },
+        60_000,
+    );
+
+    // Notification should NOT mention interrupted tasks
+    let msg = &state.notifs.items.last().unwrap().message;
+    assert!(!msg.contains("interrupted"));
+    assert!(msg.contains("Timeout"));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EVENT HANDLER: Pause/Resume
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_workflow_paused_resumed_events() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    // Set up a running workflow
+    state.workflow.phase = MissionPhase::Orbital;
+    state.current_task = Some("active-task".to_string());
+
+    // Pause
+    state.dirty.clear();
+    state.handle_event(&EventKind::WorkflowPaused, 1000);
+
+    assert!(state.workflow.paused);
+    assert_eq!(state.workflow.phase, MissionPhase::Pause);
+    assert_eq!(
+        state.workflow.phase_before_pause,
+        Some(MissionPhase::Orbital)
+    );
+    assert!(state.dirty.progress);
+    assert!(state.dirty.status);
+
+    // Resume
+    state.dirty.clear();
+    state.handle_event(&EventKind::WorkflowResumed, 2000);
+
+    assert!(!state.workflow.paused);
+    assert_eq!(state.workflow.phase, MissionPhase::Orbital);
+    assert!(state.workflow.phase_before_pause.is_none());
+    assert!(state.dirty.progress);
+    assert!(state.dirty.status);
+}
+
+#[test]
+fn test_workflow_resumed_without_saved_phase_infers_from_state() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    // Pause without saved phase (edge case)
+    state.workflow.paused = true;
+    state.workflow.phase = MissionPhase::Pause;
+    state.workflow.phase_before_pause = None;
+
+    // Resume with current_task set -> Orbital
+    state.current_task = Some("task1".to_string());
+    state.handle_event(&EventKind::WorkflowResumed, 1000);
+    assert_eq!(state.workflow.phase, MissionPhase::Orbital);
+
+    // Resume without current_task -> Countdown
+    state.workflow.paused = true;
+    state.workflow.phase = MissionPhase::Pause;
+    state.workflow.phase_before_pause = None;
+    state.current_task = None;
+    state.handle_event(&EventKind::WorkflowResumed, 2000);
+    assert_eq!(state.workflow.phase, MissionPhase::Countdown);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EVENT HANDLER: TaskSkipped
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_task_skipped_event() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    state.tasks.insert(
+        "dep-task".to_string(),
+        TaskState::new("dep-task".to_string(), vec![]),
+    );
+    state.tasks.insert(
+        "skip-task".to_string(),
+        TaskState::new("skip-task".to_string(), vec!["dep-task".to_string()]),
+    );
+
+    state.dirty.clear();
+    state.handle_event(
+        &EventKind::TaskSkipped {
+            task_id: Arc::from("skip-task"),
+            reason: "dependency 'dep-task' failed".to_string(),
+        },
+        500,
+    );
+
+    assert_eq!(state.tasks["skip-task"].status, TaskStatus::Skipped);
+    assert!(state.tasks["skip-task"]
+        .error
+        .as_ref()
+        .unwrap()
+        .contains("skipped"));
+    assert!(state.dirty.progress);
+    assert!(state.dirty.dag);
+    assert!(state.dirty.status);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EVENT HANDLER: Phase Transitions (Countdown -> Launch -> Orbital)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_phase_transition_countdown_to_launch() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    state.handle_event(
+        &EventKind::WorkflowStarted {
+            task_count: 2,
+            generation_id: "gen-phase".to_string(),
+            workflow_hash: "hash-phase".to_string(),
+            nika_version: TEST_VERSION.to_string(),
+        },
+        0,
+    );
+    assert_eq!(state.workflow.phase, MissionPhase::Countdown);
+
+    state.handle_event(
+        &EventKind::TaskScheduled {
+            task_id: Arc::from("t1"),
+            dependencies: vec![],
+        },
+        5,
+    );
+
+    // First task start -> Launch
+    state.handle_event(
+        &EventKind::TaskStarted {
+            task_id: Arc::from("t1"),
+            verb: "infer".into(),
+            inputs: serde_json::json!({}),
+        },
+        10,
+    );
+    assert_eq!(state.workflow.phase, MissionPhase::Launch);
+}
+
+#[test]
+fn test_phase_transition_launch_to_orbital() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    // Skip past Countdown
+    state.workflow.phase = MissionPhase::Launch;
+
+    state.handle_event(
+        &EventKind::TaskScheduled {
+            task_id: Arc::from("t2"),
+            dependencies: vec![],
+        },
+        0,
+    );
+
+    // Subsequent task start -> Orbital (not Launch again)
+    state.handle_event(
+        &EventKind::TaskStarted {
+            task_id: Arc::from("t2"),
+            verb: "exec".into(),
+            inputs: serde_json::json!({}),
+        },
+        100,
+    );
+    assert_eq!(state.workflow.phase, MissionPhase::Orbital);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EVENT HANDLER: Edge Cases - Duplicate Events & Unknown Task IDs
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_duplicate_task_scheduled_overwrites() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    state.handle_event(
+        &EventKind::TaskScheduled {
+            task_id: Arc::from("dup-task"),
+            dependencies: vec![],
+        },
+        0,
+    );
+    assert_eq!(state.tasks.len(), 1);
+    assert_eq!(state.task_order.len(), 1);
+
+    // Duplicate schedule (should overwrite task, append to order)
+    state.handle_event(
+        &EventKind::TaskScheduled {
+            task_id: Arc::from("dup-task"),
+            dependencies: vec![Arc::from("dep1")],
+        },
+        10,
+    );
+    // HashMap overwrites, task_order appends (known behavior)
+    assert_eq!(state.tasks.len(), 1);
+    assert_eq!(state.tasks["dup-task"].dependencies, vec!["dep1"]);
+    assert_eq!(state.task_order.len(), 2); // Both entries remain
+}
+
+#[test]
+fn test_task_started_unknown_task_id_no_panic() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    // TaskStarted for a task that was never scheduled
+    state.handle_event(
+        &EventKind::TaskStarted {
+            task_id: Arc::from("ghost-task"),
+            verb: "infer".into(),
+            inputs: serde_json::json!({}),
+        },
+        100,
+    );
+
+    // Should not panic; current_task is set even if task not in map
+    assert_eq!(state.current_task, Some("ghost-task".to_string()));
+    assert!(!state.tasks.contains_key("ghost-task"));
+}
+
+#[test]
+fn test_task_completed_unknown_task_id_no_panic() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    // TaskCompleted for a task that was never scheduled
+    state.handle_event(
+        &EventKind::TaskCompleted {
+            task_id: Arc::from("ghost-task"),
+            output: Arc::new(serde_json::json!(null)),
+            duration_ms: 100,
+        },
+        200,
+    );
+
+    // Should not panic; tasks_completed still increments
+    assert_eq!(state.workflow.tasks_completed, 1);
+}
+
+#[test]
+fn test_task_failed_unknown_task_id_no_panic() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    // TaskFailed for a task that was never scheduled
+    state.handle_event(
+        &EventKind::TaskFailed {
+            task_id: Arc::from("ghost-task"),
+            error: "unknown error".to_string(),
+            duration_ms: 50,
+        },
+        100,
+    );
+
+    // Should not panic
+    assert!(!state.tasks.contains_key("ghost-task"));
+    assert!(state.dirty.status);
+}
+
+#[test]
+fn test_mcp_response_for_unknown_call_id_no_panic() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    // MCP response without a matching invoke
+    state.handle_event(
+        &EventKind::McpResponse {
+            task_id: Arc::from("task1"),
+            call_id: "nonexistent-call".to_string(),
+            output_len: 100,
+            duration_ms: 50,
+            cached: false,
+            is_error: false,
+            response: None,
+        },
+        100,
+    );
+
+    // Should not panic; no call updated but metrics still track
+    assert_eq!(state.metrics.mcp_cache_misses, 1);
+    assert_eq!(state.metrics.latency_history.len(), 1);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EVENT HANDLER: Provider Events
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_provider_called_updates_task_and_metrics() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    state.tasks.insert(
+        "infer-task".to_string(),
+        TaskState::new("infer-task".to_string(), vec![]),
+    );
+
+    state.dirty.clear();
+    state.handle_event(
+        &EventKind::ProviderCalled {
+            task_id: Arc::from("infer-task"),
+            provider: "anthropic".to_string(),
+            model: "claude-sonnet-4-6".to_string(),
+            prompt_len: 1500,
+        },
+        200,
+    );
+
+    assert_eq!(
+        state.tasks["infer-task"].provider,
+        Some("anthropic".to_string())
+    );
+    assert_eq!(
+        state.tasks["infer-task"].model,
+        Some("claude-sonnet-4-6".to_string())
+    );
+    assert_eq!(state.tasks["infer-task"].prompt_len, Some(1500));
+    assert_eq!(state.metrics.provider_calls, 1);
+    assert_eq!(
+        state.metrics.last_model,
+        Some("claude-sonnet-4-6".to_string())
+    );
+    assert!(state.dirty.progress);
+}
+
+#[test]
+fn test_provider_responded_updates_metrics() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    state.tasks.insert(
+        "infer-task".to_string(),
+        TaskState::new("infer-task".to_string(), vec![]),
+    );
+
+    state.dirty.clear();
+    state.handle_event(
+        &EventKind::ProviderResponded {
+            task_id: Arc::from("infer-task"),
+            request_id: Some("req-123".to_string()),
+            input_tokens: 1000,
+            output_tokens: 500,
+            cache_read_tokens: 200,
+            ttft_ms: Some(250),
+            finish_reason: "stop".to_string(),
+            cost_usd: 0.005,
+        },
+        500,
+    );
+
+    assert_eq!(state.metrics.input_tokens, 1000);
+    assert_eq!(state.metrics.output_tokens, 500);
+    assert_eq!(state.metrics.cache_read_tokens, 200);
+    assert_eq!(state.metrics.total_tokens, 1500);
+    assert!((state.metrics.cost_usd - 0.005).abs() < f64::EPSILON);
+    assert_eq!(
+        state.tasks["infer-task"].finish_reason,
+        Some("stop".to_string())
+    );
+    // TTFT tracked in latency history
+    assert_eq!(state.metrics.latency_history.len(), 1);
+    assert_eq!(state.metrics.latency_history[0], 250);
+    // Token velocity tracked
+    assert!(!state.metrics.token_velocity.is_empty());
+    assert!(state.dirty.progress);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EVENT HANDLER: Agent Events
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_agent_spawned_event() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    state.dirty.clear();
+    state.handle_event(
+        &EventKind::AgentSpawned {
+            parent_task_id: Arc::from("parent-agent"),
+            child_task_id: Arc::from("child-agent"),
+            depth: 1,
+        },
+        500,
+    );
+
+    assert_eq!(state.agent.spawned_agents.len(), 1);
+    assert_eq!(state.agent.spawned_agents[0].parent_task_id, "parent-agent");
+    assert_eq!(state.agent.spawned_agents[0].child_task_id, "child-agent");
+    assert_eq!(state.agent.spawned_agents[0].depth, 1);
+    assert!(state.dirty.reasoning);
+    assert!(state.dirty.notifications);
+    // Notification mentions the spawn
+    assert!(state
+        .notifs
+        .items
+        .last()
+        .unwrap()
+        .message
+        .contains("child-agent"));
+}
+
+#[test]
+fn test_is_subagent_and_agent_icon() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    // Before spawning, not a subagent
+    assert!(!state.is_subagent("child-agent"));
+    assert_eq!(state.agent_icon("child-agent"), ">>");
+
+    // After spawning
+    state.handle_event(
+        &EventKind::AgentSpawned {
+            parent_task_id: Arc::from("parent"),
+            child_task_id: Arc::from("child-agent"),
+            depth: 1,
+        },
+        100,
+    );
+
+    assert!(state.is_subagent("child-agent"));
+    assert!(!state.is_subagent("parent"));
+    assert_eq!(state.agent_icon("child-agent"), ">");
+    assert_eq!(state.agent_icon("parent"), ">>");
+}
+
+#[test]
+fn test_agent_task_completed_clears_agent_state() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    // Set up agent state
+    state.handle_event(
+        &EventKind::AgentStart {
+            task_id: Arc::from("agent-task"),
+            max_turns: 5,
+            mcp_servers: vec![],
+        },
+        100,
+    );
+    state.handle_event(
+        &EventKind::AgentTurn {
+            task_id: Arc::from("agent-task"),
+            turn_index: 0,
+            kind: "thinking".to_string(),
+            metadata: None,
+        },
+        200,
+    );
+    assert_eq!(state.agent.turns.len(), 1);
+    assert_eq!(state.agent.max_turns, Some(5));
+
+    // Set up the task as an agent type
+    state.tasks.insert(
+        "agent-task".to_string(),
+        TaskState {
+            id: "agent-task".to_string(),
+            task_type: Some("agent".to_string()),
+            status: TaskStatus::Running,
+            dependencies: vec![],
+            started_at: None,
+            duration_ms: None,
+            input: None,
+            output: None,
+            error: None,
+            tokens: None,
+            provider: None,
+            model: None,
+            prompt_len: None,
+            finish_reason: None,
+        },
+    );
+
+    // Complete agent task -> clears agent state
+    state.handle_event(
+        &EventKind::TaskCompleted {
+            task_id: Arc::from("agent-task"),
+            output: Arc::new(serde_json::json!({"answer": "42"})),
+            duration_ms: 5000,
+        },
+        5100,
+    );
+
+    assert!(state.agent.turns.is_empty());
+    assert!(state.agent.max_turns.is_none());
+}
+
+#[test]
+fn test_non_agent_task_completed_does_not_clear_agent_state() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    // Set up agent state (simulating parallel workflow)
+    state.agent.max_turns = Some(5);
+    state.agent.turns.push(AgentTurnState {
+        index: 0,
+        status: "thinking".to_string(),
+        tokens: None,
+        tool_calls: vec![],
+        thinking: None,
+        response_text: None,
+    });
+
+    // Complete a non-agent task
+    state.tasks.insert(
+        "infer-task".to_string(),
+        TaskState {
+            id: "infer-task".to_string(),
+            task_type: Some("infer".to_string()),
+            status: TaskStatus::Running,
+            dependencies: vec![],
+            started_at: None,
+            duration_ms: None,
+            input: None,
+            output: None,
+            error: None,
+            tokens: None,
+            provider: None,
+            model: None,
+            prompt_len: None,
+            finish_reason: None,
+        },
+    );
+
+    state.handle_event(
+        &EventKind::TaskCompleted {
+            task_id: Arc::from("infer-task"),
+            output: Arc::new(serde_json::json!({})),
+            duration_ms: 100,
+        },
+        200,
+    );
+
+    // Agent state should NOT be cleared
+    assert_eq!(state.agent.turns.len(), 1);
+    assert_eq!(state.agent.max_turns, Some(5));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EVENT HANDLER: MCP Connection Events
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_mcp_connected_event() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    state.dirty.clear();
+    state.handle_event(
+        &EventKind::McpConnected {
+            server_name: "novanet".to_string(),
+            tools: vec![],
+        },
+        100,
+    );
+
+    assert!(state.dirty.status);
+    assert_eq!(state.notifs.items.last().unwrap().level, NotificationLevel::Success);
+    assert!(state.notifs.items.last().unwrap().message.contains("novanet"));
+}
+
+#[test]
+fn test_mcp_error_event() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    state.dirty.clear();
+    state.handle_event(
+        &EventKind::McpError {
+            server_name: "novanet".to_string(),
+            error: "connection refused".to_string(),
+        },
+        100,
+    );
+
+    assert!(state.dirty.status);
+    assert_eq!(state.notifs.items.last().unwrap().level, NotificationLevel::Error);
+    assert!(state.notifs.items.last().unwrap().message.contains("connection refused"));
+}
+
+#[test]
+fn test_mcp_retry_event() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    state.dirty.clear();
+    state.handle_event(
+        &EventKind::McpRetry {
+            server_name: "novanet".to_string(),
+            operation: "novanet_describe".to_string(),
+            attempt: 2,
+            max_attempts: 3,
+            error: "timeout".to_string(),
+            backoff_ms: 1000,
+        },
+        200,
+    );
+
+    assert!(state.dirty.status);
+    let msg = &state.notifs.items.last().unwrap().message;
+    assert!(msg.contains("2/3"));
+    assert!(msg.contains("novanet_describe"));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EVENT HANDLER: Slow MCP Response Notification
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_slow_mcp_response_adds_warning() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    // First invoke
+    state.handle_event(
+        &EventKind::McpInvoke {
+            task_id: Arc::from("task1"),
+            call_id: "slow-call".to_string(),
+            mcp_server: "novanet".to_string(),
+            tool: Some("slow_tool".to_string()),
+            resource: None,
+            params: None,
+        },
+        100,
+    );
+
+    let notifs_before = state.notifs.items.len();
+
+    // Slow response (> 5s)
+    state.handle_event(
+        &EventKind::McpResponse {
+            task_id: Arc::from("task1"),
+            call_id: "slow-call".to_string(),
+            output_len: 100,
+            duration_ms: 6_000,
+            cached: false,
+            is_error: false,
+            response: None,
+        },
+        6_100,
+    );
+
+    assert!(state.notifs.items.len() > notifs_before);
+    let last = state.notifs.items.last().unwrap();
+    assert_eq!(last.level, NotificationLevel::Warning);
+    assert!(last.message.contains("slow_tool"));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EVENT HANDLER: Latency History Cap (max 20)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_latency_history_capped_at_20() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    // Fill latency history to 20 with MCP responses
+    for i in 0..25 {
+        state.handle_event(
+            &EventKind::McpInvoke {
+                task_id: Arc::from("task1"),
+                call_id: format!("call-{}", i),
+                mcp_server: "novanet".to_string(),
+                tool: Some("tool".to_string()),
+                resource: None,
+                params: None,
+            },
+            i * 100,
+        );
+        state.handle_event(
+            &EventKind::McpResponse {
+                task_id: Arc::from("task1"),
+                call_id: format!("call-{}", i),
+                output_len: 10,
+                duration_ms: (i + 1) * 10,
+                cached: false,
+                is_error: false,
+                response: None,
+            },
+            i * 100 + 50,
+        );
+    }
+
+    // Should cap at 20
+    assert!(state.metrics.latency_history.len() <= 20);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EVENT HANDLER: Animation helpers
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_spinner_char_cycles() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    // Spinner should return a valid braille character
+    let c = state.spinner_char();
+    assert!(matches!(
+        c,
+        '\u{280B}' | '\u{2819}' | '\u{2839}' | '\u{2838}'
+            | '\u{283C}' | '\u{2834}' | '\u{2826}' | '\u{2827}'
+            | '\u{2807}' | '\u{280F}'
+    ));
+
+    // Advancing frame should eventually produce different chars
+    let first = state.spinner_char();
+    state.frame = FRAME_DIV_NORMAL; // Advance past one division
+    let second = state.spinner_char();
+    assert_ne!(first, second);
+}
+
+#[test]
+fn test_rocket_char_returns_valid() {
+    let state = TuiState::new("test.nika.yaml");
+    let c = state.rocket_char();
+    // Should be one of the rocket animation chars
+    assert!(
+        c == '\u{1F680}' || c == '\u{1F525}' || c == '\u{1F4A8}' || c == '\u{2728}'
+    );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// NAVIGATION: UTF-8 Cursor Fix Tests
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_filter_push_ascii_cursor_at_1() {
+    let mut state = TuiState::new("test.nika.yaml");
+    state.filter_push('a');
+    assert_eq!(state.filter_query, "a");
+    assert_eq!(state.filter_cursor, 1); // ASCII: 1 byte
+}
+
+#[test]
+fn test_filter_push_accented_char_cursor_at_2() {
+    let mut state = TuiState::new("test.nika.yaml");
+    state.filter_push('\u{00E9}'); // e-acute
+    assert_eq!(state.filter_query, "\u{00E9}");
+    assert_eq!(state.filter_cursor, 2); // 2-byte UTF-8
+}
+
+#[test]
+fn test_filter_push_emoji_cursor_at_4() {
+    let mut state = TuiState::new("test.nika.yaml");
+    state.filter_push('\u{1F98B}'); // butterfly emoji
+    assert_eq!(state.filter_query, "\u{1F98B}");
+    assert_eq!(state.filter_cursor, 4); // 4-byte UTF-8
+}
+
+#[test]
+fn test_filter_push_mixed_utf8() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    state.filter_push('n'); // 1 byte
+    assert_eq!(state.filter_cursor, 1);
+
+    state.filter_push('\u{00E9}'); // 2 bytes
+    assert_eq!(state.filter_cursor, 3); // 1 + 2
+
+    state.filter_push('\u{1F98B}'); // 4 bytes
+    assert_eq!(state.filter_cursor, 7); // 1 + 2 + 4
+
+    assert_eq!(state.filter_query, "n\u{00E9}\u{1F98B}");
+    assert_eq!(state.filter_query.len(), 7);
+}
+
+#[test]
+fn test_filter_backspace_after_emoji() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    state.filter_push('a'); // cursor at 1
+    state.filter_push('\u{1F98B}'); // cursor at 5
+
+    assert_eq!(state.filter_cursor, 5);
+
+    state.filter_backspace();
+    assert_eq!(state.filter_query, "a");
+    assert_eq!(state.filter_cursor, 1); // Back to after 'a'
+}
+
+#[test]
+fn test_filter_backspace_after_accented() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    state.filter_push('c');
+    state.filter_push('a');
+    state.filter_push('f');
+    state.filter_push('\u{00E9}'); // cafe with accent
+    assert_eq!(state.filter_cursor, 5); // 3 + 2
+
+    state.filter_backspace(); // remove e-acute
+    assert_eq!(state.filter_query, "caf");
+    assert_eq!(state.filter_cursor, 3);
+}
+
+#[test]
+fn test_filter_cursor_left_through_multibyte() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    state.filter_push('a'); // cursor 1
+    state.filter_push('\u{00E9}'); // cursor 3
+    state.filter_push('\u{1F98B}'); // cursor 7
+
+    // Move left through emoji (4 bytes)
+    state.filter_cursor_left();
+    assert_eq!(state.filter_cursor, 3);
+
+    // Move left through accented char (2 bytes)
+    state.filter_cursor_left();
+    assert_eq!(state.filter_cursor, 1);
+
+    // Move left through ASCII (1 byte)
+    state.filter_cursor_left();
+    assert_eq!(state.filter_cursor, 0);
+
+    // Can't go further left
+    state.filter_cursor_left();
+    assert_eq!(state.filter_cursor, 0);
+}
+
+#[test]
+fn test_filter_cursor_right_through_multibyte() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    state.filter_push('a'); // 1 byte
+    state.filter_push('\u{00E9}'); // 2 bytes
+    state.filter_push('\u{1F98B}'); // 4 bytes
+
+    // Move to beginning
+    state.filter_cursor = 0;
+
+    // Move right through ASCII (1 byte)
+    state.filter_cursor_right();
+    assert_eq!(state.filter_cursor, 1);
+
+    // Move right through accented char (2 bytes)
+    state.filter_cursor_right();
+    assert_eq!(state.filter_cursor, 3);
+
+    // Move right through emoji (4 bytes)
+    state.filter_cursor_right();
+    assert_eq!(state.filter_cursor, 7);
+
+    // Can't go further right
+    state.filter_cursor_right();
+    assert_eq!(state.filter_cursor, 7);
+}
+
+#[test]
+fn test_filter_delete_multibyte_at_cursor() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    state.filter_push('a');
+    state.filter_push('\u{00E9}');
+    state.filter_push('b');
+    // "a" + e-acute + "b" -> 4 bytes total
+
+    // Position cursor at the start of e-acute
+    state.filter_cursor = 1;
+    state.filter_delete(); // Should remove the 2-byte e-acute
+
+    assert_eq!(state.filter_query, "ab");
+    assert_eq!(state.filter_cursor, 1); // Cursor stays at 1
+}
+
+#[test]
+fn test_filter_insert_at_middle_multibyte() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    state.filter_push('a');
+    state.filter_push('b');
+    assert_eq!(state.filter_query, "ab");
+
+    // Move cursor to position 1 (between a and b)
+    state.filter_cursor = 1;
+    state.filter_push('\u{00E9}');
+
+    assert_eq!(state.filter_query, "a\u{00E9}b");
+    assert_eq!(state.filter_cursor, 3); // 1 + 2 for the inserted char
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WORKFLOW OPS: toggle_pause and dirty flags
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_toggle_pause_sets_dirty_flags() {
+    let mut state = TuiState::new("test.nika.yaml");
+    state.workflow.phase = MissionPhase::Orbital;
+    state.current_task = Some("task1".to_string());
+
+    state.dirty.clear();
+    state.toggle_pause();
+
+    assert!(state.is_paused());
+    assert_eq!(state.workflow.phase, MissionPhase::Pause);
+    assert!(state.dirty.progress);
+    assert!(state.dirty.status);
+}
+
+#[test]
+fn test_toggle_pause_twice_restores() {
+    let mut state = TuiState::new("test.nika.yaml");
+    state.workflow.phase = MissionPhase::Orbital;
+    state.current_task = Some("task1".to_string());
+
+    // First toggle -> paused
+    state.toggle_pause();
+    assert!(state.is_paused());
+    assert_eq!(state.workflow.phase, MissionPhase::Pause);
+
+    // Second toggle -> unpaused, Orbital because current_task is set
+    state.dirty.clear();
+    state.toggle_pause();
+    assert!(!state.is_paused());
+    assert_eq!(state.workflow.phase, MissionPhase::Orbital);
+    assert!(state.dirty.progress);
+    assert!(state.dirty.status);
+}
+
+#[test]
+fn test_toggle_pause_resume_no_current_task_goes_countdown() {
+    let mut state = TuiState::new("test.nika.yaml");
+    state.workflow.phase = MissionPhase::Orbital;
+    state.current_task = None;
+
+    state.toggle_pause();
+    assert!(state.is_paused());
+
+    state.toggle_pause();
+    assert!(!state.is_paused());
+    assert_eq!(state.workflow.phase, MissionPhase::Countdown);
+}
+
+#[test]
+fn test_is_paused_reflects_workflow_state() {
+    let mut state = TuiState::new("test.nika.yaml");
+    assert!(!state.is_paused());
+
+    state.workflow.paused = true;
+    assert!(state.is_paused());
+
+    state.workflow.paused = false;
+    assert!(!state.is_paused());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WORKFLOW OPS: reset_for_retry sets dirty via mark_all
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_reset_for_retry_marks_all_dirty() {
+    let mut state = TuiState::new("test.nika.yaml");
+    state.workflow.phase = MissionPhase::Abort;
+
+    state.dirty.clear();
+    assert!(!state.dirty.any());
+
+    state.reset_for_retry();
+
+    assert!(state.dirty.all, "reset_for_retry should mark_all dirty");
+    assert!(state.dirty.any());
+}
+
+#[test]
+fn test_reset_for_retry_clears_agent_and_metrics() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    // Populate some state
+    state.agent.turns.push(AgentTurnState {
+        index: 0,
+        status: "done".to_string(),
+        tokens: Some(1000),
+        tool_calls: vec![],
+        thinking: None,
+        response_text: None,
+    });
+    state.metrics.total_tokens = 5000;
+    state.metrics.provider_calls = 3;
+    state.current_task = Some("task1".to_string());
+    state.mcp.seq = 5;
+
+    state.reset_for_retry();
+
+    assert!(state.agent.turns.is_empty());
+    assert_eq!(state.metrics.total_tokens, 0);
+    assert_eq!(state.metrics.provider_calls, 0);
+    assert!(state.current_task.is_none());
+    assert_eq!(state.mcp.seq, 0);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WORKFLOW OPS: dismiss_error
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_dismiss_error_clears_message() {
+    let mut state = TuiState::new("test.nika.yaml");
+    state.workflow.error_message = Some("something failed".to_string());
+
+    state.dirty.clear();
+    let dismissed = state.dismiss_error();
+
+    assert!(dismissed);
+    assert!(state.workflow.error_message.is_none());
+    assert!(state.dirty.progress);
+    assert!(state.dirty.status);
+}
+
+#[test]
+fn test_dismiss_error_returns_false_when_no_error() {
+    let mut state = TuiState::new("test.nika.yaml");
+    assert!(state.workflow.error_message.is_none());
+
+    let dismissed = state.dismiss_error();
+    assert!(!dismissed);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WORKFLOW OPS: has_breakpoint
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_has_breakpoint_checks_all_types() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    assert!(!state.has_breakpoint("task1"));
+
+    state
+        .breakpoints
+        .insert(Breakpoint::BeforeTask("task1".to_string()));
+    assert!(state.has_breakpoint("task1"));
+    assert!(!state.has_breakpoint("task2"));
+
+    state.breakpoints.clear();
+    state
+        .breakpoints
+        .insert(Breakpoint::AfterTask("task1".to_string()));
+    assert!(state.has_breakpoint("task1"));
+
+    state.breakpoints.clear();
+    state
+        .breakpoints
+        .insert(Breakpoint::OnError("task1".to_string()));
+    assert!(state.has_breakpoint("task1"));
+
+    state.breakpoints.clear();
+    state
+        .breakpoints
+        .insert(Breakpoint::OnMcp("task1".to_string()));
+    assert!(state.has_breakpoint("task1"));
+
+    // OnAgentTurn is NOT checked by has_breakpoint
+    state.breakpoints.clear();
+    state
+        .breakpoints
+        .insert(Breakpoint::OnAgentTurn("task1".to_string(), 0));
+    assert!(!state.has_breakpoint("task1"));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WORKFLOW OPS: should_break edge cases
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_should_break_empty_breakpoints_always_false() {
+    let state = TuiState::new("test.nika.yaml");
+    assert!(state.breakpoints.is_empty());
+
+    let events = [
+        EventKind::TaskStarted {
+            task_id: Arc::from("t1"),
+            verb: "infer".into(),
+            inputs: serde_json::json!({}),
+        },
+        EventKind::TaskCompleted {
+            task_id: Arc::from("t1"),
+            output: Arc::new(serde_json::json!(null)),
+            duration_ms: 100,
+        },
+        EventKind::TaskFailed {
+            task_id: Arc::from("t1"),
+            error: "err".to_string(),
+            duration_ms: 100,
+        },
+    ];
+
+    for event in &events {
+        assert!(!state.should_break(event));
+    }
+}
+
+#[test]
+fn test_should_break_after_task() {
+    let mut state = TuiState::new("test.nika.yaml");
+    state
+        .breakpoints
+        .insert(Breakpoint::AfterTask("task1".to_string()));
+
+    // TaskCompleted triggers AfterTask
+    assert!(state.should_break(&EventKind::TaskCompleted {
+        task_id: Arc::from("task1"),
+        output: Arc::new(serde_json::json!(null)),
+        duration_ms: 100,
+    }));
+
+    // TaskStarted does NOT trigger AfterTask
+    assert!(!state.should_break(&EventKind::TaskStarted {
+        task_id: Arc::from("task1"),
+        verb: "infer".into(),
+        inputs: serde_json::json!({}),
+    }));
+}
+
+#[test]
+fn test_should_break_on_error() {
+    let mut state = TuiState::new("test.nika.yaml");
+    state
+        .breakpoints
+        .insert(Breakpoint::OnError("task1".to_string()));
+
+    assert!(state.should_break(&EventKind::TaskFailed {
+        task_id: Arc::from("task1"),
+        error: "boom".to_string(),
+        duration_ms: 50,
+    }));
+}
+
+#[test]
+fn test_should_break_on_mcp() {
+    let mut state = TuiState::new("test.nika.yaml");
+    state
+        .breakpoints
+        .insert(Breakpoint::OnMcp("task1".to_string()));
+
+    assert!(state.should_break(&EventKind::McpInvoke {
+        task_id: Arc::from("task1"),
+        call_id: "c1".to_string(),
+        mcp_server: "novanet".to_string(),
+        tool: Some("describe".to_string()),
+        resource: None,
+        params: None,
+    }));
+}
+
+#[test]
+fn test_should_break_on_agent_turn() {
+    let mut state = TuiState::new("test.nika.yaml");
+    state
+        .breakpoints
+        .insert(Breakpoint::OnAgentTurn("task1".to_string(), 2));
+
+    // Matching turn index
+    assert!(state.should_break(&EventKind::AgentTurn {
+        task_id: Arc::from("task1"),
+        turn_index: 2,
+        kind: "thinking".to_string(),
+        metadata: None,
+    }));
+
+    // Non-matching turn index
+    assert!(!state.should_break(&EventKind::AgentTurn {
+        task_id: Arc::from("task1"),
+        turn_index: 0,
+        kind: "thinking".to_string(),
+        metadata: None,
+    }));
+}
+
+#[test]
+fn test_should_break_unrelated_event_returns_false() {
+    let mut state = TuiState::new("test.nika.yaml");
+    state
+        .breakpoints
+        .insert(Breakpoint::BeforeTask("task1".to_string()));
+
+    // WorkflowStarted is not a breakpoint-able event
+    assert!(!state.should_break(&EventKind::WorkflowStarted {
+        task_count: 1,
+        generation_id: "gen".to_string(),
+        workflow_hash: "hash".to_string(),
+        nika_version: TEST_VERSION.to_string(),
+    }));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WORKFLOW OPS: clear_dirty and dag_version
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_clear_dirty_resets_all_flags() {
+    let mut state = TuiState::new("test.nika.yaml");
+    state.dirty.mark_all();
+    state.dirty.progress = true;
+    state.dirty.status = true;
+    assert!(state.dirty.any());
+
+    state.clear_dirty();
+    assert!(!state.dirty.any());
+}
+
+#[test]
+fn test_dag_version_matches_timeline_version() {
+    let mut state = TuiState::new("test.nika.yaml");
+    assert_eq!(state.dag_version(), 0);
+
+    state.invalidate_timeline_cache();
+    assert_eq!(state.dag_version(), 1);
+}

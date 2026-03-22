@@ -300,7 +300,9 @@ impl Widget for NikaIntro<'_> {
                         );
                     }
                     // Top right — Blue (hacking)
-                    if start_x + logo_width + 2 < area.x + area.width {
+                    if start_y > 0
+                        && start_x + logo_width + 2 < area.x + area.width
+                    {
                         buf.set_string(
                             start_x + logo_width + 2,
                             start_y - 1,

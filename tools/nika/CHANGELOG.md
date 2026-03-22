@@ -331,6 +331,22 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `task_starts` stores `(timestamp, verb)` tuple for verb lookup on completion.
 - Tests: 6846 passing (up from 6841).
 
+## [0.35.3](https://github.com/supernovae-st/nika/releases/tag/v0.35.3) - 2026-03-21
+
+### Added
+- **Verb misspelling detection** with Levenshtein distance suggestions
+- **Cycle detection path display** — shows actual cycle path in error messages
+- Gate tests for all 101 production workflows
+
+### Fixed
+- **`native-keychain` removed from default features** — eliminates macOS Keychain popup fatigue
+- **Layer 0 system prompt** — structured output now passes system prompt to LLM (was silently dropped)
+- **`for_each` items binding** — failure now explicit instead of silent skip
+- NIKA-160/161 → 165/166 error code collision resolved
+
+### Changed
+- Tests: 6,810 passing, zero clippy warnings
+
 ## [0.35.2](https://github.com/supernovae-st/nika/releases/tag/v0.35.2) - 2026-03-20
 
 ### Fixed
@@ -830,6 +846,21 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Run tool: required schema fields reduced from 4 to 1 (`workflow` only)
 - CLAUDE.md: added 5 missing error code ranges (060-069, 120-139, 250-279)
 - README badges updated to 5,212 tests
+
+## [0.30.4](https://github.com/supernovae-st/nika/releases/tag/v0.30.4) - 2026-03-18
+
+### Fixed
+- **UTF-8 panic on CJK/emoji:** `truncate_str()` helper with safe char boundary detection
+- **`--quiet` flag no-op:** now actually wired to runner output suppression
+- **Timeout 1000x unit mismatch:** `timeout_ms: 5000` now correctly 5 seconds, not 5000 seconds
+- **`parallel: 0` deadlock:** clamped to minimum 1 (was blocking indefinitely)
+- MCP retry on non-retryable errors (no longer retries permanent failures)
+- MCP env var injection blocked (security hardening)
+
+### Added
+- Regex OnceLock cache for completion performance
+- 268 audit gate workflows (168 feature + 50 combo + 50 error + 100 complex)
+- 100 ultra-complex gate workflows + 30 use case workflows
 
 ---
 
@@ -3985,6 +4016,205 @@ All 4 test workflows refactored for dynamic discovery:
 
 > 💡 **TIP:** When writing workflows, prefer dynamic discovery over hardcoded values.
 > Your workflows will be more reusable and demonstrate better agentic patterns.
+
+## [0.26.0](https://github.com/supernovae-st/nika/releases/tag/v0.26.0) - 2026-03-11
+
+### Added
+- **NativeRuntime** via mistral.rs for local GGUF model inference (ADR-008)
+- `infer_stream()` with async `mpsc` channels for real-time streaming output
+- `InferenceBackend` trait providing unified interface across all providers
+- `provider: native` + `model:` support in workflow tasks
+
+### Fixed
+- **for_each nested path binding:** `{{use.data.nested.items}}` correctly resolves alias first, then traverses nested path
+
+### Changed
+- `NativeClient` deprecated in favor of `NativeRuntime`
+- Ollama tests removed; native inference via mistral.rs replaces Ollama
+
+## [0.25.0](https://github.com/supernovae-st/nika/releases/tag/v0.25.0) - 2026-03-11
+
+### Added
+- Native local inference via mistral.rs (`provider: native` in workflows)
+- `native-inference` feature enabled by default
+
+### Fixed
+- **BUG-001:** Detect duplicate task IDs in `Dag::from_workflow` (NIKA-022 `DuplicateTaskId`)
+- **BUG-002:** `nika check` now calls `detect_cycles()` on the DAG
+- `Dag::from_workflow` returns `Result` instead of panicking
+
+## [0.24.0](https://github.com/supernovae-st/nika/releases/tag/v0.24.0) - 2026-03-10
+
+### Added
+- `follow_redirects` field on `fetch:` verb
+- `fail_fast` field on `for_each:` blocks
+- Error codes NIKA-025 (dependency chain failure), NIKA-026 (true deadlock), NIKA-027 (circular dependency)
+- Template injection security test suite
+- 5-minute timeout on all MCP operations (prevents infinite hangs)
+- `nika:sleep` builtin capped at 5 minutes
+
+### Fixed
+- **StructuredOutput retry (Layers 3 & 4):** retries now actually call the LLM again with error feedback
+- **fail_fast cancellation:** waiting tasks cancel immediately via `tokio::select!`
+- **Deadlock false positives:** improved detection distinguishes dependency chain failures from true deadlocks
+
+### Changed
+- Centralized path boundary validation into shared security module
+
+## [0.23.1](https://github.com/supernovae-st/nika/releases/tag/v0.23.1) - 2026-03-10
+
+### Fixed
+- Add DataForSEO and Ahrefs to fallback `MCP_PROVIDER_IDS` list (6 → 8 providers)
+
+## [0.23.0](https://github.com/supernovae-st/nika/releases/tag/v0.23.0) - 2026-03-10
+
+### Added
+- Comprehensive audit with 15 Opus agents verifying all subsystems
+- 617 tests across all 5 verbs
+
+### Fixed
+- **BUG-003:** `use:` blocks now create implicit `depends_on` dependencies
+- **BUG-004:** Final output selection uses deepest terminal task
+- **BUG-005:** `for_each: $items` works correctly with `use:` bindings
+
+## [0.22.3](https://github.com/supernovae-st/nika/releases/tag/v0.22.3) - 2026-03-09
+
+### Added
+- Bracket notation for array indexing in bindings (`$items[0]`)
+- Artifact `template:` field for dynamic content generation paths
+- `depends_on` alias for task dependencies
+
+### Fixed
+- `for_each` JSON string parsing in binding expressions
+- OpenAI structured output compatibility (`additionalProperties: false`)
+- Artifact path doubled normalization
+- Direct keyring fallback removed when `spn-daemon` enabled
+
+## [0.22.2](https://github.com/supernovae-st/nika/releases/tag/v0.22.2) - 2026-03-09
+
+### Added
+- `fallback_value` in `OutputPolicy` for default values on structured output exhaustion
+
+## [0.22.1](https://github.com/supernovae-st/nika/releases/tag/v0.22.1) - 2026-03-09
+
+### Added
+- File tools (`nika:read`, `nika:write`, `nika:glob`, `nika:grep`) wired into `RigAgentLoop`
+
+### Fixed
+- `StructuredOutputEngine` properly wired in executor (BUG #8)
+- Perplexity MCP tool name corrected
+- Init module reorganized: 30 tiered templates moved to `src/init`
+
+## [0.22.0](https://github.com/supernovae-st/nika/releases/tag/v0.22.0) - 2026-03-08
+
+### Added
+- **30 progressive workflow templates** via `nika new` across 6 difficulty tiers
+- **File tools** in `agent:` tasks (`nika:read`, `nika:write`, `nika:edit`, `nika:glob`, `nika:grep`)
+- `exec.env` block for clean environment variable injection
+- `fetch.json` for auto-serialized JSON request bodies
+- Multi-cursor support and git gutter in TUI editor
+- 26 exec verb error path tests
+
+### Fixed
+- Vendored OpenSSL for musl static builds
+
+## [0.21.3](https://github.com/supernovae-st/nika/releases/tag/v0.21.3) - 2026-03-08
+
+### Added
+- **Which-key vim-style popup widget** for contextual keyboard shortcut discovery (480 lines)
+- Tree-sitter syntax highlighting module
+- AST-aware code actions with fuzzy task matching (LSP)
+
+### Changed
+- 5-view → 4-view architecture (Scheduler view removed)
+- `chat/mod.rs` reduced to 965 lines via Phase A extractions
+
+### Fixed
+- ChatView freeze on mention autocomplete
+- Black screen on view navigation transitions
+- `render_browser` performance issues
+
+### Removed
+- ~85 lines dead code from app module
+
+## [0.21.2](https://github.com/supernovae-st/nika/releases/tag/v0.21.2) - 2026-03-07
+
+### Added
+- **LSP server Phases 1-2.5:** hover, completion, go-to-definition, document symbols
+- Docker infrastructure with cargo-chef multi-stage pattern
+- CI/CD release pipeline rewritten
+- Guardrails engine: regex patterns, LLM validation, escalation flow
+- `nika:complete` builtin tool for agent task completion signaling
+- `CompletionConfig` for AST-level agent completion behavior
+- Gemini added as 7th LLM provider
+- Compat token system with expanded Tailwind palette
+
+### Changed
+- Chat module mega-refactor Phase A: 14 modules extracted from `chat/mod.rs`
+- 5-view architecture: WorkspaceView merged into StudioView
+- Provider architecture consolidated to single source of truth
+
+### Fixed
+- 7-provider index mapping in ProviderModal
+- Docker cargo-chef pinned for Rust 1.85/1.86 compatibility
+
+## [0.21.1](https://github.com/supernovae-st/nika/releases/tag/v0.21.1) - 2026-03-06
+
+### Added
+- 5 real-world workflow recipe templates (`data-pipeline`, `morning-briefing`, `git-changelog`, `agent-qa-tester`, `parallel-translation`)
+- `nika workflow` subcommands and `nika schema` command
+- MCP env variable expansion
+- LSP Intelligence Sprint 2 (Phases 4.1-4.4)
+- Builtin tool support without MCP server
+
+### Changed
+- TUI consolidated from 9 views to 5 views (Phase 1)
+- LSP integrated with two-phase AST for accurate parsing
+
+### Fixed
+- Template variable resolution in nested contexts
+- Template rendering 2x faster via caching
+- Streaming error handling consistency in agent loop
+
+## [0.21.0](https://github.com/supernovae-st/nika/releases/tag/v0.21.0) - 2026-03-05
+
+### Added
+- **Structured Output Engine** with 4-layer defense for ~99.99% JSON Schema compliance
+  - Layer 1: rig Extractor (Rust type extraction)
+  - Layer 2: Provider-native (`tool_use` / `response_format`)
+  - Layer 3: Retry with feedback (re-prompt with validation errors)
+  - Layer 4: LLM Repair (dedicated repair call)
+- `structured:` task field with `max_retries` and `enable_repair`
+- Error codes NIKA-300 through NIKA-303
+
+## [0.20.1](https://github.com/supernovae-st/nika/releases/tag/v0.20.1) - 2026-03-05
+
+### Added
+- `spn daemon` integration: unified secrets via Unix socket IPC (zero keychain popups)
+- `spn-client` v0.2.0/v0.2.1 for daemon IPC with connection pooling
+- `nika-lsp` language server foundation
+
+### Fixed
+- macOS keychain popup fatigue eliminated
+
+## [0.20.0](https://github.com/supernovae-st/nika/releases/tag/v0.20.0) - 2026-03-04
+
+### Added
+- **Two-Phase AST IR** (`Raw → Analyzed`) pipeline with dedicated analyzer types
+- MCP config parsing in raw parser
+- **8-view TUI architecture** with Split and Workspace views
+- WorkspaceView: unified 3-panel layout (tree + editor + output)
+- Tree widget with animation, filtering, and render phases
+- SPN daemon integration for unified secret management
+- 19 integration tests for analyzer pipeline
+- PATCH and HEAD HTTP method support for `fetch:` verb
+
+### Changed
+- O(1) lookup optimizations for AST node access
+- `thinking_budget` max aligned (32768 → 65536)
+
+### Removed
+- Deprecated view aliases
 
 ---
 

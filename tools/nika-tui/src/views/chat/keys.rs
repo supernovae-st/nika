@@ -623,8 +623,11 @@ impl ChatView {
                 self.scroll_down();
                 Some(ViewAction::None)
             }
-            // 's' when empty switches to Studio
-            KeyCode::Char('s') if self.input.value().is_empty() => {
+            // 's' when empty switches to Studio (only from non-Input panels)
+            KeyCode::Char('s')
+                if self.input.value().is_empty()
+                    && self.focused_panel != ChatPanel::Input =>
+            {
                 Some(ViewAction::SwitchView(TuiView::Studio))
             }
             // 'm' when empty cycles TaskBox render mode
@@ -723,8 +726,15 @@ impl ChatView {
                 self.scroll_to_bottom();
                 Some(ViewAction::None)
             }
-            // Esc = Switch to Studio view
-            KeyCode::Esc => Some(ViewAction::SwitchView(TuiView::Studio)),
+            // Esc = Defocus to Conversation (Input panel) or switch to Studio
+            KeyCode::Esc => {
+                if self.focused_panel == ChatPanel::Input {
+                    self.focus_panel(ChatPanel::Conversation);
+                    Some(ViewAction::None)
+                } else {
+                    Some(ViewAction::SwitchView(TuiView::Studio))
+                }
+            }
             _ => None,
         }
     }

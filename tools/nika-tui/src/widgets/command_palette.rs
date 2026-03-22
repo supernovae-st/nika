@@ -442,6 +442,10 @@ impl<'a> CommandPalette<'a> {
 
 impl Widget for CommandPalette<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
+        if area.width == 0 || area.height == 0 {
+            return;
+        }
+
         if !self.state.visible {
             return;
         }
