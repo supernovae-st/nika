@@ -14,5 +14,6 @@ pub mod missions;
 pub mod progress;
 pub mod showcase;
 pub mod showcase_builtin;
+pub mod showcase_exec;
 pub mod showcase_llm;
 pub mod templates;
