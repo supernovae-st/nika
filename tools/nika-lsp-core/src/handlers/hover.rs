@@ -328,17 +328,21 @@ fn template_hover(expr: &str) -> Option<HoverResult> {
         })
     } else if trimmed.starts_with("context.") {
         Some(HoverResult {
-            contents: "## Context File Reference\n\nData loaded via `context:` block at workflow start.".to_string(),
+            contents:
+                "## Context File Reference\n\nData loaded via `context:` block at workflow start."
+                    .to_string(),
             range: None,
         })
     } else if trimmed.starts_with("inputs.") {
         Some(HoverResult {
-            contents: "## Input Parameter\n\nWorkflow input declared in `inputs:` block.".to_string(),
+            contents: "## Input Parameter\n\nWorkflow input declared in `inputs:` block."
+                .to_string(),
             range: None,
         })
     } else if trimmed.starts_with("item") || trimmed.starts_with("index") {
         Some(HoverResult {
-            contents: "## Loop Variable\n\nCurrent item/index from `for_each:` iteration.".to_string(),
+            contents: "## Loop Variable\n\nCurrent item/index from `for_each:` iteration."
+                .to_string(),
             range: None,
         })
     } else {
@@ -383,7 +387,10 @@ fn transform_hover(expr: &str) -> Option<HoverResult> {
         _ => return None,
     };
     Some(HoverResult {
-        contents: format!("## Pipe Transform\n\n{}\n\n```yaml\n{{{{with.data | {}}}}}\n```", doc, t),
+        contents: format!(
+            "## Pipe Transform\n\n{}\n\n```yaml\n{{{{with.data | {}}}}}\n```",
+            doc, t
+        ),
         range: None,
     })
 }
@@ -556,7 +563,9 @@ mod tests {
 
     #[test]
     fn transform_hover_common() {
-        for t in ["upper", "lower", "trim", "json", "length", "first", "last", "sort"] {
+        for t in [
+            "upper", "lower", "trim", "json", "length", "first", "last", "sort",
+        ] {
             let expr = format!("with.data | {}", t);
             let r = transform_hover(&expr);
             assert!(r.is_some(), "Missing transform hover for: {}", t);

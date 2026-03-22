@@ -44,14 +44,14 @@ use tokio::process::Command;
 use tokio::sync::Mutex as AsyncMutex;
 use tokio::time::timeout;
 
-use crate::error::{NikaError, Result};
+use crate::error::{McpError, Result};
+use crate::{CONNECT_TIMEOUT, MCP_CALL_TIMEOUT, RECONNECT_TIMEOUT};
 // McpRetryConfig and retry_mcp_call are used in mcp/client.rs, not here
 #[allow(unused_imports)] // Keep import visible for IDE navigation
-use crate::mcp::retry::{retry_mcp_call, McpRetryConfig};
-use crate::mcp::types::{
+use crate::retry::{retry_mcp_call, McpRetryConfig};
+use crate::types::{
     ContentBlock, McpConfig, McpErrorCode, ResourceContent, ToolCallResult, ToolDefinition,
 };
-use crate::util::{CONNECT_TIMEOUT, MCP_CALL_TIMEOUT, RECONNECT_TIMEOUT};
 
 /// Extract JSON-RPC error code from rmcp ServiceError.
 ///
@@ -183,7 +183,7 @@ impl RmcpClientAdapter {
     ///
     /// # Errors
     ///
-    /// Returns `NikaError::McpStartError` if the server fails to start.
+    /// Returns `McpError::McpStartError` if the server fails to start.
     pub async fn connect(&self) -> Result<()> {
         let mut guard = self.service.lock().await;
 
@@ -210,7 +210,7 @@ impl RmcpClientAdapter {
             .iter()
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect();
-        crate::runtime::security::validate_env_vars(&env_pairs)?;
+        validate_env_vars(&env_pairs)?;
 
         // Add environment variables from workflow config
         for (key, value) in &self.config.env {
@@ -218,7 +218,7 @@ impl RmcpClientAdapter {
         }
 
         // Create transport
-        let transport = TokioChildProcess::new(cmd).map_err(|e| NikaError::McpStartError {
+        let transport = TokioChildProcess::new(cmd).map_err(|e| McpError::McpStartError {
             name: self.name.clone(),
             reason: format!("Failed to create transport: {}", e),
         })?;
@@ -228,12 +228,12 @@ impl RmcpClientAdapter {
         // Wrap with timeout to prevent hanging on unresponsive MCP servers
         let service = timeout(CONNECT_TIMEOUT, ().serve(transport))
             .await
-            .map_err(|_| NikaError::McpTimeout {
+            .map_err(|_| McpError::McpTimeout {
                 name: self.name.clone(),
                 operation: "connect".to_string(),
                 timeout_secs: CONNECT_TIMEOUT.as_secs(),
             })?
-            .map_err(|e| NikaError::McpStartError {
+            .map_err(|e| McpError::McpStartError {
                 name: self.name.clone(),
                 reason: format!("Failed to connect: {}", e),
             })?;
@@ -292,7 +292,7 @@ impl RmcpClientAdapter {
             self.connect().await
         })
         .await
-        .map_err(|_| NikaError::McpTimeout {
+        .map_err(|_| McpError::McpTimeout {
             name: self.name.clone(),
             operation: "reconnect".to_string(),
             timeout_secs: RECONNECT_TIMEOUT.as_secs(),
@@ -308,15 +308,15 @@ impl RmcpClientAdapter {
     ///
     /// # Errors
     ///
-    /// Returns `NikaError::McpNotConnected` if not connected.
-    /// Returns `NikaError::McpToolError` if the tool call fails.
+    /// Returns `McpError::McpNotConnected` if not connected.
+    /// Returns `McpError::McpToolError` if the tool call fails.
     pub async fn call_tool(&self, name: &str, params: Value) -> Result<ToolCallResult> {
         // Clone the Peer and release the lock immediately to prevent lock contention
         // during the timeout period (60s). Without this, concurrent call_tool requests
         // would block waiting for the mutex while one request times out.
         let peer = {
             let guard = self.service.lock().await;
-            let service = guard.as_ref().ok_or_else(|| NikaError::McpNotConnected {
+            let service = guard.as_ref().ok_or_else(|| McpError::McpNotConnected {
                 name: self.name.clone(),
             })?;
             // Clone the Peer (Peer implements Clone via derive)
@@ -328,7 +328,7 @@ impl RmcpClientAdapter {
         // Convert params to object format expected by rmcp
         // Reject non-object, non-null params with a clear error
         if !params.is_null() && !params.is_object() {
-            return Err(NikaError::McpToolError {
+            return Err(McpError::McpToolError {
                 tool: name.to_string(),
                 reason: format!(
                     "Tool params must be a JSON object, got {}",
@@ -354,7 +354,7 @@ impl RmcpClientAdapter {
 
         let result = timeout(MCP_CALL_TIMEOUT, peer.call_tool(request))
             .await
-            .map_err(|_| NikaError::McpTimeout {
+            .map_err(|_| McpError::McpTimeout {
                 name: self.name.clone(),
                 operation: "call_tool".to_string(),
                 timeout_secs: MCP_CALL_TIMEOUT.as_secs(),
@@ -362,7 +362,7 @@ impl RmcpClientAdapter {
             .map_err(|e| {
                 // Use structured error code extraction from ServiceError
                 let error_code = extract_mcp_error_code(&e);
-                NikaError::McpToolError {
+                McpError::McpToolError {
                     tool: name.to_string(),
                     reason: e.to_string(),
                     error_code,
@@ -455,13 +455,13 @@ impl RmcpClientAdapter {
     ///
     /// # Errors
     ///
-    /// Returns `NikaError::McpNotConnected` if not connected.
-    /// Returns `NikaError::McpResourceNotFound` if the resource doesn't exist.
+    /// Returns `McpError::McpNotConnected` if not connected.
+    /// Returns `McpError::McpResourceNotFound` if the resource doesn't exist.
     pub async fn read_resource(&self, uri: &str) -> Result<ResourceContent> {
         // Clone the Peer and release the lock immediately to prevent lock contention
         let peer = {
             let guard = self.service.lock().await;
-            let service = guard.as_ref().ok_or_else(|| NikaError::McpNotConnected {
+            let service = guard.as_ref().ok_or_else(|| McpError::McpNotConnected {
                 name: self.name.clone(),
             })?;
             use std::ops::Deref;
@@ -475,7 +475,7 @@ impl RmcpClientAdapter {
 
         let result = timeout(MCP_CALL_TIMEOUT, peer.read_resource(request))
             .await
-            .map_err(|_| NikaError::McpTimeout {
+            .map_err(|_| McpError::McpTimeout {
                 name: self.name.clone(),
                 operation: "read_resource".to_string(),
                 timeout_secs: MCP_CALL_TIMEOUT.as_secs(),
@@ -490,11 +490,11 @@ impl RmcpClientAdapter {
                     || e.to_string().to_lowercase().contains("not found");
 
                 if is_not_found {
-                    NikaError::McpResourceNotFound {
+                    McpError::McpResourceNotFound {
                         uri: uri.to_string(),
                     }
                 } else {
-                    NikaError::McpToolError {
+                    McpError::McpToolError {
                         tool: "resources/read".to_string(),
                         reason: e.to_string(),
                         error_code,
@@ -506,7 +506,7 @@ impl RmcpClientAdapter {
         let resource = result
             .contents
             .first()
-            .ok_or_else(|| NikaError::McpResourceNotFound {
+            .ok_or_else(|| McpError::McpResourceNotFound {
                 uri: uri.to_string(),
             })?;
 
@@ -542,12 +542,12 @@ impl RmcpClientAdapter {
     ///
     /// # Errors
     ///
-    /// Returns `NikaError::McpNotConnected` if not connected.
+    /// Returns `McpError::McpNotConnected` if not connected.
     pub async fn list_tools(&self) -> Result<Vec<ToolDefinition>> {
         // Clone the Peer and release the lock immediately to prevent lock contention
         let peer = {
             let guard = self.service.lock().await;
-            let service = guard.as_ref().ok_or_else(|| NikaError::McpNotConnected {
+            let service = guard.as_ref().ok_or_else(|| McpError::McpNotConnected {
                 name: self.name.clone(),
             })?;
             use std::ops::Deref;
@@ -557,7 +557,7 @@ impl RmcpClientAdapter {
         let result: ListToolsResult =
             timeout(MCP_CALL_TIMEOUT, peer.list_tools(Default::default()))
                 .await
-                .map_err(|_| NikaError::McpTimeout {
+                .map_err(|_| McpError::McpTimeout {
                     name: self.name.clone(),
                     operation: "list_tools".to_string(),
                     timeout_secs: MCP_CALL_TIMEOUT.as_secs(),
@@ -565,7 +565,7 @@ impl RmcpClientAdapter {
                 .map_err(|e| {
                     // Use structured error code extraction
                     let error_code = extract_mcp_error_code(&e);
-                    NikaError::McpToolError {
+                    McpError::McpToolError {
                         tool: "tools/list".to_string(),
                         reason: e.to_string(),
                         error_code,
@@ -734,7 +734,7 @@ mod tests {
 
         assert!(result.is_err());
         match result.unwrap_err() {
-            NikaError::McpNotConnected { name } => assert_eq!(name, "test"),
+            McpError::McpNotConnected { name } => assert_eq!(name, "test"),
             e => panic!("Expected McpNotConnected, got: {:?}", e),
         }
     }
@@ -754,7 +754,7 @@ mod tests {
         // Should fail with McpNotConnected, not with param conversion error
         assert!(result.is_err());
         match result.unwrap_err() {
-            NikaError::McpNotConnected { name } => assert_eq!(name, "test"),
+            McpError::McpNotConnected { name } => assert_eq!(name, "test"),
             e => panic!("Expected McpNotConnected, got: {:?}", e),
         }
     }
@@ -772,7 +772,7 @@ mod tests {
         // Should still error with McpNotConnected (params are converted to None)
         assert!(result.is_err());
         match result.unwrap_err() {
-            NikaError::McpNotConnected { name } => assert_eq!(name, "test"),
+            McpError::McpNotConnected { name } => assert_eq!(name, "test"),
             e => panic!("Expected McpNotConnected, got: {:?}", e),
         }
     }
@@ -790,7 +790,7 @@ mod tests {
 
         assert!(result.is_err());
         match result.unwrap_err() {
-            NikaError::McpNotConnected { name } => assert_eq!(name, "test"),
+            McpError::McpNotConnected { name } => assert_eq!(name, "test"),
             e => panic!("Expected McpNotConnected, got: {:?}", e),
         }
     }
@@ -826,7 +826,7 @@ mod tests {
 
         assert!(result.is_err());
         match result.unwrap_err() {
-            NikaError::McpNotConnected { name } => assert_eq!(name, "test"),
+            McpError::McpNotConnected { name } => assert_eq!(name, "test"),
             e => panic!("Expected McpNotConnected, got: {:?}", e),
         }
     }
@@ -1154,4 +1154,49 @@ mod tests {
         assert!(adapter.get_cached_tools().is_empty());
         assert!(!adapter.is_tool_cache_fresh(std::time::Duration::from_secs(60)));
     }
+}
+
+// ── Security: env var validation (inlined from runtime/security.rs) ──────
+
+const BLOCKED_ENV_VARS: &[&str] = &[
+    "PATH",
+    "HOME",
+    "USER",
+    "SHELL",
+    "LANG",
+    "TERM",
+    "LD_PRELOAD",
+    "LD_LIBRARY_PATH",
+    "DYLD_INSERT_LIBRARIES",
+];
+
+fn is_valid_env_var_name(name: &str) -> bool {
+    let mut chars = name.chars();
+    match chars.next() {
+        Some(c) if c.is_ascii_alphabetic() || c == '_' => {}
+        _ => return false,
+    }
+    chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+
+fn validate_env_vars(vars: &[(String, String)]) -> Result<()> {
+    for (key, _) in vars {
+        if !is_valid_env_var_name(key) {
+            return Err(McpError::ConfigError {
+                reason: format!(
+                    "Invalid environment variable name '{}': must match [A-Za-z_][A-Za-z0-9_]*",
+                    key
+                ),
+            });
+        }
+        let upper = key.to_uppercase();
+        for blocked in BLOCKED_ENV_VARS {
+            if upper == *blocked {
+                return Err(McpError::ConfigError {
+                    reason: format!("Environment variable '{}' is blocked for security", key),
+                });
+            }
+        }
+    }
+    Ok(())
 }

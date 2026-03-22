@@ -309,7 +309,7 @@ impl McpValidator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mcp::types::ToolDefinition;
+    use crate::types::ToolDefinition;
     use serde_json::json;
 
     // ========================================================================

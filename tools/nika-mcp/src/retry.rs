@@ -21,7 +21,7 @@ use std::time::Duration;
 
 use backon::{ExponentialBuilder, Retryable};
 
-use crate::error::NikaError;
+use crate::error::McpError;
 
 /// Default configuration for MCP retries.
 pub const DEFAULT_MAX_RETRIES: usize = 3;
@@ -75,22 +75,22 @@ impl McpRetryConfig {
 /// Returns true for transient errors that may succeed on retry.
 /// For tool errors, checks the error code — client errors like
 /// InvalidParams (-32602) are NOT retried since they'll always fail.
-pub fn is_retryable_mcp_error(error: &NikaError) -> bool {
+pub fn is_retryable_mcp_error(error: &McpError) -> bool {
     match error {
-        NikaError::McpTimeout { .. }
-        | NikaError::McpNotConnected { .. }
-        | NikaError::McpToolCallFailed { .. }
-        | NikaError::McpProtocolError { .. } => true,
+        McpError::McpTimeout { .. }
+        | McpError::McpNotConnected { .. }
+        | McpError::McpToolCallFailed { .. }
+        | McpError::McpProtocolError { .. } => true,
 
         // Tool errors: only retry if the error code is retryable (server-side)
         // InvalidParams, MethodNotFound etc. will always fail on retry
-        NikaError::McpToolError { error_code, .. } => {
+        McpError::McpToolError { error_code, .. } => {
             error_code.as_ref().is_none_or(|code| code.is_retryable())
         }
 
         // Start errors: NOT retryable — if the server binary doesn't exist,
         // retrying just wastes 30s per reconnect attempt
-        NikaError::McpStartError { .. } => false,
+        McpError::McpStartError { .. } => false,
 
         _ => false,
     }
@@ -122,10 +122,10 @@ pub fn is_retryable_mcp_error(error: &NikaError) -> bool {
 ///     },
 /// ).await?;
 /// ```
-pub async fn retry_mcp_call<F, Fut, T>(config: McpRetryConfig, operation: F) -> Result<T, NikaError>
+pub async fn retry_mcp_call<F, Fut, T>(config: McpRetryConfig, operation: F) -> Result<T, McpError>
 where
     F: FnMut() -> Fut,
-    Fut: std::future::Future<Output = Result<T, NikaError>>,
+    Fut: std::future::Future<Output = Result<T, McpError>>,
 {
     let mut builder = ExponentialBuilder::default()
         .with_min_delay(config.initial_delay)
@@ -148,7 +148,7 @@ mod tests {
 
     #[test]
     fn test_is_retryable_mcp_error_timeout() {
-        let err = NikaError::McpTimeout {
+        let err = McpError::McpTimeout {
             name: "test".to_string(),
             operation: "call_tool".to_string(),
             timeout_secs: 30,
@@ -158,7 +158,7 @@ mod tests {
 
     #[test]
     fn test_is_retryable_mcp_error_not_connected() {
-        let err = NikaError::McpNotConnected {
+        let err = McpError::McpNotConnected {
             name: "test".to_string(),
         };
         assert!(is_retryable_mcp_error(&err));
@@ -166,7 +166,7 @@ mod tests {
 
     #[test]
     fn test_is_retryable_mcp_error_tool_error() {
-        let err = NikaError::McpToolError {
+        let err = McpError::McpToolError {
             tool: "test".to_string(),
             reason: "transient failure".to_string(),
             error_code: None,
@@ -176,7 +176,7 @@ mod tests {
 
     #[test]
     fn test_is_retryable_mcp_error_tool_call_failed() {
-        let err = NikaError::McpToolCallFailed {
+        let err = McpError::McpToolCallFailed {
             tool: "test".to_string(),
             reason: "timeout".to_string(),
         };
@@ -185,7 +185,7 @@ mod tests {
 
     #[test]
     fn test_is_not_retryable_resource_not_found() {
-        let err = NikaError::McpResourceNotFound {
+        let err = McpError::McpResourceNotFound {
             uri: "test://resource".to_string(),
         };
         assert!(!is_retryable_mcp_error(&err));
@@ -193,7 +193,7 @@ mod tests {
 
     #[test]
     fn test_is_not_retryable_validation_failed() {
-        let err = NikaError::McpValidationFailed {
+        let err = McpError::McpValidationFailed {
             tool: "test".to_string(),
             details: "invalid params".to_string(),
             missing: vec![],
@@ -204,7 +204,7 @@ mod tests {
 
     #[test]
     fn test_is_not_retryable_schema_error() {
-        let err = NikaError::McpSchemaError {
+        let err = McpError::McpSchemaError {
             tool: "test".to_string(),
             reason: "invalid schema".to_string(),
         };
@@ -213,7 +213,7 @@ mod tests {
 
     #[test]
     fn test_is_not_retryable_not_configured() {
-        let err = NikaError::McpNotConfigured {
+        let err = McpError::McpNotConfigured {
             name: "test".to_string(),
         };
         assert!(!is_retryable_mcp_error(&err));
@@ -238,7 +238,7 @@ mod tests {
     async fn test_retry_mcp_call_success_first_try() {
         let config = McpRetryConfig::default().without_jitter();
 
-        let result: Result<i32, NikaError> = retry_mcp_call(config, || async { Ok(42) }).await;
+        let result: Result<i32, McpError> = retry_mcp_call(config, || async { Ok(42) }).await;
 
         assert_eq!(result.unwrap(), 42);
     }
@@ -251,12 +251,12 @@ mod tests {
         let attempts = Arc::new(AtomicU32::new(0));
         let attempts_clone = Arc::clone(&attempts);
 
-        let result: Result<i32, NikaError> = retry_mcp_call(config, || {
+        let result: Result<i32, McpError> = retry_mcp_call(config, || {
             let attempts = Arc::clone(&attempts_clone);
             async move {
                 let current = attempts.fetch_add(1, Ordering::SeqCst);
                 if current < 2 {
-                    Err(NikaError::McpTimeout {
+                    Err(McpError::McpTimeout {
                         name: "test".to_string(),
                         operation: "call".to_string(),
                         timeout_secs: 30,
@@ -280,11 +280,11 @@ mod tests {
         let attempts = Arc::new(AtomicU32::new(0));
         let attempts_clone = Arc::clone(&attempts);
 
-        let result: Result<i32, NikaError> = retry_mcp_call(config, || {
+        let result: Result<i32, McpError> = retry_mcp_call(config, || {
             let attempts = Arc::clone(&attempts_clone);
             async move {
                 attempts.fetch_add(1, Ordering::SeqCst);
-                Err(NikaError::McpTimeout {
+                Err(McpError::McpTimeout {
                     name: "test".to_string(),
                     operation: "call".to_string(),
                     timeout_secs: 30,
@@ -306,12 +306,12 @@ mod tests {
         let attempts = Arc::new(AtomicU32::new(0));
         let attempts_clone = Arc::clone(&attempts);
 
-        let result: Result<i32, NikaError> = retry_mcp_call(config, || {
+        let result: Result<i32, McpError> = retry_mcp_call(config, || {
             let attempts = Arc::clone(&attempts_clone);
             async move {
                 attempts.fetch_add(1, Ordering::SeqCst);
                 // Non-retryable error - should not retry
-                Err(NikaError::McpResourceNotFound {
+                Err(McpError::McpResourceNotFound {
                     uri: "test://resource".to_string(),
                 })
             }

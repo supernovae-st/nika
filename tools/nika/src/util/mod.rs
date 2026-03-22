@@ -14,8 +14,9 @@ pub mod system;
 // Re-export actively used types
 pub use constants::{
     CONNECT_TIMEOUT, DECOMPOSE_TIMEOUT, EXEC_TIMEOUT, FETCH_TIMEOUT, INVOKE_TASK_DEADLINE,
-    MCP_CALL_TIMEOUT, RECONNECT_TIMEOUT, REDIRECT_LIMIT, STREAM_CHUNK_TIMEOUT,
+    REDIRECT_LIMIT, STREAM_CHUNK_TIMEOUT,
 };
+// MCP_CALL_TIMEOUT and RECONNECT_TIMEOUT moved to nika-mcp crate
 pub use fs::{atomic_write, check_preview_size, format_size};
 pub use interner::intern;
 

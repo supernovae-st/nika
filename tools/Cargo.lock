@@ -5332,6 +5332,7 @@ dependencies = [
  "nika-core",
  "nika-event",
  "nika-lsp-core",
+ "nika-mcp",
  "nix 0.29.0",
  "nom-exif",
  "nucleo",
@@ -5480,6 +5481,33 @@ dependencies = [
  "tracing",
  "tree-sitter",
  "tree-sitter-yaml",
+]
+
+[[package]]
+name = "nika-mcp"
+version = "0.37.0"
+dependencies = [
+ "async-trait",
+ "backon",
+ "dashmap",
+ "dirs 5.0.1",
+ "jsonschema",
+ "nika-event",
+ "parking_lot",
+ "pretty_assertions",
+ "regex",
+ "rmcp",
+ "rustc-hash 2.1.1",
+ "serde",
+ "serde-saphyr 0.0.20",
+ "serde_json",
+ "serial_test",
+ "shellexpand",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "tokio-util",
+ "tracing",
 ]
 
 [[package]]

@@ -21,7 +21,7 @@
 //! ```
 
 use super::schema_cache::{CachedSchema, ToolSchemaCache};
-use crate::error::NikaError;
+use crate::error::McpError;
 
 /// Enhances MCP errors with better context
 pub struct ErrorEnhancer<'a> {
@@ -35,8 +35,8 @@ impl<'a> ErrorEnhancer<'a> {
     }
 
     /// Enhance an MCP error with better context
-    pub fn enhance(&self, server: &str, tool: &str, error: NikaError) -> NikaError {
-        let NikaError::McpToolError {
+    pub fn enhance(&self, server: &str, tool: &str, error: McpError) -> McpError {
+        let McpError::McpToolError {
             tool: tool_name,
             reason,
             error_code,
@@ -48,7 +48,7 @@ impl<'a> ErrorEnhancer<'a> {
         // Try to parse the error message
         let enhanced_reason = self.enhance_reason(server, tool, reason);
 
-        NikaError::McpToolError {
+        McpError::McpToolError {
             tool: tool_name.clone(),
             reason: enhanced_reason,
             error_code: *error_code,
@@ -114,7 +114,7 @@ impl<'a> ErrorEnhancer<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mcp::types::ToolDefinition;
+    use crate::types::ToolDefinition;
     use serde_json::json;
 
     // ========================================================================
@@ -140,7 +140,7 @@ mod tests {
             .unwrap();
 
         let enhancer = ErrorEnhancer::new(&cache);
-        let original = NikaError::McpToolError {
+        let original = McpError::McpToolError {
             tool: "novanet_context".to_string(),
             reason: "missing field `entity`".to_string(),
             error_code: None,
@@ -148,7 +148,7 @@ mod tests {
 
         let enhanced = enhancer.enhance("novanet", "novanet_context", original);
 
-        let NikaError::McpToolError { reason, .. } = enhanced else {
+        let McpError::McpToolError { reason, .. } = enhanced else {
             panic!("Expected McpToolError");
         };
 
@@ -177,7 +177,7 @@ mod tests {
             .unwrap();
 
         let enhancer = ErrorEnhancer::new(&cache);
-        let original = NikaError::McpToolError {
+        let original = McpError::McpToolError {
             tool: "tool".to_string(),
             reason: "unknown field `wrong_name`".to_string(),
             error_code: None,
@@ -185,7 +185,7 @@ mod tests {
 
         let enhanced = enhancer.enhance("novanet", "tool", original);
 
-        let NikaError::McpToolError { reason, .. } = enhanced else {
+        let McpError::McpToolError { reason, .. } = enhanced else {
             panic!("Expected McpToolError");
         };
 
@@ -202,12 +202,12 @@ mod tests {
         let cache = ToolSchemaCache::new();
         let enhancer = ErrorEnhancer::new(&cache);
 
-        let original = NikaError::ParseError {
+        let original = McpError::ParseError {
             details: "test".to_string(),
         };
         let enhanced = enhancer.enhance("s", "t", original);
 
-        assert!(matches!(enhanced, NikaError::ParseError { .. }));
+        assert!(matches!(enhanced, McpError::ParseError { .. }));
     }
 
     // ========================================================================
@@ -218,7 +218,7 @@ mod tests {
         let cache = ToolSchemaCache::new();
         let enhancer = ErrorEnhancer::new(&cache);
 
-        let original = NikaError::McpToolError {
+        let original = McpError::McpToolError {
             tool: "unknown".to_string(),
             reason: "error".to_string(),
             error_code: None,
@@ -226,7 +226,7 @@ mod tests {
 
         let enhanced = enhancer.enhance("s", "unknown", original);
 
-        let NikaError::McpToolError { reason, .. } = enhanced else {
+        let McpError::McpToolError { reason, .. } = enhanced else {
             panic!("Expected McpToolError");
         };
         assert_eq!(reason, "error");
@@ -253,7 +253,7 @@ mod tests {
             .unwrap();
 
         let enhancer = ErrorEnhancer::new(&cache);
-        let original = NikaError::McpToolError {
+        let original = McpError::McpToolError {
             tool: "t".to_string(),
             reason: "some generic error".to_string(),
             error_code: None,
@@ -261,7 +261,7 @@ mod tests {
 
         let enhanced = enhancer.enhance("s", "t", original);
 
-        let NikaError::McpToolError { reason, .. } = enhanced else {
+        let McpError::McpToolError { reason, .. } = enhanced else {
             panic!("Expected McpToolError");
         };
 
@@ -290,7 +290,7 @@ mod tests {
             .unwrap();
 
         let enhancer = ErrorEnhancer::new(&cache);
-        let original = NikaError::McpToolError {
+        let original = McpError::McpToolError {
             tool: "t".to_string(),
             reason: "some error".to_string(),
             error_code: None,
@@ -298,7 +298,7 @@ mod tests {
 
         let enhanced = enhancer.enhance("s", "t", original);
 
-        let NikaError::McpToolError { reason, .. } = enhanced else {
+        let McpError::McpToolError { reason, .. } = enhanced else {
             panic!("Expected McpToolError");
         };
 
@@ -326,7 +326,7 @@ mod tests {
         let enhancer = ErrorEnhancer::new(&cache);
 
         // Test with uppercase "Missing Field"
-        let original = NikaError::McpToolError {
+        let original = McpError::McpToolError {
             tool: "t".to_string(),
             reason: "Missing Field `field`".to_string(),
             error_code: None,
@@ -334,7 +334,7 @@ mod tests {
 
         let enhanced = enhancer.enhance("s", "t", original);
 
-        let NikaError::McpToolError { reason, .. } = enhanced else {
+        let McpError::McpToolError { reason, .. } = enhanced else {
             panic!("Expected McpToolError");
         };
 

@@ -59,12 +59,12 @@ use serde_json::Value;
 
 use std::sync::Arc;
 
-use crate::error::{NikaError, Result};
-use crate::event::{EventKind, EventLog};
-use crate::mcp::retry::{retry_mcp_call, McpRetryConfig};
-use crate::mcp::rmcp_adapter::RmcpClientAdapter;
-use crate::mcp::types::{ContentBlock, McpConfig, ResourceContent, ToolCallResult, ToolDefinition};
-use crate::mcp::validation::{ErrorEnhancer, McpValidator, ValidationConfig, ValidationErrorKind};
+use crate::error::{McpError, Result};
+use crate::retry::{retry_mcp_call, McpRetryConfig};
+use crate::rmcp_adapter::RmcpClientAdapter;
+use crate::types::{ContentBlock, McpConfig, ResourceContent, ToolCallResult, ToolDefinition};
+use crate::validation::{ErrorEnhancer, McpValidator, ValidationConfig, ValidationErrorKind};
+use nika_event::{EventKind, EventLog};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // HEALTH CHECK TYPES
@@ -467,7 +467,7 @@ impl McpClient {
     ///
     /// # Errors
     ///
-    /// Returns `NikaError::ValidationError` if:
+    /// Returns `McpError::ValidationError` if:
     /// - `config.name` is empty
     /// - `config.command` is empty
     ///
@@ -482,13 +482,13 @@ impl McpClient {
     pub fn new(config: McpConfig) -> Result<Self> {
         // Validate configuration
         if config.name.is_empty() {
-            return Err(NikaError::ValidationError {
+            return Err(McpError::ValidationError {
                 reason: "MCP server name cannot be empty".to_string(),
             });
         }
 
         if config.command.is_empty() {
-            return Err(NikaError::ValidationError {
+            return Err(McpError::ValidationError {
                 reason: "MCP server command cannot be empty".to_string(),
             });
         }
@@ -707,8 +707,8 @@ impl McpClient {
     ///
     /// # Errors
     ///
-    /// Returns `NikaError::McpStartError` if the server process fails to start.
-    /// Returns `NikaError::McpSchemaError` if schema caching fails.
+    /// Returns `McpError::McpStartError` if the server process fails to start.
+    /// Returns `McpError::McpSchemaError` if schema caching fails.
     pub async fn connect(&self) -> Result<()> {
         if self.is_mock {
             self.connected.store(true, Ordering::SeqCst);
@@ -718,7 +718,7 @@ impl McpClient {
                 validator
                     .cache()
                     .populate(&self.name, &tools)
-                    .map_err(|e| NikaError::McpSchemaError {
+                    .map_err(|e| McpError::McpSchemaError {
                         tool: "*".to_string(),
                         reason: format!("Failed to cache mock tool schemas: {}", e),
                     })?;
@@ -729,7 +729,7 @@ impl McpClient {
         let adapter = self
             .adapter
             .as_ref()
-            .ok_or_else(|| NikaError::McpNotConnected {
+            .ok_or_else(|| McpError::McpNotConnected {
                 name: self.name.clone(),
             })?;
 
@@ -742,7 +742,7 @@ impl McpClient {
             validator
                 .cache()
                 .populate(&self.name, &tools)
-                .map_err(|e| NikaError::McpSchemaError {
+                .map_err(|e| McpError::McpSchemaError {
                     tool: "*".to_string(),
                     reason: format!("Failed to cache tool schemas: {}", e),
                 })?;
@@ -793,7 +793,7 @@ impl McpClient {
     ///
     /// # Errors
     ///
-    /// Returns `NikaError::McpStartError` if reconnection fails.
+    /// Returns `McpError::McpStartError` if reconnection fails.
     ///
     /// # Example
     ///
@@ -811,7 +811,7 @@ impl McpClient {
         let adapter = self
             .adapter
             .as_ref()
-            .ok_or_else(|| NikaError::McpNotConnected {
+            .ok_or_else(|| McpError::McpNotConnected {
                 name: self.name.clone(),
             })?;
 
@@ -824,7 +824,7 @@ impl McpClient {
     ///
     /// Used to determine if a reconnection attempt should be made
     /// before the next retry.
-    pub fn is_connection_error(error: &NikaError) -> bool {
+    pub fn is_connection_error(error: &McpError) -> bool {
         let error_str = error.to_string().to_lowercase();
         error_str.contains("broken pipe")
             || error_str.contains("connection reset")
@@ -835,7 +835,7 @@ impl McpClient {
     }
 
     /// Enhance an error with validation context if available.
-    fn enhance_error(&self, tool_name: &str, error: NikaError) -> NikaError {
+    fn enhance_error(&self, tool_name: &str, error: McpError) -> McpError {
         if let Some(ref validator) = self.validator {
             if validator.config().enhance_errors {
                 let enhancer = ErrorEnhancer::new(validator.cache());
@@ -860,9 +860,9 @@ impl McpClient {
     ///
     /// # Errors
     ///
-    /// Returns `NikaError::McpValidationFailed` if parameter validation fails.
-    /// Returns `NikaError::McpNotConnected` if the client is not connected.
-    /// Returns `NikaError::McpToolError` if the tool call fails.
+    /// Returns `McpError::McpValidationFailed` if parameter validation fails.
+    /// Returns `McpError::McpNotConnected` if the client is not connected.
+    /// Returns `McpError::McpToolError` if the tool call fails.
     ///
     /// # Example
     ///
@@ -879,7 +879,7 @@ impl McpClient {
             if validator.config().pre_validate {
                 let result = validator.validate(&self.name, name, &params);
                 if !result.is_valid {
-                    // Convert validation errors to NikaError
+                    // Convert validation errors to McpError
                     let missing: Vec<String> = result
                         .errors
                         .iter()
@@ -912,7 +912,7 @@ impl McpClient {
                         .collect::<Vec<_>>()
                         .join("; ");
 
-                    return Err(NikaError::McpValidationFailed {
+                    return Err(McpError::McpValidationFailed {
                         tool: name.to_string(),
                         details,
                         missing,
@@ -940,7 +940,7 @@ impl McpClient {
 
         if self.is_mock {
             if !self.connected.load(Ordering::SeqCst) {
-                return Err(NikaError::McpNotConnected {
+                return Err(McpError::McpNotConnected {
                     name: self.name.clone(),
                 });
             }
@@ -956,7 +956,7 @@ impl McpClient {
         let adapter = self
             .adapter
             .as_ref()
-            .ok_or_else(|| NikaError::McpNotConnected {
+            .ok_or_else(|| McpError::McpNotConnected {
                 name: self.name.clone(),
             })?;
 
@@ -1069,7 +1069,7 @@ impl McpClient {
                         .collect::<Vec<_>>()
                         .join("; ");
 
-                    return Err(NikaError::McpValidationFailed {
+                    return Err(McpError::McpValidationFailed {
                         tool: name.to_string(),
                         details,
                         missing,
@@ -1096,7 +1096,7 @@ impl McpClient {
 
         if self.is_mock {
             if !self.connected.load(Ordering::SeqCst) {
-                return Err(NikaError::McpNotConnected {
+                return Err(McpError::McpNotConnected {
                     name: self.name.clone(),
                 });
             }
@@ -1111,7 +1111,7 @@ impl McpClient {
         let adapter = self
             .adapter
             .as_ref()
-            .ok_or_else(|| NikaError::McpNotConnected {
+            .ok_or_else(|| McpError::McpNotConnected {
                 name: self.name.clone(),
             })?;
 
@@ -1179,8 +1179,8 @@ impl McpClient {
     ///
     /// # Errors
     ///
-    /// Returns `NikaError::McpNotConnected` if the client is not connected.
-    /// Returns `NikaError::McpResourceNotFound` if the resource doesn't exist.
+    /// Returns `McpError::McpNotConnected` if the client is not connected.
+    /// Returns `McpError::McpResourceNotFound` if the resource doesn't exist.
     ///
     /// # Example
     ///
@@ -1190,7 +1190,7 @@ impl McpClient {
     pub async fn read_resource(&self, uri: &str) -> Result<ResourceContent> {
         if self.is_mock {
             if !self.connected.load(Ordering::SeqCst) {
-                return Err(NikaError::McpNotConnected {
+                return Err(McpError::McpNotConnected {
                     name: self.name.clone(),
                 });
             }
@@ -1201,7 +1201,7 @@ impl McpClient {
         let adapter = self
             .adapter
             .as_ref()
-            .ok_or_else(|| NikaError::McpNotConnected {
+            .ok_or_else(|| McpError::McpNotConnected {
                 name: self.name.clone(),
             })?;
 
@@ -1238,7 +1238,7 @@ impl McpClient {
     ///
     /// # Errors
     ///
-    /// Returns `NikaError::McpNotConnected` if the client is not connected.
+    /// Returns `McpError::McpNotConnected` if the client is not connected.
     ///
     /// # Example
     ///
@@ -1251,7 +1251,7 @@ impl McpClient {
     pub async fn list_tools(&self) -> Result<Vec<ToolDefinition>> {
         if self.is_mock {
             if !self.connected.load(Ordering::SeqCst) {
-                return Err(NikaError::McpNotConnected {
+                return Err(McpError::McpNotConnected {
                     name: self.name.clone(),
                 });
             }
@@ -1262,7 +1262,7 @@ impl McpClient {
         let adapter = self
             .adapter
             .as_ref()
-            .ok_or_else(|| NikaError::McpNotConnected {
+            .ok_or_else(|| McpError::McpNotConnected {
                 name: self.name.clone(),
             })?;
 
@@ -1598,9 +1598,9 @@ mod tests {
 
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(matches!(err, NikaError::McpValidationFailed { .. }));
+        assert!(matches!(err, McpError::McpValidationFailed { .. }));
 
-        if let NikaError::McpValidationFailed {
+        if let McpError::McpValidationFailed {
             missing, details, ..
         } = err
         {
@@ -1946,7 +1946,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_call_tool_with_retry_events_mock_success() {
-        use crate::event::EventLog;
+        use nika_event::EventLog;
 
         let client = McpClient::mock("novanet");
         let event_log = EventLog::new();
@@ -1982,7 +1982,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_call_tool_with_retry_events_uses_cache() {
-        use crate::event::EventLog;
+        use nika_event::EventLog;
         use std::time::Duration;
 
         // Create client with cache enabled
@@ -2012,7 +2012,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_call_tool_with_retry_events_not_connected_fails() {
-        use crate::event::EventLog;
+        use nika_event::EventLog;
 
         // Create a real (not mock) client that isn't connected
         let config = McpConfig::new("test", "nonexistent_command");
@@ -2026,7 +2026,7 @@ mod tests {
 
         assert!(result.is_err());
         match result.unwrap_err() {
-            NikaError::McpNotConnected { .. } => {} // Expected
+            McpError::McpNotConnected { .. } => {} // Expected
             err => panic!("Expected McpNotConnected, got: {err:?}"),
         }
     }

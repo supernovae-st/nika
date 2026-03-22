@@ -28,7 +28,10 @@ impl DocumentState {
     }
 
     /// Apply an incremental change from the LSP protocol.
-    pub fn apply_change(&mut self, change: &tower_lsp_server::ls_types::TextDocumentContentChangeEvent) {
+    pub fn apply_change(
+        &mut self,
+        change: &tower_lsp_server::ls_types::TextDocumentContentChangeEvent,
+    ) {
         if let Some(range) = change.range {
             // Incremental change
             let start_idx = self.position_to_char_idx(range.start);
@@ -65,7 +68,10 @@ impl DocumentState {
     }
 
     /// Convert byte offset to LSP Position.
-    pub fn byte_offset_to_position(&self, byte_offset: usize) -> tower_lsp_server::ls_types::Position {
+    pub fn byte_offset_to_position(
+        &self,
+        byte_offset: usize,
+    ) -> tower_lsp_server::ls_types::Position {
         // Convert byte offset to char index
         let char_idx = self
             .rope

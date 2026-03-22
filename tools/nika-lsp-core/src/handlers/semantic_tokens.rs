@@ -35,8 +35,19 @@ impl TokenType {
 
 const VERBS: &[&str] = &["infer", "exec", "fetch", "invoke", "agent"];
 const TOP_KEYS: &[&str] = &[
-    "schema", "workflow", "tasks", "mcp", "context", "inputs", "include", "imports", "edges",
-    "skills", "agents", "artifacts", "log",
+    "schema",
+    "workflow",
+    "tasks",
+    "mcp",
+    "context",
+    "inputs",
+    "include",
+    "imports",
+    "edges",
+    "skills",
+    "agents",
+    "artifacts",
+    "log",
 ];
 const TASK_KEYS: &[&str] = &[
     "id",

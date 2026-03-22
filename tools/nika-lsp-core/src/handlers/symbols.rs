@@ -291,7 +291,9 @@ mod tests {
     }
     #[test]
     fn root_artifacts_and_log() {
-        let s = document_symbols("schema: v0.12\nartifacts:\n  default: ./out\nlog:\n  level: info\nmodel: gpt-4o\n");
+        let s = document_symbols(
+            "schema: v0.12\nartifacts:\n  default: ./out\nlog:\n  level: info\nmodel: gpt-4o\n",
+        );
         assert!(s.iter().any(|e| e.name == "artifacts"), "missing artifacts");
         assert!(s.iter().any(|e| e.name == "log"), "missing log");
         assert!(

@@ -22,8 +22,8 @@ use dashmap::DashMap;
 use jsonschema::Validator;
 use std::sync::Arc;
 
-use crate::error::{NikaError, Result};
-use crate::mcp::types::ToolDefinition;
+use crate::error::{McpError, Result};
+use crate::types::ToolDefinition;
 
 /// Cache key: (server_name, tool_name)
 type CacheKey = (String, String);
@@ -137,7 +137,7 @@ impl ToolSchemaCache {
             .unwrap_or_default();
 
         // Compile validator
-        let validator = Validator::new(schema).map_err(|e| NikaError::McpProtocolError {
+        let validator = Validator::new(schema).map_err(|e| McpError::McpProtocolError {
             reason: format!("Invalid schema for {}.{}: {}", server, tool, e),
         })?;
 
@@ -337,7 +337,7 @@ mod tests {
         // What matters is we handle it gracefully
         // If it doesn't error, the test still passes
         if let Err(err) = result {
-            assert!(matches!(err, NikaError::McpProtocolError { .. }));
+            assert!(matches!(err, McpError::McpProtocolError { .. }));
         }
     }
 

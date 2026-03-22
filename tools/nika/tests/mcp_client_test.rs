@@ -5,8 +5,8 @@
 //! - Mock client behavior for testing
 //! - Tool calls and resource reads
 
+use nika::mcp::McpError;
 use nika::mcp::{McpClient, McpConfig};
-use nika::NikaError;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 
@@ -46,7 +46,7 @@ fn test_mcp_client_config_validation_empty_name() {
     assert!(result.is_err(), "Should reject config with empty name");
     let err = result.unwrap_err();
     match err {
-        NikaError::ValidationError { reason } => {
+        McpError::ValidationError { reason } => {
             assert!(
                 reason.contains("name"),
                 "Error should mention 'name': {reason}"
@@ -68,7 +68,7 @@ fn test_mcp_client_config_validation_empty_command() {
     assert!(result.is_err(), "Should reject config with empty command");
     let err = result.unwrap_err();
     match err {
-        NikaError::ValidationError { reason } => {
+        McpError::ValidationError { reason } => {
             assert!(
                 reason.contains("command"),
                 "Error should mention 'command': {reason}"
@@ -159,7 +159,7 @@ async fn test_mcp_client_call_tool_when_not_connected() {
     assert!(result.is_err(), "Should fail when not connected");
     let err = result.unwrap_err();
     match err {
-        NikaError::McpNotConnected { name } => {
+        McpError::McpNotConnected { name } => {
             assert_eq!(name, "test", "Error should contain client name");
         }
         _ => panic!("Expected McpNotConnected, got: {err:?}"),
@@ -212,7 +212,7 @@ async fn test_mcp_client_read_resource_when_not_connected() {
     // Assert
     assert!(result.is_err(), "Should fail when not connected");
     match result.unwrap_err() {
-        NikaError::McpNotConnected { name } => {
+        McpError::McpNotConnected { name } => {
             assert_eq!(name, "test");
         }
         err => panic!("Expected McpNotConnected, got: {err:?}"),
@@ -231,7 +231,7 @@ async fn test_mcp_client_list_tools_when_not_connected() {
     // Assert
     assert!(result.is_err(), "Should fail when not connected");
     match result.unwrap_err() {
-        NikaError::McpNotConnected { name } => {
+        McpError::McpNotConnected { name } => {
             assert_eq!(name, "test");
         }
         err => panic!("Expected McpNotConnected, got: {err:?}"),
@@ -342,7 +342,7 @@ async fn test_real_client_connect_with_invalid_command_fails() {
     // Assert - should fail because command doesn't exist
     assert!(result.is_err(), "Connect with invalid command should fail");
     match result.unwrap_err() {
-        NikaError::McpStartError { name, reason } => {
+        McpError::McpStartError { name, reason } => {
             // name is the SERVER name, not the command
             assert_eq!(name, "test-server");
             assert!(!reason.is_empty(), "Should have error reason");

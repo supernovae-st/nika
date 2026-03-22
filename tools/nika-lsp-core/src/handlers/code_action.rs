@@ -92,10 +92,7 @@ pub fn code_actions(text: &str, start_offset: u32, _end_offset: u32) -> Vec<Code
     if !text.is_char_boundary(start) {
         return actions;
     }
-    let line_start = text[..start]
-        .rfind('\n')
-        .map(|p| p + 1)
-        .unwrap_or(0);
+    let line_start = text[..start].rfind('\n').map(|p| p + 1).unwrap_or(0);
     let line_end = text[start..]
         .find('\n')
         .map(|p| start + p)
@@ -115,9 +112,7 @@ pub fn code_actions(text: &str, start_offset: u32, _end_offset: u32) -> Vec<Code
                 edit: Some(TextEdit {
                     offset: line_start as u32,
                     end_offset: line_end as u32,
-                    new_text: format!(
-                        "{indent}infer:\n{indent}  prompt: |\n{indent}    {prompt}"
-                    ),
+                    new_text: format!("{indent}infer:\n{indent}  prompt: |\n{indent}    {prompt}"),
                 }),
             });
         }
@@ -205,8 +200,11 @@ pub fn code_actions(text: &str, start_offset: u32, _end_offset: u32) -> Vec<Code
         let next_lines: Vec<&str> = text[line_end..].lines().take(5).collect();
         let has_verb = next_lines.iter().any(|l| {
             let t = l.trim();
-            t.starts_with("infer:") || t.starts_with("exec:") || t.starts_with("fetch:")
-                || t.starts_with("invoke:") || t.starts_with("agent:")
+            t.starts_with("infer:")
+                || t.starts_with("exec:")
+                || t.starts_with("fetch:")
+                || t.starts_with("invoke:")
+                || t.starts_with("agent:")
         });
         if has_verb {
             actions.push(CodeActionEntry {
@@ -273,7 +271,13 @@ mod tests {
         let actions = code_actions(text, 0, 0);
         let upgrade = actions.iter().find(|a| a.title.contains("Upgrade"));
         assert!(upgrade.is_some());
-        assert!(upgrade.unwrap().edit.as_ref().unwrap().new_text.contains("@0.12"));
+        assert!(upgrade
+            .unwrap()
+            .edit
+            .as_ref()
+            .unwrap()
+            .new_text
+            .contains("@0.12"));
     }
 
     #[test]
@@ -322,7 +326,9 @@ mod tests {
     fn no_add_provider_when_present() {
         let text = "schema: \"@0.12\"\nprovider: openai\ntasks:\n";
         let actions = code_actions(text, 0, 0);
-        assert!(!actions.iter().any(|a| a.title.contains("Add default provider")));
+        assert!(!actions
+            .iter()
+            .any(|a| a.title.contains("Add default provider")));
     }
 
     #[test]

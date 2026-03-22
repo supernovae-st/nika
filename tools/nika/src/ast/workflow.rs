@@ -10,7 +10,7 @@
 use rustc_hash::FxHashMap;
 use std::sync::Arc;
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::binding::WithSpec;
 use crate::error::NikaError;
@@ -34,19 +34,8 @@ use super::output::OutputPolicy;
 ///     env:
 ///       NEO4J_URI: bolt://localhost:7687
 /// ```
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct McpConfigInline {
-    /// Command to spawn the MCP server
-    pub command: String,
-    /// Arguments to pass to the command
-    #[serde(default)]
-    pub args: Vec<String>,
-    /// Environment variables for the server process
-    #[serde(default)]
-    pub env: FxHashMap<String, String>,
-    /// Working directory for the server process
-    pub cwd: Option<String>,
-}
+/// MCP server inline configuration — re-exported from nika_mcp.
+pub type McpConfigInline = nika_mcp::McpConfigInline;
 
 /// Workflow with Arc-wrapped tasks for efficient cloning
 #[derive(Debug, Clone)]

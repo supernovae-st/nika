@@ -221,9 +221,7 @@ fn extract_field_value(text: &str, offset: u32, field: &str) -> Option<String> {
     let start = (offset as usize).min(text.len());
     // Find the line containing the offset
     let line_start = text[..start].rfind('\n').map_or(0, |p| p + 1);
-    let line_end = text[start..]
-        .find('\n')
-        .map_or(text.len(), |p| start + p);
+    let line_end = text[start..].find('\n').map_or(text.len(), |p| start + p);
     let line = &text[line_start..line_end];
     let trimmed = line.trim();
 

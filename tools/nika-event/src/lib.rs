@@ -10,8 +10,8 @@
 //! - `TraceWriter`: NDJSON file writer for debugging
 //! - `AgentTurnMetadata`: Agent turn response metadata
 
-pub mod error;
 mod emitter;
+pub mod error;
 mod log;
 mod trace;
 

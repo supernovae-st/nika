@@ -31,11 +31,10 @@ use dashmap::DashMap;
 use rustc_hash::FxHashMap;
 use tokio::sync::OnceCell;
 
-use crate::ast::McpConfigInline;
-use crate::error::NikaError;
-use crate::event::{EventKind, EventLog};
-use crate::mcp::types::McpConfig;
-use crate::mcp::McpClient;
+use crate::error::McpError;
+use crate::types::McpConfig;
+use crate::{McpClient, McpConfigInline};
+use nika_event::{EventKind, EventLog};
 
 /// Centralized MCP client lifecycle manager.
 ///
@@ -160,13 +159,13 @@ impl McpClientPool {
     ///
     /// # Errors
     ///
-    /// - `NikaError::McpNotConfigured` if no config exists for this server
-    /// - `NikaError::McpStartError` if the server process fails to spawn
-    /// - `NikaError::McpStartError` if the pool is shut down
-    pub async fn get_or_connect(&self, name: &str) -> Result<Arc<McpClient>, NikaError> {
+    /// - `McpError::McpNotConfigured` if no config exists for this server
+    /// - `McpError::McpStartError` if the server process fails to spawn
+    /// - `McpError::McpStartError` if the pool is shut down
+    pub async fn get_or_connect(&self, name: &str) -> Result<Arc<McpClient>, McpError> {
         // Fast path: reject if pool is shutting down
         if self.inner.is_shutdown.load(Ordering::SeqCst) {
-            return Err(NikaError::McpStartError {
+            return Err(McpError::McpStartError {
                 name: name.to_string(),
                 reason: "MCP client pool is shut down".to_string(),
             });
@@ -199,7 +198,7 @@ impl McpClientPool {
                 // A task could pass the outer check, then shutdown_all() runs,
                 // then this closure starts — we must reject here too.
                 if pool_inner.is_shutdown.load(Ordering::SeqCst) {
-                    return Err(NikaError::McpStartError {
+                    return Err(McpError::McpStartError {
                         name: name_owned.clone(),
                         reason: "MCP client pool is shut down".to_string(),
                     });
@@ -216,14 +215,14 @@ impl McpClientPool {
         configs: &parking_lot::RwLock<FxHashMap<String, McpConfigInline>>,
         event_log: &EventLog,
         name: &str,
-    ) -> Result<Arc<McpClient>, NikaError> {
+    ) -> Result<Arc<McpClient>, McpError> {
         // Read config (hold read lock only briefly)
         let config = {
             let guard = configs.read();
             guard.get(name).cloned()
         };
 
-        let config = config.ok_or_else(|| NikaError::McpNotConfigured {
+        let config = config.ok_or_else(|| McpError::McpNotConfigured {
             name: name.to_string(),
         })?;
 
@@ -242,13 +241,13 @@ impl McpClientPool {
         // Expand environment variables ($VAR, ${VAR}, ~) in command/args/env/cwd
         let mcp_config = mcp_config
             .expand_env_vars()
-            .map_err(|e| NikaError::McpStartError {
+            .map_err(|e| McpError::McpStartError {
                 name: name.to_string(),
                 reason: format!("Environment variable expansion failed: {}", e),
             })?;
 
         // Create and connect
-        let client = McpClient::new(mcp_config).map_err(|e| NikaError::McpStartError {
+        let client = McpClient::new(mcp_config).map_err(|e| McpError::McpStartError {
             name: name.to_string(),
             reason: e.to_string(),
         })?;
@@ -274,7 +273,7 @@ impl McpClientPool {
                     error: error_msg.clone(),
                 });
 
-                Err(NikaError::McpStartError {
+                Err(McpError::McpStartError {
                     name: name.to_string(),
                     reason: error_msg,
                 })
@@ -317,7 +316,7 @@ impl McpClientPool {
     ///
     /// Disconnects before removing to avoid orphaned connections.
     /// The next call to `get_or_connect()` for this server will re-initialize.
-    pub async fn disconnect(&self, name: &str) -> Result<(), NikaError> {
+    pub async fn disconnect(&self, name: &str) -> Result<(), McpError> {
         // Disconnect first, remove on success only.
         // If disconnect fails, the entry stays in the map for retry.
         if let Some(cell) = self.inner.clients.get(name) {
@@ -380,7 +379,6 @@ impl McpClientPool {
     /// Inject a pre-built client for testing.
     ///
     /// The client is inserted as already-initialized, bypassing connect_server().
-    #[cfg(test)]
     pub fn inject_mock(&self, name: &str, client: Arc<McpClient>) {
         let cell = Arc::new(OnceCell::new());
         cell.set(client)
@@ -411,7 +409,7 @@ const _: () = {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::event::EventLog;
+    use nika_event::EventLog;
 
     #[test]
     fn test_pool_new_is_empty() {

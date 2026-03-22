@@ -72,8 +72,8 @@ use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
 use super::types::McpConfig;
-use crate::error::NikaError;
-use crate::serde_yaml;
+use crate::error::McpError;
+use serde_saphyr as serde_yaml;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // NIKA MCP Configuration Types
@@ -222,12 +222,12 @@ impl NikaMcpConfigManager {
     }
 
     /// Load global MCP configuration from ~/.nika/mcp.yaml.
-    pub fn load_global(&self) -> Result<NikaMcpConfig, NikaError> {
+    pub fn load_global(&self) -> Result<NikaMcpConfig, McpError> {
         Self::load_from_path(&self.global_path)
     }
 
     /// Load project MCP configuration from .nika/mcp.yaml.
-    pub fn load_project(&self) -> Result<Option<NikaMcpConfig>, NikaError> {
+    pub fn load_project(&self) -> Result<Option<NikaMcpConfig>, McpError> {
         let Some(path) = self.project_path() else {
             return Ok(None);
         };
@@ -242,7 +242,7 @@ impl NikaMcpConfigManager {
     /// Load and merge configurations (global + project).
     ///
     /// Project servers override global servers with the same name.
-    pub fn load_merged(&self) -> Result<NikaMcpConfig, NikaError> {
+    pub fn load_merged(&self) -> Result<NikaMcpConfig, McpError> {
         let mut merged = self.load_global()?;
 
         if let Some(project) = self.load_project()? {
@@ -255,16 +255,16 @@ impl NikaMcpConfigManager {
     }
 
     /// Load configuration from a specific path.
-    fn load_from_path(path: &Path) -> Result<NikaMcpConfig, NikaError> {
+    fn load_from_path(path: &Path) -> Result<NikaMcpConfig, McpError> {
         if !path.exists() {
             return Ok(NikaMcpConfig::default());
         }
 
-        let content = std::fs::read_to_string(path).map_err(|e| NikaError::ConfigError {
+        let content = std::fs::read_to_string(path).map_err(|e| McpError::ConfigError {
             reason: format!("Failed to read MCP config at '{}': {}", path.display(), e),
         })?;
 
-        serde_yaml::from_str(&content).map_err(|e| NikaError::ParseError {
+        serde_yaml::from_str(&content).map_err(|e| McpError::ParseError {
             details: format!("Invalid MCP config YAML at '{}': {}", path.display(), e),
         })
     }
@@ -295,7 +295,7 @@ impl Default for NikaMcpConfigManager {
 ///     println!("Found server: {} ({})", name, config.command);
 /// }
 /// ```
-pub fn load_nika_mcp_servers() -> Result<FxHashMap<String, McpConfig>, NikaError> {
+pub fn load_nika_mcp_servers() -> Result<FxHashMap<String, McpConfig>, McpError> {
     let manager = NikaMcpConfigManager::new();
     load_nika_mcp_servers_with_manager(&manager)
 }
@@ -305,7 +305,7 @@ pub fn load_nika_mcp_servers() -> Result<FxHashMap<String, McpConfig>, NikaError
 /// This allows customizing the config paths for testing.
 pub fn load_nika_mcp_servers_with_manager(
     manager: &NikaMcpConfigManager,
-) -> Result<FxHashMap<String, McpConfig>, NikaError> {
+) -> Result<FxHashMap<String, McpConfig>, McpError> {
     let config = manager.load_merged()?;
     let mut servers = FxHashMap::default();
 
@@ -335,7 +335,7 @@ pub fn load_nika_mcp_servers_with_manager(
 /// ```
 pub fn load_nika_mcp_servers_by_name(
     names: &[&str],
-) -> Result<FxHashMap<String, McpConfig>, NikaError> {
+) -> Result<FxHashMap<String, McpConfig>, McpError> {
     let manager = NikaMcpConfigManager::new();
     let config = manager.load_merged()?;
     let mut servers = FxHashMap::default();
@@ -363,7 +363,7 @@ pub fn load_nika_mcp_servers_by_name(
             .filter(|k| config.servers.get(*k).map(|s| s.enabled).unwrap_or(false))
             .cloned()
             .collect();
-        return Err(NikaError::ConfigError {
+        return Err(McpError::ConfigError {
             reason: format!(
                 "MCP server(s) not found in config: [{}]. Available: [{}]",
                 missing.join(", "),
@@ -385,7 +385,7 @@ pub fn nika_mcp_config_exists() -> bool {
 /// List available MCP server names from ~/.nika/mcp.yaml.
 ///
 /// Returns only enabled servers.
-pub fn list_nika_mcp_servers() -> Result<Vec<String>, NikaError> {
+pub fn list_nika_mcp_servers() -> Result<Vec<String>, McpError> {
     let manager = NikaMcpConfigManager::new();
     let config = manager.load_merged()?;
 

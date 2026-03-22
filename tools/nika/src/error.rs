@@ -660,6 +660,67 @@ impl From<nika_event::EventError> for NikaError {
     }
 }
 
+impl From<nika_mcp::McpError> for NikaError {
+    fn from(e: nika_mcp::McpError) -> Self {
+        match e {
+            nika_mcp::McpError::McpNotConnected { name } => NikaError::McpNotConnected { name },
+            nika_mcp::McpError::McpStartError { name, reason } => {
+                NikaError::McpStartError { name, reason }
+            }
+            nika_mcp::McpError::McpToolError {
+                tool,
+                reason,
+                error_code,
+            } => NikaError::McpToolError {
+                tool,
+                reason,
+                error_code,
+            },
+            nika_mcp::McpError::McpResourceNotFound { uri } => {
+                NikaError::McpResourceNotFound { uri }
+            }
+            nika_mcp::McpError::McpProtocolError { reason } => {
+                NikaError::McpProtocolError { reason }
+            }
+            nika_mcp::McpError::McpNotConfigured { name } => NikaError::McpNotConfigured { name },
+            nika_mcp::McpError::McpInvalidResponse { tool, reason } => {
+                NikaError::McpInvalidResponse { tool, reason }
+            }
+            nika_mcp::McpError::McpValidationFailed {
+                tool,
+                details,
+                missing,
+                suggestions,
+            } => NikaError::McpValidationFailed {
+                tool,
+                details,
+                missing,
+                suggestions,
+            },
+            nika_mcp::McpError::McpSchemaError { tool, reason } => {
+                NikaError::McpSchemaError { tool, reason }
+            }
+            nika_mcp::McpError::McpTimeout {
+                name,
+                operation,
+                timeout_secs,
+            } => NikaError::McpTimeout {
+                name,
+                operation,
+                timeout_secs,
+            },
+            nika_mcp::McpError::McpToolCallFailed { tool, reason } => {
+                NikaError::McpToolCallFailed { tool, reason }
+            }
+            nika_mcp::McpError::ConfigError { reason } => NikaError::ConfigError { reason },
+            nika_mcp::McpError::ValidationError { reason } => NikaError::ValidationError { reason },
+            nika_mcp::McpError::ParseError { details } => NikaError::ParseError { details },
+            nika_mcp::McpError::Io(e) => NikaError::IoError(e),
+            nika_mcp::McpError::Json(e) => NikaError::JsonError(e),
+        }
+    }
+}
+
 impl NikaError {
     /// Get the error code (e.g., "NIKA-001")
     pub fn code(&self) -> &'static str {

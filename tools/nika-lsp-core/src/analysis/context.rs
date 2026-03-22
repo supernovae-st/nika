@@ -195,7 +195,10 @@ pub fn detect_context_with_partial(
             if let Some(ref verb) = task.verb {
                 let before = &text[..offset_usize.min(text.len())];
                 let last_line_start = before.rfind('\n').map_or(0, |p| p + 1);
-                let current_line = &text[last_line_start..text[last_line_start..].find('\n').map_or(text.len(), |p| last_line_start + p)];
+                let current_line = &text[last_line_start
+                    ..text[last_line_start..]
+                        .find('\n')
+                        .map_or(text.len(), |p| last_line_start + p)];
                 let trimmed = current_line.trim();
                 let prefix = trimmed.to_string();
 

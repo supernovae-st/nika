@@ -1746,8 +1746,8 @@ fn fixture_bad_indent_recovery() {
 #[test]
 fn all_fixtures_never_panic() {
     let fixture_dir = format!("{}/tests/fixtures/broken", env!("CARGO_MANIFEST_DIR"));
-    let entries = std::fs::read_dir(&fixture_dir)
-        .unwrap_or_else(|e| panic!("Cannot read fixture dir: {e}"));
+    let entries =
+        std::fs::read_dir(&fixture_dir).unwrap_or_else(|e| panic!("Cannot read fixture dir: {e}"));
 
     let mut count = 0;
     for entry in entries {

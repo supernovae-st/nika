@@ -3,19 +3,20 @@
 //! Validates that `{{with.alias}}` template references in task prompts
 //! are defined in the task's `with:` block.
 
-use tower_lsp_server::ls_types::{Diagnostic, DiagnosticSeverity, Range};
 use nika::ast::analyzed::AnalyzedWorkflow;
 use nika::ast::raw::{RawTaskAction, RawWorkflow};
 use regex::Regex;
 use std::sync::LazyLock;
+use tower_lsp_server::ls_types::{Diagnostic, DiagnosticSeverity, Range};
 
 use crate::document::DocumentState;
 
 /// Regex to find `{{with.alias}}` patterns with their positions.
 /// Captures the full match and the path (e.g., "alias.field").
 /// Also matches legacy `{{use.alias}}` syntax for migration support.
-static USE_TEMPLATE_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\{\{\s*(?:with|use)\.(\w+(?:\.\w+)*)(?:\s*\|\s*\w+)?\s*\}\}").unwrap());
+static USE_TEMPLATE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\{\{\s*(?:with|use)\.(\w+(?:\.\w+)*)(?:\s*\|\s*\w+)?\s*\}\}").unwrap()
+});
 
 /// Extracted template reference with position information.
 #[derive(Debug)]
@@ -109,7 +110,9 @@ pub fn validate_templates(
                     diagnostics.push(Diagnostic {
                         range,
                         severity: Some(DiagnosticSeverity::ERROR),
-                        code: Some(tower_lsp_server::ls_types::NumberOrString::String("NIKA-141".to_string())),
+                        code: Some(tower_lsp_server::ls_types::NumberOrString::String(
+                            "NIKA-141".to_string(),
+                        )),
                         code_description: None,
                         source: Some("nika".to_string()),
                         message: format!(
@@ -149,7 +152,10 @@ fn extract_prompts_from_action(action: &Option<RawTaskAction>) -> Vec<(String, u
         }
         Some(RawTaskAction::Agent(agent)) => {
             // Agent prompt
-            prompts.push((agent.prompt.value.clone(), agent.prompt.span.start.as_usize()));
+            prompts.push((
+                agent.prompt.value.clone(),
+                agent.prompt.span.start.as_usize(),
+            ));
         }
         Some(RawTaskAction::Exec(exec)) => {
             // Exec command may have templates

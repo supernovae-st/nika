@@ -595,8 +595,8 @@ impl ToolDefinition {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::serde_yaml;
     use pretty_assertions::assert_eq;
+    use serde_saphyr as serde_yaml;
     use serial_test::serial;
 
     // ═══════════════════════════════════════════════════════════════

@@ -22,7 +22,8 @@ pub const INFER_TIMEOUT: Duration = Duration::from_secs(120);
 pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
 
 /// Timeout for MCP tool calls (invoke: verb)
-/// Timeout increased for complex MCP operations
+/// NOTE: Primary constant moved to nika-mcp. Kept here for test assertions.
+#[cfg(test)]
 pub const MCP_CALL_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// Total deadline for invoke task execution
@@ -32,8 +33,8 @@ pub const MCP_CALL_TIMEOUT: Duration = Duration::from_secs(60);
 pub const INVOKE_TASK_DEADLINE: Duration = Duration::from_secs(300);
 
 /// Timeout for MCP reconnection attempts
-/// Each reconnection attempt (disconnect + connect) has this timeout.
-/// Prevents indefinite hanging when MCP servers become unresponsive.
+/// NOTE: Primary constant moved to nika-mcp. Kept here for test assertions.
+#[cfg(test)]
 pub const RECONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Timeout for decompose expansion (nested BFS traversal)

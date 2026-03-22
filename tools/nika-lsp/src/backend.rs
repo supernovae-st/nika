@@ -11,9 +11,9 @@
 //! - Context detection via `node_context::find_context_at_position()`
 
 use dashmap::DashMap;
-use tower_lsp_server::ls_types::*;
 use tokio::sync::mpsc;
 use tower_lsp_server::jsonrpc::Result;
+use tower_lsp_server::ls_types::*;
 use tower_lsp_server::{Client, LanguageServer};
 
 use crate::ast_integration;
@@ -129,10 +129,11 @@ impl LanguageServer for NikaBackend {
                     SemanticTokensServerCapabilities::SemanticTokensOptions(
                         SemanticTokensOptions {
                             legend: SemanticTokensLegend {
-                                token_types: nika_lsp_core::handlers::semantic_tokens::token_legend()
-                                    .into_iter()
-                                    .map(SemanticTokenType::new)
-                                    .collect(),
+                                token_types:
+                                    nika_lsp_core::handlers::semantic_tokens::token_legend()
+                                        .into_iter()
+                                        .map(SemanticTokenType::new)
+                                        .collect(),
                                 token_modifiers: vec![
                                     SemanticTokenModifier::DECLARATION,
                                     SemanticTokenModifier::DEFINITION,
@@ -311,9 +312,10 @@ impl LanguageServer for NikaBackend {
         };
 
         let content = doc.content();
-        let offset = crate::position::position_to_offset(
-            &content, position.line, position.character
-        ).map(|o| o.0).unwrap_or(0);
+        let offset =
+            crate::position::position_to_offset(&content, position.line, position.character)
+                .map(|o| o.0)
+                .unwrap_or(0);
         let ctx = nika_lsp_core::analysis::context::detect_context(&content, offset, None);
         match nika_lsp_core::handlers::hover::hover(&content, offset, &ctx) {
             Some(result) => Ok(Some(Hover {
@@ -426,7 +428,10 @@ impl LanguageServer for NikaBackend {
         };
 
         let entries = self.handler.symbols(&text);
-        let symbols = entries.into_iter().map(|e| to_lsp_symbol(&text, e)).collect();
+        let symbols = entries
+            .into_iter()
+            .map(|e| to_lsp_symbol(&text, e))
+            .collect();
         Ok(Some(DocumentSymbolResponse::Nested(symbols)))
     }
 
@@ -509,7 +514,13 @@ fn to_lsp_symbol(
         children: if entry.children.is_empty() {
             None
         } else {
-            Some(entry.children.into_iter().map(|c| to_lsp_symbol(text, c)).collect())
+            Some(
+                entry
+                    .children
+                    .into_iter()
+                    .map(|c| to_lsp_symbol(text, c))
+                    .collect(),
+            )
         },
     }
 }

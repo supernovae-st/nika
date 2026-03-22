@@ -681,7 +681,9 @@ tasks:
       prompt: \"Research this topic\"
 ";
     // Place offset on the `from: researcher` line so extract_field_value finds it.
-    let from_pos = yaml.find("from: researcher").expect("from: line must exist");
+    let from_pos = yaml
+        .find("from: researcher")
+        .expect("from: line must exist");
     let offset = (from_pos + "from: res".len()) as u32;
     let ctx = CursorContext::VerbBlock {
         task_id: Some("step1".to_string()),

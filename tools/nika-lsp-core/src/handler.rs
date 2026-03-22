@@ -14,12 +14,8 @@
 
 use crate::analysis::context::CursorContext;
 use crate::handlers::{
-    code_action::CodeActionEntry,
-    completion,
-    definition::DefinitionResult,
-    hover::HoverResult,
-    semantic_tokens::RawToken,
-    symbols::SymbolEntry,
+    code_action::CodeActionEntry, completion, definition::DefinitionResult, hover::HoverResult,
+    semantic_tokens::RawToken, symbols::SymbolEntry,
 };
 
 /// Protocol-agnostic LSP handler trait.

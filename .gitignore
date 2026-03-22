@@ -49,3 +49,4 @@ tools/nika/src/target-main/
 generated/
 crates/nika-cli/.nika/
 crates/nika-runtime/.nika/
+tools/target/

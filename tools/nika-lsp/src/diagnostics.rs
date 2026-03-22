@@ -2,11 +2,11 @@
 //!
 //! Converts `AnalyzeError` to LSP `Diagnostic` for real-time error display.
 
+use nika::ast::analyzer::{AnalyzeError, AnalyzeErrorKind};
+use nika::source::{SourceRegistry, Span};
 use tower_lsp_server::ls_types::{
     Diagnostic, DiagnosticRelatedInformation, DiagnosticSeverity, Location, Range, Uri,
 };
-use nika::ast::analyzer::{AnalyzeError, AnalyzeErrorKind};
-use nika::source::{SourceRegistry, Span};
 
 use crate::document::DocumentState;
 

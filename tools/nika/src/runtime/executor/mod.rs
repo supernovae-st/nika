@@ -294,7 +294,7 @@ impl TaskExecutor {
     /// Delegates to [`McpClientPool::get_or_connect`] which handles lazy initialization,
     /// per-server deduplication via DashMap + OnceCell, and event logging.
     pub(super) async fn get_mcp_client(&self, name: &str) -> Result<Arc<McpClient>, NikaError> {
-        self.mcp_pool.get_or_connect(name).await
+        self.mcp_pool.get_or_connect(name).await.map_err(Into::into)
     }
 }
 

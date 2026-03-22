@@ -16,8 +16,18 @@ const KNOWN_VERBS: &[&str] = &["infer", "exec", "fetch", "invoke", "agent"];
 
 /// Known top-level keys in a Nika workflow.
 const KNOWN_TOP_LEVEL_KEYS: &[&str] = &[
-    "schema", "workflow", "tasks", "mcp", "context", "imports", "inputs", "edges", "skills",
-    "agents", "artifacts", "log",
+    "schema",
+    "workflow",
+    "tasks",
+    "mcp",
+    "context",
+    "imports",
+    "inputs",
+    "edges",
+    "skills",
+    "agents",
+    "artifacts",
+    "log",
 ];
 
 /// Maximum recursion depth for CST walkers.
