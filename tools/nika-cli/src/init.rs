@@ -6,7 +6,7 @@ use colored::Colorize;
 
 use nika_engine::error::NikaError;
 use nika_engine::init::{
-    get_all_context_files, get_all_partials, get_all_schemas, get_all_workflows, WORKFLOWS_README,
+    get_all_context_files, get_all_schemas, get_all_workflows, WORKFLOWS_README,
 };
 use nika_engine::tools::PermissionMode;
 
@@ -14,9 +14,8 @@ use nika_engine::tools::PermissionMode;
 ///
 /// Creates:
 /// - `.nika/` directory with config, agents, skills, memory, etc.
-/// - `workflows/` with 30 progressive example workflows organized by tier (unless --no-example)
+/// - `workflows/` with 5 minimal starter workflows (unless --no-example)
 /// - `context/` with context files for workflows
-/// - `workflows/partials/` with reusable workflow fragments (for include:)
 /// - `schemas/` with JSON schemas for output validation
 /// - `output/` for generated workflow outputs
 pub fn init_project(
@@ -436,18 +435,6 @@ network:
             println!("{} Created {}", "✓".green(), ctx_path.display());
         }
 
-        // Create partials/ directory inside workflows/ (for include: security)
-        let partials_dir = workflows_dir.join("partials");
-        fs::create_dir_all(&partials_dir)?;
-        println!("{} Created {}", "✓".green(), partials_dir.display());
-
-        // Write all partial workflows
-        for partial in get_all_partials() {
-            let partial_path = partials_dir.join(partial.filename);
-            fs::write(&partial_path, partial.content)?;
-            println!("{} Created {}", "✓".green(), partial_path.display());
-        }
-
         // Create schemas/ directory at project root
         let schemas_dir = cwd.join("schemas");
         fs::create_dir_all(&schemas_dir)?;
@@ -498,23 +485,14 @@ network:
     if !no_example {
         println!();
         println!(
-            "    {}  workflows/          # 30 example workflows by tier",
+            "    {}  workflows/          # 5 starter workflows + course",
             "📂".cyan()
         );
         println!("    ├── README.md                     # Quick start guide");
-        println!("    ├── tier-1-no-deps/  (01-03)      # exec, fetch, builtins");
-        println!("    ├── tier-2-llm/      (04-07)      # infer, DAG, for_each");
-        println!("    ├── tier-3-agent/    (08-09)      # agent + file tools");
-        println!("    ├── tier-4-mcp/      (10)         # NovaNet integration");
-        println!("    ├── tier-5-dev/      (11-20)      # Developer use cases");
-        println!("    └── tier-6-magic/    (21-30)      # Everyday automation");
+        println!("    └── minimal/         (01-05)      # 1 per verb");
         println!();
         println!(
             "    {}  context/            # Context files for workflows",
-            "📁".dimmed()
-        );
-        println!(
-            "    {}  partials/           # Reusable workflow fragments",
             "📁".dimmed()
         );
         println!(
@@ -530,15 +508,18 @@ network:
     if !no_example {
         println!("  {} Get started:", "→".cyan());
         println!();
-        println!("    # Tier 1: Works immediately (no API key)");
-        println!("    nika run workflows/tier-1-no-deps/01-exec-basics.nika.yaml");
+        println!("    # Run immediately (no API key)");
+        println!("    nika run workflows/minimal/01-exec.nika.yaml");
         println!();
-        println!("    # Tier 2: Setup provider first");
+        println!("    # Setup provider, then run LLM workflows");
         println!("    nika provider set anthropic");
-        println!("    nika run workflows/tier-2-llm/04-infer-basics.nika.yaml");
+        println!("    nika run workflows/minimal/03-infer.nika.yaml");
+        println!();
+        println!("    # Start the interactive course");
+        println!("    nika course start");
         println!();
         println!("  {} Learn more:", "📖".cyan());
-        println!("    See workflows/README.md for full tier guide");
+        println!("    See workflows/README.md for guide");
     }
 
     // Migrate API keys from env vars to keychain if requested

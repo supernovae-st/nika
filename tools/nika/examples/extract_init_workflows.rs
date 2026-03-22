@@ -16,7 +16,6 @@ fn main() {
     let workflows = nika::init::get_all_workflows();
     let context_files = nika::init::get_all_context_files();
     let schemas = nika::init::get_all_schemas();
-    let partials = nika::init::get_all_partials();
 
     // Write workflows
     for w in &workflows {
@@ -24,7 +23,7 @@ fn main() {
         fs::create_dir_all(&dir).unwrap();
         let path = dir.join(w.filename);
         fs::write(&path, w.content).unwrap();
-        println!("✓ {}", path.display());
+        println!("  {}", path.display());
     }
 
     // Write context files
@@ -33,7 +32,7 @@ fn main() {
         fs::create_dir_all(&dir).unwrap();
         let path = dir.join(f.filename);
         fs::write(&path, f.content).unwrap();
-        println!("✓ {}", path.display());
+        println!("  {}", path.display());
     }
 
     // Write schemas
@@ -42,28 +41,18 @@ fn main() {
         fs::create_dir_all(&dir).unwrap();
         let path = dir.join(f.filename);
         fs::write(&path, f.content).unwrap();
-        println!("✓ {}", path.display());
-    }
-
-    // Write partials
-    for f in &partials {
-        let dir = base.join("workflows").join(f.dir);
-        fs::create_dir_all(&dir).unwrap();
-        let path = dir.join(f.filename);
-        fs::write(&path, f.content).unwrap();
-        println!("✓ {}", path.display());
+        println!("  {}", path.display());
     }
 
     // Write README
     let readme_path = base.join("workflows/README.md");
     fs::write(&readme_path, nika::init::WORKFLOWS_README).unwrap();
-    println!("✓ {}", readme_path.display());
+    println!("  {}", readme_path.display());
 
     println!(
-        "\n✅ Extracted {} workflows, {} context, {} schemas, {} partials",
+        "\nExtracted {} workflows, {} context, {} schemas",
         workflows.len(),
         context_files.len(),
-        schemas.len(),
-        partials.len()
+        schemas.len()
     );
 }
