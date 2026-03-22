@@ -11,7 +11,7 @@
 //! ## Usage
 //!
 //! ```rust,ignore
-//! use nika::mcp::validation::ToolSchemaCache;
+//! use nika_mcp::validation::ToolSchemaCache;
 //!
 //! let cache = ToolSchemaCache::new();
 //! let count = cache.populate("novanet", &tools)?;

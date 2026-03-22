@@ -9,7 +9,7 @@
 //! ## Usage
 //!
 //! ```rust,ignore
-//! use nika::mcp::nika_config::{load_nika_mcp_servers, NikaMcpConfigManager};
+//! use nika_mcp::nika_config::{load_nika_mcp_servers, NikaMcpConfigManager};
 //!
 //! // Load all enabled servers from ~/.nika/mcp.yaml
 //! let servers = load_nika_mcp_servers()?;
@@ -288,7 +288,7 @@ impl Default for NikaMcpConfigManager {
 /// # Example
 ///
 /// ```rust,ignore
-/// use nika::mcp::nika_config::load_nika_mcp_servers;
+/// use nika_mcp::nika_config::load_nika_mcp_servers;
 ///
 /// let servers = load_nika_mcp_servers()?;
 /// for (name, config) in &servers {
@@ -329,7 +329,7 @@ pub fn load_nika_mcp_servers_with_manager(
 /// # Example
 ///
 /// ```rust,ignore
-/// use nika::mcp::nika_config::load_nika_mcp_servers_by_name;
+/// use nika_mcp::nika_config::load_nika_mcp_servers_by_name;
 ///
 /// let servers = load_nika_mcp_servers_by_name(&["neo4j", "novanet"])?;
 /// ```

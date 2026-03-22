@@ -17,7 +17,7 @@
 //! ## Usage
 //!
 //! ```rust,ignore
-//! use nika::tui::widgets::task_box::{TaskBox, InferBox, BoxState, VerbColor};
+//! use nika_tui::widgets::task_box::{TaskBox, InferBox, BoxState, VerbColor};
 //!
 //! let infer_box = InferBox::new("claude-sonnet-4-6", "Generate a market analysis")
 //!     .with_state(BoxState::running());

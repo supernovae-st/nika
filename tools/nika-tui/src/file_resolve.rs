@@ -73,7 +73,7 @@ impl FileResolver {
     /// # Examples
     ///
     /// ```
-    /// use nika::tui::file_resolve::FileResolver;
+    /// use nika_tui::file_resolve::FileResolver;
     ///
     /// let mentions = FileResolver::extract_mentions("Explain @src/main.rs");
     /// assert_eq!(mentions, vec!["src/main.rs"]);

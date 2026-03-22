@@ -108,7 +108,7 @@ impl Command {
     /// # Examples
     ///
     /// ```
-    /// use nika::tui::command::Command;
+    /// use nika_tui::command::Command;
     ///
     /// let cmd = Command::parse("/infer explain this code");
     /// assert!(matches!(cmd, Command::Infer { prompt } if prompt == "explain this code"));

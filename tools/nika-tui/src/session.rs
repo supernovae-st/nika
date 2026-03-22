@@ -6,7 +6,7 @@
 //! # Usage
 //!
 //! ```rust,ignore
-//! use nika::tui::session::{ChatSession, save_session, load_session, list_sessions};
+//! use nika_tui::session::{ChatSession, save_session, load_session, list_sessions};
 //!
 //! // Save current session
 //! save_session(&chat_state)?;

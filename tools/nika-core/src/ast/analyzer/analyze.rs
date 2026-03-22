@@ -272,6 +272,38 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
         }
     }
 
+    // 3c. Validate empty prompts (waste API credits)
+    for raw_task in &raw.tasks.value {
+        let task = &raw_task.value;
+        if let Some(RawTaskAction::Infer(ref infer)) = task.action {
+            if infer.value.prompt.value.trim().is_empty() && infer.value.content.is_none() {
+                ctx.errors.push(AnalyzeError {
+                    kind: AnalyzeErrorKind::MissingField,
+                    span: task.id.span,
+                    message: format!(
+                        "Task '{}' has an empty prompt. Add a prompt or use content: for multimodal.",
+                        task.id.value,
+                    ),
+                    suggestion: Some("Add a non-empty prompt".to_string()),
+                    note: None,
+                });
+            }
+        }
+        if let Some(RawTaskAction::Agent(ref agent)) = task.action {
+            if agent.value.prompt.value.trim().is_empty() {
+                ctx.errors.push(AnalyzeError {
+                    kind: AnalyzeErrorKind::MissingField,
+                    span: task.id.span,
+                    message: format!("Task '{}' has an empty agent prompt.", task.id.value,),
+                    suggestion: Some(
+                        "Add a non-empty prompt describing the agent's goal".to_string(),
+                    ),
+                    note: None,
+                });
+            }
+        }
+    }
+
     // 4. Analyze MCP server configurations
     if let Some(ref mcp) = raw.mcp {
         for (name_spanned, server_spanned) in &mcp.value.servers {

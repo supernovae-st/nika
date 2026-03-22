@@ -23,8 +23,8 @@
 //! ## Usage
 //!
 //! ```rust,ignore
-//! use nika::tui::cosmic_theme::CosmicTheme;
-//! use nika::tui::tokens::CosmicVariant;
+//! use nika_tui::cosmic_theme::CosmicTheme;
+//! use nika_tui::tokens::CosmicVariant;
 //!
 //! // Create with default variant
 //! let mut cosmic = CosmicTheme::new(CosmicVariant::CosmicDark);

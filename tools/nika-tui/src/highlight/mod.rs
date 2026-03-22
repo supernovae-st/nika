@@ -20,7 +20,7 @@
 //! # Usage
 //!
 //! ```rust,ignore
-//! use nika::tui::highlight::{Highlighter, TreeSitterHighlighter};
+//! use nika_tui::highlight::{Highlighter, TreeSitterHighlighter};
 //!
 //! let highlighter = TreeSitterHighlighter::new()?;
 //! let styled_lines = highlighter.highlight(yaml_source);

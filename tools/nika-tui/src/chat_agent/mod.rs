@@ -32,8 +32,8 @@
 //! # Usage
 //!
 //! ```rust,no_run
-//! use nika::tui::chat_agent::ChatAgent;
-//! use nika::tui::command::ModelProvider;
+//! use nika_tui::chat_agent::ChatAgent;
+//! use nika_tui::command::ModelProvider;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -83,7 +83,7 @@ use tokio::sync::mpsc;
 /// # Example
 ///
 /// ```rust,no_run
-/// use nika::tui::chat_agent::ChatAgent;
+/// use nika_tui::chat_agent::ChatAgent;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<(), nika::error::NikaError> {
@@ -154,7 +154,7 @@ impl ChatAgent {
     /// # Example
     ///
     /// ```rust,no_run
-    /// use nika::tui::chat_agent::ChatAgent;
+    /// use nika_tui::chat_agent::ChatAgent;
     ///
     /// let agent = ChatAgent::with_overrides(
     ///     Some("mistral"),
@@ -209,8 +209,8 @@ impl ChatAgent {
     /// # Example
     ///
     /// ```rust,no_run
-    /// use nika::tui::chat_agent::ChatAgent;
-    /// use nika::tui::command::ModelProvider;
+    /// use nika_tui::chat_agent::ChatAgent;
+    /// use nika_tui::command::ModelProvider;
     ///
     /// let mut agent = ChatAgent::new().unwrap();
     /// agent.set_provider(ModelProvider::Claude).unwrap();
@@ -259,7 +259,7 @@ impl ChatAgent {
     /// # Example
     ///
     /// ```rust,no_run
-    /// use nika::tui::chat_agent::{ChatAgent, ChatMessage};
+    /// use nika_tui::chat_agent::{ChatAgent, ChatMessage};
     ///
     /// let history = vec![
     ///     ChatMessage::user("Hello"),

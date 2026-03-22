@@ -23,7 +23,7 @@
 //!
 //! ```rust,ignore
 //! // Users should use McpClient, not RmcpClientAdapter directly
-//! use nika::mcp::{McpClient, McpConfig};
+//! use nika_mcp::{McpClient, McpConfig};
 //!
 //! let config = McpConfig::new("novanet", "cargo")
 //!     .with_args(["run", "--manifest-path", "path/to/Cargo.toml"]);

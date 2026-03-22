@@ -24,7 +24,7 @@
 //! ## Usage
 //!
 //! ```rust,ignore
-//! use nika::tui::tokens::{CosmicTheme, TokenResolver};
+//! use nika_tui::tokens::{CosmicTheme, TokenResolver};
 //!
 //! let resolver = TokenResolver::cosmic_dark();
 //! let bg = resolver.bg_primary();

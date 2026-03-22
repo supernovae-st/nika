@@ -26,7 +26,7 @@
 //! # Usage
 //!
 //! ```rust,ignore
-//! use nika::tui::widgets::tree::{
+//! use nika_tui::widgets::tree::{
 //!     TreeNode, TreeState, TreeColors, TreeWidget,
 //!     AnimationTicker, FilterConfig, TreeFilter,
 //! };

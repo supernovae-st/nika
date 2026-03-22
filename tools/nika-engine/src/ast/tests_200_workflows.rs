@@ -6760,14 +6760,14 @@ fn u07_fetch_validate_zero_timeout_err() {
 
 #[test]
 fn u08_infer_validate_empty_prompt_no_content_err() {
+    // Empty prompts are now rejected at analysis time (NIKA-145)
     let yaml = wrap("infer:\n  prompt: \"\"");
-    let w = ok(&yaml);
-    match &w.tasks[0].action {
-        TaskAction::Infer { infer } => {
-            assert!(infer.validate().is_err());
-        }
-        _ => panic!("expected Infer"),
-    }
+    let e = err(&yaml);
+    let msg = format!("{e}");
+    assert!(
+        msg.contains("empty prompt"),
+        "Expected empty prompt error, got: {msg}"
+    );
 }
 
 #[test]

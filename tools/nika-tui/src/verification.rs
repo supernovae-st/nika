@@ -6,7 +6,7 @@
 //! ## Usage
 //!
 //! ```rust,ignore
-//! use nika::tui::verification::{VerificationCache, VerificationEntry};
+//! use nika_tui::verification::{VerificationCache, VerificationEntry};
 //! use std::time::Duration;
 //!
 //! let mut cache = VerificationCache::new(Duration::from_secs(30));

@@ -16,7 +16,7 @@
 //! # Example
 //!
 //! ```rust
-//! use nika::tui::wizard::{WizardState, WizardStep};
+//! use nika_tui::wizard::{WizardState, WizardStep};
 //!
 //! let mut wizard = WizardState::new();
 //! assert_eq!(wizard.current_step, WizardStep::Welcome);
