@@ -195,7 +195,11 @@ mod tests {
             if level.number == 12 {
                 assert!(level.boss, "Level 12 must be a boss level");
             } else {
-                assert!(!level.boss, "Level {} should not be a boss level", level.number);
+                assert!(
+                    !level.boss,
+                    "Level {} should not be a boss level",
+                    level.number
+                );
             }
         }
     }

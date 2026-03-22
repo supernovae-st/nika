@@ -1,0 +1,82 @@
+# =============================================================================
+# ERROR HANDLING DEMO 10: Missing Dependency Detection
+# =============================================================================
+#
+# Nika validates the full DAG at check time (before any task runs).
+# If a task references a non-existent dependency in depends_on:, the
+# workflow fails immediately with NIKA-140 / NIKA-021 (MissingDependency).
+#
+# This is a STATIC check -- caught by `nika check`, not at runtime.
+# No tasks execute. No resources are wasted. The error message tells you
+# exactly which task referenced which missing dependency.
+#
+# The analyzer (Phase 2) catches unknown task references via NIKA-140,
+# which wraps the underlying NIKA-021 (MissingDependency) DAG error.
+# Similarly, with: bindings that reference non-existent tasks are caught
+# at analysis time before the workflow runs.
+#
+# DEMONSTRATES:
+#   - NIKA-140 / NIKA-021: depends_on references unknown task
+#   - Static validation catches errors before runtime
+#   - Clear error message identifying the unknown task
+#
+# TRY IT:
+#   1. Run this workflow as-is (it succeeds — ghost_task is commented out)
+#   2. Uncomment the "ghost_task" line in consumer's depends_on
+#   3. Run `nika check 10-missing-dependency.nika.yaml` again
+#   4. See the error:
+#      [NIKA-004] Workflow validation failed: [NIKA-140] unknown task 'ghost_task'
+#
+# RUN: nika check 10-missing-dependency.nika.yaml
+# =============================================================================
+
+schema: "nika/workflow@0.12"
+
+workflow: error-missing-dependency
+
+tasks:
+  # This task is fine — no dependencies
+  - id: producer
+    exec: "echo 'I produce data'"
+
+  # This task references only "producer" (valid).
+  # EXERCISE: Uncomment "ghost_task" below to trigger NIKA-140 at validation.
+  #
+  # Before:  depends_on: [producer]
+  # After:   depends_on: [producer, ghost_task]
+  #
+  # Nika's DAG validator catches unknown task references BEFORE any task runs.
+  - id: consumer
+    depends_on: [producer]
+    # depends_on: [producer, ghost_task]  # <-- UNCOMMENT to see NIKA-140
+    exec:
+      command: |
+        echo "=== Missing Dependency Demo ==="
+        echo "This task runs because all dependencies are valid."
+        echo ""
+        echo "To see the error:"
+        echo "  1. Edit this file"
+        echo "  2. Change depends_on to: [producer, ghost_task]"
+        echo "  3. Run: nika check 10-missing-dependency.nika.yaml"
+        echo "  4. Expected: [NIKA-140] unknown task 'ghost_task'"
+        echo ""
+        echo "Nika validates the ENTIRE DAG before executing anything."
+        echo "No wasted compute. No partial runs. Fail fast, fail clear."
+      shell: true
+
+  # This task depends on consumer — valid chain
+  - id: reporter
+    depends_on: [consumer]
+    exec:
+      command: |
+        echo "=== DAG Validation Summary ==="
+        echo "producer -> consumer -> reporter"
+        echo "All dependencies resolved. Clean DAG."
+        echo ""
+        echo "Error codes for DAG issues:"
+        echo "  NIKA-020: Cycle detected"
+        echo "  NIKA-021: Missing dependency"
+        echo "  NIKA-022: Duplicate task ID"
+        echo "  NIKA-026: Dependency chain failed"
+        echo "  NIKA-140: Unknown task (Phase 2 analyzer)"
+      shell: true

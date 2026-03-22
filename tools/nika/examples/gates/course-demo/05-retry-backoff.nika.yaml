@@ -1,0 +1,92 @@
+# =============================================================================
+# ERROR HANDLING DEMO 05: Retry with Exponential Backoff
+# =============================================================================
+#
+# Nika's fetch: verb supports automatic retry with configurable backoff.
+# When an HTTP request fails (network error, 5xx, timeout), the retry engine
+# re-executes it up to max_attempts times with increasing delay.
+#
+# Retry config fields (on fetch: tasks):
+#   max_attempts: N     — total attempts (including the first)
+#   delay_ms: N         — base delay between retries (milliseconds)
+#   backoff: N.N        — multiplier applied to delay on each retry
+#
+# With backoff: 2.0 and delay_ms: 500:
+#   Attempt 1: immediate
+#   Attempt 2: wait 500ms
+#   Attempt 3: wait 1000ms (500 * 2.0)
+#   Attempt 4: wait 2000ms (500 * 2.0^2)
+#
+# NOTE: retry: is supported on fetch: tasks. For exec: resilience,
+#       use a shell retry loop or wrap in a sub-workflow.
+#
+# DEMONSTRATES:
+#   - retry: config with exponential backoff on fetch:
+#   - Resilient HTTP requests that survive transient failures
+#   - Multiple fetch tasks with different retry strategies
+#
+# EXPECTED BEHAVIOR:
+#   "quick_fetch"     succeeds -> httpbin.org/get is reliable
+#   "resilient_fetch" succeeds -> retries on failure with backoff
+#   "aggressive_retry" succeeds -> more attempts, shorter initial delay
+#   "report"          succeeds -> summarizes retry behavior
+#
+# RUN: nika run 05-retry-backoff.nika.yaml
+# =============================================================================
+
+schema: "nika/workflow@0.12"
+
+workflow: error-retry-backoff
+
+tasks:
+  # Simple fetch without retry — if it fails, it fails immediately.
+  # Baseline for comparison.
+  - id: quick_fetch
+    fetch:
+      url: "https://httpbin.org/get"
+      timeout: 10
+
+  # Fetch with retry and exponential backoff.
+  # If the endpoint returns an error, Nika will retry up to 3 times:
+  #   Attempt 1: immediate
+  #   Attempt 2: wait 1000ms
+  #   Attempt 3: wait 2000ms (1000 * 2.0)
+  - id: resilient_fetch
+    depends_on: [quick_fetch]
+    fetch:
+      url: "https://httpbin.org/get"
+      method: GET
+      timeout: 10
+    retry:
+      max_attempts: 3
+      delay_ms: 1000
+      backoff: 2.0
+
+  # Aggressive retry: more attempts with shorter initial delay.
+  # Good for endpoints that have brief outages.
+  #   Attempt 1: immediate
+  #   Attempt 2: wait 200ms
+  #   Attempt 3: wait 300ms (200 * 1.5)
+  #   Attempt 4: wait 450ms (200 * 1.5^2)
+  #   Attempt 5: wait 675ms (200 * 1.5^3)
+  - id: aggressive_retry
+    depends_on: [quick_fetch]
+    fetch:
+      url: "https://httpbin.org/get"
+      timeout: 5
+    retry:
+      max_attempts: 5
+      delay_ms: 200
+      backoff: 1.5
+
+  # Report on what happened
+  - id: report
+    depends_on: [resilient_fetch, aggressive_retry]
+    exec:
+      command: |
+        echo "=== Retry Backoff Demo Results ==="
+        echo "quick_fetch:     no retry, single attempt"
+        echo "resilient_fetch: 3 attempts, 1s base, 2x backoff"
+        echo "aggressive_retry: 5 attempts, 200ms base, 1.5x backoff"
+        echo "All HTTP requests completed successfully!"
+      shell: true

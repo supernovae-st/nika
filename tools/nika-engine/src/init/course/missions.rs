@@ -1643,11 +1643,7 @@ mod tests {
                 "{} missing 'What You Unlock'",
                 slug
             );
-            assert!(
-                mission.contains("Commands"),
-                "{} missing 'Commands'",
-                slug
-            );
+            assert!(mission.contains("Commands"), "{} missing 'Commands'", slug);
             assert!(
                 mission.contains("nika course"),
                 "{} missing course commands",
@@ -1696,11 +1692,7 @@ mod tests {
         ];
         for slug in &slugs {
             let mission = get_mission(slug);
-            assert!(
-                mission.contains("```"),
-                "{} missing ASCII art block",
-                slug
-            );
+            assert!(mission.contains("```"), "{} missing ASCII art block", slug);
             // ASCII art uses box-drawing characters
             assert!(
                 mission.contains("\u{2550}") || mission.contains("\u{2588}"),

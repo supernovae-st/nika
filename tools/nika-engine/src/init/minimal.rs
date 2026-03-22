@@ -228,7 +228,11 @@ mod tests {
     #[test]
     fn test_minimal_workflow_count() {
         let workflows = get_minimal_workflows();
-        assert_eq!(workflows.len(), 5, "Should have exactly 5 minimal workflows");
+        assert_eq!(
+            workflows.len(),
+            5,
+            "Should have exactly 5 minimal workflows"
+        );
     }
 
     #[test]

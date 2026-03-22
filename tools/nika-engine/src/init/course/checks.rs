@@ -149,9 +149,7 @@ pub fn check_has_schema(yaml: &str) -> CheckResult {
         verdict: if yaml.contains("schema:") && yaml.contains("nika/workflow@0.12") {
             CheckVerdict::Pass
         } else {
-            CheckVerdict::Fail(
-                "Missing schema declaration: schema: \"nika/workflow@0.12\"".into(),
-            )
+            CheckVerdict::Fail("Missing schema declaration: schema: \"nika/workflow@0.12\"".into())
         },
     }
 }

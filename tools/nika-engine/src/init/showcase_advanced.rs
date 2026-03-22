@@ -142,7 +142,11 @@ mod tests {
     #[test]
     fn test_showcase_all_have_workflow_name() {
         for w in &get_showcase_advanced_workflows() {
-            assert!(w.content.contains("workflow:"), "{} needs workflow:", w.filename);
+            assert!(
+                w.content.contains("workflow:"),
+                "{} needs workflow:",
+                w.filename
+            );
         }
     }
 
@@ -156,8 +160,16 @@ mod tests {
     #[test]
     fn test_showcase_all_have_provider_model() {
         for w in &get_showcase_advanced_workflows() {
-            assert!(w.content.contains("{{PROVIDER}}"), "{} needs PROVIDER", w.filename);
-            assert!(w.content.contains("{{MODEL}}"), "{} needs MODEL", w.filename);
+            assert!(
+                w.content.contains("{{PROVIDER}}"),
+                "{} needs PROVIDER",
+                w.filename
+            );
+            assert!(
+                w.content.contains("{{MODEL}}"),
+                "{} needs MODEL",
+                w.filename
+            );
         }
     }
 
@@ -187,7 +199,13 @@ mod tests {
             assert!(all.contains(verb), "Must cover {verb}");
         }
         for feat in [
-            "for_each:", "structured:", "guardrails:", "limits:", "completion:", "mcp:", "inputs:",
+            "for_each:",
+            "structured:",
+            "guardrails:",
+            "limits:",
+            "completion:",
+            "mcp:",
+            "inputs:",
         ] {
             assert!(all.contains(feat), "Must use {feat}");
         }
@@ -205,8 +223,14 @@ mod tests {
             assert!(all.contains(tool), "Must use {tool}");
         }
         assert!(all.contains("type: image"), "Must use vision");
-        assert!(all.contains("extract: markdown"), "Must use extract: markdown");
-        assert!(all.contains("response: binary"), "Must use response: binary");
+        assert!(
+            all.contains("extract: markdown"),
+            "Must use extract: markdown"
+        );
+        assert!(
+            all.contains("response: binary"),
+            "Must use response: binary"
+        );
     }
 
     #[test]
@@ -230,14 +254,22 @@ mod tests {
             let ids: Vec<String> = w
                 .content
                 .lines()
-                .filter_map(|l| l.trim().strip_prefix("- id: ").map(|s| s.trim().to_string()))
+                .filter_map(|l| {
+                    l.trim()
+                        .strip_prefix("- id: ")
+                        .map(|s| s.trim().to_string())
+                })
                 .collect();
             for line in w.content.lines() {
                 if let Some(deps) = line.trim().strip_prefix("depends_on: [") {
                     for dep in deps.trim_end_matches(']').split(',') {
                         let dep = dep.trim();
                         if !dep.is_empty() {
-                            assert!(ids.contains(&dep.to_string()), "{}: unknown dep '{dep}'", w.filename);
+                            assert!(
+                                ids.contains(&dep.to_string()),
+                                "{}: unknown dep '{dep}'",
+                                w.filename
+                            );
                         }
                     }
                 }

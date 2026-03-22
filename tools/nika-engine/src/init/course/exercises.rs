@@ -65,7 +65,6 @@ pub static EXERCISES: &[ExerciseContent] = &[
         template: JAILBREAK_05_TEMPLATE,
         solution: JAILBREAK_05_SOLUTION,
     },
-
     // ═════════════════════════════════════════════════════════════════════════
     // LEVEL 02: HOT WIRE — Wire up the data flow (4 exercises)
     // ═════════════════════════════════════════════════════════════════════════
@@ -102,7 +101,6 @@ pub static EXERCISES: &[ExerciseContent] = &[
         template: HOT_WIRE_04_TEMPLATE,
         solution: HOT_WIRE_04_SOLUTION,
     },
-
     // ═════════════════════════════════════════════════════════════════════════
     // LEVEL 03: FORK BOMB — Multiply your power (4 exercises)
     // ═════════════════════════════════════════════════════════════════════════
@@ -139,7 +137,6 @@ pub static EXERCISES: &[ExerciseContent] = &[
         template: FORK_BOMB_04_TEMPLATE,
         solution: FORK_BOMB_04_SOLUTION,
     },
-
     // ═════════════════════════════════════════════════════════════════════════
     // LEVEL 04: ROOT ACCESS — Unlock deeper workflow power (3 exercises)
     // ═════════════════════════════════════════════════════════════════════════
@@ -168,7 +165,6 @@ pub static EXERCISES: &[ExerciseContent] = &[
         template: ROOT_ACCESS_03_TEMPLATE,
         solution: ROOT_ACCESS_03_SOLUTION,
     },
-
     // ═════════════════════════════════════════════════════════════════════════
     // LEVEL 05: SHAPESHIFTER — Transform and validate output (3 exercises)
     // ═════════════════════════════════════════════════════════════════════════
@@ -197,7 +193,6 @@ pub static EXERCISES: &[ExerciseContent] = &[
         template: SHAPESHIFTER_03_TEMPLATE,
         solution: SHAPESHIFTER_03_SOLUTION,
     },
-
     // ═════════════════════════════════════════════════════════════════════════
     // LEVEL 06: PAY-PER-DREAM — Master the LLM landscape (3 exercises)
     // ═════════════════════════════════════════════════════════════════════════
@@ -2003,7 +1998,11 @@ mod tests {
 
     #[test]
     fn test_exercise_count() {
-        assert_eq!(EXERCISES.len(), 22, "Must have exactly 22 exercises for Levels 1-6");
+        assert_eq!(
+            EXERCISES.len(),
+            22,
+            "Must have exactly 22 exercises for Levels 1-6"
+        );
     }
 
     #[test]

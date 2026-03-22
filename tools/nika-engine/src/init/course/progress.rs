@@ -102,7 +102,11 @@ impl CourseProgress {
     /// Load progress from a TOML file
     pub fn load(path: &Path) -> Result<Self> {
         let content = std::fs::read_to_string(path).map_err(|e| NikaError::ConfigError {
-            reason: format!("Failed to read course progress at {}: {}", path.display(), e),
+            reason: format!(
+                "Failed to read course progress at {}: {}",
+                path.display(),
+                e
+            ),
         })?;
         toml::from_str(&content).map_err(|e| NikaError::ConfigError {
             reason: format!("Failed to parse course progress: {}", e),
@@ -121,7 +125,11 @@ impl CourseProgress {
             })?;
         }
         std::fs::write(path, content).map_err(|e| NikaError::ConfigError {
-            reason: format!("Failed to write course progress to {}: {}", path.display(), e),
+            reason: format!(
+                "Failed to write course progress to {}: {}",
+                path.display(),
+                e
+            ),
         })?;
         Ok(())
     }
@@ -145,9 +153,10 @@ impl CourseProgress {
             }
 
             // Check if all exercises are Passed or Perfect
-            let all_done = lp.exercises.values().all(|s| {
-                *s == ExerciseStatus::Passed || *s == ExerciseStatus::Perfect
-            });
+            let all_done = lp
+                .exercises
+                .values()
+                .all(|s| *s == ExerciseStatus::Passed || *s == ExerciseStatus::Perfect);
             if all_done {
                 lp.status = LevelStatus::Completed;
                 // Unlock next level
@@ -385,10 +394,12 @@ mod tests {
     fn test_perfect_not_downgraded() {
         let mut progress = CourseProgress::new_course();
         // Manually set to Perfect
-        progress.levels.get_mut("1").unwrap().exercises.insert(
-            "1".to_string(),
-            ExerciseStatus::Perfect,
-        );
+        progress
+            .levels
+            .get_mut("1")
+            .unwrap()
+            .exercises
+            .insert("1".to_string(), ExerciseStatus::Perfect);
         // mark_exercise_passed should not downgrade Perfect -> Passed
         progress.mark_exercise_passed(1, 1);
         assert_eq!(progress.levels["1"].exercises["1"], ExerciseStatus::Perfect);

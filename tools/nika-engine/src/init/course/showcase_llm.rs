@@ -68,7 +68,8 @@ pub static SHOWCASE_LLM: &[ShowcaseWorkflow] = &[
     },
     ShowcaseWorkflow {
         name: "technical-rfc-writer",
-        description: "Problem analysis, solution design, alternatives evaluation, full RFC document",
+        description:
+            "Problem analysis, solution design, alternatives evaluation, full RFC document",
         category: "engineering",
         content: TECHNICAL_RFC_WRITER,
         requires_llm: true,
@@ -82,7 +83,8 @@ pub static SHOWCASE_LLM: &[ShowcaseWorkflow] = &[
     },
     ShowcaseWorkflow {
         name: "vulnerability-scanner-report",
-        description: "Run cargo audit, analyze findings with CVSS scoring, executive security report",
+        description:
+            "Run cargo audit, analyze findings with CVSS scoring, executive security report",
         category: "engineering",
         content: VULNERABILITY_SCANNER_REPORT,
         requires_llm: true,
@@ -92,7 +94,8 @@ pub static SHOWCASE_LLM: &[ShowcaseWorkflow] = &[
     // =========================================================================
     ShowcaseWorkflow {
         name: "competitive-analysis",
-        description: "Scrape 3 competitor sites, extract profiles in parallel, strategic comparison",
+        description:
+            "Scrape 3 competitor sites, extract profiles in parallel, strategic comparison",
         category: "analysis",
         content: COMPETITIVE_ANALYSIS,
         requires_llm: true,
@@ -144,7 +147,8 @@ pub static SHOWCASE_LLM: &[ShowcaseWorkflow] = &[
     },
     ShowcaseWorkflow {
         name: "sprint-retrospective",
-        description: "Analyze sprint metrics, structured went-well/needs-improvement, retro document",
+        description:
+            "Analyze sprint metrics, structured went-well/needs-improvement, retro document",
         category: "operations",
         content: SPRINT_RETROSPECTIVE,
         requires_llm: true,
@@ -158,7 +162,8 @@ pub static SHOWCASE_LLM: &[ShowcaseWorkflow] = &[
     },
     ShowcaseWorkflow {
         name: "content-localization",
-        description: "Write marketing copy, localize for 4 markets with cultural adaptation, review matrix",
+        description:
+            "Write marketing copy, localize for 4 markets with cultural adaptation, review matrix",
         category: "operations",
         content: CONTENT_LOCALIZATION,
         requires_llm: true,
@@ -2062,10 +2067,23 @@ mod tests {
 
     #[test]
     fn test_showcase_llm_verb_diversity() {
-        let all: String = SHOWCASE_LLM.iter().map(|w| w.content).collect::<Vec<_>>().join("\n");
-        assert!(all.contains("exec:"), "Must include exec: across all workflows");
-        assert!(all.contains("fetch:"), "Must include fetch: across all workflows");
-        assert!(all.contains("infer:"), "Must include infer: across all workflows");
+        let all: String = SHOWCASE_LLM
+            .iter()
+            .map(|w| w.content)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            all.contains("exec:"),
+            "Must include exec: across all workflows"
+        );
+        assert!(
+            all.contains("fetch:"),
+            "Must include fetch: across all workflows"
+        );
+        assert!(
+            all.contains("infer:"),
+            "Must include infer: across all workflows"
+        );
         assert!(all.contains("for_each:"), "Must include for_each: pattern");
         assert!(
             all.contains("response_format: json"),
@@ -2076,12 +2094,18 @@ mod tests {
     #[test]
     fn test_showcase_llm_categories() {
         let categories: Vec<&str> = SHOWCASE_LLM.iter().map(|w| w.category).collect();
-        assert!(categories.contains(&"content"), "Must have content category");
+        assert!(
+            categories.contains(&"content"),
+            "Must have content category"
+        );
         assert!(
             categories.contains(&"engineering"),
             "Must have engineering category"
         );
-        assert!(categories.contains(&"analysis"), "Must have analysis category");
+        assert!(
+            categories.contains(&"analysis"),
+            "Must have analysis category"
+        );
         assert!(
             categories.contains(&"operations"),
             "Must have operations category"

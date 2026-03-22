@@ -1,0 +1,79 @@
+# =============================================================================
+# ERROR HANDLING DEMO 07: Dependency Failure Cascade
+# =============================================================================
+#
+# When a task fails, all tasks that depend on it (directly or transitively)
+# are automatically skipped. This prevents wasted work and provides clear
+# error reporting about what failed and what was blocked.
+#
+# The cascade is tracked via NIKA-026 (DependencyChainFailed), which reports:
+#   - How many tasks were blocked
+#   - Which task was the root failure
+#   - The full chain of skipped tasks
+#
+# DEMONSTRATES:
+#   - NIKA-096 (Execution): root task failure
+#   - NIKA-026 (DependencyChainFailed): cascade skip for all dependents
+#   - Independent branches continue executing
+#   - Final task can depend on the successful branch only
+#
+# EXPECTED BEHAVIOR:
+#   "task_a"   FAILS    -> exit code 1 (root failure)
+#   "task_b"   SKIPPED  -> depends on task_a (cascade)
+#   "task_c"   SKIPPED  -> depends on task_b (transitive cascade)
+#   "task_d"   succeeds -> independent branch, no dependency on task_a
+#   "reporter" succeeds -> depends only on task_d
+#
+# RUN: nika run 07-dependency-cascade.nika.yaml
+# =============================================================================
+
+schema: "nika/workflow@0.12"
+
+workflow: error-dependency-cascade
+
+tasks:
+  # ROOT FAILURE: this task exits with code 1.
+  # All downstream dependents will be skipped.
+  - id: task_a
+    exec:
+      command: "echo 'Task A: simulating failure...' && exit 1"
+      shell: true
+
+  # SKIPPED: directly depends on task_a which failed.
+  # Nika reports: "task_b skipped due to failed dependency task_a"
+  - id: task_b
+    depends_on: [task_a]
+    exec: "echo 'Task B: I depend on A — will be skipped'"
+
+  # SKIPPED: transitively depends on task_a via task_b.
+  # The full chain: task_a (FAILED) -> task_b (SKIPPED) -> task_c (SKIPPED)
+  - id: task_c
+    depends_on: [task_b]
+    exec: "echo 'Task C: I depend on B which depends on A — double skipped'"
+
+  # INDEPENDENT: no dependency on the failed chain.
+  # This task runs regardless of task_a's failure.
+  - id: task_d
+    exec:
+      command: |
+        echo "Task D: I'm on an independent branch!"
+        echo "The failure of task_a does not affect me."
+        echo "This is the power of DAG-based execution."
+      shell: true
+
+  # Reporter: depends ONLY on the successful branch.
+  # Demonstrates selective dependency for error-resilient workflows.
+  - id: reporter
+    depends_on: [task_d]
+    exec:
+      command: |
+        echo "=== Dependency Cascade Report ==="
+        echo "task_a:   FAILED (root cause)"
+        echo "task_b:   SKIPPED (depends on task_a)"
+        echo "task_c:   SKIPPED (depends on task_b -> task_a)"
+        echo "task_d:   PASSED (independent branch)"
+        echo "reporter: PASSED (depends only on task_d)"
+        echo ""
+        echo "3 tasks affected by cascade, 2 tasks unaffected."
+        echo "Nika skips cleanly — no zombie processes, no hangs."
+      shell: true
