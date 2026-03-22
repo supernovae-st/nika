@@ -20,10 +20,14 @@ mod context;
 pub mod course;
 mod minimal;
 mod schemas;
+mod showcase_fetch;
+mod showcase_patterns;
 
 pub use context::*;
 pub use minimal::*;
 pub use schemas::*;
+pub use showcase_fetch::*;
+pub use showcase_patterns::*;
 
 /// Workflow definition with metadata
 pub struct WorkflowTemplate {
@@ -43,9 +47,12 @@ pub struct ContextFile {
     pub content: &'static str,
 }
 
-/// All workflows (5 minimal starters)
+/// All workflows (5 minimal + 15 showcase-fetch + 15 showcase-patterns)
 pub fn get_all_workflows() -> Vec<WorkflowTemplate> {
-    minimal::get_minimal_workflows()
+    let mut all = minimal::get_minimal_workflows();
+    all.extend(showcase_fetch::get_showcase_fetch_workflows());
+    all.extend(showcase_patterns::get_showcase_workflows());
+    all
 }
 
 /// All context files
@@ -135,7 +142,11 @@ mod tests {
     #[test]
     fn test_all_workflows_count() {
         let workflows = get_all_workflows();
-        assert_eq!(workflows.len(), 5, "Should have exactly 5 minimal workflows");
+        assert_eq!(
+            workflows.len(),
+            35,
+            "Should have 5 minimal + 15 showcase-fetch + 15 showcase-patterns workflows"
+        );
     }
 
     #[test]
@@ -280,8 +291,8 @@ mod tests {
     fn test_course_total_exercises() {
         assert_eq!(
             course::levels::total_exercises(),
-            44,
-            "Course should have 44 total exercises"
+            56,
+            "Course should have 56 total exercises"
         );
     }
 }
