@@ -539,22 +539,7 @@ impl Widget for StatusBar<'_> {
             ));
         }
 
-        for (i, hint) in hints.iter().enumerate() {
-            if i > 0 || self.input_mode.is_some() || self.custom_text.is_some() {
-                left_spans.push(Span::raw("  "));
-            }
-            left_spans.push(Span::styled(
-                format!("[{}]", &*hint.key),
-                Style::default()
-                    .fg(self.theme.highlight)
-                    .add_modifier(Modifier::BOLD),
-            ));
-            left_spans.push(Span::raw(" "));
-            left_spans.push(Span::styled(
-                hint.action.to_string(),
-                Style::default().fg(self.theme.text_secondary),
-            ));
-        }
+        // Hints are added after metrics width is known (progressive disclosure below)
 
         // Build right side (metrics) if available
         let mut right_spans: Vec<Span> = Vec::new();
@@ -712,22 +697,60 @@ impl Widget for StatusBar<'_> {
             right_spans.push(Span::raw(" "));
         }
 
-        // Calculate widths for layout (use display width, not byte length)
-        let left_width: usize = left_spans
-            .iter()
-            .map(|s| UnicodeWidthStr::width(s.content.as_ref()))
-            .sum();
+        // Progressive disclosure: metrics (right) always render,
+        // hints (left) get dropped from lowest priority when space is tight
         let right_width: usize = right_spans
             .iter()
             .map(|s| UnicodeWidthStr::width(s.content.as_ref()))
             .sum();
+        let left_base_width: usize = left_spans
+            .iter()
+            .map(|s| UnicodeWidthStr::width(s.content.as_ref()))
+            .sum();
+        let available_for_hints = (area.width as usize)
+            .saturating_sub(right_width)
+            .saturating_sub(left_base_width)
+            .saturating_sub(2); // padding
+
+        // Only add hints that fit in remaining space
+        let mut hints_width = 0usize;
+        for (i, hint) in hints.iter().enumerate() {
+            let hint_width = if i > 0 || self.input_mode.is_some() || self.custom_text.is_some() {
+                2 // leading "  "
+            } else {
+                0
+            } + hint.key.len()
+                + 2 // brackets []
+                + 1 // space
+                + hint.action.len();
+            if hints_width + hint_width > available_for_hints {
+                break; // No more room
+            }
+            hints_width += hint_width;
+
+            if i > 0 || self.input_mode.is_some() || self.custom_text.is_some() {
+                left_spans.push(Span::raw("  "));
+            }
+            left_spans.push(Span::styled(
+                format!("[{}]", &*hint.key),
+                Style::default()
+                    .fg(self.theme.highlight)
+                    .add_modifier(Modifier::BOLD),
+            ));
+            left_spans.push(Span::raw(" "));
+            left_spans.push(Span::styled(
+                hint.action.to_string(),
+                Style::default().fg(self.theme.text_secondary),
+            ));
+        }
 
         // Render left side
         let left_line = Line::from(left_spans);
         let left_paragraph = Paragraph::new(left_line).style(Style::default().bg(header_bg));
         left_paragraph.render(area, buf);
 
-        // Render right side (right-aligned)
+        // Render right side (right-aligned) — always shown if space exists
+        let left_width = left_base_width + hints_width;
         if !right_spans.is_empty() && area.width as usize > left_width + right_width {
             let right_x = area.x + area.width - right_width as u16;
             let right_line = Line::from(right_spans);
