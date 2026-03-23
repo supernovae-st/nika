@@ -161,6 +161,13 @@ static OPENAI_PRICING: LazyLock<HashMap<&'static str, ModelPricing>> = LazyLock:
     m.insert("o1-preview", ModelPricing::new(15.0, 60.0));
     m.insert("o1-mini", ModelPricing::new(3.0, 12.0));
     m.insert("o1-mini-2024-09-12", ModelPricing::new(3.0, 12.0));
+    // GPT-4.1
+    m.insert("gpt-4.1", ModelPricing::new(2.0, 8.0));
+    m.insert("gpt-4.1-2025-04-14", ModelPricing::new(2.0, 8.0));
+    m.insert("gpt-4.1-mini", ModelPricing::new(0.4, 1.6));
+    m.insert("gpt-4.1-mini-2025-04-14", ModelPricing::new(0.4, 1.6));
+    m.insert("gpt-4.1-nano", ModelPricing::new(0.1, 0.4));
+    m.insert("gpt-4.1-nano-2025-04-14", ModelPricing::new(0.1, 0.4));
     // o3-mini
     m.insert("o3-mini", ModelPricing::new(1.1, 4.4));
     m.insert("o3-mini-2025-01-31", ModelPricing::new(1.1, 4.4));
