@@ -339,7 +339,7 @@ impl TextBuffer {
 
     /// Convert a char index to a byte offset within a string.
     /// Handles multi-byte UTF-8 correctly.
-    fn char_to_byte(s: &str, char_idx: usize) -> usize {
+    pub(super) fn char_to_byte(s: &str, char_idx: usize) -> usize {
         s.char_indices()
             .nth(char_idx)
             .map(|(byte_idx, _)| byte_idx)
@@ -539,7 +539,11 @@ impl TextBuffer {
     pub fn select_all(&mut self) {
         let start = Position::new(0, 0);
         let last_line = self.lines.len().saturating_sub(1);
-        let last_col = self.lines.get(last_line).map(|l| l.len()).unwrap_or(0);
+        let last_col = self
+            .lines
+            .get(last_line)
+            .map(|l| l.chars().count())
+            .unwrap_or(0);
         let end = Position::new(last_line, last_col);
         self.selections.primary_mut().select_range(start, end);
         self.cursor_row = last_line;
@@ -694,14 +698,16 @@ impl TextBuffer {
         *self = Self::from_content(content);
     }
 
-    /// Set cursor to linear position
+    /// Set cursor to linear position (byte offset → row/col in chars)
     pub fn set_cursor_position(&mut self, pos: usize) {
         let mut remaining = pos;
         for (row, line) in self.lines.iter().enumerate() {
             let line_len = line.len() + 1; // +1 for newline
             if remaining < line_len || row + 1 >= self.lines.len() {
                 self.cursor_row = row;
-                self.cursor_col = remaining.min(line.len());
+                // Convert byte offset within line to char count
+                let byte_col = remaining.min(line.len());
+                self.cursor_col = line[..byte_col].chars().count();
                 self.adjust_scroll();
                 return;
             }
@@ -709,7 +715,11 @@ impl TextBuffer {
         }
         // Fallback: end of document
         self.cursor_row = self.lines.len().saturating_sub(1);
-        self.cursor_col = self.lines.last().map(|l| l.len()).unwrap_or(0);
+        self.cursor_col = self
+            .lines
+            .last()
+            .map(|l| l.chars().count())
+            .unwrap_or(0);
         self.adjust_scroll();
     }
 }

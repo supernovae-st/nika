@@ -6,7 +6,9 @@
 use nika_lsp_core::analysis::context::detect_context;
 use nika_lsp_core::handler::LspHandler;
 
-use super::{CodeActionDisplay, CodeActionState, CompletionEntry, HoverState, YamlEditorPanel};
+use super::{
+    CodeActionDisplay, CodeActionState, CompletionEntry, HoverState, TextBuffer, YamlEditorPanel,
+};
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // In-process LSP: Completion + Hover (Phase 4)
@@ -39,7 +41,8 @@ impl YamlEditorPanel {
         // position after the trigger char was inserted (phantom completion fix).
         let (row, col) = self.buffer.cursor();
         let line = &self.buffer.lines()[row];
-        let word_start = line[..col.min(line.len())]
+        let byte_col = TextBuffer::char_to_byte(line, col);
+        let word_start = line[..byte_col]
             .rfind(|c: char| !c.is_alphanumeric() && c != '_' && c != '-' && c != ':')
             .map(|i| i + 1)
             .unwrap_or(0);
