@@ -43,6 +43,7 @@ use rig::tool::{ToolDyn, ToolError};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use tokio_util::sync::CancellationToken;
 
 use crate::ast::AgentParams;
 use crate::event::{EventKind, EventLog};
@@ -83,6 +84,8 @@ pub struct SpawnAgentTool {
     mcp_clients: FxHashMap<String, Arc<McpClient>>,
     /// MCP server names for child agents (from parent AgentParams.mcp)
     mcp_names: Vec<String>,
+    /// Cancellation token from parent — child agent races against this
+    cancel_token: CancellationToken,
 }
 
 impl SpawnAgentTool {
@@ -106,6 +109,7 @@ impl SpawnAgentTool {
             event_log,
             mcp_clients: FxHashMap::default(),
             mcp_names: Vec::new(),
+            cancel_token: CancellationToken::new(),
         }
     }
 
@@ -118,6 +122,7 @@ impl SpawnAgentTool {
     /// * `event_log` - Shared event log for observability
     /// * `mcp_clients` - Connected MCP clients for child agent tools
     /// * `mcp_names` - MCP server names to pass to child agents
+    /// * `cancel_token` - Parent's cancellation token for cooperative shutdown
     pub fn with_mcp(
         current_depth: u32,
         max_depth: u32,
@@ -125,6 +130,7 @@ impl SpawnAgentTool {
         event_log: EventLog,
         mcp_clients: FxHashMap<String, Arc<McpClient>>,
         mcp_names: Vec<String>,
+        cancel_token: CancellationToken,
     ) -> Self {
         Self {
             current_depth,
@@ -133,6 +139,7 @@ impl SpawnAgentTool {
             event_log,
             mcp_clients,
             mcp_names,
+            cancel_token,
         }
     }
 
@@ -244,10 +251,17 @@ impl SpawnAgentTool {
 
         // Execute child agent with auto-detected provider (production mode)
         // Uses ANTHROPIC_API_KEY or OPENAI_API_KEY from environment
-        let result = child_loop
-            .run_auto()
-            .await
-            .map_err(|e| SpawnAgentError::ExecutionFailed(e.to_string()))?;
+        // Race against parent's cancellation token for cooperative shutdown
+        let result = tokio::select! {
+            res = child_loop.run_auto() => {
+                res.map_err(|e| SpawnAgentError::ExecutionFailed(e.to_string()))?
+            }
+            _ = self.cancel_token.cancelled() => {
+                return Err(SpawnAgentError::ExecutionFailed(
+                    "parent agent was cancelled".to_string(),
+                ));
+            }
+        };
 
         // Return child's result
         Ok(json!({
@@ -552,6 +566,7 @@ mod tests {
             event_log,
             mcp_clients,
             mcp_names.clone(),
+            CancellationToken::new(),
         );
 
         assert_eq!(tool.name(), "spawn_agent");

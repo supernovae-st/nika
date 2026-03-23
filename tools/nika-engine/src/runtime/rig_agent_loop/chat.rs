@@ -123,7 +123,9 @@ impl RigAgentLoop {
             .params
             .model
             .as_deref()
-            .expect("model is required -- validated by analyzer");
+            .ok_or_else(|| NikaError::ValidationError {
+                reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
+            })?;
         let model = client.completion_model(model_name);
 
         let turn_index = self.turn_count + 1;
@@ -225,7 +227,9 @@ impl RigAgentLoop {
             .params
             .model
             .as_deref()
-            .expect("model is required -- validated by analyzer");
+            .ok_or_else(|| NikaError::ValidationError {
+                reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
+            })?;
         let model = client.completion_model(model_name);
 
         let turn_index = self.turn_count + 1;
@@ -326,7 +330,9 @@ impl RigAgentLoop {
             .params
             .model
             .as_deref()
-            .expect("model is required -- validated by analyzer");
+            .ok_or_else(|| NikaError::ValidationError {
+                reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
+            })?;
         let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
         let agent = client
             .agent(model_name)
@@ -392,7 +398,9 @@ impl RigAgentLoop {
             .params
             .model
             .as_deref()
-            .expect("model is required -- validated by analyzer");
+            .ok_or_else(|| NikaError::ValidationError {
+                reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
+            })?;
         let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
         let agent = client
             .agent(model_name)
@@ -461,7 +469,9 @@ impl RigAgentLoop {
             .params
             .model
             .as_deref()
-            .expect("model is required -- validated by analyzer");
+            .ok_or_else(|| NikaError::ValidationError {
+                reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
+            })?;
         let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
         let agent = client
             .agent(model_name)
@@ -527,7 +537,9 @@ impl RigAgentLoop {
             .params
             .model
             .as_deref()
-            .expect("model is required -- validated by analyzer");
+            .ok_or_else(|| NikaError::ValidationError {
+                reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
+            })?;
         let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
         let agent = client
             .agent(model_name)

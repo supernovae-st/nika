@@ -101,6 +101,18 @@ pub async fn handle_doctor_command(full: bool, format: &str, quiet: bool) -> Res
     // 11. Check editor integration (VS Code + extension)
     checks.extend(check_editor_integration());
 
+    // 12. Check AI coding tool rules
+    checks.extend(check_ai_rules());
+
+    // 13. Check Agent Skills
+    checks.push(check_agent_skills());
+
+    // 14. Check AGENTS.md
+    checks.push(check_agents_md());
+
+    // 15. Check git co-author hook
+    checks.push(check_git_hook());
+
     // Output results
     if format == "json" {
         output_doctor_json(&checks)?;
@@ -563,6 +575,139 @@ fn check_editor_integration() -> Vec<DiagnosticCheck> {
     }
 
     checks
+}
+
+// ─── AI Integration Checks ────────────────────────────────────────────────────
+
+fn check_ai_rules() -> Vec<DiagnosticCheck> {
+    let mut checks = vec![];
+
+    let rules: &[(&str, &str, &str)] = &[
+        ("Claude Code", ".claude/rules/nika.md", "nika init"),
+        ("Cursor", ".cursor/rules/nika-workflows.mdc", "nika init"),
+        (
+            "Copilot",
+            ".github/copilot/nika.instructions.md",
+            "nika init",
+        ),
+        ("Windsurf", ".windsurf/rules/nika.md", "nika init"),
+        ("Roo Code", ".roo/rules/nika.md", "nika init"),
+    ];
+
+    for (tool, path, _fix_cmd) in rules {
+        if std::path::Path::new(path).exists() {
+            checks.push(DiagnosticCheck::pass(
+                "AI Rules",
+                format!("{tool} rules present ({path})"),
+            ));
+        }
+        // Only warn if the tool is detected (don't warn for tools not installed)
+    }
+
+    if checks.is_empty() {
+        checks.push(DiagnosticCheck::warn(
+            "AI Rules",
+            "No AI coding tool rules found",
+            "Run: nika init (select AI rules) to generate per-tool rules",
+        ));
+    }
+
+    checks
+}
+
+fn check_agent_skills() -> DiagnosticCheck {
+    let home = dirs::home_dir().unwrap_or_default();
+
+    // Check user-level skills
+    let user_skills = home.join(".agents/skills");
+    let has_user = user_skills.join("nika-workflow-syntax").exists()
+        || user_skills.join("nika-create").exists();
+
+    // Check project-level skills
+    let has_project = std::path::Path::new("skills/nika-workflow-syntax").exists()
+        || std::path::Path::new(".agents/skills/nika-workflow-syntax").exists();
+
+    if has_user {
+        DiagnosticCheck::pass(
+            "Agent Skills",
+            format!(
+                "Nika skills installed at {}",
+                user_skills.display()
+            ),
+        )
+    } else if has_project {
+        DiagnosticCheck::pass("Agent Skills", "Nika skills present in project")
+    } else {
+        DiagnosticCheck::warn(
+            "Agent Skills",
+            "No Nika Agent Skills installed",
+            "Run: nika setup ai (global) or: npx skills add SuperNovae-studio/nika-skills",
+        )
+    }
+}
+
+fn check_agents_md() -> DiagnosticCheck {
+    if std::path::Path::new("AGENTS.md").exists() {
+        let is_symlink = std::fs::symlink_metadata("CLAUDE.md")
+            .map(|m| m.file_type().is_symlink())
+            .unwrap_or(false);
+        if is_symlink {
+            DiagnosticCheck::pass(
+                "AGENTS.md",
+                "AGENTS.md present (CLAUDE.md symlinked)",
+            )
+        } else if std::path::Path::new("CLAUDE.md").exists() {
+            DiagnosticCheck::warn(
+                "AGENTS.md",
+                "Both AGENTS.md and CLAUDE.md exist (not symlinked)",
+                "Consider: ln -sf AGENTS.md CLAUDE.md",
+            )
+        } else {
+            DiagnosticCheck::pass("AGENTS.md", "AGENTS.md present")
+        }
+    } else if std::path::Path::new("CLAUDE.md").exists() {
+        DiagnosticCheck::warn(
+            "AGENTS.md",
+            "Only CLAUDE.md found (20+ tools support AGENTS.md)",
+            "Migrate: mv CLAUDE.md AGENTS.md && ln -s AGENTS.md CLAUDE.md",
+        )
+    } else {
+        DiagnosticCheck::warn(
+            "AGENTS.md",
+            "No AGENTS.md or CLAUDE.md found",
+            "Create with: nika init (or manually)",
+        )
+    }
+}
+
+fn check_git_hook() -> DiagnosticCheck {
+    let hook_path = std::path::Path::new(".git/hooks/prepare-commit-msg");
+    if !std::path::Path::new(".git").exists() {
+        return DiagnosticCheck::warn(
+            "Git Hook",
+            "Not a git repository",
+            "Initialize with: git init",
+        );
+    }
+
+    if hook_path.exists() {
+        let content = fs::read_to_string(hook_path).unwrap_or_default();
+        if content.contains("Nika co-author") {
+            DiagnosticCheck::pass("Git Hook", "Co-author hook installed")
+        } else {
+            DiagnosticCheck::warn(
+                "Git Hook",
+                "prepare-commit-msg hook exists but is not Nika's",
+                "Run: nika setup git (will backup existing hook)",
+            )
+        }
+    } else {
+        DiagnosticCheck::warn(
+            "Git Hook",
+            "No co-author hook installed",
+            "Run: nika setup git",
+        )
+    }
 }
 
 fn output_doctor_text(checks: &[DiagnosticCheck], quiet: bool) {

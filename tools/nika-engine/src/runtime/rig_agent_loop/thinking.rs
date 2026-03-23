@@ -320,7 +320,9 @@ impl RigAgentLoop {
             .params
             .model
             .as_deref()
-            .expect("model is required -- validated by analyzer");
+            .ok_or_else(|| NikaError::ValidationError {
+                reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
+            })?;
         let model = client.completion_model(model_name);
 
         // Build completion request with thinking enabled

@@ -231,6 +231,7 @@ impl RigAgentLoop {
                 event_log.clone(),
                 mcp_clients.clone(),
                 params.mcp.clone(),
+                tokio_util::sync::CancellationToken::new(),
             );
             tools.push(Arc::new(spawn_tool));
         }

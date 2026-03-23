@@ -149,15 +149,8 @@ impl LanguageServer for NikaBackend {
                 document_symbol_provider: Some(OneOf::Left(true)),
                 // Code actions
                 code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
-                // Diagnostics
-                diagnostic_provider: Some(DiagnosticServerCapabilities::Options(
-                    DiagnosticOptions {
-                        identifier: Some("nika".to_string()),
-                        inter_file_dependencies: true,
-                        workspace_diagnostics: true,
-                        ..Default::default()
-                    },
-                )),
+                // Diagnostics: push model via publish_diagnostics on did_change
+                // (pull-diagnostics not implemented, so no diagnostic_provider here)
                 ..Default::default()
             },
             server_info: Some(ServerInfo {
@@ -259,7 +252,9 @@ impl LanguageServer for NikaBackend {
         };
 
         // Calculate byte offset from LSP Position
-        let offset = position_to_offset(&text, position);
+        let offset = crate::position::position_to_offset(&text, position.line, position.character)
+            .map(|o| o.0)
+            .unwrap_or(0);
 
         // Use nika-lsp-core for unified context detection + completions
         let context = nika_lsp_core::analysis::context::detect_context(&text, offset, None);
@@ -444,8 +439,12 @@ impl LanguageServer for NikaBackend {
             None => return Ok(None),
         };
 
-        let start = position_to_offset(&text, params.range.start);
-        let end = position_to_offset(&text, params.range.end);
+        let start = crate::position::position_to_offset(&text, params.range.start.line, params.range.start.character)
+            .map(|o| o.0)
+            .unwrap_or(0);
+        let end = crate::position::position_to_offset(&text, params.range.end.line, params.range.end.character)
+            .map(|o| o.0)
+            .unwrap_or(0);
         let entries = self.handler.code_actions(&text, start, end);
 
         let actions: Vec<CodeActionOrCommand> = entries
@@ -541,21 +540,7 @@ fn offset_to_position(text: &str, offset: u32) -> Position {
     Position { line, character }
 }
 
-/// Convert LSP Position to byte offset in the document text.
-///
-/// Walks the text line-by-line to find the byte offset corresponding to the
-/// given line/character position. Characters are counted as UTF-16 code units
-/// per the LSP spec (but for ASCII-only YAML this is effectively byte offset).
-fn position_to_offset(text: &str, position: Position) -> u32 {
-    let mut offset = 0u32;
-    for (i, line) in text.lines().enumerate() {
-        if i == position.line as usize {
-            return offset + position.character.min(line.len() as u32);
-        }
-        offset += line.len() as u32 + 1; // +1 for \n
-    }
-    text.len() as u32
-}
+// position_to_offset: use crate::position::position_to_offset (CRLF-safe)
 
 /// Extract word at column position.
 fn extract_word_at_col(line: &str, col: usize) -> String {

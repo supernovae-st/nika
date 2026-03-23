@@ -879,9 +879,20 @@ impl TaskExecutor {
             // Strip sensitive env vars from child process
             crate::runtime::security::strip_sensitive_env_vars(&mut cmd);
 
-            // Set working directory if specified
+            // Set working directory if specified (with path traversal protection)
             if let Some(ref cwd) = params.cwd {
-                cmd.current_dir(cwd);
+                let resolved = std::path::Path::new(cwd).canonicalize()
+                    .map_err(|e| NikaError::Execution(format!("Invalid cwd '{}': {}", cwd, e)))?;
+                let working_dir = self.workflow_base_dir.canonicalize()
+                    .unwrap_or_else(|_| self.workflow_base_dir.clone());
+                if !resolved.starts_with(&working_dir) {
+                    return Err(NikaError::Execution(format!(
+                        "Security: exec cwd '{}' escapes working directory '{}'",
+                        cwd,
+                        working_dir.display()
+                    )));
+                }
+                cmd.current_dir(resolved);
             }
 
             // Add environment variables if specified (validate first)
@@ -897,15 +908,25 @@ impl TaskExecutor {
                 }
             }
 
-            tokio::time::timeout(exec_deadline, cmd.output())
-                .await
-                .map_err(|_| {
-                    NikaError::Execution(format!(
+            // kill_on_drop ensures child is killed when dropped on timeout (prevents orphans)
+            cmd.kill_on_drop(true);
+            let child = cmd.spawn()
+                .map_err(|e| NikaError::Execution(format!("Failed to spawn command: {}", e)))?;
+            match tokio::time::timeout(exec_deadline, child.wait_with_output()).await {
+                Ok(Ok(out)) => out,
+                Ok(Err(e)) => {
+                    return Err(NikaError::Execution(
+                        format!("Failed to execute command: {}", e),
+                    ));
+                }
+                Err(_) => {
+                    // child is dropped here → kill_on_drop sends SIGKILL
+                    return Err(NikaError::Execution(format!(
                         "Command timed out after {}s",
                         exec_deadline.as_secs()
-                    ))
-                })?
-                .map_err(|e| NikaError::Execution(format!("Failed to execute command: {}", e)))?
+                    )));
+                }
+            }
         } else {
             // Shell-free mode (default): parse with shlex, execute directly
             tracing::debug!(task_id = %task_id, "exec: using shell-free mode (shlex)");
@@ -926,9 +947,20 @@ impl TaskExecutor {
             // Strip sensitive env vars from child process
             crate::runtime::security::strip_sensitive_env_vars(&mut cmd);
 
-            // Set working directory if specified
+            // Set working directory if specified (with path traversal protection)
             if let Some(ref cwd) = params.cwd {
-                cmd.current_dir(cwd);
+                let resolved = std::path::Path::new(cwd).canonicalize()
+                    .map_err(|e| NikaError::Execution(format!("Invalid cwd '{}': {}", cwd, e)))?;
+                let working_dir = self.workflow_base_dir.canonicalize()
+                    .unwrap_or_else(|_| self.workflow_base_dir.clone());
+                if !resolved.starts_with(&working_dir) {
+                    return Err(NikaError::Execution(format!(
+                        "Security: exec cwd '{}' escapes working directory '{}'",
+                        cwd,
+                        working_dir.display()
+                    )));
+                }
+                cmd.current_dir(resolved);
             }
 
             // Add environment variables if specified (validate first)
@@ -944,15 +976,25 @@ impl TaskExecutor {
                 }
             }
 
-            tokio::time::timeout(exec_deadline, cmd.output())
-                .await
-                .map_err(|_| {
-                    NikaError::Execution(format!(
+            // kill_on_drop ensures child is killed when dropped on timeout (prevents orphans)
+            cmd.kill_on_drop(true);
+            let child = cmd.spawn()
+                .map_err(|e| NikaError::Execution(format!("Failed to spawn command: {}", e)))?;
+            match tokio::time::timeout(exec_deadline, child.wait_with_output()).await {
+                Ok(Ok(out)) => out,
+                Ok(Err(e)) => {
+                    return Err(NikaError::Execution(
+                        format!("Failed to execute command: {}", e),
+                    ));
+                }
+                Err(_) => {
+                    // child is dropped here → kill_on_drop sends SIGKILL
+                    return Err(NikaError::Execution(format!(
                         "Command timed out after {}s",
                         exec_deadline.as_secs()
-                    ))
-                })?
-                .map_err(|e| NikaError::Execution(format!("Failed to execute command: {}", e)))?
+                    )));
+                }
+            }
         };
 
         if !output.status.success() {

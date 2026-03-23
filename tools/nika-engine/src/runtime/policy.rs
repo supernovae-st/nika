@@ -10,6 +10,21 @@ use crate::error::NikaError;
 use crate::runtime::boot::PolicyConfig;
 use url::Url;
 
+/// Hardcoded SSRF blocklist: cloud metadata endpoints and loopback addresses.
+///
+/// These are ALWAYS blocked regardless of user configuration.
+/// Cloud metadata services (AWS/GCP/Alibaba) and loopback addresses are
+/// common SSRF targets that should never be reachable from workflow fetch: verbs.
+const SSRF_BLOCKED_HOSTS: &[&str] = &[
+    "169.254.169.254",
+    "metadata.google.internal",
+    "100.100.100.200",
+    "localhost",
+    "127.0.0.1",
+    "::1",
+    "0.0.0.0",
+];
+
 /// Policy enforcement result
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PolicyDecision {
@@ -132,6 +147,14 @@ impl PolicyEnforcer {
                 return PolicyDecision::Block(format!("URL has no host (fail-closed): '{}'", url));
             }
         };
+
+        // SSRF protection: block cloud metadata and loopback BEFORE user config
+        if SSRF_BLOCKED_HOSTS.iter().any(|&blocked| host == blocked) {
+            return PolicyDecision::Block(format!(
+                "SSRF protection: access to '{}' is blocked",
+                host
+            ));
+        }
 
         // Check blocked hosts first (takes precedence)
         for blocked in &self.config.blocked_hosts {
@@ -362,6 +385,44 @@ mod tests {
     fn test_policy_still_allows_valid_urls() {
         let enforcer = PolicyEnforcer::default();
         assert!(enforcer.check_fetch("https://example.com/api").is_allowed());
-        assert!(enforcer.check_fetch("http://localhost:8080").is_allowed());
+    }
+
+    // =========================================================================
+    // SSRF protection: cloud metadata + loopback always blocked
+    // =========================================================================
+
+    #[test]
+    fn test_ssrf_blocks_cloud_metadata() {
+        let enforcer = PolicyEnforcer::default();
+
+        // AWS/GCP metadata endpoint
+        assert!(enforcer
+            .check_fetch("http://169.254.169.254/latest/meta-data/")
+            .is_blocked());
+        // GCP internal DNS
+        assert!(enforcer
+            .check_fetch("http://metadata.google.internal/computeMetadata/v1/")
+            .is_blocked());
+        // Alibaba metadata
+        assert!(enforcer
+            .check_fetch("http://100.100.100.200/latest/meta-data/")
+            .is_blocked());
+    }
+
+    #[test]
+    fn test_ssrf_blocks_loopback() {
+        let enforcer = PolicyEnforcer::default();
+
+        assert!(enforcer.check_fetch("http://localhost:8080").is_blocked());
+        assert!(enforcer.check_fetch("http://127.0.0.1:3000/api").is_blocked());
+        assert!(enforcer.check_fetch("http://[::1]:9090/health").is_blocked());
+        assert!(enforcer.check_fetch("http://0.0.0.0/admin").is_blocked());
+    }
+
+    #[test]
+    fn test_ssrf_does_not_block_external_hosts() {
+        let enforcer = PolicyEnforcer::default();
+        assert!(enforcer.check_fetch("https://api.openai.com/v1").is_allowed());
+        assert!(enforcer.check_fetch("https://example.com").is_allowed());
     }
 }

@@ -245,7 +245,7 @@ pub fn encode_tokens(tokens: &[RawToken]) -> Vec<u32> {
 
 pub fn token_legend() -> Vec<&'static str> {
     vec![
-        "keyword", "function", "property", "variable", "function", "type", "comment",
+        "keyword", "macro", "property", "variable", "function", "type", "comment",
     ]
 }
 

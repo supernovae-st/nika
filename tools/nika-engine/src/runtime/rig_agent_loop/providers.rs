@@ -109,7 +109,9 @@ impl RigAgentLoop {
             .params
             .model
             .clone()
-            .expect("model is required -- validated by analyzer");
+            .ok_or_else(|| NikaError::ValidationError {
+                reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
+            })?;
         let model = client.completion_model(&model_name);
 
         // Take ownership of tools (they'll be consumed by the builder)
@@ -216,7 +218,9 @@ impl RigAgentLoop {
             .params
             .model
             .clone()
-            .expect("model is required -- validated by analyzer");
+            .ok_or_else(|| NikaError::ValidationError {
+                reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
+            })?;
         let model = client.completion_model(&model_name);
 
         // Take ownership of tools (they'll be consumed by the builder)

@@ -68,6 +68,19 @@ const BLOCKLIST: &[&str] = &[
     "base64 --decode |",
     "| base64 -d",
     "| base64 --decode",
+    // Disk destruction
+    "dd if=",
+    // Destructive rm long-flag variants
+    "rm --recursive",
+    "rm --force",
+    // Interpreter bypass (arbitrary code execution via scripting runtimes)
+    "perl -e",
+    "ruby -e",
+    "node -e",
+    // Command wrapper bypass (env can prefix any blocked command)
+    "env ",
+    // Privilege escalation (su; sudo already covered above)
+    "su ",
 ];
 
 /// Additional blocklist patterns that only apply in shell mode.

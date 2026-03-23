@@ -118,14 +118,19 @@ impl TaskExecutor {
         let policy_enforcer = PolicyEnforcer::new(policy_config.unwrap_or_default());
 
         // Create ToolContext for file tools
-        // Use current working directory and YoloMode for maximum compatibility
+        // TODO: pass PermissionMode from BootstrapConfig.tools.permission through
+        //       TaskExecutor constructors instead of defaulting here.
         let working_dir = std::env::current_dir().unwrap_or_else(|_| {
             tracing::warn!("Failed to get current directory, using /tmp");
             std::path::PathBuf::from("/tmp")
         });
+        tracing::warn!(
+            "File tools using default PermissionMode::Plan — \
+             pass BootstrapConfig.tools.permission to TaskExecutor for proper config"
+        );
         let tool_ctx = Arc::new(ToolContext::new(
             working_dir.clone(),
-            PermissionMode::YoloMode,
+            PermissionMode::Plan,
         ));
 
         // Create media tool context with CAS store at workspace default

@@ -33,6 +33,7 @@ use tokio::sync::OnceCell;
 
 use crate::error::McpError;
 use crate::types::McpConfig;
+use crate::validation::ValidationConfig;
 use crate::{McpClient, McpConfigInline};
 use nika_event::{EventKind, EventLog};
 
@@ -246,11 +247,13 @@ impl McpClientPool {
                 reason: format!("Environment variable expansion failed: {}", e),
             })?;
 
-        // Create and connect
-        let client = McpClient::new(mcp_config).map_err(|e| McpError::McpStartError {
-            name: name.to_string(),
-            reason: e.to_string(),
-        })?;
+        // Create with validation enabled and connect
+        let client = McpClient::new(mcp_config)
+            .map_err(|e| McpError::McpStartError {
+                name: name.to_string(),
+                reason: e.to_string(),
+            })?
+            .with_validation(ValidationConfig::default());
 
         match client.connect().await {
             Ok(()) => {
@@ -314,18 +317,26 @@ impl McpClientPool {
 
     /// Disconnect a specific server and remove it from the pool.
     ///
-    /// Disconnects before removing to avoid orphaned connections.
-    /// The next call to `get_or_connect()` for this server will re-initialize.
+    /// Always removes the entry to prevent dangling OnceCell references,
+    /// even if disconnect fails. The next call to `get_or_connect()` will re-initialize.
     pub async fn disconnect(&self, name: &str) -> Result<(), McpError> {
-        // Disconnect first, remove on success only.
-        // If disconnect fails, the entry stays in the map for retry.
-        if let Some(cell) = self.inner.clients.get(name) {
+        // Attempt disconnect, capturing any error
+        let disconnect_err = if let Some(cell) = self.inner.clients.get(name) {
             if let Some(client) = cell.get() {
-                client.disconnect().await?;
+                client.disconnect().await.err()
+            } else {
+                None
             }
-        }
-        // Only remove after successful disconnect
+        } else {
+            None
+        };
+
+        // Always remove to prevent dangling entries with spent OnceCell
         self.inner.clients.remove(name);
+
+        if let Some(e) = disconnect_err {
+            return Err(e);
+        }
         Ok(())
     }
 

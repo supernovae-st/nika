@@ -362,66 +362,86 @@ impl RigProvider {
     /// # Returns
     /// The completion text from the model
     pub async fn infer(&self, prompt: &str, model: Option<&str>) -> Result<String, RigInferError> {
+        /// Maximum time to wait for a single infer() completion (5 minutes).
+        /// Prevents hung LLM calls from blocking the runtime indefinitely.
+        const INFER_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
+
         let model_id = model.unwrap_or_else(|| self.default_model());
 
         match self {
             RigProvider::Claude(client) => {
                 // Anthropic requires max_tokens to be set explicitly
                 let agent = client.agent(model_id).max_tokens(8192).build();
-                agent
-                    .prompt(prompt)
+                timeout(INFER_TIMEOUT, agent.prompt(prompt))
                     .await
+                    .map_err(|_| RigInferError::Timeout {
+                        duration_ms: INFER_TIMEOUT.as_millis() as u64,
+                    })?
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
             RigProvider::OpenAI(client) => {
                 let agent = client.agent(model_id).max_tokens(8192).build();
-                agent
-                    .prompt(prompt)
+                timeout(INFER_TIMEOUT, agent.prompt(prompt))
                     .await
+                    .map_err(|_| RigInferError::Timeout {
+                        duration_ms: INFER_TIMEOUT.as_millis() as u64,
+                    })?
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
             RigProvider::Mistral(client) => {
                 let agent = client.agent(model_id).max_tokens(8192).build();
-                agent
-                    .prompt(prompt)
+                timeout(INFER_TIMEOUT, agent.prompt(prompt))
                     .await
+                    .map_err(|_| RigInferError::Timeout {
+                        duration_ms: INFER_TIMEOUT.as_millis() as u64,
+                    })?
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
             RigProvider::Groq(client) => {
                 let agent = client.agent(model_id).max_tokens(8192).build();
-                agent
-                    .prompt(prompt)
+                timeout(INFER_TIMEOUT, agent.prompt(prompt))
                     .await
+                    .map_err(|_| RigInferError::Timeout {
+                        duration_ms: INFER_TIMEOUT.as_millis() as u64,
+                    })?
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
             RigProvider::DeepSeek(client) => {
                 let agent = client.agent(model_id).max_tokens(8192).build();
-                agent
-                    .prompt(prompt)
+                timeout(INFER_TIMEOUT, agent.prompt(prompt))
                     .await
+                    .map_err(|_| RigInferError::Timeout {
+                        duration_ms: INFER_TIMEOUT.as_millis() as u64,
+                    })?
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
             RigProvider::Gemini(client) => {
                 let agent = client.agent(model_id).max_tokens(8192).build();
-                agent
-                    .prompt(prompt)
+                timeout(INFER_TIMEOUT, agent.prompt(prompt))
                     .await
+                    .map_err(|_| RigInferError::Timeout {
+                        duration_ms: INFER_TIMEOUT.as_millis() as u64,
+                    })?
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
             RigProvider::XAi(client) => {
                 let agent = client.agent(model_id).max_tokens(8192).build();
-                agent
-                    .prompt(prompt)
+                timeout(INFER_TIMEOUT, agent.prompt(prompt))
                     .await
+                    .map_err(|_| RigInferError::Timeout {
+                        duration_ms: INFER_TIMEOUT.as_millis() as u64,
+                    })?
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
             #[cfg(feature = "native-inference")]
             RigProvider::Native(runtime) => {
                 // Native inference uses direct API, not rig-core agent
                 // Model must be pre-loaded via load_native_model()
-                runtime
-                    .infer(prompt, super::native::ChatOptions::default())
+                timeout(INFER_TIMEOUT, runtime.infer(prompt, super::native::ChatOptions::default()))
                     .await
+                    .map_err(|_| RigInferError::Timeout {
+                        duration_ms: INFER_TIMEOUT.as_millis() as u64,
+                    })?
                     .map(|r| r.message.content)
                     .map_err(|e: super::native::NativeError| {
                         RigInferError::PromptError(e.to_string())

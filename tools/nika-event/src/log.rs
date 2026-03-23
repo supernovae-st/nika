@@ -791,7 +791,13 @@ impl EventLog {
     }
 
     pub fn events_since(&self, since_id: u64) -> Vec<Event> {
-        self.with_events(|events| events.iter().filter(|e| e.id > since_id).cloned().collect())
+        self.with_events(|events| {
+            events
+                .iter()
+                .filter(|e| e.id > since_id || (since_id == 0 && e.id == 0))
+                .cloned()
+                .collect()
+        })
     }
 
     /// Number of events

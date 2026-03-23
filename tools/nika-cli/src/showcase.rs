@@ -196,14 +196,8 @@ fn cmd_list(category: Option<&str>, _quiet: bool) -> Result<(), NikaError> {
     }
 
     println!();
-    println!(
-        "  {}",
-        "Extract: nika showcase extract <name>".dimmed()
-    );
-    println!(
-        "  {}",
-        "Extract all: nika showcase extract --all".dimmed()
-    );
+    println!("  {}", "Extract: nika showcase extract <name>".dimmed());
+    println!("  {}", "Extract all: nika showcase extract --all".dimmed());
     println!();
 
     Ok(())
@@ -261,8 +255,7 @@ fn cmd_extract_all(output_dir: &Path, quiet: bool) -> Result<(), NikaError> {
     std::fs::create_dir_all(output_dir).map_err(NikaError::IoError)?;
 
     let mut count = 0;
-    let mut by_category: std::collections::HashMap<&str, usize> =
-        std::collections::HashMap::new();
+    let mut by_category: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
 
     for entry in &entries {
         // Organize into subdirectories by category
@@ -347,11 +340,11 @@ mod tests {
     #[test]
     fn test_filter_by_category() {
         let entries = all_showcases();
-        let content: Vec<_> = entries
-            .iter()
-            .filter(|e| e.category == "content")
-            .collect();
-        assert!(!content.is_empty(), "Should have content-category showcases");
+        let content: Vec<_> = entries.iter().filter(|e| e.category == "content").collect();
+        assert!(
+            !content.is_empty(),
+            "Should have content-category showcases"
+        );
     }
 
     #[test]

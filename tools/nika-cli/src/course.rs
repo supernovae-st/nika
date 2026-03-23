@@ -358,12 +358,7 @@ fn cmd_status() -> Result<(), NikaError> {
 
         let line = match status {
             LevelStatus::Locked => {
-                format!(
-                    "  {} {:<16}  {}",
-                    star,
-                    name.dimmed(),
-                    "locked".dimmed()
-                )
+                format!("  {} {:<16}  {}", star, name.dimmed(), "locked".dimmed())
             }
             LevelStatus::Unlocked => {
                 format!("  {} {:<16}  {}", star, name.bold(), "ready".cyan())
@@ -432,7 +427,6 @@ fn constellation_star(status: &LevelStatus, boss: bool) -> String {
         }
     }
 }
-
 
 /// nika course next — find next exercise
 fn cmd_next() -> Result<(), NikaError> {
@@ -675,7 +669,13 @@ fn cmd_check(level_arg: Option<String>) -> Result<(), NikaError> {
         let star_count = star_correctness as u8 + star_elegance as u8 + star_no_hints as u8;
 
         let stars: String = (0..3)
-            .map(|i| if i < star_count { '\u{2605}' } else { '\u{2606}' })
+            .map(|i| {
+                if i < star_count {
+                    '\u{2605}'
+                } else {
+                    '\u{2606}'
+                }
+            })
             .collect();
 
         println!();
@@ -688,14 +688,22 @@ fn cmd_check(level_arg: Option<String>) -> Result<(), NikaError> {
         );
         println!(
             "  - {} Correctness: {}/{}{}",
-            if star_correctness { "\u{2605}" } else { "\u{2606}" },
+            if star_correctness {
+                "\u{2605}"
+            } else {
+                "\u{2606}"
+            },
             passed,
             total,
             if star_correctness { " pass" } else { "" }
         );
         println!(
             "  - {} Elegance: {}",
-            if star_elegance { "\u{2605}" } else { "\u{2606}" },
+            if star_elegance {
+                "\u{2605}"
+            } else {
+                "\u{2606}"
+            },
             if star_elegance {
                 format!("{} bonus(es) unlocked", total_bonuses)
             } else {
@@ -704,7 +712,11 @@ fn cmd_check(level_arg: Option<String>) -> Result<(), NikaError> {
         );
         println!(
             "  - {} No hints: {}",
-            if star_no_hints { "\u{2605}" } else { "\u{2606}" },
+            if star_no_hints {
+                "\u{2605}"
+            } else {
+                "\u{2606}"
+            },
             if star_no_hints {
                 "solved without hints".to_string()
             } else {
@@ -1155,8 +1167,7 @@ fn scan_for_changes(
 }
 
 fn is_nika_yaml(path: &Path) -> bool {
-    path.extension().is_some_and(|e| e == "yaml")
-        && path.to_string_lossy().ends_with(".nika.yaml")
+    path.extension().is_some_and(|e| e == "yaml") && path.to_string_lossy().ends_with(".nika.yaml")
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
