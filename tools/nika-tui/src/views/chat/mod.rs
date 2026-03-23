@@ -765,9 +765,12 @@ impl View for ChatView {
 
         // 8. Mention autocomplete popup (if visible)
         if self.mention_autocomplete.visible {
-            // Position popup above the input area
-            let popup_height = (self.mention_autocomplete.suggestions.len().min(8) + 2) as u16;
-            let popup_y = chunks[3].y.saturating_sub(popup_height);
+            // Position popup above the input area, clamped to content bounds
+            let max_popup = chunks[2].height.min(10); // Don't exceed content area
+            let popup_height =
+                ((self.mention_autocomplete.suggestions.len().min(8) + 2) as u16).min(max_popup);
+            // Clamp to stay within content area (chunks[2].y is top of main content)
+            let popup_y = chunks[3].y.saturating_sub(popup_height).max(chunks[2].y);
             let popup_area = Rect::new(
                 chunks[3].x + 2, // Slight offset from left
                 popup_y,

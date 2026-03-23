@@ -13,16 +13,24 @@ use ratatui::layout::{Constraint, Direction, Layout, Rect};
 ///
 /// This must match the layout in ChatView::render() exactly for mouse
 /// hit-testing to work correctly.
-pub fn compute_panel_areas(area: Rect) -> (Rect, Rect, Rect, Rect, Rect) {
-    // Vertical layout must match render() exactly
-    // ProStatusBar (2 lines) | main content | input | hints
+///
+/// `warning_height` should be 1 when no API key is configured, 0 otherwise.
+/// `input_height` should match `ChatView::calculate_input_height()`.
+pub fn compute_panel_areas(
+    area: Rect,
+    warning_height: u16,
+    input_height: u16,
+) -> (Rect, Rect, Rect, Rect, Rect) {
+    // Vertical layout must match render() exactly:
+    // ProStatusBar (2) | Warning (0 or 1) | main content | input (dynamic) | hints (1)
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(2), // ProStatusBar (2 lines - matches render)
-            Constraint::Min(10),   // Main content area
-            Constraint::Length(3), // Input field
-            Constraint::Length(1), // Command hints
+            Constraint::Length(2),              // ProStatusBar (2 lines)
+            Constraint::Length(warning_height), // API key warning (0 or 1)
+            Constraint::Min(10),               // Main content area
+            Constraint::Length(input_height),   // Input field (dynamic)
+            Constraint::Length(1),              // Command hints
         ])
         .split(area);
 
@@ -30,14 +38,14 @@ pub fn compute_panel_areas(area: Rect) -> (Rect, Rect, Rect, Rect, Rect) {
     let main_chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(65), Constraint::Percentage(35)])
-        .split(chunks[1]);
+        .split(chunks[2]);
 
     (
         chunks[0],
         main_chunks[0],
         main_chunks[1],
-        chunks[2],
         chunks[3],
+        chunks[4],
     )
 }
 
@@ -63,7 +71,8 @@ mod tests {
     #[test]
     fn test_compute_panel_areas_splits_correctly() {
         let area = Rect::new(0, 0, 100, 50);
-        let (session, conversation, activity, input, hints) = compute_panel_areas(area);
+        let (session, conversation, activity, input, hints) =
+            compute_panel_areas(area, 0, 3);
 
         // Session bar at top (2 lines)
         assert_eq!(session.height, 2);
@@ -81,6 +90,21 @@ mod tests {
         assert_eq!(conversation.width, 65); // 65% of 100
         assert_eq!(activity.x, 65);
         assert_eq!(activity.width, 35); // 35% of 100
+    }
+
+    #[test]
+    fn test_compute_panel_areas_with_warning() {
+        let area = Rect::new(0, 0, 100, 50);
+        let (session, _conversation, _activity, input, hints) =
+            compute_panel_areas(area, 1, 3);
+
+        // Session bar at top (2 lines)
+        assert_eq!(session.height, 2);
+
+        // Warning bar takes 1 line, pushing content down
+        assert_eq!(input.height, 3);
+        assert_eq!(hints.height, 1);
+        assert_eq!(hints.y, 49);
     }
 
     #[test]
@@ -116,7 +140,8 @@ mod tests {
     fn test_panel_areas_small_terminal() {
         // Minimum viable terminal size
         let area = Rect::new(0, 0, 80, 24);
-        let (session, conversation, activity, input, hints) = compute_panel_areas(area);
+        let (session, conversation, activity, input, hints) =
+            compute_panel_areas(area, 0, 3);
 
         // All panels should have valid dimensions
         assert!(session.height > 0);

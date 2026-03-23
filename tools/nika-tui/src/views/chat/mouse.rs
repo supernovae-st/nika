@@ -12,7 +12,10 @@ use crate::views::chat::layout::{compute_panel_areas, point_in_rect};
 impl ChatView {
     /// Determine which panel is at the given screen position
     pub fn panel_at_position(&self, x: u16, y: u16, area: Rect) -> Option<ChatPanel> {
-        let (_, conversation, activity, input, _) = compute_panel_areas(area);
+        let warning_height: u16 = if self.current_provider_id == "none" { 1 } else { 0 };
+        let input_height = self.calculate_input_height(area.width);
+        let (_, conversation, activity, input, _) =
+            compute_panel_areas(area, warning_height, input_height);
 
         // Check each panel (order matters for overlapping edges)
         if point_in_rect(x, y, conversation) {
