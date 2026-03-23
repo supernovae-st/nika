@@ -813,3 +813,92 @@ nika showcase list               # Browse 200+ showcase workflows
 nika showcase extract <name>     # Extract a showcase to current dir
 ```
 "#;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Coherence tests — prevent content drift between AI rules
+// ═══════════════════════════════════════════════════════════════════════════
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// All AI rules MUST use {{with.item}} not {{item}} for for_each.
+    #[test]
+    fn no_bare_item_template_in_code_examples() {
+        let rules: &[(&str, &str)] = &[
+            ("CURSOR_RULE", CURSOR_RULE),
+            ("COPILOT_INSTRUCTIONS", COPILOT_INSTRUCTIONS),
+            ("WINDSURF_RULE", WINDSURF_RULE),
+            ("ROO_RULE", ROO_RULE),
+            ("AGENTS_MD_CONTENT", AGENTS_MD_CONTENT),
+        ];
+        for (name, content) in rules {
+            for (i, line) in content.lines().enumerate() {
+                let trimmed = line.trim();
+                // Allow {{item}} in "Wrong" column of mistake tables
+                if trimmed.contains("{{item}}")
+                    && !trimmed.starts_with('|')
+                    && !trimmed.contains("Wrong")
+                {
+                    panic!(
+                        "{} line {} has bare {{{{item}}}} outside mistakes table: {}",
+                        name,
+                        i + 1,
+                        trimmed
+                    );
+                }
+            }
+        }
+    }
+
+    /// All main rules must reference schema @0.12.
+    #[test]
+    fn rules_reference_current_schema() {
+        assert!(CURSOR_RULE.contains("@0.12"), "CURSOR_RULE missing @0.12");
+        assert!(
+            AGENTS_MD_CONTENT.contains("@0.12"),
+            "AGENTS_MD missing @0.12"
+        );
+    }
+
+    /// No rules should reference nonexistent models.
+    #[test]
+    fn no_nonexistent_models() {
+        let rules: &[(&str, &str)] = &[
+            ("CURSOR_RULE", CURSOR_RULE),
+            ("WINDSURF_RULE", WINDSURF_RULE),
+            ("ROO_RULE", ROO_RULE),
+        ];
+        for (name, content) in rules {
+            assert!(
+                !content.contains("grok-4"),
+                "{} references nonexistent model grok-4",
+                name
+            );
+        }
+    }
+
+    /// for_each examples must use {{with.item}} not {{item}}.
+    #[test]
+    fn for_each_uses_with_prefix() {
+        if CURSOR_RULE.contains("as: item") {
+            assert!(
+                CURSOR_RULE.contains("{{with.item}}"),
+                "CURSOR_RULE has for_each as:item but no {{with.item}}"
+            );
+        }
+    }
+
+    /// Tool count consistency (24 builtin tools, not 25 or 26).
+    #[test]
+    fn consistent_builtin_tool_count() {
+        assert!(
+            !CURSOR_RULE.contains("26 builtin") && !CURSOR_RULE.contains("25 builtin"),
+            "CURSOR_RULE has wrong builtin tool count"
+        );
+        assert!(
+            !WINDSURF_RULE.contains("26 builtin") && !WINDSURF_RULE.contains("25 builtin"),
+            "WINDSURF_RULE has wrong builtin tool count"
+        );
+    }
+}

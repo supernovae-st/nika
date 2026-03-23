@@ -585,4 +585,37 @@ mod tests {
         assert!(path.to_string_lossy().contains(".nika"));
         assert!(path.to_string_lossy().ends_with("machine.toml"));
     }
+
+    #[test]
+    fn claude_rules_use_with_item_not_bare_item() {
+        for (i, line) in CLAUDE_RULES_CONTENT.lines().enumerate() {
+            let trimmed = line.trim();
+            if trimmed.contains("{{item}}")
+                && !trimmed.starts_with('|')
+                && !trimmed.contains("Wrong")
+            {
+                panic!(
+                    "CLAUDE_RULES line {} has bare {{{{item}}}}: {}",
+                    i + 1,
+                    trimmed
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn claude_rules_reference_current_schema() {
+        assert!(
+            CLAUDE_RULES_CONTENT.contains("@0.12"),
+            "CLAUDE_RULES missing schema @0.12"
+        );
+    }
+
+    #[test]
+    fn claude_rules_no_nonexistent_models() {
+        assert!(
+            !CLAUDE_RULES_CONTENT.contains("grok-4"),
+            "CLAUDE_RULES references nonexistent grok-4"
+        );
+    }
 }
