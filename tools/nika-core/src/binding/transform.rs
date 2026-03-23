@@ -485,10 +485,10 @@ impl TransformOp {
                 _ => Err(type_mismatch("split", "string", value)),
             },
             TransformOp::Shell => {
-                // Shell escaping — delegate to existing template::escape_for_shell logic
+                // Shell escaping — all types get escaped, not just strings
                 match value {
                     Value::String(s) => Ok(Value::String(shell_escape(s))),
-                    _ => Ok(Value::String(value.to_string())),
+                    _ => Ok(Value::String(shell_escape(&value.to_string()))),
                 }
             }
         }

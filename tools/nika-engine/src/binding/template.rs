@@ -93,10 +93,10 @@ const MAX_TEMPLATE_VARS: usize = 256;
 const MAX_PATH_DEPTH: usize = 32;
 
 /// Pre-compiled regex for {{with.alias}} pattern.
-/// Supports optional |shell modifier: {{with.alias|shell}}
+/// Supports optional pipe transforms: {{with.alias|shell}}, {{with.alias|uppercase|trim}}
 /// Also supports bracket notation after preprocessing: {{with.items[0]}} → {{with.items.0}}
 static USE_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\{\{\s*with\.(\w+(?:\.\w+)*)(?:\s*\|\s*(shell))?\s*\}\}").unwrap()
+    Regex::new(r"\{\{\s*with\.(\w+(?:\.\w+)*)(\s*(?:\|\s*\w+)+)?\s*\}\}").unwrap()
 });
 
 /// Pre-compiled regex for bracket array notation
