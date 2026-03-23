@@ -88,7 +88,12 @@ fn redact_for_event(s: &str) -> String {
     if s.len() <= 200 {
         s.to_string()
     } else {
-        format!("{}... ({} chars)", &s[..200], s.len())
+        // Find the last valid char boundary at or before byte 200
+        let mut boundary = 200;
+        while boundary > 0 && !s.is_char_boundary(boundary) {
+            boundary -= 1;
+        }
+        format!("{}... ({} bytes)", &s[..boundary], s.len())
     }
 }
 
