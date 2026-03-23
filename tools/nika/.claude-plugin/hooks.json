@@ -1,0 +1,38 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "INPUT=$(cat); FILE=$(printf '%s' \"$INPUT\" | python3 -c \"import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))\" 2>/dev/null); case \"$FILE\" in *.nika.yaml) RESULT=$(nika check \"$FILE\" 2>&1); RC=$?; if [ $RC -ne 0 ]; then echo \"NIKA VALIDATION FAILED for $FILE:\" >&2; echo \"$RESULT\" >&2; echo '' >&2; echo 'Fix the issues above before continuing.' >&2; exit 2; else echo \"Nika: $FILE validated successfully\"; fi;; esac; exit 0",
+            "timeout": 15000
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "PLUGIN_DIR=\"$(dirname \"$0\" 2>/dev/null || echo .)/../.claude-plugin\"; NIKA_VERSION=$(nika --version 2>/dev/null | head -1 || echo 'not installed'); YAML_COUNT=$(find . -name '*.nika.yaml' -maxdepth 5 2>/dev/null | wc -l | tr -d ' '); NIKA_DIR=''; [ -d '.nika' ] && NIKA_DIR='found' || NIKA_DIR='not found'; echo \"Nika plugin active | $NIKA_VERSION | $YAML_COUNT workflow(s) detected | .nika dir: $NIKA_DIR\"; if [ \"$YAML_COUNT\" -gt 0 ]; then echo 'Tip: Use /nika-wizard to create new workflows, /nika-doctor to diagnose issues'; fi",
+            "timeout": 10000
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "MODIFIED=$(git diff --name-only 2>/dev/null | grep '\\.nika\\.yaml$' || true); STAGED=$(git diff --cached --name-only 2>/dev/null | grep '\\.nika\\.yaml$' || true); ALL=\"$MODIFIED $STAGED\"; ALL=$(echo \"$ALL\" | tr ' ' '\\n' | sort -u | grep -v '^$'); if [ -n \"$ALL\" ]; then ERRORS=0; for f in $ALL; do if [ -f \"$f\" ]; then RESULT=$(nika check \"$f\" 2>&1); RC=$?; if [ $RC -ne 0 ]; then echo \"VALIDATION FAILED: $f\" >&2; echo \"$RESULT\" >&2; echo '' >&2; ERRORS=$((ERRORS + 1)); fi; fi; done; if [ $ERRORS -gt 0 ]; then echo \"$ERRORS workflow file(s) have validation errors. Fix before committing.\" >&2; exit 2; else echo \"All modified .nika.yaml files validated successfully.\"; fi; fi; exit 0",
+            "timeout": 30000
+          }
+        ]
+      }
+    ]
+  }
+}

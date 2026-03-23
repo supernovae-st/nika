@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "nika": {
+      "command": "nika",
+      "args": ["mcp", "serve"],
+      "env": {
+        "RUST_LOG": "nika_mcp=info"
+      },
+      "description": "Nika workflow engine MCP server — exposes workflow management, validation, execution, and course tools via MCP protocol."
+    }
+  }
+}

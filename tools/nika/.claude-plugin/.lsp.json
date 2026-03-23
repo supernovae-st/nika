@@ -1,0 +1,20 @@
+{
+  "lspServers": {
+    "nika-lsp": {
+      "command": "nika",
+      "args": ["lsp", "--mode", "stdio"],
+      "extensionToLanguage": {
+        ".nika.yaml": "nika-yaml"
+      },
+      "initializationOptions": {},
+      "capabilities": {
+        "diagnostics": true,
+        "completions": true,
+        "hover": true,
+        "goToDefinition": true,
+        "codeActions": true
+      },
+      "description": "Nika Language Server — provides diagnostics, completions, hover docs, go-to-definition, and code actions for .nika.yaml workflow files."
+    }
+  }
+}

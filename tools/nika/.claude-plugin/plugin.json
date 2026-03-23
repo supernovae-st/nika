@@ -1,0 +1,68 @@
+{
+  "$schema": "https://claude.ai/schemas/claude-plugin@1.json",
+  "name": "nika",
+  "version": "0.39.1",
+  "displayName": "Nika Workflow Engine",
+  "description": "Claude Code plugin for Nika — semantic YAML workflow engine for AI tasks. Provides interactive workflow creation, diagnostics, course tutoring, MCP configuration, and auto-validation hooks.",
+  "publisher": {
+    "name": "SuperNovae Studio",
+    "url": "https://supernovae.studio",
+    "email": "nika@supernovae.studio"
+  },
+  "license": "AGPL-3.0-or-later",
+  "repository": "https://github.com/supernovae-st/nika",
+  "homepage": "https://supernovae.studio",
+  "keywords": [
+    "nika",
+    "workflow",
+    "yaml",
+    "dag",
+    "mcp",
+    "llm",
+    "ai",
+    "automation"
+  ],
+  "engines": {
+    "claude-code": ">=1.0.0"
+  },
+  "capabilities": {
+    "skills": true,
+    "agents": true,
+    "hooks": true,
+    "mcp": true,
+    "lsp": true
+  },
+  "fileAssociations": [
+    {
+      "pattern": "*.nika.yaml",
+      "language": "nika-yaml",
+      "description": "Nika workflow definition"
+    }
+  ],
+  "activation": {
+    "filePatterns": ["*.nika.yaml", ".nika/**"],
+    "commands": ["nika"]
+  },
+  "configuration": {
+    "nika.binary": {
+      "type": "string",
+      "default": "nika",
+      "description": "Path to the nika binary. Defaults to 'nika' (found via PATH)."
+    },
+    "nika.autoValidate": {
+      "type": "boolean",
+      "default": true,
+      "description": "Automatically validate .nika.yaml files after editing."
+    },
+    "nika.strictValidation": {
+      "type": "boolean",
+      "default": false,
+      "description": "Use --strict mode for validation (connects to MCP servers)."
+    },
+    "nika.courseRoot": {
+      "type": "string",
+      "default": "",
+      "description": "Override course root directory. Empty = auto-detect."
+    }
+  }
+}
