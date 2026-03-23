@@ -1001,19 +1001,29 @@ async fn resolve_workflow_path(reference: &str) -> Result<PathBuf, NikaError> {
     Ok(path)
 }
 
-/// Run a built-in 2-task DAG demo (no API key needed).
+/// Run a built-in 4-task DAG demo (no API key needed).
+///
+/// Shows: scan → [lint, test] → report — parallelism, edges, timing.
 async fn run_demo(quiet: bool, detail: nika::display::DetailLevel) -> Result<(), NikaError> {
     const DEMO_YAML: &str = r#"schema: "nika/workflow@0.12"
 workflow: demo
 description: "Built-in demo — no API key needed"
 
 tasks:
-  - id: hello
-    exec: "echo 'Hello from Nika!'"
+  - id: scan
+    exec: "echo '📂 Scanning project structure...'"
 
-  - id: dag
-    depends_on: [hello]
-    exec: "echo 'hello → dag — 2 tasks, 1 parallel, 0 tokens, $0.000'"
+  - id: lint
+    depends_on: [scan]
+    exec: "echo '🔍 Linting 42 files — all clean'"
+
+  - id: test
+    depends_on: [scan]
+    exec: "echo '🧪 Running 128 tests — 128 passed'"
+
+  - id: report
+    depends_on: [lint, test]
+    exec: "echo '✓ All checks passed. Ship it!'"
 "#;
 
     println!();
@@ -1023,7 +1033,50 @@ tasks:
         "live demo".dimmed()
     );
     println!("  {}", "Write a YAML file. Nika runs it as DAG.".dimmed());
-    println!();
+
+    // Show the DAG visualization before running
+    {
+        use nika::display::{render_dag, DagTask, DagTaskStatus};
+        use std::collections::HashMap;
+
+        let dag_tasks = vec![
+            DagTask {
+                id: "scan".into(),
+                verb: "exec".into(),
+                status: DagTaskStatus::Pending,
+                meta: None,
+                tags: vec![],
+            },
+            DagTask {
+                id: "lint".into(),
+                verb: "exec".into(),
+                status: DagTaskStatus::Pending,
+                meta: None,
+                tags: vec![],
+            },
+            DagTask {
+                id: "test".into(),
+                verb: "exec".into(),
+                status: DagTaskStatus::Pending,
+                meta: None,
+                tags: vec![],
+            },
+            DagTask {
+                id: "report".into(),
+                verb: "exec".into(),
+                status: DagTaskStatus::Pending,
+                meta: None,
+                tags: vec![],
+            },
+        ];
+
+        let mut deps: HashMap<String, Vec<String>> = HashMap::new();
+        deps.insert("lint".into(), vec!["scan".into()]);
+        deps.insert("test".into(), vec!["scan".into()]);
+        deps.insert("report".into(), vec!["lint".into(), "test".into()]);
+
+        render_dag(&dag_tasks, &deps);
+    }
 
     // Write temp file, run, clean up
     let tmp = std::env::temp_dir().join("nika-demo.nika.yaml");
@@ -1044,7 +1097,13 @@ tasks:
     result?;
 
     println!();
-    println!("  {} {}", "Try:".cyan().bold(), "nika init".bold());
+    println!(
+        "  {} {} {} {}",
+        "Next:".cyan().bold(),
+        "nika new hello --verb exec".bold(),
+        "\u{2014}".dimmed(),
+        "create your first workflow".dimmed()
+    );
     println!();
 
     Ok(())
