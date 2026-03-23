@@ -42,6 +42,6 @@ nika course run <exercise>       # Run a course exercise
 nika course info [level]         # Show course/level details
 nika course reset <level>        # Reset a level
 nika course watch                # Auto-check on file save
-nika showcase list               # Browse 200+ showcase workflows
+nika showcase list               # Browse 115 showcase workflows
 nika showcase extract <name>     # Extract a showcase to current dir
 ```
