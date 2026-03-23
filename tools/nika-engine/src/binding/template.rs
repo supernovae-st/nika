@@ -1179,15 +1179,26 @@ pub fn resolve_for_shell<'a>(
         return Ok(Cow::Borrowed(template));
     }
 
-    let mut result = String::with_capacity(template.len() + 64);
+    // Normalize bracket notation: {{with.items[0]}} → {{with.items.0}}
+    let normalized = normalize_bracket_notation(template);
+    let template_str: &str = normalized.as_ref();
+
+    // Pass 1: Alias bindings (shell-escaped)
+    // Uses TEMPLATE_RE + parse_template_expr for full transform support.
+    let mut result = String::with_capacity(template_str.len() + 64);
     let mut last_end = 0;
     let mut errors: SmallVec<[String; 4]> = SmallVec::new();
 
-    for cap in USE_RE.captures_iter(template) {
+    for cap in TEMPLATE_RE.captures_iter(template_str) {
         let m = cap.get(0).unwrap();
-        let path = &cap[1];
+        let content = &cap[1];
 
-        result.push_str(&template[last_end..m.start()]);
+        let (path, transforms) = match parse_template_expr(content) {
+            Ok(TemplateExpr::Alias { path, transforms }) => (path, transforms),
+            _ => continue,
+        };
+
+        result.push_str(&template_str[last_end..m.start()]);
 
         let mut parts = path.split('.');
         let alias = parts.next().unwrap();
@@ -1239,7 +1250,38 @@ pub fn resolve_for_shell<'a>(
                     }
                 }
 
-                let raw_value = value_to_string(value_ref, path, alias)?;
+                // Apply non-shell transforms first, then shell-escape the result.
+                let has_shell = transforms.iter().any(|t| t == "shell");
+                let non_shell: Vec<&String> =
+                    transforms.iter().filter(|t| *t != "shell").collect();
+
+                let raw_value = if !non_shell.is_empty() {
+                    let transform_str = non_shell
+                        .iter()
+                        .map(|s| s.as_str())
+                        .collect::<Vec<_>>()
+                        .join(" | ");
+                    let expr =
+                        crate::binding::transform::TransformExpr::parse(&transform_str)
+                            .map_err(|e| NikaError::TemplateParse {
+                                position: m.start(),
+                                details: format!("Transform parse error: {}", e),
+                            })?;
+                    let transformed = expr.apply(value_ref).map_err(|e| {
+                        NikaError::TemplateParse {
+                            position: m.start(),
+                            details: format!("Transform apply error: {}", e),
+                        }
+                    })?;
+                    value_to_display(&transformed).into_owned()
+                } else if has_shell {
+                    // Only |shell, no other transforms: use strict value_to_string
+                    value_to_string(value_ref, &path, alias)?.into_owned()
+                } else {
+                    // No transforms at all: use strict value_to_string
+                    value_to_string(value_ref, &path, alias)?.into_owned()
+                };
+
                 // Shell-escape the value
                 let escaped = escape_for_shell(&raw_value);
                 result.push_str(&escaped);
@@ -1259,7 +1301,7 @@ pub fn resolve_for_shell<'a>(
         });
     }
 
-    result.push_str(&template[last_end..]);
+    result.push_str(&template_str[last_end..]);
 
     // Pass 2: Context bindings (shell-escaped)
     if has_context && result.contains("context.") {

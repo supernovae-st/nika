@@ -604,17 +604,13 @@ fn resolve_binding_path(
         }
 
         BindingSource::Context(sub_path) => {
-            let sub = sub_path.as_ref();
-            if sub == "session" {
-                // $context.session → datastore.get_context_session()
-                Ok(datastore.get_context_session())
-            } else if let Some(file_alias) = sub.strip_prefix("files.") {
-                // $context.files.brand → datastore.get_context_file("brand")
-                Ok(datastore.get_context_file(file_alias))
-            } else {
-                // Unrecognized context sub-path
-                Ok(None)
-            }
+            // Delegate to resolve_context_path which handles nested navigation:
+            //   "files.brand"        → get file "brand" (full content)
+            //   "files.brand.colors" → get file "brand", then navigate into .colors
+            //   "session"            → full session object
+            //   "session.focus"      → session field "focus"
+            let full_path = format!("context.{}", sub_path);
+            Ok(datastore.resolve_context_path(&full_path))
         }
 
         BindingSource::Env(var_name) => match std::env::var(var_name.as_ref()) {
