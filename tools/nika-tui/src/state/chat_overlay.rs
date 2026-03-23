@@ -146,11 +146,17 @@ impl ChatOverlayState {
         self.edit_history.push(&self.input, self.cursor);
     }
 
-    /// Delete character before cursor (backspace)
+    /// Delete character before cursor (backspace, char-boundary safe)
     pub fn backspace(&mut self) {
         if self.cursor > 0 {
-            self.cursor -= 1;
-            self.input.remove(self.cursor);
+            // Find previous char boundary (same pattern as cursor_left)
+            let prev = self.input[..self.cursor]
+                .char_indices()
+                .next_back()
+                .map(|(i, _)| i)
+                .unwrap_or(0);
+            self.input.remove(prev);
+            self.cursor = prev;
             // Track for undo (coalesces rapid deletes)
             self.edit_history.push(&self.input, self.cursor);
         }

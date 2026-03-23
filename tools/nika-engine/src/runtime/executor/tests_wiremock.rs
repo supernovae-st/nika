@@ -735,7 +735,16 @@ async fn wiremock_fetch_template_resolved_in_url() {
         .await;
 
     let event_log = EventLog::new();
-    let executor = TaskExecutor::new("mock", None, None, event_log.clone());
+    let policy = crate::runtime::boot::PolicyConfig {
+        allow_exec: true,
+        allow_network: true,
+        blocked_commands: vec![],
+        max_token_spend: None,
+        allowed_hosts: vec!["127.0.0.1".to_string(), "localhost".to_string()],
+        blocked_hosts: vec![],
+    };
+    let executor =
+        TaskExecutor::with_policy("mock", None, None, event_log.clone(), Some(policy));
     let mut bindings = ResolvedBindings::new();
     bindings.set("item_id", serde_json::json!("42"));
     let datastore = RunContext::new();

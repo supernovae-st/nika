@@ -663,7 +663,7 @@ async fn test_binding_resolution_json_value() {
 async fn test_binding_resolution_datastore_lookup() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new());
     let mut bindings = ResolvedBindings::new();
-    bindings.set("task_output", json!({"result": "ok"}));
+    bindings.set("task_output", json!({"data": "ok"}));
     let datastore = RunContext::new();
     let task_id_prev: Arc<str> = Arc::from("prev_task");
     datastore.insert(
@@ -686,7 +686,7 @@ async fn test_binding_resolution_datastore_lookup() {
         .execute(&task_id, &action, &bindings, &datastore, None)
         .await
         .unwrap();
-    assert!(result.contains("ok"));
+    assert!(result.contains("data"));
 }
 
 // ═══════════════════════════════════════════════════════════════

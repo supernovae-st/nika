@@ -425,7 +425,7 @@ impl<'a> ProStatusBar<'a> {
 
 impl Widget for ProStatusBar<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        if area.width == 0 || area.height == 0 {
+        if area.width == 0 || area.height < 2 {
             return;
         }
 
