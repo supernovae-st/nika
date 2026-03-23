@@ -10,7 +10,7 @@ use crate::display::icons;
 /// ```text
 /// ╭───────────────────────────────────────────────────────────╮
 /// │                                                           │
-/// │  N I K A                                        v0.40.0   │
+/// │  N I K A                                        v0.40.2   │
 /// │                                                           │
 /// │  seo-pipeline                                             │
 /// │  ⋈ claude / sonnet-4                   6 tasks · 3 layers │

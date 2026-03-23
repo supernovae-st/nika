@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.40.2](https://github.com/supernovae-st/nika/releases/tag/v0.40.2) — 2026-03-23
+
+### Added
+- GPT-4.1 family (gpt-4.1, gpt-4.1-mini, gpt-4.1-nano) in cost table
+- `error_code` field in `TaskFailed` events for programmatic extraction
+- 3 new event types: `ExecCompleted`, `FetchRetry`, `PolicyBlocked`
+- Time-to-first-token (`ttft_ms`) capture in streaming responses
+- `cached_input_tokens` tracking across all provider agent loops
+- Fetch retry deadline (prevents infinite backoff loops)
+
+### Fixed
+- `{{item}}` template variable → `{{with.item}}` in all 17 documentation files (AI rules, IDE configs, content-suite). Template engine only resolves `{{with.*}}` namespace.
+- Version references updated from 0.39.x → 0.40.2 across README, CI, VS Code, Claude plugin
+- Double-comma syntax errors in 7 test files (from automated replacement)
+- Missing `ExecCompleted`/`FetchRetry`/`PolicyBlocked` in TUI event handler
+- Missing `ttft_ms`/`request_id` fields in `StreamResult` test
+
 ## [0.40.0](https://github.com/supernovae-st/nika/releases/tag/v0.40.0) — 2026-03-23
 
 ### Added
