@@ -134,8 +134,8 @@ nika provider set gemini             # Google Gemini
 
 ## Learn More
 
-- [Nika Documentation](https://github.com/supernovae-studio/nika)
-- [NovaNet](https://github.com/supernovae-studio/novanet)
+- [Nika Documentation](https://github.com/supernovae-st/nika)
+- [NovaNet](https://github.com/supernovae-st/novanet)
 "#;
 
 #[cfg(test)]
