@@ -719,10 +719,10 @@ impl Widget for StatusBar<'_> {
                 2 // leading "  "
             } else {
                 0
-            } + hint.key.len()
+            } + UnicodeWidthStr::width(hint.key.as_ref())
                 + 2 // brackets []
                 + 1 // space
-                + hint.action.len();
+                + UnicodeWidthStr::width(hint.action.as_ref());
             if hints_width + hint_width > available_for_hints {
                 break; // No more room
             }
