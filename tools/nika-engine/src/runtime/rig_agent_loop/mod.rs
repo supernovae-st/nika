@@ -173,9 +173,14 @@ impl RigAgentLoop {
         if sequences.is_empty() {
             return None;
         }
+        // Gemini nests stopSequences inside generationConfig
+        if provider == "gemini" {
+            return Some(serde_json::json!({
+                "generationConfig": { "stopSequences": sequences }
+            }));
+        }
         let key = match provider {
             "anthropic" | "claude" => "stop_sequences",
-            "gemini" => "stopSequences",
             // OpenAI, Mistral, Groq, DeepSeek, xAI all use "stop"
             _ => "stop",
         };
