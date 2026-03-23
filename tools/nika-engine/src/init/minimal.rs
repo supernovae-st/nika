@@ -25,17 +25,17 @@ description: "Shell commands with exec:"
 tasks:
   - id: hello
     exec:
-      run: echo "Hello from Nika!"
+      command: echo "Hello from Nika!"
 
   - id: system_info
     exec:
-      run: uname -a
+      command: uname -a
       timeout: 10
 
   - id: count_files
     depends_on: [hello]
     exec:
-      run: ls -1 | wc -l
+      command: ls -1 | wc -l
 "##;
 
 /// Fetch verb — HTTP requests, JSON APIs
@@ -70,7 +70,7 @@ tasks:
     with:
       ip_data: $get_ip
     exec:
-      run: echo "Your IP data — {{with.ip_data}}"
+      command: echo "Your IP data — {{with.ip_data}}"
 "##;
 
 /// Infer verb — LLM generation
