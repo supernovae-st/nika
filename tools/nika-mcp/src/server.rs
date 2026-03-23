@@ -65,16 +65,17 @@ impl NikaMcpServer {
         &self,
         Parameters(params): Parameters<CheckParams>,
     ) -> Result<CallToolResult, rmcp::ErrorData> {
-        let path = std::path::Path::new(&params.path);
-        if !path.exists() {
-            return Ok(CallToolResult::error(vec![Content::text(format!(
-                "File not found: {}",
-                params.path
-            ))]));
-        }
+        // Validate path: must be .nika.yaml, must be within cwd (no traversal)
+        let canonical = match validate_workflow_path(&params.path) {
+            Ok(p) => p,
+            Err(e) => {
+                return Ok(CallToolResult::error(vec![Content::text(e)]));
+            }
+        };
 
+        let path_str = canonical.to_string_lossy();
         match std::process::Command::new("nika")
-            .args(["check", &params.path])
+            .args(["check", &path_str])
             .output()
         {
             Ok(output) => {
@@ -199,14 +200,22 @@ pub async fn run_server() -> Result<(), Box<dyn std::error::Error>> {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 fn collect_workflows(dir: &std::path::Path, results: &mut Vec<String>, depth: usize) {
-    if depth > 5 {
+    if depth > 5 || results.len() >= MAX_WORKFLOW_RESULTS {
         return;
     }
     if let Ok(entries) = std::fs::read_dir(dir) {
         for entry in entries.flatten() {
+            if results.len() >= MAX_WORKFLOW_RESULTS {
+                return;
+            }
             let path = entry.path();
-            if path.is_dir() {
-                let name = path.file_name().unwrap_or_default().to_string_lossy();
+            // Use symlink_metadata to avoid following symlinks
+            let is_dir = entry
+                .file_type()
+                .map(|ft| ft.is_dir())
+                .unwrap_or(false);
+            if is_dir {
+                let name = entry.file_name().to_string_lossy().to_string();
                 if !name.starts_with('.') && name != "target" && name != "node_modules" {
                     collect_workflows(&path, results, depth + 1);
                 }
@@ -220,6 +229,34 @@ fn collect_workflows(dir: &std::path::Path, results: &mut Vec<String>, depth: us
             }
         }
     }
+}
+
+/// Maximum results from workflow listing
+const MAX_WORKFLOW_RESULTS: usize = 500;
+
+/// Validate that a path is within the current working directory and has .nika.yaml extension
+fn validate_workflow_path(user_path: &str) -> Result<std::path::PathBuf, String> {
+    // Must have .nika.yaml extension
+    if !user_path.ends_with(".nika.yaml") {
+        return Err("Only .nika.yaml files can be validated".to_string());
+    }
+
+    let cwd = std::env::current_dir()
+        .map_err(|e| format!("Cannot determine working directory: {e}"))?;
+    let canonical_cwd = cwd
+        .canonicalize()
+        .map_err(|e| format!("Cannot canonicalize cwd: {e}"))?;
+
+    let requested = cwd.join(user_path);
+    let canonical = requested
+        .canonicalize()
+        .map_err(|_| format!("File not found: {user_path}"))?;
+
+    if !canonical.starts_with(&canonical_cwd) {
+        return Err(format!("Path traversal blocked: {user_path}"));
+    }
+
+    Ok(canonical)
 }
 
 const SCHEMA_REF: &str = r#"# Nika Workflow Schema (v0.12)
@@ -241,3 +278,121 @@ Transforms: upper, lower, trim, length, first, last, keys, values, flatten, sort
 ## Extract Modes (fetch:)
 markdown, article, text, selector, metadata, links, jsonpath, feed, llm_txt
 "#;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ─── Path Validation Tests (RED → GREEN) ──────────────────────────────
+
+    #[test]
+    fn test_rejects_non_nika_extension() {
+        let result = validate_workflow_path("/etc/passwd");
+        assert!(result.is_err());
+        assert!(
+            result.unwrap_err().contains("Only .nika.yaml"),
+            "Should reject non-.nika.yaml files"
+        );
+    }
+
+    #[test]
+    fn test_rejects_yaml_without_nika_prefix() {
+        let result = validate_workflow_path("workflow.yaml");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Only .nika.yaml"));
+    }
+
+    #[test]
+    fn test_rejects_path_traversal() {
+        // Create a temp .nika.yaml outside cwd
+        let result = validate_workflow_path("../../../etc/shadow.nika.yaml");
+        assert!(result.is_err());
+        // Should be either "File not found" or "Path traversal blocked"
+    }
+
+    #[test]
+    fn test_accepts_valid_nika_yaml_in_cwd() {
+        // This test needs an actual file to exist
+        let tmpdir = std::env::current_dir().unwrap();
+        let test_file = tmpdir.join("_test_valid.nika.yaml");
+        std::fs::write(&test_file, "schema: nika/workflow@0.12\ntasks: []").unwrap();
+
+        let result = validate_workflow_path("_test_valid.nika.yaml");
+        assert!(result.is_ok(), "Should accept .nika.yaml in cwd: {:?}", result);
+
+        std::fs::remove_file(&test_file).unwrap();
+    }
+
+    #[test]
+    fn test_rejects_absolute_path_outside_cwd() {
+        let result = validate_workflow_path("/tmp/evil.nika.yaml");
+        assert!(result.is_err());
+    }
+
+    // ─── Collect Workflows Tests ──────────────────────────────────────────
+
+    #[test]
+    fn test_collect_workflows_respects_max_results() {
+        let mut results = Vec::new();
+        collect_workflows(std::path::Path::new("."), &mut results, 0);
+        assert!(
+            results.len() <= MAX_WORKFLOW_RESULTS,
+            "Should not exceed {} results, got {}",
+            MAX_WORKFLOW_RESULTS,
+            results.len()
+        );
+    }
+
+    #[test]
+    fn test_collect_workflows_skips_hidden_dirs() {
+        let mut results = Vec::new();
+        collect_workflows(std::path::Path::new("."), &mut results, 0);
+        for r in &results {
+            assert!(
+                !r.contains("/."),
+                "Should not include files from hidden dirs: {}",
+                r
+            );
+        }
+    }
+
+    #[test]
+    fn test_collect_workflows_respects_depth_limit() {
+        let mut results = Vec::new();
+        // Depth 6 should be rejected
+        collect_workflows(std::path::Path::new("."), &mut results, 6);
+        assert!(results.is_empty(), "Depth 6 should return no results");
+    }
+
+    // ─── Error Lookup Tests ───────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_error_lookup_returns_category() {
+        let server = NikaMcpServer::new();
+        let result = server
+            .error_lookup(Parameters(ErrorLookupParams {
+                code: "NIKA-040".to_string(),
+            }))
+            .await
+            .unwrap();
+        // Should return Template/Binding category
+        let text = format!("{:?}", result);
+        assert!(
+            text.contains("Template") || text.contains("Binding"),
+            "NIKA-040 should be Template/Binding category"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_error_lookup_handles_invalid_code() {
+        let server = NikaMcpServer::new();
+        let result = server
+            .error_lookup(Parameters(ErrorLookupParams {
+                code: "not-a-code".to_string(),
+            }))
+            .await
+            .unwrap();
+        let text = format!("{:?}", result);
+        assert!(text.contains("Unknown"), "Invalid code should return Unknown");
+    }
+}

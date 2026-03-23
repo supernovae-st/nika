@@ -5,7 +5,7 @@
 use crate::error::Result;
 use crate::log::{Event, EventLog};
 use std::fs::{self, File};
-use std::io::{BufWriter, Write};
+use std::io::{self, BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
@@ -75,6 +75,20 @@ impl TraceWriter {
         writeln!(writer, "{}", json)?;
         writer.flush()?;
 
+        Ok(())
+    }
+
+    /// Append a single event line and flush immediately.
+    ///
+    /// Designed for incremental writing during execution so that partial
+    /// trace data survives a crash. Returns `io::Result` for ergonomic
+    /// use with `let _ =` in hot paths.
+    pub fn append_event(&self, event: &Event) -> io::Result<()> {
+        let json = serde_json::to_string(event)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        let mut writer = self.writer.lock();
+        writeln!(writer, "{}", json)?;
+        writer.flush()?;
         Ok(())
     }
 

@@ -18,6 +18,8 @@ use tokio::sync::broadcast;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::trace::TraceWriter;
+
 // ═══════════════════════════════════════════════════════════════
 // Helper structs for ContextAssembled event
 // ═══════════════════════════════════════════════════════════════
@@ -684,6 +686,10 @@ pub struct EventLog {
     next_id: Arc<AtomicU64>,
     /// Optional broadcast sender for TUI real-time updates
     broadcast_tx: Option<broadcast::Sender<Event>>,
+    /// Optional trace writer for incremental crash-resilient trace output.
+    /// When attached, every emitted event is immediately flushed to the NDJSON
+    /// trace file so that partial data survives a process crash.
+    trace_writer: Option<Arc<TraceWriter>>,
 }
 
 impl EventLog {
@@ -694,6 +700,7 @@ impl EventLog {
             start_time: Instant::now(),
             next_id: Arc::new(AtomicU64::new(0)),
             broadcast_tx: None,
+            trace_writer: None,
         }
     }
 
@@ -708,6 +715,7 @@ impl EventLog {
             start_time: Instant::now(),
             next_id: Arc::new(AtomicU64::new(0)),
             broadcast_tx: Some(tx),
+            trace_writer: None,
         };
         (event_log, rx)
     }
@@ -719,9 +727,20 @@ impl EventLog {
         self.broadcast_tx.as_ref().map(|tx| tx.subscribe())
     }
 
+    /// Attach a trace writer for incremental crash-resilient output.
+    ///
+    /// Once attached, every event emitted via `emit()` is immediately
+    /// flushed to the trace file. If the process crashes, the partial
+    /// trace survives on disk.
+    pub fn attach_trace_writer(&mut self, writer: TraceWriter) {
+        self.trace_writer = Some(Arc::new(writer));
+    }
+
     /// Emit an event (thread-safe, returns event ID)
     ///
     /// If broadcast channel is configured, also sends to subscribers.
+    /// If a trace writer is attached, the event is immediately flushed
+    /// to the NDJSON trace file for crash resilience.
     pub fn emit(&self, kind: EventKind) -> u64 {
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
         let event = Event {
@@ -731,6 +750,11 @@ impl EventLog {
         };
 
         self.events.write().push(event.clone()); // parking_lot: no unwrap needed
+
+        // If trace writer attached, write immediately (ignore errors — best-effort)
+        if let Some(ref writer) = self.trace_writer {
+            let _ = writer.append_event(&event);
+        }
 
         // Broadcast to TUI if configured (ignore errors - TUI might be closed)
         if let Some(ref tx) = self.broadcast_tx {

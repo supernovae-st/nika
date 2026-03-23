@@ -385,6 +385,24 @@ impl RigAgentLoop {
 
         let total_retries = retry_count + guardrail_retry_count;
 
+        // Emit ProviderResponded so runner cost summary includes agent work
+        let total_cost = crate::provider::cost::calculate_cost(
+            crate::provider::cost::ProviderKind::Claude,
+            &model_name,
+            total_input_tokens,
+            total_output_tokens,
+        );
+        self.event_log.emit(EventKind::ProviderResponded {
+            task_id: Arc::from(self.task_id.as_str()),
+            request_id: None,
+            input_tokens: total_input_tokens,
+            output_tokens: total_output_tokens,
+            cache_read_tokens: 0,
+            ttft_ms: None,
+            finish_reason: stop_reason.to_string(),
+            cost_usd: if total_cost.is_finite() { total_cost } else { 0.0 },
+        });
+
         Ok(RigAgentLoopResult {
             status: status.clone(),
             turns: (total_retries + 1) as usize,
@@ -689,6 +707,24 @@ impl RigAgentLoop {
         };
 
         let total_retries = retry_count + guardrail_retry_count;
+
+        // Emit ProviderResponded so runner cost summary includes agent work
+        let total_cost = crate::provider::cost::calculate_cost(
+            crate::provider::cost::ProviderKind::OpenAI,
+            &model_name,
+            total_input_tokens,
+            total_output_tokens,
+        );
+        self.event_log.emit(EventKind::ProviderResponded {
+            task_id: Arc::from(self.task_id.as_str()),
+            request_id: None,
+            input_tokens: total_input_tokens,
+            output_tokens: total_output_tokens,
+            cache_read_tokens: 0,
+            ttft_ms: None,
+            finish_reason: stop_reason.to_string(),
+            cost_usd: if total_cost.is_finite() { total_cost } else { 0.0 },
+        });
 
         Ok(RigAgentLoopResult {
             status: status.clone(),
@@ -1147,6 +1183,28 @@ impl RigAgentLoop {
         };
 
         let total_retries = retry_count + guardrail_retry_count;
+
+        // Emit ProviderResponded so runner cost summary includes agent work
+        let total_cost = provider_kind
+            .map(|pk| {
+                crate::provider::cost::calculate_cost(
+                    pk,
+                    model_name,
+                    total_input_tokens,
+                    total_output_tokens,
+                )
+            })
+            .unwrap_or(0.0);
+        self.event_log.emit(EventKind::ProviderResponded {
+            task_id: Arc::from(self.task_id.as_str()),
+            request_id: None,
+            input_tokens: total_input_tokens,
+            output_tokens: total_output_tokens,
+            cache_read_tokens: 0,
+            ttft_ms: None,
+            finish_reason: stop_reason.to_string(),
+            cost_usd: if total_cost.is_finite() { total_cost } else { 0.0 },
+        });
 
         Ok(RigAgentLoopResult {
             status: status.clone(),
