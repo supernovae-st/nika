@@ -156,16 +156,17 @@ pub fn print_doctor_summary(pass_count: usize, warn_count: usize, fail_count: us
 
     if warn_count > 0 || fail_count > 0 {
         println!();
-        println!("  {}", "Recommended order:".bold());
+        if !std::path::Path::new(".nika").exists() {
+            println!(
+                "  {} Run {} to initialize project",
+                "\u{2192}".cyan(),
+                "nika init".bold()
+            );
+        }
         println!(
-            "    {} {} initialize project",
-            "1.".bold(),
-            "nika init".cyan()
-        );
-        println!(
-            "    {} {} verify everything works",
-            "2.".bold(),
-            "nika doctor".cyan()
+            "  {} Run {} to auto-fix issues",
+            "\u{2192}".cyan(),
+            "nika doctor --fix".bold()
         );
     }
 

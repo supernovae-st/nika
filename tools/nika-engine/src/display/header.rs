@@ -62,7 +62,9 @@ pub fn print_header(
 
     // Provider + task count
     let info = format!("{} {} / {}", icons::provider(), provider, model);
-    let tasks = format!("{} tasks · {} layers", task_count, layer_count);
+    let task_word = if task_count == 1 { "task" } else { "tasks" };
+    let layer_word = if layer_count == 1 { "layer" } else { "layers" };
+    let tasks = format!("{} {} · {} {}", task_count, task_word, layer_count, layer_word);
     let pad = inner.saturating_sub(stripped_len(&info) + tasks.len() + 4);
     println!("│  {}{}{} │", info, " ".repeat(pad), tasks.dimmed());
 
@@ -99,7 +101,11 @@ pub fn print_dag_summary(task_names: &[&str], depths: &HashMap<&str, usize>) {
     }
 
     // Count parallel tasks
-    let parallel_count = layers.iter().filter(|l| l.len() > 1).flat_map(|l| l.iter()).count();
+    let parallel_count = layers
+        .iter()
+        .filter(|l| l.len() > 1)
+        .flat_map(|l| l.iter())
+        .count();
 
     // Build flow string
     let parts: Vec<String> = layers

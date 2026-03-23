@@ -45,11 +45,16 @@ pub fn print_static_dag(tasks: &[StaticDagTask], edges: &[StaticDagEdge]) {
     let max_layer = tasks.iter().map(|t| t.layer).max().unwrap_or(0);
     let num_layers = max_layer + 1;
 
+    let tc = tasks.len();
+    let ec = edges.len();
     let summary = format!(
-        "DAG  {} tasks \u{00B7} {} layers \u{00B7} {} edges",
-        tasks.len(),
+        "DAG  {} {} \u{00B7} {} {} \u{00B7} {} {}",
+        tc,
+        if tc == 1 { "task" } else { "tasks" },
         num_layers,
-        edges.len()
+        if num_layers == 1 { "layer" } else { "layers" },
+        ec,
+        if ec == 1 { "edge" } else { "edges" },
     );
     println!("  {}", summary.cyan().bold());
     println!();

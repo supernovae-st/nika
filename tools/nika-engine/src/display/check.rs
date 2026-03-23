@@ -306,9 +306,9 @@ pub fn print_check_summary(
 
     // Stats line
     let mut stats_parts = vec![
-        format!("{} tasks", task_count),
-        format!("{} edges", edge_count),
-        format!("{} layers", layer_count),
+        format!("{} {}", task_count, if task_count == 1 { "task" } else { "tasks" }),
+        format!("{} {}", edge_count, if edge_count == 1 { "edge" } else { "edges" }),
+        format!("{} {}", layer_count, if layer_count == 1 { "layer" } else { "layers" }),
     ];
     if schema_count > 0 {
         stats_parts.push(format!("{} schemas", schema_count));

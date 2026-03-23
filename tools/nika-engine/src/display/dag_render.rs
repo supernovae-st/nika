@@ -36,14 +36,19 @@ pub fn render_dag(tasks: &[DagTask], deps: &std::collections::HashMap<String, Ve
 
     // Header
     println!();
+    let task_word = if tasks.len() == 1 { "task" } else { "tasks" };
+    let layer_word = if layers.len() == 1 { "layer" } else { "layers" };
+    let edge_word = if edge_count == 1 { "edge" } else { "edges" };
     println!(
-        "  {} {} tasks {} {} layers {} {} edges",
+        "  {} {} {} {} {} {} {} {}",
         "DAG".cyan().bold(),
         tasks.len().to_string().white().bold(),
+        task_word,
         "·".dimmed(),
         layers.len().to_string().white().bold(),
+        layer_word,
         "·".dimmed(),
-        edge_count.to_string().white().bold(),
+        format!("{} {}", edge_count, edge_word).white().bold(),
     );
     println!();
 
