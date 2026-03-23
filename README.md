@@ -918,7 +918,7 @@ nika mcp tools workflow.yaml SERVER      # List available tools
 nika mcp serve                           # Start MCP server for AI coding tools
 
 # Showcase
-nika showcase list                       # Browse 200+ showcase workflows
+nika showcase list                       # Browse 115 showcase workflows
 nika showcase extract NAME               # Extract a showcase to current dir
 
 # Media (CAS)
