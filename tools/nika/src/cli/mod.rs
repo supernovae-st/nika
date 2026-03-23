@@ -24,7 +24,3 @@ pub use nika_cli::model;
 // TUI-dependent handlers remain local
 #[cfg(feature = "tui")]
 pub mod provider;
-
-// new_wizard moved to nika-tui crate
-#[cfg(feature = "tui")]
-pub use nika_tui::new_wizard;

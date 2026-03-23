@@ -351,19 +351,11 @@ enum Commands {
         fix: bool,
     },
 
-    /// Create a new workflow from template or wizard
+    /// Create a new workflow file
     #[command(visible_alias = "n")]
     New {
         /// Workflow name (used for filename)
         name: Option<String>,
-
-        /// Launch interactive wizard (default if no other flags)
-        #[arg(long)]
-        wizard: bool,
-
-        /// Use a template (simple-infer, blog-generator, agent-research, etc.)
-        #[arg(short, long, value_name = "TEMPLATE")]
-        template: Option<String>,
 
         /// Primary verb (infer, exec, fetch, invoke, agent)
         #[arg(long, value_name = "VERB")]
@@ -373,29 +365,9 @@ enum Commands {
         #[arg(short, long, value_name = "PROVIDER")]
         provider: Option<String>,
 
-        /// Output format (text, json, yaml)
-        #[arg(short, long, value_name = "FORMAT")]
-        output: Option<String>,
-
-        /// Include MCP server configuration
-        #[arg(long)]
-        with_mcp: bool,
-
-        /// Include subworkflow example
-        #[arg(long)]
-        with_include: bool,
-
-        /// Include artifact output configuration
-        #[arg(long)]
-        with_artifacts: bool,
-
         /// Output directory (default: current directory)
         #[arg(short = 'd', long, value_name = "DIR")]
         output_dir: Option<PathBuf>,
-
-        /// List available templates
-        #[arg(long)]
-        list: bool,
     },
 
     /// Manage workflow files (edit, add-task, graph, check)
@@ -909,55 +881,10 @@ async fn main() {
 
         Some(Commands::New {
             name,
-            wizard,
-            template,
             verb,
             provider,
-            output,
-            with_mcp,
-            with_include,
-            with_artifacts,
             output_dir,
-            list,
-        }) => {
-            // Wizard mode requires TUI (lives in nika binary, not nika-cli)
-            #[cfg(feature = "tui")]
-            {
-                let has_flags = template.is_some()
-                    || verb.is_some()
-                    || provider.is_some()
-                    || output.is_some()
-                    || with_mcp
-                    || with_include
-                    || with_artifacts;
-                if wizard || (name.is_none() && !has_flags && !list) {
-                    let out_dir = output_dir.unwrap_or_else(|| PathBuf::from("."));
-                    let result = cli::new_wizard::run_wizard(out_dir);
-                    if let Ok(ref path) = result {
-                        if !quiet {
-                            println!("{} Created: {}", "SUCCESS!".green().bold(), path.display());
-                            println!("  Run: nika {}", path.display());
-                        }
-                    }
-                    handle_result(result.map(|_| ()));
-                    return;
-                }
-            }
-            cli::new_cmd::handle_new_command(
-                name,
-                wizard,
-                template,
-                verb,
-                provider,
-                output,
-                with_mcp,
-                with_include,
-                with_artifacts,
-                output_dir,
-                list,
-                quiet,
-            )
-        }
+        }) => cli::new_cmd::handle_new_command(name, verb, provider, output_dir, quiet),
 
         Some(Commands::Workflow { action }) => {
             cli::workflow::handle_workflow_command(action, quiet).await

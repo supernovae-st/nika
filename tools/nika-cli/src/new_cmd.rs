@@ -6,89 +6,20 @@ use colored::Colorize;
 
 use nika_engine::error::NikaError;
 
-#[allow(clippy::too_many_arguments)]
 pub fn handle_new_command(
     name: Option<String>,
-    wizard: bool,
-    template: Option<String>,
     verb: Option<String>,
     provider: Option<String>,
-    output: Option<String>,
-    with_mcp: bool,
-    with_include: bool,
-    with_artifacts: bool,
     output_dir: Option<PathBuf>,
-    list: bool,
     quiet: bool,
 ) -> Result<(), NikaError> {
-    use nika_engine::new::{
-        create_from_template, list_templates, NewWorkflowConfig, OutputFormat, Provider, Template,
-        Verb,
-    };
+    use nika_engine::new::{NewWorkflowConfig, OutputFormat, Provider, Verb};
 
     let output_dir = output_dir.unwrap_or_else(|| PathBuf::from("."));
 
-    // Handle --list flag
-    if list {
-        if !quiet {
-            println!("{}", "Available templates:".bold());
-            println!();
-        }
-        for (name, description, category) in list_templates() {
-            if quiet {
-                println!("{name}");
-            } else {
-                println!(
-                    "  {} {}",
-                    format!("{name:<18}").green(),
-                    format!("[{category}] {description}").white()
-                );
-            }
-        }
-        return Ok(());
-    }
-
-    // Determine mode: wizard, template, or custom flags
-    // Prefix with _ to avoid unused warning when TUI is disabled
-    let _has_flags = template.is_some()
-        || verb.is_some()
-        || provider.is_some()
-        || output.is_some()
-        || with_mcp
-        || with_include
-        || with_artifacts;
-
-    // Wizard mode requires TUI (lives in the nika binary crate, not nika-cli)
-    if wizard {
-        return Err(NikaError::ValidationError {
-            reason: "Wizard mode requires TUI feature. Use --template or flags instead."
-                .to_string(),
-        });
-    }
-
-    // Template mode
-    if let Some(template_name) = template {
-        let workflow_name = name.unwrap_or_else(|| "my-workflow".to_string());
-        let tmpl =
-            Template::from_name(&template_name).ok_or_else(|| NikaError::ValidationError {
-                reason: format!(
-                    "Unknown template: '{template_name}'. Use --list to see available templates."
-                ),
-            })?;
-
-        let path = create_from_template(&workflow_name, tmpl, &output_dir)?;
-
-        if !quiet {
-            println!("{} Created: {}", "SUCCESS!".green().bold(), path.display());
-            println!("  Template: {}", tmpl.name().cyan());
-            println!("  Run: nika {}", path.display());
-        }
-        return Ok(());
-    }
-
-    // Custom flags mode - require name
+    // Require name
     let workflow_name = name.ok_or_else(|| NikaError::ValidationError {
-        reason: "Workflow name is required. Use: nika new <NAME> [OPTIONS]".to_string(),
+        reason: "Workflow name is required. Use: nika new <NAME> [--verb exec]".to_string(),
     })?;
 
     // Parse verb
@@ -113,16 +44,6 @@ pub fn handle_new_command(
         .transpose()?
         .unwrap_or_default();
 
-    // Parse output format
-    let output_format = output
-        .map(|o| {
-            OutputFormat::from_name(&o).ok_or_else(|| NikaError::ValidationError {
-                reason: format!("Unknown output format: '{o}'. Valid: text, json, yaml"),
-            })
-        })
-        .transpose()?
-        .unwrap_or_default();
-
     // Build config
     let config = NewWorkflowConfig {
         name: workflow_name,
@@ -130,10 +51,10 @@ pub fn handle_new_command(
         verb,
         provider,
         model: None,
-        output_format,
-        with_mcp,
-        with_include,
-        with_artifacts,
+        output_format: OutputFormat::default(),
+        with_mcp: false,
+        with_include: false,
+        with_artifacts: false,
         output_dir,
     };
 
@@ -144,9 +65,6 @@ pub fn handle_new_command(
         println!("{} Created: {}", "SUCCESS!".green().bold(), path.display());
         println!("  Verb: {}", config.verb.name().cyan());
         println!("  Provider: {}", config.provider.name().yellow());
-        if with_mcp {
-            println!("  MCP: {}", "enabled".magenta());
-        }
         println!("  Run: nika {}", path.display());
     }
 
