@@ -1,7 +1,7 @@
 {
   "$schema": "https://claude.ai/schemas/claude-plugin@1.json",
   "name": "nika",
-  "version": "0.39.1",
+  "version": "0.40.0",
   "displayName": "Nika Workflow Engine",
   "description": "Claude Code plugin for Nika — semantic YAML workflow engine for AI tasks. Provides interactive workflow creation, diagnostics, course tutoring, MCP configuration, and auto-validation hooks.",
   "publisher": {
