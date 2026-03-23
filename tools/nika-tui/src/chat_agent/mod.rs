@@ -138,7 +138,10 @@ impl ChatAgent {
             streaming_tx: None,
             stream_chunk_tx: None,
             streaming_state: StreamingState::new(),
-            http_client: reqwest::Client::new(),
+            http_client: reqwest::Client::builder()
+                .redirect(reqwest::redirect::Policy::limited(5))
+                .build()
+                .expect("HTTP client build with default TLS is infallible"),
             total_input_tokens: 0,
             total_output_tokens: 0,
         })

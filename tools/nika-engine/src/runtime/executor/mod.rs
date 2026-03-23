@@ -146,10 +146,7 @@ impl TaskExecutor {
             .redirect(ssrf_redirect_policy)
             .user_agent(format!("nika/{}", env!("CARGO_PKG_VERSION")))
             .build()
-            .unwrap_or_else(|e| {
-                tracing::error!("HTTP client build failed: {e}. Using default client.");
-                reqwest::Client::new()
-            });
+            .expect("HTTP client build with default TLS is infallible");
 
         let policy_enforcer = PolicyEnforcer::new(policy_config.unwrap_or_default());
 
