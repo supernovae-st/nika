@@ -79,7 +79,14 @@ impl LevelReport {
 
 /// Check that the YAML contains no TODO/FIXME/XXX placeholders
 pub fn check_no_todos(yaml: &str) -> CheckResult {
-    let has_todos = yaml.contains("TODO") || yaml.contains("FIXME") || yaml.contains("XXX");
+    let has_todos = yaml.lines().any(|line| {
+        let trimmed = line.trim_start();
+        // Skip comment lines — templates use # TODO: as instructions
+        if trimmed.starts_with('#') {
+            return false;
+        }
+        trimmed.contains("TODO") || trimmed.contains("FIXME") || trimmed.contains("XXX")
+    });
     CheckResult {
         name: "no_todos",
         verdict: if has_todos {
@@ -224,7 +231,7 @@ tasks:
 
     #[test]
     fn test_check_no_todos_fail() {
-        let yaml = "# TODO: fix this\ntasks:\n  - id: a\n    exec:\n      run: echo hi";
+        let yaml = "tasks:\n  - id: a\n    exec: \"TODO: fix this\"";
         let result = check_no_todos(yaml);
         assert!(!result.verdict.is_pass());
     }
@@ -384,5 +391,19 @@ tasks:
         assert!(CheckVerdict::Pass.is_pass());
         assert!(CheckVerdict::Bonus("nice".into()).is_pass());
         assert!(!CheckVerdict::Fail("bad".into()).is_pass());
+    }
+
+    #[test]
+    fn test_check_no_todos_ignores_comments() {
+        let yaml = "schema: \"nika/workflow@0.12\"\nworkflow: test\n# TODO: This is a guide comment\ntasks:\n  - id: hello\n    exec: \"echo hello\"\n";
+        let result = check_no_todos(yaml);
+        assert!(result.verdict.is_pass(), "TODO in comments should not fail");
+    }
+
+    #[test]
+    fn test_check_no_todos_catches_inline_todos() {
+        let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: hello\n    exec: \"TODO implement this\"\n";
+        let result = check_no_todos(yaml);
+        assert!(!result.verdict.is_pass(), "TODO in values should fail");
     }
 }
