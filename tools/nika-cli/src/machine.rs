@@ -117,9 +117,7 @@ fn detect_editors() -> Vec<&'static str> {
         editors.push("vscode");
     }
     // Cursor
-    if which::which("cursor").is_ok()
-        || home.join(".cursor").exists()
-        || check_macos_app("Cursor")
+    if which::which("cursor").is_ok() || home.join(".cursor").exists() || check_macos_app("Cursor")
     {
         editors.push("cursor");
     }
@@ -163,13 +161,16 @@ pub fn run_machine_setup() -> Vec<SetupResult> {
     // Write marker file
     write_marker(&results);
 
-    // Summary line
-    let ok = results.iter().filter(|r| r.success).count();
-    println!(
-        "  {} Editor rules installed ({} configured)",
-        "\u{2713}".green(),
-        ok
-    );
+    // Summary: show each configured editor by name
+    let ok_results: Vec<&SetupResult> = results.iter().filter(|r| r.success).collect();
+    if ok_results.is_empty() {
+        println!("  {} No editors detected", "\u{25cb}".dimmed());
+    } else {
+        println!("  {}", "AI Editors configured:".bold());
+        for r in &ok_results {
+            println!("    {} {}", "\u{2713}".green(), r.name);
+        }
+    }
 
     results
 }
@@ -1135,8 +1136,7 @@ fn update_rule_hash(editor_key: &str, hash: &str) {
                 .iter()
                 .position(|l| {
                     let t = l.trim();
-                    t.starts_with(editor_key)
-                        && t[editor_key.len()..].trim_start().starts_with('=')
+                    t.starts_with(editor_key) && t[editor_key.len()..].trim_start().starts_with('=')
                 })
                 .map(|i| i + idx + 1);
             match key_idx {
@@ -1328,12 +1328,7 @@ fn install_rule(
             });
         }
         Err(e) => {
-            println!(
-                "  {} {} — write failed: {}",
-                "\u{2717}".red(),
-                name,
-                e
-            );
+            println!("  {} {} — write failed: {}", "\u{2717}".red(), name, e);
             results.push(SetupResult {
                 name: name.into(),
                 success: false,
@@ -1478,7 +1473,9 @@ fn write_marker(results: &[SetupResult]) {
 
 fn write_marker_with_editors(results: &[SetupResult], editors: &[&str]) {
     let marker_path = machine_toml_path();
-    let Some(dir) = marker_path.parent() else { return; };
+    let Some(dir) = marker_path.parent() else {
+        return;
+    };
     std::fs::create_dir_all(dir).ok();
 
     let ai_tools: Vec<&str> = results
@@ -1575,12 +1572,7 @@ pub fn quick_editor_scan() {
                 );
             }
             "roo" => {
-                install_rule_silent(
-                    &home.join(".roo/rules/nika.md"),
-                    ROO_RULES,
-                    "roo",
-                    &hashes,
-                );
+                install_rule_silent(&home.join(".roo/rules/nika.md"), ROO_RULES, "roo", &hashes);
             }
             _ => {}
         }
@@ -1603,9 +1595,7 @@ fn read_stored_editors() -> Vec<String> {
         if let Some(rest) = trimmed.strip_prefix("editors") {
             let rest = rest.trim().strip_prefix('=').unwrap_or("").trim();
             // Parse TOML array: ["vscode", "claude", "cursor"]
-            let inner = rest
-                .trim_start_matches('[')
-                .trim_end_matches(']');
+            let inner = rest.trim_start_matches('[').trim_end_matches(']');
             return inner
                 .split(',')
                 .map(|s| s.trim().trim_matches('"').to_string())
@@ -1699,11 +1689,7 @@ mod tests {
             ("ROO_RULES", ROO_RULES),
         ];
         for (name, content) in rules {
-            assert!(
-                content.contains("@0.12"),
-                "{} missing schema @0.12",
-                name
-            );
+            assert!(content.contains("@0.12"), "{} missing schema @0.12", name);
         }
     }
 
