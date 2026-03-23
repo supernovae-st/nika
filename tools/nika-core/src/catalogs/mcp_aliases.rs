@@ -829,9 +829,10 @@ pub static CATEGORIES: &[(&str, &str)] = &[
 /// assert_eq!(resolve_alias("unknown"), None);
 /// ```
 pub fn resolve_alias(alias: &str) -> Option<&'static str> {
+    let lower = alias.to_lowercase();
     MCP_ALIASES
         .iter()
-        .find(|a| a.name == alias)
+        .find(|a| a.name.to_lowercase() == lower)
         .map(|a| a.package)
 }
 
@@ -846,7 +847,8 @@ pub fn resolve_alias(alias: &str) -> Option<&'static str> {
 /// assert!(!is_alias("@neo4j/mcp-neo4j"));
 /// ```
 pub fn is_alias(name: &str) -> bool {
-    MCP_ALIASES.iter().any(|a| a.name == name)
+    let lower = name.to_lowercase();
+    MCP_ALIASES.iter().any(|a| a.name.to_lowercase() == lower)
 }
 
 /// List all available alias names.

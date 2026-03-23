@@ -451,7 +451,13 @@ impl BootSequence {
                     }
                 }
                 Err(e) => {
-                    warnings.push(format!("Config parse error: {}", e));
+                    let msg = format!(
+                        "Config parse error in {}: {}",
+                        config_path.display(),
+                        e
+                    );
+                    tracing::error!("{}", msg);
+                    warnings.push(msg);
                     ctx.config = Some(BootstrapConfig::default());
                     PhaseResult {
                         phase: BootPhase::ConfigValidation,
