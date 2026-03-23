@@ -299,10 +299,8 @@ impl App {
         })?;
 
         let mut stdout = io::stdout();
-        execute!(stdout, EnterAlternateScreen).map_err(|e| {
-            NikaError::TuiError {
-                reason: format!("Failed to enter alternate screen: {}", e),
-            }
+        execute!(stdout, EnterAlternateScreen).map_err(|e| NikaError::TuiError {
+            reason: format!("Failed to enter alternate screen: {}", e),
         })?;
 
         let backend = CrosstermBackend::new(stdout);

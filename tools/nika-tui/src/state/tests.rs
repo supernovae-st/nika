@@ -2656,10 +2656,7 @@ fn test_happy_path_full_sequence() {
     assert_eq!(state.workflow.phase, MissionPhase::Countdown);
     assert_eq!(state.workflow.task_count, 2);
     assert!(state.workflow.started_at.is_some());
-    assert_eq!(
-        state.workflow.generation_id,
-        Some("gen-happy".to_string())
-    );
+    assert_eq!(state.workflow.generation_id, Some("gen-happy".to_string()));
 
     // 2. TaskScheduled x2
     state.handle_event(
@@ -3549,8 +3546,17 @@ fn test_mcp_connected_event() {
     );
 
     assert!(state.dirty.status);
-    assert_eq!(state.notifs.items.last().unwrap().level, NotificationLevel::Success);
-    assert!(state.notifs.items.last().unwrap().message.contains("novanet"));
+    assert_eq!(
+        state.notifs.items.last().unwrap().level,
+        NotificationLevel::Success
+    );
+    assert!(state
+        .notifs
+        .items
+        .last()
+        .unwrap()
+        .message
+        .contains("novanet"));
 }
 
 #[test]
@@ -3567,8 +3573,17 @@ fn test_mcp_error_event() {
     );
 
     assert!(state.dirty.status);
-    assert_eq!(state.notifs.items.last().unwrap().level, NotificationLevel::Error);
-    assert!(state.notifs.items.last().unwrap().message.contains("connection refused"));
+    assert_eq!(
+        state.notifs.items.last().unwrap().level,
+        NotificationLevel::Error
+    );
+    assert!(state
+        .notifs
+        .items
+        .last()
+        .unwrap()
+        .message
+        .contains("connection refused"));
 }
 
 #[test]
@@ -3697,9 +3712,16 @@ fn test_spinner_char_cycles() {
     let c = state.spinner_char();
     assert!(matches!(
         c,
-        '\u{280B}' | '\u{2819}' | '\u{2839}' | '\u{2838}'
-            | '\u{283C}' | '\u{2834}' | '\u{2826}' | '\u{2827}'
-            | '\u{2807}' | '\u{280F}'
+        '\u{280B}'
+            | '\u{2819}'
+            | '\u{2839}'
+            | '\u{2838}'
+            | '\u{283C}'
+            | '\u{2834}'
+            | '\u{2826}'
+            | '\u{2827}'
+            | '\u{2807}'
+            | '\u{280F}'
     ));
 
     // Advancing frame should eventually produce different chars
@@ -3714,9 +3736,7 @@ fn test_rocket_char_returns_valid() {
     let state = TuiState::new("test.nika.yaml");
     let c = state.rocket_char();
     // Should be one of the rocket animation chars
-    assert!(
-        c == '\u{1F680}' || c == '\u{1F525}' || c == '\u{1F4A8}' || c == '\u{2728}'
-    );
+    assert!(c == '\u{1F680}' || c == '\u{1F525}' || c == '\u{1F4A8}' || c == '\u{2728}');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

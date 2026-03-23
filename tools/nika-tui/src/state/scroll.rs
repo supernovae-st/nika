@@ -734,7 +734,11 @@ mod tests {
     fn indicator_at_top_shows_down_arrow() {
         let s = scroll(50, 10);
         let ind = s.indicator().unwrap();
-        assert!(ind.contains('\u{2193}'), "expected down arrow, got: {}", ind);
+        assert!(
+            ind.contains('\u{2193}'),
+            "expected down arrow, got: {}",
+            ind
+        );
         assert!(ind.contains("Top"), "expected Top, got: {}", ind);
     }
 

@@ -715,11 +715,7 @@ impl TextBuffer {
         }
         // Fallback: end of document
         self.cursor_row = self.lines.len().saturating_sub(1);
-        self.cursor_col = self
-            .lines
-            .last()
-            .map(|l| l.chars().count())
-            .unwrap_or(0);
+        self.cursor_col = self.lines.last().map(|l| l.chars().count()).unwrap_or(0);
         self.adjust_scroll();
     }
 }

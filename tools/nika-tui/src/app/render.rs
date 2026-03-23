@@ -11,8 +11,7 @@ use nika_engine::error::{NikaError, Result};
 
 use super::super::views::{TuiView, View};
 use super::super::widgets::{
-    check_terminal_size, ConnectionStatus, Header, StatusBar, StatusMessageWidget,
-    StatusMetrics,
+    check_terminal_size, ConnectionStatus, Header, StatusBar, StatusMessageWidget, StatusMetrics,
 };
 use super::App;
 

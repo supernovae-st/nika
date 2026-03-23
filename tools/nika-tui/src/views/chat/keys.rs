@@ -625,8 +625,7 @@ impl ChatView {
             }
             // 's' when empty switches to Studio (only from non-Input panels)
             KeyCode::Char('s')
-                if self.input.value().is_empty()
-                    && self.focused_panel != ChatPanel::Input =>
+                if self.input.value().is_empty() && self.focused_panel != ChatPanel::Input =>
             {
                 Some(ViewAction::SwitchView(TuiView::Studio))
             }

@@ -188,10 +188,7 @@ impl YamlEditorPanel {
                 let mut spans = vec![
                     git_gutter,
                     diag_gutter,
-                    Span::styled(
-                        line_buf.clone(),
-                        Style::default().fg(theme.text_muted),
-                    ),
+                    Span::styled(line_buf.clone(), Style::default().fg(theme.text_muted)),
                 ];
 
                 // Check for selection on this line

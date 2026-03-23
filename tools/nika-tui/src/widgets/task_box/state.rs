@@ -236,7 +236,10 @@ mod tests {
         assert_eq!(BoxState::Queued.icon(), icons::status::PENDING);
         assert_eq!(BoxState::success(1000).icon(), icons::status::SUCCESS);
         assert_eq!(BoxState::failed("error", 500).icon(), icons::status::FAILED);
-        assert_eq!(BoxState::skipped("dep failed").icon(), icons::status::SKIPPED);
+        assert_eq!(
+            BoxState::skipped("dep failed").icon(),
+            icons::status::SKIPPED
+        );
     }
 
     #[test]
@@ -368,11 +371,26 @@ mod tests {
     fn test_border_color_themed_uses_theme_values() {
         let theme = Theme::dark();
         let verb_color = Color::Rgb(139, 92, 246);
-        assert_eq!(BoxState::Queued.border_color_themed(verb_color, &theme), theme.text_muted);
-        assert_eq!(BoxState::running().border_color_themed(verb_color, &theme), verb_color);
-        assert_eq!(BoxState::success(100).border_color_themed(verb_color, &theme), theme.status_success);
-        assert_eq!(BoxState::failed("err", 100).border_color_themed(verb_color, &theme), theme.status_failed);
-        assert_eq!(BoxState::skipped("dep").border_color_themed(verb_color, &theme), theme.text_muted);
+        assert_eq!(
+            BoxState::Queued.border_color_themed(verb_color, &theme),
+            theme.text_muted
+        );
+        assert_eq!(
+            BoxState::running().border_color_themed(verb_color, &theme),
+            verb_color
+        );
+        assert_eq!(
+            BoxState::success(100).border_color_themed(verb_color, &theme),
+            theme.status_success
+        );
+        assert_eq!(
+            BoxState::failed("err", 100).border_color_themed(verb_color, &theme),
+            theme.status_failed
+        );
+        assert_eq!(
+            BoxState::skipped("dep").border_color_themed(verb_color, &theme),
+            theme.text_muted
+        );
     }
 
     #[test]

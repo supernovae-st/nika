@@ -937,7 +937,7 @@ mod tests {
         let child =
             TaskBox::Invoke(InvokeBox::new("tool", "server").with_state(BoxState::success(100)));
         box_.add_child(child);
-        assert_eq!(box_.children_status_icons(), "✓");  // checkmark
+        assert_eq!(box_.children_status_icons(), "✓"); // checkmark
     }
 
     #[test]
@@ -965,7 +965,7 @@ mod tests {
         let icons = box_.children_status_icons();
         assert!(icons.contains("✓")); // success (checkmark)
         assert!(icons.contains("✗")); // failed (cross)
-                                       // Running icon is a spinner character
+                                      // Running icon is a spinner character
     }
 
     #[test]

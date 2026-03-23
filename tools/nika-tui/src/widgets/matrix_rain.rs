@@ -333,7 +333,6 @@ impl MatrixRain {
             }
         }
     }
-
 }
 
 impl Widget for MatrixRain {
@@ -485,5 +484,4 @@ mod tests {
         assert!(KATAKANA_HALF.contains(&'ﾝ'));
         assert_eq!(KATAKANA_HALF.len(), 45); // Full half-width set
     }
-
 }

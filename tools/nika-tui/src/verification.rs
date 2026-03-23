@@ -152,8 +152,7 @@ impl VerificationCache {
     /// Remove all entries that have exceeded their TTL
     pub fn purge_expired(&mut self) {
         let ttl = self.ttl;
-        self.providers
-            .retain(|_, e| e.verified_at.elapsed() < ttl);
+        self.providers.retain(|_, e| e.verified_at.elapsed() < ttl);
         self.mcp_servers
             .retain(|_, e| e.verified_at.elapsed() < ttl);
     }

@@ -600,7 +600,10 @@ impl Widget for CommandPalette<'_> {
 
             // Shortcut on the right
             if let Some(ref shortcut) = cmd.shortcut {
-                let shortcut_x = inner.x + inner.width.saturating_sub(shortcut.chars().count() as u16 + 3);
+                let shortcut_x = inner.x
+                    + inner
+                        .width
+                        .saturating_sub(shortcut.chars().count() as u16 + 3);
                 if shortcut_x > inner.x + cmd.label.len() as u16 + 10 {
                     buf.set_string(
                         shortcut_x,
