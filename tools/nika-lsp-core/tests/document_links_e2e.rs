@@ -1,5 +1,5 @@
 //! E2E tests for document_links handler.
-use nika_lsp_core::handlers::document_links::{document_links, LinkEntry};
+use nika_lsp_core::handlers::document_links::document_links;
 
 #[test]
 fn url_link_detection() {

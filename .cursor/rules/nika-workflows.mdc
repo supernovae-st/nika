@@ -92,7 +92,7 @@ Builtins: `nika:import`, `nika:thumbnail`, `nika:chart`, `nika:metadata`, etc.
   exec: "echo '{{with.data}}'"
 ```
 
-## Templates: `{{with.alias}}`, `{{inputs.name}}`, `{{with.item}}`, `{{context.file}}`
+## Templates: `{{with.alias}}`, `{{inputs.name}}`, `{{with.item}}`, `{{context.files.alias}}`
 
 ## Transforms (pipe-chained in with: bindings)
 - **String**: `upper`, `lower`, `trim`, `trim_start`, `trim_end`

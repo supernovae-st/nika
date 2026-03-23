@@ -1,5 +1,5 @@
 //! E2E tests for code_lens handler.
-use nika_lsp_core::handlers::code_lens::{code_lenses, CodeLensEntry, LensCommand};
+use nika_lsp_core::handlers::code_lens::{code_lenses, LensCommand};
 
 #[test]
 fn validate_on_schema_line() {

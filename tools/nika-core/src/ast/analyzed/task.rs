@@ -474,11 +474,6 @@ impl Default for AnalyzedRetry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::source::FileId;
-
-    fn make_span(start: u32, end: u32) -> Span {
-        Span::new(FileId(0), start, end)
-    }
 
     #[test]
     fn test_http_method_parse() {
