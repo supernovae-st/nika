@@ -3,7 +3,7 @@
     "prefix": ["workflow", "nika"],
     "description": "Complete Nika workflow file",
     "body": [
-      "schema: \"@0.12\"",
+      "schema: \"nika/workflow@0.12\"",
       "workflow: ${1:my-workflow}",
       "description: \"${2:What this workflow does}\"",
       "provider: ${3|anthropic,openai,mistral,groq,deepseek,gemini,xai,native|}",

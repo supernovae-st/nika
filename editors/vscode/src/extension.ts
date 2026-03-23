@@ -116,7 +116,7 @@ export function activate(context: ExtensionContext): void {
 
       const filePath = Uri.joinPath(folder.uri, `${name}.nika.yaml`);
       const content = Buffer.from(
-        `schema: "@0.12"\nworkflow: ${name}\ndescription: ""\nprovider: anthropic\n\ntasks:\n  - id: start\n    infer: ""\n`,
+        `schema: "nika/workflow@0.12"\nworkflow: ${name}\ndescription: ""\nprovider: anthropic\n\ntasks:\n  - id: start\n    infer: ""\n`,
         'utf-8',
       );
       await workspace.fs.writeFile(filePath, content);
