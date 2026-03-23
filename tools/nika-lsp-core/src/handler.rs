@@ -73,6 +73,22 @@ pub trait LspHandler: Send + Sync {
         start: u32,
         end: u32,
     ) -> Vec<crate::handlers::inlay_hints::InlayHintEntry>;
+
+    /// Compute folding ranges for the document.
+    fn folding_ranges(&self, text: &str) -> Vec<crate::handlers::folding_ranges::FoldEntry>;
+
+    /// Find all document links (URLs, file paths, include references).
+    fn document_links(&self, text: &str) -> Vec<crate::handlers::document_links::LinkEntry>;
+
+    /// Find the task ID at the given byte offset in the document.
+    fn find_task_at_offset(&self, text: &str, offset: u32) -> Option<String>;
+
+    /// Find all references to a task ID in the document.
+    fn references(
+        &self,
+        text: &str,
+        task_id: &str,
+    ) -> Vec<crate::handlers::references::ReferenceEntry>;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -148,6 +164,26 @@ impl LspHandler for DefaultHandler {
         end: u32,
     ) -> Vec<crate::handlers::inlay_hints::InlayHintEntry> {
         crate::handlers::inlay_hints::inlay_hints(text, start, end)
+    }
+
+    fn folding_ranges(&self, text: &str) -> Vec<crate::handlers::folding_ranges::FoldEntry> {
+        crate::handlers::folding_ranges::folding_ranges(text)
+    }
+
+    fn document_links(&self, text: &str) -> Vec<crate::handlers::document_links::LinkEntry> {
+        crate::handlers::document_links::document_links(text)
+    }
+
+    fn find_task_at_offset(&self, text: &str, offset: u32) -> Option<String> {
+        crate::handlers::references::find_task_at_offset(text, offset)
+    }
+
+    fn references(
+        &self,
+        text: &str,
+        task_id: &str,
+    ) -> Vec<crate::handlers::references::ReferenceEntry> {
+        crate::handlers::references::find_task_references(text, task_id)
     }
 }
 

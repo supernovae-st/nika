@@ -156,6 +156,15 @@ impl LanguageServer for NikaBackend {
                 }),
                 // Inlay hints
                 inlay_hint_provider: Some(OneOf::Left(true)),
+                // References (Find All References)
+                references_provider: Some(OneOf::Left(true)),
+                // Document links (clickable paths)
+                document_link_provider: Some(DocumentLinkOptions {
+                    resolve_provider: Some(false),
+                    work_done_progress_options: Default::default(),
+                }),
+                // Folding ranges
+                folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
                 // Diagnostics: push model via publish_diagnostics on did_change
                 // (pull-diagnostics not implemented, so no diagnostic_provider here)
                 ..Default::default()
@@ -636,6 +645,109 @@ impl LanguageServer for NikaBackend {
             .collect();
 
         Ok(Some(hints))
+    }
+
+    // ===== References (Find All References) =====
+
+    async fn references(
+        &self,
+        params: ReferenceParams,
+    ) -> Result<Option<Vec<Location>>> {
+        let uri = &params.text_document_position.text_document.uri;
+        let position = params.text_document_position.position;
+
+        let text = match self.documents.get(uri) {
+            Some(d) => d.content(),
+            None => return Ok(None),
+        };
+
+        let offset = crate::position::position_to_offset(
+            &text, position.line, position.character,
+        ).map(|o| o.0).unwrap_or(0);
+
+        let task_id = match self.handler.find_task_at_offset(&text, offset) {
+            Some(id) => id,
+            None => return Ok(None),
+        };
+
+        let refs = self.handler.references(&text, &task_id);
+        let locations: Vec<Location> = refs
+            .into_iter()
+            .map(|r| {
+                let range = offset_range(&text, r.start_offset, r.end_offset);
+                Location { uri: uri.clone(), range }
+            })
+            .collect();
+
+        if locations.is_empty() { Ok(None) } else { Ok(Some(locations)) }
+    }
+
+    // ===== Document Links =====
+
+    async fn document_link(
+        &self,
+        params: DocumentLinkParams,
+    ) -> Result<Option<Vec<DocumentLink>>> {
+        let uri = &params.text_document.uri;
+        let text = match self.documents.get(uri) {
+            Some(d) => d.content(),
+            None => return Ok(None),
+        };
+
+        let entries = self.handler.document_links(&text);
+        let links: Vec<DocumentLink> = entries
+            .into_iter()
+            .filter_map(|e| {
+                let range = offset_range(&text, e.start_offset, e.end_offset);
+                let target: Uri = e.target.parse().ok()?;
+                Some(DocumentLink {
+                    range,
+                    target: Some(target),
+                    tooltip: Some(e.tooltip),
+                    data: None,
+                })
+            })
+            .collect();
+
+        if links.is_empty() { Ok(None) } else { Ok(Some(links)) }
+    }
+
+    // ===== Folding Ranges =====
+
+    async fn folding_range(
+        &self,
+        params: FoldingRangeParams,
+    ) -> Result<Option<Vec<FoldingRange>>> {
+        let uri = &params.text_document.uri;
+        let text = match self.documents.get(uri) {
+            Some(d) => d.content(),
+            None => return Ok(None),
+        };
+
+        let entries = self.handler.folding_ranges(&text);
+        let ranges: Vec<FoldingRange> = entries
+            .into_iter()
+            .map(|e| {
+                let kind = match e.kind {
+                    nika_lsp_core::handlers::folding_ranges::FoldKind::Region => {
+                        Some(FoldingRangeKind::Region)
+                    }
+                    nika_lsp_core::handlers::folding_ranges::FoldKind::Comment => {
+                        Some(FoldingRangeKind::Comment)
+                    }
+                };
+                FoldingRange {
+                    start_line: e.start_line,
+                    start_character: None,
+                    end_line: e.end_line,
+                    end_character: None,
+                    kind,
+                    collapsed_text: None,
+                }
+            })
+            .collect();
+
+        if ranges.is_empty() { Ok(None) } else { Ok(Some(ranges)) }
     }
 }
 
