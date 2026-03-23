@@ -75,9 +75,6 @@ pub mod micro;
 // Shared panel components for view composition
 pub mod panels;
 
-// Progress widgets for M5 UX Polish
-pub mod progress;
-
 // Animation utilities
 pub use animation::{AnimationState, AnimationTicker, Easing};
 // Chat DAG widgets

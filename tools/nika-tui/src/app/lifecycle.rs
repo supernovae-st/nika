@@ -58,6 +58,8 @@ impl App {
             ("mistral", "mistral-large-latest"),
             ("groq", "llama-3.3-70b-versatile"),
             ("deepseek", "deepseek-chat"),
+            ("gemini", "gemini-2.0-flash"),
+            ("xai", "grok-3-fast"),
         ];
         let cache = Arc::clone(&self.verification_cache);
 
