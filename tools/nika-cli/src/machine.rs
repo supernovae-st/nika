@@ -29,23 +29,42 @@ pub struct SetupResult {
     pub message: String,
 }
 
-/// Check if machine setup has been done (marker file exists + version current).
-pub fn is_machine_setup() -> bool {
+/// Distinguishes "never set up" from "version mismatch" from "ready".
+#[derive(Debug, PartialEq)]
+pub enum MachineStatus {
+    /// Never set up (no marker file)
+    NeverSetup,
+    /// Set up but version doesn't match (user upgraded)
+    NeedsUpdate,
+    /// Fully set up and current
+    Ready,
+}
+
+/// Return the machine setup status: NeverSetup, NeedsUpdate, or Ready.
+pub fn machine_setup_status() -> MachineStatus {
     let marker = machine_toml_path();
     let content = match std::fs::read_to_string(&marker) {
         Ok(c) => c,
-        Err(_) => return false,
+        Err(_) => return MachineStatus::NeverSetup,
     };
-    // Parse the version line properly
     for line in content.lines() {
         let trimmed = line.trim();
         if let Some(rest) = trimmed.strip_prefix("version") {
             let rest = rest.trim().strip_prefix('=').unwrap_or("").trim();
             let version = rest.trim_matches('"');
-            return version == env!("CARGO_PKG_VERSION");
+            if version == env!("CARGO_PKG_VERSION") {
+                return MachineStatus::Ready;
+            } else {
+                return MachineStatus::NeedsUpdate;
+            }
         }
     }
-    false
+    MachineStatus::NeedsUpdate
+}
+
+/// Check if machine setup has been done (marker file exists + version current).
+pub fn is_machine_setup() -> bool {
+    machine_setup_status() == MachineStatus::Ready
 }
 
 /// Path to the machine marker file.

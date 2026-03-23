@@ -72,10 +72,22 @@ MCP SERVER MANAGEMENT:
     nika mcp test workflow.yaml s  Test server connection
     nika mcp tools workflow.yaml s List available tools
 
-TRACES:
+CONTENT & TEMPLATES:
+    nika new                      Create workflow from template or wizard
+    nika new --list               List available templates
+    nika showcase list            Browse 200+ showcase workflows
+    nika showcase extract <name>  Extract showcase to current dir
+
+LEARNING:
+    nika init --course            Generate 12-level interactive course
+    nika course status            Show constellation progress map
+    nika course next              Open next exercise
+
+DIAGNOSTICS:
+    nika doctor                   Check system health
+    nika doctor --fix             Auto-repair machine setup
     nika trace list               List execution traces
     nika trace show <id>          Show trace details
-    nika trace export <id>        Export to JSON/YAML
 
 GLOBAL FLAGS:
     -v, --verbose                 Increase verbosity (-v, -vv, -vvv)
@@ -694,56 +706,77 @@ async fn main() {
     let result = match cli.command {
         None => {
             // Adaptive behavior based on context
-            if !cli::machine::is_machine_setup() {
-                // First time ever: guide to init
-                println!();
-                println!(
-                    "  \u{1f98b} {}",
-                    format!("nika v{}", env!("CARGO_PKG_VERSION")).bold()
-                );
-                println!();
-                println!(
-                    "  Welcome! Run {} to get started.",
-                    "nika init".cyan().bold()
-                );
-                println!("  This will set up your machine and create a project.");
-                println!();
-                Ok(())
-            } else if !Path::new(".nika").exists() {
-                // Machine setup done, but no project here
-                println!();
-                println!("  {} No project in current directory.", "\u{25cb}".dimmed());
-                println!();
-                println!(
-                    "  {} {} start a new project",
-                    "nika init".cyan().bold(),
-                    "\u{2014}".dimmed()
-                );
-                println!(
-                    "  {} {} run a workflow file",
-                    "nika <file>".cyan().bold(),
-                    "\u{2014}".dimmed()
-                );
-                println!(
-                    "  {} {} check system health",
-                    "nika doctor".cyan().bold(),
-                    "\u{2014}".dimmed()
-                );
-                println!(
-                    "  {} {} all commands",
-                    "nika --help".cyan().bold(),
-                    "\u{2014}".dimmed()
-                );
-                println!();
-                Ok(())
-            } else {
-                // Project exists: show help
-                use clap::CommandFactory;
-                if let Err(e) = Cli::command().print_help() {
-                    eprintln!("Failed to print help: {e}");
-                    std::process::exit(1);
+            use cli::machine::MachineStatus;
+            match cli::machine::machine_setup_status() {
+                MachineStatus::NeverSetup => {
+                    // First time ever: guide to init
+                    println!();
+                    println!(
+                        "  \u{1f98b} {}",
+                        format!("nika v{}", env!("CARGO_PKG_VERSION")).bold()
+                    );
+                    println!();
+                    println!(
+                        "  Welcome! Run {} to get started.",
+                        "nika init".cyan().bold()
+                    );
+                    println!("  This will set up your machine and create a project.");
+                    println!();
+                    Ok(())
                 }
-                Ok(())
+                MachineStatus::NeedsUpdate => {
+                    // User upgraded nika — nudge them to re-run init
+                    println!();
+                    println!(
+                        "  \u{1f98b} {}",
+                        format!("nika v{}", env!("CARGO_PKG_VERSION")).bold()
+                    );
+                    println!();
+                    println!(
+                        "  Upgraded! Run {} to update your setup.",
+                        "nika init".cyan().bold()
+                    );
+                    println!();
+                    Ok(())
+                }
+                MachineStatus::Ready => {
+                    if !Path::new(".nika").exists() {
+                        // Machine setup done, but no project here
+                        println!();
+                        println!("  {} No project in current directory.", "\u{25cb}".dimmed());
+                        println!();
+                        println!(
+                            "  {} {} start a new project",
+                            "nika init".cyan().bold(),
+                            "\u{2014}".dimmed()
+                        );
+                        println!(
+                            "  {} {} run a workflow file",
+                            "nika <file>".cyan().bold(),
+                            "\u{2014}".dimmed()
+                        );
+                        println!(
+                            "  {} {} check system health",
+                            "nika doctor".cyan().bold(),
+                            "\u{2014}".dimmed()
+                        );
+                        println!(
+                            "  {} {} all commands",
+                            "nika --help".cyan().bold(),
+                            "\u{2014}".dimmed()
+                        );
+                        println!();
+                        Ok(())
+                    } else {
+                        // Project exists: show help
+                        use clap::CommandFactory;
+                        if let Err(e) = Cli::command().print_help() {
+                            eprintln!("Failed to print help: {e}");
+                            std::process::exit(1);
+                        }
+                        Ok(())
+                    }
+                }
             }
         }
 
