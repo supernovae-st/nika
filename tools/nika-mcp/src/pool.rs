@@ -390,10 +390,11 @@ impl McpClientPool {
     /// Inject a pre-built client for testing.
     ///
     /// The client is inserted as already-initialized, bypassing connect_server().
+    /// Only intended for test code (production callers use connect_server).
     pub fn inject_mock(&self, name: &str, client: Arc<McpClient>) {
         let cell = Arc::new(OnceCell::new());
-        cell.set(client)
-            .expect("freshly created cell should be empty");
+        // OnceCell is freshly created so set() always succeeds
+        let _ = cell.set(client);
         self.inner.clients.insert(name.to_string(), cell);
     }
 }

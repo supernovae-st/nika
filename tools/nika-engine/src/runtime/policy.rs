@@ -130,14 +130,17 @@ impl TokenBudget {
     /// Check if spending tokens would exceed budget
     pub fn can_spend(&self, tokens: u64) -> bool {
         match self.limit {
-            Some(limit) => self.used + tokens <= limit,
+            Some(limit) => self
+                .used
+                .checked_add(tokens)
+                .is_some_and(|total| total <= limit),
             None => true,
         }
     }
 
-    /// Record token usage
+    /// Record token usage (saturating to prevent u64 overflow)
     pub fn spend(&mut self, tokens: u64) {
-        self.used += tokens;
+        self.used = self.used.saturating_add(tokens);
     }
 
     /// Remaining budget
