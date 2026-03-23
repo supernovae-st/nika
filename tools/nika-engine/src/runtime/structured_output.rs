@@ -177,6 +177,15 @@ impl StructuredOutputEngine {
         self
     }
 
+    /// Estimate cost using provider/model context (returns 0.0 if unknown)
+    fn estimate_cost(&self, input_tokens: u64, output_tokens: u64) -> f64 {
+        let provider = self.provider_name.as_deref().unwrap_or("");
+        let model = self.model_name.as_deref().unwrap_or("");
+        crate::provider::cost::ProviderKind::parse(provider)
+            .map(|pk| crate::provider::cost::calculate_cost(pk, model, input_tokens, output_tokens))
+            .unwrap_or(0.0)
+    }
+
     /// Load and cache the schema for validation.
     /// Returns an `Arc<Value>` for cheap cloning across async boundaries.
     pub async fn load_schema(&mut self) -> Result<Arc<Value>, NikaError> {
@@ -247,13 +256,21 @@ impl StructuredOutputEngine {
         }
 
         // Layer 3: Retry with Feedback
+        // Track the latest LLM output so each retry sees the most recent attempt,
+        // not the stale original. try_layer_3 returns (Result, Option<latest_output>).
+        let mut current_output = raw_output.to_string();
         if self.spec.enable_retry_or_default() {
             let max_retries = self.spec.max_retries_or_default();
             for retry in 1..=max_retries {
                 total_attempts += 1;
-                let layer_result = self
-                    .try_layer_3(&task_id, raw_output, &schema, retry, total_attempts)
+                let (layer_result, llm_output) = self
+                    .try_layer_3(&task_id, &current_output, &schema, retry, total_attempts)
                     .await;
+
+                // Update current_output with LLM's latest response for next retry
+                if let Some(output) = llm_output {
+                    current_output = output;
+                }
 
                 if let Ok(value) = layer_result {
                     self.emit_success(&task_id, 3, LAYER_3_NAME, total_attempts);
@@ -267,11 +284,11 @@ impl StructuredOutputEngine {
             }
         }
 
-        // Layer 4: LLM Repair
+        // Layer 4: LLM Repair — uses latest output (from Layer 3 retries if any)
         if self.spec.enable_repair_or_default() {
             total_attempts += 1;
             let layer_result = self
-                .try_layer_4(&task_id, raw_output, &schema, total_attempts)
+                .try_layer_4(&task_id, &current_output, &schema, total_attempts)
                 .await;
 
             if let Ok(value) = layer_result {
@@ -285,8 +302,8 @@ impl StructuredOutputEngine {
             }
         }
 
-        // All layers failed
-        let errors = self.collect_validation_errors(raw_output, &schema);
+        // All layers failed — use latest output for error reporting
+        let errors = self.collect_validation_errors(&current_output, &schema);
         Err(NikaError::StructuredOutputAllLayersFailed {
             task_id: task_id.to_string(),
             attempts: total_attempts,
@@ -349,6 +366,8 @@ impl StructuredOutputEngine {
     /// Requires `infer_fn` callback to be set via `with_infer_callback()`.
     ///
     /// Without `infer_fn`, this layer is skipped with a warning.
+    /// Returns `(Result<Value>, Option<raw_llm_output>)` so the caller can
+    /// track the latest LLM response for subsequent retries.
     async fn try_layer_3(
         &self,
         task_id: &Arc<str>,
@@ -356,7 +375,7 @@ impl StructuredOutputEngine {
         schema: &Value,
         retry_num: u8,
         attempt: u32,
-    ) -> Result<Value, NikaError> {
+    ) -> (Result<Value, NikaError>, Option<String>) {
         // Check if we have an inference callback
         let infer_fn = match &self.infer_fn {
             Some(f) => f,
@@ -378,12 +397,15 @@ impl StructuredOutputEngine {
                         retry_num
                     )),
                 );
-                return Err(NikaError::StructuredOutputValidationFailed {
-                    task_id: task_id.to_string(),
-                    layer: LAYER_3_NAME.to_string(),
-                    attempt,
-                    errors: vec!["Layer 3 requires infer callback".to_string()],
-                });
+                return (
+                    Err(NikaError::StructuredOutputValidationFailed {
+                        task_id: task_id.to_string(),
+                        layer: LAYER_3_NAME.to_string(),
+                        attempt,
+                        errors: vec!["Layer 3 requires infer callback".to_string()],
+                    }),
+                    None,
+                );
             }
         };
 
@@ -425,16 +447,19 @@ impl StructuredOutputEngine {
         let new_output = match infer_fn(retry_prompt).await {
             Ok(output) => {
                 let elapsed = infer_start.elapsed();
+                let in_tok = estimate_tokens(prompt_len);
+                let out_tok = estimate_tokens(output.len());
+                let cost = self.estimate_cost(in_tok, out_tok);
                 // EMIT: ProviderResponded after successful LLM retry call
                 self.log.emit(EventKind::ProviderResponded {
                     task_id: Arc::clone(task_id),
                     request_id: None,
-                    input_tokens: estimate_tokens(prompt_len),
-                    output_tokens: estimate_tokens(output.len()),
+                    input_tokens: in_tok,
+                    output_tokens: out_tok,
                     cache_read_tokens: 0,
                     ttft_ms: Some(elapsed.as_millis() as u64),
                     finish_reason: "structured_output_retry".to_string(),
-                    cost_usd: 0.0,
+                    cost_usd: cost,
                 });
                 output
             }
@@ -447,7 +472,7 @@ impl StructuredOutputEngine {
                     false,
                     Some(format!("retry {}: LLM call failed: {}", retry_num, e)),
                 );
-                return Err(e);
+                return (Err(e), None);
             }
         };
 
@@ -470,11 +495,14 @@ impl StructuredOutputEngine {
                     false,
                     Some(format!("retry {}: extraction failed: {}", retry_num, e)),
                 );
-                return Err(NikaError::StructuredOutputExtractionFailed {
-                    task_id: task_id.to_string(),
-                    layer: LAYER_3_NAME.to_string(),
-                    reason: e,
-                });
+                return (
+                    Err(NikaError::StructuredOutputExtractionFailed {
+                        task_id: task_id.to_string(),
+                        layer: LAYER_3_NAME.to_string(),
+                        reason: e,
+                    }),
+                    Some(new_output),
+                );
             }
         };
 
@@ -487,7 +515,7 @@ impl StructuredOutputEngine {
                     "Layer 3: validation succeeded"
                 );
                 self.emit_attempt(task_id, 3, LAYER_3_NAME, attempt, true, None);
-                Ok(json_value)
+                (Ok(json_value), Some(new_output))
             }
             Err(e) => {
                 self.emit_attempt(
@@ -498,12 +526,15 @@ impl StructuredOutputEngine {
                     false,
                     Some(format!("retry {}: validation failed: {}", retry_num, e)),
                 );
-                Err(NikaError::StructuredOutputValidationFailed {
-                    task_id: task_id.to_string(),
-                    layer: LAYER_3_NAME.to_string(),
-                    attempt,
-                    errors: vec![e.to_string()],
-                })
+                (
+                    Err(NikaError::StructuredOutputValidationFailed {
+                        task_id: task_id.to_string(),
+                        layer: LAYER_3_NAME.to_string(),
+                        attempt,
+                        errors: vec![e.to_string()],
+                    }),
+                    Some(new_output),
+                )
             }
         }
     }
@@ -579,16 +610,19 @@ impl StructuredOutputEngine {
         let repaired_output = match infer_fn(repair_prompt).await {
             Ok(output) => {
                 let elapsed = infer_start.elapsed();
+                let in_tok = estimate_tokens(prompt_len);
+                let out_tok = estimate_tokens(output.len());
+                let cost = self.estimate_cost(in_tok, out_tok);
                 // EMIT: ProviderResponded after successful LLM repair call
                 self.log.emit(EventKind::ProviderResponded {
                     task_id: Arc::clone(task_id),
                     request_id: None,
-                    input_tokens: estimate_tokens(prompt_len),
-                    output_tokens: estimate_tokens(output.len()),
+                    input_tokens: in_tok,
+                    output_tokens: out_tok,
                     cache_read_tokens: 0,
                     ttft_ms: Some(elapsed.as_millis() as u64),
                     finish_reason: "structured_output_repair".to_string(),
-                    cost_usd: 0.0,
+                    cost_usd: cost,
                 });
                 output
             }
