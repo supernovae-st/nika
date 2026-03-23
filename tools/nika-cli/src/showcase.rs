@@ -205,6 +205,14 @@ fn cmd_list(category: Option<&str>, _quiet: bool) -> Result<(), NikaError> {
 
 // ── Extract ─────────────────────────────────────────────────────────────────
 
+/// Substitute `{{PROVIDER}}` and `{{MODEL}}` placeholders with auto-detected values.
+fn substitute_placeholders(content: &str) -> String {
+    let (provider, model) = nika_engine::init::course::generator::detect_provider();
+    content
+        .replace("{{PROVIDER}}", provider)
+        .replace("{{MODEL}}", model)
+}
+
 fn cmd_extract(name: &str, output_dir: &Path, quiet: bool) -> Result<(), NikaError> {
     let entries = all_showcases();
 
@@ -236,7 +244,8 @@ fn cmd_extract(name: &str, output_dir: &Path, quiet: bool) -> Result<(), NikaErr
         std::fs::create_dir_all(parent).map_err(NikaError::IoError)?;
     }
 
-    std::fs::write(&dest, entry.content).map_err(NikaError::IoError)?;
+    let content = substitute_placeholders(entry.content);
+    std::fs::write(&dest, content).map_err(NikaError::IoError)?;
 
     if !quiet {
         println!(
@@ -265,7 +274,8 @@ fn cmd_extract_all(output_dir: &Path, quiet: bool) -> Result<(), NikaError> {
         let filename = format!("{}.nika.yaml", entry.name);
         let dest = cat_dir.join(&filename);
 
-        std::fs::write(&dest, entry.content).map_err(NikaError::IoError)?;
+        let content = substitute_placeholders(entry.content);
+        std::fs::write(&dest, content).map_err(NikaError::IoError)?;
 
         count += 1;
         *by_category.entry(entry.category).or_insert(0) += 1;
@@ -360,5 +370,40 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let result = cmd_extract("nonexistent-workflow-xyz", dir.path(), true);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_substitute_placeholders() {
+        let content = "provider: \"{{PROVIDER}}\"\nmodel: \"{{MODEL}}\"\n";
+        let result = substitute_placeholders(content);
+        assert!(
+            !result.contains("{{PROVIDER}}"),
+            "{{{{PROVIDER}}}} should be substituted"
+        );
+        assert!(
+            !result.contains("{{MODEL}}"),
+            "{{{{MODEL}}}} should be substituted"
+        );
+        // Should contain actual provider/model values
+        assert!(result.contains("provider:"));
+        assert!(result.contains("model:"));
+    }
+
+    #[test]
+    fn test_extract_substitutes_placeholders() {
+        let dir = tempfile::tempdir().unwrap();
+        let result = cmd_extract("progress-tracker", dir.path(), true);
+        assert!(result.is_ok());
+        let content =
+            std::fs::read_to_string(dir.path().join("progress-tracker.nika.yaml")).unwrap();
+        // Extracted content should not contain raw placeholders
+        assert!(
+            !content.contains("{{PROVIDER}}"),
+            "Extracted file should not contain raw {{{{PROVIDER}}}} placeholder"
+        );
+        assert!(
+            !content.contains("{{MODEL}}"),
+            "Extracted file should not contain raw {{{{MODEL}}}} placeholder"
+        );
     }
 }
