@@ -702,6 +702,9 @@ async fn main() {
     let quiet = cli.quiet;
     let detail = cli.detail;
 
+    // Auto-setup: run machine setup on first non-skipped command (not CI).
+    maybe_run_auto_setup(&cli.command, quiet);
+
     // Quick editor scan: detect newly installed editors and install rules.
     // Only runs when machine is already set up (adds ~5ms).
     if cli::machine::machine_setup_status() == cli::machine::MachineStatus::Ready {
@@ -1005,6 +1008,48 @@ fn is_tui_mode(cli: &Cli) -> bool {
     }
 
     false
+}
+
+fn should_skip_auto_setup(cmd: &Option<Commands>) -> bool {
+    match cmd {
+        None => false,
+        #[cfg(feature = "lsp")]
+        Some(Commands::Lsp { .. }) => true,
+        Some(Commands::Completion { .. }) => true,
+        Some(Commands::Features) => true,
+        Some(Commands::Schema { .. }) => true,
+        Some(Commands::Doctor { .. }) => true,
+        _ => {
+            // Skip TUI commands if tui feature enabled
+            #[cfg(feature = "tui")]
+            if matches!(
+                cmd,
+                Some(Commands::Ui { .. } | Commands::Chat { .. } | Commands::Studio { .. })
+            ) {
+                return true;
+            }
+            false
+        }
+    }
+}
+
+fn maybe_run_auto_setup(cmd: &Option<Commands>, quiet: bool) {
+    if should_skip_auto_setup(cmd) {
+        return;
+    }
+    if cli::machine::is_ci() {
+        return;
+    }
+    if cli::machine::is_machine_setup() {
+        return;
+    }
+    if !quiet {
+        println!("  {} Setting up Nika for your editors...\n", "◇".cyan());
+    }
+    cli::machine::run_machine_setup();
+    if !quiet {
+        println!();
+    }
 }
 
 /// Check if a file is a Nika workflow (.nika.yaml)

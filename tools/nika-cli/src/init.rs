@@ -24,7 +24,7 @@ pub async fn init_project(
     migrate_keys: bool,
 ) -> Result<(), NikaError> {
     // Phase 1: Machine setup (silent, auto-detect + install)
-    if !crate::machine::is_machine_setup() {
+    if !crate::machine::is_ci() && !crate::machine::is_machine_setup() {
         crate::machine::run_machine_setup();
         println!();
     }

@@ -57,6 +57,42 @@ pub fn is_machine_setup() -> bool {
     machine_setup_status() == MachineStatus::Ready
 }
 
+/// Returns true in CI/CD or automated environments where machine setup must not run.
+pub fn is_ci() -> bool {
+    use std::env;
+    if env::var("NIKA_NO_SETUP").map(|v| v == "1").unwrap_or(false) {
+        return true;
+    }
+    if env::var("CI").is_ok() {
+        return true;
+    }
+    let ci_vars = [
+        "GITHUB_ACTIONS",
+        "GITLAB_CI",
+        "CIRCLECI",
+        "JENKINS_URL",
+        "BUILDKITE",
+        "TRAVIS",
+        "CODEBUILD_BUILD_ID",
+        "TF_BUILD",
+    ];
+    if ci_vars.iter().any(|v| env::var(v).is_ok()) {
+        return true;
+    }
+    if dirs::home_dir().is_none() {
+        return true;
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let dumb = env::var("TERM").map(|t| t == "dumb").unwrap_or(false);
+        let no_display = env::var("DISPLAY").is_err() && env::var("WAYLAND_DISPLAY").is_err();
+        if dumb && no_display {
+            return true;
+        }
+    }
+    false
+}
+
 /// Path to the machine marker file.
 fn machine_toml_path() -> PathBuf {
     dirs::home_dir()
