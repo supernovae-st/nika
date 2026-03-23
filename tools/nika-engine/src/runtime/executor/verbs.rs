@@ -401,6 +401,12 @@ impl TaskExecutor {
                                                 layer = result.layer,
                                                 "Layer 0 + validation succeeded"
                                             );
+                                            // Adjust token reservation before early return
+                                            let est_actual = estimate_tokens(result_str.len());
+                                            self.policy_enforcer.write().adjust_reservation(
+                                                estimated_tokens,
+                                                est_actual,
+                                            );
                                             return Ok(result_str);
                                         }
                                         Err(e) => {
@@ -455,6 +461,11 @@ impl TaskExecutor {
                                         finish_reason: "stop".to_string(),
                                         cost_usd: if cost.is_finite() { cost } else { 0.0 },
                                     });
+                                    // Adjust token reservation before early return
+                                    self.policy_enforcer.write().adjust_reservation(
+                                        estimated_tokens,
+                                        est_in + est_out,
+                                    );
                                     return Ok(tool_result);
                                 }
                             }

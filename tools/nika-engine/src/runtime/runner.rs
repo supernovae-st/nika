@@ -445,17 +445,21 @@ impl Runner {
     /// Traces are written for WorkflowCompleted, WorkflowFailed, and WorkflowAborted.
     /// After writing, prunes old traces based on `trace_config` (max_traces + retention_days).
     fn write_trace(&self) -> Option<String> {
-        let trace_path = if let Ok(trace_writer) = TraceWriter::new(&self.generation_id) {
-            if let Err(e) = trace_writer.write_all(&self.event_log) {
-                tracing::warn!(error = %e, "Failed to write trace");
-                None
-            } else {
-                let path = trace_writer.path().display().to_string();
-                tracing::info!(path = %path, "Trace written");
-                Some(path)
+        let trace_path = match TraceWriter::new(&self.generation_id) {
+            Ok(trace_writer) => {
+                if let Err(e) = trace_writer.write_all(&self.event_log) {
+                    tracing::warn!(error = %e, "Failed to write trace");
+                    None
+                } else {
+                    let path = trace_writer.path().display().to_string();
+                    tracing::info!(path = %path, "Trace written");
+                    Some(path)
+                }
             }
-        } else {
-            None
+            Err(e) => {
+                tracing::warn!(error = %e, "Failed to create trace writer — traces disabled for this run");
+                None
+            }
         };
 
         // Enforce retention: prune traces beyond max_traces / retention_days
