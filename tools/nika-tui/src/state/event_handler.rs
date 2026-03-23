@@ -316,9 +316,13 @@ impl TuiState {
                         .as_ref()
                         .map(|r| {
                             let s = r.to_string();
-                            // Truncate long error messages for status bar
+                            // Truncate long error messages for status bar (UTF-8 safe)
                             if s.len() > 80 {
-                                format!("{}...", &s[..77])
+                                let mut end = 77;
+                                while end > 0 && !s.is_char_boundary(end) {
+                                    end -= 1;
+                                }
+                                format!("{}...", &s[..end])
                             } else {
                                 s
                             }
