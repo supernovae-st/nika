@@ -367,9 +367,15 @@ impl ChatView {
             .mcp_servers
             .push(McpServerInfo::new("novanet"));
 
-        // Clean welcome banner - verb boxes rendered separately with colors
-        // Wider text lines (~70 chars), dotted separator for light effect
-        let welcome_banner = r#"
+        // Clean welcome banner with verb examples and provider status
+        let no_provider = provider_id == "none";
+        let provider_warning = if no_provider {
+            "\n  \u{26a0} No API key detected \u{2014} press Ctrl+P to configure a provider\n"
+        } else {
+            ""
+        };
+        let welcome_banner = format!(
+            r#"
   ███╗   ██╗██╗██╗  ██╗ █████╗
   ████╗  ██║██║██║ ██╔╝██╔══██╗
   ██╔██╗ ██║██║█████╔╝ ███████║
@@ -379,24 +385,29 @@ impl ChatView {
 
   🦋 Workflow Engine  ·  💫 Semantic AI  ·  🦀 Rust
 
-  Semantic DAG runtime where everything is a workflow. Chat, pipelines, agents —
-  all execute as dependency graphs. Write in YAML, stream from any LLM, orchestrate
-  MCP tools. Event-sourced. Async Rust · rig-core · tokio.
-
   · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · ·
 
-  Type a message to chat, or /help for commands.
-"#;
+  Type a message or use a slash command:
+
+    /infer "prompt"      — LLM generation
+    /exec  "command"     — Shell execution
+    /fetch url           — HTTP request
+    /invoke tool params  — MCP tool call
+    /agent "goal"        — Multi-turn agent
+{provider_warning}
+  Press i to start typing, ? for help
+"#
+        );
 
         // Initialize ChatWorkflow with welcome message for DAG sync
         let mut workflow = ChatWorkflow::new();
-        workflow.add_message(welcome_banner, WorkflowRole::System);
+        workflow.add_message(&welcome_banner, WorkflowRole::System);
 
         Self {
             messages: vec![ChatMessage {
                 id: 1, // First message gets ID 1
                 role: MessageRole::System,
-                content: welcome_banner.to_string(),
+                content: welcome_banner.clone(),
                 thinking: None,
                 timestamp: Local::now(),
                 created_at: Instant::now(),
