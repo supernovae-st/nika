@@ -285,8 +285,25 @@ impl App {
                 self.set_status("Chat cleared");
             }
             ViewAction::ChatModelSwitch(provider) => {
-                self.set_status(&format!("Switched to {:?}", provider));
-                tracing::debug!("ChatModelSwitch: {:?}", provider);
+                // Update ChatView state so warning bar + status bar reflect the new provider
+                let provider_id = provider.command_name().to_string();
+                let default_model = match &provider {
+                    p if p.command_name() == "claude" => "claude-sonnet-4-6",
+                    p if p.command_name() == "openai" => "gpt-4o",
+                    p if p.command_name() == "mistral" => "mistral-large-latest",
+                    p if p.command_name() == "groq" => "llama-3.3-70b-versatile",
+                    p if p.command_name() == "deepseek" => "deepseek-chat",
+                    _ => provider.command_name(),
+                };
+                self.command_view.chat.set_model(default_model);
+                self.command_view.chat.set_provider(provider.name());
+                self.command_view.chat.current_provider_id = provider_id;
+
+                // Recreate ChatAgent with new provider
+                self.chat_agent = ChatAgent::new().ok();
+
+                self.set_status(&format!("Switched to {}", provider.name()));
+                tracing::info!("ChatModelSwitch: {:?}", provider);
             }
             ViewAction::ChatMcp(_mcp_action) => {
                 self.set_status("MCP action received");
