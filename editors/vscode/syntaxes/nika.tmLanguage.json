@@ -50,7 +50,7 @@
       }
     },
     "top-level-keys": {
-      "match": "^(tasks|mcp|context|include|imports|inputs|skills|agents|artifacts|log|edges|pkg|description)(:)",
+      "match": "^(tasks|mcp|context|include|imports|inputs|skills|agents|artifacts|log|edges|pkg|description|model)(:)",
       "captures": {
         "1": { "name": "keyword.control.top-level.nika" },
         "2": { "name": "punctuation.separator.key-value.nika" }
