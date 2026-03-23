@@ -5,9 +5,9 @@
 **Automate AI. No code required.**
 
 [![crates.io](https://img.shields.io/crates/v/nika?style=flat-square&logo=rust&logoColor=white&color=e6522c)](https://crates.io/crates/nika)
-[![Version](https://img.shields.io/badge/v0.40.2-7c3aed?style=flat-square&logo=semver&logoColor=white)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/v0.41.3-7c3aed?style=flat-square&logo=semver&logoColor=white)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/AGPL--3.0--or--later-22c55e?style=flat-square&logo=gnu&logoColor=white)](LICENSE)
-[![Tests](https://img.shields.io/badge/7,800+_tests-10b981?style=flat-square)](https://github.com/supernovae-st/nika/actions)
+[![Tests](https://img.shields.io/badge/7,900+_tests-10b981?style=flat-square)](https://github.com/supernovae-st/nika/actions)
 
 [Quick Start](#quick-start) | [How It Works](#how-it-works) | [Use Cases](#use-cases) | [Documentation](#documentation)
 
@@ -197,7 +197,7 @@ nika run my-recipe.nika.yaml
 Want to explore? Scaffold a project with examples:
 
 ```bash
-nika init my-project        # 5 starter recipes (one per verb)
+nika init                   # 5 starter recipes (one per verb)
 nika init --course          # 44 hands-on exercises across 12 levels
 ```
 
@@ -669,7 +669,7 @@ Three views for the complete workflow lifecycle:
 
 ```
 +-----------------------------------------------------------------------------+
-| Nika Studio                                                  v0.40.2        |
+| Nika Studio                                                  v0.41.3        |
 |-----------------------------------------------------------------------------|
 | +- Files ----------+ +- Editor ------------------------------------------+ |
 | | > workflows/     | |  1 | schema: "nika/workflow@0.12"                 | |
@@ -716,7 +716,7 @@ Full Language Server Protocol support for external editors:
 cargo install nika-lsp
 
 # Via VS Code extension
-code --install-extension supernovae.nika-vscode
+code --install-extension supernovae-studio.nika-lang
 ```
 
 16 capabilities:
@@ -748,7 +748,7 @@ Nika integrates with 43+ AI coding tools out of the box. Install once, every AI 
 
 ```bash
 nika setup              # Detect + configure all AI tools on your machine
-nika init my-project    # Generates AI rules for detected tools
+nika init               # Generates AI rules for detected tools
 ```
 
 | Tier | What | Tools |
@@ -969,7 +969,7 @@ cargo install --path tools/nika
 ### Verify
 
 ```bash
-nika --version       # nika 0.40.2
+nika --version       # nika 0.41.3
 nika doctor          # Full system health check
 ```
 
@@ -1195,7 +1195,7 @@ git clone https://github.com/supernovae-st/nika.git
 cd nika
 
 cargo build                       # Build all 10 crates
-cargo test --lib                  # Run 7800+ tests (safe, no keychain popups)
+cargo test --lib                  # Run 7900+ tests (safe, no keychain popups)
 cargo clippy -- -D warnings       # Zero warnings policy
 ```
 
@@ -1249,9 +1249,9 @@ flowchart LR
 
 <div align="center">
 
-**Nika v0.40.2** | Schema `nika/workflow@0.12` | Rust 1.86+ | AGPL-3.0-or-later
+**Nika v0.41.3** | Schema `nika/workflow@0.12` | Rust 1.86+ | AGPL-3.0-or-later
 
-270k+ LOC across 10 crates | 7,800+ tests | 0 clippy warnings
+270k+ LOC across 10 crates | 7,900+ tests | 0 clippy warnings
 
 [SuperNovae Studio](https://supernovae.studio) | [QR Code AI](https://qrcode-ai.com) | [GitHub](https://github.com/supernovae-st/nika)
 
