@@ -42,12 +42,12 @@ The `agent:` verb creates a multi-turn autonomous loop where an LLM iteratively 
     provider: openai                # LLM provider
     model: gpt-4.1                  # Model
     max_tokens: 2000                # Max tokens per response
+    system: "You are a senior engineer" # System prompt
+    temperature: 0.3
     guardrails:
       blocked_tools: [nika_write]   # Prevent specific tools
     completion:
       signal: nika_complete         # Tool that ends the loop
-  system: "You are a senior engineer" # System prompt
-  temperature: 0.3
   timeout: 120                      # Total timeout in seconds
 ```
 
@@ -126,7 +126,7 @@ tasks:
     provider: claude
     model: claude-sonnet-4-20250514
     max_tokens: 4000
-  system: "You are a senior code reviewer. Be thorough but constructive."
+    system: "You are a senior code reviewer. Be thorough but constructive."
 ```
 
 ### File Processing Agent
