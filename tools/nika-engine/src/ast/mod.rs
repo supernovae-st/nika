@@ -38,7 +38,7 @@
 //! These types represent the "what" — static structure parsed from YAML.
 //! For execution, see the `runtime` module.
 
-// Pipeline stages — re-exported from nika-core (synced in v0.39.0)
+// Pipeline stages — re-exported from nika-core (synced in v0.40.0)
 pub use nika_core::ast::analyzed;
 pub use nika_core::ast::analyzer;
 pub mod lower;

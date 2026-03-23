@@ -9,6 +9,8 @@ use rmcp::model::{CallToolResult, Content, ServerCapabilities, ServerInfo};
 use rmcp::{tool, tool_handler, tool_router, ServerHandler};
 use schemars::JsonSchema;
 use serde::Deserialize;
+use tokio::process::Command as TokioCommand;
+use tokio::time::{timeout, Duration};
 
 /// Nika MCP Server handler
 #[derive(Clone)]
@@ -73,30 +75,31 @@ impl NikaMcpServer {
             }
         };
 
-        let path_str = canonical.to_string_lossy();
-        match std::process::Command::new("nika")
-            .args(["check", &path_str])
-            .output()
-        {
-            Ok(output) => {
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                if output.status.success() {
-                    Ok(CallToolResult::success(vec![Content::text(format!(
-                        "Valid: {}",
-                        params.path
-                    ))]))
-                } else {
-                    Ok(CallToolResult::error(vec![Content::text(format!(
-                        "Validation errors:\n{}\n{}",
-                        stdout, stderr
-                    ))]))
-                }
-            }
-            Err(e) => Ok(CallToolResult::error(vec![Content::text(format!(
-                "Failed to run nika check: {}",
-                e
-            ))])),
+        let path_str = canonical.to_string_lossy().to_string();
+        let output = timeout(
+            Duration::from_secs(30),
+            TokioCommand::new("nika")
+                .args(["check", &path_str])
+                .output(),
+        )
+        .await
+        .map_err(|_| rmcp::ErrorData::internal_error("nika check timed out after 30s", None))?
+        .map_err(|e| {
+            rmcp::ErrorData::internal_error(format!("Failed to run nika check: {}", e), None)
+        })?;
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        if output.status.success() {
+            Ok(CallToolResult::success(vec![Content::text(format!(
+                "Valid: {}",
+                params.path
+            ))]))
+        } else {
+            Ok(CallToolResult::error(vec![Content::text(format!(
+                "Validation errors:\n{}\n{}",
+                stdout, stderr
+            ))]))
         }
     }
 
@@ -148,7 +151,10 @@ impl NikaMcpServer {
 
         let (category, description) = match num {
             0..=9 => ("Workflow", "Workflow structure error (schema, tasks)"),
-            10..=19 => ("Schema/Validation", "Schema validation error (task IDs, fields)"),
+            10..=19 => (
+                "Schema/Validation",
+                "Schema validation error (task IDs, fields)",
+            ),
             20..=29 => ("DAG", "DAG error (circular deps, missing deps)"),
             30..=39 => ("Provider", "Provider error (API key, model not found)"),
             40..=49 => ("Template/Binding", "Template or binding resolution error"),
@@ -210,10 +216,7 @@ fn collect_workflows(dir: &std::path::Path, results: &mut Vec<String>, depth: us
             }
             let path = entry.path();
             // Use symlink_metadata to avoid following symlinks
-            let is_dir = entry
-                .file_type()
-                .map(|ft| ft.is_dir())
-                .unwrap_or(false);
+            let is_dir = entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false);
             if is_dir {
                 let name = entry.file_name().to_string_lossy().to_string();
                 if !name.starts_with('.') && name != "target" && name != "node_modules" {
@@ -241,8 +244,8 @@ fn validate_workflow_path(user_path: &str) -> Result<std::path::PathBuf, String>
         return Err("Only .nika.yaml files can be validated".to_string());
     }
 
-    let cwd = std::env::current_dir()
-        .map_err(|e| format!("Cannot determine working directory: {e}"))?;
+    let cwd =
+        std::env::current_dir().map_err(|e| format!("Cannot determine working directory: {e}"))?;
     let canonical_cwd = cwd
         .canonicalize()
         .map_err(|e| format!("Cannot canonicalize cwd: {e}"))?;
@@ -318,7 +321,11 @@ mod tests {
         std::fs::write(&test_file, "schema: nika/workflow@0.12\ntasks: []").unwrap();
 
         let result = validate_workflow_path("_test_valid.nika.yaml");
-        assert!(result.is_ok(), "Should accept .nika.yaml in cwd: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "Should accept .nika.yaml in cwd: {:?}",
+            result
+        );
 
         std::fs::remove_file(&test_file).unwrap();
     }
@@ -393,6 +400,9 @@ mod tests {
             .await
             .unwrap();
         let text = format!("{:?}", result);
-        assert!(text.contains("Unknown"), "Invalid code should return Unknown");
+        assert!(
+            text.contains("Unknown"),
+            "Invalid code should return Unknown"
+        );
     }
 }

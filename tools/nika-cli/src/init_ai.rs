@@ -31,11 +31,7 @@ pub fn generate_ai_files(project_dir: &Path) -> Result<(), nika_engine::NikaErro
                     count += 1;
                 }
                 Err(e) => {
-                    println!(
-                        "  {} CLAUDE.md symlink failed: {}",
-                        "⚠".yellow(),
-                        e
-                    );
+                    println!("  {} CLAUDE.md symlink failed: {}", "⚠".yellow(), e);
                 }
             }
         }
@@ -69,7 +65,11 @@ pub fn generate_ai_files(project_dir: &Path) -> Result<(), nika_engine::NikaErro
     count += write_if_absent_with_dir(project_dir, ".roo/rules/nika.md", ROO_RULE, "Roo Code rule");
 
     // Roo Code .roomodes
-    count += write_if_absent(&project_dir.join(".roomodes"), ROOMODES, ".roomodes (Roo Code mode)");
+    count += write_if_absent(
+        &project_dir.join(".roomodes"),
+        ROOMODES,
+        ".roomodes (Roo Code mode)",
+    );
 
     // VS Code extensions.json
     count += write_if_absent_with_dir(
@@ -96,11 +96,7 @@ pub fn generate_ai_files(project_dir: &Path) -> Result<(), nika_engine::NikaErro
                     count += 1;
                 }
                 Err(e) => {
-                    println!(
-                        "  {} Git co-author hook failed: {}",
-                        "⚠".yellow(),
-                        e
-                    );
+                    println!("  {} Git co-author hook failed: {}", "⚠".yellow(), e);
                 }
             }
         }
@@ -256,6 +252,25 @@ if grep -q "Co-Authored-By:" "$COMMIT_MSG_FILE" 2>/dev/null; then exit 0; fi
 if git diff --cached --name-only | grep -q '\.nika\.yaml$'; then
     printf '\n\nCo-Authored-By: Nika 🦋 <nika@supernovae.studio>\n' >> "$COMMIT_MSG_FILE"
 fi
+"#;
+
+const ROOMODES: &str = r#"{
+  "customModes": [
+    {
+      "slug": "nika",
+      "name": "Nika",
+      "roleDefinition": "You are a Nika workflow assistant. You understand the 5 verbs (infer, exec, fetch, invoke, agent), schema nika/workflow@0.12, with: bindings, and DAG execution.",
+      "description": "Write and debug Nika YAML workflows",
+      "groups": [
+        "read",
+        ["edit", { "fileRegex": "\\.nika\\.yaml$", "description": "Nika workflow files only" }],
+        "command",
+        "mcp"
+      ],
+      "source": "project"
+    }
+  ]
+}
 "#;
 
 const AGENTS_MD_CONTENT: &str = r#"# Nika

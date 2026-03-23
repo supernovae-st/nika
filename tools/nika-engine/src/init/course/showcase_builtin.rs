@@ -745,7 +745,7 @@ tasks:
           sed 's/__TITLE__/Nika Showcase/g' | \
           sed 's/__HEADING__/Builtin Tool Showcase/g' | \
           sed 's/__PROJECT__/SuperNovae/g' | \
-          sed 's/__VERSION__/0.39.0/g' | \
+          sed 's/__VERSION__/0.40.0/g' | \
           sed 's/__TOOL__/Nika/g' | \
           sed 's/__DATE__/2026-03-22/g'
       shell: true
@@ -895,7 +895,7 @@ tasks:
         file_path: ".scratch/source/config.yaml"
         content: |
           project: nika
-          version: 0.39.0
+          version: 0.40.0
           features:
             - media-core
             - media-phash

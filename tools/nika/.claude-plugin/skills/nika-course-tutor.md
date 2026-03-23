@@ -16,18 +16,18 @@ The Nika course teaches workflow authoring through 44 exercises across 12 themed
 
 | Level | Theme | Key Concepts |
 |-------|-------|-------------|
-| 1 | Jailbreak | Basic infer, first workflow |
-| 2 | Compass | exec, fetch, basic verbs |
-| 3 | Crew | depends_on, task ordering |
-| 4 | Navigator | with: bindings, data flow |
-| 5 | Storm | for_each, parallelism |
-| 6 | Arsenal | invoke:, MCP tools |
-| 7 | Alliance | agent:, multi-turn loops |
-| 8 | Raid | context:, include:, inputs: |
-| 9 | War | structured:, output validation |
-| 10 | Awakening | artifacts:, file output |
-| 11 | Dawn | media tools, vision |
-| 12 | Liberation | Full workflow design challenge |
+| 1 | Jailbreak | exec: and basic workflows |
+| 2 | Hot Wire | fetch: HTTP requests and APIs |
+| 3 | Fork Bomb | DAG patterns, depends_on, parallel execution |
+| 4 | Root Access | First infer: prompts, provider setup |
+| 5 | Shapeshifter | with: bindings, pipe transforms |
+| 6 | Pay-Per-Dream | Structured output, JSON schemas |
+| 7 | Swiss Knife | invoke: builtin nika:* tools |
+| 8 | Gone Rogue | agent:, tools, stop conditions |
+| 9 | Data Heist | Advanced fetch: extraction modes |
+| 10 | Open Protocol | MCP integration, invoke: external |
+| 11 | Pixel Pirate | Media pipeline, CAS, vision |
+| 12 | SuperNovae | Final boss — full production workflows |
 
 ## Process
 
@@ -167,10 +167,10 @@ After each exercise completion:
 
 | Issue | Response |
 |-------|----------|
-| "I don't understand verbs" | Review Level 1-2, each verb has ONE purpose |
-| "My bindings don't work" | Check `with:` syntax, alias must match task ID |
-| "for_each is confusing" | Use FLAT format, never nested. Level 5 exercises |
-| "Agent loops forever" | Set `max_turns`, review Level 7 |
+| "I don't understand verbs" | Review Level 1 (Jailbreak) + Level 2 (Hot Wire), each verb has ONE purpose |
+| "My bindings don't work" | Check `with:` syntax, alias must match task ID. Level 5 (Shapeshifter) |
+| "for_each is confusing" | Use FLAT format, never nested. Level 3 (Fork Bomb) exercises |
+| "Agent loops forever" | Set `max_turns`, review Level 8 (Gone Rogue) |
 | "Workflow won't validate" | Run `nika check`, read NIKA-XXX error code |
 
 ## Rules
