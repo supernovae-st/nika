@@ -109,8 +109,14 @@ impl NikaMcpServer {
         description = "List all .nika.yaml workflow files in the project. Use to discover available workflows."
     )]
     async fn list_workflows(&self) -> Result<CallToolResult, rmcp::ErrorData> {
-        let mut workflows = Vec::new();
-        collect_workflows(std::path::Path::new("."), &mut workflows, 0);
+        // Use spawn_blocking to avoid blocking the async MCP handler with recursive fs scan
+        let workflows = tokio::task::spawn_blocking(|| {
+            let mut wf = Vec::new();
+            collect_workflows(std::path::Path::new("."), &mut wf, 0);
+            wf
+        })
+        .await
+        .unwrap_or_default();
 
         if workflows.is_empty() {
             Ok(CallToolResult::success(vec![Content::text(
