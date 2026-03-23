@@ -2259,11 +2259,49 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         (tokens, cost)
                     }
                 });
+            // Compute task/parallel counts for summary
+            let task_count = self.workflow.tasks.len();
+            let parallel_count = {
+                let nodes: Vec<&str> = self
+                    .workflow
+                    .tasks
+                    .iter()
+                    .map(|t| t.name.as_str())
+                    .collect();
+                let edges: Vec<(&str, &str)> = self
+                    .workflow
+                    .tasks
+                    .iter()
+                    .flat_map(|task| {
+                        task.depends_on.iter().filter_map(|dep_id| {
+                            self.workflow
+                                .task_table
+                                .get_name(*dep_id)
+                                .map(|dep_name| (dep_name, task.name.as_str()))
+                        })
+                    })
+                    .collect();
+                let depths = crate::dag::flow::compute_layers(&nodes, &edges);
+                let max_layer = depths.values().copied().max().unwrap_or(0);
+                let mut layers: Vec<Vec<&str>> = vec![Vec::new(); max_layer + 1];
+                for &name in &nodes {
+                    if let Some(&layer) = depths.get(name) {
+                        layers[layer].push(name);
+                    }
+                }
+                layers
+                    .iter()
+                    .filter(|l| l.len() > 1)
+                    .flat_map(|l| l.iter())
+                    .count()
+            };
             crate::display::print_done_summary(
                 &elapsed_str,
                 total_tokens,
                 total_cost,
                 trace_path.as_deref(),
+                task_count,
+                parallel_count,
             );
         }
 

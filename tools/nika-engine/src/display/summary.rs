@@ -21,34 +21,44 @@ pub fn print_done_summary(
     total_tokens: u64,
     total_cost: f64,
     trace_path: Option<&str>,
+    task_count: usize,
+    parallel_count: usize,
 ) {
     println!();
     println!("{}", HORIZONTAL.repeat(50).dimmed());
 
-    // Main done line with telemetry
-    if total_tokens > 0 {
-        println!(
-            "{} {} {} {} {} {} {}",
-            "\u{2713}".green().bold(), // ✓
-            "Done!".green().bold(),
-            elapsed_str.dimmed(),
-            "·".dimmed(),
-            format!("{} tokens", total_tokens).dimmed(),
-            "·".dimmed(),
-            format!(
-                "${}",
-                crate::provider::cost::format_cost(total_cost).trim_start_matches('$')
-            )
-            .dimmed()
-        );
-    } else {
-        println!(
-            "{} {} {}",
-            "\u{2713}".green().bold(), // ✓
-            "Done!".green().bold(),
-            elapsed_str.dimmed(),
-        );
+    // Main done line
+    println!(
+        "{} {}",
+        "\u{2713}".green().bold(), // ✓
+        "Done!".green().bold(),
+    );
+
+    // One-liner stats
+    let mut parts: Vec<String> = Vec::new();
+    parts.push(format!(
+        "{} task{}",
+        task_count,
+        if task_count == 1 { "" } else { "s" }
+    ));
+    if parallel_count > 0 {
+        parts.push(format!("{} parallel", parallel_count));
     }
+    if total_tokens > 0 {
+        let tok_str = if total_tokens >= 1000 {
+            format!("{:.1}k tokens", total_tokens as f64 / 1000.0)
+        } else {
+            format!("{} tokens", total_tokens)
+        };
+        parts.push(tok_str);
+        parts.push(format!(
+            "${}",
+            crate::provider::cost::format_cost(total_cost).trim_start_matches('$')
+        ));
+    }
+    parts.push(elapsed_str.to_string());
+
+    println!("  {}", parts.join(" | ").dimmed());
 
     // Trace link
     if let Some(path) = trace_path {
