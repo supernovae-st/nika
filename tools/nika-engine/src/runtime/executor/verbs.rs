@@ -1696,17 +1696,22 @@ impl TaskExecutor {
                     reason: format!("Failed to serialize params: {}", e),
                 }
             })?;
-            let resolved_str = template_resolve(&params_str, bindings, datastore)?;
-            Some(
-                serde_json::from_str::<serde_json::Value>(&resolved_str).map_err(|e| {
-                    NikaError::InvokeParamError {
-                        reason: format!(
-                            "Failed to parse resolved params '{}': {}",
-                            resolved_str, e
-                        ),
-                    }
-                })?,
-            )
+            // Short-circuit: skip template resolve + re-parse if no templates present
+            if params_str.contains("{{") {
+                let resolved_str = template_resolve(&params_str, bindings, datastore)?;
+                Some(
+                    serde_json::from_str::<serde_json::Value>(&resolved_str).map_err(|e| {
+                        NikaError::InvokeParamError {
+                            reason: format!(
+                                "Failed to parse resolved params '{}': {}",
+                                resolved_str, e
+                            ),
+                        }
+                    })?,
+                )
+            } else {
+                Some(original_params.clone())
+            }
         } else {
             None
         };
