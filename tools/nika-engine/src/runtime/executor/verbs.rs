@@ -260,6 +260,7 @@ impl TaskExecutor {
                     bindings,
                     datastore,
                     &provider,
+                    provider_name,
                     model,
                     resolved_system.as_deref(),
                 )
@@ -504,7 +505,7 @@ impl TaskExecutor {
             cache_read_tokens: stream_result.cached_input_tokens,
             ttft_ms: None,
             finish_reason: "stop".to_string(),
-            cost_usd: cost,
+            cost_usd: if cost.is_finite() { cost } else { 0.0 },
         });
 
         // Structured output validation via StructuredOutputEngine (Layers 1-3)
@@ -581,6 +582,7 @@ impl TaskExecutor {
         bindings: &ResolvedBindings,
         datastore: &RunContext,
         provider: &crate::provider::rig::RigProvider,
+        provider_name: &str,
         model: Option<&str>,
         resolved_system: Option<&str>,
     ) -> Result<String, NikaError> {
@@ -754,6 +756,17 @@ impl TaskExecutor {
             .write()
             .record_token_spend(est_in + est_out);
 
+        let cost = crate::provider::cost::ProviderKind::parse(provider_name)
+            .map(|pk| {
+                crate::provider::cost::calculate_cost(
+                    pk,
+                    model.unwrap_or("default"),
+                    est_in,
+                    est_out,
+                )
+            })
+            .unwrap_or(0.0);
+
         self.event_log.emit(EventKind::ProviderResponded {
             task_id: Arc::clone(task_id),
             request_id: None,
@@ -762,7 +775,7 @@ impl TaskExecutor {
             cache_read_tokens: 0,
             ttft_ms: None,
             finish_reason: "stop".to_string(),
-            cost_usd: 0.0,
+            cost_usd: if cost.is_finite() { cost } else { 0.0 },
         });
 
         Ok(vision_result)
@@ -885,9 +898,12 @@ impl TaskExecutor {
 
             // Set working directory if specified (with path traversal protection)
             if let Some(ref cwd) = params.cwd {
-                let resolved = std::path::Path::new(cwd).canonicalize()
+                let resolved = std::path::Path::new(cwd)
+                    .canonicalize()
                     .map_err(|e| NikaError::Execution(format!("Invalid cwd '{}': {}", cwd, e)))?;
-                let working_dir = self.workflow_base_dir.canonicalize()
+                let working_dir = self
+                    .workflow_base_dir
+                    .canonicalize()
                     .unwrap_or_else(|_| self.workflow_base_dir.clone());
                 if !resolved.starts_with(&working_dir) {
                     return Err(NikaError::Execution(format!(
@@ -914,14 +930,16 @@ impl TaskExecutor {
 
             // kill_on_drop ensures child is killed when dropped on timeout (prevents orphans)
             cmd.kill_on_drop(true);
-            let child = cmd.spawn()
+            let child = cmd
+                .spawn()
                 .map_err(|e| NikaError::Execution(format!("Failed to spawn command: {}", e)))?;
             match tokio::time::timeout(exec_deadline, child.wait_with_output()).await {
                 Ok(Ok(out)) => out,
                 Ok(Err(e)) => {
-                    return Err(NikaError::Execution(
-                        format!("Failed to execute command: {}", e),
-                    ));
+                    return Err(NikaError::Execution(format!(
+                        "Failed to execute command: {}",
+                        e
+                    )));
                 }
                 Err(_) => {
                     // child is dropped here → kill_on_drop sends SIGKILL
@@ -957,9 +975,12 @@ impl TaskExecutor {
 
             // Set working directory if specified (with path traversal protection)
             if let Some(ref cwd) = params.cwd {
-                let resolved = std::path::Path::new(cwd).canonicalize()
+                let resolved = std::path::Path::new(cwd)
+                    .canonicalize()
                     .map_err(|e| NikaError::Execution(format!("Invalid cwd '{}': {}", cwd, e)))?;
-                let working_dir = self.workflow_base_dir.canonicalize()
+                let working_dir = self
+                    .workflow_base_dir
+                    .canonicalize()
                     .unwrap_or_else(|_| self.workflow_base_dir.clone());
                 if !resolved.starts_with(&working_dir) {
                     return Err(NikaError::Execution(format!(
@@ -986,14 +1007,16 @@ impl TaskExecutor {
 
             // kill_on_drop ensures child is killed when dropped on timeout (prevents orphans)
             cmd.kill_on_drop(true);
-            let child = cmd.spawn()
+            let child = cmd
+                .spawn()
                 .map_err(|e| NikaError::Execution(format!("Failed to spawn command: {}", e)))?;
             match tokio::time::timeout(exec_deadline, child.wait_with_output()).await {
                 Ok(Ok(out)) => out,
                 Ok(Err(e)) => {
-                    return Err(NikaError::Execution(
-                        format!("Failed to execute command: {}", e),
-                    ));
+                    return Err(NikaError::Execution(format!(
+                        "Failed to execute command: {}",
+                        e
+                    )));
                 }
                 Err(_) => {
                     // child is dropped here → kill_on_drop sends SIGKILL
@@ -1217,7 +1240,8 @@ impl TaskExecutor {
 
                         // Exponential backoff
                         let exp = (attempt - 1).min(30) as i32;
-                        let delay_ms = backoff_ms.saturating_mul(multiplier.powi(exp).min(u64::MAX as f64) as u64);
+                        let delay_ms = backoff_ms
+                            .saturating_mul(multiplier.powi(exp).min(u64::MAX as f64) as u64);
                         tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
                         continue;
                     }
@@ -1369,8 +1393,7 @@ impl TaskExecutor {
                         ] {
                             let llm_url = format!("{}{}", origin, path);
                             // SSRF policy check for llm_txt sub-requests
-                            let sub_decision =
-                                self.policy_enforcer.read().check_fetch(&llm_url);
+                            let sub_decision = self.policy_enforcer.read().check_fetch(&llm_url);
                             if let PolicyDecision::Block(reason) = sub_decision {
                                 tracing::warn!(
                                     task_id = %task_id,
@@ -1441,7 +1464,8 @@ impl TaskExecutor {
 
                         // Exponential backoff
                         let exp = (attempt - 1).min(30) as i32;
-                        let delay_ms = backoff_ms.saturating_mul(multiplier.powi(exp).min(u64::MAX as f64) as u64);
+                        let delay_ms = backoff_ms
+                            .saturating_mul(multiplier.powi(exp).min(u64::MAX as f64) as u64);
                         tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
                         continue;
                     }

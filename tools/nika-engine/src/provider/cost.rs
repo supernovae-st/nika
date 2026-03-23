@@ -94,10 +94,16 @@ impl ModelPricing {
     }
 
     /// Calculate cost for given token counts
+    ///
+    /// Returns 0.0 if the result is NaN or Infinity (prevents NDJSON serialization failures).
     pub fn calculate(&self, input_tokens: u64, output_tokens: u64) -> f64 {
-        let input_cost = (input_tokens as f64 / 1_000_000.0) * self.input_per_million;
-        let output_cost = (output_tokens as f64 / 1_000_000.0) * self.output_per_million;
-        input_cost + output_cost
+        let cost = (input_tokens as f64 / 1_000_000.0) * self.input_per_million
+            + (output_tokens as f64 / 1_000_000.0) * self.output_per_million;
+        if cost.is_finite() {
+            cost
+        } else {
+            0.0
+        }
     }
 }
 

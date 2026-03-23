@@ -263,14 +263,35 @@ pub async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Res
         } => {
             // Validate file exists
             if !file.exists() {
+                if format == "json" {
+                    let error_json = serde_json::json!({
+                        "valid": false,
+                        "file": file.to_string_lossy(),
+                        "error": format!("Workflow not found: {}", file.display()),
+                    });
+                    println!("{}", serde_json::to_string_pretty(&error_json)?);
+                }
                 return Err(NikaError::WorkflowNotFound {
                     path: file.to_string_lossy().to_string(),
                 });
             }
 
-            // Parse and validate
+            // Parse and validate — catch parse errors for JSON output
             let content = std::fs::read_to_string(&file)?;
-            let workflow = parse_workflow(&content)?;
+            let workflow = match parse_workflow(&content) {
+                Ok(w) => w,
+                Err(e) => {
+                    if format == "json" {
+                        let error_json = serde_json::json!({
+                            "valid": false,
+                            "file": file.to_string_lossy(),
+                            "error": e.to_string(),
+                        });
+                        println!("{}", serde_json::to_string_pretty(&error_json)?);
+                    }
+                    return Err(e);
+                }
+            };
 
             // Collect validation results
             let mut issues: Vec<(String, String, String)> = Vec::new(); // (level, code, message)
@@ -379,11 +400,12 @@ pub async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Res
             }
 
             // Output results
+            let has_errors = issues.iter().any(|(level, _, _)| level == "error");
             match format.as_str() {
                 "json" => {
                     let result = serde_json::json!({
                         "file": file.to_string_lossy(),
-                        "valid": issues.iter().all(|(level, _, _)| level != "error"),
+                        "valid": !has_errors,
                         "issues": issues.iter().map(|(level, code, msg)| {
                             serde_json::json!({
                                 "level": level,
@@ -394,11 +416,20 @@ pub async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Res
                         "suggestions": suggestions
                     });
                     println!("{}", serde_json::to_string_pretty(&result)?);
+
+                    // JSON mode must also exit non-zero on validation errors
+                    if has_errors {
+                        let error_count = issues
+                            .iter()
+                            .filter(|(level, _, _)| level == "error")
+                            .count();
+                        return Err(NikaError::ValidationError {
+                            reason: format!("{} validation error(s) found", error_count),
+                        });
+                    }
                 }
                 _ => {
                     // Text format
-                    let has_errors = issues.iter().any(|(level, _, _)| level == "error");
-
                     if issues.is_empty() {
                         if !quiet {
                             println!("{} {} is valid", "✓".green(), file.display());
