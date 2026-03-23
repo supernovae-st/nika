@@ -74,7 +74,12 @@ fn with_section(checks: Vec<DiagnosticCheck>, section: &'static str) -> Vec<Diag
     checks.into_iter().map(|c| c.in_section(section)).collect()
 }
 
-pub async fn handle_doctor_command(full: bool, format: &str, quiet: bool) -> Result<(), NikaError> {
+pub async fn handle_doctor_command(
+    full: bool,
+    format: &str,
+    quiet: bool,
+    fix: bool,
+) -> Result<(), NikaError> {
     let mut checks: Vec<DiagnosticCheck> = vec![];
 
     // ─── Core ──────────────────────────────────────────────────────────────
@@ -111,6 +116,39 @@ pub async fn handle_doctor_command(full: bool, format: &str, quiet: bool) -> Res
         output_doctor_json(&checks)?;
     } else {
         output_doctor_text(&checks, quiet);
+    }
+
+    // Auto-fix mode: run machine setup to repair issues
+    if fix {
+        let has_issues = checks.iter().any(|c| c.status != DiagnosticStatus::Pass);
+        if has_issues {
+            println!();
+            println!("  {}", "Auto-fixing...".bold());
+            let results = crate::machine::run_machine_setup();
+            let fix_failures = results.iter().filter(|r| !r.success).count();
+            println!();
+            if fix_failures > 0 {
+                println!(
+                    "  {} {fix_failures} issue(s) could not be auto-fixed",
+                    "\u{26a0}".yellow()
+                );
+                println!(
+                    "  {} Re-run {} to see details",
+                    "\u{2192}".cyan(),
+                    "nika doctor".bold()
+                );
+            } else {
+                println!(
+                    "  {} All issues fixed! Re-run {} to verify",
+                    "\u{2713}".green(),
+                    "nika doctor".bold()
+                );
+            }
+        } else {
+            println!();
+            println!("  {} Nothing to fix!", "\u{2713}".green());
+        }
+        return Ok(());
     }
 
     // Return error if any checks failed
@@ -520,10 +558,7 @@ async fn check_mcp_connectivity() -> Vec<DiagnosticCheck> {
     }
 
     if checks.is_empty() {
-        checks.push(DiagnosticCheck::pass(
-            "MCP",
-            "MCP readiness check complete",
-        ));
+        checks.push(DiagnosticCheck::pass("MCP", "MCP readiness check complete"));
     }
 
     checks
@@ -765,7 +800,10 @@ fn check_ai_rules() -> Vec<DiagnosticCheck> {
     if claude_user_path.exists() {
         checks.push(DiagnosticCheck::pass(
             "AI Rules",
-            format!("[user] Claude Code rules present ({})", claude_user_path.display()),
+            format!(
+                "[user] Claude Code rules present ({})",
+                claude_user_path.display()
+            ),
         ));
     } else if has_claude_binary {
         // Claude Code is installed but no nika rules
@@ -784,7 +822,10 @@ fn check_ai_rules() -> Vec<DiagnosticCheck> {
     if cursor_user_path.exists() {
         checks.push(DiagnosticCheck::pass(
             "AI Rules",
-            format!("[user] Cursor rules present ({})", cursor_user_path.display()),
+            format!(
+                "[user] Cursor rules present ({})",
+                cursor_user_path.display()
+            ),
         ));
     }
 
