@@ -592,7 +592,9 @@ impl RigProvider {
                 })?;
             // Send full response as a single Done chunk (non-streaming fallback)
             let text = response.message.content;
-            let _ = tx.send(StreamChunk::Done(text.clone())).await;
+            if let Err(e) = tx.send(StreamChunk::Done(text.clone())).await {
+                tracing::warn!(error = %e, "Vision result channel closed — TUI may not show output");
+            }
             return Ok(StreamResult {
                 text,
                 ..Default::default()

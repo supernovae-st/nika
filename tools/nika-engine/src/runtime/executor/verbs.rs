@@ -1588,8 +1588,12 @@ impl TaskExecutor {
                                             })
                                             .to_string());
                                         }
+                                    } else {
+                                        tracing::debug!(url = %llm_url, "llm_txt: failed to read response body");
                                     }
                                 }
+                            } else {
+                                tracing::debug!(url = %llm_url, "llm_txt: request failed");
                             }
                         }
                         return Ok(serde_json::json!({ "found": false }).to_string());
