@@ -233,7 +233,7 @@ artifacts:                     # Persist outputs to files
 | `groq` | `GROQ_API_KEY` | llama-4-maverick, mixtral-8x7b |
 | `deepseek` | `DEEPSEEK_API_KEY` | deepseek-chat, deepseek-reasoner |
 | `gemini` | `GEMINI_API_KEY` | gemini-2.5-pro, gemini-2.5-flash |
-| `xai` | `XAI_API_KEY` | grok-3, grok-4 |
+| `xai` | `XAI_API_KEY` | grok-3 |
 | `native` | (none) | Local GGUF via mistral.rs |
 
 ## Data Flow
@@ -455,10 +455,10 @@ Usage: `{{with.items | flatten | unique | join(", ")}}`
     as: item                           # Loop variable (default: "item")
     concurrency: 3                     # Max parallel (default: unlimited)
     fail_fast: true                    # Stop on first error (default: true)
-  infer: "Process: {{item}}"
+  infer: "Process: {{with.item}}"
 ```
 
-Access loop variable directly: `{{item}}` (not `{{with.item}}`)
+Access loop variable via `with:` prefix: `{{with.item}}` (same as all bindings)
 
 ## Structured Output (JSON Schema)
 
@@ -618,7 +618,7 @@ tasks:
       as: url
       concurrency: 5
     fetch:
-      url: "{{url}}"
+      url: "{{with.url}}"
       extract: article
 
   - id: synthesize
@@ -650,7 +650,7 @@ tasks:
 | `retry: 3` | `retry: { max_attempts: 3, delay: 2 }` |
 | `.yaml` extension | `.nika.yaml` extension |
 | Direct Cypher/SQL | Use `invoke:` with MCP tools |
-| `{{with.item}}` in for_each | `{{item}}` (loop var has no with. prefix) |
+| `{{item}}` in for_each | `{{with.item}}` (loop var uses with. prefix) |
 | `shell: bash` | `shell: true` (boolean, not shell name) |
 | Missing `schema:` line | Always start with `schema: "@0.12"` |
 | `depends_on: task_id` | `depends_on: [task_id]` (always array) |
@@ -693,7 +693,7 @@ Schema: `nika/workflow@0.12` | Extension: `.nika.yaml`
 - `infer:` — LLM generation
 - `exec:` — Shell command
 - `fetch:` — HTTP request (9 extract modes)
-- `invoke:` — MCP tool call (26 builtin nika:* tools)
+- `invoke:` — MCP tool call (24 builtin nika:* tools)
 - `agent:` — Multi-turn autonomous loop
 
 ## Syntax
