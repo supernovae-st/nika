@@ -16,7 +16,7 @@ pub fn generate_ai_files(project_dir: &Path) -> Result<(), nika_engine::NikaErro
     // AGENTS.md (universal, 20+ tools)
     count += write_if_absent(
         &project_dir.join("AGENTS.md"),
-        include_str!("../../../AGENTS.md"),
+        AGENTS_MD_CONTENT,
         "AGENTS.md",
     );
 
@@ -25,9 +25,19 @@ pub fn generate_ai_files(project_dir: &Path) -> Result<(), nika_engine::NikaErro
     if !claude_md.exists() {
         #[cfg(unix)]
         {
-            std::os::unix::fs::symlink("AGENTS.md", &claude_md).ok();
-            println!("  {} CLAUDE.md → AGENTS.md (symlink)", "✓".green());
-            count += 1;
+            match std::os::unix::fs::symlink("AGENTS.md", &claude_md) {
+                Ok(()) => {
+                    println!("  {} CLAUDE.md → AGENTS.md (symlink)", "✓".green());
+                    count += 1;
+                }
+                Err(e) => {
+                    println!(
+                        "  {} CLAUDE.md symlink failed: {}",
+                        "⚠".yellow(),
+                        e
+                    );
+                }
+            }
         }
     }
 
@@ -58,6 +68,9 @@ pub fn generate_ai_files(project_dir: &Path) -> Result<(), nika_engine::NikaErro
     // Roo Code rule
     count += write_if_absent_with_dir(project_dir, ".roo/rules/nika.md", ROO_RULE, "Roo Code rule");
 
+    // Roo Code .roomodes
+    count += write_if_absent(&project_dir.join(".roomodes"), ROOMODES, ".roomodes (Roo Code mode)");
+
     // VS Code extensions.json
     count += write_if_absent_with_dir(
         project_dir,
@@ -72,14 +85,24 @@ pub fn generate_ai_files(project_dir: &Path) -> Result<(), nika_engine::NikaErro
         let hook_path = git_dir.join("hooks/prepare-commit-msg");
         if !hook_path.exists() {
             fs::create_dir_all(git_dir.join("hooks")).ok();
-            fs::write(&hook_path, GIT_HOOK).ok();
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                fs::set_permissions(&hook_path, fs::Permissions::from_mode(0o755)).ok();
+            match fs::write(&hook_path, GIT_HOOK) {
+                Ok(()) => {
+                    #[cfg(unix)]
+                    {
+                        use std::os::unix::fs::PermissionsExt;
+                        fs::set_permissions(&hook_path, fs::Permissions::from_mode(0o755)).ok();
+                    }
+                    println!("  {} Git co-author hook", "✓".green());
+                    count += 1;
+                }
+                Err(e) => {
+                    println!(
+                        "  {} Git co-author hook failed: {}",
+                        "⚠".yellow(),
+                        e
+                    );
+                }
             }
-            println!("  {} Git co-author hook", "✓".green());
-            count += 1;
         }
     }
 
@@ -233,4 +256,53 @@ if grep -q "Co-Authored-By:" "$COMMIT_MSG_FILE" 2>/dev/null; then exit 0; fi
 if git diff --cached --name-only | grep -q '\.nika\.yaml$'; then
     printf '\n\nCo-Authored-By: Nika 🦋 <nika@supernovae.studio>\n' >> "$COMMIT_MSG_FILE"
 fi
+"#;
+
+const AGENTS_MD_CONTENT: &str = r#"# Nika
+
+Semantic YAML workflow engine for AI tasks. Schema `nika/workflow@0.12` | [QR Code AI](https://qrcode-ai.com)
+
+## 5 Verbs
+
+| Verb | Purpose |
+|------|---------|
+| `infer:` | LLM generation |
+| `exec:` | Shell command |
+| `fetch:` | HTTP request |
+| `invoke:` | MCP tool call |
+| `agent:` | Multi-turn loop |
+
+## Workflow Syntax
+
+`with:` for bindings, `{{with.alias}}` for templates, `.nika.yaml` extension.
+
+## Integration with NovaNet
+
+Nika connects to NovaNet via MCP only (Zero Cypher rule). Use `invoke:` verb.
+
+## TUI Views
+
+`1/s` Studio | `2/c` Command | `3/x` Control
+
+## Commands
+
+```bash
+nika check workflow.nika.yaml    # Validate
+nika run workflow.nika.yaml      # Execute
+nika ui                          # TUI
+nika provider list               # API key status
+nika init                        # Interactive project setup (wizard)
+nika init --course               # Generate 12-level learning course (44 exercises)
+nika init --minimal              # Minimal scaffold (5 workflows, 1 per verb)
+nika course status               # Show constellation progress map
+nika course next                 # Open next exercise
+nika course check [level]        # Validate exercises
+nika course hint [exercise]      # Progressive hints (3 tiers)
+nika course run <exercise>       # Run a course exercise
+nika course info [level]         # Show course/level details
+nika course reset <level>        # Reset a level
+nika course watch                # Auto-check on file save
+nika showcase list               # Browse 200+ showcase workflows
+nika showcase extract <name>     # Extract a showcase to current dir
+```
 "#;

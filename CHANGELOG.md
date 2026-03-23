@@ -7,13 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.40.0](https://github.com/supernovae-st/nika/releases/tag/v0.40.0) — 2026-03-23
+
 ### Added
-- `course run`: executes exercise via subprocess (uses current_exe for reliable dispatch)
-- `course check`: real AST validation via `parse_analyzed` in addition to text checks
-- `course check`: 3-star scoring system (all pass / clean run / no hints)
-- `course hint`: auto-detects first incomplete exercise when no argument given
-- `course watch`: polling-based auto-check on file save (500ms interval, per-level)
-- Provider auto-detection at course generation (scans env vars, first match wins)
+- `nika setup` command for machine-level IDE + AI tool configuration
+- 15 universal Agent Skills for 43+ AI agents (agentskills.io standard)
+- Claude Code plugin (5 skills, 3 agents, hooks, MCP, LSP)
+- AI rules for Cursor (.mdc), Copilot (.instructions.md), Windsurf, Roo Code, Aider
+- `nika mcp serve` — MCP server exposing workflow tools to AI coding assistants
+- `nika doctor` AI integration health checks (rules, skills, AGENTS.md, git hook)
+- `nika init` now generates AI rules for all detected coding tools
+- AGENTS.md migration (universal standard, 60k+ repos, Linux Foundation)
+- llms.txt + llms-syntax.txt for AI content discovery
+- E2E test workflow with real OpenAI API
+- `course run`, `course check` with scoring, `course watch`, `course hint`
+- Provider auto-detection at course generation
+
+### Fixed
+- exec output capture (Stdio::piped for spawn + wait_with_output)
+- SSRF protection for IPv6 loopback addresses + allowed_hosts override
+- MCP server path traversal protection + result cap
+- 7 critical agent bugs (Claude/OpenAI control plane)
+- 3 media bugs ("image exists but can't see it")
+- 3 template resolution bugs (context path, shell transforms, brackets)
+- 5 byte-index panics + renderer crashes
+- 3 UTF-8 panics (cursor position, select_all, LSP completion)
+- TUI blank startup screen + silent buffer bugs
+- 27 test failures resolved across engine/wiremock/security
+
+### Changed
+- CLAUDE.md → AGENTS.md (symlink for backward compat)
+- rmcp updated with server + transport-io features
+- 9 unused dependencies removed
+- CI workflows consolidated
 
 ## [0.39.0](https://github.com/supernovae-st/nika/releases/tag/v0.39.0) — 2026-03-22
 

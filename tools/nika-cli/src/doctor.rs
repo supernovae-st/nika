@@ -582,19 +582,15 @@ fn check_editor_integration() -> Vec<DiagnosticCheck> {
 fn check_ai_rules() -> Vec<DiagnosticCheck> {
     let mut checks = vec![];
 
-    let rules: &[(&str, &str, &str)] = &[
-        ("Claude Code", ".claude/rules/nika.md", "nika init"),
-        ("Cursor", ".cursor/rules/nika-workflows.mdc", "nika init"),
-        (
-            "Copilot",
-            ".github/copilot/nika.instructions.md",
-            "nika init",
-        ),
-        ("Windsurf", ".windsurf/rules/nika.md", "nika init"),
-        ("Roo Code", ".roo/rules/nika.md", "nika init"),
+    // Project-relative rules
+    let project_rules: &[(&str, &str)] = &[
+        ("Cursor", ".cursor/rules/nika-workflows.mdc"),
+        ("Copilot", ".github/copilot/nika.instructions.md"),
+        ("Windsurf", ".windsurf/rules/nika.md"),
+        ("Roo Code", ".roo/rules/nika.md"),
     ];
 
-    for (tool, path, _fix_cmd) in rules {
+    for (tool, path) in project_rules {
         if std::path::Path::new(path).exists() {
             checks.push(DiagnosticCheck::pass(
                 "AI Rules",
@@ -602,6 +598,16 @@ fn check_ai_rules() -> Vec<DiagnosticCheck> {
             ));
         }
         // Only warn if the tool is detected (don't warn for tools not installed)
+    }
+
+    // Claude Code: rules live at user-level ~/.claude/rules/
+    let home = dirs::home_dir().unwrap_or_default();
+    let claude_path = home.join(".claude/rules/nika.md");
+    if claude_path.exists() {
+        checks.push(DiagnosticCheck::pass(
+            "AI Rules",
+            format!("Claude Code rules present ({})", claude_path.display()),
+        ));
     }
 
     if checks.is_empty() {
@@ -648,8 +654,17 @@ fn check_agents_md() -> DiagnosticCheck {
         let is_symlink = std::fs::symlink_metadata("CLAUDE.md")
             .map(|m| m.file_type().is_symlink())
             .unwrap_or(false);
-        if is_symlink {
+        let points_to_agents = std::fs::read_link("CLAUDE.md")
+            .map(|t| t == std::path::Path::new("AGENTS.md"))
+            .unwrap_or(false);
+        if is_symlink && points_to_agents {
             DiagnosticCheck::pass("AGENTS.md", "AGENTS.md present (CLAUDE.md symlinked)")
+        } else if is_symlink {
+            DiagnosticCheck::warn(
+                "AGENTS.md",
+                "CLAUDE.md is a symlink but doesn't point to AGENTS.md",
+                "Fix with: ln -sf AGENTS.md CLAUDE.md",
+            )
         } else if std::path::Path::new("CLAUDE.md").exists() {
             DiagnosticCheck::warn(
                 "AGENTS.md",
@@ -687,6 +702,19 @@ fn check_git_hook() -> DiagnosticCheck {
     if hook_path.exists() {
         let content = fs::read_to_string(hook_path).unwrap_or_default();
         if content.contains("Nika co-author") {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                if let Ok(meta) = std::fs::metadata(hook_path) {
+                    if meta.permissions().mode() & 0o111 == 0 {
+                        return DiagnosticCheck::warn(
+                            "Git Hook",
+                            "Co-author hook exists but is not executable",
+                            "Run: chmod +x .git/hooks/prepare-commit-msg",
+                        );
+                    }
+                }
+            }
             DiagnosticCheck::pass("Git Hook", "Co-author hook installed")
         } else {
             DiagnosticCheck::warn(

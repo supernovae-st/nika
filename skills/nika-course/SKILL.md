@@ -27,74 +27,43 @@ nika course info 5            # Show level 5 details
 nika course reset 3           # Reset level 3 exercises
 ```
 
-## Course Structure (12 Levels)
+## Course Structure (12 Levels — Liberation Theme)
 
-### Level 1: First Light -- Basics
-- 1.1: Hello World (`exec:` verb)
-- 1.2: First prompt (`infer:` verb)
-- 1.3: First fetch (`fetch:` verb)
-- 1.4: Task chaining (`depends_on:`)
+### Level 1: Jailbreak (5 exercises)
+Break free from manual commands. Learn `exec:` and basic workflows.
 
-### Level 2: Binary Stars -- Data Flow
-- 2.1: With bindings (`with:` block)
-- 2.2: Template expressions (`{{with.x}}`)
-- 2.3: Environment variables (`{{$env.VAR}}`)
-- 2.4: Fallback operator (`??`)
+### Level 2: Hot Wire (4 exercises)
+Hot-wire the network. Master `fetch:` for HTTP requests and APIs.
 
-### Level 3: Nebula -- Inputs & Context
-- 3.1: Workflow inputs (`inputs:` block)
-- 3.2: Input defaults
-- 3.3: Context files (`context:` block)
-- 3.4: Combining inputs and context
+### Level 3: Fork Bomb (4 exercises)
+Multiply your power. DAG patterns, `depends_on`, and parallel execution.
 
-### Level 4: Red Giant -- Parallel Execution
-- 4.1: Parallel tasks (no depends_on)
-- 4.2: for_each basics
-- 4.3: for_each with objects
-- 4.4: Fan-out / fan-in pattern
+### Level 4: Root Access (3 exercises)
+Unlock the LLM. First `infer:` prompts with provider setup.
 
-### Level 5: Supernova -- Artifacts
-- 5.1: Basic artifact output
-- 5.2: Artifact formats (text, json, markdown)
-- 5.3: Artifact templates
-- 5.4: Per-iteration artifacts
+### Level 5: Shapeshifter (3 exercises)
+Transform data with `with:` bindings and pipe transforms.
 
-### Level 6: Pulsar -- Structured Output
-- 6.1: Basic JSON schema
-- 6.2: Nested schemas
-- 6.3: Structured + binding downstream
-- 6.4: Structured + retry
+### Level 6: Pay-Per-Dream (3 exercises)
+Structured output, JSON schemas, and output validation.
 
-### Level 7: Quasar -- Fetch Mastery
-- 7.1: HTTP methods and headers
-- 7.2: Extract modes (markdown, article)
-- 7.3: API integration patterns
-- 7.4: Binary fetch for media
+### Level 7: Swiss Knife (3 exercises)
+Builtin tools via `invoke:` — nika:log, nika:emit, nika:assert.
 
-### Level 8: Magnetar -- Agent Loops
-- 8.1: Basic agent with tools
-- 8.2: Guardrails and safety
-- 8.3: Agent + structured output
-- 8.4: Multi-agent pipeline
+### Level 8: Gone Rogue (3 exercises)
+Autonomous agents with `agent:`, tools, and stop conditions.
 
-### Level 9: White Dwarf -- MCP & Invoke
-- 9.1: Builtin nika:* tools
-- 9.2: MCP server configuration
-- 9.3: Media pipeline basics
+### Level 9: Data Heist (4 exercises)
+Advanced `fetch:` extraction — markdown, article, metadata, links.
 
-### Level 10: Neutron Star -- Advanced Patterns
-- 10.1: Diamond DAG
-- 10.2: Multi-provider workflows
-- 10.3: Complex binding chains
+### Level 10: Open Protocol (3 exercises)
+MCP integration — `invoke:` external tools and NovaNet.
 
-### Level 11: Black Hole -- Production Patterns
-- 11.1: Error handling and retry
-- 11.2: Logging and tracing
-- 11.3: Performance optimization
+### Level 11: Pixel Pirate (4 exercises)
+Media pipeline — import, thumbnail, vision, CAS workflows.
 
-### Level 12: Liberation -- Mastery
-- 12.1: Full production pipeline
-- 12.2: Custom workflow design
+### Level 12: SuperNovae (5 exercises) — BOSS
+Final boss. Orchestrate everything — full production workflows.
 
 ## Helping Users
 
@@ -141,13 +110,14 @@ Validation checks:
 
 | Level | Common Mistake | Fix |
 |-------|---------------|-----|
-| 1 | Missing `schema:` line | Always start with `schema: nika/workflow@0.12` |
-| 2 | `with: { x: task }` without `$` | Use `$task_id` with dollar prefix |
-| 3 | `{{inputs.x}}` without `inputs:` block | Define `inputs:` at workflow level |
-| 4 | `for_each:` without `as:` | Always pair them |
-| 5 | Artifacts dir not set | Add `artifacts: { dir: ./output }` |
-| 6 | Missing `required:` in schema | Always list required properties |
-| 8 | No `nika_complete` in tools | Agent needs completion signal |
+| 1 (Jailbreak) | Missing `schema:` line | Always start with `schema: nika/workflow@0.12` |
+| 2 (Hot Wire) | Wrong HTTP method for fetch | Check `method:` field (default GET) |
+| 3 (Fork Bomb) | Circular `depends_on:` | DAG must be acyclic — no circular refs |
+| 4 (Root Access) | Missing provider API key | Set env var or `nika provider set` |
+| 5 (Shapeshifter) | `with: { x: task }` without `$` | Use `$task_id` with dollar prefix |
+| 6 (Pay-Per-Dream) | Missing `required:` in schema | Always list required properties |
+| 7 (Swiss Knife) | Wrong tool name | Use `nika:` prefix for builtins |
+| 8 (Gone Rogue) | Agent loops forever | Set `max_turns`, add stop conditions |
 
 ## Progress Tracking
 

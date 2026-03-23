@@ -204,7 +204,7 @@ pub fn run_init_wizard(yes: bool) -> Result<WizardResult, NikaError> {
     cliclack::intro(format!(
         "{} {} {}",
         Style::new().magenta().bold().apply_to("nika"),
-        Style::new().dim().apply_to("v0.39.0"),
+        Style::new().dim().apply_to(format!("v{}", env!("CARGO_PKG_VERSION"))),
         Style::new().dim().apply_to("// semantic workflow engine"),
     ))
     .map_err(NikaError::IoError)?;
