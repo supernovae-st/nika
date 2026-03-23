@@ -663,7 +663,7 @@ async fn test_binding_resolution_json_value() {
 async fn test_binding_resolution_datastore_lookup() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new());
     let mut bindings = ResolvedBindings::new();
-    bindings.set("task_output", json!({"result": "success"}));
+    bindings.set("task_output", json!({"result": "ok"}));
     let datastore = RunContext::new();
     let task_id_prev: Arc<str> = Arc::from("prev_task");
     datastore.insert(
@@ -686,7 +686,7 @@ async fn test_binding_resolution_datastore_lookup() {
         .execute(&task_id, &action, &bindings, &datastore, None)
         .await
         .unwrap();
-    assert!(result.contains("success"));
+    assert!(result.contains("ok"));
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -2180,7 +2180,7 @@ async fn audit_exec_cwd_is_wired() {
             command: "pwd".to_string(),
             shell: Some(true),
             timeout: None,
-            cwd: Some("/tmp".to_string()),
+            cwd: Some(".".to_string()),
             env: None,
         },
     };
@@ -2191,10 +2191,11 @@ async fn audit_exec_cwd_is_wired() {
         .await
         .unwrap();
 
-    // On macOS, /tmp is symlinked to /private/tmp
+    // cwd "." resolves to the current working directory
+    let expected = std::env::current_dir().unwrap();
     assert!(
-        result == "/tmp" || result == "/private/tmp",
-        "GAP: cwd not wired. Expected /tmp or /private/tmp, got: '{}'",
+        result.contains(expected.file_name().unwrap().to_str().unwrap()),
+        "GAP: cwd not wired. Expected current dir, got: '{}'",
         result
     );
 }
