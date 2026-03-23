@@ -608,10 +608,14 @@ impl Runner {
         loop {
             // Check cancellation before each retry attempt (avoids wasting LLM calls)
             if executor.is_cancelled() {
-                return TaskResult::failed(
-                    "cancelled during structured output retry".to_string(),
-                    start.elapsed(),
-                );
+                let reason = "cancelled during structured output retry".to_string();
+                event_log.emit(EventKind::TaskFailed {
+                    task_id: Arc::clone(task_id),
+                    error: reason.clone(),
+                    error_code: Some("NIKA-097".to_string()),
+                    duration_ms: start.elapsed().as_millis() as u64,
+                });
+                return TaskResult::failed(reason, start.elapsed());
             }
             attempts += 1;
 
@@ -1034,10 +1038,15 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             err.to_string()
                         })
                         .collect();
-                    task_result = TaskResult::failed(
-                        format!("Artifact write errors: {}", error_msgs.join("; ")),
-                        start.elapsed(),
-                    );
+                    let error = format!("Artifact write errors: {}", error_msgs.join("; "));
+                    // Emit TaskFailed to correct the earlier TaskCompleted event
+                    event_log.emit(EventKind::TaskFailed {
+                        task_id: Arc::clone(&task_id),
+                        error: error.clone(),
+                        error_code: Some("NIKA-281".to_string()),
+                        duration_ms: start.elapsed().as_millis() as u64,
+                    });
+                    task_result = TaskResult::failed(error, start.elapsed());
                 }
             }
         }
