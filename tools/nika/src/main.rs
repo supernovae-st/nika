@@ -305,6 +305,7 @@ enum Commands {
     },
 
     /// Generate shell completions
+    #[command(hide = true)]
     Completion {
         /// Shell to generate completions for
         #[arg(value_enum)]
@@ -318,12 +319,14 @@ enum Commands {
     },
 
     /// Manage schema versions and migrations
+    #[command(hide = true)]
     Schema {
         #[command(subcommand)]
         action: cli::schema::SchemaAction,
     },
 
     /// Show compiled feature flags and capabilities
+    #[command(hide = true)]
     Features,
 
     /// Browse and extract showcase workflows
@@ -396,7 +399,7 @@ enum Commands {
     },
 
     /// Manage workflow files (edit, add-task, graph, check)
-    #[command(visible_alias = "w")]
+    #[command(hide = true, visible_alias = "w")]
     Workflow {
         #[command(subcommand)]
         action: cli::workflow::WorkflowAction,
@@ -411,6 +414,7 @@ enum Commands {
     /// - Go to definition
     /// - Code actions (quick fixes)
     #[cfg(feature = "lsp")]
+    #[command(hide = true)]
     Lsp {
         /// Communication mode: stdio (default) or tcp
         #[arg(long, default_value = "stdio")]
