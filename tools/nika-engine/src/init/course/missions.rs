@@ -61,11 +61,11 @@ A Nika workflow is a YAML file. No framework, no SDK, no 47-dependency
 `package.json`. One file. One schema line. Tasks that do things.
 
 ```yaml
-nika: workflow@0.12
+schema: "nika/workflow@0.12"
 name: my-first-breakout
 tasks:
-  hello:
-    exec: echo "I'm free"
+  - id: hello
+    exec: "echo \"I'm free\""
 ```
 
 That's it. That runs. No compiler. No build step. `nika run` and you're live.
@@ -1416,18 +1416,18 @@ learned converges here. You will build production-grade workflows that
 combine all of Nika's capabilities.
 
 ```yaml
-nika: workflow@0.12
+schema: "nika/workflow@0.12"
 name: production-pipeline
 
 tasks:
   # Fetch raw data
-  scrape:
+  - id: scrape
     fetch:
       url: "{{with.target_url}}"
       extract: article
 
   # Process with LLM
-  analyze:
+  - id: analyze
     with:
       content: $scrape
     infer:
@@ -1445,7 +1445,7 @@ tasks:
     depends_on: [scrape]
 
   # Store results
-  save:
+  - id: save
     with:
       result: $analyze
     invoke:
@@ -1456,7 +1456,7 @@ tasks:
     depends_on: [analyze]
 
   # Log completion
-  done:
+  - id: done
     invoke:
       tool: nika:log
       params:
