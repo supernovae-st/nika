@@ -276,7 +276,13 @@ impl TaskExecutor {
     pub(super) fn get_rig_provider(&self, name: &str) -> Result<RigProvider, NikaError> {
         use dashmap::mapref::entry::Entry;
 
-        match self.rig_provider_cache.entry(name.to_string()) {
+        // Normalize provider name so aliases ("claude") and canonical ("anthropic")
+        // share the same cache entry, avoiding double-instantiation.
+        let canonical = crate::core::find_provider(name)
+            .map(|p| p.id)
+            .unwrap_or(name);
+
+        match self.rig_provider_cache.entry(canonical.to_string()) {
             Entry::Occupied(e) => Ok(e.get().clone()),
             Entry::Vacant(e) => {
                 let provider = RigProvider::from_name(name)?;

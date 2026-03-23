@@ -1367,6 +1367,18 @@ impl TaskExecutor {
                             "/llms-full.txt",
                         ] {
                             let llm_url = format!("{}{}", origin, path);
+                            // SSRF policy check for llm_txt sub-requests
+                            let sub_decision =
+                                self.policy_enforcer.read().check_fetch(&llm_url);
+                            if let PolicyDecision::Block(reason) = sub_decision {
+                                tracing::warn!(
+                                    task_id = %task_id,
+                                    url = %llm_url,
+                                    reason = %reason,
+                                    "fetch: llm_txt sub-request blocked by policy"
+                                );
+                                continue;
+                            }
                             if let Ok(resp) = http_client
                                 .get(&llm_url)
                                 .timeout(std::time::Duration::from_secs(5))

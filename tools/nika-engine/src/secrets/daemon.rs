@@ -66,7 +66,7 @@ pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
 
     result.daemon_available = !client.is_fallback_mode();
 
-    // Iterate all known providers (LLM + MCP + Local = 20)
+    // Iterate all known providers (LLM + MCP + Local = 19)
     for p in KNOWN_PROVIDERS {
         let provider_id = p.id;
         let env_var = p.env_var;
@@ -170,7 +170,7 @@ async fn load_fallback_only() -> SecretsLoadResult {
         ..Default::default()
     };
 
-    // Iterate all known providers (LLM + MCP + Local = 20)
+    // Iterate all known providers (LLM + MCP + Local = 19)
     for p in KNOWN_PROVIDERS {
         let provider_id = p.id;
         let env_var = p.env_var;

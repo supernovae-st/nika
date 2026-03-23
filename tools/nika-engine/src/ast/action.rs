@@ -349,7 +349,7 @@ fn default_multiplier() -> f64 {
 /// - Mutually exclusive with `body` (json takes precedence)
 ///
 /// ## Redirect Control
-/// - `follow_redirects: true` (default) — Follows HTTP redirects up to 10 hops
+/// - `follow_redirects: true` (default) — Follows HTTP redirects up to 5 hops
 /// - `follow_redirects: false` — Disables redirect following, returns 3xx response
 #[derive(Debug, Clone, Deserialize)]
 pub struct FetchParams {

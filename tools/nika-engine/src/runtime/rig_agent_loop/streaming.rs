@@ -282,6 +282,15 @@ impl RigAgentLoop {
                             input_tokens = usage.input_tokens;
                             output_tokens = usage.output_tokens;
                         }
+                        // Accumulate reasoning deltas (streaming thinking tokens)
+                        MultiTurnStreamItem::StreamAssistantItem(
+                            StreamedAssistantContent::ReasoningDelta { reasoning, .. },
+                        ) => {
+                            match &mut thinking_text {
+                                Some(t) => t.push_str(&reasoning),
+                                None => thinking_text = Some(reasoning),
+                            }
+                        }
                         // Ignore tool calls and other items in CLI mode
                         _ => {}
                     },
