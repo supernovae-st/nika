@@ -1,0 +1,216 @@
+# Nika Workflow Syntax Reference
+
+## File Format
+
+Extension: `.nika.yaml` (required)
+Schema: `nika/workflow@0.12`
+
+## Workflow Structure
+
+```yaml
+schema: nika/workflow@0.12
+workflow: my-workflow           # Optional, defaults to filename
+description: "What this does"  # Optional
+provider: anthropic             # Default LLM provider
+model: claude-sonnet-4-6       # Default model
+
+mcp:                            # MCP server definitions (optional)
+  server_name:
+    command: /path/to/binary
+    args: [arg1, arg2]
+    env: { KEY: value }
+
+inputs:                         # Input parameters (optional)
+  param_name: { type: string, default: value }
+
+context:                        # Load external files (optional)
+  files: { alias: ./path.md }
+
+tasks:                          # Required: list of tasks
+  - id: task_name
+    verb: { config }
+```
+
+## The 5 Verbs
+
+### infer: — LLM Generation
+```yaml
+- id: generate
+  infer:
+    prompt: "Write a poem about {{inputs.topic}}"
+    system: "You are a poet"          # Optional system prompt
+    temperature: 0.7                   # 0.0-2.0
+    max_tokens: 500                    # Output limit
+    extended_thinking: true            # Claude only
+    thinking_budget: 10000             # Thinking tokens
+    content:                           # Multimodal (optional)
+      - type: image
+        source: "{{with.photo.hash}}"
+        detail: high
+      - type: text
+        text: "Describe this image"
+```
+
+### exec: — Shell Command
+```yaml
+- id: build
+  exec:
+    command: "cargo build --release"
+    shell: true                        # Use shell interpretation
+    cwd: "./project"                   # Working directory
+    env: { RUST_LOG: debug }           # Environment variables
+    timeout_ms: 30000                  # Timeout in milliseconds
+```
+
+### fetch: — HTTP Request
+```yaml
+- id: get_data
+  fetch:
+    url: "https://api.example.com/data"
+    method: GET                        # GET/POST/PUT/DELETE/PATCH
+    headers:
+      Authorization: "Bearer {{inputs.token}}"
+    json: { query: "search term" }     # JSON body (POST/PUT)
+    extract: markdown                  # Extract mode (see below)
+    selector: "article.main"           # CSS selector or JSONPath
+    response: full                     # full/binary/default
+    timeout_ms: 10000
+```
+
+#### 9 Extract Modes
+- `markdown` — HTML to clean Markdown
+- `article` — Main article content (Readability)
+- `text` — Visible text, optionally filtered by selector
+- `selector` — Raw HTML matching CSS selector
+- `metadata` — OG tags, Twitter Cards, JSON-LD, SEO
+- `links` — Classified links (internal/external/nav/content)
+- `jsonpath` — JSONPath query on JSON responses (use selector for path)
+- `feed` — RSS/Atom/JSON Feed parsing
+- `llm_txt` — AI content discovery (/.well-known/llm.txt)
+
+### invoke: — MCP Tool Call
+```yaml
+- id: search
+  invoke:
+    mcp: novanet                       # MCP server name (from mcp: block)
+    tool: novanet_search               # Tool name
+    params:
+      query: "search term"
+      limit: 10
+    timeout_ms: 30000
+```
+
+#### 26 Builtin nika:* Tools (no mcp: needed)
+Tier 1 (always on): `nika:import`, `nika:dimensions`, `nika:thumbhash`, `nika:dominant_color`, `nika:pipeline`
+Tier 2 (default): `nika:thumbnail`, `nika:convert`, `nika:strip`, `nika:metadata`, `nika:optimize`, `nika:svg_render`
+Tier 3 (opt-in): `nika:phash`, `nika:compare`, `nika:pdf_extract`, `nika:chart`, `nika:provenance`, `nika:verify`, `nika:qr_validate`, `nika:quality`, `nika:html_to_md`, `nika:css_select`, `nika:extract_metadata`, `nika:extract_links`, `nika:readability`
+
+### agent: — Multi-Turn Loop
+```yaml
+- id: research
+  agent:
+    prompt: "Research the topic and write a report"
+    system: "You are a research assistant"
+    tools: [builtin]                   # Available tools
+    mcp: [novanet, perplexity]         # MCP servers to use
+    max_turns: 10                      # Max iterations
+    max_tokens: 1000                   # Per-turn token limit
+    token_budget: 50000                # Total budget
+    extended_thinking: true            # Claude only
+    guardrails:                        # Output validation
+      - type: length
+        max_words: 500
+    completion:                        # How agent signals done
+      mode: explicit                   # explicit/natural/pattern
+```
+
+## Data Flow
+
+### with: Bindings (pass data between tasks)
+```yaml
+- id: step_b
+  with:
+    data: $step_a                      # Reference task output
+    nested: $step_a.field.subfield     # Nested path
+    safe: $step_a.value ?? "default"   # Fallback value
+    env: $env.API_KEY                  # Environment variable
+    input: $inputs.param               # Input parameter
+  infer:
+    prompt: "Process: {{with.data}}"
+```
+
+### depends_on: (ordering without data)
+```yaml
+- id: step_c
+  depends_on: [step_a, step_b]        # Run after these complete
+```
+
+### for_each: (parallel iteration)
+```yaml
+- id: process_all
+  for_each: ["en", "fr", "de"]        # Items to iterate
+  as: locale                           # Loop variable (default: item)
+  concurrency: 3                       # Max parallel
+  fail_fast: true                      # Stop on first error
+  infer:
+    prompt: "Translate to {{with.locale}}"
+```
+
+## 25 Pipe Transforms
+
+Use in templates: `{{with.data | transform1 | transform2}}`
+
+String: `upper`, `lower`, `trim`, `trim_start`, `trim_end`
+Collection: `length`, `first`, `last`, `first(N)`, `last(N)`, `keys`, `values`, `flatten`, `reverse`, `sort`, `unique`, `compact`
+Type: `to_string`, `to_number`, `to_bool`, `to_json`, `parse_json`
+Numeric: `round(N)`, `abs`, `ceil`, `floor`
+Utility: `default(V)`, `type_of`, `join(S)`, `split(S)`, `shell`
+
+## Structured Output
+
+```yaml
+- id: extract
+  infer:
+    prompt: "Extract person data from the text"
+  structured:
+    schema:
+      type: object
+      properties:
+        name: { type: string }
+        age: { type: integer }
+        email: { type: string }
+      required: [name, age]
+    max_retries: 3
+```
+
+## Retry & Resilience
+
+```yaml
+- id: flaky_api
+  fetch:
+    url: "https://api.example.com"
+  timeout: 30                          # Seconds (not ms at task level)
+  retry:
+    max_attempts: 3
+    delay_ms: 1000
+    backoff: 1.5                       # Exponential
+```
+
+## Providers
+
+LLM: `anthropic` (claude), `openai` (gpt), `mistral`, `groq`, `deepseek`, `gemini` (google), `xai` (grok)
+MCP: `neo4j`, `github`, `slack`, `perplexity`, `firecrawl`, `supadata`, `dataforseo`, `ahrefs`, `postgres`, `filesystem`, `memory`
+Local: `native` (mistral.rs GGUF models)
+
+## CLI Commands
+
+```bash
+nika check workflow.nika.yaml    # Validate syntax
+nika run workflow.nika.yaml      # Execute workflow
+nika ui                          # Terminal UI
+nika init                        # Project setup wizard
+nika init --course               # 12-level learning course
+nika setup                       # Machine setup (editors, AI tools)
+nika doctor                      # System health check
+nika provider list               # API key status
+```

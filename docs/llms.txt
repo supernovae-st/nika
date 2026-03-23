@@ -1,0 +1,17 @@
+# Nika
+
+> Semantic YAML workflow engine for AI tasks. Orchestrate LLMs, APIs, shell commands, and MCP tools with declarative DAG workflows. Schema: nika/workflow@0.12
+
+Nika is a Rust CLI tool that executes `.nika.yaml` workflow files. Each workflow defines a directed acyclic graph (DAG) of tasks using 5 verbs: infer (LLM generation), exec (shell commands), fetch (HTTP requests), invoke (MCP tool calls), and agent (multi-turn autonomous loops).
+
+## Documentation
+
+- [Quick Reference](llms-syntax.txt): Complete workflow syntax — verbs, fields, bindings, transforms
+- [Full Documentation](llms-full.txt): Comprehensive reference with examples and error codes
+- [Examples](llms-examples.txt): 30+ workflow patterns from simple to complex
+
+## Optional
+
+- [Media Tools](llms-media.txt): 26 builtin nika:* tools for image processing
+- [Error Codes](llms-errors.txt): NIKA-XXX error code reference
+- [MCP Integration](llms-mcp.txt): Connecting to MCP servers via invoke: verb
