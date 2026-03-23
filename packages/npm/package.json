@@ -1,0 +1,45 @@
+{
+  "name": "@supernovae/nika",
+  "version": "0.41.1",
+  "description": "Semantic YAML workflow engine for AI tasks",
+  "license": "AGPL-3.0-or-later",
+  "bin": {
+    "nika": "run.js"
+  },
+  "scripts": {
+    "postinstall": "node install.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SuperNovae-studio/nika.git"
+  },
+  "homepage": "https://supernovae.studio",
+  "bugs": {
+    "url": "https://github.com/SuperNovae-studio/nika/issues"
+  },
+  "keywords": [
+    "ai",
+    "workflows",
+    "dag",
+    "mcp",
+    "llm",
+    "yaml",
+    "cli"
+  ],
+  "files": [
+    "install.js",
+    "run.js",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=16"
+  },
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ]
+}
