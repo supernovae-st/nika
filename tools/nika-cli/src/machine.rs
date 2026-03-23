@@ -4,6 +4,7 @@
 //! Tracks setup state via `~/.nika/machine.toml` marker file.
 //! Called by `nika init` before the project wizard (Phase 1).
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -1087,6 +1088,77 @@ nika run workflow.nika.yaml --dry-run  # Validate without executing
 ```
 "#;
 
+// ─── Content Hash Fingerprinting ─────────────────────────────────────────────
+
+fn hash_content(content: &str) -> String {
+    format!("{:016x}", xxhash_rust::xxh3::xxh3_64(content.as_bytes()))
+}
+
+fn load_rule_hashes() -> HashMap<String, String> {
+    let content = match std::fs::read_to_string(machine_toml_path()) {
+        Ok(c) => c,
+        Err(_) => return HashMap::new(),
+    };
+    let mut in_section = false;
+    let mut map = HashMap::new();
+    for line in content.lines() {
+        let t = line.trim();
+        if t == "[rule_hashes]" {
+            in_section = true;
+            continue;
+        }
+        if t.starts_with('[') {
+            in_section = false;
+            continue;
+        }
+        if !in_section {
+            continue;
+        }
+        if let Some((k, v)) = t.split_once('=') {
+            let key = k.trim().to_string();
+            let val = v.trim().trim_matches('"').to_string();
+            if !key.is_empty() && !val.is_empty() {
+                map.insert(key, val);
+            }
+        }
+    }
+    map
+}
+
+fn update_rule_hash(editor_key: &str, hash: &str) {
+    let path = machine_toml_path();
+    let content = match std::fs::read_to_string(&path) {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+    let new_line = format!("{} = \"{}\"", editor_key, hash);
+    let mut lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
+    let section_idx = lines.iter().position(|l| l.trim() == "[rule_hashes]");
+    match section_idx {
+        Some(idx) => {
+            // Find existing key in section
+            let key_idx = lines[idx + 1..]
+                .iter()
+                .position(|l| {
+                    let t = l.trim();
+                    t.starts_with(editor_key)
+                        && t[editor_key.len()..].trim_start().starts_with('=')
+                })
+                .map(|i| i + idx + 1);
+            match key_idx {
+                Some(ki) => lines[ki] = new_line,
+                None => lines.insert(idx + 1, new_line),
+            }
+        }
+        None => {
+            lines.push(String::new());
+            lines.push("[rule_hashes]".to_string());
+            lines.push(new_line);
+        }
+    }
+    std::fs::write(&path, lines.join("\n") + "\n").ok();
+}
+
 fn setup_ai_rules() -> Vec<SetupResult> {
     let home = dirs::home_dir();
     if home.is_none() {
@@ -1099,6 +1171,7 @@ fn setup_ai_rules() -> Vec<SetupResult> {
     let home = home.unwrap();
     let mut results = Vec::new();
     let editors = detect_editors();
+    let hashes = load_rule_hashes();
 
     // Claude Code
     if editors.contains(&"claude") {
@@ -1106,6 +1179,8 @@ fn setup_ai_rules() -> Vec<SetupResult> {
             &home.join(".claude/rules/nika.md"),
             CLAUDE_RULES_CONTENT,
             "Claude Code",
+            "claude",
+            &hashes,
             &mut results,
         );
     }
@@ -1116,6 +1191,8 @@ fn setup_ai_rules() -> Vec<SetupResult> {
             &home.join(".cursor/rules/nika.mdc"),
             CURSOR_NIKA_RULES,
             "Cursor",
+            "cursor",
+            &hashes,
             &mut results,
         );
     }
@@ -1126,6 +1203,8 @@ fn setup_ai_rules() -> Vec<SetupResult> {
             &home.join(".github/copilot/nika.instructions.md"),
             COPILOT_RULES,
             "Copilot",
+            "copilot",
+            &hashes,
             &mut results,
         );
     }
@@ -1136,6 +1215,8 @@ fn setup_ai_rules() -> Vec<SetupResult> {
             &home.join(".windsurf/rules/nika.md"),
             WINDSURF_RULES,
             "Windsurf",
+            "windsurf",
+            &hashes,
             &mut results,
         );
     }
@@ -1146,6 +1227,8 @@ fn setup_ai_rules() -> Vec<SetupResult> {
             &home.join(".roo/rules/nika.md"),
             ROO_RULES,
             "Roo Code",
+            "roo",
+            &hashes,
             &mut results,
         );
     }
@@ -1184,14 +1267,65 @@ fn setup_ai_rules() -> Vec<SetupResult> {
     results
 }
 
-/// Install a rule file for an editor. Always overwrites to ensure updates on
-/// version bumps.
-fn install_rule(path: &Path, content: &str, name: &str, results: &mut Vec<SetupResult>) {
+/// Install a rule file for an editor with content-hash protection.
+///
+/// - If file exists and content matches expected -> skip ("up to date")
+/// - If file exists and disk hash doesn't match stored hash -> skip with warning
+///   ("user-customized")
+/// - Otherwise -> write + update hash
+fn install_rule(
+    path: &Path,
+    content: &str,
+    name: &str,
+    editor_key: &str,
+    hashes: &HashMap<String, String>,
+    results: &mut Vec<SetupResult>,
+) {
+    let expected_hash = hash_content(content);
+
+    // If file exists, check hashes before overwriting
+    if path.exists() {
+        if let Ok(disk_content) = std::fs::read_to_string(path) {
+            let disk_hash = hash_content(&disk_content);
+
+            // Content already matches — nothing to do
+            if disk_hash == expected_hash {
+                println!("  {} {} — up to date", "\u{2713}".green(), name);
+                results.push(SetupResult {
+                    name: name.into(),
+                    success: true,
+                    message: "up to date".into(),
+                });
+                return;
+            }
+
+            // File differs from expected. Was it customized by the user?
+            if let Some(stored_hash) = hashes.get(editor_key) {
+                if disk_hash != *stored_hash {
+                    // User modified the file — don't overwrite
+                    println!(
+                        "  {} {} — user-customized, skipping",
+                        "\u{26a0}".yellow(),
+                        name
+                    );
+                    results.push(SetupResult {
+                        name: name.into(),
+                        success: true,
+                        message: "user-customized, preserved".into(),
+                    });
+                    return;
+                }
+            }
+            // stored_hash matches disk (or no stored hash yet) — safe to overwrite
+        }
+    }
+
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).ok();
     }
     match std::fs::write(path, content) {
         Ok(()) => {
+            update_rule_hash(editor_key, &expected_hash);
             println!("  {} {} — Nika rules installed", "\u{2713}".green(), name);
             results.push(SetupResult {
                 name: name.into(),
@@ -1216,11 +1350,40 @@ fn install_rule(path: &Path, content: &str, name: &str, results: &mut Vec<SetupR
 }
 
 /// Silently install a rule file (used by quick_editor_scan — no terminal output).
-fn install_rule_silent(path: &Path, content: &str) -> bool {
+/// Respects content-hash protection: skips user-customized files.
+fn install_rule_silent(
+    path: &Path,
+    content: &str,
+    editor_key: &str,
+    hashes: &HashMap<String, String>,
+) -> bool {
+    let expected_hash = hash_content(content);
+
+    if path.exists() {
+        if let Ok(disk_content) = std::fs::read_to_string(path) {
+            let disk_hash = hash_content(&disk_content);
+            // Already up to date
+            if disk_hash == expected_hash {
+                return true;
+            }
+            // User-customized — don't overwrite
+            if let Some(stored_hash) = hashes.get(editor_key) {
+                if disk_hash != *stored_hash {
+                    return false;
+                }
+            }
+        }
+    }
+
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).ok();
     }
-    std::fs::write(path, content).is_ok()
+    if std::fs::write(path, content).is_ok() {
+        update_rule_hash(editor_key, &expected_hash);
+        true
+    } else {
+        false
+    }
 }
 
 fn setup_completions() -> SetupResult {
@@ -1382,34 +1545,48 @@ pub fn quick_editor_scan() {
     }
 
     let home = dirs::home_dir().unwrap_or_default();
+    let hashes = load_rule_hashes();
     for editor in &new_editors {
         match **editor {
             "claude" => {
                 install_rule_silent(
                     &home.join(".claude/rules/nika.md"),
                     CLAUDE_RULES_CONTENT,
+                    "claude",
+                    &hashes,
                 );
             }
             "cursor" => {
                 install_rule_silent(
                     &home.join(".cursor/rules/nika.mdc"),
                     CURSOR_NIKA_RULES,
+                    "cursor",
+                    &hashes,
                 );
             }
             "copilot" => {
                 install_rule_silent(
                     &home.join(".github/copilot/nika.instructions.md"),
                     COPILOT_RULES,
+                    "copilot",
+                    &hashes,
                 );
             }
             "windsurf" => {
                 install_rule_silent(
                     &home.join(".windsurf/rules/nika.md"),
                     WINDSURF_RULES,
+                    "windsurf",
+                    &hashes,
                 );
             }
             "roo" => {
-                install_rule_silent(&home.join(".roo/rules/nika.md"), ROO_RULES);
+                install_rule_silent(
+                    &home.join(".roo/rules/nika.md"),
+                    ROO_RULES,
+                    "roo",
+                    &hashes,
+                );
             }
             _ => {}
         }
@@ -1633,7 +1810,8 @@ mod tests {
     fn install_rule_silent_writes_file() {
         let tmpdir = tempfile::tempdir().unwrap();
         let path = tmpdir.path().join("sub/dir/rule.md");
-        let ok = install_rule_silent(&path, "# test rule\n");
+        let hashes = HashMap::new();
+        let ok = install_rule_silent(&path, "# test rule\n", "test", &hashes);
         assert!(ok);
         assert!(path.exists());
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "# test rule\n");
