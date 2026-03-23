@@ -1694,13 +1694,12 @@ const SHAPESHIFTER_03_TEMPLATE: &str = r##"# ===================================
 # =============================================================================
 #
 # When the LLM output fails schema validation, Nika can auto-retry
-# with feedback about what went wrong. Combine structured: with retry:.
+# with feedback about what went wrong via structured: max_retries.
 #
 # CONCEPTS:
-#   - structured: + retry: for resilient structured output
-#   - retry: { max_attempts: 3 } on schema validation failures
-#   - structured: { max_retries: 3 } for schema-level retries
+#   - structured: { max_retries: 3 } for auto-retry on schema validation failure
 #   - The LLM receives the validation error and corrects itself
+#   - retry: is for fetch: tasks only (network retries)
 #
 # RUN: nika run 03-schema-retry.nika.yaml
 # =============================================================================
@@ -1717,8 +1716,7 @@ tasks:
     exec: "echo 'Replace me with retry + structured output tasks!'"
 
   # TODO: Create a task "strict_extraction" with:
-  #       - retry: { max_attempts: 3, backoff_ms: 500 }
-  #       - structured: block with schema: and max_retries:
+  #       - structured: block with schema: and max_retries: 3
   #           schema:
   #             type: object
   #             properties:
@@ -1753,9 +1751,6 @@ model: "{{MODEL}}"
 
 tasks:
   - id: strict_extraction
-    retry:
-      max_attempts: 3
-      backoff_ms: 500
     structured:
       schema:
         type: object
