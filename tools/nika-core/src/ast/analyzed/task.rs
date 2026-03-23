@@ -471,22 +471,6 @@ impl Default for AnalyzedRetry {
     }
 }
 
-impl AnalyzedRetry {
-    /// Calculate delay for a given attempt (0-indexed).
-    pub fn delay_for_attempt(&self, attempt: u32) -> u64 {
-        if attempt == 0 {
-            return 0; // No delay for first attempt
-        }
-        match self.backoff {
-            Some(multiplier) => {
-                let factor = multiplier.powi(attempt as i32 - 1);
-                (self.delay_ms as f64 * factor) as u64
-            }
-            None => self.delay_ms,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -609,29 +593,4 @@ mod tests {
         assert!(retry.backoff.is_none());
     }
 
-    #[test]
-    fn test_analyzed_retry_delay_for_attempt() {
-        // Without backoff
-        let retry = AnalyzedRetry {
-            max_attempts: 3,
-            delay_ms: 1000,
-            backoff: None,
-            span: make_span(0, 10),
-        };
-        assert_eq!(retry.delay_for_attempt(0), 0); // First attempt, no delay
-        assert_eq!(retry.delay_for_attempt(1), 1000); // Retry 1
-        assert_eq!(retry.delay_for_attempt(2), 1000); // Retry 2
-
-        // With exponential backoff
-        let retry = AnalyzedRetry {
-            max_attempts: 5,
-            delay_ms: 1000,
-            backoff: Some(2.0),
-            span: make_span(0, 10),
-        };
-        assert_eq!(retry.delay_for_attempt(0), 0); // No delay
-        assert_eq!(retry.delay_for_attempt(1), 1000); // 1000 * 2^0
-        assert_eq!(retry.delay_for_attempt(2), 2000); // 1000 * 2^1
-        assert_eq!(retry.delay_for_attempt(3), 4000); // 1000 * 2^2
-    }
 }

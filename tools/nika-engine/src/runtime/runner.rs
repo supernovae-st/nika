@@ -214,14 +214,6 @@ impl Runner {
         self
     }
 
-    /// Set trace retention config for automatic pruning after each run.
-    ///
-    /// When omitted, defaults to 100 max traces and 7-day retention.
-    pub fn with_trace_config(mut self, config: TraceConfig) -> Self {
-        self.trace_config = config;
-        self
-    }
-
     /// Set the CLI detail level for event rendering.
     pub fn with_detail_level(mut self, detail: crate::display::DetailLevel) -> Self {
         let effective_detail = if self.quiet {

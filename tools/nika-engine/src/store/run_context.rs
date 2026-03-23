@@ -130,13 +130,6 @@ impl TaskResult {
         matches!(self.status, TaskOutcome::Skipped { .. })
     }
 
-    /// Check if task is in a terminal state (not pending)
-    ///
-    /// Returns true for Success, Failed, DependencyFailed, and Skipped.
-    pub fn is_terminal(&self) -> bool {
-        true // All TaskOutcome variants are terminal states
-    }
-
     /// Get the failed dependency name if this is a DependencyFailed result
     pub fn failed_dependency(&self) -> Option<&str> {
         match &self.status {

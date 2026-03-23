@@ -7,5 +7,3 @@ pub use nika_media::*;
 
 #[cfg(test)]
 mod tests_e2e;
-// Note: tests_compression_deep.rs uses stale 1-byte CAS markers.
-// Not included until updated to 4-byte NK framing.
