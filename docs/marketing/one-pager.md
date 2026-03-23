@@ -1,192 +1,134 @@
-# One-Pager -- Nika
+# Nika — One-Pager
 
-> Executive summary for investors, partners, conference organizers, and press.
-> One page. Everything they need to understand what Nika is and why it matters.
-
----
-
-<!-- BEGIN ONE-PAGER -->
-
-# Nika -- Semantic YAML Workflow Engine for AI Tasks
-
-Nika is an open source workflow engine that lets developers orchestrate AI tasks using 5 declarative YAML verbs, replacing hundreds of lines of SDK boilerplate with readable, version-controllable workflow definitions. Written in 451K lines of Rust, it compiles to a single binary with zero runtime dependencies.
+> For investors, partners, conference organizers, and press.
 
 ---
 
-## Key Metrics
+## The Problem
 
-| Metric | Value |
-|--------|-------|
-| **Codebase** | 451K lines of Rust, 10 workspace crates |
-| **Tests** | 7,784+ passing, zero clippy warnings, zero unsafe |
-| **LLM Providers** | 22 (Claude, GPT-4o, Gemini, Mistral, Groq, DeepSeek, xAI, Perplexity, local GGUF) |
-| **Media Tools** | 24 built-in (thumbnail, chart, PDF, C2PA, QR validation) |
-| **Showcase Workflows** | 200+ ready-to-use examples |
-| **Course Exercises** | 44 across 12 levels (interactive learning) |
-| **Schema Version** | nika/workflow@0.12 |
-| **License** | AGPL-3.0-or-later |
-| **Deployment** | Single binary via `cargo install nika` |
-| **MCP Aliases** | 100+ pre-configured tool connections |
+AI is the new electricity — but electricity doesn't cost $49/month with a 1,000-run limit.
+
+Six closed labs control frontier AI. Chips cost $6M per rack. LLM subscriptions run
+$20-$200/month. The platforms that promise "democratization" charge you to run automations
+on THEIR servers, with THEIR limits. And even if you pay — you still need a software
+engineer to wire anything useful together.
+
+**The result:** the technology that should empower billions is gatekept by a handful of corporations.
 
 ---
 
-## Value Proposition
+## The Solution
 
-**For developers:** Replace fragile Python SDK pipelines with readable YAML. Switch LLM providers by changing one line. Get structured output validation, agent guardrails, and a media pipeline -- all in one binary.
+**Nika** is a single open-source binary that reads a YAML text file and executes AI workflows.
+No Python. No Docker. No cloud. No subscription.
 
-**For teams:** Workflow files ARE documentation. Put them in PRs, diff them, review them. Non-engineers can read what the pipeline does without knowing Python.
-
-**For the ecosystem:** AGPL-3.0 ensures Nika stays open. No cloud provider can fork it and close the door. Contributions benefit everyone.
-
----
-
-## The 5 Verbs
-
-```
-infer:  --> Call any LLM (22 providers, structured output, vision)
-exec:   --> Run shell commands (28-pattern security blocklist)
-fetch:  --> HTTP requests (9 extract modes: markdown, article, RSS...)
-invoke: --> MCP tool calls (24 built-in + any MCP server)
-agent:  --> Multi-turn loops (guardrails, cost limits, tool calling)
-```
-
----
-
-## Architecture
-
-```
-                     YAML Workflow (.nika.yaml)
-                              |
-                    +--------------------+
-                    | 2-Phase AST        |
-                    | Raw -> Analyzed    |
-                    | (source spans,     |
-                    |  semantic validation)|
-                    +--------------------+
-                              |
-                    +--------------------+
-                    | DAG Scheduler      |
-                    | (parallel exec,    |
-                    |  cycle detection)  |
-                    +--------------------+
-                              |
-              +-------+-------+-------+-------+
-              |       |       |       |       |
-           infer:  exec:  fetch:  invoke:  agent:
-              |       |       |       |       |
-              +-------+-------+-------+-------+
-                              |
-                    +--------------------+
-                    | Event Sourcing     |
-                    | (39 event types,   |
-                    |  NDJSON traces)    |
-                    +--------------------+
-```
-
-**Brain + Body:** Nika (workflow engine) connects to NovaNet (knowledge graph) via MCP Protocol. NovaNet provides entity context, semantic relationships, and cross-session memory. Clean separation: NovaNet knows, Nika does.
-
----
-
-## Use Cases
-
-### 1. Multi-Model Content Pipeline
-Fetch data with Groq (fast, cheap), analyze with Claude (quality), format with DeepSeek ($0.14/1M tokens). One workflow, three providers, 60% cost savings.
-
-### 2. Image Processing Automation
-Import -> thumbnail -> optimize -> thumbhash -> metadata extraction. All via built-in tools. Zero external services, zero API keys.
-
-### 3. Intelligent Code Agent
-Multi-turn agent with file system access (read, write, edit, grep). Guardrails prevent destructive actions. Cost limits cap spending at $1/run.
-
-### 4. Web Scraping + AI Analysis
-Fetch with article extraction -> structured entity extraction -> knowledge graph storage via MCP. Nine extract modes replace headless browsers.
-
-### 5. Content Authenticity
-C2PA credential signing for AI-generated content. EU AI Act compliance verification. Provenance chain from creation to distribution.
-
----
-
-## Getting Started (3 Steps)
-
-```bash
-# Step 1: Install
-cargo install nika
-
-# Step 2: Create a workflow
-cat > hello.nika.yaml << 'EOF'
-schema: nika/workflow@0.12
+```yaml
+schema: "nika/workflow@0.12"
 tasks:
-  - id: greet
-    infer: "Write a haiku about open source"
-EOF
-
-# Step 3: Run it
-nika run hello.nika.yaml
+  - id: scrape
+    fetch: { url: "https://news.ycombinator.com", extract: article }
+  - id: summarize
+    with: { page: $scrape }
+    infer: "3-bullet summary: {{with.page}}"
 ```
 
-**Learn more:** `nika init --course` (44 interactive exercises)
-**Browse examples:** `nika showcase list` (200+ workflows)
-**Full TUI:** `nika ui` (live DAG, streaming, cost tracking)
+Two steps. Zero lines of code. Runs on a Raspberry Pi.
 
 ---
 
-## Technical Highlights
+## The Proof
 
-### 2-Phase AST with Source Spans
+| Metric | Nika | LangChain | CrewAI |
+|--------|------|-----------|--------|
+| **Peak RAM** (10 web pages) | **1,046 MB** | 5,706 MB | excluded |
+| **Cold start** | **4 ms** | 62 ms | unknown |
+| **Throughput** | **4.97 rps** | 4.26 rps | 44% failure rate |
+| **Dependencies** | **0** (single binary) | 400+ pip packages | 300+ |
+| **Config lines** (same task) | **12** | 48 | 55 |
 
-Nika doesn't just parse YAML and execute it. The engine builds a proper Abstract Syntax Tree in two phases. Phase 1 (Raw) uses `marked_yaml` to preserve source spans -- every element knows its file, line, and column. Phase 2 (Analyzed) performs semantic validation: TaskId interning, dependency resolution, cycle detection, provider validation, and template variable checking. Errors include exact source locations, not generic stack traces.
-
-### DAG Scheduling with Automatic Parallelism
-
-Tasks declare dependencies through `with:` data bindings. Nika constructs a directed acyclic graph, detects cycles at compile time, and runs independent tasks in parallel via tokio JoinSet with CancellationToken for fail-fast semantics. No explicit `parallel:` blocks or ordering directives.
-
-### Content-Addressable Storage
-
-All media operations go through a CAS layer where files are addressed by content hash, not file path. This prevents path traversal attacks, enables deduplication, and makes pipelines reproducible -- same input hash always produces the same output.
-
-### Event Sourcing
-
-Every workflow execution emits events (39 distinct types) in NDJSON format. Events cover task lifecycle, provider selection, token usage, cost tracking, error details, and media operations. This provides full observability without external monitoring tools.
-
-### Security Enforcement
-
-The PolicyEnforcer validates workflows against configurable security policies. A 28-pattern command blocklist prevents dangerous shell operations. Environment variables are validated but never logged. SVG inputs are sanitized before parsing. File imports are size-limited (50MB) and path-validated against traversal attacks.
-
-### Embeddable Engine
-
-The `nika-engine` crate (134K lines) is a standalone library. It can be integrated into any Rust application without the CLI, TUI, or LSP. This enables building custom tools, services, or platforms on top of Nika's execution engine.
+> "The memory advantage is 5x, and it's structural — not something you tune away."
+> — AutoAgents Benchmark, Feb 2026
 
 ---
 
-## Competitive Position
+## Five Verbs — The Entire API
 
-```
-                    Declarative
-                        |
-              Dify      |     * NIKA
-                        |
-    Simple -------------|-------------- Complex
-                        |
-              CrewAI    |     LangGraph
-                        |
-                    Imperative
-```
+| Verb | Does |
+|------|------|
+| `infer:` | Call any LLM (22 providers, vision, structured output) |
+| `exec:` | Run shell commands (28-pattern security blocklist) |
+| `fetch:` | HTTP + 9 extract modes (markdown, article, RSS, JSONPath...) |
+| `invoke:` | MCP tool calls (43 built-in + any MCP server) |
+| `agent:` | Multi-turn autonomous loops (guardrails, cost limits) |
 
-**Unique combination:** YAML-first + knowledge graph integration + 5 semantic verbs + MCP-native + built-in media pipeline + interactive course. No competitor has all six.
+Five words to describe any AI workflow. From a 3-step summary to a 50-task parallel pipeline.
 
 ---
 
-## Team and Contact
+## Key Numbers
 
-**Creator:** Thibaut Melen (@ThibautMelen)
-**Organization:** SuperNovae Studio (@SuperNovae-studio)
-**Product:** QR Code AI (https://qrcode-ai.com)
-**Website:** https://supernovae.studio
-**GitHub:** https://github.com/supernovae-st/nika
-**Email:** thibaut@supernovae.studio
+| | |
+|---|---|
+| **451K lines** of Rust across 10 crates | **7,800+ tests**, zero clippy warnings |
+| **22 LLM providers** (cloud + local) | **43 built-in tools** (12 core + 24 media + 5 file) |
+| **200+ showcase workflows** | **44 exercises** across 12 interactive levels |
+| **AGPL-3.0** — stays open forever | **4ms cold start** — runs in CI, on Pi, in serverless |
 
 ---
 
-*Nika: the Greek goddess of victory. Open source is our victory. AGPL-3.0.*
+## Market
 
-<!-- END ONE-PAGER -->
+The AI orchestration market is projected at **$10B+ by 2026** (Gartner). The landscape is
+fragmented: Python-heavy frameworks (LangChain, CrewAI), GUI builders (Dify, n8n), and
+traditional workflow engines bolting on AI (Temporal, Airflow).
+
+**No existing tool combines:** YAML-native + Rust binary + MCP protocol + media pipeline +
+LSP + interactive course. Nika occupies an entirely uncontested quadrant.
+
+### Framework fatigue is real
+
+- LangChain: CVSS 9.3 vulnerability, debugging hell, breaking changes every month
+- CrewAI: 44% failure rate in production benchmarks
+- Zapier: $49/mo for 750 tasks — Nika: $0 for unlimited
+- All of them: require Python, Docker, or both
+
+---
+
+## Use Cases (real-world, sourced)
+
+| Industry | Use Case | Evidence |
+|----------|----------|----------|
+| **Sales** | Lead enrichment from LinkedIn → AI scoring → CRM push | n8n's #1 workflow category |
+| **Content** | AI video pipeline: script → voice → video → publish | 6 trending n8n templates |
+| **Healthcare** | Clinical docs → structured datasets (Flatiron Health) | **Saved 2.5 FTE weeks/project** |
+| **IT Ops** | Employee account recovery (Delivery Hero) | **Saved 200 hours/month** |
+| **DevOps** | SIEM → AI triage → containment → ticket | Meta, Microsoft, Vodafone |
+| **Legal** | Contract risk scanning → clause analysis → report | Langflow featured template |
+| **QR Code** | AI design → scan validation → C2PA provenance | **Nika's core domain** (qrcode-ai.com) |
+
+---
+
+## Business Model
+
+**Open source (AGPL-3.0).** No SaaS. No cloud tier. No per-execution pricing.
+
+Revenue comes from **QR Code AI** (qrcode-ai.com) — a SaaS platform powered by Nika
+and NovaNet for AI-powered QR code generation. Every feature in Nika is battle-tested
+in production.
+
+---
+
+## Team
+
+**Thibaut Melen** — Creator. Solo developer with AI assistance (Claude).
+451K lines of Rust. 7,800+ tests. Pre-launch.
+
+**SuperNovae Studio** — @SuperNovae-studio
+**Product:** QR Code AI (qrcode-ai.com)
+**GitHub:** github.com/supernovae-st/nika
+
+---
+
+> "AI shouldn't have a subscription fee. Nika is a single binary that gives everyone access."
+
+**AGPL-3.0-or-later. Open source. Forever.**

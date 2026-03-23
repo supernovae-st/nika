@@ -1,6 +1,27 @@
 # Nika Media Kit
 
+> They built walls around intelligence. We compiled a door.
+>
+> Nika is the open-source AI workflow engine that turns YAML text files into
+> multi-provider AI pipelines — no Python, no Docker, no subscriptions. One
+> binary. Five verbs. Freedom by default.
+
 All assets for press, social media, conference talks, and partner communications.
+
+---
+
+## About Nika
+
+AI is the new electricity. Six closed labs control it. Chips cost $6M per rack.
+Subscriptions run $20-$200/month. And even if you pay, you still need a software
+engineer to wire anything useful.
+
+Nika exists to end that. A single Rust binary that gives anyone access to any AI
+provider, orchestrated through a text file. No Python. No Docker. No cloud. No
+subscription. AGPL-licensed so it stays free forever.
+
+The gap between "AI exists" and "I can use AI" should be zero. Nika is not a
+product. It's a movement.
 
 ---
 
@@ -9,23 +30,32 @@ All assets for press, social media, conference talks, and partner communications
 | Element | Value |
 |---------|-------|
 | **Name** | Nika |
-| **Symbol** | Butterfly |
-| **Tagline** | Automate AI. No code required. |
-| **Manifesto** | Liberate your AI. |
+| **Symbol** | Blue Butterfly — liberation, transformation, the impossible becoming possible |
+| **Primary tagline** | Automate AI. No code required. |
+| **Manifesto tagline** | The Drums of Liberation. In Rust. |
+| **Technical tagline** | 5 verbs. 22 providers. Zero Python. |
+| **Mission tagline** | AI shouldn't have a subscription fee. |
 | **License** | AGPL-3.0-or-later |
 | **Website** | https://nika.supernovae.studio |
 | **GitHub** | https://github.com/SuperNovae-studio/nika |
 
-### Colors
+### Visual Palette
 
 | Name | Hex | Usage |
 |------|-----|-------|
-| Navy | `#0f172a` | Primary background, text on light |
-| Blue | `#3b82f6` | Accent, links, interactive elements |
-| White | `#f8fafc` | Text on dark, backgrounds |
-| Slate | `#64748b` | Secondary text, borders |
-| Green | `#22c55e` | Success states, completed tasks |
-| Red | `#ef4444` | Error states, critical warnings |
+| Solarized Dark | `#002b36` | Primary background — terminal-native aesthetic |
+| Electric Blue | `#3b82f6` | Primary accent — links, highlights, the butterfly |
+| Indigo | `#6366f1` | Secondary accent — depth, secondary elements |
+| Cyan | `#06b6d4` | Tertiary accent — data flow, fetch verb |
+| Near White | `#f8fafc` | Text on dark — high contrast |
+| Amber | `#f59e0b` | Warning/action — exec verb, alerts |
+| Emerald | `#10b981` | Success — completions, passing tests |
+
+**Aesthetic:** Terminal-first. Dark mode. Monospace. Not glassmorphism. Not
+gradients. Not purple AI glow.
+
+**Photography style:** Hacker in garage. Terminal at 3am. Real dev environments.
+Not stock photos. Not corporate office.
 
 ### Typography
 

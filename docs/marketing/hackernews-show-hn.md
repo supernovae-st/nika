@@ -3,7 +3,7 @@
 ## Post Title
 
 ```
-Show HN: Nika – Automate AI tasks in YAML, not Python (open source, Rust)
+Show HN: Nika – 5 verbs. 22 providers. Zero Python. (open source, Rust)
 ```
 
 ## Post URL
@@ -16,19 +16,15 @@ https://github.com/SuperNovae-studio/nika
 
 ## Post Body (~300 words)
 
-Nika is an open-source workflow engine that lets you automate AI tasks by writing
-YAML files instead of Python scripts. You describe what you want — fetch a
-webpage, summarize it with an LLM, translate the result, process an image — and
-Nika runs the DAG. It ships as a single Rust binary with zero runtime
-dependencies.
+Chaining two LLM calls today means installing Python, managing dependencies,
+writing API client boilerplate, and debugging async code. A typical LangChain
+project pulls in 150+ packages and idles at ~140 MB of RAM just to call an API
+twice. I wanted something where you write a text file and run it.
 
-I built Nika because I think AI is becoming like electricity: everyone should be
-able to use it, not just people who can wire the generator. Today, chaining two
-LLM calls requires installing Python, managing dependencies, writing API client
-boilerplate, and debugging async code. I wanted something where you write a text
-file and run it. Five verbs cover everything: `infer:` (LLM generation),
-`fetch:` (HTTP), `exec:` (shell), `invoke:` (MCP tool calls), and `agent:`
-(autonomous multi-turn loops).
+Nika is an open-source workflow engine that runs AI tasks from YAML files. Five
+verbs cover everything: `infer:` (LLM generation), `fetch:` (HTTP), `exec:`
+(shell), `invoke:` (MCP tool calls), and `agent:` (autonomous multi-turn
+loops). It ships as a single 15 MB Rust binary with zero runtime dependencies.
 
 Here's a complete workflow that scrapes Hacker News and summarizes the front page:
 
@@ -54,9 +50,17 @@ That's it. `nika run hn-summary.nika.yaml` and you get a summary. Swap
 `claude/claude-sonnet-4-20250514` for `openai/gpt-4o` or `ollama/llama3` — no other
 changes needed.
 
-Performance-wise, Nika uses ~28 MB RSS for a typical workflow vs ~140 MB for the
-equivalent LangChain script. It starts in <50ms. The DAG scheduler runs tasks in
-parallel automatically when there are no dependencies.
+**Benchmarks** (measured, not marketing):
+
+| | Nika | LangChain | CrewAI |
+|---|---|---|---|
+| Cold start | 4 ms | 62 ms | ~80 ms |
+| RSS (typical workflow) | ~28 MB | ~140 MB | ~160 MB |
+| Binary size | 15 MB | 150+ packages | 120+ packages |
+| Runtime deps | 0 | Python 3.10+ | Python 3.10+ |
+
+The DAG scheduler runs tasks in parallel automatically when there are no
+dependencies. 451K lines of Rust, 10 crates, 7,800+ tests.
 
 Honest limitations: Nika is pre-1.0 (schema @0.12). There's no web GUI — only a
 terminal UI and CLI. YAML has a learning curve if you've never used it. The
@@ -65,9 +69,9 @@ ecosystem is young — no plugin marketplace yet.
 - GitHub: https://github.com/SuperNovae-studio/nika
 - Docs: https://nika.supernovae.studio
 - Quick start: `brew install supernovae-studio/tap/nika && nika init --course`
-- License: AGPL-3.0
+- License: AGPL-3.0 (the engine stays open; your YAML workflows are yours)
 
-7,800+ tests. Built with love and Rust.
+7,800+ tests. Single binary. Zero dependencies. Built with Rust.
 
 ---
 

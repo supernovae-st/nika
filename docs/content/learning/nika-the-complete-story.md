@@ -1,10 +1,12 @@
 # Nika: The Complete Story
 
-## How a Solo Developer Built a 317,000-Line Rust Workflow Engine to Democratize AI
+## How a Solo Developer Built a 451,000-Line Rust Workflow Engine to Democratize AI
 
-There is a moment in the manga One Piece when the protagonist Luffy awakens the power of Nika, the Sun God — a mythical figure whose entire essence is freedom, joy, and the refusal to accept limitation. The fruit of Nika grants its user a body "limited only by imagination." It is not a coincidence that a French developer named Thibaut Melen chose this name for a software project that aspires to do something remarkably similar for AI workflows. Nika, the workflow engine, is designed to be a body for AI — limited only by the YAML you write.
+In 2026, six closed labs control frontier AI. Chips cost $6 million per rack. LLM subscriptions run $20 to $200 a month. And even if you pay, you still need a software engineer to wire anything useful together. The technology that should empower billions is gatekept by a handful of corporations.
 
-This is the story of how that project came to be, what it does, why it matters, and where it is going.
+A French developer named Thibaut Melen looked at this landscape and asked a heretical question: what if AI workflows could be declared in a text file and run from a single binary? What if the entire thing was written in Rust so it compiled to a zero-dependency binary that ran on any machine? What if the gap between "AI exists" and "I can use AI" could be reduced to zero?
+
+That question became Nika. This is the story of how that project came to be, what it does, why it matters, and where it is going.
 
 ---
 
