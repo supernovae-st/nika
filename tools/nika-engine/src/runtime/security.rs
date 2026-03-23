@@ -215,8 +215,12 @@ pub fn check_blocklist(cmd: &str) -> Result<(), NikaError> {
     let lower = normalized.to_lowercase();
 
     for pattern in BLOCKLIST {
-        // Blocklist patterns are already ASCII, but normalize for consistency
-        let normalized_pattern = normalize_for_blocklist(pattern);
+        // Blocklist patterns are already clean ASCII — only lowercase them.
+        // Do NOT apply normalize_for_blocklist() which strips trailing spaces
+        // via split_whitespace(), breaking patterns like "su " and "env "
+        // that rely on a trailing space to avoid false positives
+        // (e.g. "su " must NOT match "successfully").
+        let normalized_pattern = pattern.to_lowercase();
         if lower.contains(&normalized_pattern) {
             tracing::warn!(
                 command = %cmd,
