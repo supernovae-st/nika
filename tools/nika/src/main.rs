@@ -102,7 +102,7 @@ ENVIRONMENT VARIABLES:
     DEEPSEEK_API_KEY              DeepSeek
     GEMINI_API_KEY                Google Gemini
     XAI_API_KEY                   xAI (Grok)
-    NIKA_MODEL_PATH               Native inference model path
+    NIKA_NATIVE_MODEL_PATH        Native inference model path
 
 TUI VIEWS (in nika ui):
     [1/s] Studio     File browser + YAML editor + DAG preview
