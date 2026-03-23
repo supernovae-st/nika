@@ -776,7 +776,7 @@ fn check_ai_rules() -> Vec<DiagnosticCheck> {
 
     // ─── Project-level rules [project] ─────────────────────────────────────
     let project_rules: &[(&str, &str)] = &[
-        ("Cursor", ".cursor/rules/nika-workflows.mdc"),
+        ("Cursor", ".cursor/rules/nika-syntax.mdc"),
         ("Copilot", ".github/copilot/nika.instructions.md"),
         ("Windsurf", ".windsurf/rules/nika.md"),
         ("Roo Code", ".roo/rules/nika.md"),

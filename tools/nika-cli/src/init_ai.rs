@@ -37,12 +37,18 @@ pub fn generate_ai_files(project_dir: &Path) -> Result<(), nika_engine::NikaErro
         }
     }
 
-    // Cursor rule
+    // Cursor rules (syntax + patterns)
     count += write_if_absent_with_dir(
         project_dir,
-        ".cursor/rules/nika-workflows.mdc",
-        CURSOR_RULE,
-        "Cursor rule",
+        ".cursor/rules/nika-syntax.mdc",
+        CURSOR_SYNTAX_RULE,
+        "Cursor rule (syntax)",
+    );
+    count += write_if_absent_with_dir(
+        project_dir,
+        ".cursor/rules/nika-patterns.mdc",
+        CURSOR_PATTERNS_RULE,
+        "Cursor rule (patterns)",
     );
 
     // Copilot instructions
@@ -137,7 +143,7 @@ fn write_if_absent_with_dir(base: &Path, rel_path: &str, content: &str, label: &
 
 // ─── Embedded Content ─────────────────────────────────────────────────────────
 
-const CURSOR_RULE: &str = r#"---
+const CURSOR_SYNTAX_RULE: &str = r#"---
 description: "Nika workflow syntax for .nika.yaml files"
 globs: "**/*.nika.yaml"
 alwaysApply: false
@@ -351,19 +357,6 @@ Usage: `{{with.items | flatten | unique | join(", ")}}`
       limit: 10
     timeout: 30
 
-# Alternative: explicit mcp field
-- id: search2
-  invoke:
-    mcp: novanet                       # MCP server name
-    tool: novanet_search               # Tool name only
-    params:
-      query: "test"
-
-# MCP resource read
-- id: read-resource
-  invoke:
-    resource: "novanet://nodes/latest"
-
 # Builtin nika: tools (no MCP server needed)
 - id: resize
   invoke:
@@ -376,13 +369,186 @@ Usage: `{{with.items | flatten | unique | join(", ")}}`
 
 **Short form**: `invoke: "nika:dimensions"` (for tools needing no params)
 
-### 24 Builtin Tools (nika:*)
+## Agent Verb (Essentials)
 
-**Always-on**: `nika:import`, `nika:dimensions`, `nika:thumbhash`, `nika:dominant_color`, `nika:pipeline`
-**Media core**: `nika:thumbnail`, `nika:convert`, `nika:strip`, `nika:metadata`, `nika:optimize`, `nika:svg_render`
-**Opt-in**: `nika:phash`, `nika:compare`, `nika:pdf_extract`, `nika:chart`, `nika:provenance`, `nika:verify`, `nika:qr_validate`, `nika:quality`, `nika:html_to_md`, `nika:css_select`, `nika:extract_metadata`, `nika:extract_links`, `nika:readability`
+```yaml
+- id: assistant
+  agent:
+    system: "You are a research assistant"
+    prompt: "Find and analyze {{inputs.topic}}"
+    tools: [novanet/novanet_search]
+    max_turns: 10
+    temperature: 0.5
+    from: researcher                   # Reference agents: definition
+```
 
-## Agent Verb (Multi-Turn)
+See `nika-patterns.mdc` for full agent fields, guardrails, and limits.
+
+## For Each (Parallel Loop)
+
+```yaml
+- id: process
+  for_each:
+    items: "{{with.data}}"             # Array expression
+    as: item                           # Loop variable (default: "item")
+    concurrency: 3                     # Max parallel (default: unlimited)
+    fail_fast: true                    # Stop on first error (default: true)
+  infer: "Process: {{with.item}}"
+```
+
+Access loop variable via `with:` prefix: `{{with.item}}` (same as all bindings)
+
+## Common Mistakes
+
+| Wrong | Right |
+|-------|-------|
+| `timeout: 30000` (ms) | `timeout: 30` (always seconds) |
+| `use: { data: step1 }` | `with: { data: $step1 }` ($ prefix required) |
+| `{{data}}` | `{{with.data}}` (always with. prefix) |
+| `retry: 3` | `retry: { max_attempts: 3, delay: 2 }` |
+| `.yaml` extension | `.nika.yaml` extension |
+| Direct Cypher/SQL | Use `invoke:` with MCP tools |
+| `{{item}}` in for_each | `{{with.item}}` (loop var uses with. prefix) |
+| `shell: bash` | `shell: true` (boolean, not shell name) |
+| Missing `schema:` line | Always start with `schema: "@0.12"` |
+| `depends_on: task_id` | `depends_on: [task_id]` (always array) |
+
+## Error Codes
+
+| Code | Meaning | Fix |
+|------|---------|-----|
+| NIKA-010 | Invalid schema | Use `schema: "@0.12"` |
+| NIKA-020 | DAG cycle detected | Remove circular `depends_on` |
+| NIKA-034 | Missing model | Add `model:` field to LLM tasks |
+| NIKA-040 | Template error | Check `{{with.X}}` syntax and `with:` block |
+| NIKA-100 | MCP connection failed | Verify MCP server config and `npx` available |
+| NIKA-112 | Guardrail violation | Adjust guardrail rule or prompt |
+| NIKA-140 | Unknown task reference | Check task ID spelling in `depends_on`/`with:` |
+| NIKA-141 | Duplicate task ID | Rename one of the duplicate tasks |
+| NIKA-145 | Missing required field | Add required field (usually `id:` or `schema:`) |
+
+## LSP Features (nika-lang extension)
+
+When editing `.nika.yaml` files with the nika-lang extension installed:
+- **Hover**: Documentation on any keyword
+- **Completion**: Verbs, fields, providers, models, transforms
+- **Go-to-definition**: Ctrl+click on task references
+- **Find All References**: Shift+F12 on task IDs
+- **Diagnostics**: Real-time validation (same as `nika check`)
+- **Quick Fixes**: Cmd+. on errors for auto-fix suggestions
+- **CodeLens**: Run/Validate buttons above tasks
+- **InlayHints**: Model cost, timeout units, binding sources
+- **Folding**: Collapse task blocks and sections
+
+## Validation
+
+```bash
+nika check workflow.nika.yaml          # Validate syntax + DAG
+nika check workflow.nika.yaml --strict # + test MCP connections
+nika run workflow.nika.yaml            # Execute workflow
+nika run workflow.nika.yaml --dry-run  # Validate without executing
+```
+"#;
+
+const CURSOR_PATTERNS_RULE: &str = r#"---
+description: "Nika workflow patterns and advanced features"
+globs: "**/*.nika.yaml"
+alwaysApply: false
+---
+
+# Nika Workflow Patterns
+
+Advanced patterns, tools, and configuration for `.nika.yaml` workflows.
+For core syntax, see `nika-syntax.mdc`.
+
+## Pipeline Patterns
+
+### Two-Task Chain
+
+```yaml
+tasks:
+  - id: research
+    infer: "Research {{inputs.topic}}"
+
+  - id: summarize
+    with:
+      data: $research
+    infer: "Summarize: {{with.data}}"
+```
+
+### Fan-Out / Fan-In
+
+```yaml
+tasks:
+  - id: get-urls
+    infer: "List 5 URLs about {{inputs.topic}}"
+    structured:
+      schema:
+        type: object
+        properties:
+          urls: { type: array, items: { type: string } }
+
+  - id: scrape-all
+    with:
+      urls: $get-urls
+    for_each:
+      items: "{{with.urls.urls}}"
+      as: url
+      concurrency: 5
+    fetch:
+      url: "{{with.url}}"
+      extract: article
+
+  - id: synthesize
+    with:
+      articles: $scrape-all
+    infer: "Synthesize these articles: {{with.articles}}"
+```
+
+### Conditional with Exec
+
+```yaml
+tasks:
+  - id: check
+    exec: "test -f config.json && echo exists || echo missing"
+
+  - id: handle
+    with:
+      status: $check
+    infer: "Config status is: {{with.status}}. What should we do?"
+```
+
+## MCP Server Configuration
+
+```yaml
+schema: "@0.12"
+workflow: with-mcp
+
+mcp:
+  novanet:
+    command: cargo
+    args: ["run", "-p", "novanet-mcp"]
+    env:
+      NEO4J_PASSWORD: "{{$env.NEO4J_PASSWORD}}"
+    cwd: "../novanet"
+
+  external-api:
+    url: "http://localhost:8080/sse"
+    transport: sse
+
+  filesystem:
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "./data"]
+
+tasks:
+  - id: query
+    invoke:
+      tool: "novanet/novanet_search"
+      params:
+        query: "test"
+```
+
+## Agent Verb (Full Reference)
 
 ```yaml
 - id: assistant
@@ -445,20 +611,6 @@ Usage: `{{with.items | flatten | unique | join(", ")}}`
 | `llm` | Secondary LLM judge | `judge_prompt`, `pass_pattern` |
 
 **on_failure**: `retry` (default), `escalate`, `fail`
-
-## For Each (Parallel Loop)
-
-```yaml
-- id: process
-  for_each:
-    items: "{{with.data}}"             # Array expression
-    as: item                           # Loop variable (default: "item")
-    concurrency: 3                     # Max parallel (default: unlimited)
-    fail_fast: true                    # Stop on first error (default: true)
-  infer: "Process: {{with.item}}"
-```
-
-Access loop variable via `with:` prefix: `{{with.item}}` (same as all bindings)
 
 ## Structured Output (JSON Schema)
 
@@ -534,36 +686,6 @@ Supported: Claude, OpenAI, Mistral, Groq, Gemini, xAI. Not supported: DeepSeek.
     format: markdown                   # markdown, json, text, binary
 ```
 
-## MCP Server Configuration
-
-```yaml
-schema: "@0.12"
-workflow: with-mcp
-
-mcp:
-  novanet:
-    command: cargo
-    args: ["run", "-p", "novanet-mcp"]
-    env:
-      NEO4J_PASSWORD: "{{$env.NEO4J_PASSWORD}}"
-    cwd: "../novanet"
-
-  external-api:
-    url: "http://localhost:8080/sse"
-    transport: sse
-
-  filesystem:
-    command: npx
-    args: ["-y", "@modelcontextprotocol/server-filesystem", "./data"]
-
-tasks:
-  - id: query
-    invoke:
-      tool: "novanet/novanet_search"
-      params:
-        query: "test"
-```
-
 ## Task-Level Overrides
 
 Any task can override workflow-level `provider:` and `model:`:
@@ -583,77 +705,116 @@ tasks:
     infer: "Complex reasoning"
 ```
 
-## Pipeline Patterns
+## 24 Builtin Tools (nika:*)
 
-### Two-Task Chain
+**Always-on**: `nika:import`, `nika:dimensions`, `nika:thumbhash`, `nika:dominant_color`, `nika:pipeline`
+**Media core**: `nika:thumbnail`, `nika:convert`, `nika:strip`, `nika:metadata`, `nika:optimize`, `nika:svg_render`
+**Opt-in**: `nika:phash`, `nika:compare`, `nika:pdf_extract`, `nika:chart`, `nika:provenance`, `nika:verify`, `nika:qr_validate`, `nika:quality`, `nika:html_to_md`, `nika:css_select`, `nika:extract_metadata`, `nika:extract_links`, `nika:readability`
+"#;
+
+const COPILOT_INSTRUCTIONS: &str = r#"---
+applyTo: "**/*.nika.yaml"
+---
+
+# Nika Workflow Syntax
+
+Schema: `nika/workflow@0.12` | Extension: `.nika.yaml`
+
+## 5 Verbs
+
+| Verb | Purpose | Example |
+|------|---------|---------|
+| `infer:` | LLM generation | `infer: "Summarize this"` |
+| `exec:` | Shell command | `exec: "echo hello"` |
+| `fetch:` | HTTP request | `fetch: "https://api.example.com"` |
+| `invoke:` | MCP tool call | `invoke:` block with `tool:` + `params:` |
+| `agent:` | Multi-turn loop | `agent:` block with `tools:` + `max_turns:` |
+
+## Complete Workflow Example
 
 ```yaml
+schema: "@0.12"
+workflow: research-and-summarize
+provider: anthropic
+model: claude-sonnet-4-20250514
+
+inputs:
+  topic: "AI workflow engines"
+
 tasks:
   - id: research
-    infer: "Research {{inputs.topic}}"
+    infer:
+      prompt: |
+        Research the following topic: {{inputs.topic}}
+        Provide key findings and trends.
+      temperature: 0.7
 
   - id: summarize
+    depends_on: [research]
     with:
       data: $research
-    infer: "Summarize: {{with.data}}"
+    infer:
+      prompt: |
+        Create a concise summary from this research:
+        {{with.data}}
+      max_tokens: 500
 ```
 
-### Fan-Out / Fan-In
+## Data Flow
+
+- **Bindings**: `with: { alias: $task_id }` then `{{with.alias}}`
+- **Path access**: `with: { temp: $weather.data.temperature }`
+- **Defaults**: `with: { val: $task.path ?? "fallback" }`
+- **Env vars**: `with: { key: $env.API_KEY }`
+- **Transforms**: `{{with.data | uppercase | trim}}`
+- **Dependencies**: `depends_on: [task_id]` for ordering without data
+- **Inputs**: `{{inputs.param}}` for workflow parameters
+
+## For Each (Parallel Loop)
 
 ```yaml
-tasks:
-  - id: get-urls
-    infer: "List 5 URLs about {{inputs.topic}}"
-    structured:
-      schema:
-        type: object
-        properties:
-          urls: { type: array, items: { type: string } }
-
-  - id: scrape-all
-    with:
-      urls: $get-urls
-    for_each:
-      items: "{{with.urls.urls}}"
-      as: url
-      concurrency: 5
-    fetch:
-      url: "{{with.url}}"
-      extract: article
-
-  - id: synthesize
-    with:
-      articles: $scrape-all
-    infer: "Synthesize these articles: {{with.articles}}"
+- id: process
+  for_each:
+    items: "{{with.data}}"
+    as: item
+    concurrency: 3
+  infer: "Process: {{with.item}}"
 ```
 
-### Conditional with Exec
+Access loop variable via `with.` prefix: `{{with.item}}`
 
-```yaml
-tasks:
-  - id: check
-    exec: "test -f config.json && echo exists || echo missing"
+## Providers (7 Cloud + 1 Local)
 
-  - id: handle
-    with:
-      status: $check
-    infer: "Config status is: {{with.status}}. What should we do?"
-```
+| Provider | Env Var | Models |
+|----------|---------|--------|
+| `anthropic` | `ANTHROPIC_API_KEY` | claude-opus-4-20250514, claude-sonnet-4-20250514 |
+| `openai` | `OPENAI_API_KEY` | gpt-4o, gpt-4.1, o3, o4-mini |
+| `mistral` | `MISTRAL_API_KEY` | mistral-large-latest |
+| `groq` | `GROQ_API_KEY` | llama-4-maverick |
+| `deepseek` | `DEEPSEEK_API_KEY` | deepseek-chat, deepseek-reasoner |
+| `gemini` | `GEMINI_API_KEY` | gemini-2.5-pro, gemini-2.5-flash |
+| `xai` | `XAI_API_KEY` | grok-3 |
+| `native` | (none) | Local GGUF via mistral.rs |
 
 ## Common Mistakes
 
 | Wrong | Right |
 |-------|-------|
 | `timeout: 30000` (ms) | `timeout: 30` (always seconds) |
-| `use: { data: step1 }` | `with: { data: $step1 }` ($ prefix required) |
 | `{{data}}` | `{{with.data}}` (always with. prefix) |
-| `retry: 3` | `retry: { max_attempts: 3, delay: 2 }` |
-| `.yaml` extension | `.nika.yaml` extension |
-| Direct Cypher/SQL | Use `invoke:` with MCP tools |
 | `{{item}}` in for_each | `{{with.item}}` (loop var uses with. prefix) |
-| `shell: bash` | `shell: true` (boolean, not shell name) |
+| `.yaml` extension | `.nika.yaml` extension |
 | Missing `schema:` line | Always start with `schema: "@0.12"` |
-| `depends_on: task_id` | `depends_on: [task_id]` (always array) |
+
+## Key Error Codes
+
+| Code | Meaning |
+|------|---------|
+| NIKA-010 | Schema validation error |
+| NIKA-020 | DAG cycle detected |
+| NIKA-034 | Provider/model mismatch |
+| NIKA-040 | Template resolution error |
+| NIKA-140 | AST analysis failure |
 
 ## Validation
 
@@ -665,42 +826,120 @@ nika run workflow.nika.yaml --dry-run  # Validate without executing
 ```
 "#;
 
-const COPILOT_INSTRUCTIONS: &str = r#"---
-applyTo: "**/*.nika.yaml"
----
-
-# Nika Workflow Conventions
-
-- Extension: `.nika.yaml` | Schema: `nika/workflow@0.12`
-- 5 verbs: infer (LLM), exec (shell), fetch (HTTP), invoke (MCP), agent (loop)
-- Bindings: `with: { alias: $task_id }` → `{{with.alias}}`
-- Dependencies: `depends_on: [task_id]`
-- Timeout values are in seconds
-- Validate: `nika check <file>`
-"#;
-
 const WINDSURF_RULE: &str = r#"---
 trigger: glob
 globs: "**/*.nika.yaml"
 description: "Nika YAML workflow engine rules"
 ---
 
-# Nika Workflow Rules
+# Nika Workflow Syntax
 
 Schema: `nika/workflow@0.12` | Extension: `.nika.yaml`
 
 ## 5 Verbs
-- `infer:` — LLM generation
-- `exec:` — Shell command
-- `fetch:` — HTTP request (9 extract modes)
-- `invoke:` — MCP tool call (24 builtin nika:* tools)
-- `agent:` — Multi-turn autonomous loop
 
-## Syntax
-- Bindings: `with: { alias: $task_id }` → `{{with.alias}}`
-- DAG: `depends_on: [task_id]`
-- Parallel: `for_each: [items]` + `concurrency: N`
-- Validate: `nika check <file>`
+| Verb | Purpose | Example |
+|------|---------|---------|
+| `infer:` | LLM generation | `infer: "Summarize this"` |
+| `exec:` | Shell command | `exec: "echo hello"` |
+| `fetch:` | HTTP request | `fetch: "https://api.example.com"` |
+| `invoke:` | MCP tool call | `invoke:` block with `tool:` + `params:` |
+| `agent:` | Multi-turn loop | `agent:` block with `tools:` + `max_turns:` |
+
+## Complete Workflow Example
+
+```yaml
+schema: "@0.12"
+workflow: research-and-summarize
+provider: anthropic
+model: claude-sonnet-4-20250514
+
+inputs:
+  topic: "AI workflow engines"
+
+tasks:
+  - id: research
+    infer:
+      prompt: |
+        Research the following topic: {{inputs.topic}}
+        Provide key findings and trends.
+      temperature: 0.7
+
+  - id: summarize
+    depends_on: [research]
+    with:
+      data: $research
+    infer:
+      prompt: |
+        Create a concise summary from this research:
+        {{with.data}}
+      max_tokens: 500
+```
+
+## Data Flow
+
+- **Bindings**: `with: { alias: $task_id }` then `{{with.alias}}`
+- **Path access**: `with: { temp: $weather.data.temperature }`
+- **Defaults**: `with: { val: $task.path ?? "fallback" }`
+- **Env vars**: `with: { key: $env.API_KEY }`
+- **Transforms**: `{{with.data | uppercase | trim}}`
+- **Dependencies**: `depends_on: [task_id]` for ordering without data
+- **Inputs**: `{{inputs.param}}` for workflow parameters
+
+## For Each (Parallel Loop)
+
+```yaml
+- id: process
+  for_each:
+    items: "{{with.data}}"
+    as: item
+    concurrency: 3
+  infer: "Process: {{with.item}}"
+```
+
+Access loop variable via `with.` prefix: `{{with.item}}`
+
+## Providers (7 Cloud + 1 Local)
+
+| Provider | Env Var | Models |
+|----------|---------|--------|
+| `anthropic` | `ANTHROPIC_API_KEY` | claude-opus-4-20250514, claude-sonnet-4-20250514 |
+| `openai` | `OPENAI_API_KEY` | gpt-4o, gpt-4.1, o3, o4-mini |
+| `mistral` | `MISTRAL_API_KEY` | mistral-large-latest |
+| `groq` | `GROQ_API_KEY` | llama-4-maverick |
+| `deepseek` | `DEEPSEEK_API_KEY` | deepseek-chat, deepseek-reasoner |
+| `gemini` | `GEMINI_API_KEY` | gemini-2.5-pro, gemini-2.5-flash |
+| `xai` | `XAI_API_KEY` | grok-3 |
+| `native` | (none) | Local GGUF via mistral.rs |
+
+## Common Mistakes
+
+| Wrong | Right |
+|-------|-------|
+| `timeout: 30000` (ms) | `timeout: 30` (always seconds) |
+| `{{data}}` | `{{with.data}}` (always with. prefix) |
+| `{{item}}` in for_each | `{{with.item}}` (loop var uses with. prefix) |
+| `.yaml` extension | `.nika.yaml` extension |
+| Missing `schema:` line | Always start with `schema: "@0.12"` |
+
+## Key Error Codes
+
+| Code | Meaning |
+|------|---------|
+| NIKA-010 | Schema validation error |
+| NIKA-020 | DAG cycle detected |
+| NIKA-034 | Provider/model mismatch |
+| NIKA-040 | Template resolution error |
+| NIKA-140 | AST analysis failure |
+
+## Validation
+
+```bash
+nika check workflow.nika.yaml          # Validate syntax + DAG
+nika check workflow.nika.yaml --strict # + test MCP connections
+nika run workflow.nika.yaml            # Execute workflow
+nika run workflow.nika.yaml --dry-run  # Validate without executing
+```
 "#;
 
 const ROO_RULE: &str = r#"---
@@ -708,23 +947,114 @@ description: "Nika YAML workflow engine syntax and patterns"
 globs: ["*.nika.yaml"]
 ---
 
-# Nika Workflow Rules
+# Nika Workflow Syntax
 
 Schema: `nika/workflow@0.12` | Extension: `.nika.yaml`
 
 ## 5 Verbs
-- `infer:` — LLM generation
-- `exec:` — Shell command
-- `fetch:` — HTTP request
-- `invoke:` — MCP tool call
-- `agent:` — Multi-turn loop
 
-## Key Rules
-- Bindings: `with: { alias: $task_id }` → `{{with.alias}}`
-- DAG ordering: `depends_on: [task_id]`
-- Timeout: in seconds
-- Zero Cypher: use invoke: for NovaNet, never raw Cypher
-- Validate: `nika check <file>`
+| Verb | Purpose | Example |
+|------|---------|---------|
+| `infer:` | LLM generation | `infer: "Summarize this"` |
+| `exec:` | Shell command | `exec: "echo hello"` |
+| `fetch:` | HTTP request | `fetch: "https://api.example.com"` |
+| `invoke:` | MCP tool call | `invoke:` block with `tool:` + `params:` |
+| `agent:` | Multi-turn loop | `agent:` block with `tools:` + `max_turns:` |
+
+## Complete Workflow Example
+
+```yaml
+schema: "@0.12"
+workflow: research-and-summarize
+provider: anthropic
+model: claude-sonnet-4-20250514
+
+inputs:
+  topic: "AI workflow engines"
+
+tasks:
+  - id: research
+    infer:
+      prompt: |
+        Research the following topic: {{inputs.topic}}
+        Provide key findings and trends.
+      temperature: 0.7
+
+  - id: summarize
+    depends_on: [research]
+    with:
+      data: $research
+    infer:
+      prompt: |
+        Create a concise summary from this research:
+        {{with.data}}
+      max_tokens: 500
+```
+
+## Data Flow
+
+- **Bindings**: `with: { alias: $task_id }` then `{{with.alias}}`
+- **Path access**: `with: { temp: $weather.data.temperature }`
+- **Defaults**: `with: { val: $task.path ?? "fallback" }`
+- **Env vars**: `with: { key: $env.API_KEY }`
+- **Transforms**: `{{with.data | uppercase | trim}}`
+- **Dependencies**: `depends_on: [task_id]` for ordering without data
+- **Inputs**: `{{inputs.param}}` for workflow parameters
+
+## For Each (Parallel Loop)
+
+```yaml
+- id: process
+  for_each:
+    items: "{{with.data}}"
+    as: item
+    concurrency: 3
+  infer: "Process: {{with.item}}"
+```
+
+Access loop variable via `with.` prefix: `{{with.item}}`
+
+## Providers (7 Cloud + 1 Local)
+
+| Provider | Env Var | Models |
+|----------|---------|--------|
+| `anthropic` | `ANTHROPIC_API_KEY` | claude-opus-4-20250514, claude-sonnet-4-20250514 |
+| `openai` | `OPENAI_API_KEY` | gpt-4o, gpt-4.1, o3, o4-mini |
+| `mistral` | `MISTRAL_API_KEY` | mistral-large-latest |
+| `groq` | `GROQ_API_KEY` | llama-4-maverick |
+| `deepseek` | `DEEPSEEK_API_KEY` | deepseek-chat, deepseek-reasoner |
+| `gemini` | `GEMINI_API_KEY` | gemini-2.5-pro, gemini-2.5-flash |
+| `xai` | `XAI_API_KEY` | grok-3 |
+| `native` | (none) | Local GGUF via mistral.rs |
+
+## Common Mistakes
+
+| Wrong | Right |
+|-------|-------|
+| `timeout: 30000` (ms) | `timeout: 30` (always seconds) |
+| `{{data}}` | `{{with.data}}` (always with. prefix) |
+| `{{item}}` in for_each | `{{with.item}}` (loop var uses with. prefix) |
+| `.yaml` extension | `.nika.yaml` extension |
+| Missing `schema:` line | Always start with `schema: "@0.12"` |
+
+## Key Error Codes
+
+| Code | Meaning |
+|------|---------|
+| NIKA-010 | Schema validation error |
+| NIKA-020 | DAG cycle detected |
+| NIKA-034 | Provider/model mismatch |
+| NIKA-040 | Template resolution error |
+| NIKA-140 | AST analysis failure |
+
+## Validation
+
+```bash
+nika check workflow.nika.yaml          # Validate syntax + DAG
+nika check workflow.nika.yaml --strict # + test MCP connections
+nika run workflow.nika.yaml            # Execute workflow
+nika run workflow.nika.yaml --dry-run  # Validate without executing
+```
 "#;
 
 const VSCODE_EXTENSIONS: &str = r#"{
@@ -765,52 +1095,207 @@ const ROOMODES: &str = r#"{
 }
 "#;
 
-const AGENTS_MD_CONTENT: &str = r#"# Nika
+const AGENTS_MD_CONTENT: &str = r#"# Nika Workflow Engine
 
-Semantic YAML workflow engine for AI tasks. Schema `nika/workflow@0.12` | [QR Code AI](https://qrcode-ai.com)
+Schema: `nika/workflow@0.12` | Extension: `.nika.yaml`
+
+## Complete Workflow Example
+
+```yaml
+schema: "@0.12"
+workflow: research-and-summarize
+provider: anthropic
+model: claude-sonnet-4-20250514
+inputs:
+  topic: "AI workflow engines"
+
+tasks:
+  - id: research
+    infer:
+      prompt: "Research {{inputs.topic}}. Provide key findings and trends."
+      temperature: 0.7
+
+  - id: summarize
+    depends_on: [research]
+    with:
+      data: $research
+    infer:
+      prompt: "Create a concise executive summary:\n{{with.data}}"
+      max_tokens: 500
+```
 
 ## 5 Verbs
 
-| Verb | Purpose |
+| Verb | Purpose | Short form | Full form key fields |
+|------|---------|------------|----------------------|
+| `infer:` | LLM generation | `infer: "prompt"` | `prompt`, `system`, `model`, `temperature`, `max_tokens` |
+| `exec:` | Shell command | `exec: "command"` | `command`, `shell`, `cwd`, `timeout`, `env` |
+| `fetch:` | HTTP request | `fetch: "url"` | `url`, `method`, `headers`, `body`, `extract`, `response` |
+| `invoke:` | MCP / builtin tool | `invoke: "nika:dims"` | `tool`, `params`, `mcp`, `resource`, `timeout` |
+| `agent:` | Multi-turn loop | *(no short form)* | `system`, `prompt`, `tools`, `max_turns`, `token_budget` |
+
+## Infer Verb (LLM Generation)
+
+```yaml
+- id: generate
+  infer:
+    prompt: "Your prompt here"
+    system: "You are a helpful assistant"
+    model: claude-sonnet-4-20250514    # Task-level override
+    temperature: 0.7                   # 0.0 - 2.0
+    max_tokens: 1000                   # Max output tokens
+    extended_thinking: true            # Claude extended thinking
+    thinking_budget: 10000             # Token budget for thinking
+```
+
+## Exec Verb (Shell Command)
+
+```yaml
+- id: build
+  exec:
+    command: "npm run build"
+    shell: true                        # Run via sh -c (default: false)
+    cwd: "./frontend"
+    timeout: 60                        # Seconds
+    env: { NODE_ENV: production }
+```
+
+## Fetch Verb (HTTP + Extract)
+
+```yaml
+- id: scrape
+  fetch:
+    url: "https://example.com/article"
+    method: GET
+    headers: { Authorization: "Bearer {{inputs.token}}" }
+    extract: markdown                  # 9 modes (see below)
+    response: full                     # full, binary, or omit for raw body
+```
+
+**9 extract modes**: `markdown`, `article`, `text`, `selector`, `metadata`, `links`, `jsonpath`, `feed`, `llm_txt`
+
+## Invoke Verb (MCP + Builtin Tools)
+
+```yaml
+- id: search
+  invoke:
+    tool: "novanet/novanet_search"     # server/tool_name format
+    params: { query: "{{with.topic}}", limit: 10 }
+```
+
+**24 builtin tools (nika:*)**: import, dimensions, thumbhash, dominant_color, pipeline, thumbnail, convert, strip, metadata, optimize, svg_render, phash, compare, pdf_extract, chart, provenance, verify, qr_validate, quality, html_to_md, css_select, extract_metadata, extract_links, readability
+
+## Agent Verb (Multi-Turn)
+
+```yaml
+- id: assistant
+  agent:
+    system: "You are a research assistant"
+    prompt: "Find and analyze {{inputs.topic}}"
+    tools: [novanet/novanet_search, novanet/novanet_context]
+    max_turns: 10
+    token_budget: 50000
+```
+
+## Workflow Header Fields
+
+All optional except `schema:`. Also: `context: { files: { readme: ./README.md } }`, `skills: { writing: ./skills/writing.md }`, `artifacts: { dir: ./output, format: markdown }`.
+
+## Data Flow
+
+- **Bindings**: `with: { alias: $task_id }` then `{{with.alias}}`
+- **Path access**: `with: { temp: $weather.data.temperature }`
+- **Defaults**: `with: { val: $task.path ?? "fallback" }`
+- **Env vars**: `with: { key: $env.API_KEY }`
+- **Transforms**: `{{with.data | uppercase | trim}}`
+- **Dependencies**: `depends_on: [task_id]` for ordering without data
+- **Inputs**: `{{inputs.param}}` | **Context**: `{{context.readme}}`
+
+**31 pipe transforms**: `upper`, `lower`, `trim`, `length`, `first`, `last`, `flatten`, `sort`, `unique`, `compact`, `keys`, `values`, `to_number`, `round`, `to_json`, `parse_json`, `join(",")`, `split(",")`, `default("x")`, etc.
+
+## For Each (Parallel Loop)
+
+```yaml
+- id: process
+  for_each:
+    items: "{{with.data}}"
+    as: item
+    concurrency: 3
+  infer: "Process: {{with.item}}"
+```
+
+Loop variable uses `with:` prefix: `{{with.item}}`.
+
+## Structured Output (JSON Schema)
+
+```yaml
+- id: extract
+  infer:
+    prompt: "Extract entities from: {{with.text}}"
+  structured:
+    schema:
+      type: object
+      properties:
+        name: { type: string }
+        tags: { type: array, items: { type: string } }
+      required: [name, tags]
+```
+
+## Providers
+
+| Provider | Env Var | Example Models |
+|----------|---------|----------------|
+| `anthropic` | `ANTHROPIC_API_KEY` | claude-opus-4-20250514, claude-sonnet-4-20250514 |
+| `openai` | `OPENAI_API_KEY` | gpt-4o, gpt-4.1, o3, o4-mini |
+| `mistral` | `MISTRAL_API_KEY` | mistral-large-latest, mistral-small-latest |
+| `groq` | `GROQ_API_KEY` | llama-4-maverick, mixtral-8x7b |
+| `deepseek` | `DEEPSEEK_API_KEY` | deepseek-chat, deepseek-reasoner |
+| `gemini` | `GEMINI_API_KEY` | gemini-2.5-pro, gemini-2.5-flash |
+| `xai` | `XAI_API_KEY` | grok-3 |
+| `native` | *(none)* | Local GGUF via mistral.rs |
+
+## Common Mistakes
+
+| Wrong | Right |
+|-------|-------|
+| `timeout: 30000` (ms) | `timeout: 30` (always seconds) |
+| `use: { data: step1 }` | `with: { data: $step1 }` ($ prefix required) |
+| `{{data}}` | `{{with.data}}` (always with. prefix) |
+| `{{item}}` in for_each | `{{with.item}}` (loop var uses with. prefix) |
+| `retry: 3` | `retry: { max_attempts: 3, delay: 2 }` |
+| `.yaml` extension | `.nika.yaml` extension |
+| Direct Cypher/SQL | Use `invoke:` with MCP tools |
+| `shell: bash` | `shell: true` (boolean, not shell name) |
+| Missing `schema:` line | Always start with `schema: "@0.12"` |
+| `depends_on: task_id` | `depends_on: [task_id]` (always array) |
+
+## Error Codes (NIKA-XXX)
+
+| Code | Meaning |
 |------|---------|
-| `infer:` | LLM generation |
-| `exec:` | Shell command |
-| `fetch:` | HTTP request |
-| `invoke:` | MCP tool call |
-| `agent:` | Multi-turn loop |
-
-## Workflow Syntax
-
-`with:` for bindings, `{{with.alias}}` for templates, `.nika.yaml` extension.
-
-## Integration with NovaNet
-
-Nika connects to NovaNet via MCP only (Zero Cypher rule). Use `invoke:` verb.
-
-## TUI Views
-
-`1/s` Studio | `2/c` Command | `3/x` Control
+| 010 | Schema: invalid or missing `schema:` field |
+| 020 | DAG: cycle detected or invalid dependency |
+| 030-034 | Provider: missing API key (030), unknown model (034) |
+| 040-042 | Template: unresolved binding (040), syntax error (042) |
+| 050-054 | Task: unknown ref (050), duplicate ID (051), security (054) |
+| 060-063 | Output: JSON parse failure (060), schema validation (061) |
+| 100-104 | MCP: connection failed (100), tool not found (101) |
+| 110-112 | Agent: max turns (110), token budget (111), guardrail (112) |
+| 140 | AST: unknown task type (no recognized verb) |
 
 ## Commands
 
 ```bash
-nika check workflow.nika.yaml    # Validate
-nika run workflow.nika.yaml      # Execute
-nika ui                          # TUI
+nika check workflow.nika.yaml    # Validate syntax + DAG
+nika run workflow.nika.yaml      # Execute workflow
+nika init                        # Interactive project setup
+nika init --minimal              # Minimal scaffold (5 workflows)
+nika init --course               # 12-level learning course
+nika doctor                      # Check system + providers
 nika provider list               # API key status
-nika init                        # Interactive project setup (wizard)
-nika init --course               # Generate 12-level learning course (44 exercises)
-nika init --minimal              # Minimal scaffold (5 workflows, 1 per verb)
-nika course status               # Show constellation progress map
-nika course next                 # Open next exercise
-nika course check [level]        # Validate exercises
-nika course hint [exercise]      # Progressive hints (3 tiers)
-nika course run <exercise>       # Run a course exercise
-nika course info [level]         # Show course/level details
-nika course reset <level>        # Reset a level
-nika course watch                # Auto-check on file save
-nika showcase list               # Browse 200+ showcase workflows
-nika showcase extract <name>     # Extract a showcase to current dir
+nika ui                          # Terminal UI
+nika showcase list               # Browse 200+ example workflows
+nika course next                 # Next exercise
 ```
 "#;
 
@@ -826,7 +1311,8 @@ mod tests {
     #[test]
     fn no_bare_item_template_in_code_examples() {
         let rules: &[(&str, &str)] = &[
-            ("CURSOR_RULE", CURSOR_RULE),
+            ("CURSOR_SYNTAX_RULE", CURSOR_SYNTAX_RULE),
+            ("CURSOR_PATTERNS_RULE", CURSOR_PATTERNS_RULE),
             ("COPILOT_INSTRUCTIONS", COPILOT_INSTRUCTIONS),
             ("WINDSURF_RULE", WINDSURF_RULE),
             ("ROO_RULE", ROO_RULE),
@@ -854,7 +1340,14 @@ mod tests {
     /// All main rules must reference schema @0.12.
     #[test]
     fn rules_reference_current_schema() {
-        assert!(CURSOR_RULE.contains("@0.12"), "CURSOR_RULE missing @0.12");
+        assert!(
+            CURSOR_SYNTAX_RULE.contains("@0.12"),
+            "CURSOR_SYNTAX_RULE missing @0.12"
+        );
+        assert!(
+            CURSOR_PATTERNS_RULE.contains("@0.12"),
+            "CURSOR_PATTERNS_RULE missing @0.12"
+        );
         assert!(
             AGENTS_MD_CONTENT.contains("@0.12"),
             "AGENTS_MD missing @0.12"
@@ -865,7 +1358,8 @@ mod tests {
     #[test]
     fn no_nonexistent_models() {
         let rules: &[(&str, &str)] = &[
-            ("CURSOR_RULE", CURSOR_RULE),
+            ("CURSOR_SYNTAX_RULE", CURSOR_SYNTAX_RULE),
+            ("CURSOR_PATTERNS_RULE", CURSOR_PATTERNS_RULE),
             ("WINDSURF_RULE", WINDSURF_RULE),
             ("ROO_RULE", ROO_RULE),
         ];
@@ -881,10 +1375,16 @@ mod tests {
     /// for_each examples must use {{with.item}} not {{item}}.
     #[test]
     fn for_each_uses_with_prefix() {
-        if CURSOR_RULE.contains("as: item") {
+        if CURSOR_SYNTAX_RULE.contains("as: item") {
             assert!(
-                CURSOR_RULE.contains("{{with.item}}"),
-                "CURSOR_RULE has for_each as:item but no {{with.item}}"
+                CURSOR_SYNTAX_RULE.contains("{{with.item}}"),
+                "CURSOR_SYNTAX_RULE has for_each as:item but no {{with.item}}"
+            );
+        }
+        if CURSOR_PATTERNS_RULE.contains("as: item") {
+            assert!(
+                CURSOR_PATTERNS_RULE.contains("{{with.item}}"),
+                "CURSOR_PATTERNS_RULE has for_each as:item but no {{with.item}}"
             );
         }
     }
@@ -893,8 +1393,14 @@ mod tests {
     #[test]
     fn consistent_builtin_tool_count() {
         assert!(
-            !CURSOR_RULE.contains("26 builtin") && !CURSOR_RULE.contains("25 builtin"),
-            "CURSOR_RULE has wrong builtin tool count"
+            !CURSOR_SYNTAX_RULE.contains("26 builtin")
+                && !CURSOR_SYNTAX_RULE.contains("25 builtin"),
+            "CURSOR_SYNTAX_RULE has wrong builtin tool count"
+        );
+        assert!(
+            !CURSOR_PATTERNS_RULE.contains("26 builtin")
+                && !CURSOR_PATTERNS_RULE.contains("25 builtin"),
+            "CURSOR_PATTERNS_RULE has wrong builtin tool count"
         );
         assert!(
             !WINDSURF_RULE.contains("26 builtin") && !WINDSURF_RULE.contains("25 builtin"),
