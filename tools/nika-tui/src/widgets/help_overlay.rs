@@ -75,6 +75,7 @@ pub const HELP_SECTIONS: &[HelpSection] = &[
         title: "Command View (Monitor Mode)",
         keybindings: &[
             ("j / k", "Navigate tasks"),
+            ("y", "Copy task output to clipboard"),
             ("t", "Cycle sub-tab"),
             ("Enter", "Expand task detail"),
             ("Space", "Toggle section"),

@@ -515,6 +515,36 @@ impl View for MonitorView {
                 ViewAction::None
             }
 
+            // 'y' yanks (copies) selected task output to clipboard
+            KeyCode::Char('y') => {
+                if let Some(task_id) = state.task_order.get(self.selected_task) {
+                    if let Some(task) = state.tasks.get(task_id) {
+                        let text = if let Some(ref output) = task.output {
+                            serde_json::to_string_pretty(output.as_ref())
+                                .unwrap_or_else(|_| output.to_string())
+                        } else if let Some(ref error) = task.error {
+                            error.clone()
+                        } else {
+                            String::from("(no output yet)")
+                        };
+
+                        match arboard::Clipboard::new() {
+                            Ok(mut clipboard) => {
+                                if clipboard.set_text(&text).is_ok() {
+                                    state.status_messages.success("Copied!");
+                                } else {
+                                    state.status_messages.error("Clipboard: copy failed");
+                                }
+                            }
+                            Err(_) => {
+                                state.status_messages.error("Clipboard: unavailable");
+                            }
+                        }
+                    }
+                }
+                ViewAction::None
+            }
+
             // ? falls through to app-level Help mode
             _ => ViewAction::None,
         }
