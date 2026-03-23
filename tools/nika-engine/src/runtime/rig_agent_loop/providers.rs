@@ -152,11 +152,12 @@ impl RigAgentLoop {
         total_cached_input_tokens += result.cached_input_tokens;
 
         // Record turn in limit tracker
-        let cost = crate::provider::cost::calculate_cost(
+        let cost = crate::provider::cost::calculate_cost_with_cache(
             crate::provider::cost::ProviderKind::Claude,
             &model_name,
             result.input_tokens,
             result.output_tokens,
+            result.cached_input_tokens,
         );
         self.limit_tracker
             .record_turn(result.input_tokens, result.output_tokens, cost);
@@ -255,11 +256,12 @@ impl RigAgentLoop {
             total_cached_input_tokens += result.cached_input_tokens;
 
             // Record retry turn in limit tracker
-            let retry_cost = crate::provider::cost::calculate_cost(
+            let retry_cost = crate::provider::cost::calculate_cost_with_cache(
                 crate::provider::cost::ProviderKind::Claude,
                 &model_name,
                 result.input_tokens,
                 result.output_tokens,
+                result.cached_input_tokens,
             );
             self.limit_tracker
                 .record_turn(result.input_tokens, result.output_tokens, retry_cost);
@@ -353,11 +355,12 @@ impl RigAgentLoop {
             total_cached_input_tokens += result.cached_input_tokens;
 
             // Record guardrail retry turn in limit tracker
-            let gr_cost = crate::provider::cost::calculate_cost(
+            let gr_cost = crate::provider::cost::calculate_cost_with_cache(
                 crate::provider::cost::ProviderKind::Claude,
                 &model_name,
                 result.input_tokens,
                 result.output_tokens,
+                result.cached_input_tokens,
             );
             self.limit_tracker
                 .record_turn(result.input_tokens, result.output_tokens, gr_cost);
@@ -390,11 +393,12 @@ impl RigAgentLoop {
         let total_retries = retry_count + guardrail_retry_count;
 
         // Emit ProviderResponded so runner cost summary includes agent work
-        let total_cost = crate::provider::cost::calculate_cost(
+        let total_cost = crate::provider::cost::calculate_cost_with_cache(
             crate::provider::cost::ProviderKind::Claude,
             &model_name,
             total_input_tokens,
             total_output_tokens,
+            total_cached_input_tokens,
         );
         self.event_log.emit(EventKind::ProviderResponded {
             task_id: Arc::from(self.task_id.as_str()),
@@ -484,11 +488,12 @@ impl RigAgentLoop {
         total_cached_input_tokens += result.cached_input_tokens;
 
         // Record turn in limit tracker
-        let cost = crate::provider::cost::calculate_cost(
+        let cost = crate::provider::cost::calculate_cost_with_cache(
             crate::provider::cost::ProviderKind::OpenAI,
             &model_name,
             result.input_tokens,
             result.output_tokens,
+            result.cached_input_tokens,
         );
         self.limit_tracker
             .record_turn(result.input_tokens, result.output_tokens, cost);
@@ -587,11 +592,12 @@ impl RigAgentLoop {
             total_cached_input_tokens += result.cached_input_tokens;
 
             // Record retry turn in limit tracker
-            let retry_cost = crate::provider::cost::calculate_cost(
+            let retry_cost = crate::provider::cost::calculate_cost_with_cache(
                 crate::provider::cost::ProviderKind::OpenAI,
                 &model_name,
                 result.input_tokens,
                 result.output_tokens,
+                result.cached_input_tokens,
             );
             self.limit_tracker
                 .record_turn(result.input_tokens, result.output_tokens, retry_cost);
@@ -684,11 +690,12 @@ impl RigAgentLoop {
             total_cached_input_tokens += result.cached_input_tokens;
 
             // Record guardrail retry turn in limit tracker
-            let gr_cost = crate::provider::cost::calculate_cost(
+            let gr_cost = crate::provider::cost::calculate_cost_with_cache(
                 crate::provider::cost::ProviderKind::OpenAI,
                 &model_name,
                 result.input_tokens,
                 result.output_tokens,
+                result.cached_input_tokens,
             );
             self.limit_tracker
                 .record_turn(result.input_tokens, result.output_tokens, gr_cost);
@@ -721,11 +728,12 @@ impl RigAgentLoop {
         let total_retries = retry_count + guardrail_retry_count;
 
         // Emit ProviderResponded so runner cost summary includes agent work
-        let total_cost = crate::provider::cost::calculate_cost(
+        let total_cost = crate::provider::cost::calculate_cost_with_cache(
             crate::provider::cost::ProviderKind::OpenAI,
             &model_name,
             total_input_tokens,
             total_output_tokens,
+            total_cached_input_tokens,
         );
         self.event_log.emit(EventKind::ProviderResponded {
             task_id: Arc::from(self.task_id.as_str()),
@@ -956,11 +964,12 @@ impl RigAgentLoop {
         // Record turn in limit tracker
         let turn_cost = provider_kind
             .map(|pk| {
-                crate::provider::cost::calculate_cost(
+                crate::provider::cost::calculate_cost_with_cache(
                     pk,
                     model_name,
                     result.input_tokens,
                     result.output_tokens,
+                    result.cached_input_tokens,
                 )
             })
             .unwrap_or(0.0);
@@ -1064,11 +1073,12 @@ impl RigAgentLoop {
             // Record retry turn in limit tracker
             let retry_cost = provider_kind
                 .map(|pk| {
-                    crate::provider::cost::calculate_cost(
+                    crate::provider::cost::calculate_cost_with_cache(
                         pk,
                         model_name,
                         result.input_tokens,
                         result.output_tokens,
+                        result.cached_input_tokens,
                     )
                 })
                 .unwrap_or(0.0);
@@ -1165,11 +1175,12 @@ impl RigAgentLoop {
             // Record guardrail retry turn in limit tracker
             let gr_cost = provider_kind
                 .map(|pk| {
-                    crate::provider::cost::calculate_cost(
+                    crate::provider::cost::calculate_cost_with_cache(
                         pk,
                         model_name,
                         result.input_tokens,
                         result.output_tokens,
+                        result.cached_input_tokens,
                     )
                 })
                 .unwrap_or(0.0);
@@ -1207,11 +1218,12 @@ impl RigAgentLoop {
         // Emit ProviderResponded so runner cost summary includes agent work
         let total_cost = provider_kind
             .map(|pk| {
-                crate::provider::cost::calculate_cost(
+                crate::provider::cost::calculate_cost_with_cache(
                     pk,
                     model_name,
                     total_input_tokens,
                     total_output_tokens,
+                    total_cached_input_tokens,
                 )
             })
             .unwrap_or(0.0);
