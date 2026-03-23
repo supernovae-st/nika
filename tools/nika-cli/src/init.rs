@@ -471,6 +471,10 @@ network:
         );
     }
 
+    // Generate AI integration files (AGENTS.md, per-tool rules, git hook)
+    // Runs BEFORE summary so "Get started" is the last thing user sees.
+    crate::init_ai::generate_ai_files(&cwd)?;
+
     // Print summary
     println!();
     println!("{}", "Nika project initialized!".green().bold());
@@ -525,7 +529,7 @@ network:
         println!("    nika run workflows/minimal/03-infer.nika.yaml");
         println!();
         println!("    # Start the interactive course");
-        println!("    nika course start");
+        println!("    nika course next");
         println!();
         println!("  {} Learn more:", "📖".cyan());
         println!("    See workflows/README.md for guide");
@@ -559,9 +563,6 @@ network:
             );
         }
     }
-
-    // Generate AI integration files (AGENTS.md, per-tool rules, git hook)
-    crate::init_ai::generate_ai_files(&cwd)?;
 
     Ok(())
 }
