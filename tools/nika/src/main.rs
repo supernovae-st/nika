@@ -225,15 +225,11 @@ enum Commands {
         strict: bool,
     },
 
-    /// Initialize a new Nika project in the current directory
+    /// Create .nika/config.toml (provider + permissions)
     Init {
         /// Permission mode: deny, plan, accept-edits, accept-all
         #[arg(short, long, default_value = "plan")]
         permission: String,
-
-        /// Skip creating example workflow
-        #[arg(long)]
-        no_example: bool,
 
         /// Migrate API keys from environment variables to system keychain
         #[arg(long)]
@@ -242,10 +238,6 @@ enum Commands {
         /// Generate interactive course files (12 levels, 44 exercises)
         #[arg(long)]
         course: bool,
-
-        /// Minimal init (config only, no examples)
-        #[arg(long)]
-        minimal: bool,
     },
 
     /// Interactive learning course
@@ -687,37 +679,12 @@ async fn main() {
             // Adaptive behavior based on context
             use cli::machine::MachineStatus;
             match cli::machine::machine_setup_status() {
-                MachineStatus::NeverSetup => {
-                    // First time ever: guide to init
-                    println!();
-                    println!(
-                        "  \u{1f98b} {}",
-                        format!("nika v{}", env!("CARGO_PKG_VERSION")).bold()
-                    );
-                    println!();
-                    println!(
-                        "  Welcome! Run {} to get started.",
-                        "nika init".cyan().bold()
-                    );
-                    println!("  This will set up your machine and create a project.");
-                    println!();
-                    Ok(())
-                }
-                MachineStatus::NeedsUpdate => {
-                    // User upgraded nika — nudge them to re-run init
-                    println!();
-                    println!(
-                        "  \u{1f98b} {}",
-                        format!("nika v{}", env!("CARGO_PKG_VERSION")).bold()
-                    );
-                    println!();
-                    println!(
-                        "  Upgraded to v{}! Run {} to update editor rules.",
-                        env!("CARGO_PKG_VERSION"),
-                        "nika init".cyan()
-                    );
-                    println!();
-                    Ok(())
+                MachineStatus::NeverSetup | MachineStatus::NeedsUpdate => {
+                    // First time or upgrade: auto-setup editors, then demo
+                    if !quiet {
+                        cli::machine::run_machine_setup();
+                    }
+                    run_demo(quiet, detail).await
                 }
                 MachineStatus::Ready => {
                     if !Path::new(".nika").exists() {
@@ -782,13 +749,10 @@ async fn main() {
 
         Some(Commands::Init {
             permission,
-            no_example,
             migrate_keys,
             course,
-            minimal,
         }) => {
             if course {
-                // Generate interactive course
                 use nika_engine::init::course::generator::{generate_course, CourseConfig};
                 let config = CourseConfig {
                     dest: std::path::PathBuf::from("nika-course"),
@@ -813,7 +777,7 @@ async fn main() {
                     }
                 }
             } else {
-                cli::init::init_project(&permission, no_example || minimal, migrate_keys).await
+                cli::init::init_project(&permission, migrate_keys).await
             }
         }
 
