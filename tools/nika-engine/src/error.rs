@@ -1058,6 +1058,9 @@ impl FixSuggestion for NikaError {
             NikaError::RuntimeDeadlock { .. } => {
                 Some("Check for circular dependencies or unresolvable task graph structures")
             }
+            NikaError::DependencyChainFailed { .. } => {
+                Some("Fix the root task failure, then re-run the workflow")
+            }
             NikaError::JsonPathUnsupported { .. } => Some("Use simple paths like $.field.subfield"),
             NikaError::IoError(_) => Some("Check file path and permissions"),
             NikaError::JsonError(_) => Some("Check JSON syntax"),
@@ -1203,10 +1206,6 @@ impl FixSuggestion for NikaError {
             }
             NikaError::StructuredOutputAllLayersFailed { .. } => {
                 Some("All validation layers failed. Check your schema is valid and the prompt provides enough context for the LLM to generate conforming output.")
-            }
-            // Task dependency/lifecycle errors
-            NikaError::DependencyChainFailed { .. } => {
-                Some("Dependency chain failed. Fix upstream task errors first.")
             }
             NikaError::TaskCancelled { .. } => {
                 Some("Task was cancelled. Check workflow execution logs.")

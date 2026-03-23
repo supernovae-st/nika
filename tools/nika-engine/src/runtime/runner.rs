@@ -183,7 +183,7 @@ impl Runner {
             workflow.model.as_deref(),
             mcp_configs,
             event_log.clone(),
-        );
+        )?;
 
         // Generate unique ID for this execution (used for trace files)
         let generation_id = format!("gen-{}", uuid::Uuid::new_v4());
@@ -1272,6 +1272,40 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 self.cli_renderer = renderer;
 
                 if self.all_done() {
+                    // Check if any tasks actually failed before declaring success.
+                    // all_done() returns true when all tasks are in the datastore,
+                    // including failed/dependency-failed tasks.
+                    let failed_tasks: Vec<String> = self
+                        .workflow
+                        .tasks
+                        .iter()
+                        .filter(|t| self.datastore.is_failed(&t.name))
+                        .map(|t| t.name.clone())
+                        .collect();
+
+                    if !failed_tasks.is_empty() {
+                        let root_failure = self.find_root_failure();
+                        let dep_failed_count = failed_tasks
+                            .iter()
+                            .filter(|t| self.datastore.is_dependency_failed(t))
+                            .count();
+
+                        self.event_log.emit(EventKind::WorkflowFailed {
+                            error: format!(
+                                "{} task(s) failed ({} direct, {} from dependency chain)",
+                                failed_tasks.len(),
+                                failed_tasks.len() - dep_failed_count,
+                                dep_failed_count,
+                            ),
+                            failed_task: root_failure.clone().map(Arc::from),
+                        });
+                        self.write_trace();
+                        return Err(NikaError::DependencyChainFailed {
+                            count: failed_tasks.len(),
+                            blocked_tasks: failed_tasks,
+                            root_failure,
+                        });
+                    }
                     break;
                 }
 
@@ -2685,7 +2719,7 @@ mod tests {
     #[tokio::test]
     async fn timestamps_are_relative_and_increasing() {
         let workflow = create_exec_workflow(
-            vec![("fast", "echo quick"), ("slow", "sleep 0.1 && echo done")],
+            vec![("fast", "echo quick"), ("slow", "echo done")],
             vec![("fast", "slow")],
         );
         let mut runner = Runner::new(workflow).unwrap();
@@ -2716,11 +2750,9 @@ mod tests {
         let workflow = create_exec_workflow(vec![("fail", "exit 1")], vec![]);
         let mut runner = Runner::new(workflow).unwrap();
 
-        // Workflow run() returns Ok even when individual tasks fail
-        runner
-            .run()
-            .await
-            .expect("workflow should complete even when tasks fail internally");
+        // Workflow run() now returns Err when tasks fail (NIKA-084)
+        let result = runner.run().await;
+        assert!(result.is_err(), "workflow should return Err when tasks fail");
 
         let events = runner.event_log().filter_task("fail");
         let failed = events
@@ -2961,12 +2993,10 @@ mod tests {
 
         let mut runner = Runner::new(workflow).unwrap();
         let result = runner.run().await;
-        // runner.run() returns Ok even with fail_fast failures — individual task
-        // results are stored in the datastore, but the workflow itself completes
+        // runner.run() now returns Err when tasks fail (NIKA-084)
         assert!(
-            result.is_ok(),
-            "Workflow should complete: {:?}",
-            result.err()
+            result.is_err(),
+            "Workflow should fail when fail_fast triggers"
         );
     }
 
@@ -3101,7 +3131,8 @@ mod tests {
 
         let mut runner = Runner::new(workflow).unwrap();
         let result = runner.run().await;
-        assert!(result.is_ok(), "Workflow should complete");
+        // Now returns Err(DependencyChainFailed) when task fails (NIKA-084)
+        assert!(result.is_err(), "Workflow should fail when task fails");
 
         let task_result = runner.datastore.get("missing_input");
         assert!(task_result.is_some(), "Task result should exist");
