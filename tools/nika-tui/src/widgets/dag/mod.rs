@@ -1,0 +1,20 @@
+//! DAG Visualization Subsystem
+//!
+//! Renders directed acyclic graphs of workflow tasks with nodes, edges,
+//! bindings, and data previews using Sugiyama-style hierarchical layout.
+//!
+//! # Public API
+//!
+//! - [`DagAscii`] — Complete DAG widget (compose with nodes + deps)
+//! - [`NodeBox`] — Individual node renderer
+//! - [`NodeBoxData`] — Node data (id, verb, status, etc.)
+//! - [`NodeBoxMode`] — Display mode (minimal/expanded)
+
+mod ascii;
+mod edge;
+mod layout;
+pub(crate) mod node_box;
+
+// Public API: only expose what views need
+pub use ascii::DagAscii;
+pub use node_box::{NodeBox, NodeBoxData, NodeBoxMode};

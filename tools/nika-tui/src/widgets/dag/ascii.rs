@@ -14,9 +14,9 @@ use ratatui::{
 use rustc_hash::FxHashMap;
 
 use super::{
-    dag_edge::{render_merge, DagEdge},
-    dag_layout::{DagLayout, LayoutConfig, LayoutNode},
-    dag_node_box::{NodeBox, NodeBoxData, NodeBoxMode},
+    edge::{render_merge, DagEdge},
+    layout::{DagLayout, LayoutConfig, LayoutNode},
+    node_box::{NodeBox, NodeBoxData, NodeBoxMode},
 };
 use crate::theme::Theme;
 

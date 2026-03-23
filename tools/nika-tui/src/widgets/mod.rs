@@ -26,16 +26,7 @@ mod chat_node_box;
 mod chat_task_queue;
 mod command_palette;
 mod confirm_dialog;
-mod dag_ascii;
-// Internal to dag_ascii: edge rendering, some items staged
-#[allow(dead_code)]
-mod dag_edge;
-// Internal to dag_ascii: layout algorithm, some items staged
-#[allow(dead_code)]
-mod dag_layout;
-// Used by dag_ascii, some builder methods staged
-#[allow(dead_code)]
-mod dag_node_box;
+mod dag;
 mod gauge;
 mod header;
 mod help_overlay;
@@ -101,12 +92,8 @@ pub use activity_stack::{ActivityItem, ActivityTemp};
 pub use command_palette::{default_commands, CommandPalette, CommandPaletteState, PaletteCommand};
 // Verb type (extracted from deprecated dag.rs)
 pub use verb_type::VerbType;
-// DAG node box (data types + widget, used by dag_ascii and views)
-pub use dag_node_box::{NodeBox, NodeBoxData, NodeBoxMode};
-// Complete DAG ASCII visualization widget
-pub use dag_ascii::DagAscii;
-// Note: DagLayout and DagEdge are kept as modules but not re-exported.
-// They're internal implementation details for dag_ascii.
+// DAG visualization subsystem (layout, edges, node boxes, composite widget)
+pub use dag::{DagAscii, NodeBox, NodeBoxData, NodeBoxMode};
 pub use gauge::Gauge;
 pub use header::Header;
 pub use scroll_indicator::{ScrollHint, ScrollIndicator};

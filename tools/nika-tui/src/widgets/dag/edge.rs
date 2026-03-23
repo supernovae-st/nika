@@ -45,7 +45,6 @@ const FLOW_FRAMES_H: &[char] = &['╼', '━', '╾', '─'];
 const ARROW_DOWN: &str = "▼";
 const ARROW_RIGHT: &str = "▶";
 const ARROW_LEFT: &str = "◀";
-const ARROW_UP: &str = "▲";
 
 /// Smooth corner characters (for curved edges)
 const CORNER_TL_SMOOTH: &str = "╭";
@@ -63,7 +62,8 @@ pub enum EdgeStyle {
     /// Sharp corners (default)
     #[default]
     Sharp,
-    /// Smooth/rounded corners using ╭╮╰╯
+    /// Smooth/rounded corners using ╭╮╰╯ (reserved for future use)
+    #[allow(dead_code)]
     Smooth,
 }
 
@@ -103,12 +103,6 @@ impl<'a> DagEdge<'a> {
         }
     }
 
-    /// Set the theme for theming colors
-    pub fn with_theme(mut self, theme: &'a Theme) -> Self {
-        self.theme = Some(theme);
-        self
-    }
-
     /// Add a binding label to the edge
     pub fn with_binding(mut self, binding: impl Into<String>) -> Self {
         self.binding = Some(binding.into());
@@ -124,18 +118,6 @@ impl<'a> DagEdge<'a> {
     /// Set the active state of the edge
     pub fn with_active(mut self, active: bool) -> Self {
         self.active = active;
-        self
-    }
-
-    /// Set the animation frame (0-255)
-    pub fn with_frame(mut self, frame: u8) -> Self {
-        self.frame = frame;
-        self
-    }
-
-    /// Set the edge style (Sharp or Smooth corners)
-    pub fn with_style(mut self, style: EdgeStyle) -> Self {
-        self.style = style;
         self
     }
 

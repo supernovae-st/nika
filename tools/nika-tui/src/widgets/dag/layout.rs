@@ -60,8 +60,6 @@ pub struct LayoutNode<'a> {
     pub id: &'a str,
     /// Dependencies (predecessor node IDs)
     pub dependencies: Vec<&'a str>,
-    /// Display width hint (e.g., based on label length)
-    pub width_hint: Option<u16>,
 }
 
 impl<'a> LayoutNode<'a> {
@@ -70,19 +68,12 @@ impl<'a> LayoutNode<'a> {
         Self {
             id,
             dependencies: Vec::new(),
-            width_hint: None,
         }
     }
 
     /// Add dependencies
     pub fn with_dependencies(mut self, deps: Vec<&'a str>) -> Self {
         self.dependencies = deps;
-        self
-    }
-
-    /// Set width hint
-    pub fn with_width_hint(mut self, width: u16) -> Self {
-        self.width_hint = Some(width);
         self
     }
 }
@@ -138,16 +129,6 @@ impl DagLayout {
     /// Get number of layers
     pub fn layer_count(&self) -> usize {
         self.layers.len()
-    }
-
-    /// Iterate over layers (each layer is a vec of node IDs)
-    pub fn layers(&self) -> impl Iterator<Item = &Vec<String>> {
-        self.layers.iter()
-    }
-
-    /// Get all positions
-    pub fn positions(&self) -> &FxHashMap<String, NodePosition> {
-        &self.positions
     }
 
     /// Assign layers to nodes using reverse topological sort
@@ -478,7 +459,6 @@ mod tests {
         let layout = DagLayout::compute(&nodes, &config, None);
 
         assert_eq!(layout.layer_count(), 0);
-        assert!(layout.positions().is_empty());
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -671,11 +651,10 @@ mod tests {
         let config = LayoutConfig::default();
         let layout = DagLayout::compute(&nodes, &config, None);
 
-        let layer_vec: Vec<_> = layout.layers().collect();
-        assert_eq!(layer_vec.len(), 3);
-        assert!(layer_vec[0].contains(&"a".to_string()));
-        assert!(layer_vec[1].contains(&"b".to_string()));
-        assert!(layer_vec[2].contains(&"c".to_string()));
+        assert_eq!(layout.layer_count(), 3);
+        assert_eq!(layout.get("a").unwrap().layer, 0);
+        assert_eq!(layout.get("b").unwrap().layer, 1);
+        assert_eq!(layout.get("c").unwrap().layer, 2);
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -749,18 +728,10 @@ mod tests {
     #[test]
     fn test_layout_node_builder() {
         let node = LayoutNode::new("task1")
-            .with_dependencies(vec!["dep1", "dep2"])
-            .with_width_hint(25);
+            .with_dependencies(vec!["dep1", "dep2"]);
 
         assert_eq!(node.id, "task1");
         assert_eq!(node.dependencies, vec!["dep1", "dep2"]);
-        assert_eq!(node.width_hint, Some(25));
-    }
-
-    #[test]
-    fn test_layout_node_default_width_hint() {
-        let node = LayoutNode::new("task1");
-        assert!(node.width_hint.is_none());
     }
 
     // ═══════════════════════════════════════════════════════════════

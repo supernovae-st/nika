@@ -19,8 +19,6 @@ use ratatui::style::Color;
 // DEFAULT COLORS (fallbacks for theme-aware rendering)
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// Progress bar color (green)
-const DEFAULT_PROGRESS_COLOR: Color = compat::GREEN_500;
 /// Failed status color (red)
 const DEFAULT_FAILED_COLOR: Color = compat::RED_500;
 /// Pending/muted content (gray-400)
@@ -51,11 +49,6 @@ const SPINNER_FRAMES: &[&str] = &["◐", "◓", "◑", "◒"];
 
 /// Success celebration frames
 const SUCCESS_FRAMES: &[&str] = &["✓", "✔", "✓", "✔"];
-
-/// Progress bar characters
-const PROGRESS_EMPTY: char = '░';
-const PROGRESS_FILLED: char = '▓';
-const PROGRESS_PARTIAL: char = '▒';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // NODE BOX MODE
@@ -451,30 +444,6 @@ impl<'a> NodeBox<'a> {
             TaskStatus::Failed => "✗",
             TaskStatus::Paused => "◐",
             TaskStatus::Skipped => "⊘",
-        }
-    }
-
-    /// Render a mini progress bar for running tasks
-    fn render_progress_bar(&self, buf: &mut Buffer, x: u16, y: u16, width: u16) {
-        if let Some(progress) = self.progress {
-            // SAFETY: Use saturating_mul to prevent overflow with wide progress bars
-            let filled = (progress as u16).saturating_mul(width) / 100;
-            let progress_color = self
-                .theme
-                .map(|t| t.status_success)
-                .unwrap_or(DEFAULT_PROGRESS_COLOR);
-            let style = Style::default().fg(progress_color);
-
-            for i in 0..width {
-                let ch = if i < filled {
-                    PROGRESS_FILLED
-                } else if i == filled && progress > 0 {
-                    PROGRESS_PARTIAL
-                } else {
-                    PROGRESS_EMPTY
-                };
-                buf.set_string(x + i, y, ch.to_string(), style);
-            }
         }
     }
 
