@@ -136,6 +136,9 @@ pub struct App {
     /// TTL-based cache for provider and MCP server verification results.
     /// Prevents redundant API calls when opening/refreshing the provider selector.
     pub(crate) verification_cache: Arc<Mutex<VerificationCache>>,
+    // ═══ Startup Loading State ═══
+    /// True until on_enter() completes — shows loading indicator in first frame
+    pub(crate) loading: bool,
 }
 
 impl App {
@@ -215,6 +218,7 @@ impl App {
             session_id: None,
             event_buffer: Vec::with_capacity(64), // PERF: Pre-allocated buffer
             verification_cache: Arc::new(Mutex::new(VerificationCache::default())),
+            loading: true,
         })
     }
 
@@ -279,6 +283,7 @@ impl App {
             session_id: None,
             event_buffer: Vec::with_capacity(64), // PERF: Pre-allocated buffer
             verification_cache: Arc::new(Mutex::new(VerificationCache::default())),
+            loading: true,
         })
     }
 
@@ -420,6 +425,7 @@ impl App {
 
         // Now populate view state (blocking: git cache, tree build)
         self.call_view_on_enter(self.current_view);
+        self.loading = false;
 
         // PERF: Adaptive frame rate
         // - Fast (60 FPS) when streaming or animations active

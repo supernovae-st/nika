@@ -3,9 +3,10 @@
 //! Contains frame rendering logic for the unified TUI architecture.
 //! Studio, Command, Control (3-view architecture)
 
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::Style;
-use ratatui::widgets::Clear;
+use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
+use ratatui::style::{Modifier, Style};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Clear, Paragraph};
 
 use nika_engine::error::{NikaError, Result};
 
@@ -37,6 +38,7 @@ impl App {
             let chat_status = self.command_view.status_line(&self.state);
             let studio_status = self.studio_view.status_line(&self.state);
 
+            let loading = self.loading;
             let theme = &self.theme;
             let state = &self.state;
             let command_view = &mut self.command_view;
@@ -111,6 +113,31 @@ impl App {
                         TuiView::Control => {
                             control_view.render(frame, chunks[1], state, theme);
                         }
+                    }
+
+                    // Show loading indicator during startup (before on_enter completes)
+                    if loading {
+                        let spinner = ['◐', '◓', '◑', '◒'];
+                        let idx = (state.frame / 15) as usize % spinner.len();
+                        let loading_text = Line::from(vec![
+                            Span::styled(
+                                format!("{} Starting Nika...", spinner[idx]),
+                                Style::default()
+                                    .fg(theme.highlight)
+                                    .add_modifier(Modifier::BOLD),
+                            ),
+                        ]);
+                        let loading_widget =
+                            Paragraph::new(loading_text).alignment(Alignment::Center);
+                        // Center vertically in content area
+                        let y = chunks[1].y + chunks[1].height / 2;
+                        let loading_area = Rect {
+                            x: chunks[1].x,
+                            y,
+                            width: chunks[1].width,
+                            height: 1,
+                        };
+                        frame.render_widget(loading_widget, loading_area);
                     }
 
                     // Render status message if active (just above status bar)
