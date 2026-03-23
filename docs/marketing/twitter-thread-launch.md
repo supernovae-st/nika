@@ -95,7 +95,7 @@
 > provider: groq
 > provider: gemini
 >
-> 22 providers. No code changes. No vendor lock-in.
+> 19 providers. No code changes. No vendor lock-in.
 > Your choice.
 
 **Chars:** 209
@@ -305,7 +305,7 @@ Detailed prompts for DALL-E 3 or Midjourney. Brand colors: dark navy `#0f172a`, 
 **Style:** Connection diagram, node graph aesthetic
 
 **Prompt:**
-> Square image on dark navy (#0f172a) background. Center: a small YAML file icon with a butterfly silhouette watermark, glowing faintly in electric blue (#3b82f6). Around it in a circular arrangement: 8 rounded square tiles representing AI providers. Each tile is a slightly lighter dark (#1e293b) with the provider name in white text inside: "Claude", "OpenAI", "Mistral", "Groq", "Gemini", "xAI", "DeepSeek", "Ollama". Thin electric blue lines connect each tile to the center YAML icon, like spokes of a wheel. Below the circle: the text "22 providers. One line change." in white sans-serif. The lines have a subtle glow effect. Minimal, flat design. Aspect ratio 1:1.
+> Square image on dark navy (#0f172a) background. Center: a small YAML file icon with a butterfly silhouette watermark, glowing faintly in electric blue (#3b82f6). Around it in a circular arrangement: 8 rounded square tiles representing AI providers. Each tile is a slightly lighter dark (#1e293b) with the provider name in white text inside: "Claude", "OpenAI", "Mistral", "Groq", "Gemini", "xAI", "DeepSeek", "Native". Thin electric blue lines connect each tile to the center YAML icon, like spokes of a wheel. Below the circle: the text "19 providers. One line change." in white sans-serif. The lines have a subtle glow effect. Minimal, flat design. Aspect ratio 1:1.
 
 ## IMAGE 7 — Five Verbs Typography (Tweet 7)
 
@@ -353,6 +353,7 @@ A real screenshot works better than AI-generated for code credibility.
 ```bash
 # 1. Create the example workflow
 cat > /tmp/hn-digest.nika.yaml << 'EOF'
+schema: "nika/workflow@0.12"
 name: hn-digest
 tasks:
   - id: scrape
