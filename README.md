@@ -9,7 +9,7 @@
 [![Schema](https://img.shields.io/badge/schema-nika%2Fworkflow%400.12-0ea5e9?style=flat-square)](docs/schema/)
 [![Rust](https://img.shields.io/badge/rust_1.86+-f97316?style=flat-square&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/AGPL--3.0--or--later-22c55e?style=flat-square&logo=gnu&logoColor=white)](LICENSE)
-[![Tests](https://img.shields.io/badge/7450+_tests-10b981?style=flat-square)](https://github.com/supernovae-st/nika/actions)
+[![Tests](https://img.shields.io/badge/7800+_tests-10b981?style=flat-square)](https://github.com/supernovae-st/nika/actions)
 
 Write AI workflows in YAML. Five verbs, eight providers, forty-three builtin tools, one file.
 
@@ -60,6 +60,7 @@ nika run research.nika.yaml
 - [Agent Guardrails](#agent-guardrails)
 - [Terminal UI](#terminal-ui)
 - [Language Server](#language-server)
+- [AI Integration](#ai-integration)
 - [Architecture](#architecture)
 - [CLI Reference](#cli-reference)
 - [Installation](#installation)
@@ -626,6 +627,38 @@ code --install-extension supernovae.nika-vscode
 
 ---
 
+## AI Integration
+
+Nika integrates with 43+ AI coding tools out of the box. Install once, every AI understands `.nika.yaml`.
+
+```bash
+nika setup              # Detect + configure all AI tools on your machine
+nika init my-project    # Generates AI rules for detected tools
+```
+
+| Tier | What | Tools |
+|------|------|-------|
+| **Agent Skills** | Universal skill format (agentskills.io) | Claude, Cursor, Copilot, Windsurf, Roo, 38+ more |
+| **Claude Plugin** | 5 skills, 3 agents, hooks, MCP, LSP | Claude Code |
+| **Native Rules** | Per-tool optimized rules (.mdc, .instructions.md) | Cursor, Copilot, Windsurf, Roo, Aider |
+| **MCP Server** | `nika mcp serve` — check, list, schema, error lookup | All MCP-capable tools |
+| **llms.txt** | AI content discovery standard | Web-based AI agents |
+
+Generated files per project:
+
+```
+AGENTS.md                    # Universal (60k+ repos)
+CLAUDE.md → AGENTS.md        # Symlink for Claude Code
+.cursor/rules/nika.mdc       # Cursor
+.github/copilot/*.md         # GitHub Copilot
+.windsurf/rules/nika.md      # Windsurf
+.roo/rules/nika.md           # Roo Code
+.roomodes                    # Roo Code custom modes
+.vscode/extensions.json      # VS Code recommendations
+```
+
+---
+
 ## Architecture
 
 ```mermaid
@@ -736,6 +769,13 @@ nika studio workflow.nika.yaml           # Open Studio view
 nika init                                # Minimal project (5 workflows, 1 per verb)
 nika init --course                       # Interactive 12-level course (44 exercises)
 
+# AI Integration
+nika setup                               # Machine-level IDE + AI tool setup
+nika setup editors                       # Install editor extensions
+nika setup ai                            # Configure AI coding tool rules
+nika setup completions                   # Shell completions
+nika setup git                           # Git co-author hook
+
 # Course
 nika course status                       # Constellation progress map
 nika course next                         # Next exercise
@@ -760,6 +800,11 @@ nika model remove MODEL_ID               # Remove local model
 nika mcp list                            # List configured MCP servers
 nika mcp test workflow.yaml SERVER       # Test server connection
 nika mcp tools workflow.yaml SERVER      # List available tools
+nika mcp serve                           # Start MCP server for AI coding tools
+
+# Showcase
+nika showcase list                       # Browse 200+ showcase workflows
+nika showcase extract NAME               # Extract a showcase to current dir
 
 # Media (CAS)
 nika media list                          # List stored media with stats
@@ -809,7 +854,7 @@ cargo install --path tools/nika
 ### Verify
 
 ```bash
-nika --version       # nika 0.40.1
+nika --version       # nika 0.40.2
 nika doctor          # Full system health check
 ```
 
@@ -1091,7 +1136,7 @@ flowchart LR
 
 **Nika v0.40.2** | Schema `nika/workflow@0.12` | Rust 1.86+ | AGPL-3.0-or-later
 
-270k+ LOC across 10 crates | 7,450+ tests | 0 clippy warnings
+270k+ LOC across 10 crates | 7,800+ tests | 0 clippy warnings
 
 [SuperNovae Studio](https://supernovae.studio) | [QR Code AI](https://qrcode-ai.com) | [GitHub](https://github.com/supernovae-st/nika)
 

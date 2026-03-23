@@ -24,6 +24,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Missing `ExecCompleted`/`FetchRetry`/`PolicyBlocked` in TUI event handler
 - Missing `ttft_ms`/`request_id` fields in `StreamResult` test
 
+## [0.40.1](https://github.com/supernovae-st/nika/releases/tag/v0.40.1) — 2026-03-23
+
+### Fixed
+- MCP server path traversal protection + result cap
+- Split NIKA-096 catch-all into 4 specific codes (NIKA-094, 095, 097, 098)
+- Correct `system:`/`temperature:` placement in nika-agent skill
+- 3 critical bugs: NaN trace guard, CLI JSON errors, vision cost calculation
+- 8 tautological test assertions that always passed
+- `expect()` panic in lower.rs → proper NikaError
+- Exponential backoff integer overflow prevention
+- Retry snowball fix, for_each outputs, 3 error codes, Layer 0 cost
+- Course themes mismatch, MCP async timeout, .roomodes generation
+- Doctor improvements + course skill update
+- 27+ engine/TUI/security improvements from deep audit
+
+### Added
+- `nika mcp serve` — MCP server exposing workflow tools to AI coding assistants
+- AI integration files generated during `nika init` (AGENTS.md, IDE rules, git hook)
+- E2E test workflow with real OpenAI API
+- Updated AI rules, skills, and context files for v0.40
+
 ## [0.40.0](https://github.com/supernovae-st/nika/releases/tag/v0.40.0) — 2026-03-23
 
 ### Added
@@ -58,6 +79,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 9 unused dependencies removed
 - CI workflows consolidated
 
+## [0.39.1](https://github.com/supernovae-st/nika/releases/tag/v0.39.1) — 2026-03-22
+
+### Added
+- `nika course watch` — auto-check exercises on file save
+- `nika showcase` command — browse 200+ showcase workflows from CLI
+- 3-star scoring for exercises (Perfect/Passed/Attempted)
+- Enhanced constellation progress map with star ratings
+- Smart hint auto-detection for incomplete exercises
+
+### Fixed
+- NIKA-210 collision resolved — `FileAlreadyExists` renumbered to NIKA-215
+- NIKA-090 stale message — removed outdated "v0.1" reference
+- 13 critical + high TUI fixes from 15-agent deep audit (navigation, rendering, state)
+
 ## [0.39.0](https://github.com/supernovae-st/nika/releases/tag/v0.39.0) — 2026-03-22
 
 ### Added
@@ -77,6 +112,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 - Old 6-tier init system (30 workflows) — replaced by minimal + course
+
+## [0.38.0](https://github.com/supernovae-st/nika/releases/tag/v0.38.0) — 2026-03-22
+
+### Changed
+- **The Great Split**: Monolithic binary split into 10 workspace crates
+  - `nika-engine` (134k lines) — embeddable execution engine
+  - `nika-core` (23k lines) — AST, types, catalogs (zero I/O)
+  - `nika-tui` (92k lines) — Terminal UI (ratatui)
+  - `nika-cli` (8k lines) — CLI subcommands
+  - `nika-event` (4k lines) — EventLog, TraceWriter
+  - `nika-mcp` (9k lines) — MCP client (rmcp)
+  - `nika-media` (3.5k lines) — CAS store, processor
+  - `nika-lsp-core` (9k lines) — LSP intelligence
+  - `nika-lsp` (2.5k lines) — LSP binary
+  - `nika` (2k lines) — CLI entry point
+
+### Fixed
+- invoke: resource support + stress test fixture
+- Parser merges task-level `max_tokens`/`temperature` into shorthand `infer:`
+- `parse_json` transform now strips markdown code blocks
+- 3 critical issues from workspace audit
+- 2 CAS compression test assertions
 
 ## [0.37.0](https://github.com/supernovae-st/nika/releases/tag/v0.37.0) - 2026-03-21
 
