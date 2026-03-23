@@ -267,11 +267,17 @@ const JAILBREAK_01_TEMPLATE: &str = r##"# ======================================
 # CHECK: nika check 01-hello-world.nika.yaml
 # =============================================================================
 
-# TODO: Add the schema declaration (nika/workflow@0.12)
+# TODO: Understand the schema declaration — every workflow needs this line:
+schema: "nika/workflow@0.12"
 
-# TODO: Add a workflow name
+# TODO: Understand the workflow name — a short kebab-case identifier:
+workflow: hello-world
 
 tasks:
+  # ↓ Replace this starter task with your solution ↓
+  - id: starter
+    exec: "echo 'Replace me with your hello world tasks!'"
+
   # TODO: Create a task with id "hello" that uses infer: in shorthand form
   #       (just a string prompt asking the LLM to say hello)
 
@@ -325,6 +331,10 @@ schema: "nika/workflow@0.12"
 workflow: shell-commands
 
 tasks:
+  # ↓ Replace this starter task with your solution ↓
+  - id: starter
+    exec: "echo 'Replace me with shell command tasks!'"
+
   # TODO: Create a task "list_files" that uses exec: in shorthand form
   #       to run "ls -la" (shell-free mode, the default)
 
@@ -397,6 +407,10 @@ schema: "nika/workflow@0.12"
 workflow: http-requests
 
 tasks:
+  # ↓ Replace this starter task with your solution ↓
+  - id: starter
+    exec: "echo 'Replace me with fetch: tasks!'"
+
   # TODO: Create a task "get_ip" that fetches your public IP
   #       - url: "https://httpbin.org/ip"
 
@@ -477,6 +491,10 @@ workflow: provider-selection
 #       (use placeholders: provider: "{{PROVIDER}}", model: "{{MODEL}}")
 
 tasks:
+  # ↓ Replace this starter task with your solution ↓
+  - id: starter
+    exec: "echo 'Replace me with infer: tasks using different providers!'"
+
   # TODO: Create a task "quick_draft" with infer: shorthand
   #       Uses the workflow-level default provider
 
@@ -541,6 +559,10 @@ schema: "nika/workflow@0.12"
 workflow: validation-dag
 
 tasks:
+  # ↓ Replace this starter task with your solution ↓
+  - id: starter
+    exec: "echo 'Replace me with a multi-task DAG!'"
+
   # TODO: Create a task "gather_data" using exec: to collect system info
 
   # TODO: Create a task "fetch_api" using fetch: to call an API
@@ -1079,6 +1101,10 @@ schema: "nika/workflow@0.12"
 workflow: for-each-basic
 
 tasks:
+  # ↓ Replace this starter task with your solution ↓
+  - id: starter
+    exec: "echo 'Replace me with for_each tasks!'"
+
   # TODO: Create a task "greet_languages" with:
   #       - for_each: ["English", "French", "Japanese"]
   #       - as: lang
@@ -1135,6 +1161,10 @@ schema: "nika/workflow@0.12"
 workflow: for-each-concurrent
 
 tasks:
+  # ↓ Replace this starter task with your solution ↓
+  - id: starter
+    exec: "echo 'Replace me with concurrent for_each tasks!'"
+
   # TODO: Create a task "generate_list" that produces a JSON array
   #       exec: command that echoes '["alpha", "bravo", "charlie", "delta", "echo"]'
 
@@ -1198,6 +1228,10 @@ schema: "nika/workflow@0.12"
 workflow: chained-pipeline
 
 tasks:
+  # ↓ Replace this starter task with your solution ↓
+  - id: starter
+    exec: "echo 'Replace me with a chained pipeline!'"
+
   # TODO: Create a task "urls" that produces a JSON array of URLs
   #       exec: echo '["https://httpbin.org/ip", "https://httpbin.org/uuid", "https://httpbin.org/user-agent"]'
 
@@ -1279,6 +1313,10 @@ workflow: context-files
 # (MISSION.md exists in this level directory)
 
 tasks:
+  # ↓ Replace this starter task with your solution ↓
+  - id: starter
+    exec: "echo 'Replace me with context-aware tasks!'"
+
   # TODO: Create a task "summarize" that uses context files
   #       in an infer: prompt via {{context.files.readme}}
 
@@ -1340,6 +1378,10 @@ schema: "nika/workflow@0.12"
 workflow: data-pipeline
 
 tasks:
+  # ↓ Replace this starter task with your solution ↓
+  - id: starter
+    exec: "echo 'Replace me with a data pipeline!'"
+
   # TODO: Create a task "extract" that fetches data from an API
   #       fetch: url: "https://httpbin.org/json"
 
@@ -1428,6 +1470,10 @@ workflow: inputs-demo
 #           description: "How many greetings"
 
 tasks:
+  # ↓ Replace this starter task with your solution ↓
+  - id: starter
+    exec: "echo 'Replace me with input-driven tasks!'"
+
   # TODO: Create a task "greet" that uses {{inputs.target}} in a prompt
 
   # TODO: Create a task "repeat" that uses {{inputs.count}} in a command
@@ -1493,6 +1539,10 @@ workflow: structured-output
 # TODO: Add provider and model (use {{PROVIDER}} and {{MODEL}} placeholders)
 
 tasks:
+  # ↓ Replace this starter task with your solution ↓
+  - id: starter
+    exec: "echo 'Replace me with structured output tasks!'"
+
   # TODO: Create a task "extract_info" with:
   #       - structured: block at task level with schema:
   #           schema:
@@ -1579,6 +1629,10 @@ schema: "nika/workflow@0.12"
 workflow: artifacts-demo
 
 tasks:
+  # ↓ Replace this starter task with your solution ↓
+  - id: starter
+    exec: "echo 'Replace me with artifact tasks!'"
+
   # TODO: Create a task "generate_text" with:
   #       - exec: a command that produces text output
   #       - artifact:
@@ -1658,8 +1712,12 @@ workflow: schema-retry
 # TODO: Add provider and model (use {{PROVIDER}} and {{MODEL}} placeholders)
 
 tasks:
+  # ↓ Replace this starter task with your solution ↓
+  - id: starter
+    exec: "echo 'Replace me with retry + structured output tasks!'"
+
   # TODO: Create a task "strict_extraction" with:
-  #       - retry: { max_attempts: 3, delay_ms: 500 }
+  #       - retry: { max_attempts: 3, backoff_ms: 500 }
   #       - structured: block with schema: and max_retries:
   #           schema:
   #             type: object
@@ -1697,7 +1755,7 @@ tasks:
   - id: strict_extraction
     retry:
       max_attempts: 3
-      delay_ms: 500
+      backoff_ms: 500
     structured:
       schema:
         type: object
@@ -1759,6 +1817,10 @@ workflow: multi-provider
 # TODO: Set a workflow-level provider (the default)
 
 tasks:
+  # ↓ Replace this starter task with your solution ↓
+  - id: starter
+    exec: "echo 'Replace me with multi-provider tasks!'"
+
   # TODO: Create a task "fast_draft" using a fast/cheap provider
   #       - provider: and model: at task level
   #       - infer: prompt for a quick first draft
@@ -1855,6 +1917,10 @@ workflow: native-local
 # TODO: Set provider: native at workflow level
 
 tasks:
+  # ↓ Replace this starter task with your solution ↓
+  - id: starter
+    exec: "echo 'Replace me with native local inference tasks!'"
+
   # TODO: Create a task "local_infer" with:
   #       - provider: native
   #       - model: a GGUF model path or HuggingFace ID
@@ -1920,6 +1986,10 @@ schema: "nika/workflow@0.12"
 workflow: system-prompts
 
 tasks:
+  # ↓ Replace this starter task with your solution ↓
+  - id: starter
+    exec: "echo 'Replace me with system prompt tasks!'"
+
   # TODO: Create a task "poet" with:
   #       - infer:
   #           prompt: "Write about the sunrise"

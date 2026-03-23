@@ -561,11 +561,11 @@ tasks:
         4. Call nika_complete with a brief summary report
       # TODO: Set the tools the agent can use
       # Hint: [builtin] gives access to all nika:* tools
-      tools: "TODO: tool list"
+      tools: [builtin]  # TODO: change this value
       # TODO: Set safety limits
-      max_turns: "TODO: number (e.g. 8)"
-      max_tokens: "TODO: number (e.g. 800)"
-      token_budget: "TODO: number (e.g. 6000)"
+      max_turns: 5  # TODO: change this value (e.g. 8)
+      max_tokens: 500  # TODO: change this value (e.g. 800)
+      token_budget: 5000  # TODO: change this value (e.g. 6000)
 "##;
 
 const GONE_ROGUE_01_SOLUTION: &str = r##"# =============================================================================
@@ -636,7 +636,7 @@ tasks:
       token_budget: 5000
       # TODO: Set completion mode to explicit
       completion:
-        mode: "TODO: completion mode"
+        mode: explicit  # TODO: change this value
 
   # Agent 2: Refine (chained — uses output from Agent 1)
   - id: refine_agent
@@ -655,7 +655,7 @@ tasks:
       token_budget: 3000
       # TODO: Set completion mode with signal configuration
       completion:
-        mode: "TODO: completion mode"
+        mode: explicit  # TODO: change this value
         signal:
           tool: nika:complete
           fields:
@@ -756,20 +756,20 @@ tasks:
       # TODO: Add guardrails to validate output quality
       guardrails:
         # TODO: Length guardrail (200-400 words)
-        - type: "TODO: guardrail type"
-          min_words: "TODO"
-          max_words: "TODO"
+        - type: length  # TODO: change this value
+          min_words: 100  # TODO: change this value
+          max_words: 500  # TODO: change this value
           on_failure: retry
         # TODO: Regex guardrail (must start with "In the era of")
-        - type: "TODO: guardrail type"
-          pattern: "TODO: regex"
-          message: "TODO: error message shown to agent"
+        - type: regex  # TODO: change this value
+          pattern: ".*"  # TODO: change this regex
+          message: "Output did not match expected pattern"  # TODO: change this message
           on_failure: retry
       # TODO: Add cost control limits
       limits:
-        max_turns: "TODO"
-        max_cost_usd: "TODO"
-        max_duration_secs: "TODO"
+        max_turns: 10  # TODO: change this value
+        max_cost_usd: 0.50  # TODO: change this value
+        max_duration_secs: 120  # TODO: change this value
       completion:
         mode: explicit
 "##;
@@ -846,14 +846,14 @@ tasks:
   - id: as_markdown
     fetch:
       url: "https://blog.rust-lang.org/"
-      extract: "TODO: extraction mode for full markdown"
+      extract: markdown  # TODO: change this value
       timeout: 20
 
   # TODO: Fetch the same page but extract only the article content
   - id: as_article
     fetch:
       url: "https://blog.rust-lang.org/"
-      extract: "TODO: extraction mode for article only"
+      extract: markdown  # TODO: change this value
       timeout: 20
 
   # Compare both outputs with an LLM
@@ -948,14 +948,14 @@ tasks:
   - id: get_metadata
     fetch:
       url: "https://github.com"
-      extract: "TODO: extraction mode"
+      extract: metadata  # TODO: change this value
       timeout: 15
 
   # TODO: Extract and classify all links on the page
   - id: get_links
     fetch:
       url: "https://github.com"
-      extract: "TODO: extraction mode"
+      extract: links  # TODO: change this value
       timeout: 15
 
   # TODO: Extract specific HTML elements using a CSS selector
@@ -963,8 +963,8 @@ tasks:
   - id: get_headings
     fetch:
       url: "https://httpbin.org/html"
-      extract: "TODO: extraction mode"
-      selector: "TODO: CSS selector (e.g. h1, p)"
+      extract: selector  # TODO: change this value
+      selector: "h1"  # TODO: change this value
       timeout: 15
 "##;
 
@@ -1026,22 +1026,22 @@ tasks:
   - id: json_query
     fetch:
       url: "https://api.github.com"
-      extract: "TODO: extraction mode"
-      selector: "TODO: JSONPath expression (e.g. $.current_user_url)"
+      extract: jsonpath  # TODO: change this value
+      selector: "$.current_user_url"  # TODO: change this value
       timeout: 10
 
   # TODO: Parse an RSS feed into structured data
   - id: rss_feed
     fetch:
       url: "https://blog.rust-lang.org/feed.xml"
-      extract: "TODO: extraction mode"
+      extract: feed  # TODO: change this value
       timeout: 15
 
   # TODO: Check for AI content discovery files (llm.txt)
   - id: llm_discovery
     fetch:
       url: "https://docs.anthropic.com"
-      extract: "TODO: extraction mode"
+      extract: llm_txt  # TODO: change this value
       timeout: 10
 "##;
 
@@ -1105,14 +1105,14 @@ tasks:
   - id: download_image
     fetch:
       url: "https://httpbin.org/image/png"
-      response: "TODO: response mode for binary download"
+      response: binary  # TODO: change this value
       timeout: 15
 
   # TODO: Get the full HTTP response including headers
   - id: inspect_headers
     fetch:
       url: "https://httpbin.org/headers"
-      response: "TODO: response mode for full response"
+      response: full  # TODO: change this value
       timeout: 10
 
   # Log both results
@@ -1295,9 +1295,9 @@ tasks:
         4. Complete with a summary of the project structure
       # TODO: Give the agent access to MCP servers
       # Hint: mcp: [filesystem]
-      mcp: "TODO: MCP server list"
+      mcp: [filesystem]  # TODO: change this value
       # TODO: Also include builtin tools
-      tools: "TODO: tool list"
+      tools: [builtin]  # TODO: change this value
       max_turns: 10
       max_tokens: 600
       token_budget: 5000
@@ -1500,9 +1500,9 @@ tasks:
     with:
       img: $download
     invoke:
-      tool: "TODO: nika tool for dimensions"
+      tool: "nika:dimensions"  # TODO: change this value
       params:
-        hash: "TODO: CAS hash reference (use {{with.img.hash}})"
+        hash: "{{with.img.hash}}"  # TODO: change this value
 
   # TODO: Generate a thumbhash placeholder
   - id: get_thumbhash
@@ -1510,9 +1510,9 @@ tasks:
     with:
       img: $download
     invoke:
-      tool: "TODO: nika tool for thumbhash"
+      tool: "nika:thumbhash"  # TODO: change this value
       params:
-        hash: "TODO: CAS hash reference"
+        hash: "{{with.img.hash}}"  # TODO: change this value
 
   # TODO: Extract dominant colors
   - id: get_colors
@@ -1520,9 +1520,9 @@ tasks:
     with:
       img: $download
     invoke:
-      tool: "TODO: nika tool for dominant colors"
+      tool: "nika:dominant_color"  # TODO: change this value
       params:
-        hash: "TODO: CAS hash reference"
+        hash: "{{with.img.hash}}"  # TODO: change this value
         count: 5
 "##;
 
@@ -1607,52 +1607,52 @@ tasks:
       timeout: 20
       retry:
         max_attempts: 2
-        delay_ms: 1000
-        backoff: 2.0
+        backoff_ms: 1000
+        multiplier: 2.0
 
-  # TODO: Create a 256px thumbnail
+  # TODO: Create a 256px thumbnail — change tool name and params
   - id: make_thumbnail
     depends_on: [download]
     with:
       photo: $download
     invoke:
-      tool: "TODO: nika tool for thumbnails"
+      tool: "nika:thumbnail"  # TODO: change this value
       params:
-        hash: "TODO: CAS hash"
-        width: "TODO: target width in pixels"
-        format: "TODO: output format (png|jpeg|webp)"
+        hash: "{{with.photo.hash}}"  # TODO: change this value
+        width: 256  # TODO: change this value
+        format: "jpeg"  # TODO: change this value (png|jpeg|webp)
 
-  # TODO: Convert the original to WebP format
+  # TODO: Convert the original to WebP format — change tool name and params
   - id: convert_webp
     depends_on: [download]
     with:
       photo: $download
     invoke:
-      tool: "TODO: nika tool for conversion"
+      tool: "nika:convert"  # TODO: change this value
       params:
-        hash: "TODO: CAS hash"
-        format: "TODO: target format"
+        hash: "{{with.photo.hash}}"  # TODO: change this value
+        format: "webp"  # TODO: change this value
 
-  # TODO: Convert to PNG first (optimize only works on PNG!)
+  # TODO: Convert to PNG first (optimize only works on PNG!) — change tool name and params
   - id: convert_png
     depends_on: [download]
     with:
       photo: $download
     invoke:
-      tool: "TODO: nika tool for conversion"
+      tool: "nika:convert"  # TODO: change this value
       params:
-        hash: "TODO: CAS hash"
-        format: "TODO: target format (png)"
+        hash: "{{with.photo.hash}}"  # TODO: change this value
+        format: "png"  # TODO: change this value
 
-  # TODO: Optimize the PNG losslessly
+  # TODO: Optimize the PNG losslessly — change tool name and params
   - id: optimize
     depends_on: [convert_png]
     with:
       png: $convert_png
     invoke:
-      tool: "TODO: nika tool for optimization"
+      tool: "nika:optimize"  # TODO: change this value
       params:
-        hash: "TODO: CAS hash from convert_png"
+        hash: "{{with.png.hash}}"  # TODO: change this value
         level: 3
 "##;
 
@@ -1670,8 +1670,8 @@ tasks:
       timeout: 20
       retry:
         max_attempts: 2
-        delay_ms: 1000
-        backoff: 2.0
+        backoff_ms: 1000
+        multiplier: 2.0
 
   - id: make_thumbnail
     depends_on: [download]
@@ -1873,11 +1873,11 @@ tasks:
     infer:
       # TODO: Use content: array with image + text parts
       content:
-        - type: "TODO: part type for image"
-          source: "TODO: CAS hash (use {{with.photo.hash}})"
-          detail: "TODO: detail level (low or high)"
-        - type: "TODO: part type for text"
-          text: "TODO: your prompt asking the LLM to describe the image"
+        - type: image  # TODO: change this value
+          source: "{{with.photo.hash}}"  # TODO: change this value
+          detail: high  # TODO: change this value (low or high)
+        - type: text  # TODO: change this value
+          text: "Describe this image in detail"  # TODO: change this value
       max_tokens: 500
 "##;
 
@@ -1947,25 +1947,25 @@ tasks:
   - id: scrape_metadata
     fetch:
       url: "https://github.com"
-      extract: "TODO: mode for SEO metadata (OG, Twitter, JSON-LD)"
+      extract: metadata  # TODO: change this — mode for SEO metadata (OG, Twitter, JSON-LD)
       timeout: 20
 
   - id: scrape_content
     fetch:
       url: "https://github.com"
-      extract: "TODO: mode for clean Markdown"
+      extract: markdown  # TODO: change this — mode for clean Markdown
       timeout: 20
 
   - id: scrape_links
     fetch:
       url: "https://github.com"
-      extract: "TODO: mode for link classification"
+      extract: links  # TODO: change this — mode for link classification
       timeout: 20
 
   - id: check_headers
     fetch:
       url: "https://github.com"
-      response: "TODO: mode for full HTTP response"
+      response: full  # TODO: change this — mode for full HTTP response
       timeout: 15
 
   # Phase 2: LLM Analysis (combines all scraped data)
@@ -2014,16 +2014,16 @@ tasks:
       token_budget: 10000
       # TODO: Add guardrails (length + regex for "roadmap")
       guardrails:
-        - type: "TODO"
-          min_words: "TODO"
+        - type: length  # TODO: change this
+          min_words: 100  # TODO: change this
           on_failure: retry
-        - type: "TODO"
-          pattern: "TODO"
-          message: "TODO"
+        - type: regex  # TODO: change this
+          pattern: "(?i)roadmap"  # TODO: change this — regex for "roadmap"
+          message: "Must include a roadmap section"  # TODO: change this
           on_failure: retry
       # TODO: Set completion mode
       completion:
-        mode: "TODO"
+        mode: explicit  # TODO: change this
 "##;
 
 const SUPERNOVAE_01_SOLUTION: &str = r##"# =============================================================================
@@ -2221,10 +2221,10 @@ tasks:
     infer:
       # TODO: Build content: array with image (chart) + text (analysis)
       content:
-        - type: "TODO: image part"
-          source: "TODO: chart CAS hash via {{with.chart_img.hash}}"
+        - type: image  # TODO: change this — image part
+          source: "{{with.chart_img.hash}}"  # TODO: change this — chart CAS hash
           detail: high
-        - type: "TODO: text part"
+        - type: text  # TODO: change this — text part
           text: |
             Analyze this image processing pipeline:
             Dimensions: {{with.dims}}
@@ -2401,11 +2401,11 @@ tasks:
       plan: $outline
     # TODO: Add for_each to iterate over outline sections
     # Hint: for_each: "$outline.sections"
-    for_each: "TODO: iterate over sections"
+    for_each: "$outline.sections"  # TODO: change this — iterate over sections
     # TODO: Name the loop variable
-    as: "TODO: loop variable name"
+    as: section  # TODO: change this — loop variable name
     # TODO: Set parallelism
-    concurrency: "TODO: number"
+    concurrency: 3  # TODO: change this — number of parallel tasks
     infer:
       prompt: |
         Write this section of a blog post about "{{inputs.topic}}":
@@ -2577,22 +2577,22 @@ tasks:
         4. Produce a research brief with 5 key insights
         5. Call nika_complete with your final research brief
       # TODO: Configure MCP access and tools
-      mcp: "TODO: MCP server list"
-      tools: "TODO: tool list"
+      mcp: [filesystem]  # TODO: change this — MCP server list
+      tools: [builtin]  # TODO: change this — tool list
       max_turns: 10
       max_tokens: 1500
       token_budget: 12000
       # TODO: Set completion mode
       completion:
-        mode: "TODO"
+        mode: explicit  # TODO: change this
       # TODO: Add guardrails (length + keyword check)
       guardrails:
-        - type: "TODO: length or regex?"
-          min_words: "TODO"
+        - type: length  # TODO: change this — length or regex?
+          min_words: 100  # TODO: change this
           on_failure: retry
-        - type: "TODO: length or regex?"
-          pattern: "TODO: regex to require 'insights' keyword"
-          message: "TODO: error message"
+        - type: regex  # TODO: change this — length or regex?
+          pattern: "(?i)insight"  # TODO: change this — regex to require 'insights' keyword
+          message: "Research brief must include insights"  # TODO: change this — error message
           on_failure: retry
 
   # Phase 3: Summary
@@ -2834,26 +2834,26 @@ tasks:
 
         Use nika_log for progress. Call nika_complete when done.
       # TODO: Give the agent MCP access
-      mcp: "TODO: MCP server list"
+      mcp: [filesystem]  # TODO: change this — MCP server list
       # TODO: Give the agent builtin tools
-      tools: "TODO: tool list"
+      tools: [builtin]  # TODO: change this — tool list
       # TODO: Set per-response token limit
-      max_tokens: "TODO"
+      max_tokens: 1500  # TODO: change this
       # TODO: Set completion mode
       completion:
-        mode: "TODO"
+        mode: explicit  # TODO: change this
       # TODO: Add guardrails
       guardrails:
-        - type: "TODO"
-          min_words: "TODO"
+        - type: length  # TODO: change this
+          min_words: 200  # TODO: change this
           on_failure: retry
       # TODO: Add limits block (turns, cost, duration, token budget)
       # This is the BOSS way to control agent resources.
       limits:
-        max_turns: "TODO"
-        max_tokens: "TODO: total token budget"
-        max_cost_usd: "TODO"
-        max_duration_secs: "TODO"
+        max_turns: 12  # TODO: change this
+        max_tokens: 15000  # TODO: change this — total token budget
+        max_cost_usd: 0.50  # TODO: change this
+        max_duration_secs: 120  # TODO: change this
 
   # Completion log (exec)
   - id: done

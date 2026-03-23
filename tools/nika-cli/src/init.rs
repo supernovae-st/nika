@@ -228,6 +228,9 @@ schema: "nika/workflow@0.12"
 workflow: helpers
 description: "Reusable helper workflows for common tasks"
 
+provider: claude
+model: claude-sonnet-4-6
+
 inputs:
   content: "Nika is a semantic YAML workflow engine for AI tasks."
   target_language: "French"
