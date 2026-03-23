@@ -17,17 +17,15 @@
 ## 1. The Problem
 
 Six closed labs control frontier AI. Chips cost $6 million per rack. LLM subscriptions
-run $20 to $200 a month. And even if you pay, you still need a software engineer to
-wire anything useful together.
+run $20 to $200 a month. And even if you pay, you still need a software engineer to wire anything useful together.
 
-**The result?** AI is powerful, but locked. Locked behind code, subscriptions, and
-vendor walls. The technology that should empower billions is gatekept by a handful
-of corporations and a priesthood of developers.
+**The result?** AI is powerful, but locked. Locked behind code, subscriptions, and vendor
+walls. The technology that should empower billions is gatekept by a handful of corporations.
 
 Meanwhile, the tools that promise to "democratize AI" charge you $49/month to run
-automations on *their* servers, with *their* limits, under *their* terms. They call
-it accessible. We call it a new middleman. Here's what real people hear when they
-ask "How do I use AI to automate my work?":
+automations on *their* servers, with *their* limits, under *their* terms. They call it
+accessible. We call it a new middleman. Here's what real people hear when they ask
+"How do I use AI to automate my work?":
 
 - **"Learn Python."** — 6 months minimum.
 - **"Use our platform."** — $49/mo, 1,000 runs, their cloud, their rules.
@@ -61,7 +59,6 @@ flowchart LR
 
 Electricity doesn't ask you to learn electrical engineering before you flip a switch.
 Water doesn't require a plumbing license before it flows from your tap.
-
 **AI should work the same way.**
 
 Write what you want in a plain text file. Describe the steps. Pick any AI. Press run.
@@ -116,9 +113,8 @@ tasks:
 
 Three steps. Two AI providers. Zero lines of code.
 
-> **That's the entire idea.** Describe your steps in a text file. Nika handles the
-> execution — parallel tasks, retries, error handling, streaming, cost tracking — so
-> you don't have to.
+> **That's the entire idea.** Describe steps in a text file. Nika handles execution —
+> parallel tasks, retries, error handling, streaming, cost tracking — so you don't have to.
 
 ### Five verbs. That's the whole language.
 
@@ -130,8 +126,8 @@ Three steps. Two AI providers. Zero lines of code.
 | `invoke:` | Call external tools via MCP protocol |
 | `agent:` | Launch an autonomous AI agent with guardrails |
 
-Five verbs to describe any automation you can imagine. From a 3-step summary to a
-50-task parallel pipeline processing hundreds of articles, images, and datasets.
+Five verbs to describe any automation. From a 3-step summary to a 50-task parallel
+pipeline processing hundreds of articles, images, and datasets.
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#3b82f6', 'primaryTextColor': '#f8fafc', 'primaryBorderColor': '#2563eb', 'secondaryColor': '#6366f1', 'tertiaryColor': '#0f172a', 'lineColor': '#64748b', 'textColor': '#e2e8f0', 'mainBkg': '#1e293b', 'nodeBorder': '#3b82f6'}}}%%
@@ -173,27 +169,23 @@ mindmap
 
 ## 4. Why Open Source
 
-Nika is licensed under **AGPL-3.0-or-later**. Not MIT. Not Apache. AGPL.
+Nika is licensed under **AGPL-3.0-or-later**. Not MIT. Not Apache. AGPL. Here's why.
 
-Here's why.
-
-MIT and Apache are gifts to corporations. They let Amazon, Google, and Microsoft
-take open-source projects, wrap them in a managed service, charge for access, and
-contribute nothing back. Redis, Elasticsearch, MongoDB — the pattern is always the
-same: community builds, corporation captures.
+MIT and Apache are gifts to corporations. They let Amazon, Google, and Microsoft take
+open-source projects, wrap them in a managed service, and contribute nothing back.
+Redis, Elasticsearch, MongoDB — the pattern: community builds, corporation captures.
 
 > **AGPL breaks that pattern.** If you modify Nika and run it as a service, you must
 > release your changes. The code stays free. The community stays in control.
 
-This is not anti-business. Commercial use is welcome. Selling services built *with*
-Nika is encouraged. But **selling Nika itself behind a paywall** without sharing
-improvements? That's exploitation, and the license prevents it.
+This is not anti-business. Commercial use is welcome. But **selling Nika itself
+behind a paywall** without sharing improvements? That's exploitation, and the
+license prevents it.
 
 ### The principles
 
 - **Multi-provider by design.** Claude, GPT, Mistral, Gemini, Groq, xAI, DeepSeek,
-  local GGUF models — Nika works with all of them. You choose. You switch.
-  No lock-in. Ever.
+  local GGUF — all of them. You choose. You switch. No lock-in. Ever.
 - **Your machine, your data.** Nika runs locally. Your files never touch our servers
   (we don't have servers). Your API keys stay in your OS keychain.
 - **Community-owned.** No VC exit strategy. No "open core" bait-and-switch. The full
@@ -205,11 +197,9 @@ improvements? That's exploitation, and the license prevents it.
 
 > **Performance is not a luxury. Performance is freedom.**
 
-If your AI automation tool needs 2 GB of RAM, it won't run on a $200 laptop. If it
-takes 8 seconds to start, it won't run in a CI pipeline. If it requires a Python
-runtime, it won't run on a bare server without setup.
-
-Nika is a single Rust binary. No runtime. No dependencies. No Docker required.
+If your tool needs 2 GB of RAM, it won't run on a $200 laptop. If it takes 8 seconds
+to start, it won't run in a CI pipeline. If it requires Python, it won't run on a bare
+server without setup. Nika is a single Rust binary. No runtime. No dependencies. No Docker.
 
 | Metric | **Nika** | Python equivalent |
 |--------|------|-------------------|
@@ -219,8 +209,7 @@ Nika is a single Rust binary. No runtime. No dependencies. No Docker required.
 | Dependencies | **0** (single binary) | pip install, venv, Docker... |
 | Install | **Download and run** | `pip install`, `venv`, `requirements.txt`, pray |
 
-A Raspberry Pi can run Nika. A GitHub Action can run Nika. A $5/month VPS can run
-Nika. A ten-year-old laptop can run Nika.
+A Raspberry Pi can run Nika. A GitHub Action can run Nika. A $5/month VPS can run Nika.
 
 > **When your tool is lightweight, it goes everywhere.** That's not optimization for
 > optimization's sake. That's reach. That's access. That's the mission.
@@ -230,7 +219,6 @@ Nika. A ten-year-old laptop can run Nika.
 ## 6. The Numbers
 
 Real benchmarks. Real tasks. No cherry-picking.
-
 ### RAM usage — "Summarize 10 web pages" task
 
 | Tool | **Peak RAM** | **Cold start** | **Lines of config** |
@@ -274,38 +262,37 @@ xychart-beta
 
 ### Where your money goes
 
-| Solution | **Monthly cost** | What you get |
-|----------|-----------------|--------------|
-| Zapier | **$49/mo** | 750 tasks, their cloud, their limits |
-| ChatGPT Plus | **$20/mo** | Manual only, no automation |
-| LangChain hosting | **$30+/mo** | Python server, your maintenance |
-| **Nika** | **$0** | Unlimited runs, your machine, your rules |
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#3b82f6', 'primaryTextColor': '#f8fafc', 'primaryBorderColor': '#2563eb', 'secondaryColor': '#6366f1', 'tertiaryColor': '#0f172a', 'lineColor': '#64748b', 'textColor': '#e2e8f0', 'mainBkg': '#1e293b', 'nodeBorder': '#3b82f6'}}}%%
+pie title Monthly Cost of AI Automation
+    "Zapier" : 49
+    "LangChain hosting" : 30
+    "ChatGPT Plus" : 20
+    "Nika" : 0
+```
 
-> You pay for the AI tokens you use. Everything else is free. Forever.
+> Zapier: **$49/mo**. ChatGPT Plus: **$20/mo**. LangChain hosting: **$30+/mo**.
+> Nika: **$0**. You pay for the AI tokens you use. Everything else is free. Forever.
 
 ---
 
 ## 7. The Name
 
 In an old legend, there is a warrior who goes from place to place — not conquering,
-not ruling, but **liberating**. Freeing the oppressed. Not with weapons. Not with
-force. With joy. With a smile.
+not ruling, but **liberating**. Not with weapons. Not with force. With joy.
 
 > **The people called this warrior Nika.**
 
 We chose this name because that's what this tool is for. Not to conquer a market.
 Not to build an empire. To **liberate** — AI from the labs, automation from the
-coders, power from the platforms.
+coders, power from the platforms. The butterfly 🦋 is the symbol.
 
-The butterfly is the symbol. 🦋
-
-A butterfly is fragile, beautiful, and free. It goes where it wants. It transforms
-completely — from something earthbound to something that flies. And a single
-butterfly can start a storm on the other side of the world.
+A butterfly is fragile, beautiful, and free. It transforms completely — from
+something earthbound to something that flies. And a single butterfly can start a
+storm on the other side of the world.
 
 Nika is a butterfly. Small. Light. Free. And when enough people use it, when enough
-people stop paying for permission to use AI, when enough people realize that a
-10-line text file can do what a $49/month platform does —
+people realize that a 10-line text file can do what a $49/month platform does —
 
 > **That's a storm.**
 
@@ -321,18 +308,15 @@ Nika is not a product. It's a movement.
 - File an issue when something breaks. We fix fast.
 
 **If you're a developer** and this resonates:
-- Read [CONTRIBUTING.md](CONTRIBUTING.md). The codebase is clean and documented.
-- Pick an issue. Ship a PR. Every contribution matters.
+- Read [CONTRIBUTING.md](CONTRIBUTING.md). Pick an issue. Ship a PR.
 - Build a plugin, a tool, an integration. The MCP ecosystem is wide open.
 
 **If you're a company** and you want to use Nika:
-- Go ahead. AGPL allows commercial use. Build on top of it.
-- If you improve the engine, share it back. That's the deal. That's how we all win.
+- Go ahead. AGPL allows commercial use. Improve the engine, share it back.
 
 **If you're one of the six labs** and you're reading this:
-- Make your APIs cheaper. Make them more open. Compete on quality, not lock-in.
+- Make your APIs cheaper. Compete on quality, not lock-in.
 - We're going to make it trivially easy for users to switch between you.
-  May the best model win.
 
 ---
 
