@@ -116,7 +116,7 @@ pub fn validate_templates(
                         code_description: None,
                         source: Some("nika".to_string()),
                         message: format!(
-                            "Undefined template binding '{{{{use.{}}}}}'\n\n{}",
+                            "Undefined template binding '{{{{with.{}}}}}'\n\n{}",
                             template_ref.alias, suggestion
                         ),
                         related_information: None,
@@ -343,9 +343,9 @@ tasks:
   - id: step1
     infer: "Generate filename"
   - id: step2
-    use:
-      filename: step1
-    exec: "cat {{use.wrong_name}}"
+    with:
+      filename: $step1
+    exec: "cat {{with.wrong_name}}"
 "#;
         let diagnostics = validate_yaml(content);
         assert_eq!(diagnostics.len(), 1);
@@ -354,15 +354,15 @@ tasks:
 
     #[test]
     fn test_extract_refs_with_positions() {
-        let text = "Hello {{use.foo}} world {{use.bar.baz}}";
+        let text = "Hello {{with.foo}} world {{with.bar.baz}}";
         let refs = extract_refs_with_positions(text);
 
         assert_eq!(refs.len(), 2);
         assert_eq!(refs[0].alias, "foo");
         assert_eq!(refs[0].start, 6);
-        assert_eq!(refs[0].end, 17);
+        assert_eq!(refs[0].end, 18);
         assert_eq!(refs[1].alias, "bar");
-        assert_eq!(refs[1].start, 24);
-        assert_eq!(refs[1].end, 39);
+        assert_eq!(refs[1].start, 25);
+        assert_eq!(refs[1].end, 41);
     }
 }
