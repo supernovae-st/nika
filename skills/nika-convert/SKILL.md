@@ -56,14 +56,18 @@ workflow: build-and-test
 
 tasks:
   - id: test
-    exec: "npm install && npm test"
+    exec:
+      command: "npm install && npm test"
+      shell: true
 
   - id: lint
     exec: "npm run lint"
 
   - id: deploy
     depends_on: [test, lint]
-    exec: "npm run build && npm run deploy"
+    exec:
+      command: "npm run build && npm run deploy"
+      shell: true
 ```
 
 ### Mapping Reference
@@ -238,9 +242,11 @@ tasks:
   - id: test
     for_each: ["16", "18", "20"]
     as: node_version
-    exec: |
-      nvm use {{with.node_version}}
-      npm test
+    exec:
+      command: |
+        nvm use {{with.node_version}}
+        npm test
+      shell: true
 ```
 
 ## Conversion Checklist

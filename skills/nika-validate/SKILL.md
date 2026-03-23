@@ -24,19 +24,18 @@ nika check .                          # Validate all .nika.yaml in directory
 
 | Code | Error | Fix |
 |------|-------|-----|
-| NIKA-001 | Missing tasks | Add `tasks:` key with task list |
-| NIKA-002 | Empty tasks list | Add at least one task to `tasks:` |
-| NIKA-003 | Missing task id | Add `id:` to the task |
-| NIKA-004 | Duplicate task id | Rename one of the duplicate ids |
-| NIKA-005 | Missing verb | Add one verb: `infer:`, `exec:`, `fetch:`, `invoke:`, or `agent:` |
-| NIKA-006 | Multiple verbs | Keep only ONE verb per task |
+| NIKA-001 | Failed to parse workflow | Fix YAML syntax errors in the workflow file |
+| NIKA-002 | Invalid schema version | Use `schema: nika/workflow@0.12` |
+| NIKA-003 | Workflow file not found | Check the file path exists |
+| NIKA-004 | Workflow validation failed | Read the detailed validation message |
+| NIKA-005 | Schema validation failed | Fix schema structure issues |
+| NIKA-006 | Could not determine home directory | Check home directory configuration |
 
 ### Schema Errors (010-019)
 
 | Code | Error | Fix |
 |------|-------|-----|
-| NIKA-010 | Invalid schema version | Use `schema: nika/workflow@0.12` |
-| NIKA-011 | Missing schema | Add `schema: nika/workflow@0.12` as first line |
+| NIKA-013 | Schema file not found | Check the schema file path |
 
 ### DAG Errors (020-029)
 
@@ -44,48 +43,69 @@ nika check .                          # Validate all .nika.yaml in directory
 |------|-------|-----|
 | NIKA-020 | Circular dependency | Remove cycle in `depends_on:` chain |
 | NIKA-021 | Missing dep reference | `depends_on:` references task id that does not exist |
-| NIKA-022 | Self-dependency | Task cannot depend on itself |
+| NIKA-022 | Duplicate task ID | Rename one of the duplicate ids |
 
 ### Provider Errors (030-039)
 
 | Code | Error | Fix |
 |------|-------|-----|
-| NIKA-030 | Unknown provider | Use: claude, openai, mistral, groq, deepseek, gemini, xai, native, mock |
-| NIKA-031 | Missing API key | Set env var (e.g., `OPENAI_API_KEY`) |
+| NIKA-030 | Provider not supported | Use: claude, openai, mistral, groq, deepseek, gemini, xai, native, mock |
+| NIKA-031 | Provider API error | Check API key and provider availability |
+| NIKA-032 | Missing API key | Set env var (e.g., `OPENAI_API_KEY`) |
+| NIKA-033 | Model not found | Check the model name is valid for the provider |
 
 ### Template/Binding Errors (040-049)
 
 | Code | Error | Fix |
 |------|-------|-----|
-| NIKA-040 | Bad template syntax | Check `{{...}}` delimiters are balanced |
-| NIKA-041 | Undefined template var | Variable not in `with:`, `inputs:`, or `context:` |
+| NIKA-041 | Template resolution error | Check `{{...}}` delimiters, variable names, and binding sources |
+
+### Path/Security Errors (050-059)
+
+| Code | Error | Fix |
+|------|-------|-----|
+| NIKA-050 | Invalid path syntax | Check the path format |
+| NIKA-053 | Command blocked by security | Command is on the security blocklist |
 
 ### With Block Errors (070-089)
 
 | Code | Error | Fix |
 |------|-------|-----|
-| NIKA-070 | Bad with reference | `with:` value must start with `$` (e.g., `$task_id`) |
-| NIKA-071 | Missing with source | Referenced task does not exist |
+| NIKA-071 | Unknown alias in with: block | `with:` references an alias that does not exist |
+| NIKA-080 | Unknown task in with: reference | Referenced task id does not exist |
+
+### Execution Errors (090-099)
+
+| Code | Error | Fix |
+|------|-------|-----|
+| NIKA-090 | JSONPath unsupported | Check JSONPath expression syntax |
+| NIKA-093 | IO error | Check file paths and permissions |
+| NIKA-096 | Execution error | Catch-all runtime error; read the detailed message |
 
 ### MCP Errors (100-109)
 
 | Code | Error | Fix |
 |------|-------|-----|
-| NIKA-100 | MCP server not found | Define server in `mcp:` block or check it is running |
+| NIKA-100 | MCP server not declared | Define server in `mcp:` block |
 | NIKA-101 | MCP tool not found | Verify tool name exists on the MCP server |
 
 ### Agent Errors (110-119)
 
 | Code | Error | Fix |
 |------|-------|-----|
-| NIKA-110 | Agent missing prompt | Add `prompt:` inside `agent:` block |
-| NIKA-112 | Guardrail violation | Agent attempted a blocked action |
+| NIKA-110 | Agent error | Check agent configuration and prompt |
+| NIKA-113 | Agent validation error | Fix agent configuration issues |
+
+### Resilience Errors (120-129)
+
+| Code | Error | Fix |
+|------|-------|-----|
+| NIKA-121 | Timeout / resilience error | Increase `timeout:` or `max_attempts:` |
 
 ### Structured Output Errors (300-309)
 
 | Code | Error | Fix |
 |------|-------|-----|
-| NIKA-300 | Invalid JSON schema | Fix the `structured.schema:` definition |
 | NIKA-301 | Output validation failed | LLM output did not match schema; add `max_retries:` |
 
 ## Diagnostic Process
@@ -118,7 +138,7 @@ nika check workflow.nika.yaml
 ### Fix: Missing schema line
 
 ```yaml
-# BEFORE (NIKA-011)
+# BEFORE (NIKA-002)
 tasks:
   - id: hello
     exec: "echo hi"
@@ -150,7 +170,7 @@ tasks:
 ### Fix: Missing $ prefix in with:
 
 ```yaml
-# BEFORE (NIKA-070)
+# BEFORE (NIKA-071)
 with:
   data: step1
 
@@ -162,7 +182,7 @@ with:
 ### Fix: Two verbs on one task
 
 ```yaml
-# BEFORE (NIKA-006)
+# BEFORE (NIKA-004)
 - id: both
   exec: "echo data"
   infer: "summarize"
@@ -213,8 +233,9 @@ Some errors only appear at execution time:
 
 | Code | Error | Fix |
 |------|-------|-----|
-| NIKA-031 | Missing API key | Export the env var for the provider |
-| NIKA-050 | Command not found | Check `exec:` command exists on PATH |
-| NIKA-090 | IO error | Check file paths and permissions |
-| NIKA-091 | Execution timeout | Increase `timeout:` value (in seconds) |
-| NIKA-120 | Max retries exceeded | Increase `max_attempts:` or fix upstream error |
+| NIKA-032 | Missing API key | Export the env var for the provider |
+| NIKA-050 | Invalid path syntax | Check path format and command exists on PATH |
+| NIKA-053 | Command blocked | Command is on the security blocklist |
+| NIKA-093 | IO error | Check file paths and permissions |
+| NIKA-096 | Execution error | Read the detailed error message |
+| NIKA-121 | Timeout / resilience error | Increase `timeout:` or `max_attempts:` |

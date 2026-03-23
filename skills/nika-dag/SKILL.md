@@ -256,11 +256,11 @@ Put expensive tasks (LLM calls) in parallel branches:
 
 | Code | Error | Fix |
 |------|-------|-----|
-| NIKA-020 | Circular dependency | Break the cycle |
-| NIKA-021 | Missing dep reference | Fix task id in `depends_on:` |
-| NIKA-022 | Self-dependency | Task cannot depend on itself |
-| NIKA-070 | Bad with reference | Use `$` prefix in `with:` values |
-| NIKA-071 | Missing with source | Referenced task does not exist |
+| NIKA-020 | Cycle detected in DAG | Break the circular dependency |
+| NIKA-021 | Missing dependency | Fix task id in `depends_on:` — unknown task |
+| NIKA-022 | Duplicate task ID | Rename one of the duplicate ids |
+| NIKA-071 | Unknown alias in with: block | Use `$` prefix in `with:` values |
+| NIKA-080 | Unknown task in with: reference | Referenced task does not exist |
 
 ## Common Mistakes
 

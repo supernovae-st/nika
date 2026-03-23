@@ -41,31 +41,33 @@ nika run workflow.nika.yaml --trace t.ndjson  # With execution trace
 
 | Code | Meaning | Common Fix |
 |------|---------|------------|
-| NIKA-001 | Missing `tasks:` | Add tasks list |
-| NIKA-003 | Missing task `id:` | Add id to every task |
-| NIKA-004 | Duplicate task id | Rename duplicates |
-| NIKA-005 | Missing verb | Add infer/exec/fetch/invoke/agent |
-| NIKA-006 | Multiple verbs on task | Keep only one verb per task |
-| NIKA-010 | Bad schema version | Use `nika/workflow@0.12` |
+| NIKA-001 | Failed to parse workflow | Fix YAML syntax errors |
+| NIKA-002 | Invalid schema version | Use `nika/workflow@0.12` |
+| NIKA-003 | Workflow file not found | Check file path |
+| NIKA-004 | Workflow validation failed | Read detailed message |
+| NIKA-005 | Schema validation failed | Fix schema structure |
 | NIKA-020 | Circular dependency | Break the cycle |
 | NIKA-021 | Missing dep reference | Fix task id in depends_on |
-| NIKA-040 | Bad template `{{...}}` | Check balanced delimiters |
-| NIKA-070 | Bad with: reference | Add `$` prefix to task ref |
-| NIKA-071 | Missing with: source | Referenced task doesn't exist |
+| NIKA-022 | Duplicate task ID | Rename duplicates |
+| NIKA-041 | Template resolution error | Check `{{...}}` and binding sources |
+| NIKA-071 | Unknown alias in with: block | Add `$` prefix to task ref |
+| NIKA-080 | Unknown task in with: reference | Referenced task doesn't exist |
 
 ### Runtime Errors (only at `nika run`)
 
 | Code | Meaning | Common Fix |
 |------|---------|------------|
-| NIKA-031 | Missing API key | Export `PROVIDER_API_KEY` |
-| NIKA-050 | Command not found | Check PATH, install dependency |
-| NIKA-051 | Security violation | Command is blocklisted |
-| NIKA-090 | IO error | Check file path, permissions |
-| NIKA-091 | Timeout exceeded | Increase `timeout:` (in seconds) |
-| NIKA-100 | MCP server not found | Check `mcp:` config |
+| NIKA-031 | Provider API error | Check provider availability |
+| NIKA-032 | Missing API key | Export `PROVIDER_API_KEY` |
+| NIKA-033 | Model not found | Check model name for provider |
+| NIKA-050 | Invalid path syntax | Check PATH, install dependency |
+| NIKA-053 | Command blocked by security | Command is blocklisted |
+| NIKA-093 | IO error | Check file path, permissions |
+| NIKA-096 | Execution error | Read the detailed message |
+| NIKA-100 | MCP server not declared | Check `mcp:` config |
 | NIKA-101 | MCP tool not found | Verify tool name |
-| NIKA-112 | Guardrail violation | Agent used a blocked tool |
-| NIKA-120 | Max retries exceeded | Fix root cause or increase retries |
+| NIKA-110 | Agent error | Check agent config and prompt |
+| NIKA-121 | Timeout / resilience error | Increase `timeout:` or retries |
 | NIKA-301 | Structured output mismatch | Simplify schema, add retry |
 
 ## Debugging Techniques

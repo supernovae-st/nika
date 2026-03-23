@@ -12,7 +12,7 @@ schema: nika/workflow@0.12
 workflow: my-workflow           # Optional, defaults to filename
 description: "What this does"  # Optional
 provider: anthropic             # Default LLM provider
-model: claude-sonnet-4-6       # Default model
+model: claude-sonnet-4-20250514       # Default model
 
 mcp:                            # MCP server definitions (optional)
   server_name:

@@ -15,7 +15,7 @@ schema: nika/workflow@0.12
 workflow: optional-name
 description: "Optional description"
 provider: anthropic                  # Default LLM provider
-model: claude-sonnet-4-6          # Default model
+model: claude-sonnet-4-20250514          # Default model
 inputs:                              # Parameters with defaults
   key: "default_value"
 tasks:
@@ -75,11 +75,10 @@ Chain with `|` in `with:` bindings:
 
 ```yaml
 - id: process-batch
-  for_each:
-    items: $source_task
-    as: item
-    concurrency: 5
-    fail_fast: true
+  for_each: "$source_task"
+  as: item
+  concurrency: 5
+  fail_fast: true
   exec: "echo '{{item}}'"
 ```
 
@@ -133,4 +132,4 @@ mcp:
       API_KEY: "{{$env.API_KEY}}"
 ```
 
-Invoke with `tool: "server-name::tool_name"` or builtin `tool: "nika:import"`.
+Invoke with `tool: tool_name` + `mcp: server_name`, or builtin `tool: "nika:import"`.

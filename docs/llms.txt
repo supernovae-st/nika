@@ -7,11 +7,3 @@ Nika is a Rust CLI tool that executes `.nika.yaml` workflow files. Each workflow
 ## Documentation
 
 - [Quick Reference](llms-syntax.txt): Complete workflow syntax — verbs, fields, bindings, transforms
-- [Full Documentation](llms-full.txt): Comprehensive reference with examples and error codes
-- [Examples](llms-examples.txt): 30+ workflow patterns from simple to complex
-
-## Optional
-
-- [Media Tools](llms-media.txt): 26 builtin nika:* tools for image processing
-- [Error Codes](llms-errors.txt): NIKA-XXX error code reference
-- [MCP Integration](llms-mcp.txt): Connecting to MCP servers via invoke: verb

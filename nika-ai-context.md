@@ -9,7 +9,7 @@ schema: nika/workflow@0.12        # Required. Always use @0.12
 workflow: my-workflow              # Optional. Defaults to filename
 description: "What this does"     # Optional
 provider: anthropic               # Default LLM provider
-model: claude-sonnet-4-6        # Default model
+model: claude-sonnet-4-20250514        # Default model
 
 inputs:                            # Workflow parameters with defaults
   name: "world"
@@ -53,7 +53,7 @@ Every task uses exactly one verb.
 
 ```yaml
 - id: summarize
-  model: claude-sonnet-4-6
+  model: claude-sonnet-4-20250514
   infer:
     prompt: "Summarize: {{with.text}}"
     system: "You are a concise summarizer"
@@ -118,7 +118,8 @@ Extract modes: `markdown`, `article`, `text`, `selector`, `metadata`, `links`, `
 ```yaml
 - id: search
   invoke:
-    tool: "server-name::tool_name"  # server::tool format
+    tool: tool_name                  # Tool name
+    mcp: server_name                 # MCP server name (from mcp: block)
     params:
       query: "{{with.search_term}}"
     timeout: 30                     # seconds
@@ -139,7 +140,7 @@ Builtin tools use `nika:` prefix: `nika:import`, `nika:thumbnail`, `nika:chart`,
     max_turns: 20
     max_tokens: 4096
     temperature: 0.7
-    model: claude-sonnet-4-6
+    model: claude-sonnet-4-20250514
     provider: anthropic
     mcp: [novanet]                  # MCP servers to expose
     tool_choice: auto               # auto | required | none
@@ -180,11 +181,10 @@ Fields available on any task (all verbs):
   depends_on: [task_a, task_b]      # Ordering-only dependencies
 
   # Iteration
-  for_each:
-    items: $list_task               # Array to iterate over
-    as: item                        # Loop variable (default: "item")
-    concurrency: 5                  # Max parallel iterations
-    fail_fast: true                 # Stop on first error
+  for_each: "$list_task"            # Array to iterate over
+  as: item                          # Loop variable (default: "item")
+  concurrency: 5                    # Max parallel iterations
+  fail_fast: true                   # Stop on first error
 
   # Output
   output:
@@ -312,10 +312,9 @@ tasks:
     output: { format: json }
   - id: scrape
     depends_on: [get-urls]
-    for_each:
-      items: $get-urls
-      as: url
-      concurrency: 3
+    for_each: "$get-urls"
+    as: url
+    concurrency: 3
     fetch:
       url: "{{item}}"
       extract: markdown
@@ -331,7 +330,7 @@ tasks:
 | Using `depends_on` for data | Use `with:` for data flow, `depends_on:` for ordering only |
 | `timeout: 30` (ambiguous) | `timeout: 30` means 30 seconds (not ms) |
 | Circular `with:` references | DAG must be acyclic |
-| `for_each: [a, b, c]` at task level | `for_each: { items: ... }` or shorthand list at task level |
+| `for_each: { items: $src, as: x }` | `for_each: "$src"` + `as: x` as flat siblings at task level |
 | `invoke: tool_name` without MCP | Configure `mcp:` block or use `nika:` builtins |
 | Missing `shell: true` for pipes | `exec: { command: "cmd1 | cmd2", shell: true }` |
 

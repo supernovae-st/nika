@@ -147,16 +147,16 @@ Common NIKA error codes during creation:
 
 | Code | Issue | Fix |
 |------|-------|-----|
-| NIKA-010 | Missing/bad schema | Add `schema: nika/workflow@0.12` |
-| NIKA-001 | Missing tasks | Add `tasks:` list |
-| NIKA-002 | Empty tasks list | Add at least one task |
-| NIKA-003 | Missing task id | Every task needs `id:` |
-| NIKA-004 | Duplicate task id | Each id must be unique |
-| NIKA-005 | Missing verb | Each task needs exactly one verb |
+| NIKA-001 | Failed to parse workflow | Fix YAML syntax errors |
+| NIKA-002 | Invalid schema version | Add `schema: nika/workflow@0.12` |
+| NIKA-004 | Workflow validation failed | Read the detailed validation message |
+| NIKA-005 | Schema validation failed | Fix schema structure issues |
 | NIKA-020 | Circular dependency | Check `depends_on:` for cycles |
 | NIKA-021 | Missing dep reference | `depends_on:` references nonexistent task |
-| NIKA-040 | Bad template syntax | Check `{{...}}` delimiters |
-| NIKA-070 | Bad with reference | `with:` value needs `$` prefix |
+| NIKA-022 | Duplicate task ID | Each id must be unique |
+| NIKA-041 | Template resolution error | Check `{{...}}` delimiters and binding sources |
+| NIKA-071 | Unknown alias in with: block | `with:` value needs `$` prefix |
+| NIKA-080 | Unknown task in with: reference | Referenced task id does not exist |
 
 ## Common Mistakes to Avoid
 

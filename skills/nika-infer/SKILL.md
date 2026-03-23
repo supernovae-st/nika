@@ -27,11 +27,11 @@ The `infer:` verb sends a prompt to an LLM and returns the generated text.
 - id: ask
   infer:
     prompt: "Explain quantum computing"
-  system: "You are a physics professor"
+    system: "You are a physics professor"
+    temperature: 0.3
+    max_tokens: 500
   provider: openai
   model: gpt-4.1
-  temperature: 0.3
-  max_tokens: 500
 ```
 
 ### Vision / Multimodal

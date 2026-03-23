@@ -13,7 +13,7 @@ Nika is a semantic YAML workflow engine for AI tasks. Schema: `nika/workflow@0.1
 schema: nika/workflow@0.12          # Required. Always @0.12
 workflow: my-workflow                # Optional identifier
 provider: anthropic                  # Default LLM provider
-model: claude-sonnet-4-6          # Default model
+model: claude-sonnet-4-20250514   # Default model
 inputs:                              # Parameters with defaults
   name: "world"
 tasks: []                            # Required. Task list
@@ -60,7 +60,8 @@ Shorthand: `exec: "echo hello"`
 ```yaml
 - id: search
   invoke:
-    tool: "server::tool_name"
+    tool: tool_name
+    mcp: server_name
     params: { query: "{{with.q}}" }
 ```
 Builtins: `nika:import`, `nika:thumbnail`, `nika:chart`, `nika:metadata`, etc.
@@ -107,11 +108,10 @@ Builtins: `nika:import`, `nika:thumbnail`, `nika:chart`, `nika:metadata`, etc.
 
 ```yaml
 - id: batch
-  for_each:
-    items: $list_task
-    as: item
-    concurrency: 5
-    fail_fast: true
+  for_each: "$list_task"
+  as: item
+  concurrency: 5
+  fail_fast: true
   exec: "echo '{{item}}'"
 ```
 
@@ -124,7 +124,8 @@ Builtins: `nika:import`, `nika:thumbnail`, `nika:chart`, `nika:metadata`, etc.
   model: gpt-4o                      # Override workflow default
   with: { alias: $task_id }          # Data bindings
   depends_on: [task_a]               # Ordering-only deps
-  for_each: { items: $src, as: x }   # Iteration
+  for_each: "$src"                    # Iteration
+  as: x
   retry: { max_attempts: 3, delay_ms: 1000, backoff: 2.0 }
   output: { format: json }           # text | json | yaml
   artifact: { path: out.json }       # Persist output to file

@@ -125,7 +125,7 @@ tasks: []                      # Required: list of tasks
 - id: run
   exec:
     command: "ls -la"
-    shell: true                # Use shell (default: true)
+    shell: true                # Use shell (default: false)
     cwd: ./subdir              # Working directory
     env:
       MY_VAR: value

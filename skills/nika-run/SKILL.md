@@ -66,7 +66,7 @@ If tasks define `artifact:`, output files appear in the artifacts directory:
 ### Provider / API Key Issues
 
 ```
-NIKA-031: Missing API key for provider 'openai'
+NIKA-032: Missing API key for provider 'openai'
 ```
 
 Fix: Export the required environment variable:
@@ -83,7 +83,7 @@ export XAI_API_KEY="xai-..."
 ### Timeout Issues
 
 ```
-NIKA-091: Task 'slow_task' timed out after 30s
+NIKA-121: Task 'slow_task' timed out after 30s
 ```
 
 Fix: Increase timeout in the task:
@@ -97,7 +97,7 @@ Fix: Increase timeout in the task:
 ### Exec Command Not Found
 
 ```
-NIKA-050: Command 'jq' not found
+NIKA-050: Invalid path syntax — Command 'jq' not found
 ```
 
 Fix: Install the command or use a different approach:
@@ -108,7 +108,7 @@ which jq || brew install jq
 ### Binding Resolution Failures
 
 ```
-NIKA-041: Undefined template variable 'with.data'
+NIKA-041: Template resolution error — 'with.data' not found
 ```
 
 Fix: Ensure the `with:` block defines the alias:

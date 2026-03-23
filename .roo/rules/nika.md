@@ -14,7 +14,7 @@ Nika is a semantic YAML workflow engine for AI tasks. Schema: `nika/workflow@0.1
 schema: nika/workflow@0.12          # Required. Always @0.12
 workflow: my-workflow                # Optional identifier
 provider: anthropic                  # Default LLM provider
-model: claude-sonnet-4-6          # Default model
+model: claude-sonnet-4-20250514   # Default model
 inputs:                              # Parameters with defaults
   name: "world"
 mcp:                                 # MCP server configuration
@@ -67,7 +67,8 @@ Extract modes: `markdown`, `article`, `text`, `selector`, `metadata`, `links`, `
 ```yaml
 - id: search
   invoke:
-    tool: "server::tool_name"
+    tool: tool_name
+    mcp: server_name
     params: { query: "{{with.q}}" }
 ```
 Builtins use `nika:` prefix: `nika:import`, `nika:thumbnail`, `nika:chart`, etc.
@@ -117,11 +118,10 @@ Builtins use `nika:` prefix: `nika:import`, `nika:thumbnail`, `nika:chart`, etc.
 
 ```yaml
 - id: batch
-  for_each:
-    items: $list_task
-    as: item
-    concurrency: 5
-    fail_fast: true
+  for_each: "$list_task"
+  as: item
+  concurrency: 5
+  fail_fast: true
   exec: "echo '{{item}}'"
 ```
 
@@ -135,7 +135,7 @@ Builtins use `nika:` prefix: `nika:import`, `nika:thumbnail`, `nika:chart`, etc.
 schema: nika/workflow@0.12
 workflow: content-pipeline
 provider: anthropic
-model: claude-sonnet-4-6
+model: claude-sonnet-4-20250514
 
 inputs:
   url: "https://example.com/article"
