@@ -18,10 +18,12 @@ use nika_engine::tools::PermissionMode;
 /// - `context/` with context files for workflows
 /// - `schemas/` with JSON schemas for output validation
 /// - `output/` for generated workflow outputs
-pub fn init_project(
+pub async fn init_project(
     permission: &str,
     no_example: bool,
     migrate_keys: bool,
+    setup_editors: bool,
+    setup_ai: bool,
 ) -> Result<(), NikaError> {
     let cwd = std::env::current_dir()?;
     let nika_dir = cwd.join(".nika");
@@ -556,6 +558,25 @@ network:
 
     // Generate AI integration files (AGENTS.md, per-tool rules, git hook)
     crate::init_ai::generate_ai_files(&cwd)?;
+
+    // Run editor/AI setup if requested by the wizard
+    if setup_editors {
+        if let Err(e) = crate::setup::handle_setup_command(
+            Some(crate::setup::SetupAction::Editors),
+        )
+        .await
+        {
+            eprintln!("  {} Editor setup: {}", "\u{26a0}".yellow(), e);
+        }
+    }
+
+    if setup_ai {
+        if let Err(e) =
+            crate::setup::handle_setup_command(Some(crate::setup::SetupAction::Ai)).await
+        {
+            eprintln!("  {} AI setup: {}", "\u{26a0}".yellow(), e);
+        }
+    }
 
     Ok(())
 }

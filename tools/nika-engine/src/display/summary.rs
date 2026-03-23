@@ -114,7 +114,7 @@ pub fn print_doctor_header(version: &str) {
     println!();
 }
 
-/// Print the doctor summary with colored counts and a separator.
+/// Print the doctor summary with colored counts, separator, and optional next steps.
 pub fn print_doctor_summary(pass_count: usize, warn_count: usize, fail_count: usize) {
     println!();
     println!("{}", HORIZONTAL.repeat(50).dimmed());
@@ -143,5 +143,26 @@ pub fn print_doctor_summary(pass_count: usize, warn_count: usize, fail_count: us
         warn_count.to_string().yellow(),
         fail_count.to_string().red()
     );
+
+    if warn_count > 0 || fail_count > 0 {
+        println!();
+        println!("  {}", "Recommended order:".bold());
+        println!(
+            "    {} {} initialize project",
+            "1.".bold(),
+            "nika init".cyan()
+        );
+        println!(
+            "    {} {} configure editors + AI tools",
+            "2.".bold(),
+            "nika setup".cyan()
+        );
+        println!(
+            "    {} {} verify everything works",
+            "3.".bold(),
+            "nika doctor".cyan()
+        );
+    }
+
     println!();
 }

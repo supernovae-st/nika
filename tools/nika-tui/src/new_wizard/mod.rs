@@ -308,12 +308,18 @@ tasks:
     }
 
     fn select_next(&mut self, max: usize) {
+        if max == 0 {
+            return;
+        }
         let current = self.selected_index();
         let next = if current >= max - 1 { 0 } else { current + 1 };
         self.list_state.select(Some(next));
     }
 
     fn select_prev(&mut self, max: usize) {
+        if max == 0 {
+            return;
+        }
         let current = self.selected_index();
         let prev = if current == 0 { max - 1 } else { current - 1 };
         self.list_state.select(Some(prev));

@@ -11,6 +11,7 @@ use crate::config::find_nika_dir;
 #[derive(Debug, Clone)]
 struct DiagnosticCheck {
     name: &'static str,
+    section: &'static str,
     status: DiagnosticStatus,
     message: String,
     suggestion: Option<String>,
@@ -27,6 +28,7 @@ impl DiagnosticCheck {
     fn pass(name: &'static str, message: impl Into<String>) -> Self {
         Self {
             name,
+            section: "",
             status: DiagnosticStatus::Pass,
             message: message.into(),
             suggestion: None,
@@ -36,6 +38,7 @@ impl DiagnosticCheck {
     fn warn(name: &'static str, message: impl Into<String>, suggestion: impl Into<String>) -> Self {
         Self {
             name,
+            section: "",
             status: DiagnosticStatus::Warn,
             message: message.into(),
             suggestion: Some(suggestion.into()),
@@ -45,10 +48,16 @@ impl DiagnosticCheck {
     fn fail(name: &'static str, message: impl Into<String>, suggestion: impl Into<String>) -> Self {
         Self {
             name,
+            section: "",
             status: DiagnosticStatus::Fail,
             message: message.into(),
             suggestion: Some(suggestion.into()),
         }
+    }
+
+    fn in_section(mut self, section: &'static str) -> Self {
+        self.section = section;
+        self
     }
 
     fn icon(&self) -> &'static str {
@@ -60,58 +69,42 @@ impl DiagnosticCheck {
     }
 }
 
+/// Helper to assign section to a vec of checks.
+fn with_section(checks: Vec<DiagnosticCheck>, section: &'static str) -> Vec<DiagnosticCheck> {
+    checks.into_iter().map(|c| c.in_section(section)).collect()
+}
+
 pub async fn handle_doctor_command(full: bool, format: &str, quiet: bool) -> Result<(), NikaError> {
     let mut checks: Vec<DiagnosticCheck> = vec![];
 
-    // 1. Check .nika directory + project structure
-    checks.extend(check_nika_directory());
+    // ─── Core ──────────────────────────────────────────────────────────────
+    checks.extend(with_section(check_nika_directory(), "Core"));
+    checks.push(check_config_file().in_section("Core"));
+    checks.extend(with_section(check_api_keys(), "Core"));
+    checks.push(
+        DiagnosticCheck::pass("Version", format!("nika {}", env!("CARGO_PKG_VERSION")))
+            .in_section("Core"),
+    );
+    checks.push(check_workflow_files().in_section("Core"));
 
-    // 2. Check config file
-    checks.push(check_config_file());
+    // ─── Editor & LSP ──────────────────────────────────────────────────────
+    checks.extend(with_section(check_lsp_available(), "Editor & LSP"));
+    checks.extend(with_section(check_editor_integration(), "Editor & LSP"));
 
-    // 3. Check API keys
-    checks.extend(check_api_keys());
+    // ─── AI Integration ────────────────────────────────────────────────────
+    checks.extend(with_section(check_ai_rules(), "AI Integration"));
+    checks.extend(with_section(check_agent_skills(), "AI Integration"));
+    checks.push(check_agents_md().in_section("AI Integration"));
 
-    // 4. Check trace directory + accumulation
-    checks.extend(check_trace_directory());
+    // ─── Environment ───────────────────────────────────────────────────────
+    checks.extend(with_section(check_trace_directory(), "Environment"));
+    checks.push(check_rust_version().in_section("Environment"));
+    checks.push(check_npx().in_section("Environment"));
+    checks.push(check_git_hook().in_section("Environment"));
 
-    // 5. Check Nika version
-    checks.push(DiagnosticCheck::pass(
-        "Version",
-        format!("nika {}", env!("CARGO_PKG_VERSION")),
-    ));
-
-    // 6. Check Rust version
-    checks.push(check_rust_version());
-
-    // 7. Check workflow files in project
-    checks.push(check_workflow_files());
-
-    // 8. Check npx for MCP
-    checks.push(check_npx());
-
-    // 9. Full mode: Check MCP connectivity (slow)
     if full {
-        checks.push(check_mcp_connectivity().await);
+        checks.extend(with_section(check_mcp_connectivity().await, "Environment"));
     }
-
-    // 10. Check LSP availability (compiled-in feature)
-    checks.push(check_lsp_available());
-
-    // 11. Check editor integration (VS Code + extension)
-    checks.extend(check_editor_integration());
-
-    // 12. Check AI coding tool rules
-    checks.extend(check_ai_rules());
-
-    // 13. Check Agent Skills
-    checks.push(check_agent_skills());
-
-    // 14. Check AGENTS.md
-    checks.push(check_agents_md());
-
-    // 15. Check git co-author hook
-    checks.push(check_git_hook());
 
     // Output results
     if format == "json" {
@@ -461,31 +454,191 @@ fn check_npx() -> DiagnosticCheck {
     }
 }
 
-async fn check_mcp_connectivity() -> DiagnosticCheck {
-    // This is a placeholder - in a real implementation, we'd try to connect
-    // to configured MCP servers from the config file
-    DiagnosticCheck::pass(
-        "MCP",
-        "MCP connectivity check (requires configured servers)",
-    )
+// ─── Task 4: Real MCP check ───────────────────────────────────────────────────
+
+async fn check_mcp_connectivity() -> Vec<DiagnosticCheck> {
+    let mut checks = vec![];
+
+    // Step 1: Check if npx is available (needed for most MCP servers)
+    let has_npx = std::process::Command::new("npx")
+        .arg("--version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+
+    if !has_npx {
+        checks.push(DiagnosticCheck::warn(
+            "MCP",
+            "npx not available (most MCP servers require it)",
+            "Install Node.js: https://nodejs.org",
+        ));
+    }
+
+    // Step 2: Check if any .nika.yaml files reference mcp:
+    let has_mcp_workflows = find_mcp_workflows();
+
+    match has_mcp_workflows {
+        McpWorkflowStatus::Found(count) => {
+            checks.push(DiagnosticCheck::pass(
+                "MCP",
+                format!("{count} workflow(s) use MCP (invoke: with mcp: config)"),
+            ));
+
+            // Step 3: Check MCP config in .nika/config.toml
+            if let Ok(nika_dir) = find_nika_dir() {
+                let config_path = nika_dir.join("config.toml");
+                if config_path.exists() {
+                    if let Ok(content) = fs::read_to_string(&config_path) {
+                        if content.contains("[mcp]") || content.contains("mcp.") {
+                            checks.push(DiagnosticCheck::pass(
+                                "MCP",
+                                "MCP configuration found in config.toml",
+                            ));
+                        } else {
+                            checks.push(DiagnosticCheck::warn(
+                                "MCP",
+                                "Workflows use MCP but no [mcp] section in config.toml",
+                                "Add MCP server config to .nika/config.toml",
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+        McpWorkflowStatus::None => {
+            checks.push(DiagnosticCheck::pass(
+                "MCP",
+                "No workflows use MCP (no connectivity needed)",
+            ));
+        }
+        McpWorkflowStatus::NoWorkflows => {
+            checks.push(DiagnosticCheck::pass(
+                "MCP",
+                "No workflow files found to check for MCP usage",
+            ));
+        }
+    }
+
+    if checks.is_empty() {
+        checks.push(DiagnosticCheck::pass(
+            "MCP",
+            "MCP readiness check complete",
+        ));
+    }
+
+    checks
 }
 
-fn check_lsp_available() -> DiagnosticCheck {
-    if cfg!(feature = "lsp") {
-        DiagnosticCheck::pass("LSP", "Language server compiled in (nika lsp)")
-    } else {
-        DiagnosticCheck::warn(
-            "LSP",
-            "Language server not available (compiled without lsp feature)",
-            "Reinstall with: cargo install nika --features lsp, or: brew reinstall nika",
-        )
+enum McpWorkflowStatus {
+    Found(usize),
+    None,
+    NoWorkflows,
+}
+
+/// Scan workflow files for `mcp:` references.
+fn find_mcp_workflows() -> McpWorkflowStatus {
+    let mut total_workflows = 0usize;
+    let mut mcp_count = 0usize;
+
+    let dirs_to_scan: &[&str] = &[".", "workflows", "examples", ".nika/workflows"];
+
+    for dir in dirs_to_scan {
+        if let Ok(entries) = fs::read_dir(dir) {
+            for entry in entries.filter_map(|e| e.ok()) {
+                let name = entry.file_name();
+                let name_str = name.to_string_lossy();
+                if name_str.ends_with(".nika.yaml") {
+                    total_workflows += 1;
+                    if let Ok(content) = fs::read_to_string(entry.path()) {
+                        // Look for mcp: key (as YAML key, not in comments)
+                        if content.lines().any(|line| {
+                            let trimmed = line.trim();
+                            trimmed.starts_with("mcp:") || trimmed.starts_with("invoke:")
+                        }) {
+                            mcp_count += 1;
+                        }
+                    }
+                }
+            }
+        }
     }
+
+    if total_workflows == 0 {
+        McpWorkflowStatus::NoWorkflows
+    } else if mcp_count > 0 {
+        McpWorkflowStatus::Found(mcp_count)
+    } else {
+        McpWorkflowStatus::None
+    }
+}
+
+// ─── Task 3: Real LSP check ───────────────────────────────────────────────────
+
+fn check_lsp_available() -> Vec<DiagnosticCheck> {
+    let mut checks = vec![];
+
+    // Step 1: Check if compiled with LSP feature
+    if !cfg!(feature = "lsp") {
+        checks.push(DiagnosticCheck::fail(
+            "LSP",
+            "Language server not compiled (missing lsp feature)",
+            "Reinstall with: cargo install nika --features lsp, or: brew reinstall nika",
+        ));
+        return checks;
+    }
+
+    // Step 2: Check if nika binary is in PATH
+    match which::which("nika") {
+        Ok(path) => {
+            checks.push(DiagnosticCheck::pass(
+                "LSP",
+                format!("nika binary in PATH ({})", path.display()),
+            ));
+        }
+        Err(_) => {
+            checks.push(DiagnosticCheck::fail(
+                "LSP",
+                "nika binary not found in PATH",
+                "Add nika to PATH for editor LSP integration",
+            ));
+            return checks;
+        }
+    }
+
+    // Step 3: Probe nika lsp --help
+    match std::process::Command::new("nika")
+        .args(["lsp", "--help"])
+        .output()
+    {
+        Ok(output) if output.status.success() => {
+            checks.push(DiagnosticCheck::pass(
+                "LSP",
+                "Language server responds (nika lsp --help OK)",
+            ));
+        }
+        Ok(_) => {
+            checks.push(DiagnosticCheck::warn(
+                "LSP",
+                "nika lsp --help returned error",
+                "LSP may not be compiled in the installed binary. Reinstall with --features lsp",
+            ));
+        }
+        Err(e) => {
+            checks.push(DiagnosticCheck::warn(
+                "LSP",
+                format!("Cannot probe LSP: {e}"),
+                "Ensure nika is correctly installed",
+            ));
+        }
+    }
+
+    checks
 }
 
 fn check_editor_integration() -> Vec<DiagnosticCheck> {
     let mut checks = vec![];
 
-    // Detect VS Code (or common forks) — check PATH and platform-specific locations
+    // Detect VS Code (or common forks) -- check PATH and platform-specific locations
     // (binary_path, short_cmd_for_suggestions, display_name)
     let editors: Vec<(String, &str, &str)> = {
         let mut v: Vec<(String, &str, &str)> = vec![
@@ -577,12 +730,13 @@ fn check_editor_integration() -> Vec<DiagnosticCheck> {
     checks
 }
 
-// ─── AI Integration Checks ────────────────────────────────────────────────────
+// ─── Task 2: AI Integration Checks with scope labels ──────────────────────────
 
 fn check_ai_rules() -> Vec<DiagnosticCheck> {
     let mut checks = vec![];
+    let home = dirs::home_dir().unwrap_or_default();
 
-    // Project-relative rules
+    // ─── Project-level rules [project] ─────────────────────────────────────
     let project_rules: &[(&str, &str)] = &[
         ("Cursor", ".cursor/rules/nika-workflows.mdc"),
         ("Copilot", ".github/copilot/nika.instructions.md"),
@@ -590,63 +744,105 @@ fn check_ai_rules() -> Vec<DiagnosticCheck> {
         ("Roo Code", ".roo/rules/nika.md"),
     ];
 
+    let mut has_project_rules = false;
     for (tool, path) in project_rules {
         if std::path::Path::new(path).exists() {
             checks.push(DiagnosticCheck::pass(
                 "AI Rules",
-                format!("{tool} rules present ({path})"),
+                format!("[project] {tool} rules present ({path})"),
             ));
+            has_project_rules = true;
         }
         // Only warn if the tool is detected (don't warn for tools not installed)
     }
 
+    // ─── User-level rules [user] ───────────────────────────────────────────
+
     // Claude Code: rules live at user-level ~/.claude/rules/
-    let home = dirs::home_dir().unwrap_or_default();
-    let claude_path = home.join(".claude/rules/nika.md");
-    if claude_path.exists() {
+    let claude_user_path = home.join(".claude/rules/nika.md");
+    let has_claude_binary = which::which("claude").is_ok();
+
+    if claude_user_path.exists() {
         checks.push(DiagnosticCheck::pass(
             "AI Rules",
-            format!("Claude Code rules present ({})", claude_path.display()),
+            format!("[user] Claude Code rules present ({})", claude_user_path.display()),
+        ));
+    } else if has_claude_binary {
+        // Claude Code is installed but no nika rules
+        checks.push(DiagnosticCheck::warn(
+            "AI Rules",
+            format!(
+                "[user] Claude Code detected but no rules at {}",
+                claude_user_path.display()
+            ),
+            "Run: nika setup ai to generate Claude Code rules",
         ));
     }
 
-    if checks.is_empty() {
+    // Cursor user-level rules
+    let cursor_user_path = home.join(".cursor/rules/nika.mdc");
+    if cursor_user_path.exists() {
+        checks.push(DiagnosticCheck::pass(
+            "AI Rules",
+            format!("[user] Cursor rules present ({})", cursor_user_path.display()),
+        ));
+    }
+
+    if checks.is_empty() && !has_project_rules {
         checks.push(DiagnosticCheck::warn(
             "AI Rules",
-            "No AI coding tool rules found",
-            "Run: nika init (select AI rules) to generate per-tool rules",
+            "No AI coding tool rules found (user or project)",
+            "Run: nika init (select AI rules) or: nika setup ai",
         ));
     }
 
     checks
 }
 
-fn check_agent_skills() -> DiagnosticCheck {
+fn check_agent_skills() -> Vec<DiagnosticCheck> {
+    let mut checks = vec![];
     let home = dirs::home_dir().unwrap_or_default();
 
-    // Check user-level skills
+    // Check user-level skills [user]
     let user_skills = home.join(".agents/skills");
     let has_user = user_skills.join("nika-workflow-syntax").exists()
         || user_skills.join("nika-create").exists();
 
-    // Check project-level skills
+    // Check project-level skills [project]
     let has_project = std::path::Path::new("skills/nika-workflow-syntax").exists()
         || std::path::Path::new(".agents/skills/nika-workflow-syntax").exists();
 
     if has_user {
-        DiagnosticCheck::pass(
+        checks.push(DiagnosticCheck::pass(
             "Agent Skills",
-            format!("Nika skills installed at {}", user_skills.display()),
-        )
-    } else if has_project {
-        DiagnosticCheck::pass("Agent Skills", "Nika skills present in project")
-    } else {
-        DiagnosticCheck::warn(
-            "Agent Skills",
-            "No Nika Agent Skills installed",
-            "Run: nika setup ai (global) or: npx skills add SuperNovae-studio/nika-skills",
-        )
+            format!("[user] Nika skills installed at {}", user_skills.display()),
+        ));
     }
+
+    if has_project {
+        checks.push(DiagnosticCheck::pass(
+            "Agent Skills",
+            "[project] Nika skills present in project".to_string(),
+        ));
+    }
+
+    if !has_user && has_project {
+        checks.push(DiagnosticCheck::warn(
+            "Agent Skills",
+            "[user] No global skills (only project-level found)",
+            "Run: nika setup ai to install user-level skills for all projects",
+        ));
+    }
+
+    if !has_user && !has_project {
+        checks.push(DiagnosticCheck::warn(
+            "Agent Skills",
+            "No Nika Agent Skills installed (user or project)",
+            "Run: nika setup ai (global) or: npx skills add SuperNovae-studio/nika-skills",
+        ));
+    }
+
+    checks
 }
 
 fn check_agents_md() -> DiagnosticCheck {
@@ -732,6 +928,8 @@ fn check_git_hook() -> DiagnosticCheck {
     }
 }
 
+// ─── Task 1: Sectioned output ──────────────────────────────────────────────────
+
 fn output_doctor_text(checks: &[DiagnosticCheck], quiet: bool) {
     if !quiet {
         nika_engine::display::print_doctor_header(env!("CARGO_PKG_VERSION"));
@@ -740,8 +938,16 @@ fn output_doctor_text(checks: &[DiagnosticCheck], quiet: bool) {
     let mut pass_count = 0;
     let mut warn_count = 0;
     let mut fail_count = 0;
+    let mut current_section = "";
 
     for check in checks {
+        // Print section header when section changes
+        if !check.section.is_empty() && check.section != current_section {
+            current_section = check.section;
+            println!();
+            println!("  {} {}", "---".dimmed(), current_section.bold().cyan());
+        }
+
         let icon = match check.status {
             DiagnosticStatus::Pass => check.icon().green(),
             DiagnosticStatus::Warn => check.icon().yellow(),
@@ -751,7 +957,7 @@ fn output_doctor_text(checks: &[DiagnosticCheck], quiet: bool) {
         println!("  {} {} {}", icon, check.name.bold(), check.message);
 
         if let Some(ref suggestion) = check.suggestion {
-            println!("    {} {}", "→".cyan(), suggestion.dimmed());
+            println!("    {} {}", "->".cyan(), suggestion.dimmed());
         }
 
         match check.status {
@@ -763,6 +969,39 @@ fn output_doctor_text(checks: &[DiagnosticCheck], quiet: bool) {
 
     if !quiet {
         nika_engine::display::print_doctor_summary(pass_count, warn_count, fail_count);
+
+        // "Next steps" footer when warnings/failures exist
+        if warn_count > 0 || fail_count > 0 {
+            println!();
+            println!("  {} {}", "Next steps:".bold(), "".dimmed());
+            if fail_count > 0 {
+                println!(
+                    "    {} Fix {} failure(s) above before running workflows",
+                    "1.".bold(),
+                    fail_count
+                );
+            }
+            if warn_count > 0 {
+                let step = if fail_count > 0 { "2." } else { "1." };
+                println!(
+                    "    {} Address {} warning(s) for optimal experience",
+                    step.bold(),
+                    warn_count
+                );
+            }
+            println!(
+                "    {} Run {} for full diagnostics (includes MCP connectivity)",
+                if fail_count > 0 && warn_count > 0 {
+                    "3."
+                } else if fail_count > 0 || warn_count > 0 {
+                    "2."
+                } else {
+                    "1."
+                }
+                .bold(),
+                "nika doctor --full".cyan()
+            );
+        }
     }
 }
 
@@ -772,6 +1011,7 @@ fn output_doctor_json(checks: &[DiagnosticCheck]) -> Result<(), NikaError> {
         .map(|c| {
             serde_json::json!({
                 "name": c.name,
+                "section": c.section,
                 "status": match c.status {
                     DiagnosticStatus::Pass => "pass",
                     DiagnosticStatus::Warn => "warn",

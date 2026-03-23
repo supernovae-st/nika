@@ -171,6 +171,10 @@ pub struct WizardResult {
     pub detected_providers: Vec<DetectedProvider>,
     /// Whether to migrate env keys to keychain
     pub migrate_keys: bool,
+    /// Whether to run `nika setup editors` after init
+    pub setup_editors: bool,
+    /// Whether to run `nika setup ai` after init
+    pub setup_ai: bool,
 }
 
 /// Run the interactive init wizard.
@@ -197,6 +201,8 @@ pub fn run_init_wizard(yes: bool) -> Result<WizardResult, NikaError> {
             course_dest: None,
             detected_providers: detected,
             migrate_keys: false,
+            setup_editors: false,
+            setup_ai: false,
         });
     }
 
@@ -301,7 +307,18 @@ pub fn run_init_wizard(yes: bool) -> Result<WizardResult, NikaError> {
         false
     };
 
-    // ── Step 6: Outro ───────────────────────────────────────────────────
+    // ── Step 6: Editor & AI setup ──────────────────────────────────────
+    let setup_editors = cliclack::confirm("Install editor extension? (VS Code / Cursor)")
+        .initial_value(true)
+        .interact()
+        .map_err(NikaError::IoError)?;
+
+    let setup_ai = cliclack::confirm("Install AI coding rules? (Claude Code, Cursor, Copilot)")
+        .initial_value(true)
+        .interact()
+        .map_err(NikaError::IoError)?;
+
+    // ── Step 7: Outro ───────────────────────────────────────────────────
     // The actual generation happens in the caller after we return.
     // We show the outro there, after the spinner completes.
 
@@ -311,6 +328,8 @@ pub fn run_init_wizard(yes: bool) -> Result<WizardResult, NikaError> {
         course_dest,
         detected_providers: detected,
         migrate_keys,
+        setup_editors,
+        setup_ai,
     })
 }
 
@@ -481,6 +500,8 @@ mod tests {
         assert_eq!(result.permission, "plan");
         assert!(result.course_dest.is_none());
         assert!(!result.migrate_keys);
+        assert!(!result.setup_editors);
+        assert!(!result.setup_ai);
     }
 
     #[test]

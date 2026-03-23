@@ -437,6 +437,9 @@ impl ProviderSelectorState {
 
     /// Move selection down
     pub fn down(&mut self) {
+        if self.providers.is_empty() {
+            return;
+        }
         if self.model_mode {
             let models_count = self.providers[self.selected_provider].models.len();
             if self.selected_model < models_count.saturating_sub(1) {
@@ -449,11 +452,16 @@ impl ProviderSelectorState {
 
     /// Enter model selection or confirm selection
     pub fn enter(&mut self) -> Option<(String, String)> {
+        if self.providers.is_empty() {
+            return None;
+        }
         if self.model_mode {
-            let provider_id = self.providers[self.selected_provider].id.clone();
-            let model_id = self.providers[self.selected_provider].models[self.selected_model]
-                .id
-                .clone();
+            let provider = &self.providers[self.selected_provider];
+            if self.selected_model >= provider.models.len() {
+                return None;
+            }
+            let provider_id = provider.id.clone();
+            let model_id = provider.models[self.selected_model].id.clone();
             self.hide();
             Some((provider_id, model_id))
         } else {
@@ -473,14 +481,16 @@ impl ProviderSelectorState {
     }
 
     /// Get current provider
-    pub fn current_provider(&self) -> &ProviderInfo {
-        &self.providers[self.selected_provider]
+    pub fn current_provider(&self) -> Option<&ProviderInfo> {
+        self.providers.get(self.selected_provider)
     }
 
     /// Get current model (if in model mode)
     pub fn current_model(&self) -> Option<&ModelInfo> {
         if self.model_mode {
-            Some(&self.providers[self.selected_provider].models[self.selected_model])
+            self.providers
+                .get(self.selected_provider)
+                .and_then(|p| p.models.get(self.selected_model))
         } else {
             None
         }

@@ -774,7 +774,14 @@ async fn main() {
                     }
                 }
             } else {
-                cli::init::init_project(&permission, no_example || minimal, migrate_keys)
+                cli::init::init_project(
+                    &permission,
+                    no_example || minimal,
+                    migrate_keys,
+                    false,
+                    false,
+                )
+                .await
             }
         }
 
