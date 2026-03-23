@@ -20,7 +20,8 @@
 //! - NIKA-120-129: Resilience errors
 //! - NIKA-130-139: TUI errors
 //! - NIKA-140-151: AST analysis errors (Phase 2 analyzer)
-//! - NIKA-160-164: Parse errors (Phase 1 parser — ParseErrorKind)
+//! - NIKA-160-164: Parse errors (Phase 1 parser — ParseErrorKind in nika-core)
+//! - NIKA-160-169: Startup errors (StartupError in nika-engine, shares 160 prefix with ParseErrorKind)
 //! - NIKA-165-166: Policy/Boot errors (renumbered to avoid 160/161 collision)
 //!
 //! Extended ranges:
@@ -464,7 +465,8 @@ pub enum NikaError {
     #[error("[NIKA-121] Operation '{operation}' timed out after {duration_ms}ms")]
     Timeout { operation: String, duration_ms: u64 },
 
-    #[error("[NIKA-125] MCP tool call '{tool}' failed: {reason}")]
+    // NOTE: Same semantic class as McpToolError (NIKA-102) — consider consolidating
+    #[error("[NIKA-102] MCP tool call '{tool}' failed: {reason}")]
     McpToolCallFailed { tool: String, reason: String },
 
     // ═══════════════════════════════════════════
@@ -481,9 +483,11 @@ pub enum NikaError {
     ConfigError { reason: String },
 
     // ═══════════════════════════════════════════
-    // STARTUP ERRORS (150-159)
+    // STARTUP ERRORS (160-169)
+    // NOTE: Shares NIKA-160 prefix with ParseErrorKind::Syntax in nika-core,
+    //       but they live in separate error enums (NikaError vs ParseErrorKind).
     // ═══════════════════════════════════════════
-    #[error("[NIKA-150] Startup verification failed in '{phase}': {reason}")]
+    #[error("[NIKA-160] Startup verification failed in '{phase}': {reason}")]
     StartupError { phase: String, reason: String },
 
     // ═══════════════════════════════════════════
@@ -894,13 +898,13 @@ impl NikaError {
             Self::GuardrailViolation { .. } => "NIKA-112",
             // Resilience errors
             Self::Timeout { .. } => "NIKA-121",
-            Self::McpToolCallFailed { .. } => "NIKA-125",
+            Self::McpToolCallFailed { .. } => "NIKA-102",
             // TUI errors
             Self::TuiError { .. } => "NIKA-130",
             // Config errors
             Self::ConfigError { .. } => "NIKA-135",
             // Startup errors
-            Self::StartupError { .. } => "NIKA-150",
+            Self::StartupError { .. } => "NIKA-160",
             // Tool errors (code is dynamic)
             Self::ToolError { .. } => "NIKA-200",
             // Builtin tool errors
@@ -1919,9 +1923,9 @@ mod tests {
             tool: "novanet_audit".to_string(),
             reason: "malformed response".to_string(),
         };
-        assert_eq!(err.code(), "NIKA-125");
+        assert_eq!(err.code(), "NIKA-102");
         let msg = err.to_string();
-        assert!(msg.contains("[NIKA-125]"));
+        assert!(msg.contains("[NIKA-102]"));
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

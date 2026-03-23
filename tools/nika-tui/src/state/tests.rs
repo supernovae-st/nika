@@ -1816,6 +1816,7 @@ fn test_task_failed_marks_status_dirty() {
             task_id: "task1".into(),
             error: "error".into(),
             duration_ms: 100,
+            error_code: None,
         },
         100,
     );
@@ -2791,6 +2792,7 @@ fn test_error_path_full_sequence() {
             task_id: Arc::from("failing-task"),
             error: "provider timeout".to_string(),
             duration_ms: 30_000,
+            error_code: None,
         },
         30_100,
     );
@@ -3247,6 +3249,7 @@ fn test_task_failed_unknown_task_id_no_panic() {
             task_id: Arc::from("ghost-task"),
             error: "unknown error".to_string(),
             duration_ms: 50,
+            error_code: None,
         },
         100,
     );
@@ -4075,6 +4078,7 @@ fn test_should_break_empty_breakpoints_always_false() {
             task_id: Arc::from("t1"),
             error: "err".to_string(),
             duration_ms: 100,
+            error_code: None,
         },
     ];
 
@@ -4116,6 +4120,7 @@ fn test_should_break_on_error() {
         task_id: Arc::from("task1"),
         error: "boom".to_string(),
         duration_ms: 50,
+        error_code: None,
     }));
 }
 

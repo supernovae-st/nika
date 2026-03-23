@@ -547,11 +547,11 @@ impl TaskExecutor {
             .unwrap_or(0.0);
         self.event_log.emit(EventKind::ProviderResponded {
             task_id: Arc::clone(task_id),
-            request_id: None,
+            request_id: stream_result.request_id.clone(),
             input_tokens: stream_result.input_tokens,
             output_tokens: stream_result.output_tokens,
             cache_read_tokens: stream_result.cached_input_tokens,
-            ttft_ms: None,
+            ttft_ms: stream_result.ttft_ms,
             finish_reason: "stop".to_string(),
             cost_usd: if cost.is_finite() { cost } else { 0.0 },
         });
@@ -907,6 +907,13 @@ impl TaskExecutor {
         // POLICY CHECK: exec verb
         let policy_decision = self.policy_enforcer.read().check_exec(&resolved_cmd);
         if let PolicyDecision::Block(reason) = policy_decision {
+            // EMIT: PolicyBlocked
+            self.event_log.emit(EventKind::PolicyBlocked {
+                task_id: Arc::clone(task_id),
+                verb: "exec".to_string(),
+                policy_type: "command_blocklist".to_string(),
+                reason: reason.clone(),
+            });
             tracing::warn!(
                 task_id = %task_id,
                 command = %resolved_cmd,
@@ -931,6 +938,7 @@ impl TaskExecutor {
 
         // Shell-free execution by default, opt-in to shell mode
         // Support for env vars
+        let exec_start = Instant::now();
         let output =
             if params.shell == Some(true) {
                 // Shell mode: use sh -c (preserves shell metacharacters like ;, |, &&)
@@ -1083,6 +1091,17 @@ impl TaskExecutor {
                 }
             };
 
+        // EMIT: ExecCompleted (emitted for both success and failure)
+        let exec_duration_ms = exec_start.elapsed().as_millis() as u64;
+        let exit_code = output.status.code().unwrap_or(-1);
+        self.event_log.emit(EventKind::ExecCompleted {
+            task_id: Arc::clone(task_id),
+            exit_code,
+            stdout_len: output.stdout.len(),
+            stderr_len: output.stderr.len(),
+            duration_ms: exec_duration_ms,
+        });
+
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             return Err(NikaError::ExecError {
@@ -1120,6 +1139,13 @@ impl TaskExecutor {
         // POLICY CHECK: fetch verb
         let policy_decision = self.policy_enforcer.read().check_fetch(&url);
         if let PolicyDecision::Block(reason) = policy_decision {
+            // EMIT: PolicyBlocked
+            self.event_log.emit(EventKind::PolicyBlocked {
+                task_id: Arc::clone(task_id),
+                verb: "fetch".to_string(),
+                policy_type: "host_blocklist".to_string(),
+                reason: reason.clone(),
+            });
             tracing::warn!(
                 task_id = %task_id,
                 url = %url,
@@ -1232,11 +1258,33 @@ impl TaskExecutor {
         let mut current_request = Some(request);
         let fetch_start = Instant::now();
 
+        // Overall deadline prevents retry+backoff from blocking indefinitely.
+        // Calculated as: per_request_timeout × max_attempts × 3 (covers request + backoff + buffer)
+        let per_request_secs = fetch.timeout.unwrap_or(crate::util::FETCH_TIMEOUT.as_secs());
+        let overall_deadline = fetch_start
+            + std::time::Duration::from_secs(
+                per_request_secs
+                    .saturating_mul(effective_max_attempts as u64)
+                    .saturating_mul(3),
+            );
+
         // Determine method and has_body for HttpRequest event
         let req_method = fetch.method.to_uppercase();
         let req_has_body = fetch.body.is_some() || fetch.json.is_some();
 
         for attempt in 1..=effective_max_attempts {
+            // Check overall deadline before each attempt
+            if Instant::now() >= overall_deadline {
+                return Err(NikaError::FetchError {
+                    reason: format!(
+                        "Overall fetch deadline exceeded ({}s) after {} of {} attempts",
+                        per_request_secs * effective_max_attempts as u64 * 3,
+                        attempt - 1,
+                        effective_max_attempts,
+                    ),
+                });
+            }
+
             // Get the request for this attempt
             let req = if attempt == 1 {
                 // First attempt: use the original request
@@ -1284,6 +1332,22 @@ impl TaskExecutor {
                     // Check for server errors that should be retried
                     if response.status().is_server_error() && attempt < effective_max_attempts {
                         let status = response.status();
+
+                        // Exponential backoff calculation
+                        let exp = (attempt - 1).min(30) as i32;
+                        let delay_ms = backoff_ms
+                            .saturating_mul(multiplier.powi(exp).min(u64::MAX as f64) as u64);
+
+                        // EMIT: FetchRetry
+                        self.event_log.emit(EventKind::FetchRetry {
+                            task_id: Arc::clone(task_id),
+                            url: url.to_string(),
+                            attempt,
+                            max_attempts: effective_max_attempts,
+                            status_code: Some(status.as_u16()),
+                            backoff_ms: delay_ms,
+                        });
+
                         tracing::warn!(
                             task_id = %task_id,
                             attempt = attempt,
@@ -1294,11 +1358,19 @@ impl TaskExecutor {
                             reason: format!("HTTP server error: {}", status),
                         });
 
-                        // Exponential backoff
-                        let exp = (attempt - 1).min(30) as i32;
-                        let delay_ms = backoff_ms
-                            .saturating_mul(multiplier.powi(exp).min(u64::MAX as f64) as u64);
-                        tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+                        // Exponential backoff (bounded by overall deadline)
+                        let remaining = overall_deadline.saturating_duration_since(Instant::now());
+                        let bounded_delay =
+                            std::time::Duration::from_millis(delay_ms).min(remaining);
+                        if bounded_delay.is_zero() {
+                            return Err(NikaError::FetchError {
+                                reason: format!(
+                                    "Overall fetch deadline exceeded during backoff after {} of {} attempts",
+                                    attempt, effective_max_attempts,
+                                ),
+                            });
+                        }
+                        tokio::time::sleep(bounded_delay).await;
                         continue;
                     }
 
@@ -1528,6 +1600,21 @@ impl TaskExecutor {
                 Err(e) => {
                     // Network errors are retryable
                     if attempt < effective_max_attempts {
+                        // Exponential backoff calculation
+                        let exp = (attempt - 1).min(30) as i32;
+                        let delay_ms = backoff_ms
+                            .saturating_mul(multiplier.powi(exp).min(u64::MAX as f64) as u64);
+
+                        // EMIT: FetchRetry
+                        self.event_log.emit(EventKind::FetchRetry {
+                            task_id: Arc::clone(task_id),
+                            url: url.to_string(),
+                            attempt,
+                            max_attempts: effective_max_attempts,
+                            status_code: None,
+                            backoff_ms: delay_ms,
+                        });
+
                         tracing::warn!(
                             task_id = %task_id,
                             attempt = attempt,
@@ -1538,11 +1625,19 @@ impl TaskExecutor {
                             reason: format!("HTTP request failed: {}", e),
                         });
 
-                        // Exponential backoff
-                        let exp = (attempt - 1).min(30) as i32;
-                        let delay_ms = backoff_ms
-                            .saturating_mul(multiplier.powi(exp).min(u64::MAX as f64) as u64);
-                        tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+                        // Exponential backoff (bounded by overall deadline)
+                        let remaining = overall_deadline.saturating_duration_since(Instant::now());
+                        let bounded_delay =
+                            std::time::Duration::from_millis(delay_ms).min(remaining);
+                        if bounded_delay.is_zero() {
+                            return Err(NikaError::FetchError {
+                                reason: format!(
+                                    "Overall fetch deadline exceeded during backoff after {} of {} attempts",
+                                    attempt, effective_max_attempts,
+                                ),
+                            });
+                        }
+                        tokio::time::sleep(bounded_delay).await;
                         continue;
                     }
 

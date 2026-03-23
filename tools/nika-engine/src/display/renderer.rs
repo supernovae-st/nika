@@ -290,6 +290,7 @@ impl CliRenderer {
                 task_id,
                 error,
                 duration_ms,
+                ..
             } => {
                 self.stats.tasks_failed += 1;
                 if self.stats.root_failure.is_none() {

@@ -205,6 +205,7 @@ impl TuiState {
                 task_id,
                 error,
                 duration_ms,
+                ..
             } => {
                 if let Some(task) = self.tasks.get_mut(task_id.as_ref()) {
                     task.status = TaskStatus::Failed;
@@ -943,6 +944,17 @@ impl TuiState {
                     timestamp_ms,
                 ));
                 self.dirty.notifications = true;
+            }
+
+            // ═══════════════════════════════════════════
+            // EXEC / FETCH / POLICY EVENTS (observability)
+            // ═══════════════════════════════════════════
+            EventKind::ExecCompleted { .. }
+            | EventKind::FetchRetry { .. }
+            | EventKind::PolicyBlocked { .. } => {
+                // These events are captured for tracing/logging but don't
+                // require TUI state mutations — the TUI already tracks
+                // task-level status via TaskStarted/TaskCompleted/TaskFailed.
             }
         }
     }

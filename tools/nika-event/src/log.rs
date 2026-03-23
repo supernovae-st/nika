@@ -200,6 +200,9 @@ pub enum EventKind {
         task_id: Arc<str>,
         error: String,
         duration_ms: u64,
+        /// Structured error code (e.g. "NIKA-044") for programmatic extraction
+        #[serde(skip_serializing_if = "Option::is_none")]
+        error_code: Option<String>,
     },
     /// A task was skipped because a dependency failed.
     TaskSkipped {
@@ -606,6 +609,55 @@ pub enum EventKind {
         /// Whether this was a dry-run (no files actually deleted)
         dry_run: bool,
     },
+
+    // ═══════════════════════════════════════════
+    // EXEC EVENTS
+    // ═══════════════════════════════════════════
+    /// Shell command execution completed with exit details
+    ExecCompleted {
+        task_id: Arc<str>,
+        /// Process exit code (0 = success)
+        exit_code: i32,
+        /// Length of stdout in bytes
+        stdout_len: usize,
+        /// Length of stderr in bytes
+        stderr_len: usize,
+        /// Execution duration in milliseconds
+        duration_ms: u64,
+    },
+
+    // ═══════════════════════════════════════════
+    // FETCH EVENTS
+    // ═══════════════════════════════════════════
+    /// Fetch retry attempt (mirrors McpRetry pattern)
+    FetchRetry {
+        task_id: Arc<str>,
+        /// URL being fetched
+        url: String,
+        /// Current attempt number (1-based)
+        attempt: u32,
+        /// Max attempts configured
+        max_attempts: u32,
+        /// HTTP status code that triggered retry (if any)
+        #[serde(skip_serializing_if = "Option::is_none")]
+        status_code: Option<u16>,
+        /// Backoff delay before this attempt in ms
+        backoff_ms: u64,
+    },
+
+    // ═══════════════════════════════════════════
+    // POLICY EVENTS
+    // ═══════════════════════════════════════════
+    /// Security policy blocked an operation
+    PolicyBlocked {
+        task_id: Arc<str>,
+        /// Verb that was blocked (exec, fetch, invoke)
+        verb: String,
+        /// Policy type that triggered block (command_blocklist, host_blocklist, ssrf, etc.)
+        policy_type: String,
+        /// Human-readable reason for the block
+        reason: String,
+    },
 }
 
 impl EventKind {
@@ -640,7 +692,10 @@ impl EventKind {
             | Self::HttpResponse { task_id, .. }
             | Self::GuardrailPassed { task_id, .. }
             | Self::GuardrailFailed { task_id, .. }
-            | Self::GuardrailEscalation { task_id, .. } => Some(task_id),
+            | Self::GuardrailEscalation { task_id, .. }
+            | Self::ExecCompleted { task_id, .. }
+            | Self::FetchRetry { task_id, .. }
+            | Self::PolicyBlocked { task_id, .. } => Some(task_id),
             // AgentSpawned uses parent_task_id as the primary task reference
             Self::AgentSpawned { parent_task_id, .. } => Some(parent_task_id),
             // Log and Custom may optionally have task_id
@@ -2008,6 +2063,7 @@ mod tests {
                 task_id: "t1".into(),
                 error: "fail".into(),
                 duration_ms: 50,
+                error_code: None,
             },
             // Fine-grained (3)
             EventKind::TemplateResolved {
@@ -3557,5 +3613,53 @@ mod tests {
             elapsed_ms: 0,
         };
         assert_eq!(event.task_id(), Some("t3"));
+    }
+
+    #[test]
+    fn exec_completed_serializes() {
+        let event = EventKind::ExecCompleted {
+            task_id: "exec_task".into(),
+            exit_code: 0,
+            stdout_len: 1024,
+            stderr_len: 0,
+            duration_ms: 150,
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("exec_completed"));
+        assert!(json.contains("\"exit_code\":0"));
+        let round: EventKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(round.task_id(), Some("exec_task"));
+    }
+
+    #[test]
+    fn fetch_retry_serializes() {
+        let event = EventKind::FetchRetry {
+            task_id: "fetch_task".into(),
+            url: "https://api.example.com/data".to_string(),
+            attempt: 2,
+            max_attempts: 3,
+            status_code: Some(503),
+            backoff_ms: 2000,
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("fetch_retry"));
+        assert!(json.contains("\"attempt\":2"));
+        let round: EventKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(round.task_id(), Some("fetch_task"));
+    }
+
+    #[test]
+    fn policy_blocked_serializes() {
+        let event = EventKind::PolicyBlocked {
+            task_id: "exec_task".into(),
+            verb: "exec".to_string(),
+            policy_type: "command_blocklist".to_string(),
+            reason: "Command 'sudo' is blocked".to_string(),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("policy_blocked"));
+        assert!(json.contains("command_blocklist"));
+        let round: EventKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(round.task_id(), Some("exec_task"));
     }
 }

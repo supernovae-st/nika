@@ -237,6 +237,7 @@ fn test_task_failed_updates_state() {
             task_id: Arc::from("step1"),
             error: "Connection refused".to_string(),
             duration_ms: 200,
+            error_code: None,
         },
         300,
     );

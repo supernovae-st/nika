@@ -622,6 +622,7 @@ impl Runner {
                                         attempts, e
                                     ),
                                     duration_ms: duration.as_millis() as u64,
+                                    error_code: Some("NIKA-060".to_string()),
                                 });
                                 return TaskResult::failed(
                                     format!(
@@ -656,6 +657,7 @@ impl Runner {
                                 task_id: Arc::clone(task_id),
                                 error: format!("Invalid schema: {}", e),
                                 duration_ms: duration.as_millis() as u64,
+                                error_code: None,
                             });
                             return TaskResult::failed(
                                 format!("Invalid inline schema: {}", e),
@@ -685,6 +687,7 @@ impl Runner {
                                 attempts, error_feedback
                             ),
                             duration_ms: duration.as_millis() as u64,
+                            error_code: Some("NIKA-061".to_string()),
                         });
                         return TaskResult::failed(
                             format!(
@@ -716,6 +719,7 @@ impl Runner {
                         task_id: Arc::clone(task_id),
                         error: e.to_string(),
                         duration_ms: duration.as_millis() as u64,
+                        error_code: Some(e.code().to_string()),
                     });
                     return TaskResult::failed(e.to_string(), duration);
                 }
@@ -798,6 +802,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     task_id: Arc::clone(&task_id),
                     error: e.to_string(),
                     duration_ms: duration.as_millis() as u64,
+                    error_code: Some(e.code().to_string()),
                 });
                 return IterationResult {
                     store_id: task_id,
@@ -906,6 +911,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                         task_id: Arc::clone(&task_id),
                                         error: e.to_string(),
                                         duration_ms: duration.as_millis() as u64,
+                                        error_code: Some(e.code().to_string()),
                                     });
                                     return IterationResult {
                                         store_id: task_id,
@@ -937,6 +943,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             task_id: Arc::clone(&task_id),
                             error: tr.error().unwrap_or("Unknown error").to_string(),
                             duration_ms: duration.as_millis() as u64,
+                            error_code: None,
                         });
                     }
                     tr
@@ -948,6 +955,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         task_id: Arc::clone(&task_id),
                         error: e.to_string(),
                         duration_ms: duration.as_millis() as u64,
+                        error_code: Some(e.code().to_string()),
                     });
                     TaskResult::failed(e.to_string(), duration)
                 }
