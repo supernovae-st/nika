@@ -14,7 +14,7 @@ pub fn apply_extract(
 
         #[cfg(feature = "fetch-markdown")]
         Some("markdown") => {
-            htmd::convert(body).map_err(|e| NikaError::Execution(format!("HTML to markdown: {e}")))
+            htmd::convert(body).map_err(|e| NikaError::ExtractError { reason: format!("HTML to markdown: {e}") })
         }
 
         #[cfg(feature = "fetch-html")]
@@ -23,9 +23,9 @@ pub fn apply_extract(
         #[cfg(feature = "fetch-html")]
         Some("selector") => {
             let css = selector.ok_or_else(|| {
-                NikaError::Execution(
-                    "extract: selector requires 'selector' field".to_string(),
-                )
+                NikaError::ExtractError {
+                    reason: "extract: selector requires 'selector' field".to_string(),
+                }
             })?;
             extract_html_by_selector(body, css)
         }
@@ -40,9 +40,9 @@ pub fn apply_extract(
         Some("article") => {
             let mut readability =
                 dom_smoothie::Readability::new(body, None, None)
-                    .map_err(|e| NikaError::Execution(format!("Readability init failed: {e}")))?;
+                    .map_err(|e| NikaError::ExtractError { reason: format!("Readability init failed: {e}") })?;
             let article = readability.parse().map_err(|e| {
-                NikaError::Execution(format!("Readability parse failed: {e}"))
+                NikaError::ExtractError { reason: format!("Readability parse failed: {e}") }
             })?;
             Ok(serde_json::json!({
                 "title": article.title,
@@ -57,7 +57,7 @@ pub fn apply_extract(
         #[cfg(feature = "fetch-feed")]
         Some("feed") => {
             let feed = feed_rs::parser::parse(body.as_bytes())
-                .map_err(|e| NikaError::Execution(format!("Feed parse failed: {e}")))?;
+                .map_err(|e| NikaError::ExtractError { reason: format!("Feed parse failed: {e}") })?;
             let entries: Vec<serde_json::Value> = feed
                 .entries
                 .iter()
@@ -81,35 +81,37 @@ pub fn apply_extract(
 
         Some("jsonpath") => {
             let path = selector.ok_or_else(|| {
-                NikaError::Execution(
-                    "extract: jsonpath requires 'selector' field with JSONPath expression"
+                NikaError::ExtractError {
+                    reason: "extract: jsonpath requires 'selector' field with JSONPath expression"
                         .to_string(),
-                )
+                }
             })?;
             extract_jsonpath(body, path)
         }
 
         #[cfg(not(feature = "fetch-markdown"))]
-        Some("markdown") => Err(NikaError::Execution(
-            "extract: markdown requires feature 'fetch-markdown'. Build with: cargo build --features fetch-markdown".to_string(),
-        )),
+        Some("markdown") => Err(NikaError::ExtractError {
+            reason: "extract: markdown requires feature 'fetch-markdown'. Build with: cargo build --features fetch-markdown".to_string(),
+        }),
         #[cfg(not(feature = "fetch-html"))]
-        Some("text" | "selector" | "metadata" | "links") => Err(NikaError::Execution(
-            "extract: text/selector/metadata/links requires feature 'fetch-html'. Build with: cargo build --features fetch-html".to_string(),
-        )),
+        Some("text" | "selector" | "metadata" | "links") => Err(NikaError::ExtractError {
+            reason: "extract: text/selector/metadata/links requires feature 'fetch-html'. Build with: cargo build --features fetch-html".to_string(),
+        }),
         #[cfg(not(feature = "fetch-article"))]
-        Some("article") => Err(NikaError::Execution(
-            "extract: article requires feature 'fetch-article'. Build with: cargo build --features fetch-article".to_string(),
-        )),
+        Some("article") => Err(NikaError::ExtractError {
+            reason: "extract: article requires feature 'fetch-article'. Build with: cargo build --features fetch-article".to_string(),
+        }),
         #[cfg(not(feature = "fetch-feed"))]
-        Some("feed") => Err(NikaError::Execution(
-            "extract: feed requires feature 'fetch-feed'. Build with: cargo build --features fetch-feed".to_string(),
-        )),
+        Some("feed") => Err(NikaError::ExtractError {
+            reason: "extract: feed requires feature 'fetch-feed'. Build with: cargo build --features fetch-feed".to_string(),
+        }),
 
-        Some(unknown) => Err(NikaError::Execution(format!(
-            "Unknown extract mode '{}'. Available: markdown, article, text, selector, metadata, links, jsonpath, feed, llm_txt",
-            unknown
-        ))),
+        Some(unknown) => Err(NikaError::ExtractError {
+            reason: format!(
+                "Unknown extract mode '{}'. Available: markdown, article, text, selector, metadata, links, jsonpath, feed, llm_txt",
+                unknown
+            ),
+        }),
     }
 }
 
@@ -118,7 +120,7 @@ fn extract_text(html: &str, selector: Option<&str>) -> Result<String, NikaError>
     let document = scraper::Html::parse_document(html);
     if let Some(css) = selector {
         let sel = scraper::Selector::parse(css)
-            .map_err(|_| NikaError::Execution(format!("Invalid CSS selector: {css}")))?;
+            .map_err(|_| NikaError::ExtractError { reason: format!("Invalid CSS selector: {css}") })?;
         let texts: Vec<String> = document
             .select(&sel)
             .map(|el| el.text().collect::<Vec<_>>().join(" ").trim().to_string())
@@ -134,7 +136,7 @@ fn extract_text(html: &str, selector: Option<&str>) -> Result<String, NikaError>
 fn extract_html_by_selector(html: &str, css: &str) -> Result<String, NikaError> {
     let document = scraper::Html::parse_document(html);
     let sel = scraper::Selector::parse(css)
-        .map_err(|_| NikaError::Execution(format!("Invalid CSS selector: {css}")))?;
+        .map_err(|_| NikaError::ExtractError { reason: format!("Invalid CSS selector: {css}") })?;
     let parts: Vec<String> = document.select(&sel).map(|el| el.html()).collect();
     Ok(parts.join("\n"))
 }
@@ -216,7 +218,7 @@ fn extract_metadata_json(html: &str) -> Result<String, NikaError> {
         }
     }
 
-    serde_json::to_string(&meta).map_err(|e| NikaError::Execution(format!("JSON serialize: {e}")))
+    serde_json::to_string(&meta).map_err(|e| NikaError::ExtractError { reason: format!("JSON serialize: {e}") })
 }
 
 #[cfg(feature = "fetch-html")]
@@ -241,19 +243,19 @@ fn extract_links_json(html: &str, _base_url: Option<&str>) -> Result<String, Nik
         "links": links,
         "count": count,
     }))
-    .map_err(|e| NikaError::Execution(format!("JSON serialize: {e}")))
+    .map_err(|e| NikaError::ExtractError { reason: format!("JSON serialize: {e}") })
 }
 
 fn extract_jsonpath(body: &str, path: &str) -> Result<String, NikaError> {
     let json: serde_json::Value = serde_json::from_str(body)
-        .map_err(|e| NikaError::Execution(format!("Response is not valid JSON: {e}")))?;
+        .map_err(|e| NikaError::ExtractError { reason: format!("Response is not valid JSON: {e}") })?;
     let jsonpath = serde_json_path::JsonPath::parse(path)
-        .map_err(|e| NikaError::Execution(format!("Invalid JSONPath '{}': {e}", path)))?;
+        .map_err(|e| NikaError::ExtractError { reason: format!("Invalid JSONPath '{}': {e}", path) })?;
     let results: Vec<&serde_json::Value> = jsonpath.query(&json).all();
     match results.len() {
         0 => Ok("null".to_string()),
-        1 => serde_json::to_string(results[0]).map_err(|e| NikaError::Execution(e.to_string())),
-        _ => serde_json::to_string(&results).map_err(|e| NikaError::Execution(e.to_string())),
+        1 => serde_json::to_string(results[0]).map_err(|e| NikaError::ExtractError { reason: e.to_string() }),
+        _ => serde_json::to_string(&results).map_err(|e| NikaError::ExtractError { reason: e.to_string() }),
     }
 }
 

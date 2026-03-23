@@ -134,14 +134,14 @@ async fn test_execute_exec_command_failure() {
         .await;
     assert!(result.is_err());
     match result.unwrap_err() {
-        NikaError::Execution(msg) => {
+        NikaError::ExecError { reason } => {
             // Command fails with non-zero exit code
             assert!(
-                msg.contains("failed") || msg.contains("exit code"),
-                "Expected failure message, got: {msg}"
+                reason.contains("failed") || reason.contains("exit code"),
+                "Expected failure message, got: {reason}"
             );
         }
-        err => panic!("Expected Execution error, got: {err:?}"),
+        err => panic!("Expected ExecError, got: {err:?}"),
     }
 }
 
@@ -875,10 +875,10 @@ async fn test_error_handling_exec_timeout() {
 
     assert!(result.is_err(), "Should timeout");
     match result.unwrap_err() {
-        NikaError::Execution(msg) => {
-            assert!(msg.contains("timed out") || msg.contains("timeout"));
+        NikaError::ExecError { reason } => {
+            assert!(reason.contains("timed out") || reason.contains("timeout"));
         }
-        err => panic!("Expected Execution error with timeout, got: {err:?}"),
+        err => panic!("Expected ExecError with timeout, got: {err:?}"),
     }
 }
 
@@ -1948,10 +1948,10 @@ async fn audit_exec_timeout_fires_promptly() {
         elapsed
     );
     match result.unwrap_err() {
-        NikaError::Execution(msg) => {
-            assert!(msg.contains("timed out"), "Expected timeout, got: {}", msg);
+        NikaError::ExecError { reason } => {
+            assert!(reason.contains("timed out"), "Expected timeout, got: {}", reason);
         }
-        err => panic!("Expected Execution error, got: {:?}", err),
+        err => panic!("Expected ExecError, got: {:?}", err),
     }
     // GAP: The sleep 60 child process may still be alive.
     // Fix: call cmd.kill_on_drop(true) before spawning.

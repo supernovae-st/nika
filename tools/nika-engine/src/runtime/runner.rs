@@ -1988,7 +1988,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                         failed_task: None,
                                     });
                                     self.write_trace();
-                                    return Err(NikaError::Execution(format!("Task panicked: {}", e)));
+                                    return Err(NikaError::TaskPanicked { reason: format!("{}", e) });
                                 }
                             }
                             None => {

@@ -900,17 +900,19 @@ impl TaskExecutor {
             if let Some(ref cwd) = params.cwd {
                 let resolved = std::path::Path::new(cwd)
                     .canonicalize()
-                    .map_err(|e| NikaError::Execution(format!("Invalid cwd '{}': {}", cwd, e)))?;
+                    .map_err(|e| NikaError::ExecError { reason: format!("Invalid cwd '{}': {}", cwd, e) })?;
                 let working_dir = self
                     .workflow_base_dir
                     .canonicalize()
                     .unwrap_or_else(|_| self.workflow_base_dir.clone());
                 if !resolved.starts_with(&working_dir) {
-                    return Err(NikaError::Execution(format!(
-                        "Security: exec cwd '{}' escapes working directory '{}'",
-                        cwd,
-                        working_dir.display()
-                    )));
+                    return Err(NikaError::ExecError {
+                        reason: format!(
+                            "Security: exec cwd '{}' escapes working directory '{}'",
+                            cwd,
+                            working_dir.display()
+                        ),
+                    });
                 }
                 cmd.current_dir(resolved);
             }
@@ -932,35 +934,35 @@ impl TaskExecutor {
             cmd.kill_on_drop(true);
             let child = cmd
                 .spawn()
-                .map_err(|e| NikaError::Execution(format!("Failed to spawn command: {}", e)))?;
+                .map_err(|e| NikaError::ExecError { reason: format!("Failed to spawn command: {}", e) })?;
             match tokio::time::timeout(exec_deadline, child.wait_with_output()).await {
                 Ok(Ok(out)) => out,
                 Ok(Err(e)) => {
-                    return Err(NikaError::Execution(format!(
-                        "Failed to execute command: {}",
-                        e
-                    )));
+                    return Err(NikaError::ExecError {
+                        reason: format!("Failed to execute command: {}", e),
+                    });
                 }
                 Err(_) => {
                     // child is dropped here → kill_on_drop sends SIGKILL
-                    return Err(NikaError::Execution(format!(
-                        "Command timed out after {}s",
-                        exec_deadline.as_secs()
-                    )));
+                    return Err(NikaError::ExecError {
+                        reason: format!("Command timed out after {}s", exec_deadline.as_secs()),
+                    });
                 }
             }
         } else {
             // Shell-free mode (default): parse with shlex, execute directly
             tracing::debug!(task_id = %task_id, "exec: using shell-free mode (shlex)");
             let parts = shlex::split(&resolved_cmd).ok_or_else(|| {
-                NikaError::Execution(format!(
-                    "Failed to parse command (unbalanced quotes?): {}",
-                    resolved_cmd
-                ))
+                NikaError::ExecError {
+                    reason: format!(
+                        "Failed to parse command (unbalanced quotes?): {}",
+                        resolved_cmd
+                    ),
+                }
             })?;
 
             if parts.is_empty() {
-                return Err(NikaError::Execution("Empty command".to_string()));
+                return Err(NikaError::ExecError { reason: "Empty command".to_string() });
             }
 
             let mut cmd = tokio::process::Command::new(&parts[0]);
@@ -977,17 +979,19 @@ impl TaskExecutor {
             if let Some(ref cwd) = params.cwd {
                 let resolved = std::path::Path::new(cwd)
                     .canonicalize()
-                    .map_err(|e| NikaError::Execution(format!("Invalid cwd '{}': {}", cwd, e)))?;
+                    .map_err(|e| NikaError::ExecError { reason: format!("Invalid cwd '{}': {}", cwd, e) })?;
                 let working_dir = self
                     .workflow_base_dir
                     .canonicalize()
                     .unwrap_or_else(|_| self.workflow_base_dir.clone());
                 if !resolved.starts_with(&working_dir) {
-                    return Err(NikaError::Execution(format!(
-                        "Security: exec cwd '{}' escapes working directory '{}'",
-                        cwd,
-                        working_dir.display()
-                    )));
+                    return Err(NikaError::ExecError {
+                        reason: format!(
+                            "Security: exec cwd '{}' escapes working directory '{}'",
+                            cwd,
+                            working_dir.display()
+                        ),
+                    });
                 }
                 cmd.current_dir(resolved);
             }
@@ -1009,28 +1013,26 @@ impl TaskExecutor {
             cmd.kill_on_drop(true);
             let child = cmd
                 .spawn()
-                .map_err(|e| NikaError::Execution(format!("Failed to spawn command: {}", e)))?;
+                .map_err(|e| NikaError::ExecError { reason: format!("Failed to spawn command: {}", e) })?;
             match tokio::time::timeout(exec_deadline, child.wait_with_output()).await {
                 Ok(Ok(out)) => out,
                 Ok(Err(e)) => {
-                    return Err(NikaError::Execution(format!(
-                        "Failed to execute command: {}",
-                        e
-                    )));
+                    return Err(NikaError::ExecError {
+                        reason: format!("Failed to execute command: {}", e),
+                    });
                 }
                 Err(_) => {
                     // child is dropped here → kill_on_drop sends SIGKILL
-                    return Err(NikaError::Execution(format!(
-                        "Command timed out after {}s",
-                        exec_deadline.as_secs()
-                    )));
+                    return Err(NikaError::ExecError {
+                        reason: format!("Command timed out after {}s", exec_deadline.as_secs()),
+                    });
                 }
             }
         };
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(NikaError::Execution(format!("Command failed: {}", stderr)));
+            return Err(NikaError::ExecError { reason: format!("Command failed: {}", stderr) });
         }
 
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
@@ -1233,10 +1235,9 @@ impl TaskExecutor {
                             status = %status,
                             "fetch: server error, retrying..."
                         );
-                        last_error = Some(NikaError::Execution(format!(
-                            "HTTP server error: {}",
-                            status
-                        )));
+                        last_error = Some(NikaError::FetchError {
+                            reason: format!("HTTP server error: {}", status),
+                        });
 
                         // Exponential backoff
                         let exp = (attempt - 1).min(30) as i32;
@@ -1266,21 +1267,25 @@ impl TaskExecutor {
                         const FULL_MAX_RESPONSE_SIZE: u64 = 50 * 1024 * 1024;
                         if let Some(len) = response.content_length() {
                             if len > FULL_MAX_RESPONSE_SIZE {
-                                return Err(NikaError::Execution(format!(
-                                    "Response too large ({} bytes, max {} bytes)",
-                                    len, FULL_MAX_RESPONSE_SIZE
-                                )));
+                                return Err(NikaError::FetchError {
+                                    reason: format!(
+                                        "Response too large ({} bytes, max {} bytes)",
+                                        len, FULL_MAX_RESPONSE_SIZE
+                                    ),
+                                });
                             }
                         }
                         let body = response.text().await.map_err(|e| {
-                            NikaError::Execution(format!("Failed to read response: {}", e))
+                            NikaError::FetchError { reason: format!("Failed to read response: {}", e) }
                         })?;
                         if body.len() as u64 > FULL_MAX_RESPONSE_SIZE {
-                            return Err(NikaError::Execution(format!(
-                                "Response body too large ({} bytes, max {} bytes)",
-                                body.len(),
-                                FULL_MAX_RESPONSE_SIZE
-                            )));
+                            return Err(NikaError::FetchError {
+                                reason: format!(
+                                    "Response body too large ({} bytes, max {} bytes)",
+                                    body.len(),
+                                    FULL_MAX_RESPONSE_SIZE
+                                ),
+                            });
                         }
                         return Ok(serde_json::json!({
                             "status": status,
@@ -1295,11 +1300,13 @@ impl TaskExecutor {
                         // Reject non-success HTTP status before storing anything in CAS.
                         // Without this, 4xx/5xx error pages (HTML) get stored as binary artifacts.
                         if !response.status().is_success() {
-                            return Err(NikaError::Execution(format!(
-                                "HTTP {} for binary fetch: {}",
-                                response.status(),
-                                url
-                            )));
+                            return Err(NikaError::FetchError {
+                                reason: format!(
+                                    "HTTP {} for binary fetch: {}",
+                                    response.status(),
+                                    url
+                                ),
+                            });
                         }
                         // Strip Content-Type parameters (e.g. "image/png; charset=utf-8" → "image/png")
                         // so that mime_to_extension() exact matching works correctly.
@@ -1317,22 +1324,26 @@ impl TaskExecutor {
                         const BINARY_MAX_RESPONSE_SIZE: u64 = 100 * 1024 * 1024; // 100 MB (CAS limit)
                         if let Some(len) = response.content_length() {
                             if len > BINARY_MAX_RESPONSE_SIZE {
-                                return Err(NikaError::Execution(format!(
-                                    "Binary response too large ({} bytes, max {} bytes)",
-                                    len, BINARY_MAX_RESPONSE_SIZE
-                                )));
+                                return Err(NikaError::FetchError {
+                                    reason: format!(
+                                        "Binary response too large ({} bytes, max {} bytes)",
+                                        len, BINARY_MAX_RESPONSE_SIZE
+                                    ),
+                                });
                             }
                         }
                         let bytes = response.bytes().await.map_err(|e| {
-                            NikaError::Execution(format!("Failed to read binary response: {}", e))
+                            NikaError::FetchError { reason: format!("Failed to read binary response: {}", e) }
                         })?;
                         // Bug 3: Post-read size check (catches chunked encoding bypass)
                         if bytes.len() as u64 > BINARY_MAX_RESPONSE_SIZE {
-                            return Err(NikaError::Execution(format!(
-                                "Binary response too large ({} bytes, max {} bytes)",
-                                bytes.len(),
-                                BINARY_MAX_RESPONSE_SIZE
-                            )));
+                            return Err(NikaError::FetchError {
+                                reason: format!(
+                                    "Binary response too large ({} bytes, max {} bytes)",
+                                    bytes.len(),
+                                    BINARY_MAX_RESPONSE_SIZE
+                                ),
+                            });
                         }
                         // Bug 11: Handle 0-byte responses gracefully
                         if bytes.is_empty() {
@@ -1345,7 +1356,7 @@ impl TaskExecutor {
                             .to_string());
                         }
                         let store_result = self.cas.store(&bytes).await.map_err(|e| {
-                            NikaError::Execution(format!("CAS store failed: {}", e))
+                            NikaError::FetchError { reason: format!("CAS store failed: {}", e) }
                         })?;
 
                         // Stage MediaRef so artifact format: binary can find it.
@@ -1373,16 +1384,18 @@ impl TaskExecutor {
                     const MAX_RESPONSE_SIZE: u64 = 50 * 1024 * 1024;
                     if let Some(len) = response.content_length() {
                         if len > MAX_RESPONSE_SIZE {
-                            return Err(NikaError::Execution(format!(
-                                "Response too large ({} bytes, max {} bytes)",
-                                len, MAX_RESPONSE_SIZE
-                            )));
+                            return Err(NikaError::FetchError {
+                                reason: format!(
+                                    "Response too large ({} bytes, max {} bytes)",
+                                    len, MAX_RESPONSE_SIZE
+                                ),
+                            });
                         }
                     }
                     // Special case: llm_txt requires sub-requests, handled here not in extract.rs
                     if fetch.extract.as_deref() == Some("llm_txt") {
                         let parsed = url::Url::parse(url.as_ref()).map_err(|e| {
-                            NikaError::Execution(format!("Invalid URL for llm_txt: {e}"))
+                            NikaError::FetchError { reason: format!("Invalid URL for llm_txt: {e}") }
                         })?;
                         let origin = parsed.origin().unicode_serialization();
                         for path in &[
@@ -1435,14 +1448,16 @@ impl TaskExecutor {
                     }
 
                     let raw_body = response.text().await.map_err(|e| {
-                        NikaError::Execution(format!("Failed to read response: {}", e))
+                        NikaError::FetchError { reason: format!("Failed to read response: {}", e) }
                     })?;
                     if raw_body.len() as u64 > MAX_RESPONSE_SIZE {
-                        return Err(NikaError::Execution(format!(
-                            "Response body too large ({} bytes, max {} bytes)",
-                            raw_body.len(),
-                            MAX_RESPONSE_SIZE
-                        )));
+                        return Err(NikaError::FetchError {
+                            reason: format!(
+                                "Response body too large ({} bytes, max {} bytes)",
+                                raw_body.len(),
+                                MAX_RESPONSE_SIZE
+                            ),
+                        });
                     }
                     return super::extract::apply_extract(
                         &raw_body,
@@ -1460,7 +1475,7 @@ impl TaskExecutor {
                             "fetch: request failed, retrying..."
                         );
                         last_error =
-                            Some(NikaError::Execution(format!("HTTP request failed: {}", e)));
+                            Some(NikaError::FetchError { reason: format!("HTTP request failed: {}", e) });
 
                         // Exponential backoff
                         let exp = (attempt - 1).min(30) as i32;
@@ -1470,17 +1485,19 @@ impl TaskExecutor {
                         continue;
                     }
 
-                    return Err(NikaError::Execution(format!(
-                        "HTTP request failed after {} attempts: {}",
-                        effective_max_attempts, e
-                    )));
+                    return Err(NikaError::FetchError {
+                        reason: format!(
+                            "HTTP request failed after {} attempts: {}",
+                            effective_max_attempts, e
+                        ),
+                    });
                 }
             }
         }
 
         // Should not reach here, but just in case
         Err(last_error.unwrap_or_else(|| {
-            NikaError::Execution("HTTP request failed: unknown error".to_string())
+            NikaError::FetchError { reason: "HTTP request failed: unknown error".to_string() }
         }))
     }
 

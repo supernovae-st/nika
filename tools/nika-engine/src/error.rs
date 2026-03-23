@@ -206,13 +206,44 @@ pub enum NikaError {
     // ═══════════════════════════════════════════
     // TEMPLATE/BINDING ERRORS (040-049)
     // ═══════════════════════════════════════════
-    /// Simple execution error
-    /// Note: Widely used - consider structured variant for new code
+    /// Simple execution error (catch-all for genuinely misc errors)
     #[error("[NIKA-096] Execution error: {0}")]
     Execution(String),
 
     #[error("[NIKA-041] Template error in '{template}': {reason}")]
     TemplateError { template: String, reason: String },
+
+    /// [NIKA-044] Exec verb command error (spawn, cwd, shell)
+    #[error("[NIKA-044] Exec error: {reason}")]
+    #[diagnostic(
+        code(nika::exec_error),
+        help("Check the command, working directory, and shell configuration")
+    )]
+    ExecError { reason: String },
+
+    /// [NIKA-045] Fetch verb HTTP error (request, response, URL)
+    #[error("[NIKA-045] Fetch error: {reason}")]
+    #[diagnostic(
+        code(nika::fetch_error),
+        help("Check the URL, network connectivity, and response size limits")
+    )]
+    FetchError { reason: String },
+
+    /// [NIKA-046] Fetch extract mode error (readability, feed, CSS, markdown)
+    #[error("[NIKA-046] Extract error: {reason}")]
+    #[diagnostic(
+        code(nika::extract_error),
+        help("Check extract mode, selector syntax, and required features")
+    )]
+    ExtractError { reason: String },
+
+    /// [NIKA-098] Task panicked during execution
+    #[error("[NIKA-098] Task panicked: {reason}")]
+    #[diagnostic(
+        code(nika::task_panicked),
+        help("A task thread panicked unexpectedly. Check for bugs in task logic.")
+    )]
+    TaskPanicked { reason: String },
 
     #[error("[NIKA-042] Binding '{alias}' not found")]
     BindingNotFound { alias: String },
@@ -788,6 +819,10 @@ impl NikaError {
             // Binding/Template errors
             Self::Execution(_) => "NIKA-096",
             Self::TemplateError { .. } => "NIKA-041",
+            Self::ExecError { .. } => "NIKA-044",
+            Self::FetchError { .. } => "NIKA-045",
+            Self::ExtractError { .. } => "NIKA-046",
+            Self::TaskPanicked { .. } => "NIKA-098",
             Self::BindingNotFound { .. } => "NIKA-042",
             Self::BindingTypeMismatch { .. } => "NIKA-043",
             // Path/Task errors
@@ -891,6 +926,8 @@ impl NikaError {
             | Self::Timeout { .. }
             | Self::McpTimeout { .. }
             | Self::McpToolCallFailed { .. }
+            // Fetch errors are transient HTTP issues (retryable)
+            | Self::FetchError { .. }
             // Structured output errors that can be retried
             | Self::StructuredOutputExtractionFailed { .. }
             | Self::StructuredOutputValidationFailed { .. }
@@ -939,6 +976,18 @@ impl FixSuggestion for NikaError {
             }
             NikaError::InvalidConfig { .. } => Some("Check configuration value is valid"),
             NikaError::Execution(_) => Some("Check command/URL is valid"),
+            NikaError::ExecError { .. } => {
+                Some("Check command syntax, working directory, and shell availability")
+            }
+            NikaError::FetchError { .. } => {
+                Some("Check URL, network connectivity, and response size limits")
+            }
+            NikaError::ExtractError { .. } => {
+                Some("Check extract mode name, CSS selector syntax, or enable required feature")
+            }
+            NikaError::TaskPanicked { .. } => {
+                Some("A task panicked unexpectedly. This is likely a bug — check task logic.")
+            }
             NikaError::TemplateError { .. } => Some("Use {{with.alias}} format with with: block"),
             NikaError::InvalidPath { .. } => Some("Use format: task_id.field.subfield"),
             NikaError::PathNotFound { .. } => Some("Add '?? default' or ensure task outputs JSON"),
@@ -1333,6 +1382,54 @@ mod tests {
         let msg = err.to_string();
         assert!(msg.contains("[NIKA-096]"));
         assert!(msg.contains("Execution error"));
+    }
+
+    #[test]
+    fn test_exec_error() {
+        let err = NikaError::ExecError {
+            reason: "Failed to spawn command: not found".to_string(),
+        };
+        assert_eq!(err.code(), "NIKA-044");
+        let msg = err.to_string();
+        assert!(msg.contains("[NIKA-044]"));
+        assert!(msg.contains("Exec error"));
+        assert!(!err.is_recoverable());
+    }
+
+    #[test]
+    fn test_fetch_error() {
+        let err = NikaError::FetchError {
+            reason: "HTTP server error: 503".to_string(),
+        };
+        assert_eq!(err.code(), "NIKA-045");
+        let msg = err.to_string();
+        assert!(msg.contains("[NIKA-045]"));
+        assert!(msg.contains("Fetch error"));
+        assert!(err.is_recoverable());
+    }
+
+    #[test]
+    fn test_extract_error() {
+        let err = NikaError::ExtractError {
+            reason: "Invalid CSS selector: >>>".to_string(),
+        };
+        assert_eq!(err.code(), "NIKA-046");
+        let msg = err.to_string();
+        assert!(msg.contains("[NIKA-046]"));
+        assert!(msg.contains("Extract error"));
+        assert!(!err.is_recoverable());
+    }
+
+    #[test]
+    fn test_task_panicked() {
+        let err = NikaError::TaskPanicked {
+            reason: "index out of bounds".to_string(),
+        };
+        assert_eq!(err.code(), "NIKA-098");
+        let msg = err.to_string();
+        assert!(msg.contains("[NIKA-098]"));
+        assert!(msg.contains("Task panicked"));
+        assert!(!err.is_recoverable());
     }
 
     #[test]
