@@ -36,6 +36,7 @@ tasks:
     depends_on: [hello]
     exec:
       command: ls -1 | wc -l
+      shell: true
 "##;
 
 /// Fetch verb — HTTP requests, JSON APIs
