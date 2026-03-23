@@ -227,9 +227,33 @@ impl McpValidator {
     }
 
     /// Extract actual type from error message
-    fn extract_actual_type(&self, _error_msg: &str) -> String {
-        // Would need to inspect the actual value
-        "actual".to_string()
+    ///
+    /// jsonschema error messages contain type info like "... is not of type ..."
+    /// We extract what the value actually IS by looking at contextual clues.
+    fn extract_actual_type(&self, error_msg: &str) -> String {
+        // jsonschema errors typically say "X is not of type Y" — the actual type
+        // can be inferred from the value representation in the message
+        let msg = error_msg.to_lowercase();
+        if msg.contains("null") && !msg.contains("not of type \"null\"") {
+            "null".to_string()
+        } else if msg.contains("true") || msg.contains("false") {
+            "boolean".to_string()
+        } else if msg.contains('[') {
+            "array".to_string()
+        } else if msg.contains('{') {
+            "object".to_string()
+        } else if msg.contains("\"\"") || msg.contains("''") {
+            "string".to_string()
+        } else {
+            // Try to infer from what it's NOT — if "not of type string", it's likely a number
+            if msg.contains("not of type \"string\"") {
+                "number".to_string()
+            } else if msg.contains("not of type \"integer\"") || msg.contains("not of type \"number\"") {
+                "string".to_string()
+            } else {
+                "unknown".to_string()
+            }
+        }
     }
 
     /// Format a human-readable error message
