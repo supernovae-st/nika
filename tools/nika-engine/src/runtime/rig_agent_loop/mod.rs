@@ -232,6 +232,12 @@ impl RigAgentLoop {
                 mcp_clients.clone(),
                 params.mcp.clone(),
                 tokio_util::sync::CancellationToken::new(),
+            )
+            .with_parent_config(
+                params.model.clone(),
+                params.provider.clone(),
+                params.temperature,
+                params.tools.clone(),
             );
             tools.push(Arc::new(spawn_tool));
         }

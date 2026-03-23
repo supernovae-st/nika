@@ -35,7 +35,7 @@ use std::time::Duration;
 use parking_lot::Mutex;
 
 use crossterm::{
-    event::{self, EnableMouseCapture, Event},
+    event::{self, Event},
     execute,
     terminal::{enable_raw_mode, EnterAlternateScreen},
 };
@@ -299,7 +299,7 @@ impl App {
         })?;
 
         let mut stdout = io::stdout();
-        execute!(stdout, EnterAlternateScreen, EnableMouseCapture).map_err(|e| {
+        execute!(stdout, EnterAlternateScreen).map_err(|e| {
             NikaError::TuiError {
                 reason: format!("Failed to enter alternate screen: {}", e),
             }
@@ -489,7 +489,6 @@ impl App {
 
                 let action = match event {
                     Event::Key(key) => self.handle_unified_key(key.code, key.modifiers),
-                    Event::Mouse(_) => Action::Continue,
                     _ => Action::Continue,
                 };
                 self.apply_action(action);

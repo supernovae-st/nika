@@ -148,13 +148,16 @@ impl PolicyEnforcer {
             }
         };
 
+        // Normalize IPv6: url crate returns "[::1]" with brackets, blocklist uses "::1"
+        let host_normalized = host.trim_start_matches('[').trim_end_matches(']');
+
         // SSRF protection: block cloud metadata and loopback
         // Exception: explicit allowed_hosts override SSRF blocklist (for testing, local services)
         let explicitly_allowed = self.config.allowed_hosts.iter().any(|allowed| {
-            host == allowed.to_lowercase()
+            host_normalized == allowed.to_lowercase()
         });
         if !explicitly_allowed
-            && SSRF_BLOCKED_HOSTS.iter().any(|&blocked| host == blocked)
+            && SSRF_BLOCKED_HOSTS.contains(&host_normalized)
         {
             return PolicyDecision::Block(format!(
                 "SSRF protection: access to '{}' is blocked",

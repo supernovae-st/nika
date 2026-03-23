@@ -16,7 +16,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crossterm::{
-    event::DisableMouseCapture,
     execute,
     terminal::{disable_raw_mode, LeaveAlternateScreen},
 };
@@ -555,8 +554,7 @@ impl App {
 
             execute!(
                 terminal.backend_mut(),
-                LeaveAlternateScreen,
-                DisableMouseCapture
+                LeaveAlternateScreen
             )
             .map_err(|e| NikaError::TuiError {
                 reason: format!("Failed to leave alternate screen: {}", e),

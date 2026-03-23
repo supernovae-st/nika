@@ -82,31 +82,62 @@ impl RigAgentLoop {
     /// // History now contains both turns
     /// ```
     pub async fn chat_continue(&mut self, prompt: &str) -> Result<RigAgentLoopResult, NikaError> {
-        // Auto-detect provider and use chat with history
-        // Helper: check env var exists and is non-empty
-        let has_key = |key: &str| std::env::var(key).is_ok_and(|v| !v.trim().is_empty());
+        // Use configured provider first, fallback to env-var auto-detection
+        let provider = self.params.provider.as_deref();
+        match provider {
+            Some(name) => {
+                // Resolve alias to canonical provider ID via core catalog
+                let resolved = crate::core::find_provider(name).ok_or_else(|| {
+                    NikaError::AgentValidationError {
+                        reason: format!(
+                            "Unknown provider: '{}'. Use 'claude', 'openai', 'mistral', 'groq', 'deepseek', 'gemini', or 'xai'.",
+                            name
+                        ),
+                    }
+                })?;
+                match resolved.id {
+                    "anthropic" => self.chat_continue_claude(prompt).await,
+                    "openai" => self.chat_continue_openai(prompt).await,
+                    "mistral" => self.chat_continue_mistral(prompt).await,
+                    "groq" => self.chat_continue_groq(prompt).await,
+                    "deepseek" => self.chat_continue_deepseek(prompt).await,
+                    "gemini" => self.chat_continue_gemini(prompt).await,
+                    other => Err(NikaError::AgentValidationError {
+                        reason: format!(
+                            "Provider '{}' is not supported for chat_continue.",
+                            other
+                        ),
+                    }),
+                }
+            }
+            None => {
+                // Auto-detect: check env vars in priority order
+                let has_key =
+                    |key: &str| std::env::var(key).is_ok_and(|v| !v.trim().is_empty());
 
-        if has_key("ANTHROPIC_API_KEY") {
-            return self.chat_continue_claude(prompt).await;
+                if has_key("ANTHROPIC_API_KEY") {
+                    return self.chat_continue_claude(prompt).await;
+                }
+                if has_key("OPENAI_API_KEY") {
+                    return self.chat_continue_openai(prompt).await;
+                }
+                if has_key("MISTRAL_API_KEY") {
+                    return self.chat_continue_mistral(prompt).await;
+                }
+                if has_key("GROQ_API_KEY") {
+                    return self.chat_continue_groq(prompt).await;
+                }
+                if has_key("DEEPSEEK_API_KEY") {
+                    return self.chat_continue_deepseek(prompt).await;
+                }
+                if has_key("GEMINI_API_KEY") {
+                    return self.chat_continue_gemini(prompt).await;
+                }
+                Err(NikaError::AgentValidationError {
+                    reason: "chat_continue requires a configured provider or one of: ANTHROPIC_API_KEY, OPENAI_API_KEY, MISTRAL_API_KEY, GROQ_API_KEY, DEEPSEEK_API_KEY, or GEMINI_API_KEY".to_string(),
+                })
+            }
         }
-        if has_key("OPENAI_API_KEY") {
-            return self.chat_continue_openai(prompt).await;
-        }
-        if has_key("MISTRAL_API_KEY") {
-            return self.chat_continue_mistral(prompt).await;
-        }
-        if has_key("GROQ_API_KEY") {
-            return self.chat_continue_groq(prompt).await;
-        }
-        if has_key("DEEPSEEK_API_KEY") {
-            return self.chat_continue_deepseek(prompt).await;
-        }
-        if has_key("GEMINI_API_KEY") {
-            return self.chat_continue_gemini(prompt).await;
-        }
-        Err(NikaError::AgentValidationError {
-            reason: "chat_continue requires one of: ANTHROPIC_API_KEY, OPENAI_API_KEY, MISTRAL_API_KEY, GROQ_API_KEY, DEEPSEEK_API_KEY, or GEMINI_API_KEY".to_string(),
-        })
     }
 
     /// Continue conversation with Claude
@@ -168,7 +199,9 @@ impl RigAgentLoop {
             builder = builder.additional_params(stop_params);
         }
 
-        let agent = builder.build();
+        // Add tools so the agent can use MCP and builtin tools during chat_continue
+        let tools = self.tools_as_boxed();
+        let agent = builder.tools(tools).build();
 
         let response = agent
             .chat(prompt, self.history.clone())
@@ -178,9 +211,10 @@ impl RigAgentLoop {
                 reason: e.to_string(),
             })?;
 
-        // Update history with this turn
+        // Update history and increment turn count
         self.history.push(Message::user(prompt));
         self.history.push(Message::assistant(&response));
+        self.turn_count += 1;
 
         // Determine status
         let status = self.determine_status(&response);
@@ -270,7 +304,9 @@ impl RigAgentLoop {
             builder = builder.additional_params(stop_params);
         }
 
-        let agent = builder.build();
+        // Add tools so the agent can use MCP and builtin tools during chat_continue
+        let tools = self.tools_as_boxed();
+        let agent = builder.tools(tools).build();
 
         let response = agent
             .chat(prompt, self.history.clone())
@@ -280,9 +316,10 @@ impl RigAgentLoop {
                 reason: e.to_string(),
             })?;
 
-        // Update history with this turn
+        // Update history and increment turn count
         self.history.push(Message::user(prompt));
         self.history.push(Message::assistant(&response));
+        self.turn_count += 1;
 
         // Determine status
         let status = self.determine_status(&response);
@@ -334,9 +371,11 @@ impl RigAgentLoop {
                 reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
             })?;
         let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
+        let tools = self.tools_as_boxed();
         let agent = client
             .agent(model_name)
             .max_tokens(effective_max_tokens)
+            .tools(tools)
             .build();
 
         let turn_index = self.turn_count + 1;
@@ -358,6 +397,7 @@ impl RigAgentLoop {
 
         self.history.push(Message::user(prompt));
         self.history.push(Message::assistant(&response));
+        self.turn_count += 1;
 
         let status = self.determine_status(&response);
         let metadata = AgentTurnMetadata::text_only(&response, "end_turn");
@@ -402,9 +442,11 @@ impl RigAgentLoop {
                 reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
             })?;
         let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
+        let tools = self.tools_as_boxed();
         let agent = client
             .agent(model_name)
             .max_tokens(effective_max_tokens)
+            .tools(tools)
             .build();
 
         let turn_index = self.turn_count + 1;
@@ -426,6 +468,7 @@ impl RigAgentLoop {
 
         self.history.push(Message::user(prompt));
         self.history.push(Message::assistant(&response));
+        self.turn_count += 1;
 
         let status = self.determine_status(&response);
         let metadata = AgentTurnMetadata::text_only(&response, "end_turn");
@@ -473,9 +516,11 @@ impl RigAgentLoop {
                 reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
             })?;
         let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
+        let tools = self.tools_as_boxed();
         let agent = client
             .agent(model_name)
             .max_tokens(effective_max_tokens)
+            .tools(tools)
             .build();
 
         let turn_index = self.turn_count + 1;
@@ -497,6 +542,7 @@ impl RigAgentLoop {
 
         self.history.push(Message::user(prompt));
         self.history.push(Message::assistant(&response));
+        self.turn_count += 1;
 
         let status = self.determine_status(&response);
         let metadata = AgentTurnMetadata::text_only(&response, "end_turn");
@@ -541,9 +587,11 @@ impl RigAgentLoop {
                 reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
             })?;
         let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
+        let tools = self.tools_as_boxed();
         let agent = client
             .agent(model_name)
             .max_tokens(effective_max_tokens)
+            .tools(tools)
             .build();
 
         let turn_index = self.turn_count + 1;
@@ -565,6 +613,7 @@ impl RigAgentLoop {
 
         self.history.push(Message::user(prompt));
         self.history.push(Message::assistant(&response));
+        self.turn_count += 1;
 
         let status = self.determine_status(&response);
         let metadata = AgentTurnMetadata::text_only(&response, "end_turn");

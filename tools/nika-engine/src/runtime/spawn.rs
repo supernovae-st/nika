@@ -86,6 +86,14 @@ pub struct SpawnAgentTool {
     mcp_names: Vec<String>,
     /// Cancellation token from parent — child agent races against this
     cancel_token: CancellationToken,
+    /// Parent's model name — propagated to child agents
+    parent_model: Option<String>,
+    /// Parent's provider name — propagated to child agents
+    parent_provider: Option<String>,
+    /// Parent's temperature setting — propagated to child agents
+    parent_temperature: Option<f32>,
+    /// Parent's tools list — propagated to child agents
+    parent_tools: Vec<String>,
 }
 
 impl SpawnAgentTool {
@@ -110,6 +118,10 @@ impl SpawnAgentTool {
             mcp_clients: FxHashMap::default(),
             mcp_names: Vec::new(),
             cancel_token: CancellationToken::new(),
+            parent_model: None,
+            parent_provider: None,
+            parent_temperature: None,
+            parent_tools: Vec::new(),
         }
     }
 
@@ -140,7 +152,29 @@ impl SpawnAgentTool {
             mcp_clients,
             mcp_names,
             cancel_token,
+            parent_model: None,
+            parent_provider: None,
+            parent_temperature: None,
+            parent_tools: Vec::new(),
         }
+    }
+
+    /// Set parent configuration to propagate to child agents.
+    ///
+    /// Without this, child agents would lose model, provider, temperature,
+    /// and tools configuration from the parent — running with defaults.
+    pub fn with_parent_config(
+        mut self,
+        model: Option<String>,
+        provider: Option<String>,
+        temperature: Option<f32>,
+        tools: Vec<String>,
+    ) -> Self {
+        self.parent_model = model;
+        self.parent_provider = provider;
+        self.parent_temperature = temperature;
+        self.parent_tools = tools;
+        self
     }
 
     /// Get the tool name
@@ -237,6 +271,12 @@ impl SpawnAgentTool {
             mcp: self.mcp_names.clone(),
             max_turns: params.max_turns.or(Some(10)),
             depth_limit: Some(remaining_depth),
+            // Propagate parent config so child agents use the same
+            // model, provider, temperature, and tools as the parent
+            model: self.parent_model.clone(),
+            provider: self.parent_provider.clone(),
+            temperature: self.parent_temperature,
+            tools: self.parent_tools.clone(),
             ..Default::default()
         };
 

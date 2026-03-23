@@ -141,6 +141,8 @@ impl PanelScrollState {
     pub fn scroll_to_bottom(&mut self) {
         if self.total > self.visible {
             self.offset = self.total - self.visible;
+        } else {
+            self.offset = 0;
         }
         if self.total > 0 {
             self.cursor = self.total - 1;

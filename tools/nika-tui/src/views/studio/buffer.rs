@@ -448,17 +448,17 @@ impl TextBuffer {
         if start.line == end.line {
             // Single line selection
             let line = self.lines.get(start.line)?;
-            let start_col = start.col.min(line.len());
-            let end_col = end.col.min(line.len());
-            Some(line[start_col..end_col].to_string())
+            let start_byte = Self::char_to_byte(line, start.col);
+            let end_byte = Self::char_to_byte(line, end.col);
+            Some(line[start_byte..end_byte].to_string())
         } else {
             // Multi-line selection
             let mut result = String::new();
 
             // First line (from start_col to end)
             if let Some(first_line) = self.lines.get(start.line) {
-                let start_col = start.col.min(first_line.len());
-                result.push_str(&first_line[start_col..]);
+                let start_byte = Self::char_to_byte(first_line, start.col);
+                result.push_str(&first_line[start_byte..]);
             }
 
             // Middle lines (full lines)
@@ -472,8 +472,8 @@ impl TextBuffer {
             // Last line (from start to end_col)
             if let Some(last_line) = self.lines.get(end.line) {
                 result.push('\n');
-                let end_col = end.col.min(last_line.len());
-                result.push_str(&last_line[..end_col]);
+                let end_byte = Self::char_to_byte(last_line, end.col);
+                result.push_str(&last_line[..end_byte]);
             }
 
             Some(result)
@@ -493,9 +493,9 @@ impl TextBuffer {
         if start.line == end.line {
             // Single line deletion
             if let Some(line) = self.lines.get_mut(start.line) {
-                let start_col = start.col.min(line.len());
-                let end_col = end.col.min(line.len());
-                line.replace_range(start_col..end_col, "");
+                let start_byte = Self::char_to_byte(line, start.col);
+                let end_byte = Self::char_to_byte(line, end.col);
+                line.replace_range(start_byte..end_byte, "");
             }
         } else {
             // Multi-line deletion
@@ -503,13 +503,19 @@ impl TextBuffer {
             let first_part = self
                 .lines
                 .get(start.line)
-                .map(|l| l[..start.col.min(l.len())].to_string())
+                .map(|l| {
+                    let byte = Self::char_to_byte(l, start.col);
+                    l[..byte].to_string()
+                })
                 .unwrap_or_default();
 
             let last_part = self
                 .lines
                 .get(end.line)
-                .map(|l| l[end.col.min(l.len())..].to_string())
+                .map(|l| {
+                    let byte = Self::char_to_byte(l, end.col);
+                    l[byte..].to_string()
+                })
                 .unwrap_or_default();
 
             // Remove lines from start.line to end.line (inclusive)

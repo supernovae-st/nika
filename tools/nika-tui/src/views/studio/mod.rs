@@ -857,6 +857,7 @@ impl YamlEditorPanel {
         self.buffer = TextBuffer::from_content(&content);
         self.path = Some(path.clone());
         self.modified = false;
+        self.dag_scroll = 0;
         self.validate();
         // Initialize edit history with loaded content
         self.edit_history.init(&content, 0);
@@ -871,6 +872,7 @@ impl YamlEditorPanel {
             let content = self.buffer.content();
             atomic_write(path, content.as_bytes())?;
             self.modified = false;
+            self.buffer.clear_modified();
         }
         Ok(())
     }
