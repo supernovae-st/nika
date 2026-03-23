@@ -499,9 +499,8 @@ The `for_each:` field iterates over a list, executing the task once per item:
 
 ```yaml
 - id: translate
-  for_each:
-    items: ["English", "French", "German"]
-    concurrency: 3
+  for_each: ["English", "French", "German"]
+  concurrency: 3
   infer:
     prompt: "Translate 'Hello world' to {{with.item}}"
 ```
@@ -566,8 +565,7 @@ workflow: for-each-basic
 
 tasks:
   - id: greet
-    for_each:
-      items: ["Alice", "Bob", "Charlie", "Diana"]
+    for_each: ["Alice", "Bob", "Charlie", "Diana"]
     exec:
       command: echo "Hello, {{with.item}}!"
       shell: true
@@ -591,9 +589,8 @@ workflow: for-each-concurrent
 
 tasks:
   - id: process
-    for_each:
-      items: ["https://httpbin.org/delay/1", "https://httpbin.org/delay/1", "https://httpbin.org/delay/1", "https://httpbin.org/delay/1"]
-      concurrency: 2
+    for_each: ["https://httpbin.org/delay/1", "https://httpbin.org/delay/1", "https://httpbin.org/delay/1", "https://httpbin.org/delay/1"]
+    concurrency: 2
     fetch:
       url: "{{with.item}}"
       timeout: 10

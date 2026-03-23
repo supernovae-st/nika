@@ -122,11 +122,10 @@ tasks:
 
   - id: fetch_all
     depends_on: [get_urls]
-    for_each:
-      items: $get_urls
-      as: url
-      concurrency: 3
-      fail_fast: false
+    for_each: $get_urls
+    as: url
+    concurrency: 3
+    fail_fast: false
     fetch:
       url: "{{with.url}}"
       timeout: 10
@@ -311,10 +310,9 @@ Control whether one failed iteration stops all others:
 
 ```yaml
   - id: process_all
-    for_each:
-      items: $urls
-      concurrency: 5
-      fail_fast: false  # Continue processing even if some fail
+    for_each: $urls
+    concurrency: 5
+    fail_fast: false  # Continue processing even if some fail
     fetch:
       url: "{{with.item}}"
 ```

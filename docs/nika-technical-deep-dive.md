@@ -649,11 +649,10 @@ tasks:
 
 ```yaml
 - id: translate
-  for_each:
-    items: ["en", "fr", "de", "es", "ja"]   # Or: $upstream_task
-    as: lang                                  # Loop variable name
-    parallel: 3                               # Concurrency limit
-    fail_fast: true                           # Stop all on first error
+  for_each: ["en", "fr", "de", "es", "ja"]   # Or: $upstream_task
+  as: lang                                    # Loop variable name
+  concurrency: 3                              # Concurrency limit
+  fail_fast: true                             # Stop all on first error
   with:
     lang: $item
   infer: "Translate the document to {{with.lang}}"
@@ -709,9 +708,8 @@ Decompose uses graph traversal (via MCP) to generate iteration items at runtime:
     source: $parent_entity       # Starting node
     max_depth: 2
     max_items: 50
-  for_each:
-    items: $decompose
-    parallel: 4
+  for_each: $decompose
+  concurrency: 4
   invoke:
     mcp: novanet
     tool: novanet_context
@@ -1465,10 +1463,9 @@ tasks:
     with:
       topics: research
       context: get_context
-    for_each:
-      items: $research
-      as: topic
-      parallel: 3
+    for_each: $research
+    as: topic
+    concurrency: 3
     infer:
       prompt: |
         Write a detailed section about: {{with.topic}}

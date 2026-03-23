@@ -602,13 +602,12 @@ model: claude-sonnet-4-6
 tasks:
   - id: generate
     for_each:
-      items:
-        - "Noise-canceling headphones"
-        - "Ergonomic keyboard"
-        - "Smart water bottle"
-        - "Portable solar charger"
-        - "AI writing assistant"
-      concurrency: 5
+      - "Noise-canceling headphones"
+      - "Ergonomic keyboard"
+      - "Smart water bottle"
+      - "Portable solar charger"
+      - "AI writing assistant"
+    concurrency: 5
     infer:
       prompt: "Write a 50-word product description for: {{with.item}}"
       temperature: 0.7

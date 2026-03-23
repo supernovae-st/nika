@@ -430,11 +430,10 @@ tasks:
 
   - id: fetch_all
     depends_on: [urls]
-    for_each:
-      items: $urls
-      as: url
-      concurrency: 3
-      fail_fast: true
+    for_each: $urls
+    as: url
+    concurrency: 3
+    fail_fast: true
     fetch:
       url: "{{with.url}}"
       extract: markdown

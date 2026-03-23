@@ -545,11 +545,10 @@ Iterate over arrays:
 
 ```yaml
 - id: process
-  for_each:
-    items: $data_task            # Task output (must be array)
-    as: item                     # Loop variable name (default: "item")
-    concurrency: 5               # Max parallel iterations
-    fail_fast: true              # Stop on first error (default: true)
+  for_each: $data_task              # Task output (must be array)
+  as: item                         # Loop variable name (default: "item")
+  concurrency: 5                   # Max parallel iterations
+  fail_fast: true                  # Stop on first error (default: true)
   infer:
     prompt: "Process: {{with.item}}"
 ```

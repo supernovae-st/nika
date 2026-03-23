@@ -567,10 +567,9 @@ tasks:
 
   - id: fetch_all
     depends_on: [urls]
-    for_each:
-      items: $urls
-      as: url
-      concurrency: 3
+    for_each: $urls
+    as: url
+    concurrency: 3
     fetch:
       url: "{{with.url}}"
       extract: jsonpath
@@ -593,9 +592,8 @@ tasks:
 
   - id: fetch_feeds
     depends_on: [feeds]
-    for_each:
-      items: $feeds
-      concurrency: 3
+    for_each: $feeds
+    concurrency: 3
     fetch:
       url: "{{with.item}}"
       extract: feed

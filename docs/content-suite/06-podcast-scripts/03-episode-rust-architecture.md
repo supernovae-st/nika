@@ -295,9 +295,8 @@ For fan-out patterns, Nika supports `for_each:` with configurable concurrency:
 [CODE EXAMPLE]
 ```yaml
 - id: process_all
-  for_each:
-    items: "{{with.urls}}"
-    concurrency: 5
+  for_each: "{{with.urls}}"
+  concurrency: 5
   fetch:
     url: "{{with.item}}"
     extract: markdown

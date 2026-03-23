@@ -219,11 +219,13 @@ Defined in `src/tools/mod.rs` via `ToolErrorCode`:
 | NIKA-200 | File read error |
 | NIKA-201 | File write error |
 | NIKA-202 | File edit error |
-| NIKA-203 | Glob error |
-| NIKA-204 | Grep error |
+| NIKA-203 | Must read file before editing |
+| NIKA-204 | Path outside working directory |
 | NIKA-205 | Permission denied |
-| NIKA-206 | Path outside boundary |
-| NIKA-207 | Path traversal detected |
+| NIKA-206 | Invalid glob pattern |
+| NIKA-207 | Invalid regex pattern |
+| NIKA-208 | File not found |
+| NIKA-209 | old_string not unique in file |
 
 ## Builtin Tool Errors (210-219)
 

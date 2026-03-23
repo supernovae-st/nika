@@ -209,23 +209,23 @@ nika provider set anthropic
 
 ### Template and Binding Errors (040-049)
 
-**NIKA-040: Template resolution failed**
+**NIKA-041: Template error**
 
 ```
-[NIKA-040] Template '{{with.data}}' could not be resolved
+[NIKA-041] Template error in '{{with.data}}': could not be resolved
 ```
 
 **Cause:** A template reference points to a binding that does not exist or has not been defined.
 
 **Fix:** Ensure every `{{with.X}}` has a corresponding `with: { X: $source }` declaration.
 
-**NIKA-041: Invalid binding expression**
+**NIKA-042: Binding not found**
 
 ```
-[NIKA-041] Invalid binding expression: data: source (missing $ prefix)
+[NIKA-042] Binding 'data' not found
 ```
 
-**Cause:** Task reference is missing the `$` prefix.
+**Cause:** Task reference is missing the `$` prefix or the alias does not exist.
 
 **Fix:**
 ```yaml
@@ -240,16 +240,22 @@ with:
 
 ### Path and Security Errors (050-059)
 
-**NIKA-050: Path not found**
+**NIKA-050: Invalid path syntax**
 
-**Cause:** A referenced file path does not exist.
+**Cause:** A binding path has invalid syntax.
 
-**Fix:** Check paths relative to the workflow file location.
+**Fix:** Check path expressions in `with:` blocks and template references.
 
-**NIKA-055: Security violation**
+**NIKA-052: Path not found**
+
+**Cause:** A referenced path does not exist (task may not have JSON output).
+
+**Fix:** Check paths relative to the workflow file location and verify upstream task output.
+
+**NIKA-053: Command blocked**
 
 ```
-[NIKA-055] Security violation: command contains blocked pattern
+[NIKA-053] Command blocked: 'rm -rf /' - matches security blocklist
 ```
 
 **Cause:** A shell command matches Nika's security blocklist.
@@ -270,9 +276,9 @@ with:
 
 ### With Block Validation (070-089)
 
-**NIKA-070: Invalid with entry**
+**NIKA-071: Unknown alias in with: block**
 
-**Cause:** A `with:` entry has invalid syntax.
+**Cause:** A template references an alias not declared in the `with:` block.
 
 **Fix:** Check the `with:` block syntax:
 ```yaml
@@ -340,10 +346,10 @@ with:
 
 ### Agent Errors (110-119)
 
-**NIKA-110: Agent max turns exceeded**
+**NIKA-115: Agent execution failed**
 
 ```
-[NIKA-110] Agent exceeded max_turns (20)
+[NIKA-115] Agent execution failed for task 'researcher': exceeded max_turns (20)
 ```
 
 **Cause:** The agent used all allowed iterations without completing.

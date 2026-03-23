@@ -158,9 +158,8 @@ inputs:
 
 tasks:
   - id: check
-    for_each:
-      items: "{{inputs.urls}}"
-      concurrency: 5
+    for_each: "{{inputs.urls}}"
+    concurrency: 5
     fetch:
       url: "{{with.item}}"
       response: full
@@ -292,9 +291,8 @@ inputs:
 
 tasks:
   - id: translate
-    for_each:
-      items: ["French", "Spanish", "Japanese", "Arabic", "Russian"]
-      concurrency: 5
+    for_each: ["French", "Spanish", "Japanese", "Arabic", "Russian"]
+    concurrency: 5
     infer:
       prompt: "Translate to {{with.item}}: {{inputs.text}}"
       temperature: 0.1
@@ -374,9 +372,8 @@ inputs:
 tasks:
   # Fan-out: scrape 3 URLs in parallel
   - id: scrape
-    for_each:
-      items: "{{inputs.urls}}"
-      concurrency: 3
+    for_each: "{{inputs.urls}}"
+    concurrency: 3
     fetch:
       url: "{{with.item}}"
       extract: markdown
@@ -404,9 +401,8 @@ tasks:
   # Fan-out: write 4 sections in parallel
   - id: write_sections
     depends_on: [outline]
-    for_each:
-      items: "{{with.outline.sections}}"
-      concurrency: 4
+    for_each: "{{with.outline.sections}}"
+    concurrency: 4
     infer:
       prompt: "Write section '{{with.item.title}}' covering: {{with.item.key_points}}"
 

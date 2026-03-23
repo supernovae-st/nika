@@ -80,9 +80,8 @@ tasks:                            # The work to do
       max_attempts: 3
     artifact:
       path: output/file.txt
-    for_each:
-      items: [a, b, c]
-      concurrency: 3
+    for_each: [a, b, c]
+    concurrency: 3
 ```
 
 ---
@@ -443,9 +442,8 @@ tasks:
 ### For Each (parallel iteration)
 ```yaml
 - id: batch
-  for_each:
-    items: [a, b, c]
-    concurrency: 3
+  for_each: [a, b, c]
+  concurrency: 3
   exec: echo "{{with.item}}"
 ```
 

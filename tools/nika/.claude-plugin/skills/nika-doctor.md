@@ -148,12 +148,13 @@ For each FAIL or WARN, offer to fix it:
 
 | Code | Issue | Fix |
 |------|-------|-----|
-| NIKA-000 | Missing schema | Add `schema: nika/workflow@0.12` |
-| NIKA-010 | Duplicate task ID | Rename one of the duplicate tasks |
+| NIKA-001 | Failed to parse workflow | Check YAML syntax and indentation |
+| NIKA-002 | Invalid schema version | Add `schema: nika/workflow@0.12` |
 | NIKA-020 | Circular dependency | Remove the cycle in depends_on |
-| NIKA-030 | No provider available | Set an API key env var |
-| NIKA-040 | Binding not found | Check with: alias matches a task ID |
-| NIKA-050 | Blocked command | Remove dangerous command from exec: |
+| NIKA-022 | Duplicate task ID | Rename one of the duplicate tasks |
+| NIKA-032 | Missing API key | Set an API key env var |
+| NIKA-042 | Binding not found | Check with: alias matches a task ID |
+| NIKA-053 | Command blocked | Remove dangerous command from exec: |
 | NIKA-100 | MCP server not found | Add server to mcp: block |
 
 ## Rules

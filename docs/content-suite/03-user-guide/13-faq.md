@@ -116,9 +116,8 @@ Use `for_each:`:
 
 - id: process
   depends_on: [items]
-  for_each:
-    items: $items
-    concurrency: 3
+  for_each: $items
+  concurrency: 3
   exec: "echo 'Processing: {{with.item}}'"
 ```
 

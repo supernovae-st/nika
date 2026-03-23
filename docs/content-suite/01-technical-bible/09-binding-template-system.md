@@ -420,9 +420,8 @@ When used with `for_each`, the loop variable binding is injected automatically:
 
 ```yaml
 - id: process_items
-  for_each:
-    items: $data.items
-    as: item
+  for_each: $data.items
+  as: item
   infer:
     prompt: "Process: {{with.item.name}} - {{with.item.description}}"
 ```

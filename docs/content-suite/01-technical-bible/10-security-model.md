@@ -134,8 +134,8 @@ File tools (`nika:read`, `nika:write`, `nika:edit`, `nika:glob`, `nika:grep`) en
 All file tool paths are validated to be:
 
 1. **Absolute paths only:** Relative paths are rejected
-2. **Within working directory:** Paths outside the security boundary are rejected (NIKA-206)
-3. **No traversal:** `../` patterns are detected and blocked (NIKA-207)
+2. **Within working directory:** Paths outside the security boundary are rejected (NIKA-204)
+3. **No traversal:** `../` patterns are detected and blocked (NIKA-204)
 
 ### Media Import Security
 

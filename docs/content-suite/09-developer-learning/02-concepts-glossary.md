@@ -174,9 +174,8 @@ agent:
 The number of parallel iterations allowed when using `for_each:`. Controls resource usage for parallel fan-out patterns.
 
 ```yaml
-for_each:
-  items: [a, b, c, d, e]
-  concurrency: 3
+for_each: [a, b, c, d, e]
+concurrency: 3
 ```
 
 **Related**: DAG, For Each, Parallel Execution
@@ -363,9 +362,8 @@ A task-level field that iterates over a list, executing the task once per item. 
 
 ```yaml
 - id: translate
-  for_each:
-    items: ["en", "fr", "de", "ja"]
-    concurrency: 2
+  for_each: ["en", "fr", "de", "ja"]
+  concurrency: 2
   infer:
     prompt: "Translate to {{with.item}}: Hello world"
 ```

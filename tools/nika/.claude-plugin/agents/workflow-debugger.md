@@ -169,7 +169,7 @@ RUST_LOG=nika::runtime=debug nika run <file> 2>&1 | grep "for_each\|expand\|iter
 
 #### Pattern: Agent Exceeds Max Turns
 
-**Symptom**: NIKA-110 agent exceeded max_turns.
+**Symptom**: NIKA-115 agent execution failed (exceeded max_turns).
 **Causes**:
 1. Goal too vague (agent can't determine when done)
 2. Tools insufficient for the goal
