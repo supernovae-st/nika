@@ -12,10 +12,21 @@ use std::sync::Arc;
 use wiremock::matchers::{header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-/// Helper: create executor + bindings + datastore for fetch tests
+/// Helper: create executor + bindings + datastore for fetch tests.
+/// Uses a policy that explicitly allows localhost (required because SSRF
+/// protection blocks 127.0.0.1 by default, which wiremock uses).
 fn setup() -> (TaskExecutor, ResolvedBindings, RunContext, EventLog) {
     let event_log = EventLog::new();
-    let executor = TaskExecutor::new("mock", None, None, event_log.clone());
+    let policy = crate::runtime::boot::PolicyConfig {
+        allow_exec: true,
+        allow_network: true,
+        blocked_commands: vec![],
+        max_token_spend: None,
+        allowed_hosts: vec!["127.0.0.1".to_string(), "localhost".to_string()],
+        blocked_hosts: vec![],
+    };
+    let executor =
+        TaskExecutor::with_policy("mock", None, None, event_log.clone(), Some(policy));
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
     (executor, bindings, datastore, event_log)
