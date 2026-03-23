@@ -22,5 +22,6 @@ pub mod schema;
 pub mod workflow;
 
 pub mod init_ai;
+pub mod machine;
 pub mod new_cmd;
 pub mod setup;
