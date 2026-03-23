@@ -11,7 +11,7 @@ import {
   ServerOptions,
   TransportKind,
 } from 'vscode-languageclient/node';
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 
 let client: LanguageClient | undefined;
 
@@ -72,6 +72,21 @@ function runNikaCommand(subcmd: string, filePath: string): void {
 }
 
 export function activate(context: ExtensionContext): void {
+  const nikaPath = getNikaPath();
+  execFile(nikaPath, ['--version'], { timeout: 5000 }, (error) => {
+    if (error) {
+      window.showWarningMessage(
+        `Nika binary not found at '${nikaPath}'. Install: cargo install nika`,
+        'Open Install Guide',
+      ).then((choice) => {
+        if (choice === 'Open Install Guide') {
+          const { env } = require('vscode');
+          env.openExternal(Uri.parse('https://github.com/supernovae-st/nika#installation'));
+        }
+      });
+    }
+  });
+
   startClient(context);
 
   // Command: Run current workflow
