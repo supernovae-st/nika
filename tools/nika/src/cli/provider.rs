@@ -91,16 +91,17 @@ pub async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaE
                     String::new()
                 };
 
-                println!(
-                    "  {:12} {} {}",
-                    provider,
-                    status,
-                    if masked.is_empty() {
-                        String::new()
-                    } else {
-                        format!("[{}]", masked.dimmed())
-                    }
-                );
+                let hint = if !has_keychain && !has_env {
+                    format!("  \u{2192} nika provider set {}", provider)
+                        .dimmed()
+                        .to_string()
+                } else if masked.is_empty() {
+                    String::new()
+                } else {
+                    format!("[{}]", masked.dimmed())
+                };
+
+                println!("  {:12} {} {}", provider, status, hint);
             }
 
             println!();
