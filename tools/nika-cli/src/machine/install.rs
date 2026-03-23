@@ -562,12 +562,26 @@ fn setup_completions() -> SetupResult {
 
 // ─── Quick Editor Re-Scan ────────────────────────────────────────────────────
 
+/// 24-hour cooldown in seconds for quick_editor_scan.
+const SCAN_COOLDOWN_SECS: u64 = 86_400;
+
 /// Lightweight scan for newly installed editors. Called on every nika command
 /// when machine_setup_status() == Ready. If a new editor is detected that
 /// wasn't in machine.toml, install rules silently and update the stored list.
 ///
-/// Adds ~5ms to every command. Acceptable.
+/// Skips if last scan was < 24h ago (cooldown to avoid repeated filesystem checks).
 pub fn quick_editor_scan() {
+    // Cooldown: skip if scanned recently
+    if let Some(last) = read_last_scan_at() {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        if now.saturating_sub(last) < SCAN_COOLDOWN_SECS {
+            return;
+        }
+    }
+
     let current = detect_editors();
     let stored = read_stored_editors();
 
@@ -634,8 +648,52 @@ pub fn quick_editor_scan() {
         }
     }
 
-    // Update machine.toml with new editors list
+    // Update machine.toml with new editors list + scan timestamp
     update_machine_toml_editors(&current);
+    write_last_scan_at();
+}
+
+/// Read `last_scan_at` timestamp from machine.toml.
+fn read_last_scan_at() -> Option<u64> {
+    let content = std::fs::read_to_string(machine_toml_path()).ok()?;
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if let Some(rest) = trimmed.strip_prefix("last_scan_at") {
+            let rest = rest.trim().strip_prefix('=').unwrap_or("").trim();
+            return rest.trim_matches('"').parse().ok();
+        }
+    }
+    None
+}
+
+/// Write `last_scan_at` timestamp to machine.toml.
+fn write_last_scan_at() {
+    let marker_path = machine_toml_path();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+
+    let content = std::fs::read_to_string(&marker_path).unwrap_or_default();
+    let new_line = format!("last_scan_at = \"{}\"", now);
+
+    // Replace existing last_scan_at or append
+    if content.contains("last_scan_at") {
+        let updated: String = content
+            .lines()
+            .map(|l| {
+                if l.trim().starts_with("last_scan_at") {
+                    new_line.as_str()
+                } else {
+                    l
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        std::fs::write(&marker_path, format!("{}\n", updated)).ok();
+    } else {
+        std::fs::write(&marker_path, format!("{}{}\n", content, new_line)).ok();
+    }
 }
 
 /// Read the editors list from machine.toml.
