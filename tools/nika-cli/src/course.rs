@@ -571,8 +571,8 @@ fn cmd_check(level_arg: Option<String>) -> Result<(), NikaError> {
             reason: format!("Failed to read {}: {}", path.display(), e),
         })?;
 
-        // Run standard checks based on level
-        let mut checks = build_checks_for_level(level.number, &yaml);
+        // Run standard checks based on level + exercise
+        let mut checks = build_checks_for_level(level.number, ex, &yaml);
 
         // QW #4: Run real AST validation (Phase 1 + Phase 2)
         match nika_engine::ast::parse_analyzed(&yaml) {
@@ -730,9 +730,13 @@ fn cmd_check(level_arg: Option<String>) -> Result<(), NikaError> {
     Ok(())
 }
 
-/// Build check assertions appropriate for a given level
+/// Build check assertions appropriate for a given level and exercise.
+///
+/// Levels 1-5 have per-exercise verb checks because exercises within a level
+/// teach different verbs. Levels 6-12 use broad level-wide checks.
 fn build_checks_for_level(
     level_num: u8,
+    exercise_num: u8,
     yaml: &str,
 ) -> Vec<nika_engine::init::course::checks::CheckResult> {
     let mut checks = vec![
@@ -743,20 +747,40 @@ fn build_checks_for_level(
 
     match level_num {
         1 => {
-            checks.push(check_has_verb(yaml, "exec"));
+            // Level 1 (Jailbreak): exercises teach different verbs
+            match exercise_num {
+                1 => checks.push(check_has_verb(yaml, "infer")),
+                2 => checks.push(check_has_verb(yaml, "exec")),
+                3 => checks.push(check_has_verb(yaml, "fetch")),
+                4 => checks.push(check_has_verb(yaml, "infer")),
+                5 => {
+                    checks.push(check_has_depends_on(yaml));
+                    checks.push(check_min_tasks(yaml, 2));
+                }
+                _ => {}
+            }
         }
         2 => {
-            checks.push(check_has_verb(yaml, "fetch"));
+            // Level 2 (Hot Wire): all exercises use with: bindings
+            checks.push(check_has_with_bindings(yaml));
         }
         3 => {
             checks.push(check_has_depends_on(yaml));
             checks.push(check_min_tasks(yaml, 2));
         }
         4 => {
-            checks.push(check_has_verb(yaml, "infer"));
+            // Level 4 (Root Access): Ex1 uses infer:, Ex2-3 are pipelines
+            match exercise_num {
+                1 => checks.push(check_has_verb(yaml, "infer")),
+                _ => checks.push(check_min_tasks(yaml, 2)),
+            }
         }
         5 => {
-            checks.push(check_has_with_bindings(yaml));
+            // Level 5 (Shapeshifter): Ex1 uses infer: (structured), Ex2-3 are artifacts/retry
+            match exercise_num {
+                1 => checks.push(check_has_verb(yaml, "infer")),
+                _ => checks.push(check_min_tasks(yaml, 2)),
+            }
         }
         6 => {
             checks.push(check_has_verb(yaml, "infer"));
@@ -1338,29 +1362,24 @@ mod tests {
     }
 
     #[test]
-    fn test_build_checks_level_1() {
-        let yaml = r#"schema: "nika/workflow@0.12"
-workflow: test
-tasks:
-  - id: hello
-    exec:
-      run: echo "hi"
-"#;
-        let checks = build_checks_for_level(1, yaml);
+    fn test_build_checks_level_1_ex2_exec() {
+        let yaml = "schema: \"nika/workflow@0.12\"\nworkflow: test\ntasks:\n  - id: hello\n    exec:\n      run: echo hi\n";
+        let checks = build_checks_for_level(1, 2, yaml);
         assert!(checks.iter().all(|c| c.verdict.is_pass()));
     }
 
     #[test]
-    fn test_build_checks_level_1_missing_verb() {
-        let yaml = r#"schema: "nika/workflow@0.12"
-workflow: test
-tasks:
-  - id: hello
-    fetch:
-      url: "https://example.com"
-"#;
-        let checks = build_checks_for_level(1, yaml);
-        // Should fail because exec: is missing
+    fn test_build_checks_level_1_ex1_infer() {
+        let yaml = "schema: \"nika/workflow@0.12\"\nworkflow: test\ntasks:\n  - id: hello\n    infer: \"say hi\"\n";
+        let checks = build_checks_for_level(1, 1, yaml);
+        assert!(checks.iter().all(|c| c.verdict.is_pass()));
+    }
+
+    #[test]
+    fn test_build_checks_level_1_ex2_missing_verb() {
+        let yaml = "schema: \"nika/workflow@0.12\"\nworkflow: test\ntasks:\n  - id: hello\n    fetch:\n      url: \"https://example.com\"\n";
+        let checks = build_checks_for_level(1, 2, yaml);
+        // Should fail because exec: is missing for exercise 2
         let has_fail = checks
             .iter()
             .any(|c| matches!(c.verdict, CheckVerdict::Fail(_)));
@@ -1368,27 +1387,19 @@ tasks:
     }
 
     #[test]
+    fn test_build_checks_level_2_with_bindings() {
+        let yaml = "schema: \"nika/workflow@0.12\"\nworkflow: test\ntasks:\n  - id: step1\n    exec: \"date\"\n  - id: step2\n    with:\n      data: $step1\n    exec: \"echo with.data\"\n";
+        let checks = build_checks_for_level(2, 1, yaml);
+        assert!(
+            checks.iter().all(|c| c.verdict.is_pass()),
+            "Level 2 should check for with: bindings, not fetch:"
+        );
+    }
+
+    #[test]
     fn test_build_checks_level_12_boss() {
-        let yaml = r#"schema: "nika/workflow@0.12"
-workflow: boss
-tasks:
-  - id: step1
-    exec:
-      run: echo "1"
-  - id: step2
-    depends_on: [step1]
-    with:
-      data: $step1
-    infer:
-      prompt: "{{with.data}}"
-  - id: step3
-    depends_on: [step2]
-    with:
-      result: $step2
-    exec:
-      run: echo "done"
-"#;
-        let checks = build_checks_for_level(12, yaml);
+        let yaml = "schema: \"nika/workflow@0.12\"\nworkflow: boss\ntasks:\n  - id: step1\n    exec:\n      run: echo 1\n  - id: step2\n    depends_on: [step1]\n    with:\n      data: $step1\n    infer:\n      prompt: \"with.data\"\n  - id: step3\n    depends_on: [step2]\n    with:\n      result: $step2\n    exec:\n      run: echo done\n";
+        let checks = build_checks_for_level(12, 1, yaml);
         assert!(
             checks.iter().all(|c| c.verdict.is_pass()),
             "Boss level checks should all pass for a well-formed workflow"
