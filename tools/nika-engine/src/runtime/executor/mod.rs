@@ -32,7 +32,7 @@ use crate::ast::output::{OutputFormat, OutputPolicy, SchemaRef};
 use crate::ast::{McpConfigInline, TaskAction};
 use crate::binding::ResolvedBindings;
 use crate::error::NikaError;
-use crate::event::EventLog;
+use crate::event::{EventKind, EventLog};
 use crate::mcp::{McpClient, McpClientPool};
 use crate::media::CasStore;
 use crate::provider::rig::RigProvider;
@@ -284,6 +284,12 @@ impl TaskExecutor {
             Entry::Vacant(e) => {
                 let provider = RigProvider::from_name(name)?;
                 e.insert(provider.clone());
+                // EMIT: ProviderInitialized (cache miss — first use)
+                self.event_log.emit(EventKind::ProviderInitialized {
+                    provider: canonical.to_string(),
+                    model: provider.default_model().to_string(),
+                    cached: false,
+                });
                 Ok(provider)
             }
         }

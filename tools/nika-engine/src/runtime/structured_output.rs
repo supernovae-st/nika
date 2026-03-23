@@ -43,6 +43,7 @@
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::time::Instant;
 
 use serde_json::Value;
 use tracing::debug;
@@ -69,6 +70,11 @@ pub type InferCallback = Arc<
 const LAYER_2_NAME: &str = "extract_validate";
 const LAYER_3_NAME: &str = "retry_with_feedback";
 const LAYER_4_NAME: &str = "llm_repair";
+
+/// Estimate token count from character length (chars / 4 heuristic)
+fn estimate_tokens(char_len: usize) -> u64 {
+    char_len.div_ceil(4) as u64
+}
 
 /// Result of structured output validation
 #[derive(Debug, Clone)]
@@ -114,6 +120,10 @@ pub struct StructuredOutputEngine {
     ///
     /// Used by Layer 3 to construct the retry prompt with full context.
     original_prompt: Option<String>,
+    /// Provider name for telemetry (e.g., "anthropic")
+    provider_name: Option<String>,
+    /// Model name for telemetry (e.g., "claude-3-haiku-20240307")
+    model_name: Option<String>,
 }
 
 impl StructuredOutputEngine {
@@ -125,6 +135,8 @@ impl StructuredOutputEngine {
             compiled_schema: None,
             infer_fn: None,
             original_prompt: None,
+            provider_name: None,
+            model_name: None,
         }
     }
 
@@ -155,6 +167,13 @@ impl StructuredOutputEngine {
     /// Used by Layer 3 to construct the retry prompt with full context.
     pub fn with_original_prompt(mut self, prompt: String) -> Self {
         self.original_prompt = Some(prompt);
+        self
+    }
+
+    /// Set provider and model names for telemetry on Layer 3/4 LLM calls
+    pub fn with_provider_context(mut self, provider: String, model: String) -> Self {
+        self.provider_name = Some(provider);
+        self.model_name = Some(model);
         self
     }
 
@@ -378,16 +397,41 @@ impl StructuredOutputEngine {
         let retry_prompt =
             self.generate_retry_prompt(original_prompt, raw_output, &validation_errors);
 
+        let prompt_len = retry_prompt.len();
+
         debug!(
             task_id = %task_id,
             retry = retry_num,
-            prompt_len = retry_prompt.len(),
+            prompt_len,
             "Layer 3: calling LLM with retry prompt"
         );
 
+        // EMIT: ProviderCalled before the LLM retry call
+        self.log.emit(EventKind::ProviderCalled {
+            task_id: Arc::clone(task_id),
+            provider: self.provider_name.clone().unwrap_or_else(|| "unknown".to_string()),
+            model: self.model_name.clone().unwrap_or_else(|| "unknown".to_string()),
+            prompt_len,
+        });
+
         // Actually call the LLM with the retry prompt
+        let infer_start = Instant::now();
         let new_output = match infer_fn(retry_prompt).await {
-            Ok(output) => output,
+            Ok(output) => {
+                let elapsed = infer_start.elapsed();
+                // EMIT: ProviderResponded after successful LLM retry call
+                self.log.emit(EventKind::ProviderResponded {
+                    task_id: Arc::clone(task_id),
+                    request_id: None,
+                    input_tokens: estimate_tokens(prompt_len),
+                    output_tokens: estimate_tokens(output.len()),
+                    cache_read_tokens: 0,
+                    ttft_ms: Some(elapsed.as_millis() as u64),
+                    finish_reason: "structured_output_retry".to_string(),
+                    cost_usd: 0.0,
+                });
+                output
+            }
             Err(e) => {
                 self.emit_attempt(
                     task_id,
@@ -502,16 +546,40 @@ impl StructuredOutputEngine {
 
         // Generate repair prompt
         let repair_prompt = self.generate_repair_prompt(raw_output, schema);
+        let prompt_len = repair_prompt.len();
 
         debug!(
             task_id = %task_id,
-            prompt_len = repair_prompt.len(),
+            prompt_len,
             "Layer 4: calling repair LLM"
         );
 
+        // EMIT: ProviderCalled before the LLM repair call
+        self.log.emit(EventKind::ProviderCalled {
+            task_id: Arc::clone(task_id),
+            provider: self.provider_name.clone().unwrap_or_else(|| "unknown".to_string()),
+            model: self.model_name.clone().unwrap_or_else(|| "unknown".to_string()),
+            prompt_len,
+        });
+
         // Call the LLM to repair the JSON
+        let infer_start = Instant::now();
         let repaired_output = match infer_fn(repair_prompt).await {
-            Ok(output) => output,
+            Ok(output) => {
+                let elapsed = infer_start.elapsed();
+                // EMIT: ProviderResponded after successful LLM repair call
+                self.log.emit(EventKind::ProviderResponded {
+                    task_id: Arc::clone(task_id),
+                    request_id: None,
+                    input_tokens: estimate_tokens(prompt_len),
+                    output_tokens: estimate_tokens(output.len()),
+                    cache_read_tokens: 0,
+                    ttft_ms: Some(elapsed.as_millis() as u64),
+                    finish_reason: "structured_output_repair".to_string(),
+                    cost_usd: 0.0,
+                });
+                output
+            }
             Err(e) => {
                 self.emit_attempt(
                     task_id,

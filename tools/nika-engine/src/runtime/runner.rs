@@ -793,9 +793,12 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             .map(|(_, _, idx)| (Arc::clone(&parent_task_id), *idx));
 
         // Build bindings from with: spec (always present in AnalyzedTask)
-        let mut bindings = match ResolvedBindings::from_with_spec(Some(&task.with_spec), &datastore)
-        {
-            Ok(b) => b,
+        let (mut bindings, binding_events) = match ResolvedBindings::from_with_spec_traced(
+            Some(&task.with_spec),
+            &datastore,
+            &task_id,
+        ) {
+            Ok(result) => result,
             Err(e) => {
                 let duration = start.elapsed();
                 event_log.emit(EventKind::TaskFailed {
@@ -812,6 +815,10 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 };
             }
         };
+        // Emit collected binding events
+        for event in binding_events {
+            event_log.emit(event);
+        }
 
         // Add for_each binding if present
         if let Some((var_name, value, _idx)) = for_each_binding {
@@ -1337,6 +1344,10 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         traverse = %decompose.traverse,
                         "Expanding decompose modifier"
                     );
+                    self.event_log.emit(EventKind::DecomposeStarted {
+                        task_id: Arc::from(task.name.as_str()),
+                        strategy: format!("{:?}", decompose.strategy).to_lowercase(),
+                    });
                     // Resolve bindings for decompose source
                     let bindings = match ResolvedBindings::from_with_spec(
                         Some(&task.with_spec),
@@ -1353,6 +1364,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         }
                     };
                     // Expand decompose using executor (with timeout to prevent silent hangs)
+                    let decompose_start = Instant::now();
                     let decompose_result = tokio::time::timeout(
                         DECOMPOSE_TIMEOUT,
                         self.executor
@@ -1361,9 +1373,23 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     .await;
 
                     match decompose_result {
-                        Ok(Ok(items)) => Some(items),
+                        Ok(Ok(items)) => {
+                            self.event_log.emit(EventKind::DecomposeCompleted {
+                                task_id: Arc::from(task.name.as_str()),
+                                strategy: format!("{:?}", decompose.strategy).to_lowercase(),
+                                item_count: items.len(),
+                                duration_ms: decompose_start.elapsed().as_millis() as u64,
+                            });
+                            Some(items)
+                        }
                         Ok(Err(e)) => {
                             // Decompose expansion failed
+                            self.event_log.emit(EventKind::DecomposeCompleted {
+                                task_id: Arc::from(task.name.as_str()),
+                                strategy: format!("{:?}", decompose.strategy).to_lowercase(),
+                                item_count: 0,
+                                duration_ms: decompose_start.elapsed().as_millis() as u64,
+                            });
                             self.datastore.insert(
                                 intern(&task.name),
                                 TaskResult::failed(e.to_string(), std::time::Duration::ZERO),
@@ -1372,6 +1398,12 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         }
                         Err(_timeout) => {
                             // Decompose expansion timed out
+                            self.event_log.emit(EventKind::DecomposeCompleted {
+                                task_id: Arc::from(task.name.as_str()),
+                                strategy: format!("{:?}", decompose.strategy).to_lowercase(),
+                                item_count: 0,
+                                duration_ms: decompose_start.elapsed().as_millis() as u64,
+                            });
                             let timeout_error = NikaError::DecomposeTimeout {
                                 task_id: task.name.clone(),
                                 timeout_secs: DECOMPOSE_TIMEOUT.as_secs(),
@@ -1727,6 +1759,12 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             fail_fast = fail_fast,
                             "Starting for_each iteration"
                         );
+                        self.event_log.emit(EventKind::ForEachStarted {
+                            task_id: Arc::from(task.name.as_str()),
+                            item_count: items.len(),
+                            concurrency,
+                            fail_fast,
+                        });
 
                         // Create semaphore for concurrency limiting
                         let semaphore = Arc::new(Semaphore::new(concurrency));
@@ -2055,6 +2093,15 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     result.output = Arc::new(Value::Array(outputs));
                     result
                 };
+
+                // Emit ForEachCompleted before storing (parent_id is consumed by insert)
+                self.event_log.emit(EventKind::ForEachCompleted {
+                    task_id: Arc::clone(&parent_id),
+                    total: results.len() as u32,
+                    succeeded: results.iter().filter(|(_, r)| r.is_success()).count() as u32,
+                    failed: results.iter().filter(|(_, r)| !r.is_success()).count() as u32,
+                    duration_ms: total_duration.as_millis() as u64,
+                });
 
                 // Store aggregated result under parent ID
                 self.datastore.insert(parent_id, aggregated_result);

@@ -588,7 +588,11 @@ impl TaskExecutor {
                     let mut engine =
                         StructuredOutputEngine::new(spec, Arc::new(self.event_log.clone()))
                             .with_infer_callback(infer_callback)
-                            .with_original_prompt(prompt.to_string());
+                            .with_original_prompt(prompt.to_string())
+                            .with_provider_context(
+                                provider_name.to_string(),
+                                model.unwrap_or("unknown").to_string(),
+                            );
 
                     // Validate through defense system (Layers 1-3)
                     let result = engine
@@ -1591,11 +1595,24 @@ impl TaskExecutor {
                             ),
                         });
                     }
-                    return super::extract::apply_extract(
+                    let extract_result = super::extract::apply_extract(
                         &raw_body,
                         fetch.extract.as_deref(),
                         fetch.selector.as_deref(),
                     );
+                    // EMIT: ExtractApplied (if an extract mode was specified)
+                    if let Some(mode) = fetch.extract.as_deref() {
+                        let output_len =
+                            extract_result.as_ref().map(|s| s.len()).unwrap_or(0);
+                        self.event_log.emit(EventKind::ExtractApplied {
+                            task_id: Arc::clone(task_id),
+                            mode: mode.to_string(),
+                            selector: fetch.selector.clone(),
+                            input_len: raw_body.len(),
+                            output_len,
+                        });
+                    }
+                    return extract_result;
                 }
                 Err(e) => {
                     // Network errors are retryable

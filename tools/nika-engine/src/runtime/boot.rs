@@ -10,6 +10,7 @@
 //! 7. Ready state
 
 use crate::error::NikaError;
+use crate::event::{EventKind, EventLog};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -45,6 +46,19 @@ impl BootPhase {
             Self::McpStartup => "MCP Startup",
             Self::ProviderValidation => "Provider Validation",
             Self::Ready => "Ready",
+        }
+    }
+
+    /// Get snake_case identifier for event logging
+    pub fn snake_case_name(&self) -> &'static str {
+        match self {
+            Self::ConfigDiscovery => "config_discovery",
+            Self::ConfigValidation => "config_validation",
+            Self::MemoryLoading => "memory_loading",
+            Self::SecretsLoading => "secrets_loading",
+            Self::McpStartup => "mcp_startup",
+            Self::ProviderValidation => "provider_validation",
+            Self::Ready => "ready",
         }
     }
 
@@ -309,13 +323,29 @@ impl BootSequence {
     }
 
     /// Run the full boot sequence
-    pub async fn run(&self) -> Result<BootContext, NikaError> {
+    ///
+    /// Pass `Some(&event_log)` to emit `BootPhaseCompleted` events for each phase.
+    /// Pass `None` if the EventLog is not yet available.
+    pub async fn run(&self, event_log: Option<&EventLog>) -> Result<BootContext, NikaError> {
         let boot_start = Instant::now();
         let mut ctx = BootContext::default();
+
+        // Helper closure to emit boot phase events
+        let emit_phase = |log: Option<&EventLog>, result: &PhaseResult| {
+            if let Some(log) = log {
+                log.emit(EventKind::BootPhaseCompleted {
+                    phase: result.phase.snake_case_name().to_string(),
+                    success: result.success,
+                    duration_ms: result.duration.as_millis() as u64,
+                    warnings: result.warnings.clone(),
+                });
+            }
+        };
 
         // Phase 1: Config Discovery
         let phase_result = self.phase_config_discovery(&mut ctx).await;
         ctx.phases.push(phase_result.clone());
+        emit_phase(event_log, &phase_result);
         if !phase_result.success {
             ctx.total_duration = boot_start.elapsed();
             return Err(NikaError::BootFailed {
@@ -329,6 +359,7 @@ impl BootSequence {
         // Phase 2: Config Validation
         let phase_result = self.phase_config_validation(&mut ctx).await;
         ctx.phases.push(phase_result.clone());
+        emit_phase(event_log, &phase_result);
         if !phase_result.success {
             ctx.total_duration = boot_start.elapsed();
             return Err(NikaError::BootFailed {
@@ -341,28 +372,34 @@ impl BootSequence {
 
         // Phase 3: Memory Loading (optional, doesn't fail boot)
         let phase_result = self.phase_memory_loading(&mut ctx).await;
+        emit_phase(event_log, &phase_result);
         ctx.phases.push(phase_result);
 
         // Phase 4: Secrets Loading
         let phase_result = self.phase_secrets_loading(&mut ctx).await;
+        emit_phase(event_log, &phase_result);
         ctx.phases.push(phase_result);
 
         // Phase 5: MCP Startup (optional, doesn't fail boot)
         let phase_result = self.phase_mcp_startup(&mut ctx).await;
+        emit_phase(event_log, &phase_result);
         ctx.phases.push(phase_result);
 
         // Phase 6: Provider Validation (optional, doesn't fail boot)
         let phase_result = self.phase_provider_validation(&mut ctx).await;
+        emit_phase(event_log, &phase_result);
         ctx.phases.push(phase_result);
 
         // Phase 7: Ready
-        ctx.phases.push(PhaseResult {
+        let ready_result = PhaseResult {
             phase: BootPhase::Ready,
             success: true,
             duration: Duration::ZERO,
             message: Some("Boot complete".into()),
             warnings: vec![],
-        });
+        };
+        emit_phase(event_log, &ready_result);
+        ctx.phases.push(ready_result);
 
         ctx.total_duration = boot_start.elapsed();
         Ok(ctx)
@@ -677,7 +714,7 @@ mod tests {
     async fn test_boot_sequence_no_nika_dir() {
         let temp = tempdir().unwrap();
         let boot = BootSequence::new(temp.path());
-        let ctx = boot.run().await.unwrap();
+        let ctx = boot.run(None).await.unwrap();
 
         assert!(ctx.is_ready());
         assert!(ctx.all_warnings().iter().any(|w| w.contains("No .nika/")));
@@ -699,7 +736,7 @@ default = "openai"
         std::fs::write(nika_dir.join("config.toml"), config_content).unwrap();
 
         let boot = BootSequence::new(temp.path());
-        let ctx = boot.run().await.unwrap();
+        let ctx = boot.run(None).await.unwrap();
 
         assert!(ctx.is_ready());
         let config = ctx.config.unwrap();
@@ -722,7 +759,7 @@ default = "openai"
         std::env::set_var(key, "xai-test-key-12345");
 
         let boot = BootSequence::new(temp.path());
-        let ctx = boot.run().await.unwrap();
+        let ctx = boot.run(None).await.unwrap();
 
         assert!(
             ctx.providers.contains(&"xai".to_string()),
@@ -750,7 +787,7 @@ default = "openai"
         std::env::set_var(key, "");
 
         let boot = BootSequence::new(temp.path());
-        let ctx = boot.run().await.unwrap();
+        let ctx = boot.run(None).await.unwrap();
 
         assert!(
             !ctx.providers.contains(&"mistral".to_string()),

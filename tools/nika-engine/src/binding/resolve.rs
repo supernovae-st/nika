@@ -39,11 +39,14 @@
 //!
 //! Uses FxHashMap for faster hashing (consistent with Dag).
 
+use std::sync::Arc;
+
 use rustc_hash::FxHashMap;
 use serde_json::Value;
 
 use super::jsonpath;
 use crate::error::NikaError;
+use crate::event::EventKind;
 use crate::store::RunContext;
 
 use super::transform::TransformExpr;
@@ -224,6 +227,49 @@ impl ResolvedBindings {
         }
 
         Ok(bindings)
+    }
+
+    /// Build bindings from with: spec with event collection for telemetry.
+    ///
+    /// Same as `from_with_spec` but collects binding events (defaults applied,
+    /// transforms executed, env vars resolved) for the caller to emit.
+    pub fn from_with_spec_traced(
+        with_spec: Option<&WithSpec>,
+        datastore: &RunContext,
+        task_id: &Arc<str>,
+    ) -> Result<(Self, Vec<EventKind>), NikaError> {
+        let Some(spec) = with_spec else {
+            return Ok((Self::new(), vec![]));
+        };
+
+        let mut bindings = Self::new();
+        let mut events = Vec::new();
+
+        for (alias, entry) in spec {
+            if let Some(tid) = entry.source.task_id() {
+                bindings.source_tasks.insert(alias.clone(), tid.to_string());
+            }
+
+            if entry.is_lazy() {
+                bindings.bindings.insert(
+                    alias.clone(),
+                    LazyBinding::PendingWithEntry {
+                        source: entry.source.clone(),
+                        binding_type: entry.binding_type,
+                        default: entry.default.clone(),
+                        transform: entry.transform.clone(),
+                    },
+                );
+            } else {
+                let value =
+                    resolve_with_entry_traced(entry, alias, datastore, task_id, &mut events)?;
+                bindings
+                    .bindings
+                    .insert(alias.clone(), LazyBinding::Resolved(value));
+            }
+        }
+
+        Ok((bindings, events))
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -625,6 +671,112 @@ fn resolve_binding_path(
                 alias: format!("{} (loop variable '{}' not pre-resolved)", alias, name),
             })
         }
+    }
+}
+
+/// Same as resolve_with_entry but collects telemetry events
+fn resolve_with_entry_traced(
+    entry: &WithEntry,
+    alias: &str,
+    datastore: &RunContext,
+    task_id: &Arc<str>,
+    events: &mut Vec<EventKind>,
+) -> Result<Value, NikaError> {
+    let path_str = entry.source.to_string();
+
+    // Step 1+2: Dispatch by source and navigate segments
+    let raw_value = resolve_binding_path_traced(&entry.source, alias, datastore, task_id, events)?;
+
+    // Step 3: Apply transforms
+    let transformed = match (&raw_value, &entry.transform) {
+        (Some(v), Some(expr)) if !v.is_null() => {
+            let result = expr.apply(v).map_err(|e| NikaError::PathNotFound {
+                path: format!("{} (transform error: {})", path_str, e),
+            })?;
+            // EMIT: BindingTransformApplied
+            events.push(EventKind::BindingTransformApplied {
+                task_id: Arc::clone(task_id),
+                alias: alias.to_string(),
+                transform_chain: format!("{:?}", expr),
+            });
+            Some(result)
+        }
+        _ => raw_value,
+    };
+
+    // Step 4: Apply default if null/missing
+    let value = match transformed {
+        Some(v) if !v.is_null() => v,
+        Some(_null) => {
+            match &entry.default {
+                Some(d) => {
+                    // EMIT: BindingDefaultApplied
+                    events.push(EventKind::BindingDefaultApplied {
+                        task_id: Arc::clone(task_id),
+                        alias: alias.to_string(),
+                        path: path_str.clone(),
+                        default_value: d.clone(),
+                    });
+                    d.clone()
+                }
+                None => {
+                    return Err(NikaError::NullValue {
+                        path: path_str,
+                        alias: alias.to_string(),
+                    });
+                }
+            }
+        }
+        None => {
+            match &entry.default {
+                Some(d) => {
+                    // EMIT: BindingDefaultApplied
+                    events.push(EventKind::BindingDefaultApplied {
+                        task_id: Arc::clone(task_id),
+                        alias: alias.to_string(),
+                        path: path_str.clone(),
+                        default_value: d.clone(),
+                    });
+                    d.clone()
+                }
+                None => {
+                    return Err(NikaError::PathNotFound { path: path_str });
+                }
+            }
+        }
+    };
+
+    // Step 5: Validate BindingType
+    validate_binding_type(&value, entry.binding_type, alias, &path_str)?;
+
+    Ok(value)
+}
+
+/// Same as resolve_binding_path but collects env var resolution events
+fn resolve_binding_path_traced(
+    binding_path: &BindingPath,
+    alias: &str,
+    datastore: &RunContext,
+    task_id: &Arc<str>,
+    events: &mut Vec<EventKind>,
+) -> Result<Option<Value>, NikaError> {
+    match &binding_path.source {
+        BindingSource::Env(var_name) => {
+            let result = std::env::var(var_name.as_ref());
+            let found = result.is_ok();
+            // EMIT: BindingEnvResolved
+            events.push(EventKind::BindingEnvResolved {
+                task_id: Arc::clone(task_id),
+                var_name: var_name.to_string(),
+                found,
+            });
+            match result {
+                Ok(val) => Ok(Some(Value::String(val))),
+                Err(_) => Ok(None),
+            }
+        }
+        // For all other sources, delegate to the original function
+        _ => resolve_binding_path(binding_path, alias, datastore),
     }
 }
 

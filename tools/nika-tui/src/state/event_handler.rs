@@ -951,10 +951,22 @@ impl TuiState {
             // ═══════════════════════════════════════════
             EventKind::ExecCompleted { .. }
             | EventKind::FetchRetry { .. }
-            | EventKind::PolicyBlocked { .. } => {
-                // These events are captured for tracing/logging but don't
-                // require TUI state mutations — the TUI already tracks
-                // task-level status via TaskStarted/TaskCompleted/TaskFailed.
+            | EventKind::PolicyBlocked { .. }
+            | EventKind::BootPhaseCompleted { .. }
+            | EventKind::NativeModelLoaded { .. }
+            | EventKind::BindingDefaultApplied { .. }
+            | EventKind::BindingTransformApplied { .. }
+            | EventKind::BindingEnvResolved { .. }
+            | EventKind::DecomposeStarted { .. }
+            | EventKind::DecomposeCompleted { .. }
+            | EventKind::ForEachStarted { .. }
+            | EventKind::ForEachCompleted { .. }
+            | EventKind::ProviderInitialized { .. }
+            | EventKind::BuiltinToolInvoked { .. }
+            | EventKind::ExtractApplied { .. } => {
+                // Observability events: captured in trace NDJSON but don't
+                // require TUI state mutations — the TUI tracks task-level
+                // status via TaskStarted/TaskCompleted/TaskFailed.
             }
         }
     }

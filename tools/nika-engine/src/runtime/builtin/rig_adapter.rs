@@ -94,44 +94,69 @@ impl ToolDyn for NikaBuiltinToolAdapter {
     fn call(&self, args: String) -> BoxFuture<'_, Result<String, ToolError>> {
         let args_clone = args.clone();
         Box::pin(async move {
+            let call_start = std::time::Instant::now();
+
             // Call the underlying tool
             let result =
                 self.tool.call(args_clone.clone()).await.map_err(|e| {
                     ToolError::ToolCallError(Box::new(BuiltinToolError(e.to_string())))
-                })?;
+                });
 
-            // Emit events for nika:log and nika:emit
+            let success = result.is_ok();
+            let duration_ms = call_start.elapsed().as_millis() as u64;
+
+            // EMIT: BuiltinToolInvoked for ALL tools
             if let Some(ref event_log) = self.event_log {
-                match self.tool.name() {
-                    "log" => {
-                        // Parse the response to extract level and message
-                        if let Ok(response) = serde_json::from_str::<serde_json::Value>(&result) {
-                            let level = response["level"].as_str().unwrap_or("info").to_string();
-                            let message = response["message"].as_str().unwrap_or("").to_string();
-                            event_log.emit(EventKind::Log {
-                                level,
-                                message,
-                                task_id: self.task_id.clone(),
-                            });
+                let tool_name = format!("nika:{}", self.tool.name());
+                event_log.emit(EventKind::BuiltinToolInvoked {
+                    task_id: self.task_id.clone().unwrap_or_else(|| Arc::from("unknown")),
+                    tool_name,
+                    duration_ms,
+                    success,
+                });
+            }
+
+            // Emit additional events for nika:log and nika:emit
+            if let Ok(ref result_str) = result {
+                if let Some(ref event_log) = self.event_log {
+                    match self.tool.name() {
+                        "log" => {
+                            // Parse the response to extract level and message
+                            if let Ok(response) =
+                                serde_json::from_str::<serde_json::Value>(result_str)
+                            {
+                                let level =
+                                    response["level"].as_str().unwrap_or("info").to_string();
+                                let message =
+                                    response["message"].as_str().unwrap_or("").to_string();
+                                event_log.emit(EventKind::Log {
+                                    level,
+                                    message,
+                                    task_id: self.task_id.clone(),
+                                });
+                            }
                         }
-                    }
-                    "emit" => {
-                        // Parse the response to extract name and payload
-                        if let Ok(response) = serde_json::from_str::<serde_json::Value>(&result) {
-                            let name = response["name"].as_str().unwrap_or("unknown").to_string();
-                            let payload = response["payload"].clone();
-                            event_log.emit(EventKind::Custom {
-                                name,
-                                payload,
-                                task_id: self.task_id.clone(),
-                            });
+                        "emit" => {
+                            // Parse the response to extract name and payload
+                            if let Ok(response) =
+                                serde_json::from_str::<serde_json::Value>(result_str)
+                            {
+                                let name =
+                                    response["name"].as_str().unwrap_or("unknown").to_string();
+                                let payload = response["payload"].clone();
+                                event_log.emit(EventKind::Custom {
+                                    name,
+                                    payload,
+                                    task_id: self.task_id.clone(),
+                                });
+                            }
                         }
+                        _ => {}
                     }
-                    _ => {}
                 }
             }
 
-            Ok(result)
+            result
         })
     }
 }
@@ -277,21 +302,25 @@ mod tests {
 
         assert!(result.is_ok());
 
-        // Verify event was emitted
+        // Verify events were emitted (BuiltinToolInvoked + Log)
         let events = event_log.events();
-        assert_eq!(events.len(), 1);
+        assert_eq!(events.len(), 2);
 
+        // First event: BuiltinToolInvoked
+        assert!(matches!(&events[0].kind, EventKind::BuiltinToolInvoked { tool_name, success, .. } if tool_name == "nika:log" && *success));
+
+        // Second event: Log
         if let EventKind::Log {
             level,
             message,
             task_id: tid,
-        } = &events[0].kind
+        } = &events[1].kind
         {
             assert_eq!(level, "info");
             assert_eq!(message, "Test log message");
             assert_eq!(tid.as_ref().map(|t| t.as_ref()), Some("test-task-1"));
         } else {
-            panic!("Expected EventKind::Log, got {:?}", events[0].kind);
+            panic!("Expected EventKind::Log, got {:?}", events[1].kind);
         }
     }
 
@@ -313,21 +342,25 @@ mod tests {
 
         assert!(result.is_ok());
 
-        // Verify event was emitted
+        // Verify events were emitted (BuiltinToolInvoked + Custom)
         let events = event_log.events();
-        assert_eq!(events.len(), 1);
+        assert_eq!(events.len(), 2);
 
+        // First event: BuiltinToolInvoked
+        assert!(matches!(&events[0].kind, EventKind::BuiltinToolInvoked { tool_name, success, .. } if tool_name == "nika:emit" && *success));
+
+        // Second event: Custom
         if let EventKind::Custom {
             name,
             payload,
             task_id: tid,
-        } = &events[0].kind
+        } = &events[1].kind
         {
             assert_eq!(name, "user_action");
             assert_eq!(payload["action"], "click");
             assert_eq!(tid.as_ref().map(|t| t.as_ref()), Some("test-task-2"));
         } else {
-            panic!("Expected EventKind::Custom, got {:?}", events[0].kind);
+            panic!("Expected EventKind::Custom, got {:?}", events[1].kind);
         }
     }
 

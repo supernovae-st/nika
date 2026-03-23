@@ -2,7 +2,7 @@
 //!
 //! Provides full audit trail with replay capability.
 //! - Event: envelope with id + timestamp + kind
-//! - EventKind: 41 variants across 13 categories (workflow/task/fine-grained/MCP/context/agent/guardrails/builtin/artifact/media/structured-output/media-cleanup/vision)
+//! - EventKind: 43 variants across 14 categories (workflow/task/fine-grained/MCP/context/agent/guardrails/builtin/artifact/media/structured-output/media-cleanup/vision/boot)
 //! - EventLog: thread-safe, append-only log
 //!
 //! `AgentTurnMetadata` provides reasoning capture (thinking, tokens, stop_reason).
@@ -658,6 +658,155 @@ pub enum EventKind {
         /// Human-readable reason for the block
         reason: String,
     },
+
+    // ═══════════════════════════════════════════
+    // BOOT EVENTS
+    // ═══════════════════════════════════════════
+    /// Boot phase completed (one per phase during startup)
+    BootPhaseCompleted {
+        /// Phase name: "config_discovery", "config_validation", "memory_loading",
+        /// "secrets_loading", "mcp_startup", "provider_validation", "ready"
+        phase: String,
+        /// Whether the phase succeeded
+        success: bool,
+        /// Phase duration in milliseconds
+        duration_ms: u64,
+        /// Warnings produced during this phase
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        warnings: Vec<String>,
+    },
+
+    /// Native (local) model loaded successfully
+    NativeModelLoaded {
+        /// Model identifier (file path for GGUF, HF ID for HuggingFace)
+        model: String,
+        /// Model kind: "gguf" or "huggingface"
+        kind: String,
+        /// Model file size in bytes (0 for HuggingFace downloads)
+        size_bytes: u64,
+        /// Load duration in milliseconds
+        duration_ms: u64,
+        /// Whether model has vision capabilities
+        is_vision: bool,
+    },
+
+    // ═══════════════════════════════════════════
+    // BINDING EVENTS
+    // ═══════════════════════════════════════════
+    /// Binding default value applied (via ?? operator)
+    BindingDefaultApplied {
+        task_id: Arc<str>,
+        /// Alias name in with: block
+        alias: String,
+        /// Original binding path that was null/missing
+        path: String,
+        /// Default value that was used
+        default_value: Value,
+    },
+
+    /// Binding transform chain applied (e.g., |upper|trim|sort)
+    BindingTransformApplied {
+        task_id: Arc<str>,
+        /// Alias name
+        alias: String,
+        /// Transform expression (e.g., "upper | trim")
+        transform_chain: String,
+    },
+
+    /// Environment variable resolved via $env.VAR_NAME binding
+    BindingEnvResolved {
+        task_id: Arc<str>,
+        /// Environment variable name
+        var_name: String,
+        /// Whether the env var was found
+        found: bool,
+    },
+
+    // ═══════════════════════════════════════════
+    // DAG ORCHESTRATION EVENTS
+    // ═══════════════════════════════════════════
+    /// Decompose modifier expansion started
+    DecomposeStarted {
+        task_id: Arc<str>,
+        /// Strategy: "semantic", "static", "nested"
+        strategy: String,
+    },
+
+    /// Decompose modifier expansion completed
+    DecomposeCompleted {
+        task_id: Arc<str>,
+        /// Strategy used
+        strategy: String,
+        /// Number of items produced
+        item_count: usize,
+        /// Expansion duration in milliseconds
+        duration_ms: u64,
+    },
+
+    /// for_each iteration batch started
+    ForEachStarted {
+        task_id: Arc<str>,
+        /// Number of items to iterate over
+        item_count: usize,
+        /// Concurrency level (1 = sequential)
+        concurrency: usize,
+        /// Whether fail_fast is enabled
+        fail_fast: bool,
+    },
+
+    /// for_each iteration batch completed with aggregated results
+    ForEachCompleted {
+        task_id: Arc<str>,
+        /// Total iterations attempted
+        total: u32,
+        /// Successful iterations
+        succeeded: u32,
+        /// Failed iterations
+        failed: u32,
+        /// Total duration across all iterations (ms)
+        duration_ms: u64,
+    },
+
+    // ═══════════════════════════════════════════
+    // PROVIDER LIFECYCLE EVENTS
+    // ═══════════════════════════════════════════
+    /// Provider initialized (first use, cache miss)
+    ProviderInitialized {
+        /// Provider name (anthropic, openai, mistral, etc.)
+        provider: String,
+        /// Default model for this provider
+        model: String,
+        /// Whether this was served from cache
+        cached: bool,
+    },
+
+    /// Builtin tool invoked by agent (nika:read, nika:write, etc.)
+    BuiltinToolInvoked {
+        task_id: Arc<str>,
+        /// Tool name: "nika:read", "nika:write", etc.
+        tool_name: String,
+        /// Call duration in milliseconds
+        duration_ms: u64,
+        /// Whether the call succeeded
+        success: bool,
+    },
+
+    // ═══════════════════════════════════════════
+    // FETCH EXTRACT EVENTS
+    // ═══════════════════════════════════════════
+    /// Extraction mode applied to fetch response
+    ExtractApplied {
+        task_id: Arc<str>,
+        /// Extract mode: "css", "jq", "text", "markdown", "llm_txt"
+        mode: String,
+        /// CSS/jq selector used (if any)
+        #[serde(skip_serializing_if = "Option::is_none")]
+        selector: Option<String>,
+        /// Input body length (bytes)
+        input_len: usize,
+        /// Output length after extraction (bytes)
+        output_len: usize,
+    },
 }
 
 impl EventKind {
@@ -695,7 +844,16 @@ impl EventKind {
             | Self::GuardrailEscalation { task_id, .. }
             | Self::ExecCompleted { task_id, .. }
             | Self::FetchRetry { task_id, .. }
-            | Self::PolicyBlocked { task_id, .. } => Some(task_id),
+            | Self::PolicyBlocked { task_id, .. }
+            | Self::BindingDefaultApplied { task_id, .. }
+            | Self::BindingTransformApplied { task_id, .. }
+            | Self::BindingEnvResolved { task_id, .. }
+            | Self::DecomposeStarted { task_id, .. }
+            | Self::DecomposeCompleted { task_id, .. }
+            | Self::ForEachStarted { task_id, .. }
+            | Self::ForEachCompleted { task_id, .. }
+            | Self::BuiltinToolInvoked { task_id, .. }
+            | Self::ExtractApplied { task_id, .. } => Some(task_id),
             // AgentSpawned uses parent_task_id as the primary task reference
             Self::AgentSpawned { parent_task_id, .. } => Some(parent_task_id),
             // Log and Custom may optionally have task_id
@@ -711,7 +869,10 @@ impl EventKind {
             | Self::McpConnected { .. }
             | Self::McpError { .. }
             | Self::MediaCleanup { .. }
-            | Self::MediaIntegrityCheck { .. } => None,
+            | Self::MediaIntegrityCheck { .. }
+            | Self::BootPhaseCompleted { .. }
+            | Self::NativeModelLoaded { .. }
+            | Self::ProviderInitialized { .. } => None,
         }
     }
 
@@ -3661,5 +3822,35 @@ mod tests {
         assert!(json.contains("command_blocklist"));
         let round: EventKind = serde_json::from_str(&json).unwrap();
         assert_eq!(round.task_id(), Some("exec_task"));
+    }
+
+    #[test]
+    fn boot_phase_completed_serializes() {
+        let event = EventKind::BootPhaseCompleted {
+            phase: "mcp_startup".to_string(),
+            success: true,
+            duration_ms: 1234,
+            warnings: vec!["daemon not running".to_string()],
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("boot_phase_completed"));
+        assert!(json.contains("mcp_startup"));
+        let round: EventKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(round.task_id(), None);
+    }
+
+    #[test]
+    fn native_model_loaded_serializes() {
+        let event = EventKind::NativeModelLoaded {
+            model: "mistral-7b-instruct.gguf".to_string(),
+            kind: "gguf".to_string(),
+            size_bytes: 4_000_000_000,
+            duration_ms: 3500,
+            is_vision: false,
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("native_model_loaded"));
+        let round: EventKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(round.task_id(), None);
     }
 }
