@@ -102,7 +102,7 @@ nika run workflows/minimal/05-agent.nika.yaml
 Start the course to learn Nika from zero to production:
 
 ```bash
-nika course start
+nika course next
 ```
 
 | # | Level | Exercises | Theme |
