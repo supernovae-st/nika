@@ -20,16 +20,14 @@ Six closed labs control frontier AI. Chips cost $6 million per rack. LLM subscri
 run $20 to $200 a month. And even if you pay, you still need a software engineer to
 wire anything useful together.
 
-**The result?** AI is powerful, but locked. Locked behind code. Locked behind
-subscriptions. Locked behind vendor walls. The technology that should empower
-billions is gatekept by a handful of corporations and a priesthood of developers.
+**The result?** AI is powerful, but locked. Locked behind code, subscriptions, and
+vendor walls. The technology that should empower billions is gatekept by a handful
+of corporations and a priesthood of developers.
 
 Meanwhile, the tools that promise to "democratize AI" charge you $49/month to run
 automations on *their* servers, with *their* limits, under *their* terms. They call
-it accessible. We call it a new middleman.
-
-Here's what a journalist, a teacher, a small business owner, or a curious teenager
-hears when they ask "How do I use AI to automate my work?":
+it accessible. We call it a new middleman. Here's what real people hear when they
+ask "How do I use AI to automate my work?":
 
 - **"Learn Python."** — 6 months minimum.
 - **"Use our platform."** — $49/mo, 1,000 runs, their cloud, their rules.
@@ -38,17 +36,7 @@ hears when they ask "How do I use AI to automate my work?":
 > **None of these are real answers. None of them are freedom.**
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': {
-  'primaryColor': '#3b82f6',
-  'primaryTextColor': '#f8fafc',
-  'primaryBorderColor': '#2563eb',
-  'secondaryColor': '#6366f1',
-  'tertiaryColor': '#0f172a',
-  'lineColor': '#64748b',
-  'textColor': '#e2e8f0',
-  'mainBkg': '#1e293b',
-  'nodeBorder': '#3b82f6'
-}}}%%
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#3b82f6', 'primaryTextColor': '#f8fafc', 'primaryBorderColor': '#2563eb', 'secondaryColor': '#6366f1', 'tertiaryColor': '#0f172a', 'lineColor': '#64748b', 'textColor': '#e2e8f0', 'mainBkg': '#1e293b', 'nodeBorder': '#3b82f6'}}}%%
 flowchart LR
     subgraph TODAY["Today: The Wall"]
         direction LR
@@ -76,44 +64,23 @@ Water doesn't require a plumbing license before it flows from your tap.
 
 **AI should work the same way.**
 
-Write what you want done in a plain text file. Describe the steps. Pick any AI.
-Press run. That's it.
-
+Write what you want in a plain text file. Describe the steps. Pick any AI. Press run.
 No code. No subscription. No vendor lock-in. No PhD required.
 
 A file that says *"fetch this page, summarize it, translate it to French, save it"*
-should just work. On your machine. With your choice of AI. For free.
-
-This is not a feature request. This is a fundamental belief:
+should just work. On your machine. With your choice of AI. For free. This is not a
+feature request. This is a fundamental belief:
 
 > **The gap between "AI exists" and "I can use AI" should be zero.**
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': {
-  'primaryColor': '#3b82f6',
-  'primaryTextColor': '#f8fafc',
-  'primaryBorderColor': '#2563eb',
-  'secondaryColor': '#6366f1',
-  'tertiaryColor': '#0f172a',
-  'lineColor': '#64748b',
-  'textColor': '#e2e8f0',
-  'mainBkg': '#1e293b',
-  'nodeBorder': '#3b82f6'
-}}}%%
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#3b82f6', 'primaryTextColor': '#f8fafc', 'primaryBorderColor': '#2563eb', 'secondaryColor': '#6366f1', 'tertiaryColor': '#0f172a', 'lineColor': '#64748b', 'textColor': '#e2e8f0', 'mainBkg': '#1e293b', 'nodeBorder': '#3b82f6'}}}%%
 timeline
     title The AI Liberation Timeline
-    2023 : ChatGPT era begins
-         : AI hype explodes
-         : Everyone wants in, few can build
-    2024 : Agent frameworks multiply
-         : LangChain, CrewAI, AutoGPT
-         : Complexity grows, not access
-    2025 : LangChain CVE-2023-46229
-         : Vendor lock-in deepens
-         : $49/mo becomes the norm
-    2026 : Nika launches
-         : Open source fights back
-         : 5 verbs, 22 providers, zero lock-in
+    2023 : ChatGPT era begins — AI hype explodes, few can build
+    2024 : Agent frameworks multiply — complexity grows, not access
+    2025 : LangChain CVEs, vendor lock-in deepens, $49/mo is the norm
+    2026 : Nika launches — open source fights back, 5 verbs, zero lock-in
 ```
 
 ---
@@ -167,44 +134,28 @@ Five verbs to describe any automation you can imagine. From a 3-step summary to 
 50-task parallel pipeline processing hundreds of articles, images, and datasets.
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': {
-  'primaryColor': '#3b82f6',
-  'primaryTextColor': '#f8fafc',
-  'primaryBorderColor': '#2563eb',
-  'secondaryColor': '#6366f1',
-  'tertiaryColor': '#0f172a',
-  'lineColor': '#64748b',
-  'textColor': '#e2e8f0',
-  'mainBkg': '#1e293b',
-  'nodeBorder': '#3b82f6'
-}}}%%
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#3b82f6', 'primaryTextColor': '#f8fafc', 'primaryBorderColor': '#2563eb', 'secondaryColor': '#6366f1', 'tertiaryColor': '#0f172a', 'lineColor': '#64748b', 'textColor': '#e2e8f0', 'mainBkg': '#1e293b', 'nodeBorder': '#3b82f6'}}}%%
 mindmap
   root((Nika))
     Content
-      Scrape web pages
-      Summarize articles
+      Scrape & summarize
       Translate to any language
-      Extract RSS feeds
+      RSS feeds & APIs
     Data
       Batch process files
       Extract & transform
-      JSON pipelines
-      Parallel execution
+      Parallel pipelines
     Agents
-      Research assistants
+      Research & analysis
       Code review
-      Multi-step analysis
       Guardrails built-in
     Media
-      Image processing
-      Thumbnails & vision
-      PDF extraction
-      QR code validation
+      Vision & thumbnails
+      PDF & QR codes
     Integration
-      MCP protocol
       22 AI providers
-      Shell commands
-      Any REST API
+      MCP protocol
+      Shell & REST
 ```
 
 ### Manual vs. Automated: the real comparison
@@ -228,9 +179,8 @@ Here's why.
 
 MIT and Apache are gifts to corporations. They let Amazon, Google, and Microsoft
 take open-source projects, wrap them in a managed service, charge for access, and
-contribute nothing back. It's happened to Redis. It's happened to Elasticsearch.
-It's happened to MongoDB. The pattern is always the same: community builds,
-corporation captures.
+contribute nothing back. Redis, Elasticsearch, MongoDB — the pattern is always the
+same: community builds, corporation captures.
 
 > **AGPL breaks that pattern.** If you modify Nika and run it as a service, you must
 > release your changes. The code stays free. The community stays in control.
@@ -291,17 +241,7 @@ Real benchmarks. Real tasks. No cherry-picking.
 | CrewAI (Python) | ~280 MB | 1.4 s | 55 |
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': {
-  'primaryColor': '#3b82f6',
-  'primaryTextColor': '#f8fafc',
-  'primaryBorderColor': '#2563eb',
-  'secondaryColor': '#6366f1',
-  'tertiaryColor': '#0f172a',
-  'lineColor': '#64748b',
-  'textColor': '#e2e8f0',
-  'mainBkg': '#1e293b',
-  'nodeBorder': '#3b82f6'
-}}}%%
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#3b82f6', 'primaryTextColor': '#f8fafc', 'primaryBorderColor': '#2563eb', 'secondaryColor': '#6366f1', 'tertiaryColor': '#0f172a', 'lineColor': '#64748b', 'textColor': '#e2e8f0', 'mainBkg': '#1e293b', 'nodeBorder': '#3b82f6'}}}%%
 xychart-beta
     title "Peak RAM Usage (MB) — Summarize 10 Web Pages"
     x-axis ["Nika (Rust)", "LangGraph", "LangChain", "CrewAI"]
