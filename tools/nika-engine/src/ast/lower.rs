@@ -514,7 +514,12 @@ pub fn unlower(workflow: Workflow) -> Result<AnalyzedWorkflow, NikaError> {
     // Second pass: convert tasks with resolved dependencies
     for task in workflow.tasks {
         let task = Arc::try_unwrap(task).unwrap_or_else(|arc| (*arc).clone());
-        let id = task_table.get_id(&task.id).expect("task just inserted");
+        let Some(id) = task_table.get_id(&task.id) else {
+            return Err(NikaError::Execution(format!(
+                "task '{}' missing from table after insert",
+                task.id
+            )));
+        };
 
         // Resolve flow dependencies to TaskIds (reject dangling names)
         let depends_on: Vec<TaskId> = match task.depends_on.as_ref() {
