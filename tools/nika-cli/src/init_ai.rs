@@ -166,7 +166,7 @@ Schema: `nika/workflow@0.12` | Extension: `.nika.yaml`
 ## Complete Workflow Example
 
 ```yaml
-schema: "@0.12"
+schema: "nika/workflow@0.12"
 workflow: research-and-summarize
 description: "Research a topic and create a summary"
 provider: anthropic
@@ -197,7 +197,7 @@ tasks:
 ## Workflow Header Fields
 
 ```yaml
-schema: "@0.12"               # Required. Always "@0.12"
+schema: "nika/workflow@0.12"               # Required. Always "nika/workflow@0.12"
 workflow: my-workflow          # Optional. Defaults to filename
 description: "What it does"   # Optional
 provider: anthropic            # Default LLM provider for all tasks
@@ -410,14 +410,14 @@ Access loop variable via `with:` prefix: `{{with.item}}` (same as all bindings)
 | Direct Cypher/SQL | Use `invoke:` with MCP tools |
 | `{{item}}` in for_each | `{{with.item}}` (loop var uses with. prefix) |
 | `shell: bash` | `shell: true` (boolean, not shell name) |
-| Missing `schema:` line | Always start with `schema: "@0.12"` |
+| Missing `schema:` line | Always start with `schema: "nika/workflow@0.12"` |
 | `depends_on: task_id` | `depends_on: [task_id]` (always array) |
 
 ## Error Codes
 
 | Code | Meaning | Fix |
 |------|---------|-----|
-| NIKA-010 | Invalid schema | Use `schema: "@0.12"` |
+| NIKA-010 | Invalid schema | Use `schema: "nika/workflow@0.12"` |
 | NIKA-020 | DAG cycle detected | Remove circular `depends_on` |
 | NIKA-034 | Missing model | Add `model:` field to LLM tasks |
 | NIKA-040 | Template error | Check `{{with.X}}` syntax and `with:` block |
@@ -521,7 +521,7 @@ tasks:
 ## MCP Server Configuration
 
 ```yaml
-schema: "@0.12"
+schema: "nika/workflow@0.12"
 workflow: with-mcp
 
 mcp:
@@ -733,7 +733,7 @@ Schema: `nika/workflow@0.12` | Extension: `.nika.yaml`
 ## Complete Workflow Example
 
 ```yaml
-schema: "@0.12"
+schema: "nika/workflow@0.12"
 workflow: research-and-summarize
 provider: anthropic
 model: claude-sonnet-4-20250514
@@ -804,7 +804,7 @@ Access loop variable via `with.` prefix: `{{with.item}}`
 | `{{data}}` | `{{with.data}}` (always with. prefix) |
 | `{{item}}` in for_each | `{{with.item}}` (loop var uses with. prefix) |
 | `.yaml` extension | `.nika.yaml` extension |
-| Missing `schema:` line | Always start with `schema: "@0.12"` |
+| Missing `schema:` line | Always start with `schema: "nika/workflow@0.12"` |
 
 ## Key Error Codes
 
@@ -849,7 +849,7 @@ Schema: `nika/workflow@0.12` | Extension: `.nika.yaml`
 ## Complete Workflow Example
 
 ```yaml
-schema: "@0.12"
+schema: "nika/workflow@0.12"
 workflow: research-and-summarize
 provider: anthropic
 model: claude-sonnet-4-20250514
@@ -920,7 +920,7 @@ Access loop variable via `with.` prefix: `{{with.item}}`
 | `{{data}}` | `{{with.data}}` (always with. prefix) |
 | `{{item}}` in for_each | `{{with.item}}` (loop var uses with. prefix) |
 | `.yaml` extension | `.nika.yaml` extension |
-| Missing `schema:` line | Always start with `schema: "@0.12"` |
+| Missing `schema:` line | Always start with `schema: "nika/workflow@0.12"` |
 
 ## Key Error Codes
 
@@ -964,7 +964,7 @@ Schema: `nika/workflow@0.12` | Extension: `.nika.yaml`
 ## Complete Workflow Example
 
 ```yaml
-schema: "@0.12"
+schema: "nika/workflow@0.12"
 workflow: research-and-summarize
 provider: anthropic
 model: claude-sonnet-4-20250514
@@ -1035,7 +1035,7 @@ Access loop variable via `with.` prefix: `{{with.item}}`
 | `{{data}}` | `{{with.data}}` (always with. prefix) |
 | `{{item}}` in for_each | `{{with.item}}` (loop var uses with. prefix) |
 | `.yaml` extension | `.nika.yaml` extension |
-| Missing `schema:` line | Always start with `schema: "@0.12"` |
+| Missing `schema:` line | Always start with `schema: "nika/workflow@0.12"` |
 
 ## Key Error Codes
 
@@ -1102,7 +1102,7 @@ Schema: `nika/workflow@0.12` | Extension: `.nika.yaml`
 ## Complete Workflow Example
 
 ```yaml
-schema: "@0.12"
+schema: "nika/workflow@0.12"
 workflow: research-and-summarize
 provider: anthropic
 model: claude-sonnet-4-20250514
@@ -1266,7 +1266,7 @@ Loop variable uses `with:` prefix: `{{with.item}}`.
 | `.yaml` extension | `.nika.yaml` extension |
 | Direct Cypher/SQL | Use `invoke:` with MCP tools |
 | `shell: bash` | `shell: true` (boolean, not shell name) |
-| Missing `schema:` line | Always start with `schema: "@0.12"` |
+| Missing `schema:` line | Always start with `schema: "nika/workflow@0.12"` |
 | `depends_on: task_id` | `depends_on: [task_id]` (always array) |
 
 ## Error Codes (NIKA-XXX)
@@ -1294,7 +1294,7 @@ nika init --course               # 12-level learning course
 nika doctor                      # Check system + providers
 nika provider list               # API key status
 nika ui                          # Terminal UI
-nika showcase list               # Browse 200+ example workflows
+nika showcase list               # Browse 115 showcase workflows
 nika course next                 # Next exercise
 ```
 "#;
