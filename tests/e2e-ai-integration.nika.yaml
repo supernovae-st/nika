@@ -1,0 +1,49 @@
+schema: nika/workflow@0.12
+workflow: e2e-ai-integration-test
+description: "E2E test: verify infer + fetch + exec + structured output"
+provider: openai
+model: gpt-4.1-nano
+
+tasks:
+  - id: hello_world
+    infer:
+      prompt: "Reply with exactly: Hello from Nika!"
+      temperature: 0
+      max_tokens: 20
+
+  - id: fetch_status
+    fetch:
+      url: "https://httpbin.org/status/200"
+      method: GET
+
+  - id: exec_echo
+    exec:
+      command: "echo 'Nika E2E test passed'"
+      shell: true
+
+  - id: structured_extract
+    infer:
+      prompt: "Extract: The product costs $42 and weighs 1.5kg"
+      temperature: 0
+      max_tokens: 100
+    structured:
+      schema:
+        type: object
+        properties:
+          price:
+            type: number
+          weight:
+            type: number
+          unit:
+            type: string
+        required: [price, weight]
+
+  - id: summary
+    with:
+      hello: $hello_world
+      structured: $structured_extract
+      echo: $exec_echo
+    infer:
+      prompt: "Summarize these test results in one line: hello={{with.hello}}, data={{with.structured}}, echo={{with.echo}}"
+      temperature: 0
+      max_tokens: 50
