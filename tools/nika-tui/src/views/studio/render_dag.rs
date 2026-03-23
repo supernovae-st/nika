@@ -88,7 +88,7 @@ impl StudioView {
 
 impl YamlEditorPanel {
     /// Render just the DAG structure (for use in StudioView 3-panel layout)
-    pub(crate) fn render_structure(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
+    pub(super) fn render_structure(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         // Title shows mode state
         let title = if self.dag_expanded {
             " STRUCTURE [E]xpanded "
@@ -113,7 +113,7 @@ impl YamlEditorPanel {
     ///
     /// PERF: Uses cached_workflow to avoid re-parsing YAML every frame (60 FPS).
     /// Only parses when content hash changes.
-    pub(crate) fn render_dag_structure(
+    fn render_dag_structure(
         &self,
         frame: &mut Frame,
         area: Rect,
@@ -212,7 +212,7 @@ impl YamlEditorPanel {
     }
 
     /// Render the validation status bar
-    pub(crate) fn render_validation(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
+    pub(super) fn render_validation(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let yaml_status = if self.validation.yaml_valid {
             Span::styled("Valid YAML", Style::default().fg(theme.status_success))
         } else {

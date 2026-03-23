@@ -13,7 +13,7 @@
 mod ascii;
 mod edge;
 mod layout;
-pub(crate) mod node_box;
+mod node_box;
 
 // Public API: only expose what views need
 pub use ascii::DagAscii;

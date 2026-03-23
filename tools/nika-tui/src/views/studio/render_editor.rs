@@ -25,7 +25,7 @@ use crate::widgets::ScrollIndicator;
 
 impl YamlEditorPanel {
     /// Render just the editor content (for use in StudioView 3-panel layout)
-    pub(crate) fn render_editor(&mut self, frame: &mut Frame, area: Rect, theme: &Theme) {
+    pub(super) fn render_editor(&mut self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let mode_indicator = match self.mode {
             EditorMode::Normal => "",
             EditorMode::Insert => " [INSERT]",
