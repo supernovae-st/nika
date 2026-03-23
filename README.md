@@ -2,92 +2,144 @@
 
 # Nika
 
-**Semantic YAML workflow engine for AI tasks**
+**Automate AI tasks without code.**
+
+Research, summarize, translate, process images -- all from a single YAML file.
+No Python scripts. No boilerplate. Just describe what you want.
 
 [![crates.io](https://img.shields.io/crates/v/nika?style=flat-square&logo=rust&logoColor=white&color=e6522c)](https://crates.io/crates/nika)
 [![Version](https://img.shields.io/badge/v0.40.2-7c3aed?style=flat-square&logo=semver&logoColor=white)](CHANGELOG.md)
-[![Schema](https://img.shields.io/badge/schema-nika%2Fworkflow%400.12-0ea5e9?style=flat-square)](docs/schema/)
-[![Rust](https://img.shields.io/badge/rust_1.86+-f97316?style=flat-square&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/AGPL--3.0--or--later-22c55e?style=flat-square&logo=gnu&logoColor=white)](LICENSE)
 [![Tests](https://img.shields.io/badge/7800+_tests-10b981?style=flat-square)](https://github.com/supernovae-st/nika/actions)
 
-Write AI workflows in YAML. Five verbs, eight providers, forty-three builtin tools, one file.
-
-[Quick Start](#quick-start) | [The 5 Verbs](#the-5-verbs) | [Providers](#providers) | [Architecture](#architecture) | [Installation](#installation)
+[Quick Start](#quick-start) | [Use Cases](#use-cases) | [Installation](#installation) | [Documentation](#documentation)
 
 </div>
 
 ---
 
 ```yaml
+# Scrape a webpage and summarize it with AI -- 8 lines
 schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
-  - id: research
+  - id: scrape
     fetch:
-      url: "https://api.semanticscholar.org/graph/v1/paper/search?query=LLM+agents&limit=5"
-      extract: jsonpath
-      selector: "$.data[*].title"
+      url: "https://news.ycombinator.com"
+      extract: article
 
-  - id: analyze
-    with: { papers: $research }
-    infer:
-      prompt: "Summarize these AI papers: {{with.papers}}"
-      output:
-        format: json
-        schema:
-          type: object
-          required: [summary, key_findings]
+  - id: summarize
+    with: { page: $scrape }
+    infer: "Write a 3-bullet summary of today's top stories: {{with.page}}"
 ```
 
 ```bash
-nika run research.nika.yaml
+nika run news.nika.yaml
 ```
 
 ---
 
-## Table of Contents
+## Why Nika?
 
-- [Quick Start](#quick-start)
-- [Learn Nika -- Interactive Course](#learn-nika--interactive-course)
-- [The 5 Verbs](#the-5-verbs)
-- [Data Flow](#data-flow)
-- [Providers](#providers)
-- [Structured Output](#structured-output)
-- [MCP Integration](#mcp-integration)
-- [Builtin Tools](#builtin-tools)
-- [Agent Guardrails](#agent-guardrails)
-- [Terminal UI](#terminal-ui)
-- [Language Server](#language-server)
-- [AI Integration](#ai-integration)
-- [Architecture](#architecture)
-- [CLI Reference](#cli-reference)
-- [Installation](#installation)
-- [Production Examples](#production-examples)
-- [Error Codes](#error-codes)
-- [Contributing](#contributing)
-- [Ecosystem](#ecosystem)
+You could write a Python script. But then you'd spend 30 minutes on imports, error handling, API clients, and JSON parsing -- before writing a single line of logic.
+
+With Nika, you describe **what** you want, not **how** to do it:
+
+| Without Nika | With Nika |
+|---|---|
+| 200 lines of Python | 10 lines of YAML |
+| Install requests, openai, beautifulsoup | `cargo install nika` |
+| Handle retries, rate limits, errors | Built-in (`retry:`, `timeout:`) |
+| Wire up API keys, headers, auth | `export OPENAI_API_KEY=...` |
+| Write async code for parallelism | `for_each:` + `concurrency: 5` |
+
+---
+
+## Use Cases
+
+**Content pipeline** -- scrape, summarize, translate:
+
+```yaml
+tasks:
+  - id: scrape
+    fetch: { url: "https://example.com/blog", extract: markdown }
+
+  - id: summarize
+    with: { content: $scrape }
+    infer: "Summarize in 3 bullets: {{with.content}}"
+
+  - id: translate
+    for_each: ["French", "Spanish", "Japanese"]
+    as: lang
+    with: { summary: $summarize }
+    infer: "Translate to {{with.lang}}: {{with.summary}}"
+```
+
+**Batch processing** -- process 100 items in parallel:
+
+```yaml
+tasks:
+  - id: urls
+    exec: "cat urls.txt"
+
+  - id: process
+    for_each: "$urls"
+    as: url
+    concurrency: 10
+    fetch: { url: "{{with.url}}", extract: article }
+```
+
+**AI agent** -- autonomous research with guardrails:
+
+```yaml
+tasks:
+  - id: research
+    agent:
+      prompt: "Research the top 5 competitors for our product"
+      tools: [nika:read, nika:write, nika:glob]
+      max_turns: 15
+      guardrails:
+        - type: length
+          max_words: 2000
+```
+
+**Image pipeline** -- import, resize, optimize, describe:
+
+```yaml
+tasks:
+  - id: import
+    invoke: { tool: nika:import, params: { path: "./photo.jpg" } }
+
+  - id: thumbnail
+    with: { img: $import }
+    invoke: { tool: nika:thumbnail, params: { hash: "{{with.img.hash}}", width: 400 } }
+
+  - id: describe
+    with: { img: $import }
+    infer:
+      content:
+        - type: image
+          source: "{{with.img.hash}}"
+        - type: text
+          text: "Write an alt-text description for this image"
+```
 
 ---
 
 ## Quick Start
 
 ```bash
-# Install from crates.io
-cargo install nika
+# Install
+cargo install nika        # or: brew install supernovae-st/tap/nika
 
-# Or via Homebrew
-brew install supernovae-st/tap/nika
+# Set an API key (pick your provider)
+export ANTHROPIC_API_KEY=sk-ant-...   # or OPENAI_API_KEY, MISTRAL_API_KEY, etc.
 
-# Set a provider key
-export ANTHROPIC_API_KEY=sk-ant-...
-
-# Create a workflow
+# Create your first workflow
 cat > hello.nika.yaml << 'EOF'
 schema: "nika/workflow@0.12"
 provider: claude
-
 tasks:
   - id: greet
     infer: "Say hello in French, then in Japanese"
@@ -95,18 +147,34 @@ EOF
 
 # Run it
 nika run hello.nika.yaml
-
-# Or open the terminal UI
-nika ui hello.nika.yaml
 ```
 
-Scaffold a minimal project (5 workflows, one per verb):
+Want more? Scaffold a project with examples:
 
 ```bash
-nika init my-project
-cd my-project
-nika run workflows/hello.nika.yaml
+nika init my-project        # 5 starter workflows (one per verb)
+nika init --course          # 44 hands-on exercises across 12 levels
 ```
+
+---
+
+## Documentation
+
+| Section | What you'll learn |
+|---|---|
+| [The 5 Verbs](#the-5-verbs) | `infer`, `exec`, `fetch`, `invoke`, `agent` -- the complete API |
+| [Data Flow](#data-flow) | `with:`, `depends_on:`, templates -- connecting tasks |
+| [Providers](#providers) | Claude, OpenAI, Mistral, Groq, Gemini, DeepSeek, xAI, local |
+| [Structured Output](#structured-output) | JSON Schema validation on LLM output |
+| [MCP Integration](#mcp-integration) | Connect external tools via Model Context Protocol |
+| [Builtin Tools](#builtin-tools) | 43 tools: file ops, media, web scraping |
+| [Agent Guardrails](#agent-guardrails) | Limits, cost caps, safety rails for agents |
+| [Terminal UI](#terminal-ui) | Beautiful TUI for running workflows |
+| [Language Server](#language-server) | LSP: completions, hover, diagnostics in your editor |
+| [AI Integration](#ai-integration) | 43+ AI coding tools understand Nika out of the box |
+| [Architecture](#architecture) | 10-crate workspace, DAG execution engine |
+| [CLI Reference](#cli-reference) | All commands at a glance |
+| [Interactive Course](#learn-nika--interactive-course) | 12 levels, 44 exercises -- learn by doing |
 
 ---
 
