@@ -85,6 +85,14 @@ pub fn generate_ai_files(project_dir: &Path) -> Result<(), nika_engine::NikaErro
         "VS Code recommendations",
     );
 
+    // VS Code settings (language association)
+    count += write_if_absent_with_dir(
+        project_dir,
+        ".vscode/settings.json",
+        VSCODE_SETTINGS,
+        "VS Code settings",
+    );
+
     // Git co-author hook
     let git_dir = project_dir.join(".git");
     if git_dir.exists() {
@@ -1062,6 +1070,17 @@ const VSCODE_EXTENSIONS: &str = r#"{
     "supernovae-studio.nika-lang",
     "redhat.vscode-yaml"
   ]
+}
+"#;
+
+const VSCODE_SETTINGS: &str = r#"{
+  "files.associations": {
+    "*.nika.yaml": "nika"
+  },
+  "[nika]": {
+    "editor.tabSize": 2,
+    "editor.insertSpaces": true
+  }
 }
 "#;
 
