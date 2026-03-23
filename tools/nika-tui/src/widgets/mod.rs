@@ -84,10 +84,7 @@ pub use chat_node_box::{ChatNodeBox, ChatNodeKind, ChatNodeState};
 pub use chat_task_queue::{ChatTaskQueue, ChatTaskQueueItem, ChatTaskState, ChatTaskVerb};
 pub use confirm_dialog::{ConfirmAction, ConfirmDialog};
 pub use provider_modal::*;
-// Provider selector types (data-only, widget rendering stripped)
-pub use provider_selector::{
-    McpServerDisplay, ModelInfo, ProviderInfo, SelectorSection, VerifyStatus,
-};
+pub use provider_selector::VerifyStatus;
 
 // === Chat UX Enrichment Widgets ===
 // Session context bar for tokens, cost, MCP status
@@ -125,7 +122,7 @@ pub use mission_control::{
     TurnMetrics,
 };
 // Verb input parsing for Chat view (data types only, widget rendering stripped)
-pub use verb_input::{ChatVerb, ParsedInput, SystemCommand, VerbIndicator, VerbPrompt};
+pub use verb_input::{ChatVerb, ParsedInput, SystemCommand};
 // Mention system for Chat view
 pub use mention_system::{
     highlight_mentions, Mention, MentionAutocomplete, MentionAutocompleteState, MentionSuggestion,
