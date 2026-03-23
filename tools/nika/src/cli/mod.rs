@@ -13,6 +13,7 @@ pub use nika_cli::media;
 pub use nika_cli::new_cmd;
 pub use nika_cli::pkg;
 pub use nika_cli::schema;
+pub use nika_cli::setup;
 pub use nika_cli::showcase;
 pub use nika_cli::trace;
 pub use nika_cli::workflow;

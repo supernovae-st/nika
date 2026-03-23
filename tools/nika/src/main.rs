@@ -316,6 +316,12 @@ enum Commands {
         action: cli::showcase::ShowcaseAction,
     },
 
+    /// Configure machine for Nika development (editors, AI tools, completions)
+    Setup {
+        #[command(subcommand)]
+        action: Option<cli::setup::SetupAction>,
+    },
+
     /// Check system health and diagnose issues
     #[command(visible_alias = "d")]
     Doctor {
@@ -799,6 +805,8 @@ async fn main() {
         Some(Commands::Showcase { action }) => {
             cli::showcase::handle_showcase_command(action, quiet)
         }
+
+        Some(Commands::Setup { action }) => cli::setup::handle_setup_command(action).await,
 
         Some(Commands::Doctor { full, format }) => {
             cli::doctor::handle_doctor_command(full, &format, quiet).await

@@ -22,3 +22,4 @@ pub mod schema;
 pub mod workflow;
 
 pub mod new_cmd;
+pub mod setup;

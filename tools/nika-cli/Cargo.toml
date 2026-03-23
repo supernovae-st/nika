@@ -51,6 +51,8 @@ chrono = { workspace = true }
 regex = { workspace = true }
 humantime = { workspace = true }
 infer = "0.19"
+which = "7"
+dirs = "6"
 
 # Interactive wizard
 cliclack = "0.5"
