@@ -42,6 +42,46 @@ fn estimate_tokens(char_len: usize) -> u64 {
     char_len.div_ceil(4) as u64
 }
 
+/// Coerce string values that look like numbers/booleans back to native JSON types.
+///
+/// Template resolution is string-based: `{{with.count}}` resolving to 42 produces
+/// `"42"` (string), not `42` (number). MCP tools expecting integers/booleans fail.
+/// This walks the Value tree and converts unambiguous string representations back
+/// to their native JSON types.
+fn coerce_json_types(value: &mut serde_json::Value) {
+    use serde_json::Value;
+    match value {
+        Value::Object(map) => {
+            for v in map.values_mut() {
+                coerce_json_types(v);
+            }
+        }
+        Value::Array(arr) => {
+            for v in arr {
+                coerce_json_types(v);
+            }
+        }
+        Value::String(s) => {
+            if let Ok(n) = s.parse::<i64>() {
+                *value = Value::Number(n.into());
+            } else if let Ok(n) = s.parse::<f64>() {
+                if n.is_finite() {
+                    if let Some(num) = serde_json::Number::from_f64(n) {
+                        *value = Value::Number(num);
+                    }
+                }
+            } else if s == "true" {
+                *value = Value::Bool(true);
+            } else if s == "false" {
+                *value = Value::Bool(false);
+            } else if s == "null" {
+                *value = Value::Null;
+            }
+        }
+        _ => {}
+    }
+}
+
 /// Truncate resolved template for event logging (avoids leaking secrets from $env).
 #[inline]
 fn redact_for_event(s: &str) -> String {
@@ -1731,7 +1771,7 @@ impl TaskExecutor {
             // Short-circuit: skip template resolve + re-parse if no templates present
             if params_str.contains("{{") {
                 let resolved_str = template_resolve(&params_str, bindings, datastore)?;
-                Some(
+                let mut resolved =
                     serde_json::from_str::<serde_json::Value>(&resolved_str).map_err(|e| {
                         NikaError::InvokeParamError {
                             reason: format!(
@@ -1739,8 +1779,10 @@ impl TaskExecutor {
                                 resolved_str, e
                             ),
                         }
-                    })?,
-                )
+                    })?;
+                // Coerce string values back to native JSON types after template resolution
+                coerce_json_types(&mut resolved);
+                Some(resolved)
             } else {
                 Some(original_params.clone())
             }
