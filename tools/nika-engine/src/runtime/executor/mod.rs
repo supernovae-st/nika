@@ -350,6 +350,14 @@ impl TaskExecutor {
     pub(super) async fn get_mcp_client(&self, name: &str) -> Result<Arc<McpClient>, NikaError> {
         self.mcp_pool.get_or_connect(name).await.map_err(Into::into)
     }
+
+    /// Gracefully shut down all MCP server connections.
+    ///
+    /// Delegates to [`McpClientPool::shutdown_all`] which terminates server
+    /// processes and marks the pool as shut down. Idempotent.
+    pub async fn shutdown_mcp(&self) {
+        self.mcp_pool.shutdown_all().await;
+    }
 }
 
 /// Get action type as string for tracing

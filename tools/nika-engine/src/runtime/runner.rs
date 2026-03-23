@@ -179,6 +179,7 @@ impl Runner {
         let flow_graph = Dag::from_analyzed(&workflow).map_err(|e| NikaError::ValidationError {
             reason: format!("DAG construction failed: {e}"),
         })?;
+        flow_graph.detect_cycles()?;
         let datastore = RunContext::new();
 
         // Bridge MCP servers to old FxHashMap<String, McpConfigInline> for TaskExecutor
@@ -2261,6 +2262,9 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 trace_path.as_deref(),
             );
         }
+
+        // Gracefully shut down MCP server processes to avoid orphans
+        self.executor.shutdown_mcp().await;
 
         Ok(output)
     }
