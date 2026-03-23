@@ -2,7 +2,7 @@
 //!
 //! Generates project-level AI context files (AGENTS.md, VS Code settings,
 //! git hooks). Editor-specific rules are installed at user scope by
-//! `nika setup` / `machine.rs`.
+//! auto-setup (`machine.rs`).
 
 use colored::Colorize;
 use std::fs;
@@ -11,7 +11,7 @@ use std::path::Path;
 /// Generate project-level AI integration files.
 ///
 /// Editor-specific rules (Cursor, Copilot, Windsurf, Roo Code) are now
-/// installed at user scope (`~/`) by `nika setup` via `machine.rs`.
+/// installed at user scope (`~/`) by `machine.rs` (auto-setup).
 /// This function only writes project-local files.
 pub fn generate_ai_files(project_dir: &Path) -> Result<(), nika_engine::NikaError> {
     println!("\n  {}", "AI Integration".bold().underline());
@@ -117,7 +117,7 @@ fn write_if_absent_with_dir(base: &Path, rel_path: &str, content: &str, label: &
 // ─── Embedded Content ─────────────────────────────────────────────────────────
 //
 // Editor-specific rules (Cursor, Copilot, Windsurf, Roo Code) have been moved
-// to machine.rs and are installed at user scope (~/) by `nika setup`.
+// to machine.rs and are installed at user scope (~/) by auto-setup.
 // Only project-local content remains here.
 
 const VSCODE_EXTENSIONS: &str = r#"{

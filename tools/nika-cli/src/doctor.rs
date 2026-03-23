@@ -816,7 +816,7 @@ fn check_ai_rules() -> Vec<DiagnosticCheck> {
                 "[user] Claude Code detected but no rules at {}",
                 claude_user_path.display()
             ),
-            "Run: nika setup ai to generate Claude Code rules",
+            "Run: nika doctor --fix to generate Claude Code rules",
         ));
     }
 
@@ -862,7 +862,7 @@ fn check_agent_skills() -> Vec<DiagnosticCheck> {
         checks.push(DiagnosticCheck::warn(
             "Agent Skills",
             "[user] No global skills (only project-level found)",
-            "Run: nika setup ai to install user-level skills for all projects",
+            "Run: nika doctor --fix to install user-level skills for all projects",
         ));
     }
 
@@ -870,7 +870,7 @@ fn check_agent_skills() -> Vec<DiagnosticCheck> {
         checks.push(DiagnosticCheck::warn(
             "Agent Skills",
             "No Nika Agent Skills installed (user or project)",
-            "Run: nika setup ai (global) or: npx skills add SuperNovae-studio/nika-skills",
+            "Run: nika doctor --fix (global) or: npx skills add SuperNovae-studio/nika-skills",
         ));
     }
 
@@ -948,14 +948,14 @@ fn check_git_hook() -> DiagnosticCheck {
             DiagnosticCheck::warn(
                 "Git Hook",
                 "prepare-commit-msg hook exists but is not Nika's",
-                "Run: nika setup git (will backup existing hook)",
+                "Run: nika doctor --fix (will backup existing hook)",
             )
         }
     } else {
         DiagnosticCheck::warn(
             "Git Hook",
             "No co-author hook installed",
-            "Run: nika setup git",
+            "Run: nika doctor --fix",
         )
     }
 }

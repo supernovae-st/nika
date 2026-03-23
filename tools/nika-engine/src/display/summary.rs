@@ -153,13 +153,8 @@ pub fn print_doctor_summary(pass_count: usize, warn_count: usize, fail_count: us
             "nika init".cyan()
         );
         println!(
-            "    {} {} configure editors + AI tools",
-            "2.".bold(),
-            "nika setup".cyan()
-        );
-        println!(
             "    {} {} verify everything works",
-            "3.".bold(),
+            "2.".bold(),
             "nika doctor".cyan()
         );
     }

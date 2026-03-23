@@ -502,7 +502,7 @@ fn find_project_root() -> Option<std::path::PathBuf> {
 
 /// Run the TUI Setup Wizard (standalone)
 ///
-/// This is the entry point for `nika setup` command.
+/// Legacy setup wizard — now replaced by auto-setup in machine.rs.
 /// Runs a full-screen setup wizard separate from the 3-view TUI.
 pub fn run_tui_wizard() -> nika_engine::error::Result<()> {
     use crossterm::{
