@@ -766,7 +766,7 @@ fn parse_exec_action(file: FileId, node: &Node) -> Result<RawExecAction, ParseEr
                 timeout_ms: match get_u64_field(file, m, "timeout_ms")? {
                     Some(v) => Some(v),
                     None => get_u64_field(file, m, "timeout")?
-                        .map(|s| Spanned::new(s.value * 1000, s.span)),
+                        .map(|s| Spanned::new(s.value.saturating_mul(1000), s.span)),
                 },
             })
         }
@@ -811,7 +811,7 @@ fn parse_fetch_action(file: FileId, node: &Node) -> Result<RawFetchAction, Parse
         timeout_ms: match get_u64_field(file, m, "timeout_ms")? {
             Some(v) => Some(v),
             None => {
-                get_u64_field(file, m, "timeout")?.map(|s| Spanned::new(s.value * 1000, s.span))
+                get_u64_field(file, m, "timeout")?.map(|s| Spanned::new(s.value.saturating_mul(1000), s.span))
             }
         },
         follow_redirects: get_bool_field(file, m, "follow_redirects")?,
@@ -855,7 +855,7 @@ fn parse_invoke_action(file: FileId, node: &Node) -> Result<RawInvokeAction, Par
         timeout_ms: match get_u64_field(file, m, "timeout_ms")? {
             Some(v) => Some(v),
             None => {
-                get_u64_field(file, m, "timeout")?.map(|s| Spanned::new(s.value * 1000, s.span))
+                get_u64_field(file, m, "timeout")?.map(|s| Spanned::new(s.value.saturating_mul(1000), s.span))
             }
         },
     })
@@ -1022,7 +1022,7 @@ fn parse_retry(
                     delay_ms: match get_u64_field(file, m, "delay_ms")? {
                         Some(v) => Some(v),
                         None => get_u64_field(file, m, "delay")?
-                            .map(|s| Spanned::new(s.value * 1000, s.span)),
+                            .map(|s| Spanned::new(s.value.saturating_mul(1000), s.span)),
                     },
                     backoff: get_f64_field(file, m, "backoff")?,
                 },
