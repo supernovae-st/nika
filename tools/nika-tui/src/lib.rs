@@ -50,7 +50,6 @@ pub mod icons;
 mod keybindings;
 mod layout;
 mod mode;
-pub mod new_wizard;
 pub mod providers;
 pub mod selection;
 pub mod session;
