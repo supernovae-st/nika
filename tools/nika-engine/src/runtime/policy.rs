@@ -148,8 +148,14 @@ impl PolicyEnforcer {
             }
         };
 
-        // SSRF protection: block cloud metadata and loopback BEFORE user config
-        if SSRF_BLOCKED_HOSTS.iter().any(|&blocked| host == blocked) {
+        // SSRF protection: block cloud metadata and loopback
+        // Exception: explicit allowed_hosts override SSRF blocklist (for testing, local services)
+        let explicitly_allowed = self.config.allowed_hosts.iter().any(|allowed| {
+            host == allowed.to_lowercase()
+        });
+        if !explicitly_allowed
+            && SSRF_BLOCKED_HOSTS.iter().any(|&blocked| host == blocked)
+        {
             return PolicyDecision::Block(format!(
                 "SSRF protection: access to '{}' is blocked",
                 host
