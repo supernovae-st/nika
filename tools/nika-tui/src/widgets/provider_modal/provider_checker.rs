@@ -59,6 +59,7 @@ impl ProviderChecker {
             "groq" => self.check_groq().await,
             "deepseek" => self.check_deepseek().await,
             "gemini" => self.check_gemini().await,
+            "xai" | "grok" => self.check_xai().await,
             "native" => self.check_native(),
             _ => Err("Unknown provider".to_string()),
         };
@@ -186,6 +187,22 @@ impl ProviderChecker {
             .send()
             .await
             .map_err(|_| "Gemini: connection failed".to_string())?
+            .error_for_status()
+            .map_err(|e| format!("API error: {}", e.status().map_or(0, |s| s.as_u16())))?;
+
+        Ok(())
+    }
+
+    /// Check xAI (Grok) connectivity
+    async fn check_xai(&self) -> Result<(), String> {
+        let key = std::env::var("XAI_API_KEY").map_err(|_| "No API key")?;
+
+        self.client
+            .get("https://api.x.ai/v1/models")
+            .header("Authorization", format!("Bearer {}", key))
+            .send()
+            .await
+            .map_err(|_| "xAI: connection failed".to_string())?
             .error_for_status()
             .map_err(|e| format!("API error: {}", e.status().map_or(0, |s| s.as_u16())))?;
 

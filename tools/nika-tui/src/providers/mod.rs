@@ -42,7 +42,7 @@ mod mask {
 
 // Note: Fallback module - all providers come from nika::core
 
-/// Get all LLM providers (6: anthropic, openai, mistral, groq, deepseek, gemini)
+/// Get all LLM providers (7: anthropic, openai, mistral, groq, deepseek, gemini, xai)
 pub fn llm_providers() -> Vec<&'static Provider> {
     providers_by_category(ProviderCategory::Llm)
 }

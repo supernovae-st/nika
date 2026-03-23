@@ -252,20 +252,20 @@ fn test_modal_navigate_grid_mode_wrapping() {
     state.navigate_left();
     assert_eq!(state.selected_idx, 5); // Wraps to end of row
 
-    // Navigate up wrapping: 0 -> wraps to 3
+    // Navigate up wrapping: 0 -> wraps to 6 (xAI, last item in col 0)
     state.selected_idx = 0;
     state.navigate_up();
-    assert_eq!(state.selected_idx, 3); // Wraps: col 0 last is idx 3
+    assert_eq!(state.selected_idx, 6); // col 0 last is xAI (row 2)
 
-    // Navigate up wrapping: 1 -> wraps to 4 (last row with col 1 is row 1)
+    // Navigate up wrapping: 1 -> wraps to 4 (partial row 2 has no col 1, so row 1)
     state.selected_idx = 1;
     state.navigate_up();
-    assert_eq!(state.selected_idx, 4); // Wraps: col 1 last is idx 4
+    assert_eq!(state.selected_idx, 4); // col 1 last is DeepSeek (row 1)
 
-    // Navigate up wrapping: 2 -> wraps to 5 (last row with col 2 is row 1)
+    // Navigate up wrapping: 2 -> wraps to 5 (partial row 2 has no col 2, so row 1)
     state.selected_idx = 2;
     state.navigate_up();
-    assert_eq!(state.selected_idx, 5); // Wraps: col 2 last is idx 5
+    assert_eq!(state.selected_idx, 5); // col 2 last is Gemini (row 1)
 }
 
 // SEC-004: Debug redacts key_input_buffer

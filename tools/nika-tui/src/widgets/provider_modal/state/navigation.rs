@@ -20,24 +20,28 @@ impl ProviderModalState {
     }
 
     /// Navigate up in current list/grid (wraps around)
-    /// For Cloud tab (2x3 grid, 6 items): moves up one row (idx - 3), wraps to last row
+    /// For Cloud tab (3-column grid): moves up one row (idx - 3), wraps to last row
     /// For other tabs: moves up one item (idx - 1), wraps to last
     pub fn navigate_up(&mut self) {
         if self.item_count == 0 {
             return;
         }
         if self.active_tab == ProviderModalTab::Cloud {
-            // 3-column grid (6 items): move up one row, wrap to last row
             if self.selected_idx >= 3 {
                 self.selected_idx -= 3;
             } else {
-                // Wrap to last row with this column (2x3 grid: idx 0-2 wraps to 3-5)
+                // Wrap to last item in same column
                 let col = self.selected_idx;
-                let last_row_idx = col + 3;
-                self.selected_idx = last_row_idx.min(self.item_count - 1);
+                let last_row = (self.item_count - 1) / 3;
+                let target = last_row * 3 + col;
+                if target < self.item_count {
+                    self.selected_idx = target;
+                } else {
+                    // Partial last row doesn't have this column — go to previous row
+                    self.selected_idx = (last_row - 1) * 3 + col;
+                }
             }
         } else {
-            // List navigation: wrap to last
             if self.selected_idx == 0 {
                 self.selected_idx = self.item_count - 1;
             } else {
@@ -47,23 +51,22 @@ impl ProviderModalState {
     }
 
     /// Navigate down in current list/grid (wraps around)
-    /// For Cloud tab (2x3 grid, 6 items): moves down one row (idx + 3), wraps to top
+    /// For Cloud tab (3-column grid): moves down one row (idx + 3), wraps to top
     /// For other tabs: moves down one item (idx + 1), wraps to first
     pub fn navigate_down(&mut self) {
         if self.item_count == 0 {
             return;
         }
         if self.active_tab == ProviderModalTab::Cloud {
-            // 3-column grid (6 items): move down one row, wrap to top
-            if self.selected_idx + 3 < self.item_count {
-                self.selected_idx += 3;
+            let next = self.selected_idx + 3;
+            if next < self.item_count {
+                self.selected_idx = next;
             } else {
                 // Wrap to top row, same column
                 let col = self.selected_idx % 3;
                 self.selected_idx = col;
             }
         } else {
-            // List navigation: wrap to first
             if self.selected_idx >= self.item_count - 1 {
                 self.selected_idx = 0;
             } else {

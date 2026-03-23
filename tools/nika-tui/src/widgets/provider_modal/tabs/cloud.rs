@@ -313,13 +313,18 @@ impl Widget for CloudTab<'_> {
             return;
         }
 
+        // Dynamic row count based on provider count (3 columns per row)
+        let num_rows = self.providers.len().div_ceil(3);
+        let row_constraints: Vec<Constraint> =
+            (0..num_rows).map(|_| Constraint::Ratio(1, num_rows as u32)).collect();
+
         let rows = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)])
+            .constraints(row_constraints)
             .split(area);
 
         for (row_idx, row_area) in rows.iter().enumerate() {
-            // 3 providers per row (2x3 grid)
+            // 3 providers per row
             let num_cols = 3;
             let cols = Layout::default()
                 .direction(Direction::Horizontal)
