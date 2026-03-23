@@ -5455,6 +5455,113 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════
+    // FOR_EACH CONCURRENT FAIL_FAST CANCELLATION
+    // ═══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn for_each_concurrent_fail_fast_cancels_remaining_iterations() {
+        // Verify that with concurrency > 1 and fail_fast = true, when one
+        // iteration fails, iterations waiting on the semaphore are cancelled
+        // (returned as Skipped) rather than being allowed to proceed.
+        //
+        // Cancellation semantics: the CancellationToken fires when an iteration
+        // fails. This cancels iterations that are:
+        //   (a) waiting to acquire the semaphore (via tokio::select!)
+        //   (b) not yet spawned (checked in the spawn loop)
+        //   (c) checked again after acquiring the permit
+        //
+        // Iterations that already acquired a permit and started executing will
+        // run to completion — the token does not abort running shell processes.
+        //
+        // Strategy:
+        //   - 6 items, concurrency=2, fail_fast=true
+        //   - Item 0 fails immediately (exit 1)
+        //   - Item 1 succeeds quickly (echo)
+        //   - Items 2-5 would run if allowed, but should be cancelled at the
+        //     semaphore gate since the cancel token fires before they acquire.
+
+        let workflow = create_for_each_workflow(
+            "cancel_test",
+            r#"["FAIL", "ok1", "wait2", "wait3", "wait4", "wait5"]"#,
+            "item",
+            "if [ '{{with.item}}' = 'FAIL' ]; then exit 1; else echo {{with.item}}; fi",
+            Some(2), // concurrency = 2
+            true,    // fail_fast = true
+            true,    // shell = true
+        );
+
+        let mut runner = Runner::new(workflow).unwrap().quiet();
+        let result = runner.run().await;
+
+        // Workflow should fail (fail_fast propagates the error)
+        assert!(
+            result.is_err(),
+            "Workflow should fail when fail_fast triggers on concurrent for_each"
+        );
+
+        // The failing iteration (index 0) should exist and be a failure
+        let fail_iter = runner.datastore.get("cancel_test[0]");
+        assert!(
+            fail_iter.is_some(),
+            "Failing iteration [0] result should exist"
+        );
+        assert!(
+            !fail_iter.unwrap().is_success(),
+            "Iteration [0] should have failed"
+        );
+
+        // Item 1 may have completed (it was in the same concurrency batch as
+        // item 0) or may have been skipped — either is acceptable.
+        // But items 2-5 were waiting on the semaphore and MUST be skipped.
+        let mut skipped_count = 0;
+        let mut total_stored = 0;
+        for idx in 2..6 {
+            let key = format!("cancel_test[{}]", idx);
+            if let Some(iter_result) = runner.datastore.get(&key) {
+                total_stored += 1;
+                if iter_result.is_skipped() {
+                    skipped_count += 1;
+                }
+            }
+            // Iterations that were never spawned (spawn loop saw cancellation)
+            // won't have a datastore entry at all — that's also valid cancellation.
+        }
+
+        // Items 2-5 were queued behind the semaphore. They should either be
+        // skipped (cancel fired while waiting) or never spawned (cancel fired
+        // before the spawn loop reached them). Either way, they should NOT
+        // have succeeded.
+        let succeeded_after_cancel: Vec<usize> = (2..6)
+            .filter(|idx| {
+                let key = format!("cancel_test[{}]", idx);
+                runner
+                    .datastore
+                    .get(&key)
+                    .map(|r| r.is_success())
+                    .unwrap_or(false)
+            })
+            .collect();
+
+        assert!(
+            succeeded_after_cancel.is_empty(),
+            "Iterations behind the semaphore should not succeed after fail_fast cancellation, \
+            but these succeeded: {:?}",
+            succeeded_after_cancel
+        );
+
+        // At least some of the queued iterations should have a skipped result
+        // (others may not have been spawned at all).
+        let not_spawned = 4 - total_stored;
+        assert!(
+            skipped_count + not_spawned >= 1,
+            "At least one iteration should be cancelled (skipped={}, not_spawned={}). \
+            This suggests cancellation tokens are not working for concurrent for_each.",
+            skipped_count,
+            not_spawned
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     // Bug #26: fail_fast should only cancel sibling iterations,
     // not unrelated tasks in the same JoinSet.
     // ═══════════════════════════════════════════════════════════════

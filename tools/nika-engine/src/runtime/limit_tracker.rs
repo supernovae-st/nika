@@ -625,6 +625,249 @@ mod tests {
     }
 
     // ════════════════════════════════════════════════════════════════════
+    // Edge-case: exactly at limit
+    // ════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn turns_exactly_at_limit_is_exceeded() {
+        let mut tracker = LimitTracker::new(config_with_turns(3));
+        tracker.add_turn();
+        tracker.add_turn();
+        tracker.add_turn();
+
+        let status = tracker.check_turns().unwrap();
+        assert!(status.exceeded, "exactly at max_turns should be exceeded");
+        assert!((status.current - 3.0).abs() < f64::EPSILON);
+        assert!((status.usage_pct - 1.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn tokens_exactly_at_limit_is_exceeded() {
+        let mut tracker = LimitTracker::new(config_with_tokens(1000));
+        tracker.add_tokens(600, 400); // total = 1000
+
+        let status = tracker.check_tokens().unwrap();
+        assert!(status.exceeded, "exactly at max_tokens should be exceeded");
+        assert!((status.current - 1000.0).abs() < f64::EPSILON);
+        assert!((status.usage_pct - 1.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn cost_exactly_at_limit_is_exceeded() {
+        let mut tracker = LimitTracker::new(config_with_cost(2.00));
+        tracker.add_cost(1.50);
+        tracker.add_cost(0.50);
+
+        let status = tracker.check_cost().unwrap();
+        assert!(status.exceeded, "exactly at max_cost_usd should be exceeded");
+        assert!((status.current - 2.0).abs() < f64::EPSILON);
+        assert!((status.usage_pct - 1.0).abs() < f64::EPSILON);
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // Edge-case: one over limit
+    // ════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn turns_one_over_limit_is_exceeded() {
+        let mut tracker = LimitTracker::new(config_with_turns(5));
+        for _ in 0..6 {
+            tracker.add_turn();
+        }
+
+        let status = tracker.check_turns().unwrap();
+        assert!(status.exceeded);
+        assert!((status.current - 6.0).abs() < f64::EPSILON);
+        // usage_pct is capped at 1.0 by LimitStatus::new
+        assert!((status.usage_pct - 1.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn tokens_one_over_limit_is_exceeded() {
+        let mut tracker = LimitTracker::new(config_with_tokens(5000));
+        tracker.add_tokens(3000, 2001); // total = 5001
+
+        let status = tracker.check_tokens().unwrap();
+        assert!(status.exceeded);
+        assert!((status.current - 5001.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn cost_one_over_limit_is_exceeded() {
+        let mut tracker = LimitTracker::new(config_with_cost(1.00));
+        tracker.add_cost(1.01);
+
+        let status = tracker.check_cost().unwrap();
+        assert!(status.exceeded);
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // Unlimited tracker never exceeds even under heavy usage
+    // ════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn unlimited_never_exceeds_under_heavy_usage() {
+        let mut tracker = LimitTracker::unlimited();
+
+        for _ in 0..1000 {
+            tracker.add_turn();
+        }
+        tracker.add_tokens(1_000_000, 500_000);
+        tracker.add_cost(999.99);
+
+        assert!(!tracker.any_exceeded());
+        assert!(tracker.check_turns().is_none());
+        assert!(tracker.check_tokens().is_none());
+        assert!(tracker.check_cost().is_none());
+        assert!(tracker.check_duration().is_none());
+        assert!(tracker.check_limits().is_none());
+        assert!((tracker.progress() - 0.0).abs() < f64::EPSILON);
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // Unconfigured individual checks return None
+    // ════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn check_turns_none_when_not_configured() {
+        let tracker = LimitTracker::new(config_with_tokens(5000));
+        assert!(tracker.check_turns().is_none());
+    }
+
+    #[test]
+    fn check_tokens_none_when_not_configured() {
+        let tracker = LimitTracker::new(config_with_turns(10));
+        assert!(tracker.check_tokens().is_none());
+    }
+
+    #[test]
+    fn check_cost_none_when_not_configured() {
+        let tracker = LimitTracker::new(config_with_turns(10));
+        assert!(tracker.check_cost().is_none());
+    }
+
+    #[test]
+    fn check_duration_none_when_not_configured() {
+        let tracker = LimitTracker::new(config_with_turns(10));
+        assert!(tracker.check_duration().is_none());
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // check_limits returns correct LimitType for non-turn exceeded
+    // ════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn check_limits_returns_tokens_when_tokens_exceeded() {
+        let mut tracker = LimitTracker::new(config_with_tokens(1000));
+        tracker.add_tokens(800, 300); // 1100 > 1000
+
+        let exceeded = tracker.check_limits().unwrap();
+        assert_eq!(exceeded.limit_type, LimitType::Tokens);
+    }
+
+    #[test]
+    fn check_limits_returns_cost_when_cost_exceeded() {
+        let mut tracker = LimitTracker::new(config_with_cost(0.50));
+        tracker.add_cost(0.75);
+
+        let exceeded = tracker.check_limits().unwrap();
+        assert_eq!(exceeded.limit_type, LimitType::Cost);
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // check_limits priority: turns > tokens > cost > duration
+    // ════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn check_limits_turns_takes_priority_over_tokens() {
+        let config = LimitsConfig {
+            max_turns: 2,
+            max_tokens: 100,
+            ..Default::default()
+        };
+        let mut tracker = LimitTracker::new(config);
+        tracker.add_turn();
+        tracker.add_turn(); // turns exceeded
+        tracker.add_tokens(200, 0); // tokens also exceeded
+
+        let exceeded = tracker.check_limits().unwrap();
+        assert_eq!(exceeded.limit_type, LimitType::Turns);
+    }
+
+    #[test]
+    fn check_limits_tokens_takes_priority_over_cost() {
+        let config = LimitsConfig {
+            max_tokens: 100,
+            max_cost_usd: 0.01,
+            ..Default::default()
+        };
+        let mut tracker = LimitTracker::new(config);
+        tracker.add_tokens(200, 0); // tokens exceeded
+        tracker.add_cost(1.00); // cost also exceeded
+
+        let exceeded = tracker.check_limits().unwrap();
+        assert_eq!(exceeded.limit_type, LimitType::Tokens);
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // approaching_limit edge case at exactly 80%
+    // ════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn approaching_limit_false_at_exactly_80_percent() {
+        let mut tracker = LimitTracker::new(config_with_turns(10));
+        for _ in 0..8 {
+            tracker.add_turn();
+        }
+        // 80% is NOT > 0.8, so this should be false
+        assert!(!tracker.approaching_limit());
+    }
+
+    #[test]
+    fn approaching_limit_true_at_81_percent() {
+        let mut tracker = LimitTracker::new(config_with_tokens(100));
+        tracker.add_tokens(81, 0); // 81%
+        assert!(tracker.approaching_limit());
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // record_turn composes properly across multiple calls
+    // ════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn record_turn_accumulates_across_calls() {
+        let mut tracker = LimitTracker::new(full_config());
+
+        tracker.record_turn(100, 50, 0.01);
+        tracker.record_turn(200, 75, 0.02);
+        tracker.record_turn(150, 60, 0.015);
+
+        assert_eq!(tracker.turns(), 3);
+        assert_eq!(tracker.input_tokens(), 450);
+        assert_eq!(tracker.output_tokens(), 185);
+        assert_eq!(tracker.total_tokens(), 635);
+        assert!((tracker.cost_usd() - 0.045).abs() < f64::EPSILON);
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // all_statuses only includes configured limits
+    // ════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn all_statuses_empty_for_unlimited() {
+        let tracker = LimitTracker::unlimited();
+        assert!(tracker.all_statuses().is_empty());
+    }
+
+    #[test]
+    fn all_statuses_single_when_one_configured() {
+        let tracker = LimitTracker::new(config_with_turns(10));
+        let statuses = tracker.all_statuses();
+        assert_eq!(statuses.len(), 1);
+        assert_eq!(statuses[0].limit_type, LimitType::Turns);
+    }
+
+    // ════════════════════════════════════════════════════════════════════
     // Duration tests (basic - timing is hard to test)
     // ════════════════════════════════════════════════════════════════════
 
@@ -632,6 +875,52 @@ mod tests {
     fn duration_starts_at_zero() {
         let tracker = LimitTracker::new(full_config());
         // Duration should be 0 or very small (< 1 sec)
+        assert!(tracker.duration_secs() < 1);
+    }
+
+    #[test]
+    fn duration_check_returns_status_when_configured() {
+        let config = LimitsConfig {
+            max_duration_secs: 300,
+            ..Default::default()
+        };
+        let tracker = LimitTracker::new(config);
+
+        let status = tracker.check_duration().unwrap();
+        assert!(!status.exceeded);
+        assert_eq!(status.limit_type, LimitType::Duration);
+        assert!((status.maximum - 300.0).abs() < f64::EPSILON);
+        // current should be near 0 since we just created it
+        assert!(status.current < 1.0);
+    }
+
+    #[test]
+    fn duration_not_exceeded_for_fresh_tracker() {
+        let config = LimitsConfig {
+            max_duration_secs: 1, // 1 second -- still won't be exceeded instantly
+            ..Default::default()
+        };
+        let tracker = LimitTracker::new(config);
+
+        // Freshly created tracker should not have exceeded even a 1s limit
+        let status = tracker.check_duration().unwrap();
+        assert!(!status.exceeded);
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // Reset restarts duration timer
+    // ════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn reset_restarts_duration_timer() {
+        let mut tracker = LimitTracker::new(full_config());
+
+        tracker.add_turn();
+        tracker.add_tokens(100, 50);
+        tracker.add_cost(0.10);
+        tracker.reset();
+
+        // After reset, duration should be near 0 again
         assert!(tracker.duration_secs() < 1);
     }
 }
