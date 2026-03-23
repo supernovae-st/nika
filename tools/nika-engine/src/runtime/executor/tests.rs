@@ -1231,8 +1231,13 @@ async fn test_run_exec_shell_free_mode_default() {
     let result = executor
         .run_exec(&task_id, &params, &bindings, &datastore)
         .await;
-    // Either succeeds with literal output or fails due to no command chaining
-    assert!(result.is_ok() || result.is_err());
+    // Shell-free: shlex splits "echo hello; echo world" into ["echo", "hello;", "echo", "world"]
+    // echo receives all args and succeeds
+    assert!(
+        result.is_ok(),
+        "Shell-free exec should succeed: {:?}",
+        result.err()
+    );
     if let Ok(output) = result {
         assert!(output.contains("hello;") || output.contains("hello"));
     }

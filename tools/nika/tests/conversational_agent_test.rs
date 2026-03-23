@@ -490,8 +490,12 @@ fn test_agent_excessive_depth_limit() {
     let log = EventLog::new();
     let mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
 
-    // This should either cap at 10 or reject
+    // RigAgentLoop::new only validates prompt and max_turns, not depth_limit
+    // depth_limit validation happens via AgentParams::validate() at runtime
     let result = RigAgentLoop::new("deep-agent".to_string(), params, log, mcp_clients);
-    // Either is acceptable - implementation may cap or reject
-    assert!(result.is_ok() || result.is_err());
+    assert!(
+        result.is_ok(),
+        "RigAgentLoop::new should accept excessive depth_limit: {:?}",
+        result.err()
+    );
 }

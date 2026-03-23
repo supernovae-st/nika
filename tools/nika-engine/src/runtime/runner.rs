@@ -1707,10 +1707,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             .or(task.concurrency)
                             .unwrap_or(1)
                             .max(1) as usize;
-                        let fail_fast = fe
-                            .map(|f| f.fail_fast)
-                            .or(task.fail_fast)
-                            .unwrap_or(true);
+                        let fail_fast = fe.map(|f| f.fail_fast).or(task.fail_fast).unwrap_or(true);
 
                         debug!(
                             task_id = %task.name,
@@ -2870,8 +2867,13 @@ mod tests {
 
         let mut runner = Runner::new(workflow).unwrap();
         let result = runner.run().await;
-        // Workflow completes but parent task may be marked as failed
-        assert!(result.is_ok() || result.is_err());
+        // runner.run() returns Ok even with fail_fast failures — individual task
+        // results are stored in the datastore, but the workflow itself completes
+        assert!(
+            result.is_ok(),
+            "Workflow should complete: {:?}",
+            result.err()
+        );
     }
 
     #[tokio::test]

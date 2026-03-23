@@ -83,14 +83,22 @@ mod tests {
         let result = op
             .execute(serde_json::json!({"hash": sr.hash, "quality": 0}), &ctx)
             .await;
-        // Should not panic (quality clamped)
-        assert!(result.is_ok() || result.is_err()); // either is fine, no panic
+        // Fake image data cannot be decoded, so execute should error
+        assert!(
+            result.is_err(),
+            "Fake image data should fail: {:?}",
+            result.unwrap()
+        );
 
         // quality=100 should be clamped to 10
         let result = op
             .execute(serde_json::json!({"hash": sr.hash, "quality": 100}), &ctx)
             .await;
-        assert!(result.is_ok() || result.is_err()); // no panic
+        assert!(
+            result.is_err(),
+            "Fake image data should fail: {:?}",
+            result.unwrap()
+        );
     }
 
     #[cfg(feature = "media-thumbnail")]

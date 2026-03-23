@@ -81,10 +81,13 @@ prompt: "Test"
 depth_limit: 15
 "#;
     let result: Result<AgentParams, _> = serde_yaml::from_str(yaml);
-    // Should fail validation because 15 > 10
-    assert!(
-        result.is_err() || result.unwrap().depth_limit.unwrap() == 15,
-        "depth_limit can be set to values > 10 directly, validation happens at runtime"
+    // serde_yaml deserialization does NOT validate depth_limit range
+    // Validation happens at runtime via AgentParams::validate()
+    let params = result.expect("depth_limit: 15 should deserialize successfully");
+    assert_eq!(
+        params.depth_limit.unwrap(),
+        15,
+        "depth_limit should be preserved as-is"
     );
 }
 

@@ -132,8 +132,11 @@ tasks:
 
     // Just verify we can receive events (will likely fail on MCP connection)
     let result = timeout(Duration::from_secs(5), rx.recv()).await;
-    // We expect some event, even if workflow fails
-    assert!(result.is_ok() || result.is_err()); // Test completes
+    // Runner emits at least a WorkflowStarted event before MCP connection failure
+    assert!(
+        result.is_ok(),
+        "Should receive at least one event within 5s timeout"
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

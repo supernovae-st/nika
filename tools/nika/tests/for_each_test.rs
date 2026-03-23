@@ -248,14 +248,12 @@ tasks:
     let mut runner = Runner::new(workflow).unwrap();
     let result = runner.run().await;
 
-    // Workflow should complete (not panic) even with partial failures
-    // The result depends on how we handle failures - either:
-    // 1. Workflow fails if any task fails
-    // 2. Workflow succeeds but collects failure info
-    // Current behavior: workflow may fail, but should not panic
+    // runner.run() returns Ok even with partial failures — individual task
+    // results (including failures) are stored in the datastore
     assert!(
-        result.is_ok() || result.is_err(),
-        "Workflow should complete without panic"
+        result.is_ok(),
+        "Workflow should complete without panic: {:?}",
+        result.err()
     );
 }
 

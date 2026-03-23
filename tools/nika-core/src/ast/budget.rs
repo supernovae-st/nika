@@ -420,7 +420,11 @@ ref2: *root
         let yaml = "";
         let result: Result<Option<serde_json::Value>, _> = from_str_with_budget(yaml);
         // Empty YAML is valid and deserializes to None/null
-        assert!(result.is_ok() || result.is_err()); // Either is acceptable
+        assert!(
+            result.is_ok(),
+            "Empty YAML should parse successfully: {:?}",
+            result.err()
+        );
     }
 
     #[test]
