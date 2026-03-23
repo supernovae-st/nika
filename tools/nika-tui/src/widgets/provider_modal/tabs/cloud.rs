@@ -7,6 +7,8 @@ use ratatui::{
     widgets::Widget,
 };
 
+use crate::unicode::truncate_to_width;
+
 // =============================================================================
 // SEMANTIC COLOR CONSTANTS
 // =============================================================================
@@ -409,7 +411,8 @@ impl CloudTab<'_> {
             // Render prefix and model name
             let max_name_width = (overlay_width as usize).saturating_sub(context_str.len() + 3);
             let display_name = if model.name.len() > max_name_width {
-                format!("{}…", &model.name[..max_name_width.saturating_sub(1)])
+                let truncated = truncate_to_width(model.name, max_name_width.saturating_sub(1));
+                format!("{}…", truncated)
             } else {
                 model.name.to_string()
             };

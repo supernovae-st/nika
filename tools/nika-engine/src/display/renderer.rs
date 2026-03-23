@@ -1105,7 +1105,7 @@ impl CliRenderer {
         println!();
 
         // ── Summary box ──
-        let w = (self.term_width as usize).min(72);
+        let w = (self.term_width as usize).clamp(30, 72);
         let border = "─".repeat(w);
         println!("╭{}╮", border.dimmed());
         println!("│{}│", " ".repeat(w));
@@ -1366,6 +1366,9 @@ impl CliRenderer {
             );
 
             let total_ms = total_duration_ms;
+            if total_ms == 0 {
+                return;
+            }
             let bar_width = 38;
 
             for (task_id, verb, start_ms, dur_ms) in &self.stats.task_timeline {

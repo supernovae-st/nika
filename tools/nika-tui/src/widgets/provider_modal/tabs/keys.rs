@@ -10,6 +10,8 @@ use ratatui::{
     widgets::Widget,
 };
 
+use crate::unicode::truncate_to_width;
+
 // =============================================================================
 // SEMANTIC COLOR CONSTANTS
 // =============================================================================
@@ -251,7 +253,8 @@ impl Widget for KeysTab<'_> {
             let key_x = status_x + 2;
             let max_key_len = (area.right().saturating_sub(key_x + 1)) as usize;
             let truncated_key = if key_display.len() > max_key_len {
-                format!("{}…", &key_display[..max_key_len.saturating_sub(1)])
+                let truncated = truncate_to_width(&key_display, max_key_len.saturating_sub(1));
+                format!("{}…", truncated)
             } else {
                 key_display
             };

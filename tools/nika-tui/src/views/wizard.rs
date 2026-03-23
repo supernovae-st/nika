@@ -800,7 +800,7 @@ impl WizardView {
         }
 
         match key.code {
-            KeyCode::Up | KeyCode::Char('k') => {
+            KeyCode::Up | KeyCode::Char('k') if !self.providers.is_empty() => {
                 let i = self.provider_list_state.selected().unwrap_or(0);
                 let new_i = if i == 0 {
                     self.providers.len() - 1
@@ -809,7 +809,7 @@ impl WizardView {
                 };
                 self.provider_list_state.select(Some(new_i));
             }
-            KeyCode::Down | KeyCode::Char('j') => {
+            KeyCode::Down | KeyCode::Char('j') if !self.providers.is_empty() => {
                 let i = self.provider_list_state.selected().unwrap_or(0);
                 let new_i = (i + 1) % self.providers.len();
                 self.provider_list_state.select(Some(new_i));
@@ -833,7 +833,7 @@ impl WizardView {
     /// Handle key events for MCP servers step
     fn handle_mcp_key(&mut self, key: KeyEvent) -> ViewAction {
         match key.code {
-            KeyCode::Up | KeyCode::Char('k') => {
+            KeyCode::Up | KeyCode::Char('k') if !self.mcp_servers.is_empty() => {
                 let i = self.mcp_list_state.selected().unwrap_or(0);
                 let new_i = if i == 0 {
                     self.mcp_servers.len() - 1
@@ -842,7 +842,7 @@ impl WizardView {
                 };
                 self.mcp_list_state.select(Some(new_i));
             }
-            KeyCode::Down | KeyCode::Char('j') => {
+            KeyCode::Down | KeyCode::Char('j') if !self.mcp_servers.is_empty() => {
                 let i = self.mcp_list_state.selected().unwrap_or(0);
                 let new_i = (i + 1) % self.mcp_servers.len();
                 self.mcp_list_state.select(Some(new_i));
@@ -874,7 +874,7 @@ impl WizardView {
     /// Handle key events for editor sync step
     fn handle_editor_key(&mut self, key: KeyEvent) -> ViewAction {
         match key.code {
-            KeyCode::Up | KeyCode::Char('k') => {
+            KeyCode::Up | KeyCode::Char('k') if !self.editors.is_empty() => {
                 let i = self.editor_list_state.selected().unwrap_or(0);
                 let new_i = if i == 0 {
                     self.editors.len() - 1
@@ -883,7 +883,7 @@ impl WizardView {
                 };
                 self.editor_list_state.select(Some(new_i));
             }
-            KeyCode::Down | KeyCode::Char('j') => {
+            KeyCode::Down | KeyCode::Char('j') if !self.editors.is_empty() => {
                 let i = self.editor_list_state.selected().unwrap_or(0);
                 let new_i = (i + 1) % self.editors.len();
                 self.editor_list_state.select(Some(new_i));

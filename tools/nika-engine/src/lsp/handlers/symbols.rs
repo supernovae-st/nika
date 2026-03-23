@@ -202,7 +202,12 @@ fn task_verb_symbol(
 #[cfg(feature = "lsp")]
 fn truncate_prompt(s: &str, max_len: usize) -> String {
     if s.len() > max_len {
-        format!("{}...", &s[..max_len.saturating_sub(3)])
+        let trunc_at = max_len.saturating_sub(3);
+        let mut end = trunc_at.min(s.len());
+        while end > 0 && !s.is_char_boundary(end) {
+            end -= 1;
+        }
+        format!("{}...", &s[..end])
     } else {
         s.to_string()
     }

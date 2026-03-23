@@ -233,7 +233,15 @@ fn extract_field_value(text: &str, offset: u32, field: &str) -> Option<String> {
         }
     }
     // Also search nearby lines (field might be on adjacent line)
-    for search_line in text[line_start.saturating_sub(200)..line_end.min(text.len())]
+    let raw_start = line_start.saturating_sub(200);
+    let search_start = {
+        let mut s = raw_start;
+        while s > 0 && !text.is_char_boundary(s) {
+            s -= 1;
+        }
+        s
+    };
+    for search_line in text[search_start..line_end.min(text.len())]
         .lines()
         .take(10)
     {
