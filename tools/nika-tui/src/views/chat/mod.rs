@@ -28,7 +28,9 @@ use arboard::Clipboard;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
-    widgets::{ListState, Widget},
+    style::{Color, Modifier, Style},
+    text::{Line, Span},
+    widgets::{ListState, Paragraph, Widget},
     Frame,
 };
 use tui_input::Input;
@@ -645,11 +647,16 @@ impl View for ChatView {
         let total_lines = self.calculate_input_lines(area.width);
         self.ensure_input_cursor_visible(cursor_line, total_lines);
 
-        // Layout v4: ProStatusBar (2 lines) | Messages + Mission Control | Input (dynamic) + Hints
+        // Show warning bar when no API key is configured
+        let no_provider = self.current_provider_id == "none";
+        let warning_height: u16 = if no_provider { 1 } else { 0 };
+
+        // Layout v4: ProStatusBar (2 lines) | [Warning] | Messages + Mission Control | Input (dynamic) + Hints
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(2), // ProStatusBar (2 lines - Claude Code inspired)
+                Constraint::Length(warning_height), // API key warning (0 or 1)
                 Constraint::Min(10),   // Main content area
                 Constraint::Length(input_height), // Dynamic input height (1-10 lines + borders)
                 Constraint::Length(1), // Command hints
@@ -668,11 +675,28 @@ impl View for ChatView {
             .streaming(self.is_streaming)
             .render(chunks[0], frame.buffer_mut());
 
+        // 1b. API key warning bar (amber, only when no provider configured)
+        if no_provider {
+            let warning = Paragraph::new(Line::from(vec![
+                Span::styled(
+                    " \u{26a0} No API key configured ",
+                    Style::default()
+                        .fg(Color::Rgb(251, 191, 36)) // amber-400
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    "\u{2014} press Ctrl+P to set up a provider",
+                    Style::default().fg(Color::Rgb(245, 158, 11)), // amber-500
+                ),
+            ]));
+            frame.render_widget(warning, chunks[1]);
+        }
+
         // 2. Main content: Messages (65%) | Mission Control (35%)
         let main_chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([Constraint::Percentage(65), Constraint::Percentage(35)])
-            .split(chunks[1]);
+            .split(chunks[2]);
 
         // Messages panel with inline MCP/Infer boxes
         self.render_messages_v2(frame, main_chunks[0], theme);
@@ -702,10 +726,10 @@ impl View for ChatView {
         }
 
         // 3. Input panel
-        self.render_input(frame, chunks[2], theme);
+        self.render_input(frame, chunks[3], theme);
 
         // 4. Command hints
-        self.render_hints(frame, chunks[3], theme);
+        self.render_hints(frame, chunks[4], theme);
 
         // 5. Command palette overlay (if visible)
         if self.command_palette.visible {
@@ -732,11 +756,11 @@ impl View for ChatView {
         if self.mention_autocomplete.visible {
             // Position popup above the input area
             let popup_height = (self.mention_autocomplete.suggestions.len().min(8) + 2) as u16;
-            let popup_y = chunks[2].y.saturating_sub(popup_height);
+            let popup_y = chunks[3].y.saturating_sub(popup_height);
             let popup_area = Rect::new(
-                chunks[2].x + 2, // Slight offset from left
+                chunks[3].x + 2, // Slight offset from left
                 popup_y,
-                chunks[2].width.min(50).saturating_sub(4),
+                chunks[3].width.min(50).saturating_sub(4),
                 popup_height,
             );
             MentionAutocomplete::new(&self.mention_autocomplete)
