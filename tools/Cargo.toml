@@ -89,7 +89,7 @@ humantime = "2.1"
 petgraph = { version = "0.6", features = ["serde-1"] }
 
 # MCP
-rmcp = { version = "0.16", features = ["client", "transport-child-process"] }
+rmcp = { version = "0.16", features = ["client", "server", "transport-child-process", "transport-io"] }
 
 # LLM
 rig-core = { version = "0.32", features = ["rmcp"] }

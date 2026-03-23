@@ -23,6 +23,7 @@ tracing = { workspace = true }
 thiserror = { workspace = true }
 jsonschema = { workspace = true }
 shellexpand = "3.1"
+schemars = "1.2"
 rustc-hash = { workspace = true }
 regex = { workspace = true }
 dirs = "5.0"

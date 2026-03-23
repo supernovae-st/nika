@@ -100,6 +100,9 @@ pub enum McpAction {
         /// MCP server name
         server: String,
     },
+
+    /// Start Nika as an MCP server (expose workflow tools to AI coding assistants)
+    Serve,
 }
 
 /// Handle MCP server management commands
@@ -404,6 +407,14 @@ pub async fn handle_mcp_command(action: McpAction) -> Result<(), NikaError> {
                 println!("Or specify a workflow file:");
                 println!("  nika mcp list --workflow my-flow.nika.yaml");
             }
+            Ok(())
+        }
+
+        McpAction::Serve => {
+            eprintln!("Starting Nika MCP server on stdio...");
+            nika_mcp::server::run_server().await.map_err(|e| {
+                NikaError::Execution(format!("MCP server error: {}", e))
+            })?;
             Ok(())
         }
 

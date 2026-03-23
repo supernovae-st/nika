@@ -33,6 +33,7 @@ fetch-feed = ["nika-engine/fetch-feed"]
 [dependencies]
 # Engine crate (all engine logic)
 nika-engine = { workspace = true }
+nika-mcp = { workspace = true }
 
 # CLI
 clap = { workspace = true }
