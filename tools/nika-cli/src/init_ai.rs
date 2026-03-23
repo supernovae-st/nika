@@ -50,6 +50,18 @@ pub fn generate_ai_files(project_dir: &Path) -> Result<(), nika_engine::NikaErro
         CURSOR_PATTERNS_RULE,
         "Cursor rule (patterns)",
     );
+    count += write_if_absent_with_dir(
+        project_dir,
+        ".cursor/rules/nika-architecture.mdc",
+        CURSOR_ARCHITECTURE_RULE,
+        "Cursor rule (architecture)",
+    );
+    count += write_if_absent_with_dir(
+        project_dir,
+        ".cursor/rules/nika-security.mdc",
+        CURSOR_SECURITY_RULE,
+        "Cursor rule (security)",
+    );
 
     // Copilot instructions
     count += write_if_absent_with_dir(
@@ -718,6 +730,64 @@ tasks:
 **Always-on**: `nika:import`, `nika:dimensions`, `nika:thumbhash`, `nika:dominant_color`, `nika:pipeline`
 **Media core**: `nika:thumbnail`, `nika:convert`, `nika:strip`, `nika:metadata`, `nika:optimize`, `nika:svg_render`
 **Opt-in**: `nika:phash`, `nika:compare`, `nika:pdf_extract`, `nika:chart`, `nika:provenance`, `nika:verify`, `nika:qr_validate`, `nika:quality`, `nika:html_to_md`, `nika:css_select`, `nika:extract_metadata`, `nika:extract_links`, `nika:readability`
+"#;
+
+const CURSOR_ARCHITECTURE_RULE: &str = r#"---
+description: Nika architecture rules - MCP integration, workspace structure
+globs: "**/*.nika.yaml,**/*.rs"
+alwaysApply: false
+---
+
+# Nika Architecture Rules
+
+## MCP Integration
+- Nika connects to NovaNet via MCP protocol ONLY. No direct database access.
+- Use `invoke:` verb for all MCP tool calls.
+
+## Workspace Structure
+```
+tools/
+├── nika/           # CLI binary
+├── nika-engine/    # Execution engine (embeddable)
+├── nika-core/      # AST, types, catalogs (zero I/O)
+├── nika-mcp/       # MCP client (rmcp)
+├── nika-tui/       # Terminal UI (ratatui)
+├── nika-lsp/       # LSP binary
+└── nika-lsp-core/  # LSP intelligence
+```
+
+## Conventions
+- **Errors**: `NikaError` with NIKA-XXX codes, not `anyhow`
+- **AST**: Always Raw → Analyzed → Lower. Never skip phases.
+- **Extensions**: `.nika.yaml` for workflows
+- **Schema**: `schema: "nika/workflow@0.12"` (always full form)
+"#;
+
+const CURSOR_SECURITY_RULE: &str = r#"---
+description: Nika security rules - input validation, path safety, secrets
+globs: "**/*.rs"
+alwaysApply: false
+---
+
+# Nika Security Rules
+
+## Path Safety
+- Validate all file paths against directory traversal attacks
+- Use `validate_import_path()` for import operations
+- Pre-read size check before loading files into memory (50 MB limit)
+
+## Image Safety
+- NEVER use `image::load_from_memory()` directly — use `decode_image_safe()` with Limits
+- Always call `sanitize_svg()` BEFORE parsing SVG files
+
+## Secrets
+- API keys: env vars or OS keychain. Never hardcode.
+- Never log or display API key values
+- Use `NIKA_SKIP_KEYCHAIN=1` to disable keychain in CI
+
+## Network
+- `fetch:` verb validates URLs against SSRF (private IP ranges blocked)
+- `exec:` verb has command blocklist (no rm -rf, no sudo, etc.)
 "#;
 
 const COPILOT_INSTRUCTIONS: &str = r#"---
