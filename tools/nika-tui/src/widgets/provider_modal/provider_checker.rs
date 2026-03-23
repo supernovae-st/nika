@@ -33,7 +33,10 @@ impl ProviderChecker {
             .timeout(PROVIDER_CHECK_TIMEOUT)
             .user_agent(format!("nika/{}", env!("CARGO_PKG_VERSION")))
             .build()
-            .expect("Failed to create HTTP client");
+            .unwrap_or_else(|e| {
+                tracing::warn!("HTTP client build failed: {e}, using default");
+                Client::new()
+            });
 
         Self { client }
     }

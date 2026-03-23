@@ -314,8 +314,10 @@ impl Highlighter for TreeSitterHighlighter {
 }
 
 impl Default for TreeSitterHighlighter {
+    /// Create with defaults. Panics only if tree-sitter-yaml is broken
+    /// (compile-time linked, so this is effectively infallible).
     fn default() -> Self {
-        Self::new().expect("Failed to create default highlighter")
+        Self::new().expect("tree-sitter-yaml init failed (compile-time linked)")
     }
 }
 
