@@ -2540,6 +2540,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "env_home"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7f84e12ccf0a7ddc17a6c41c93326024c42920d7ee630d04950e6926645c0fe"
+
+[[package]]
 name = "env_logger"
 version = "0.11.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5354,6 +5360,7 @@ dependencies = [
  "cliclack",
  "colored",
  "console 0.16.3",
+ "dirs 6.0.0",
  "humantime",
  "image",
  "infer",
@@ -5365,6 +5372,7 @@ dependencies = [
  "tokio",
  "toml 0.8.23",
  "tracing",
+ "which",
 ]
 
 [[package]]
@@ -5374,14 +5382,12 @@ dependencies = [
  "chrono",
  "indexmap 2.13.0",
  "insta",
- "jsonschema",
  "marked-yaml",
  "miette",
  "pretty_assertions",
  "proptest",
  "regex",
  "rustc-hash 2.1.1",
- "semver",
  "serde",
  "serde-saphyr 0.0.20",
  "serde_json",
@@ -5403,7 +5409,6 @@ dependencies = [
  "blake3",
  "bytes",
  "c2pa",
- "camino",
  "charts-rs",
  "chrono",
  "color-thief",
@@ -5412,7 +5417,6 @@ dependencies = [
  "dashmap",
  "dirs 5.0.1",
  "dom_smoothie",
- "dotenvy",
  "dssim-core",
  "fast_image_resize",
  "feed-rs",
@@ -5442,7 +5446,6 @@ dependencies = [
  "nika-lsp-core",
  "nika-mcp",
  "nika-media",
- "nix 0.29.0",
  "nom-exif",
  "oxipng",
  "parking_lot",
@@ -5547,7 +5550,6 @@ dependencies = [
  "insta",
  "ls-types",
  "nika-core",
- "parking_lot",
  "pretty_assertions",
  "proptest",
  "ropey",
@@ -5564,7 +5566,6 @@ dependencies = [
 name = "nika-mcp"
 version = "0.39.1"
 dependencies = [
- "async-trait",
  "backon",
  "dashmap",
  "dirs 5.0.1",
@@ -5594,7 +5595,6 @@ dependencies = [
  "base64 0.22.1",
  "blake3",
  "bytes",
- "color-thief",
  "futures",
  "image",
  "imagesize",
@@ -5604,7 +5604,6 @@ dependencies = [
  "mime_guess",
  "nika-mcp",
  "pretty_assertions",
- "reflink-copy",
  "serde",
  "serde_json",
  "tempfile",
@@ -10981,6 +10980,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "which"
+version = "7.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "24d643ce3fd3e5b54854602a080f34fb10ab75e0b813ee32d00ca2b44fa74762"
+dependencies = [
+ "either",
+ "env_home",
+ "rustix",
+ "winsafe",
+]
+
+[[package]]
 name = "wide"
 version = "0.7.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11548,6 +11559,12 @@ name = "winnow"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a90e88e4667264a994d34e6d1ab2d26d398dcdca8b7f52bec8668957517fc7d8"
+
+[[package]]
+name = "winsafe"
+version = "0.0.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d135d17ab770252ad95e9a872d365cf3090e3be864a34ab46f48555993efc904"
 
 [[package]]
 name = "wiremock"

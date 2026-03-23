@@ -86,9 +86,6 @@ keyring = { version = "3", features = ["apple-native", "windows-native", "sync-s
 secrecy = "0.10"
 zeroize = "1.8"
 
-# Unix system calls
-nix = { version = "0.29", features = ["fs", "signal", "process"] }
-
 # Nika daemon client
 spn-client = { version = "0.3.4", optional = true }
 
@@ -99,7 +96,6 @@ async-stream = { version = "0.3", optional = true }
 # Utilities
 regex = { workspace = true }
 colored = { workspace = true }
-dotenvy = "0.15"
 dashmap = { workspace = true }
 semver = { workspace = true }
 parking_lot = { workspace = true }
@@ -121,7 +117,6 @@ flate2 = "1.1"
 tar = "0.4"
 
 # File System
-camino = { workspace = true }
 ignore = { workspace = true }
 globset = { workspace = true }
 

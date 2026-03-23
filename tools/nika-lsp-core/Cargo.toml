@@ -13,7 +13,6 @@ nika-core = { workspace = true }
 ls-types = "0.0"
 ropey = "1.6"
 dashmap = { workspace = true }
-parking_lot = { workspace = true }
 rustc-hash = { workspace = true }
 tracing = { workspace = true }
 serde = { workspace = true }

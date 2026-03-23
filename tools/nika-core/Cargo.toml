@@ -20,8 +20,6 @@ miette = { workspace = true }
 tracing = { workspace = true }
 strsim = { workspace = true }
 smallvec = { workspace = true }
-semver = { workspace = true }
-jsonschema = { workspace = true }
 xxhash-rust = { workspace = true }
 chrono = { workspace = true }
 regex = { workspace = true }

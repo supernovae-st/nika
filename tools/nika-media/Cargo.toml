@@ -25,12 +25,10 @@ infer = "0.19"
 mime = "0.3"
 mime_guess = "2.0"
 bytes = "1"
-reflink-copy = "0.1"
 tokio = { workspace = true, features = ["fs"] }
 miette = { workspace = true }
 imagesize = "0.14"
 thumbhash = "0.1"
-color-thief = "0.2"
 image = { version = "0.25", optional = true, default-features = false, features = ["png", "jpeg", "webp", "gif"] }
 
 # Optional
