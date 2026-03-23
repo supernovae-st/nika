@@ -436,7 +436,7 @@ tasks:
       concurrency: 3
       fail_fast: true
     fetch:
-      url: "{{item}}"
+      url: "{{with.url}}"
       extract: markdown
     description: "Fetch all pages in parallel"
 
@@ -456,7 +456,7 @@ The `for_each:` block:
 - `concurrency` -- Maximum parallel iterations
 - `fail_fast` -- Stop all iterations if one fails (default: `true`)
 
-Inside the task body, use `{{item}}` (or `{{item.field}}` for objects) to reference the current iteration value.
+Inside the task body, use `{{with.item}}` (or `{{with.item.field}}` for objects) to reference the current iteration value.
 
 ## Complete Working Example
 

@@ -128,7 +128,7 @@ tasks:
       concurrency: 3
       fail_fast: false
     fetch:
-      url: "{{item}}"
+      url: "{{with.url}}"
       timeout: 10
 
   - id: summarize
@@ -148,7 +148,7 @@ The `for_each:` configuration:
 | `concurrency` | Max parallel iterations | Unlimited |
 | `fail_fast` | Stop all on first error | `true` |
 
-Inside the task, reference the current item with `{{item}}` or `{{item.field}}` for objects.
+Inside the task, reference the current item with `{{with.item}}` or `{{with.item.field}}` for objects.
 
 **When to use:** Processing lists of URLs, files, database records, or any dynamic collection.
 
@@ -316,7 +316,7 @@ Control whether one failed iteration stops all others:
       concurrency: 5
       fail_fast: false  # Continue processing even if some fail
     fetch:
-      url: "{{item}}"
+      url: "{{with.item}}"
 ```
 
 With `fail_fast: true` (default), the first failure cancels all remaining iterations. With `fail_fast: false`, all iterations run and failures are collected.

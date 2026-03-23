@@ -119,7 +119,7 @@ Use `for_each:`:
   for_each:
     items: $items
     concurrency: 3
-  exec: "echo 'Processing: {{item}}'"
+  exec: "echo 'Processing: {{with.item}}'"
 ```
 
 ### How do I handle errors?

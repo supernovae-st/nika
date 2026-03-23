@@ -572,7 +572,7 @@ tasks:
       as: url
       concurrency: 3
     fetch:
-      url: "{{item}}"
+      url: "{{with.url}}"
       extract: jsonpath
       selector: "$.length()"
 ```
@@ -597,7 +597,7 @@ tasks:
       items: $feeds
       concurrency: 3
     fetch:
-      url: "{{item}}"
+      url: "{{with.item}}"
       extract: feed
 
   - id: digest

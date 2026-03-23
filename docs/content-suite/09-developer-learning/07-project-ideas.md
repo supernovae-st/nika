@@ -162,7 +162,7 @@ tasks:
       items: "{{inputs.urls}}"
       concurrency: 5
     fetch:
-      url: "{{item}}"
+      url: "{{with.item}}"
       response: full
       timeout: 10
 
@@ -296,7 +296,7 @@ tasks:
       items: ["French", "Spanish", "Japanese", "Arabic", "Russian"]
       concurrency: 5
     infer:
-      prompt: "Translate to {{item}}: {{inputs.text}}"
+      prompt: "Translate to {{with.item}}: {{inputs.text}}"
       temperature: 0.1
 
   - id: compile
@@ -378,7 +378,7 @@ tasks:
       items: "{{inputs.urls}}"
       concurrency: 3
     fetch:
-      url: "{{item}}"
+      url: "{{with.item}}"
       extract: markdown
 
   # Generate outline from research
@@ -408,7 +408,7 @@ tasks:
       items: "{{with.outline.sections}}"
       concurrency: 4
     infer:
-      prompt: "Write section '{{item.title}}' covering: {{item.key_points}}"
+      prompt: "Write section '{{with.item.title}}' covering: {{with.item.key_points}}"
 
   # Fan-in: assemble final article
   - id: assemble

@@ -503,7 +503,7 @@ The `for_each:` field iterates over a list, executing the task once per item:
     items: ["English", "French", "German"]
     concurrency: 3
   infer:
-    prompt: "Translate 'Hello world' to {{item}}"
+    prompt: "Translate 'Hello world' to {{with.item}}"
 ```
 
 Each iteration runs as a separate instance. `concurrency:` limits how many run at once.
@@ -569,12 +569,12 @@ tasks:
     for_each:
       items: ["Alice", "Bob", "Charlie", "Diana"]
     exec:
-      command: echo "Hello, {{item}}!"
+      command: echo "Hello, {{with.item}}!"
       shell: true
 ```
 </details>
 
-**Key takeaway**: `for_each:` turns one task definition into multiple parallel executions. `{{item}}` references the current element.
+**Key takeaway**: `for_each:` turns one task definition into multiple parallel executions. `{{with.item}}` references the current element.
 
 ### Exercise 3: For Each Concurrent
 
@@ -595,7 +595,7 @@ tasks:
       items: ["https://httpbin.org/delay/1", "https://httpbin.org/delay/1", "https://httpbin.org/delay/1", "https://httpbin.org/delay/1"]
       concurrency: 2
     fetch:
-      url: "{{item}}"
+      url: "{{with.item}}"
       timeout: 10
 ```
 </details>

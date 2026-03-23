@@ -367,7 +367,7 @@ A task-level field that iterates over a list, executing the task once per item. 
     items: ["en", "fr", "de", "ja"]
     concurrency: 2
   infer:
-    prompt: "Translate to {{item}}: Hello world"
+    prompt: "Translate to {{with.item}}: Hello world"
 ```
 
 **Related**: Concurrency, DAG, Parallel Execution

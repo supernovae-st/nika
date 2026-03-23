@@ -610,7 +610,7 @@ tasks:
         - "AI writing assistant"
       concurrency: 5
     infer:
-      prompt: "Write a 50-word product description for: {{item}}"
+      prompt: "Write a 50-word product description for: {{with.item}}"
       temperature: 0.7
 
   - id: rank

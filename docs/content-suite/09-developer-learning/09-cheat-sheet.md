@@ -227,7 +227,7 @@ with:
 "{{with.alias | transform}}"        # Pipe transform
 "{{with.alias | trim | uppercase}}" # Chained transforms
 "{{inputs.key}}"                    # Input parameter
-"{{item}}"                          # for_each current item
+"{{with.item}}"                     # for_each current item
 ```
 
 ---
@@ -446,7 +446,7 @@ tasks:
   for_each:
     items: [a, b, c]
     concurrency: 3
-  exec: echo "{{item}}"
+  exec: echo "{{with.item}}"
 ```
 
 ---
@@ -580,8 +580,8 @@ nika course hint
 "{{inputs.key}}"
 
 # For-each current item
-"{{item}}"
-"{{item.field}}"
+"{{with.item}}"
+"{{with.item.field}}"
 ```
 
 ---

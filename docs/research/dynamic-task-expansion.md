@@ -285,7 +285,7 @@ benefit since the expansion happens in a single controlled location (the runner)
 | `depends_on` target exists     | Analysis (P2)  | Static reference check                 |
 | `for_each` items is valid expr | Analysis (P2)  | Syntax check, not value check          |
 | for_each item count > 0        | Runtime        | Depends on upstream data               |
-| Expanded instance bindings     | Runtime        | Each instance gets its own `{{item}}`  |
+| Expanded instance bindings     | Runtime        | Each instance gets its own `{{with.item}}`  |
 | Concurrency limit enforcement  | Runtime        | Semaphore at execution time            |
 | fail_fast propagation          | Runtime        | Depends on instance execution results  |
 

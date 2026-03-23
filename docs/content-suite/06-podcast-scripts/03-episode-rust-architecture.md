@@ -299,7 +299,7 @@ For fan-out patterns, Nika supports `for_each:` with configurable concurrency:
     items: "{{with.urls}}"
     concurrency: 5
   fetch:
-    url: "{{item}}"
+    url: "{{with.item}}"
     extract: markdown
 ```
 
