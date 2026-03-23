@@ -65,7 +65,7 @@
       "    exec:",
       "      command: |",
       "        ${2:echo hello}",
-      "      shell: ${3|bash,sh,zsh|}",
+      "      shell: ${3|true,false|}",
       "      ${4:timeout: 30}",
       "$0"
     ]
