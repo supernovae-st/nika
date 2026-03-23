@@ -55,6 +55,10 @@ jobs:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             artifact: nika-linux-x64
+          # === Windows ===
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            artifact: nika-windows-x64
           # === Docker targets (musl static, no keychain) ===
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
@@ -144,12 +148,28 @@ jobs:
           tar -czvf "${ARTIFACT}-${VERSION}.tar.gz" "${ARTIFACT}-${VERSION}"
           shasum -a 256 "${ARTIFACT}-${VERSION}.tar.gz" > "${ARTIFACT}-${VERSION}.tar.gz.sha256"
 
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          ARTIFACT: ${{ matrix.artifact }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          New-Item -ItemType Directory -Force -Path "dist/$env:ARTIFACT-$env:VERSION"
+          Copy-Item "tools/nika/target/$env:TARGET/release/nika.exe" "dist/$env:ARTIFACT-$env:VERSION/"
+          Copy-Item README.md, LICENSE, CHANGELOG.md "dist/$env:ARTIFACT-$env:VERSION/" -ErrorAction SilentlyContinue
+          Compress-Archive -Path "dist/$env:ARTIFACT-$env:VERSION" -DestinationPath "dist/$env:ARTIFACT-$env:VERSION.zip"
+          $hash = (Get-FileHash "dist/$env:ARTIFACT-$env:VERSION.zip" -Algorithm SHA256).Hash.ToLower()
+          "$hash  $env:ARTIFACT-$env:VERSION.zip" | Out-File -Encoding utf8 "dist/$env:ARTIFACT-$env:VERSION.zip.sha256"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact }}
           path: |
             dist/*.tar.gz
+            dist/*.zip
             dist/*.sha256
           retention-days: 7
 
@@ -281,7 +301,7 @@ jobs:
       - name: Prepare release assets
         run: |
           mkdir -p release-assets
-          find artifacts -type f \( -name "*.tar.gz" -o -name "*.sha256" \) -exec cp {} release-assets/ \;
+          find artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" -o -name "*.sha256" \) -exec cp {} release-assets/ \;
           echo "=== Release assets ==="
           ls -la release-assets/
 
@@ -327,19 +347,29 @@ jobs:
 
           ## 📦 Installation
 
+          ### Quick Install (recommended)
+          \`\`\`bash
+          curl -fsSL https://raw.githubusercontent.com/SuperNovae-studio/nika/main/install.sh | sh
+          \`\`\`
+
           ### Homebrew (macOS/Linux)
           \`\`\`bash
-          brew tap supernovae-st/tap && brew install nika
+          brew install supernovae-st/tap/nika
+          \`\`\`
+
+          ### npm
+          \`\`\`bash
+          npx @supernovae/nika
+          # or install globally
+          npm install -g @supernovae/nika
           \`\`\`
 
           ### Docker
           \`\`\`bash
-          docker pull ghcr.io/supernovae-st/nika:${VERSION}
           docker run --rm ghcr.io/supernovae-st/nika:${VERSION} --version
           \`\`\`
 
           ### Binary Download
-          Download the appropriate archive for your platform from the assets below.
 
           | Platform | Architecture | File |
           |----------|--------------|------|
@@ -347,6 +377,7 @@ jobs:
           | 🍎 macOS | Intel | \`nika-macos-x64-${VERSION}.tar.gz\` |
           | 🐧 Linux | x64 | \`nika-linux-x64-${VERSION}.tar.gz\` |
           | 🐧 Linux | ARM64 | \`nika-linux-arm64-${VERSION}.tar.gz\` |
+          | 🪟 Windows | x64 | \`nika-windows-x64-${VERSION}.zip\` |
 
           ---
 
