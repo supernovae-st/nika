@@ -49,7 +49,6 @@ mod matrix_rain;
 mod mcp_call_box;
 mod mention_system;
 mod mission_control;
-mod nika_intro;
 mod pro_status_bar;
 pub mod provider_modal;
 // Types-only: data types for ProviderModal
@@ -158,8 +157,6 @@ pub use help_overlay::{HelpOverlay, HelpOverlayState, HelpSection, HELP_SECTIONS
 pub use status_message::{StatusLevel, StatusMessage, StatusMessageWidget, StatusQueue};
 // Matrix Rain effect
 pub use matrix_rain::MatrixRain;
-// Nika Intro animation
-pub use nika_intro::{IntroPhase, NikaIntro, NikaIntroState};
 // Matrix Decrypt effect
 pub use matrix_decrypt::{DecryptVerb, MatrixDecrypt, MultiLineDecrypt, StreamingDecrypt};
 // Task Box widgets

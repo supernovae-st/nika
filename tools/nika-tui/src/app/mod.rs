@@ -39,7 +39,7 @@ use crossterm::{
     execute,
     terminal::{enable_raw_mode, EnterAlternateScreen},
 };
-use ratatui::{backend::CrosstermBackend, layout::Rect, Terminal};
+use ratatui::{backend::CrosstermBackend, Terminal};
 use tokio::sync::{broadcast, mpsc};
 use tokio::task::AbortHandle;
 
@@ -59,7 +59,6 @@ use super::state::TuiState;
 use super::theme::Theme;
 use super::verification::VerificationCache;
 use super::views::{CommandView, ControlView, HomeView, StudioView, TuiView, View};
-use super::widgets::NikaIntroState;
 
 // Note: Frame rate is now adaptive - see FAST_TICK_MS/SLOW_TICK_MS in run_unified()
 
@@ -140,9 +139,6 @@ pub struct App {
     /// TTL-based cache for provider and MCP server verification results.
     /// Prevents redundant API calls when opening/refreshing the provider selector.
     pub(crate) verification_cache: Arc<Mutex<VerificationCache>>,
-    // ═══ Nika Intro Animation ═══
-    /// Splash screen animation shown on standalone TUI startup
-    pub(crate) intro_state: Option<NikaIntroState>,
 }
 
 impl App {
@@ -223,7 +219,6 @@ impl App {
             session_id: None,
             event_buffer: Vec::with_capacity(64), // PERF: Pre-allocated buffer
             verification_cache: Arc::new(Mutex::new(VerificationCache::default())),
-            intro_state: None,
         })
     }
 
@@ -258,7 +253,6 @@ impl App {
         };
         let cosmic_theme = CosmicTheme::new(theme_variant);
         let theme = cosmic_theme.as_theme();
-        let intro_bg = theme.background; // Capture before theme moves into struct
 
         Ok(Self {
             workflow_path,
@@ -291,7 +285,6 @@ impl App {
             session_id: None,
             event_buffer: Vec::with_capacity(64), // PERF: Pre-allocated buffer
             verification_cache: Arc::new(Mutex::new(VerificationCache::default())),
-            intro_state: Some(NikaIntroState::with_bg(intro_bg)),
         })
     }
 
@@ -428,12 +421,8 @@ impl App {
         // Initialize terminal
         self.init_terminal()?;
 
-        // Call on_enter() for initial view, but only if no intro
-        // If intro is active, defer on_enter() until intro completes (see line ~507)
-        // This ensures view state (tree cache, git status) is fresh when visible
-        if self.intro_state.is_none() {
-            self.call_view_on_enter(self.current_view);
-        }
+        // Call on_enter() for initial view
+        self.call_view_on_enter(self.current_view);
 
         // PERF: Adaptive frame rate
         // - Fast (60 FPS) when streaming or animations active
@@ -451,13 +440,7 @@ impl App {
             // 2. Determine if we need fast rendering
             let is_streaming = self.command_view.chat.is_streaming;
             let has_inline_content = !self.command_view.chat.inline_content.is_empty();
-            let intro_active = self
-                .intro_state
-                .as_ref()
-                .map(|i| !i.is_done())
-                .unwrap_or(false);
-            let needs_fast_render =
-                is_streaming || has_inline_content || had_recent_input || intro_active;
+            let needs_fast_render = is_streaming || has_inline_content || had_recent_input;
             had_recent_input = false; // Consume the flag
 
             // 3. Update elapsed time and animations
@@ -480,31 +463,6 @@ impl App {
             // even when user is on a different view
             if self.current_view != TuiView::Command && self.command_view.chat.is_streaming {
                 self.command_view.chat.tick();
-            }
-
-            if let Some(ref mut intro) = self.intro_state {
-                if !intro.is_done() {
-                    // Get terminal size for intro animation
-                    let intro_area = self
-                        .terminal
-                        .as_ref()
-                        .and_then(|t| t.size().ok())
-                        .map(|s| Rect::new(0, 0, s.width, s.height))
-                        .unwrap_or_else(|| Rect::new(0, 0, 80, 24));
-                    intro.tick(intro_area);
-                }
-            }
-
-            // Clear intro_state and initialize view when done
-            if self.intro_state.as_ref().is_some_and(|i| i.is_done()) {
-                tracing::debug!("Intro completed, transitioning to {:?}", self.current_view);
-                self.intro_state = None;
-                // No terminal.clear() — physically blanks the screen via Clear(All).
-                // No early render — render_browser() does I/O when cached_tree is None,
-                // so a "skeleton" render would still block on tree build.
-                // Simple flow: mark dirty → on_enter (populates tree) → render.
-                self.state.dirty.mark_all();
-                self.call_view_on_enter(self.current_view);
             }
 
             // 4. Render frame

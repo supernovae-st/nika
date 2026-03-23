@@ -11,7 +11,7 @@ use nika_engine::error::{NikaError, Result};
 
 use super::super::views::{TuiView, View};
 use super::super::widgets::{
-    check_terminal_size, ConnectionStatus, Header, NikaIntro, StatusBar, StatusMessageWidget,
+    check_terminal_size, ConnectionStatus, Header, StatusBar, StatusMessageWidget,
     StatusMetrics,
 };
 use super::App;
@@ -44,7 +44,6 @@ impl App {
             let studio_view = &mut self.studio_view;
             let control_view = &mut self.control_view;
             let workflow_path = &self.state.workflow.path;
-            let intro_state = &self.intro_state;
             // P0 Fix: Use is_paused() accessor for unified pause state
             let paused = self.state.is_paused();
             let input_mode = self.input_mode;
@@ -73,14 +72,6 @@ impl App {
                         let overlay = TerminalTooSmallOverlay::new(size.width, size.height);
                         frame.render_widget(overlay, size);
                         return;
-                    }
-
-                    if let Some(intro) = intro_state {
-                        if !intro.is_done() {
-                            let intro_widget = NikaIntro::new(intro);
-                            frame.render_widget(intro_widget, size);
-                            return;
-                        }
                     }
 
                     // Clear + paint bg every frame (ratatui 0.30 retains buffers).

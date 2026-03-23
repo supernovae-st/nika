@@ -92,7 +92,6 @@ use crate::widgets::{
     MentionSuggestion,
     MentionType,
     MissionControlPanel,
-    NikaIntroState,
     ParsedInput,
     ProStatusBar,
     Provider,
@@ -223,13 +222,6 @@ pub struct ChatView {
     pub rain_opacity: f32,
     /// Whether rain effect is actively fading out
     pub rain_fading: bool,
-    /// NIKA intro animation state (ASCII art explosion)
-    pub intro_state: NikaIntroState,
-    /// NIKA butterfly explosion animation frame (0=show pattern, 1+=spreading)
-    pub explosion_frame: u8,
-    /// Whether NIKA pattern is still visible (before full explosion)
-    pub nika_pattern_visible: bool,
-
     /// Current agent execution phase (for real-time status)
     pub agent_phase: AgentPhase,
     /// Phase indicator widget with Matrix effect
@@ -468,12 +460,8 @@ impl ChatView {
                 .with_wave_factor(2.0)
                 .with_initial_chaos(15),
             matrix_effect_enabled: true, // Enable by default
-            // NIKA butterfly pattern + explosion
-            rain_opacity: 1.0,  // Start visible for NIKA pattern
-            rain_fading: false, // Pattern handles its own fade
-            intro_state: NikaIntroState::new(),
-            explosion_frame: 0,         // Start with NIKA pattern visible
-            nika_pattern_visible: true, // Show NIKA pattern at start
+            rain_opacity: 0.3,  // Subtle background effect
+            rain_fading: true,  // Fade out quickly on startup
 
             agent_phase: AgentPhase::Idle,
             phase_indicator: AgentPhaseIndicator::new(AgentPhase::Idle),
@@ -640,24 +628,12 @@ impl ChatView {
         if self.is_streaming && self.matrix_effect_enabled {
             self.streaming_decrypt.tick();
         }
-        // Tick intro animation (NIKA ASCII art explosion)
-        // Note: area-dependent tick happens in render() where we have the rect
         // Tick matrix rain fade effect
         if self.rain_fading && self.rain_opacity > 0.0 {
             // Fast fade (0.04 per tick = ~2 seconds to fully fade at 10Hz)
             self.rain_opacity = (self.rain_opacity - 0.04).max(0.0);
         }
 
-        // Tick NIKA butterfly explosion animation (FAST: 15 frames = ~1.5s)
-        if self.nika_pattern_visible {
-            self.explosion_frame = self.explosion_frame.saturating_add(1);
-            // After explosion completes, quick transition to clean UI
-            if self.explosion_frame >= 15 {
-                self.nika_pattern_visible = false;
-                self.rain_opacity = 0.2; // Very subtle rain, then fade
-                self.rain_fading = true;
-            }
-        }
         // Tick phase indicator animation (icon swap + chaos decay)
         self.tick_phase_indicator();
         self.update_scroll_animation();
@@ -711,9 +687,7 @@ impl View for ChatView {
             .constraints([Constraint::Percentage(65), Constraint::Percentage(35)])
             .split(chunks[1]);
 
-        // NIKA Intro + Matrix Rain background effect
-        // Phase 1: NIKA ASCII art appears and explodes
-        // Phase 2: Matrix rain fades in then out
+        // Matrix Rain background effect (subtle, fades out)
         let effect_area = Rect {
             x: area.x + 1,
             y: area.y + 1,
@@ -721,37 +695,13 @@ impl View for ChatView {
             height: area.height.saturating_sub(2),
         };
 
-        if self.matrix_effect_enabled {
-            // NIKA butterfly pattern + fast explosion (~1.5s total)
-            // Phase 1: Show NIKA with butterflies (frames 0-2) with quick fade-in
-            // Phase 2: Fast wave explosion from center (frames 2-15)
-            // Phase 3: Quick fade to clean UI
-
-            // Determine pattern visibility and explosion state
-            let show_pattern = self.nika_pattern_visible && self.explosion_frame < 15;
-            let explosion = if self.explosion_frame > 2 {
-                self.explosion_frame.saturating_sub(2) // Start explosion quickly
-            } else {
-                0
-            };
-
-            // Calculate opacity: fast transition
-            let effective_opacity = if show_pattern {
-                1.0 // Widget handles its own fading via easing
-            } else {
-                self.rain_opacity
-            };
-
-            if effective_opacity > 0.05 {
-                MatrixRain::new()
-                    .frame(self.frame)
-                    .density(if show_pattern { 0.015 } else { 0.04 }) // Very sparse, cleaner
-                    .opacity(effective_opacity)
-                    .with_mascots(true)
-                    .with_nika_pattern(show_pattern)
-                    .explosion_frame(explosion)
-                    .render(effect_area, frame.buffer_mut());
-            }
+        if self.matrix_effect_enabled && self.rain_opacity > 0.05 {
+            MatrixRain::new()
+                .frame(self.frame)
+                .density(0.04)
+                .opacity(self.rain_opacity)
+                .with_mascots(true)
+                .render(effect_area, frame.buffer_mut());
         }
 
         // Messages panel with inline MCP/Infer boxes
