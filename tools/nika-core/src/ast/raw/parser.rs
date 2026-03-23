@@ -1589,10 +1589,20 @@ fn parse_tasks(
     match map.get_node("tasks") {
         Some(Node::Sequence(seq)) => {
             let span = marked_span_to_span(file_id, seq.span());
-            let tasks = seq
-                .iter()
-                .map(|task_node| parse_task(file_id, task_node))
-                .collect::<Result<Vec<_>, _>>()?;
+            let mut seen_ids = std::collections::HashSet::new();
+            let mut tasks = Vec::with_capacity(seq.len());
+            for task_node in seq.iter() {
+                let task = parse_task(file_id, task_node)?;
+                let task_id = &task.value.id.value;
+                if !seen_ids.insert(task_id.clone()) {
+                    return Err(ParseError {
+                        kind: ParseErrorKind::InvalidType,
+                        span: task.value.id.span,
+                        message: format!("duplicate task id '{}'", task_id),
+                    });
+                }
+                tasks.push(task);
+            }
             Ok(Spanned::new(tasks, span))
         }
         Some(node) => Err(ParseError {

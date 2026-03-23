@@ -439,7 +439,8 @@ tasks:
 
         engine.analyze(yaml);
         assert!(engine.has_errors());
-        assert!(engine.diagnostics().iter().any(|d| d.code == "NIKA-141"));
+        // Duplicate task IDs are now caught at parse time (NIKA-162)
+        assert!(engine.diagnostics().iter().any(|d| d.code == "NIKA-162"));
     }
 
     #[test]
