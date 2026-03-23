@@ -551,5 +551,8 @@ network:
         }
     }
 
+    // Generate AI integration files (AGENTS.md, per-tool rules, git hook)
+    crate::init_ai::generate_ai_files(&cwd)?;
+
     Ok(())
 }
