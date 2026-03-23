@@ -57,9 +57,6 @@ tui-input = { version = "0.15", features = ["crossterm"] }
 # Clipboard
 arboard = "3.4"
 
-# Fuzzy matching
-nucleo = "0.5"
-
 # Syntax Highlighting
 tree-sitter = "0.24"
 tree-sitter-yaml = "0.7"
@@ -84,7 +81,6 @@ ignore = { workspace = true }
 xxhash-rust = { workspace = true }
 uuid = { workspace = true }
 dirs = "5.0"
-humantime = { workspace = true }
 rand = { workspace = true }
 reqwest = { workspace = true }
 infer = "0.19"
