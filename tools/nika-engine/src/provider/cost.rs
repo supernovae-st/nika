@@ -133,13 +133,20 @@ impl ModelPricing {
 /// Claude models pricing
 static CLAUDE_PRICING: LazyLock<HashMap<&'static str, ModelPricing>> = LazyLock::new(|| {
     let mut m = HashMap::new();
+    // Claude 4.6 Opus
+    m.insert("claude-opus-4-6", ModelPricing::new(15.0, 75.0));
     // Claude 4 Opus
     m.insert("claude-opus-4-20250514", ModelPricing::new(15.0, 75.0));
     m.insert("claude-opus-4", ModelPricing::new(15.0, 75.0));
-    // Claude 4 Sonnet (latest)
-    m.insert("claude-sonnet-4-20250514", ModelPricing::new(3.0, 15.0));
+    // Claude 4.6 Sonnet
+    m.insert("claude-sonnet-4-6-20250514", ModelPricing::new(3.0, 15.0));
     m.insert("claude-sonnet-4-6", ModelPricing::new(3.0, 15.0));
+    // Claude 4 Sonnet
+    m.insert("claude-sonnet-4-20250514", ModelPricing::new(3.0, 15.0));
     m.insert("claude-sonnet-4", ModelPricing::new(3.0, 15.0));
+    // Claude 4.5 Haiku
+    m.insert("claude-haiku-4-5-20251001", ModelPricing::new(0.8, 4.0));
+    m.insert("claude-haiku-4-5", ModelPricing::new(0.8, 4.0));
     // Claude 3.5 Sonnet
     m.insert("claude-3-5-sonnet-20241022", ModelPricing::new(3.0, 15.0));
     m.insert("claude-3-5-sonnet-latest", ModelPricing::new(3.0, 15.0));
@@ -190,6 +197,12 @@ static OPENAI_PRICING: LazyLock<HashMap<&'static str, ModelPricing>> = LazyLock:
     // o3-mini
     m.insert("o3-mini", ModelPricing::new(1.1, 4.4));
     m.insert("o3-mini-2025-01-31", ModelPricing::new(1.1, 4.4));
+    // o3
+    m.insert("o3", ModelPricing::new(2.0, 8.0));
+    m.insert("o3-2025-04-16", ModelPricing::new(2.0, 8.0));
+    // o4-mini
+    m.insert("o4-mini", ModelPricing::new(1.1, 4.4));
+    m.insert("o4-mini-2025-04-16", ModelPricing::new(1.1, 4.4));
     m
 });
 
@@ -247,6 +260,11 @@ static DEEPSEEK_PRICING: LazyLock<HashMap<&'static str, ModelPricing>> = LazyLoc
 /// Gemini models pricing
 static GEMINI_PRICING: LazyLock<HashMap<&'static str, ModelPricing>> = LazyLock::new(|| {
     let mut m = HashMap::new();
+    // Gemini 2.5
+    m.insert("gemini-2.5-pro", ModelPricing::new(1.25, 10.0));
+    m.insert("gemini-2.5-pro-preview-05-06", ModelPricing::new(1.25, 10.0));
+    m.insert("gemini-2.5-flash", ModelPricing::new(0.15, 0.60));
+    m.insert("gemini-2.5-flash-preview-05-20", ModelPricing::new(0.15, 0.60));
     // Gemini 2.0
     m.insert("gemini-2.0-flash", ModelPricing::new(0.1, 0.4));
     m.insert("gemini-2.0-flash-exp", ModelPricing::new(0.0, 0.0)); // Free preview
