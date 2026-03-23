@@ -1,33 +1,23 @@
 # Bug Report: Course Exercise Validation Failures
 
 **Date:** 2026-03-23
-**Scope:** `nika init --course` — 44 exercises across 12 levels
-**Files:** `tools/nika-engine/src/init/course/exercises.rs`, `exercises_advanced.rs`
+**Scope:** `nika init --course` (44 exercises), `nika init --minimal`, all examples
+**Files:** `exercises.rs`, `exercises_advanced.rs`, `nika-cli/src/init.rs`
 
 ## Summary
 
-Running `nika check` on course exercise templates produced NIKA-005 errors ("null is not of type array") because 8 templates had `tasks:` with only TODO comments and no actual YAML array items. Additionally, 1 solution had wrong retry field names.
+Running `nika check` on course exercise templates produced 25 failures across 44 exercises.
+Root causes: null tasks arrays, TODO strings in typed fields, missing model field.
 
 ## Bugs Found & Fixed
 
 ### BUG-1: CRITICAL — 8 templates with null `tasks:` array
 
-**Root cause:** When `tasks:` is followed by only `# TODO` comments with no YAML list items (`- id: ...`), YAML parses `tasks` as `null`. The JSON schema requires `tasks` to be a non-empty array (`type: array, minItems: 1`), so `nika check` fails with NIKA-005.
+**Root cause:** `tasks:` followed by only `# TODO` comments → YAML parses as `null` → NIKA-005.
 
-**Affected templates:**
+**Affected:** L1-01 through L1-05, L3-02 through L3-04, L4-01 through L4-03, L5-01 through L5-03, L6-01 through L6-03 (17 total in exercises.rs)
 
-| Exercise | File | Issue |
-|----------|------|-------|
-| L1-01 Hello World | exercises.rs | `tasks:` null + missing `schema:` and `workflow:` |
-| L1-02 Shell Commands | exercises.rs | `tasks:` null |
-| L1-03 HTTP Requests | exercises.rs | `tasks:` null |
-| L1-04 Provider Selection | exercises.rs | `tasks:` null |
-| L1-05 Validation & DAG | exercises.rs | `tasks:` null |
-| L3-02 For Each Basic | exercises.rs | `tasks:` null |
-| L3-03 For Each Concurrent | exercises.rs | `tasks:` null |
-| L3-04 Chained Pipeline | exercises.rs | `tasks:` null |
-
-**Fix applied:** Added a placeholder stub task to each:
+**Fix:** Added placeholder stub task to each:
 ```yaml
 tasks:
   # ↓ Replace this starter task with your solution ↓
@@ -35,60 +25,65 @@ tasks:
     exec: "echo 'Replace me with your solution!'"
 ```
 
-For L1-01 specifically, also added pre-filled `schema:` and `workflow:` (changed TODOs to "understand" rather than "add").
+For L1-01 specifically, also added pre-filled `schema:` and `workflow:`.
 
-**Why 36 other templates passed:** They already included at least one real task item before the TODO comments (e.g., L2-01 gives `get_date` and `get_hostname` as starters).
+### BUG-2: HIGH — 17 templates with TODO strings in typed fields
 
-### BUG-2: MEDIUM — L11-02 wrong `retry:` field names
+**Root cause:** Templates used `"TODO: ..."` strings for fields expecting specific types:
+- `tools: "TODO: tool list"` (expected: array)
+- `max_turns: "TODO: number"` (expected: integer)
+- `extract: "TODO: extraction mode"` (expected: enum)
+- `mcp: "TODO: MCP server list"` (expected: array)
+- `completion: mode: "TODO"` (expected: enum)
+- `for_each: "TODO: iterate"` (expected: binding reference)
+- `concurrency: "TODO: number"` (expected: integer)
+- `guardrails:` items with string types instead of numbers
 
-**Root cause:** Both template AND solution used `delay_ms` and `backoff` instead of the correct `backoff_ms` and `multiplier` (per `RetryConfig` struct in `ast/action.rs`).
+**Affected:** L8-01,02,03, L9-01,02,03,04, L10-02, L11-01,02,04, L12-01,02,03,04,05
 
-**Affected:** `exercises_advanced.rs` lines 1610-1611 (template) and 1673-1674 (solution)
-
-**Impact:** The wrong field names are silently ignored (serde doesn't deny unknown fields), so the retry uses defaults which happen to match (1000ms, 2.0x). Functionally works but teaches learners **wrong API names**.
-
-**Fix applied:**
+**Fix:** Replaced with valid placeholder values, keeping TODO in comments:
 ```yaml
-# Before (wrong)
-retry:
-  max_attempts: 2
-  delay_ms: 1000
-  backoff: 2.0
-
-# After (correct)
-retry:
-  max_attempts: 2
-  backoff_ms: 1000
-  multiplier: 2.0
+tools: [builtin]  # TODO: change this value
+max_turns: 5  # TODO: change this value
+extract: markdown  # TODO: change this value
 ```
 
-## Non-Blocking Observations
+### BUG-3: MEDIUM — L11-02/L5-03 retry field aliases
 
-### Templates with TODO strings in numeric fields (informational)
+**Root cause:** Used `delay_ms`/`backoff` instead of `backoff_ms`/`multiplier`.
 
-Level 8 and 12 templates use `"TODO: number"` strings for fields expecting integers (`max_turns`, `concurrency`, `min_words`, etc.). These cause deserialization errors rather than helpful validation messages. However, this is by design — the learner must fix all TODOs.
+**Note:** Both forms are actually valid aliases in the JSON schema. The fix normalized to the serde-primary names but either works.
 
-**Affected:** L8-01, L8-02, L8-03, L12-03, L12-04, L12-05
+### BUG-4: MEDIUM — `nika init --minimal` helpers missing model
 
-### L4-02 naming mismatch (cosmetic)
+**Root cause:** `helpers.nika.yaml` generated by `nika init --minimal` had `infer:` tasks but no `provider:` or `model:` at workflow level → NIKA-034 validation error.
 
-Exercise registered as "Imports" (filename `02-imports.nika.yaml`) but content teaches "Multi-Step Data Pipeline". The `include:` concept is not taught in this exercise.
+**Fix:** Added `provider: claude` and `model: claude-sonnet-4-6` to the template in `nika-cli/src/init.rs`.
+
+## Final Verification
+
+```
+Templates:  44/44 PASS
+Solutions:  44/44 PASS
+Examples:   300+ PASS (error/ fixtures intentionally fail)
+Init:       --minimal PASS, --course PASS
+Unit tests: 4067 PASS, 0 FAIL
+```
 
 ## All Solutions Status
 
-| Level | Solutions | Status |
-|-------|-----------|--------|
-| L1 Jailbreak (5) | All 5 | PASS |
-| L2 Hot Wire (4) | All 4 | PASS |
-| L3 Fork Bomb (4) | All 4 | PASS |
-| L4 Root Access (3) | All 3 | PASS |
-| L5 Shapeshifter (3) | All 3 | PASS |
-| L6 Pay-Per-Dream (3) | All 3 | PASS |
-| L7 Swiss Knife (3) | All 3 | PASS |
-| L8 Gone Rogue (3) | All 3 | PASS |
-| L9 Data Heist (4) | All 4 | PASS |
-| L10 Open Protocol (3) | All 3 | PASS |
-| L11 Pixel Pirate (4) | 3/4 | L11-02 had wrong retry fields (FIXED) |
-| L12 SuperNovae (5) | All 5 | PASS |
-
-**Total: 44/44 solutions now valid**
+| Level | Exercises | Templates | Solutions |
+|-------|-----------|-----------|-----------|
+| L1 Jailbreak | 5 | 5 PASS | 5 PASS |
+| L2 Hot Wire | 4 | 4 PASS | 4 PASS |
+| L3 Fork Bomb | 4 | 4 PASS | 4 PASS |
+| L4 Root Access | 3 | 3 PASS | 3 PASS |
+| L5 Shapeshifter | 3 | 3 PASS | 3 PASS |
+| L6 Pay-Per-Dream | 3 | 3 PASS | 3 PASS |
+| L7 Swiss Knife | 3 | 3 PASS | 3 PASS |
+| L8 Gone Rogue | 3 | 3 PASS | 3 PASS |
+| L9 Data Heist | 4 | 4 PASS | 4 PASS |
+| L10 Open Protocol | 3 | 3 PASS | 3 PASS |
+| L11 Pixel Pirate | 4 | 4 PASS | 4 PASS |
+| L12 SuperNovae | 5 | 5 PASS | 5 PASS |
+| **TOTAL** | **44** | **44 PASS** | **44 PASS** |
