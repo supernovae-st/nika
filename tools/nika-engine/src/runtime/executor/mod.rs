@@ -204,6 +204,11 @@ impl TaskExecutor {
         self
     }
 
+    /// Check if the executor has been cancelled.
+    pub fn is_cancelled(&self) -> bool {
+        self.cancel_token.is_cancelled()
+    }
+
     /// Set the workflow-level skills mapping for agent skill injection.
     ///
     /// When set, agents with `skills:` configured will have skill content

@@ -602,6 +602,13 @@ impl Runner {
         let mut attempts = 0u8;
 
         loop {
+            // Check cancellation before each retry attempt (avoids wasting LLM calls)
+            if executor.is_cancelled() {
+                return TaskResult::failed(
+                    "cancelled during structured output retry".to_string(),
+                    start.elapsed(),
+                );
+            }
             attempts += 1;
 
             // Create action for this attempt
