@@ -1,5 +1,7 @@
 # The Nika Manifesto
 
+> **Automate AI. No code required.**
+
 > *AI is the new electricity. It should be accessible to everyone.*
 
 ---
@@ -9,7 +11,7 @@
 - **AI is locked** behind code, subscriptions, and vendor walls. Most people can't use it.
 - **Nika is a single binary** that reads a YAML file and executes AI tasks. No code. No subscription.
 - **5 verbs** — `infer`, `fetch`, `exec`, `invoke`, `agent` — describe any automation you can imagine.
-- **22 providers**, open source (AGPL), Rust-native, **5x less RAM** than Python alternatives.
+- **19 providers**, open source (AGPL), Rust-native, **5x less RAM** than Python alternatives.
 - **The mission**: the gap between "AI exists" and "I can use AI" should be **zero**.
 
 ---
@@ -88,15 +90,15 @@ timeline
 
 ```yaml
 # my-automation.nika.yaml
+schema: "nika/workflow@0.12"
 name: morning-briefing
 tasks:
   - id: headlines
-    fetch: https://news.ycombinator.com
-    extract: article
+    fetch: { url: "https://news.ycombinator.com", extract: article }
 
   - id: summarize
     infer:
-      model: claude-4-sonnet
+      model: claude-sonnet-4-20250514
       prompt: "Summarize these headlines in 5 bullets: {{with.news}}"
     with:
       news: $headlines
@@ -149,7 +151,7 @@ mindmap
       Vision & thumbnails
       PDF & QR codes
     Integration
-      22 AI providers
+      19 AI providers
       MCP protocol
       Shell & REST
 ```
@@ -161,7 +163,7 @@ mindmap
 | Summarize 1 article | Copy URL, paste, wait, copy result | Write once, run forever |
 | Summarize 50 articles | 50 tabs, 50 copy-pastes, 2 hours | One file, parallel execution, 3 minutes |
 | Translate to 5 languages | 250 manual operations | Add 5 tasks, done |
-| Use Claude + GPT together | Switch tabs, re-paste context | Two lines: `model: claude-4-sonnet`, `model: gpt-4o` |
+| Use Claude + GPT together | Switch tabs, re-paste context | Two lines: `model: claude-sonnet-4-20250514`, `model: gpt-4o` |
 | Run daily at 8am | Set an alarm, do it yourself | `cron` + `nika run briefing.nika.yaml` |
 | Cost | $20/mo per subscription | Pay-per-token, your API keys, often cheaper |
 
@@ -333,7 +335,7 @@ You get:            Results. On your machine. Under your control.
 
 ```bash
 # macOS
-brew install supernovae-studio/tap/nika
+brew install supernovae-st/tap/nika
 
 # From source
 cargo install nika
@@ -341,6 +343,8 @@ cargo install nika
 # Then
 nika run my-automation.nika.yaml
 ```
+
+Read the [README](README.md) for full documentation, examples, and the interactive course.
 
 ---
 
