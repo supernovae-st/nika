@@ -58,7 +58,7 @@ use super::startup;
 use super::state::TuiState;
 use super::theme::Theme;
 use super::verification::VerificationCache;
-use super::views::{CommandView, ControlView, HomeView, StudioView, TuiView, View};
+use super::views::{CommandView, ControlView, StudioView, TuiView, View};
 
 // Note: Frame rate is now adaptive - see FAST_TICK_MS/SLOW_TICK_MS in run_unified()
 
@@ -71,7 +71,6 @@ pub struct App {
     /// TUI state (execution mode)
     pub(crate) state: TuiState,
     /// Standalone state (file browser mode)
-    /// Note: Used during construction for HomeView initialization
     pub(crate) standalone_state: Option<StandaloneState>,
     /// Cosmic theme
     pub(crate) cosmic_theme: CosmicTheme,
@@ -101,8 +100,6 @@ pub struct App {
     // focus_state removed — was never read (Phase 1 cleanup)
     /// Command view (wraps ChatView + MonitorView)
     pub(crate) command_view: CommandView,
-    /// Home view state (file browser)
-    pub(crate) home_view: Option<HomeView>,
     /// Studio view state
     pub(crate) studio_view: StudioView,
     /// Control view (wraps SettingsView)
@@ -207,7 +204,6 @@ impl App {
             current_view: TuiView::Command,
             input_mode: InputMode::Normal,
             command_view,
-            home_view: None, // No home view in execution mode
             studio_view,
             control_view,
             llm_response_rx,
@@ -230,7 +226,6 @@ impl App {
 
         // Initialize views
         let command_view = CommandView::new();
-        let home_view = HomeView::new(standalone_state.root.clone());
         let studio_view = StudioView::new();
         let control_view = ControlView::new();
 
@@ -273,7 +268,6 @@ impl App {
             current_view: TuiView::Studio,
             input_mode: InputMode::Normal,
             command_view,
-            home_view: Some(home_view),
             studio_view,
             control_view,
             llm_response_rx,
@@ -454,13 +448,6 @@ impl App {
                 TuiView::Studio => self.studio_view.tick(&mut self.state),
                 TuiView::Command => self.command_view.tick(&mut self.state),
                 TuiView::Control => self.control_view.tick(&mut self.state),
-            }
-            // HomeView only exists in browse mode — tick only when visible
-            // (rain_fading animation needs ticking even briefly after transition)
-            if let Some(ref mut home) = self.home_view {
-                if home.rain_fading {
-                    home.tick();
-                }
             }
             // Background tick: ChatView needs ticking for streaming animations
             // even when user is on a different view

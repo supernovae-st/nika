@@ -61,19 +61,6 @@ impl ChatView {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Matrix Rain Effect Triggers
-// ═══════════════════════════════════════════════════════════════════════════════
-
-impl ChatView {
-    /// Trigger matrix rain effect with fade-out
-    /// Call on startup, first message, workflow launch, etc.
-    pub fn trigger_rain_effect(&mut self) {
-        self.rain_opacity = 0.6; // Start subtle
-        self.rain_fading = true; // Will fade out over ~1.5 seconds
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
 // Agent Phase Event Handlers
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -83,8 +70,6 @@ impl ChatView {
         self.agent_phase = AgentPhase::Syncing;
         self.phase_indicator = AgentPhaseIndicator::new(AgentPhase::Syncing);
         self.agent_phase_tool = None;
-        // Trigger rain effect on agent start
-        self.trigger_rain_effect();
     }
 
     /// Called when agent turn begins - sets Planning phase
@@ -100,8 +85,6 @@ impl ChatView {
         self.agent_phase = AgentPhase::Invoking;
         self.agent_phase_tool = Some(tool.to_string());
         self.phase_indicator = AgentPhaseIndicator::new(AgentPhase::Invoking).with_tool(tool);
-        // Trigger rain effect on MCP tool call (important action)
-        self.trigger_rain_effect();
     }
 
     /// Called when MCP response received - sets Processing phase
@@ -122,8 +105,6 @@ impl ChatView {
     pub fn on_streaming_start(&mut self) {
         self.agent_phase = AgentPhase::Streaming;
         self.phase_indicator.set_phase(AgentPhase::Streaming);
-        // Trigger rain effect when LLM starts streaming
-        self.trigger_rain_effect();
     }
 
     /// Called when agent completes - resets to Idle

@@ -347,10 +347,12 @@ impl ToolContext {
         Ok(())
     }
 
-    /// Emit a tool event
+    /// Emit a tool event. Logs a warning if the channel is closed/full.
     pub async fn emit(&self, event: ToolEvent) {
         if let Some(ref tx) = self.event_tx {
-            let _ = tx.send(event).await;
+            if let Err(e) = tx.send(event).await {
+                tracing::debug!(error = %e, "Tool event channel closed, event dropped");
+            }
         }
     }
 

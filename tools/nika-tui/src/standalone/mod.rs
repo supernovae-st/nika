@@ -30,7 +30,4 @@ mod history;
 mod panel;
 mod state;
 
-pub use browser::BrowserEntry;
-pub use history::HistoryEntry;
-pub use panel::StandalonePanel;
 pub use state::StandaloneState;

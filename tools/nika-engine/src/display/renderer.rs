@@ -132,8 +132,15 @@ impl CliRenderer {
     pub fn render(&mut self, event: &crate::event::Event) {
         if self.detail.is_json() {
             // JSON mode: print raw NDJSON
-            if let Ok(json) = serde_json::to_string(event) {
-                println!("{}", json);
+            match serde_json::to_string(event) {
+                Ok(json) => println!("{}", json),
+                Err(e) => {
+                    // Emit a minimal error event so NDJSON consumers see the gap
+                    eprintln!(
+                        "{{\"error\":\"event_serialization_failed\",\"detail\":\"{}\"}}",
+                        e.to_string().replace('"', "'")
+                    );
+                }
             }
             return;
         }

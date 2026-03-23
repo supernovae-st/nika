@@ -62,11 +62,18 @@ struct LockfileGuard {
 
 impl LockfileGuard {
     /// Create the lockfile and return a guard that will remove it on drop.
+    ///
+    /// Logs warnings on failure but does not block execution — lockfile is
+    /// best-effort protection against concurrent runs, not a hard requirement.
     fn create(path: PathBuf) -> Self {
         if let Some(parent) = path.parent() {
-            let _ = std::fs::create_dir_all(parent);
+            if let Err(e) = std::fs::create_dir_all(parent) {
+                tracing::warn!(path = %parent.display(), error = %e, "Failed to create lockfile directory");
+            }
         }
-        let _ = std::fs::write(&path, format!("pid:{}", std::process::id()));
+        if let Err(e) = std::fs::write(&path, format!("pid:{}", std::process::id())) {
+            tracing::warn!(path = %path.display(), error = %e, "Failed to write lockfile — concurrent runs may conflict");
+        }
         Self { path }
     }
 }

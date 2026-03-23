@@ -36,12 +36,6 @@ impl ChatView {
 
     /// Add a user message
     pub fn add_user_message(&mut self, content: String) {
-        // Trigger rain on first real user message (after welcome)
-        let is_first_user_message = !self.messages.iter().any(|m| m.role == MessageRole::User);
-        if is_first_user_message {
-            self.trigger_rain_effect();
-        }
-
         let id = self.next_message_id();
         self.messages.push(ChatMessage {
             id,

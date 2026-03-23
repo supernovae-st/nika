@@ -89,7 +89,7 @@ pub use session::{
     delete_session, get_latest_session, list_sessions, load_session, save_session, ChatSession,
     SessionMeta,
 };
-pub use standalone::{BrowserEntry, HistoryEntry, StandalonePanel, StandaloneState};
+pub use standalone::StandaloneState;
 pub use state::{
     // Animation frame constants
     AgentTurnState,
@@ -107,7 +107,7 @@ pub use unicode::{display_width, truncate_to_width};
 pub use utils::{format_number, format_number_compact, format_number_u64};
 pub use verification::{VerificationCache, VerificationEntry};
 pub use views::{
-    ChatView, DagTab, HomeView, MissionTab, MonitorView, NovanetTab, ReasoningTab, SettingsView,
+    ChatView, DagTab, MissionTab, MonitorView, NovanetTab, ReasoningTab, SettingsView,
     StudioView, TuiView, View, ViewAction, YamlEditorPanel,
 };
 pub use wizard::{WizardConfig, WizardState, WizardStep};

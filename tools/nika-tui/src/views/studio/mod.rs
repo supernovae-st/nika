@@ -57,7 +57,7 @@ use crate::widgets::tree::{
     TreeFilter, TreeNode, TreeState,
 };
 use crate::widgets::{
-    centered_rect, CommandPalette, CommandPaletteState, MatrixRain, StatusMessage, WhichKey,
+    centered_rect, CommandPalette, CommandPaletteState, StatusMessage, WhichKey,
     WhichKeyState,
 };
 use nika_engine::ast::schema_validator::WorkflowSchemaValidator;
@@ -745,12 +745,6 @@ pub struct YamlEditorPanel {
     cached_content_hash: Cell<u64>,
     /// Animation frame counter (0-255, wraps)
     pub frame: u8,
-    /// Matrix rain background opacity (0.0 = invisible, 1.0 = full)
-    pub rain_opacity: f32,
-    /// Whether rain effect is actively fading out
-    pub rain_fading: bool,
-    /// Whether matrix effect is enabled
-    pub matrix_effect_enabled: bool,
     /// Edit history for undo/redo support (Ctrl+Z/Ctrl+Y)
     edit_history: EditHistory,
     /// Diagnostics engine for real-time error display (gutter + underline)
@@ -783,11 +777,7 @@ impl YamlEditorPanel {
             last_edit_time: None,
             cached_workflow: RefCell::new(None),
             cached_content_hash: Cell::new(0),
-            // Matrix Rain starts visible and fades
             frame: 0,
-            rain_opacity: 1.0,
-            rain_fading: true,
-            matrix_effect_enabled: true,
             // Edit History (Undo/Redo)
             edit_history: EditHistory::new(100),
             // Real-time Diagnostics
@@ -808,10 +798,6 @@ impl YamlEditorPanel {
     /// Tick animation frame (called from main loop)
     pub fn tick(&mut self) {
         self.frame = self.frame.wrapping_add(1);
-        // Tick matrix rain fade effect
-        if self.rain_fading && self.rain_opacity > 0.0 {
-            self.rain_opacity = (self.rain_opacity - 0.04).max(0.0); // Smooth fade ~2s
-        }
     }
 
     /// Mark content as edited - validation will run after debounce delay
@@ -984,22 +970,6 @@ impl Default for YamlEditorPanel {
 
 impl View for YamlEditorPanel {
     fn render(&mut self, frame: &mut Frame, area: Rect, _state: &TuiState, theme: &Theme) {
-        // Matrix Rain background effect (full screen, renders FIRST)
-        if self.matrix_effect_enabled && self.rain_opacity > 0.05 {
-            let rain_area = Rect {
-                x: area.x + 1,
-                y: area.y + 1,
-                width: area.width.saturating_sub(2),
-                height: area.height.saturating_sub(2),
-            };
-            MatrixRain::new()
-                .frame(self.frame)
-                .density(0.08) // Very subtle, smooth
-                .opacity(self.rain_opacity)
-                .with_mascots(true)
-                .render(rain_area, frame.buffer_mut());
-        }
-
         // Layout: Editor (70%) | Structure (30%) above, Validation bar below
         let chunks = Layout::default()
             .direction(Direction::Vertical)

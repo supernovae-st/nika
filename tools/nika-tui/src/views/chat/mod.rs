@@ -80,7 +80,6 @@ use crate::widgets::{
     DecryptVerb,
     HelpOverlay,
     HelpOverlayState,
-    MatrixRain,
     McpCallData,
     McpCallStatus,
     McpServerInfo,
@@ -217,11 +216,6 @@ pub struct ChatView {
     pub streaming_decrypt: StreamingDecrypt,
     /// Whether matrix decrypt effect is enabled
     pub matrix_effect_enabled: bool,
-    /// Matrix rain background opacity (0.0 = invisible, 1.0 = full)
-    /// Used for fade-in/fade-out transitions
-    pub rain_opacity: f32,
-    /// Whether rain effect is actively fading out
-    pub rain_fading: bool,
     /// Current agent execution phase (for real-time status)
     pub agent_phase: AgentPhase,
     /// Phase indicator widget with Matrix effect
@@ -460,8 +454,6 @@ impl ChatView {
                 .with_wave_factor(2.0)
                 .with_initial_chaos(15),
             matrix_effect_enabled: true, // Enable by default
-            rain_opacity: 0.0,           // Start clean — triggered on workflow execution
-            rain_fading: false,          // No fade needed at startup
 
             agent_phase: AgentPhase::Idle,
             phase_indicator: AgentPhaseIndicator::new(AgentPhase::Idle),
@@ -628,11 +620,6 @@ impl ChatView {
         if self.is_streaming && self.matrix_effect_enabled {
             self.streaming_decrypt.tick();
         }
-        // Tick matrix rain fade effect
-        if self.rain_fading && self.rain_opacity > 0.0 {
-            // Fast fade (0.04 per tick = ~2 seconds to fully fade at 10Hz)
-            self.rain_opacity = (self.rain_opacity - 0.04).max(0.0);
-        }
 
         // Tick phase indicator animation (icon swap + chaos decay)
         self.tick_phase_indicator();
@@ -686,23 +673,6 @@ impl View for ChatView {
             .direction(Direction::Horizontal)
             .constraints([Constraint::Percentage(65), Constraint::Percentage(35)])
             .split(chunks[1]);
-
-        // Matrix Rain background effect (subtle, fades out)
-        let effect_area = Rect {
-            x: area.x + 1,
-            y: area.y + 1,
-            width: area.width.saturating_sub(2),
-            height: area.height.saturating_sub(2),
-        };
-
-        if self.matrix_effect_enabled && self.rain_opacity > 0.05 {
-            MatrixRain::new()
-                .frame(self.frame)
-                .density(0.04)
-                .opacity(self.rain_opacity)
-                .with_mascots(true)
-                .render(effect_area, frame.buffer_mut());
-        }
 
         // Messages panel with inline MCP/Infer boxes
         self.render_messages_v2(frame, main_chunks[0], theme);

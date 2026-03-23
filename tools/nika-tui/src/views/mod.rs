@@ -24,7 +24,6 @@
 mod chat;
 pub mod command;
 mod control;
-mod home;
 mod monitor;
 mod settings;
 mod studio;
@@ -38,7 +37,6 @@ pub use settings::SettingsView;
 // StudioView is now the 3-panel view (Browser + Editor + DAG)
 pub use command::CommandView;
 pub use control::ControlView;
-pub use home::HomeView;
 pub use monitor::MonitorView;
 pub use studio::YamlEditorPanel;
 // StudioView = 3-panel layout, enums are internal

@@ -45,7 +45,6 @@ mod infer_stream_box;
 // Active widget with some staged constants/types
 #[allow(dead_code)]
 mod matrix_decrypt;
-mod matrix_rain;
 mod mcp_call_box;
 mod mention_system;
 mod mission_control;
@@ -56,9 +55,6 @@ pub mod provider_modal;
 mod provider_selector;
 mod scroll_indicator;
 mod session_context;
-// Partially active: AnimatedLatencySparkline used, rest stripped
-#[allow(dead_code)]
-mod sparkline;
 mod status_bar;
 mod status_message;
 pub mod task_box;
@@ -121,10 +117,6 @@ pub use dag_ascii::DagAscii;
 pub use gauge::Gauge;
 pub use header::Header;
 pub use scroll_indicator::{ScrollHint, ScrollIndicator};
-// Sparkline (AnimatedLatencySparkline widget kept, others stripped)
-pub use sparkline::{
-    AnimatedLatencySparkline, LatencyHistory, LatencySparkline, SparklineAnimation,
-};
 pub use status_bar::{ConnectionStatus, Provider, StatusBar, StatusMetrics, WorkflowPhase};
 pub use timeline::{Timeline, TimelineEntry};
 // Pro status bar for Chat view (Claude Code-inspired)
@@ -155,8 +147,6 @@ pub use terminal_size::{
 pub use help_overlay::{HelpOverlay, HelpOverlayState, HelpSection, HELP_SECTIONS};
 // Status messages
 pub use status_message::{StatusLevel, StatusMessage, StatusMessageWidget, StatusQueue};
-// Matrix Rain effect
-pub use matrix_rain::MatrixRain;
 // Matrix Decrypt effect
 pub use matrix_decrypt::{DecryptVerb, MatrixDecrypt, MultiLineDecrypt, StreamingDecrypt};
 // Task Box widgets

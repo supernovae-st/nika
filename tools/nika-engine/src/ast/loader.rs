@@ -359,9 +359,16 @@ pub fn discover_definitions(
     for entry in entries.flatten() {
         let path = entry.path();
 
-        // Try to load as definition
-        if let Ok(def) = load_definition(&path, kind) {
-            definitions.push(def);
+        // Try to load as definition — warn on parse failures so users know
+        match load_definition(&path, kind) {
+            Ok(def) => definitions.push(def),
+            Err(e) => {
+                tracing::warn!(
+                    path = %path.display(),
+                    error = %e,
+                    "Skipping unparseable definition file"
+                );
+            }
         }
     }
 
