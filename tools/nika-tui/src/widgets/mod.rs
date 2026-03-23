@@ -68,8 +68,7 @@ mod verb_input;
 mod verb_type;
 mod which_key;
 
-// Staged for Phase 6 TUI redesign — 100% complete, awaiting integration
-#[allow(dead_code)]
+// Micro-widgets: small inline visual elements for TaskBox rendering
 pub mod micro;
 
 // Shared panel components for view composition
