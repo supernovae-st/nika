@@ -70,7 +70,6 @@ tokio = { workspace = true }
 # Serialization (used by cli/ and tui/)
 serde = { workspace = true }
 serde_json = { workspace = true }
-toml = { workspace = true }
 
 # Errors (used by main.rs and tui/)
 miette = { workspace = true }
@@ -80,7 +79,6 @@ thiserror = { workspace = true }
 colored = { workspace = true }
 dotenvy = "0.15"
 rand = { workspace = true }
-chrono = { workspace = true }
 regex = { workspace = true }
 parking_lot = { workspace = true }
 reqwest = { workspace = true }
@@ -94,8 +92,6 @@ rustc-hash = { workspace = true }
 camino = { workspace = true }
 ignore = { workspace = true }
 xxhash-rust = { workspace = true }
-uuid = { workspace = true }
-dirs = "5.0"
 humantime = { workspace = true }
 infer = "0.19"
 unicode-width = "0.2"

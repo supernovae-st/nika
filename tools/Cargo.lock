@@ -5304,14 +5304,12 @@ name = "nika"
 version = "0.41.1"
 dependencies = [
  "camino",
- "chrono",
  "clap",
  "clap_complete",
  "colored",
  "criterion",
  "crossterm 0.29.0",
  "dashmap",
- "dirs 5.0.1",
  "dotenvy",
  "futures",
  "humantime",
@@ -5341,12 +5339,10 @@ dependencies = [
  "terminal_size",
  "thiserror 1.0.69",
  "tokio",
- "toml 0.8.23",
  "tower-lsp-server",
  "tracing",
  "tracing-subscriber",
  "unicode-width 0.2.2",
- "uuid 1.22.0",
  "wiremock",
  "xxhash-rust",
 ]
@@ -5405,10 +5401,8 @@ version = "0.41.1"
 dependencies = [
  "async-stream",
  "async-trait",
- "backon",
  "base64 0.22.1",
  "blake3",
- "bytes",
  "c2pa",
  "charts-rs",
  "chrono",
@@ -5439,8 +5433,6 @@ dependencies = [
  "lofty",
  "marked-yaml",
  "miette",
- "mime",
- "mime_guess",
  "mistralrs",
  "nika-core",
  "nika-event",
@@ -5457,9 +5449,7 @@ dependencies = [
  "psl",
  "qrcode",
  "qrcode-ai-scanner-core",
- "rand 0.8.5",
  "rayon",
- "reflink-copy",
  "regex",
  "reqwest 0.12.28",
  "resvg",
@@ -5476,11 +5466,9 @@ dependencies = [
  "serde_json_path",
  "serial_test",
  "sha2",
- "shellexpand",
  "shlex",
  "smallvec 1.15.1",
  "spn-client",
- "strsim 0.11.1",
  "tar",
  "tempfile",
  "terminal_size",
@@ -7530,18 +7518,6 @@ dependencies = [
  "once_cell",
  "percent-encoding",
  "serde_json",
-]
-
-[[package]]
-name = "reflink-copy"
-version = "0.1.29"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13362233b147e57674c37b802d216b7c5e3dcccbed8967c84f0d8d223868ae27"
-dependencies = [
- "cfg-if",
- "libc",
- "rustix",
- "windows 0.62.2",
 ]
 
 [[package]]
