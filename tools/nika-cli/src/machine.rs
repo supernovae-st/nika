@@ -151,9 +151,6 @@ fn detect_editors() -> Vec<&'static str> {
 pub fn run_machine_setup() -> Vec<SetupResult> {
     let mut results = Vec::new();
 
-    println!();
-    println!("  {}", "Machine setup".bold().underline());
-
     // 1. Editors: detect + install extension
     results.extend(setup_editors());
 
@@ -168,13 +165,10 @@ pub fn run_machine_setup() -> Vec<SetupResult> {
 
     // Summary line
     let ok = results.iter().filter(|r| r.success).count();
-    let total = results.len();
-    println!();
     println!(
-        "  {} Machine ready ({}/{} configured)",
+        "  {} Editor rules installed ({} configured)",
         "\u{2713}".green(),
-        ok,
-        total
+        ok
     );
 
     results
@@ -426,7 +420,7 @@ Access loop variable via `with:` prefix: `{{with.item}}` (same as all bindings).
 | `use: { data: step1 }` | `with: { data: $step1 }` ($ prefix required) |
 | `{{data}}` | `{{with.data}}` (always with. prefix) |
 | `{{item}}` in for_each | `{{with.item}}` (loop var uses with. prefix) |
-| `retry: 3` | `retry: { max_attempts: 3, delay: 2 }` |
+| `retry: 3` | `retry: { max_attempts: 3, delay_ms: 2000 }` |
 | `.yaml` extension | `.nika.yaml` extension |
 | Direct Cypher/SQL | Use `invoke:` with MCP tools |
 | `shell: bash` | `shell: true` (boolean, not shell name) |
@@ -709,7 +703,7 @@ tasks:
 | `use: { data: step1 }` | `with: { data: $step1 }` ($ prefix required) |
 | `{{data}}` | `{{with.data}}` (always with. prefix) |
 | `{{item}}` in for_each | `{{with.item}}` (loop var uses with. prefix) |
-| `retry: 3` | `retry: { max_attempts: 3, delay: 2 }` |
+| `retry: 3` | `retry: { max_attempts: 3, delay_ms: 2000 }` |
 | `.yaml` extension | `.nika.yaml` extension |
 | Direct Cypher/SQL | Use `invoke:` with MCP tools |
 | `shell: bash` | `shell: true` (boolean, not shell name) |

@@ -742,8 +742,9 @@ async fn main() {
                     );
                     println!();
                     println!(
-                        "  Upgraded! Run {} to update your setup.",
-                        "nika init".cyan().bold()
+                        "  Upgraded to v{}! Run {} to update editor rules.",
+                        env!("CARGO_PKG_VERSION"),
+                        "nika init".cyan()
                     );
                     println!();
                     Ok(())

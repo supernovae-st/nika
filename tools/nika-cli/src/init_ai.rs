@@ -86,11 +86,6 @@ pub fn generate_ai_files(project_dir: &Path) -> Result<(), nika_engine::NikaErro
         "✓".green(),
         count
     );
-    println!(
-        "  {} Run {} to install editor-specific rules",
-        "i".blue(),
-        "nika setup".bold()
-    );
 
     Ok(())
 }
@@ -201,7 +196,7 @@ nika course next
 
 **Transforms:** `{{with.data | upper | trim | length}}`
 
-**For full syntax reference**, install nika: `cargo install nika && nika setup`
+**For full syntax reference**, run `nika --help` or visit https://github.com/supernovae-st/nika
 "#;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -252,12 +247,12 @@ mod tests {
         }
     }
 
-    /// AGENTS.md must mention nika setup for full reference.
+    /// AGENTS.md must mention nika --help for full reference.
     #[test]
-    fn agents_md_mentions_setup() {
+    fn agents_md_mentions_help() {
         assert!(
-            AGENTS_MD_CONTENT.contains("nika setup"),
-            "AGENTS_MD should point users to nika setup for full syntax"
+            AGENTS_MD_CONTENT.contains("nika --help"),
+            "AGENTS_MD should point users to nika --help for full syntax"
         );
     }
 
