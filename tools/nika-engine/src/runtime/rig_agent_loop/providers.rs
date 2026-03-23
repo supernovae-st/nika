@@ -132,6 +132,7 @@ impl RigAgentLoop {
         let mut current_prompt = base_prompt.clone();
         let mut total_input_tokens: u64 = 0;
         let mut total_output_tokens: u64 = 0;
+        let mut total_cached_input_tokens: u64 = 0;
 
         // Emit start event (no metadata for "started")
         self.event_log.emit(EventKind::AgentTurn {
@@ -148,6 +149,7 @@ impl RigAgentLoop {
 
         total_input_tokens += result.input_tokens;
         total_output_tokens += result.output_tokens;
+        total_cached_input_tokens += result.cached_input_tokens;
 
         // Record turn in limit tracker
         let cost = crate::provider::cost::calculate_cost(
@@ -250,6 +252,7 @@ impl RigAgentLoop {
 
             total_input_tokens += result.input_tokens;
             total_output_tokens += result.output_tokens;
+            total_cached_input_tokens += result.cached_input_tokens;
 
             // Record retry turn in limit tracker
             let retry_cost = crate::provider::cost::calculate_cost(
@@ -271,7 +274,7 @@ impl RigAgentLoop {
             response_text: result.response.clone(),
             input_tokens: total_input_tokens,
             output_tokens: total_output_tokens,
-            cache_read_tokens: 0,
+            cache_read_tokens: total_cached_input_tokens,
             stop_reason: stop_reason.to_string(),
         };
 
@@ -347,6 +350,7 @@ impl RigAgentLoop {
 
             total_input_tokens += result.input_tokens;
             total_output_tokens += result.output_tokens;
+            total_cached_input_tokens += result.cached_input_tokens;
 
             // Record guardrail retry turn in limit tracker
             let gr_cost = crate::provider::cost::calculate_cost(
@@ -397,7 +401,7 @@ impl RigAgentLoop {
             request_id: None,
             input_tokens: total_input_tokens,
             output_tokens: total_output_tokens,
-            cache_read_tokens: 0,
+            cache_read_tokens: total_cached_input_tokens,
             ttft_ms: None,
             finish_reason: stop_reason.to_string(),
             cost_usd: if total_cost.is_finite() {
@@ -460,6 +464,7 @@ impl RigAgentLoop {
         let mut current_prompt = base_prompt.clone();
         let mut total_input_tokens: u64 = 0;
         let mut total_output_tokens: u64 = 0;
+        let mut total_cached_input_tokens: u64 = 0;
 
         // Emit start event (no metadata for "started")
         self.event_log.emit(EventKind::AgentTurn {
@@ -476,6 +481,7 @@ impl RigAgentLoop {
 
         total_input_tokens += result.input_tokens;
         total_output_tokens += result.output_tokens;
+        total_cached_input_tokens += result.cached_input_tokens;
 
         // Record turn in limit tracker
         let cost = crate::provider::cost::calculate_cost(
@@ -578,6 +584,7 @@ impl RigAgentLoop {
 
             total_input_tokens += result.input_tokens;
             total_output_tokens += result.output_tokens;
+            total_cached_input_tokens += result.cached_input_tokens;
 
             // Record retry turn in limit tracker
             let retry_cost = crate::provider::cost::calculate_cost(
@@ -599,7 +606,7 @@ impl RigAgentLoop {
             response_text: result.response.clone(),
             input_tokens: total_input_tokens,
             output_tokens: total_output_tokens,
-            cache_read_tokens: 0,
+            cache_read_tokens: total_cached_input_tokens,
             stop_reason: stop_reason.to_string(),
         };
 
@@ -674,6 +681,7 @@ impl RigAgentLoop {
 
             total_input_tokens += result.input_tokens;
             total_output_tokens += result.output_tokens;
+            total_cached_input_tokens += result.cached_input_tokens;
 
             // Record guardrail retry turn in limit tracker
             let gr_cost = crate::provider::cost::calculate_cost(
@@ -724,7 +732,7 @@ impl RigAgentLoop {
             request_id: None,
             input_tokens: total_input_tokens,
             output_tokens: total_output_tokens,
-            cache_read_tokens: 0,
+            cache_read_tokens: total_cached_input_tokens,
             ttft_ms: None,
             finish_reason: stop_reason.to_string(),
             cost_usd: if total_cost.is_finite() {
@@ -926,6 +934,7 @@ impl RigAgentLoop {
         let mut current_prompt = base_prompt.clone();
         let mut total_input_tokens: u64 = 0;
         let mut total_output_tokens: u64 = 0;
+        let mut total_cached_input_tokens: u64 = 0;
 
         // Emit start event
         self.event_log.emit(EventKind::AgentTurn {
@@ -942,6 +951,7 @@ impl RigAgentLoop {
 
         total_input_tokens += result.input_tokens;
         total_output_tokens += result.output_tokens;
+        total_cached_input_tokens += result.cached_input_tokens;
 
         // Record turn in limit tracker
         let turn_cost = provider_kind
@@ -1049,6 +1059,7 @@ impl RigAgentLoop {
 
             total_input_tokens += result.input_tokens;
             total_output_tokens += result.output_tokens;
+            total_cached_input_tokens += result.cached_input_tokens;
 
             // Record retry turn in limit tracker
             let retry_cost = provider_kind
@@ -1074,7 +1085,7 @@ impl RigAgentLoop {
             response_text: result.response.clone(),
             input_tokens: total_input_tokens,
             output_tokens: total_output_tokens,
-            cache_read_tokens: 0,
+            cache_read_tokens: total_cached_input_tokens,
             stop_reason: stop_reason.to_string(),
         };
 
@@ -1149,6 +1160,7 @@ impl RigAgentLoop {
 
             total_input_tokens += result.input_tokens;
             total_output_tokens += result.output_tokens;
+            total_cached_input_tokens += result.cached_input_tokens;
 
             // Record guardrail retry turn in limit tracker
             let gr_cost = provider_kind
@@ -1208,7 +1220,7 @@ impl RigAgentLoop {
             request_id: None,
             input_tokens: total_input_tokens,
             output_tokens: total_output_tokens,
-            cache_read_tokens: 0,
+            cache_read_tokens: total_cached_input_tokens,
             ttft_ms: None,
             finish_reason: stop_reason.to_string(),
             cost_usd: if total_cost.is_finite() {

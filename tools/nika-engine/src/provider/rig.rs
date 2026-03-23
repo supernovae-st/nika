@@ -26,6 +26,7 @@
 use crate::mcp::McpClient;
 use crate::util::STREAM_CHUNK_TIMEOUT;
 use futures::StreamExt;
+use std::time::Instant;
 
 // Import InferenceBackend trait for native inference methods
 #[cfg(feature = "native-inference")]
@@ -618,6 +619,7 @@ impl RigProvider {
                     builder = builder.preamble(sys.to_string());
                 }
                 let request = builder.build();
+                let stream_start = Instant::now();
                 let mut stream = model
                     .stream(request)
                     .await
@@ -628,6 +630,7 @@ impl RigProvider {
                     &mut response_parts,
                     &mut result,
                     $is_anthropic,
+                    stream_start,
                 )
                 .await?;
             }};
@@ -1217,6 +1220,10 @@ pub struct StreamResult {
     pub total_tokens: u64,
     /// Cached input tokens (from prompt caching)
     pub cached_input_tokens: u64,
+    /// Time to first token in milliseconds (None if not captured)
+    pub ttft_ms: Option<u64>,
+    /// API request ID from response headers (None if not available)
+    pub request_id: Option<String>,
 }
 
 impl StreamResult {
@@ -1244,6 +1251,7 @@ async fn consume_rig_stream<R>(
     response_parts: &mut Vec<String>,
     result: &mut StreamResult,
     capture_thinking: bool,
+    stream_start: Instant,
 ) -> Result<(), RigInferError>
 where
     R: Clone + Unpin + GetTokenUsage + serde::Serialize + serde::de::DeserializeOwned,
@@ -1266,6 +1274,10 @@ where
         match chunk_result {
             Ok(content) => match content {
                 StreamedAssistantContent::Text(text) => {
+                    // Capture time-to-first-token on first text chunk
+                    if result.ttft_ms.is_none() {
+                        result.ttft_ms = Some(stream_start.elapsed().as_millis() as u64);
+                    }
                     response_parts.push(text.text.clone());
                     let _ = tx.try_send(StreamChunk::Token(text.text));
                 }
@@ -1317,72 +1329,93 @@ impl RigProvider {
             RigProvider::Claude(client) => {
                 let model = client.completion_model(model_id);
                 let request = model.completion_request(prompt).max_tokens(8192).build();
+                let stream_start = Instant::now();
                 let mut stream = model
                     .stream(request)
                     .await
                     .map_err(|e| RigInferError::PromptError(e.to_string()))?;
-                consume_rig_stream(&mut stream, &tx, &mut response_parts, &mut result, true)
-                    .await?;
+                consume_rig_stream(
+                    &mut stream, &tx, &mut response_parts, &mut result, true, stream_start,
+                )
+                .await?;
             }
             RigProvider::OpenAI(client) => {
                 let model = client.completion_model(model_id);
                 let request = model.completion_request(prompt).max_tokens(8192).build();
+                let stream_start = Instant::now();
                 let mut stream = model
                     .stream(request)
                     .await
                     .map_err(|e| RigInferError::PromptError(e.to_string()))?;
-                consume_rig_stream(&mut stream, &tx, &mut response_parts, &mut result, false)
-                    .await?;
+                consume_rig_stream(
+                    &mut stream, &tx, &mut response_parts, &mut result, false, stream_start,
+                )
+                .await?;
             }
             RigProvider::Mistral(client) => {
                 let model = client.completion_model(model_id);
                 let request = model.completion_request(prompt).max_tokens(8192).build();
+                let stream_start = Instant::now();
                 let mut stream = model
                     .stream(request)
                     .await
                     .map_err(|e| RigInferError::PromptError(e.to_string()))?;
-                consume_rig_stream(&mut stream, &tx, &mut response_parts, &mut result, false)
-                    .await?;
+                consume_rig_stream(
+                    &mut stream, &tx, &mut response_parts, &mut result, false, stream_start,
+                )
+                .await?;
             }
             RigProvider::Groq(client) => {
                 let model = client.completion_model(model_id);
                 let request = model.completion_request(prompt).max_tokens(8192).build();
+                let stream_start = Instant::now();
                 let mut stream = model
                     .stream(request)
                     .await
                     .map_err(|e| RigInferError::PromptError(e.to_string()))?;
-                consume_rig_stream(&mut stream, &tx, &mut response_parts, &mut result, false)
-                    .await?;
+                consume_rig_stream(
+                    &mut stream, &tx, &mut response_parts, &mut result, false, stream_start,
+                )
+                .await?;
             }
             RigProvider::DeepSeek(client) => {
                 let model = client.completion_model(model_id);
                 let request = model.completion_request(prompt).max_tokens(8192).build();
+                let stream_start = Instant::now();
                 let mut stream = model
                     .stream(request)
                     .await
                     .map_err(|e| RigInferError::PromptError(e.to_string()))?;
-                consume_rig_stream(&mut stream, &tx, &mut response_parts, &mut result, false)
-                    .await?;
+                consume_rig_stream(
+                    &mut stream, &tx, &mut response_parts, &mut result, false, stream_start,
+                )
+                .await?;
             }
             RigProvider::Gemini(client) => {
                 let model = client.completion_model(model_id);
                 let request = model.completion_request(prompt).max_tokens(8192).build();
+                let stream_start = Instant::now();
                 let mut stream = model
                     .stream(request)
                     .await
                     .map_err(|e| RigInferError::PromptError(e.to_string()))?;
-                consume_rig_stream(&mut stream, &tx, &mut response_parts, &mut result, false)
-                    .await?;
+                consume_rig_stream(
+                    &mut stream, &tx, &mut response_parts, &mut result, false, stream_start,
+                )
+                .await?;
             }
             RigProvider::XAi(client) => {
                 let model = client.completion_model(model_id);
                 let request = model.completion_request(prompt).max_tokens(8192).build();
+                let stream_start = Instant::now();
                 let mut stream = model
                     .stream(request)
                     .await
                     .map_err(|e| RigInferError::PromptError(e.to_string()))?;
-                consume_rig_stream(&mut stream, &tx, &mut response_parts, &mut result, false)
-                    .await?;
+                consume_rig_stream(
+                    &mut stream, &tx, &mut response_parts, &mut result, false, stream_start,
+                )
+                .await?;
             }
             // Native provider - uses infer_stream() for true token-by-token streaming
             #[cfg(feature = "native-inference")]
@@ -1496,39 +1529,60 @@ impl RigProvider {
 
         match self {
             RigProvider::Claude(client) => {
+                let stream_start = Instant::now();
                 let mut stream = build_request_with_options!(client);
-                consume_rig_stream(&mut stream, &tx, &mut response_parts, &mut result, true)
-                    .await?;
+                consume_rig_stream(
+                    &mut stream, &tx, &mut response_parts, &mut result, true, stream_start,
+                )
+                .await?;
             }
             RigProvider::OpenAI(client) => {
+                let stream_start = Instant::now();
                 let mut stream = build_request_with_options!(client);
-                consume_rig_stream(&mut stream, &tx, &mut response_parts, &mut result, false)
-                    .await?;
+                consume_rig_stream(
+                    &mut stream, &tx, &mut response_parts, &mut result, false, stream_start,
+                )
+                .await?;
             }
             RigProvider::Mistral(client) => {
+                let stream_start = Instant::now();
                 let mut stream = build_request_with_options!(client);
-                consume_rig_stream(&mut stream, &tx, &mut response_parts, &mut result, false)
-                    .await?;
+                consume_rig_stream(
+                    &mut stream, &tx, &mut response_parts, &mut result, false, stream_start,
+                )
+                .await?;
             }
             RigProvider::Groq(client) => {
+                let stream_start = Instant::now();
                 let mut stream = build_request_with_options!(client);
-                consume_rig_stream(&mut stream, &tx, &mut response_parts, &mut result, false)
-                    .await?;
+                consume_rig_stream(
+                    &mut stream, &tx, &mut response_parts, &mut result, false, stream_start,
+                )
+                .await?;
             }
             RigProvider::DeepSeek(client) => {
+                let stream_start = Instant::now();
                 let mut stream = build_request_with_options!(client);
-                consume_rig_stream(&mut stream, &tx, &mut response_parts, &mut result, false)
-                    .await?;
+                consume_rig_stream(
+                    &mut stream, &tx, &mut response_parts, &mut result, false, stream_start,
+                )
+                .await?;
             }
             RigProvider::Gemini(client) => {
+                let stream_start = Instant::now();
                 let mut stream = build_request_with_options!(client);
-                consume_rig_stream(&mut stream, &tx, &mut response_parts, &mut result, false)
-                    .await?;
+                consume_rig_stream(
+                    &mut stream, &tx, &mut response_parts, &mut result, false, stream_start,
+                )
+                .await?;
             }
             RigProvider::XAi(client) => {
+                let stream_start = Instant::now();
                 let mut stream = build_request_with_options!(client);
-                consume_rig_stream(&mut stream, &tx, &mut response_parts, &mut result, false)
-                    .await?;
+                consume_rig_stream(
+                    &mut stream, &tx, &mut response_parts, &mut result, false, stream_start,
+                )
+                .await?;
             }
             // Native provider - uses infer_stream() with options for true streaming
             #[cfg(feature = "native-inference")]
@@ -1865,6 +1919,8 @@ mod tests {
             output_tokens: 50,
             total_tokens: 150,
             cached_input_tokens: 20,
+            ttft_ms: None,
+            request_id: None,
         };
         assert_eq!(
             result.total_tokens,

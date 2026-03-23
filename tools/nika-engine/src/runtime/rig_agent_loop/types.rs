@@ -204,6 +204,8 @@ pub(super) struct StreamingResult {
     pub(super) input_tokens: u64,
     /// Output tokens used (from token_usage())
     pub(super) output_tokens: u64,
+    /// Cached input tokens (from prompt caching, e.g. Anthropic cache_read)
+    pub(super) cached_input_tokens: u64,
     /// Optional thinking/reasoning content (Claude extended thinking)
     pub(super) thinking: Option<String>,
 }

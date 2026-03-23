@@ -384,6 +384,7 @@ impl RigAgentLoop {
         let mut response_parts: Vec<String> = Vec::new();
         let mut input_tokens: u64 = 0;
         let mut output_tokens: u64 = 0;
+        let mut cached_input_tokens: u64 = 0;
 
         // Per-chunk timeout to prevent hanging streams
         loop {
@@ -425,6 +426,7 @@ impl RigAgentLoop {
                         if let Some(usage) = final_resp.token_usage() {
                             input_tokens = usage.input_tokens;
                             output_tokens = usage.output_tokens;
+                            cached_input_tokens = usage.cached_input_tokens;
                         }
                     }
                     _ => {
@@ -462,7 +464,7 @@ impl RigAgentLoop {
             response_text: response.clone(),
             input_tokens,
             output_tokens,
-            cache_read_tokens: 0, // Cache tracking requires message metadata
+            cache_read_tokens: cached_input_tokens,
             stop_reason: stop_reason.to_string(),
         };
 

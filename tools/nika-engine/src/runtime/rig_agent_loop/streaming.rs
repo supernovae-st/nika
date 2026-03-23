@@ -76,6 +76,7 @@ impl RigAgentLoop {
         let mut thinking_parts: Vec<String> = Vec::with_capacity(8);
         let mut input_tokens: u64 = 0;
         let mut output_tokens: u64 = 0;
+        let mut cached_input_tokens: u64 = 0;
 
         // Stream chunks with timeout protection to prevent infinite hangs
         loop {
@@ -129,6 +130,7 @@ impl RigAgentLoop {
                         if let Some(usage) = final_resp.token_usage() {
                             input_tokens = usage.input_tokens;
                             output_tokens = usage.output_tokens;
+                            cached_input_tokens = usage.cached_input_tokens;
                             // Send final metrics to TUI
                             if let Some(ref tx) = self.stream_tx {
                                 let _ = tx.try_send(crate::provider::rig::StreamChunk::Metrics {
@@ -155,6 +157,7 @@ impl RigAgentLoop {
             response: response_parts.concat(),
             input_tokens,
             output_tokens,
+            cached_input_tokens,
             thinking: if thinking_parts.is_empty() {
                 None
             } else {
@@ -246,6 +249,7 @@ impl RigAgentLoop {
             let mut thinking_text: Option<String> = None;
             let mut input_tokens = 0u64;
             let mut output_tokens = 0u64;
+            let mut cached_input_tokens = 0u64;
 
             // Consume stream, extracting text and token usage
             while let Some(chunk) = stream.next().await {
@@ -281,6 +285,7 @@ impl RigAgentLoop {
                             let usage = resp.usage();
                             input_tokens = usage.input_tokens;
                             output_tokens = usage.output_tokens;
+                            cached_input_tokens = usage.cached_input_tokens;
                         }
                         // Accumulate reasoning deltas (streaming thinking tokens)
                         MultiTurnStreamItem::StreamAssistantItem(
@@ -305,6 +310,7 @@ impl RigAgentLoop {
                 response: response_text,
                 input_tokens, // Now tracked via FinalResponse
                 output_tokens,
+                cached_input_tokens,
                 thinking: thinking_text,
             })
         }
@@ -372,6 +378,7 @@ impl RigAgentLoop {
         let mut thinking_text: Option<String> = None;
         let mut input_tokens = 0u64;
         let mut output_tokens = 0u64;
+        let mut cached_input_tokens = 0u64;
         let mut tool_count = 0u32;
 
         // Per-chunk timeout to prevent hanging streams
@@ -481,6 +488,7 @@ impl RigAgentLoop {
                         let usage = resp.usage();
                         input_tokens = usage.input_tokens;
                         output_tokens = usage.output_tokens;
+                        cached_input_tokens = usage.cached_input_tokens;
 
                         // Send metrics to TUI
                         if let Some(ref tx) = self.stream_tx {
@@ -519,6 +527,7 @@ impl RigAgentLoop {
             response: response_text,
             input_tokens,
             output_tokens,
+            cached_input_tokens,
             thinking: thinking_text,
         })
     }
