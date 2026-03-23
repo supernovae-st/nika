@@ -761,8 +761,10 @@ pub enum EventKind {
         total: u32,
         /// Successful iterations
         succeeded: u32,
-        /// Failed iterations
+        /// Failed iterations (errors)
         failed: u32,
+        /// Skipped iterations (cancelled by fail_fast)
+        skipped: u32,
         /// Total duration across all iterations (ms)
         duration_ms: u64,
     },

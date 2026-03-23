@@ -1903,7 +1903,6 @@ impl TaskExecutor {
         let mcp_work = async {
             let client = self.get_mcp_client(mcp_name).await?;
 
-            let is_error = false;
             let result = if let Some(tool) = &invoke.tool {
                 // Tool call path - use already-resolved params
                 let params = resolved_params.clone().unwrap_or(serde_json::Value::Null);
@@ -2119,7 +2118,7 @@ impl TaskExecutor {
                 });
             };
 
-            Ok::<(serde_json::Value, bool, Arc<McpClient>), NikaError>((result, is_error, client))
+            Ok::<(serde_json::Value, Arc<McpClient>), NikaError>((result, client))
         };
 
         // Use per-task timeout if specified, otherwise fall back to global deadline
@@ -2144,9 +2143,10 @@ impl TaskExecutor {
             }
         }?;
 
-        let (result, is_error, client) = mcp_result;
+        let (result, client) = mcp_result;
 
         // EMIT: McpResponse event (with full response for TUI display)
+        // is_error is always false here — error cases return early with their own McpResponse
         let duration_ms = start_time.elapsed().as_millis() as u64;
         self.event_log.emit(EventKind::McpResponse {
             task_id: Arc::clone(task_id),
@@ -2154,7 +2154,7 @@ impl TaskExecutor {
             output_len: result.to_string().len(),
             duration_ms,
             cached: client.was_last_call_cached(),
-            is_error,
+            is_error: false,
             response: Some(result.clone()),
         });
 

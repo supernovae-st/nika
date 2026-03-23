@@ -2186,7 +2186,11 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     task_id: Arc::clone(&parent_id),
                     total: results.len() as u32,
                     succeeded: results.iter().filter(|(_, r)| r.is_success()).count() as u32,
-                    failed: results.iter().filter(|(_, r)| !r.is_success()).count() as u32,
+                    failed: results
+                        .iter()
+                        .filter(|(_, r)| !r.is_success() && !r.is_skipped())
+                        .count() as u32,
+                    skipped: results.iter().filter(|(_, r)| r.is_skipped()).count() as u32,
                     duration_ms: total_duration.as_millis() as u64,
                 });
 
