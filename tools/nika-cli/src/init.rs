@@ -417,7 +417,7 @@ network:
         fs::write(&readme_path, WORKFLOWS_README)?;
         println!("{} Created {}", "✓".green(), readme_path.display());
 
-        // Create tier directories and write all 30 workflows
+        // Create tier directories and write all 65 workflows
         let workflows = get_all_workflows();
         let mut created_tiers = std::collections::HashSet::new();
 
@@ -498,7 +498,7 @@ network:
     if !no_example {
         println!();
         println!(
-            "    {}  workflows/          # 5 starter workflows + course",
+            "    {}  workflows/          # 65 workflows (5 minimal + 60 showcase)",
             "📂".cyan()
         );
         println!("    ├── README.md                     # Quick start guide");
