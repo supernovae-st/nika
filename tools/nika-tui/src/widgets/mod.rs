@@ -128,11 +128,8 @@ pub use mention_system::{
     highlight_mentions, Mention, MentionAutocomplete, MentionAutocompleteState, MentionSuggestion,
     MentionTrigger, MentionType,
 };
-// Agent steps (data types only, widget rendering stripped)
-pub use agent_steps::{
-    AgentPhase, AgentPhaseIndicator, AgentStep, AgentStepGroup, AgentStepsWidget, StepStatus,
-    TokenUsage, ToolCallMetadata,
-};
+// Agent phase indicator (step stubs removed)
+pub use agent_steps::{AgentPhase, AgentPhaseIndicator};
 // Terminal size handling
 pub use terminal_size::{
     check_terminal_size, LayoutMode, TerminalTooSmallOverlay, COMPACT_WIDTH, MIN_HEIGHT, MIN_WIDTH,
