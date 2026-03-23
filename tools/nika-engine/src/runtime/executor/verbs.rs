@@ -1267,11 +1267,27 @@ impl TaskExecutor {
                     }
 
                     if fetch.response.as_deref() == Some("binary") {
+                        // Reject non-success HTTP status before storing anything in CAS.
+                        // Without this, 4xx/5xx error pages (HTML) get stored as binary artifacts.
+                        if !response.status().is_success() {
+                            return Err(NikaError::Execution(format!(
+                                "HTTP {} for binary fetch: {}",
+                                response.status(),
+                                url
+                            )));
+                        }
+                        // Strip Content-Type parameters (e.g. "image/png; charset=utf-8" → "image/png")
+                        // so that mime_to_extension() exact matching works correctly.
                         let content_type = response
                             .headers()
-                            .get("content-type")
+                            .get(reqwest::header::CONTENT_TYPE)
                             .and_then(|v| v.to_str().ok())
-                            .unwrap_or("application/octet-stream")
+                            .unwrap_or("application/octet-stream");
+                        let content_type = content_type
+                            .split(';')
+                            .next()
+                            .unwrap_or(content_type)
+                            .trim()
                             .to_string();
                         const BINARY_MAX_RESPONSE_SIZE: u64 = 100 * 1024 * 1024; // 100 MB (CAS limit)
                         if let Some(len) = response.content_length() {

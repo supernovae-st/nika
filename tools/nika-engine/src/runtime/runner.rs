@@ -981,12 +981,19 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 }
                 artifact_paths = artifact_result.paths;
 
-                for err in artifact_result.errors {
-                    tracing::warn!(
-                        task_id = %task_id,
-                        error = %err,
-                        "Artifact write error (non-fatal)"
-                    );
+                if !artifact_result.errors.is_empty() {
+                    for err in &artifact_result.errors {
+                        tracing::error!(
+                            task_id = %task_id,
+                            error = %err,
+                            "Artifact write failed"
+                        );
+                        event_log.emit(EventKind::ArtifactFailed {
+                            task_id: Arc::clone(&task_id),
+                            path: String::new(),
+                            reason: err.to_string(),
+                        });
+                    }
                 }
             }
         }
@@ -1693,11 +1700,17 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         // the new CLI format uses verb icons instead. Keeping the
                         // adjustment in case we add the counter back.
 
-                        // Get concurrency settings from analyzed for_each
+                        // Get concurrency settings: for_each overrides, then standalone task fields
                         let fe = task.for_each.as_ref();
-                        let concurrency =
-                            fe.and_then(|f| f.concurrency).unwrap_or(1).max(1) as usize;
-                        let fail_fast = fe.map(|f| f.fail_fast).unwrap_or(true);
+                        let concurrency = fe
+                            .and_then(|f| f.concurrency)
+                            .or(task.concurrency)
+                            .unwrap_or(1)
+                            .max(1) as usize;
+                        let fail_fast = fe
+                            .map(|f| f.fail_fast)
+                            .or(task.fail_fast)
+                            .unwrap_or(true);
 
                         debug!(
                             task_id = %task.name,
