@@ -783,6 +783,18 @@ fn analyze_task(
         }
     }
 
+    // Warn if for_each and decompose are both present
+    if raw.for_each.is_some() && raw.decompose.is_some() {
+        let span = raw.decompose.as_ref().map(|d| d.span).unwrap_or(raw.id.span);
+        ctx.add_warning(AnalyzeError::new(
+            AnalyzeErrorKind::InvalidValue,
+            span,
+            "for_each and decompose are both present — decompose takes priority, \
+             for_each concurrency/fail_fast settings will be ignored"
+                .to_string(),
+        ));
+    }
+
     // Analyze output config
     if let Some(ref output) = raw.output {
         task.output = Some(analyze_output(&output.value, ctx));
@@ -956,13 +968,29 @@ fn analyze_agent(raw: &RawAgentAction) -> AnalyzedAgentAction {
 
 fn analyze_output(
     raw: &crate::ast::raw::RawOutputConfig,
-    _ctx: &mut AnalyzerContext,
+    ctx: &mut AnalyzerContext,
 ) -> AnalyzedOutput {
     let format = raw
         .format
         .as_ref()
         .and_then(|s| OutputFormat::parse(&s.value))
         .unwrap_or(OutputFormat::Text);
+
+    // Warn if schema is present without format: json
+    if (raw.schema.is_some() || raw.schema_ref.is_some()) && format != OutputFormat::Json {
+        let span = raw
+            .schema
+            .as_ref()
+            .map(|s| s.span)
+            .or_else(|| raw.schema_ref.as_ref().map(|s| s.span))
+            .unwrap_or(Span::dummy());
+        ctx.add_warning(AnalyzeError::new(
+            AnalyzeErrorKind::InvalidValue,
+            span,
+            "schema is present without format: json — structured output validation will not run"
+                .to_string(),
+        ));
+    }
 
     AnalyzedOutput {
         format,
