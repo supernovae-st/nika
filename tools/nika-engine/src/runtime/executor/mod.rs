@@ -113,23 +113,20 @@ impl TaskExecutor {
         // Custom redirect policy: check each hop against SSRF blocklist to prevent
         // SSRF bypass via HTTP redirect (e.g., external → 169.254.169.254).
         let ssrf_redirect_policy = reqwest::redirect::Policy::custom(|attempt| {
-            use crate::runtime::policy::SSRF_BLOCKED_HOSTS;
+            use crate::runtime::policy::is_ssrf_blocked;
 
             if attempt.previous().len() >= REDIRECT_LIMIT {
                 attempt.stop()
             } else {
-                let blocked = attempt
-                    .url()
-                    .host_str()
-                    .and_then(|host| {
-                        let h = host.to_lowercase();
-                        let h_normalized = h.trim_start_matches('[').trim_end_matches(']');
-                        if SSRF_BLOCKED_HOSTS.contains(&h_normalized) {
-                            Some(h)
-                        } else {
-                            None
-                        }
-                    });
+                let blocked = attempt.url().host_str().and_then(|host| {
+                    let h = host.to_lowercase();
+                    let h_normalized = h.trim_start_matches('[').trim_end_matches(']');
+                    if is_ssrf_blocked(h_normalized) {
+                        Some(h)
+                    } else {
+                        None
+                    }
+                });
                 if let Some(host) = blocked {
                     attempt.error(std::io::Error::new(
                         std::io::ErrorKind::PermissionDenied,

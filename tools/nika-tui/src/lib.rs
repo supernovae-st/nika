@@ -107,8 +107,8 @@ pub use unicode::{display_width, truncate_to_width};
 pub use utils::{format_number, format_number_compact, format_number_u64};
 pub use verification::{VerificationCache, VerificationEntry};
 pub use views::{
-    ChatView, DagTab, MissionTab, MonitorView, NovanetTab, ReasoningTab, SettingsView,
-    StudioView, TuiView, View, ViewAction, YamlEditorPanel,
+    ChatView, DagTab, MissionTab, MonitorView, NovanetTab, ReasoningTab, SettingsView, StudioView,
+    TuiView, View, ViewAction, YamlEditorPanel,
 };
 pub use wizard::{WizardConfig, WizardState, WizardStep};
 

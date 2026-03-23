@@ -231,7 +231,11 @@ impl TaskExecutor {
 
         // POLICY CHECK: token budget (atomic reserve to prevent TOCTOU with concurrent for_each)
         let estimated_tokens = estimate_tokens(prompt.len());
-        if let Err(reason) = self.policy_enforcer.write().reserve_tokens(estimated_tokens) {
+        if let Err(reason) = self
+            .policy_enforcer
+            .write()
+            .reserve_tokens(estimated_tokens)
+        {
             tracing::warn!(
                 task_id = %task_id,
                 estimated_tokens = estimated_tokens,
@@ -1261,7 +1265,9 @@ impl TaskExecutor {
 
         // Overall deadline prevents retry+backoff from blocking indefinitely.
         // Calculated as: per_request_timeout × max_attempts × 3 (covers request + backoff + buffer)
-        let per_request_secs = fetch.timeout.unwrap_or(crate::util::FETCH_TIMEOUT.as_secs());
+        let per_request_secs = fetch
+            .timeout
+            .unwrap_or(crate::util::FETCH_TIMEOUT.as_secs());
         let overall_deadline = fetch_start
             + std::time::Duration::from_secs(
                 per_request_secs
@@ -1287,12 +1293,14 @@ impl TaskExecutor {
             }
 
             // Get the request for this attempt
-            let req = current_request.take().ok_or_else(|| NikaError::FetchError {
-                reason: format!(
-                    "request unavailable on attempt {} of {} (clone may have failed)",
-                    attempt, effective_max_attempts,
-                ),
-            })?;
+            let req = current_request
+                .take()
+                .ok_or_else(|| NikaError::FetchError {
+                    reason: format!(
+                        "request unavailable on attempt {} of {} (clone may have failed)",
+                        attempt, effective_max_attempts,
+                    ),
+                })?;
 
             // Clone for potential next retry (before sending consumes the request)
             if attempt < effective_max_attempts {
@@ -1595,8 +1603,7 @@ impl TaskExecutor {
                     );
                     // EMIT: ExtractApplied (if an extract mode was specified)
                     if let Some(mode) = fetch.extract.as_deref() {
-                        let output_len =
-                            extract_result.as_ref().map(|s| s.len()).unwrap_or(0);
+                        let output_len = extract_result.as_ref().map(|s| s.len()).unwrap_or(0);
                         self.event_log.emit(EventKind::ExtractApplied {
                             task_id: Arc::clone(task_id),
                             mode: mode.to_string(),
@@ -2129,7 +2136,11 @@ impl TaskExecutor {
             .token_budget
             .map(u64::from)
             .unwrap_or_else(|| estimate_tokens(resolved_agent.prompt.len()) as u64);
-        if let Err(reason) = self.policy_enforcer.write().reserve_tokens(estimated_tokens) {
+        if let Err(reason) = self
+            .policy_enforcer
+            .write()
+            .reserve_tokens(estimated_tokens)
+        {
             tracing::warn!(
                 task_id = %task_id,
                 estimated_tokens = estimated_tokens,
@@ -2210,10 +2221,7 @@ impl TaskExecutor {
                         crate::ast::output::SchemaRef::File(path) => {
                             let content = tokio::fs::read_to_string(path).await.map_err(|e| {
                                 NikaError::ValidationError {
-                                    reason: format!(
-                                        "Failed to read schema file '{}': {}",
-                                        path, e
-                                    ),
+                                    reason: format!("Failed to read schema file '{}': {}", path, e),
                                 }
                             })?;
                             let v: serde_json::Value =

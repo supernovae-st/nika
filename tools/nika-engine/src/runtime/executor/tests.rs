@@ -978,7 +978,8 @@ async fn test_execute_exec_blocked_by_policy() {
         EventLog::new(),
         Some(policy_config),
         None,
-    ).unwrap();
+    )
+    .unwrap();
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
 
@@ -1023,7 +1024,8 @@ async fn test_execute_exec_allowed_by_policy() {
         EventLog::new(),
         Some(policy_config),
         None,
-    ).unwrap();
+    )
+    .unwrap();
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
 
@@ -1060,7 +1062,8 @@ async fn test_execute_exec_disabled_by_policy() {
         EventLog::new(),
         Some(policy_config),
         None,
-    ).unwrap();
+    )
+    .unwrap();
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
 
@@ -1106,7 +1109,8 @@ async fn test_execute_fetch_blocked_by_policy() {
         EventLog::new(),
         Some(policy_config),
         None,
-    ).unwrap();
+    )
+    .unwrap();
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
 
@@ -1154,7 +1158,8 @@ async fn test_execute_fetch_disabled_by_policy() {
         EventLog::new(),
         Some(policy_config),
         None,
-    ).unwrap();
+    )
+    .unwrap();
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
 
@@ -1210,7 +1215,8 @@ async fn test_executor_with_policy_config() {
         EventLog::new(),
         Some(policy_config),
         None,
-    ).unwrap();
+    )
+    .unwrap();
 
     // Verify executor was created (basic sanity check)
     assert_eq!(executor.default_provider.as_ref(), "mock");

@@ -646,10 +646,7 @@ impl RigAgentLoop {
     ///
     /// **Note:** Token tracking is not available for chat methods.
     /// Use `run_xai()` for single-turn requests with full token tracking.
-    async fn chat_continue_xai(
-        &mut self,
-        prompt: &str,
-    ) -> Result<RigAgentLoopResult, NikaError> {
+    async fn chat_continue_xai(&mut self, prompt: &str) -> Result<RigAgentLoopResult, NikaError> {
         use rig::completion::Chat;
 
         let client = rig::providers::xai::Client::from_env();

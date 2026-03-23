@@ -57,8 +57,7 @@ use crate::widgets::tree::{
     TreeFilter, TreeNode, TreeState,
 };
 use crate::widgets::{
-    centered_rect, CommandPalette, CommandPaletteState, StatusMessage, WhichKey,
-    WhichKeyState,
+    centered_rect, CommandPalette, CommandPaletteState, StatusMessage, WhichKey, WhichKeyState,
 };
 use nika_engine::ast::schema_validator::WorkflowSchemaValidator;
 use nika_engine::error::NikaError;

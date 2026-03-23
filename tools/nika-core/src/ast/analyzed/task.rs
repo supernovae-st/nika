@@ -592,5 +592,4 @@ mod tests {
         assert_eq!(retry.delay_ms, 1000);
         assert!(retry.backoff.is_none());
     }
-
 }

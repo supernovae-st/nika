@@ -118,7 +118,11 @@ impl ModelPricing {
         let input_cost = (effective_input as f64 / 1_000_000.0) * self.input_per_million;
         let output_cost = (output_tokens as f64 / 1_000_000.0) * self.output_per_million;
         let cost = cached_cost + input_cost + output_cost;
-        if cost.is_finite() { cost } else { 0.0 }
+        if cost.is_finite() {
+            cost
+        } else {
+            0.0
+        }
     }
 }
 

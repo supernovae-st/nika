@@ -22,7 +22,9 @@ fn run_on_tasks_line() {
 fn task_count_label() {
     let yaml = "tasks:\n  - id: a\n    exec: x\n  - id: b\n    exec: y\n  - id: c\n    exec: z\n";
     let lenses = code_lenses(yaml);
-    let count = lenses.iter().find(|l| matches!(l.command, LensCommand::TaskCount(_)));
+    let count = lenses
+        .iter()
+        .find(|l| matches!(l.command, LensCommand::TaskCount(_)));
     assert!(count.is_some());
     if let LensCommand::TaskCount(n) = count.unwrap().command {
         assert_eq!(n, 3);

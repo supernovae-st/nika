@@ -1335,7 +1335,12 @@ impl RigProvider {
                     .await
                     .map_err(|e| RigInferError::PromptError(e.to_string()))?;
                 consume_rig_stream(
-                    &mut stream, &tx, &mut response_parts, &mut result, true, stream_start,
+                    &mut stream,
+                    &tx,
+                    &mut response_parts,
+                    &mut result,
+                    true,
+                    stream_start,
                 )
                 .await?;
             }
@@ -1348,7 +1353,12 @@ impl RigProvider {
                     .await
                     .map_err(|e| RigInferError::PromptError(e.to_string()))?;
                 consume_rig_stream(
-                    &mut stream, &tx, &mut response_parts, &mut result, false, stream_start,
+                    &mut stream,
+                    &tx,
+                    &mut response_parts,
+                    &mut result,
+                    false,
+                    stream_start,
                 )
                 .await?;
             }
@@ -1361,7 +1371,12 @@ impl RigProvider {
                     .await
                     .map_err(|e| RigInferError::PromptError(e.to_string()))?;
                 consume_rig_stream(
-                    &mut stream, &tx, &mut response_parts, &mut result, false, stream_start,
+                    &mut stream,
+                    &tx,
+                    &mut response_parts,
+                    &mut result,
+                    false,
+                    stream_start,
                 )
                 .await?;
             }
@@ -1374,7 +1389,12 @@ impl RigProvider {
                     .await
                     .map_err(|e| RigInferError::PromptError(e.to_string()))?;
                 consume_rig_stream(
-                    &mut stream, &tx, &mut response_parts, &mut result, false, stream_start,
+                    &mut stream,
+                    &tx,
+                    &mut response_parts,
+                    &mut result,
+                    false,
+                    stream_start,
                 )
                 .await?;
             }
@@ -1387,7 +1407,12 @@ impl RigProvider {
                     .await
                     .map_err(|e| RigInferError::PromptError(e.to_string()))?;
                 consume_rig_stream(
-                    &mut stream, &tx, &mut response_parts, &mut result, false, stream_start,
+                    &mut stream,
+                    &tx,
+                    &mut response_parts,
+                    &mut result,
+                    false,
+                    stream_start,
                 )
                 .await?;
             }
@@ -1400,7 +1425,12 @@ impl RigProvider {
                     .await
                     .map_err(|e| RigInferError::PromptError(e.to_string()))?;
                 consume_rig_stream(
-                    &mut stream, &tx, &mut response_parts, &mut result, false, stream_start,
+                    &mut stream,
+                    &tx,
+                    &mut response_parts,
+                    &mut result,
+                    false,
+                    stream_start,
                 )
                 .await?;
             }
@@ -1413,7 +1443,12 @@ impl RigProvider {
                     .await
                     .map_err(|e| RigInferError::PromptError(e.to_string()))?;
                 consume_rig_stream(
-                    &mut stream, &tx, &mut response_parts, &mut result, false, stream_start,
+                    &mut stream,
+                    &tx,
+                    &mut response_parts,
+                    &mut result,
+                    false,
+                    stream_start,
                 )
                 .await?;
             }
@@ -1532,7 +1567,12 @@ impl RigProvider {
                 let stream_start = Instant::now();
                 let mut stream = build_request_with_options!(client);
                 consume_rig_stream(
-                    &mut stream, &tx, &mut response_parts, &mut result, true, stream_start,
+                    &mut stream,
+                    &tx,
+                    &mut response_parts,
+                    &mut result,
+                    true,
+                    stream_start,
                 )
                 .await?;
             }
@@ -1540,7 +1580,12 @@ impl RigProvider {
                 let stream_start = Instant::now();
                 let mut stream = build_request_with_options!(client);
                 consume_rig_stream(
-                    &mut stream, &tx, &mut response_parts, &mut result, false, stream_start,
+                    &mut stream,
+                    &tx,
+                    &mut response_parts,
+                    &mut result,
+                    false,
+                    stream_start,
                 )
                 .await?;
             }
@@ -1548,7 +1593,12 @@ impl RigProvider {
                 let stream_start = Instant::now();
                 let mut stream = build_request_with_options!(client);
                 consume_rig_stream(
-                    &mut stream, &tx, &mut response_parts, &mut result, false, stream_start,
+                    &mut stream,
+                    &tx,
+                    &mut response_parts,
+                    &mut result,
+                    false,
+                    stream_start,
                 )
                 .await?;
             }
@@ -1556,7 +1606,12 @@ impl RigProvider {
                 let stream_start = Instant::now();
                 let mut stream = build_request_with_options!(client);
                 consume_rig_stream(
-                    &mut stream, &tx, &mut response_parts, &mut result, false, stream_start,
+                    &mut stream,
+                    &tx,
+                    &mut response_parts,
+                    &mut result,
+                    false,
+                    stream_start,
                 )
                 .await?;
             }
@@ -1564,7 +1619,12 @@ impl RigProvider {
                 let stream_start = Instant::now();
                 let mut stream = build_request_with_options!(client);
                 consume_rig_stream(
-                    &mut stream, &tx, &mut response_parts, &mut result, false, stream_start,
+                    &mut stream,
+                    &tx,
+                    &mut response_parts,
+                    &mut result,
+                    false,
+                    stream_start,
                 )
                 .await?;
             }
@@ -1572,7 +1632,12 @@ impl RigProvider {
                 let stream_start = Instant::now();
                 let mut stream = build_request_with_options!(client);
                 consume_rig_stream(
-                    &mut stream, &tx, &mut response_parts, &mut result, false, stream_start,
+                    &mut stream,
+                    &tx,
+                    &mut response_parts,
+                    &mut result,
+                    false,
+                    stream_start,
                 )
                 .await?;
             }
@@ -1580,7 +1645,12 @@ impl RigProvider {
                 let stream_start = Instant::now();
                 let mut stream = build_request_with_options!(client);
                 consume_rig_stream(
-                    &mut stream, &tx, &mut response_parts, &mut result, false, stream_start,
+                    &mut stream,
+                    &tx,
+                    &mut response_parts,
+                    &mut result,
+                    false,
+                    stream_start,
                 )
                 .await?;
             }

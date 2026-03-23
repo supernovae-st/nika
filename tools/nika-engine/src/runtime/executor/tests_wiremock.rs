@@ -26,7 +26,8 @@ fn setup() -> (TaskExecutor, ResolvedBindings, RunContext, EventLog) {
         blocked_hosts: vec![],
     };
     let executor =
-        TaskExecutor::with_policy("mock", None, None, event_log.clone(), Some(policy), None).unwrap();
+        TaskExecutor::with_policy("mock", None, None, event_log.clone(), Some(policy), None)
+            .unwrap();
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
     (executor, bindings, datastore, event_log)
@@ -744,7 +745,8 @@ async fn wiremock_fetch_template_resolved_in_url() {
         blocked_hosts: vec![],
     };
     let executor =
-        TaskExecutor::with_policy("mock", None, None, event_log.clone(), Some(policy), None).unwrap();
+        TaskExecutor::with_policy("mock", None, None, event_log.clone(), Some(policy), None)
+            .unwrap();
     let mut bindings = ResolvedBindings::new();
     bindings.set("item_id", serde_json::json!("42"));
     let datastore = RunContext::new();

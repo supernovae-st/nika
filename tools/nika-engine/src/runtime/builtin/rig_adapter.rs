@@ -307,7 +307,9 @@ mod tests {
         assert_eq!(events.len(), 2);
 
         // First event: BuiltinToolInvoked
-        assert!(matches!(&events[0].kind, EventKind::BuiltinToolInvoked { tool_name, success, .. } if tool_name == "nika:log" && *success));
+        assert!(
+            matches!(&events[0].kind, EventKind::BuiltinToolInvoked { tool_name, success, .. } if tool_name == "nika:log" && *success)
+        );
 
         // Second event: Log
         if let EventKind::Log {
@@ -347,7 +349,9 @@ mod tests {
         assert_eq!(events.len(), 2);
 
         // First event: BuiltinToolInvoked
-        assert!(matches!(&events[0].kind, EventKind::BuiltinToolInvoked { tool_name, success, .. } if tool_name == "nika:emit" && *success));
+        assert!(
+            matches!(&events[0].kind, EventKind::BuiltinToolInvoked { tool_name, success, .. } if tool_name == "nika:emit" && *success)
+        );
 
         // Second event: Custom
         if let EventKind::Custom {

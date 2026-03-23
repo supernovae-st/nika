@@ -409,8 +409,14 @@ impl StructuredOutputEngine {
         // EMIT: ProviderCalled before the LLM retry call
         self.log.emit(EventKind::ProviderCalled {
             task_id: Arc::clone(task_id),
-            provider: self.provider_name.clone().unwrap_or_else(|| "unknown".to_string()),
-            model: self.model_name.clone().unwrap_or_else(|| "unknown".to_string()),
+            provider: self
+                .provider_name
+                .clone()
+                .unwrap_or_else(|| "unknown".to_string()),
+            model: self
+                .model_name
+                .clone()
+                .unwrap_or_else(|| "unknown".to_string()),
             prompt_len,
         });
 
@@ -557,8 +563,14 @@ impl StructuredOutputEngine {
         // EMIT: ProviderCalled before the LLM repair call
         self.log.emit(EventKind::ProviderCalled {
             task_id: Arc::clone(task_id),
-            provider: self.provider_name.clone().unwrap_or_else(|| "unknown".to_string()),
-            model: self.model_name.clone().unwrap_or_else(|| "unknown".to_string()),
+            provider: self
+                .provider_name
+                .clone()
+                .unwrap_or_else(|| "unknown".to_string()),
+            model: self
+                .model_name
+                .clone()
+                .unwrap_or_else(|| "unknown".to_string()),
             prompt_len,
         });
 

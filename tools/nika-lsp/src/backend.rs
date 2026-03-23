@@ -495,9 +495,9 @@ impl LanguageServer for NikaBackend {
             })
             .collect();
 
-        let entries =
-            self.handler
-                .code_actions_with_diagnostics(&text, start, end, &diag_infos);
+        let entries = self
+            .handler
+            .code_actions_with_diagnostics(&text, start, end, &diag_infos);
 
         let actions: Vec<CodeActionOrCommand> = entries
             .into_iter()

@@ -1850,6 +1850,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         }
 
                         // Spawn one execution per item in the array
+                        // Spawn one execution per item in the array
                         let var_name = fe.map(|f| f.as_var.as_str()).unwrap_or("item").to_string();
                         for (idx, item) in items.iter().enumerate() {
                             // Check if cancelled before spawning
@@ -2758,7 +2759,10 @@ mod tests {
 
         // Workflow run() now returns Err when tasks fail (NIKA-084)
         let result = runner.run().await;
-        assert!(result.is_err(), "workflow should return Err when tasks fail");
+        assert!(
+            result.is_err(),
+            "workflow should return Err when tasks fail"
+        );
 
         let events = runner.event_log().filter_task("fail");
         let failed = events
