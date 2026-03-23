@@ -2,39 +2,35 @@
 
 # Nika
 
-**Automate AI tasks without code.**
-
-Research, summarize, translate, process images -- all from a single YAML file.
-No Python scripts. No boilerplate. Just describe what you want.
+**Automate AI. No code required.**
 
 [![crates.io](https://img.shields.io/crates/v/nika?style=flat-square&logo=rust&logoColor=white&color=e6522c)](https://crates.io/crates/nika)
 [![Version](https://img.shields.io/badge/v0.40.2-7c3aed?style=flat-square&logo=semver&logoColor=white)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/AGPL--3.0--or--later-22c55e?style=flat-square&logo=gnu&logoColor=white)](LICENSE)
-[![Tests](https://img.shields.io/badge/7800+_tests-10b981?style=flat-square)](https://github.com/supernovae-st/nika/actions)
+[![Tests](https://img.shields.io/badge/7,800+_tests-10b981?style=flat-square)](https://github.com/supernovae-st/nika/actions)
 
-[Quick Start](#quick-start) | [Use Cases](#use-cases) | [Installation](#installation) | [Documentation](#documentation)
+[Quick Start](#quick-start) | [How It Works](#how-it-works) | [Use Cases](#use-cases) | [Documentation](#documentation)
 
 </div>
 
 ---
 
+You know how you ask ChatGPT to summarize something, then copy the result, paste it somewhere else, then ask it to translate? Nika does all of that automatically. You write the steps once in a simple text file. Nika runs them.
+
 ```yaml
-# Scrape a webpage and summarize it with AI -- 8 lines
+# news.nika.yaml -- Scrape Hacker News and summarize the top stories
 schema: "nika/workflow@0.12"
-provider: claude
-
+provider: claude                  # or: openai, mistral, groq, gemini...
 tasks:
-  - id: scrape
-    fetch:
-      url: "https://news.ycombinator.com"
-      extract: article
-
-  - id: summarize
-    with: { page: $scrape }
-    infer: "Write a 3-bullet summary of today's top stories: {{with.page}}"
+  - id: scrape                    # Step 1: grab the page
+    fetch: { url: "https://news.ycombinator.com", extract: article }
+  - id: summarize                 # Step 2: ask an AI to summarize it
+    with: { page: $scrape }       # pass the scraped content in
+    infer: "3-bullet summary of today's top stories: {{with.page}}"
 ```
 
 ```bash
+# One command. That's it.
 nika run news.nika.yaml
 ```
 
@@ -42,117 +38,166 @@ nika run news.nika.yaml
 
 ## Why Nika?
 
-You could write a Python script. But then you'd spend 30 minutes on imports, error handling, API clients, and JSON parsing -- before writing a single line of logic.
+| | Without Nika (manual) | With Nika |
+|:---:|---|---|
+| **Speed** | Copy-paste between ChatGPT tabs | Write steps once, runs automatically |
+| **Scale** | One thing at a time | 50 items in parallel |
+| **Cost** | $20/mo for ONE provider | Free, ANY provider |
+| **Privacy** | Your data in their cloud | Your data on your machine |
 
-With Nika, you describe **what** you want, not **how** to do it:
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'lineColor': '#64748b', 'primaryColor': '#3b82f6', 'primaryTextColor': '#f8fafc'}}}%%
+flowchart LR
+    subgraph manual ["Without Nika"]
+        direction LR
+        A1[You] --> A2[ChatGPT]
+        A2 --> A3[Copy]
+        A3 --> A4[Paste]
+        A4 --> A5[ChatGPT]
+        A5 --> A6[Copy]
+        A6 --> A7[Paste]
+        A7 --> A8["...repeat"]
+    end
 
-| Without Nika | With Nika |
-|---|---|
-| 200 lines of Python | 10 lines of YAML |
-| Install requests, openai, beautifulsoup | `cargo install nika` |
-| Handle retries, rate limits, errors | Built-in (`retry:`, `timeout:`) |
-| Wire up API keys, headers, auth | `export OPENAI_API_KEY=...` |
-| Write async code for parallelism | `for_each:` + `concurrency: 5` |
+    subgraph nika ["With Nika"]
+        direction LR
+        B1[You] --> B2["YAML file"]
+        B2 --> B3["nika run"]
+        B3 --> B4["Done"]
+    end
+```
+
+---
+
+## How It Works
+
+Three steps. That's the whole idea.
+
+| Step | What you do | What Nika does |
+|:---:|---|---|
+| **1.** | Write your steps in a `.nika.yaml` file | -- |
+| **2.** | Run `nika run file.nika.yaml` | Fetches, summarizes, translates -- all automatically |
+| **3.** | Read the results | Tasks run in parallel when possible |
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'lineColor': '#64748b', 'primaryColor': '#3b82f6', 'primaryTextColor': '#f8fafc'}}}%%
+flowchart LR
+    W["Write YAML"] --> R["nika run"]
+    R --> D["Results"]
+    W -.- E1["any editor"]
+    R -.- E2["any AI provider"]
+    D -.- E3["parallel execution"]
+```
 
 ---
 
 ## Use Cases
 
-**Content pipeline** -- scrape, summarize, translate:
+### Scrape, summarize, translate to 5 languages
 
 ```yaml
+# content.nika.yaml -- Full content pipeline in 3 steps
+schema: "nika/workflow@0.12"
+provider: claude
 tasks:
-  - id: scrape
+  - id: scrape                    # Step 1: fetch a blog post as markdown
     fetch: { url: "https://example.com/blog", extract: markdown }
 
-  - id: summarize
-    with: { content: $scrape }
+  - id: summarize                 # Step 2: summarize the content
+    with: { content: $scrape }    # $scrape = output of step 1
     infer: "Summarize in 3 bullets: {{with.content}}"
 
-  - id: translate
-    for_each: ["French", "Spanish", "Japanese"]
-    as: lang
+  - id: translate                 # Step 3: translate to 5 languages (in parallel!)
+    for_each: ["French", "Spanish", "Japanese", "German", "Portuguese"]
+    as: lang                      # {{with.lang}} = current language
     with: { summary: $summarize }
     infer: "Translate to {{with.lang}}: {{with.summary}}"
 ```
 
-**Batch processing** -- process 100 items in parallel:
+> **What you'll see:** 5 translations appear at once -- Nika runs them all in parallel.
+
+### Process 100 URLs in parallel
 
 ```yaml
+# batch.nika.yaml -- Read a file of URLs and scrape them all
+schema: "nika/workflow@0.12"
 tasks:
-  - id: urls
+  - id: urls                      # Step 1: read a list of URLs from a file
     exec: "cat urls.txt"
 
-  - id: process
-    for_each: "$urls"
+  - id: process                   # Step 2: scrape each URL (10 at a time)
+    for_each: "$urls"             # loop over each line from urls.txt
     as: url
-    concurrency: 10
+    concurrency: 10               # max 10 requests at once
     fetch: { url: "{{with.url}}", extract: article }
 ```
 
-**AI agent** -- autonomous research with guardrails:
+> **What you'll see:** 100 articles scraped in seconds, 10 running at a time.
+
+### AI agent with guardrails
 
 ```yaml
+# research.nika.yaml -- Let an AI agent do research autonomously
+schema: "nika/workflow@0.12"
+provider: claude
 tasks:
   - id: research
     agent:
       prompt: "Research the top 5 competitors for our product"
-      tools: [nika:read, nika:write, nika:glob]
-      max_turns: 15
-      guardrails:
+      tools: [nika:read, nika:write, nika:glob]   # tools the agent can use
+      max_turns: 15               # stop after 15 steps max
+      guardrails:                 # safety limits
         - type: length
-          max_words: 2000
+          max_words: 2000         # keep the response under 2000 words
 ```
 
-**Image pipeline** -- import, resize, optimize, describe:
+> **What you'll see:** The agent reads files, writes a report, and stops within the limits you set.
+
+### Import, resize, and describe an image
 
 ```yaml
+# vision.nika.yaml -- Process an image with AI vision
+schema: "nika/workflow@0.12"
+provider: claude
 tasks:
-  - id: import
+  - id: import                    # Step 1: import the image into Nika's storage
     invoke: { tool: nika:import, params: { path: "./photo.jpg" } }
 
-  - id: thumbnail
+  - id: thumbnail                 # Step 2: create a 400px-wide thumbnail
     with: { img: $import }
     invoke: { tool: nika:thumbnail, params: { hash: "{{with.img.hash}}", width: 400 } }
 
-  - id: describe
+  - id: describe                  # Step 3: ask an AI to describe the image
     with: { img: $import }
     infer:
       content:
         - type: image
-          source: "{{with.img.hash}}"
+          source: "{{with.img.hash}}"       # the original image
         - type: text
           text: "Write an alt-text description for this image"
 ```
+
+> **What you'll see:** A resized thumbnail saved locally + an AI-generated alt-text description.
 
 ---
 
 ## Quick Start
 
 ```bash
-# Install
-cargo install nika        # or: brew install supernovae-st/tap/nika
+# Install Nika
+cargo install nika          # or: brew install supernovae-st/tap/nika
 
-# Set an API key (pick your provider)
-export ANTHROPIC_API_KEY=sk-ant-...   # or OPENAI_API_KEY, MISTRAL_API_KEY, etc.
+# Set your API key (pick any provider you like)
+export ANTHROPIC_API_KEY=... # or OPENAI_API_KEY, MISTRAL_API_KEY, etc.
 
-# Create your first workflow
-cat > hello.nika.yaml << 'EOF'
-schema: "nika/workflow@0.12"
-provider: claude
-tasks:
-  - id: greet
-    infer: "Say hello in French, then in Japanese"
-EOF
-
-# Run it
-nika run hello.nika.yaml
+# Run any .nika.yaml file
+nika run my-recipe.nika.yaml
 ```
 
-Want more? Scaffold a project with examples:
+Want to explore? Scaffold a project with examples:
 
 ```bash
-nika init my-project        # 5 starter workflows (one per verb)
+nika init my-project        # 5 starter recipes (one per verb)
 nika init --course          # 44 hands-on exercises across 12 levels
 ```
 
@@ -160,21 +205,23 @@ nika init --course          # 44 hands-on exercises across 12 levels
 
 ## Documentation
 
-| Section | What you'll learn |
-|---|---|
-| [The 5 Verbs](#the-5-verbs) | `infer`, `exec`, `fetch`, `invoke`, `agent` -- the complete API |
-| [Data Flow](#data-flow) | `with:`, `depends_on:`, templates -- connecting tasks |
-| [Providers](#providers) | Claude, OpenAI, Mistral, Groq, Gemini, DeepSeek, xAI, local |
-| [Structured Output](#structured-output) | JSON Schema validation on LLM output |
-| [MCP Integration](#mcp-integration) | Connect external tools via Model Context Protocol |
-| [Builtin Tools](#builtin-tools) | 43 tools: file ops, media, web scraping |
-| [Agent Guardrails](#agent-guardrails) | Limits, cost caps, safety rails for agents |
-| [Terminal UI](#terminal-ui) | Beautiful TUI for running workflows |
-| [Language Server](#language-server) | LSP: completions, hover, diagnostics in your editor |
-| [AI Integration](#ai-integration) | 43+ AI coding tools understand Nika out of the box |
-| [Architecture](#architecture) | 10-crate workspace, DAG execution engine |
-| [CLI Reference](#cli-reference) | All commands at a glance |
-| [Interactive Course](#learn-nika--interactive-course) | 12 levels, 44 exercises -- learn by doing |
+| | Section | Description |
+|:---:|---|---|
+| :book: | [The 5 Verbs](#the-5-verbs) | Learn the 5 commands that do everything: `infer`, `exec`, `fetch`, `invoke`, `agent` |
+| :link: | [Data Flow](#data-flow) | Learn how to pass data between steps with `with:`, `depends_on:`, and templates |
+| :robot: | [Providers](#providers) | Learn how to use Claude, OpenAI, Mistral, Groq, Gemini, DeepSeek, xAI, or local models |
+| :package: | [Structured Output](#structured-output) | Learn how to get validated JSON back from any AI |
+| :electric_plug: | [MCP Integration](#mcp-integration) | Learn how to connect external tools via Model Context Protocol |
+| :hammer_and_wrench: | [Builtin Tools](#builtin-tools) | Explore 43 built-in tools for file ops, media processing, and web scraping |
+| :shield: | [Agent Guardrails](#agent-guardrails) | Learn how to set limits, cost caps, and safety rails on autonomous agents |
+| :desktop_computer: | [Terminal UI](#terminal-ui) | Learn how to run your files interactively with a beautiful TUI |
+| :pencil2: | [Language Server](#language-server) | Set up autocomplete, hover info, and diagnostics in your editor |
+| :brain: | [AI Integration](#ai-integration) | See how 43+ AI coding tools understand Nika out of the box |
+| :building_construction: | [Architecture](#architecture) | Explore the 10-crate Rust workspace under the hood |
+| :computer: | [CLI Reference](#cli-reference) | Browse all commands at a glance |
+| :mortar_board: | [Interactive Course](#learn-nika--interactive-course) | Start the 12-level, 44-exercise hands-on course |
+
+Read our [manifesto](MANIFESTO.md) -- why we believe AI should be free.
 
 ---
 
