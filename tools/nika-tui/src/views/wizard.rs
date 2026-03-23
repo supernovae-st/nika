@@ -45,8 +45,8 @@ struct ProviderItem {
 
 /// Editor item for the editor list
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 struct EditorItem {
+    #[cfg_attr(not(test), allow(dead_code))]
     id: &'static str,
     name: &'static str,
     enabled: bool,
