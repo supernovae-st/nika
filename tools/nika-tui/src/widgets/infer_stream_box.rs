@@ -145,32 +145,6 @@ impl InferStreamData {
     }
 }
 
-/// Infer stream box widget (stub -- rendering removed)
-pub struct InferStreamBox<'a> {
-    data: &'a InferStreamData,
-    max_content_lines: u16,
-}
-
-impl<'a> InferStreamBox<'a> {
-    pub fn new(data: &'a InferStreamData) -> Self {
-        Self {
-            data,
-            max_content_lines: 6,
-        }
-    }
-
-    pub fn max_lines(mut self, lines: u16) -> Self {
-        self.max_content_lines = lines;
-        self
-    }
-
-    /// Calculate required height
-    pub fn required_height(&self) -> u16 {
-        let content_lines = self.data.content.lines().count() as u16;
-        6 + content_lines.min(self.max_content_lines)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -242,24 +216,6 @@ mod tests {
         let (char1, _) = InferStatus::Running.indicator(0);
         let (char2, _) = InferStatus::Running.indicator(1);
         assert_ne!(char1, char2);
-    }
-
-    #[test]
-    fn test_required_height() {
-        let data = InferStreamData::new("model");
-        let widget = InferStreamBox::new(&data);
-        assert_eq!(widget.required_height(), 6);
-
-        let data = InferStreamData::new("model").with_content("Line1\nLine2\nLine3");
-        let widget = InferStreamBox::new(&data);
-        assert_eq!(widget.required_height(), 9);
-    }
-
-    #[test]
-    fn test_max_lines() {
-        let data = InferStreamData::new("model").with_content("1\n2\n3\n4\n5\n6\n7\n8\n9\n10");
-        let widget = InferStreamBox::new(&data).max_lines(3);
-        assert_eq!(widget.required_height(), 9);
     }
 
     #[test]

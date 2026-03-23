@@ -10,14 +10,7 @@
 //! - StatusBar: Bottom status bar with provider/MCP status
 //! - Header: Top header with view title and navigation hints
 
-// Pre-built widget library for TUI views.
-// Modules marked with #[allow(dead_code)] contain staged widgets or data types
-// with rendering code stripped but type definitions preserved.
-
-// Types-only: ActivityItem used, ActivityStack struct unused
-#[allow(dead_code)]
 mod activity_stack;
-#[allow(dead_code)]
 mod agent_steps;
 mod animation;
 mod chat_dag_panel;
@@ -30,19 +23,13 @@ mod dag;
 mod gauge;
 mod header;
 mod help_overlay;
-// Types-only: widget rendering stripped, data types exported for ChatView
-#[allow(dead_code)]
 mod infer_stream_box;
-// Active widget with some staged constants/types
-#[allow(dead_code)]
 mod matrix_decrypt;
 mod mcp_call_box;
 mod mention_system;
 mod mission_control;
 mod pro_status_bar;
 pub mod provider_modal;
-// Types-only: data types for ProviderModal
-#[allow(dead_code)]
 mod provider_selector;
 mod scroll_indicator;
 mod session_context;
@@ -53,8 +40,6 @@ mod terminal_size;
 mod timeline;
 pub mod tree;
 mod utils;
-// Types-only: ChatVerb/ParsedInput used by command parser
-#[allow(dead_code)]
 mod verb_input;
 mod verb_type;
 mod which_key;
@@ -84,8 +69,8 @@ pub use session_context::{
 };
 // MCP call visualization (data types + widget for ChatView)
 pub use mcp_call_box::{McpCallBox, McpCallData, McpCallStatus, DEFAULT_MAX_RETRIES};
-// Streaming inference display (data types only, widget rendering stripped)
-pub use infer_stream_box::{InferStatus, InferStreamBox, InferStreamData};
+// Streaming inference display (data types for ChatView)
+pub use infer_stream_box::{InferStatus, InferStreamData};
 // Hot/warm/cold activity data types (ActivityStack widget is dead, data types used by ChatView)
 pub use activity_stack::{ActivityItem, ActivityTemp};
 // Command palette
@@ -115,7 +100,7 @@ pub use mention_system::{
     highlight_mentions, Mention, MentionAutocomplete, MentionAutocompleteState, MentionSuggestion,
     MentionTrigger, MentionType,
 };
-// Agent phase indicator (step stubs removed)
+// Agent phase indicator
 pub use agent_steps::{AgentPhase, AgentPhaseIndicator};
 // Terminal size handling
 pub use terminal_size::{
@@ -126,8 +111,8 @@ pub use terminal_size::{
 pub use help_overlay::{HelpOverlay, HelpOverlayState, HelpSection, HELP_SECTIONS};
 // Status messages
 pub use status_message::{StatusLevel, StatusMessage, StatusMessageWidget, StatusQueue};
-// Matrix Decrypt effect
-pub use matrix_decrypt::{DecryptVerb, MatrixDecrypt, MultiLineDecrypt, StreamingDecrypt};
+// Matrix Decrypt effect (StreamingDecrypt active, MatrixDecrypt + MultiLineDecrypt staged)
+pub use matrix_decrypt::{DecryptVerb, StreamingDecrypt};
 // Task Box widgets
 pub use task_box::{
     exit, http, status, AgentBox, BoxState, ExecBox, FetchBox, InferBox, InvokeBox, TaskBox,

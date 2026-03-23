@@ -52,11 +52,6 @@ const COSMIC_EMOJIS: &[&str] = &[
     "🪐", "🌌", "🛰️", "🌙", "✨", "🔮", "🌟", "☄️", "🚀", "👽", "🛸", "⭐", "💫", "🌠", "🔭",
 ];
 
-/// Unicorn theme emojis (for magical/creative outputs)
-const UNICORN_EMOJIS: &[&str] = &[
-    "🦄", "🌈", "🧚", "🦋", "✨", "💖", "🌸", "🎀", "💫", "🍭", "🎠", "💜", "🩷", "🪷", "🦩",
-];
-
 /// Animal emojis - Nika mascots (for agent: verb)
 const ANIMAL_EMOJIS: &[&str] = &[
     "🐔",
@@ -79,12 +74,6 @@ const ANIMAL_EMOJIS: &[&str] = &[
     "🦝",
     "🐸",
     "🦎",
-];
-
-/// Food & drink emojis (fun sprinkles)
-const FOOD_EMOJIS: &[&str] = &[
-    "🧀", "🍕", "🍺", "🍸", "🍻", "🥂", "🍣", "🌮", "🥦", "🌵", "🌴", "🧃", "🍜", "🥖", "🥐", "🌶️",
-    "🍩", "🧁", "🍰", "🎂",
 ];
 
 /// Special/rare emojis (high impact)
@@ -137,12 +126,6 @@ const NERD_REFS: &[&str] = &[
     "∞",     // Infinity
     "λ",     // Lambda
     "Ω",     // Omega
-];
-
-/// Cycling text words
-const CYCLING_WORDS: &[&str] = &[
-    "Nika", "Freedom", "Liberté", "自由", "LOVE", "PEACE", "CODE", "RUST", "ASYNC", "MCP", "DAG",
-    "YAML", "ARR", "AHOY", "MAGIC",
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -209,19 +192,6 @@ impl DecryptVerb {
 // MATRIX DECRYPT STATE
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// State for a single character being decrypted
-#[derive(Clone)]
-struct CharState {
-    /// The final revealed character
-    target: char,
-    /// Current display (may be emoji or random char)
-    current: DecryptGlyph,
-    /// Reveal progress (0.0 = chaos, 1.0 = revealed)
-    progress: f32,
-    /// Per-character random seed
-    seed: u64,
-}
-
 #[derive(Clone)]
 enum DecryptGlyph {
     Char(char),
@@ -241,14 +211,6 @@ impl DecryptGlyph {
         }
     }
 
-    fn display_width(&self) -> usize {
-        match self {
-            DecryptGlyph::Char(_) => 1,
-            DecryptGlyph::Emoji(_) => 2,
-            DecryptGlyph::Kanji(_) => 2,
-            DecryptGlyph::Text(t) => t.chars().count(),
-        }
-    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -900,126 +862,6 @@ impl StreamingDecrypt {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// MULTI-LINE STREAMING DECRYPT
-// ═══════════════════════════════════════════════════════════════════════════════
-
-/// Multi-line streaming decrypt for longer outputs
-#[derive(Clone, Default)]
-pub struct MultiLineDecrypt {
-    /// Lines of text
-    lines: Vec<StreamingDecrypt>,
-    /// Current line being written to
-    current_line: usize,
-    /// Verb type for theming
-    verb: DecryptVerb,
-    /// Reveal speed
-    reveal_speed: f32,
-    /// Seed
-    seed: u64,
-}
-
-impl MultiLineDecrypt {
-    pub fn new() -> Self {
-        Self {
-            lines: vec![StreamingDecrypt::default()],
-            current_line: 0,
-            verb: DecryptVerb::default(),
-            reveal_speed: 0.05,
-            seed: 42,
-        }
-    }
-
-    pub fn with_verb(mut self, verb: DecryptVerb) -> Self {
-        self.verb = verb;
-        for line in &mut self.lines {
-            line.verb = verb;
-        }
-        self
-    }
-
-    pub fn with_reveal_speed(mut self, speed: f32) -> Self {
-        self.reveal_speed = speed;
-        for line in &mut self.lines {
-            line.reveal_speed = speed;
-        }
-        self
-    }
-
-    /// Push streaming text, handling newlines
-    pub fn push_text(&mut self, text: &str) {
-        for ch in text.chars() {
-            if ch == '\n' {
-                // Start new line
-                self.current_line += 1;
-                let new_line = StreamingDecrypt::new()
-                    .with_verb(self.verb)
-                    .with_reveal_speed(self.reveal_speed)
-                    .with_seed(self.seed.wrapping_add(self.current_line as u64));
-                self.lines.push(new_line);
-            } else {
-                // Add to current line
-                if self.current_line >= self.lines.len() {
-                    let new_line = StreamingDecrypt::new()
-                        .with_verb(self.verb)
-                        .with_reveal_speed(self.reveal_speed)
-                        .with_seed(self.seed.wrapping_add(self.current_line as u64));
-                    self.lines.push(new_line);
-                }
-                self.lines[self.current_line].push_text(&ch.to_string());
-            }
-        }
-    }
-
-    /// Advance animation for all lines
-    pub fn tick(&mut self) {
-        for line in &mut self.lines {
-            line.tick();
-        }
-    }
-
-    /// Reveal all lines immediately
-    pub fn reveal_all(&mut self) {
-        for line in &mut self.lines {
-            line.reveal_all();
-        }
-    }
-
-    /// Check if all lines are revealed
-    pub fn is_complete(&self) -> bool {
-        self.lines.iter().all(|l| l.is_complete())
-    }
-
-    /// Clear all content
-    pub fn clear(&mut self) {
-        self.lines.clear();
-        self.lines.push(
-            StreamingDecrypt::new()
-                .with_verb(self.verb)
-                .with_reveal_speed(self.reveal_speed)
-                .with_seed(self.seed),
-        );
-        self.current_line = 0;
-    }
-
-    /// Get line count
-    pub fn line_count(&self) -> usize {
-        self.lines.len()
-    }
-
-    /// Render to buffer with scroll offset
-    pub fn render(&self, area: Rect, buf: &mut Buffer, scroll_offset: usize) {
-        for (i, line) in self.lines.iter().enumerate().skip(scroll_offset) {
-            let y = area.y + (i - scroll_offset) as u16;
-            if y >= area.y + area.height {
-                break;
-            }
-            let line_area = Rect::new(area.x, y, area.width, 1);
-            line.render(line_area, buf);
-        }
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
 // TESTS
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -1207,40 +1049,6 @@ mod tests {
     }
 
     #[test]
-    fn test_multi_line_decrypt() {
-        let mut multi = MultiLineDecrypt::new();
-        multi.push_text("Line 1\nLine 2\nLine 3");
-
-        assert_eq!(multi.line_count(), 3);
-        assert_eq!(multi.lines[0].text(), "Line 1");
-        assert_eq!(multi.lines[1].text(), "Line 2");
-        assert_eq!(multi.lines[2].text(), "Line 3");
-    }
-
-    #[test]
-    fn test_multi_line_tick() {
-        let mut multi = MultiLineDecrypt::new().with_reveal_speed(1.0); // Fast reveal
-        multi.push_text("A\nB");
-
-        // Need multiple ticks due to initial chaos delay (default 8 frames)
-        // Tick enough times to pass chaos delay + reveal
-        for _ in 0..15 {
-            multi.tick();
-        }
-        assert!(multi.is_complete());
-    }
-
-    #[test]
-    fn test_multi_line_reveal_all() {
-        let mut multi = MultiLineDecrypt::new();
-        multi.push_text("Line 1\nLine 2");
-
-        assert!(!multi.is_complete());
-        multi.reveal_all();
-        assert!(multi.is_complete());
-    }
-
-    #[test]
     fn test_kanji_chars_included() {
         assert!(KANJI_CHARS.contains(&'自'));
         assert!(KANJI_CHARS.contains(&'由'));
@@ -1258,30 +1066,13 @@ mod tests {
     }
 
     #[test]
-    fn test_cycling_words_included() {
-        assert!(CYCLING_WORDS.contains(&"Nika"));
-        assert!(CYCLING_WORDS.contains(&"Freedom"));
-        assert!(CYCLING_WORDS.contains(&"自由"));
-    }
-
-    #[test]
     fn test_emoji_themes_non_empty() {
         assert!(!PIRATE_EMOJIS.is_empty());
         assert!(!COSMIC_EMOJIS.is_empty());
-        assert!(!UNICORN_EMOJIS.is_empty());
         assert!(!ANIMAL_EMOJIS.is_empty());
-        assert!(!FOOD_EMOJIS.is_empty());
         assert!(!SPECIAL_EMOJIS.is_empty());
         assert!(!TECH_EMOJIS.is_empty());
         assert!(!NATURE_EMOJIS.is_empty());
-    }
-
-    #[test]
-    fn test_decrypt_glyph_width() {
-        assert_eq!(DecryptGlyph::Char('a').display_width(), 1);
-        assert_eq!(DecryptGlyph::Emoji("🐔").display_width(), 2);
-        assert_eq!(DecryptGlyph::Kanji('自').display_width(), 2);
-        assert_eq!(DecryptGlyph::Text("42").display_width(), 2);
     }
 
     #[test]

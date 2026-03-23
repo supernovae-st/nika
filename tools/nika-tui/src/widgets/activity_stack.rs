@@ -7,8 +7,6 @@ use std::time::{Duration, Instant};
 
 use ratatui::style::Color;
 
-use crate::theme::VerbColor;
-
 // ═══════════════════════════════════════════════════════════════════════════
 // DEFAULT COLORS (fallbacks for theme-aware rendering)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -16,8 +14,6 @@ use crate::theme::VerbColor;
 const DEFAULT_HOT_COLOR: Color = Color::Rgb(251, 146, 60); // orange
 const DEFAULT_WARM_COLOR: Color = Color::Rgb(250, 204, 21); // yellow
 const DEFAULT_QUEUED_COLOR: Color = Color::Rgb(156, 163, 175); // gray
-const DEFAULT_VIOLET_COLOR: Color = Color::Rgb(139, 92, 246); // violet
-const DEFAULT_AMBER_COLOR: Color = Color::Rgb(245, 158, 11); // amber
 
 /// Activity temperature
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -125,13 +121,6 @@ impl ActivityItem {
         self.started.map(|s| s.elapsed())
     }
 
-    fn verb_icon(&self) -> &'static str {
-        VerbColor::from_verb(&self.verb).icon()
-    }
-
-    fn verb_color(&self) -> Color {
-        VerbColor::from_verb(&self.verb).rgb()
-    }
 }
 
 #[cfg(test)]
@@ -159,28 +148,6 @@ mod tests {
         let item = ActivityItem::queued("task3", "fetch", "task1");
         assert_eq!(item.temp, ActivityTemp::Queued);
         assert_eq!(item.waiting_on, Some("task1".to_string()));
-    }
-
-    #[test]
-    fn test_verb_icon() {
-        // Canonical icons from CLAUDE.md (via VerbColor::from_verb().icon())
-        let item = ActivityItem::hot("t", "infer");
-        assert_eq!(item.verb_icon(), "⚡"); // LLM generation
-
-        let item = ActivityItem::hot("t", "exec");
-        assert_eq!(item.verb_icon(), "📟"); // Shell command
-
-        let item = ActivityItem::hot("t", "invoke");
-        assert_eq!(item.verb_icon(), "🔌"); // MCP tool
-    }
-
-    #[test]
-    fn test_verb_color() {
-        let item = ActivityItem::hot("t", "infer");
-        assert_eq!(item.verb_color(), DEFAULT_VIOLET_COLOR);
-
-        let item = ActivityItem::hot("t", "exec");
-        assert_eq!(item.verb_color(), DEFAULT_AMBER_COLOR);
     }
 
     #[test]
