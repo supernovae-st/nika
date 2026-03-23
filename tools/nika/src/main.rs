@@ -1001,34 +1001,46 @@ async fn resolve_workflow_path(reference: &str) -> Result<PathBuf, NikaError> {
     Ok(path)
 }
 
-/// Run a built-in 5-task DAG demo — Nika's manifesto as a workflow.
+/// Run a built-in 8-task DAG demo — Nika's manifesto as a workflow.
 ///
-/// Shows: welcome → [yaml, parallel, providers] → ship
-/// 5 tasks, 3 parallel, full DAG render, no API key needed.
+/// Diamond pattern: start → [write, connect, track] → [build, run] → launch → celebrate
+/// 8 tasks, 4 layers, fan-out + fan-in, no API key needed.
 async fn run_demo(quiet: bool, detail: nika::display::DetailLevel) -> Result<(), NikaError> {
     const DEMO_YAML: &str = r#"schema: "nika/workflow@0.12"
 workflow: hello-nika
-description: "Welcome to Nika"
+description: "Welcome to Nika — this is running live right now"
 
 tasks:
-  - id: welcome
-    exec: "echo 'Hey! This is Nika running a real DAG — right now.'"
+  - id: start
+    exec: "echo 'Hey! This is Nika — a real DAG running live.'"
 
-  - id: yaml
-    depends_on: [welcome]
-    exec: "echo 'You write YAML. Nika builds the DAG, resolves deps, runs it.'"
+  - id: write
+    depends_on: [start]
+    exec: "echo 'Write YAML. Nika resolves deps and runs it.'"
 
-  - id: parallel
-    depends_on: [welcome]
-    exec: "echo 'Tasks run in parallel automatically. This one ran alongside yaml.'"
+  - id: connect
+    depends_on: [start]
+    exec: "echo '7 providers: Claude, GPT, Gemini, Mistral, Groq, xAI, local.'"
 
-  - id: providers
-    depends_on: [welcome]
-    exec: "echo '7 AI providers, cost tracking, MCP tools — all from YAML.'"
+  - id: track
+    depends_on: [start]
+    exec: "echo 'Every token counted. Every cent tracked.'"
 
-  - id: ship
-    depends_on: [yaml, parallel, providers]
-    exec: "echo 'One file. Any AI. Ship it. Welcome aboard.'"
+  - id: build
+    depends_on: [write, connect]
+    exec: "echo 'DAG, parallel exec, MCP tools, media pipeline.'"
+
+  - id: run
+    depends_on: [connect, track]
+    exec: "echo 'Headless CLI, TUI, or embed as a library.'"
+
+  - id: launch
+    depends_on: [build, run]
+    exec: "echo 'One file. Any AI. Ship it.'"
+
+  - id: celebrate
+    depends_on: [launch]
+    exec: "echo 'Welcome aboard, captain.'"
 "#;
 
     println!();
@@ -1049,7 +1061,16 @@ tasks:
         use nika::display::{render_dag, DagTask, DagTaskStatus};
         use std::collections::HashMap;
 
-        let names = ["welcome", "yaml", "parallel", "providers", "ship"];
+        let names = [
+            "start",
+            "write",
+            "connect",
+            "track",
+            "build",
+            "run",
+            "launch",
+            "celebrate",
+        ];
         let dag_tasks: Vec<DagTask> = names
             .iter()
             .map(|id| DagTask {
@@ -1062,13 +1083,13 @@ tasks:
             .collect();
 
         let mut deps: HashMap<String, Vec<String>> = HashMap::new();
-        deps.insert("yaml".into(), vec!["welcome".into()]);
-        deps.insert("parallel".into(), vec!["welcome".into()]);
-        deps.insert("providers".into(), vec!["welcome".into()]);
-        deps.insert(
-            "ship".into(),
-            vec!["yaml".into(), "parallel".into(), "providers".into()],
-        );
+        deps.insert("write".into(), vec!["start".into()]);
+        deps.insert("connect".into(), vec!["start".into()]);
+        deps.insert("track".into(), vec!["start".into()]);
+        deps.insert("build".into(), vec!["write".into(), "connect".into()]);
+        deps.insert("run".into(), vec!["connect".into(), "track".into()]);
+        deps.insert("launch".into(), vec!["build".into(), "run".into()]);
+        deps.insert("celebrate".into(), vec!["launch".into()]);
 
         render_dag(&dag_tasks, &deps);
     }
