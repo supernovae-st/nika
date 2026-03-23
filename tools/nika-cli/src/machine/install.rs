@@ -1,106 +1,12 @@
-//! Machine-level auto-setup for Nika.
-//!
-//! Detects installed editors/AI tools and configures them automatically.
-//! Tracks setup state via `~/.nika/machine.toml` marker file.
-//! Called by `nika init` before the project wizard (Phase 1).
+//! Editor detection, rule installation, hash protection, completions, and quick scan.
 
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use colored::Colorize;
 
-/// Result of a single setup action.
-#[derive(Debug)]
-pub struct SetupResult {
-    pub name: String,
-    pub success: bool,
-    #[allow(dead_code)]
-    pub message: String,
-}
-
-/// Distinguishes "never set up" from "version mismatch" from "ready".
-#[derive(Debug, PartialEq)]
-pub enum MachineStatus {
-    /// Never set up (no marker file)
-    NeverSetup,
-    /// Set up but version doesn't match (user upgraded)
-    NeedsUpdate,
-    /// Fully set up and current
-    Ready,
-}
-
-/// Return the machine setup status: NeverSetup, NeedsUpdate, or Ready.
-pub fn machine_setup_status() -> MachineStatus {
-    let marker = machine_toml_path();
-    let content = match std::fs::read_to_string(&marker) {
-        Ok(c) => c,
-        Err(_) => return MachineStatus::NeverSetup,
-    };
-    for line in content.lines() {
-        let trimmed = line.trim();
-        if let Some(rest) = trimmed.strip_prefix("version") {
-            let rest = rest.trim().strip_prefix('=').unwrap_or("").trim();
-            let version = rest.trim_matches('"');
-            if version == env!("CARGO_PKG_VERSION") {
-                return MachineStatus::Ready;
-            } else {
-                return MachineStatus::NeedsUpdate;
-            }
-        }
-    }
-    MachineStatus::NeedsUpdate
-}
-
-/// Check if machine setup has been done (marker file exists + version current).
-pub fn is_machine_setup() -> bool {
-    machine_setup_status() == MachineStatus::Ready
-}
-
-/// Returns true in CI/CD or automated environments where machine setup must not run.
-pub fn is_ci() -> bool {
-    use std::env;
-    if env::var("NIKA_NO_SETUP").map(|v| v == "1").unwrap_or(false) {
-        return true;
-    }
-    if env::var("CI").is_ok() {
-        return true;
-    }
-    let ci_vars = [
-        "GITHUB_ACTIONS",
-        "GITLAB_CI",
-        "CIRCLECI",
-        "JENKINS_URL",
-        "BUILDKITE",
-        "TRAVIS",
-        "CODEBUILD_BUILD_ID",
-        "TF_BUILD",
-    ];
-    if ci_vars.iter().any(|v| env::var(v).is_ok()) {
-        return true;
-    }
-    if dirs::home_dir().is_none() {
-        return true;
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        let dumb = env::var("TERM").map(|t| t == "dumb").unwrap_or(false);
-        let no_display = env::var("DISPLAY").is_err() && env::var("WAYLAND_DISPLAY").is_err();
-        if dumb && no_display {
-            return true;
-        }
-    }
-    false
-}
-
-/// Path to the machine marker file.
-fn machine_toml_path() -> PathBuf {
-    dirs::home_dir()
-        .unwrap_or_else(|| PathBuf::from("/tmp"))
-        .join(".nika")
-        .join("machine.toml")
-}
+use super::status::{machine_toml_path, write_marker, SetupResult};
 
 // ─── Editor Detection ────────────────────────────────────────────────────────
 
@@ -108,7 +14,7 @@ fn machine_toml_path() -> PathBuf {
 ///
 /// Returns a list of editor IDs (lowercase slugs) used as keys for rule
 /// installation and tracking in machine.toml.
-fn detect_editors() -> Vec<&'static str> {
+pub(super) fn detect_editors() -> Vec<&'static str> {
     let mut editors = Vec::new();
     let home = dirs::home_dir().unwrap_or_default();
 
@@ -1464,55 +1370,6 @@ fn setup_completions() -> SetupResult {
             }
         }
     }
-}
-
-fn write_marker(results: &[SetupResult]) {
-    let editors = detect_editors();
-    write_marker_with_editors(results, &editors);
-}
-
-fn write_marker_with_editors(results: &[SetupResult], editors: &[&str]) {
-    let marker_path = machine_toml_path();
-    let Some(dir) = marker_path.parent() else {
-        return;
-    };
-    std::fs::create_dir_all(dir).ok();
-
-    let ai_tools: Vec<&str> = results
-        .iter()
-        .filter(|r| {
-            r.success
-                && [
-                    "Claude Code",
-                    "Cursor",
-                    "Copilot",
-                    "Windsurf",
-                    "Roo Code",
-                    "Agent Skills",
-                ]
-                .contains(&r.name.as_str())
-        })
-        .map(|r| r.name.as_str())
-        .collect();
-
-    let secs = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-
-    // Format editors as TOML array: editors = ["vscode", "claude", "cursor"]
-    let editors_toml: Vec<String> = editors.iter().map(|e| format!("\"{}\"", e)).collect();
-
-    let content = format!(
-        "[machine]\nsetup_at = \"{}\"\nversion = \"{}\"\neditors = [{}]\nai_tools = {:?}\n",
-        secs,
-        env!("CARGO_PKG_VERSION"),
-        editors_toml.join(", "),
-        ai_tools,
-    );
-
-    // Don't fail init if marker write fails
-    std::fs::write(&marker_path, content).ok();
 }
 
 // ─── Quick Editor Re-Scan ────────────────────────────────────────────────────
