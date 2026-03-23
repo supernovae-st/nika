@@ -21,7 +21,7 @@ use std::sync::Arc;
 
 /// Helper to create executor with default settings
 fn create_executor() -> TaskExecutor {
-    TaskExecutor::new("mock", None, None, EventLog::new())
+    TaskExecutor::new("mock", None, None, EventLog::new()).unwrap()
 }
 
 /// Helper to execute an exec action

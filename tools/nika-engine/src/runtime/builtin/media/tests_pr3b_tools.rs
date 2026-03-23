@@ -11,7 +11,7 @@ mod tests {
 
     async fn setup() -> (tempfile::TempDir, Arc<MediaToolContext>) {
         let dir = tempfile::tempdir().unwrap();
-        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
         (dir, ctx)
     }
 
@@ -934,7 +934,7 @@ mod tests {
     #[test]
     fn import_is_in_tool_list() {
         let dir = tempfile::tempdir().unwrap();
-        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
         let tools = crate::runtime::builtin::media::create_media_tool_adapters(ctx);
 
         let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
@@ -951,7 +951,7 @@ mod tests {
     #[test]
     fn all_tool_names_unique() {
         let dir = tempfile::tempdir().unwrap();
-        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
         let tools = crate::runtime::builtin::media::create_media_tool_adapters(ctx);
 
         let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
@@ -969,7 +969,7 @@ mod tests {
     #[test]
     fn all_tools_have_description() {
         let dir = tempfile::tempdir().unwrap();
-        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
         let tools = crate::runtime::builtin::media::create_media_tool_adapters(ctx);
 
         for tool in &tools {
@@ -984,7 +984,7 @@ mod tests {
     #[test]
     fn all_tools_have_valid_schema() {
         let dir = tempfile::tempdir().unwrap();
-        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
         let tools = crate::runtime::builtin::media::create_media_tool_adapters(ctx);
 
         for tool in &tools {

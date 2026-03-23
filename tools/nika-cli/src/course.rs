@@ -205,8 +205,10 @@ fn parse_exercise_id(id: &str) -> Result<(u8, u8), NikaError> {
 /// Uses the embedded exercise data to resolve the actual filename
 /// (e.g., `01-hello-world.nika.yaml`), falling back to a glob of the
 /// level directory when the exercise is not found in the embedded data.
-fn exercise_path(root: &Path, level: u8, exercise: u8) -> PathBuf {
-    let level_def = levels::by_number(level).unwrap();
+fn exercise_path(root: &Path, level: u8, exercise: u8) -> Result<PathBuf, NikaError> {
+    let level_def = levels::by_number(level).ok_or_else(|| NikaError::CourseNotFound {
+        path: format!("level {}", level),
+    })?;
     let level_dir = root.join(format!("{:02}-{}", level, level_def.slug));
 
     // Look up the real filename from the embedded exercise data
@@ -214,7 +216,7 @@ fn exercise_path(root: &Path, level: u8, exercise: u8) -> PathBuf {
         .into_iter()
         .find(|e| e.level_slug == level_def.slug && e.exercise_num == exercise)
     {
-        return level_dir.join(ex.filename);
+        return Ok(level_dir.join(ex.filename));
     }
 
     // Fallback: list *.nika.yaml files sorted and pick the Nth one
@@ -229,12 +231,12 @@ fn exercise_path(root: &Path, level: u8, exercise: u8) -> PathBuf {
             .collect();
         files.sort();
         if let Some(path) = files.into_iter().nth(exercise as usize - 1) {
-            return path;
+            return Ok(path);
         }
     }
 
     // Last resort: use the level_dir with a synthetic name so errors are clear
-    level_dir.join(format!("{:02}-exercise-{}.nika.yaml", exercise, exercise))
+    Ok(level_dir.join(format!("{:02}-exercise-{}.nika.yaml", exercise, exercise)))
 }
 
 // ─── Status icons ───────────────────────────────────────────────────────────
@@ -454,7 +456,7 @@ fn cmd_next() -> Result<(), NikaError> {
                 .get(&ex_key)
                 .unwrap_or(&ExerciseStatus::NotStarted);
             if *status != ExerciseStatus::Passed && *status != ExerciseStatus::Perfect {
-                let path = exercise_path(&root, level.number, ex);
+                let path = exercise_path(&root, level.number, ex)?;
                 println!();
                 println!(
                     "  {} Level {:02}: {} -- Exercise {}",
@@ -552,7 +554,7 @@ fn cmd_check(level_arg: Option<String>) -> Result<(), NikaError> {
     };
 
     for ex in 1..=level.exercise_count {
-        let path = exercise_path(&root, level.number, ex);
+        let path = exercise_path(&root, level.number, ex)?;
         let ex_id = format!("{:02}-{:02}", level.number, ex);
 
         if !path.exists() {
@@ -635,8 +637,7 @@ fn cmd_check(level_arg: Option<String>) -> Result<(), NikaError> {
             passed,
             total
         );
-        if level.number < 12 {
-            let next = levels::by_number(level.number + 1).unwrap();
+        if let Some(next) = levels::by_number(level.number + 1) {
             println!(
                 "  {} Next: Level {:02} -- {}",
                 ">>".cyan(),
@@ -819,7 +820,9 @@ fn cmd_hint(exercise_arg: Option<String>) -> Result<(), NikaError> {
         }
     };
 
-    let level = levels::by_number(level_num).unwrap();
+    let level = levels::by_number(level_num).ok_or_else(|| NikaError::CourseNotFound {
+        path: format!("level {}", level_num),
+    })?;
     let hints = get_hints(level_num, ex_num).ok_or_else(|| NikaError::ValidationError {
         reason: format!(
             "No hints available for exercise {:02}-{:02} yet.",
@@ -921,7 +924,7 @@ fn cmd_reset(level_arg: &str) -> Result<(), NikaError> {
 fn cmd_run(exercise_arg: &str) -> Result<(), NikaError> {
     let root = find_course_root()?;
     let (level_num, ex_num) = parse_exercise_id(exercise_arg)?;
-    let path = exercise_path(&root, level_num, ex_num);
+    let path = exercise_path(&root, level_num, ex_num)?;
 
     if !path.exists() {
         return Err(NikaError::ValidationError {
@@ -932,7 +935,9 @@ fn cmd_run(exercise_arg: &str) -> Result<(), NikaError> {
         });
     }
 
-    let level = levels::by_number(level_num).unwrap();
+    let level = levels::by_number(level_num).ok_or_else(|| NikaError::CourseNotFound {
+        path: format!("level {}", level_num),
+    })?;
     println!();
     println!(
         "  {} Running {:02}-{:02} ({} -- exercise {})",
@@ -1014,7 +1019,7 @@ fn cmd_info(level_arg: Option<String>) -> Result<(), NikaError> {
                     .and_then(|l| l.exercises.get(&ex_key))
                     .unwrap_or(&ExerciseStatus::NotStarted);
                 let icon = exercise_status_icon(ex_status);
-                let path = exercise_path(&root, level.number, ex);
+                let path = exercise_path(&root, level.number, ex)?;
                 let exists = if path.exists() { "" } else { " (missing)" };
                 println!(
                     "    {} {:02}-{:02}{}",
@@ -1297,7 +1302,7 @@ mod tests {
     #[test]
     fn test_exercise_path_format() {
         let root = PathBuf::from("/project");
-        let path = exercise_path(&root, 1, 3);
+        let path = exercise_path(&root, 1, 3).unwrap();
         // Level 1, exercise 3 = "03-http-requests.nika.yaml"
         assert_eq!(
             path,
@@ -1308,7 +1313,7 @@ mod tests {
     #[test]
     fn test_exercise_path_level_12() {
         let root = PathBuf::from("/project");
-        let path = exercise_path(&root, 12, 5);
+        let path = exercise_path(&root, 12, 5).unwrap();
         // Level 12, exercise 5 = "05-full-stack.nika.yaml"
         assert_eq!(
             path,
@@ -1319,7 +1324,7 @@ mod tests {
     #[test]
     fn test_exercise_path_no_course_prefix() {
         let root = PathBuf::from("/project");
-        let path = exercise_path(&root, 1, 1);
+        let path = exercise_path(&root, 1, 1).unwrap();
         // Must NOT contain "course/" prefix
         assert!(
             !path.to_string_lossy().contains("/course/"),

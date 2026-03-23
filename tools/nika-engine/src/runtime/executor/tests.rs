@@ -20,14 +20,14 @@ use std::time::Duration;
 
 #[test]
 fn test_executor_new_default() {
-    let executor = TaskExecutor::new("claude", None, None, EventLog::new());
+    let executor = TaskExecutor::new("claude", None, None, EventLog::new()).unwrap();
     assert_eq!(executor.default_provider.as_ref(), "claude");
     assert!(executor.default_model.is_none());
 }
 
 #[test]
 fn test_executor_new_with_model() {
-    let executor = TaskExecutor::new("openai", Some("gpt-4"), None, EventLog::new());
+    let executor = TaskExecutor::new("openai", Some("gpt-4"), None, EventLog::new()).unwrap();
     assert_eq!(executor.default_provider.as_ref(), "openai");
     assert_eq!(executor.default_model.as_deref(), Some("gpt-4"));
 }
@@ -48,13 +48,13 @@ fn test_executor_new_with_mcp_configs() {
         },
     );
 
-    let executor = TaskExecutor::new("mock", None, Some(mcp_configs), EventLog::new());
+    let executor = TaskExecutor::new("mock", None, Some(mcp_configs), EventLog::new()).unwrap();
     assert_eq!(executor.default_provider.as_ref(), "mock");
 }
 
 #[test]
 fn test_executor_is_clone() {
-    let exec = TaskExecutor::new("mock", None, None, EventLog::new());
+    let exec = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let _cloned = exec.clone();
 }
 
@@ -64,7 +64,7 @@ fn test_executor_is_clone() {
 
 #[tokio::test]
 async fn test_execute_exec_simple_command() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
 
@@ -88,7 +88,7 @@ async fn test_execute_exec_simple_command() {
 
 #[tokio::test]
 async fn test_execute_exec_with_template_binding() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let mut bindings = ResolvedBindings::new();
     bindings.set("name", json!("world"));
     let datastore = RunContext::new();
@@ -113,7 +113,7 @@ async fn test_execute_exec_with_template_binding() {
 
 #[tokio::test]
 async fn test_execute_exec_command_failure() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
 
@@ -148,7 +148,7 @@ async fn test_execute_exec_command_failure() {
 #[tokio::test]
 async fn test_execute_exec_emits_template_resolved() {
     let event_log = EventLog::new();
-    let executor = TaskExecutor::new("mock", None, None, event_log.clone());
+    let executor = TaskExecutor::new("mock", None, None, event_log.clone()).unwrap();
     let mut bindings = ResolvedBindings::new();
     bindings.set("greeting", json!("Hello"));
     let datastore = RunContext::new();
@@ -190,7 +190,7 @@ async fn test_execute_exec_emits_template_resolved() {
 
 #[tokio::test]
 async fn test_execute_fetch_invalid_url() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
 
@@ -220,7 +220,7 @@ async fn test_execute_fetch_invalid_url() {
 
 #[tokio::test]
 async fn test_execute_fetch_with_template_url() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let mut bindings = ResolvedBindings::new();
     bindings.set("endpoint", json!("httpbin.org/get"));
     let datastore = RunContext::new();
@@ -248,7 +248,7 @@ async fn test_execute_fetch_with_template_url() {
         .await;
     // Just verify template was resolved (regardless of network success/failure)
     let events = EventLog::new();
-    let executor2 = TaskExecutor::new("mock", None, None, events.clone());
+    let executor2 = TaskExecutor::new("mock", None, None, events.clone()).unwrap();
     let result2 = executor2
         .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
@@ -263,7 +263,7 @@ async fn test_execute_fetch_with_template_url() {
 #[tokio::test]
 async fn test_execute_invoke_tool_call() {
     let event_log = EventLog::new();
-    let executor = TaskExecutor::new("mock", None, None, event_log.clone());
+    let executor = TaskExecutor::new("mock", None, None, event_log.clone()).unwrap();
     executor.inject_mock_mcp_client("novanet");
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
@@ -294,7 +294,7 @@ async fn test_execute_invoke_tool_call() {
 #[tokio::test]
 async fn test_execute_invoke_resource_read() {
     let event_log = EventLog::new();
-    let executor = TaskExecutor::new("mock", None, None, event_log);
+    let executor = TaskExecutor::new("mock", None, None, event_log).unwrap();
     executor.inject_mock_mcp_client("novanet");
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
@@ -329,7 +329,7 @@ async fn test_execute_invoke_resource_read() {
 #[tokio::test]
 async fn test_execute_invoke_emits_mcp_events() {
     let event_log = EventLog::new();
-    let executor = TaskExecutor::new("mock", None, None, event_log.clone());
+    let executor = TaskExecutor::new("mock", None, None, event_log.clone()).unwrap();
     executor.inject_mock_mcp_client("novanet");
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
@@ -371,7 +371,7 @@ async fn test_execute_invoke_emits_mcp_events() {
 
 #[tokio::test]
 async fn test_execute_invoke_tool_with_template_params() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     executor.inject_mock_mcp_client("novanet");
     let mut bindings = ResolvedBindings::new();
     bindings.set("entity_key", json!("qr-code"));
@@ -405,7 +405,7 @@ async fn test_execute_invoke_tool_with_template_params() {
 
 #[tokio::test]
 async fn test_execute_invoke_validation_error_both_tool_and_resource() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
 
@@ -436,7 +436,7 @@ async fn test_execute_invoke_validation_error_both_tool_and_resource() {
 
 #[tokio::test]
 async fn test_execute_invoke_validation_error_neither_tool_nor_resource() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
 
@@ -467,7 +467,7 @@ async fn test_execute_invoke_validation_error_neither_tool_nor_resource() {
 
 #[tokio::test]
 async fn test_execute_invoke_mcp_not_configured() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     // No inject_mock_mcp_client() - server not configured
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
@@ -506,7 +506,7 @@ async fn test_execute_invoke_mcp_not_configured() {
 #[tokio::test]
 async fn test_builtin_invoke_stages_media_ref() {
     let event_log = EventLog::new();
-    let executor = TaskExecutor::new("mock", None, None, event_log);
+    let executor = TaskExecutor::new("mock", None, None, event_log).unwrap();
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
 
@@ -559,7 +559,7 @@ async fn test_builtin_invoke_stages_media_ref() {
 
 #[tokio::test]
 async fn test_binding_resolution_single_template() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let mut bindings = ResolvedBindings::new();
     bindings.set("key", json!("value123"));
     let datastore = RunContext::new();
@@ -584,7 +584,7 @@ async fn test_binding_resolution_single_template() {
 
 #[tokio::test]
 async fn test_binding_resolution_multiple_templates() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let mut bindings = ResolvedBindings::new();
     bindings.set("first", json!("hello"));
     bindings.set("second", json!("world"));
@@ -610,7 +610,7 @@ async fn test_binding_resolution_multiple_templates() {
 
 #[tokio::test]
 async fn test_binding_resolution_no_templates() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
 
@@ -634,7 +634,7 @@ async fn test_binding_resolution_no_templates() {
 
 #[tokio::test]
 async fn test_binding_resolution_json_value() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let mut bindings = ResolvedBindings::new();
     bindings.set("data", json!({"id": 42, "name": "test"}));
     let datastore = RunContext::new();
@@ -661,7 +661,7 @@ async fn test_binding_resolution_json_value() {
 
 #[tokio::test]
 async fn test_binding_resolution_datastore_lookup() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let mut bindings = ResolvedBindings::new();
     bindings.set("task_output", json!({"data": "ok"}));
     let datastore = RunContext::new();
@@ -695,7 +695,7 @@ async fn test_binding_resolution_datastore_lookup() {
 
 #[tokio::test]
 async fn test_expand_decompose_static() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let mut bindings = ResolvedBindings::new();
     bindings.set("items", json!(["item1", "item2", "item3"]));
     let datastore = RunContext::new();
@@ -722,7 +722,7 @@ async fn test_expand_decompose_static() {
 
 #[tokio::test]
 async fn test_expand_decompose_static_with_max_items() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let mut bindings = ResolvedBindings::new();
     bindings.set("items", json!(["a", "b", "c", "d", "e"]));
     let datastore = RunContext::new();
@@ -746,7 +746,7 @@ async fn test_expand_decompose_static_with_max_items() {
 
 #[tokio::test]
 async fn test_expand_decompose_static_wrong_type() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let mut bindings = ResolvedBindings::new();
     bindings.set("notarray", json!({"key": "value"}));
     let datastore = RunContext::new();
@@ -768,7 +768,7 @@ async fn test_expand_decompose_static_wrong_type() {
 
 #[tokio::test]
 async fn test_extract_decompose_key_from_string() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let value = json!("entity:qr-code");
 
     let key = executor.extract_decompose_key(&value).unwrap();
@@ -777,7 +777,7 @@ async fn test_extract_decompose_key_from_string() {
 
 #[tokio::test]
 async fn test_extract_decompose_key_from_object() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let value = json!({"key": "entity:test", "name": "Test Entity"});
 
     let key = executor.extract_decompose_key(&value).unwrap();
@@ -786,7 +786,7 @@ async fn test_extract_decompose_key_from_object() {
 
 #[tokio::test]
 async fn test_extract_decompose_key_invalid() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let value = json!(123);
 
     let result = executor.extract_decompose_key(&value);
@@ -795,7 +795,7 @@ async fn test_extract_decompose_key_invalid() {
 
 #[tokio::test]
 async fn test_extract_decompose_nodes_from_nodes_field() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let result_json = json!({
         "nodes": [
             {"key": "node1"},
@@ -809,7 +809,7 @@ async fn test_extract_decompose_nodes_from_nodes_field() {
 
 #[tokio::test]
 async fn test_extract_decompose_nodes_from_items_field() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let result_json = json!({
         "items": ["item1", "item2", "item3"]
     });
@@ -820,7 +820,7 @@ async fn test_extract_decompose_nodes_from_items_field() {
 
 #[tokio::test]
 async fn test_extract_decompose_nodes_from_results_field() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let result_json = json!({
         "results": ["result1", "result2"]
     });
@@ -831,7 +831,7 @@ async fn test_extract_decompose_nodes_from_results_field() {
 
 #[tokio::test]
 async fn test_extract_decompose_nodes_from_array() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let result_json = json!(["direct1", "direct2"]);
 
     let nodes = executor.extract_decompose_nodes(result_json).unwrap();
@@ -840,7 +840,7 @@ async fn test_extract_decompose_nodes_from_array() {
 
 #[tokio::test]
 async fn test_extract_decompose_nodes_empty_nodes() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let result_json = json!({"nodes": []});
 
     let nodes = executor.extract_decompose_nodes(result_json).unwrap();
@@ -853,7 +853,7 @@ async fn test_extract_decompose_nodes_empty_nodes() {
 
 #[tokio::test]
 async fn test_error_handling_exec_timeout() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
 
@@ -978,7 +978,7 @@ async fn test_execute_exec_blocked_by_policy() {
         EventLog::new(),
         Some(policy_config),
         None,
-    );
+    ).unwrap();
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
 
@@ -1023,7 +1023,7 @@ async fn test_execute_exec_allowed_by_policy() {
         EventLog::new(),
         Some(policy_config),
         None,
-    );
+    ).unwrap();
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
 
@@ -1060,7 +1060,7 @@ async fn test_execute_exec_disabled_by_policy() {
         EventLog::new(),
         Some(policy_config),
         None,
-    );
+    ).unwrap();
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
 
@@ -1106,7 +1106,7 @@ async fn test_execute_fetch_blocked_by_policy() {
         EventLog::new(),
         Some(policy_config),
         None,
-    );
+    ).unwrap();
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
 
@@ -1154,7 +1154,7 @@ async fn test_execute_fetch_disabled_by_policy() {
         EventLog::new(),
         Some(policy_config),
         None,
-    );
+    ).unwrap();
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
 
@@ -1210,7 +1210,7 @@ async fn test_executor_with_policy_config() {
         EventLog::new(),
         Some(policy_config),
         None,
-    );
+    ).unwrap();
 
     // Verify executor was created (basic sanity check)
     assert_eq!(executor.default_provider.as_ref(), "mock");
@@ -1250,7 +1250,7 @@ fn test_shlex_split_escaped_characters() {
 
 #[tokio::test]
 async fn test_run_exec_shell_free_mode_default() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let task_id: Arc<str> = Arc::from("test_shell_free");
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
@@ -1281,7 +1281,7 @@ async fn test_run_exec_shell_free_mode_default() {
 
 #[tokio::test]
 async fn test_run_exec_shell_true_mode_interprets_metacharacters() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let task_id: Arc<str> = Arc::from("test_shell_true");
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
@@ -1305,7 +1305,7 @@ async fn test_run_exec_shell_true_mode_interprets_metacharacters() {
 
 #[tokio::test]
 async fn test_run_exec_shell_free_prevents_injection() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let task_id: Arc<str> = Arc::from("test_injection");
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
@@ -1328,7 +1328,7 @@ async fn test_run_exec_shell_free_prevents_injection() {
 
 #[tokio::test]
 async fn test_run_exec_security_validation_blocks_dangerous_commands() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let task_id: Arc<str> = Arc::from("test_blocked");
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
@@ -1468,7 +1468,7 @@ fn test_build_json_schema_instruction_markdown_format() {
 
 #[test]
 fn test_get_rig_provider_unknown_provider() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let result = executor.get_rig_provider("nonexistent_provider");
     assert!(result.is_err());
     let err = result.unwrap_err();
@@ -1480,7 +1480,7 @@ fn test_get_rig_provider_unknown_provider() {
 
 #[test]
 fn test_get_rig_provider_empty_name() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let result = executor.get_rig_provider("");
     assert!(result.is_err(), "Empty provider name should fail");
 }
@@ -1491,7 +1491,7 @@ fn test_get_rig_provider_empty_name() {
 
 #[tokio::test]
 async fn test_run_infer_mock_basic() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let task_id: Arc<str> = Arc::from("test-infer-mock");
     let bindings = ResolvedBindings::default();
     let datastore = RunContext::default();
@@ -1523,7 +1523,7 @@ async fn test_run_infer_mock_basic() {
 #[tokio::test]
 async fn test_run_infer_mock_emits_provider_responded() {
     let event_log = EventLog::new();
-    let executor = TaskExecutor::new("mock", None, None, event_log.clone());
+    let executor = TaskExecutor::new("mock", None, None, event_log.clone()).unwrap();
     let task_id: Arc<str> = Arc::from("test-infer-events");
     let bindings = ResolvedBindings::default();
     let datastore = RunContext::default();
@@ -1553,7 +1553,7 @@ async fn test_run_infer_mock_emits_provider_responded() {
 
 #[tokio::test]
 async fn test_run_infer_mock_with_json_schema_injection() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let task_id: Arc<str> = Arc::from("test-infer-schema");
     let bindings = ResolvedBindings::default();
     let datastore = RunContext::default();
@@ -1584,7 +1584,7 @@ async fn test_run_infer_mock_with_json_schema_injection() {
 #[tokio::test]
 async fn test_run_infer_mock_with_task_level_provider() {
     // Executor default is "claude" but task overrides to "mock"
-    let executor = TaskExecutor::new("claude", None, None, EventLog::new());
+    let executor = TaskExecutor::new("claude", None, None, EventLog::new()).unwrap();
     let task_id: Arc<str> = Arc::from("test-infer-override");
     let bindings = ResolvedBindings::default();
     let datastore = RunContext::default();
@@ -1607,7 +1607,7 @@ async fn test_run_infer_mock_with_task_level_provider() {
 
 #[tokio::test]
 async fn test_run_infer_empty_prompt() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let task_id: Arc<str> = Arc::from("test-infer-empty");
     let bindings = ResolvedBindings::default();
     let datastore = RunContext::default();
@@ -1635,7 +1635,7 @@ async fn test_run_infer_empty_prompt() {
 
 #[tokio::test]
 async fn test_run_exec_with_env_vars() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
 
@@ -1662,7 +1662,7 @@ async fn test_run_exec_with_env_vars() {
 
 #[tokio::test]
 async fn test_run_exec_with_env_template_resolution() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let mut bindings = ResolvedBindings::new();
     bindings.set("env_val", json!("resolved_value"));
     let datastore = RunContext::new();
@@ -1690,7 +1690,7 @@ async fn test_run_exec_with_env_template_resolution() {
 
 #[tokio::test]
 async fn test_run_exec_with_multiple_env_vars() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
 
@@ -1722,7 +1722,7 @@ async fn test_run_exec_with_multiple_env_vars() {
 
 #[tokio::test]
 async fn test_run_exec_with_custom_timeout() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
 
@@ -1751,7 +1751,7 @@ async fn test_run_exec_with_custom_timeout() {
 
 #[tokio::test]
 async fn test_run_infer_mock_with_template_binding() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let task_id: Arc<str> = Arc::from("test-infer-tpl");
     let mut bindings = ResolvedBindings::new();
     bindings.set("topic", json!("quantum computing"));
@@ -1774,7 +1774,7 @@ async fn test_run_infer_mock_with_template_binding() {
 
 #[tokio::test]
 async fn test_run_infer_mock_missing_binding_fails() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let task_id: Arc<str> = Arc::from("test-infer-missing");
     let bindings = ResolvedBindings::new(); // Empty bindings
     let datastore = RunContext::default();
@@ -1792,7 +1792,7 @@ async fn test_run_infer_mock_missing_binding_fails() {
 
 #[tokio::test]
 async fn test_run_infer_mock_with_model_override() {
-    let executor = TaskExecutor::new("mock", Some("default-model"), None, EventLog::new());
+    let executor = TaskExecutor::new("mock", Some("default-model"), None, EventLog::new()).unwrap();
     let task_id: Arc<str> = Arc::from("test-infer-model");
     let bindings = ResolvedBindings::default();
     let datastore = RunContext::default();
@@ -1819,7 +1819,7 @@ async fn test_run_infer_mock_with_model_override() {
 
 #[tokio::test]
 async fn test_resolve_decompose_source_literal() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
 
@@ -1830,7 +1830,7 @@ async fn test_resolve_decompose_source_literal() {
 
 #[tokio::test]
 async fn test_resolve_decompose_source_template() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let mut bindings = ResolvedBindings::new();
     bindings.set("entity", json!("qr-code"));
     let datastore = RunContext::new();
@@ -1842,7 +1842,7 @@ async fn test_resolve_decompose_source_template() {
 
 #[tokio::test]
 async fn test_resolve_decompose_source_dollar_binding() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let mut bindings = ResolvedBindings::new();
     bindings.set("my_key", json!("entity-key"));
     let datastore = RunContext::new();
@@ -1854,7 +1854,7 @@ async fn test_resolve_decompose_source_dollar_binding() {
 
 #[tokio::test]
 async fn test_resolve_decompose_source_missing_binding_fails() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
 
@@ -1864,7 +1864,7 @@ async fn test_resolve_decompose_source_missing_binding_fails() {
 
 #[tokio::test]
 async fn test_resolve_decompose_source_dollar_path_from_datastore() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
 
@@ -1885,7 +1885,7 @@ async fn test_resolve_decompose_source_dollar_path_from_datastore() {
 
 #[test]
 fn test_json_type_name_all_types() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
 
     assert_eq!(executor.json_type_name(&json!(null)), "null");
     assert_eq!(executor.json_type_name(&json!(true)), "boolean");
@@ -1901,7 +1901,7 @@ fn test_json_type_name_all_types() {
 
 #[tokio::test]
 async fn test_extract_decompose_key_from_object_with_extra_fields() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let value = json!({"key": "my-entity", "name": "My Entity", "type": "Entity"});
     let key = executor.extract_decompose_key(&value).unwrap();
     assert_eq!(key, "my-entity");
@@ -1909,7 +1909,7 @@ async fn test_extract_decompose_key_from_object_with_extra_fields() {
 
 #[tokio::test]
 async fn test_extract_decompose_key_from_number_fails() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let result = executor.extract_decompose_key(&json!(42));
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
@@ -1922,7 +1922,7 @@ async fn test_extract_decompose_key_from_number_fails() {
 
 #[tokio::test]
 async fn test_extract_decompose_key_from_null_fails() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let result = executor.extract_decompose_key(&json!(null));
     assert!(result.is_err());
 }
@@ -1933,14 +1933,14 @@ async fn test_extract_decompose_key_from_null_fails() {
 
 #[tokio::test]
 async fn test_extract_decompose_nodes_from_non_object_non_array_fails() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let result = executor.extract_decompose_nodes(json!("just a string"));
     assert!(result.is_err());
 }
 
 #[tokio::test]
 async fn test_extract_decompose_nodes_from_object_without_known_fields_fails() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let result = executor.extract_decompose_nodes(json!({"data": [1, 2, 3]}));
     assert!(result.is_err());
 }
@@ -1956,7 +1956,7 @@ async fn test_extract_decompose_nodes_from_object_without_known_fields_fails() {
 /// may continue running as an orphan. `kill_on_drop(true)` is never set.
 #[tokio::test]
 async fn audit_exec_timeout_fires_promptly() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
 
@@ -2005,7 +2005,7 @@ async fn audit_exec_timeout_fires_promptly() {
 /// quotes but `key` is inside quotes, producing unexpected splitting.
 #[tokio::test]
 async fn audit_exec_json_object_binding_breaks_shlex() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let mut bindings = ResolvedBindings::new();
     bindings.set("data", json!({"key": "value"}));
     let datastore = RunContext::new();
@@ -2052,7 +2052,7 @@ async fn audit_exec_json_object_binding_breaks_shlex() {
 /// AUDIT: exec stderr is captured in error message on failure.
 #[tokio::test]
 async fn audit_exec_stderr_in_error_message() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
 
@@ -2083,7 +2083,7 @@ async fn audit_exec_stderr_in_error_message() {
 /// AUDIT: exec output trailing whitespace is trimmed.
 #[tokio::test]
 async fn audit_exec_output_trimmed() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
 
@@ -2116,7 +2116,7 @@ async fn audit_exec_output_trimmed() {
 /// requires exact character match including whitespace.
 #[tokio::test]
 async fn audit_blocklist_extra_spaces_bypass() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
 
@@ -2151,7 +2151,7 @@ async fn audit_blocklist_extra_spaces_bypass() {
 /// does not match blocklist pattern "rm -rf /" (which uses spaces).
 #[tokio::test]
 async fn audit_blocklist_tab_bypass() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
 
@@ -2216,7 +2216,7 @@ fn audit_blocklist_newline_still_caught() {
 /// may not call `cmd.current_dir(cwd)`.
 #[tokio::test]
 async fn audit_exec_cwd_is_wired() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
 

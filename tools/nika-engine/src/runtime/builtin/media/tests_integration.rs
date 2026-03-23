@@ -12,7 +12,7 @@ mod tests {
 
     async fn setup() -> (tempfile::TempDir, Arc<MediaToolContext>) {
         let dir = tempfile::tempdir().unwrap();
-        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
         (dir, ctx)
     }
 
@@ -200,7 +200,7 @@ mod tests {
     #[tokio::test]
     async fn cas_budget_across_tools() {
         let dir = tempfile::tempdir().unwrap();
-        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
 
         // Store some data, budget should track
         let data1 = vec![0u8; 1000];
@@ -590,7 +590,7 @@ mod tests {
             dir.path().to_path_buf(),
             PermissionMode::YoloMode,
         ));
-        let media_ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+        let media_ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
         let router = BuiltinToolRouter::with_all_tools(tool_ctx, media_ctx);
 
         // Media tools should be registered
@@ -617,7 +617,7 @@ mod tests {
             dir.path().to_path_buf(),
             PermissionMode::YoloMode,
         ));
-        let media_ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+        let media_ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
         let router = BuiltinToolRouter::with_all_tools(tool_ctx, media_ctx);
 
         let names = router.tool_names();

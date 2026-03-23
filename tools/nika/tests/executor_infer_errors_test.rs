@@ -24,14 +24,14 @@ use serde_json::json;
 
 /// Create a TaskExecutor with default settings for testing
 fn create_executor() -> TaskExecutor {
-    TaskExecutor::new("claude", None, None, EventLog::new())
+    TaskExecutor::new("claude", None, None, EventLog::new()).unwrap()
 }
 
 /// Create a TaskExecutor with mock provider (for tests that don't need real API)
 fn create_mock_executor() -> TaskExecutor {
     // Use "mock" as provider name - will trigger unknown provider error
     // but for template tests we can use any provider since error happens before API call
-    TaskExecutor::new("claude", None, None, EventLog::new())
+    TaskExecutor::new("claude", None, None, EventLog::new()).unwrap()
 }
 
 /// Create an InferParams from a prompt string

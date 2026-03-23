@@ -11,7 +11,7 @@ use serde_json::json;
 use std::sync::Arc;
 
 fn create_executor() -> TaskExecutor {
-    TaskExecutor::new("mock", None, None, EventLog::new())
+    TaskExecutor::new("mock", None, None, EventLog::new()).unwrap()
 }
 
 fn create_invoke_action(tool: &str, params: serde_json::Value) -> TaskAction {
@@ -311,7 +311,7 @@ async fn test_executor_invoke_builtin_with_template_resolution() {
 #[tokio::test]
 async fn test_executor_invoke_builtin_emits_events() {
     let event_log = EventLog::new();
-    let executor = TaskExecutor::new("mock", None, None, event_log.clone());
+    let executor = TaskExecutor::new("mock", None, None, event_log.clone()).unwrap();
 
     let task_id: Arc<str> = "test-events".into();
     let action = create_invoke_action("nika:sleep", json!({"duration": "1ms"}));

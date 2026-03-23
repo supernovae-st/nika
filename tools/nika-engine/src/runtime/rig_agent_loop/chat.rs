@@ -102,6 +102,7 @@ impl RigAgentLoop {
                     "groq" => self.chat_continue_groq(prompt).await,
                     "deepseek" => self.chat_continue_deepseek(prompt).await,
                     "gemini" => self.chat_continue_gemini(prompt).await,
+                    "xai" => self.chat_continue_xai(prompt).await,
                     other => Err(NikaError::AgentValidationError {
                         reason: format!("Provider '{}' is not supported for chat_continue.", other),
                     }),
@@ -129,8 +130,11 @@ impl RigAgentLoop {
                 if has_key("GEMINI_API_KEY") {
                     return self.chat_continue_gemini(prompt).await;
                 }
+                if has_key("XAI_API_KEY") {
+                    return self.chat_continue_xai(prompt).await;
+                }
                 Err(NikaError::AgentValidationError {
-                    reason: "chat_continue requires a configured provider or one of: ANTHROPIC_API_KEY, OPENAI_API_KEY, MISTRAL_API_KEY, GROQ_API_KEY, DEEPSEEK_API_KEY, or GEMINI_API_KEY".to_string(),
+                    reason: "chat_continue requires a configured provider or one of: ANTHROPIC_API_KEY, OPENAI_API_KEY, MISTRAL_API_KEY, GROQ_API_KEY, DEEPSEEK_API_KEY, GEMINI_API_KEY, or XAI_API_KEY".to_string(),
                 })
             }
         }
@@ -618,6 +622,80 @@ impl RigAgentLoop {
             task_id: Arc::from(self.task_id.as_str()),
             turn_index,
             kind: "chat_continue_gemini".to_string(),
+            metadata: Some(metadata),
+        });
+
+        // Check guardrails
+        let guardrail_result = self.check_guardrails(&response);
+        let guardrails_passed = guardrail_result.is_passed();
+
+        Ok(RigAgentLoopResult {
+            status: status.clone(),
+            turns: turn_index as usize,
+            final_output: serde_json::json!({ "response": response }),
+            total_tokens: 0,
+            confidence: status.confidence(),
+            retry_count: 0,
+            guardrails_passed,
+            cost_usd: 0.0,
+            partial_result: None,
+        })
+    }
+
+    /// Continue conversation with xAI (Grok)
+    ///
+    /// **Note:** Token tracking is not available for chat methods.
+    /// Use `run_xai()` for single-turn requests with full token tracking.
+    async fn chat_continue_xai(
+        &mut self,
+        prompt: &str,
+    ) -> Result<RigAgentLoopResult, NikaError> {
+        use rig::completion::Chat;
+
+        let client = rig::providers::xai::Client::from_env();
+        let model_name =
+            self.params
+                .model
+                .as_deref()
+                .ok_or_else(|| NikaError::ValidationError {
+                    reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
+                })?;
+        let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
+        let tools = self.tools_as_boxed();
+        let agent = client
+            .agent(model_name)
+            .max_tokens(effective_max_tokens)
+            .tools(tools)
+            .build();
+
+        let turn_index = self.turn_count + 1;
+
+        self.event_log.emit(EventKind::AgentTurn {
+            task_id: Arc::from(self.task_id.as_str()),
+            turn_index,
+            kind: "chat_continue_xai".to_string(),
+            metadata: None,
+        });
+
+        let response = agent
+            .chat(prompt, self.history.clone())
+            .await
+            .map_err(|e| NikaError::AgentExecutionError {
+                task_id: self.task_id.clone(),
+                reason: format!("xai chat error: {}", e),
+            })?;
+
+        self.history.push(Message::user(prompt));
+        self.history.push(Message::assistant(&response));
+        self.turn_count += 1;
+
+        let status = self.determine_status(&response);
+        let metadata = AgentTurnMetadata::text_only(&response, "end_turn");
+
+        self.event_log.emit(EventKind::AgentTurn {
+            task_id: Arc::from(self.task_id.as_str()),
+            turn_index,
+            kind: "chat_continue_xai".to_string(),
             metadata: Some(metadata),
         });
 

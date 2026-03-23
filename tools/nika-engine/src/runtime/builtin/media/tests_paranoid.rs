@@ -14,7 +14,7 @@ mod tests {
 
     async fn setup() -> (tempfile::TempDir, Arc<MediaToolContext>) {
         let dir = tempfile::tempdir().unwrap();
-        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
         (dir, ctx)
     }
 
@@ -350,7 +350,7 @@ mod tests {
         let ctx = Arc::new(MediaToolContext {
             cas: CasStore::new(dir.path()),
             budget: Arc::new(budget),
-            compute: Arc::new(crate::runtime::builtin::media::context::ComputePool::new()),
+            compute: Arc::new(crate::runtime::builtin::media::context::ComputePool::new().unwrap()),
             working_memory: Arc::new(
                 crate::runtime::builtin::media::context::WorkingMemoryBudget::new(),
             ),

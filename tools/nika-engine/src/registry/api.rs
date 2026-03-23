@@ -227,55 +227,52 @@ pub struct RegistryClient {
     base_url: String,
 }
 
-impl Default for RegistryClient {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl RegistryClient {
     /// Create a new registry client with default settings.
     ///
     /// Uses `NIKA_REGISTRY_URL` env var or falls back to the default registry.
-    pub fn new() -> Self {
+    ///
+    /// Returns an error if the HTTP client cannot be built (e.g., TLS init failure).
+    pub fn new() -> Result<Self, RegistryApiError> {
         let base_url =
             std::env::var(REGISTRY_URL_ENV).unwrap_or_else(|_| DEFAULT_REGISTRY_URL.to_string());
 
         let client = Client::builder()
             .timeout(Duration::from_secs(DEFAULT_TIMEOUT_SECS))
             .user_agent(format!("nika/{}", env!("CARGO_PKG_VERSION")))
-            .build()
-            .expect("Failed to build HTTP client");
+            .build()?;
 
-        Self { client, base_url }
+        Ok(Self { client, base_url })
     }
 
     /// Create a client with a custom base URL.
-    pub fn with_url(base_url: impl Into<String>) -> Self {
+    ///
+    /// Returns an error if the HTTP client cannot be built.
+    pub fn with_url(base_url: impl Into<String>) -> Result<Self, RegistryApiError> {
         let client = Client::builder()
             .timeout(Duration::from_secs(DEFAULT_TIMEOUT_SECS))
             .user_agent(format!("nika/{}", env!("CARGO_PKG_VERSION")))
-            .build()
-            .expect("Failed to build HTTP client");
+            .build()?;
 
-        Self {
+        Ok(Self {
             client,
             base_url: base_url.into(),
-        }
+        })
     }
 
     /// Create a client with custom timeout.
-    pub fn with_timeout(timeout_secs: u64) -> Self {
+    ///
+    /// Returns an error if the HTTP client cannot be built.
+    pub fn with_timeout(timeout_secs: u64) -> Result<Self, RegistryApiError> {
         let base_url =
             std::env::var(REGISTRY_URL_ENV).unwrap_or_else(|_| DEFAULT_REGISTRY_URL.to_string());
 
         let client = Client::builder()
             .timeout(Duration::from_secs(timeout_secs))
             .user_agent(format!("nika/{}", env!("CARGO_PKG_VERSION")))
-            .build()
-            .expect("Failed to build HTTP client");
+            .build()?;
 
-        Self { client, base_url }
+        Ok(Self { client, base_url })
     }
 
     /// Get package metadata.
@@ -580,14 +577,14 @@ mod tests {
 
     #[test]
     fn test_registry_client_default() {
-        let client = RegistryClient::new();
+        let client = RegistryClient::new().unwrap();
         // Should use default URL if env var not set
         assert!(client.base_url.contains("registry") || client.base_url.contains("supernovae"));
     }
 
     #[test]
     fn test_registry_client_with_url() {
-        let client = RegistryClient::with_url("https://custom.registry.local/api");
+        let client = RegistryClient::with_url("https://custom.registry.local/api").unwrap();
         assert_eq!(client.base_url, "https://custom.registry.local/api");
     }
 

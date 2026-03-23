@@ -455,7 +455,7 @@ async fn integration_png_via_context_read() {
     use crate::runtime::builtin::media::context::MediaToolContext;
 
     let dir = tempfile::tempdir().unwrap();
-    let ctx = MediaToolContext::new(CasStore::new(dir.path()));
+    let ctx = MediaToolContext::new(CasStore::new(dir.path())).unwrap();
 
     let png = minimal_png();
 
@@ -528,7 +528,7 @@ async fn integration_jpeg_provenance_sign_verify() {
     use crate::runtime::builtin::media::{MediaOp, MediaOpResult};
 
     let dir = tempfile::tempdir().unwrap();
-    let ctx = MediaToolContext::new(CasStore::new(dir.path()));
+    let ctx = MediaToolContext::new(CasStore::new(dir.path())).unwrap();
 
     let jpeg = fixture_jpeg();
     let sr = ctx.store_media(&jpeg, "test").await.unwrap();
@@ -579,7 +579,7 @@ async fn integration_png_provenance_sign_with_compression() {
     use crate::runtime::builtin::media::{MediaOp, MediaOpResult};
 
     let dir = tempfile::tempdir().unwrap();
-    let ctx = MediaToolContext::new(CasStore::new(dir.path()));
+    let ctx = MediaToolContext::new(CasStore::new(dir.path())).unwrap();
 
     let png = fixture_png();
     let sr = ctx.store_media(&png, "test_png").await.unwrap();

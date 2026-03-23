@@ -200,6 +200,32 @@ impl PolicyEnforcer {
         PolicyDecision::Allow
     }
 
+    /// Atomically reserve tokens from the budget (check + spend in one call).
+    ///
+    /// Prevents TOCTOU races where concurrent for_each tasks all pass the
+    /// check before any records spending.
+    pub fn reserve_tokens(&mut self, estimated: u64) -> Result<(), String> {
+        if !self.token_budget.can_spend(estimated) {
+            return Err(format!(
+                "Token budget exceeded: {} used + {} estimated > {} limit",
+                self.token_budget.used,
+                estimated,
+                self.token_budget.limit.unwrap_or(u64::MAX),
+            ));
+        }
+        self.token_budget.spend(estimated);
+        Ok(())
+    }
+
+    /// Adjust a previous reservation to match actual token usage.
+    pub fn adjust_reservation(&mut self, estimated: u64, actual: u64) {
+        if actual < estimated {
+            self.token_budget.used = self.token_budget.used.saturating_sub(estimated - actual);
+        } else if actual > estimated {
+            self.token_budget.spend(actual - estimated);
+        }
+    }
+
     /// Record token usage
     pub fn record_token_spend(&mut self, tokens: u64) {
         self.token_budget.spend(tokens);

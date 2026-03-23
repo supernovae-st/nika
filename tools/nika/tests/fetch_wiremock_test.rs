@@ -33,7 +33,7 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 
 /// Create a test executor with default settings
 fn create_test_executor() -> TaskExecutor {
-    TaskExecutor::new("mock", None, None, EventLog::new())
+    TaskExecutor::new("mock", None, None, EventLog::new()).unwrap()
 }
 
 /// Create a FetchParams with specified method and optional headers/body

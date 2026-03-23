@@ -65,7 +65,7 @@ mod tests {
             dir.path().to_path_buf(),
             PermissionMode::YoloMode,
         ));
-        let media_ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+        let media_ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
         let router = BuiltinToolRouter::with_all_tools(tool_ctx, Arc::clone(&media_ctx));
         (dir, router, media_ctx)
     }
@@ -417,7 +417,7 @@ mod tests {
         }
 
         let dir = tempfile::tempdir().unwrap();
-        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
         let adapter = MediaToolAdapter::new(Arc::new(SlowOp), ctx);
 
         let start = std::time::Instant::now();
@@ -442,7 +442,7 @@ mod tests {
         use crate::runtime::builtin::BuiltinTool;
 
         let dir = tempfile::tempdir().unwrap();
-        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
         let hash = store_fixture(&ctx, &fixture_png_10x10_red()).await;
 
         let op = crate::runtime::builtin::media::dimensions::DimensionsOp;
@@ -467,7 +467,7 @@ mod tests {
         use crate::runtime::builtin::BuiltinTool;
 
         let dir = tempfile::tempdir().unwrap();
-        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
         let op = crate::runtime::builtin::media::dimensions::DimensionsOp;
         let adapter = MediaToolAdapter::new(Arc::new(op), ctx);
 
@@ -481,7 +481,7 @@ mod tests {
         use crate::runtime::builtin::BuiltinTool;
 
         let dir = tempfile::tempdir().unwrap();
-        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
         let op = crate::runtime::builtin::media::dimensions::DimensionsOp;
         let adapter = MediaToolAdapter::new(Arc::new(op), ctx);
 
@@ -498,7 +498,7 @@ mod tests {
         use crate::runtime::builtin::BuiltinTool;
 
         let dir = tempfile::tempdir().unwrap();
-        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
         let hash = store_fixture(&ctx, &fixture_png_100x50()).await;
 
         let op = crate::runtime::builtin::media::thumbnail::ThumbnailOp;
@@ -533,7 +533,7 @@ mod tests {
         use crate::runtime::builtin::BuiltinTool;
 
         let dir = tempfile::tempdir().unwrap();
-        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
         let hash = store_fixture(&ctx, &fixture_png_10x10_red()).await;
 
         // Cancel the workflow before dispatch
@@ -846,7 +846,7 @@ mod tests {
             dir.path().to_path_buf(),
             PermissionMode::YoloMode,
         ));
-        let media_ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+        let media_ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
         let router = Arc::new(BuiltinToolRouter::with_all_tools(
             tool_ctx,
             Arc::clone(&media_ctx),

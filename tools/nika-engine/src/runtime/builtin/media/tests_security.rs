@@ -23,7 +23,7 @@ mod tests {
 
     async fn setup() -> (tempfile::TempDir, Arc<MediaToolContext>) {
         let dir = tempfile::tempdir().unwrap();
-        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
         (dir, ctx)
     }
 
@@ -32,7 +32,7 @@ mod tests {
         Arc::new(MediaToolContext {
             cas: CasStore::new(dir),
             budget: Arc::new(MediaBudget::with_max_per_run(budget_bytes)),
-            compute: Arc::new(crate::runtime::builtin::media::context::ComputePool::new()),
+            compute: Arc::new(crate::runtime::builtin::media::context::ComputePool::new().unwrap()),
             working_memory: Arc::new(WorkingMemoryBudget::new()),
             cancel: tokio_util::sync::CancellationToken::new(),
         })
@@ -44,7 +44,7 @@ mod tests {
         Arc::new(MediaToolContext {
             cas: CasStore::new(dir),
             budget: Arc::new(MediaBudget::new()),
-            compute: Arc::new(crate::runtime::builtin::media::context::ComputePool::new()),
+            compute: Arc::new(crate::runtime::builtin::media::context::ComputePool::new().unwrap()),
             working_memory: Arc::new(WorkingMemoryBudget::with_max(max_bytes)),
             cancel: tokio_util::sync::CancellationToken::new(),
         })
@@ -1080,7 +1080,7 @@ mod tests {
     #[tokio::test]
     async fn inject_adapter_malformed_json() {
         let dir = tempfile::tempdir().unwrap();
-        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
         let adapter = MediaToolAdapter::new(Arc::new(DimensionsOp), ctx);
 
         let malformed_inputs = vec![

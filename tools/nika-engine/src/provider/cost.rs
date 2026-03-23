@@ -105,6 +105,21 @@ impl ModelPricing {
             0.0
         }
     }
+
+    /// Calculate cost with cached token discount (cached tokens at 10% of input rate).
+    pub fn calculate_with_cache(
+        &self,
+        input_tokens: u64,
+        output_tokens: u64,
+        cached_tokens: u64,
+    ) -> f64 {
+        let effective_input = input_tokens.saturating_sub(cached_tokens);
+        let cached_cost = (cached_tokens as f64 / 1_000_000.0) * self.input_per_million * 0.1;
+        let input_cost = (effective_input as f64 / 1_000_000.0) * self.input_per_million;
+        let output_cost = (output_tokens as f64 / 1_000_000.0) * self.output_per_million;
+        let cost = cached_cost + input_cost + output_cost;
+        if cost.is_finite() { cost } else { 0.0 }
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -313,6 +328,18 @@ pub fn calculate_cost(
 ) -> f64 {
     let pricing = get_model_pricing(provider, model);
     pricing.calculate(input_tokens, output_tokens)
+}
+
+/// Calculate cost with cached token discount.
+pub fn calculate_cost_with_cache(
+    provider: ProviderKind,
+    model: &str,
+    input_tokens: u64,
+    output_tokens: u64,
+    cached_tokens: u64,
+) -> f64 {
+    let pricing = get_model_pricing(provider, model);
+    pricing.calculate_with_cache(input_tokens, output_tokens, cached_tokens)
 }
 
 /// Estimate cost before execution based on estimated tokens

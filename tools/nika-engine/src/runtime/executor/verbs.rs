@@ -229,21 +229,16 @@ impl TaskExecutor {
             prompt_len: prompt.len(),
         });
 
-        // POLICY CHECK: token budget
-        // Estimate tokens for budget check (actual usage tracked after call)
+        // POLICY CHECK: token budget (atomic reserve to prevent TOCTOU with concurrent for_each)
         let estimated_tokens = estimate_tokens(prompt.len());
-        {
-            let policy = self.policy_enforcer.read();
-            let decision = policy.check_token_spend(estimated_tokens);
-            if let PolicyDecision::Block(reason) = decision {
-                tracing::warn!(
-                    task_id = %task_id,
-                    estimated_tokens = estimated_tokens,
-                    reason = %reason,
-                    "infer: blocked by token budget"
-                );
-                return Err(NikaError::PolicyViolation { reason });
-            }
+        if let Err(reason) = self.policy_enforcer.write().reserve_tokens(estimated_tokens) {
+            tracing::warn!(
+                task_id = %task_id,
+                estimated_tokens = estimated_tokens,
+                reason = %reason,
+                "infer: blocked by token budget"
+            );
+            return Err(NikaError::PolicyViolation { reason });
         }
 
         // ═══════════════════════════════════════════════════════════════════
@@ -263,6 +258,7 @@ impl TaskExecutor {
                     provider_name,
                     model,
                     resolved_system.as_deref(),
+                    estimated_tokens,
                 )
                 .await;
         }
@@ -528,11 +524,11 @@ impl TaskExecutor {
                 })?
         };
 
-        // Record actual token spend
+        // Adjust reservation with actual token count
         let actual_tokens = stream_result.input_tokens + stream_result.output_tokens;
         self.policy_enforcer
             .write()
-            .record_token_spend(actual_tokens);
+            .adjust_reservation(estimated_tokens, actual_tokens);
 
         // EMIT: ProviderResponded with accurate token counts and cost from streaming response
         let cost = crate::provider::cost::ProviderKind::parse(provider_name)
@@ -637,6 +633,7 @@ impl TaskExecutor {
         provider_name: &str,
         model: Option<&str>,
         resolved_system: Option<&str>,
+        reserved_tokens: u64,
     ) -> Result<String, NikaError> {
         const MAX_VISION_IMAGE_PARTS: usize = 20;
         const MAX_VISION_TOTAL_BYTES: u64 = 100 * 1024 * 1024;
@@ -806,7 +803,7 @@ impl TaskExecutor {
         let est_out = estimate_tokens(vision_result.len());
         self.policy_enforcer
             .write()
-            .record_token_spend(est_in + est_out);
+            .adjust_reservation(reserved_tokens, est_in + est_out);
 
         let cost = crate::provider::cost::ProviderKind::parse(provider_name)
             .map(|pk| {
@@ -2122,25 +2119,19 @@ impl TaskExecutor {
         // Validate agent params
         resolved_agent.validate()?;
 
-        // POLICY CHECK: token budget
-        // Estimate tokens for budget check - use token_budget from agent params if set,
-        // otherwise estimate from prompt length
+        // Atomic reserve tokens for budget (prevents TOCTOU with concurrent for_each)
         let estimated_tokens: u64 = resolved_agent
             .token_budget
             .map(u64::from)
             .unwrap_or_else(|| estimate_tokens(resolved_agent.prompt.len()) as u64);
-        {
-            let policy = self.policy_enforcer.read();
-            let decision = policy.check_token_spend(estimated_tokens);
-            if let PolicyDecision::Block(reason) = decision {
-                tracing::warn!(
-                    task_id = %task_id,
-                    estimated_tokens = estimated_tokens,
-                    reason = %reason,
-                    "agent: blocked by token budget"
-                );
-                return Err(NikaError::PolicyViolation { reason });
-            }
+        if let Err(reason) = self.policy_enforcer.write().reserve_tokens(estimated_tokens) {
+            tracing::warn!(
+                task_id = %task_id,
+                estimated_tokens = estimated_tokens,
+                reason = %reason,
+                "agent: blocked by token budget"
+            );
+            return Err(NikaError::PolicyViolation { reason });
         }
 
         // EMIT: AgentStart event
@@ -2212,29 +2203,24 @@ impl TaskExecutor {
                     let schema_value = match schema_ref {
                         crate::ast::output::SchemaRef::Inline(v) => Some(v.clone()),
                         crate::ast::output::SchemaRef::File(path) => {
-                            match tokio::fs::read_to_string(path).await {
-                                Ok(content) => match serde_json::from_str(&content) {
-                                    Ok(v) => Some(v),
-                                    Err(e) => {
-                                        warn!(
-                                            task_id = %task_id,
-                                            path = %path,
-                                            error = %e,
-                                            "Agent: invalid JSON in schema file, skipping tool injection"
-                                        );
-                                        None
-                                    }
-                                },
-                                Err(e) => {
-                                    warn!(
-                                        task_id = %task_id,
-                                        path = %path,
-                                        error = %e,
-                                        "Agent: failed to read schema file, skipping tool injection"
-                                    );
-                                    None
+                            let content = tokio::fs::read_to_string(path).await.map_err(|e| {
+                                NikaError::ValidationError {
+                                    reason: format!(
+                                        "Failed to read schema file '{}': {}",
+                                        path, e
+                                    ),
                                 }
-                            }
+                            })?;
+                            let v: serde_json::Value =
+                                serde_json::from_str(&content).map_err(|e| {
+                                    NikaError::ValidationError {
+                                        reason: format!(
+                                            "Invalid JSON in schema file '{}': {}",
+                                            path, e
+                                        ),
+                                    }
+                                })?;
+                            Some(v)
                         }
                     };
                     if let Some(schema) = schema_value {
@@ -2296,10 +2282,10 @@ impl TaskExecutor {
 
         let duration_ms = start.elapsed().as_millis() as u64;
 
-        // Record actual token spend
+        // Adjust reservation with actual agent token usage
         self.policy_enforcer
             .write()
-            .record_token_spend(result.total_tokens as u64);
+            .adjust_reservation(estimated_tokens, result.total_tokens as u64);
 
         // EMIT: AgentComplete event
         self.event_log.emit(EventKind::AgentComplete {

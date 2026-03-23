@@ -177,7 +177,9 @@ pub async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
             ensure_nika_home()?;
 
             // Create registry client
-            let client = RegistryClient::new();
+            let client = RegistryClient::new().map_err(|e| NikaError::ConfigError {
+                reason: format!("Failed to create registry client: {e}"),
+            })?;
 
             // Fetch package info from registry
             println!("  {} Fetching package info...", "→".dimmed());
@@ -374,7 +376,9 @@ pub async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
             };
 
             // Create registry client
-            let client = RegistryClient::new();
+            let client = RegistryClient::new().map_err(|e| NikaError::ConfigError {
+                reason: format!("Failed to create registry client: {e}"),
+            })?;
             let mut registry = load_registry()?;
             let mut installed_count = 0;
             let mut skipped_count = 0;
@@ -517,7 +521,9 @@ pub async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
             }
 
             // Create registry client
-            let client = RegistryClient::new();
+            let client = RegistryClient::new().map_err(|e| NikaError::ConfigError {
+                reason: format!("Failed to create registry client: {e}"),
+            })?;
 
             // Search registry (page=1, per_page=limit)
             let response = client.search(&search_query, 1, limit).await.map_err(|e| {

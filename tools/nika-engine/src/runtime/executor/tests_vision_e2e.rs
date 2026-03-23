@@ -389,7 +389,7 @@ tasks:
 
 #[tokio::test]
 async fn mock_infer_with_content_text_returns_response() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let task_id: Arc<str> = Arc::from("vision-mock-text");
     let bindings = ResolvedBindings::default();
     let datastore = RunContext::default();
@@ -407,7 +407,7 @@ async fn mock_infer_with_content_text_returns_response() {
 
 #[tokio::test]
 async fn mock_infer_with_content_image_returns_response() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let task_id: Arc<str> = Arc::from("vision-mock-image");
     let bindings = ResolvedBindings::default();
     let datastore = RunContext::default();
@@ -426,7 +426,7 @@ async fn mock_infer_with_content_image_returns_response() {
 #[tokio::test]
 async fn mock_infer_vision_emits_template_resolved() {
     let event_log = EventLog::new();
-    let executor = TaskExecutor::new("mock", None, None, event_log.clone());
+    let executor = TaskExecutor::new("mock", None, None, event_log.clone()).unwrap();
     let task_id: Arc<str> = Arc::from("vision-tpl-event");
     let bindings = ResolvedBindings::default();
     let datastore = RunContext::default();
@@ -444,7 +444,7 @@ async fn mock_infer_vision_emits_template_resolved() {
 #[tokio::test]
 async fn mock_infer_vision_emits_provider_responded() {
     let event_log = EventLog::new();
-    let executor = TaskExecutor::new("mock", None, None, event_log.clone());
+    let executor = TaskExecutor::new("mock", None, None, event_log.clone()).unwrap();
     let task_id: Arc<str> = Arc::from("vision-pr-event");
     let bindings = ResolvedBindings::default();
     let datastore = RunContext::default();
@@ -464,7 +464,7 @@ async fn mock_infer_vision_emits_provider_responded() {
 
 #[tokio::test]
 async fn mock_infer_vision_with_task_level_provider_override() {
-    let executor = TaskExecutor::new("claude", None, None, EventLog::new());
+    let executor = TaskExecutor::new("claude", None, None, EventLog::new()).unwrap();
     let task_id: Arc<str> = Arc::from("vision-override");
     let bindings = ResolvedBindings::default();
     let datastore = RunContext::default();
@@ -484,7 +484,7 @@ async fn mock_infer_vision_with_task_level_provider_override() {
 
 #[tokio::test]
 async fn infer_no_content_text_prompt_normal_path() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let task_id: Arc<str> = Arc::from("text-only");
     let bindings = ResolvedBindings::default();
     let datastore = RunContext::default();
@@ -495,7 +495,7 @@ async fn infer_no_content_text_prompt_normal_path() {
 
 #[tokio::test]
 async fn infer_content_text_empty_prompt_vision_path() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let task_id: Arc<str> = Arc::from("vision-empty-prompt");
     let bindings = ResolvedBindings::default();
     let datastore = RunContext::default();
@@ -510,7 +510,7 @@ async fn infer_content_text_empty_prompt_vision_path() {
 
 #[tokio::test]
 async fn infer_empty_content_empty_prompt_fails() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let task_id: Arc<str> = Arc::from("both-empty");
     let bindings = ResolvedBindings::default();
     let datastore = RunContext::default();
@@ -521,7 +521,7 @@ async fn infer_empty_content_empty_prompt_fails() {
 
 #[tokio::test]
 async fn infer_content_image_with_nonempty_prompt() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let task_id: Arc<str> = Arc::from("prompt-plus-content");
     let bindings = ResolvedBindings::default();
     let datastore = RunContext::default();
@@ -538,7 +538,7 @@ async fn infer_content_image_with_nonempty_prompt() {
 
 #[tokio::test]
 async fn infer_content_with_extended_thinking_non_claude_fails() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let task_id: Arc<str> = Arc::from("vision-thinking");
     let bindings = ResolvedBindings::default();
     let datastore = RunContext::default();
@@ -556,7 +556,7 @@ async fn infer_content_with_extended_thinking_non_claude_fails() {
 
 #[tokio::test]
 async fn infer_content_with_temperature_and_max_tokens() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let task_id: Arc<str> = Arc::from("vision-llm-opts");
     let bindings = ResolvedBindings::default();
     let datastore = RunContext::default();
@@ -572,7 +572,7 @@ async fn infer_content_with_temperature_and_max_tokens() {
 
 #[tokio::test]
 async fn infer_content_invalid_temperature_fails() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let task_id: Arc<str> = Arc::from("bad-temp");
     let bindings = ResolvedBindings::default();
     let datastore = RunContext::default();
@@ -588,7 +588,7 @@ async fn infer_content_invalid_temperature_fails() {
 
 #[tokio::test]
 async fn infer_content_none_prompt_whitespace_fails() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let task_id: Arc<str> = Arc::from("whitespace-only");
     let bindings = ResolvedBindings::default();
     let datastore = RunContext::default();
@@ -604,7 +604,7 @@ async fn infer_content_none_prompt_whitespace_fails() {
 #[tokio::test]
 async fn vision_mock_emits_context_assembled_event() {
     let event_log = EventLog::new();
-    let executor = TaskExecutor::new("mock", None, None, event_log.clone());
+    let executor = TaskExecutor::new("mock", None, None, event_log.clone()).unwrap();
     let task_id: Arc<str> = Arc::from("vision-ctx-event");
     let bindings = ResolvedBindings::default();
     let datastore = RunContext::default();
@@ -622,7 +622,7 @@ async fn vision_mock_emits_context_assembled_event() {
 #[tokio::test]
 async fn vision_mock_full_event_sequence() {
     let event_log = EventLog::new();
-    let executor = TaskExecutor::new("mock", None, None, event_log.clone());
+    let executor = TaskExecutor::new("mock", None, None, event_log.clone()).unwrap();
     let task_id: Arc<str> = Arc::from("vision-full-seq");
     let bindings = ResolvedBindings::default();
     let datastore = RunContext::default();
@@ -645,7 +645,7 @@ async fn vision_mock_full_event_sequence() {
 #[tokio::test]
 async fn vision_mock_provider_responded_has_tokens() {
     let event_log = EventLog::new();
-    let executor = TaskExecutor::new("mock", None, None, event_log.clone());
+    let executor = TaskExecutor::new("mock", None, None, event_log.clone()).unwrap();
     let task_id: Arc<str> = Arc::from("vision-tokens");
     let bindings = ResolvedBindings::default();
     let datastore = RunContext::default();
@@ -671,7 +671,7 @@ async fn vision_mock_provider_responded_has_tokens() {
 
 #[tokio::test]
 async fn execute_dispatch_infer_with_content() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let task_id: Arc<str> = Arc::from("dispatch-vision");
     let bindings = ResolvedBindings::default();
     let datastore = RunContext::default();
@@ -693,7 +693,7 @@ async fn execute_dispatch_infer_with_content() {
 
 #[tokio::test]
 async fn execute_dispatch_vision_with_template_bindings() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let task_id: Arc<str> = Arc::from("dispatch-tpl");
     let mut bindings = ResolvedBindings::new();
     bindings.set("question", serde_json::json!("What colors do you see?"));

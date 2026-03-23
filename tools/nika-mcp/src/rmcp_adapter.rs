@@ -173,7 +173,16 @@ impl RmcpClientAdapter {
 
     /// Check if the client is connected to the server.
     pub async fn is_connected(&self) -> bool {
-        self.service.lock().await.is_some()
+        let guard = match tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            self.service.lock(),
+        )
+        .await
+        {
+            Ok(g) => g,
+            Err(_) => return false,
+        };
+        guard.is_some()
     }
 
     /// Connect to the MCP server.
@@ -185,7 +194,21 @@ impl RmcpClientAdapter {
     ///
     /// Returns `McpError::McpStartError` if the server fails to start.
     pub async fn connect(&self) -> Result<()> {
-        let mut guard = self.service.lock().await;
+        let mut guard = match tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            self.service.lock(),
+        )
+        .await
+        {
+            Ok(g) => g,
+            Err(_) => {
+                return Err(McpError::McpToolError {
+                    tool: "service".to_string(),
+                    reason: "MCP service lock timeout -- server may be unresponsive".to_string(),
+                    error_code: None,
+                })
+            }
+        };
 
         if guard.is_some() {
             return Ok(()); // Already connected
@@ -251,7 +274,21 @@ impl RmcpClientAdapter {
     ///
     /// Gracefully closes the connection.
     pub async fn disconnect(&self) -> Result<()> {
-        let mut guard = self.service.lock().await;
+        let mut guard = match tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            self.service.lock(),
+        )
+        .await
+        {
+            Ok(g) => g,
+            Err(_) => {
+                return Err(McpError::McpToolError {
+                    tool: "service".to_string(),
+                    reason: "MCP service lock timeout -- server may be unresponsive".to_string(),
+                    error_code: None,
+                })
+            }
+        };
 
         if let Some(service) = guard.take() {
             // Graceful shutdown
@@ -315,7 +352,22 @@ impl RmcpClientAdapter {
         // during the timeout period (60s). Without this, concurrent call_tool requests
         // would block waiting for the mutex while one request times out.
         let peer = {
-            let guard = self.service.lock().await;
+            let guard = match tokio::time::timeout(
+                std::time::Duration::from_secs(5),
+                self.service.lock(),
+            )
+            .await
+            {
+                Ok(g) => g,
+                Err(_) => {
+                    return Err(McpError::McpToolError {
+                        tool: "service".to_string(),
+                        reason: "MCP service lock timeout -- server may be unresponsive"
+                            .to_string(),
+                        error_code: None,
+                    })
+                }
+            };
             let service = guard.as_ref().ok_or_else(|| McpError::McpNotConnected {
                 name: self.name.clone(),
             })?;
@@ -460,7 +512,22 @@ impl RmcpClientAdapter {
     pub async fn read_resource(&self, uri: &str) -> Result<ResourceContent> {
         // Clone the Peer and release the lock immediately to prevent lock contention
         let peer = {
-            let guard = self.service.lock().await;
+            let guard = match tokio::time::timeout(
+                std::time::Duration::from_secs(5),
+                self.service.lock(),
+            )
+            .await
+            {
+                Ok(g) => g,
+                Err(_) => {
+                    return Err(McpError::McpToolError {
+                        tool: "service".to_string(),
+                        reason: "MCP service lock timeout -- server may be unresponsive"
+                            .to_string(),
+                        error_code: None,
+                    })
+                }
+            };
             let service = guard.as_ref().ok_or_else(|| McpError::McpNotConnected {
                 name: self.name.clone(),
             })?;
@@ -546,7 +613,22 @@ impl RmcpClientAdapter {
     pub async fn list_tools(&self) -> Result<Vec<ToolDefinition>> {
         // Clone the Peer and release the lock immediately to prevent lock contention
         let peer = {
-            let guard = self.service.lock().await;
+            let guard = match tokio::time::timeout(
+                std::time::Duration::from_secs(5),
+                self.service.lock(),
+            )
+            .await
+            {
+                Ok(g) => g,
+                Err(_) => {
+                    return Err(McpError::McpToolError {
+                        tool: "service".to_string(),
+                        reason: "MCP service lock timeout -- server may be unresponsive"
+                            .to_string(),
+                        error_code: None,
+                    })
+                }
+            };
             let service = guard.as_ref().ok_or_else(|| McpError::McpNotConnected {
                 name: self.name.clone(),
             })?;

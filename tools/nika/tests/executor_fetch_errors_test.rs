@@ -24,7 +24,7 @@ use tokio::net::TcpListener;
 
 fn mock_executor() -> TaskExecutor {
     let event_log = EventLog::new();
-    TaskExecutor::new("mock", None, None, event_log)
+    TaskExecutor::new("mock", None, None, event_log).unwrap()
 }
 
 fn test_context() -> (ResolvedBindings, RunContext) {

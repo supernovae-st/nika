@@ -36,14 +36,12 @@ impl WorkflowMeta {
         })
     }
 
-    /// Resolve TaskId to human-readable name. Panics if ID is invalid.
+    /// Resolve TaskId to human-readable name.
     ///
-    /// This should only be called with IDs that originated from the analyzer,
-    /// which guarantees validity.
-    pub fn task_name(&self, id: TaskId) -> &str {
-        self.task_table
-            .get_name(id)
-            .expect("TaskId must be valid — created by analyzer")
+    /// Returns `None` if the ID is not in the table (should not happen when
+    /// IDs originate from the analyzer, but callers can handle gracefully).
+    pub fn task_name(&self, id: TaskId) -> Option<&str> {
+        self.task_table.get_name(id)
     }
 
     /// Resolve name to TaskId. Returns None for unknown names.
@@ -113,8 +111,8 @@ mod tests {
         let id_alpha = ctx.task_id("alpha").unwrap();
         let id_beta = ctx.task_id("beta").unwrap();
 
-        assert_eq!(ctx.task_name(id_alpha), "alpha");
-        assert_eq!(ctx.task_name(id_beta), "beta");
+        assert_eq!(ctx.task_name(id_alpha).unwrap(), "alpha");
+        assert_eq!(ctx.task_name(id_beta).unwrap(), "beta");
     }
 
     #[test]
@@ -152,7 +150,7 @@ mod tests {
         let ctx = WorkflowMeta::from_workflow(&wf);
 
         let ctx2 = Arc::clone(&ctx);
-        assert_eq!(ctx2.task_name(TaskId::new(0)), "task1");
+        assert_eq!(ctx2.task_name(TaskId::new(0)).unwrap(), "task1");
         assert_eq!(ctx2.provider(), Some("openai"));
     }
 }

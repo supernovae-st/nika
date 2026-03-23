@@ -32,14 +32,16 @@ pub struct MediaToolContext {
 
 impl MediaToolContext {
     /// Create a new context with the given CAS store.
-    pub fn new(cas: CasStore) -> Self {
-        Self {
+    ///
+    /// Returns an error if the compute pool cannot be created.
+    pub fn new(cas: CasStore) -> Result<Self, NikaError> {
+        Ok(Self {
             cas,
             budget: Arc::new(MediaBudget::new()),
-            compute: Arc::new(ComputePool::new()),
+            compute: Arc::new(ComputePool::new()?),
             working_memory: Arc::new(WorkingMemoryBudget::new()),
             cancel: CancellationToken::new(),
-        }
+        })
     }
 
     /// Read media data from CAS by hash.
@@ -91,8 +93,8 @@ pub struct ComputePool {
 
 impl ComputePool {
     /// Create a new compute pool.
-    pub fn new() -> Self {
-        Self {
+    pub fn new() -> Result<Self, NikaError> {
+        Ok(Self {
             pool: rayon::ThreadPoolBuilder::new()
                 .num_threads(num_cpus().min(4))
                 .thread_name(|idx| format!("nika-media-{idx}"))
@@ -102,8 +104,11 @@ impl ComputePool {
                     tracing::error!("media compute thread panicked: {info:?}");
                 })
                 .build()
-                .expect("failed to create media compute pool"),
-        }
+                .map_err(|e| NikaError::BuiltinToolError {
+                    tool: "compute_pool".to_string(),
+                    reason: format!("Failed to create media compute pool: {e}"),
+                })?,
+        })
     }
 
     /// Execute a CPU-bound closure on the rayon pool.
@@ -121,12 +126,6 @@ impl ComputePool {
         });
         rx.await
             .map_err(|_| tool_error("compute", "task panicked on rayon thread"))
-    }
-}
-
-impl Default for ComputePool {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -232,7 +231,7 @@ mod tests {
 
     #[tokio::test]
     async fn compute_pool_executes_on_rayon_thread() {
-        let pool = ComputePool::new();
+        let pool = ComputePool::new().unwrap();
         let thread_name = pool
             .compute(|| {
                 std::thread::current()
@@ -250,14 +249,14 @@ mod tests {
 
     #[tokio::test]
     async fn compute_pool_returns_result() {
-        let pool = ComputePool::new();
+        let pool = ComputePool::new().unwrap();
         let result = pool.compute(|| 2 + 2).await.unwrap();
         assert_eq!(result, 4);
     }
 
     #[tokio::test]
     async fn compute_pool_handles_panic() {
-        let pool = ComputePool::new();
+        let pool = ComputePool::new().unwrap();
         let result: Result<i32, _> = pool
             .compute(|| {
                 panic!("intentional test panic");
@@ -322,14 +321,14 @@ mod tests {
     #[tokio::test]
     async fn context_check_cancelled_ok() {
         let dir = tempfile::tempdir().unwrap();
-        let ctx = MediaToolContext::new(CasStore::new(dir.path()));
+        let ctx = MediaToolContext::new(CasStore::new(dir.path())).unwrap();
         assert!(ctx.check_cancelled().is_ok());
     }
 
     #[tokio::test]
     async fn context_check_cancelled_err() {
         let dir = tempfile::tempdir().unwrap();
-        let ctx = MediaToolContext::new(CasStore::new(dir.path()));
+        let ctx = MediaToolContext::new(CasStore::new(dir.path())).unwrap();
         ctx.cancel.cancel();
         assert!(ctx.check_cancelled().is_err());
     }
@@ -337,7 +336,7 @@ mod tests {
     #[tokio::test]
     async fn context_store_charges_budget() {
         let dir = tempfile::tempdir().unwrap();
-        let ctx = MediaToolContext::new(CasStore::new(dir.path()));
+        let ctx = MediaToolContext::new(CasStore::new(dir.path())).unwrap();
         let data = b"test media data";
         let result = ctx.store_media(data, "test_task").await;
         assert!(result.is_ok());
@@ -347,7 +346,7 @@ mod tests {
     #[tokio::test]
     async fn context_read_missing_hash() {
         let dir = tempfile::tempdir().unwrap();
-        let ctx = MediaToolContext::new(CasStore::new(dir.path()));
+        let ctx = MediaToolContext::new(CasStore::new(dir.path())).unwrap();
         let result = ctx
             .read_media("blake3:0000000000000000000000000000000000000000000000000000000000000000")
             .await;

@@ -25,7 +25,7 @@ mod tests {
 
     async fn setup() -> (tempfile::TempDir, Arc<MediaToolContext>) {
         let dir = tempfile::tempdir().unwrap();
-        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
         (dir, ctx)
     }
 
@@ -867,7 +867,7 @@ mod tests {
         #[test]
         fn all_media_tool_adapters_created() {
             let dir = tempfile::tempdir().unwrap();
-            let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+            let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
             let tools = create_media_tool_adapters(ctx);
 
             let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
@@ -899,7 +899,7 @@ mod tests {
         #[test]
         fn tier2_thumbnail_tools_registered() {
             let dir = tempfile::tempdir().unwrap();
-            let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+            let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
             let tools = create_media_tool_adapters(ctx);
             let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
 
@@ -912,7 +912,7 @@ mod tests {
         #[test]
         fn tier2_metadata_tool_registered() {
             let dir = tempfile::tempdir().unwrap();
-            let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+            let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
             let tools = create_media_tool_adapters(ctx);
             let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
 
@@ -923,7 +923,7 @@ mod tests {
         #[test]
         fn tier2_optimize_tool_registered() {
             let dir = tempfile::tempdir().unwrap();
-            let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+            let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
             let tools = create_media_tool_adapters(ctx);
             let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
 
@@ -934,7 +934,7 @@ mod tests {
         #[test]
         fn tier2_svg_render_tool_registered() {
             let dir = tempfile::tempdir().unwrap();
-            let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+            let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
             let tools = create_media_tool_adapters(ctx);
             let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
 
@@ -948,7 +948,7 @@ mod tests {
         #[test]
         fn tier3_phash_tools_registered() {
             let dir = tempfile::tempdir().unwrap();
-            let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+            let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
             let tools = create_media_tool_adapters(ctx);
             let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
 
@@ -960,7 +960,7 @@ mod tests {
         #[test]
         fn tier3_pdf_extract_tool_registered() {
             let dir = tempfile::tempdir().unwrap();
-            let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+            let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
             let tools = create_media_tool_adapters(ctx);
             let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
 
@@ -974,7 +974,7 @@ mod tests {
         #[test]
         fn tier3_chart_tool_registered() {
             let dir = tempfile::tempdir().unwrap();
-            let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+            let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
             let tools = create_media_tool_adapters(ctx);
             let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
 
@@ -985,7 +985,7 @@ mod tests {
         #[test]
         fn tier3_provenance_tools_registered() {
             let dir = tempfile::tempdir().unwrap();
-            let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+            let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
             let tools = create_media_tool_adapters(ctx);
             let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
 
@@ -1000,7 +1000,7 @@ mod tests {
         #[test]
         fn tier3_qr_validate_tool_registered() {
             let dir = tempfile::tempdir().unwrap();
-            let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+            let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
             let tools = create_media_tool_adapters(ctx);
             let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
 
@@ -1014,7 +1014,7 @@ mod tests {
         #[test]
         fn tier3_quality_tool_registered() {
             let dir = tempfile::tempdir().unwrap();
-            let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+            let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
             let tools = create_media_tool_adapters(ctx);
             let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
 
@@ -1025,7 +1025,7 @@ mod tests {
         #[test]
         fn pr5_html_tools_registered() {
             let dir = tempfile::tempdir().unwrap();
-            let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+            let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
             let tools = create_media_tool_adapters(ctx);
             let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
 
@@ -1047,7 +1047,7 @@ mod tests {
         #[test]
         fn pr5_html_to_md_tool_registered() {
             let dir = tempfile::tempdir().unwrap();
-            let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+            let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
             let tools = create_media_tool_adapters(ctx);
             let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
 
@@ -1061,7 +1061,7 @@ mod tests {
         #[test]
         fn pr5_readability_tool_registered() {
             let dir = tempfile::tempdir().unwrap();
-            let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+            let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
             let tools = create_media_tool_adapters(ctx);
             let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
 
@@ -1075,7 +1075,7 @@ mod tests {
         #[test]
         fn all_registered_tool_names_unique() {
             let dir = tempfile::tempdir().unwrap();
-            let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+            let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
             let tools = create_media_tool_adapters(ctx);
 
             let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
@@ -1092,7 +1092,7 @@ mod tests {
         #[test]
         fn all_registered_tools_have_valid_schema() {
             let dir = tempfile::tempdir().unwrap();
-            let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+            let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
             let tools = create_media_tool_adapters(ctx);
 
             for tool in &tools {

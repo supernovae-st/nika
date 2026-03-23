@@ -241,6 +241,14 @@ impl RunContext {
         self.results.contains_key(task_id)
     }
 
+    /// Check if a task completed successfully without cloning the full TaskResult.
+    ///
+    /// Returns None if the task doesn't exist, Some(true) if succeeded, Some(false) if failed.
+    /// Avoids O(T*D) TaskResult cloning in get_ready_tasks() hot path.
+    pub fn is_completed_successfully(&self, task_id: &str) -> Option<bool> {
+        self.results.get(task_id).map(|r| r.value().is_success())
+    }
+
     /// Iterate over all task results (cloned).
     ///
     /// Returns (task_id, TaskResult) pairs for all stored results.

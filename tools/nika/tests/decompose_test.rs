@@ -125,7 +125,7 @@ mod executor_unit_tests {
     use serde_json::{json, Value};
 
     fn create_test_executor() -> TaskExecutor {
-        TaskExecutor::new("mock", None, Default::default(), EventLog::new())
+        TaskExecutor::new("mock", None, Default::default(), EventLog::new()).unwrap()
     }
 
     #[tokio::test]

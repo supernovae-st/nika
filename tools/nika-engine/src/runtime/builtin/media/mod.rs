@@ -427,7 +427,7 @@ mod tests {
     #[tokio::test]
     async fn media_tool_adapter_dispatches() {
         let dir = tempfile::tempdir().unwrap();
-        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
         let adapter = MediaToolAdapter::new(Arc::new(DummyOp), ctx);
 
         let result = adapter
@@ -454,7 +454,7 @@ mod tests {
     #[tokio::test]
     async fn media_op_result_binary_stores_in_cas() {
         let dir = tempfile::tempdir().unwrap();
-        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
 
         struct BinaryOp;
         impl MediaOp for BinaryOp {
@@ -502,7 +502,7 @@ mod tests {
     #[tokio::test]
     async fn adapter_invalid_json_returns_error() {
         let dir = tempfile::tempdir().unwrap();
-        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
         let adapter = MediaToolAdapter::new(Arc::new(DummyOp), ctx);
 
         let result = adapter.call("not json".to_string()).await;
@@ -513,7 +513,7 @@ mod tests {
     #[tokio::test]
     async fn create_media_tool_adapters_returns_tools() {
         let dir = tempfile::tempdir().unwrap();
-        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
         let tools = create_media_tool_adapters(ctx);
 
         // At minimum: import, dimensions, thumbhash, dominant_color (always on)

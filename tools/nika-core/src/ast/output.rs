@@ -109,7 +109,7 @@ impl OutputPolicy {
         }
 
         // Fallback: construct spec from OutputPolicy fields (output: block path)
-        let schema = self.schema.clone().unwrap();
+        let schema = self.schema.clone()?;
         Some(super::structured::StructuredOutputSpec {
             schema,
             enable_extractor: None,
