@@ -260,6 +260,15 @@ impl Runner {
         self
     }
 
+    /// Set the permission mode for file tools (nika:write, nika:edit, etc.)
+    ///
+    /// By default, `PermissionMode::Plan` is used (deny writes, emit permission request).
+    /// For `nika run`, use `AcceptAll` since the user explicitly chose to run.
+    pub fn with_permission_mode(self, mode: crate::tools::PermissionMode) -> Self {
+        self.executor.set_permission_mode(mode);
+        self
+    }
+
     /// Set a custom cancellation token
     ///
     /// This allows external control of workflow cancellation.
@@ -336,10 +345,10 @@ impl Runner {
                 let deps = self.flow_graph.get_dependencies(&task.name);
                 for dep in deps.iter() {
                     // Check if dependency has completed
-                    if let Some(dep_result) = self.datastore.get(dep.as_ref()) {
-                        // If dependency failed (either directly or via its own dependencies),
-                        // mark this task as DependencyFailed
-                        if !dep_result.is_success() {
+                    if let Some(succeeded) = self.datastore.is_completed_successfully(dep.as_ref())
+                    {
+                        // If dependency failed, mark this task as DependencyFailed
+                        if !succeeded {
                             // Store DependencyFailed result for this task
                             self.datastore.insert(
                                 intern(&task.name),
@@ -858,7 +867,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         let retry_config = Self::get_retry_config(&task);
 
         // Execute with retry loop if configured
-        let task_result = if let Some((schema, max_retries, original_infer)) = retry_config {
+        let mut task_result = if let Some((schema, max_retries, original_infer)) = retry_config {
             Self::execute_with_retry(
                 &task_id,
                 original_infer,
@@ -998,18 +1007,27 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 artifact_paths = artifact_result.paths;
 
                 if !artifact_result.errors.is_empty() {
-                    for err in &artifact_result.errors {
-                        tracing::error!(
-                            task_id = %task_id,
-                            error = %err,
-                            "Artifact write failed"
-                        );
-                        event_log.emit(EventKind::ArtifactFailed {
-                            task_id: Arc::clone(&task_id),
-                            path: String::new(),
-                            reason: err.to_string(),
-                        });
-                    }
+                    let error_msgs: Vec<String> = artifact_result
+                        .errors
+                        .iter()
+                        .map(|err| {
+                            tracing::error!(
+                                task_id = %task_id,
+                                error = %err,
+                                "Artifact write failed"
+                            );
+                            event_log.emit(EventKind::ArtifactFailed {
+                                task_id: Arc::clone(&task_id),
+                                path: String::new(),
+                                reason: err.to_string(),
+                            });
+                            err.to_string()
+                        })
+                        .collect();
+                    task_result = TaskResult::failed(
+                        format!("Artifact write errors: {}", error_msgs.join("; ")),
+                        start.elapsed(),
+                    );
                 }
             }
         }
@@ -1355,12 +1373,19 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     ) {
                         Ok(b) => b,
                         Err(e) => {
-                            tracing::warn!(
+                            tracing::error!(
                                 task_id = %task.name,
                                 error = %e,
-                                "Failed to resolve bindings for decompose, using empty"
+                                "Failed to resolve bindings for decompose"
                             );
-                            ResolvedBindings::default()
+                            self.datastore.insert(
+                                intern(&task.name),
+                                TaskResult::failed(
+                                    format!("Decompose binding resolution failed: {e}"),
+                                    std::time::Duration::ZERO,
+                                ),
+                            );
+                            continue;
                         }
                     };
                     // Expand decompose using executor (with timeout to prevent silent hangs)
@@ -1427,12 +1452,19 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         ) {
                             Ok(b) => b,
                             Err(e) => {
-                                tracing::warn!(
+                                tracing::error!(
                                     task_id = %task.name,
                                     error = %e,
-                                    "Failed to resolve bindings for for_each, using empty"
+                                    "Failed to resolve bindings for for_each"
                                 );
-                                ResolvedBindings::default()
+                                self.datastore.insert(
+                                    intern(&task.name),
+                                    TaskResult::failed(
+                                        format!("for_each binding resolution failed: {e}"),
+                                        std::time::Duration::ZERO,
+                                    ),
+                                );
+                                continue;
                             }
                         };
 

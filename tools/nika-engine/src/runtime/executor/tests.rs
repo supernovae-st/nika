@@ -971,8 +971,14 @@ async fn test_execute_exec_blocked_by_policy() {
         blocked_commands: vec!["dangerous_tool".to_string(), "custom_block".to_string()],
         ..Default::default()
     };
-    let executor =
-        TaskExecutor::with_policy("mock", None, None, EventLog::new(), Some(policy_config));
+    let executor = TaskExecutor::with_policy(
+        "mock",
+        None,
+        None,
+        EventLog::new(),
+        Some(policy_config),
+        None,
+    );
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
 
@@ -1010,8 +1016,14 @@ async fn test_execute_exec_allowed_by_policy() {
         blocked_commands: vec!["sudo".to_string()],
         ..Default::default()
     };
-    let executor =
-        TaskExecutor::with_policy("mock", None, None, EventLog::new(), Some(policy_config));
+    let executor = TaskExecutor::with_policy(
+        "mock",
+        None,
+        None,
+        EventLog::new(),
+        Some(policy_config),
+        None,
+    );
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
 
@@ -1041,8 +1053,14 @@ async fn test_execute_exec_disabled_by_policy() {
         allow_exec: false,
         ..Default::default()
     };
-    let executor =
-        TaskExecutor::with_policy("mock", None, None, EventLog::new(), Some(policy_config));
+    let executor = TaskExecutor::with_policy(
+        "mock",
+        None,
+        None,
+        EventLog::new(),
+        Some(policy_config),
+        None,
+    );
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
 
@@ -1081,8 +1099,14 @@ async fn test_execute_fetch_blocked_by_policy() {
         blocked_hosts: vec!["evil.com".to_string()],
         ..Default::default()
     };
-    let executor =
-        TaskExecutor::with_policy("mock", None, None, EventLog::new(), Some(policy_config));
+    let executor = TaskExecutor::with_policy(
+        "mock",
+        None,
+        None,
+        EventLog::new(),
+        Some(policy_config),
+        None,
+    );
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
 
@@ -1123,8 +1147,14 @@ async fn test_execute_fetch_disabled_by_policy() {
         allow_network: false,
         ..Default::default()
     };
-    let executor =
-        TaskExecutor::with_policy("mock", None, None, EventLog::new(), Some(policy_config));
+    let executor = TaskExecutor::with_policy(
+        "mock",
+        None,
+        None,
+        EventLog::new(),
+        Some(policy_config),
+        None,
+    );
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
 
@@ -1173,8 +1203,14 @@ async fn test_executor_with_policy_config() {
         ..Default::default()
     };
 
-    let executor =
-        TaskExecutor::with_policy("mock", None, None, EventLog::new(), Some(policy_config));
+    let executor = TaskExecutor::with_policy(
+        "mock",
+        None,
+        None,
+        EventLog::new(),
+        Some(policy_config),
+        None,
+    );
 
     // Verify executor was created (basic sanity check)
     assert_eq!(executor.default_provider.as_ref(), "mock");

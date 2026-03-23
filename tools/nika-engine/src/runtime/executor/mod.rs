@@ -75,6 +75,8 @@ pub struct TaskExecutor {
     cancel_token: CancellationToken,
     /// CAS store for reading media blobs (used by vision content resolution)
     cas: Arc<CasStore>,
+    /// Tool context for setting permission mode after construction
+    tool_ctx: Arc<ToolContext>,
     /// Shared SkillInjector for loading and caching skill files
     skill_injector: Arc<SkillInjector>,
     /// Workflow-level skills mapping (alias -> file path)
@@ -91,7 +93,7 @@ impl TaskExecutor {
         mcp_configs: Option<FxHashMap<String, McpConfigInline>>,
         event_log: EventLog,
     ) -> Self {
-        Self::with_policy(provider, model, mcp_configs, event_log, None)
+        Self::with_policy(provider, model, mcp_configs, event_log, None, None)
     }
 
     /// Create a new executor with explicit policy configuration
@@ -101,13 +103,45 @@ impl TaskExecutor {
         mcp_configs: Option<FxHashMap<String, McpConfigInline>>,
         event_log: EventLog,
         policy_config: Option<PolicyConfig>,
+        permission_mode: Option<PermissionMode>,
     ) -> Self {
         // SAFETY: ClientBuilder::build() only fails with custom TLS or proxy config.
         // We use defaults, so this is effectively infallible.
+        //
+        // Custom redirect policy: check each hop against SSRF blocklist to prevent
+        // SSRF bypass via HTTP redirect (e.g., external → 169.254.169.254).
+        let ssrf_redirect_policy = reqwest::redirect::Policy::custom(|attempt| {
+            use crate::runtime::policy::SSRF_BLOCKED_HOSTS;
+
+            if attempt.previous().len() >= REDIRECT_LIMIT {
+                attempt.stop()
+            } else {
+                let blocked = attempt
+                    .url()
+                    .host_str()
+                    .and_then(|host| {
+                        let h = host.to_lowercase();
+                        let h_normalized = h.trim_start_matches('[').trim_end_matches(']');
+                        if SSRF_BLOCKED_HOSTS.contains(&h_normalized) {
+                            Some(h)
+                        } else {
+                            None
+                        }
+                    });
+                if let Some(host) = blocked {
+                    attempt.error(std::io::Error::new(
+                        std::io::ErrorKind::PermissionDenied,
+                        format!("SSRF protection: redirect to '{}' blocked", host),
+                    ))
+                } else {
+                    attempt.follow()
+                }
+            }
+        });
         let http_client = reqwest::Client::builder()
             .timeout(FETCH_TIMEOUT)
             .connect_timeout(CONNECT_TIMEOUT)
-            .redirect(reqwest::redirect::Policy::limited(REDIRECT_LIMIT))
+            .redirect(ssrf_redirect_policy)
             .user_agent(format!("nika/{}", env!("CARGO_PKG_VERSION")))
             .build()
             .unwrap_or_else(|e| {
@@ -118,17 +152,13 @@ impl TaskExecutor {
         let policy_enforcer = PolicyEnforcer::new(policy_config.unwrap_or_default());
 
         // Create ToolContext for file tools
-        // TODO: pass PermissionMode from BootstrapConfig.tools.permission through
-        //       TaskExecutor constructors instead of defaulting here.
         let working_dir = std::env::current_dir().unwrap_or_else(|_| {
             tracing::warn!("Failed to get current directory, using /tmp");
             std::path::PathBuf::from("/tmp")
         });
-        tracing::warn!(
-            "File tools using default PermissionMode::Plan — \
-             pass BootstrapConfig.tools.permission to TaskExecutor for proper config"
-        );
-        let tool_ctx = Arc::new(ToolContext::new(working_dir.clone(), PermissionMode::Plan));
+        let perm = permission_mode.unwrap_or(PermissionMode::Plan);
+        tracing::debug!(?perm, "File tools using PermissionMode");
+        let tool_ctx = Arc::new(ToolContext::new(working_dir.clone(), perm));
 
         // Create media tool context with CAS store at workspace default
         let media_ctx = Arc::new(MediaToolContext::new(CasStore::workspace_default(
@@ -147,14 +177,23 @@ impl TaskExecutor {
             default_provider: provider.into(),
             default_model: model.map(Into::into),
             event_log,
-            builtin_router: Arc::new(BuiltinToolRouter::with_all_tools(tool_ctx, media_ctx)),
+            builtin_router: Arc::new(BuiltinToolRouter::with_all_tools(
+                tool_ctx.clone(),
+                media_ctx,
+            )),
             policy_enforcer: Arc::new(RwLock::new(policy_enforcer)),
             cancel_token: CancellationToken::new(),
             cas,
+            tool_ctx,
             skill_injector: Arc::new(SkillInjector::new()),
             skills_map: std::collections::HashMap::new(),
             workflow_base_dir: working_dir,
         }
+    }
+
+    /// Set the permission mode for file tools (nika:write, nika:edit, etc.)
+    pub fn set_permission_mode(&self, mode: PermissionMode) {
+        self.tool_ctx.set_permission_mode(mode);
     }
 
     /// Set a cancellation token for aborting in-flight operations.

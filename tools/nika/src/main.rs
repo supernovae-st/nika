@@ -196,6 +196,10 @@ enum Commands {
         /// Override default model
         #[arg(short, long)]
         model: Option<String>,
+
+        /// Permission mode for file tools: deny, plan, accept-edits, yolo
+        #[arg(long, default_value = "accept-edits")]
+        permission: String,
     },
 
     /// Validate workflow syntax, DAG structure, and bindings
@@ -662,6 +666,7 @@ async fn main() {
                 None,
                 cli.quiet,
                 cli.detail,
+                "accept-edits",
             )
             .await;
             handle_result(result);
@@ -725,7 +730,8 @@ async fn main() {
             file,
             provider,
             model,
-        }) => run_workflow(&file, provider, model, quiet, detail).await,
+            permission,
+        }) => run_workflow(&file, provider, model, quiet, detail, &permission).await,
 
         Some(Commands::Check { file, strict }) => {
             if strict {
@@ -1003,6 +1009,7 @@ async fn run_workflow(
     model_override: Option<String>,
     quiet: bool,
     detail: nika::display::DetailLevel,
+    permission: &str,
 ) -> Result<(), NikaError> {
     let resolved_path = resolve_workflow_path(file).await?;
 
@@ -1069,7 +1076,14 @@ async fn run_workflow(
         }
     }
 
-    let mut runner = Runner::new(workflow)?;
+    let perm_mode = match permission {
+        "deny" => nika_engine::tools::PermissionMode::Deny,
+        "plan" => nika_engine::tools::PermissionMode::Plan,
+        "accept-edits" => nika_engine::tools::PermissionMode::AcceptEdits,
+        "yolo" | "accept-all" => nika_engine::tools::PermissionMode::YoloMode,
+        _ => nika_engine::tools::PermissionMode::AcceptEdits,
+    };
+    let mut runner = Runner::new(workflow)?.with_permission_mode(perm_mode);
     if quiet {
         runner = runner.quiet();
     }
