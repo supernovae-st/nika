@@ -1216,7 +1216,8 @@ impl TaskExecutor {
                         )));
 
                         // Exponential backoff
-                        let delay_ms = backoff_ms * (multiplier.powi((attempt - 1) as i32) as u64);
+                        let exp = (attempt - 1).min(30) as i32;
+                        let delay_ms = backoff_ms.saturating_mul(multiplier.powi(exp).min(u64::MAX as f64) as u64);
                         tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
                         continue;
                     }
@@ -1439,7 +1440,8 @@ impl TaskExecutor {
                             Some(NikaError::Execution(format!("HTTP request failed: {}", e)));
 
                         // Exponential backoff
-                        let delay_ms = backoff_ms * (multiplier.powi((attempt - 1) as i32) as u64);
+                        let exp = (attempt - 1).min(30) as i32;
+                        let delay_ms = backoff_ms.saturating_mul(multiplier.powi(exp).min(u64::MAX as f64) as u64);
                         tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
                         continue;
                     }
