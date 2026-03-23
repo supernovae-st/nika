@@ -808,6 +808,10 @@ impl McpClient {
             return Ok(());
         }
 
+        // Disconnect clears validator cache + response cache
+        self.disconnect().await?;
+
+        // Reconnect via the adapter (re-establishes transport)
         let adapter = self
             .adapter
             .as_ref()
@@ -832,6 +836,8 @@ impl McpClient {
             || error_str.contains("eof")
             || error_str.contains("stdin not available")
             || error_str.contains("stdout not available")
+            || error_str.contains("transport closed")
+            || error_str.contains("transport send")
     }
 
     /// Enhance an error with validation context if available.
@@ -2176,5 +2182,108 @@ mod tests {
              BUG: This requires iterating ALL entries + sorting to find the oldest one. \
              An LRU cache would do this in O(1)."
         );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // CONNECTION ERROR DETECTION TESTS
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_is_connection_error_broken_pipe() {
+        let err = McpError::McpToolError {
+            tool: "test".into(),
+            reason: "Broken pipe".into(),
+            error_code: None,
+        };
+        assert!(McpClient::is_connection_error(&err));
+    }
+
+    #[test]
+    fn test_is_connection_error_connection_reset() {
+        let err = McpError::McpToolError {
+            tool: "test".into(),
+            reason: "Connection reset by peer".into(),
+            error_code: None,
+        };
+        assert!(McpClient::is_connection_error(&err));
+    }
+
+    #[test]
+    fn test_is_connection_error_connection_refused() {
+        let err = McpError::McpToolError {
+            tool: "test".into(),
+            reason: "Connection refused".into(),
+            error_code: None,
+        };
+        assert!(McpClient::is_connection_error(&err));
+    }
+
+    #[test]
+    fn test_is_connection_error_eof() {
+        let err = McpError::McpToolError {
+            tool: "test".into(),
+            reason: "unexpected EOF".into(),
+            error_code: None,
+        };
+        assert!(McpClient::is_connection_error(&err));
+    }
+
+    #[test]
+    fn test_is_connection_error_stdin_not_available() {
+        let err = McpError::McpToolError {
+            tool: "test".into(),
+            reason: "stdin not available".into(),
+            error_code: None,
+        };
+        assert!(McpClient::is_connection_error(&err));
+    }
+
+    #[test]
+    fn test_is_connection_error_stdout_not_available() {
+        let err = McpError::McpToolError {
+            tool: "test".into(),
+            reason: "stdout not available".into(),
+            error_code: None,
+        };
+        assert!(McpClient::is_connection_error(&err));
+    }
+
+    #[test]
+    fn test_is_connection_error_transport_closed() {
+        let err = McpError::McpToolError {
+            tool: "test".into(),
+            reason: "Transport closed unexpectedly".into(),
+            error_code: None,
+        };
+        assert!(McpClient::is_connection_error(&err));
+    }
+
+    #[test]
+    fn test_is_connection_error_transport_send() {
+        let err = McpError::McpToolError {
+            tool: "test".into(),
+            reason: "Transport send failed".into(),
+            error_code: None,
+        };
+        assert!(McpClient::is_connection_error(&err));
+    }
+
+    #[test]
+    fn test_is_connection_error_non_connection_error() {
+        let err = McpError::McpToolError {
+            tool: "test".into(),
+            reason: "invalid parameter 'mode'".into(),
+            error_code: None,
+        };
+        assert!(!McpClient::is_connection_error(&err));
+    }
+
+    #[test]
+    fn test_is_connection_error_not_connected() {
+        let err = McpError::McpNotConnected {
+            name: "novanet".into(),
+        };
+        // McpNotConnected message doesn't contain transport keywords
+        assert!(!McpClient::is_connection_error(&err));
     }
 }
