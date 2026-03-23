@@ -77,10 +77,10 @@ stdout, stderr, exit code. No more "it worked on my machine."
 
 ```yaml
 tasks:
-  list_files:
-    exec: ls -la
-  disk_usage:
-    exec: du -sh .
+  - id: list_files
+    exec: "ls -la"
+  - id: disk_usage
+    exec: "du -sh ."
 ```
 
 ### The `fetch:` Verb (Intro)
@@ -90,8 +90,8 @@ no OAuth dance. Just a URL and you get the response body.
 
 ```yaml
 tasks:
-  get_ip:
-    fetch: https://httpbin.org/ip
+  - id: get_ip
+    fetch: "https://httpbin.org/ip"
 ```
 
 Later levels will blow this wide open. For now: URL in, data out.
@@ -168,13 +168,13 @@ block aliases a task's output so downstream tasks can reference it.
 
 ```yaml
 tasks:
-  get_data:
-    fetch: https://httpbin.org/json
+  - id: get_data
+    fetch: "https://httpbin.org/json"
 
-  process:
+  - id: process
     with:
       data: $get_data
-    exec: echo "Got {{with.data}}"
+    exec: "echo \"Got {{with.data}}\""
     depends_on: [get_data]
 ```
 
@@ -188,10 +188,10 @@ JSONPath reaches in and grabs what you need.
 
 ```yaml
 tasks:
-  process:
+  - id: process
     with:
       ip: $get_data
-    exec: echo "IP is {{with.ip.origin}}"
+    exec: "echo \"IP is {{with.ip.origin}}\""
 ```
 
 Dot notation for objects. Brackets for arrays. Done.
@@ -202,10 +202,10 @@ Secrets stay in the environment. Never in YAML.
 
 ```yaml
 tasks:
-  auth_request:
+  - id: auth_request
     with:
       token: $env.API_TOKEN
-    fetch: https://api.example.com/data
+    fetch: "https://api.example.com/data"
     headers:
       Authorization: "Bearer {{with.token}}"
 ```
@@ -282,15 +282,15 @@ You don't manage threads. You declare dependencies.
 
 ```yaml
 tasks:
-  fetch_users:
-    fetch: https://api.example.com/users
+  - id: fetch_users
+    fetch: "https://api.example.com/users"
 
-  fetch_products:
-    fetch: https://api.example.com/products
+  - id: fetch_products
+    fetch: "https://api.example.com/products"
 
-  merge:
+  - id: merge
     depends_on: [fetch_users, fetch_products]
-    exec: echo "Both done"
+    exec: "echo \"Both done\""
 ```
 
 `fetch_users` and `fetch_products` run at the same time. `merge` waits
@@ -310,17 +310,17 @@ The most powerful DAG shape: fan-out, then fan-in.
 
 ```yaml
 tasks:
-  start:
-    exec: echo "begin"
-  task_a:
+  - id: start
+    exec: "echo \"begin\""
+  - id: task_a
     depends_on: [start]
-    exec: echo "path A"
-  task_b:
+    exec: "echo \"path A\""
+  - id: task_b
     depends_on: [start]
-    exec: echo "path B"
-  merge:
+    exec: "echo \"path B\""
+  - id: merge
     depends_on: [task_a, task_b]
-    exec: echo "both paths complete"
+    exec: "echo \"both paths complete\""
 ```
 
 ### Why This Matters
@@ -400,7 +400,7 @@ the completion. No SDK. No API key management ceremony. One verb.
 
 ```yaml
 tasks:
-  think:
+  - id: think
     infer:
       model: claude/claude-sonnet-4-6
       prompt: "Explain open source in one sentence."
@@ -436,10 +436,10 @@ The real power: LLMs as nodes in a DAG.
 
 ```yaml
 tasks:
-  fetch_article:
-    fetch: https://example.com/article
+  - id: fetch_article
+    fetch: "https://example.com/article"
 
-  summarize:
+  - id: summarize
     with:
       article: $fetch_article
     infer:
@@ -521,10 +521,10 @@ inline, right in your templates. No intermediate tasks, no scripts.
 
 ```yaml
 tasks:
-  greet:
+  - id: greet
     with:
       name: $get_name
-    exec: echo "Hello, {{with.name | trim | uppercase}}"
+    exec: "echo \"Hello, {{with.name | trim | uppercase}}\""
 ```
 
 The pipe `|` chains transforms left to right. Each one reshapes
@@ -556,10 +556,10 @@ Stack them. Each output feeds the next input.
 
 ```yaml
 tasks:
-  process:
+  - id: process
     with:
       raw: $fetch_data
-    exec: echo "{{with.raw | trim | lowercase | length}} chars"
+    exec: "echo \"{{with.raw | trim | lowercase | length}} chars\""
 ```
 
 This trims whitespace, lowercases everything, then counts the characters.
@@ -641,7 +641,7 @@ you need JSON. The `output:` field tames them.
 
 ```yaml
 tasks:
-  extract:
+  - id: extract
     infer:
       model: claude/claude-sonnet-4-6
       prompt: "Extract the name and age from: John Smith, 34 years old"
@@ -676,7 +676,7 @@ validation, you get guarantees. Real, parseable, type-safe output.
 
 ```yaml
 tasks:
-  analyze:
+  - id: analyze
     infer:
       model: openai/gpt-4o
       prompt: "Classify this text: {{with.input}}"
@@ -766,14 +766,14 @@ no dependency. The `invoke:` verb calls them by name.
 
 ```yaml
 tasks:
-  log_it:
+  - id: log_it
     invoke:
       tool: nika:log
       params:
         message: "Pipeline started"
         level: info
 
-  check:
+  - id: check
     invoke:
       tool: nika:assert
       params:
@@ -788,19 +788,19 @@ These tools are cross-platform, safe, and return structured data.
 
 ```yaml
 tasks:
-  find_configs:
+  - id: find_configs
     invoke:
       tool: nika:glob
       params:
         pattern: "**/*.toml"
 
-  read_config:
+  - id: read_config
     invoke:
       tool: nika:read
       params:
         file_path: "config.toml"
 
-  search:
+  - id: search
     invoke:
       tool: nika:grep
       params:
@@ -814,7 +814,7 @@ The ultimate composition tool. One workflow calls another.
 
 ```yaml
 tasks:
-  run_sub:
+  - id: run_sub
     invoke:
       tool: nika:run
       params:
@@ -894,7 +894,7 @@ until it decides it's done or hits a stop condition.
 
 ```yaml
 tasks:
-  researcher:
+  - id: researcher
     agent:
       model: claude/claude-sonnet-4-6
       prompt: "Find the top 3 trending repos on GitHub today"
@@ -914,7 +914,7 @@ in the `tools:` list becomes a capability the LLM can invoke.
 
 ```yaml
 tasks:
-  writer:
+  - id: writer
     agent:
       model: openai/gpt-4o
       prompt: "Write a summary of {{with.article}} and save it"
@@ -934,7 +934,7 @@ Agents are powerful. Guardrails keep them safe.
 
 ```yaml
 tasks:
-  careful_agent:
+  - id: careful_agent
     agent:
       model: claude/claude-sonnet-4-6
       prompt: "Analyze the codebase"
@@ -1025,7 +1025,7 @@ exactly what you need.
 
 ```yaml
 tasks:
-  get_article:
+  - id: get_article
     fetch:
       url: https://example.com/blog/post
       extract: markdown
@@ -1054,7 +1054,7 @@ APIs return massive JSON payloads. JSONPath cuts to what matters.
 
 ```yaml
 tasks:
-  get_stars:
+  - id: get_stars
     fetch:
       url: https://api.github.com/repos/user/repo
       extract: jsonpath
@@ -1067,7 +1067,7 @@ Images, PDFs, any binary file — download to CAS and get a hash.
 
 ```yaml
 tasks:
-  download_image:
+  - id: download_image
     fetch:
       url: https://example.com/photo.jpg
       response: binary
@@ -1170,7 +1170,7 @@ Then invoke their tools in workflows:
 
 ```yaml
 tasks:
-  list_files:
+  - id: list_files
     invoke:
       tool: filesystem/list_directory
       params:
@@ -1184,7 +1184,7 @@ relationships, and memory as a graph database, exposed via MCP.
 
 ```yaml
 tasks:
-  query_knowledge:
+  - id: query_knowledge
     invoke:
       tool: novanet/search
       params:
@@ -1278,13 +1278,13 @@ in your workflows. Zero external dependencies.
 
 ```yaml
 tasks:
-  import_photo:
+  - id: import_photo
     invoke:
       tool: nika:import
       params:
         path: "photo.jpg"
 
-  make_thumbnail:
+  - id: make_thumbnail
     with:
       photo: $import_photo
     invoke:
@@ -1308,7 +1308,7 @@ Send images directly to multimodal LLMs with the `content:` field:
 
 ```yaml
 tasks:
-  describe:
+  - id: describe
     with:
       photo: $import_photo
     infer:
@@ -1331,7 +1331,7 @@ Chain multiple operations in memory without intermediate files:
 
 ```yaml
 tasks:
-  process:
+  - id: process
     invoke:
       tool: nika:pipeline
       params:
@@ -1472,7 +1472,7 @@ Nika gives you timeout, retry, and error handling:
 
 ```yaml
 tasks:
-  resilient_fetch:
+  - id: resilient_fetch
     fetch:
       url: https://unreliable-api.com/data
     timeout: 30
@@ -1487,7 +1487,7 @@ Don't depend on one provider. Design workflows that can switch:
 
 ```yaml
 tasks:
-  primary:
+  - id: primary
     infer:
       model: claude/claude-sonnet-4-6
       prompt: "Analyze: {{with.data}}"
