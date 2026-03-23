@@ -121,33 +121,36 @@ pub async fn handle_doctor_command(
     // Auto-fix mode: run machine setup to repair issues
     if fix {
         let has_issues = checks.iter().any(|c| c.status != DiagnosticStatus::Pass);
-        if has_issues {
-            println!();
-            println!("  {}", "Auto-fixing...".bold());
-            let results = crate::machine::run_machine_setup();
-            let fix_failures = results.iter().filter(|r| !r.success).count();
-            println!();
-            if fix_failures > 0 {
-                println!(
-                    "  {} {fix_failures} issue(s) could not be auto-fixed",
-                    "\u{26a0}".yellow()
-                );
-                println!(
-                    "  {} Re-run {} to see details",
-                    "\u{2192}".cyan(),
-                    "nika doctor".bold()
-                );
-            } else {
-                println!(
-                    "  {} All issues fixed! Re-run {} to verify",
-                    "\u{2713}".green(),
-                    "nika doctor".bold()
-                );
-            }
-        } else {
+        if !has_issues {
             println!();
             println!("  {} Nothing to fix!", "\u{2713}".green());
+            return Ok(());
         }
+
+        println!();
+        println!("  {}", "Auto-fixing...".bold());
+        let results = crate::machine::run_machine_setup();
+        let fix_failures = results.iter().filter(|r| !r.success).count();
+        println!();
+        if fix_failures > 0 {
+            println!(
+                "  {} {fix_failures} issue(s) could not be auto-fixed",
+                "\u{26a0}".yellow()
+            );
+            println!(
+                "  {} Re-run {} to see details",
+                "\u{2192}".cyan(),
+                "nika doctor".bold()
+            );
+            return Err(NikaError::ValidationError {
+                reason: format!("{} issue(s) could not be auto-fixed", fix_failures),
+            });
+        }
+        println!(
+            "  {} All issues fixed! Re-run {} to verify",
+            "\u{2713}".green(),
+            "nika doctor".bold()
+        );
         return Ok(());
     }
 

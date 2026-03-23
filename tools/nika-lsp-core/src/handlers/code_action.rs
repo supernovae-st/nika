@@ -168,7 +168,7 @@ pub fn code_actions(text: &str, start_offset: u32, _end_offset: u32) -> Vec<Code
                     offset: line_start as u32,
                     end_offset: line_end as u32,
                     new_text: format!(
-                        "{indent}invoke:\n{indent}  mcp: novanet\n{indent}  tool: {tool}\n{indent}  params:\n{indent}    {{}}"
+                        "{indent}invoke:\n{indent}  tool: {tool}\n{indent}  params:\n{indent}    {{}}"
                     ),
                 }),
             });
@@ -387,10 +387,7 @@ fn fix_missing_field(text: &str, diag: &DiagnosticInfo) -> Option<CodeActionEntr
             format!("{}id: new_task\n{}", indent_str, indent_str),
         )
     } else if msg.contains("'schema'") {
-        (
-            "Add missing schema".into(),
-            "schema: \"@0.12\"\n".into(),
-        )
+        ("Add missing schema".into(), "schema: \"@0.12\"\n".into())
     } else if msg.contains("'tasks'") {
         (
             "Add missing tasks block".into(),
@@ -518,8 +515,7 @@ fn fuzzy_score(a: &str, b: &str) -> f64 {
     // Char overlap
     let a_set: std::collections::HashSet<char> = a.chars().collect();
     let b_set: std::collections::HashSet<char> = b.chars().collect();
-    let overlap =
-        a_set.intersection(&b_set).count() as f64 / a_set.len().max(b_set.len()) as f64;
+    let overlap = a_set.intersection(&b_set).count() as f64 / a_set.len().max(b_set.len()) as f64;
 
     // Prefix bonus
     let prefix = if a.starts_with(b) || b.starts_with(a) {

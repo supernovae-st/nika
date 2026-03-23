@@ -96,11 +96,7 @@ pub fn inlay_hints(text: &str, start_offset: u32, end_offset: u32) -> Vec<InlayH
                     hints.push(InlayHintEntry {
                         line: i as u32,
                         character: line_char_len,
-                        label: format!(
-                            " ({} dep{})",
-                            count,
-                            if count == 1 { "" } else { "s" }
-                        ),
+                        label: format!(" ({} dep{})", count, if count == 1 { "" } else { "s" }),
                         tooltip: "Number of upstream dependencies".into(),
                         kind: HintKind::Type,
                     });
@@ -161,9 +157,9 @@ fn model_cost_label(model: &str) -> Option<String> {
         // Anthropic
         m if m.contains("opus-4") => ("Anthropic", 15.0, 75.0),
         m if m.contains("sonnet-4") => ("Anthropic", 3.0, 15.0),
-        m if m.contains("haiku-3.5") || m.contains("haiku-4") => ("Anthropic", 0.8, 4.0),
+        m if m.contains("haiku-3.5") => ("Anthropic", 0.8, 4.0),
         // OpenAI
-        "gpt-4o" | "gpt-4o-2024-08-06" => ("OpenAI", 2.5, 10.0),
+        m if m.starts_with("gpt-4o") && !m.contains("mini") => ("OpenAI", 2.5, 10.0),
         "gpt-4o-mini" => ("OpenAI", 0.15, 0.6),
         m if m.starts_with("gpt-4.1") && !m.contains("mini") && !m.contains("nano") => {
             ("OpenAI", 2.0, 8.0)

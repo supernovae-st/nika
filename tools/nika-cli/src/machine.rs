@@ -10,16 +10,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use colored::Colorize;
 
-/// Machine setup state persisted at ~/.nika/machine.toml
-#[derive(Debug)]
-pub struct MachineState {
-    pub setup_at: String,
-    pub version: String,
-    pub editors: Vec<String>,
-    pub ai_tools: Vec<String>,
-    pub completions: Option<String>,
-}
-
 /// Result of a single setup action.
 #[derive(Debug)]
 pub struct SetupResult {
