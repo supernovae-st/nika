@@ -1120,23 +1120,22 @@ async fn run_workflow(
     }
 
     if !quiet && !detail.is_json() {
-        let layer_count = {
-            let nodes: Vec<&str> = workflow.tasks.iter().map(|t| t.name.as_str()).collect();
-            let edges: Vec<(&str, &str)> = workflow
-                .tasks
-                .iter()
-                .flat_map(|task| {
-                    task.depends_on.iter().filter_map(|dep_id| {
-                        workflow
-                            .task_table
-                            .get_name(*dep_id)
-                            .map(|dep_name| (dep_name, task.name.as_str()))
-                    })
+        let nodes: Vec<&str> = workflow.tasks.iter().map(|t| t.name.as_str()).collect();
+        let edges: Vec<(&str, &str)> = workflow
+            .tasks
+            .iter()
+            .flat_map(|task| {
+                task.depends_on.iter().filter_map(|dep_id| {
+                    workflow
+                        .task_table
+                        .get_name(*dep_id)
+                        .map(|dep_name| (dep_name, task.name.as_str()))
                 })
-                .collect();
-            let depths = nika::dag::flow::compute_layers(&nodes, &edges);
-            nika::dag::flow::layer_count(&depths)
-        };
+            })
+            .collect();
+        let depths = nika::dag::flow::compute_layers(&nodes, &edges);
+        let layer_count = nika::dag::flow::layer_count(&depths);
+
         let gen_id = format!("{:08x}", rand::random::<u32>());
         nika::display::header::print_header(
             workflow.name.as_deref(),
@@ -1147,6 +1146,9 @@ async fn run_workflow(
             env!("CARGO_PKG_VERSION"),
             &gen_id,
         );
+
+        // Inline DAG summary
+        nika::display::header::print_dag_summary(&nodes, &depths);
 
         // IMP-1: Migration hint for old schema versions
         if let Some(hint) = workflow.schema_version.migration_hint() {

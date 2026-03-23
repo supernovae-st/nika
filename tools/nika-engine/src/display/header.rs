@@ -1,5 +1,7 @@
 //! Header renderer — workflow info box + static DAG.
 
+use std::collections::HashMap;
+
 use colored::Colorize;
 
 use crate::display::colors::stripped_len;
@@ -74,5 +76,52 @@ pub fn print_header(
 
     println!("│{}│", " ".repeat(inner));
     println!("╰{}╯", border.dimmed());
+    println!();
+}
+
+/// Print a one-line DAG summary showing the execution flow.
+///
+/// ```text
+/// DAG: fetch_data → [summarize, translate] → review  (4 tasks, 2 parallel)
+/// ```
+pub fn print_dag_summary(task_names: &[&str], depths: &HashMap<&str, usize>) {
+    if task_names.is_empty() {
+        return;
+    }
+
+    // Group tasks by layer
+    let max_layer = depths.values().copied().max().unwrap_or(0);
+    let mut layers: Vec<Vec<&str>> = vec![Vec::new(); max_layer + 1];
+    for &name in task_names {
+        if let Some(&layer) = depths.get(name) {
+            layers[layer].push(name);
+        }
+    }
+
+    // Count parallel tasks
+    let parallel_count = layers.iter().filter(|l| l.len() > 1).flat_map(|l| l.iter()).count();
+
+    // Build flow string
+    let parts: Vec<String> = layers
+        .iter()
+        .filter(|l| !l.is_empty())
+        .map(|layer| {
+            if layer.len() == 1 {
+                layer[0].to_string()
+            } else {
+                format!("[{}]", layer.join(", "))
+            }
+        })
+        .collect();
+
+    let flow = parts.join(" \u{2192} "); // →
+
+    let stats = if parallel_count > 0 {
+        format!("({} tasks, {} parallel)", task_names.len(), parallel_count)
+    } else {
+        format!("({} tasks)", task_names.len())
+    };
+
+    println!("  {} {}  {}", "DAG:".dimmed(), flow, stats.dimmed());
     println!();
 }
