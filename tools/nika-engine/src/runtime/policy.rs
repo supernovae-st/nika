@@ -15,7 +15,7 @@ use url::Url;
 /// These are ALWAYS blocked regardless of user configuration.
 /// Cloud metadata services (AWS/GCP/Alibaba) and loopback addresses are
 /// common SSRF targets that should never be reachable from workflow fetch: verbs.
-const SSRF_BLOCKED_HOSTS: &[&str] = &[
+pub(crate) const SSRF_BLOCKED_HOSTS: &[&str] = &[
     "169.254.169.254",
     "metadata.google.internal",
     "100.100.100.200",

@@ -92,11 +92,13 @@ impl TaskExecutor {
         model: Option<&str>,
         mcp_configs: Option<FxHashMap<String, McpConfigInline>>,
         event_log: EventLog,
-    ) -> Self {
+    ) -> Result<Self, NikaError> {
         Self::with_policy(provider, model, mcp_configs, event_log, None, None)
     }
 
-    /// Create a new executor with explicit policy configuration
+    /// Create a new executor with explicit policy configuration.
+    ///
+    /// Returns an error if the media compute pool cannot be created.
     pub fn with_policy(
         provider: &str,
         model: Option<&str>,
@@ -104,7 +106,7 @@ impl TaskExecutor {
         event_log: EventLog,
         policy_config: Option<PolicyConfig>,
         permission_mode: Option<PermissionMode>,
-    ) -> Self {
+    ) -> Result<Self, NikaError> {
         // SAFETY: ClientBuilder::build() only fails with custom TLS or proxy config.
         // We use defaults, so this is effectively infallible.
         //
@@ -163,11 +165,11 @@ impl TaskExecutor {
         // Create media tool context with CAS store at workspace default
         let media_ctx = Arc::new(MediaToolContext::new(CasStore::workspace_default(
             &working_dir,
-        )));
+        ))?);
         // Separate CAS handle for vision content resolution (same directory)
         let cas = Arc::new(CasStore::workspace_default(&working_dir));
 
-        Self {
+        Ok(Self {
             http_client,
             rig_provider_cache: Arc::new(DashMap::new()),
             mcp_pool: McpClientPool::with_configs(
@@ -188,7 +190,7 @@ impl TaskExecutor {
             skill_injector: Arc::new(SkillInjector::new()),
             skills_map: std::collections::HashMap::new(),
             workflow_base_dir: working_dir,
-        }
+        })
     }
 
     /// Set the permission mode for file tools (nika:write, nika:edit, etc.)

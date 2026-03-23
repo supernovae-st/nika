@@ -1290,16 +1290,12 @@ impl TaskExecutor {
             }
 
             // Get the request for this attempt
-            let req = if attempt == 1 {
-                // First attempt: use the original request
-                current_request
-                    .take()
-                    .expect("request should exist on first attempt")
-            } else {
-                // Subsequent attempts: we already verified we can clone
-                // The original request was moved, but we stored a clone
-                current_request.take().expect("cloned request should exist")
-            };
+            let req = current_request.take().ok_or_else(|| NikaError::FetchError {
+                reason: format!(
+                    "request unavailable on attempt {} of {} (clone may have failed)",
+                    attempt, effective_max_attempts,
+                ),
+            })?;
 
             // Clone for potential next retry (before sending consumes the request)
             if attempt < effective_max_attempts {
