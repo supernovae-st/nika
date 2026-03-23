@@ -477,8 +477,7 @@ pub enum NikaError {
     #[error("[NIKA-121] Operation '{operation}' timed out after {duration_ms}ms")]
     Timeout { operation: String, duration_ms: u64 },
 
-    // NOTE: Same semantic class as McpToolError (NIKA-102) — consider consolidating
-    #[error("[NIKA-102] MCP tool call '{tool}' failed: {reason}")]
+    #[error("[NIKA-103] MCP tool call '{tool}' failed: {reason}")]
     McpToolCallFailed { tool: String, reason: String },
 
     // ═══════════════════════════════════════════
@@ -896,7 +895,7 @@ impl NikaError {
             Self::GuardrailViolation { .. } => "NIKA-112",
             // Resilience errors
             Self::Timeout { .. } => "NIKA-121",
-            Self::McpToolCallFailed { .. } => "NIKA-102",
+            Self::McpToolCallFailed { .. } => "NIKA-103",
             // TUI errors
             Self::TuiError { .. } => "NIKA-130",
             // Config errors
@@ -1912,9 +1911,9 @@ mod tests {
             tool: "novanet_audit".to_string(),
             reason: "malformed response".to_string(),
         };
-        assert_eq!(err.code(), "NIKA-102");
+        assert_eq!(err.code(), "NIKA-103");
         let msg = err.to_string();
-        assert!(msg.contains("[NIKA-102]"));
+        assert!(msg.contains("[NIKA-103]"));
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

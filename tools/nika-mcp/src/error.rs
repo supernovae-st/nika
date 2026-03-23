@@ -50,8 +50,7 @@ pub enum McpError {
         timeout_secs: u64,
     },
 
-    // NOTE: Same semantic class as McpToolError (NIKA-102) — consider consolidating
-    #[error("[NIKA-102] MCP tool call failed for '{tool}': {reason}")]
+    #[error("[NIKA-103] MCP tool call failed for '{tool}': {reason}")]
     McpToolCallFailed { tool: String, reason: String },
 
     #[error("Config error: {reason}")]
