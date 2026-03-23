@@ -795,6 +795,24 @@ fn analyze_task(
         ));
     }
 
+    // Warn if timeout: 0 on any action (would cause immediate timeout)
+    if let Some(ref action) = raw.action {
+        let timeout_zero = match action {
+            RawTaskAction::Exec(s) => s.value.timeout_ms.as_ref().filter(|t| t.value == 0),
+            RawTaskAction::Fetch(s) => s.value.timeout_ms.as_ref().filter(|t| t.value == 0),
+            RawTaskAction::Invoke(s) => s.value.timeout_ms.as_ref().filter(|t| t.value == 0),
+            _ => None,
+        };
+        if let Some(t) = timeout_zero {
+            ctx.add_warning(AnalyzeError::new(
+                AnalyzeErrorKind::InvalidValue,
+                t.span,
+                "timeout: 0 will cause immediate timeout — remove or set a positive value"
+                    .to_string(),
+            ));
+        }
+    }
+
     // Analyze output config
     if let Some(ref output) = raw.output {
         task.output = Some(analyze_output(&output.value, ctx));
