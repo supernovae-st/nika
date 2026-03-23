@@ -393,7 +393,7 @@ jobs:
         run: echo "version=${TAG#v}" >> $GITHUB_OUTPUT
 
       - name: Update Homebrew formula
-        uses: mislav/bump-homebrew-formula-action@v3
+        uses: mislav/bump-homebrew-formula-action@v4
         with:
           formula-name: nika
           homebrew-tap: supernovae-st/homebrew-tap
