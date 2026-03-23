@@ -42,6 +42,16 @@ fn estimate_tokens(char_len: usize) -> u64 {
     char_len.div_ceil(4) as u64
 }
 
+/// Truncate resolved template for event logging (avoids leaking secrets from $env).
+#[inline]
+fn redact_for_event(s: &str) -> String {
+    if s.len() <= 200 {
+        s.to_string()
+    } else {
+        format!("{}... ({} chars)", &s[..200], s.len())
+    }
+}
+
 /// Detect image MIME type from magic bytes and return rig-core ImageMediaType.
 fn detect_image_media_type(data: &[u8]) -> Option<rig::completion::message::ImageMediaType> {
     use rig::completion::message::ImageMediaType;
@@ -98,11 +108,11 @@ impl TaskExecutor {
             debug!(task_id = %task_id, "Injected JSON schema instruction into infer prompt");
         }
 
-        // EMIT: TemplateResolved
+        // EMIT: TemplateResolved (redacted to avoid leaking secrets)
         self.event_log.emit(EventKind::TemplateResolved {
             task_id: Arc::clone(task_id),
             template: infer.prompt.clone(),
-            result: prompt.to_string(),
+            result: redact_for_event(&prompt),
         });
 
         // EMIT: ContextAssembled - capture binding sources used in prompt
@@ -939,11 +949,11 @@ impl TaskExecutor {
             return Err(NikaError::PolicyViolation { reason });
         }
 
-        // EMIT: TemplateResolved
+        // EMIT: TemplateResolved (redacted to avoid leaking secrets)
         self.event_log.emit(EventKind::TemplateResolved {
             task_id: Arc::clone(task_id),
             template: params.command.clone(),
-            result: resolved_cmd.to_string(),
+            result: redact_for_event(&resolved_cmd),
         });
 
         // Use per-task timeout if specified, otherwise fall back to global default
@@ -1171,11 +1181,11 @@ impl TaskExecutor {
             return Err(NikaError::PolicyViolation { reason });
         }
 
-        // EMIT: TemplateResolved
+        // EMIT: TemplateResolved (redacted to avoid leaking secrets)
         self.event_log.emit(EventKind::TemplateResolved {
             task_id: Arc::clone(task_id),
             template: fetch.url.clone(),
-            result: url.to_string(),
+            result: redact_for_event(&url),
         });
 
         // Select HTTP client based on follow_redirects setting
@@ -2130,11 +2140,11 @@ impl TaskExecutor {
             debug!(task_id = %task_id, "Injected JSON schema instruction into agent prompt");
         }
 
-        // EMIT: TemplateResolved event
+        // EMIT: TemplateResolved (redacted to avoid leaking secrets)
         self.event_log.emit(EventKind::TemplateResolved {
             task_id: Arc::clone(task_id),
             template: agent.prompt.clone(),
-            result: resolved_prompt.to_string(),
+            result: redact_for_event(&resolved_prompt),
         });
 
         // Create agent params with resolved prompt

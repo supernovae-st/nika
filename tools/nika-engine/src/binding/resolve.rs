@@ -659,10 +659,27 @@ fn resolve_binding_path(
             Ok(datastore.resolve_context_path(&full_path))
         }
 
-        BindingSource::Env(var_name) => match std::env::var(var_name.as_ref()) {
-            Ok(val) => Ok(Some(Value::String(val))),
-            Err(_) => Ok(None),
-        },
+        BindingSource::Env(var_name) => {
+            let name_upper = var_name.to_uppercase();
+            // Block known secret patterns (API keys, tokens, passwords)
+            const SECRET_PATTERNS: &[&str] =
+                &["KEY", "SECRET", "TOKEN", "PASSWORD", "CREDENTIAL", "AUTH"];
+            let is_secret = SECRET_PATTERNS.iter().any(|p| name_upper.contains(p));
+            // Allow NIKA_ prefix or safe system variables only
+            const SAFE_VARS: &[&str] =
+                &["PATH", "HOME", "USER", "SHELL", "LANG", "TERM", "PWD", "TMPDIR", "TZ"];
+            let is_allowed =
+                name_upper.starts_with("NIKA_") || SAFE_VARS.iter().any(|v| name_upper == *v);
+            if is_secret || !is_allowed {
+                tracing::warn!(var = %var_name, "Blocked $env access to restricted variable");
+                Ok(None)
+            } else {
+                match std::env::var(var_name.as_ref()) {
+                    Ok(val) => Ok(Some(Value::String(val))),
+                    Err(_) => Ok(None),
+                }
+            }
+        }
 
         BindingSource::LoopVar(name) => {
             // Loop variables should be pre-resolved by the executor before reaching here.
