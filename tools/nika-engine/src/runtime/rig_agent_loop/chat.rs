@@ -149,13 +149,14 @@ impl RigAgentLoop {
         prompt: &str,
     ) -> Result<RigAgentLoopResult, NikaError> {
         let client = anthropic::Client::from_env();
-        let model_name =
+        let model_name = Self::strip_model_prefix(
             self.params
                 .model
                 .as_deref()
                 .ok_or_else(|| NikaError::ValidationError {
                     reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
-                })?;
+                })?,
+        );
         let model = client.completion_model(model_name);
 
         let turn_index = self.turn_count + 1;
@@ -261,13 +262,14 @@ impl RigAgentLoop {
         prompt: &str,
     ) -> Result<RigAgentLoopResult, NikaError> {
         let client = openai::Client::from_env();
-        let model_name =
+        let model_name = Self::strip_model_prefix(
             self.params
                 .model
                 .as_deref()
                 .ok_or_else(|| NikaError::ValidationError {
                     reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
-                })?;
+                })?,
+        );
         let model = client.completion_model(model_name);
 
         let turn_index = self.turn_count + 1;
@@ -373,13 +375,14 @@ impl RigAgentLoop {
         prompt: &str,
     ) -> Result<RigAgentLoopResult, NikaError> {
         let client = rig::providers::mistral::Client::from_env();
-        let model_name =
+        let model_name = Self::strip_model_prefix(
             self.params
                 .model
                 .as_deref()
                 .ok_or_else(|| NikaError::ValidationError {
                     reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
-                })?;
+                })?,
+        );
         let model = client.completion_model(model_name);
 
         let turn_index = self.turn_count + 1;
@@ -482,13 +485,14 @@ impl RigAgentLoop {
     /// Use `run_groq()` for single-turn requests with full token tracking.
     async fn chat_continue_groq(&mut self, prompt: &str) -> Result<RigAgentLoopResult, NikaError> {
         let client = rig::providers::groq::Client::from_env();
-        let model_name =
+        let model_name = Self::strip_model_prefix(
             self.params
                 .model
                 .as_deref()
                 .ok_or_else(|| NikaError::ValidationError {
                     reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
-                })?;
+                })?,
+        );
         let model = client.completion_model(model_name);
 
         let turn_index = self.turn_count + 1;
@@ -594,13 +598,14 @@ impl RigAgentLoop {
         prompt: &str,
     ) -> Result<RigAgentLoopResult, NikaError> {
         let client = rig::providers::deepseek::Client::from_env();
-        let model_name =
+        let model_name = Self::strip_model_prefix(
             self.params
                 .model
                 .as_deref()
                 .ok_or_else(|| NikaError::ValidationError {
                     reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
-                })?;
+                })?,
+        );
         let model = client.completion_model(model_name);
 
         let turn_index = self.turn_count + 1;
@@ -706,13 +711,14 @@ impl RigAgentLoop {
         prompt: &str,
     ) -> Result<RigAgentLoopResult, NikaError> {
         let client = rig::providers::gemini::Client::from_env();
-        let model_name =
+        let model_name = Self::strip_model_prefix(
             self.params
                 .model
                 .as_deref()
                 .ok_or_else(|| NikaError::ValidationError {
                     reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
-                })?;
+                })?,
+        );
         let model = client.completion_model(model_name);
 
         let turn_index = self.turn_count + 1;
@@ -815,13 +821,14 @@ impl RigAgentLoop {
     /// Use `run_xai()` for single-turn requests with full token tracking.
     async fn chat_continue_xai(&mut self, prompt: &str) -> Result<RigAgentLoopResult, NikaError> {
         let client = rig::providers::xai::Client::from_env();
-        let model_name =
+        let model_name = Self::strip_model_prefix(
             self.params
                 .model
                 .as_deref()
                 .ok_or_else(|| NikaError::ValidationError {
                     reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
-                })?;
+                })?,
+        );
         let model = client.completion_model(model_name);
 
         let turn_index = self.turn_count + 1;

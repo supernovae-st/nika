@@ -164,6 +164,30 @@ impl rig::tool::ToolDyn for ArcToolAdapter {
 }
 
 impl RigAgentLoop {
+    /// Strip known provider prefix from model name.
+    ///
+    /// Users may write `model: openai/gpt-4o` or `model: claude/claude-sonnet-4-6`.
+    /// The API expects just `gpt-4o` or `claude-sonnet-4-6`.
+    fn strip_model_prefix(model: &str) -> &str {
+        const PREFIXES: &[&str] = &[
+            "anthropic/",
+            "claude/",
+            "openai/",
+            "mistral/",
+            "groq/",
+            "deepseek/",
+            "gemini/",
+            "google/",
+            "xai/",
+        ];
+        for prefix in PREFIXES {
+            if let Some(stripped) = model.strip_prefix(prefix) {
+                return stripped;
+            }
+        }
+        model
+    }
+
     /// Build `additional_params` JSON for stop_sequences injection.
     ///
     /// rig-core has no native `.stop_sequences()` on AgentBuilder, but

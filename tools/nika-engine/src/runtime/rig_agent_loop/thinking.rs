@@ -316,13 +316,14 @@ impl RigAgentLoop {
         let client = anthropic::Client::from_env();
 
         // Get model name — validated by analyzer (NIKA-034)
-        let model_name =
+        let model_name = Self::strip_model_prefix(
             self.params
                 .model
                 .as_deref()
                 .ok_or_else(|| NikaError::ValidationError {
                     reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
-                })?;
+                })?,
+        );
         let model = client.completion_model(model_name);
 
         // Build completion request with thinking enabled

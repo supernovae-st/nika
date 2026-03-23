@@ -108,13 +108,14 @@ impl RigAgentLoop {
         let client = anthropic::Client::from_env();
 
         // Get model name — validated by analyzer (NIKA-034)
-        let model_name = self
+        let raw_model = self
             .params
             .model
             .clone()
             .ok_or_else(|| NikaError::ValidationError {
                 reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
             })?;
+        let model_name = Self::strip_model_prefix(&raw_model).to_string();
         let model = client.completion_model(&model_name);
 
         // Take ownership of tools (they'll be consumed by the builder)
@@ -444,13 +445,14 @@ impl RigAgentLoop {
         let client = openai::Client::from_env();
 
         // Get model name — validated by analyzer (NIKA-034)
-        let model_name = self
+        let raw_model = self
             .params
             .model
             .clone()
             .ok_or_else(|| NikaError::ValidationError {
                 reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
             })?;
+        let model_name = Self::strip_model_prefix(&raw_model).to_string();
         let model = client.completion_model(&model_name);
 
         // Take ownership of tools (they'll be consumed by the builder)
@@ -925,6 +927,7 @@ impl RigAgentLoop {
         C::CompletionModel: Clone + 'static,
         <C::CompletionModel as rig::completion::CompletionModel>::Response: Send,
     {
+        let model_name = Self::strip_model_prefix(model_name);
         let model = client.completion_model(model_name);
 
         // Take ownership of tools for first attempt
