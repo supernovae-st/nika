@@ -778,7 +778,7 @@ mod tests {
         assert!(check_blocklist("cat /home/用户/file.txt").is_ok());
 
         // Commands with accented characters (but not confusables)
-        assert!(check_blocklist("echo 'café résumé'").is_ok());
+        assert!(check_blocklist("echo 'café crème'").is_ok());
 
         // Japanese text (not trying to bypass)
         assert!(check_blocklist("echo '日本語テスト'").is_ok());
