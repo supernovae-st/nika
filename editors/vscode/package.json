@@ -115,6 +115,32 @@
           "description": "Trace communication between VS Code and the Nika language server."
         }
       }
+    },
+    "menus": {
+      "editor/title": [
+        {
+          "command": "nika.runWorkflow",
+          "when": "resourceLangId == 'nika'",
+          "group": "navigation"
+        },
+        {
+          "command": "nika.checkWorkflow",
+          "when": "resourceLangId == 'nika'",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "nika.runWorkflow",
+          "when": "resourceLangId == 'nika'",
+          "group": "nika@1"
+        },
+        {
+          "command": "nika.checkWorkflow",
+          "when": "resourceLangId == 'nika'",
+          "group": "nika@2"
+        }
+      ]
     }
   },
   "scripts": {
