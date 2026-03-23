@@ -702,6 +702,12 @@ async fn main() {
     let quiet = cli.quiet;
     let detail = cli.detail;
 
+    // Quick editor scan: detect newly installed editors and install rules.
+    // Only runs when machine is already set up (adds ~5ms).
+    if cli::machine::machine_setup_status() == cli::machine::MachineStatus::Ready {
+        cli::machine::quick_editor_scan();
+    }
+
     // Handle subcommands or default to help (terminal-first)
     let result = match cli.command {
         None => {

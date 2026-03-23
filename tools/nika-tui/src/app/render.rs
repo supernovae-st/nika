@@ -124,7 +124,8 @@ impl App {
                     }
 
                     // First-launch welcome hint (auto-dismisses after 10s or first keypress)
-                    if show_welcome && chunks[1].height > 0 {
+                    // Skip when loading is active to prevent overlay overlap
+                    if show_welcome && !loading && chunks[1].height > 0 {
                         let hint_text = Line::from(vec![
                             Span::styled(
                                 " Press ",
