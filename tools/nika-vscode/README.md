@@ -36,7 +36,7 @@ brew install supernovae-studio/tap/nika
 cd tools/nika-vscode
 npm install && npm run compile
 npx @vscode/vsce package
-code --install-extension nika-0.39.0.vsix
+code --install-extension nika-0.40.1.vsix
 ```
 
 ## License

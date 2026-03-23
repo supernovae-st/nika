@@ -103,7 +103,7 @@ In `plugin.json`:
 
 ## Requirements
 
-- Nika CLI v0.39.0+ installed and in PATH
+- Nika CLI v0.40.0+ installed and in PATH
 - At least one LLM API key set (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, etc.)
 - LSP feature requires `--features lsp` compilation flag
 

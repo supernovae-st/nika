@@ -111,7 +111,7 @@ Present findings in this format:
 Nika Doctor Report
 ==================
 
-Binary:     nika v0.39.1 at /Users/.../.cargo/bin/nika
+Binary:     nika v0.40.1 at /Users/.../.cargo/bin/nika
 Features:   tui, media-core, lsp (3/5 compiled)
 Project:    .nika/ found, 12 workflow(s)
 
