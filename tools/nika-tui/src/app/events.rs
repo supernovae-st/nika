@@ -119,6 +119,9 @@ impl App {
     ///
     /// Processes key events and returns the appropriate Action.
     pub(crate) fn handle_unified_key(&mut self, code: KeyCode, modifiers: KeyModifiers) -> Action {
+        // Dismiss first-launch welcome hint on any keypress
+        self.dismiss_welcome_hint();
+
         // 1. Global shortcuts (always available)
         // In Studio Insert mode, let Ctrl+C pass through to the view (copy)
         if let (KeyCode::Char('c'), KeyModifiers::CONTROL) = (code, modifiers) {

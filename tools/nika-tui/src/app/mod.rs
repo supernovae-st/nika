@@ -139,6 +139,9 @@ pub struct App {
     // ═══ Startup Loading State ═══
     /// True until on_enter() completes — shows loading indicator in first frame
     pub(crate) loading: bool,
+    // ═══ First-Launch Welcome Hint ═══
+    /// Shown on first launch, auto-dismisses after 10s or on first keypress
+    pub(crate) welcome_hint_until: Option<std::time::Instant>,
 }
 
 impl App {
@@ -219,6 +222,7 @@ impl App {
             event_buffer: Vec::with_capacity(64), // PERF: Pre-allocated buffer
             verification_cache: Arc::new(Mutex::new(VerificationCache::default())),
             loading: true,
+            welcome_hint_until: Self::check_first_launch(),
         })
     }
 
@@ -284,6 +288,7 @@ impl App {
             event_buffer: Vec::with_capacity(64), // PERF: Pre-allocated buffer
             verification_cache: Arc::new(Mutex::new(VerificationCache::default())),
             loading: true,
+            welcome_hint_until: Self::check_first_launch(),
         })
     }
 
@@ -525,6 +530,28 @@ impl App {
     /// Clear retry request flag
     pub fn clear_retry_request(&mut self) {
         self.retry_requested = false;
+    }
+
+    /// Check if this is the first TUI launch; returns Some(deadline) if first launch
+    ///
+    /// Uses `.nika/tui_first_run` marker file. On first launch, creates the marker
+    /// and returns a 10-second deadline for the welcome hint.
+    fn check_first_launch() -> Option<std::time::Instant> {
+        let marker = std::path::Path::new(".nika/tui_first_run");
+        if marker.exists() {
+            return None;
+        }
+        // Create marker (ignore errors — non-critical)
+        if let Some(parent) = marker.parent() {
+            std::fs::create_dir_all(parent).ok();
+        }
+        std::fs::write(marker, "1").ok();
+        Some(std::time::Instant::now() + Duration::from_secs(10))
+    }
+
+    /// Dismiss the welcome hint (called on first keypress)
+    pub(crate) fn dismiss_welcome_hint(&mut self) {
+        self.welcome_hint_until = None;
     }
 }
 

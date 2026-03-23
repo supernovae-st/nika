@@ -39,6 +39,14 @@ impl App {
             let studio_status = self.studio_view.status_line(&self.state);
 
             let loading = self.loading;
+            // Check if welcome hint is still active (auto-dismiss after deadline)
+            let show_welcome = self
+                .welcome_hint_until
+                .map(|d| std::time::Instant::now() < d)
+                .unwrap_or(false);
+            if !show_welcome {
+                self.welcome_hint_until = None; // Clear expired hint
+            }
             let theme = &self.theme;
             let state = &self.state;
             let command_view = &mut self.command_view;
@@ -113,6 +121,56 @@ impl App {
                         TuiView::Control => {
                             control_view.render(frame, chunks[1], state, theme);
                         }
+                    }
+
+                    // First-launch welcome hint (auto-dismisses after 10s or first keypress)
+                    if show_welcome && chunks[1].height > 0 {
+                        let hint_text = Line::from(vec![
+                            Span::styled(
+                                " Press ",
+                                Style::default().fg(theme.text_secondary),
+                            ),
+                            Span::styled(
+                                "?",
+                                Style::default()
+                                    .fg(theme.highlight)
+                                    .add_modifier(Modifier::BOLD),
+                            ),
+                            Span::styled(
+                                " for help, ",
+                                Style::default().fg(theme.text_secondary),
+                            ),
+                            Span::styled(
+                                "Ctrl+P",
+                                Style::default()
+                                    .fg(theme.highlight)
+                                    .add_modifier(Modifier::BOLD),
+                            ),
+                            Span::styled(
+                                " for providers, ",
+                                Style::default().fg(theme.text_secondary),
+                            ),
+                            Span::styled(
+                                "1/2/3",
+                                Style::default()
+                                    .fg(theme.highlight)
+                                    .add_modifier(Modifier::BOLD),
+                            ),
+                            Span::styled(
+                                " to switch views ",
+                                Style::default().fg(theme.text_secondary),
+                            ),
+                        ]);
+                        let hint_area = Rect {
+                            x: chunks[1].x,
+                            y: chunks[1].y,
+                            width: chunks[1].width,
+                            height: 1,
+                        };
+                        let hint_widget = Paragraph::new(hint_text)
+                            .alignment(Alignment::Center)
+                            .style(Style::default().bg(theme.selection));
+                        frame.render_widget(hint_widget, hint_area);
                     }
 
                     // Show loading indicator during startup (before on_enter completes)
