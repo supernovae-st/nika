@@ -220,7 +220,7 @@ Schema: `nika/workflow@0.12` | Extension: `.nika.yaml`
 ## Complete Workflow Example
 
 ```yaml
-schema: "@0.12"
+schema: "nika/workflow@0.12"
 workflow: research-and-summarize
 description: "Research a topic and create a summary"
 provider: anthropic
@@ -251,7 +251,7 @@ tasks:
 ## Workflow Header Fields
 
 ```yaml
-schema: "@0.12"               # Required. Always "@0.12"
+schema: "nika/workflow@0.12"               # Required. Always "nika/workflow@0.12"
 workflow: my-workflow          # Optional. Defaults to filename
 description: "What it does"   # Optional
 provider: anthropic            # Default LLM provider for all tasks
@@ -352,7 +352,7 @@ Access loop variable via `with:` prefix: `{{with.item}}` (same as all bindings).
 | `.yaml` extension | `.nika.yaml` extension |
 | Direct Cypher/SQL | Use `invoke:` with MCP tools |
 | `shell: bash` | `shell: true` (boolean, not shell name) |
-| Missing `schema:` line | Always start with `schema: "@0.12"` |
+| Missing `schema:` line | Always start with `schema: "nika/workflow@0.12"` |
 | `depends_on: task_id` | `depends_on: [task_id]` (always array) |
 
 ## Validation
