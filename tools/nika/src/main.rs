@@ -721,32 +721,8 @@ async fn main() {
                 }
                 MachineStatus::Ready => {
                     if !Path::new(".nika").exists() {
-                        // Machine setup done, but no project here
-                        println!();
-                        println!("  {} No project in current directory.", "\u{25cb}".dimmed());
-                        println!();
-                        println!(
-                            "  {} {} start a new project",
-                            "nika init".cyan().bold(),
-                            "\u{2014}".dimmed()
-                        );
-                        println!(
-                            "  {} {} run a workflow file",
-                            "nika <file>".cyan().bold(),
-                            "\u{2014}".dimmed()
-                        );
-                        println!(
-                            "  {} {} check system health",
-                            "nika doctor".cyan().bold(),
-                            "\u{2014}".dimmed()
-                        );
-                        println!(
-                            "  {} {} all commands",
-                            "nika --help".cyan().bold(),
-                            "\u{2014}".dimmed()
-                        );
-                        println!();
-                        Ok(())
+                        // No project here: run live demo
+                        run_demo(quiet, detail).await
                     } else {
                         // Project exists: show help
                         use clap::CommandFactory;
@@ -1059,6 +1035,55 @@ async fn resolve_workflow_path(reference: &str) -> Result<PathBuf, NikaError> {
     }
 
     Ok(path)
+}
+
+/// Run a built-in 2-task DAG demo (no API key needed).
+async fn run_demo(quiet: bool, detail: nika::display::DetailLevel) -> Result<(), NikaError> {
+    const DEMO_YAML: &str = r#"schema: "nika/workflow@0.12"
+workflow: demo
+description: "Built-in demo — no API key needed"
+
+tasks:
+  - id: hello
+    exec: "echo 'Hello from Nika!'"
+
+  - id: dag
+    depends_on: [hello]
+    exec: "echo 'hello → dag — 2 tasks, 1 parallel, 0 tokens, $0.000'"
+"#;
+
+    println!();
+    println!(
+        "  \u{1f98b} {}  {}",
+        format!("nika v{}", env!("CARGO_PKG_VERSION")).bold(),
+        "live demo".dimmed()
+    );
+    println!("  {}", "Write a YAML file. Nika runs it as DAG.".dimmed());
+    println!();
+
+    // Write temp file, run, clean up
+    let tmp = std::env::temp_dir().join("nika-demo.nika.yaml");
+    tokio::fs::write(&tmp, DEMO_YAML).await?;
+
+    let result = run_workflow(
+        &tmp.display().to_string(),
+        None,
+        None,
+        quiet,
+        detail,
+        "deny",
+    )
+    .await;
+
+    let _ = tokio::fs::remove_file(&tmp).await;
+
+    result?;
+
+    println!();
+    println!("  {} {}", "Try:".cyan().bold(), "nika init".bold());
+    println!();
+
+    Ok(())
 }
 
 async fn run_workflow(
