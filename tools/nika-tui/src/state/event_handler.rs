@@ -309,6 +309,25 @@ impl TuiState {
                 }
                 self.metrics.latency_history.push(*duration_ms);
 
+                // Show MCP errors in status bar for user visibility
+                if *is_error {
+                    let tool_display = tool_name.as_deref().unwrap_or("MCP tool");
+                    let error_msg = response
+                        .as_ref()
+                        .map(|r| {
+                            let s = r.to_string();
+                            // Truncate long error messages for status bar
+                            if s.len() > 80 {
+                                format!("{}...", &s[..77])
+                            } else {
+                                s
+                            }
+                        })
+                        .unwrap_or_else(|| "unknown error".to_string());
+                    self.status_messages
+                        .error(format!("MCP '{}': {}", tool_display, error_msg));
+                }
+
                 // TIER 3.4: Notify on slow MCP responses (> 5s)
                 if *duration_ms > 5_000 {
                     let duration_secs = *duration_ms as f64 / 1000.0;
@@ -627,6 +646,9 @@ impl TuiState {
                     format!("MCP '{}' error: {}", server_name, error),
                     timestamp_ms,
                 ));
+                // Show in status bar for immediate user feedback
+                self.status_messages
+                    .error(format!("MCP: {} disconnected", server_name));
                 self.dirty.status = true;
             }
 
@@ -645,6 +667,11 @@ impl TuiState {
                         server_name, attempt, max_attempts, operation, error
                     ),
                     timestamp_ms,
+                ));
+                // Show retrying status in status bar
+                self.status_messages.warning(format!(
+                    "MCP: {} retrying ({}/{})",
+                    server_name, attempt, max_attempts
                 ));
                 self.dirty.status = true;
             }
