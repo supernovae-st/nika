@@ -2,7 +2,7 @@
   "name": "nika-lang",
   "displayName": "Nika Workflow Language",
   "description": "Language support for Nika (.nika.yaml) workflow files - syntax highlighting, completions, hover docs, go-to-definition, and diagnostics.",
-  "version": "0.39.0",
+  "version": "0.40.0",
   "publisher": "supernovae-studio",
   "license": "MIT",
   "repository": {
