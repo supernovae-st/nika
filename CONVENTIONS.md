@@ -55,11 +55,11 @@ depends_on: [task_a, task_b]
 
 ```yaml
 prompt: "Hello {{with.name}}, input is {{inputs.param}}"
-command: "echo {{item.field}}"
+command: "echo {{with.item.field}}"
 url: "https://api.com/{{with.id}}"
 ```
 
-Template variables: `{{with.alias}}`, `{{inputs.key}}`, `{{item}}`, `{{context.file}}`
+Template variables: `{{with.alias}}`, `{{inputs.key}}`, `{{with.item}}`, `{{context.file}}`
 
 ## Pipe Transforms
 
@@ -79,7 +79,7 @@ Chain with `|` in `with:` bindings:
   as: item
   concurrency: 5
   fail_fast: true
-  exec: "echo '{{item}}'"
+  exec: "echo '{{with.item}}'"
 ```
 
 ## DAG Patterns

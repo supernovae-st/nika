@@ -222,8 +222,8 @@ Templates use `{{...}}` delimiters inside any string value.
 | `{{with.alias.field}}` | Nested field access |
 | `{{inputs.name}}` | Workflow input parameter |
 | `{{context.readme}}` | Context file content |
-| `{{item}}` | Current for_each item |
-| `{{item.field}}` | Field on for_each item |
+| `{{with.item}}` | Current for_each item (default `as: item`) |
+| `{{with.item.field}}` | Field on for_each item |
 
 ### Pipe Transforms
 
@@ -316,7 +316,7 @@ tasks:
     as: url
     concurrency: 3
     fetch:
-      url: "{{item}}"
+      url: "{{with.url}}"
       extract: markdown
 ```
 

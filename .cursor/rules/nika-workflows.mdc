@@ -92,7 +92,7 @@ Builtins: `nika:import`, `nika:thumbnail`, `nika:chart`, `nika:metadata`, etc.
   exec: "echo '{{with.data}}'"
 ```
 
-## Templates: `{{with.alias}}`, `{{inputs.name}}`, `{{item}}`, `{{context.file}}`
+## Templates: `{{with.alias}}`, `{{inputs.name}}`, `{{with.item}}`, `{{context.file}}`
 
 ## Transforms (pipe-chained in with: bindings)
 - **String**: `upper`, `lower`, `trim`, `trim_start`, `trim_end`
@@ -109,7 +109,7 @@ Builtins: `nika:import`, `nika:thumbnail`, `nika:chart`, `nika:metadata`, etc.
   as: item
   concurrency: 5
   fail_fast: true
-  exec: "echo '{{item}}'"
+  exec: "echo '{{with.item}}'"
 ```
 
 ## Example: Diamond DAG with Transforms

@@ -103,7 +103,7 @@ Builtins use `nika:` prefix: `nika:import`, `nika:thumbnail`, `nika:chart`, etc.
 |---------|-------------|
 | `{{with.alias}}` | Bound task output |
 | `{{inputs.name}}` | Workflow input |
-| `{{item}}` | for_each current item |
+| `{{with.item}}` | for_each current item (default `as: item`) |
 | `{{context.file}}` | Context file content |
 
 ## Pipe Transforms
@@ -122,7 +122,7 @@ Builtins use `nika:` prefix: `nika:import`, `nika:thumbnail`, `nika:chart`, etc.
   as: item
   concurrency: 5
   fail_fast: true
-  exec: "echo '{{item}}'"
+  exec: "echo '{{with.item}}'"
 ```
 
 ## Task-Level Fields (all verbs)

@@ -93,7 +93,7 @@ Builtins: `nika:import`, `nika:thumbnail`, `nika:chart`, `nika:metadata`, etc.
 
 - `{{with.alias}}` -- Bound task output
 - `{{inputs.name}}` -- Workflow input parameter
-- `{{item}}` -- Current for_each item
+- `{{with.item}}` -- Current for_each item (default `as: item`)
 - `{{context.file}}` -- Loaded context file
 
 ## Transforms (pipe-chained in with: bindings)
@@ -112,7 +112,7 @@ Builtins: `nika:import`, `nika:thumbnail`, `nika:chart`, `nika:metadata`, etc.
   as: item
   concurrency: 5
   fail_fast: true
-  exec: "echo '{{item}}'"
+  exec: "echo '{{with.item}}'"
 ```
 
 ## Task-Level Fields (all verbs)

@@ -62,7 +62,7 @@ with:
 
 ## Templates
 
-`{{with.alias}}`, `{{inputs.name}}`, `{{item}}`, `{{item.field}}`, `{{context.file}}`
+`{{with.alias}}`, `{{inputs.name}}`, `{{with.item}}`, `{{with.item.field}}`, `{{context.file}}`
 
 ## Pipe Transforms
 
