@@ -737,6 +737,7 @@ workflow: test-workflow
 
 tasks:
   - id: step1
+    model: gpt-4o-mini
     infer: "Generate content"
   - id: step2
     exec: "npm run build"
@@ -766,6 +767,7 @@ tasks:
 workflow: test
 tasks:
   - id: generate
+    model: gpt-4o-mini
     infer: "Generate something"
 "#;
         let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();

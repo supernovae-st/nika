@@ -12,9 +12,9 @@ impl ProviderModalState {
         self.selected_idx = 0; // Reset selection on tab change
                                // Update item_count based on tab
         self.item_count = match tab {
-            ProviderModalTab::Cloud => 6, // 6 cloud providers
+            ProviderModalTab::Cloud => 7, // 7 cloud providers
             ProviderModalTab::Native => self.native_models.len().max(1), // Dynamic
-            ProviderModalTab::Keys => 6,  // 6 API key entries (cloud providers only)
+            ProviderModalTab::Keys => 7,  // 7 API key entries (cloud providers)
             ProviderModalTab::Config => 6, // 6 config entries (matches ConfigTab::new())
         };
     }

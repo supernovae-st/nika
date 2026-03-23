@@ -58,7 +58,7 @@ pub struct ProviderKeyEntry {
 }
 
 impl ProviderKeyEntry {
-    /// Create default entries for all 6 LLM providers
+    /// Create default entries for all 7 LLM providers
     ///
     /// Uses centralized `llm_provider_ids()` from providers module.
     pub fn all_providers() -> Vec<Self> {

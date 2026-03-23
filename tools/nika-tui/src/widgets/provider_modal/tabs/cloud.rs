@@ -57,7 +57,7 @@ pub struct ModelInfo {
 }
 
 impl ProviderInfo {
-    /// Create all 6 cloud providers with default status
+    /// Create all 7 cloud providers with default status
     pub fn all_providers() -> Vec<Self> {
         vec![
             ProviderInfo {
@@ -233,6 +233,37 @@ impl ProviderInfo {
                         id: "gemini-1.5-flash",
                         name: "1.5 Flash",
                         context_k: 1000,
+                    },
+                ],
+            },
+            ProviderInfo {
+                name: "xAI",
+                icon: "𝕏",
+                model: "grok-3-fast",
+                env_var: "XAI_API_KEY",
+                features: vec!["🧠", "🔧"],
+                context_window: 131_072,
+                status: ConnectionStatus::Unknown,
+                models: vec![
+                    ModelInfo {
+                        id: "grok-3",
+                        name: "Grok 3",
+                        context_k: 131,
+                    },
+                    ModelInfo {
+                        id: "grok-3-fast",
+                        name: "Grok 3 Fast",
+                        context_k: 131,
+                    },
+                    ModelInfo {
+                        id: "grok-3-mini",
+                        name: "Grok 3 Mini",
+                        context_k: 131,
+                    },
+                    ModelInfo {
+                        id: "grok-3-mini-fast",
+                        name: "Grok 3 Mini Fast",
+                        context_k: 131,
                     },
                 ],
             },
@@ -444,9 +475,9 @@ mod tests {
     use ratatui::layout::Rect;
 
     #[test]
-    fn test_provider_info_all_providers_returns_6() {
+    fn test_provider_info_all_providers_returns_7() {
         let providers = ProviderInfo::all_providers();
-        assert_eq!(providers.len(), 6);
+        assert_eq!(providers.len(), 7);
     }
 
     #[test]
@@ -458,6 +489,7 @@ mod tests {
         assert_eq!(providers[3].name, "Groq");
         assert_eq!(providers[4].name, "DeepSeek");
         assert_eq!(providers[5].name, "Gemini");
+        assert_eq!(providers[6].name, "xAI");
     }
 
     #[test]
@@ -466,13 +498,14 @@ mod tests {
         assert_eq!(providers[0].env_var, "ANTHROPIC_API_KEY");
         assert_eq!(providers[1].env_var, "OPENAI_API_KEY");
         assert_eq!(providers[5].env_var, "GEMINI_API_KEY");
+        assert_eq!(providers[6].env_var, "XAI_API_KEY");
     }
 
     #[test]
     fn test_cloud_tab_provider_count() {
         let state = ProviderModalState::default();
         let tab = CloudTab::new(&state);
-        assert_eq!(tab.provider_count(), 6);
+        assert_eq!(tab.provider_count(), 7);
     }
 
     #[test]

@@ -7,7 +7,7 @@
 //! # Architecture
 //!
 //! ```text
-//! nika::core::KNOWN_PROVIDERS (18 providers: 6 LLM + 11 MCP + 1 Local)
+//! nika::core::KNOWN_PROVIDERS (19 providers: 7 LLM + 11 MCP + 1 Local)
 //!         ↓
 //! nika::tui::providers (this module)
 //!         ↓
@@ -67,7 +67,7 @@ pub fn all_provider_ids() -> impl Iterator<Item = &'static str> {
     KNOWN_PROVIDERS.iter().map(|p| p.id)
 }
 
-/// Get LLM provider IDs only (6)
+/// Get LLM provider IDs only (7)
 pub fn llm_provider_ids() -> impl Iterator<Item = &'static str> {
     llm_providers().into_iter().map(|p| p.id)
 }

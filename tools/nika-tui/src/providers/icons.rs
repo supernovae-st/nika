@@ -1,6 +1,6 @@
 //! Provider icons for TUI display
 //!
-//! Consistent icon mapping for all 13 providers (6 LLM + 1 Local + 6 MCP).
+//! Consistent icon mapping for all providers (7 LLM + 1 Local + 11 MCP).
 
 use ratatui::style::Color;
 
@@ -9,7 +9,7 @@ use crate::tokens::compat;
 /// Get icon for a provider
 pub fn provider_icon(provider: &str) -> &'static str {
     match provider {
-        // LLM providers (6)
+        // LLM providers (7)
         "anthropic" => "🧠",
         "openai" => "🤖",
         "mistral" => "🌀",

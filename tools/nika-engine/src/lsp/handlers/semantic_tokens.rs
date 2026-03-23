@@ -1236,6 +1236,7 @@ tasks:
     exec: "jq '.data'"
   - id: publish
     depends_on: [transform]
+    model: gpt-4o-mini
     infer: "Summarize the results"
 "#;
         let uri = "file:///enrichment-test.nika.yaml".parse::<Uri>().unwrap();

@@ -212,13 +212,14 @@ fn test_modal_navigate_list_mode_wrapping() {
 
 #[test]
 fn test_modal_navigate_grid_mode_wrapping() {
-    // Cloud tab (default) uses 3-column grid navigation with wrapping (6 providers)
+    // Cloud tab (default) uses 3-column grid navigation with wrapping (7 providers)
     let mut state = ProviderModalState::default();
-    // Default is Cloud tab with item_count = 6
+    // Default is Cloud tab with item_count = 7
 
     // Navigation uses 3-column grid layout:
     //   0 1 2  (row 0: Claude, OpenAI, Mistral)
     //   3 4 5  (row 1: Groq, DeepSeek, Gemini)
+    //   6      (row 2: xAI)
 
     assert_eq!(state.selected_idx, 0);
     assert_eq!(state.active_tab, ProviderModalTab::Cloud);
@@ -231,9 +232,11 @@ fn test_modal_navigate_grid_mode_wrapping() {
     state.navigate_right();
     assert_eq!(state.selected_idx, 0); // Wraps to start of row
 
-    // Navigate down: 0 -> 3 -> wraps to 0
+    // Navigate down: 0 -> 3 -> 6 -> wraps to 0
     state.navigate_down();
     assert_eq!(state.selected_idx, 3);
+    state.navigate_down();
+    assert_eq!(state.selected_idx, 6);
     state.navigate_down();
     assert_eq!(state.selected_idx, 0); // Wraps: col 0, row 0
 
@@ -242,7 +245,7 @@ fn test_modal_navigate_grid_mode_wrapping() {
     state.navigate_down();
     assert_eq!(state.selected_idx, 5);
     state.navigate_down();
-    assert_eq!(state.selected_idx, 2); // Wraps to row 0 col 2
+    assert_eq!(state.selected_idx, 2); // Wraps: 5+3=8 >= 7, col=5%3=2
 
     // Navigate left wrapping: 3 -> wraps to 5
     state.selected_idx = 3;
@@ -343,16 +346,17 @@ fn test_set_provider_status_by_name_all_providers() {
     state.set_provider_status_by_name("groq", ConnectionStatus::Connected { latency_ms: 4 });
     state.set_provider_status_by_name("deepseek", ConnectionStatus::Connected { latency_ms: 5 });
     state.set_provider_status_by_name("gemini", ConnectionStatus::Connected { latency_ms: 6 });
+    state.set_provider_status_by_name("xai", ConnectionStatus::Connected { latency_ms: 7 });
     // Native is not a cloud provider, handled separately
 
-    assert_eq!(state.provider_statuses.len(), 6);
+    assert_eq!(state.provider_statuses.len(), 7);
 }
 
 #[test]
 fn test_get_provider_statuses_returns_6() {
     let state = ProviderModalState::default();
     let statuses = state.get_provider_statuses();
-    assert_eq!(statuses.len(), 6); // 6 cloud providers
+    assert_eq!(statuses.len(), 7); // 7 cloud providers
                                    // All should be Unknown by default
     assert!(statuses
         .iter()
@@ -366,7 +370,7 @@ fn test_get_provider_statuses_with_partial_data() {
     state.set_provider_status(2, ConnectionStatus::Checking);
 
     let statuses = state.get_provider_statuses();
-    assert_eq!(statuses.len(), 6); // 6 cloud providers
+    assert_eq!(statuses.len(), 7); // 7 cloud providers
     assert!(matches!(statuses[0], ConnectionStatus::Connected { .. }));
     assert!(matches!(statuses[1], ConnectionStatus::Unknown));
     assert!(matches!(statuses[2], ConnectionStatus::Checking));
@@ -682,7 +686,7 @@ fn test_get_session_stats_empty() {
     let stats = state.get_session_stats();
 
     assert_eq!(stats.connected_providers, 0);
-    assert_eq!(stats.total_providers, 6); // 6 cloud providers
+    assert_eq!(stats.total_providers, 7); // 7 cloud providers
     assert_eq!(stats.tokens_used, 0);
     assert!(stats.avg_latency_ms.is_none());
 }
@@ -697,7 +701,7 @@ fn test_get_session_stats_with_connections() {
     let stats = state.get_session_stats();
 
     assert_eq!(stats.connected_providers, 2);
-    assert_eq!(stats.total_providers, 6); // 6 cloud providers
+    assert_eq!(stats.total_providers, 7); // 7 cloud providers
                                           // Average of 100 and 200 is 150
     assert_eq!(stats.avg_latency_ms, Some(150));
 }
@@ -707,7 +711,7 @@ fn test_get_session_stats_with_connections() {
 fn test_verification_state_default() {
     let state = ProviderModalState::default();
     assert!(!state.verification_active);
-    assert_eq!(state.verification_state.entries.len(), 6);
+    assert_eq!(state.verification_state.entries.len(), 7);
 }
 
 #[test]
@@ -774,8 +778,8 @@ fn test_verification_auto_deactivates_when_complete() {
     state.start_verification();
     assert!(state.verification_active);
 
-    // Set all 6 cloud providers to connected
-    for i in 0..6 {
+    // Set all 7 cloud providers to connected
+    for i in 0..7 {
         state
             .verification_state
             .set_status(i, ConnectionCheckStatus::Connected);

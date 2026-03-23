@@ -8,6 +8,9 @@ use super::ProviderModalState;
 /// Maximum latency history samples per provider
 const LATENCY_HISTORY_MAX: usize = 10;
 
+/// Number of cloud providers (anthropic, openai, mistral, groq, deepseek, gemini, xai)
+const CLOUD_PROVIDER_COUNT: usize = 7;
+
 impl ProviderModalState {
     /// Set the active provider (the one currently used for inference)
     pub fn set_active_provider(&mut self, name: &str) {
@@ -46,15 +49,16 @@ impl ProviderModalState {
 
     /// Update provider status by index
     ///
-    /// Guard against invalid index (max 5 for 6 cloud providers)
+    /// Guard against invalid index (max 6 for 7 cloud providers)
     /// Automatically pushes latency to history when Connected
     /// Syncs verification animation status
     pub fn set_provider_status(&mut self, index: usize, status: ConnectionStatus) {
-        // Guard against unbounded growth (6 cloud providers: 0-5)
-        if index >= 6 {
+        // Guard against unbounded growth (7 cloud providers: 0-6)
+        if index >= CLOUD_PROVIDER_COUNT {
             tracing::warn!(
                 index = %index,
-                "Invalid provider index (max 5), ignoring status update"
+                "Invalid provider index (max {}), ignoring status update",
+                CLOUD_PROVIDER_COUNT - 1,
             );
             return;
         }
@@ -74,7 +78,7 @@ impl ProviderModalState {
         self.sync_verification_status(index);
     }
 
-    /// Update provider status by name (6 cloud providers only)
+    /// Update provider status by name (7 cloud providers)
     /// Native is handled separately via native_models
     pub fn set_provider_status_by_name(&mut self, name: &str, status: ConnectionStatus) {
         let index = match name.to_lowercase().as_str() {
@@ -84,16 +88,17 @@ impl ProviderModalState {
             "groq" => 3,
             "deepseek" => 4,
             "gemini" => 5,
+            "xai" | "grok" => 6,
             // Native is not a cloud provider, handled separately
             _ => return,
         };
         self.set_provider_status(index, status);
     }
 
-    /// Get provider statuses for CloudTab (6 cloud providers)
+    /// Get provider statuses for CloudTab (7 cloud providers)
     pub fn get_provider_statuses(&self) -> Vec<ConnectionStatus> {
-        let mut statuses = Vec::with_capacity(6);
-        for i in 0..6 {
+        let mut statuses = Vec::with_capacity(CLOUD_PROVIDER_COUNT);
+        for i in 0..CLOUD_PROVIDER_COUNT {
             statuses.push(
                 self.provider_statuses
                     .get(i)
@@ -113,9 +118,9 @@ impl ProviderModalState {
 
     /// Push a latency sample to history for a provider
     /// Maintains a rolling window of LATENCY_HISTORY_MAX samples
-    /// Updated guard for 6 cloud providers (0-5)
+    /// Updated guard for 7 cloud providers (0-6)
     pub fn push_latency(&mut self, index: usize, latency_ms: u64) {
-        if index >= 6 {
+        if index >= CLOUD_PROVIDER_COUNT {
             return;
         }
         // Ensure vector has space for this provider
@@ -185,7 +190,7 @@ impl ProviderModalState {
 
         SessionStats {
             connected_providers,
-            total_providers: 6, // 6 cloud providers: anthropic, openai, mistral, groq, deepseek, gemini
+            total_providers: CLOUD_PROVIDER_COUNT,
             tokens_used: self.session_tokens,
             mcp_connections: self.mcp_connections,
             avg_latency_ms,

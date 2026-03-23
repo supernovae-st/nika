@@ -744,8 +744,10 @@ tasks:
 workflow: test
 tasks:
   - id: generate
+    model: gpt-4o-mini
     infer: "Generate something"
   - id: process
+    model: gpt-4o-mini
     infer: "Process"
 "#;
         let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
@@ -792,8 +794,10 @@ tasks:
 workflow: test
 tasks:
   - id: data
+    model: gpt-4o-mini
     infer: "Get data"
   - id: process
+    model: gpt-4o-mini
     infer: "Process {{$data}}"
 "#;
         let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();

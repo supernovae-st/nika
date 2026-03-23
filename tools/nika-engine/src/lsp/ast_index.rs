@@ -401,6 +401,7 @@ workflow: test
 
 tasks:
   - id: step1
+    model: gpt-4o-mini
     infer: "Hello"
 "#;
 
@@ -422,6 +423,7 @@ workflow: test
 
 tasks:
   - id: step1
+    model: gpt-4o-mini
     infer: "Hello"
   - id: step2
     exec: "echo hello"
@@ -482,6 +484,7 @@ workflow: test
 
 tasks:
   - id: step1
+    model: gpt-4o-mini
     infer: "Hello"
 "#;
 
@@ -511,6 +514,7 @@ workflow: test
 
 tasks:
   - id: step1
+    model: gpt-4o-mini
     infer: "Hello"
 "#;
 

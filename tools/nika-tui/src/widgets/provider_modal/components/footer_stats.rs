@@ -191,7 +191,7 @@ mod tests {
     fn test_footer_stats_renders_without_panic() {
         let stats = SessionStats {
             connected_providers: 3,
-            total_providers: 6, // 6 LLM providers
+            total_providers: 7,
             tokens_used: 15_000,
             mcp_connections: 2,
             avg_latency_ms: Some(150),
@@ -203,7 +203,7 @@ mod tests {
 
         // Should have rendered provider count
         let content: String = buf.content().iter().map(|c| c.symbol()).collect();
-        assert!(content.contains("3/6"));
+        assert!(content.contains("3/7"));
     }
 
     #[test]
@@ -220,7 +220,7 @@ mod tests {
     fn test_footer_stats_empty_tokens_not_shown() {
         let stats = SessionStats {
             connected_providers: 2,
-            total_providers: 6, // 6 LLM providers
+            total_providers: 7,
             tokens_used: 0,
             mcp_connections: 0,
             avg_latency_ms: None,
@@ -232,15 +232,15 @@ mod tests {
 
         // Should have provider count but no token indicator
         let content: String = buf.content().iter().map(|c| c.symbol()).collect();
-        assert!(content.contains("2/6"));
+        assert!(content.contains("2/7"));
         assert!(!content.contains("🔤"));
     }
 
     #[test]
     fn test_footer_stats_all_connected() {
         let stats = SessionStats {
-            connected_providers: 6,
-            total_providers: 6, // 6 LLM providers
+            connected_providers: 7,
+            total_providers: 7,
             ..Default::default()
         };
         let bar = FooterStatsBar::new(&stats);
@@ -250,6 +250,6 @@ mod tests {
 
         // Should render without panic
         let content: String = buf.content().iter().map(|c| c.symbol()).collect();
-        assert!(content.contains("6/6"));
+        assert!(content.contains("7/7"));
     }
 }

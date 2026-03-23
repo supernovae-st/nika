@@ -22,7 +22,7 @@ pub struct ProviderModalState {
     pub key_input_buffer: String,
     /// Whether Native is available (running)
     pub native_available: bool,
-    /// Provider connection statuses (6 cloud providers)
+    /// Provider connection statuses (7 cloud providers)
     pub provider_statuses: Vec<ConnectionStatus>,
     /// Native models loaded from server
     pub native_models: Vec<NativeModelInfo>,
@@ -34,7 +34,7 @@ pub struct ProviderModalState {
     pub animation_frame: u8,
     /// Cached cloud tab label to avoid allocation per frame
     pub(super) cached_cloud_label: Option<String>,
-    /// Latency history per provider (6 providers x 10 samples)
+    /// Latency history per provider (7 providers x 10 samples)
     pub(super) latency_history: Vec<Vec<u64>>,
     /// Matrix verification effect state
     pub verification_state: super::super::components::VerificationState,
@@ -56,7 +56,7 @@ impl Default for ProviderModalState {
             visible: false,
             active_tab: ProviderModalTab::Cloud,
             selected_idx: 0,
-            item_count: 6, // Cloud tab has 6 providers by default
+            item_count: 7, // Cloud tab has 7 providers
             download_state: DownloadState::default(),
             key_input_mode: false,
             key_input_buffer: String::new(),
@@ -67,7 +67,7 @@ impl Default for ProviderModalState {
             active_model: None,
             animation_frame: 0,
             cached_cloud_label: None,
-            latency_history: vec![Vec::new(); 6], // Pre-allocate for 6 providers
+            latency_history: vec![Vec::new(); 7], // Pre-allocate for 7 providers
             verification_state: super::super::components::VerificationState::new_providers(),
             verification_active: false,
             expanded_provider_idx: None,

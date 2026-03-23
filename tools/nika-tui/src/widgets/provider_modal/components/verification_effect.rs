@@ -320,9 +320,9 @@ pub struct VerificationState {
 }
 
 impl VerificationState {
-    /// Create new verification state for 6 providers
+    /// Create new verification state for 7 providers
     pub fn new_providers() -> Self {
-        let providers = ["Claude", "OpenAI", "Mistral", "Groq", "DeepSeek", "Gemini"];
+        let providers = ["Claude", "OpenAI", "Mistral", "Groq", "DeepSeek", "Gemini", "xAI"];
         Self {
             entries: providers.iter().map(|&p| VerifyEntry::new(p)).collect(),
             frame: 0,
@@ -451,9 +451,10 @@ mod tests {
     #[test]
     fn test_verification_state_new_providers() {
         let state = VerificationState::new_providers();
-        assert_eq!(state.entries.len(), 6);
+        assert_eq!(state.entries.len(), 7);
         assert_eq!(state.entries[0].name, "Claude");
         assert_eq!(state.entries[5].name, "Gemini");
+        assert_eq!(state.entries[6].name, "xAI");
     }
 
     #[test]
@@ -499,8 +500,8 @@ mod tests {
     fn test_verification_state_all_complete() {
         let mut state = VerificationState::new_providers();
 
-        // Set all 6 to connected
-        for i in 0..6 {
+        // Set all 7 to connected
+        for i in 0..7 {
             state.set_status(i, ConnectionCheckStatus::Connected);
         }
 
