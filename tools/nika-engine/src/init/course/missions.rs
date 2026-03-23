@@ -334,10 +334,10 @@ eliminated 90% of it.
 
 | #  | File                             | Difficulty | Concept              |
 |----|----------------------------------|------------|----------------------|
-| 01 | `01-basic-dag.nika.yaml`         | *          | depends_on basics    |
-| 02 | `02-parallel-tasks.nika.yaml`    | **         | Parallel execution   |
-| 03 | `03-diamond-pattern.nika.yaml`   | **         | Fan-out / fan-in     |
-| 04 | `04-complex-pipeline.nika.yaml`  | ***        | Multi-stage pipeline |
+| 01 | `01-parallel-diamond.nika.yaml`  | *          | depends_on basics    |
+| 02 | `02-for-each-basic.nika.yaml`    | **         | Parallel execution   |
+| 03 | `03-for-each-concurrent.nika.yaml` | **       | Fan-out / fan-in     |
+| 04 | `04-chained-pipeline.nika.yaml`  | ***        | Multi-stage pipeline |
 
 ## What You Unlock
 
@@ -455,9 +455,9 @@ This is what their "AI platforms" charge $99/month for.
 
 | #  | File                              | Difficulty | Concept              |
 |----|-----------------------------------|------------|----------------------|
-| 01 | `01-first-inference.nika.yaml`    | *          | Basic infer: call    |
-| 02 | `02-model-selection.nika.yaml`    | **         | Provider switching   |
-| 03 | `03-llm-pipeline.nika.yaml`       | ***        | LLM + fetch combo    |
+| 01 | `01-context-files.nika.yaml`      | *          | Basic infer: call    |
+| 02 | `02-imports.nika.yaml`            | **         | Provider switching   |
+| 03 | `03-inputs.nika.yaml`             | ***        | LLM + fetch combo    |
 
 ## What You Unlock
 
@@ -569,9 +569,9 @@ One line. No code.
 
 | #  | File                              | Difficulty | Concept              |
 |----|-----------------------------------|------------|----------------------|
-| 01 | `01-basic-transforms.nika.yaml`   | *          | Single transforms    |
-| 02 | `02-chain-transforms.nika.yaml`   | **         | Transform chaining   |
-| 03 | `03-data-reshaping.nika.yaml`     | ***        | Complex reshaping    |
+| 01 | `01-structured-output.nika.yaml`  | *          | Single transforms    |
+| 02 | `02-artifacts.nika.yaml`          | **         | Transform chaining   |
+| 03 | `03-schema-retry.nika.yaml`       | ***        | Complex reshaping    |
 
 ## What You Unlock
 
@@ -700,9 +700,9 @@ Every time. Guaranteed by the schema.
 
 | #  | File                                | Difficulty | Concept              |
 |----|-------------------------------------|------------|----------------------|
-| 01 | `01-json-output.nika.yaml`          | *          | Basic JSON output    |
-| 02 | `02-schema-validation.nika.yaml`    | **         | JSON Schema output   |
-| 03 | `03-structured-pipeline.nika.yaml`  | ***        | Schema in a pipeline |
+| 01 | `01-multi-provider.nika.yaml`       | *          | Basic JSON output    |
+| 02 | `02-native-local.nika.yaml`         | **         | JSON Schema output   |
+| 03 | `03-system-prompts.nika.yaml`       | ***        | Schema in a pipeline |
 
 ## What You Unlock
 
@@ -897,7 +897,7 @@ tasks:
   researcher:
     agent:
       model: claude/claude-sonnet-4-6
-      goal: "Find the top 3 trending repos on GitHub today"
+      prompt: "Find the top 3 trending repos on GitHub today"
       tools:
         - nika:fetch
         - nika:log
@@ -917,7 +917,7 @@ tasks:
   writer:
     agent:
       model: openai/gpt-4o
-      goal: "Write a summary of {{with.article}} and save it"
+      prompt: "Write a summary of {{with.article}} and save it"
       tools:
         - nika:read
         - nika:write
@@ -937,15 +937,17 @@ tasks:
   careful_agent:
     agent:
       model: claude/claude-sonnet-4-6
-      goal: "Analyze the codebase"
+      prompt: "Analyze the codebase"
       tools:
         - nika:read
         - nika:glob
         - nika:grep
       max_turns: 15
       guardrails:
-        - "Never modify any files"
-        - "Only read files in the src/ directory"
+        - type: instruction
+          text: "Never modify any files"
+        - type: instruction
+          text: "Only read files in the src/ directory"
 ```
 
 Guardrails are natural language constraints that the LLM enforces
@@ -1203,8 +1205,8 @@ from any server, forever.
 | #  | File                            | Difficulty | Concept              |
 |----|---------------------------------|------------|----------------------|
 | 01 | `01-mcp-basics.nika.yaml`       | **         | MCP server setup     |
-| 02 | `02-external-tools.nika.yaml`   | **         | External tool calls  |
-| 03 | `03-novanet-bridge.nika.yaml`   | ***        | NovaNet integration  |
+| 02 | `02-mcp-tools.nika.yaml`        | **         | External tool calls  |
+| 03 | `03-mcp-novanet.nika.yaml`      | ***        | NovaNet integration  |
 
 ## What You Unlock
 
@@ -1347,9 +1349,9 @@ One task. Three operations. Zero temp files.
 | #  | File                                | Difficulty | Concept              |
 |----|-------------------------------------|------------|----------------------|
 | 01 | `01-media-import.nika.yaml`         | *          | Import + CAS basics  |
-| 02 | `02-image-processing.nika.yaml`     | **         | Thumbnail + convert  |
-| 03 | `03-vision-analysis.nika.yaml`      | ***        | Vision with content: |
-| 04 | `04-media-pipeline.nika.yaml`       | ***        | Chained pipeline     |
+| 02 | `02-media-transform.nika.yaml`      | **         | Thumbnail + convert  |
+| 03 | `03-media-pipeline.nika.yaml`       | ***        | Vision with content: |
+| 04 | `04-vision.nika.yaml`               | ***        | Chained pipeline     |
 
 ## What You Unlock
 
@@ -1510,11 +1512,11 @@ Before you ship a workflow:
 
 | #  | File                                  | Difficulty | Concept                |
 |----|---------------------------------------|------------|------------------------|
-| 01 | `01-full-pipeline.nika.yaml`          | ***        | End-to-end pipeline    |
-| 02 | `02-multi-agent.nika.yaml`            | ***        | Agent orchestration    |
-| 03 | `03-media-workflow.nika.yaml`         | ***        | Media + LLM combo      |
-| 04 | `04-resilient-system.nika.yaml`       | ****       | Production resilience  |
-| 05 | `05-ship-it.nika.yaml`               | ****       | Final boss: ship it    |
+| 01 | `01-seo-mega-audit.nika.yaml`         | ***        | End-to-end pipeline    |
+| 02 | `02-image-pipeline.nika.yaml`         | ***        | Agent orchestration    |
+| 03 | `03-content-factory.nika.yaml`        | ***        | Media + LLM combo      |
+| 04 | `04-research-agent.nika.yaml`         | ****       | Production resilience  |
+| 05 | `05-full-stack.nika.yaml`             | ****       | Final boss: ship it    |
 
 ## What You Unlock
 
