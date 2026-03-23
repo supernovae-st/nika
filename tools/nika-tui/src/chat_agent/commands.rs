@@ -39,7 +39,9 @@ impl ChatAgent {
             .arg(command)
             .output()
             .await
-            .map_err(|e| NikaError::ExecError { reason: format!("Failed to execute command: {}", e) })?;
+            .map_err(|e| NikaError::ExecError {
+                reason: format!("Failed to execute command: {}", e),
+            })?;
 
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -82,16 +84,14 @@ impl ChatAgent {
             _ => self.http_client.get(url), // Default to GET
         };
 
-        let response = request
-            .send()
-            .await
-            .map_err(|e| NikaError::FetchError { reason: format!("HTTP request failed: {}", e) })?;
+        let response = request.send().await.map_err(|e| NikaError::FetchError {
+            reason: format!("HTTP request failed: {}", e),
+        })?;
 
         let status = response.status();
-        let text = response
-            .text()
-            .await
-            .map_err(|e| NikaError::FetchError { reason: format!("Failed to read response: {}", e) })?;
+        let text = response.text().await.map_err(|e| NikaError::FetchError {
+            reason: format!("Failed to read response: {}", e),
+        })?;
 
         // Include status code for non-2xx responses
         if !status.is_success() {

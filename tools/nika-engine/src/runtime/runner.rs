@@ -1285,7 +1285,9 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 });
                 self.write_trace();
                 return Err(NikaError::RuntimeDeadlock {
-                    details: "no tasks ready but workflow not complete. Check for circular dependencies.".to_string(),
+                    details:
+                        "no tasks ready but workflow not complete. Check for circular dependencies."
+                            .to_string(),
                 });
             }
 
@@ -2040,8 +2042,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         .filter_map(|(idx, r)| r.error().map(|e| format!("[{}]: {}", idx, e)))
                         .collect();
                     // Preserve partial results in output even on failure
-                    let mut result =
-                        TaskResult::failed(errors.join("; "), total_duration).with_media(merged_media);
+                    let mut result = TaskResult::failed(errors.join("; "), total_duration)
+                        .with_media(merged_media);
                     result.output = Arc::new(Value::Array(outputs));
                     result
                 };

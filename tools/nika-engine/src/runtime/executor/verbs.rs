@@ -374,16 +374,18 @@ impl TaskExecutor {
                                             let result_str = result.value.to_string();
                                             let est_in = estimate_tokens(prompt.len());
                                             let est_out = estimate_tokens(result_str.len());
-                                            let cost = crate::provider::cost::ProviderKind::parse(provider_name)
-                                                .map(|pk| {
-                                                    crate::provider::cost::calculate_cost(
-                                                        pk,
-                                                        model.unwrap_or("default"),
-                                                        est_in,
-                                                        est_out,
-                                                    )
-                                                })
-                                                .unwrap_or(0.0);
+                                            let cost = crate::provider::cost::ProviderKind::parse(
+                                                provider_name,
+                                            )
+                                            .map(|pk| {
+                                                crate::provider::cost::calculate_cost(
+                                                    pk,
+                                                    model.unwrap_or("default"),
+                                                    est_in,
+                                                    est_out,
+                                                )
+                                            })
+                                            .unwrap_or(0.0);
                                             self.event_log.emit(EventKind::ProviderResponded {
                                                 task_id: Arc::clone(task_id),
                                                 request_id: None,
@@ -432,16 +434,17 @@ impl TaskExecutor {
                                     });
                                     let est_in = estimate_tokens(prompt.len());
                                     let est_out = estimate_tokens(tool_result.len());
-                                    let cost = crate::provider::cost::ProviderKind::parse(provider_name)
-                                        .map(|pk| {
-                                            crate::provider::cost::calculate_cost(
-                                                pk,
-                                                model.unwrap_or("default"),
-                                                est_in,
-                                                est_out,
-                                            )
-                                        })
-                                        .unwrap_or(0.0);
+                                    let cost =
+                                        crate::provider::cost::ProviderKind::parse(provider_name)
+                                            .map(|pk| {
+                                                crate::provider::cost::calculate_cost(
+                                                    pk,
+                                                    model.unwrap_or("default"),
+                                                    est_in,
+                                                    est_out,
+                                                )
+                                            })
+                                            .unwrap_or(0.0);
                                     self.event_log.emit(EventKind::ProviderResponded {
                                         task_id: Arc::clone(task_id),
                                         request_id: None,
@@ -928,156 +931,163 @@ impl TaskExecutor {
 
         // Shell-free execution by default, opt-in to shell mode
         // Support for env vars
-        let output = if params.shell == Some(true) {
-            // Shell mode: use sh -c (preserves shell metacharacters like ;, |, &&)
-            tracing::debug!(task_id = %task_id, "exec: using shell mode (sh -c)");
-            let mut cmd = tokio::process::Command::new("sh");
-            cmd.arg("-c").arg(resolved_cmd.as_ref());
+        let output =
+            if params.shell == Some(true) {
+                // Shell mode: use sh -c (preserves shell metacharacters like ;, |, &&)
+                tracing::debug!(task_id = %task_id, "exec: using shell mode (sh -c)");
+                let mut cmd = tokio::process::Command::new("sh");
+                cmd.arg("-c").arg(resolved_cmd.as_ref());
 
-            // Pipe stdout/stderr for capture (required by spawn + wait_with_output)
-            cmd.stdout(std::process::Stdio::piped());
-            cmd.stderr(std::process::Stdio::piped());
+                // Pipe stdout/stderr for capture (required by spawn + wait_with_output)
+                cmd.stdout(std::process::Stdio::piped());
+                cmd.stderr(std::process::Stdio::piped());
 
-            // Strip sensitive env vars from child process
-            crate::runtime::security::strip_sensitive_env_vars(&mut cmd);
+                // Strip sensitive env vars from child process
+                crate::runtime::security::strip_sensitive_env_vars(&mut cmd);
 
-            // Set working directory if specified (with path traversal protection)
-            if let Some(ref cwd) = params.cwd {
-                let resolved = std::path::Path::new(cwd)
-                    .canonicalize()
-                    .map_err(|e| NikaError::ExecError { reason: format!("Invalid cwd '{}': {}", cwd, e) })?;
-                let working_dir = self
-                    .workflow_base_dir
-                    .canonicalize()
-                    .unwrap_or_else(|_| self.workflow_base_dir.clone());
-                if !resolved.starts_with(&working_dir) {
-                    return Err(NikaError::ExecError {
-                        reason: format!(
-                            "Security: exec cwd '{}' escapes working directory '{}'",
-                            cwd,
-                            working_dir.display()
-                        ),
-                    });
+                // Set working directory if specified (with path traversal protection)
+                if let Some(ref cwd) = params.cwd {
+                    let resolved = std::path::Path::new(cwd).canonicalize().map_err(|e| {
+                        NikaError::ExecError {
+                            reason: format!("Invalid cwd '{}': {}", cwd, e),
+                        }
+                    })?;
+                    let working_dir = self
+                        .workflow_base_dir
+                        .canonicalize()
+                        .unwrap_or_else(|_| self.workflow_base_dir.clone());
+                    if !resolved.starts_with(&working_dir) {
+                        return Err(NikaError::ExecError {
+                            reason: format!(
+                                "Security: exec cwd '{}' escapes working directory '{}'",
+                                cwd,
+                                working_dir.display()
+                            ),
+                        });
+                    }
+                    cmd.current_dir(resolved);
                 }
-                cmd.current_dir(resolved);
-            }
 
-            // Add environment variables if specified (validate first)
-            if let Some(ref env_vars) = params.env {
-                let pairs: Vec<(String, String)> = env_vars
-                    .iter()
-                    .map(|(k, v)| (k.clone(), v.clone()))
-                    .collect();
-                crate::runtime::security::validate_env_vars(&pairs)?;
-                for (key, value) in env_vars {
-                    let resolved_value = template_resolve(value, bindings, datastore)?;
-                    cmd.env(key, resolved_value.as_ref());
+                // Add environment variables if specified (validate first)
+                if let Some(ref env_vars) = params.env {
+                    let pairs: Vec<(String, String)> = env_vars
+                        .iter()
+                        .map(|(k, v)| (k.clone(), v.clone()))
+                        .collect();
+                    crate::runtime::security::validate_env_vars(&pairs)?;
+                    for (key, value) in env_vars {
+                        let resolved_value = template_resolve(value, bindings, datastore)?;
+                        cmd.env(key, resolved_value.as_ref());
+                    }
                 }
-            }
 
-            // kill_on_drop ensures child is killed when dropped on timeout (prevents orphans)
-            cmd.kill_on_drop(true);
-            let child = cmd
-                .spawn()
-                .map_err(|e| NikaError::ExecError { reason: format!("Failed to spawn command: {}", e) })?;
-            match tokio::time::timeout(exec_deadline, child.wait_with_output()).await {
-                Ok(Ok(out)) => out,
-                Ok(Err(e)) => {
-                    return Err(NikaError::ExecError {
-                        reason: format!("Failed to execute command: {}", e),
-                    });
+                // kill_on_drop ensures child is killed when dropped on timeout (prevents orphans)
+                cmd.kill_on_drop(true);
+                let child = cmd.spawn().map_err(|e| NikaError::ExecError {
+                    reason: format!("Failed to spawn command: {}", e),
+                })?;
+                match tokio::time::timeout(exec_deadline, child.wait_with_output()).await {
+                    Ok(Ok(out)) => out,
+                    Ok(Err(e)) => {
+                        return Err(NikaError::ExecError {
+                            reason: format!("Failed to execute command: {}", e),
+                        });
+                    }
+                    Err(_) => {
+                        // child is dropped here → kill_on_drop sends SIGKILL
+                        return Err(NikaError::ExecError {
+                            reason: format!("Command timed out after {}s", exec_deadline.as_secs()),
+                        });
+                    }
                 }
-                Err(_) => {
-                    // child is dropped here → kill_on_drop sends SIGKILL
-                    return Err(NikaError::ExecError {
-                        reason: format!("Command timed out after {}s", exec_deadline.as_secs()),
-                    });
-                }
-            }
-        } else {
-            // Shell-free mode (default): parse with shlex, execute directly
-            tracing::debug!(task_id = %task_id, "exec: using shell-free mode (shlex)");
-            let parts = shlex::split(&resolved_cmd).ok_or_else(|| {
-                NikaError::ExecError {
+            } else {
+                // Shell-free mode (default): parse with shlex, execute directly
+                tracing::debug!(task_id = %task_id, "exec: using shell-free mode (shlex)");
+                let parts = shlex::split(&resolved_cmd).ok_or_else(|| NikaError::ExecError {
                     reason: format!(
                         "Failed to parse command (unbalanced quotes?): {}",
                         resolved_cmd
                     ),
-                }
-            })?;
+                })?;
 
-            if parts.is_empty() {
-                return Err(NikaError::ExecError { reason: "Empty command".to_string() });
-            }
-
-            let mut cmd = tokio::process::Command::new(&parts[0]);
-            cmd.args(&parts[1..]);
-
-            // Pipe stdout/stderr for capture (required by spawn + wait_with_output)
-            cmd.stdout(std::process::Stdio::piped());
-            cmd.stderr(std::process::Stdio::piped());
-
-            // Strip sensitive env vars from child process
-            crate::runtime::security::strip_sensitive_env_vars(&mut cmd);
-
-            // Set working directory if specified (with path traversal protection)
-            if let Some(ref cwd) = params.cwd {
-                let resolved = std::path::Path::new(cwd)
-                    .canonicalize()
-                    .map_err(|e| NikaError::ExecError { reason: format!("Invalid cwd '{}': {}", cwd, e) })?;
-                let working_dir = self
-                    .workflow_base_dir
-                    .canonicalize()
-                    .unwrap_or_else(|_| self.workflow_base_dir.clone());
-                if !resolved.starts_with(&working_dir) {
+                if parts.is_empty() {
                     return Err(NikaError::ExecError {
-                        reason: format!(
-                            "Security: exec cwd '{}' escapes working directory '{}'",
-                            cwd,
-                            working_dir.display()
-                        ),
+                        reason: "Empty command".to_string(),
                     });
                 }
-                cmd.current_dir(resolved);
-            }
 
-            // Add environment variables if specified (validate first)
-            if let Some(ref env_vars) = params.env {
-                let pairs: Vec<(String, String)> = env_vars
-                    .iter()
-                    .map(|(k, v)| (k.clone(), v.clone()))
-                    .collect();
-                crate::runtime::security::validate_env_vars(&pairs)?;
-                for (key, value) in env_vars {
-                    let resolved_value = template_resolve(value, bindings, datastore)?;
-                    cmd.env(key, resolved_value.as_ref());
-                }
-            }
+                let mut cmd = tokio::process::Command::new(&parts[0]);
+                cmd.args(&parts[1..]);
 
-            // kill_on_drop ensures child is killed when dropped on timeout (prevents orphans)
-            cmd.kill_on_drop(true);
-            let child = cmd
-                .spawn()
-                .map_err(|e| NikaError::ExecError { reason: format!("Failed to spawn command: {}", e) })?;
-            match tokio::time::timeout(exec_deadline, child.wait_with_output()).await {
-                Ok(Ok(out)) => out,
-                Ok(Err(e)) => {
-                    return Err(NikaError::ExecError {
-                        reason: format!("Failed to execute command: {}", e),
-                    });
+                // Pipe stdout/stderr for capture (required by spawn + wait_with_output)
+                cmd.stdout(std::process::Stdio::piped());
+                cmd.stderr(std::process::Stdio::piped());
+
+                // Strip sensitive env vars from child process
+                crate::runtime::security::strip_sensitive_env_vars(&mut cmd);
+
+                // Set working directory if specified (with path traversal protection)
+                if let Some(ref cwd) = params.cwd {
+                    let resolved = std::path::Path::new(cwd).canonicalize().map_err(|e| {
+                        NikaError::ExecError {
+                            reason: format!("Invalid cwd '{}': {}", cwd, e),
+                        }
+                    })?;
+                    let working_dir = self
+                        .workflow_base_dir
+                        .canonicalize()
+                        .unwrap_or_else(|_| self.workflow_base_dir.clone());
+                    if !resolved.starts_with(&working_dir) {
+                        return Err(NikaError::ExecError {
+                            reason: format!(
+                                "Security: exec cwd '{}' escapes working directory '{}'",
+                                cwd,
+                                working_dir.display()
+                            ),
+                        });
+                    }
+                    cmd.current_dir(resolved);
                 }
-                Err(_) => {
-                    // child is dropped here → kill_on_drop sends SIGKILL
-                    return Err(NikaError::ExecError {
-                        reason: format!("Command timed out after {}s", exec_deadline.as_secs()),
-                    });
+
+                // Add environment variables if specified (validate first)
+                if let Some(ref env_vars) = params.env {
+                    let pairs: Vec<(String, String)> = env_vars
+                        .iter()
+                        .map(|(k, v)| (k.clone(), v.clone()))
+                        .collect();
+                    crate::runtime::security::validate_env_vars(&pairs)?;
+                    for (key, value) in env_vars {
+                        let resolved_value = template_resolve(value, bindings, datastore)?;
+                        cmd.env(key, resolved_value.as_ref());
+                    }
                 }
-            }
-        };
+
+                // kill_on_drop ensures child is killed when dropped on timeout (prevents orphans)
+                cmd.kill_on_drop(true);
+                let child = cmd.spawn().map_err(|e| NikaError::ExecError {
+                    reason: format!("Failed to spawn command: {}", e),
+                })?;
+                match tokio::time::timeout(exec_deadline, child.wait_with_output()).await {
+                    Ok(Ok(out)) => out,
+                    Ok(Err(e)) => {
+                        return Err(NikaError::ExecError {
+                            reason: format!("Failed to execute command: {}", e),
+                        });
+                    }
+                    Err(_) => {
+                        // child is dropped here → kill_on_drop sends SIGKILL
+                        return Err(NikaError::ExecError {
+                            reason: format!("Command timed out after {}s", exec_deadline.as_secs()),
+                        });
+                    }
+                }
+            };
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(NikaError::ExecError { reason: format!("Command failed: {}", stderr) });
+            return Err(NikaError::ExecError {
+                reason: format!("Command failed: {}", stderr),
+            });
         }
 
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
@@ -1320,8 +1330,8 @@ impl TaskExecutor {
                                 });
                             }
                         }
-                        let body = response.text().await.map_err(|e| {
-                            NikaError::FetchError { reason: format!("Failed to read response: {}", e) }
+                        let body = response.text().await.map_err(|e| NikaError::FetchError {
+                            reason: format!("Failed to read response: {}", e),
                         })?;
                         if body.len() as u64 > FULL_MAX_RESPONSE_SIZE {
                             return Err(NikaError::FetchError {
@@ -1377,8 +1387,8 @@ impl TaskExecutor {
                                 });
                             }
                         }
-                        let bytes = response.bytes().await.map_err(|e| {
-                            NikaError::FetchError { reason: format!("Failed to read binary response: {}", e) }
+                        let bytes = response.bytes().await.map_err(|e| NikaError::FetchError {
+                            reason: format!("Failed to read binary response: {}", e),
                         })?;
                         // Bug 3: Post-read size check (catches chunked encoding bypass)
                         if bytes.len() as u64 > BINARY_MAX_RESPONSE_SIZE {
@@ -1400,9 +1410,13 @@ impl TaskExecutor {
                             })
                             .to_string());
                         }
-                        let store_result = self.cas.store(&bytes).await.map_err(|e| {
-                            NikaError::FetchError { reason: format!("CAS store failed: {}", e) }
-                        })?;
+                        let store_result =
+                            self.cas
+                                .store(&bytes)
+                                .await
+                                .map_err(|e| NikaError::FetchError {
+                                    reason: format!("CAS store failed: {}", e),
+                                })?;
 
                         // Stage MediaRef so artifact format: binary can find it.
                         // Without this, write_binary_artifact() gets empty media_refs → NIKA-281.
@@ -1439,9 +1453,10 @@ impl TaskExecutor {
                     }
                     // Special case: llm_txt requires sub-requests, handled here not in extract.rs
                     if fetch.extract.as_deref() == Some("llm_txt") {
-                        let parsed = url::Url::parse(url.as_ref()).map_err(|e| {
-                            NikaError::FetchError { reason: format!("Invalid URL for llm_txt: {e}") }
-                        })?;
+                        let parsed =
+                            url::Url::parse(url.as_ref()).map_err(|e| NikaError::FetchError {
+                                reason: format!("Invalid URL for llm_txt: {e}"),
+                            })?;
                         let origin = parsed.origin().unicode_serialization();
                         for path in &[
                             "/.well-known/llm.txt",
@@ -1492,8 +1507,8 @@ impl TaskExecutor {
                         return Ok(serde_json::json!({ "found": false }).to_string());
                     }
 
-                    let raw_body = response.text().await.map_err(|e| {
-                        NikaError::FetchError { reason: format!("Failed to read response: {}", e) }
+                    let raw_body = response.text().await.map_err(|e| NikaError::FetchError {
+                        reason: format!("Failed to read response: {}", e),
                     })?;
                     if raw_body.len() as u64 > MAX_RESPONSE_SIZE {
                         return Err(NikaError::FetchError {
@@ -1519,8 +1534,9 @@ impl TaskExecutor {
                             error = %e,
                             "fetch: request failed, retrying..."
                         );
-                        last_error =
-                            Some(NikaError::FetchError { reason: format!("HTTP request failed: {}", e) });
+                        last_error = Some(NikaError::FetchError {
+                            reason: format!("HTTP request failed: {}", e),
+                        });
 
                         // Exponential backoff
                         let exp = (attempt - 1).min(30) as i32;
@@ -1541,8 +1557,8 @@ impl TaskExecutor {
         }
 
         // Should not reach here, but just in case
-        Err(last_error.unwrap_or_else(|| {
-            NikaError::FetchError { reason: "HTTP request failed: unknown error".to_string() }
+        Err(last_error.unwrap_or_else(|| NikaError::FetchError {
+            reason: "HTTP request failed: unknown error".to_string(),
         }))
     }
 
@@ -1570,10 +1586,11 @@ impl TaskExecutor {
         // Resolve templates FIRST, then emit event with resolved params
         // This fixes the bug where TUI showed literal {{with.topic}} instead of resolved values
         let resolved_params = if let Some(ref original_params) = invoke.params {
-            let params_str = serde_json::to_string(original_params)
-                .map_err(|e| NikaError::InvokeParamError {
+            let params_str = serde_json::to_string(original_params).map_err(|e| {
+                NikaError::InvokeParamError {
                     reason: format!("Failed to serialize params: {}", e),
-                })?;
+                }
+            })?;
             let resolved_str = template_resolve(&params_str, bindings, datastore)?;
             Some(
                 serde_json::from_str::<serde_json::Value>(&resolved_str).map_err(|e| {

@@ -119,8 +119,9 @@ pub fn apply_extract(
 fn extract_text(html: &str, selector: Option<&str>) -> Result<String, NikaError> {
     let document = scraper::Html::parse_document(html);
     if let Some(css) = selector {
-        let sel = scraper::Selector::parse(css)
-            .map_err(|_| NikaError::ExtractError { reason: format!("Invalid CSS selector: {css}") })?;
+        let sel = scraper::Selector::parse(css).map_err(|_| NikaError::ExtractError {
+            reason: format!("Invalid CSS selector: {css}"),
+        })?;
         let texts: Vec<String> = document
             .select(&sel)
             .map(|el| el.text().collect::<Vec<_>>().join(" ").trim().to_string())
@@ -135,8 +136,9 @@ fn extract_text(html: &str, selector: Option<&str>) -> Result<String, NikaError>
 #[cfg(feature = "fetch-html")]
 fn extract_html_by_selector(html: &str, css: &str) -> Result<String, NikaError> {
     let document = scraper::Html::parse_document(html);
-    let sel = scraper::Selector::parse(css)
-        .map_err(|_| NikaError::ExtractError { reason: format!("Invalid CSS selector: {css}") })?;
+    let sel = scraper::Selector::parse(css).map_err(|_| NikaError::ExtractError {
+        reason: format!("Invalid CSS selector: {css}"),
+    })?;
     let parts: Vec<String> = document.select(&sel).map(|el| el.html()).collect();
     Ok(parts.join("\n"))
 }
@@ -218,7 +220,9 @@ fn extract_metadata_json(html: &str) -> Result<String, NikaError> {
         }
     }
 
-    serde_json::to_string(&meta).map_err(|e| NikaError::ExtractError { reason: format!("JSON serialize: {e}") })
+    serde_json::to_string(&meta).map_err(|e| NikaError::ExtractError {
+        reason: format!("JSON serialize: {e}"),
+    })
 }
 
 #[cfg(feature = "fetch-html")]
@@ -243,19 +247,28 @@ fn extract_links_json(html: &str, _base_url: Option<&str>) -> Result<String, Nik
         "links": links,
         "count": count,
     }))
-    .map_err(|e| NikaError::ExtractError { reason: format!("JSON serialize: {e}") })
+    .map_err(|e| NikaError::ExtractError {
+        reason: format!("JSON serialize: {e}"),
+    })
 }
 
 fn extract_jsonpath(body: &str, path: &str) -> Result<String, NikaError> {
-    let json: serde_json::Value = serde_json::from_str(body)
-        .map_err(|e| NikaError::ExtractError { reason: format!("Response is not valid JSON: {e}") })?;
-    let jsonpath = serde_json_path::JsonPath::parse(path)
-        .map_err(|e| NikaError::ExtractError { reason: format!("Invalid JSONPath '{}': {e}", path) })?;
+    let json: serde_json::Value =
+        serde_json::from_str(body).map_err(|e| NikaError::ExtractError {
+            reason: format!("Response is not valid JSON: {e}"),
+        })?;
+    let jsonpath = serde_json_path::JsonPath::parse(path).map_err(|e| NikaError::ExtractError {
+        reason: format!("Invalid JSONPath '{}': {e}", path),
+    })?;
     let results: Vec<&serde_json::Value> = jsonpath.query(&json).all();
     match results.len() {
         0 => Ok("null".to_string()),
-        1 => serde_json::to_string(results[0]).map_err(|e| NikaError::ExtractError { reason: e.to_string() }),
-        _ => serde_json::to_string(&results).map_err(|e| NikaError::ExtractError { reason: e.to_string() }),
+        1 => serde_json::to_string(results[0]).map_err(|e| NikaError::ExtractError {
+            reason: e.to_string(),
+        }),
+        _ => serde_json::to_string(&results).map_err(|e| NikaError::ExtractError {
+            reason: e.to_string(),
+        }),
     }
 }
 

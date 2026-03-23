@@ -14,8 +14,8 @@ pub mod pool;
 pub mod protocol;
 pub mod retry;
 pub mod rmcp_adapter;
-pub mod types;
 pub mod server;
+pub mod types;
 pub mod validation;
 
 // Re-export public types

@@ -1949,7 +1949,11 @@ async fn audit_exec_timeout_fires_promptly() {
     );
     match result.unwrap_err() {
         NikaError::ExecError { reason } => {
-            assert!(reason.contains("timed out"), "Expected timeout, got: {}", reason);
+            assert!(
+                reason.contains("timed out"),
+                "Expected timeout, got: {}",
+                reason
+            );
         }
         err => panic!("Expected ExecError, got: {:?}", err),
     }

@@ -400,7 +400,11 @@ impl RigAgentLoop {
             cache_read_tokens: 0,
             ttft_ms: None,
             finish_reason: stop_reason.to_string(),
-            cost_usd: if total_cost.is_finite() { total_cost } else { 0.0 },
+            cost_usd: if total_cost.is_finite() {
+                total_cost
+            } else {
+                0.0
+            },
         });
 
         Ok(RigAgentLoopResult {
@@ -723,7 +727,11 @@ impl RigAgentLoop {
             cache_read_tokens: 0,
             ttft_ms: None,
             finish_reason: stop_reason.to_string(),
-            cost_usd: if total_cost.is_finite() { total_cost } else { 0.0 },
+            cost_usd: if total_cost.is_finite() {
+                total_cost
+            } else {
+                0.0
+            },
         });
 
         Ok(RigAgentLoopResult {
@@ -1203,7 +1211,11 @@ impl RigAgentLoop {
             cache_read_tokens: 0,
             ttft_ms: None,
             finish_reason: stop_reason.to_string(),
-            cost_usd: if total_cost.is_finite() { total_cost } else { 0.0 },
+            cost_usd: if total_cost.is_finite() {
+                total_cost
+            } else {
+                0.0
+            },
         });
 
         Ok(RigAgentLoopResult {
