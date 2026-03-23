@@ -22,7 +22,7 @@ pub fn unsupported_format(tool: &str, mime: &str) -> NikaError {
 }
 
 /// Create a dependency missing error (NIKA-292).
-#[allow(dead_code)]
+#[allow(dead_code)] // Used behind #[cfg(not(feature))] gates
 pub fn dependency_missing(tool: &str, feature: &str) -> NikaError {
     NikaError::BuiltinToolError {
         tool: format!("nika:{tool}"),
@@ -50,7 +50,6 @@ pub fn invalid_args(tool: &str, reason: impl Into<String>) -> NikaError {
 }
 
 /// Create a pipeline step failed error (NIKA-295).
-#[allow(dead_code)]
 pub fn pipeline_step_failed(step: usize, reason: impl Into<String>) -> NikaError {
     NikaError::BuiltinToolError {
         tool: "nika:pipeline".to_string(),
@@ -59,7 +58,6 @@ pub fn pipeline_step_failed(step: usize, reason: impl Into<String>) -> NikaError
 }
 
 /// Create a pipeline empty error (NIKA-296).
-#[allow(dead_code)]
 pub fn pipeline_empty() -> NikaError {
     NikaError::BuiltinToolError {
         tool: "nika:pipeline".to_string(),

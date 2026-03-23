@@ -625,20 +625,6 @@ pub enum NikaError {
         max_size: u64,
     },
 
-    #[error("[NIKA-283] Media integrity warning: {reason}")]
-    #[diagnostic(
-        code(nika::media_integrity_warning),
-        help("CAS file may have been deleted or corrupted during workflow execution")
-    )]
-    MediaIntegrityWarning { reason: String },
-
-    #[error("[NIKA-284] Media cleanup failed: {reason}")]
-    #[diagnostic(
-        code(nika::media_cleanup_error),
-        help("Check file permissions and disk space in .nika/media/store/")
-    )]
-    MediaCleanupError { reason: String },
-
     #[error("[NIKA-285] Media store is locked: {reason}")]
     #[diagnostic(
         code(nika::media_store_locked),
@@ -926,8 +912,6 @@ impl NikaError {
             Self::ArtifactPathError { .. } => "NIKA-280",
             Self::ArtifactWriteError { .. } => "NIKA-281",
             Self::ArtifactSizeExceeded { .. } => "NIKA-282",
-            Self::MediaIntegrityWarning { .. } => "NIKA-283",
-            Self::MediaCleanupError { .. } => "NIKA-284",
             Self::MediaStoreLocked { .. } => "NIKA-285",
             // Structured Output errors
             Self::StructuredOutputExtractionFailed { .. } => "NIKA-300",
@@ -1184,12 +1168,6 @@ impl FixSuggestion for NikaError {
             }
             NikaError::ArtifactSizeExceeded { .. } => {
                 Some("Increase artifacts.max_size in workflow or reduce output size")
-            }
-            NikaError::MediaIntegrityWarning { .. } => {
-                Some("CAS file may have been deleted or corrupted during workflow execution")
-            }
-            NikaError::MediaCleanupError { .. } => {
-                Some("Check file permissions and disk space in .nika/media/store/")
             }
             NikaError::MediaStoreLocked { .. } => {
                 Some("A workflow is currently running. Use --force to override or wait for completion")

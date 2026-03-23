@@ -6,24 +6,93 @@
 //! - Token budget limits
 //! - Host restrictions
 
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+
 use crate::error::NikaError;
 use crate::runtime::boot::PolicyConfig;
 use url::Url;
 
-/// Hardcoded SSRF blocklist: cloud metadata endpoints and loopback addresses.
+/// Exact-match SSRF blocklist: cloud metadata hostnames and special addresses.
 ///
 /// These are ALWAYS blocked regardless of user configuration.
-/// Cloud metadata services (AWS/GCP/Alibaba) and loopback addresses are
+/// Cloud metadata services (AWS/GCP/Alibaba) and special addresses are
 /// common SSRF targets that should never be reachable from workflow fetch: verbs.
-pub(crate) const SSRF_BLOCKED_HOSTS: &[&str] = &[
-    "169.254.169.254",
-    "metadata.google.internal",
-    "100.100.100.200",
-    "localhost",
-    "127.0.0.1",
-    "::1",
-    "0.0.0.0",
-];
+const SSRF_BLOCKED_EXACT: &[&str] = &["metadata.google.internal", "localhost", "0.0.0.0"];
+
+/// Check whether a host (already lowercased, brackets stripped) is SSRF-blocked.
+///
+/// 1. Exact-match against known hostnames (metadata.google.internal, localhost, 0.0.0.0).
+/// 2. Parse as IP and check private/reserved CIDR ranges:
+///    - 127.0.0.0/8       (loopback)
+///    - 10.0.0.0/8        (private class A)
+///    - 172.16.0.0/12     (private class B)
+///    - 192.168.0.0/16    (private class C)
+///    - 169.254.0.0/16    (link-local, includes AWS metadata 169.254.169.254)
+///    - 100.64.0.0/10     (CGN / shared, includes Alibaba 100.100.100.200)
+///    - ::1               (IPv6 loopback)
+///    - ::ffff:0:0/96     (IPv4-mapped IPv6 — re-checks the inner v4 address)
+pub(crate) fn is_ssrf_blocked(host: &str) -> bool {
+    // 1. Exact hostname match
+    if SSRF_BLOCKED_EXACT.contains(&host) {
+        return true;
+    }
+
+    // 2. Try to parse as IP
+    let ip: IpAddr = match host.parse() {
+        Ok(addr) => addr,
+        Err(_) => return false, // Not an IP, and not in exact list — allow
+    };
+
+    match ip {
+        IpAddr::V4(v4) => is_blocked_v4(v4),
+        IpAddr::V6(v6) => {
+            // IPv6 loopback
+            if v6 == Ipv6Addr::LOCALHOST {
+                return true;
+            }
+            // IPv4-mapped IPv6 (::ffff:a.b.c.d) — extract and re-check inner v4
+            if let Some(mapped) = v6.to_ipv4_mapped() {
+                return is_blocked_v4(mapped);
+            }
+            false
+        }
+    }
+}
+
+/// Check an IPv4 address against blocked private/reserved ranges.
+fn is_blocked_v4(v4: Ipv4Addr) -> bool {
+    let octets = v4.octets();
+    // 127.0.0.0/8 — loopback
+    if octets[0] == 127 {
+        return true;
+    }
+    // 10.0.0.0/8 — private class A
+    if octets[0] == 10 {
+        return true;
+    }
+    // 172.16.0.0/12 — private class B (172.16.x.x – 172.31.x.x)
+    if octets[0] == 172 && (16..=31).contains(&octets[1]) {
+        return true;
+    }
+    // 192.168.0.0/16 — private class C
+    if octets[0] == 192 && octets[1] == 168 {
+        return true;
+    }
+    // 169.254.0.0/16 — link-local (covers AWS metadata 169.254.169.254)
+    if octets[0] == 169 && octets[1] == 254 {
+        return true;
+    }
+    // 100.64.0.0/10 — CGN / shared address space (covers Alibaba 100.100.100.200)
+    // 100.64.0.0 – 100.127.255.255
+    if octets[0] == 100 && (64..=127).contains(&octets[1]) {
+        return true;
+    }
+    // 0.0.0.0
+    if v4 == Ipv4Addr::UNSPECIFIED {
+        return true;
+    }
+    false
+}
 
 /// Policy enforcement result
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -151,31 +220,37 @@ impl PolicyEnforcer {
         // Normalize IPv6: url crate returns "[::1]" with brackets, blocklist uses "::1"
         let host_normalized = host.trim_start_matches('[').trim_end_matches(']');
 
-        // SSRF protection: block cloud metadata and loopback
+        // SSRF protection: block cloud metadata, loopback, and private ranges.
         // Exception: explicit allowed_hosts override SSRF blocklist (for testing, local services)
         let explicitly_allowed = self
             .config
             .allowed_hosts
             .iter()
             .any(|allowed| host_normalized == allowed.to_lowercase());
-        if !explicitly_allowed && SSRF_BLOCKED_HOSTS.contains(&host_normalized) {
+        if !explicitly_allowed && is_ssrf_blocked(host_normalized) {
             return PolicyDecision::Block(format!(
                 "SSRF protection: access to '{}' is blocked",
                 host
             ));
         }
 
-        // Check blocked hosts first (takes precedence)
+        // Check blocked hosts first (takes precedence).
+        // Uses proper domain-suffix matching: "evil.com" blocks "evil.com" and
+        // "sub.evil.com" but NOT "not-evil.com".
         for blocked in &self.config.blocked_hosts {
-            if host.contains(&blocked.to_lowercase()) || blocked.to_lowercase().contains(&host) {
+            let blocked_lower = blocked.to_lowercase();
+            if host == blocked_lower || host.ends_with(&format!(".{}", blocked_lower)) {
                 return PolicyDecision::Block(format!("Host '{}' is blocked by policy", host));
             }
         }
 
-        // If allowed_hosts is non-empty, only those hosts are allowed
+        // If allowed_hosts is non-empty, only those hosts are allowed.
+        // Uses proper domain-suffix matching: "openai.com" allows "openai.com"
+        // and "api.openai.com" but NOT "openai.com.evil.com".
         if !self.config.allowed_hosts.is_empty() {
             let is_allowed = self.config.allowed_hosts.iter().any(|allowed| {
-                host.contains(&allowed.to_lowercase()) || allowed.to_lowercase().contains(&host)
+                let allowed_lower = allowed.to_lowercase();
+                host == allowed_lower || host.ends_with(&format!(".{}", allowed_lower))
             });
             if !is_allowed {
                 return PolicyDecision::Block(format!(
@@ -313,12 +388,15 @@ mod tests {
     #[test]
     fn test_policy_blocks_hosts() {
         let config = PolicyConfig {
-            blocked_hosts: vec!["evil.com".into(), "malware".into()],
+            blocked_hosts: vec!["evil.com".into(), "malware.io".into()],
             ..Default::default()
         };
         let enforcer = PolicyEnforcer::new(config);
 
         assert!(enforcer.check_fetch("https://evil.com/path").is_blocked());
+        assert!(enforcer
+            .check_fetch("https://sub.evil.com/path")
+            .is_blocked());
         assert!(enforcer.check_fetch("https://malware.io/api").is_blocked());
         assert!(enforcer.check_fetch("https://api.example.com").is_allowed());
     }
@@ -465,5 +543,128 @@ mod tests {
             .check_fetch("https://api.openai.com/v1")
             .is_allowed());
         assert!(enforcer.check_fetch("https://example.com").is_allowed());
+    }
+
+    // =========================================================================
+    // H4: SSRF blocks private/reserved IP ranges
+    // =========================================================================
+
+    #[test]
+    fn test_ssrf_blocks_private_ranges() {
+        let enforcer = PolicyEnforcer::default();
+
+        // 10.0.0.0/8
+        assert!(enforcer.check_fetch("http://10.0.0.1/admin").is_blocked());
+        assert!(enforcer.check_fetch("http://10.255.255.255/x").is_blocked());
+
+        // 172.16.0.0/12
+        assert!(enforcer.check_fetch("http://172.16.0.1/api").is_blocked());
+        assert!(enforcer.check_fetch("http://172.31.255.255/x").is_blocked());
+        // 172.15.x.x is NOT private — should be allowed
+        assert!(enforcer.check_fetch("http://172.15.0.1/api").is_allowed());
+        // 172.32.x.x is NOT private — should be allowed
+        assert!(enforcer.check_fetch("http://172.32.0.1/api").is_allowed());
+
+        // 192.168.0.0/16
+        assert!(enforcer
+            .check_fetch("http://192.168.1.1/admin")
+            .is_blocked());
+        assert!(enforcer.check_fetch("http://192.168.0.100/x").is_blocked());
+
+        // 127.0.0.0/8 — full loopback range
+        assert!(enforcer.check_fetch("http://127.0.0.2:8080/x").is_blocked());
+        assert!(enforcer
+            .check_fetch("http://127.255.255.255/x")
+            .is_blocked());
+
+        // 169.254.0.0/16 — link-local
+        assert!(enforcer.check_fetch("http://169.254.0.1/x").is_blocked());
+        assert!(enforcer
+            .check_fetch("http://169.254.169.254/latest")
+            .is_blocked());
+
+        // 100.64.0.0/10 — CGN / shared (covers Alibaba 100.100.100.200)
+        assert!(enforcer.check_fetch("http://100.64.0.1/x").is_blocked());
+        assert!(enforcer
+            .check_fetch("http://100.100.100.200/meta")
+            .is_blocked());
+        assert!(enforcer
+            .check_fetch("http://100.127.255.255/x")
+            .is_blocked());
+        // 100.128.x.x is outside CGN — should be allowed
+        assert!(enforcer.check_fetch("http://100.128.0.1/api").is_allowed());
+    }
+
+    #[test]
+    fn test_ssrf_blocks_ipv6_mapped() {
+        let enforcer = PolicyEnforcer::default();
+
+        // ::ffff:127.0.0.1 (IPv4-mapped loopback)
+        assert!(enforcer
+            .check_fetch("http://[::ffff:127.0.0.1]:8080/x")
+            .is_blocked());
+        // ::ffff:10.0.0.1 (IPv4-mapped private)
+        assert!(enforcer
+            .check_fetch("http://[::ffff:10.0.0.1]/admin")
+            .is_blocked());
+        // ::ffff:192.168.1.1
+        assert!(enforcer
+            .check_fetch("http://[::ffff:192.168.1.1]/x")
+            .is_blocked());
+        // ::ffff:169.254.169.254
+        assert!(enforcer
+            .check_fetch("http://[::ffff:169.254.169.254]/meta")
+            .is_blocked());
+
+        // ::1 (pure IPv6 loopback)
+        assert!(enforcer
+            .check_fetch("http://[::1]:9090/health")
+            .is_blocked());
+    }
+
+    // =========================================================================
+    // H5: Proper domain-suffix matching (no substring bypass)
+    // =========================================================================
+
+    #[test]
+    fn test_host_matching_no_substring_bypass() {
+        // Blocked hosts: should NOT over-block unrelated domains
+        let config = PolicyConfig {
+            blocked_hosts: vec!["evil.com".into()],
+            allowed_hosts: vec![], // no whitelist
+            ..Default::default()
+        };
+        let enforcer = PolicyEnforcer::new(config);
+
+        // "evil.com" and subdomains blocked
+        assert!(enforcer.check_fetch("https://evil.com/x").is_blocked());
+        assert!(enforcer.check_fetch("https://sub.evil.com/x").is_blocked());
+        // "not-evil.com" must NOT be blocked (old substring match would block it)
+        assert!(enforcer.check_fetch("https://not-evil.com/x").is_allowed());
+        // "evil.com.attacker.com" must NOT be blocked
+        assert!(enforcer
+            .check_fetch("https://evil.com.attacker.com/x")
+            .is_allowed());
+
+        // Allowed hosts: should NOT allow spoofed domains
+        let config2 = PolicyConfig {
+            allowed_hosts: vec!["api.openai.com".into()],
+            ..Default::default()
+        };
+        let enforcer2 = PolicyEnforcer::new(config2);
+
+        // Exact match and subdomains allowed
+        assert!(enforcer2
+            .check_fetch("https://api.openai.com/v1")
+            .is_allowed());
+        assert!(enforcer2
+            .check_fetch("https://sub.api.openai.com/v1")
+            .is_allowed());
+        // Attacker domain with allowed host as prefix must be BLOCKED
+        assert!(enforcer2
+            .check_fetch("https://api.openai.com.evil.com/v1")
+            .is_blocked());
+        // Unrelated domain must be blocked
+        assert!(enforcer2.check_fetch("https://other.com/api").is_blocked());
     }
 }

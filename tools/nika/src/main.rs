@@ -336,6 +336,10 @@ enum Commands {
         /// Output format: text, json
         #[arg(long, default_value = "text")]
         format: String,
+
+        /// Auto-fix issues (runs machine setup)
+        #[arg(long)]
+        fix: bool,
     },
 
     /// Create a new workflow from template or wizard
@@ -689,12 +693,58 @@ async fn main() {
     // Handle subcommands or default to help (terminal-first)
     let result = match cli.command {
         None => {
-            use clap::CommandFactory;
-            if let Err(e) = Cli::command().print_help() {
-                eprintln!("Failed to print help: {e}");
-                std::process::exit(1);
+            // Adaptive behavior based on context
+            if !cli::machine::is_machine_setup() {
+                // First time ever: guide to init
+                println!();
+                println!(
+                    "  \u{1f98b} {}",
+                    format!("nika v{}", env!("CARGO_PKG_VERSION")).bold()
+                );
+                println!();
+                println!(
+                    "  Welcome! Run {} to get started.",
+                    "nika init".cyan().bold()
+                );
+                println!("  This will set up your machine and create a project.");
+                println!();
+                Ok(())
+            } else if !Path::new(".nika").exists() {
+                // Machine setup done, but no project here
+                println!();
+                println!("  {} No project in current directory.", "\u{25cb}".dimmed());
+                println!();
+                println!(
+                    "  {} {} start a new project",
+                    "nika init".cyan().bold(),
+                    "\u{2014}".dimmed()
+                );
+                println!(
+                    "  {} {} run a workflow file",
+                    "nika <file>".cyan().bold(),
+                    "\u{2014}".dimmed()
+                );
+                println!(
+                    "  {} {} check system health",
+                    "nika doctor".cyan().bold(),
+                    "\u{2014}".dimmed()
+                );
+                println!(
+                    "  {} {} all commands",
+                    "nika --help".cyan().bold(),
+                    "\u{2014}".dimmed()
+                );
+                println!();
+                Ok(())
+            } else {
+                // Project exists: show help
+                use clap::CommandFactory;
+                if let Err(e) = Cli::command().print_help() {
+                    eprintln!("Failed to print help: {e}");
+                    std::process::exit(1);
+                }
+                Ok(())
             }
-            Ok(())
         }
 
         #[cfg(feature = "tui")]
@@ -774,14 +824,7 @@ async fn main() {
                     }
                 }
             } else {
-                cli::init::init_project(
-                    &permission,
-                    no_example || minimal,
-                    migrate_keys,
-                    false,
-                    false,
-                )
-                .await
+                cli::init::init_project(&permission, no_example || minimal, migrate_keys).await
             }
         }
 
@@ -821,8 +864,8 @@ async fn main() {
 
         Some(Commands::Setup { action }) => cli::setup::handle_setup_command(action).await,
 
-        Some(Commands::Doctor { full, format }) => {
-            cli::doctor::handle_doctor_command(full, &format, quiet).await
+        Some(Commands::Doctor { full, format, fix }) => {
+            cli::doctor::handle_doctor_command(full, &format, quiet, fix).await
         }
 
         Some(Commands::New {
