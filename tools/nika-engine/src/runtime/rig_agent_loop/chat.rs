@@ -103,17 +103,13 @@ impl RigAgentLoop {
                     "deepseek" => self.chat_continue_deepseek(prompt).await,
                     "gemini" => self.chat_continue_gemini(prompt).await,
                     other => Err(NikaError::AgentValidationError {
-                        reason: format!(
-                            "Provider '{}' is not supported for chat_continue.",
-                            other
-                        ),
+                        reason: format!("Provider '{}' is not supported for chat_continue.", other),
                     }),
                 }
             }
             None => {
                 // Auto-detect: check env vars in priority order
-                let has_key =
-                    |key: &str| std::env::var(key).is_ok_and(|v| !v.trim().is_empty());
+                let has_key = |key: &str| std::env::var(key).is_ok_and(|v| !v.trim().is_empty());
 
                 if has_key("ANTHROPIC_API_KEY") {
                     return self.chat_continue_claude(prompt).await;
@@ -150,13 +146,13 @@ impl RigAgentLoop {
         prompt: &str,
     ) -> Result<RigAgentLoopResult, NikaError> {
         let client = anthropic::Client::from_env();
-        let model_name = self
-            .params
-            .model
-            .as_deref()
-            .ok_or_else(|| NikaError::ValidationError {
-                reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
-            })?;
+        let model_name =
+            self.params
+                .model
+                .as_deref()
+                .ok_or_else(|| NikaError::ValidationError {
+                    reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
+                })?;
         let model = client.completion_model(model_name);
 
         let turn_index = self.turn_count + 1;
@@ -257,13 +253,13 @@ impl RigAgentLoop {
         prompt: &str,
     ) -> Result<RigAgentLoopResult, NikaError> {
         let client = openai::Client::from_env();
-        let model_name = self
-            .params
-            .model
-            .as_deref()
-            .ok_or_else(|| NikaError::ValidationError {
-                reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
-            })?;
+        let model_name =
+            self.params
+                .model
+                .as_deref()
+                .ok_or_else(|| NikaError::ValidationError {
+                    reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
+                })?;
         let model = client.completion_model(model_name);
 
         let turn_index = self.turn_count + 1;
@@ -363,13 +359,13 @@ impl RigAgentLoop {
         use rig::completion::Chat;
 
         let client = rig::providers::mistral::Client::from_env();
-        let model_name = self
-            .params
-            .model
-            .as_deref()
-            .ok_or_else(|| NikaError::ValidationError {
-                reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
-            })?;
+        let model_name =
+            self.params
+                .model
+                .as_deref()
+                .ok_or_else(|| NikaError::ValidationError {
+                    reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
+                })?;
         let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
         let tools = self.tools_as_boxed();
         let agent = client
@@ -434,13 +430,13 @@ impl RigAgentLoop {
         use rig::completion::Chat;
 
         let client = rig::providers::groq::Client::from_env();
-        let model_name = self
-            .params
-            .model
-            .as_deref()
-            .ok_or_else(|| NikaError::ValidationError {
-                reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
-            })?;
+        let model_name =
+            self.params
+                .model
+                .as_deref()
+                .ok_or_else(|| NikaError::ValidationError {
+                    reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
+                })?;
         let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
         let tools = self.tools_as_boxed();
         let agent = client
@@ -508,13 +504,13 @@ impl RigAgentLoop {
         use rig::completion::Chat;
 
         let client = rig::providers::deepseek::Client::from_env();
-        let model_name = self
-            .params
-            .model
-            .as_deref()
-            .ok_or_else(|| NikaError::ValidationError {
-                reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
-            })?;
+        let model_name =
+            self.params
+                .model
+                .as_deref()
+                .ok_or_else(|| NikaError::ValidationError {
+                    reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
+                })?;
         let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
         let tools = self.tools_as_boxed();
         let agent = client
@@ -579,13 +575,13 @@ impl RigAgentLoop {
         use rig::completion::Chat;
 
         let client = rig::providers::gemini::Client::from_env();
-        let model_name = self
-            .params
-            .model
-            .as_deref()
-            .ok_or_else(|| NikaError::ValidationError {
-                reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
-            })?;
+        let model_name =
+            self.params
+                .model
+                .as_deref()
+                .ok_or_else(|| NikaError::ValidationError {
+                    reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
+                })?;
         let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
         let tools = self.tools_as_boxed();
         let agent = client

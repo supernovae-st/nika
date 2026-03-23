@@ -451,11 +451,7 @@ impl BootSequence {
                     }
                 }
                 Err(e) => {
-                    let msg = format!(
-                        "Config parse error in {}: {}",
-                        config_path.display(),
-                        e
-                    );
+                    let msg = format!("Config parse error in {}: {}", config_path.display(), e);
                     tracing::error!("{}", msg);
                     warnings.push(msg);
                     ctx.config = Some(BootstrapConfig::default());

@@ -1252,8 +1252,7 @@ pub fn resolve_for_shell<'a>(
 
                 // Apply non-shell transforms first, then shell-escape the result.
                 let has_shell = transforms.iter().any(|t| t == "shell");
-                let non_shell: Vec<&String> =
-                    transforms.iter().filter(|t| *t != "shell").collect();
+                let non_shell: Vec<&String> = transforms.iter().filter(|t| *t != "shell").collect();
 
                 let raw_value = if !non_shell.is_empty() {
                     let transform_str = non_shell
@@ -1261,18 +1260,17 @@ pub fn resolve_for_shell<'a>(
                         .map(|s| s.as_str())
                         .collect::<Vec<_>>()
                         .join(" | ");
-                    let expr =
-                        crate::binding::transform::TransformExpr::parse(&transform_str)
+                    let expr = crate::binding::transform::TransformExpr::parse(&transform_str)
+                        .map_err(|e| NikaError::TemplateParse {
+                            position: m.start(),
+                            details: format!("Transform parse error: {}", e),
+                        })?;
+                    let transformed =
+                        expr.apply(value_ref)
                             .map_err(|e| NikaError::TemplateParse {
                                 position: m.start(),
-                                details: format!("Transform parse error: {}", e),
+                                details: format!("Transform apply error: {}", e),
                             })?;
-                    let transformed = expr.apply(value_ref).map_err(|e| {
-                        NikaError::TemplateParse {
-                            position: m.start(),
-                            details: format!("Transform apply error: {}", e),
-                        }
-                    })?;
                     value_to_display(&transformed).into_owned()
                 } else if has_shell {
                     // Only |shell, no other transforms: use strict value_to_string

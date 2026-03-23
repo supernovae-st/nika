@@ -439,12 +439,20 @@ impl LanguageServer for NikaBackend {
             None => return Ok(None),
         };
 
-        let start = crate::position::position_to_offset(&text, params.range.start.line, params.range.start.character)
-            .map(|o| o.0)
-            .unwrap_or(0);
-        let end = crate::position::position_to_offset(&text, params.range.end.line, params.range.end.character)
-            .map(|o| o.0)
-            .unwrap_or(0);
+        let start = crate::position::position_to_offset(
+            &text,
+            params.range.start.line,
+            params.range.start.character,
+        )
+        .map(|o| o.0)
+        .unwrap_or(0);
+        let end = crate::position::position_to_offset(
+            &text,
+            params.range.end.line,
+            params.range.end.character,
+        )
+        .map(|o| o.0)
+        .unwrap_or(0);
         let entries = self.handler.code_actions(&text, start, end);
 
         let actions: Vec<CodeActionOrCommand> = entries

@@ -630,10 +630,7 @@ fn check_agent_skills() -> DiagnosticCheck {
     if has_user {
         DiagnosticCheck::pass(
             "Agent Skills",
-            format!(
-                "Nika skills installed at {}",
-                user_skills.display()
-            ),
+            format!("Nika skills installed at {}", user_skills.display()),
         )
     } else if has_project {
         DiagnosticCheck::pass("Agent Skills", "Nika skills present in project")
@@ -652,10 +649,7 @@ fn check_agents_md() -> DiagnosticCheck {
             .map(|m| m.file_type().is_symlink())
             .unwrap_or(false);
         if is_symlink {
-            DiagnosticCheck::pass(
-                "AGENTS.md",
-                "AGENTS.md present (CLAUDE.md symlinked)",
-            )
+            DiagnosticCheck::pass("AGENTS.md", "AGENTS.md present (CLAUDE.md symlinked)")
         } else if std::path::Path::new("CLAUDE.md").exists() {
             DiagnosticCheck::warn(
                 "AGENTS.md",

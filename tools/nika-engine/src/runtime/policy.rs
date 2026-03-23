@@ -153,12 +153,12 @@ impl PolicyEnforcer {
 
         // SSRF protection: block cloud metadata and loopback
         // Exception: explicit allowed_hosts override SSRF blocklist (for testing, local services)
-        let explicitly_allowed = self.config.allowed_hosts.iter().any(|allowed| {
-            host_normalized == allowed.to_lowercase()
-        });
-        if !explicitly_allowed
-            && SSRF_BLOCKED_HOSTS.contains(&host_normalized)
-        {
+        let explicitly_allowed = self
+            .config
+            .allowed_hosts
+            .iter()
+            .any(|allowed| host_normalized == allowed.to_lowercase());
+        if !explicitly_allowed && SSRF_BLOCKED_HOSTS.contains(&host_normalized) {
             return PolicyDecision::Block(format!(
                 "SSRF protection: access to '{}' is blocked",
                 host
@@ -423,15 +423,21 @@ mod tests {
         let enforcer = PolicyEnforcer::default();
 
         assert!(enforcer.check_fetch("http://localhost:8080").is_blocked());
-        assert!(enforcer.check_fetch("http://127.0.0.1:3000/api").is_blocked());
-        assert!(enforcer.check_fetch("http://[::1]:9090/health").is_blocked());
+        assert!(enforcer
+            .check_fetch("http://127.0.0.1:3000/api")
+            .is_blocked());
+        assert!(enforcer
+            .check_fetch("http://[::1]:9090/health")
+            .is_blocked());
         assert!(enforcer.check_fetch("http://0.0.0.0/admin").is_blocked());
     }
 
     #[test]
     fn test_ssrf_does_not_block_external_hosts() {
         let enforcer = PolicyEnforcer::default();
-        assert!(enforcer.check_fetch("https://api.openai.com/v1").is_allowed());
+        assert!(enforcer
+            .check_fetch("https://api.openai.com/v1")
+            .is_allowed());
         assert!(enforcer.check_fetch("https://example.com").is_allowed());
     }
 }

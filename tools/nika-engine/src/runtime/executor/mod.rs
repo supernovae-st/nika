@@ -128,10 +128,7 @@ impl TaskExecutor {
             "File tools using default PermissionMode::Plan — \
              pass BootstrapConfig.tools.permission to TaskExecutor for proper config"
         );
-        let tool_ctx = Arc::new(ToolContext::new(
-            working_dir.clone(),
-            PermissionMode::Plan,
-        ));
+        let tool_ctx = Arc::new(ToolContext::new(working_dir.clone(), PermissionMode::Plan));
 
         // Create media tool context with CAS store at workspace default
         let media_ctx = Arc::new(MediaToolContext::new(CasStore::workspace_default(

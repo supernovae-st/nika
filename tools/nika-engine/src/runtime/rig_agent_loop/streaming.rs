@@ -285,12 +285,10 @@ impl RigAgentLoop {
                         // Accumulate reasoning deltas (streaming thinking tokens)
                         MultiTurnStreamItem::StreamAssistantItem(
                             StreamedAssistantContent::ReasoningDelta { reasoning, .. },
-                        ) => {
-                            match &mut thinking_text {
-                                Some(t) => t.push_str(&reasoning),
-                                None => thinking_text = Some(reasoning),
-                            }
-                        }
+                        ) => match &mut thinking_text {
+                            Some(t) => t.push_str(&reasoning),
+                            None => thinking_text = Some(reasoning),
+                        },
                         // Ignore tool calls and other items in CLI mode
                         _ => {}
                     },

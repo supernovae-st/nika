@@ -437,15 +437,16 @@ impl RigProvider {
             RigProvider::Native(runtime) => {
                 // Native inference uses direct API, not rig-core agent
                 // Model must be pre-loaded via load_native_model()
-                timeout(INFER_TIMEOUT, runtime.infer(prompt, super::native::ChatOptions::default()))
-                    .await
-                    .map_err(|_| RigInferError::Timeout {
-                        duration_ms: INFER_TIMEOUT.as_millis() as u64,
-                    })?
-                    .map(|r| r.message.content)
-                    .map_err(|e: super::native::NativeError| {
-                        RigInferError::PromptError(e.to_string())
-                    })
+                timeout(
+                    INFER_TIMEOUT,
+                    runtime.infer(prompt, super::native::ChatOptions::default()),
+                )
+                .await
+                .map_err(|_| RigInferError::Timeout {
+                    duration_ms: INFER_TIMEOUT.as_millis() as u64,
+                })?
+                .map(|r| r.message.content)
+                .map_err(|e: super::native::NativeError| RigInferError::PromptError(e.to_string()))
             }
         }
     }
