@@ -637,7 +637,7 @@ fn check_lsp_available() -> Vec<DiagnosticCheck> {
             checks.push(DiagnosticCheck::fail(
                 "LSP",
                 "nika binary not found in PATH",
-                "Add nika to PATH for editor LSP integration",
+                "Add nika to PATH: export PATH=\"$HOME/.cargo/bin:$PATH\" (cargo) or verify brew install",
             ));
             return checks;
         }
@@ -817,18 +817,6 @@ fn check_ai_rules() -> Vec<DiagnosticCheck> {
                 claude_user_path.display()
             ),
             "Run: nika setup ai to generate Claude Code rules",
-        ));
-    }
-
-    // Cursor user-level rules
-    let cursor_user_path = home.join(".cursor/rules/nika.mdc");
-    if cursor_user_path.exists() {
-        checks.push(DiagnosticCheck::pass(
-            "AI Rules",
-            format!(
-                "[user] Cursor rules present ({})",
-                cursor_user_path.display()
-            ),
         ));
     }
 
