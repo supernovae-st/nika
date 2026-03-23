@@ -315,8 +315,9 @@ impl Widget for CloudTab<'_> {
 
         // Dynamic row count based on provider count (3 columns per row)
         let num_rows = self.providers.len().div_ceil(3);
-        let row_constraints: Vec<Constraint> =
-            (0..num_rows).map(|_| Constraint::Ratio(1, num_rows as u32)).collect();
+        let row_constraints: Vec<Constraint> = (0..num_rows)
+            .map(|_| Constraint::Ratio(1, num_rows as u32))
+            .collect();
 
         let rows = Layout::default()
             .direction(Direction::Vertical)

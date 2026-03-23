@@ -127,20 +127,14 @@ impl App {
                     // Skip when loading is active to prevent overlay overlap
                     if show_welcome && !loading && chunks[1].height > 0 {
                         let hint_text = Line::from(vec![
-                            Span::styled(
-                                " Press ",
-                                Style::default().fg(theme.text_secondary),
-                            ),
+                            Span::styled(" Press ", Style::default().fg(theme.text_secondary)),
                             Span::styled(
                                 "?",
                                 Style::default()
                                     .fg(theme.highlight)
                                     .add_modifier(Modifier::BOLD),
                             ),
-                            Span::styled(
-                                " for help, ",
-                                Style::default().fg(theme.text_secondary),
-                            ),
+                            Span::styled(" for help, ", Style::default().fg(theme.text_secondary)),
                             Span::styled(
                                 "Ctrl+P",
                                 Style::default()
@@ -178,14 +172,12 @@ impl App {
                     if loading {
                         let spinner = ['◐', '◓', '◑', '◒'];
                         let idx = (state.frame / 15) as usize % spinner.len();
-                        let loading_text = Line::from(vec![
-                            Span::styled(
-                                format!("{} Starting Nika...", spinner[idx]),
-                                Style::default()
-                                    .fg(theme.highlight)
-                                    .add_modifier(Modifier::BOLD),
-                            ),
-                        ]);
+                        let loading_text = Line::from(vec![Span::styled(
+                            format!("{} Starting Nika...", spinner[idx]),
+                            Style::default()
+                                .fg(theme.highlight)
+                                .add_modifier(Modifier::BOLD),
+                        )]);
                         let loading_widget =
                             Paragraph::new(loading_text).alignment(Alignment::Center);
                         // Center vertically in content area

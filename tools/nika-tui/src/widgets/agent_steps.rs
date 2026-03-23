@@ -285,8 +285,8 @@ impl AgentPhaseIndicator {
 }
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::verb_type::VerbType;
+    use super::*;
 
     #[test]
     fn test_verb_type_colors() {

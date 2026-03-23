@@ -28,7 +28,7 @@ pub fn compute_panel_areas(
         .constraints([
             Constraint::Length(2),              // ProStatusBar (2 lines)
             Constraint::Length(warning_height), // API key warning (0 or 1)
-            Constraint::Min(10),               // Main content area
+            Constraint::Min(10),                // Main content area
             Constraint::Length(input_height),   // Input field (dynamic)
             Constraint::Length(1),              // Command hints
         ])
@@ -71,8 +71,7 @@ mod tests {
     #[test]
     fn test_compute_panel_areas_splits_correctly() {
         let area = Rect::new(0, 0, 100, 50);
-        let (session, conversation, activity, input, hints) =
-            compute_panel_areas(area, 0, 3);
+        let (session, conversation, activity, input, hints) = compute_panel_areas(area, 0, 3);
 
         // Session bar at top (2 lines)
         assert_eq!(session.height, 2);
@@ -95,8 +94,7 @@ mod tests {
     #[test]
     fn test_compute_panel_areas_with_warning() {
         let area = Rect::new(0, 0, 100, 50);
-        let (session, _conversation, _activity, input, hints) =
-            compute_panel_areas(area, 1, 3);
+        let (session, _conversation, _activity, input, hints) = compute_panel_areas(area, 1, 3);
 
         // Session bar at top (2 lines)
         assert_eq!(session.height, 2);
@@ -140,8 +138,7 @@ mod tests {
     fn test_panel_areas_small_terminal() {
         // Minimum viable terminal size
         let area = Rect::new(0, 0, 80, 24);
-        let (session, conversation, activity, input, hints) =
-            compute_panel_areas(area, 0, 3);
+        let (session, conversation, activity, input, hints) = compute_panel_areas(area, 0, 3);
 
         // All panels should have valid dimensions
         assert!(session.height > 0);

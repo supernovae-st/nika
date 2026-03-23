@@ -118,7 +118,9 @@ async fn test_chat_agent_creation() {
     match agent {
         Ok(a) => {
             // Verify the agent has a valid provider
-            let valid_providers = ["claude", "openai", "mistral", "groq", "deepseek", "gemini", "xai"];
+            let valid_providers = [
+                "claude", "openai", "mistral", "groq", "deepseek", "gemini", "xai",
+            ];
             assert!(
                 valid_providers.contains(&a.provider_name()),
                 "Expected valid provider, got: {}",
@@ -149,7 +151,9 @@ fn test_chat_agent_initial_state() {
     // RigProvider::auto() picks first available provider in priority order:
     // 1. Claude, 2. OpenAI, 3. Mistral, 4. Groq, 5. DeepSeek, 6. Gemini, 7. xAI
     // Due to parallel tests and user env, any provider may be selected
-    let valid_providers = ["claude", "openai", "mistral", "groq", "deepseek", "gemini", "xai"];
+    let valid_providers = [
+        "claude", "openai", "mistral", "groq", "deepseek", "gemini", "xai",
+    ];
     assert!(
         valid_providers.contains(&agent.provider_name()),
         "Expected valid provider, got: {}",

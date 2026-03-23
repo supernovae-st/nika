@@ -322,7 +322,9 @@ pub struct VerificationState {
 impl VerificationState {
     /// Create new verification state for 7 providers
     pub fn new_providers() -> Self {
-        let providers = ["Claude", "OpenAI", "Mistral", "Groq", "DeepSeek", "Gemini", "xAI"];
+        let providers = [
+            "Claude", "OpenAI", "Mistral", "Groq", "DeepSeek", "Gemini", "xAI",
+        ];
         Self {
             entries: providers.iter().map(|&p| VerifyEntry::new(p)).collect(),
             frame: 0,
