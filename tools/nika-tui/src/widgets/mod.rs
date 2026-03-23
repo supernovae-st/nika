@@ -114,7 +114,9 @@ pub use dag_ascii::DagAscii;
 pub use gauge::Gauge;
 pub use header::Header;
 pub use scroll_indicator::{ScrollHint, ScrollIndicator};
-pub use status_bar::{ConnectionStatus, Provider, StatusBar, StatusMetrics, WorkflowPhase};
+pub use status_bar::{
+    ConnectionStatus, Provider, StatusBar, StatusMetrics, StatusSeverity, WorkflowPhase,
+};
 pub use timeline::{Timeline, TimelineEntry};
 // Pro status bar for Chat view (Claude Code-inspired)
 pub use pro_status_bar::{ChatModeIndicator, ProStatusBar, SessionMetrics};

@@ -305,6 +305,18 @@ impl StatusMetrics {
     }
 }
 
+/// Severity level for status bar messages
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum StatusSeverity {
+    /// Normal informational text
+    #[default]
+    Info,
+    /// Warning — shown in amber
+    Warning,
+    /// Error — shown in red bold, takes priority over hints
+    Error,
+}
+
 /// Status bar configuration
 pub struct StatusBar<'a> {
     /// Current view (determines which hints to show)
@@ -319,6 +331,8 @@ pub struct StatusBar<'a> {
     pub input_mode: Option<InputMode>,
     /// Custom status text from the view's status_line() method
     pub custom_text: Option<String>,
+    /// Severity of the custom status text — Error/Warning get colored and prioritized
+    pub status_severity: StatusSeverity,
     /// Animation frame counter (0-255) for live indicators
     pub frame: u8,
 }
@@ -332,6 +346,7 @@ impl<'a> StatusBar<'a> {
             metrics: None,
             input_mode: None,
             custom_text: None,
+            status_severity: StatusSeverity::Info,
             frame: 0,
         }
     }
@@ -360,8 +375,24 @@ impl<'a> StatusBar<'a> {
     /// Set custom status text from the view's status_line() method
     pub fn custom_text(mut self, text: String) -> Self {
         if !text.is_empty() {
+            // Auto-detect severity from text content
+            let lower = text.to_lowercase();
+            if lower.contains("error") || text.starts_with("NIKA-") || text.contains("failed") {
+                self.status_severity = StatusSeverity::Error;
+            } else if lower.contains("warning")
+                || lower.contains("disconnected")
+                || lower.contains("retrying")
+            {
+                self.status_severity = StatusSeverity::Warning;
+            }
             self.custom_text = Some(text);
         }
+        self
+    }
+
+    /// Explicitly set status severity
+    pub fn severity(mut self, severity: StatusSeverity) -> Self {
+        self.status_severity = severity;
         self
     }
 
@@ -470,13 +501,40 @@ impl Widget for StatusBar<'_> {
         }
 
         // Add custom status text from view (if present)
+        // Error/Warning severity gets colored and bold for visibility
         if let Some(ref text) = self.custom_text {
+            let text_style = match self.status_severity {
+                StatusSeverity::Error => Style::default()
+                    .fg(self.theme.status_failed)
+                    .add_modifier(Modifier::BOLD),
+                StatusSeverity::Warning => Style::default()
+                    .fg(self.theme.status_running) // amber
+                    .add_modifier(Modifier::BOLD),
+                StatusSeverity::Info => Style::default().fg(self.theme.text_primary),
+            };
+            // Error/Warning prefix icon
+            match self.status_severity {
+                StatusSeverity::Error => {
+                    left_spans.push(Span::styled(
+                        "\u{2717} ",
+                        Style::default()
+                            .fg(self.theme.status_failed)
+                            .add_modifier(Modifier::BOLD),
+                    ));
+                }
+                StatusSeverity::Warning => {
+                    left_spans.push(Span::styled(
+                        "\u{26a0} ",
+                        Style::default()
+                            .fg(self.theme.status_running)
+                            .add_modifier(Modifier::BOLD),
+                    ));
+                }
+                StatusSeverity::Info => {}
+            }
+            left_spans.push(Span::styled(text.clone(), text_style));
             left_spans.push(Span::styled(
-                text.clone(),
-                Style::default().fg(self.theme.text_primary),
-            ));
-            left_spans.push(Span::styled(
-                " │ ",
+                " \u{2502} ",
                 Style::default().fg(self.theme.text_muted),
             ));
         }
