@@ -66,7 +66,7 @@ tasks:
 | `exec:` | terminal | Shell command |
 | `fetch:` | satellite | HTTP request |
 | `invoke:` | plug | MCP tool call |
-| `agent:` | chicken | Agentic loop |
+| `agent:` | robot | Agentic loop |
 
 ## Development
 
@@ -79,4 +79,4 @@ npm run compile
 
 ## License
 
-MIT
+AGPL-3.0-or-later
