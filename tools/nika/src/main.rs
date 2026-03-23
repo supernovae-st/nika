@@ -75,7 +75,7 @@ MCP SERVER MANAGEMENT:
 CONTENT & TEMPLATES:
     nika new                      Create workflow from template or wizard
     nika new --list               List available templates
-    nika showcase list            Browse 200+ showcase workflows
+    nika showcase list            Browse 115 showcase workflows
     nika showcase extract <name>  Extract showcase to current dir
 
 LEARNING:
