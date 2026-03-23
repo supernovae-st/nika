@@ -50,8 +50,7 @@ pub trait View {
     /// - Initialize view-specific state
     ///
     /// Default: no-op
-    #[allow(dead_code, unused_variables)]
-    fn on_enter(&mut self, state: &mut TuiState) {}
+    fn on_enter(&mut self, _state: &mut TuiState) {}
 
     /// Called when this view becomes inactive (loses focus)
     ///
@@ -61,8 +60,7 @@ pub trait View {
     /// - Clean up temporary resources
     ///
     /// Default: no-op
-    #[allow(dead_code, unused_variables)]
-    fn on_leave(&mut self, state: &mut TuiState) {}
+    fn on_leave(&mut self, _state: &mut TuiState) {}
 
     /// Called each frame for animation updates (target: 60fps)
     ///
@@ -74,8 +72,7 @@ pub trait View {
     /// Performance: Must complete in <1ms to maintain 60fps.
     ///
     /// Default: no-op
-    #[allow(dead_code, unused_variables)]
-    fn tick(&mut self, state: &mut TuiState) {}
+    fn tick(&mut self, _state: &mut TuiState) {}
 
     /// Whether this view needs background ticking even when inactive
     ///

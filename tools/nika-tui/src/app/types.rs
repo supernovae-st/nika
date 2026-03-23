@@ -7,8 +7,8 @@ use super::super::views::{TuiView, ViewAction};
 
 /// Action resulting from input handling
 ///
-/// Note: Some variants are temporarily unused during module extraction refactoring.
-/// They will be used when events.rs and routing.rs are fully implemented.
+/// Variants are matched in routing.rs but some are not yet
+/// connected to input handling (staged for keybinding system).
 #[derive(Debug, Clone, PartialEq)]
 #[allow(dead_code)]
 pub enum Action {

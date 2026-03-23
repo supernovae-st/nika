@@ -24,7 +24,7 @@ impl JsonFormatCache {
     }
 
     /// Create a new cache with specific capacity (for testing)
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub fn with_capacity(max_entries: usize) -> Self {
         Self {
             cache: HashMap::new(),
@@ -71,7 +71,7 @@ impl JsonFormatCache {
     }
 
     /// Get cache stats for debugging
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub fn stats(&self) -> (usize, usize) {
         (self.cache.len(), self.max_entries)
     }
