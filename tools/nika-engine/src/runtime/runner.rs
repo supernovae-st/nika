@@ -590,6 +590,7 @@ impl Runner {
         output_policy: Option<&OutputPolicy>,
     ) -> TaskResult {
         let mut current_infer = original_infer;
+        let original_prompt = current_infer.prompt.clone();
         let mut attempts = 0u8;
 
         loop {
@@ -638,7 +639,7 @@ impl Runner {
                                 "JSON parsing failed, retrying"
                             );
                             current_infer.prompt = Self::build_retry_prompt(
-                                &current_infer.prompt,
+                                &original_prompt,
                                 schema,
                                 &output,
                                 &format!("JSON parsing failed: {}", e),
@@ -703,7 +704,7 @@ impl Runner {
                         "Schema validation failed, retrying"
                     );
                     current_infer.prompt = Self::build_retry_prompt(
-                        &current_infer.prompt,
+                        &original_prompt,
                         schema,
                         &output,
                         &error_feedback,
@@ -1021,9 +1022,9 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 running_tasks: vec![],
             });
             self.write_trace();
-            return Err(NikaError::Execution(
-                "Workflow cancelled before start".to_string(),
-            ));
+            return Err(NikaError::WorkflowCancelled {
+                phase: "before start".to_string(),
+            });
         }
 
         // Load context files if workflow has context_files
@@ -1193,9 +1194,9 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     running_tasks,
                 });
                 self.write_trace();
-                return Err(NikaError::Execution(
-                    "Workflow cancelled by user".to_string(),
-                ));
+                return Err(NikaError::WorkflowCancelled {
+                    phase: "by user".to_string(),
+                });
             }
 
             // Check for pause at start of each loop iteration
@@ -1222,9 +1223,9 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             running_tasks,
                         });
                         self.write_trace();
-                        return Err(NikaError::Execution(
-                            "Workflow cancelled while paused".to_string(),
-                        ));
+                        return Err(NikaError::WorkflowCancelled {
+                            phase: "while paused".to_string(),
+                        });
                     }
                 }
             }
@@ -1283,9 +1284,9 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     failed_task: None,
                 });
                 self.write_trace();
-                return Err(NikaError::Execution(
-                    "Deadlock: no tasks ready but workflow not complete. Check for circular dependencies.".to_string(),
-                ));
+                return Err(NikaError::RuntimeDeadlock {
+                    details: "no tasks ready but workflow not complete. Check for circular dependencies.".to_string(),
+                });
             }
 
             // Spawn all ready tasks in parallel (Tokio handles concurrency)
@@ -1918,9 +1919,9 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             running_tasks,
                         });
                         self.write_trace();
-                        return Err(NikaError::Execution(
-                            "Workflow cancelled during execution".to_string(),
-                        ));
+                        return Err(NikaError::WorkflowCancelled {
+                            phase: "during execution".to_string(),
+                        });
                     }
                     // Wait for next task result
                     result = join_set.join_next() => {
@@ -2038,7 +2039,11 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         .iter()
                         .filter_map(|(idx, r)| r.error().map(|e| format!("[{}]: {}", idx, e)))
                         .collect();
-                    TaskResult::failed(errors.join("; "), total_duration).with_media(merged_media)
+                    // Preserve partial results in output even on failure
+                    let mut result =
+                        TaskResult::failed(errors.join("; "), total_duration).with_media(merged_media);
+                    result.output = Arc::new(Value::Array(outputs));
+                    result
                 };
 
                 // Store aggregated result under parent ID

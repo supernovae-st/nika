@@ -371,12 +371,35 @@ impl TaskExecutor {
                                                     error: None,
                                                 },
                                             );
+                                            let result_str = result.value.to_string();
+                                            let est_in = estimate_tokens(prompt.len());
+                                            let est_out = estimate_tokens(result_str.len());
+                                            let cost = crate::provider::cost::ProviderKind::parse(provider_name)
+                                                .map(|pk| {
+                                                    crate::provider::cost::calculate_cost(
+                                                        pk,
+                                                        model.unwrap_or("default"),
+                                                        est_in,
+                                                        est_out,
+                                                    )
+                                                })
+                                                .unwrap_or(0.0);
+                                            self.event_log.emit(EventKind::ProviderResponded {
+                                                task_id: Arc::clone(task_id),
+                                                request_id: None,
+                                                input_tokens: est_in,
+                                                output_tokens: est_out,
+                                                cache_read_tokens: 0,
+                                                ttft_ms: None,
+                                                finish_reason: "stop".to_string(),
+                                                cost_usd: if cost.is_finite() { cost } else { 0.0 },
+                                            });
                                             debug!(
                                                 task_id = %task_id,
                                                 layer = result.layer,
                                                 "Layer 0 + validation succeeded"
                                             );
-                                            return Ok(result.value.to_string());
+                                            return Ok(result_str);
                                         }
                                         Err(e) => {
                                             // Emit failure when validation rejects tool output
@@ -406,6 +429,28 @@ impl TaskExecutor {
                                         attempt: 1,
                                         success: true,
                                         error: None,
+                                    });
+                                    let est_in = estimate_tokens(prompt.len());
+                                    let est_out = estimate_tokens(tool_result.len());
+                                    let cost = crate::provider::cost::ProviderKind::parse(provider_name)
+                                        .map(|pk| {
+                                            crate::provider::cost::calculate_cost(
+                                                pk,
+                                                model.unwrap_or("default"),
+                                                est_in,
+                                                est_out,
+                                            )
+                                        })
+                                        .unwrap_or(0.0);
+                                    self.event_log.emit(EventKind::ProviderResponded {
+                                        task_id: Arc::clone(task_id),
+                                        request_id: None,
+                                        input_tokens: est_in,
+                                        output_tokens: est_out,
+                                        cache_read_tokens: 0,
+                                        ttft_ms: None,
+                                        finish_reason: "stop".to_string(),
+                                        cost_usd: if cost.is_finite() { cost } else { 0.0 },
                                     });
                                     return Ok(tool_result);
                                 }
@@ -1526,14 +1571,18 @@ impl TaskExecutor {
         // This fixes the bug where TUI showed literal {{with.topic}} instead of resolved values
         let resolved_params = if let Some(ref original_params) = invoke.params {
             let params_str = serde_json::to_string(original_params)
-                .map_err(|e| NikaError::Execution(format!("Failed to serialize params: {}", e)))?;
+                .map_err(|e| NikaError::InvokeParamError {
+                    reason: format!("Failed to serialize params: {}", e),
+                })?;
             let resolved_str = template_resolve(&params_str, bindings, datastore)?;
             Some(
                 serde_json::from_str::<serde_json::Value>(&resolved_str).map_err(|e| {
-                    NikaError::Execution(format!(
-                        "Failed to parse resolved params '{}': {}",
-                        resolved_str, e
-                    ))
+                    NikaError::InvokeParamError {
+                        reason: format!(
+                            "Failed to parse resolved params '{}': {}",
+                            resolved_str, e
+                        ),
+                    }
                 })?,
             )
         } else {
@@ -1864,9 +1913,9 @@ impl TaskExecutor {
                     })
                     .unwrap_or(serde_json::Value::Null)
             } else {
-                return Err(NikaError::Execution(
-                    "invoke: task requires either 'tool' or 'resource' field".to_string(),
-                ));
+                return Err(NikaError::ValidationError {
+                    reason: "invoke: task requires either 'tool' or 'resource' field".to_string(),
+                });
             };
 
             Ok::<(serde_json::Value, bool, Arc<McpClient>), NikaError>((result, is_error, client))

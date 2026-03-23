@@ -413,7 +413,7 @@ pub async fn handle_mcp_command(action: McpAction) -> Result<(), NikaError> {
         McpAction::Serve => {
             eprintln!("Starting Nika MCP server on stdio...");
             nika_mcp::server::run_server().await.map_err(|e| {
-                NikaError::Execution(format!("MCP server error: {}", e))
+                NikaError::McpStartError { name: "nika".to_string(), reason: e.to_string() }
             })?;
             Ok(())
         }

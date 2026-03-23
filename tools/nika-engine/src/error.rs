@@ -237,6 +237,22 @@ pub enum NikaError {
     )]
     ExtractError { reason: String },
 
+    /// [NIKA-047] Invoke parameter serialization error
+    #[error("[NIKA-047] Invoke params error: {reason}")]
+    #[diagnostic(
+        code(nika::invoke_param_error),
+        help("Check invoke params are valid JSON and template bindings resolve correctly")
+    )]
+    InvokeParamError { reason: String },
+
+    /// [NIKA-097] Workflow cancelled by user
+    #[error("[NIKA-097] Workflow cancelled: {phase}")]
+    #[diagnostic(
+        code(nika::workflow_cancelled),
+        help("The workflow was cancelled by user request or external signal")
+    )]
+    WorkflowCancelled { phase: String },
+
     /// [NIKA-098] Task panicked during execution
     #[error("[NIKA-098] Task panicked: {reason}")]
     #[diagnostic(
@@ -335,6 +351,14 @@ pub enum NikaError {
     // ═══════════════════════════════════════════
     // JSONPATH / IO ERRORS (090-099)
     // ═══════════════════════════════════════════
+    /// [NIKA-083] Runtime deadlock -- no tasks ready but workflow not complete
+    #[error("[NIKA-083] Runtime deadlock: {details}")]
+    #[diagnostic(
+        code(nika::runtime_deadlock),
+        help("Check for circular dependencies or unresolvable task graph structures")
+    )]
+    RuntimeDeadlock { details: String },
+
     #[error("[NIKA-090] JSONPath '{path}' uses unsupported syntax (use simple paths like $.a.b or $.a[0].b)")]
     JsonPathUnsupported { path: String },
 
@@ -822,6 +846,8 @@ impl NikaError {
             Self::ExecError { .. } => "NIKA-044",
             Self::FetchError { .. } => "NIKA-045",
             Self::ExtractError { .. } => "NIKA-046",
+            Self::InvokeParamError { .. } => "NIKA-047",
+            Self::WorkflowCancelled { .. } => "NIKA-097",
             Self::TaskPanicked { .. } => "NIKA-098",
             Self::BindingNotFound { .. } => "NIKA-042",
             Self::BindingTypeMismatch { .. } => "NIKA-043",
@@ -844,6 +870,7 @@ impl NikaError {
             Self::WithUnknownTask { .. } => "NIKA-080",
             Self::WithNotUpstream { .. } => "NIKA-081",
             Self::WithCircularDep { .. } => "NIKA-082",
+            Self::RuntimeDeadlock { .. } => "NIKA-083",
             // JSONPath/IO errors
             Self::JsonPathUnsupported { .. } => "NIKA-090",
             Self::IoError(_) => "NIKA-093",
@@ -985,6 +1012,12 @@ impl FixSuggestion for NikaError {
             NikaError::ExtractError { .. } => {
                 Some("Check extract mode name, CSS selector syntax, or enable required feature")
             }
+            NikaError::InvokeParamError { .. } => {
+                Some("Check invoke params are valid JSON and template bindings resolve correctly")
+            }
+            NikaError::WorkflowCancelled { .. } => {
+                Some("The workflow was cancelled. No action needed.")
+            }
             NikaError::TaskPanicked { .. } => {
                 Some("A task panicked unexpectedly. This is likely a bug — check task logic.")
             }
@@ -1018,6 +1051,9 @@ impl FixSuggestion for NikaError {
                 Some("Add depends_on: [source_task] to this task")
             }
             NikaError::WithCircularDep { .. } => Some("Remove the circular dependency"),
+            NikaError::RuntimeDeadlock { .. } => {
+                Some("Check for circular dependencies or unresolvable task graph structures")
+            }
             NikaError::JsonPathUnsupported { .. } => Some("Use simple paths like $.field.subfield"),
             NikaError::IoError(_) => Some("Check file path and permissions"),
             NikaError::JsonError(_) => Some("Check JSON syntax"),

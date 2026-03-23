@@ -22,7 +22,7 @@ impl ChatAgent {
     ///
     /// # Errors
     ///
-    /// Returns `NikaError::Execution` if the command fails to execute.
+    /// Returns `NikaError::ExecError` if the command fails to execute.
     ///
     /// # Safety
     ///
@@ -39,7 +39,7 @@ impl ChatAgent {
             .arg(command)
             .output()
             .await
-            .map_err(|e| NikaError::Execution(format!("Failed to execute command: {}", e)))?;
+            .map_err(|e| NikaError::ExecError { reason: format!("Failed to execute command: {}", e) })?;
 
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -71,7 +71,7 @@ impl ChatAgent {
     ///
     /// # Errors
     ///
-    /// Returns `NikaError::Execution` if the HTTP request fails.
+    /// Returns `NikaError::FetchError` if the HTTP request fails.
     pub async fn fetch(&self, url: &str, method: &str) -> Result<String, NikaError> {
         let request = match method.to_uppercase().as_str() {
             "POST" => self.http_client.post(url),
@@ -85,13 +85,13 @@ impl ChatAgent {
         let response = request
             .send()
             .await
-            .map_err(|e| NikaError::Execution(format!("HTTP request failed: {}", e)))?;
+            .map_err(|e| NikaError::FetchError { reason: format!("HTTP request failed: {}", e) })?;
 
         let status = response.status();
         let text = response
             .text()
             .await
-            .map_err(|e| NikaError::Execution(format!("Failed to read response: {}", e)))?;
+            .map_err(|e| NikaError::FetchError { reason: format!("Failed to read response: {}", e) })?;
 
         // Include status code for non-2xx responses
         if !status.is_success() {

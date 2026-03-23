@@ -135,9 +135,12 @@ pub async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaE
                     let _ = io::stdout().flush();
 
                     let mut input = String::new();
-                    io::stdin()
-                        .read_line(&mut input)
-                        .map_err(|e| NikaError::Execution(format!("Failed to read input: {e}")))?;
+                    io::stdin().read_line(&mut input).map_err(|e| {
+                        NikaError::IoError(std::io::Error::new(
+                            e.kind(),
+                            format!("Failed to read input: {e}"),
+                        ))
+                    })?;
                     input.trim().to_string()
                 }
                 // Key provided as argument
@@ -150,8 +153,9 @@ pub async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaE
             }
 
             // Store in keychain
-            NikaKeyring::set(&provider, &api_key)
-                .map_err(|e| NikaError::Execution(format!("Failed to store key: {e}")))?;
+            NikaKeyring::set(&provider, &api_key).map_err(|e| NikaError::ConfigError {
+                reason: format!("Failed to store key: {e}"),
+            })?;
 
             println!(
                 "{} API key for {} stored in system keychain",
@@ -191,7 +195,9 @@ pub async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaE
                     );
                 }
                 Err(e) => {
-                    return Err(NikaError::Execution(format!("Failed to delete key: {e}")));
+                    return Err(NikaError::ConfigError {
+                        reason: format!("Failed to delete key: {e}"),
+                    });
                 }
             }
             Ok(())
