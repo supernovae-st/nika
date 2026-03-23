@@ -26,7 +26,8 @@
     "mcp"
   ],
   "activationEvents": [
-    "workspaceContains:**/*.nika.yaml"
+    "workspaceContains:**/*.nika.yaml",
+    "onLanguage:nika"
   ],
   "main": "./out/extension.js",
   "contributes": {

@@ -248,7 +248,7 @@ artifacts:                     # Persist outputs to files
 - **Path access**: `with: { temp: $weather.data.temperature }`
 - **Defaults**: `with: { val: $task.path ?? "fallback" }`
 - **Env vars**: `with: { key: $env.API_KEY }`
-- **Transforms**: `{{with.data | uppercase | trim}}`
+- **Transforms**: `{{with.data | upper | trim}}`
 - **Dependencies**: `depends_on: [task_id]` for ordering without data
 - **Inputs**: `{{inputs.param}}` for workflow parameters
 - **Context files**: `{{context.readme}}` for loaded file content
@@ -766,7 +766,7 @@ tasks:
 - **Path access**: `with: { temp: $weather.data.temperature }`
 - **Defaults**: `with: { val: $task.path ?? "fallback" }`
 - **Env vars**: `with: { key: $env.API_KEY }`
-- **Transforms**: `{{with.data | uppercase | trim}}`
+- **Transforms**: `{{with.data | upper | trim}}`
 - **Dependencies**: `depends_on: [task_id]` for ordering without data
 - **Inputs**: `{{inputs.param}}` for workflow parameters
 
@@ -882,7 +882,7 @@ tasks:
 - **Path access**: `with: { temp: $weather.data.temperature }`
 - **Defaults**: `with: { val: $task.path ?? "fallback" }`
 - **Env vars**: `with: { key: $env.API_KEY }`
-- **Transforms**: `{{with.data | uppercase | trim}}`
+- **Transforms**: `{{with.data | upper | trim}}`
 - **Dependencies**: `depends_on: [task_id]` for ordering without data
 - **Inputs**: `{{inputs.param}}` for workflow parameters
 
@@ -997,7 +997,7 @@ tasks:
 - **Path access**: `with: { temp: $weather.data.temperature }`
 - **Defaults**: `with: { val: $task.path ?? "fallback" }`
 - **Env vars**: `with: { key: $env.API_KEY }`
-- **Transforms**: `{{with.data | uppercase | trim}}`
+- **Transforms**: `{{with.data | upper | trim}}`
 - **Dependencies**: `depends_on: [task_id]` for ordering without data
 - **Inputs**: `{{inputs.param}}` for workflow parameters
 
@@ -1207,7 +1207,7 @@ All optional except `schema:`. Also: `context: { files: { readme: ./README.md } 
 - **Path access**: `with: { temp: $weather.data.temperature }`
 - **Defaults**: `with: { val: $task.path ?? "fallback" }`
 - **Env vars**: `with: { key: $env.API_KEY }`
-- **Transforms**: `{{with.data | uppercase | trim}}`
+- **Transforms**: `{{with.data | upper | trim}}`
 - **Dependencies**: `depends_on: [task_id]` for ordering without data
 - **Inputs**: `{{inputs.param}}` | **Context**: `{{context.readme}}`
 
