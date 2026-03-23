@@ -239,9 +239,9 @@ impl ChatView {
                         let pulse = ((self.frame as f32 / 30.0).sin() + 1.0) / 2.0; // 0.0-1.0
                         let (r, g, b) = verb_color.muted_tuple();
                         let fade = 0.4 + (pulse * 0.3); // 0.4-0.7 opacity
-                        let pr = (r as f32 * fade) as u8;
-                        let pg = (g as f32 * fade) as u8;
-                        let pb = (b as f32 * fade) as u8;
+                        let pr = (r as f32 * fade).min(255.0) as u8;
+                        let pg = (g as f32 * fade).min(255.0) as u8;
+                        let pb = (b as f32 * fade).min(255.0) as u8;
                         spans.push(Span::styled(
                             format!(" {}", placeholder),
                             Style::default()

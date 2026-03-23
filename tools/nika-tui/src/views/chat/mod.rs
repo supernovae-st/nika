@@ -460,8 +460,8 @@ impl ChatView {
                 .with_wave_factor(2.0)
                 .with_initial_chaos(15),
             matrix_effect_enabled: true, // Enable by default
-            rain_opacity: 0.3,  // Subtle background effect
-            rain_fading: true,  // Fade out quickly on startup
+            rain_opacity: 0.0,  // Start clean — triggered on workflow execution
+            rain_fading: false, // No fade needed at startup
 
             agent_phase: AgentPhase::Idle,
             phase_indicator: AgentPhaseIndicator::new(AgentPhase::Idle),

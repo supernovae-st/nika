@@ -421,7 +421,12 @@ impl App {
         // Initialize terminal
         self.init_terminal()?;
 
-        // Call on_enter() for initial view
+        // Render skeleton frame BEFORE on_enter() so users see the UI
+        // immediately instead of a blank screen during blocking I/O
+        // (on_enter does git status + tree build = 100-700ms)
+        self.render_unified_frame()?;
+
+        // Now populate view state (blocking: git cache, tree build)
         self.call_view_on_enter(self.current_view);
 
         // PERF: Adaptive frame rate

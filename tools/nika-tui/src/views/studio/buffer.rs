@@ -185,11 +185,15 @@ impl TextBuffer {
         if self.cursor_col == 0 {
             if self.cursor_row > 0 {
                 self.cursor_row -= 1;
-                self.cursor_col = self.lines[self.cursor_row].chars().count();
+                if let Some(line) = self.lines.get(self.cursor_row) {
+                    self.cursor_col = line.chars().count();
+                }
             }
             return;
         }
-        let line = &self.lines[self.cursor_row];
+        let Some(line) = self.lines.get(self.cursor_row) else {
+            return;
+        };
         let chars: Vec<char> = line.chars().collect();
         let mut col = self.cursor_col.min(chars.len());
         // Skip trailing whitespace
@@ -205,10 +209,12 @@ impl TextBuffer {
 
     /// Move cursor one word right (stop at word boundaries)
     pub fn cursor_word_right(&mut self) {
-        let line = &self.lines[self.cursor_row];
+        let Some(line) = self.lines.get(self.cursor_row) else {
+            return;
+        };
         let chars: Vec<char> = line.chars().collect();
         if self.cursor_col >= chars.len() {
-            if self.cursor_row < self.lines.len() - 1 {
+            if self.cursor_row + 1 < self.lines.len() {
                 self.cursor_row += 1;
                 self.cursor_col = 0;
             }
@@ -308,7 +314,7 @@ impl TextBuffer {
                 let byte_idx = Self::char_to_byte(line, char_idx);
                 line.remove(byte_idx);
                 self.modified = true;
-            } else if self.cursor_row < self.lines.len() - 1 {
+            } else if self.cursor_row + 1 < self.lines.len() {
                 // Merge with next line
                 let next_line = self.lines.remove(self.cursor_row + 1);
                 self.lines[self.cursor_row].push_str(&next_line);
@@ -687,7 +693,7 @@ impl TextBuffer {
         let mut remaining = pos;
         for (row, line) in self.lines.iter().enumerate() {
             let line_len = line.len() + 1; // +1 for newline
-            if remaining < line_len || row == self.lines.len() - 1 {
+            if remaining < line_len || row + 1 >= self.lines.len() {
                 self.cursor_row = row;
                 self.cursor_col = remaining.min(line.len());
                 self.adjust_scroll();
