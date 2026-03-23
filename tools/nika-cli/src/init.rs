@@ -22,9 +22,13 @@ pub async fn init_project(
     permission: &str,
     no_example: bool,
     migrate_keys: bool,
-    setup_editors: bool,
-    setup_ai: bool,
 ) -> Result<(), NikaError> {
+    // Phase 1: Machine setup (silent, auto-detect + install)
+    if !crate::machine::is_machine_setup() {
+        crate::machine::run_machine_setup();
+        println!();
+    }
+
     let cwd = std::env::current_dir()?;
     let nika_dir = cwd.join(".nika");
 
@@ -558,25 +562,6 @@ network:
 
     // Generate AI integration files (AGENTS.md, per-tool rules, git hook)
     crate::init_ai::generate_ai_files(&cwd)?;
-
-    // Run editor/AI setup if requested by the wizard
-    if setup_editors {
-        if let Err(e) = crate::setup::handle_setup_command(
-            Some(crate::setup::SetupAction::Editors),
-        )
-        .await
-        {
-            eprintln!("  {} Editor setup: {}", "\u{26a0}".yellow(), e);
-        }
-    }
-
-    if setup_ai {
-        if let Err(e) =
-            crate::setup::handle_setup_command(Some(crate::setup::SetupAction::Ai)).await
-        {
-            eprintln!("  {} AI setup: {}", "\u{26a0}".yellow(), e);
-        }
-    }
 
     Ok(())
 }
