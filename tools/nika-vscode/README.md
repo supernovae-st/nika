@@ -11,7 +11,7 @@ The `nika` binary must be installed and available on your `PATH`:
 cargo install --path tools/nika
 
 # Or via brew
-brew install supernovae-studio/tap/nika
+brew install supernovae-st/tap/nika
 ```
 
 ## Features

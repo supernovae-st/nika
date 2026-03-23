@@ -462,7 +462,7 @@ with:
   as: locale
   concurrency: 5
   infer:
-    prompt: "Translate to {{each.locale}}: {{with.text}}"
+    prompt: "Translate to {{with.locale}}: {{with.text}}"
 ```
 
 ### Dependencies
@@ -1050,7 +1050,7 @@ tasks:
     concurrency: 5
     infer:
       prompt: |
-        Write a product tagline for locale {{each.locale}}.
+        Write a product tagline for locale {{with.locale}}.
         Max 120 characters. Adapt tone for the culture.
 
   - id: review
@@ -1195,7 +1195,7 @@ git clone https://github.com/supernovae-st/nika.git
 cd nika
 
 cargo build                       # Build all 10 crates
-cargo test --lib                  # Run 7450+ tests (safe, no keychain popups)
+cargo test --lib                  # Run 7800+ tests (safe, no keychain popups)
 cargo clippy -- -D warnings       # Zero warnings policy
 ```
 
@@ -1254,5 +1254,7 @@ flowchart LR
 270k+ LOC across 10 crates | 7,800+ tests | 0 clippy warnings
 
 [SuperNovae Studio](https://supernovae.studio) | [QR Code AI](https://qrcode-ai.com) | [GitHub](https://github.com/supernovae-st/nika)
+
+**Liberate your AI.** 🦋
 
 </div>
