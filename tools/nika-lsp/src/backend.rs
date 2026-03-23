@@ -21,6 +21,7 @@ use crate::completion::{get_completion_context, CompletionContext};
 use crate::diagnostics::validate_document;
 use crate::document::DocumentState;
 use nika_lsp_core::handler::{DefaultHandler, LspHandler};
+use nika_lsp_core::handlers::code_action::DiagnosticInfo;
 
 /// Request to validate a document.
 pub struct ValidationRequest {
@@ -149,6 +150,12 @@ impl LanguageServer for NikaBackend {
                 document_symbol_provider: Some(OneOf::Left(true)),
                 // Code actions
                 code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
+                // Code lens
+                code_lens_provider: Some(CodeLensOptions {
+                    resolve_provider: Some(false),
+                }),
+                // Inlay hints
+                inlay_hint_provider: Some(OneOf::Left(true)),
                 // Diagnostics: push model via publish_diagnostics on did_change
                 // (pull-diagnostics not implemented, so no diagnostic_provider here)
                 ..Default::default()
@@ -453,7 +460,44 @@ impl LanguageServer for NikaBackend {
         )
         .map(|o| o.0)
         .unwrap_or(0);
-        let entries = self.handler.code_actions(&text, start, end);
+
+        // Convert LSP Diagnostics to protocol-agnostic DiagnosticInfo
+        let diag_infos: Vec<DiagnosticInfo> = params
+            .context
+            .diagnostics
+            .iter()
+            .filter_map(|d| {
+                let code = match &d.code {
+                    Some(NumberOrString::String(s)) => s.clone(),
+                    Some(NumberOrString::Number(n)) => format!("NIKA-{:03}", n),
+                    None => return None,
+                };
+                let start_offset = crate::position::position_to_offset(
+                    &text,
+                    d.range.start.line,
+                    d.range.start.character,
+                )
+                .map(|o| o.0)
+                .unwrap_or(0);
+                let end_offset = crate::position::position_to_offset(
+                    &text,
+                    d.range.end.line,
+                    d.range.end.character,
+                )
+                .map(|o| o.0)
+                .unwrap_or(0);
+                Some(DiagnosticInfo {
+                    code,
+                    message: d.message.clone(),
+                    start_offset,
+                    end_offset,
+                })
+            })
+            .collect();
+
+        let entries =
+            self.handler
+                .code_actions_with_diagnostics(&text, start, end, &diag_infos);
 
         let actions: Vec<CodeActionOrCommand> = entries
             .into_iter()
@@ -493,6 +537,105 @@ impl LanguageServer for NikaBackend {
             return Ok(None);
         }
         Ok(Some(actions))
+    }
+
+    // ===== Code Lens (delegated to nika-lsp-core) =====
+
+    async fn code_lens(&self, params: CodeLensParams) -> Result<Option<Vec<CodeLens>>> {
+        let uri = &params.text_document.uri;
+        let text = match self.documents.get(uri) {
+            Some(d) => d.content(),
+            None => return Ok(None),
+        };
+
+        let entries = self.handler.code_lenses(&text);
+        if entries.is_empty() {
+            return Ok(None);
+        }
+
+        let lenses: Vec<CodeLens> = entries
+            .into_iter()
+            .map(|e| {
+                let range = Range {
+                    start: Position {
+                        line: e.line,
+                        character: 0,
+                    },
+                    end: Position {
+                        line: e.line,
+                        character: 0,
+                    },
+                };
+                CodeLens {
+                    range,
+                    command: Some(Command {
+                        title: e.command.title(),
+                        command: e.command.vscode_command().to_string(),
+                        arguments: None,
+                    }),
+                    data: None,
+                }
+            })
+            .collect();
+
+        Ok(Some(lenses))
+    }
+
+    // ===== Inlay Hints (delegated to nika-lsp-core) =====
+
+    async fn inlay_hint(&self, params: InlayHintParams) -> Result<Option<Vec<InlayHint>>> {
+        let uri = &params.text_document.uri;
+        let text = match self.documents.get(uri) {
+            Some(d) => d.content(),
+            None => return Ok(None),
+        };
+
+        let start = crate::position::position_to_offset(
+            &text,
+            params.range.start.line,
+            params.range.start.character,
+        )
+        .map(|o| o.0)
+        .unwrap_or(0);
+        let end = crate::position::position_to_offset(
+            &text,
+            params.range.end.line,
+            params.range.end.character,
+        )
+        .map(|o| o.0)
+        .unwrap_or(text.len() as u32);
+
+        let entries = self.handler.inlay_hints(&text, start, end);
+        if entries.is_empty() {
+            return Ok(None);
+        }
+
+        let hints: Vec<InlayHint> = entries
+            .into_iter()
+            .map(|e| {
+                let kind = match e.kind {
+                    nika_lsp_core::handlers::inlay_hints::HintKind::Type => InlayHintKind::TYPE,
+                    nika_lsp_core::handlers::inlay_hints::HintKind::Parameter => {
+                        InlayHintKind::PARAMETER
+                    }
+                };
+                InlayHint {
+                    position: Position {
+                        line: e.line,
+                        character: e.character,
+                    },
+                    label: InlayHintLabel::String(e.label),
+                    kind: Some(kind),
+                    text_edits: None,
+                    tooltip: Some(InlayHintTooltip::String(e.tooltip)),
+                    padding_left: None,
+                    padding_right: None,
+                    data: None,
+                }
+            })
+            .collect();
+
+        Ok(Some(hints))
     }
 }
 

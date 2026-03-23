@@ -48,11 +48,31 @@ pub trait LspHandler: Send + Sync {
     /// Compute code actions for the given range.
     fn code_actions(&self, text: &str, start: u32, end: u32) -> Vec<CodeActionEntry>;
 
+    /// Compute code actions including diagnostic-linked quick fixes.
+    fn code_actions_with_diagnostics(
+        &self,
+        text: &str,
+        start: u32,
+        end: u32,
+        diagnostics: &[crate::handlers::code_action::DiagnosticInfo],
+    ) -> Vec<CodeActionEntry>;
+
     /// Compute semantic tokens for the full document.
     fn semantic_tokens(&self, text: &str) -> Vec<RawToken>;
 
     /// Compute document symbols (outline) for the document.
     fn symbols(&self, text: &str) -> Vec<SymbolEntry>;
+
+    /// Compute code lenses for the document.
+    fn code_lenses(&self, text: &str) -> Vec<crate::handlers::code_lens::CodeLensEntry>;
+
+    /// Compute inlay hints for the given range.
+    fn inlay_hints(
+        &self,
+        text: &str,
+        start: u32,
+        end: u32,
+    ) -> Vec<crate::handlers::inlay_hints::InlayHintEntry>;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -99,12 +119,35 @@ impl LspHandler for DefaultHandler {
         crate::handlers::code_action::code_actions(text, start, end)
     }
 
+    fn code_actions_with_diagnostics(
+        &self,
+        text: &str,
+        start: u32,
+        end: u32,
+        diagnostics: &[crate::handlers::code_action::DiagnosticInfo],
+    ) -> Vec<CodeActionEntry> {
+        crate::handlers::code_action::code_actions_with_diagnostics(text, start, end, diagnostics)
+    }
+
     fn semantic_tokens(&self, text: &str) -> Vec<RawToken> {
         crate::handlers::semantic_tokens::semantic_tokens(text)
     }
 
     fn symbols(&self, text: &str) -> Vec<SymbolEntry> {
         crate::handlers::symbols::document_symbols(text)
+    }
+
+    fn code_lenses(&self, text: &str) -> Vec<crate::handlers::code_lens::CodeLensEntry> {
+        crate::handlers::code_lens::code_lenses(text)
+    }
+
+    fn inlay_hints(
+        &self,
+        text: &str,
+        start: u32,
+        end: u32,
+    ) -> Vec<crate::handlers::inlay_hints::InlayHintEntry> {
+        crate::handlers::inlay_hints::inlay_hints(text, start, end)
     }
 }
 

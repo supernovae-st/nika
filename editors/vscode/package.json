@@ -80,6 +80,11 @@
         "command": "nika.restartServer",
         "title": "Nika: Restart Language Server",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "nika.showTasks",
+        "title": "Nika: Show Tasks (Outline)",
+        "icon": "$(list-tree)"
       }
     ],
     "configuration": {

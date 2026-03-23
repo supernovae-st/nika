@@ -3,7 +3,9 @@
 //! These tests exercise the public API from the consumer perspective,
 //! feeding realistic YAML content and asserting on the returned actions.
 
-use nika_lsp_core::handlers::code_action::{code_actions, CodeActionKind};
+use nika_lsp_core::handlers::code_action::{
+    code_actions, code_actions_with_diagnostics, CodeActionKind, DiagnosticInfo,
+};
 
 // ---------------------------------------------------------------------------
 // 1. Missing schema -> add schema action
@@ -138,4 +140,107 @@ fn empty_file_produces_only_schema_action() {
     );
     assert!(actions[0].title.contains("schema"));
     assert_eq!(actions[0].kind, CodeActionKind::QuickFix);
+}
+
+// ---------------------------------------------------------------------------
+// Diagnostic-linked code actions
+// ---------------------------------------------------------------------------
+
+#[test]
+fn unknown_task_diagnostic_suggests_fix() {
+    let yaml = "\
+schema: \"@0.12\"
+model: test
+workflow: test
+tasks:
+  - id: step1
+    infer: \"Hello\"
+  - id: step2
+    with:
+      data: $setp1
+    infer: \"World\"
+";
+    let diags = vec![DiagnosticInfo {
+        code: "NIKA-140".to_string(),
+        message: "Unknown task 'setp1' referenced in with block".to_string(),
+        start_offset: yaml.find("$setp1").unwrap() as u32 + 1, // after $
+        end_offset: yaml.find("$setp1").unwrap() as u32 + 6,
+    }];
+    let actions = code_actions_with_diagnostics(yaml, 0, 0, &diags);
+    let fix = actions.iter().find(|a| a.title.contains("step1"));
+    assert!(fix.is_some(), "Should suggest 'step1' for typo 'setp1'");
+    assert_eq!(fix.unwrap().kind, CodeActionKind::QuickFix);
+    assert!(fix.unwrap().is_preferred);
+}
+
+#[test]
+fn duplicate_task_diagnostic_suggests_rename() {
+    let yaml = "\
+schema: \"@0.12\"
+model: test
+workflow: test
+tasks:
+  - id: step1
+    infer: \"Hello\"
+  - id: step1
+    infer: \"World\"
+";
+    let dup_offset = yaml.rfind("id: step1").unwrap() as u32;
+    let diags = vec![DiagnosticInfo {
+        code: "NIKA-141".to_string(),
+        message: "Duplicate task ID 'step1'".to_string(),
+        start_offset: dup_offset + 4,
+        end_offset: dup_offset + 9,
+    }];
+    let actions = code_actions_with_diagnostics(yaml, dup_offset, dup_offset, &diags);
+    let fix = actions.iter().find(|a| a.title.contains("Rename"));
+    assert!(fix.is_some(), "Should offer rename for duplicate task");
+}
+
+#[test]
+fn invalid_schema_diagnostic_suggests_fix() {
+    let yaml = "schema: \"@0.11\"\nmodel: test\nworkflow: test\ntasks:\n  - id: s\n    infer: x\n";
+    let diags = vec![DiagnosticInfo {
+        code: "NIKA-142".to_string(),
+        message: "Invalid schema version".to_string(),
+        start_offset: 0,
+        end_offset: 15,
+    }];
+    let actions = code_actions_with_diagnostics(yaml, 0, 0, &diags);
+    let fix = actions.iter().find(|a| a.title.contains("@0.12"));
+    assert!(fix.is_some(), "Should offer schema upgrade");
+}
+
+#[test]
+fn missing_field_diagnostic_suggests_add() {
+    let yaml = "schema: \"@0.12\"\nmodel: test\ntasks:\n  - infer: \"hello\"\n";
+    let diags = vec![DiagnosticInfo {
+        code: "NIKA-145".to_string(),
+        message: "Missing required field 'id'".to_string(),
+        start_offset: yaml.find("- infer").unwrap() as u32,
+        end_offset: yaml.find("- infer").unwrap() as u32 + 7,
+    }];
+    let actions = code_actions_with_diagnostics(yaml, 0, 0, &diags);
+    let fix = actions.iter().find(|a| a.title.contains("id"));
+    assert!(fix.is_some(), "Should offer 'Add id field'");
+}
+
+#[test]
+fn missing_model_diagnostic_suggests_add() {
+    let yaml = "\
+schema: \"@0.12\"
+workflow: test
+tasks:
+  - id: step1
+    infer: \"Hello\"
+";
+    let diags = vec![DiagnosticInfo {
+        code: "NIKA-034".to_string(),
+        message: "model: required for infer verb".to_string(),
+        start_offset: yaml.find("infer:").unwrap() as u32,
+        end_offset: yaml.find("infer:").unwrap() as u32 + 6,
+    }];
+    let actions = code_actions_with_diagnostics(yaml, 0, 0, &diags);
+    let fix = actions.iter().find(|a| a.title.contains("model"));
+    assert!(fix.is_some(), "Should offer 'Add model' for NIKA-034");
 }

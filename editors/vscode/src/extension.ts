@@ -125,6 +125,13 @@ export function activate(context: ExtensionContext): void {
     }),
   );
 
+  // Command: Show tasks (focus outline view)
+  context.subscriptions.push(
+    commands.registerCommand('nika.showTasks', () => {
+      commands.executeCommand('workbench.action.focusOutline');
+    }),
+  );
+
   // Command: Restart language server
   context.subscriptions.push(
     commands.registerCommand('nika.restartServer', async () => {

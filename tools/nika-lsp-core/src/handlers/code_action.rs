@@ -246,6 +246,292 @@ pub fn code_actions(text: &str, start_offset: u32, _end_offset: u32) -> Vec<Code
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Diagnostic-linked code actions
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Protocol-agnostic diagnostic info passed from the LSP layer.
+#[derive(Debug, Clone)]
+pub struct DiagnosticInfo {
+    /// NIKA error code (e.g. "NIKA-140").
+    pub code: String,
+    /// Human-readable message.
+    pub message: String,
+    /// Start byte offset of the diagnostic range in the document.
+    pub start_offset: u32,
+    /// End byte offset of the diagnostic range.
+    pub end_offset: u32,
+}
+
+/// Compute code actions including diagnostic-linked quick fixes.
+///
+/// Combines text-based actions (from `code_actions`) with
+/// diagnostic-aware fixes (unknown task, duplicate, missing field, etc.).
+pub fn code_actions_with_diagnostics(
+    text: &str,
+    start_offset: u32,
+    end_offset: u32,
+    diagnostics: &[DiagnosticInfo],
+) -> Vec<CodeActionEntry> {
+    let mut actions = code_actions(text, start_offset, end_offset);
+
+    // Extract known task IDs for fuzzy matching
+    let task_ids = extract_task_ids_simple(text);
+
+    for diag in diagnostics {
+        if let Some(action) = quickfix_for_diagnostic(text, diag, &task_ids) {
+            actions.push(action);
+        }
+    }
+
+    actions
+}
+
+fn quickfix_for_diagnostic(
+    text: &str,
+    diag: &DiagnosticInfo,
+    task_ids: &[String],
+) -> Option<CodeActionEntry> {
+    match diag.code.as_str() {
+        "NIKA-140" => fix_unknown_task(text, diag, task_ids),
+        "NIKA-141" => fix_duplicate_task(diag),
+        "NIKA-142" => fix_invalid_schema(diag),
+        "NIKA-145" => fix_missing_field(text, diag),
+        "NIKA-034" => fix_missing_model(text, diag),
+        _ => None,
+    }
+}
+
+/// Extract task IDs from text (simple scan, no AST needed).
+fn extract_task_ids_simple(text: &str) -> Vec<String> {
+    text.lines()
+        .filter_map(|line| {
+            let trimmed = line.trim();
+            let rest = trimmed.strip_prefix("- id:")?;
+            let id = rest.trim().trim_matches('"').trim_matches('\'');
+            if id.is_empty() {
+                None
+            } else {
+                Some(id.to_string())
+            }
+        })
+        .collect()
+}
+
+fn fix_unknown_task(
+    _text: &str,
+    diag: &DiagnosticInfo,
+    task_ids: &[String],
+) -> Option<CodeActionEntry> {
+    let unknown = extract_quoted_name(&diag.message)?;
+
+    if task_ids.is_empty() {
+        return None;
+    }
+
+    let best = find_best_match(&unknown, task_ids)?;
+
+    Some(CodeActionEntry {
+        title: format!("Did you mean '{}'?", best),
+        kind: CodeActionKind::QuickFix,
+        is_preferred: true,
+        edit: Some(TextEdit {
+            offset: diag.start_offset,
+            end_offset: diag.end_offset,
+            new_text: best,
+        }),
+    })
+}
+
+fn fix_duplicate_task(diag: &DiagnosticInfo) -> Option<CodeActionEntry> {
+    let dup_name = extract_quoted_name(&diag.message)?;
+    let new_name = format!("{}-2", dup_name);
+
+    Some(CodeActionEntry {
+        title: format!("Rename to '{}'", new_name),
+        kind: CodeActionKind::QuickFix,
+        is_preferred: false,
+        edit: Some(TextEdit {
+            offset: diag.start_offset,
+            end_offset: diag.end_offset,
+            new_text: new_name,
+        }),
+    })
+}
+
+fn fix_invalid_schema(diag: &DiagnosticInfo) -> Option<CodeActionEntry> {
+    Some(CodeActionEntry {
+        title: "Update to schema @0.12".into(),
+        kind: CodeActionKind::QuickFix,
+        is_preferred: true,
+        edit: Some(TextEdit {
+            offset: diag.start_offset,
+            end_offset: diag.end_offset,
+            new_text: "schema: \"@0.12\"".into(),
+        }),
+    })
+}
+
+fn fix_missing_field(text: &str, diag: &DiagnosticInfo) -> Option<CodeActionEntry> {
+    let msg = &diag.message;
+    let (title, new_text) = if msg.contains("'id'") {
+        // Insert id: before the current line
+        let line_start = text[..diag.start_offset as usize]
+            .rfind('\n')
+            .map(|p| p + 1)
+            .unwrap_or(0);
+        let line = &text[line_start..];
+        let indent = line.len() - line.trim_start().len();
+        let indent_str: String = " ".repeat(indent);
+        (
+            "Add missing id field".into(),
+            format!("{}id: new_task\n{}", indent_str, indent_str),
+        )
+    } else if msg.contains("'schema'") {
+        (
+            "Add missing schema".into(),
+            "schema: \"@0.12\"\n".into(),
+        )
+    } else if msg.contains("'tasks'") {
+        (
+            "Add missing tasks block".into(),
+            "tasks:\n  - id: step1\n    infer: \"TODO\"\n".into(),
+        )
+    } else {
+        return None;
+    };
+
+    Some(CodeActionEntry {
+        title,
+        kind: CodeActionKind::QuickFix,
+        is_preferred: true,
+        edit: Some(TextEdit {
+            offset: diag.start_offset,
+            end_offset: diag.start_offset, // insert, don't replace
+            new_text,
+        }),
+    })
+}
+
+fn fix_missing_model(text: &str, diag: &DiagnosticInfo) -> Option<CodeActionEntry> {
+    // Find the task line to insert model after the verb line
+    let offset = diag.start_offset as usize;
+    let line_start = text[..offset].rfind('\n').map(|p| p + 1).unwrap_or(0);
+    let line = &text[line_start..];
+    let indent = line.len() - line.trim_start().len();
+    let indent_str: String = " ".repeat(indent);
+
+    // Check if workflow already has a provider to pick a matching default model
+    let default_model = if text.contains("provider: openai") {
+        "gpt-4o"
+    } else if text.contains("provider: mistral") {
+        "mistral-large-latest"
+    } else if text.contains("provider: groq") {
+        "llama-3.3-70b-versatile"
+    } else if text.contains("provider: deepseek") {
+        "deepseek-chat"
+    } else if text.contains("provider: gemini") {
+        "gemini-2.0-flash"
+    } else if text.contains("provider: xai") {
+        "grok-3"
+    } else {
+        "claude-sonnet-4-20250514"
+    };
+
+    // Find end of the verb line to insert after it
+    let line_end = text[line_start..]
+        .find('\n')
+        .map(|p| line_start + p + 1)
+        .unwrap_or(text.len());
+
+    Some(CodeActionEntry {
+        title: format!("Add model: {}", default_model),
+        kind: CodeActionKind::QuickFix,
+        is_preferred: true,
+        edit: Some(TextEdit {
+            offset: line_end as u32,
+            end_offset: line_end as u32,
+            new_text: format!("{}model: {}\n", indent_str, default_model),
+        }),
+    })
+}
+
+/// Extract a 'quoted name' from a diagnostic message.
+fn extract_quoted_name(message: &str) -> Option<String> {
+    let start = message.find('\'')?;
+    let end = message[start + 1..].find('\'')?;
+    Some(message[start + 1..start + 1 + end].to_string())
+}
+
+/// Find the best fuzzy match for `target` among `candidates`.
+fn find_best_match(target: &str, candidates: &[String]) -> Option<String> {
+    if candidates.is_empty() {
+        return None;
+    }
+
+    let target_lower = target.to_lowercase();
+    let mut best_score = 0.0_f64;
+    let mut best = &candidates[0];
+
+    for candidate in candidates {
+        let score = fuzzy_score(&target_lower, &candidate.to_lowercase());
+        if score > best_score {
+            best_score = score;
+            best = candidate;
+        }
+    }
+
+    if best_score >= 0.3 {
+        Some(best.clone())
+    } else {
+        None
+    }
+}
+
+/// Simple fuzzy similarity: LCS ratio + char overlap + prefix bonus.
+fn fuzzy_score(a: &str, b: &str) -> f64 {
+    if a == b {
+        return 1.0;
+    }
+    if a.is_empty() || b.is_empty() {
+        return 0.0;
+    }
+
+    // LCS
+    let a_chars: Vec<char> = a.chars().collect();
+    let b_chars: Vec<char> = b.chars().collect();
+    let (m, n) = (a_chars.len(), b_chars.len());
+    let mut prev = vec![0usize; n + 1];
+    let mut curr = vec![0usize; n + 1];
+    for i in 1..=m {
+        for j in 1..=n {
+            curr[j] = if a_chars[i - 1] == b_chars[j - 1] {
+                prev[j - 1] + 1
+            } else {
+                prev[j].max(curr[j - 1])
+            };
+        }
+        std::mem::swap(&mut prev, &mut curr);
+        curr.fill(0);
+    }
+    let lcs = prev[n] as f64 / m.max(n) as f64;
+
+    // Char overlap
+    let a_set: std::collections::HashSet<char> = a.chars().collect();
+    let b_set: std::collections::HashSet<char> = b.chars().collect();
+    let overlap =
+        a_set.intersection(&b_set).count() as f64 / a_set.len().max(b_set.len()) as f64;
+
+    // Prefix bonus
+    let prefix = if a.starts_with(b) || b.starts_with(a) {
+        0.2
+    } else {
+        0.0
+    };
+
+    (lcs * 0.5 + overlap * 0.3 + prefix).min(1.0)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Tests
 // ═══════════════════════════════════════════════════════════════════════════
 
