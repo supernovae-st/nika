@@ -193,12 +193,24 @@ pub enum NikaError {
     // PROVIDER ERRORS (030-039)
     // ═══════════════════════════════════════════
     #[error("[NIKA-030] Provider '{provider}' not configured")]
+    #[diagnostic(
+        code(nika::provider_not_configured),
+        help("Run: nika provider list — to see available providers and their setup status")
+    )]
     ProviderNotConfigured { provider: String },
 
     #[error("[NIKA-031] Provider API error: {message}")]
+    #[diagnostic(
+        code(nika::provider_api_error),
+        help("Check your API key and network connection. Run: nika provider test <provider>")
+    )]
     ProviderApiError { message: String },
 
     #[error("[NIKA-032] Missing API key for provider '{provider}'")]
+    #[diagnostic(
+        code(nika::missing_api_key),
+        help("Run: nika provider list — to see required env vars for each provider")
+    )]
     MissingApiKey { provider: String },
 
     #[error("[NIKA-033] Invalid configuration: {message}")]
