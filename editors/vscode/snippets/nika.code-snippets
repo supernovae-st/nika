@@ -154,11 +154,10 @@
     "description": "Parallel iteration over items",
     "body": [
       "  - id: ${1:process}",
-      "    for_each:",
-      "      items: \"\\{\\{with.${2:data}\\}\\}\"",
-      "      as: ${3:item}",
-      "      concurrency: ${4:3}",
-      "    ${5|infer,exec,fetch,invoke|}: \"${6:Process \\{\\{item\\}\\}}\"",
+      "    for_each: \"\\$${2:list_task}\"",
+      "    as: ${3:item}",
+      "    concurrency: ${4:3}",
+      "    ${5|infer,exec,fetch,invoke|}: \"${6:Process \\{\\{with.item\\}\\}}\"",
       "$0"
     ]
   },
