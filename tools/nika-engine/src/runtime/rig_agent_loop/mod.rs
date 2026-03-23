@@ -328,10 +328,10 @@ impl RigAgentLoop {
             .collect();
 
         if all_builtins_requested || !file_tools_requested.is_empty() {
-            // Create ToolContext with current working directory and YoloMode
-            // (agents need full access to perform their tasks)
+            // Create ToolContext with current working directory and Plan mode
+            // (default safe mode — callers opt into YoloMode explicitly)
             let working_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-            let tool_ctx = Arc::new(ToolContext::new(working_dir, PermissionMode::YoloMode));
+            let tool_ctx = Arc::new(ToolContext::new(working_dir, PermissionMode::Plan));
 
             use super::builtin::FileToolAdapter;
 

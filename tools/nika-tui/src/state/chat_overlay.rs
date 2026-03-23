@@ -141,7 +141,7 @@ impl ChatOverlayState {
     /// Insert a character at cursor position
     pub fn insert_char(&mut self, c: char) {
         self.input.insert(self.cursor, c);
-        self.cursor += 1;
+        self.cursor += c.len_utf8();
         // Track for undo (coalesces rapid keystrokes)
         self.edit_history.push(&self.input, self.cursor);
     }
@@ -201,17 +201,25 @@ impl ChatOverlayState {
         self.edit_history.can_redo()
     }
 
-    /// Move cursor left
+    /// Move cursor left (char-boundary safe)
     pub fn cursor_left(&mut self) {
         if self.cursor > 0 {
-            self.cursor -= 1;
+            self.cursor = self.input[..self.cursor]
+                .char_indices()
+                .next_back()
+                .map(|(i, _)| i)
+                .unwrap_or(0);
         }
     }
 
-    /// Move cursor right
+    /// Move cursor right (char-boundary safe)
     pub fn cursor_right(&mut self) {
         if self.cursor < self.input.len() {
-            self.cursor += 1;
+            self.cursor = self.input[self.cursor..]
+                .char_indices()
+                .nth(1)
+                .map(|(i, _)| self.cursor + i)
+                .unwrap_or(self.input.len());
         }
     }
 

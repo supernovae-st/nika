@@ -108,25 +108,38 @@ impl ChatView {
     }
 
     /// Copy input to clipboard (Ctrl+C)
-    pub fn copy_to_clipboard(&mut self) {
+    ///
+    /// Returns `true` if the copy succeeded, `false` otherwise.
+    pub fn copy_to_clipboard(&mut self) -> bool {
         if let Some(clipboard) = &mut self.clipboard {
-            let _ = clipboard.set_text(self.input.value().to_string());
+            match clipboard.set_text(self.input.value().to_string()) {
+                Ok(()) => return true,
+                Err(e) => {
+                    tracing::debug!("Clipboard copy failed: {}", e);
+                }
+            }
         }
+        false
     }
 
     /// Paste from clipboard (Ctrl+V)
     pub fn paste_from_clipboard(&mut self) {
         if let Some(clipboard) = &mut self.clipboard {
-            if let Ok(text) = clipboard.get_text() {
-                // Checkpoint before paste (significant edit)
-                self.edit_history
-                    .checkpoint(self.input.value(), self.input.cursor());
-                for c in text.chars() {
-                    self.input.handle(InputRequest::InsertChar(c));
+            match clipboard.get_text() {
+                Ok(text) => {
+                    // Checkpoint before paste (significant edit)
+                    self.edit_history
+                        .checkpoint(self.input.value(), self.input.cursor());
+                    for c in text.chars() {
+                        self.input.handle(InputRequest::InsertChar(c));
+                    }
+                    self.edit_history
+                        .push(self.input.value(), self.input.cursor());
+                    self.update_mode_from_input();
                 }
-                self.edit_history
-                    .push(self.input.value(), self.input.cursor());
-                self.update_mode_from_input();
+                Err(e) => {
+                    tracing::debug!("Clipboard paste failed: {}", e);
+                }
             }
         }
     }

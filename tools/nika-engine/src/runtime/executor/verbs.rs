@@ -876,6 +876,10 @@ impl TaskExecutor {
             let mut cmd = tokio::process::Command::new("sh");
             cmd.arg("-c").arg(resolved_cmd.as_ref());
 
+            // Pipe stdout/stderr for capture (required by spawn + wait_with_output)
+            cmd.stdout(std::process::Stdio::piped());
+            cmd.stderr(std::process::Stdio::piped());
+
             // Strip sensitive env vars from child process
             crate::runtime::security::strip_sensitive_env_vars(&mut cmd);
 
@@ -943,6 +947,10 @@ impl TaskExecutor {
 
             let mut cmd = tokio::process::Command::new(&parts[0]);
             cmd.args(&parts[1..]);
+
+            // Pipe stdout/stderr for capture (required by spawn + wait_with_output)
+            cmd.stdout(std::process::Stdio::piped());
+            cmd.stderr(std::process::Stdio::piped());
 
             // Strip sensitive env vars from child process
             crate::runtime::security::strip_sensitive_env_vars(&mut cmd);

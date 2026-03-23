@@ -8,13 +8,6 @@ use ratatui::style::Color;
 
 use crate::theme::VerbColor;
 
-// Verb colors — delegated to canonical VerbColor from theme/verb.rs's verb icons
-const COLOR_INFER: Color = Color::Rgb(139, 92, 246); // Violet 500 (VerbColor::Infer)
-const COLOR_EXEC: Color = Color::Rgb(245, 158, 11); // Amber 500 (VerbColor::Exec)
-const COLOR_FETCH: Color = Color::Rgb(6, 182, 212); // Cyan 500 (VerbColor::Fetch)
-const COLOR_INVOKE: Color = Color::Rgb(16, 185, 129); // Emerald 500 (VerbColor::Invoke)
-const COLOR_AGENT: Color = Color::Rgb(244, 63, 94); // Rose 500 (VerbColor::Agent)
-
 /// Chat verb types - maps to Nika's 5 semantic verbs
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ChatVerb {

@@ -252,7 +252,7 @@ impl Widget for McpCallBox<'_> {
                 buf.set_string(
                     area.x + 2,
                     y,
-                    format!("❌ Error: {}", error_display),
+                    format!("✗ Error: {}", error_display),
                     Style::default().fg(DEFAULT_FAILED_COLOR),
                 );
             } else if let Some(ref result) = self.data.result {

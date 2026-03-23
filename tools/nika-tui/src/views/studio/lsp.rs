@@ -34,7 +34,17 @@ impl YamlEditorPanel {
             })
             .collect();
         self.completion.selected = 0;
-        self.completion.trigger_col = self.buffer.cursor().1;
+
+        // Walk backward from cursor to find the word start, not the cursor
+        // position after the trigger char was inserted (phantom completion fix).
+        let (row, col) = self.buffer.cursor();
+        let line = &self.buffer.lines()[row];
+        let word_start = line[..col.min(line.len())]
+            .rfind(|c: char| !c.is_alphanumeric() && c != '_' && c != '-' && c != ':')
+            .map(|i| i + 1)
+            .unwrap_or(0);
+        self.completion.trigger_col = word_start;
+
         self.completion.visible = !self.completion.items.is_empty();
     }
 
@@ -99,6 +109,10 @@ impl YamlEditorPanel {
                 let content = self.buffer.content();
                 let start = (offset as usize).min(content.len());
                 let end = (end_offset as usize).min(content.len());
+                // Ensure we slice at valid char boundaries to avoid panics
+                // on multi-byte UTF-8 sequences.
+                let start = snap_to_char_boundary(&content, start);
+                let end = snap_to_char_boundary(&content, end).max(start);
 
                 let mut new_content =
                     String::with_capacity(content.len() - (end - start) + new_text.len());
@@ -114,4 +128,14 @@ impl YamlEditorPanel {
         }
         self.code_actions.visible = false;
     }
+}
+
+/// Snap a byte index to the nearest valid char boundary at or before `idx`.
+fn snap_to_char_boundary(s: &str, idx: usize) -> usize {
+    let idx = idx.min(s.len());
+    let mut i = idx;
+    while i > 0 && !s.is_char_boundary(i) {
+        i -= 1;
+    }
+    i
 }

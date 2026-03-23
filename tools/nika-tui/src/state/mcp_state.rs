@@ -36,6 +36,7 @@ impl McpState {
         self.seq += 1;
         if self.calls.len() >= Self::MAX_CALLS {
             self.calls.remove(0);
+            self.selected_idx = self.selected_idx.map(|idx| idx.saturating_sub(1));
         }
         self.calls.push(call);
         seq

@@ -3,6 +3,8 @@
 //! Incremental parsing with semantic awareness for YAML workflows.
 //! Uses tree-sitter-yaml grammar with custom Nika-specific queries.
 
+use std::cell::RefCell;
+
 use ratatui::{
     style::Style,
     text::{Line, Span},
@@ -16,11 +18,15 @@ use super::{HighlightCapture, HighlightTheme, Highlighter, SolarizedTheme};
 ///
 /// Provides incremental parsing - only re-parses changed regions after edits.
 /// Supports both standard YAML highlighting and Nika-specific extensions.
+///
+/// Uses `RefCell` for parser and tree so `highlight()` (which takes `&self`
+/// per the `Highlighter` trait) can reuse the parser and cache the tree
+/// instead of creating a throwaway `Parser` on every call.
 pub struct TreeSitterHighlighter {
-    /// Tree-sitter parser instance
-    parser: Parser,
+    /// Tree-sitter parser instance (interior mutability for `&self` highlight)
+    parser: RefCell<Parser>,
     /// Cached syntax tree from last parse
-    tree: Option<Tree>,
+    tree: RefCell<Option<Tree>>,
     /// Highlight query for YAML
     query: Query,
     /// Color theme
@@ -49,8 +55,8 @@ impl TreeSitterHighlighter {
             .map_err(|e| format!("Failed to compile highlight query: {e}"))?;
 
         Ok(Self {
-            parser,
-            tree: None,
+            parser: RefCell::new(parser),
+            tree: RefCell::new(None),
             query,
             theme,
         })
@@ -117,8 +123,10 @@ impl TreeSitterHighlighter {
     }
 
     /// Parse source and return syntax tree
-    fn parse(&mut self, source: &str) -> Option<Tree> {
-        self.parser.parse(source, self.tree.as_ref())
+    fn parse(&self, source: &str) -> Option<Tree> {
+        let mut parser = self.parser.borrow_mut();
+        let tree_ref = self.tree.borrow();
+        parser.parse(source, tree_ref.as_ref())
     }
 
     /// Convert byte offset to (line, column) position
@@ -233,18 +241,20 @@ impl TreeSitterHighlighter {
 
 impl Highlighter for TreeSitterHighlighter {
     fn highlight<'a>(&self, source: &'a str) -> Vec<Line<'a>> {
-        // Create a mutable clone for parsing
-        let mut parser = Parser::new();
-        let language = tree_sitter_yaml::LANGUAGE;
-        if parser.set_language(&language.into()).is_err() {
-            // Fallback to no highlighting
-            return source.lines().map(Line::raw).collect();
-        }
+        // Reuse the cached parser and tree via RefCell interior mutability
+        let cached_tree = self.tree.borrow().as_ref().map(|t| t.clone());
+        let new_tree = {
+            let mut parser = self.parser.borrow_mut();
+            parser.parse(source, cached_tree.as_ref())
+        };
 
-        let tree = match parser.parse(source, None) {
+        let tree = match new_tree {
             Some(t) => t,
             None => return source.lines().map(Line::raw).collect(),
         };
+
+        // Cache the new tree for future incremental parses
+        *self.tree.borrow_mut() = Some(tree.clone());
 
         let lines: Vec<&str> = source.lines().collect();
         let mut result = Vec::with_capacity(lines.len());
@@ -269,8 +279,8 @@ impl Highlighter for TreeSitterHighlighter {
         old_end_byte: usize,
         new_end_byte: usize,
     ) -> Vec<Line<'a>> {
-        // Update the tree with edit information
-        if let Some(ref mut tree) = self.tree {
+        // Update the cached tree with edit information
+        if let Some(ref mut tree) = *self.tree.borrow_mut() {
             let start_position = {
                 let (line, col) = Self::byte_to_line_col(source, start_byte);
                 tree_sitter::Point::new(line, col)
@@ -295,7 +305,8 @@ impl Highlighter for TreeSitterHighlighter {
         }
 
         // Re-parse with old tree for incremental update
-        self.tree = self.parse(source);
+        let new_tree = self.parse(source);
+        *self.tree.borrow_mut() = new_tree;
 
         // Generate highlights
         self.highlight(source)

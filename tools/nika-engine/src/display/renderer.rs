@@ -69,8 +69,9 @@ pub struct CliRenderer {
     task_starts: HashMap<String, (u64, String)>,
     /// Workflow start timestamp for offset calculation
     workflow_start_ms: u64,
-    /// Last rendered event ID for incremental rendering
-    last_rendered_id: u64,
+    /// Last rendered event ID for incremental rendering.
+    /// `None` means no events have been rendered yet (first call renders ALL events).
+    last_rendered_id: Option<u64>,
 }
 
 impl CliRenderer {
@@ -88,11 +89,11 @@ impl CliRenderer {
             term_width,
             task_starts: HashMap::new(),
             workflow_start_ms: 0,
-            last_rendered_id: 0,
+            last_rendered_id: None,
         }
     }
 
-    pub fn last_rendered_id(&self) -> u64 {
+    pub fn last_rendered_id(&self) -> Option<u64> {
         self.last_rendered_id
     }
 
@@ -111,9 +112,9 @@ impl CliRenderer {
 
     pub fn render_new_events(&mut self, events: &[crate::event::Event]) {
         for event in events {
-            if event.id > self.last_rendered_id {
+            if self.last_rendered_id.is_none_or(|last| event.id > last) {
                 self.render(event);
-                self.last_rendered_id = event.id;
+                self.last_rendered_id = Some(event.id);
             }
         }
     }

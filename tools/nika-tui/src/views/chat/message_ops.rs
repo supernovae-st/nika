@@ -25,7 +25,12 @@ impl ChatView {
     /// Enforce message cap, dropping oldest messages when over limit
     fn enforce_message_cap(&mut self) {
         if self.messages.len() > MAX_MESSAGES {
-            self.messages.drain(..self.messages.len() - MAX_MESSAGES);
+            let drain_count = self.messages.len() - MAX_MESSAGES;
+            self.messages.drain(..drain_count);
+            self.conversation_scroll.offset =
+                self.conversation_scroll.offset.saturating_sub(drain_count);
+            self.conversation_scroll.cursor =
+                self.conversation_scroll.cursor.saturating_sub(drain_count);
         }
     }
 

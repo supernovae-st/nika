@@ -8,6 +8,8 @@ use ratatui::layout::{Constraint, Direction, Layout, Rect};
 ///
 /// Used for modals, overlays, and popup dialogs.
 pub fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
+    let percent_x = percent_x.min(100);
+    let percent_y = percent_y.min(100);
     let popup_layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([

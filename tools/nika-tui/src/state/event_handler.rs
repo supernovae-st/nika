@@ -518,6 +518,7 @@ impl TuiState {
                     // TTFT in ms, output_tokens is total - estimate avg rate
                     let ttft_secs = (*ttft as f32).max(1.0) / 1000.0;
                     let velocity = *output_tokens as f32 / ttft_secs;
+                    // TokenVelocity is a ring buffer — push() handles eviction
                     self.metrics.token_velocity.push(velocity);
                 } else if *output_tokens > 0 {
                     // Fallback: assume ~1 second if no TTFT, just track relative activity

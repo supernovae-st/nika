@@ -790,11 +790,11 @@ impl EventLog {
         self.with_events(|events| serde_json::to_value(events).unwrap_or(Value::Null))
     }
 
-    pub fn events_since(&self, since_id: u64) -> Vec<Event> {
+    pub fn events_since(&self, since_id: Option<u64>) -> Vec<Event> {
         self.with_events(|events| {
             events
                 .iter()
-                .filter(|e| e.id > since_id || (since_id == 0 && e.id == 0))
+                .filter(|e| since_id.is_none_or(|last| e.id > last))
                 .cloned()
                 .collect()
         })
