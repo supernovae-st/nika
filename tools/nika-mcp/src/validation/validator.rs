@@ -169,14 +169,10 @@ impl McpValidator {
                 actual: self.extract_actual_type(&error_msg),
             }
         } else if error_kind.contains("AdditionalProperties") {
-            // Extract field from path (format: "/field" or "/nested/field")
-            let path = error.instance_path.to_string();
-            let field = path
-                .rsplit('/')
-                .next()
-                .filter(|s| !s.is_empty())
-                .unwrap_or("unknown")
-                .to_string();
+            // Extract unknown field name from the error message.
+            // jsonschema sets instance_path to the parent object, not the unknown field.
+            // The error message format is: "Additional properties are not allowed ('field' ...)"
+            let field = Self::extract_additional_property_field(&error_msg);
             let suggestions = self.find_suggestions(&field, &schema.properties);
             ValidationErrorKind::UnknownField { field, suggestions }
         } else if error_kind.contains("Enum") {
@@ -200,6 +196,25 @@ impl McpValidator {
         // Fallback: try single quotes
         if let Some(start) = error_msg.find('\'') {
             if let Some(end) = error_msg[start + 1..].find('\'') {
+                return error_msg[start + 1..start + 1 + end].to_string();
+            }
+        }
+        "unknown".to_string()
+    }
+
+    /// Extract the unknown field name from an additionalProperties error message.
+    ///
+    /// jsonschema formats it as: "Additional properties are not allowed ('field_name' ...)"
+    fn extract_additional_property_field(error_msg: &str) -> String {
+        // Try single quotes first (jsonschema's typical format)
+        if let Some(start) = error_msg.find('\'') {
+            if let Some(end) = error_msg[start + 1..].find('\'') {
+                return error_msg[start + 1..start + 1 + end].to_string();
+            }
+        }
+        // Fallback: try double quotes
+        if let Some(start) = error_msg.find('"') {
+            if let Some(end) = error_msg[start + 1..].find('"') {
                 return error_msg[start + 1..start + 1 + end].to_string();
             }
         }
@@ -248,7 +263,9 @@ impl McpValidator {
             // Try to infer from what it's NOT — if "not of type string", it's likely a number
             if msg.contains("not of type \"string\"") {
                 "number".to_string()
-            } else if msg.contains("not of type \"integer\"") || msg.contains("not of type \"number\"") {
+            } else if msg.contains("not of type \"integer\"")
+                || msg.contains("not of type \"number\"")
+            {
                 "string".to_string()
             } else {
                 "unknown".to_string()
