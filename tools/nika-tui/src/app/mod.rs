@@ -158,8 +158,14 @@ impl App {
 
         let state = TuiState::new(&workflow_path.display().to_string());
 
+        // Load TUI configuration from .nika/config.toml
+        let config = TuiConfig::load_or_default();
+
         // Initialize views
-        let command_view = CommandView::new();
+        let mut command_view = CommandView::new();
+        // Apply config defaults to ChatView
+        Self::apply_chat_config(&mut command_view, &config);
+
         let mut studio_view = StudioView::new();
         // Load workflow file into studio view
         if let Err(e) = studio_view.load_file(workflow_path.to_path_buf()) {
@@ -184,9 +190,6 @@ impl App {
                 None
             }
         };
-
-        // Load TUI configuration from .nika/config.toml
-        let config = TuiConfig::load_or_default();
 
         // Initialize cosmic theme from config
         let theme_variant = match config.tui.theme {
@@ -238,8 +241,14 @@ impl App {
         let workflow_path = standalone_state.root.clone();
         let state = TuiState::new("Standalone Mode");
 
+        // Load TUI configuration from .nika/config.toml
+        let config = TuiConfig::load_or_default();
+
         // Initialize views
-        let command_view = CommandView::new();
+        let mut command_view = CommandView::new();
+        // Apply config defaults to ChatView
+        Self::apply_chat_config(&mut command_view, &config);
+
         let studio_view = StudioView::new();
         let control_view = ControlView::new();
 
@@ -256,9 +265,6 @@ impl App {
                 None
             }
         };
-
-        // Load TUI configuration from .nika/config.toml
-        let config = TuiConfig::load_or_default();
 
         // Initialize cosmic theme from config
         let theme_variant = match config.tui.theme {
@@ -559,6 +565,33 @@ impl App {
         }
         std::fs::write(marker, "1").ok();
         Some(std::time::Instant::now() + Duration::from_secs(10))
+    }
+
+    /// Apply chat-related config settings to the ChatView
+    fn apply_chat_config(command_view: &mut CommandView, config: &TuiConfig) {
+        // Wire chat.default_provider and chat.default_model
+        if let Some(ref provider_id) = config.chat.default_provider {
+            let (model, display_name) = match provider_id.as_str() {
+                "claude" | "anthropic" => ("claude-sonnet-4-6", "Anthropic Claude"),
+                "openai" => ("gpt-4o", "OpenAI"),
+                "mistral" => ("mistral-large-latest", "Mistral AI"),
+                "groq" => ("llama-3.3-70b-versatile", "Groq"),
+                "deepseek" => ("deepseek-chat", "DeepSeek"),
+                _ => (provider_id.as_str(), provider_id.as_str()),
+            };
+            // Only override if user hasn't set a model override too
+            let model = config.chat.default_model.as_deref().unwrap_or(model);
+            command_view.chat.set_model(model);
+            command_view.chat.set_provider(display_name);
+            command_view.chat.current_provider_id = provider_id.clone();
+        } else if let Some(ref model) = config.chat.default_model {
+            command_view.chat.set_model(model.as_str());
+        }
+
+        // Wire chat.deep_thinking
+        if config.chat.deep_thinking {
+            command_view.chat.deep_thinking = true;
+        }
     }
 
     /// Dismiss the welcome hint (called on first keypress)
