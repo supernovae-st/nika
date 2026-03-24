@@ -1,11 +1,11 @@
 //! Wizard View for Nika Setup
 //!
-//! Full-screen setup wizard launched via `nika setup`.
-//! NOT part of the 3-view TuiView navigation - runs standalone.
+//! Full-screen setup wizard accessible from TUI Settings view.
+//! Machine setup runs automatically on first command via `machine.rs`.
 //!
-//! # Option D Architecture (Hybrid)
+//! # Architecture
 //!
-//! 1. `nika setup` → Launches wizard standalone
+//! 1. Auto-setup on first command → `maybe_run_auto_setup()` in main.rs
 //! 2. First TUI run → Modal prompt to run setup if not completed
 //! 3. Settings view → "Re-run Setup Wizard" button
 //!
