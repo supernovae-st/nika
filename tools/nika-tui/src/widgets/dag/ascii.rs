@@ -16,7 +16,8 @@ use rustc_hash::FxHashMap;
 use super::{
     edge::{render_merge, DagEdge},
     layout::{DagLayout, LayoutConfig, LayoutNode},
-    node_box::{NodeBox, NodeBoxData, NodeBoxMode},
+    node_box::NodeBox,
+    node_data::{NodeBoxData, NodeBoxMode},
 };
 use crate::theme::Theme;
 

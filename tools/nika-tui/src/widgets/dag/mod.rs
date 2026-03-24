@@ -14,7 +14,9 @@ mod ascii;
 mod edge;
 mod layout;
 mod node_box;
+mod node_data;
 
 // Public API: only expose what views need
 pub use ascii::DagAscii;
-pub use node_box::{NodeBox, NodeBoxData, NodeBoxMode};
+pub use node_box::NodeBox;
+pub use node_data::{NodeBoxData, NodeBoxMode};
