@@ -649,10 +649,7 @@ impl LanguageServer for NikaBackend {
 
     // ===== References (Find All References) =====
 
-    async fn references(
-        &self,
-        params: ReferenceParams,
-    ) -> Result<Option<Vec<Location>>> {
+    async fn references(&self, params: ReferenceParams) -> Result<Option<Vec<Location>>> {
         let uri = &params.text_document_position.text_document.uri;
         let position = params.text_document_position.position;
 
@@ -661,9 +658,9 @@ impl LanguageServer for NikaBackend {
             None => return Ok(None),
         };
 
-        let offset = crate::position::position_to_offset(
-            &text, position.line, position.character,
-        ).map(|o| o.0).unwrap_or(0);
+        let offset = crate::position::position_to_offset(&text, position.line, position.character)
+            .map(|o| o.0)
+            .unwrap_or(0);
 
         let task_id = match self.handler.find_task_at_offset(&text, offset) {
             Some(id) => id,
@@ -675,19 +672,23 @@ impl LanguageServer for NikaBackend {
             .into_iter()
             .map(|r| {
                 let range = offset_range(&text, r.start_offset, r.end_offset);
-                Location { uri: uri.clone(), range }
+                Location {
+                    uri: uri.clone(),
+                    range,
+                }
             })
             .collect();
 
-        if locations.is_empty() { Ok(None) } else { Ok(Some(locations)) }
+        if locations.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(locations))
+        }
     }
 
     // ===== Document Links =====
 
-    async fn document_link(
-        &self,
-        params: DocumentLinkParams,
-    ) -> Result<Option<Vec<DocumentLink>>> {
+    async fn document_link(&self, params: DocumentLinkParams) -> Result<Option<Vec<DocumentLink>>> {
         let uri = &params.text_document.uri;
         let text = match self.documents.get(uri) {
             Some(d) => d.content(),
@@ -709,15 +710,16 @@ impl LanguageServer for NikaBackend {
             })
             .collect();
 
-        if links.is_empty() { Ok(None) } else { Ok(Some(links)) }
+        if links.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(links))
+        }
     }
 
     // ===== Folding Ranges =====
 
-    async fn folding_range(
-        &self,
-        params: FoldingRangeParams,
-    ) -> Result<Option<Vec<FoldingRange>>> {
+    async fn folding_range(&self, params: FoldingRangeParams) -> Result<Option<Vec<FoldingRange>>> {
         let uri = &params.text_document.uri;
         let text = match self.documents.get(uri) {
             Some(d) => d.content(),
@@ -747,7 +749,11 @@ impl LanguageServer for NikaBackend {
             })
             .collect();
 
-        if ranges.is_empty() { Ok(None) } else { Ok(Some(ranges)) }
+        if ranges.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(ranges))
+        }
     }
 }
 

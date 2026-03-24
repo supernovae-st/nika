@@ -89,8 +89,8 @@ fn has_inline_value(trimmed: &str) -> bool {
         }
         return true;
     }
-    // No colon at all — not a key-value line
-    true
+    // No colon at all — not a key-value line, cannot have an inline value
+    false
 }
 
 /// Top-level and nested section keys that commonly start foldable blocks.
@@ -307,8 +307,16 @@ tasks:
     timeout: 30";
 
         let folds = fold_lines(text);
-        assert!(folds.contains(&(0, 3)), "tasks: block should fold: {:?}", folds);
-        assert!(folds.contains(&(1, 3)), "task block should fold: {:?}", folds);
+        assert!(
+            folds.contains(&(0, 3)),
+            "tasks: block should fold: {:?}",
+            folds
+        );
+        assert!(
+            folds.contains(&(1, 3)),
+            "task block should fold: {:?}",
+            folds
+        );
     }
 
     #[test]
@@ -321,9 +329,21 @@ tasks:
     exec: \"echo done\"";
 
         let folds = fold_lines(text);
-        assert!(folds.contains(&(0, 4)), "tasks: block should span all tasks: {:?}", folds);
-        assert!(folds.contains(&(1, 2)), "first task should fold: {:?}", folds);
-        assert!(folds.contains(&(3, 4)), "second task should fold: {:?}", folds);
+        assert!(
+            folds.contains(&(0, 4)),
+            "tasks: block should span all tasks: {:?}",
+            folds
+        );
+        assert!(
+            folds.contains(&(1, 2)),
+            "first task should fold: {:?}",
+            folds
+        );
+        assert!(
+            folds.contains(&(3, 4)),
+            "second task should fold: {:?}",
+            folds
+        );
     }
 
     #[test]
@@ -338,7 +358,11 @@ tasks:
         that spans several lines";
 
         let folds = fold_lines(text);
-        assert!(folds.contains(&(3, 6)), "multi-line string should fold: {:?}", folds);
+        assert!(
+            folds.contains(&(3, 6)),
+            "multi-line string should fold: {:?}",
+            folds
+        );
     }
 
     #[test]
@@ -369,10 +393,22 @@ mcp:
       command: npx";
 
         let folds = fold_lines(text);
-        assert!(folds.contains(&(0, 6)), "mcp: should fold entire section: {:?}", folds);
+        assert!(
+            folds.contains(&(0, 6)),
+            "mcp: should fold entire section: {:?}",
+            folds
+        );
         assert!(folds.contains(&(1, 6)), "servers: should fold: {:?}", folds);
-        assert!(folds.contains(&(2, 4)), "novanet: server should fold: {:?}", folds);
-        assert!(folds.contains(&(5, 6)), "perplexity: server should fold: {:?}", folds);
+        assert!(
+            folds.contains(&(2, 4)),
+            "novanet: server should fold: {:?}",
+            folds
+        );
+        assert!(
+            folds.contains(&(5, 6)),
+            "perplexity: server should fold: {:?}",
+            folds
+        );
     }
 
     #[test]
@@ -386,7 +422,11 @@ tasks:
     infer: \"Use {{with.data}}\"";
 
         let folds = fold_lines(text);
-        assert!(folds.contains(&(2, 4)), "with: block should fold: {:?}", folds);
+        assert!(
+            folds.contains(&(2, 4)),
+            "with: block should fold: {:?}",
+            folds
+        );
     }
 
     #[test]

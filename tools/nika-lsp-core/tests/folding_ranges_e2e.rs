@@ -94,11 +94,7 @@ mcp:
         "mcp: should fold entire section: {:?}",
         folds
     );
-    assert!(
-        folds.contains(&(1, 6)),
-        "servers: should fold: {:?}",
-        folds
-    );
+    assert!(folds.contains(&(1, 6)), "servers: should fold: {:?}", folds);
     assert!(
         folds.contains(&(2, 4)),
         "novanet: server should fold: {:?}",

@@ -44,7 +44,7 @@ pub fn document_links(text: &str) -> Vec<LinkEntry> {
 
         // Skip comment and empty lines
         if trimmed.starts_with('#') || trimmed.is_empty() {
-            byte_offset += line.len() + 1; // +1 for newline
+            byte_offset = next_line_offset(text, byte_offset, line.len());
             continue;
         }
 
@@ -75,7 +75,7 @@ pub fn document_links(text: &str) -> Vec<LinkEntry> {
             }
         }
 
-        byte_offset += line.len() + 1; // +1 for newline
+        byte_offset = next_line_offset(text, byte_offset, line.len());
     }
 
     links
@@ -189,12 +189,27 @@ fn try_section_file_link(
     })
 }
 
+/// Compute the byte offset of the next line, accounting for `\r\n` vs `\n`.
+///
+/// `str::lines()` strips line endings, so we check the original text to determine
+/// whether the line was terminated by `\r\n` (2 bytes) or `\n` (1 byte).
+fn next_line_offset(text: &str, current_offset: usize, line_len: usize) -> usize {
+    let line_end = current_offset + line_len;
+    let bytes = text.as_bytes();
+    if bytes.get(line_end) == Some(&b'\r') && bytes.get(line_end + 1) == Some(&b'\n') {
+        line_end + 2
+    } else if bytes.get(line_end) == Some(&b'\n') {
+        line_end + 1
+    } else {
+        line_end // last line without trailing newline
+    }
+}
+
 /// Strip surrounding quotes (single or double) from a value.
 /// Returns the inner value and whether quotes were present.
 fn strip_quotes(s: &str) -> (&str, bool) {
     if s.len() >= 2
-        && ((s.starts_with('"') && s.ends_with('"'))
-            || (s.starts_with('\'') && s.ends_with('\'')))
+        && ((s.starts_with('"') && s.ends_with('"')) || (s.starts_with('\'') && s.ends_with('\'')))
     {
         return (&s[1..s.len() - 1], true);
     }
@@ -285,7 +300,9 @@ mod tests {
         let links = document_links(text);
         assert_eq!(links.len(), 2, "Expected 2 skill links, got: {:?}", links);
         assert!(links.iter().all(|l| l.tooltip == "Open skill file"));
-        assert!(links.iter().any(|l| l.target.contains("summarize.nika.yaml")));
+        assert!(links
+            .iter()
+            .any(|l| l.target.contains("summarize.nika.yaml")));
     }
 
     #[test]
@@ -298,7 +315,12 @@ mod tests {
                         fetch:\n\
                           url: https://real.example.com/data\n";
         let links = document_links(text);
-        assert_eq!(links.len(), 1, "Only real URL should link, got: {:?}", links);
+        assert_eq!(
+            links.len(),
+            1,
+            "Only real URL should link, got: {:?}",
+            links
+        );
         assert!(links[0].target.contains("real.example.com"));
     }
 
@@ -339,7 +361,12 @@ mod tests {
         let text = "context:\n  brand: ./context/brand.md\ntasks:\n  data: ./context/data.json\n";
         let links = document_links(text);
         // Only the first entry is under context:, the second is under tasks:
-        assert_eq!(links.len(), 1, "Section should reset at tasks:, got: {:?}", links);
+        assert_eq!(
+            links.len(),
+            1,
+            "Section should reset at tasks:, got: {:?}",
+            links
+        );
         assert!(links[0].target.contains("brand.md"));
     }
 
@@ -352,6 +379,9 @@ mod tests {
         // "url: " = 5 bytes, "https://example.com" = 19 bytes
         assert_eq!(link.start_offset, 5);
         assert_eq!(link.end_offset, 24);
-        assert_eq!(&text[link.start_offset as usize..link.end_offset as usize], "https://example.com");
+        assert_eq!(
+            &text[link.start_offset as usize..link.end_offset as usize],
+            "https://example.com"
+        );
     }
 }

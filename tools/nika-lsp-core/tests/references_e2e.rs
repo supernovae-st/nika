@@ -12,8 +12,7 @@ use nika_lsp_core::handlers::references::{find_task_at_offset, find_task_referen
 /// Find the byte offset of `needle` in `text`, panicking if not found.
 fn offset_of(text: &str, needle: &str) -> u32 {
     text.find(needle)
-        .unwrap_or_else(|| panic!("needle {needle:?} not found in text"))
-        as u32
+        .unwrap_or_else(|| panic!("needle {needle:?} not found in text")) as u32
 }
 
 /// Find the byte offset of the Nth occurrence of `needle` in `text` (1-based).
@@ -226,7 +225,12 @@ fn references_no_references_for_unknown_task() {
 fn references_definition_only_for_isolated_task() {
     let refs = find_task_references(SIMPLE_WORKFLOW, "step2");
     // step2 has no references FROM other tasks; it only has its own definition
-    assert_eq!(refs.len(), 1, "Expected 1 reference (def only), got: {:?}", refs);
+    assert_eq!(
+        refs.len(),
+        1,
+        "Expected 1 reference (def only), got: {:?}",
+        refs
+    );
     assert_ref_text(SIMPLE_WORKFLOW, &refs[0], "step2");
 }
 
@@ -275,7 +279,10 @@ fn references_byte_offsets_are_exact() {
 
     for r in &refs {
         let slice = &text[r.start_offset as usize..r.end_offset as usize];
-        assert_eq!(slice, "step1", "Byte offset should point exactly at 'step1'");
+        assert_eq!(
+            slice, "step1",
+            "Byte offset should point exactly at 'step1'"
+        );
         assert_eq!(
             (r.end_offset - r.start_offset) as usize,
             "step1".len(),

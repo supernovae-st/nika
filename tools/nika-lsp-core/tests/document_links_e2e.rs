@@ -90,8 +90,12 @@ fn skills_section_file_detection() {
     for link in &links {
         assert_eq!(link.tooltip, "Open skill file");
     }
-    assert!(links.iter().any(|l| l.target.contains("summarize.nika.yaml")));
-    assert!(links.iter().any(|l| l.target.contains("translate.nika.yaml")));
+    assert!(links
+        .iter()
+        .any(|l| l.target.contains("summarize.nika.yaml")));
+    assert!(links
+        .iter()
+        .any(|l| l.target.contains("translate.nika.yaml")));
 }
 
 #[test]
