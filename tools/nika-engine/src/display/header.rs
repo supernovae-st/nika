@@ -64,12 +64,16 @@ pub fn print_header(
     let info = format!("{} {} / {}", icons::provider(), provider, model);
     let task_word = if task_count == 1 { "task" } else { "tasks" };
     let layer_word = if layer_count == 1 { "layer" } else { "layers" };
-    let tasks = format!("{} {} · {} {}", task_count, task_word, layer_count, layer_word);
+    let tasks = format!(
+        "{} {} · {} {}",
+        task_count, task_word, layer_count, layer_word
+    );
     let pad = inner.saturating_sub(stripped_len(&info) + tasks.len() + 4);
     println!("│  {}{}{} │", info, " ".repeat(pad), tasks.dimmed());
 
     // Generation ID
-    let gen = format!("gen:{}", &generation_id[..generation_id.len().min(8)]);
+    let short_id: String = generation_id.chars().take(8).collect();
+    let gen = format!("gen:{}", short_id);
     println!(
         "│  {}{}│",
         gen.dimmed(),
