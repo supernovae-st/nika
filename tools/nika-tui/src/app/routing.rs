@@ -134,7 +134,10 @@ impl App {
                 self.retry_workflow();
             }
             Action::ExportTrace => {
-                // Export trace to file
+                match self.command_view.chat.export_session(None) {
+                    Ok(path) => self.set_status(&format!("Exported: {path}")),
+                    Err(e) => self.set_status(&format!("Export failed: {e}")),
+                }
             }
 
             // ═══ Breakpoints ═══
