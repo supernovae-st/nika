@@ -60,20 +60,15 @@ impl<'a> Header<'a> {
         self
     }
 
-    /// Active tab highlight — verb violet
-    const TAB_ACTIVE_BG: Color = Color::Rgb(139, 92, 246);
-    /// Inactive tab text — slate-400
-    const TAB_INACTIVE_FG: Color = Color::Rgb(148, 163, 184);
-
     /// Get tab label style based on active state
     fn tab_style(&self, is_active: bool) -> Style {
         if is_active {
             Style::default()
                 .fg(Color::White)
-                .bg(Self::TAB_ACTIVE_BG)
+                .bg(self.theme.highlight) // Uses theme accent instead of hardcoded violet
                 .add_modifier(Modifier::BOLD)
         } else {
-            Style::default().fg(Self::TAB_INACTIVE_FG)
+            Style::default().fg(self.theme.text_muted)
         }
     }
 }
