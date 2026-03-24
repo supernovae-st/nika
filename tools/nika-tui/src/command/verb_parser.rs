@@ -100,10 +100,10 @@ impl Command {
         let args = args.trim();
 
         if args.is_empty() {
-            return Command::Invoke {
-                tool: String::new(),
-                server: None,
-                params: serde_json::Value::Object(serde_json::Map::new()),
+            return Command::InvokeError {
+                error: "Missing tool name".to_string(),
+                hint: "Usage: /invoke [server:]tool [json_params]".to_string(),
+                example: "/invoke novanet:describe {\"entity\":\"qr-code\"}".to_string(),
             };
         }
 

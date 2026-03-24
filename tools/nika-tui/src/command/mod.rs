@@ -59,6 +59,13 @@ pub enum Command {
         params: serde_json::Value,
     },
 
+    /// /invoke error - missing tool name or invalid params
+    InvokeError {
+        error: String,
+        hint: String,
+        example: String,
+    },
+
     /// `/agent <goal> [--max-turns N] [--mcp server1,server2]` - Multi-turn agentic loop
     Agent {
         goal: String,
@@ -170,7 +177,7 @@ impl Command {
             Command::Infer { .. } => "infer",
             Command::Exec { .. } => "exec",
             Command::Fetch { .. } | Command::FetchError { .. } => "fetch",
-            Command::Invoke { .. } => "invoke",
+            Command::Invoke { .. } | Command::InvokeError { .. } => "invoke",
             Command::Agent { .. } => "agent",
             Command::Chat { .. } => "chat",
             Command::Help => "help",
@@ -184,7 +191,10 @@ impl Command {
 
     /// Check if this command is an error
     pub fn is_error(&self) -> bool {
-        matches!(self, Command::FetchError { .. })
+        matches!(
+            self,
+            Command::FetchError { .. } | Command::InvokeError { .. }
+        )
     }
 
     /// Check if this is an empty command (empty input)
@@ -194,7 +204,7 @@ impl Command {
             Command::Infer { prompt } => prompt.is_empty(),
             Command::Exec { command } => command.is_empty(),
             Command::Fetch { url, .. } => url.is_empty(),
-            Command::FetchError { .. } => false, // Errors are not "empty"
+            Command::FetchError { .. } | Command::InvokeError { .. } => false, // Errors are not "empty"
             Command::Invoke { tool, .. } => tool.is_empty(),
             Command::Agent { goal, .. } => goal.is_empty(),
             Command::Help => false,
@@ -217,6 +227,7 @@ impl Command {
                 | Command::Fetch { .. }
                 | Command::FetchError { .. }
                 | Command::Invoke { .. }
+                | Command::InvokeError { .. }
                 | Command::Agent { .. }
         )
     }

@@ -169,11 +169,11 @@ fn test_parse_invoke_with_json_params() {
 fn test_parse_invoke_empty() {
     let input = "/invoke";
     let cmd = Command::parse(input);
-    assert!(matches!(
-        cmd,
-        Command::Invoke { tool, server, params }
-        if tool.is_empty() && server.is_none() && params.is_object()
-    ));
+    assert!(
+        matches!(cmd, Command::InvokeError { ref error, .. } if error.contains("Missing tool")),
+        "Expected InvokeError for empty /invoke, got {:?}",
+        cmd
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════════

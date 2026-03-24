@@ -130,6 +130,17 @@ impl ChatView {
                                 server,
                                 params,
                             } => ViewAction::ChatInvoke(tool, server, params),
+                            Command::InvokeError {
+                                error,
+                                hint,
+                                example,
+                            } => {
+                                self.add_nika_message(
+                                    format!("{}\n{}\n{}", error, hint, example),
+                                    None,
+                                );
+                                ViewAction::None
+                            }
                             Command::Agent {
                                 goal,
                                 max_turns,
@@ -785,6 +796,14 @@ impl ChatView {
                     server,
                     params,
                 } => Some(ViewAction::ChatInvoke(tool, server, params)),
+                Command::InvokeError {
+                    error,
+                    hint,
+                    example,
+                } => {
+                    self.add_nika_message(format!("{}\n{}\n{}", error, hint, example), None);
+                    Some(ViewAction::None)
+                }
                 Command::Agent {
                     goal,
                     max_turns,
