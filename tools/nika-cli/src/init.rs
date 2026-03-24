@@ -62,19 +62,12 @@ default = "claude"
     fs::write(&config_path, config_content)?;
 
     println!();
-    println!(
-        "  {} {}",
-        "\u{2713}".green(),
-        config_path.display()
-    );
+    println!("  {} {}", "\u{2713}".green(), config_path.display());
     println!();
     println!("  Permission: {}", permission_mode.display_name().cyan());
     println!("  Provider:   {}", "claude (auto-detect)".cyan());
     println!();
-    println!(
-        "  Edit {} to change settings.",
-        ".nika/config.toml".bold()
-    );
+    println!("  Edit {} to change settings.", ".nika/config.toml".bold());
     println!();
 
     // Migrate API keys if requested

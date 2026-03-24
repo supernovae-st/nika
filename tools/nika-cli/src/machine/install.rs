@@ -39,8 +39,8 @@ pub(super) fn detect_editors() -> Vec<&'static str> {
     if home.join(".roo").exists() {
         editors.push("roo");
     }
-    // Copilot (via GitHub CLI or VS Code)
-    if which::which("gh").is_ok() || editors.contains(&"vscode") {
+    // Copilot (via GitHub CLI — the only reliable signal)
+    if which::which("gh").is_ok() {
         editors.push("copilot");
     }
 
@@ -906,7 +906,15 @@ mod tests {
         let path = tmpdir.path().join("sub/dir/rule.md");
         let hashes = HashMap::new();
         let mut results = Vec::new();
-        install_rule(&path, "# test rule\n", "test", "test", &hashes, &mut results, true);
+        install_rule(
+            &path,
+            "# test rule\n",
+            "test",
+            "test",
+            &hashes,
+            &mut results,
+            true,
+        );
         assert!(path.exists());
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "# test rule\n");
     }
