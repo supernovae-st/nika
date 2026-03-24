@@ -140,6 +140,15 @@ impl ChatView {
             .add_message_with_mentions(&content_str, WorkflowRole::System);
     }
 
+    /// Get the content of the last Nika (assistant) message, if any
+    pub fn last_nika_message_content(&self) -> Option<String> {
+        self.messages
+            .iter()
+            .rev()
+            .find(|m| m.role == MessageRole::Nika)
+            .map(|m| m.content.clone())
+    }
+
     /// Export chat session to JSON file
     ///
     /// Exports all messages to a JSON file for later analysis or sharing.

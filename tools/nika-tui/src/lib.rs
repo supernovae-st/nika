@@ -206,26 +206,25 @@ fn install_panic_hook() {
 /// screen) and exits with the conventional 128+signal code.
 fn install_signal_handlers() {
     use signal_hook::consts::{SIGHUP, SIGTERM};
-    use signal_hook::flag;
-    use std::sync::atomic::{AtomicBool, Ordering};
-    use std::sync::Arc;
+    use signal_hook::iterator::Signals;
 
-    let term = Arc::new(AtomicBool::new(false));
-    flag::register(SIGTERM, Arc::clone(&term)).ok();
-    flag::register(SIGHUP, Arc::clone(&term)).ok();
+    let mut signals = match Signals::new([SIGTERM, SIGHUP]) {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::warn!("Failed to install signal handlers: {e}");
+            return;
+        }
+    };
 
-    let term_clone = Arc::clone(&term);
     std::thread::spawn(move || {
-        loop {
-            if term_clone.load(Ordering::Relaxed) {
-                let _ = crossterm::terminal::disable_raw_mode();
-                let _ = crossterm::execute!(
-                    std::io::stdout(),
-                    crossterm::terminal::LeaveAlternateScreen
-                );
-                std::process::exit(128 + 15); // 128 + SIGTERM
-            }
-            std::thread::sleep(std::time::Duration::from_millis(100));
+        // Blocks on epoll/kqueue — no CPU-wasting poll loop
+        if let Some(sig) = signals.forever().next() {
+            let _ = crossterm::terminal::disable_raw_mode();
+            let _ = crossterm::execute!(
+                std::io::stdout(),
+                crossterm::terminal::LeaveAlternateScreen
+            );
+            std::process::exit(128 + sig);
         }
     });
 }

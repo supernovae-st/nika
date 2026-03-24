@@ -80,15 +80,21 @@ impl App {
                 self.handle_scroll_down();
             }
             Action::ScrollToTop => {
-                // No-op: scroll handled by individual views
+                if self.current_view == TuiView::Command {
+                    self.command_view.chat.scroll_to_top();
+                }
             }
             Action::ScrollToBottom => {
-                // No-op: scroll handled by individual views
+                if self.current_view == TuiView::Command {
+                    self.command_view.chat.scroll_to_bottom();
+                }
             }
 
             // ═══ Pause/Step ═══
             Action::TogglePause => {
                 self.state.toggle_pause();
+                let label = if self.state.workflow.paused { "Paused" } else { "Resumed" };
+                self.set_status(label);
             }
             Action::Step => {
                 // Step one event while paused (single-step debugging)
@@ -113,7 +119,16 @@ impl App {
 
             // ═══ Quick Actions ═══
             Action::CopyToClipboard => {
-                // Copy current panel content
+                // Copy last Nika (assistant) message content to clipboard
+                let content = self.command_view.chat.last_nika_message_content();
+                if let Some(text) = content {
+                    match arboard::Clipboard::new().and_then(|mut cb| cb.set_text(&text)) {
+                        Ok(()) => self.set_status("Copied to clipboard"),
+                        Err(e) => self.set_status(&format!("Clipboard unavailable: {e}")),
+                    }
+                } else {
+                    self.set_status("Nothing to copy");
+                }
             }
             Action::RetryWorkflow => {
                 self.retry_workflow();
@@ -146,7 +161,8 @@ impl App {
                 self.state.dismiss_all_notifications();
             }
             Action::DismissError => {
-                // Dismiss error message
+                self.state.workflow.error_message = None;
+                self.status_message = None;
             }
 
             // ═══ Filter/Search ═══
@@ -300,13 +316,47 @@ impl App {
                 self.command_view.chat.current_provider_id = provider_id;
 
                 // Recreate ChatAgent with new provider
-                self.chat_agent = ChatAgent::new().ok();
+                self.chat_agent = match ChatAgent::new() {
+                    Ok(agent) => Some(agent),
+                    Err(e) => {
+                        tracing::warn!("Chat agent unavailable after provider switch: {e}");
+                        None
+                    }
+                };
 
                 self.set_status(&format!("Switched to {}", provider.name()));
                 tracing::info!("ChatModelSwitch: {:?}", provider);
             }
-            ViewAction::ChatMcp(_mcp_action) => {
-                self.set_status("MCP action received");
+            ViewAction::ChatMcp(mcp_action) => {
+                use crate::command::McpAction;
+                match mcp_action {
+                    McpAction::List => {
+                        let servers = &self.command_view.chat.session_context.mcp_servers;
+                        let names: Vec<&str> = servers.iter().map(|s| s.name.as_str()).collect();
+                        let msg = if names.is_empty() {
+                            "No MCP servers configured".to_string()
+                        } else {
+                            format!("MCP servers: {}", names.join(", "))
+                        };
+                        self.command_view.chat.add_system_message(msg);
+                    }
+                    McpAction::Select(servers) => {
+                        self.command_view.chat.set_mcp_servers(servers.iter().cloned());
+                        self.set_status("MCP servers updated");
+                    }
+                    McpAction::Toggle(server) => {
+                        let servers = &mut self.command_view.chat.session_context.mcp_servers;
+                        if let Some(s) = servers.iter_mut().find(|s| s.name == server) {
+                            use crate::widgets::McpStatus;
+                            let was_cold = s.status == McpStatus::Cold || s.status == McpStatus::Error;
+                            s.status = if was_cold { McpStatus::Connected } else { McpStatus::Cold };
+                            let label = if was_cold { "enabled" } else { "disabled" };
+                            self.set_status(&format!("MCP server '{}' {}", server, label));
+                        } else {
+                            self.set_status(&format!("MCP server '{}' not found", server));
+                        }
+                    }
+                }
             }
             ViewAction::SendChatMessage(msg) => {
                 self.command_view.chat.add_user_message(msg.clone());
@@ -454,12 +504,16 @@ impl App {
 
     /// Handle scroll up action for current view
     fn handle_scroll_up(&mut self) {
-        // No-op: scroll handled by individual views via their own state
+        if self.current_view == TuiView::Command {
+            self.command_view.chat.scroll_up();
+        }
     }
 
     /// Handle scroll down action for current view
     fn handle_scroll_down(&mut self) {
-        // No-op: scroll handled by individual views via their own state
+        if self.current_view == TuiView::Command {
+            self.command_view.chat.scroll_down();
+        }
     }
 
     /// Run a workflow from a file path
