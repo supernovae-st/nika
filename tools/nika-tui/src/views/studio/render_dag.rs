@@ -113,13 +113,7 @@ impl YamlEditorPanel {
     ///
     /// PERF: Uses cached_workflow to avoid re-parsing YAML every frame (60 FPS).
     /// Only parses when content hash changes.
-    fn render_dag_structure(
-        &self,
-        frame: &mut Frame,
-        area: Rect,
-        yaml: &str,
-        theme: &Theme,
-    ) {
+    fn render_dag_structure(&self, frame: &mut Frame, area: Rect, yaml: &str, theme: &Theme) {
         // PERF: Compute content hash to check if we need to re-parse
         let current_hash = Self::content_hash(yaml);
         let cached_hash = self.cached_content_hash.get();

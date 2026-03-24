@@ -116,7 +116,13 @@ impl TuiState {
                 truncated,
                 ..
             } => {
-                self.on_context_assembled(sources, excluded, *total_tokens, *budget_used_pct, *truncated);
+                self.on_context_assembled(
+                    sources,
+                    excluded,
+                    *total_tokens,
+                    *budget_used_pct,
+                    *truncated,
+                );
             }
 
             // ═══════════════════════════════════════════
@@ -203,7 +209,15 @@ impl TuiState {
                 call_id,
                 params,
             } => {
-                self.on_mcp_invoke(task_id, mcp_server, tool, resource, call_id, params, timestamp_ms);
+                self.on_mcp_invoke(
+                    task_id,
+                    mcp_server,
+                    tool,
+                    resource,
+                    call_id,
+                    params,
+                    timestamp_ms,
+                );
             }
 
             EventKind::McpResponse {
@@ -247,7 +261,14 @@ impl TuiState {
                 error,
                 ..
             } => {
-                self.on_mcp_retry(server_name, operation, *attempt, *max_attempts, error, timestamp_ms);
+                self.on_mcp_retry(
+                    server_name,
+                    operation,
+                    *attempt,
+                    *max_attempts,
+                    error,
+                    timestamp_ms,
+                );
             }
 
             // ═══════════════════════════════════════════
@@ -301,7 +322,13 @@ impl TuiState {
                 error,
             } => {
                 self.on_structured_output_attempt(
-                    task_id, *layer, layer_name, *attempt, *success, error, timestamp_ms,
+                    task_id,
+                    *layer,
+                    layer_name,
+                    *attempt,
+                    *success,
+                    error,
+                    timestamp_ms,
                 );
             }
 
@@ -312,7 +339,11 @@ impl TuiState {
                 total_attempts,
             } => {
                 self.on_structured_output_success(
-                    task_id, *layer, layer_name, *total_attempts, timestamp_ms,
+                    task_id,
+                    *layer,
+                    layer_name,
+                    *total_attempts,
+                    timestamp_ms,
                 );
             }
 
@@ -334,7 +365,11 @@ impl TuiState {
                 message,
             } => {
                 self.on_guardrail_failed(
-                    task_id, guardrail_type, description, message, timestamp_ms,
+                    task_id,
+                    guardrail_type,
+                    description,
+                    message,
+                    timestamp_ms,
                 );
             }
 
@@ -418,7 +453,11 @@ impl TuiState {
                 resolve_ms,
             } => {
                 self.on_vision_content_resolved(
-                    task_id, *image_count, *total_bytes, *resolve_ms, timestamp_ms,
+                    task_id,
+                    *image_count,
+                    *total_bytes,
+                    *resolve_ms,
+                    timestamp_ms,
                 );
             }
 

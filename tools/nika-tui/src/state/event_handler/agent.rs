@@ -7,9 +7,7 @@ use nika_engine::event::{AgentTurnMetadata, ContextSource, ExcludedItem};
 
 use super::{TuiState, MAX_HISTORY_ENTRIES};
 use crate::state::notification::Notification;
-use crate::state::types::{
-    AgentTurnState, ContextAssembly, SpawnedAgent, TemplateResolution,
-};
+use crate::state::types::{AgentTurnState, ContextAssembly, SpawnedAgent, TemplateResolution};
 
 impl TuiState {
     pub(super) fn on_agent_start(&mut self, max_turns: u32) {

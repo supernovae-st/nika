@@ -249,11 +249,7 @@ impl TuiState {
         self.json_cache.invalidate(&format!("mcp:{}", call_id));
     }
 
-    pub(super) fn on_mcp_connected(
-        &mut self,
-        server_name: &str,
-        timestamp_ms: u64,
-    ) {
+    pub(super) fn on_mcp_connected(&mut self, server_name: &str, timestamp_ms: u64) {
         self.add_notification(Notification::success(
             format!("MCP server '{}' connected", server_name),
             timestamp_ms,
@@ -261,12 +257,7 @@ impl TuiState {
         self.dirty.status = true;
     }
 
-    pub(super) fn on_mcp_error(
-        &mut self,
-        server_name: &str,
-        error: &str,
-        timestamp_ms: u64,
-    ) {
+    pub(super) fn on_mcp_error(&mut self, server_name: &str, error: &str, timestamp_ms: u64) {
         self.add_notification(Notification::error(
             format!("MCP '{}' error: {}", server_name, error),
             timestamp_ms,

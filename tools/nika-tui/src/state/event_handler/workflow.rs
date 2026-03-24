@@ -13,11 +13,7 @@ use crate::state::notification::Notification;
 use crate::theme::MissionPhase;
 
 impl TuiState {
-    pub(super) fn on_workflow_started(
-        &mut self,
-        task_count: usize,
-        generation_id: &str,
-    ) {
+    pub(super) fn on_workflow_started(&mut self, task_count: usize, generation_id: &str) {
         self.workflow.task_count = task_count;
         self.workflow.phase = MissionPhase::Countdown;
         self.workflow.started_at = Some(Instant::now());

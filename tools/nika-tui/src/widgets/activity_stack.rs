@@ -120,7 +120,6 @@ impl ActivityItem {
     pub fn elapsed(&self) -> Option<Duration> {
         self.started.map(|s| s.elapsed())
     }
-
 }
 
 #[cfg(test)]

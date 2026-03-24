@@ -727,8 +727,7 @@ mod tests {
 
     #[test]
     fn test_layout_node_builder() {
-        let node = LayoutNode::new("task1")
-            .with_dependencies(vec!["dep1", "dep2"]);
+        let node = LayoutNode::new("task1").with_dependencies(vec!["dep1", "dep2"]);
 
         assert_eq!(node.id, "task1");
         assert_eq!(node.dependencies, vec!["dep1", "dep2"]);

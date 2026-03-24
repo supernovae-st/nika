@@ -254,12 +254,7 @@ impl TuiState {
         self.dirty.notifications = true;
     }
 
-    pub(super) fn on_media_store_failed(
-        &mut self,
-        task_id: &str,
-        reason: &str,
-        timestamp_ms: u64,
-    ) {
+    pub(super) fn on_media_store_failed(&mut self, task_id: &str, reason: &str, timestamp_ms: u64) {
         self.add_notification(Notification::error(
             format!("[{}] Media store failed: {}", task_id, reason),
             timestamp_ms,

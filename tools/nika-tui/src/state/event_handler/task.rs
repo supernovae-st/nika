@@ -13,11 +13,7 @@ use crate::state::types::TaskState;
 use crate::theme::{MissionPhase, TaskStatus};
 
 impl TuiState {
-    pub(super) fn on_task_scheduled(
-        &mut self,
-        task_id: &str,
-        dependencies: &[Arc<str>],
-    ) {
+    pub(super) fn on_task_scheduled(&mut self, task_id: &str, dependencies: &[Arc<str>]) {
         let deps: Vec<String> = dependencies.iter().map(|s| s.to_string()).collect();
         let task = TaskState::new(task_id.to_string(), deps);
         self.tasks.insert(task_id.to_string(), task);
@@ -28,12 +24,7 @@ impl TuiState {
         self.invalidate_timeline_cache();
     }
 
-    pub(super) fn on_task_started(
-        &mut self,
-        task_id: &str,
-        verb: &str,
-        inputs: &Value,
-    ) {
+    pub(super) fn on_task_started(&mut self, task_id: &str, verb: &str, inputs: &Value) {
         if let Some(task) = self.tasks.get_mut(task_id) {
             task.status = TaskStatus::Running;
             task.started_at = Some(Instant::now());
@@ -104,12 +95,7 @@ impl TuiState {
         self.json_cache.invalidate(&format!("task:{}", task_id));
     }
 
-    pub(super) fn on_task_failed(
-        &mut self,
-        task_id: &str,
-        error: &str,
-        duration_ms: u64,
-    ) {
+    pub(super) fn on_task_failed(&mut self, task_id: &str, error: &str, duration_ms: u64) {
         if let Some(task) = self.tasks.get_mut(task_id) {
             task.status = TaskStatus::Failed;
             task.duration_ms = Some(duration_ms);
