@@ -666,8 +666,9 @@ fn resolve_binding_path(
                 &["KEY", "SECRET", "TOKEN", "PASSWORD", "CREDENTIAL", "AUTH"];
             let is_secret = SECRET_PATTERNS.iter().any(|p| name_upper.contains(p));
             // Allow NIKA_ prefix or safe system variables only
-            const SAFE_VARS: &[&str] =
-                &["PATH", "HOME", "USER", "SHELL", "LANG", "TERM", "PWD", "TMPDIR", "TZ"];
+            const SAFE_VARS: &[&str] = &[
+                "PATH", "HOME", "USER", "SHELL", "LANG", "TERM", "PWD", "TMPDIR", "TZ",
+            ];
             let is_allowed =
                 name_upper.starts_with("NIKA_") || SAFE_VARS.iter().any(|v| name_upper == *v);
             if is_secret || !is_allowed {

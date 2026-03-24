@@ -127,7 +127,7 @@ impl ModelPricing {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PRICING TABLES (per million tokens, as of March 2025)
+// PRICING TABLES (per million tokens, as of March 2026)
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Claude models pricing
@@ -262,9 +262,15 @@ static GEMINI_PRICING: LazyLock<HashMap<&'static str, ModelPricing>> = LazyLock:
     let mut m = HashMap::new();
     // Gemini 2.5
     m.insert("gemini-2.5-pro", ModelPricing::new(1.25, 10.0));
-    m.insert("gemini-2.5-pro-preview-05-06", ModelPricing::new(1.25, 10.0));
+    m.insert(
+        "gemini-2.5-pro-preview-05-06",
+        ModelPricing::new(1.25, 10.0),
+    );
     m.insert("gemini-2.5-flash", ModelPricing::new(0.15, 0.60));
-    m.insert("gemini-2.5-flash-preview-05-20", ModelPricing::new(0.15, 0.60));
+    m.insert(
+        "gemini-2.5-flash-preview-05-20",
+        ModelPricing::new(0.15, 0.60),
+    );
     // Gemini 2.0
     m.insert("gemini-2.0-flash", ModelPricing::new(0.1, 0.4));
     m.insert("gemini-2.0-flash-exp", ModelPricing::new(0.0, 0.0)); // Free preview

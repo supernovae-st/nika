@@ -117,6 +117,7 @@ fn detect_image_media_type(data: &[u8]) -> Option<rig::completion::message::Imag
 }
 
 impl TaskExecutor {
+    #[instrument(skip(self, infer, bindings, datastore, output_policy), fields(%task_id))]
     pub(super) async fn run_infer(
         &self,
         task_id: &Arc<str>,
@@ -458,10 +459,9 @@ impl TaskExecutor {
                                             );
                                             // Adjust token reservation before early return
                                             let est_actual = estimate_tokens(result_str.len());
-                                            self.policy_enforcer.write().adjust_reservation(
-                                                estimated_tokens,
-                                                est_actual,
-                                            );
+                                            self.policy_enforcer
+                                                .write()
+                                                .adjust_reservation(estimated_tokens, est_actual);
                                             return Ok(result_str);
                                         }
                                         Err(e) => {
@@ -517,10 +517,9 @@ impl TaskExecutor {
                                         cost_usd: if cost.is_finite() { cost } else { 0.0 },
                                     });
                                     // Adjust token reservation before early return
-                                    self.policy_enforcer.write().adjust_reservation(
-                                        estimated_tokens,
-                                        est_in + est_out,
-                                    );
+                                    self.policy_enforcer
+                                        .write()
+                                        .adjust_reservation(estimated_tokens, est_in + est_out);
                                     return Ok(tool_result);
                                 }
                             }
@@ -1776,14 +1775,12 @@ impl TaskExecutor {
             // Short-circuit: skip template resolve + re-parse if no templates present
             if params_str.contains("{{") {
                 let resolved_str = template_resolve(&params_str, bindings, datastore)?;
-                let mut resolved =
-                    serde_json::from_str::<serde_json::Value>(&resolved_str).map_err(|e| {
-                        NikaError::InvokeParamError {
-                            reason: format!(
-                                "Failed to parse resolved params '{}': {}",
-                                resolved_str, e
-                            ),
-                        }
+                let mut resolved = serde_json::from_str::<serde_json::Value>(&resolved_str)
+                    .map_err(|e| NikaError::InvokeParamError {
+                        reason: format!(
+                            "Failed to parse resolved params '{}': {}",
+                            resolved_str, e
+                        ),
                     })?;
                 // Coerce string values back to native JSON types after template resolution
                 coerce_json_types(&mut resolved);

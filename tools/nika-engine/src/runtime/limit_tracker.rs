@@ -659,7 +659,10 @@ mod tests {
         tracker.add_cost(0.50);
 
         let status = tracker.check_cost().unwrap();
-        assert!(status.exceeded, "exactly at max_cost_usd should be exceeded");
+        assert!(
+            status.exceeded,
+            "exactly at max_cost_usd should be exceeded"
+        );
         assert!((status.current - 2.0).abs() < f64::EPSILON);
         assert!((status.usage_pct - 1.0).abs() < f64::EPSILON);
     }

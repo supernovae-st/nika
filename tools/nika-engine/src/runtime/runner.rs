@@ -681,7 +681,7 @@ impl Runner {
                                 task_id: Arc::clone(task_id),
                                 error: format!("Invalid schema: {}", e),
                                 duration_ms: duration.as_millis() as u64,
-                                error_code: None,
+                                error_code: Some("NIKA-061".to_string()),
                             });
                             return TaskResult::failed(
                                 format!("Invalid inline schema: {}", e),
@@ -974,7 +974,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             task_id: Arc::clone(&task_id),
                             error: tr.error().unwrap_or("Unknown error").to_string(),
                             duration_ms: duration.as_millis() as u64,
-                            error_code: None,
+                            error_code: Some("NIKA-060".to_string()),
                         });
                     }
                     tr

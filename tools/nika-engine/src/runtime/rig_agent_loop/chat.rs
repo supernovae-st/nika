@@ -149,14 +149,12 @@ impl RigAgentLoop {
         prompt: &str,
     ) -> Result<RigAgentLoopResult, NikaError> {
         let client = anthropic::Client::from_env();
-        let model_name = Self::strip_model_prefix(
-            self.params
-                .model
-                .as_deref()
-                .ok_or_else(|| NikaError::ValidationError {
+        let model_name =
+            Self::strip_model_prefix(self.params.model.as_deref().ok_or_else(|| {
+                NikaError::ValidationError {
                     reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
-                })?,
-        );
+                }
+            })?);
         let model = client.completion_model(model_name);
 
         let turn_index = self.turn_count + 1;
@@ -188,7 +186,7 @@ impl RigAgentLoop {
         }
 
         if let Some(stop_params) = Self::stop_sequences_params(
-            &self.params.provider.clone().unwrap_or_default(),
+            self.params.provider.as_deref().unwrap_or(""),
             &self.params.stop_sequences,
         ) {
             builder = builder.additional_params(stop_params);
@@ -229,15 +227,13 @@ impl RigAgentLoop {
         let guardrails_passed = guardrail_result.is_passed();
 
         // Estimate tokens for cost tracking (Chat trait returns only String, no metadata)
-        let est_input = prompt.len().div_ceil(4) as u64;
-        let est_output = response.len().div_ceil(4) as u64;
+        let est_input = prompt.chars().count().div_ceil(4) as u64;
+        let est_output = response.chars().count().div_ceil(4) as u64;
         let provider_kind = crate::provider::cost::ProviderKind::parse(
-            &self.params.provider.clone().unwrap_or_default(),
+            self.params.provider.as_deref().unwrap_or(""),
         );
         let cost = provider_kind
-            .map(|pk| {
-                crate::provider::cost::calculate_cost(pk, model_name, est_input, est_output)
-            })
+            .map(|pk| crate::provider::cost::calculate_cost(pk, model_name, est_input, est_output))
             .unwrap_or(0.0);
 
         Ok(RigAgentLoopResult {
@@ -262,14 +258,12 @@ impl RigAgentLoop {
         prompt: &str,
     ) -> Result<RigAgentLoopResult, NikaError> {
         let client = openai::Client::from_env();
-        let model_name = Self::strip_model_prefix(
-            self.params
-                .model
-                .as_deref()
-                .ok_or_else(|| NikaError::ValidationError {
+        let model_name =
+            Self::strip_model_prefix(self.params.model.as_deref().ok_or_else(|| {
+                NikaError::ValidationError {
                     reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
-                })?,
-        );
+                }
+            })?);
         let model = client.completion_model(model_name);
 
         let turn_index = self.turn_count + 1;
@@ -301,7 +295,7 @@ impl RigAgentLoop {
         }
 
         if let Some(stop_params) = Self::stop_sequences_params(
-            &self.params.provider.clone().unwrap_or_default(),
+            self.params.provider.as_deref().unwrap_or(""),
             &self.params.stop_sequences,
         ) {
             builder = builder.additional_params(stop_params);
@@ -342,15 +336,13 @@ impl RigAgentLoop {
         let guardrails_passed = guardrail_result.is_passed();
 
         // Estimate tokens for cost tracking (Chat trait returns only String, no metadata)
-        let est_input = prompt.len().div_ceil(4) as u64;
-        let est_output = response.len().div_ceil(4) as u64;
+        let est_input = prompt.chars().count().div_ceil(4) as u64;
+        let est_output = response.chars().count().div_ceil(4) as u64;
         let provider_kind = crate::provider::cost::ProviderKind::parse(
-            &self.params.provider.clone().unwrap_or_default(),
+            self.params.provider.as_deref().unwrap_or(""),
         );
         let cost = provider_kind
-            .map(|pk| {
-                crate::provider::cost::calculate_cost(pk, model_name, est_input, est_output)
-            })
+            .map(|pk| crate::provider::cost::calculate_cost(pk, model_name, est_input, est_output))
             .unwrap_or(0.0);
 
         Ok(RigAgentLoopResult {
@@ -375,14 +367,12 @@ impl RigAgentLoop {
         prompt: &str,
     ) -> Result<RigAgentLoopResult, NikaError> {
         let client = rig::providers::mistral::Client::from_env();
-        let model_name = Self::strip_model_prefix(
-            self.params
-                .model
-                .as_deref()
-                .ok_or_else(|| NikaError::ValidationError {
+        let model_name =
+            Self::strip_model_prefix(self.params.model.as_deref().ok_or_else(|| {
+                NikaError::ValidationError {
                     reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
-                })?,
-        );
+                }
+            })?);
         let model = client.completion_model(model_name);
 
         let turn_index = self.turn_count + 1;
@@ -414,7 +404,7 @@ impl RigAgentLoop {
         }
 
         if let Some(stop_params) = Self::stop_sequences_params(
-            &self.params.provider.clone().unwrap_or_default(),
+            self.params.provider.as_deref().unwrap_or(""),
             &self.params.stop_sequences,
         ) {
             builder = builder.additional_params(stop_params);
@@ -455,15 +445,13 @@ impl RigAgentLoop {
         let guardrails_passed = guardrail_result.is_passed();
 
         // Estimate tokens for cost tracking (Chat trait returns only String, no metadata)
-        let est_input = prompt.len().div_ceil(4) as u64;
-        let est_output = response.len().div_ceil(4) as u64;
+        let est_input = prompt.chars().count().div_ceil(4) as u64;
+        let est_output = response.chars().count().div_ceil(4) as u64;
         let provider_kind = crate::provider::cost::ProviderKind::parse(
-            &self.params.provider.clone().unwrap_or_default(),
+            self.params.provider.as_deref().unwrap_or(""),
         );
         let cost = provider_kind
-            .map(|pk| {
-                crate::provider::cost::calculate_cost(pk, model_name, est_input, est_output)
-            })
+            .map(|pk| crate::provider::cost::calculate_cost(pk, model_name, est_input, est_output))
             .unwrap_or(0.0);
 
         Ok(RigAgentLoopResult {
@@ -485,14 +473,12 @@ impl RigAgentLoop {
     /// Use `run_groq()` for single-turn requests with full token tracking.
     async fn chat_continue_groq(&mut self, prompt: &str) -> Result<RigAgentLoopResult, NikaError> {
         let client = rig::providers::groq::Client::from_env();
-        let model_name = Self::strip_model_prefix(
-            self.params
-                .model
-                .as_deref()
-                .ok_or_else(|| NikaError::ValidationError {
+        let model_name =
+            Self::strip_model_prefix(self.params.model.as_deref().ok_or_else(|| {
+                NikaError::ValidationError {
                     reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
-                })?,
-        );
+                }
+            })?);
         let model = client.completion_model(model_name);
 
         let turn_index = self.turn_count + 1;
@@ -524,7 +510,7 @@ impl RigAgentLoop {
         }
 
         if let Some(stop_params) = Self::stop_sequences_params(
-            &self.params.provider.clone().unwrap_or_default(),
+            self.params.provider.as_deref().unwrap_or(""),
             &self.params.stop_sequences,
         ) {
             builder = builder.additional_params(stop_params);
@@ -565,15 +551,13 @@ impl RigAgentLoop {
         let guardrails_passed = guardrail_result.is_passed();
 
         // Estimate tokens for cost tracking (Chat trait returns only String, no metadata)
-        let est_input = prompt.len().div_ceil(4) as u64;
-        let est_output = response.len().div_ceil(4) as u64;
+        let est_input = prompt.chars().count().div_ceil(4) as u64;
+        let est_output = response.chars().count().div_ceil(4) as u64;
         let provider_kind = crate::provider::cost::ProviderKind::parse(
-            &self.params.provider.clone().unwrap_or_default(),
+            self.params.provider.as_deref().unwrap_or(""),
         );
         let cost = provider_kind
-            .map(|pk| {
-                crate::provider::cost::calculate_cost(pk, model_name, est_input, est_output)
-            })
+            .map(|pk| crate::provider::cost::calculate_cost(pk, model_name, est_input, est_output))
             .unwrap_or(0.0);
 
         Ok(RigAgentLoopResult {
@@ -598,14 +582,12 @@ impl RigAgentLoop {
         prompt: &str,
     ) -> Result<RigAgentLoopResult, NikaError> {
         let client = rig::providers::deepseek::Client::from_env();
-        let model_name = Self::strip_model_prefix(
-            self.params
-                .model
-                .as_deref()
-                .ok_or_else(|| NikaError::ValidationError {
+        let model_name =
+            Self::strip_model_prefix(self.params.model.as_deref().ok_or_else(|| {
+                NikaError::ValidationError {
                     reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
-                })?,
-        );
+                }
+            })?);
         let model = client.completion_model(model_name);
 
         let turn_index = self.turn_count + 1;
@@ -637,7 +619,7 @@ impl RigAgentLoop {
         }
 
         if let Some(stop_params) = Self::stop_sequences_params(
-            &self.params.provider.clone().unwrap_or_default(),
+            self.params.provider.as_deref().unwrap_or(""),
             &self.params.stop_sequences,
         ) {
             builder = builder.additional_params(stop_params);
@@ -678,15 +660,13 @@ impl RigAgentLoop {
         let guardrails_passed = guardrail_result.is_passed();
 
         // Estimate tokens for cost tracking (Chat trait returns only String, no metadata)
-        let est_input = prompt.len().div_ceil(4) as u64;
-        let est_output = response.len().div_ceil(4) as u64;
+        let est_input = prompt.chars().count().div_ceil(4) as u64;
+        let est_output = response.chars().count().div_ceil(4) as u64;
         let provider_kind = crate::provider::cost::ProviderKind::parse(
-            &self.params.provider.clone().unwrap_or_default(),
+            self.params.provider.as_deref().unwrap_or(""),
         );
         let cost = provider_kind
-            .map(|pk| {
-                crate::provider::cost::calculate_cost(pk, model_name, est_input, est_output)
-            })
+            .map(|pk| crate::provider::cost::calculate_cost(pk, model_name, est_input, est_output))
             .unwrap_or(0.0);
 
         Ok(RigAgentLoopResult {
@@ -711,14 +691,12 @@ impl RigAgentLoop {
         prompt: &str,
     ) -> Result<RigAgentLoopResult, NikaError> {
         let client = rig::providers::gemini::Client::from_env();
-        let model_name = Self::strip_model_prefix(
-            self.params
-                .model
-                .as_deref()
-                .ok_or_else(|| NikaError::ValidationError {
+        let model_name =
+            Self::strip_model_prefix(self.params.model.as_deref().ok_or_else(|| {
+                NikaError::ValidationError {
                     reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
-                })?,
-        );
+                }
+            })?);
         let model = client.completion_model(model_name);
 
         let turn_index = self.turn_count + 1;
@@ -750,7 +728,7 @@ impl RigAgentLoop {
         }
 
         if let Some(stop_params) = Self::stop_sequences_params(
-            &self.params.provider.clone().unwrap_or_default(),
+            self.params.provider.as_deref().unwrap_or(""),
             &self.params.stop_sequences,
         ) {
             builder = builder.additional_params(stop_params);
@@ -791,15 +769,13 @@ impl RigAgentLoop {
         let guardrails_passed = guardrail_result.is_passed();
 
         // Estimate tokens for cost tracking (Chat trait returns only String, no metadata)
-        let est_input = prompt.len().div_ceil(4) as u64;
-        let est_output = response.len().div_ceil(4) as u64;
+        let est_input = prompt.chars().count().div_ceil(4) as u64;
+        let est_output = response.chars().count().div_ceil(4) as u64;
         let provider_kind = crate::provider::cost::ProviderKind::parse(
-            &self.params.provider.clone().unwrap_or_default(),
+            self.params.provider.as_deref().unwrap_or(""),
         );
         let cost = provider_kind
-            .map(|pk| {
-                crate::provider::cost::calculate_cost(pk, model_name, est_input, est_output)
-            })
+            .map(|pk| crate::provider::cost::calculate_cost(pk, model_name, est_input, est_output))
             .unwrap_or(0.0);
 
         Ok(RigAgentLoopResult {
@@ -821,14 +797,12 @@ impl RigAgentLoop {
     /// Use `run_xai()` for single-turn requests with full token tracking.
     async fn chat_continue_xai(&mut self, prompt: &str) -> Result<RigAgentLoopResult, NikaError> {
         let client = rig::providers::xai::Client::from_env();
-        let model_name = Self::strip_model_prefix(
-            self.params
-                .model
-                .as_deref()
-                .ok_or_else(|| NikaError::ValidationError {
+        let model_name =
+            Self::strip_model_prefix(self.params.model.as_deref().ok_or_else(|| {
+                NikaError::ValidationError {
                     reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
-                })?,
-        );
+                }
+            })?);
         let model = client.completion_model(model_name);
 
         let turn_index = self.turn_count + 1;
@@ -860,7 +834,7 @@ impl RigAgentLoop {
         }
 
         if let Some(stop_params) = Self::stop_sequences_params(
-            &self.params.provider.clone().unwrap_or_default(),
+            self.params.provider.as_deref().unwrap_or(""),
             &self.params.stop_sequences,
         ) {
             builder = builder.additional_params(stop_params);
@@ -901,15 +875,13 @@ impl RigAgentLoop {
         let guardrails_passed = guardrail_result.is_passed();
 
         // Estimate tokens for cost tracking (Chat trait returns only String, no metadata)
-        let est_input = prompt.len().div_ceil(4) as u64;
-        let est_output = response.len().div_ceil(4) as u64;
+        let est_input = prompt.chars().count().div_ceil(4) as u64;
+        let est_output = response.chars().count().div_ceil(4) as u64;
         let provider_kind = crate::provider::cost::ProviderKind::parse(
-            &self.params.provider.clone().unwrap_or_default(),
+            self.params.provider.as_deref().unwrap_or(""),
         );
         let cost = provider_kind
-            .map(|pk| {
-                crate::provider::cost::calculate_cost(pk, model_name, est_input, est_output)
-            })
+            .map(|pk| crate::provider::cost::calculate_cost(pk, model_name, est_input, est_output))
             .unwrap_or(0.0);
 
         Ok(RigAgentLoopResult {

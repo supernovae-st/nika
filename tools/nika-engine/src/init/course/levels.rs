@@ -66,7 +66,7 @@ pub static LEVELS: &[Level] = &[
         number: 6,
         slug: "pay-per-dream",
         name: "Pay-Per-Dream",
-        description: "Structured output, JSON schemas, and output validation.",
+        description: "Multi-provider routing, native local inference, and system prompts.",
         exercise_count: 3,
         boss: false,
     },
