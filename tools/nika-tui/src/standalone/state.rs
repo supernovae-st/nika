@@ -89,6 +89,9 @@ impl StandaloneState {
             .sort_by(|a, b| a.display_name.cmp(&b.display_name));
     }
 
+    /// Maximum browser entries to prevent OOM on large directories
+    const MAX_BROWSER_ENTRIES: usize = 500;
+
     /// Scan directory using `ignore` crate for .gitignore-aware traversal.
     ///
     /// Uses WalkBuilder which provides:
@@ -109,6 +112,11 @@ impl StandaloneState {
             .build();
 
         for entry in walker.flatten() {
+            // Safety: stop scanning if we've hit the limit
+            if self.browser_entries.len() >= Self::MAX_BROWSER_ENTRIES {
+                tracing::warn!("Browser entry limit reached ({}), stopping scan", Self::MAX_BROWSER_ENTRIES);
+                break;
+            }
             let path = entry.path();
 
             // Only include .nika.yaml files

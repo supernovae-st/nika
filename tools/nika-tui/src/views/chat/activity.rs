@@ -10,12 +10,16 @@ use super::{ActivityItem, ActivityTemp, ChatView, CurrentVerb, TurnMetrics};
 // Activity tracking for /exec, /fetch, /agent commands
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/// Maximum activity items to retain (shared with task_boxes.rs)
+const MAX_ACTIVITY_ITEMS: usize = 50;
+
 impl ChatView {
     /// Add exec activity to the stack
     pub fn add_exec_activity(&mut self, command: &str) {
         let activity_id = format!("exec-{}", self.inline_content.len());
         self.activity_items
             .push(ActivityItem::hot(activity_id, "exec"));
+        Self::enforce_cap(&mut self.activity_items, MAX_ACTIVITY_ITEMS);
         tracing::debug!(command = %command, "Added exec activity");
     }
 
@@ -29,6 +33,7 @@ impl ChatView {
         let activity_id = format!("fetch-{}", self.inline_content.len());
         self.activity_items
             .push(ActivityItem::hot(activity_id, "fetch"));
+        Self::enforce_cap(&mut self.activity_items, MAX_ACTIVITY_ITEMS);
         tracing::debug!(url = %url, method = %method, "Added fetch activity");
     }
 
@@ -42,6 +47,7 @@ impl ChatView {
         let activity_id = format!("agent-{}", self.inline_content.len());
         self.activity_items
             .push(ActivityItem::hot(activity_id, "agent"));
+        Self::enforce_cap(&mut self.activity_items, MAX_ACTIVITY_ITEMS);
         tracing::debug!(goal = %goal, "Added agent activity");
     }
 
