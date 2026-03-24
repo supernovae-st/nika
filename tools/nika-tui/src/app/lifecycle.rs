@@ -12,6 +12,7 @@
 //! - `cancel_background_tasks()` - Abort all tracked background tasks
 //! - `cleanup()` - Restore terminal state
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -28,6 +29,9 @@ use super::super::session::save_session;
 use super::super::verification::VerificationEntry;
 use super::App;
 use nika_engine::provider::rig::StreamChunk;
+
+/// Global guard to prevent concurrent provider verification spawns
+static PROVIDER_VERIFICATION_RUNNING: AtomicBool = AtomicBool::new(false);
 
 impl App {
     /// Spawn a tracked background task that will be cancelled on cleanup
@@ -51,6 +55,12 @@ impl App {
     ///
     /// Uses TTL-based caching to avoid redundant API calls (30s default).
     pub(crate) fn spawn_provider_verification(&self) {
+        // Guard against concurrent spawns (e.g., rapid refresh button clicks)
+        if PROVIDER_VERIFICATION_RUNNING.swap(true, Ordering::SeqCst) {
+            tracing::debug!("Provider verification already in progress, skipping");
+            return;
+        }
+
         let tx = self.stream_chunk_tx.clone();
         let provider_ids = [
             ("claude", "claude-sonnet-4-6"),
@@ -279,6 +289,12 @@ impl App {
                 }
             });
         }
+
+        // Release the guard after all tasks had time to complete (12s > 10s timeout)
+        self.spawn_tracked(async {
+            tokio::time::sleep(Duration::from_secs(12)).await;
+            PROVIDER_VERIFICATION_RUNNING.store(false, Ordering::SeqCst);
+        });
     }
 
     /// Spawn provider verification timeout watcher
