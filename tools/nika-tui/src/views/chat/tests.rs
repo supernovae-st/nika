@@ -2540,3 +2540,101 @@ fn test_chat_view_workflow_mention_creates_edge() {
     // Note: depends on how mentions are resolved
     assert!(view.dag_edges.len() >= 3);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Phase 9: New feature tests — last_nika_message_content
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_last_nika_message_content_returns_none_for_empty() {
+    let view = ChatView::new();
+    // Only welcome (System) message exists
+    assert!(view.last_nika_message_content().is_none());
+}
+
+#[test]
+fn test_last_nika_message_content_returns_latest() {
+    let mut view = ChatView::new();
+    view.add_nika_message("First response".to_string(), None);
+    view.add_user_message("Follow up".to_string());
+    view.add_nika_message("Second response".to_string(), None);
+
+    let content = view.last_nika_message_content();
+    assert_eq!(content, Some("Second response".to_string()));
+}
+
+#[test]
+fn test_last_nika_message_content_skips_user_messages() {
+    let mut view = ChatView::new();
+    view.add_nika_message("Only nika msg".to_string(), None);
+    view.add_user_message("User msg after".to_string());
+
+    let content = view.last_nika_message_content();
+    assert_eq!(content, Some("Only nika msg".to_string()));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Phase 9: Tab completion for non-verb commands
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_tab_completion_help_command() {
+    let mut view = ChatView::new();
+    view.input = Input::new("/he".to_string());
+    view.input.handle(InputRequest::GoToEnd);
+
+    let result = view.try_verb_autocomplete();
+    assert_eq!(result, Some("/help ".to_string()));
+}
+
+#[test]
+fn test_tab_completion_model_command() {
+    let mut view = ChatView::new();
+    view.input = Input::new("/mo".to_string());
+    view.input.handle(InputRequest::GoToEnd);
+
+    let result = view.try_verb_autocomplete();
+    assert_eq!(result, Some("/model ".to_string()));
+}
+
+#[test]
+fn test_tab_completion_clear_command() {
+    let mut view = ChatView::new();
+    view.input = Input::new("/cl".to_string());
+    view.input.handle(InputRequest::GoToEnd);
+
+    let result = view.try_verb_autocomplete();
+    assert_eq!(result, Some("/clear ".to_string()));
+}
+
+#[test]
+fn test_tab_completion_no_match() {
+    let mut view = ChatView::new();
+    view.input = Input::new("/zz".to_string());
+    view.input.handle(InputRequest::GoToEnd);
+
+    let result = view.try_verb_autocomplete();
+    assert!(result.is_none());
+}
+
+#[test]
+fn test_tab_completion_already_complete_non_verb() {
+    let mut view = ChatView::new();
+    view.input = Input::new("/help".to_string());
+    view.input.handle(InputRequest::GoToEnd);
+
+    // Already complete — no verb detection, no non-verb completion (exact match)
+    let result = view.try_verb_autocomplete();
+    assert!(result.is_none());
+}
+
+#[test]
+fn test_tab_completion_single_char_too_short() {
+    let mut view = ChatView::new();
+    view.input = Input::new("/h".to_string());
+    view.input.handle(InputRequest::GoToEnd);
+
+    // Single char after / is too short for autocomplete (needs 2+)
+    let result = view.try_verb_autocomplete();
+    assert!(result.is_none());
+}
