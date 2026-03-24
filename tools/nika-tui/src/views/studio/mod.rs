@@ -148,7 +148,7 @@ impl StudioView {
         }
     }
 
-    /// Scan for .nika.yaml files in the root directory (max 5, top-level first)
+    /// Scan for .nika.yaml files (max 5 total: root-level first, then workflows/)
     fn scan_nika_files(root: &PathBuf) -> Vec<PathBuf> {
         let mut files = Vec::new();
 

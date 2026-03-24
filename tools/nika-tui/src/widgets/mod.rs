@@ -111,7 +111,7 @@ pub use terminal_size::{
 pub use help_overlay::{HelpOverlay, HelpOverlayState, HelpSection, HELP_SECTIONS};
 // Status messages
 pub use status_message::{StatusLevel, StatusMessage, StatusMessageWidget, StatusQueue};
-// Matrix Decrypt effect (StreamingDecrypt active, MatrixDecrypt + MultiLineDecrypt staged)
+// Matrix Decrypt effect (StreamingDecrypt wraps MatrixDecrypt for stateful rendering)
 pub use matrix_decrypt::{DecryptVerb, StreamingDecrypt};
 // Task Box widgets
 pub use task_box::{
