@@ -225,7 +225,7 @@ impl ChatView {
 
         let session = ExportedSession {
             exported_at: Local::now().to_rfc3339(),
-            model: self.current_model.clone(),
+            model: self.provider.model.clone(),
             message_count: messages.len(),
             messages,
         };

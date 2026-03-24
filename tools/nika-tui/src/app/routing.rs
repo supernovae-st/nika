@@ -313,7 +313,7 @@ impl App {
                 };
                 self.command_view.chat.set_model(default_model);
                 self.command_view.chat.set_provider(provider.name());
-                self.command_view.chat.current_provider_id = provider_id;
+                self.command_view.chat.provider.id = provider_id;
 
                 // Recreate ChatAgent with new provider
                 self.chat_agent = match ChatAgent::new() {

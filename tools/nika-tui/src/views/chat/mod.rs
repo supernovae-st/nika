@@ -95,7 +95,6 @@ use crate::widgets::{
     MissionControlPanel,
     ParsedInput,
     ProStatusBar,
-    Provider,
     ProviderModal,
     ProviderModalState,
     SessionContext,
@@ -156,10 +155,8 @@ pub struct ChatView {
     pub is_streaming: bool,
     /// Partial response accumulated during streaming
     pub partial_response: String,
-    /// Current model name for display
-    pub current_model: String,
-    /// PERF: Cached provider detection (updated when model changes, not every frame)
-    pub cached_provider: Provider,
+    /// Active LLM provider (consolidated: id, name, model, kind)
+    pub provider: ActiveProvider,
 
     // === Chat UX Enrichment (v2) ===
     /// Session context with tokens, cost, MCP status
@@ -181,11 +178,6 @@ pub struct ChatView {
     pub chat_mode: ChatMode,
     /// Whether deep thinking (extended_thinking) is enabled
     pub deep_thinking: bool,
-    /// Current provider name for display
-    pub provider_name: String,
-    /// Current provider ID for inference
-    /// This is the actual provider ID (claude, openai, mistral, etc.)
-    pub current_provider_id: String,
 
     // === Thinking Accumulation ===
     /// Accumulated thinking content during streaming
@@ -417,8 +409,7 @@ impl ChatView {
             history_index: None,
             is_streaming: false,
             partial_response: String::new(),
-            current_model: initial_model.clone(),
-            cached_provider: Provider::from_model_name(&initial_model),
+            provider: ActiveProvider::new(&provider_id, &provider_name, &initial_model),
 
             // Chat UX Enrichment (v2)
             session_context,
@@ -439,8 +430,6 @@ impl ChatView {
             // Chat Mode Indicators (v2.1)
             chat_mode: ChatMode::default(),
             deep_thinking: false,
-            provider_name,
-            current_provider_id: provider_id,
 
             // Thinking Accumulation
             pending_thinking: None,
@@ -656,7 +645,7 @@ impl View for ChatView {
         self.ensure_input_cursor_visible(cursor_line, total_lines);
 
         // Show warning bar when no API key is configured
-        let no_provider = self.current_provider_id == "none";
+        let no_provider = self.provider.is_none();
         let warning_height: u16 = if no_provider { 1 } else { 0 };
 
         // Layout v4: ProStatusBar (2 lines) | [Warning] | Messages + Mission Control | Input (dynamic) + Hints
@@ -677,7 +666,7 @@ impl View for ChatView {
             ChatMode::Agent => ChatModeIndicator::Agent,
         };
 
-        ProStatusBar::new(&self.current_model, &self.session_metrics)
+        ProStatusBar::new(&self.provider.model, &self.session_metrics)
             .mode(chat_mode_indicator)
             .thinking(self.deep_thinking)
             .streaming(self.is_streaming)
@@ -888,8 +877,8 @@ impl View for ChatView {
         format!(
             "{} msgs | {} | {}{}",
             self.messages.len(),
-            self.provider_name,
-            self.current_model,
+            self.provider.name,
+            self.provider.model,
             streaming_status
         )
     }

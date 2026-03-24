@@ -12,7 +12,7 @@ use crate::views::chat::layout::{compute_panel_areas, point_in_rect};
 impl ChatView {
     /// Determine which panel is at the given screen position
     pub fn panel_at_position(&self, x: u16, y: u16, area: Rect) -> Option<ChatPanel> {
-        let warning_height: u16 = if self.current_provider_id == "none" {
+        let warning_height: u16 = if self.provider.is_none() {
             1
         } else {
             0

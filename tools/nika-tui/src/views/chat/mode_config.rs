@@ -28,9 +28,9 @@ impl ChatView {
         self.chat_mode = mode;
     }
 
-    /// Set provider name for display
+    /// Set provider display name
     pub fn set_provider(&mut self, name: impl Into<String>) {
-        self.provider_name = name.into();
+        self.provider.name = name.into();
     }
 }
 
@@ -68,7 +68,7 @@ impl ChatView {
             history_index: self.history_index,
             is_streaming: self.is_streaming,
             partial_response: self.partial_response.clone(),
-            current_model: self.current_model.clone(),
+            current_model: self.provider.model.clone(),
             edit_history: Default::default(), // Session doesn't persist edit history
         }
     }
@@ -159,6 +159,6 @@ mod tests {
     fn test_set_provider() {
         let mut view = ChatView::new();
         view.set_provider("OpenAI GPT-4");
-        assert_eq!(view.provider_name, "OpenAI GPT-4");
+        assert_eq!(view.provider.name, "OpenAI GPT-4");
     }
 }

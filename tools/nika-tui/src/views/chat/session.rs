@@ -7,7 +7,8 @@ use std::time::Instant;
 
 use chrono::Local;
 
-use super::{ChatMessage, ChatSession, ChatView, McpServerInfo, Provider};
+use super::{ChatMessage, ChatSession, ChatView, McpServerInfo};
+use crate::widgets::Provider;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Session Persistence (HIGH 8)
@@ -16,7 +17,7 @@ use super::{ChatMessage, ChatSession, ChatView, McpServerInfo, Provider};
 impl ChatView {
     /// Save current session to file
     pub fn save_session(&self, path: impl AsRef<Path>) -> std::io::Result<()> {
-        let session = ChatSession::from_messages(&self.messages, &self.current_model);
+        let session = ChatSession::from_messages(&self.messages, &self.provider.model);
         session.save(path)
     }
 
@@ -44,8 +45,7 @@ impl ChatView {
 
         // Update model if specified in session
         if !session.model.is_empty() {
-            self.current_model = session.model.clone();
-            self.cached_provider = Provider::from_model_name(&session.model);
+            self.provider.set_model(&session.model);
         }
 
         Ok(())
@@ -67,14 +67,12 @@ impl ChatView {
 impl ChatView {
     /// Set the current model name
     pub fn set_model(&mut self, model: impl Into<String>) {
-        let model_str = model.into();
-        self.cached_provider = Provider::from_model_name(&model_str);
-        self.current_model = model_str;
+        self.provider.set_model(model);
     }
 
     /// Get the cached provider (PERF: computed once when model changes, not every frame)
     pub fn provider(&self) -> Provider {
-        self.cached_provider
+        self.provider.kind
     }
 }
 

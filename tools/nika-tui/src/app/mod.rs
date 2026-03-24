@@ -583,7 +583,7 @@ impl App {
             let model = config.chat.default_model.as_deref().unwrap_or(model);
             command_view.chat.set_model(model);
             command_view.chat.set_provider(display_name);
-            command_view.chat.current_provider_id = provider_id.clone();
+            command_view.chat.provider.id = provider_id.clone();
         } else if let Some(ref model) = config.chat.default_model {
             command_view.chat.set_model(model.as_str());
         }

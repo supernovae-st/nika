@@ -58,7 +58,7 @@ impl ChatView {
         // Provider indicator
         spans.push(Span::raw(" "));
         spans.push(Span::styled(
-            &self.provider_name,
+            &self.provider.name,
             Style::default().fg(theme.text_secondary),
         ));
 

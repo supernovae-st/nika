@@ -272,7 +272,7 @@ fn test_chat_view_streaming() {
 fn test_chat_view_set_model() {
     let mut view = ChatView::new();
     view.set_model("gpt-4o-mini");
-    assert_eq!(view.current_model, "gpt-4o-mini");
+    assert_eq!(view.provider.model, "gpt-4o-mini");
 }
 
 #[test]
@@ -831,7 +831,7 @@ fn test_chat_session_from_messages() {
     view.add_nika_message("Hi there!".to_string(), None);
     view.set_model("claude-sonnet");
 
-    let session = ChatSession::from_messages(&view.messages, &view.current_model);
+    let session = ChatSession::from_messages(&view.messages, &view.provider.model);
 
     assert_eq!(session.version, "0.5.2");
     assert_eq!(session.model, "claude-sonnet");
@@ -869,7 +869,7 @@ fn test_chat_session_round_trip() {
     assert_eq!(view2.messages[1].role, MessageRole::User);
     assert_eq!(view2.messages[2].content, "Response");
     assert_eq!(view2.messages[2].role, MessageRole::Nika);
-    assert_eq!(view2.current_model, "gpt-4");
+    assert_eq!(view2.provider.model, "gpt-4");
 }
 
 #[test]
@@ -1368,15 +1368,15 @@ fn test_selection_initialization() {
 fn test_chat_view_has_current_provider_id() {
     let view = ChatView::new();
     // Provider ID should be set based on available API keys
-    assert!(!view.current_provider_id.is_empty());
+    assert!(!view.provider.id.is_empty());
     // Should be one of the known providers, or "none" if no API keys available
     let valid_providers = [
         "claude", "openai", "mistral", "groq", "deepseek", "gemini", "xai", "none",
     ];
     assert!(
-        valid_providers.contains(&view.current_provider_id.as_str()),
+        valid_providers.contains(&view.provider.id.as_str()),
         "Provider ID '{}' should be a valid provider or 'none'",
-        view.current_provider_id
+        view.provider.id
     );
 }
 
@@ -1384,16 +1384,16 @@ fn test_chat_view_has_current_provider_id() {
 fn test_provider_id_matches_model() {
     let view = ChatView::new();
     // Provider ID should match the model's provider
-    match view.current_provider_id.as_str() {
-        "claude" => assert!(view.current_model.starts_with("claude")),
-        "openai" => assert!(view.current_model.starts_with("gpt")),
-        "mistral" => assert!(view.current_model.starts_with("mistral")),
+    match view.provider.id.as_str() {
+        "claude" => assert!(view.provider.model.starts_with("claude")),
+        "openai" => assert!(view.provider.model.starts_with("gpt")),
+        "mistral" => assert!(view.provider.model.starts_with("mistral")),
         "groq" => {
-            assert!(view.current_model.contains("llama") || view.current_model.contains("mixtral"))
+            assert!(view.provider.model.contains("llama") || view.provider.model.contains("mixtral"))
         }
-        "deepseek" => assert!(view.current_model.starts_with("deepseek")),
-        "none" => assert!(view.current_model == "No API Key"), // CI without keys
-        _ => panic!("Unknown provider: {}", view.current_provider_id),
+        "deepseek" => assert!(view.provider.model.starts_with("deepseek")),
+        "none" => assert!(view.provider.model == "No API Key"), // CI without keys
+        _ => panic!("Unknown provider: {}", view.provider.id),
     }
 }
 

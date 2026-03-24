@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use std::path::Path;
 
-use crate::widgets::{InferStreamData, McpCallData, TaskBox};
+use crate::widgets::{InferStreamData, McpCallData, Provider, TaskBox};
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Message Types
@@ -127,6 +127,52 @@ pub enum InlineContent {
     InferStream(InferStreamData),
     /// Task box for any verb
     Task(TaskBox),
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Active Provider (consolidated provider state)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Consolidated provider state — replaces 4 separate fields
+///
+/// Before: current_model, cached_provider, provider_name, current_provider_id
+/// After: single struct, always in sync
+#[derive(Debug, Clone)]
+pub struct ActiveProvider {
+    /// Provider ID for inference ("claude", "openai", "mistral", etc.)
+    pub id: String,
+    /// Display name ("Anthropic Claude", "OpenAI", etc.)
+    pub name: String,
+    /// Model name for inference ("claude-sonnet-4-6", "gpt-4o", etc.)
+    pub model: String,
+    /// Cached Provider enum (derived from model name)
+    pub kind: Provider,
+}
+
+impl ActiveProvider {
+    /// Create from provider ID, name, and model
+    pub fn new(id: impl Into<String>, name: impl Into<String>, model: impl Into<String>) -> Self {
+        let model = model.into();
+        let kind = Provider::from_model_name(&model);
+        Self {
+            id: id.into(),
+            name: name.into(),
+            model,
+            kind,
+        }
+    }
+
+    /// Update model (also refreshes cached kind)
+    pub fn set_model(&mut self, model: impl Into<String>) {
+        let model = model.into();
+        self.kind = Provider::from_model_name(&model);
+        self.model = model;
+    }
+
+    /// Check if no provider is configured
+    pub fn is_none(&self) -> bool {
+        self.id == "none"
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
