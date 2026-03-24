@@ -100,7 +100,7 @@ parking_lot = { workspace = true }
 smallvec = { workspace = true }
 rustc-hash = { workspace = true }
 uuid = { workspace = true }
-dirs = "5.0"
+dirs = { workspace = true }
 xxhash-rust = { workspace = true }
 chrono = { workspace = true }
 humantime = { workspace = true }

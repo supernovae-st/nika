@@ -79,26 +79,13 @@ colored = { workspace = true }
 dotenvy = "0.15"
 rand = { workspace = true }
 regex = { workspace = true }
-parking_lot = { workspace = true }
-reqwest = { workspace = true }
 
 # Logging (setup in main.rs)
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 
-# Utilities (used by CLI)
-rustc-hash = { workspace = true }
-camino = { workspace = true }
-ignore = { workspace = true }
-xxhash-rust = { workspace = true }
-humantime = { workspace = true }
-infer = "0.19"
-unicode-width = "0.2"
-terminal_size = "0.4"
-
 # LSP Server (feature-gated)
 tower-lsp-server = { version = "0.23", optional = true }
-nika-lsp-core = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
@@ -115,6 +102,8 @@ rig-core = { workspace = true }
 futures = { version = "0.3.32", default-features = false, features = ["alloc"] }
 ratatui = "0.30"
 crossterm = { version = "0.29", features = ["event-stream"] }
+parking_lot = { workspace = true }
+rustc-hash = { workspace = true }
 
 # ═══════════════════════════════════════════════════════════════════════════
 # BENCHMARKS

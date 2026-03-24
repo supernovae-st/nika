@@ -53,7 +53,7 @@ regex = { workspace = true }
 humantime = { workspace = true }
 infer = "0.19"
 which = "7"
-dirs = "6"
+dirs = { workspace = true }
 xxhash-rust = { workspace = true }
 
 # Interactive wizard

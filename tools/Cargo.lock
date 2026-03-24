@@ -2151,32 +2151,11 @@ dependencies = [
 
 [[package]]
 name = "dirs"
-version = "5.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "44c45a9d03d6676652bcb5e724c7e988de1acad23a711b5217ab9cbecbec2225"
-dependencies = [
- "dirs-sys 0.4.1",
-]
-
-[[package]]
-name = "dirs"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3e8aa94d75141228480295a7d0e7feb620b1a5ad9f12bc40be62411e38cce4e"
 dependencies = [
- "dirs-sys 0.5.0",
-]
-
-[[package]]
-name = "dirs-sys"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "520f05a5cbd335fae5a99ff7a6ab8627577660ee5cfd6a94a6a929b52ff0321c"
-dependencies = [
- "libc",
- "option-ext",
- "redox_users 0.4.6",
- "windows-sys 0.48.0",
+ "dirs-sys",
 ]
 
 [[package]]
@@ -2187,7 +2166,7 @@ checksum = "e01a3366d27ee9890022452ee61b2b63a67e6f13f58900b651ff5665f0bb1fab"
 dependencies = [
  "libc",
  "option-ext",
- "redox_users 0.5.2",
+ "redox_users",
  "windows-sys 0.61.2",
 ]
 
@@ -3525,7 +3504,7 @@ version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "629d8f3bbeda9d148036d6b0de0a3ab947abd08ce90626327fc3547a49d59d97"
 dependencies = [
- "dirs 6.0.0",
+ "dirs",
  "futures",
  "http",
  "indicatif 0.17.11",
@@ -5049,7 +5028,7 @@ dependencies = [
  "csv",
  "derive-new",
  "derive_more 2.1.1",
- "dirs 6.0.0",
+ "dirs",
  "either",
  "float8",
  "futures",
@@ -5303,7 +5282,6 @@ dependencies = [
 name = "nika"
 version = "0.41.1"
 dependencies = [
- "camino",
  "clap",
  "clap_complete",
  "colored",
@@ -5312,15 +5290,11 @@ dependencies = [
  "dashmap",
  "dotenvy",
  "futures",
- "humantime",
- "ignore",
  "image",
- "infer",
  "insta",
  "miette",
  "nika-cli",
  "nika-engine",
- "nika-lsp-core",
  "nika-tui",
  "parking_lot",
  "pretty_assertions",
@@ -5329,22 +5303,18 @@ dependencies = [
  "rand 0.8.5",
  "ratatui",
  "regex",
- "reqwest 0.12.28",
  "rig-core",
  "rustc-hash 2.1.1",
  "serde",
  "serde_json",
  "serial_test",
  "tempfile",
- "terminal_size",
  "thiserror 1.0.69",
  "tokio",
  "tower-lsp-server",
  "tracing",
  "tracing-subscriber",
- "unicode-width 0.2.2",
  "wiremock",
- "xxhash-rust",
 ]
 
 [[package]]
@@ -5356,7 +5326,7 @@ dependencies = [
  "cliclack",
  "colored",
  "console 0.16.3",
- "dirs 6.0.0",
+ "dirs",
  "humantime",
  "image",
  "infer",
@@ -5411,7 +5381,7 @@ dependencies = [
  "colored",
  "criterion",
  "dashmap",
- "dirs 5.0.1",
+ "dirs",
  "dom_smoothie",
  "dssim-core",
  "fast_image_resize",
@@ -5558,7 +5528,7 @@ version = "0.41.1"
 dependencies = [
  "backon",
  "dashmap",
- "dirs 5.0.1",
+ "dirs",
  "jsonschema",
  "nika-event",
  "parking_lot",
@@ -5614,7 +5584,7 @@ dependencies = [
  "chrono",
  "colored",
  "crossterm 0.29.0",
- "dirs 5.0.1",
+ "dirs",
  "git2",
  "ignore",
  "infer",
@@ -7445,17 +7415,6 @@ dependencies = [
 
 [[package]]
 name = "redox_users"
-version = "0.4.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba009ff324d1fc1b900bd1fdb31564febe58a8ccc8a6fdbb93b543d33b13ca43"
-dependencies = [
- "getrandom 0.2.17",
- "libredox",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "redox_users"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a4e608c6638b9c18977b00b475ac1f28d14e84b27d8d42f70e0bf1e3dec127ac"
@@ -8673,7 +8632,7 @@ version = "3.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32824fab5e16e6c4d86dc1ba84489390419a39f97699852b66480bb87d297ed8"
 dependencies = [
- "dirs 6.0.0",
+ "dirs",
 ]
 
 [[package]]
@@ -8906,7 +8865,7 @@ version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "89352bb0668603169f74b14d5b3dd598b78efa56da84794fa9d75ccb18b0aed6"
 dependencies = [
- "dirs 6.0.0",
+ "dirs",
  "secrecy",
  "serde",
  "serde_json",

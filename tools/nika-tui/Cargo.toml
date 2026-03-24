@@ -80,7 +80,7 @@ camino = { workspace = true }
 ignore = { workspace = true }
 xxhash-rust = { workspace = true }
 uuid = { workspace = true }
-dirs = "5.0"
+dirs = { workspace = true }
 rand = { workspace = true }
 reqwest = { workspace = true }
 infer = "0.19"
