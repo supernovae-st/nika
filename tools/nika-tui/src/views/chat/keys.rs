@@ -294,11 +294,18 @@ impl ChatView {
         ViewAction::None
     }
 
+    /// All known slash commands for tab completion
+    const ALL_COMMANDS: &'static [&'static str] = &[
+        "infer", "exec", "fetch", "invoke", "agent",
+        "help", "model", "mcp", "clear", "export", "run",
+    ];
+
     /// Try to autocomplete verb command with Tab
     /// Returns Some(new_input) if autocomplete happened, None otherwise
     pub(super) fn try_verb_autocomplete(&self) -> Option<String> {
         let input = self.input.value();
 
+        // First try verb-specific autocomplete (with gradient + placeholder)
         if let Some((_verb_len, verb_color, is_complete, full_verb)) = detect_verb_in_input(input) {
             if !is_complete {
                 // Partial match → complete the verb name
@@ -317,6 +324,17 @@ impl ChatView {
                 }
             }
         }
+
+        // Fall through: try non-verb command completion (help, model, mcp, etc.)
+        if input.starts_with('/') && !input.contains(' ') {
+            let partial = &input[1..].to_lowercase();
+            if partial.len() >= 2 {
+                if let Some(cmd) = Self::ALL_COMMANDS.iter().find(|c| c.starts_with(partial) && *c != partial) {
+                    return Some(format!("/{} ", cmd));
+                }
+            }
+        }
+
         None
     }
 
