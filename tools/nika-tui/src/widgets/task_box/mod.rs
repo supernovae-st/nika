@@ -37,6 +37,7 @@ mod exec;
 mod fetch;
 mod infer;
 mod invoke;
+mod invoke_render;
 
 // Re-exports
 pub use colors::{exit, http, status, VerbColor};
