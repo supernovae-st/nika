@@ -73,8 +73,8 @@ MCP SERVER MANAGEMENT:
     nika mcp tools workflow.yaml s List available tools
 
 CONTENT & TEMPLATES:
-    nika new                      Create workflow from template or wizard
-    nika new --list               List available templates
+    nika new <name>               Create a new workflow file
+    nika new <name> --verb exec   Create with specific verb
     nika showcase list            Browse 115 showcase workflows
     nika showcase extract <name>  Extract showcase to current dir
 
