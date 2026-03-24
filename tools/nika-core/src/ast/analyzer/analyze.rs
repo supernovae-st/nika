@@ -785,7 +785,11 @@ fn analyze_task(
 
     // Warn if for_each and decompose are both present
     if raw.for_each.is_some() && raw.decompose.is_some() {
-        let span = raw.decompose.as_ref().map(|d| d.span).unwrap_or(raw.id.span);
+        let span = raw
+            .decompose
+            .as_ref()
+            .map(|d| d.span)
+            .unwrap_or(raw.id.span);
         ctx.add_warning(AnalyzeError::new(
             AnalyzeErrorKind::InvalidValue,
             span,

@@ -810,9 +810,8 @@ fn parse_fetch_action(file: FileId, node: &Node) -> Result<RawFetchAction, Parse
         json: parse_json_value(file, m, "json")?,
         timeout_ms: match get_u64_field(file, m, "timeout_ms")? {
             Some(v) => Some(v),
-            None => {
-                get_u64_field(file, m, "timeout")?.map(|s| Spanned::new(s.value.saturating_mul(1000), s.span))
-            }
+            None => get_u64_field(file, m, "timeout")?
+                .map(|s| Spanned::new(s.value.saturating_mul(1000), s.span)),
         },
         follow_redirects: get_bool_field(file, m, "follow_redirects")?,
         response: get_string_field(file, m, "response")?,
@@ -854,9 +853,8 @@ fn parse_invoke_action(file: FileId, node: &Node) -> Result<RawInvokeAction, Par
         mcp: get_string_field(file, m, "mcp")?.or(get_string_field(file, m, "server")?),
         timeout_ms: match get_u64_field(file, m, "timeout_ms")? {
             Some(v) => Some(v),
-            None => {
-                get_u64_field(file, m, "timeout")?.map(|s| Spanned::new(s.value.saturating_mul(1000), s.span))
-            }
+            None => get_u64_field(file, m, "timeout")?
+                .map(|s| Spanned::new(s.value.saturating_mul(1000), s.span)),
         },
     })
 }
