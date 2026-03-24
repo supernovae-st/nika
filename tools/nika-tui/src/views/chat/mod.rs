@@ -148,8 +148,6 @@ pub struct ChatView {
     pub input: Input,
     /// System clipboard for Ctrl+C/V (optional - may fail on headless)
     clipboard: Option<Clipboard>,
-    /// Scroll offset in message list
-    pub scroll: usize,
     /// Command history (for up/down navigation)
     pub history: Vec<String>,
     /// History navigation index
@@ -415,7 +413,6 @@ impl ChatView {
             }],
             input: Input::default(),
             clipboard: Clipboard::new().ok(), // Graceful fallback if clipboard unavailable
-            scroll: 0,
             history: vec![],
             history_index: None,
             is_streaming: false,

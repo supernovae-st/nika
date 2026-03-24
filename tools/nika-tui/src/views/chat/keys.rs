@@ -747,7 +747,7 @@ impl ChatView {
             }
             // Home/End
             KeyCode::Home => {
-                self.scroll = 0;
+                self.scroll_to_top();
                 Some(ViewAction::None)
             }
             KeyCode::End => {

@@ -63,7 +63,7 @@ impl ChatView {
             messages,
             input: self.input.value().to_string(),
             cursor: self.input.cursor(),
-            scroll: self.scroll,
+            scroll: self.conversation_scroll.offset,
             history: self.history.clone(),
             history_index: self.history_index,
             is_streaming: self.is_streaming,
