@@ -456,7 +456,9 @@ impl App {
             // 2. Determine if we need fast rendering
             let is_streaming = self.command_view.chat.is_streaming;
             let has_inline_content = !self.command_view.chat.inline_content.is_empty();
-            let needs_fast_render = is_streaming || has_inline_content || had_recent_input;
+            let is_workflow_active = self.state.is_running();
+            let needs_fast_render =
+                is_streaming || has_inline_content || had_recent_input || is_workflow_active;
             had_recent_input = false; // Consume the flag
 
             // 3. Update elapsed time and animations
@@ -474,8 +476,13 @@ impl App {
                 self.command_view.chat.tick();
             }
 
-            // 4. Render frame
-            self.render_unified_frame()?;
+            // 4. PERF: Skip render when nothing changed (DirtyFlags guard).
+            // Still render periodically for star animations (~10fps via frame % 6).
+            let needs_render =
+                self.state.dirty.any() || needs_fast_render || self.state.frame % 6 == 0;
+            if needs_render {
+                self.render_unified_frame()?;
+            }
 
             // 5. Poll input events (adaptive tick rate)
             let tick_rate = if needs_fast_render {

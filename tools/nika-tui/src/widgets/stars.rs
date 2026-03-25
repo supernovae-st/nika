@@ -101,14 +101,13 @@ pub fn render_star_field(frame: &mut Frame, area: Rect, tick: u16) {
 
 /// Get a stable tick value for star animations.
 ///
-/// Derives from system time so stars twinkle consistently regardless of
+/// Derives from monotonic clock so stars twinkle consistently regardless of
 /// frame rate. Increments every 100ms (~10fps star animation).
+/// Uses `Instant` instead of `SystemTime` to avoid syscall overhead.
 pub fn star_tick() -> u16 {
-    let millis = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis();
-    (millis / 100) as u16
+    static START: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+    let start = START.get_or_init(std::time::Instant::now);
+    (start.elapsed().as_millis() / 100) as u16
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -182,9 +181,11 @@ mod tests {
     }
 
     #[test]
-    fn star_tick_increments() {
+    fn star_tick_returns_u16() {
+        // star_tick uses monotonic Instant, first call may be 0
         let t1 = star_tick();
-        // star_tick is time-based, just verify it returns something reasonable
-        assert!(t1 > 0, "star_tick should be positive");
+        let t2 = star_tick();
+        // Both should be valid u16 values (no panic)
+        assert!(t2 >= t1, "star_tick should be monotonic");
     }
 }
