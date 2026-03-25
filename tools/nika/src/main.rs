@@ -209,6 +209,14 @@ enum Commands {
         #[arg(short, long)]
         model: Option<String>,
 
+        /// Override workflow input: -i key=value (repeatable)
+        #[arg(short = 'i', long = "input", value_name = "KEY=VALUE")]
+        inputs: Vec<String>,
+
+        /// Load inputs from JSON/YAML file (or "-" for stdin)
+        #[arg(long, value_name = "FILE")]
+        input_file: Option<String>,
+
         /// Permission mode for file tools: deny, plan, accept-edits, yolo
         #[arg(long, default_value = "accept-edits")]
         permission: String,
@@ -642,6 +650,8 @@ async fn main() {
                 &file.display().to_string(),
                 None,
                 None,
+                &[],
+                None,
                 cli.quiet,
                 cli.detail,
                 "accept-edits",
@@ -736,8 +746,22 @@ async fn main() {
             file,
             provider,
             model,
+            inputs,
+            input_file,
             permission,
-        }) => run_workflow(&file, provider, model, quiet, detail, &permission).await,
+        }) => {
+            run_workflow(
+                &file,
+                provider,
+                model,
+                &inputs,
+                input_file.as_deref(),
+                quiet,
+                detail,
+                &permission,
+            )
+            .await
+        }
 
         Some(Commands::Check { file, strict }) => {
             if strict {
@@ -1102,6 +1126,8 @@ tasks:
         &tmp.display().to_string(),
         None,
         None,
+        &[],
+        None,
         quiet,
         detail,
         "deny",
@@ -1127,10 +1153,13 @@ tasks:
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_workflow(
     file: &str,
     provider_override: Option<String>,
     model_override: Option<String>,
+    cli_inputs: &[String],
+    input_file: Option<&str>,
     quiet: bool,
     detail: nika::display::DetailLevel,
     permission: &str,
@@ -1158,6 +1187,20 @@ async fn run_workflow(
     }
     if let Some(m) = model_override {
         workflow.model = Some(m);
+    }
+
+    // Merge CLI input overrides (YAML defaults < file < CLI flags)
+    if let Some(input_file_path) = input_file {
+        let file_inputs = load_input_file(input_file_path).await?;
+        for (k, v) in file_inputs {
+            workflow.inputs.insert(k, v);
+        }
+    }
+    if !cli_inputs.is_empty() {
+        let parsed = parse_cli_inputs(cli_inputs)?;
+        for (k, v) in parsed {
+            workflow.inputs.insert(k, v);
+        }
     }
 
     if !quiet && !detail.is_json() {
@@ -2040,4 +2083,216 @@ async fn validate_workflow_strict(file: &str) -> Result<(), NikaError> {
     }
 
     Ok(())
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CLI INPUT OVERRIDES
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Smart type coercion for CLI input values.
+///
+/// Rules (in order):
+/// 1. `"true"` / `"false"` → Bool
+/// 2. `"null"` → Null
+/// 3. Parseable as i64 → integer
+/// 4. Parseable as f64 → float
+/// 5. Starts with `{` or `[` → try JSON, fallback string
+/// 6. Everything else → String
+fn parse_input_value(s: &str) -> serde_json::Value {
+    use serde_json::Value;
+    match s {
+        "true" => Value::Bool(true),
+        "false" => Value::Bool(false),
+        "null" => Value::Null,
+        _ => {
+            if let Ok(n) = s.parse::<i64>() {
+                return serde_json::json!(n);
+            }
+            if let Ok(n) = s.parse::<f64>() {
+                return serde_json::json!(n);
+            }
+            if s.starts_with('{') || s.starts_with('[') {
+                if let Ok(v) = serde_json::from_str::<Value>(s) {
+                    return v;
+                }
+            }
+            Value::String(s.to_string())
+        }
+    }
+}
+
+/// Parse `-i key=value` CLI flags into an ordered map.
+fn parse_cli_inputs(raw: &[String]) -> Result<Vec<(String, serde_json::Value)>, NikaError> {
+    let mut result = Vec::new();
+    for item in raw {
+        let (key, value) = item
+            .split_once('=')
+            .ok_or_else(|| NikaError::ValidationError {
+                reason: format!("Invalid input format '{}', expected KEY=VALUE", item),
+            })?;
+        result.push((key.to_string(), parse_input_value(value)));
+    }
+    Ok(result)
+}
+
+/// Load inputs from a JSON/YAML file (or stdin with "-").
+async fn load_input_file(path: &str) -> Result<Vec<(String, serde_json::Value)>, NikaError> {
+    let content = if path == "-" {
+        use std::io::Read;
+        let mut buf = String::new();
+        std::io::stdin()
+            .read_to_string(&mut buf)
+            .map_err(|_| NikaError::ParseError {
+                details: "Failed to read from stdin".to_string(),
+            })?;
+        buf
+    } else {
+        tokio::fs::read_to_string(path)
+            .await
+            .map_err(|e| NikaError::ParseError {
+                details: format!("Failed to read input file '{}': {}", path, e),
+            })?
+    };
+
+    // Auto-detect format: .json → JSON first, everything else → YAML first
+    let value: serde_json::Value = if path.ends_with(".json") {
+        serde_json::from_str(&content).map_err(|e| NikaError::ParseError {
+            details: format!("Invalid JSON in '{}': {}", path, e),
+        })?
+    } else if path == "-" {
+        // stdin: try JSON first, then YAML
+        serde_json::from_str(&content).or_else(|_| {
+            nika::serde_yaml::from_str(&content).map_err(|e| NikaError::ParseError {
+                details: format!("Invalid JSON/YAML on stdin: {}", e),
+            })
+        })?
+    } else {
+        // .yaml, .yml, or anything else → YAML
+        nika::serde_yaml::from_str(&content).map_err(|e| NikaError::ParseError {
+            details: format!("Invalid YAML in '{}': {}", path, e),
+        })?
+    };
+
+    // Must be a mapping at top level
+    let map = value
+        .as_object()
+        .ok_or_else(|| NikaError::ValidationError {
+            reason: format!(
+                "Input file '{}' must be a JSON/YAML mapping (got {})",
+                path,
+                match &value {
+                    serde_json::Value::Array(_) => "array",
+                    serde_json::Value::String(_) => "string",
+                    serde_json::Value::Number(_) => "number",
+                    serde_json::Value::Bool(_) => "boolean",
+                    serde_json::Value::Null => "null",
+                    _ => "unknown",
+                }
+            ),
+        })?;
+
+    Ok(map.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    // ═══════════════════════════════════════════════════════════════
+    // parse_input_value
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn input_value_string() {
+        assert_eq!(parse_input_value("hello"), json!("hello"));
+    }
+
+    #[test]
+    fn input_value_integer() {
+        assert_eq!(parse_input_value("5"), json!(5));
+        assert_eq!(parse_input_value("-42"), json!(-42));
+        assert_eq!(parse_input_value("0"), json!(0));
+    }
+
+    #[test]
+    fn input_value_float() {
+        assert_eq!(parse_input_value("1.5"), json!(1.5));
+        assert_eq!(parse_input_value("-0.5"), json!(-0.5));
+    }
+
+    #[test]
+    fn input_value_bool() {
+        assert_eq!(parse_input_value("true"), json!(true));
+        assert_eq!(parse_input_value("false"), json!(false));
+    }
+
+    #[test]
+    fn input_value_null() {
+        assert_eq!(parse_input_value("null"), json!(null));
+    }
+
+    #[test]
+    fn input_value_json_object() {
+        assert_eq!(
+            parse_input_value(r#"{"a":1,"b":"x"}"#),
+            json!({"a": 1, "b": "x"})
+        );
+    }
+
+    #[test]
+    fn input_value_json_array() {
+        assert_eq!(parse_input_value(r#"["x","y"]"#), json!(["x", "y"]));
+    }
+
+    #[test]
+    fn input_value_broken_json_fallback_string() {
+        assert_eq!(parse_input_value("{broken"), json!("{broken"));
+        assert_eq!(parse_input_value("[not json"), json!("[not json"));
+    }
+
+    #[test]
+    fn input_value_string_with_digits() {
+        assert_eq!(parse_input_value("5 apples"), json!("5 apples"));
+        assert_eq!(parse_input_value("v2.0"), json!("v2.0"));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // parse_cli_inputs
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn cli_inputs_valid() {
+        let raw = vec!["locale=fr-FR".to_string(), "count=5".to_string()];
+        let result = parse_cli_inputs(&raw).unwrap();
+        assert_eq!(result[0], ("locale".to_string(), json!("fr-FR")));
+        assert_eq!(result[1], ("count".to_string(), json!(5)));
+    }
+
+    #[test]
+    fn cli_inputs_missing_equals() {
+        let raw = vec!["no-equals".to_string()];
+        let result = parse_cli_inputs(&raw);
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("no-equals"),
+            "Error should mention the input: {err}"
+        );
+    }
+
+    #[test]
+    fn cli_inputs_value_with_equals() {
+        // key=val=ue should split on FIRST = only
+        let raw = vec!["url=https://example.com?a=1".to_string()];
+        let result = parse_cli_inputs(&raw).unwrap();
+        assert_eq!(result[0].1, json!("https://example.com?a=1"));
+    }
+
+    #[test]
+    fn cli_inputs_empty_value() {
+        let raw = vec!["key=".to_string()];
+        let result = parse_cli_inputs(&raw).unwrap();
+        assert_eq!(result[0].1, json!(""));
+    }
 }
