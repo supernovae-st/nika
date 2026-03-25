@@ -304,26 +304,26 @@ impl Theme {
             verb_agent_glow: lighten_color(semantic.verb_agent, 1.3),
 
             // ═══ TREE WIDGET ═══
-            tree_directory: Color::Rgb(137, 180, 250), // Blue
+            tree_directory: Color::Rgb(80, 140, 255), // Electric blue
             tree_file: resolver.text_secondary(),
             tree_hidden: resolver.text_muted(),
-            tree_ecosystem: Color::Rgb(249, 226, 175), // Yellow
-            tree_ecosystem_glow: Color::Rgb(250, 179, 135), // Peach
+            tree_ecosystem: Color::Rgb(255, 200, 0), // Amber
+            tree_ecosystem_glow: Color::Rgb(255, 160, 80), // Neon peach
             tree_indent_guide: resolver.text_muted(),
 
             // ═══ SYNTAX HIGHLIGHTING ═══
-            syntax_keyword: Color::Rgb(203, 166, 247), // Mauve
-            syntax_string: Color::Rgb(166, 227, 161),  // Green
-            syntax_number: Color::Rgb(250, 179, 135),  // Peach
-            syntax_comment: Color::Rgb(108, 112, 134), // Overlay0
-            syntax_verb: Color::Rgb(203, 166, 247),    // Mauve
-            syntax_template: Color::Rgb(148, 226, 213), // Teal
-            syntax_mcp_server: Color::Rgb(116, 199, 236), // Sapphire
-            syntax_task_id: Color::Rgb(249, 226, 175), // Yellow
+            syntax_keyword: Color::Rgb(180, 120, 255), // Neon purple
+            syntax_string: Color::Rgb(0, 230, 120),    // Neon green
+            syntax_number: Color::Rgb(255, 160, 80),   // Neon peach
+            syntax_comment: Color::Rgb(55, 60, 75),    // Dim overlay
+            syntax_verb: Color::Rgb(180, 120, 255),    // Neon purple
+            syntax_template: Color::Rgb(0, 220, 150),  // Neon teal
+            syntax_mcp_server: Color::Rgb(0, 200, 220), // Neon cyan
+            syntax_task_id: Color::Rgb(255, 200, 0),   // Amber
 
             // HEADER / STATUS BAR
             header_bg: if semantic.is_dark() {
-                Color::Rgb(20, 24, 41) // Custom navy (dark themes)
+                Color::Rgb(6, 6, 10) // Near-black (darker than canvas)
             } else {
                 Color::Rgb(236, 239, 244) // Slate-150-ish (light theme)
             },
@@ -469,8 +469,8 @@ mod tests {
     fn test_theme_from_resolver_cosmic_dark() {
         let theme = Theme::cosmic_dark();
 
-        // Should have Catppuccin Mocha Base background
-        assert_eq!(theme.background, Color::Rgb(30, 30, 46)); // #1e1e2e
+        // Should have Abyss Dark background
+        assert_eq!(theme.background, Color::Rgb(8, 8, 14)); // Abyss
     }
 
     #[test]
@@ -568,7 +568,7 @@ mod tests {
 
         // Get cached dark theme
         let dark_theme = cosmic.as_theme();
-        assert_eq!(dark_theme.background, Color::Rgb(30, 30, 46)); // Catppuccin Mocha Base
+        assert_eq!(dark_theme.background, Color::Rgb(8, 8, 14)); // Abyss Dark
 
         // Cycle to light
         cosmic.cycle();

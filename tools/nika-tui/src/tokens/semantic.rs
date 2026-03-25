@@ -112,81 +112,86 @@ pub struct SemanticColors {
 impl SemanticColors {
     /// Create Cosmic Dark semantic colors 🌌
     ///
-    /// Catppuccin Mocha base — warm dark pastels with hacking blue accents.
-    /// Replaces the old cold Slate palette with Mocha's cozy neutrals.
+    /// Abyss Dark — near-black hacking aesthetic with neon accents.
+    /// Inspired by NovaNet's deep space palette pushed even darker.
+    /// Background at (8,8,14) for maximum contrast with neon highlights.
     pub fn cosmic_dark(_palette: &ColorPalette) -> Self {
         // ═══════════════════════════════════════════════════════════════════
-        // CATPPUCCIN MOCHA PALETTE  (https://catppuccin.com/palette)
+        // ABYSS DARK PALETTE  — hacking terminal aesthetic
         // ═══════════════════════════════════════════════════════════════════
-        // Backgrounds
-        const CRUST: Color = Color::Rgb(17, 17, 27); // #11111b - deepest
-        const MANTLE: Color = Color::Rgb(24, 24, 37); // #181825 - panels
-        const BASE: Color = Color::Rgb(30, 30, 46); // #1e1e2e - canvas
-        const SURFACE0: Color = Color::Rgb(49, 50, 68); // #313244 - borders
-        const SURFACE1: Color = Color::Rgb(69, 71, 90); // #45475a - focus
-        const SURFACE2: Color = Color::Rgb(88, 91, 112); // #585b70 - hover
+        // Backgrounds — near-black with blue undertone
+        const VOID: Color = Color::Rgb(4, 4, 8); // deepest black
+        const ABYSS: Color = Color::Rgb(8, 8, 14); // #08080e - canvas
+        const DEEP: Color = Color::Rgb(12, 12, 20); // #0c0c14 - panels
+        const SURFACE0: Color = Color::Rgb(18, 20, 30); // borders
+        const SURFACE1: Color = Color::Rgb(25, 28, 42); // hover
+        const SURFACE2: Color = Color::Rgb(32, 36, 52); // active/selected
 
-        // Text
-        const TEXT: Color = Color::Rgb(205, 214, 244); // #cdd6f4 - primary
-        const SUBTEXT1: Color = Color::Rgb(186, 194, 222); // #bac2de - secondary
-        const SUBTEXT0: Color = Color::Rgb(166, 173, 200); // #a6adc8 - muted
-        const OVERLAY0: Color = Color::Rgb(108, 112, 134); // #6c7086 - disabled
+        // Text — high contrast on near-black
+        const TEXT: Color = Color::Rgb(200, 210, 230); // cool white-blue
+        const SUBTEXT1: Color = Color::Rgb(150, 160, 180); // muted
+        const SUBTEXT0: Color = Color::Rgb(90, 100, 120); // hints
+        const OVERLAY0: Color = Color::Rgb(55, 60, 75); // disabled
 
-        // Accents
-        const LAVENDER: Color = Color::Rgb(180, 190, 254); // #b4befe - 🦋 brand
-        const BLUE: Color = Color::Rgb(137, 180, 250); // #89b4fa - hacking
-        const SAPPHIRE: Color = Color::Rgb(116, 199, 236); // #74c7ec - cyber glow
-        const MAUVE: Color = Color::Rgb(203, 166, 247); // #cba6f7 - infer verb
-        const PINK: Color = Color::Rgb(245, 194, 231); // #f5c2e7 - agent verb
-        const PEACH: Color = Color::Rgb(250, 179, 135); // #fab387 - exec verb
-        const SKY: Color = Color::Rgb(137, 220, 235); // #89dceb - fetch verb
-        const TEAL: Color = Color::Rgb(148, 226, 213); // #94e2d5 - invoke verb
-        const GREEN: Color = Color::Rgb(166, 227, 161); // #a6e3a1 - success
-        const YELLOW: Color = Color::Rgb(249, 226, 175); // #f9e2af - warning
-        const RED: Color = Color::Rgb(243, 139, 168); // #f38ba8 - error
+        // Accents — neon glow on dark void
+        const ELECTRIC: Color = Color::Rgb(80, 140, 255); // ⚡ electric blue
+        const NEON_CYAN: Color = Color::Rgb(0, 220, 200); // 🌌 neon cyan
+        const NEON_PURPLE: Color = Color::Rgb(160, 100, 255); // 🦋 purple neon
+
+        // Verbs — vivid neon on void background
+        const MAUVE: Color = Color::Rgb(180, 120, 255); // infer - purple glow
+        const PEACH: Color = Color::Rgb(255, 160, 80); // exec - warm neon
+        const CYAN: Color = Color::Rgb(0, 200, 220); // fetch - cyan neon
+        const TEAL: Color = Color::Rgb(0, 220, 150); // invoke - teal neon
+        const PINK: Color = Color::Rgb(255, 100, 150); // agent - hot pink
+
+        // Status — vivid neon signals
+        const GREEN: Color = Color::Rgb(0, 230, 120); // neon green
+        const YELLOW: Color = Color::Rgb(255, 200, 0); // amber
+        const RED: Color = Color::Rgb(255, 60, 80); // neon red
 
         Self {
-            // Backgrounds — warm Mocha neutrals
-            bg_primary: BASE,      // #1e1e2e - warm dark (NOT blue-green)
-            bg_secondary: MANTLE,  // #181825 - elevated panels
-            bg_tertiary: SURFACE0, // #313244 - cards, modals
-            bg_hover: SURFACE1,    // #45475a - hover highlight
-            bg_active: SURFACE2,   // #585b70 - active/selected
+            // Backgrounds — the void
+            bg_primary: ABYSS,     // #08080e - near-black canvas
+            bg_secondary: DEEP,    // #0c0c14 - elevated panels
+            bg_tertiary: SURFACE0, // cards, modals
+            bg_hover: SURFACE1,    // hover highlight
+            bg_active: SURFACE2,   // active/selected
 
-            // Text — soft white, easy on eyes
-            text_primary: TEXT,       // #cdd6f4 - main content
-            text_secondary: SUBTEXT1, // #bac2de - descriptions
-            text_muted: SUBTEXT0,     // #a6adc8 - hints, placeholders
-            text_disabled: OVERLAY0,  // #6c7086 - disabled
-            text_inverse: CRUST,      // #11111b - on light surfaces
+            // Text — sharp on the void
+            text_primary: TEXT,       // cool white-blue
+            text_secondary: SUBTEXT1, // muted descriptions
+            text_muted: SUBTEXT0,     // hints, placeholders
+            text_disabled: OVERLAY0,  // disabled
+            text_inverse: VOID,       // on light surfaces
 
-            // Borders — visible but not harsh
-            border_default: SURFACE0, // #313244 - panel edges
-            border_focused: LAVENDER, // #b4befe - 🦋 Nika focus glow
-            border_subtle: MANTLE,    // #181825 - dividers
+            // Borders — barely visible, glow on focus
+            border_default: SURFACE0, // subtle panel edges
+            border_focused: ELECTRIC, // ⚡ electric blue glow
+            border_subtle: DEEP,      // nearly invisible dividers
 
-            // Accents — Catppuccin + hacking blue
-            accent_primary: LAVENDER,  // #b4befe - 🦋 brand
-            accent_secondary: BLUE,    // #89b4fa - hacking blue accent
-            accent_tertiary: SAPPHIRE, // #74c7ec - cyber glow
+            // Accents — neon on void
+            accent_primary: ELECTRIC,     // ⚡ electric blue
+            accent_secondary: NEON_CYAN,  // 🌌 neon cyan
+            accent_tertiary: NEON_PURPLE, // 🦋 purple neon
 
-            // Status — clear pastel semantics
-            status_success: GREEN,  // #a6e3a1
-            status_warning: YELLOW, // #f9e2af
-            status_error: RED,      // #f38ba8
-            status_info: BLUE,      // #89b4fa
+            // Status — neon signals
+            status_success: GREEN,  // neon green
+            status_warning: YELLOW, // amber
+            status_error: RED,      // neon red
+            status_info: ELECTRIC,  // electric blue
 
-            // Verbs — distinct Catppuccin mapping
-            verb_infer: MAUVE, // #cba6f7 - ⚡ LLM (purple glow)
-            verb_exec: PEACH,  // #fab387 - 📟 shell (warm)
-            verb_fetch: SKY,   // #89dceb - 🛰️ HTTP (cool cyan)
-            verb_invoke: TEAL, // #94e2d5 - 🔌 MCP (teal-green)
-            verb_agent: PINK,  // #f5c2e7 - 🐔 agent (soft pink)
+            // Verbs — vivid neon
+            verb_infer: MAUVE, // ⚡ LLM (purple glow)
+            verb_exec: PEACH,  // 📟 shell (warm neon)
+            verb_fetch: CYAN,  // 🛰️ HTTP (cyan neon)
+            verb_invoke: TEAL, // 🔌 MCP (teal neon)
+            verb_agent: PINK,  // 🐔 agent (hot pink)
 
-            // Scrollbar — subtle accent
-            scrollbar_thumb: SURFACE1,  // #45475a
-            scrollbar_track: MANTLE,    // #181825
-            scrollbar_arrows: SUBTEXT0, // #a6adc8
+            // Scrollbar — subtle
+            scrollbar_thumb: SURFACE1,
+            scrollbar_track: DEEP,
+            scrollbar_arrows: SUBTEXT0,
         }
     }
 
@@ -341,8 +346,8 @@ mod tests {
         let palette = ColorPalette::tailwind();
         let semantic = SemanticColors::cosmic_dark(&palette);
 
-        assert_eq!(semantic.bg_primary, Color::Rgb(30, 30, 46)); // Catppuccin Mocha Base
-        assert_eq!(semantic.accent_primary, Color::Rgb(180, 190, 254)); // Catppuccin Lavender
+        assert_eq!(semantic.bg_primary, Color::Rgb(8, 8, 14)); // Abyss Dark
+        assert_eq!(semantic.accent_primary, Color::Rgb(80, 140, 255)); // Electric blue
         assert!(semantic.is_dark());
     }
 
@@ -370,11 +375,11 @@ mod tests {
         let palette = ColorPalette::tailwind();
         let semantic = SemanticColors::cosmic_dark(&palette);
 
-        assert_eq!(semantic.verb("infer"), Color::Rgb(203, 166, 247)); // Catppuccin Mauve
-        assert_eq!(semantic.verb("exec"), Color::Rgb(250, 179, 135)); // Catppuccin Peach
-        assert_eq!(semantic.verb("fetch"), Color::Rgb(137, 220, 235)); // Catppuccin Sky
-        assert_eq!(semantic.verb("invoke"), Color::Rgb(148, 226, 213)); // Catppuccin Teal
-        assert_eq!(semantic.verb("agent"), Color::Rgb(245, 194, 231)); // Catppuccin Pink
+        assert_eq!(semantic.verb("infer"), Color::Rgb(180, 120, 255)); // Neon purple
+        assert_eq!(semantic.verb("exec"), Color::Rgb(255, 160, 80)); // Neon peach
+        assert_eq!(semantic.verb("fetch"), Color::Rgb(0, 200, 220)); // Neon cyan
+        assert_eq!(semantic.verb("invoke"), Color::Rgb(0, 220, 150)); // Neon teal
+        assert_eq!(semantic.verb("agent"), Color::Rgb(255, 100, 150)); // Hot pink
         assert_eq!(semantic.verb("unknown"), semantic.text_muted);
     }
 
@@ -383,11 +388,11 @@ mod tests {
         let palette = ColorPalette::tailwind();
         let semantic = SemanticColors::cosmic_dark(&palette);
 
-        assert_eq!(semantic.status("success"), Color::Rgb(166, 227, 161)); // Catppuccin Green
-        assert_eq!(semantic.status("completed"), Color::Rgb(166, 227, 161)); // Catppuccin Green
-        assert_eq!(semantic.status("warning"), Color::Rgb(249, 226, 175)); // Catppuccin Yellow
-        assert_eq!(semantic.status("error"), Color::Rgb(243, 139, 168)); // Catppuccin Red
-        assert_eq!(semantic.status("info"), Color::Rgb(137, 180, 250)); // Catppuccin Blue
+        assert_eq!(semantic.status("success"), Color::Rgb(0, 230, 120)); // Neon green
+        assert_eq!(semantic.status("completed"), Color::Rgb(0, 230, 120)); // Neon green
+        assert_eq!(semantic.status("warning"), Color::Rgb(255, 200, 0)); // Amber
+        assert_eq!(semantic.status("error"), Color::Rgb(255, 60, 80)); // Neon red
+        assert_eq!(semantic.status("info"), Color::Rgb(80, 140, 255)); // Electric blue
     }
 
     #[test]

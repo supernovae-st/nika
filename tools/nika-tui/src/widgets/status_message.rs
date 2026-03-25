@@ -258,7 +258,7 @@ impl Widget for StatusMessageWidget<'_> {
         let paragraph = Paragraph::new(line).alignment(Alignment::Left);
 
         // Render with subtle background
-        let bg_style = Style::default().bg(Color::Rgb(30, 30, 46));
+        let bg_style = Style::default().bg(Color::Rgb(8, 8, 14));
         for x in area.left()..area.right() {
             if let Some(cell) = buf.cell_mut((x, area.y)) {
                 cell.set_style(bg_style);
