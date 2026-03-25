@@ -242,11 +242,11 @@ impl AgentPhaseIndicator {
                 // Chaos: show random katakana with color
                 let chaos_char = KATAKANA_CHARS[rng.gen_range(0..KATAKANA_CHARS.len())];
                 let colors = [
-                    Color::Rgb(116, 199, 236), // Sapphire
-                    Color::Rgb(166, 227, 161), // Green
-                    Color::Rgb(249, 226, 175), // Yellow
-                    Color::Rgb(137, 180, 250), // Blue
-                    Color::Rgb(203, 166, 247), // Mauve
+                    Color::Rgb(0, 200, 220),   // Neon cyan
+                    Color::Rgb(0, 230, 120),   // Neon green
+                    Color::Rgb(255, 200, 0),   // Amber
+                    Color::Rgb(80, 140, 255),  // Electric blue
+                    Color::Rgb(180, 120, 255), // Neon purple
                 ];
                 let color = colors[rng.gen_range(0..colors.len())];
                 spans.push(Span::styled(
@@ -262,7 +262,7 @@ impl AgentPhaseIndicator {
             spans.push(Span::styled(
                 tool.clone(),
                 Style::default()
-                    .fg(Color::Rgb(137, 180, 250)) // Blue
+                    .fg(Color::Rgb(80, 140, 255)) // Electric blue
                     .add_modifier(Modifier::BOLD),
             ));
         }

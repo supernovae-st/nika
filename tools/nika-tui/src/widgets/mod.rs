@@ -29,6 +29,7 @@ pub mod provider_modal;
 mod provider_selector;
 mod scroll_indicator;
 mod session_context;
+pub mod stars;
 mod status_bar;
 mod status_message;
 pub mod task_box;
@@ -124,4 +125,5 @@ pub use panels::{
 };
 // Progress widgets (DownloadProgress + TaskProgress removed -- never rendered)
 // Shared utilities
+pub use stars::{render_star_field, star_tick};
 pub use utils::centered_rect;
