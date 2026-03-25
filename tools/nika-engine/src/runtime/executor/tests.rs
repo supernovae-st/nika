@@ -1469,6 +1469,55 @@ fn test_build_json_schema_instruction_markdown_format() {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// BUILD_JSON_SCHEMA_INSTRUCTION — from_example paths
+// ═══════════════════════════════════════════════════════════════
+
+#[test]
+fn test_build_json_schema_instruction_inline_from_example() {
+    use crate::ast::structured::StructuredOutputSpec;
+
+    let spec = StructuredOutputSpec::with_example_inline(json!({
+        "name": "alice",
+        "score": 42
+    }));
+    let policy = spec.to_output_policy();
+    let result = TaskExecutor::build_json_schema_instruction(Some(&policy));
+    let instruction = result.expect("should produce instruction for inline from_example");
+    assert!(
+        instruction.contains("name"),
+        "inline example keys must appear in prompt"
+    );
+    assert!(
+        instruction.contains("score"),
+        "inline example values must appear in prompt"
+    );
+    assert!(
+        instruction.contains("exact structure"),
+        "inline from_example should use exact-structure wording"
+    );
+}
+
+#[test]
+fn test_build_json_schema_instruction_file_from_example_returns_generic() {
+    use crate::ast::structured::StructuredOutputSpec;
+
+    let spec = StructuredOutputSpec::with_example_file("./structure.json");
+    let policy = spec.to_output_policy();
+    let result = TaskExecutor::build_json_schema_instruction(Some(&policy));
+    let instruction = result.expect("file from_example should produce generic instruction");
+    // Must NOT inject the {} placeholder schema
+    assert!(
+        !instruction.contains("\"{}\"") && !instruction.contains("conforms to this schema"),
+        "file from_example must NOT inject placeholder schema: {instruction}"
+    );
+    // Must give valid-JSON instruction
+    assert!(
+        instruction.contains("valid JSON"),
+        "file from_example must produce generic valid-JSON instruction"
+    );
+}
+
+// ═══════════════════════════════════════════════════════════════
 // GET_RIG_PROVIDER ERROR PATH TESTS
 // ═══════════════════════════════════════════════════════════════
 
