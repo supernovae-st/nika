@@ -434,15 +434,32 @@ enum Commands {
         action: cli::mcp::McpAction,
     },
 
-    /// Manage local LLM models
-    ///
-    /// Download, list, and manage GGUF models for native inference.
-    /// Models are stored in ~/.nika/models/
+    /// Manage local LLM models (native inference)
     #[cfg(feature = "native-inference")]
     #[command(visible_alias = "m")]
     Model {
         #[command(subcommand)]
         action: cli::model::ModelAction,
+    },
+
+    /// List all available LLM models with pricing
+    ///
+    /// Shows cloud models grouped by provider. Always available.
+    /// Examples:
+    ///   nika models                             All models + pricing
+    ///   nika models --provider anthropic        Filter by provider
+    ///   nika models --info claude-sonnet-4-6    Model details
+    ///   nika models --recommend                 Smart suggestion
+    Models {
+        /// Filter by provider name
+        #[arg(short, long)]
+        provider: Option<String>,
+        /// Show details for a specific model
+        #[arg(long, value_name = "MODEL")]
+        info: Option<String>,
+        /// Show smart model recommendation
+        #[arg(long)]
+        recommend: bool,
     },
 
     /// Manage installed packages (workflows, skills, schemas)
@@ -1110,6 +1127,20 @@ async fn main() {
 
         #[cfg(feature = "native-inference")]
         Some(Commands::Model { action }) => cli::model::handle_model_command(action, quiet).await,
+
+        Some(Commands::Models {
+            provider,
+            info,
+            recommend,
+        }) => {
+            if recommend {
+                cli::model_cloud::print_model_recommend()
+            } else if let Some(model_name) = info {
+                cli::model_cloud::print_model_info(&model_name)
+            } else {
+                cli::model_cloud::print_cloud_models(provider.as_deref())
+            }
+        }
 
         Some(Commands::Pkg { action }) => cli::pkg::handle_pkg_command(action).await,
 
