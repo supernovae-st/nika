@@ -31,7 +31,8 @@ impl App {
                     Ok(event) => self.event_buffer.push(event),
                     Err(broadcast::error::TryRecvError::Empty) => break,
                     Err(broadcast::error::TryRecvError::Lagged(n)) => {
-                        tracing::warn!("TUI lagged behind by {} events", n);
+                        tracing::warn!("TUI lagged behind by {} events — forcing full refresh", n);
+                        self.state.dirty.mark_all();
                     }
                     Err(broadcast::error::TryRecvError::Closed) => {
                         self.workflow_done = true;
