@@ -5,11 +5,21 @@
 //!
 //! ## Module Organization
 //! - `mod.rs`: TaskExecutor struct, constructors, dispatch, shared helpers
-//! - `verbs.rs`: Five verb implementations (run_infer, run_exec, run_fetch, run_invoke, run_agent)
+//! - `verbs.rs`: Shared helper functions (estimate_tokens, coerce_json_types, etc.)
+//! - `infer.rs`: `run_infer` + `run_infer_vision` + guardrails
+//! - `exec.rs`: `run_exec` (shell command execution)
+//! - `fetch.rs`: `run_fetch` (HTTP requests)
+//! - `invoke.rs`: `run_invoke` (MCP tool calls / resource reads)
+//! - `agent.rs`: `run_agent` (multi-turn agentic loops)
 //! - `decompose.rs`: Decompose expansion strategies (semantic, static, nested)
 
+mod agent;
 mod decompose;
+mod exec;
 mod extract;
+mod fetch;
+mod infer;
+mod invoke;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
