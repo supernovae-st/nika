@@ -108,7 +108,7 @@ pub mod skill_def;
 mod workflow;
 
 // Re-export all public types
-pub use action::{ExecParams, FetchParams, InferParams, TaskAction};
+pub use action::{ExecParams, FetchParams, InferParams, ResponseFormat, TaskAction};
 // AgentParams + ToolChoice are defined in agent.rs
 pub use agent::{AgentParams, ToolChoice};
 // AgentDef is defined in agent_def.rs
