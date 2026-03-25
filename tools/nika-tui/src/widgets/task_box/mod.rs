@@ -285,15 +285,23 @@ impl TaskBox {
     }
 }
 
-impl Widget for TaskBox {
+// PERF: Zero-copy render via `impl Widget for &TaskBox` (ratatui 0.30).
+// Eliminates 600+ deep clones/sec for visible tasks at 60fps.
+impl Widget for &TaskBox {
     fn render(self, area: Rect, buf: &mut Buffer) {
         match self {
-            Self::Infer(b) => b.render(area, buf),
-            Self::Exec(b) => b.render(area, buf),
-            Self::Fetch(b) => b.render(area, buf),
-            Self::Invoke(b) => b.render(area, buf),
-            Self::Agent(b) => b.render(area, buf),
+            TaskBox::Infer(b) => b.render(area, buf),
+            TaskBox::Exec(b) => b.render(area, buf),
+            TaskBox::Fetch(b) => b.render(area, buf),
+            TaskBox::Invoke(b) => b.render(area, buf),
+            TaskBox::Agent(b) => b.render(area, buf),
         }
+    }
+}
+
+impl Widget for TaskBox {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        (&self).render(area, buf);
     }
 }
 
@@ -310,8 +318,7 @@ impl<'a> TaskBoxWidget<'a> {
 
 impl Widget for TaskBoxWidget<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        // Clone to consume - needed for Widget trait
-        self.task_box.clone().render(area, buf);
+        self.task_box.render(area, buf); // zero-copy: calls Widget for &TaskBox
     }
 }
 

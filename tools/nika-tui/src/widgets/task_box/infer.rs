@@ -286,7 +286,7 @@ impl InferBox {
                     Style::default().fg(verb_color),
                 ),
                 Span::styled(
-                    Self::truncate(&self.model, 20),
+                    InferBox::truncate(&self.model, 20),
                     Style::default().fg(compat::SLATE_400),
                 ),
                 Span::styled(format!("  {} ", status), Style::default().fg(verb_color)),
@@ -321,7 +321,7 @@ impl InferBox {
         items.push(ListItem::new(header));
 
         // Model line
-        let provider_icon = Self::provider_icon(&self.model);
+        let provider_icon = InferBox::provider_icon(&self.model);
         let model_line = Line::from(vec![
             Span::styled("│ ", border_style),
             Span::styled(
@@ -371,7 +371,7 @@ impl InferBox {
             }
         } else {
             // Truncated single line
-            let prompt_text = Self::truncate(&self.prompt.replace('\n', " "), 60);
+            let prompt_text = InferBox::truncate(&self.prompt.replace('\n', " "), 60);
             let prompt_line = Line::from(vec![
                 Span::styled("│ ", border_style),
                 Span::styled(format!("┊ {}", prompt_text), content_style),
@@ -454,7 +454,7 @@ impl InferBox {
                 }
             } else {
                 // Truncated single line
-                let text = Self::truncate(&self.response.replace('\n', " "), 60);
+                let text = InferBox::truncate(&self.response.replace('\n', " "), 60);
                 let response_line = Line::from(vec![
                     Span::styled("│ ", border_style),
                     Span::styled(format!("┊ {}{}", text, cursor), content_style),
@@ -481,8 +481,8 @@ impl InferBox {
             "│ 📊 {} in │ {} out │ {} {}{}{}",
             self.tokens_in,
             self.tokens_out,
-            Self::provider_icon(&self.model),
-            Self::truncate(&self.model, 10),
+            InferBox::provider_icon(&self.model),
+            InferBox::truncate(&self.model, 10),
             cost_str,
             velocity_str
         );
@@ -511,6 +511,12 @@ impl InferBox {
 }
 
 impl Widget for InferBox {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        (&self).render(area, buf);
+    }
+}
+
+impl Widget for &InferBox {
     fn render(self, area: Rect, buf: &mut Buffer) {
         if area.width < 30 || area.height < 5 {
             return;
@@ -544,8 +550,8 @@ impl Widget for InferBox {
             buf.set_string(area.x, y, "│", border_style);
             buf.set_string(area.x + area.width - 1, y, "│", border_style);
 
-            let provider_icon = Self::provider_icon(&self.model);
-            let model_display = Self::truncate(&self.model, inner_width - 10);
+            let provider_icon = InferBox::provider_icon(&self.model);
+            let model_display = InferBox::truncate(&self.model, inner_width - 10);
             buf.set_string(
                 area.x + 2,
                 y,
@@ -578,7 +584,7 @@ impl Widget for InferBox {
             let prompt_display = if self.expanded_prompt {
                 self.prompt.clone()
             } else {
-                Self::truncate(&self.prompt.replace('\n', " "), inner_width - 4)
+                InferBox::truncate(&self.prompt.replace('\n', " "), inner_width - 4)
             };
             buf.set_string(
                 area.x + 2,
@@ -611,7 +617,7 @@ impl Widget for InferBox {
             } else {
                 "RESPONSE"
             };
-            let header_truncated = Self::truncate(response_header, inner_width - 2);
+            let header_truncated = InferBox::truncate(response_header, inner_width - 2);
             buf.set_string(area.x + 2, y, header_truncated, dim_style);
             y += 1;
         }
@@ -655,7 +661,7 @@ impl Widget for InferBox {
                 let text = if self.expanded_response {
                     self.response.clone()
                 } else {
-                    Self::truncate(&self.response.replace('\n', " "), inner_width - 6)
+                    InferBox::truncate(&self.response.replace('\n', " "), inner_width - 6)
                 };
                 let cursor = if self.streaming_cursor && self.state.is_running() {
                     "█"
@@ -697,15 +703,15 @@ impl Widget for InferBox {
             "│ 📊 {} in │ {} out │ {} {}{}{}{}│",
             self.tokens_in,
             self.tokens_out,
-            Self::provider_icon(&self.model),
-            Self::truncate(&self.model, 10),
+            InferBox::provider_icon(&self.model),
+            InferBox::truncate(&self.model, 10),
             self.thinking_tokens
                 .map(|t| format!(" │ 💭 thinking: {} ", t))
                 .unwrap_or_default(),
             cost_str,
             velocity_str
         );
-        let metrics_truncated = Self::truncate(&metrics, inner_width + 2);
+        let metrics_truncated = InferBox::truncate(&metrics, inner_width + 2);
         buf.set_string(
             area.x,
             area.y + area.height - 2,

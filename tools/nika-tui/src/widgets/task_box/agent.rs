@@ -205,15 +205,15 @@ impl AgentBox {
 
         // Add response preview or prompt
         let text = if let Some(ref response) = self.final_response {
-            Self::truncate(response.lines().next().unwrap_or(""), 30)
+            AgentBox::truncate(response.lines().next().unwrap_or(""), 30)
         } else {
-            Self::truncate(&self.prompt, 30)
+            AgentBox::truncate(&self.prompt, 30)
         };
 
         let full_line = format!("{}{} {}", prefix, children_part, text);
 
         // Truncate to max width
-        Self::truncate(&full_line, max_width)
+        AgentBox::truncate(&full_line, max_width)
     }
 
     /// Get the display icon based on agent type
@@ -341,7 +341,7 @@ impl AgentBox {
                 };
 
                 // Top border with label
-                let prompt_preview = Self::truncate(&self.prompt, 40);
+                let prompt_preview = AgentBox::truncate(&self.prompt, 40);
                 items.push(ListItem::new(Line::from(vec![
                     Span::styled("╭─ ", border_style),
                     Span::styled(header_label, Style::default().fg(verb_color)),
@@ -407,7 +407,7 @@ impl AgentBox {
                                 "│   {} {} {}",
                                 child.verb_color().icon(),
                                 child.state().icon(),
-                                Self::truncate(child.task_id().unwrap_or("task"), 50)
+                                AgentBox::truncate(child.task_id().unwrap_or("task"), 50)
                             );
                             items.push(ListItem::new(Line::from(vec![Span::styled(
                                 child_line, dim_style,
@@ -421,7 +421,7 @@ impl AgentBox {
                     let response_header = if self.expanded_response {
                         "├─ Response ▼".to_string()
                     } else {
-                        let preview = Self::truncate(response.lines().next().unwrap_or(""), 40);
+                        let preview = AgentBox::truncate(response.lines().next().unwrap_or(""), 40);
                         format!("├─ Response ▶ {}", preview)
                     };
                     items.push(ListItem::new(Line::from(vec![Span::styled(
@@ -462,6 +462,12 @@ impl AgentBox {
 
 impl Widget for AgentBox {
     fn render(self, area: Rect, buf: &mut Buffer) {
+        (&self).render(area, buf);
+    }
+}
+
+impl Widget for &AgentBox {
+    fn render(self, area: Rect, buf: &mut Buffer) {
         if area.width < 40 || area.height < 6 {
             return;
         }
@@ -486,7 +492,7 @@ impl Widget for AgentBox {
 
         // Top border: ╭─────────────────────────────────────────────────────────────────────╮
         // Header:     │ 🐔 AGENT: Research competitors...           ⣾ Running  00:12       │
-        let prompt_truncated = Self::truncate(&self.prompt, inner_width.saturating_sub(35));
+        let prompt_truncated = AgentBox::truncate(&self.prompt, inner_width.saturating_sub(35));
         // Dynamic header label based on agent type
         let header_label = if self.is_subagent {
             if self.depth > 1 {
@@ -544,7 +550,7 @@ impl Widget for AgentBox {
                 self.tool_calls,
                 velocity_str
             );
-            let metrics_truncated = Self::truncate(&metrics, inner_width - 2);
+            let metrics_truncated = AgentBox::truncate(&metrics, inner_width - 2);
             buf.set_string(area.x + 2, y, &metrics_truncated, metric_style);
             y += 1;
         }
@@ -597,8 +603,8 @@ impl Widget for AgentBox {
                         buf.set_string(area.x + area.width - 1, cy, "│", border_style);
                     }
 
-                    // Render child (clone needed for Widget trait)
-                    child.clone().render(child_area, buf);
+                    // PERF: Render child by reference (zero-copy via Widget for &TaskBox)
+                    child.render(child_area, buf);
                     y += child_height + 1;
                 }
             } else {
@@ -644,7 +650,7 @@ impl Widget for AgentBox {
                     buf.set_string(area.x, y, "│", border_style);
                     buf.set_string(area.x + area.width - 1, y, "│", border_style);
 
-                    let line_display = Self::truncate(line, inner_width - 4);
+                    let line_display = AgentBox::truncate(line, inner_width - 4);
                     buf.set_string(area.x + 2, y, format!("┊ {}", line_display), content_style);
                     y += 1;
                 }
