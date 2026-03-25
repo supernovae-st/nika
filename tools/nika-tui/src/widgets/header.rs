@@ -28,6 +28,10 @@ const TAB_NAMES: &[(&str, TuiView)] = &[
     ("⚙", TuiView::Control), // Control uses icon for brevity
 ];
 
+/// PERF: Pre-computed tab labels to avoid format!() per tab per frame
+const TAB_LABELS_ACTIVE: &[&str] = &[" 1:Studio ", " 2:Command ", " 3:⚙ "];
+const TAB_LABELS_INACTIVE: &[&str] = &["1:Studio", "2:Command", "3:⚙"];
+
 /// Header configuration
 pub struct Header<'a> {
     /// Current active view
@@ -97,23 +101,17 @@ impl Widget for Header<'_> {
             Span::styled(" │", Style::default().fg(self.theme.border_normal)),
         ];
 
-        // Add tabs: 1:Chat │ 2:Home │ 3:Studio │ 4:Monitor
-        for (name, view) in TAB_NAMES {
+        // Add tabs — PERF: use pre-computed static labels (zero format!)
+        for (i, (_name, view)) in TAB_NAMES.iter().enumerate() {
             let is_active = *view == self.view;
-            let num = view.number();
 
             spans.push(Span::raw(" "));
 
             if is_active {
-                // Active tab: highlighted background, no brackets
-                spans.push(Span::styled(
-                    format!(" {}:{} ", num, name),
-                    self.tab_style(true),
-                ));
+                spans.push(Span::styled(TAB_LABELS_ACTIVE[i], self.tab_style(true)));
             } else {
-                // Inactive tab: muted text, no brackets
                 spans.push(Span::styled(
-                    format!("{}:{}", num, name),
+                    TAB_LABELS_INACTIVE[i],
                     self.tab_style(false),
                 ));
             }
