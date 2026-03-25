@@ -56,6 +56,9 @@ which = "7"
 dirs = { workspace = true }
 xxhash-rust = { workspace = true }
 
+# Hash maps (FxHashMap for FetchParams compatibility)
+rustc-hash = { workspace = true }
+
 # Interactive wizard
 cliclack = "0.5"
 console = "0.16"

@@ -345,8 +345,8 @@ pub(crate) fn lower_for_each(
         None => (None, None, None, None),
         Some(fe) => {
             // Try parsing as JSON (e.g. `["a","b"]`); fall back to string binding.
-            let items = serde_json::from_str(&fe.items)
-                .unwrap_or_else(|_| serde_json::Value::String(fe.items));
+            let items =
+                serde_json::from_str(&fe.items).unwrap_or(serde_json::Value::String(fe.items));
             let concurrency = fe.concurrency.map(|p| p as usize);
             (
                 Some(items),

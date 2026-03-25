@@ -247,6 +247,141 @@ enum Commands {
         permission: String,
     },
 
+    /// Call an LLM directly (no workflow needed)
+    ///
+    /// Examples:
+    ///   nika infer "Explain quantum computing"
+    ///   cat file.txt | nika infer "Summarize" --stdin
+    ///   nika infer "Extract names" --from-example '{"names":[""]}'
+    #[command(visible_alias = "i")]
+    Infer {
+        /// Prompt (use "-" for stdin)
+        prompt: String,
+        /// Provider (auto-detected from API keys if omitted)
+        #[arg(short, long)]
+        provider: Option<String>,
+        /// Model (supports provider/model: anthropic/claude-sonnet-4-6)
+        #[arg(short, long)]
+        model: Option<String>,
+        /// System prompt
+        #[arg(short, long)]
+        system: Option<String>,
+        /// Temperature (0.0-2.0)
+        #[arg(short, long)]
+        temperature: Option<f64>,
+        /// Max output tokens
+        #[arg(long)]
+        max_tokens: Option<u32>,
+        /// Force JSON output
+        #[arg(long)]
+        json: bool,
+        /// Structured output from example (inline JSON or file path)
+        #[arg(long, value_name = "EXAMPLE")]
+        from_example: Option<String>,
+        /// Read context from stdin (prepended to prompt)
+        #[arg(long)]
+        stdin: bool,
+    },
+
+    /// Fetch a URL with smart extraction (9 modes)
+    ///
+    /// Examples:
+    ///   nika fetch https://blog.com --extract article
+    ///   nika fetch https://api.x.com/data --extract jsonpath --selector ".items"
+    #[command(visible_alias = "f")]
+    Fetch {
+        /// URL to fetch
+        url: String,
+        /// Extraction mode
+        #[arg(short, long, value_parser = ["markdown", "article", "text",
+            "selector", "metadata", "links", "jsonpath", "feed", "llm_txt"])]
+        extract: Option<String>,
+        /// CSS selector or JSONPath expression
+        #[arg(long)]
+        selector: Option<String>,
+        /// HTTP method (default: GET)
+        #[arg(short = 'X', long)]
+        method: Option<String>,
+        /// HTTP header (repeatable): -H "Key: Value"
+        #[arg(short = 'H', long = "header", value_name = "KEY:VALUE")]
+        headers: Vec<String>,
+        /// Request body
+        #[arg(long)]
+        body: Option<String>,
+        /// JSON body (auto Content-Type)
+        #[arg(long, value_name = "JSON")]
+        json_body: Option<String>,
+        /// Response mode: full | binary
+        #[arg(long, value_parser = ["full", "binary"])]
+        response: Option<String>,
+        /// Timeout in seconds
+        #[arg(long)]
+        timeout: Option<u64>,
+    },
+
+    /// Call a builtin nika:* tool or MCP server tool
+    ///
+    /// Examples:
+    ///   nika invoke nika:dimensions photo.jpg
+    ///   nika invoke nika:thumbnail photo.jpg --params '{"width":200}'
+    ///   nika invoke --list
+    Invoke {
+        /// Tool: nika:thumbnail, server::tool_name
+        tool: Option<String>,
+        /// File (auto-mapped to "source" param)
+        #[arg(value_name = "FILE")]
+        file: Option<String>,
+        /// Tool parameters as JSON
+        #[arg(long, value_name = "JSON")]
+        params: Option<String>,
+        /// MCP server name
+        #[arg(long)]
+        mcp: Option<String>,
+        /// Timeout in seconds
+        #[arg(long)]
+        timeout: Option<u64>,
+        /// List available builtin tools
+        #[arg(long)]
+        list: bool,
+    },
+
+    /// Run a multi-turn AI agent with tools
+    ///
+    /// Examples:
+    ///   nika agent "Research AI workflows" --tool web_search --turns 5
+    #[command(visible_alias = "a")]
+    Agent {
+        /// Agent objective
+        prompt: String,
+        /// Provider
+        #[arg(short, long)]
+        provider: Option<String>,
+        /// Model
+        #[arg(short, long)]
+        model: Option<String>,
+        /// System prompt
+        #[arg(short, long)]
+        system: Option<String>,
+        /// Available tool (repeatable)
+        #[arg(short, long = "tool")]
+        tools: Vec<String>,
+        /// MCP server (repeatable)
+        #[arg(long = "mcp")]
+        mcp_servers: Vec<String>,
+        /// Max turns (default: 10)
+        #[arg(long, default_value = "10")]
+        turns: u32,
+        /// Max tokens per turn
+        #[arg(long)]
+        max_tokens: Option<u32>,
+        /// Temperature
+        #[arg(short, long)]
+        temperature: Option<f64>,
+        /// Read context from stdin
+        #[arg(long)]
+        stdin: bool,
+    },
+
     /// Validate workflow syntax, DAG structure, and bindings
     #[command(alias = "validate", visible_alias = "v")]
     Check {
@@ -824,6 +959,100 @@ async fn main() {
                 )
                 .await
             }
+        }
+
+        Some(Commands::Infer {
+            prompt,
+            provider,
+            model,
+            system,
+            temperature,
+            max_tokens,
+            json,
+            from_example,
+            stdin,
+        }) => {
+            cli::verbs::handle_infer(
+                prompt,
+                provider,
+                model,
+                system,
+                temperature,
+                max_tokens,
+                json,
+                from_example,
+                stdin,
+                quiet,
+            )
+            .await
+        }
+
+        Some(Commands::Fetch {
+            url,
+            extract,
+            selector,
+            method,
+            headers,
+            body,
+            json_body,
+            response,
+            timeout,
+        }) => {
+            cli::verbs::handle_fetch(
+                url, extract, selector, method, headers, body, json_body, response, timeout, quiet,
+            )
+            .await
+        }
+
+        Some(Commands::Invoke {
+            tool,
+            file,
+            params,
+            mcp,
+            timeout,
+            list,
+        }) => {
+            if list {
+                cli::verbs::handle_invoke(String::new(), file, params, mcp, timeout, true, quiet)
+                    .await
+            } else {
+                match tool {
+                    Some(t) => {
+                        cli::verbs::handle_invoke(t, file, params, mcp, timeout, false, quiet).await
+                    }
+                    None => Err(NikaError::ValidationError {
+                        reason: "Tool name required. Use: nika invoke nika:dimensions file.jpg\nOr: nika invoke --list".to_string(),
+                    }),
+                }
+            }
+        }
+
+        Some(Commands::Agent {
+            prompt,
+            provider,
+            model,
+            system,
+            tools,
+            mcp_servers,
+            turns,
+            max_tokens,
+            temperature,
+            stdin,
+        }) => {
+            cli::verbs::handle_agent(
+                prompt,
+                provider,
+                model,
+                system,
+                tools,
+                mcp_servers,
+                turns,
+                max_tokens,
+                temperature,
+                stdin,
+                quiet,
+            )
+            .await
         }
 
         Some(Commands::Check { file, strict }) => {

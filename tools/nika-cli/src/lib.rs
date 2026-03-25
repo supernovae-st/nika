@@ -22,3 +22,4 @@ pub mod workflow;
 
 pub mod machine;
 pub mod new_cmd;
+pub mod verbs;
