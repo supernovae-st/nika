@@ -2,7 +2,7 @@
   "name": "nika",
   "displayName": "Nika — YAML Workflow Engine",
   "description": "Language support for .nika.yaml workflow files",
-  "version": "0.40.2",
+  "version": "0.42.0",
   "publisher": "supernovae-studio",
   "repository": "https://github.com/supernovae-st/nika",
   "license": "AGPL-3.0-or-later",
