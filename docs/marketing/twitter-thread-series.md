@@ -139,7 +139,7 @@ Brain + Body architecture. No Cypher in Nika. Pure MCP.
 Why Rust?
 
 - Single binary. cargo install nika. Done.
-- 7,784+ tests run in seconds
+- 8,100+ tests run in seconds
 - Zero clippy warnings across 451K lines
 - SIMD-accelerated media processing
 - tokio async for parallel DAG execution
@@ -248,7 +248,7 @@ DAG scheduling means parallel task execution. tokio JoinSet + CancellationToken 
 In Python: GIL + threading hacks + asyncio.
 In Rust: the compiler proves your concurrent code is correct.
 
-7,784 tests. Zero data races. Not by discipline -- by type system.
+8,100 tests. Zero data races. Not by discipline -- by type system.
 ```
 
 ### Tweet 6

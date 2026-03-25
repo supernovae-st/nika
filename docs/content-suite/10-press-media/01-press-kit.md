@@ -78,7 +78,7 @@ Every major AI orchestration tool in 2025--2026 requires either Python, a server
 | Total codebase | ~482,000 lines across 10 workspace crates |
 | Rust source code | ~337,000 lines in 659 files |
 | YAML workflows | 570 files (showcase + course + examples) |
-| Test suite | 7,784+ unit tests, zero clippy warnings |
+| Test suite | 8,100+ unit tests, zero clippy warnings |
 | Binary size | Single static binary, no runtime dependencies |
 | LLM providers | 22 (8 cloud + local GGUF + vision) |
 | Media tools | 24 built-in (3 tiers: always-on, default, opt-in) |
@@ -86,7 +86,7 @@ Every major AI orchestration tool in 2025--2026 requires either Python, a server
 | Showcase workflows | 200+ ready-to-use workflow templates |
 | Learning course | 12 levels, 44 exercises, interactive progression |
 | Schema version | nika/workflow@0.12 |
-| Current version | v0.39.1 |
+| Current version | v0.42.0 |
 | License | AGPL-3.0-or-later |
 
 ---
@@ -101,8 +101,8 @@ Every major AI orchestration tool in 2025--2026 requires either Python, a server
 | 2026-Q1 | v0.35.0 --- Fetch v2 with 9 extraction modes (markdown, article, metadata, links, feeds, etc.) |
 | 2026-Q1 | v0.37.0 --- Cargo workspace unification across 10 crates |
 | 2026-Q1 | v0.38.0 --- Crate split: 10 independent workspace crates for embeddable runtime |
-| 2026-Q1 | v0.39.0 --- `nika init` + 12-level interactive course, 200+ showcase workflows |
-| 2026-Q1 | v0.39.1 --- Full security audit, LSP improvements, AI coding tool integration suite |
+| 2026-Q1 | v0.42.0 --- `nika init` + 12-level interactive course, 200+ showcase workflows |
+| 2026-Q1 | v0.42.0 --- Full security audit, LSP improvements, AI coding tool integration suite |
 | Ongoing | Approaching public launch; Homebrew tap, GitHub releases, crates.io, VS Code marketplace |
 
 ---

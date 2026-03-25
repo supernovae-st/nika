@@ -289,7 +289,7 @@ nika-lsp       (2.5K)  LSP binary
 
 [EMPHASIS] The TUI alone is 92 thousand lines. That is not a typo. The terminal interface has three views -- Studio, Command, and Control -- with 40+ widgets, a DAG visualizer, and real-time task status. Developer experience is not an afterthought in Nika. It is 44% of the codebase.
 
-And the test suite has 7,784+ tests. With zero clippy warnings. Zero.
+And the test suite has 8,100+ tests. With zero clippy warnings. Zero.
 
 **Host:** Now, I want to be transparent about something. As of today, Nika has zero users. This is a pre-launch project. The creator, Thibaut Melen, has deliberately chosen to focus on engineering quality over marketing. The philosophy is: build something genuinely excellent, then release it to the world. Not the other way around.
 

@@ -205,7 +205,7 @@ The message is: you do not need permission to build AI systems. You need a workf
 
 ## Segment 4: The Road Ahead (2 minutes)
 
-**Host:** Nika is pre-launch. Zero users. Under active development. Version 0.39.
+**Host:** Nika is pre-launch. Zero users. Under active development. Version 0.42.
 
 So what is coming?
 

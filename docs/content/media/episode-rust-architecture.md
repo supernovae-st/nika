@@ -18,7 +18,7 @@
 
 [MUSIC: Technical, precise, building layers]
 
-**Host:** Most AI tools are Python scripts with a nice API. Nika is 451 thousand lines of Rust organized into 10 crates with a three-phase compiler pipeline, a cache-friendly DAG executor using Kahn's topological sort, a zero-I/O core library, and 7,784 tests.
+**Host:** Most AI tools are Python scripts with a nice API. Nika is 451 thousand lines of Rust organized into 10 crates with a three-phase compiler pipeline, a cache-friendly DAG executor using Kahn's topological sort, a zero-I/O core library, and 8,100 tests.
 
 [PAUSE]
 

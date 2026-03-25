@@ -48,7 +48,7 @@ A few numbers:
 - **24 media tools** -- thumbnails, charts, PDF extraction, C2PA signing
 - **44-exercise course** -- built-in interactive learning (nika init --course)
 - **200+ showcase workflows** -- ready to extract and use
-- **7,784+ tests** -- zero clippy warnings, zero unsafe code
+- **8,100+ tests** -- zero clippy warnings, zero unsafe code
 - **AGPL-3.0** -- open source that stays open source
 
 We're launching on **[Launch Date]** on Product Hunt and GitHub.
@@ -129,7 +129,7 @@ That's it. Two tasks, two verbs (`fetch:` + `infer:`), automatic dependency reso
 
 **A course, not a README.** `nika init --course` generates 12 levels of interactive exercises. Learn by doing, not by reading.
 
-**Rust, not Python.** Single binary. 7,784 tests. Starts in milliseconds. The TUI renders at 60fps.
+**Rust, not Python.** Single binary. 8,100 tests. Starts in milliseconds. The TUI renders at 60fps.
 
 **AGPL, not MIT.** Open source that stays open. No cloud provider can take your work and close the door.
 
@@ -150,7 +150,7 @@ If Nika resonates with you, here's how you can help:
 
 ### What's next
 
-Nika v0.39 is just the beginning. The roadmap includes multi-model routing presets, record compression for bounded context, orchestration mode (dynamic workflow generation from goals), and persistent memory via our NovaNet knowledge graph.
+Nika v0.42 is just the beginning. The roadmap includes multi-model routing presets, record compression for bounded context, orchestration mode (dynamic workflow generation from goals), and persistent memory via our NovaNet knowledge graph.
 
 The 5 verbs are the foundation. Everything else builds on top.
 
@@ -178,7 +178,7 @@ P.S. -- What would you build with 5 verbs? Reply to this email. I read every res
 **C:** `What we learned from launching a 451K-line Rust project`
 
 ### Preview Text
-`Launch stats, community feedback, and what's coming in v0.40.`
+`Launch stats, community feedback, and what's coming in v0.42.`
 
 ### Body
 
@@ -210,7 +210,7 @@ We've seen some incredible workflows this week:
 
 ### What we learned
 
-**The course is a hit.** `nika init --course` has been the most-mentioned feature in feedback. People love learning by doing rather than reading docs. We're expanding it in v0.40.
+**The course is a hit.** `nika init --course` has been the most-mentioned feature in feedback. People love learning by doing rather than reading docs. We're expanding it in v0.42.
 
 **YAML skeptics became converts.** The most common feedback: "I was skeptical about YAML, but after seeing how readable the workflows are, I get it." The constraint IS the feature.
 
@@ -225,9 +225,9 @@ Not yet. macOS and Linux for now. Cross-compilation is on the roadmap -- Rust ma
 Yes -- `exec: command: "python3 my_script.py"` works. Nika orchestrates your existing tools via shell commands, HTTP, or MCP.
 
 **Q: What about streaming output?**
-Streaming works for all providers. The TUI shows token-by-token output in real-time. CLI mode (`nika run`) will support streaming in v0.40.
+Streaming works for all providers. The TUI shows token-by-token output in real-time. CLI mode (`nika run`) will support streaming in v0.42.
 
-### What's coming in v0.40
+### What's coming in v0.42
 
 Based on your feedback, here's what we're prioritizing:
 

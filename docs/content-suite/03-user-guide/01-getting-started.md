@@ -42,7 +42,7 @@ nika --version
 You should see output like:
 
 ```
-nika 0.39.0
+nika 0.42.0
 ```
 
 ## Your First 60 Seconds
@@ -467,7 +467,7 @@ nika doctor
   ✓ Anthropic     ANTHROPIC_API_KEY set (sk-ant-...)
   ✓ OpenAI        OPENAI_API_KEY set (sk-...)
   ⚠ Mistral       MISTRAL_API_KEY not set
-  ✓ Version       Nika v0.39.0
+  ✓ Version       Nika v0.42.0
   ✓ Traces        4 traces, 1.2 MB
 
   3 checks passed, 1 warning

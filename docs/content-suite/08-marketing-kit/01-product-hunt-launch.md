@@ -1,6 +1,6 @@
 # Product Hunt Launch Kit -- Nika
 
-> Complete Product Hunt launch preparation for Nika v0.39.
+> Complete Product Hunt launch preparation for Nika v0.42.
 > Every asset, copy variant, and timing detail needed for a successful launch day.
 
 ---
@@ -77,7 +77,7 @@ Three tasks. Three verbs. A complete pipeline from data collection through AI an
 - Event sourcing: 39 event types with NDJSON trace output
 - Terminal UI with 3 views (Studio, Command, Control) -- 92K lines of ratatui
 - LSP for IDE integration (VS Code, Neovim, etc.)
-- 7,784+ tests, zero clippy warnings
+- 8,100+ tests, zero clippy warnings
 
 ---
 
@@ -115,7 +115,7 @@ Three tasks. Three verbs. A complete pipeline from data collection through AI an
 >
 > Nika's insight is simple: **5 verbs are enough**. `infer:` generates text. `exec:` runs commands. `fetch:` makes HTTP requests. `invoke:` calls MCP tools. `agent:` runs multi-turn loops. Compose them in YAML with DAG dependencies, and you can build anything.
 >
-> Why Rust? Because AI workflows should start in milliseconds, not seconds. Because a single binary with zero dependencies is the best deployment story. Because 7,784 tests should run in under 5 seconds. And because when you're processing media (24 built-in tools for images, PDFs, charts, QR codes), you want SIMD-accelerated Lanczos3 resampling, not Python's PIL.
+> Why Rust? Because AI workflows should start in milliseconds, not seconds. Because a single binary with zero dependencies is the best deployment story. Because 8,100 tests should run in under 5 seconds. And because when you're processing media (24 built-in tools for images, PDFs, charts, QR codes), you want SIMD-accelerated Lanczos3 resampling, not Python's PIL.
 >
 > The part I'm most proud of is the course system. Run `nika init --course` and you get 12 levels of progressive exercises -- from "what is a workflow" to building multi-agent orchestration systems. Every level has progressive hints, auto-validation, and a constellation progress map. We believe the best documentation teaches you to fish, not just shows you the fish.
 >
@@ -166,7 +166,7 @@ Three tasks. Three verbs. A complete pipeline from data collection through AI an
 > YAML is version-controllable, diffable, reviewable, and composable. You can put a Nika workflow in a PR and your team can review it. You can copy-paste workflows between projects. You can generate them programmatically. Visual builders are great for demos -- YAML is great for production.
 
 **Q: "Why Rust? Isn't that overkill for a workflow engine?"**
-> Three reasons: (1) Single binary, zero dependencies -- `cargo install nika` and you're done. (2) Performance -- the engine processes workflows in milliseconds with SIMD-accelerated media tools. (3) Correctness -- 451K lines with zero clippy warnings and 7,784 tests means fewer surprises in production.
+> Three reasons: (1) Single binary, zero dependencies -- `cargo install nika` and you're done. (2) Performance -- the engine processes workflows in milliseconds with SIMD-accelerated media tools. (3) Correctness -- 451K lines with zero clippy warnings and 8,100 tests means fewer surprises in production.
 
 **Q: "What's the AGPL mean for me?"**
 > If you use Nika as a CLI tool to run your workflows -- nothing changes, use it freely. The AGPL only kicks in if you modify Nika's source code and offer it as a service to others. Then you need to share your modifications. This is intentional: it prevents cloud providers from taking Nika, adding features, and selling it as a closed product.
@@ -206,7 +206,7 @@ Three tasks. Three verbs. A complete pipeline from data collection through AI an
 ### Metrics to Highlight
 - 451K lines of Rust
 - 10 workspace crates
-- 7,784+ tests passing
+- 8,100+ tests passing
 - 22 LLM providers supported
 - 24 built-in media tools
 - 200+ showcase workflows

@@ -169,7 +169,7 @@ strip = true
 
 Thin LTO (Link-Time Optimization) enables the compiler to optimize across crate boundaries, which is critical in a 10-crate workspace where hot paths often cross crate boundaries (e.g., nika-engine calling nika-core's parser). Single codegen unit means the entire crate compiles as one unit, enabling more aggressive inlining and dead code elimination. Symbol stripping removes debug information from the release binary.
 
-The test profile uses `opt-level = 1`, which is an interesting choice — it enables basic optimizations even in test builds, making test execution faster at the cost of slightly longer compilation. This matters when you have 7,784+ tests.
+The test profile uses `opt-level = 1`, which is an interesting choice — it enables basic optimizations even in test builds, making test execution faster at the cost of slightly longer compilation. This matters when you have 8,100+ tests.
 
 The dev profile uses `split-debuginfo = "unpacked"`, which generates debug information in separate files rather than embedding it in the binary. This speeds up incremental compilation during development.
 
@@ -189,7 +189,7 @@ This is what 317,000 lines of Rust buys you: a system where every layer, from by
 
 ---
 
-## The Testing Strategy: 7,784+ Tests and Counting
+## The Testing Strategy: 8,100+ Tests and Counting
 
 Nika's testing strategy is as deliberate as its architecture. The project uses three complementary testing approaches, each serving a different purpose.
 

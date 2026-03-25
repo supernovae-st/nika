@@ -80,7 +80,7 @@ Let's verify everyone's setup. Open your terminal and run these two commands.
 
 ```bash
 nika --version
-# Expected: nika 0.39.1
+# Expected: nika 0.42.0
 
 nika provider list
 # Expected: at least one provider with a green checkmark

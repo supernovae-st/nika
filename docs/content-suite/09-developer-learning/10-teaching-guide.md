@@ -315,7 +315,7 @@ Yes. Nika supports 22+ providers via environment variables. If your provider has
 
 ### "Is it production-ready?"
 
-Nika is pre-release (0.x.x versioning). The engine is functional and tested (7784+ tests), but the API may change. It is suitable for internal automation, prototyping, and learning. Production deployment should account for the evolving schema.
+Nika is pre-release (0.x.x versioning). The engine is functional and tested (8,100+ tests), but the API may change. It is suitable for internal automation, prototyping, and learning. Production deployment should account for the evolving schema.
 
 ### "What happens if a task fails?"
 

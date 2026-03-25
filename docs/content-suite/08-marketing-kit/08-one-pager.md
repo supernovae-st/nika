@@ -18,7 +18,7 @@ Nika is an open source workflow engine that lets developers orchestrate AI tasks
 | Metric | Value |
 |--------|-------|
 | **Codebase** | 451K lines of Rust, 10 workspace crates |
-| **Tests** | 7,784+ passing, zero clippy warnings, zero unsafe |
+| **Tests** | 8,100+ passing, zero clippy warnings, zero unsafe |
 | **LLM Providers** | 22 (Claude, GPT-4o, Gemini, Mistral, Groq, DeepSeek, xAI, Perplexity, local GGUF) |
 | **Media Tools** | 24 built-in (thumbnail, chart, PDF, C2PA, QR validation) |
 | **Showcase Workflows** | 200+ ready-to-use examples |

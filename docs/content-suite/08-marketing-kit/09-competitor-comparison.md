@@ -18,7 +18,7 @@
 | **License** | AGPL-3.0 | MIT | Apache-2.0/Enterprise | Sustainable Use | MIT | Apache-2.0 |
 | **Deployment** | `cargo install` | `pip install` | Docker Compose | Docker/npm | Binary + deps | `pip install` |
 | **Learning Curve** | 5 verbs + YAML | Python + SDK | Low (visual) | Low (visual) | High (Go/SDK) | Medium (Python) |
-| **Version** | v0.39.1 | v0.3.x | v0.11.x | v1.x | v1.x | v3.x |
+| **Version** | v0.42.0 | v0.3.x | v0.11.x | v1.x | v1.x | v3.x |
 | **Stars (approx)** | New | 100K+ | 60K+ | 50K+ | 12K+ | 18K+ |
 
 ---

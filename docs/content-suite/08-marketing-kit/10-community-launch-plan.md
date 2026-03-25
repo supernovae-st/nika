@@ -23,7 +23,7 @@ GitHub Discussions is the primary community hub -- it lives where the code lives
 
 **Pinned discussions:**
 1. "Welcome to Nika -- Start Here" (quickstart, links, expectations)
-2. "Roadmap: What's Coming in v0.40" (transparency, input invitation)
+2. "Roadmap: What's Coming in v0.42" (transparency, input invitation)
 3. "FAQ: Common Questions" (AGPL, YAML, Rust, providers)
 
 ### Discord Server (Secondary)

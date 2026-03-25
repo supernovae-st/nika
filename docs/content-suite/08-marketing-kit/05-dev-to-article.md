@@ -398,7 +398,7 @@ Web scraping without a headless browser. Data extraction without Beautiful Soup.
 |--------|-------|
 | Lines of Rust | 451K |
 | Workspace crates | 10 |
-| Tests passing | 7,784+ |
+| Tests passing | 8,100+ |
 | Clippy warnings | 0 |
 | Unsafe blocks | 0 |
 | LLM providers | 22 |
@@ -566,7 +566,7 @@ We built Nika because we believe:
 
 ## What's Next
 
-Nika v0.39 is the current release. The roadmap includes:
+Nika v0.42 is the current release. The roadmap includes:
 
 - **Model routing** -- Named model slots (4 presets) for per-task provider selection
 - **Record compression** -- Compressed task results for bounded context growth

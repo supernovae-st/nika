@@ -161,7 +161,7 @@ nika showcase list
 | **Homebrew** | `brew install supernovae-st/tap/nika` |
 | **Docs** | https://github.com/supernovae-st/nika/wiki |
 | **License** | AGPL-3.0-or-later |
-| **Codebase** | 451K lines of Rust, 10 workspace crates, 7,784+ tests |
+| **Codebase** | 451K lines of Rust, 10 workspace crates, 8,100+ tests |
 | **Platforms** | macOS (arm64, x86_64), Linux (x86_64) |
 
 ---
