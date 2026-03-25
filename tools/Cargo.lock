@@ -5333,6 +5333,7 @@ dependencies = [
  "nika-engine",
  "nika-mcp",
  "regex",
+ "rustc-hash 2.1.1",
  "serde",
  "serde_json",
  "tempfile",
