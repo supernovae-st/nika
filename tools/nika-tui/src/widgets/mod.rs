@@ -13,10 +13,6 @@
 mod activity_stack;
 mod agent_steps;
 mod animation;
-mod chat_dag_panel;
-mod chat_edge_line;
-mod chat_node_box;
-mod chat_task_queue;
 mod command_palette;
 mod confirm_dialog;
 mod dag;
@@ -52,12 +48,12 @@ pub mod panels;
 
 // Animation utilities
 pub use animation::{AnimationState, AnimationTicker, Easing};
-// Chat DAG widgets
-pub use chat_dag_panel::{ChatDagPanel, DagEdgeData, DagNodeData};
+// Chat DAG widgets (canonical location: views/chat/widgets/, re-exported for public API)
+pub use crate::views::chat_widgets::{
+    ChatDagPanel, ChatNodeKind, ChatNodeState, ChatTaskQueue, ChatTaskQueueItem, ChatTaskState,
+    ChatTaskVerb, DagEdgeData, DagNodeData,
+};
 // Confirmation dialog
-pub use chat_edge_line::{ChatEdgeLine, ChatPosition};
-pub use chat_node_box::{ChatNodeBox, ChatNodeKind, ChatNodeState};
-pub use chat_task_queue::{ChatTaskQueue, ChatTaskQueueItem, ChatTaskState, ChatTaskVerb};
 pub use confirm_dialog::{ConfirmAction, ConfirmDialog};
 pub use provider_modal::*;
 pub use provider_selector::VerifyStatus;
