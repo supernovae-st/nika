@@ -7,6 +7,176 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║  NIKA v0.42.0 — DX OVERHAUL + SECURITY HARDENING                           ║
+║  Auto-setup | TUI polish | 50+ bug fixes | SSRF/token safety               ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║                                                                             ║
+║  v0.40.3  Telemetry v2 (43 → 55 EventKind)                                 ║
+║  v0.41.0  LSP CodeLens + InlayHints + Manifesto                            ║
+║  v0.41.1  Deep audit — 50 bugs fixed, 3200 LOC deleted                     ║
+║  v0.41.2  Security hardening — SSRF, secrets, DAG cycles                   ║
+║  v0.41.3  Gemini stopSequences + UTF-8 safety                              ║
+║  v0.41.4  Parser: duplicate task IDs + timeout: 0 warning                  ║
+║  v0.41.5  Overflow-safe timeout + error code collision fix                 ║
+║  v0.42.0  DX overhaul — auto-setup, TUI polish, nika setup removed        ║
+║                                                                             ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+```
+
+## [0.42.0](https://github.com/supernovae-st/nika/releases/tag/v0.42.0) — 2026-03-25
+
+### Added
+- Tab completion for all slash commands in TUI chat
+- Welcome message with verb examples and provider status on first launch
+- Yank (`y`) keybinding to copy task output in monitor view
+- `chat.default_provider` and `chat.default_model` config support in TUI
+- ExportTrace action wired to `export_session()` in TUI
+- Diamond DAG, manifesto, and wow demo workflows for `nika` bare command
+- Memorable end-of-run summary one-liner after workflow execution
+- Inline DAG summary displayed before `nika run`
+- `nika provider list` now shows fix command for missing API keys
+- Editor name reveal in setup output
+- Content hash fingerprinting to protect user-customized rules from overwrites
+- Auto-setup on first command (skipped in CI environments)
+- `install.sh` curl script for quick installation
+- `@supernovae/nika` npm wrapper package for cross-platform install
+- Windows target in CI release pipeline
+- Startup loading indicator and first-launch help hint in TUI
+
+### Changed
+- Removed `nika setup` command (replaced by auto-setup on first use)
+- Slimmed `nika init` to generate only `config.toml` (editor rules moved to user scope)
+- Simplified `nika new` to accept name + verb + provider only
+- Hidden power-user commands from `--help` output
+- Slimmed `.nika/` project scaffold (removed 6 unused files/dirs)
+- Split TUI modules: event_handler into sub-handlers, wizard/studio/matrix_decrypt into directories
+- Consolidated 4 provider fields into `ActiveProvider` struct in TUI
+- Removed dead code: new_wizard module (-1544 LOC), agent step stubs, widget shells, unused deps
+- 24h cooldown on quick editor scan for performance
+
+### Fixed
+- TUI provider state now updates on ChatModelSwitch
+- UTF-8 safe truncation for MCP error messages in TUI
+- `delay` → `delay_ms` in retry examples across all generated rules
+- Layout sync for correct mouse hit-testing in TUI
+- Unicode-aware status bar hint width calculation
+- Welcome hint and loading overlay no longer overlap
+- Status bar hints reordered by priority with progressive disclosure
+- MCP errors and API key warnings now shown in status bar
+- Concurrent provider verification spawns guarded
+- `/invoke` now validates that a tool name is provided
+- Memory bounds added for activity items and browser entries
+- Silent failures, stub actions, and signal handler wired in TUI
+- Non-ASCII `generation_id` no longer causes panic in display
+- Copilot false-positive detection removed (was triggering on VS Code presence)
+- CRLF line endings handled correctly in LSP handlers
+- Plural grammar in display output and doctor recommendations
+- Stale tests referencing deleted code removed
+- Token estimation, error codes, and tracing improvements in runtime
+- MCP validator now extracts unknown field name from error messages
+
+### Removed
+- `nika setup` command (replaced by auto-setup)
+- Dead code: HomeView, MatrixRain, sparkline, progress module (~3000 LOC)
+- Unused dependencies: nucleo, humantime, and others unified to dirs v6
+
+## [0.41.5](https://github.com/supernovae-st/nika/releases/tag/v0.41.5) — 2026-03-23
+
+### Fixed
+- Timeout seconds-to-milliseconds conversion uses `saturating_mul` to prevent overflow
+- `McpToolCallFailed` error code reassigned to NIKA-110 (was colliding with NIKA-103)
+
+## [0.41.4](https://github.com/supernovae-st/nika/releases/tag/v0.41.4) — 2026-03-23
+
+### Fixed
+- Duplicate task IDs now detected at parse time instead of analysis phase
+- Warning added for `timeout: 0` which causes immediate timeout
+- Provider prefix stripped from model names before API calls
+
+## [0.41.3](https://github.com/supernovae-st/nika/releases/tag/v0.41.3) — 2026-03-23
+
+### Fixed
+- Gemini `stopSequences` now correctly nested inside `generationConfig`
+- UTF-8 panic in `redact_for_event` truncation prevented
+- `extract_actual_type` implemented properly (was returning literal string "actual")
+- NIKA-102/103 error code deduplication for `McpToolCallFailed`
+
+## [0.41.2](https://github.com/supernovae-st/nika/releases/tag/v0.41.2) — 2026-03-23
+
+### Added
+- LSP: references, document links, and folding ranges migrated from engine to nika-lsp-core
+- Cursor AI rules expanded from 35 to 527 lines
+- Machine auto-setup module (`~/.nika/machine.toml`)
+- Unified wizard with machine auto-setup as Phase 1
+- `nika doctor --fix` for auto-remediation
+- Adaptive bare `nika` command (distinguishes upgrade vs first-time)
+- 25 tests for LimitTracker + concurrent fail_fast
+- 8 coherence tests to prevent AI rule content drift
+- Actionable help messages in provider errors
+
+### Changed
+- 12 dead/redundant dependencies removed
+- Claude rules expanded to 170 lines
+
+### Fixed
+- DAG cycle detection added at run time + MCP graceful shutdown
+- `$env` secret access blocked + `TemplateResolved` events redacted
+- CIDR-based SSRF blocklist + proper host matching
+- SSRF-vulnerable HTTP client fallbacks removed
+- Checked arithmetic in token budget + safe `inject_mock`
+- Token budget leak on Layer 0 early return + trace writer warning
+- Structured output retry loop now checks cancellation
+- Structured output error context improved + agent cleanup
+- `chat_continue` unified with full AgentBuilder config + cost estimates
+- `calculate_cost_with_cache` wired at all 12 call sites
+- MCP caches cleared on reconnect + `TransportClosed` error detection
+- Structured output retry loop uses latest output + Layer 3/4 cost tracking
+- MCP invoke params coerced to native JSON types after template resolution
+- `for_each` + `decompose` coexistence warning + schema without `format:json`
+- Dead `is_error` variable removed + `ForEachCompleted` skipped count split
+- `llm_txt` fetch failures and vision channel warnings now logged
+- `TaskFailed` emitted for cancellation + artifact write failures
+- `{{item}}` → `{{with.item}}` in Cursor rules + stale grok-4 reference removed
+- AI file generation moved before summary output in init
+- `spawn_blocking` used for workflow directory scan in MCP
+- Short-circuit invoke param template roundtrip for performance
+- TUI bounds checks on provider selector + wizard navigation
+- Missing model pricing entries added
+
+## [0.41.1](https://github.com/supernovae-st/nika/releases/tag/v0.41.1) — 2026-03-23
+
+### Added
+- `PermissionMode` wired from CLI to executor
+
+### Changed
+- ~3200 LOC dead code deleted across the codebase
+
+### Fixed
+- 50 bugs from deep audit (6 CRITICAL + 17 HIGH) across runtime, security, and bindings
+- Task failures now propagated instead of silently swallowed
+- Atomic token budget operations + SSRF redirect protection + cache pricing fixes
+- Shell escape for non-string values in bindings + `USE_RE` supports all transforms
+- `retry:` removed from course L5-03 infer task (was silently ignored)
+- MISSION.md exercise tables fixed in 8 levels
+
+## [0.41.0](https://github.com/supernovae-st/nika/releases/tag/v0.41.0) — 2026-03-23
+
+### Added
+- LSP: diagnostic code actions, CodeLens, and InlayHints
+- MANIFESTO.md with mermaid diagrams and launch marketing suite
+
+### Fixed
+- NIKA-053 false positive on blocklist normalization
+- 25 failing course templates + init `--minimal` helpers
+- Template vars, test count, and brew tap references in documentation
+
+## [0.40.3](https://github.com/supernovae-st/nika/releases/tag/v0.40.3) — 2026-03-23
+
+### Added
+- Telemetry v2: 12 new event types for full observability (43 → 55 `EventKind` variants)
+
 ## [0.40.2](https://github.com/supernovae-st/nika/releases/tag/v0.40.2) — 2026-03-23
 
 ### Added
