@@ -51,7 +51,7 @@ indexmap = "2.7"
 
 # JSON
 serde_json_path = "0.7"
-jsonschema = "0.26"
+jsonschema = { version = "0.26", default-features = false }
 
 # Errors
 thiserror = "1.0"
@@ -113,6 +113,7 @@ proptest = "1.4"
 lto = "thin"
 codegen-units = 1
 strip = true
+panic = "abort"
 
 [profile.dev]
 split-debuginfo = "unpacked"
