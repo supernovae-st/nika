@@ -36,8 +36,13 @@ impl App {
             // Extract values BEFORE mutable borrows for the closure
             let total_tokens = self.command_view.chat.total_tokens();
             let provider = self.command_view.chat.provider();
-            let chat_status = self.command_view.status_line(&self.state);
-            let studio_status = self.studio_view.status_line(&self.state);
+
+            // PERF: Only compute status_line for active view (avoids 1 extra format!())
+            let status_text = match current_view {
+                TuiView::Studio => self.studio_view.status_line(&self.state),
+                TuiView::Command => self.command_view.status_line(&self.state),
+                TuiView::Control => self.control_view.status_line(&self.state),
+            };
 
             let loading = self.loading;
             // Check if welcome hint is still active (auto-dismiss after deadline)
@@ -61,13 +66,6 @@ impl App {
             // Extract data for StatusBar metrics from the centralized pool
             let mcp_total = self.mcp_pool.config_count();
             let mcp_connected = self.mcp_pool.connected_count();
-
-            // Get custom status text from current view (using pre-computed values)
-            let status_text = match current_view {
-                TuiView::Studio => studio_status,
-                TuiView::Command => chat_status,
-                TuiView::Control => control_view.status_line(state),
-            };
 
             terminal
                 .draw(|frame| {
