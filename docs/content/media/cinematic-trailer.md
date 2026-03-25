@@ -166,7 +166,7 @@ Panel 4: An agent loop iterating with tool calls
 ```
 10 crates
 1.56M lines
-7,784 tests
+8,100 tests
 8 providers
 24 media tools
 41 event types

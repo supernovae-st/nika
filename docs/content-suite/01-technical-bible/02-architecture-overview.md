@@ -19,7 +19,7 @@ tools/
 └── nika-cli/           # CLI subcommands (8K lines)
 ```
 
-All crates share version `0.39.1`, edition 2021, AGPL-3.0-or-later license, and minimum Rust version 1.86.
+All crates share version `0.42.0`, edition 2021, AGPL-3.0-or-later license, and minimum Rust version 1.86.
 
 ---
 
@@ -389,7 +389,7 @@ The release profile uses thin LTO and single codegen unit for optimal binary siz
 ## Testing Strategy
 
 ```bash
-cargo test --workspace --lib        # All crates (7784+, safe)
+cargo test --workspace --lib        # All crates (8,100+, safe)
 cargo test --lib                    # nika binary tests only
 cargo test -p nika-engine --lib     # Engine tests (4060)
 cargo test -p nika-tui --lib        # TUI tests (2117)

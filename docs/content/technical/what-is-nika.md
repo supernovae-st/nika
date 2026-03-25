@@ -6,7 +6,7 @@ Nika is a semantic YAML workflow engine purpose-built for AI tasks. Written in R
 
 At its core, Nika is the **body** in a brain/body architecture. Its counterpart, **NovaNet**, is the brain -- a knowledge graph with NodeClasses and ArcClasses. The two communicate exclusively via the Model Context Protocol (MCP). Nika never touches Neo4j or Cypher directly; all knowledge graph operations go through `invoke:` verbs that call MCP tools exposed by NovaNet.
 
-Nika is licensed under AGPL-3.0-or-later and maintained by SuperNovae Studio. The current version is **v0.39.1**.
+Nika is licensed under AGPL-3.0-or-later and maintained by SuperNovae Studio. The current version is **v0.42.0**.
 
 ---
 
@@ -120,13 +120,13 @@ The interactive course (12 levels, 44 exercises) onboards users from basic `exec
 
 ---
 
-## Key Numbers (v0.39.1)
+## Key Numbers (v0.42.0)
 
 | Metric | Value |
 |--------|-------|
 | Total Rust code | ~451K lines |
 | Workspace crates | 10 |
-| Tests | 7,784+ (lib only, safe) |
+| Tests | 8,100+ (lib only, safe) |
 | LLM providers | 7 cloud + 1 native |
 | MCP aliases | 100 |
 | Builtin tools | 12 core + 24 media |

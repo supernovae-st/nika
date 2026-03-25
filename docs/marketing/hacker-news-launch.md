@@ -71,7 +71,7 @@ Tasks without dependencies run in parallel automatically.
 Technical details:
 
   - 451K lines of Rust across 10 workspace crates
-  - 7,784+ tests, zero clippy warnings, zero unsafe
+  - 8,100+ tests, zero clippy warnings, zero unsafe
   - Single binary (cargo install nika), no runtime deps
   - 2-phase AST: YAML -> Raw AST (with source spans) -> Analyzed AST (validated, interned)
   - DAG scheduler with cycle detection, topological sort, parallel execution via tokio
@@ -152,7 +152,7 @@ If you're using Nika headless (nika run), you only need ~180K lines. Still a lot
 but that includes 24 media tools, a 44-exercise course generator, 200+ showcase
 workflows, and comprehensive error handling (319 error codes).
 
-The test count (7,784+) accounts for a significant portion of the total.
+The test count (8,100+) accounts for a significant portion of the total.
 ```
 
 ### "YAML is terrible for programming"
@@ -247,7 +247,7 @@ for observability. The TUI shows errors in real-time with stack context.
 
 **Response:**
 ```
-v0.39.1 is the current version. It's used in production by SuperNovae
+v0.42.0 is the current version. It's used in production by SuperNovae
 Studio for QR Code AI (https://qrcode-ai.com).
 
 That said, Nika stays at 0.x.x permanently -- not because it's unstable,

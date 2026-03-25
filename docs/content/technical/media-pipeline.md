@@ -258,7 +258,7 @@ invoke:
 
 ## Tier 3 -- Opt-In (13 Tools)
 
-These tools have individual feature flags. Most are enabled by default in v0.39.1 except `media-provenance`.
+These tools have individual feature flags. Most are enabled by default in v0.42.0 except `media-provenance`.
 
 ### nika:phash
 
@@ -327,7 +327,7 @@ invoke:
   tool: nika:provenance
   params:
     hash: "abc123..."
-    claim_generator: "Nika v0.39.1"
+    claim_generator: "Nika v0.42.0"
     assertions:
       - label: "c2pa.actions"
         data: { "actions": [{"action": "c2pa.created"}] }

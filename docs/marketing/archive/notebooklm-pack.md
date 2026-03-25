@@ -245,7 +245,7 @@ The creator of Nika is an open source activist who views the current AI landscap
 
 ## The Solo Developer Story: 317K Lines of Rust
 
-As of version 0.41, the project contains over 451,000 lines of Rust source code across 10 workspace crates. The largest crate, nika-engine, accounts for 162,547 lines. The TUI alone is 92,959 lines. The core AST library is 23,114 lines. This is the work of a solo developer, Thibaut Melen, working with AI assistance (Claude).
+As of version 0.42, the project contains over 451,000 lines of Rust source code across 10 workspace crates. The largest crate, nika-engine, accounts for 162,547 lines. The TUI alone is 92,959 lines. The core AST library is 23,114 lines. This is the work of a solo developer, Thibaut Melen, working with AI assistance (Claude).
 
 ## The Course: Liberation Through Learning
 

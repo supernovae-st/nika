@@ -176,7 +176,7 @@ pub struct TraceWriter {
 Trace files are stored at `.nika/traces/{generation_id}.ndjson`. Each line is a JSON-serialized `Event`:
 
 ```json
-{"id":0,"timestamp_ms":0,"kind":{"type":"workflow_started","task_count":3,"generation_id":"gen-abc123","workflow_hash":"f0c7e93e","nika_version":"0.39.1"}}
+{"id":0,"timestamp_ms":0,"kind":{"type":"workflow_started","task_count":3,"generation_id":"gen-abc123","workflow_hash":"f0c7e93e","nika_version":"0.42.0"}}
 {"id":1,"timestamp_ms":5,"kind":{"type":"task_started","task_id":"step1","verb":"infer","inputs":{}}}
 {"id":2,"timestamp_ms":1230,"kind":{"type":"task_completed","task_id":"step1","output":"...","duration_ms":1225}}
 ```

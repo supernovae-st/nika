@@ -4,7 +4,7 @@
 
 ## Workspace Overview
 
-Nika is organized as a Cargo workspace containing 10 crates at `tools/`. Every crate shares version `0.39.1`, edition 2021, and the AGPL-3.0-or-later license. The workspace uses the resolver v2 setting for correct feature unification.
+Nika is organized as a Cargo workspace containing 10 crates at `tools/`. Every crate shares version `0.42.0`, edition 2021, and the AGPL-3.0-or-later license. The workspace uses the resolver v2 setting for correct feature unification.
 
 ```
 tools/

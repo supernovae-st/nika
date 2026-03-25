@@ -404,7 +404,7 @@ These five operations compose into DAG-scheduled workflows where independent tas
 
 [PAUSE]
 
-Next episode, we are going deep into the Rust architecture. The 10-crate workspace design. The three-phase AST and why it matters. The IndexedDag with Kahn's algorithm. The zero-I/O core principle. How Nika abstracts 22 LLM providers into a single interface. And why 7,784 tests is just the beginning.
+Next episode, we are going deep into the Rust architecture. The 10-crate workspace design. The three-phase AST and why it matters. The IndexedDag with Kahn's algorithm. The zero-I/O core principle. How Nika abstracts 22 LLM providers into a single interface. And why 8,100 tests is just the beginning.
 
 [MUSIC: Outro theme]
 

@@ -15,7 +15,7 @@
 
 [![Crates.io](https://img.shields.io/crates/v/nika.svg)](https://crates.io/crates/nika)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-7784%2B-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-8100%2B-brightgreen.svg)]()
 [![Rust](https://img.shields.io/badge/rust-1.86%2B-orange.svg)](https://www.rust-lang.org)
 [![Schema](https://img.shields.io/badge/schema-nika%2Fworkflow%400.12-purple.svg)]()
 
@@ -311,7 +311,7 @@ nika course watch           # Auto-check on file save
                 +---------------+
 ```
 
-10 workspace crates. 451K lines of Rust. 7,784+ tests. Zero clippy warnings.
+10 workspace crates. 451K lines of Rust. 8,100+ tests. Zero clippy warnings.
 
 | Crate | Lines | Role |
 |-------|------:|------|

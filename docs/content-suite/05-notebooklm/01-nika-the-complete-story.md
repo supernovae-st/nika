@@ -147,7 +147,7 @@ This philosophy extends to the project's visual identity. The project's symbol i
 
 ## The Solo Developer Story: 317K Lines of Rust
 
-One of the most remarkable aspects of Nika is its scale. As of version 0.39.1, the project contains over 317,000 lines of Rust source code across 1,739 files, organized into 10 workspace crates. The largest crate, nika-engine, accounts for 162,547 lines. The TUI (terminal user interface) alone is 92,959 lines. The core AST library is 23,114 lines.
+One of the most remarkable aspects of Nika is its scale. As of version 0.42.0, the project contains over 317,000 lines of Rust source code across 1,739 files, organized into 10 workspace crates. The largest crate, nika-engine, accounts for 162,547 lines. The TUI (terminal user interface) alone is 92,959 lines. The core AST library is 23,114 lines.
 
 This is the work of a solo developer, Thibaut Melen, working with AI assistance. The project maintains a zero clippy warnings policy, uses structured error codes (NIKA-001 through NIKA-319), and has a comprehensive test suite. The codebase includes snapshot testing via insta, property-based testing via proptest, and a strict pre-commit workflow that requires all tests, linting, and type-checking to pass before any commit.
 
@@ -173,7 +173,7 @@ The project's roadmap extends through several waves of planned features. The vis
 
 Perhaps the most ambitious planned feature is the orchestrate mode. When given a `goal:` instead of explicit tasks, Nika's orchestrator would plan in YAML — dynamically generating, executing, evaluating, and improving `.nika.yaml` workflows to achieve the goal. No other framework has an orchestrator that plans in its own workflow language. LangGraph's plans are opaque Python, CrewAI's plans are non-deterministic natural language, AutoGen's plans are implicit conversations. Nika's plans would be deterministic, auditable, reusable YAML files that can be saved, version-controlled, and reviewed alongside hand-written workflows.
 
-The integration story is equally ambitious. As of version 0.39.0, Nika includes a setup system that integrates with 43+ AI coding tools — Claude Code, Cursor, Copilot, Codex, Gemini, Windsurf, and more — through universal Agent Skills that teach these tools how to write `.nika.yaml` workflows. A Claude Code plugin provides full power integration with skills, agents, hooks, and MCP connectivity. The vision is simple: when someone installs Nika, every AI coding tool on their machine should instantly understand how to work with it.
+The integration story is equally ambitious. As of version 0.42.0, Nika includes a setup system that integrates with 43+ AI coding tools — Claude Code, Cursor, Copilot, Codex, Gemini, Windsurf, and more — through universal Agent Skills that teach these tools how to write `.nika.yaml` workflows. A Claude Code plugin provides full power integration with skills, agents, hooks, and MCP connectivity. The vision is simple: when someone installs Nika, every AI coding tool on their machine should instantly understand how to work with it.
 
 ---
 

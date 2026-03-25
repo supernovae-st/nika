@@ -45,10 +45,10 @@ Nika compiles from source. This takes about two minutes on a modern machine. If 
 
 [TYPE] `nika --version`
 
-[SCREEN] Output: `nika 0.39.1`
+[SCREEN] Output: `nika 0.42.0`
 
 **Voice-over:**
-Version 0.39.1. Ten crates compiled into a single static binary. Let's verify everything is working.
+Version 0.42.0. Ten crates compiled into a single static binary. Let's verify everything is working.
 
 ### Scene 1.3 -- Verify Setup (0:50 - 1:30)
 

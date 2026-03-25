@@ -843,7 +843,7 @@ Thank you.
 
 ### Q: What is the testing strategy?
 
-**A:** 7,784+ tests. Unit tests with `cargo test --lib`. Snapshot tests with insta. Property tests with proptest. We use `--lib` exclusively because regular `cargo test` triggers macOS Keychain popups from integration tests. Zero clippy warnings enforced. Opt-level 1 for test builds to balance speed and compile time.
+**A:** 8,100+ tests. Unit tests with `cargo test --lib`. Snapshot tests with insta. Property tests with proptest. We use `--lib` exclusively because regular `cargo test` triggers macOS Keychain popups from integration tests. Zero clippy warnings enforced. Opt-level 1 for test builds to balance speed and compile time.
 
 ### Q: Why not use anyhow for errors?
 
@@ -851,7 +851,7 @@ Thank you.
 
 ### Q: Is Nika production-ready?
 
-**A:** Nika is at v0.39.1 with 7,784+ tests. It powers QR Code AI's content pipelines. The codebase has been through multiple deep audits. That said, the schema is still @0.12 and we intentionally stay at 0.x.x -- there are no users yet to break backward compatibility for, and we want the freedom to evolve rapidly.
+**A:** Nika is at v0.42.0 with 8,100+ tests. It powers QR Code AI's content pipelines. The codebase has been through multiple deep audits. That said, the schema is still @0.12 and we intentionally stay at 0.x.x -- there are no users yet to break backward compatibility for, and we want the freedom to evolve rapidly.
 
 ### Q: How does the AGPL license affect commercial use?
 

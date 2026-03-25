@@ -341,7 +341,7 @@ The `unlower()` function converts back from runtime types to analyzed types. Thi
 
 ## Direct Analyzed Path
 
-Since v0.39.0, the `Runner` directly consumes `AnalyzedWorkflow` and performs bridge conversions at the `TaskExecutor` boundary. This eliminates the full `lower()` step during execution:
+Since v0.42.0, the `Runner` directly consumes `AnalyzedWorkflow` and performs bridge conversions at the `TaskExecutor` boundary. This eliminates the full `lower()` step during execution:
 
 ```
 YAML -> raw::parse -> analyzer::analyze -> AnalyzedWorkflow -> Runner

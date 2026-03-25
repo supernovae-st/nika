@@ -93,7 +93,7 @@ The `fetch:` verb makes HTTP requests. GET by default. No headers, no auth cerem
     method: POST
     json:
       name: "Nika"
-      version: "0.39"
+      version: "0.42"
     headers:
       Accept: "application/json"
     response: full     # Get status + headers + body

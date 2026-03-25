@@ -19,7 +19,7 @@
 
 [SLIDE] Black screen. Butterfly silhouette slowly materializes in deep purple.
 
-**Visual:** The Nika butterfly logo, centered. Below it: "AI Workflows, Liberated." Below that, smaller: "nika/workflow@0.12 -- v0.39"
+**Visual:** The Nika butterfly logo, centered. Below it: "AI Workflows, Liberated." Below that, smaller: "nika/workflow@0.12 -- v0.42"
 
 **Speaker Notes:**
 Good morning. I want to start with a question. How many of you have written an AI workflow this week? And how many of you actually enjoyed the experience?
@@ -69,7 +69,7 @@ What if there were a workflow engine that did not assume you needed training whe
 
 [ANIMATION] The butterfly logo unfolds from the center. Title appears letter by letter: "Nika"
 
-**Visual:** Full-screen Nika logo with the tagline "Semantic YAML Workflow Engine for AI Tasks." Below: "10 crates. 1.56M lines. 7,784 tests. Zero compromises."
+**Visual:** Full-screen Nika logo with the tagline "Semantic YAML Workflow Engine for AI Tasks." Below: "10 crates. 1.56M lines. 8,100 tests. Zero compromises."
 
 **Speaker Notes:**
 This is Nika. A semantic YAML workflow engine for AI tasks, written entirely in Rust. Ten workspace crates. Over one and a half million lines of production code. Nearly eight thousand tests. And a zero-warnings policy enforced by CI on every commit. Nika is not a prototype. It is not a wrapper around somebody else's library. It is a ground-up engineering effort to build the workflow engine that AI development deserves.
@@ -612,7 +612,7 @@ Nine modes. One field. Show code example for each.
 ### BACKUP C -- Testing Strategy
 
 ```
-7,784+ tests
+8,100+ tests
 - Unit tests: cargo test --lib
 - Snapshot tests: insta
 - Property tests: proptest
@@ -623,7 +623,7 @@ Nine modes. One field. Show code example for each.
 
 ## Production Notes
 
-- All code examples must be verified against v0.39.1 before recording
+- All code examples must be verified against v0.42.0 before recording
 - Terminal font: JetBrains Mono, 16pt
 - Color scheme: dark background, high contrast
 - Screen resolution: 1920x1080 minimum, 4K preferred

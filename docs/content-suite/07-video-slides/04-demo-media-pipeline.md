@@ -278,7 +278,7 @@ For simpler cases, the `nika:pipeline` tool chains operations in memory. Thumbna
             data:
               actions:
                 - action: c2pa.created
-                  softwareAgent: "Nika v0.39.1"
+                  softwareAgent: "Nika v0.42.0"
 
   - id: check_quality
     depends_on: [to_webp, import_photo]

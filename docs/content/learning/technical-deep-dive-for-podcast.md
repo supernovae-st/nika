@@ -190,7 +190,7 @@ The 10-crate workspace structure is deliberately designed around dependency isol
 
 **nika** (2.2K lines) is the CLI binary entry point that ties everything together.
 
-This architecture enables several important use cases. An embedded Rust application could depend on just nika-engine to execute workflows programmatically. A code analysis tool could depend on just nika-core to parse and validate workflows. The LSP server depends on nika-lsp-core without needing the full engine. Each crate has its own test suite, and the workspace-level `cargo test --workspace --lib` runs all 7,784+ tests across all crates.
+This architecture enables several important use cases. An embedded Rust application could depend on just nika-engine to execute workflows programmatically. A code analysis tool could depend on just nika-core to parse and validate workflows. The LSP server depends on nika-lsp-core without needing the full engine. Each crate has its own test suite, and the workspace-level `cargo test --workspace --lib` runs all 8,100+ tests across all crates.
 
 ---
 
@@ -250,7 +250,7 @@ This "content as code" approach means the showcases are always consistent with t
 
 ## The Numbers
 
-To close with hard facts: Nika v0.39.1 is a single Rust binary built from 1,739 source files containing 317,616 lines of Rust code. It uses Rust 1.86 with the 2021 edition. The workspace contains 10 crates with independent compilation. The feature flag system uses 20+ Cargo features to enable/disable media processing tools. The dependency tree includes tokio for async, rig-core for LLM abstraction, rmcp for MCP protocol, petgraph for DAG algorithms, marked-yaml for span-preserving YAML parsing, serde for serialization, reqwest for HTTP, dashmap for concurrent storage, blake3 for content hashing, and ratatui for the TUI — among many others.
+To close with hard facts: Nika v0.42.0 is a single Rust binary built from 1,739 source files containing 317,616 lines of Rust code. It uses Rust 1.86 with the 2021 edition. The workspace contains 10 crates with independent compilation. The feature flag system uses 20+ Cargo features to enable/disable media processing tools. The dependency tree includes tokio for async, rig-core for LLM abstraction, rmcp for MCP protocol, petgraph for DAG algorithms, marked-yaml for span-preserving YAML parsing, serde for serialization, reqwest for HTTP, dashmap for concurrent storage, blake3 for content hashing, and ratatui for the TUI — among many others.
 
 It compiles to a single binary. It has no runtime dependencies. It runs on macOS, Linux, and Windows. It replaces Python scripts, Docker containers, and cloud platforms with a YAML file and a command line.
 

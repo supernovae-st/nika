@@ -15,7 +15,7 @@
 
 [![Crates.io](https://img.shields.io/crates/v/nika.svg)](https://crates.io/crates/nika)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-7784%2B-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-8100%2B-brightgreen.svg)]()
 [![Rust](https://img.shields.io/badge/rust-1.86%2B-orange.svg)](https://www.rust-lang.org)
 [![Schema](https://img.shields.io/badge/schema-nika%2Fworkflow%400.12-purple.svg)]()
 
@@ -84,7 +84,7 @@ nika run hello.nika.yaml
 | **LSP** | Language server for VS Code, Neovim -- completions, diagnostics, hover |
 | **Course** | 12 levels, 44 exercises, progressive hints, auto-validation |
 | **Events** | 39 event types, NDJSON trace writer, full observability |
-| **Testing** | 7,784+ tests, zero clippy warnings, insta snapshots |
+| **Testing** | 8,100+ tests, zero clippy warnings, insta snapshots |
 
 ---
 
@@ -354,7 +354,7 @@ cargo install --path nika
 
 ```bash
 nika --version
-# nika 0.39.1
+# nika 0.42.0
 
 nika provider list
 # Shows which API keys are configured

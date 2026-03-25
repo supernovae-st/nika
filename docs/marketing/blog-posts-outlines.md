@@ -285,7 +285,7 @@ Five posts, each targeting a different audience and platform. Publish in order â
 - Cold start: 50ms (vs 3s for Python frameworks)
 - Idle memory: 8 MB (vs 180 MB)
 - Binary size: 15 MB (with all features)
-- Test suite: 7,784 tests, runs in under 60 seconds
+- Test suite: 8,100 tests, runs in under 60 seconds
 - Compile time: ~3 minutes clean build (the Rust tax â€” worth it)
 
 **8. Mistakes and Regrets**
