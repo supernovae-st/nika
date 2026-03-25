@@ -139,6 +139,9 @@ pub struct App {
     // ═══ Startup Loading State ═══
     /// True until on_enter() completes — shows loading indicator in first frame
     pub(crate) loading: bool,
+    // ═══ Star Field ═══
+    /// Pre-computed star positions for O(stars) rendering instead of O(w*h)
+    pub(crate) star_field: super::widgets::StarField,
     // ═══ First-Launch Welcome Hint ═══
     /// Shown on first launch, auto-dismisses after 10s or on first keypress
     pub(crate) welcome_hint_until: Option<std::time::Instant>,
@@ -226,6 +229,7 @@ impl App {
             event_buffer: Vec::with_capacity(64), // PERF: Pre-allocated buffer
             verification_cache: Arc::new(Mutex::new(VerificationCache::default())),
             loading: true,
+            star_field: super::widgets::StarField::new(),
             welcome_hint_until: Self::check_first_launch(),
         })
     }
@@ -296,6 +300,7 @@ impl App {
             event_buffer: Vec::with_capacity(64), // PERF: Pre-allocated buffer
             verification_cache: Arc::new(Mutex::new(VerificationCache::default())),
             loading: true,
+            star_field: super::widgets::StarField::new(),
             welcome_hint_until: Self::check_first_launch(),
         })
     }

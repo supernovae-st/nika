@@ -12,8 +12,8 @@ use nika_engine::error::{NikaError, Result};
 
 use super::super::views::{TuiView, View};
 use super::super::widgets::{
-    check_terminal_size, render_star_field, star_tick, ConnectionStatus, Header, StatusBar,
-    StatusMessageWidget, StatusMetrics,
+    check_terminal_size, star_tick, ConnectionStatus, Header, StatusBar, StatusMessageWidget,
+    StatusMetrics,
 };
 use super::App;
 
@@ -55,6 +55,7 @@ impl App {
             }
             let theme = &self.theme;
             let state = &self.state;
+            let star_field = &mut self.star_field;
             let command_view = &mut self.command_view;
             let studio_view = &mut self.studio_view;
             let control_view = &mut self.control_view;
@@ -122,9 +123,9 @@ impl App {
                         }
                     }
 
-                    // Render twinkling star field in empty background cells
-                    // Stars show through gaps in the UI — cosmic hacking aesthetic
-                    render_star_field(frame, chunks[1], star_tick());
+                    // PERF: Pre-computed star field — O(500) instead of O(10K)
+                    star_field.ensure_size(chunks[1].width, chunks[1].height);
+                    star_field.render(frame, chunks[1], star_tick());
 
                     // First-launch welcome hint (auto-dismisses after 10s or first keypress)
                     // Skip when loading is active to prevent overlay overlap
