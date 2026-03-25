@@ -1,0 +1,18 @@
+# FEATURE: CLI input override (-i key=value, --input-file)
+schema: "nika/workflow@0.12"
+workflow: feat-cli-input-override
+provider: mock
+model: mock
+
+inputs:
+  greeting: "Hello"
+  target: "World"
+  count: 1
+
+tasks:
+  - id: greet
+    exec: "echo '{{inputs.greeting}} {{inputs.target}} (x{{inputs.count}})'"
+
+  - id: show_types
+    exec: |
+      echo 'greeting={{inputs.greeting}} target={{inputs.target}} count={{inputs.count}}'
