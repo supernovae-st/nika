@@ -3,7 +3,7 @@
   "displayName": "Nika Workflow Language",
   "description": "Language support for Nika (.nika.yaml) workflow files - syntax highlighting, completions, hover docs, go-to-definition, and diagnostics.",
   "version": "0.42.0",
-  "publisher": "supernovae-studio",
+  "publisher": "supernovae",
   "license": "AGPL-3.0-or-later",
   "repository": {
     "type": "git",
@@ -114,6 +114,11 @@
           "default": "off",
           "description": "Trace communication between VS Code and the Nika language server."
         }
+      }
+    },
+    "configurationDefaults": {
+      "yaml.schemas": {
+        "https://nika.sh/schemas/workflow.json": "*.nika.yaml"
       }
     },
     "menus": {

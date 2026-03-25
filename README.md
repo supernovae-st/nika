@@ -716,7 +716,7 @@ Full Language Server Protocol support for external editors:
 cargo install nika-lsp
 
 # Via VS Code extension
-code --install-extension supernovae-studio.nika-lang
+code --install-extension supernovae.nika-lang
 ```
 
 16 capabilities:

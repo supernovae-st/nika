@@ -729,7 +729,7 @@ fn check_editor_integration() -> Vec<DiagnosticCheck> {
                     let extensions = String::from_utf8_lossy(&output.stdout);
                     if extensions.lines().any(|l| {
                         let trimmed = l.trim().to_lowercase();
-                        trimmed == "supernovae-studio.nika-lang"
+                        trimmed == "supernovae.nika-lang"
                     }) {
                         checks.push(DiagnosticCheck::pass(
                             "Extension",
@@ -740,7 +740,7 @@ fn check_editor_integration() -> Vec<DiagnosticCheck> {
                             "Extension",
                             "nika-lang extension not installed",
                             format!(
-                                "Install with: {short_cmd} --install-extension supernovae-studio.nika-lang"
+                                "Install with: {short_cmd} --install-extension supernovae.nika-lang"
                             ),
                         ));
                     }
@@ -750,7 +750,7 @@ fn check_editor_integration() -> Vec<DiagnosticCheck> {
                         "Extension",
                         "Cannot query installed extensions",
                         format!(
-                            "Install with: {short_cmd} --install-extension supernovae-studio.nika-lang"
+                            "Install with: {short_cmd} --install-extension supernovae.nika-lang"
                         ),
                     ));
                 }
