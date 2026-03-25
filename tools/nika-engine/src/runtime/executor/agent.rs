@@ -35,8 +35,27 @@ impl TaskExecutor {
         let mut resolved_prompt =
             template_resolve(&agent.prompt, bindings, datastore)?.into_owned();
 
+        // Pre-read file-based from_example for prompt injection
+        let cached_example = if let Some(policy) = output_policy {
+            if let Some(crate::ast::output::SchemaRef::File(ref path)) = policy.from_example {
+                match tokio::fs::read_to_string(path).await {
+                    Ok(content) => serde_json::from_str(&content).ok(),
+                    Err(e) => {
+                        debug!(task_id = %task_id, "Failed to pre-read from_example '{}': {}", path, e);
+                        None
+                    }
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
         // Inject JSON schema instruction if output policy requires JSON with schema
-        if let Some(schema_instruction) = Self::build_json_schema_instruction(output_policy) {
+        if let Some(schema_instruction) =
+            Self::build_json_schema_instruction(output_policy, cached_example.as_ref())
+        {
             resolved_prompt.push_str(&schema_instruction);
             debug!(task_id = %task_id, "Injected JSON schema instruction into agent prompt");
         }

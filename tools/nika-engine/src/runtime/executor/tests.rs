@@ -1362,7 +1362,7 @@ async fn test_run_exec_security_validation_blocks_dangerous_commands() {
 
 #[test]
 fn test_build_json_schema_instruction_none_policy() {
-    let result = TaskExecutor::build_json_schema_instruction(None);
+    let result = TaskExecutor::build_json_schema_instruction(None, None);
     assert!(result.is_none());
 }
 
@@ -1371,10 +1371,11 @@ fn test_build_json_schema_instruction_text_format() {
     let policy = OutputPolicy {
         format: OutputFormat::Text,
         schema: Some(SchemaRef::Inline(json!({"type": "object"}))),
+        from_example: None,
         max_retries: None,
         source_structured_spec: None,
     };
-    let result = TaskExecutor::build_json_schema_instruction(Some(&policy));
+    let result = TaskExecutor::build_json_schema_instruction(Some(&policy), None);
     assert!(
         result.is_none(),
         "Text format should not produce schema instruction"
@@ -1386,10 +1387,11 @@ fn test_build_json_schema_instruction_json_no_schema() {
     let policy = OutputPolicy {
         format: OutputFormat::Json,
         schema: None,
+        from_example: None,
         max_retries: None,
         source_structured_spec: None,
     };
-    let result = TaskExecutor::build_json_schema_instruction(Some(&policy));
+    let result = TaskExecutor::build_json_schema_instruction(Some(&policy), None);
     assert!(
         result.is_none(),
         "JSON format without schema should return None"
@@ -1409,10 +1411,11 @@ fn test_build_json_schema_instruction_json_inline_schema() {
     let policy = OutputPolicy {
         format: OutputFormat::Json,
         schema: Some(SchemaRef::Inline(schema.clone())),
+        from_example: None,
         max_retries: None,
         source_structured_spec: None,
     };
-    let result = TaskExecutor::build_json_schema_instruction(Some(&policy));
+    let result = TaskExecutor::build_json_schema_instruction(Some(&policy), None);
     assert!(result.is_some());
     let instruction = result.unwrap();
     assert!(instruction.contains("CRITICAL OUTPUT REQUIREMENT"));
@@ -1426,10 +1429,11 @@ fn test_build_json_schema_instruction_json_file_schema() {
     let policy = OutputPolicy {
         format: OutputFormat::Json,
         schema: Some(SchemaRef::File("schemas/user.json".to_string())),
+        from_example: None,
         max_retries: None,
         source_structured_spec: None,
     };
-    let result = TaskExecutor::build_json_schema_instruction(Some(&policy));
+    let result = TaskExecutor::build_json_schema_instruction(Some(&policy), None);
     assert!(result.is_some());
     let instruction = result.unwrap();
     assert!(instruction.contains("CRITICAL OUTPUT REQUIREMENT"));
@@ -1443,10 +1447,11 @@ fn test_build_json_schema_instruction_yaml_format() {
     let policy = OutputPolicy {
         format: OutputFormat::Yaml,
         schema: Some(SchemaRef::Inline(json!({"type": "object"}))),
+        from_example: None,
         max_retries: None,
         source_structured_spec: None,
     };
-    let result = TaskExecutor::build_json_schema_instruction(Some(&policy));
+    let result = TaskExecutor::build_json_schema_instruction(Some(&policy), None);
     assert!(
         result.is_none(),
         "YAML format should not produce schema instruction"
@@ -1458,10 +1463,11 @@ fn test_build_json_schema_instruction_markdown_format() {
     let policy = OutputPolicy {
         format: OutputFormat::Markdown,
         schema: Some(SchemaRef::Inline(json!({"type": "object"}))),
+        from_example: None,
         max_retries: None,
         source_structured_spec: None,
     };
-    let result = TaskExecutor::build_json_schema_instruction(Some(&policy));
+    let result = TaskExecutor::build_json_schema_instruction(Some(&policy), None);
     assert!(
         result.is_none(),
         "Markdown format should not produce schema instruction"
@@ -1481,7 +1487,7 @@ fn test_build_json_schema_instruction_inline_from_example() {
         "score": 42
     }));
     let policy = spec.to_output_policy();
-    let result = TaskExecutor::build_json_schema_instruction(Some(&policy));
+    let result = TaskExecutor::build_json_schema_instruction(Some(&policy), None);
     let instruction = result.expect("should produce instruction for inline from_example");
     assert!(
         instruction.contains("name"),
@@ -1503,7 +1509,7 @@ fn test_build_json_schema_instruction_file_from_example_returns_generic() {
 
     let spec = StructuredOutputSpec::with_example_file("./structure.json");
     let policy = spec.to_output_policy();
-    let result = TaskExecutor::build_json_schema_instruction(Some(&policy));
+    let result = TaskExecutor::build_json_schema_instruction(Some(&policy), None);
     let instruction = result.expect("file from_example should produce generic instruction");
     // Must NOT inject the {} placeholder schema
     assert!(
@@ -1514,6 +1520,25 @@ fn test_build_json_schema_instruction_file_from_example_returns_generic() {
     assert!(
         instruction.contains("valid JSON"),
         "file from_example must produce generic valid-JSON instruction"
+    );
+}
+
+#[test]
+fn test_build_json_schema_instruction_file_from_example_with_cached_value() {
+    use crate::ast::structured::StructuredOutputSpec;
+
+    let spec = StructuredOutputSpec::with_example_file("./structure.json");
+    let policy = spec.to_output_policy();
+    let cached = json!({"name": "Alice", "score": 42});
+    let result = TaskExecutor::build_json_schema_instruction(Some(&policy), Some(&cached));
+    let instruction = result.expect("file from_example with cache should produce full instruction");
+    assert!(
+        instruction.contains("Alice"),
+        "cached example should be injected into prompt"
+    );
+    assert!(
+        instruction.contains("exact structure"),
+        "should use exact-structure wording"
     );
 }
 
@@ -1624,6 +1649,7 @@ async fn test_run_infer_mock_with_json_schema_injection() {
             "type": "object",
             "properties": { "name": { "type": "string" } }
         }))),
+        from_example: None,
         max_retries: None,
         source_structured_spec: None,
     };
