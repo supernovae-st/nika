@@ -245,59 +245,41 @@ impl TaskExecutor {
     /// When output policy requires JSON format with a schema, this generates
     /// an instruction string to append to the prompt, telling the LLM to
     /// output valid JSON conforming to the schema.
+    /// Build JSON schema instruction for LLM prompt injection.
+    ///
+    /// `cached_example` is used for file-based `from_example` — the caller pre-reads
+    /// the file asynchronously and passes the parsed value here for synchronous injection.
     pub(super) fn build_json_schema_instruction(
         output_policy: Option<&OutputPolicy>,
+        cached_example: Option<&serde_json::Value>,
     ) -> Option<String> {
         let policy = output_policy?;
         if policy.format != OutputFormat::Json {
             return None;
         }
 
-        // If the policy was bridged from a structured spec with from_example, handle it here.
-        // Inline: inject the example directly so the LLM sees the exact expected structure.
-        // File: return generic instruction — file content is only available after async load_schema().
-        if let Some(ref spec) = policy.source_structured_spec {
-            match spec.from_example.as_ref() {
-                Some(SchemaRef::Inline(ref example)) => {
-                    let example_str = match serde_json::to_string_pretty(example) {
-                        Ok(s) => s,
-                        Err(e) => {
-                            tracing::warn!(
-                                "Failed to serialize from_example for prompt injection: {}",
-                                e
-                            );
-                            return None;
-                        }
-                    };
-                    return Some(format!(
-                        "\n\n---\n\
-                         CRITICAL OUTPUT REQUIREMENT:\n\
-                         Your response MUST be valid JSON matching this exact structure:\n\n\
-                         ```json\n{}\n```\n\n\
-                         Rules:\n\
-                         - Output ONLY the JSON object, no additional text\n\
-                         - Do NOT wrap in markdown code blocks (no ```json)\n\
-                         - All keys shown above must be present\n\
-                         - Value types must match (strings, numbers, arrays, objects)",
-                        example_str
-                    ));
-                }
-                Some(SchemaRef::File(_)) => {
-                    // File content is loaded async in load_schema() — cannot inline here.
-                    // Return the generic instruction; schema validation still uses the derived schema.
-                    return Some(
-                        "\n\n---\n\
-                         CRITICAL OUTPUT REQUIREMENT:\n\
-                         Your response MUST be valid JSON.\n\n\
-                         Rules:\n\
-                         - Output ONLY the JSON object, no additional text\n\
-                         - Do NOT wrap in markdown code blocks (no ```json)\n\
-                         - Ensure all JSON is properly formatted and valid"
-                            .to_string(),
-                    );
-                }
-                None => {} // no from_example — fall through to schema-based injection below
+        // from_example: inject example structure or generic instruction.
+        match policy.from_example.as_ref() {
+            Some(SchemaRef::Inline(ref example)) => {
+                return Self::format_example_instruction(example);
             }
+            Some(SchemaRef::File(_)) => {
+                // File-based: use cached_example if pre-loaded, otherwise generic instruction.
+                if let Some(example) = cached_example {
+                    return Self::format_example_instruction(example);
+                }
+                return Some(
+                    "\n\n---\n\
+                     CRITICAL OUTPUT REQUIREMENT:\n\
+                     Your response MUST be valid JSON.\n\n\
+                     Rules:\n\
+                     - Output ONLY the JSON object, no additional text\n\
+                     - Do NOT wrap in markdown code blocks (no ```json)\n\
+                     - Ensure all JSON is properly formatted and valid"
+                        .to_string(),
+                );
+            }
+            None => {} // no from_example — fall through to schema-based injection below
         }
 
         let schema_ref = policy.schema.as_ref()?;
@@ -328,6 +310,32 @@ impl TaskExecutor {
              - All required fields must be present\n\
              - Field types must match the schema exactly",
             schema_str
+        ))
+    }
+
+    /// Format an example JSON value into a prompt injection instruction.
+    fn format_example_instruction(example: &serde_json::Value) -> Option<String> {
+        let example_str = match serde_json::to_string_pretty(example) {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::warn!(
+                    "Failed to serialize from_example for prompt injection: {}",
+                    e
+                );
+                return None;
+            }
+        };
+        Some(format!(
+            "\n\n---\n\
+             CRITICAL OUTPUT REQUIREMENT:\n\
+             Your response MUST be valid JSON matching this exact structure:\n\n\
+             ```json\n{}\n```\n\n\
+             Rules:\n\
+             - Output ONLY the JSON object, no additional text\n\
+             - Do NOT wrap in markdown code blocks (no ```json)\n\
+             - All keys shown above must be present\n\
+             - Value types must match (strings, numbers, arrays, objects)",
+            example_str
         ))
     }
 

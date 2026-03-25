@@ -318,6 +318,7 @@ mod tests {
         let policy = OutputPolicy {
             format: OutputFormat::Json,
             schema: Some(SchemaRef::File(schema_path)),
+            from_example: None,
             max_retries: None,
             source_structured_spec: None,
         };
@@ -356,6 +357,7 @@ mod tests {
         let policy = OutputPolicy {
             format: OutputFormat::Json,
             schema: Some(SchemaRef::Inline(inline_schema)),
+            from_example: None,
             max_retries: None,
             source_structured_spec: None,
         };
@@ -407,6 +409,7 @@ mod tests {
         let policy = OutputPolicy {
             format: OutputFormat::Json,
             schema: None, // No schema validation
+            from_example: None,
             max_retries: None,
             source_structured_spec: None,
         };
@@ -432,6 +435,7 @@ mod tests {
         let policy = OutputPolicy {
             format: OutputFormat::Json,
             schema: None,
+            from_example: None,
             max_retries: None,
             source_structured_spec: None,
         };
@@ -460,6 +464,7 @@ mod tests {
         let policy = OutputPolicy {
             format: OutputFormat::Text,
             schema: None,
+            from_example: None,
             max_retries: None,
             source_structured_spec: None,
         };
@@ -582,6 +587,7 @@ mod tests {
         let policy = OutputPolicy {
             format: OutputFormat::Json,
             schema: None,
+            from_example: None,
             max_retries: None,
             source_structured_spec: None,
         };
@@ -604,6 +610,7 @@ mod tests {
         let policy = OutputPolicy {
             format: OutputFormat::Json,
             schema: None,
+            from_example: None,
             max_retries: None,
             source_structured_spec: None,
         };
@@ -664,6 +671,7 @@ mod tests {
         let policy = OutputPolicy {
             format: OutputFormat::Json,
             schema: None,
+            from_example: None,
             max_retries: None,
             source_structured_spec: None,
         };
@@ -791,6 +799,7 @@ This is based on ancient wisdom."#;
         let policy = OutputPolicy {
             format: OutputFormat::Json,
             schema: None,
+            from_example: None,
             max_retries: None,
             source_structured_spec: None,
         };
@@ -827,6 +836,7 @@ Enjoy your reading!"#;
         let policy = OutputPolicy {
             format: OutputFormat::Json,
             schema: None,
+            from_example: None,
             max_retries: None,
             source_structured_spec: None,
         };
@@ -846,6 +856,7 @@ Enjoy your reading!"#;
         let policy = OutputPolicy {
             format: OutputFormat::Json,
             schema: None,
+            from_example: None,
             max_retries: None,
             source_structured_spec: None,
         };

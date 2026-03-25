@@ -72,6 +72,11 @@ pub struct OutputPolicy {
     #[serde(default)]
     pub schema: Option<SchemaRef>,
 
+    /// JSON example — Nika auto-derives the JSON Schema from this at runtime.
+    /// Alternative to `schema`. When set, takes precedence over `schema`.
+    #[serde(default)]
+    pub from_example: Option<SchemaRef>,
+
     /// Maximum retry attempts on validation failure (default: 2)
     #[serde(default)]
     pub max_retries: Option<u8>,
@@ -89,7 +94,8 @@ impl OutputPolicy {
     /// Returns true when format is JSON and a schema is provided.
     /// This is used by the executor to decide whether to use StructuredOutputEngine.
     pub fn is_structured(&self) -> bool {
-        self.format == OutputFormat::Json && self.schema.is_some()
+        self.format == OutputFormat::Json
+            && (self.schema.is_some() || self.from_example.is_some())
     }
 
     /// Convert to StructuredOutputSpec for use with StructuredOutputEngine.
@@ -109,16 +115,16 @@ impl OutputPolicy {
         }
 
         // Fallback: construct spec from OutputPolicy fields (output: block path)
-        let schema = self.schema.clone()?;
         Some(super::structured::StructuredOutputSpec {
-            schema,
-            from_example: None,
+            schema: self.schema.clone(),
+            from_example: self.from_example.clone(),
             enable_extractor: None,
             enable_tool_injection: None,
             enable_retry: Some(true),
             enable_repair: Some(true),
             max_retries: self.max_retries,
             repair_model: None,
+            strict: None,
         })
     }
 }
@@ -238,6 +244,18 @@ schema:
     }
 
     #[test]
+    fn is_structured_true_when_json_with_from_example() {
+        let yaml = r#"
+format: json
+from_example:
+  name: "Alice"
+  age: 30
+"#;
+        let policy: OutputPolicy = serde_yaml::from_str(yaml).unwrap();
+        assert!(policy.is_structured());
+    }
+
+    #[test]
     fn is_structured_false_when_text_with_schema() {
         // Edge case: text format with schema should NOT be structured
         let yaml = r#"
@@ -267,7 +285,7 @@ max_retries: 5
         assert!(spec.is_some());
 
         let spec = spec.unwrap();
-        assert!(matches!(spec.schema, SchemaRef::Inline(_)));
+        assert!(matches!(spec.schema, Some(SchemaRef::Inline(_))));
         assert_eq!(spec.max_retries, Some(5));
         assert_eq!(spec.enable_retry, Some(true));
         assert_eq!(spec.enable_repair, Some(true));
@@ -290,6 +308,6 @@ schema: ./schemas/user.json
         assert!(spec.is_some());
 
         let spec = spec.unwrap();
-        assert!(matches!(spec.schema, SchemaRef::File(ref p) if p == "./schemas/user.json"));
+        assert!(matches!(spec.schema, Some(SchemaRef::File(ref p)) if p == "./schemas/user.json"));
     }
 }

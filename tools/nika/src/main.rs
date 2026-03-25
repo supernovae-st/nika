@@ -1340,7 +1340,7 @@ async fn validate_workflow(file: &str, quiet: bool) -> Result<(), NikaError> {
         }
         // Check structured.schema file references
         if let Some(ref spec) = task.structured {
-            if let SchemaRef::File(ref path) = spec.schema {
+            if let Some(SchemaRef::File(ref path)) = spec.schema {
                 validate_schema_file(&task.id, path, base_path).await?;
                 schema_count += 1;
             }
@@ -1688,7 +1688,7 @@ async fn validate_workflow_strict(file: &str) -> Result<(), NikaError> {
             }
         }
         if let Some(ref spec) = task.structured {
-            if let SchemaRef::File(ref path) = spec.schema {
+            if let Some(SchemaRef::File(ref path)) = spec.schema {
                 validate_schema_file(&task.id, path, base_path).await?;
                 schema_count += 1;
             }

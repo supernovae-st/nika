@@ -2496,7 +2496,7 @@ fn h11_structured_inline_schema() {
     let spec = w.tasks[0].structured.as_ref().unwrap();
     assert!(matches!(
         spec.schema,
-        crate::ast::output::SchemaRef::Inline(_)
+        Some(crate::ast::output::SchemaRef::Inline(_))
     ));
 }
 

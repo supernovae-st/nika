@@ -28,3 +28,14 @@ tasks:
     structured:
       from_example: /tmp/nika-test-example.json
       enable_repair: true
+
+  - id: extract_strict
+    depends_on: [gen_example]
+    infer: "Return a JSON with name, age, and active fields only. No extra keys."
+    max_tokens: 100
+    structured:
+      from_example:
+        name: "example"
+        age: 25
+        active: true
+      strict: true

@@ -315,6 +315,7 @@ pub(crate) fn lower_output(output: AnalyzedOutput) -> OutputPolicy {
     OutputPolicy {
         format: lower_output_format(output.format),
         schema,
+        from_example: None,
         max_retries: output.max_retries.map(|v| v as u8),
         source_structured_spec: None,
     }
@@ -1358,7 +1359,7 @@ mod tests {
             .structured
             .as_ref()
             .expect("structured should pass through lower_task");
-        assert!(matches!(structured.schema, SchemaRef::File(ref p) if p == "./schema.json"));
+        assert!(matches!(structured.schema, Some(SchemaRef::File(ref p)) if p == "./schema.json"));
     }
 
     /// The lower -> unlower roundtrip loses task-level artifact and log
