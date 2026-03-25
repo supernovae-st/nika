@@ -182,14 +182,9 @@ impl App {
         // P1 Fix: Increase buffer from 256 to 512 for fast providers like Groq (~200 tok/s)
         let (stream_chunk_tx, stream_chunk_rx) = mpsc::channel(512);
 
-        // Initialize ChatAgent (may fail if no API keys are set)
-        let chat_agent = match ChatAgent::new() {
-            Ok(agent) => Some(agent),
-            Err(e) => {
-                tracing::warn!("Chat agent unavailable: {e}");
-                None
-            }
-        };
+        // PERF: Defer ChatAgent creation to first /infer or /exec command.
+        // ChatAgent::new() initializes reqwest::Client + TLS backend (5-20ms).
+        let chat_agent: Option<ChatAgent> = None;
 
         // Initialize cosmic theme from config
         let theme_variant = match config.tui.theme {
@@ -257,14 +252,9 @@ impl App {
         // P1 Fix: Increase buffer from 256 to 512 for fast providers like Groq (~200 tok/s)
         let (stream_chunk_tx, stream_chunk_rx) = mpsc::channel(512);
 
-        // Initialize ChatAgent (may fail if no API keys are set)
-        let chat_agent = match ChatAgent::new() {
-            Ok(agent) => Some(agent),
-            Err(e) => {
-                tracing::warn!("Chat agent unavailable: {e}");
-                None
-            }
-        };
+        // PERF: Defer ChatAgent creation to first /infer or /exec command.
+        // ChatAgent::new() initializes reqwest::Client + TLS backend (5-20ms).
+        let chat_agent: Option<ChatAgent> = None;
 
         // Initialize cosmic theme from config
         let theme_variant = match config.tui.theme {
