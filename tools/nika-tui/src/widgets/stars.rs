@@ -71,29 +71,113 @@ pub fn galaxy_star(x: u16, y: u16, tick: u16) -> Option<(&'static str, Color)> {
     Some((star, Color::Rgb(brightness, brightness, brightness + 20)))
 }
 
-/// Render twinkling stars in empty cells of the given area.
+// ═══════════════════════════════════════════════════════════════════════════════
+// STAR FIELD (Pre-computed positions for O(stars) rendering)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Pre-computed star field for O(stars) rendering instead of O(width*height).
 ///
-/// Scans the buffer after views have rendered and fills cells whose symbol
-/// is `" "` (untouched by widgets) with star characters. This creates a
-/// background star field that shows through gaps in the UI.
+/// Stars are deterministic for a given (x, y) position — only the twinkle
+/// animation depends on tick. This struct pre-computes which cells ARE stars
+/// (~5% density) on resize, then iterates only those positions each frame.
 ///
-/// # Performance
-///
-/// Direct buffer writes — zero widget allocation. Skips cells that already
-/// have content, so cost is proportional to empty space only.
-pub fn render_star_field(frame: &mut Frame, area: Rect, tick: u16) {
-    let buf = frame.buffer_mut();
-    for py in area.y..area.y + area.height {
-        for px in area.x..area.x + area.width {
+/// Typical savings: 10,000 iterations → ~500 iterations per frame (20x).
+#[derive(Debug, Clone)]
+pub struct StarField {
+    /// Cached terminal content area dimensions. Rebuild on change.
+    width: u16,
+    height: u16,
+    /// Pre-computed star positions: (x, y, hash).
+    /// hash is the FNV-1a output used for twinkle phase, brightness, glyph.
+    stars: Vec<(u16, u16, u32)>,
+}
+
+impl Default for StarField {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl StarField {
+    /// Create an empty star field. Call `ensure_size()` before first render.
+    pub fn new() -> Self {
+        Self {
+            width: 0,
+            height: 0,
+            stars: Vec::new(),
+        }
+    }
+
+    /// Rebuild star positions if terminal size changed. No-op if same size.
+    pub fn ensure_size(&mut self, width: u16, height: u16) {
+        if self.width == width && self.height == height {
+            return;
+        }
+        self.width = width;
+        self.height = height;
+
+        // Pre-allocate: ~5% density
+        let estimated = (width as usize * height as usize) / 20;
+        self.stars = Vec::with_capacity(estimated);
+
+        for y in 0..height {
+            for x in 0..width {
+                let mut h = 2166136261u32;
+                h ^= x as u32;
+                h = h.wrapping_mul(16777619);
+                h ^= y as u32;
+                h = h.wrapping_mul(16777619);
+                let hash = (h >> 16) ^ (h & 0xFFFF);
+
+                if hash % 20 == 0 {
+                    self.stars.push((x, y, hash));
+                }
+            }
+        }
+    }
+
+    /// Render twinkling stars in empty cells. Only iterates pre-computed
+    /// star positions (~500) instead of all cells (~10,000). 20x faster.
+    pub fn render(&self, frame: &mut Frame, area: Rect, tick: u16) {
+        let buf = frame.buffer_mut();
+        for &(x, y, hash) in &self.stars {
+            let px = area.x + x;
+            let py = area.y + y;
+
+            // Bounds check (area may be smaller than pre-computed size)
+            if px >= area.x + area.width || py >= area.y + area.height {
+                continue;
+            }
+
             let pos = Position::new(px, py);
             if let Some(cell) = buf.cell_mut(pos) {
-                // Only fill truly empty cells (space character = no widget content)
-                if cell.symbol() == " " {
-                    if let Some((star_char, star_color)) = galaxy_star(px, py, tick) {
-                        cell.set_symbol(star_char);
-                        cell.set_fg(star_color);
-                    }
+                if cell.symbol() != " " {
+                    continue; // Cell has widget content
                 }
+
+                // Twinkle phase (tick-dependent)
+                let twinkle_phase = ((hash as u16).wrapping_add(tick / 3)) % 10;
+                if twinkle_phase > 6 {
+                    continue; // Star is off this tick
+                }
+
+                let brightness = match twinkle_phase {
+                    0 | 6 => 30,
+                    1 | 5 => 45,
+                    2 | 4 => 65,
+                    3 => 85,
+                    _ => 40,
+                };
+
+                let star = match (hash >> 2) % 4 {
+                    0 => "·",
+                    1 => "∙",
+                    2 => "⋅",
+                    _ => "˙",
+                };
+
+                cell.set_symbol(star);
+                cell.set_fg(Color::Rgb(brightness, brightness, brightness + 20));
             }
         }
     }
@@ -187,5 +271,66 @@ mod tests {
         let t2 = star_tick();
         // Both should be valid u16 values (no panic)
         assert!(t2 >= t1, "star_tick should be monotonic");
+    }
+
+    // ═══ StarField tests ═══
+
+    #[test]
+    fn star_field_empty_on_new() {
+        let sf = StarField::new();
+        assert_eq!(sf.stars.len(), 0);
+        assert_eq!(sf.width, 0);
+    }
+
+    #[test]
+    fn star_field_populates_on_ensure_size() {
+        let mut sf = StarField::new();
+        sf.ensure_size(200, 50);
+        assert_eq!(sf.width, 200);
+        assert_eq!(sf.height, 50);
+        assert!(sf.stars.len() > 200, "too few stars: {}", sf.stars.len());
+        assert!(
+            sf.stars.len() < 1000,
+            "too many stars: {}",
+            sf.stars.len()
+        );
+    }
+
+    #[test]
+    fn star_field_no_rebuild_same_size() {
+        let mut sf = StarField::new();
+        sf.ensure_size(100, 40);
+        let count = sf.stars.len();
+        let ptr = sf.stars.as_ptr();
+        sf.ensure_size(100, 40); // Same size — no-op
+        assert_eq!(sf.stars.len(), count);
+        assert_eq!(sf.stars.as_ptr(), ptr);
+    }
+
+    #[test]
+    fn star_field_rebuilds_on_resize() {
+        let mut sf = StarField::new();
+        sf.ensure_size(100, 40);
+        let count_small = sf.stars.len();
+        sf.ensure_size(200, 50);
+        let count_large = sf.stars.len();
+        assert!(count_large > count_small);
+    }
+
+    #[test]
+    fn star_field_all_positions_in_bounds() {
+        let mut sf = StarField::new();
+        sf.ensure_size(80, 24);
+        for &(x, y, _) in &sf.stars {
+            assert!(x < 80, "x={x} out of bounds");
+            assert!(y < 24, "y={y} out of bounds");
+        }
+    }
+
+    #[test]
+    fn star_field_zero_size() {
+        let mut sf = StarField::new();
+        sf.ensure_size(0, 0);
+        assert!(sf.stars.is_empty());
     }
 }

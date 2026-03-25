@@ -125,5 +125,5 @@ pub use panels::{
 };
 // Progress widgets (DownloadProgress + TaskProgress removed -- never rendered)
 // Shared utilities
-pub use stars::{render_star_field, star_tick};
+pub use stars::{star_tick, StarField};
 pub use utils::centered_rect;
