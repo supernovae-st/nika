@@ -7,13 +7,13 @@ Source code for `nika` binary. See `nika/CLAUDE.md` for user-facing docs.
 ```
 tools/
 ├── nika/           Binary (2k lines) — CLI entry point
-├── nika-engine/    Execution engine (134k) — embeddable runtime
+├── nika-engine/    Execution engine (162k) — embeddable runtime
 ├── nika-core/      AST, types, catalogs (23k) — zero I/O
 ├── nika-event/     EventLog, TraceWriter (4k)
 ├── nika-mcp/       MCP client, rmcp (9k)
 ├── nika-media/     CAS store, processor (3.5k)
 ├── nika-cli/       CLI subcommands (8k)
-├── nika-tui/       Terminal UI (92k) — ratatui
+├── nika-tui/       Terminal UI (86k) — ratatui
 ├── nika-lsp-core/  LSP intelligence (9k)
 └── nika-lsp/       LSP binary (2.5k)
 ```
@@ -98,10 +98,10 @@ src/
 ## Testing
 
 ```bash
-cargo test --workspace --lib             # All crates (7784+, safe — no keychain)
+cargo test --workspace --lib             # All crates (8100+, safe — no keychain)
 cargo test --lib                         # nika binary tests only
-cargo test -p nika-engine --lib          # Engine tests only (4060)
-cargo test -p nika-tui --lib             # TUI tests only (2117)
+cargo test -p nika-engine --lib          # Engine tests only (4100+)
+cargo test -p nika-tui --lib             # TUI tests only (2100+)
 cargo test --features lsp               # Include LSP tests
 cargo clippy --workspace -- -D warnings  # Zero warnings policy
 ```

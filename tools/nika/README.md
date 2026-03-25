@@ -1,7 +1,7 @@
 # Nika — Developer Reference
 
 [![ARMADA](https://github.com/SuperNovae-studio/nika/actions/workflows/armada-checkpoints.yml/badge.svg)](https://github.com/SuperNovae-studio/nika/actions/workflows/armada-checkpoints.yml)
-[![Version](https://img.shields.io/badge/version-0.39.1-blue?logo=rust&logoColor=white)](Cargo.toml)
+[![Version](https://img.shields.io/badge/version-0.42.0-blue?logo=rust&logoColor=white)](Cargo.toml)
 [![Version Lock](https://img.shields.io/badge/0.x.x-forever-orange?logo=semver&logoColor=white)](CHANGELOG.md)
 
 Source code for the `nika` binary. For user-facing docs, see [root README](../../README.md).
@@ -17,7 +17,7 @@ cargo build --no-default-features  # Minimal (no TUI, no native, no media)
 ## Test
 
 ```bash
-cargo test --lib                # 7,400+ unit tests (safe — no keychain)
+cargo test --lib                # 8,100+ unit tests (safe — no keychain)
 cargo test --lib --features lsp # + 283 LSP tests
 cargo clippy -- -D warnings     # Zero warnings policy
 cargo fmt --check               # Format check
