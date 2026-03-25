@@ -1,0 +1,21 @@
+# FEATURE: --task and --from DAG filtering
+schema: "nika/workflow@0.12"
+workflow: feat-cli-task-filter
+provider: mock
+model: mock
+
+tasks:
+  - id: step1
+    exec: "echo 'step1 done'"
+
+  - id: step2
+    depends_on: [step1]
+    exec: "echo 'step2 done'"
+
+  - id: step3
+    depends_on: [step2]
+    exec: "echo 'step3 done'"
+
+  - id: step4
+    depends_on: [step2]
+    exec: "echo 'step4 done (parallel with step3)'"
