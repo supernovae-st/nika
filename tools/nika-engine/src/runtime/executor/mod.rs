@@ -257,7 +257,13 @@ impl TaskExecutor {
         // inject the example directly as the target structure (not the derived schema)
         if let Some(ref spec) = policy.source_structured_spec {
             if let Some(SchemaRef::Inline(ref example)) = spec.from_example {
-                let example_str = serde_json::to_string_pretty(example).unwrap_or_default();
+                let example_str = match serde_json::to_string_pretty(example) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        tracing::warn!("Failed to serialize from_example for prompt injection: {}", e);
+                        return None;
+                    }
+                };
                 return Some(format!(
                     "\n\n---\n\
                      CRITICAL OUTPUT REQUIREMENT:\n\

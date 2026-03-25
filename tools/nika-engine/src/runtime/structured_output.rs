@@ -231,7 +231,10 @@ impl StructuredOutputEngine {
             })
     }
 
-    /// Get the schema reference
+    /// Get the raw schema reference from the spec.
+    ///
+    /// NOTE: When `from_example` is set, this returns the placeholder `SchemaRef::Inline({})`.
+    /// Use `load_schema()` to get the resolved, effective schema (handles `from_example` derivation).
     pub fn schema(&self) -> &SchemaRef {
         &self.spec.schema
     }
@@ -811,6 +814,9 @@ Respond with ONLY the corrected JSON, no explanation."#
 ///
 /// Validates output against a schema without retry or repair.
 /// Useful for one-shot validation in exec: or fetch: tasks.
+///
+/// Correctly handles `from_example`: derives the JSON Schema at call time.
+/// For inline examples this is synchronous; for file-based examples it reads the file.
 pub async fn validate_structured_output(
     task_id: &str,
     output: &str,
@@ -836,8 +842,28 @@ pub async fn validate_structured_output(
         }
     })?;
 
+    // Resolve the effective schema — honours from_example (derives schema at runtime)
+    let effective_schema = if let Some(ref example_ref) = spec.from_example {
+        let example_value = match example_ref {
+            SchemaRef::Inline(v) => v.clone(),
+            SchemaRef::File(path) => {
+                let content = tokio::fs::read_to_string(path).await.map_err(|e| {
+                    NikaError::SchemaFailed {
+                        details: format!("Failed to read example '{}': {}", path, e),
+                    }
+                })?;
+                serde_json::from_str(&content).map_err(|e| NikaError::SchemaFailed {
+                    details: format!("Invalid JSON in example '{}': {}", path, e),
+                })?
+            }
+        };
+        SchemaRef::Inline(crate::ast::structured::json_to_schema(&example_value))
+    } else {
+        spec.schema.clone()
+    };
+
     // Validate
-    validate_schema_ref(&json_value, &spec.schema)
+    validate_schema_ref(&json_value, &effective_schema)
         .await
         .map_err(|e| {
             log.emit(EventKind::StructuredOutputAttempt {
@@ -987,6 +1013,105 @@ Hope this helps!"#;
 
         let result = engine.load_schema().await;
         assert!(result.is_err());
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // FROM_EXAMPLE TESTS (engine layer)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn load_schema_from_example_inline() {
+        let log = create_test_log();
+        let spec = StructuredOutputSpec::with_example_inline(serde_json::json!({
+            "name": "alice",
+            "score": 42
+        }));
+        let mut engine = StructuredOutputEngine::new(spec, log);
+        let schema = engine.load_schema().await.unwrap();
+        assert_eq!(schema["type"], "object");
+        assert_eq!(schema["properties"]["name"]["type"], "string");
+        assert_eq!(schema["properties"]["score"]["type"], "integer");
+    }
+
+    #[tokio::test]
+    async fn load_schema_from_example_file() {
+        let mut example_file = NamedTempFile::new().unwrap();
+        writeln!(example_file, r#"{{"title":"hello","count":1}}"#).unwrap();
+        let path = example_file.path().to_string_lossy().to_string();
+
+        let spec = StructuredOutputSpec::with_example_file(&path);
+        let mut engine = StructuredOutputEngine::new(spec, create_test_log());
+        let schema = engine.load_schema().await.unwrap();
+        assert_eq!(schema["type"], "object");
+        assert_eq!(schema["properties"]["title"]["type"], "string");
+        assert_eq!(schema["properties"]["count"]["type"], "integer");
+    }
+
+    #[tokio::test]
+    async fn load_schema_from_example_file_not_found() {
+        let spec = StructuredOutputSpec::with_example_file("/nonexistent/example.json");
+        let mut engine = StructuredOutputEngine::new(spec, create_test_log());
+        let result = engine.load_schema().await;
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("Failed to read example"), "got: {err}");
+    }
+
+    #[tokio::test]
+    async fn validate_with_example_inline_passes_valid_json() {
+        let spec = StructuredOutputSpec::with_example_inline(serde_json::json!({
+            "name": "x",
+            "score": 0
+        }));
+        let mut engine = StructuredOutputEngine::new(spec, create_test_log());
+        let result = engine
+            .validate("t1", r#"{"name": "bob", "score": 99}"#)
+            .await;
+        assert!(result.is_ok(), "expected ok, got: {:?}", result);
+    }
+
+    #[tokio::test]
+    async fn validate_with_example_inline_fails_wrong_type() {
+        let spec = StructuredOutputSpec::with_example_inline(serde_json::json!({
+            "name": "x",
+            "score": 0
+        }));
+        // score should be integer — send string instead
+        let mut engine = StructuredOutputEngine::new(spec, create_test_log());
+        let result = engine
+            .validate("t2", r#"{"name": "bob", "score": "not-a-number"}"#)
+            .await;
+        assert!(result.is_err(), "expected validation failure on wrong type");
+    }
+
+    #[tokio::test]
+    async fn validate_structured_output_from_example_inline_passes() {
+        let log = create_test_log();
+        let spec = StructuredOutputSpec::with_example_inline(serde_json::json!({
+            "name": "x",
+            "score": 0
+        }));
+        let result =
+            validate_structured_output("t3", r#"{"name":"alice","score":42}"#, &spec, &log)
+                .await;
+        assert!(result.is_ok(), "expected ok, got: {:?}", result);
+    }
+
+    #[tokio::test]
+    async fn validate_structured_output_from_example_inline_rejects_invalid() {
+        let log = create_test_log();
+        let spec = StructuredOutputSpec::with_example_inline(serde_json::json!({
+            "name": "x",
+            "score": 0
+        }));
+        // This used to silently pass with spec.schema ({}) — now it must fail
+        let result =
+            validate_structured_output("t4", r#"{"anything":"goes","random":true}"#, &spec, &log)
+                .await;
+        assert!(
+            result.is_err(),
+            "validate_structured_output must reject missing required fields"
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

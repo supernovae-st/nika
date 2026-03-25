@@ -44,12 +44,18 @@ use super::output::SchemaRef;
 /// ```
 #[derive(Debug, Clone, Serialize)]
 pub struct StructuredOutputSpec {
-    /// JSON Schema reference (inline or file path)
+    /// JSON Schema reference (inline or file path).
+    ///
+    /// INVARIANT: When `from_example` is `Some`, this field holds a placeholder `{}`.
+    /// Do NOT read `schema` directly without checking `from_example` first.
+    /// Use `StructuredOutputEngine::load_schema()` which handles derivation correctly.
     pub schema: SchemaRef,
 
-    /// JSON example — Nika auto-derives the JSON Schema from this.
-    /// Mutually exclusive with `schema`. When set, `schema` is derived at runtime.
-    #[serde(default)]
+    /// JSON example — Nika auto-derives the JSON Schema from this at runtime.
+    ///
+    /// Mutually exclusive with `schema`. When set, `schema` is a placeholder `{}`.
+    /// The engine calls `json_to_schema()` on the example before any validation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub from_example: Option<SchemaRef>,
 
     /// Enable Layer 1: rig Extractor (Rust type extraction)
@@ -100,11 +106,35 @@ impl StructuredOutputSpec {
         }
     }
 
-    /// Create with an example file (schema derived at runtime)
+    /// Create with an example file (schema derived at runtime).
+    ///
+    /// The file is read at execution time and its JSON structure is used to derive
+    /// the JSON Schema for output validation.
+    ///
+    /// NOTE: The LLM prompt will NOT include the example structure — only a generic
+    /// "output valid JSON" instruction. Use `with_example_inline()` when you want
+    /// the example shown in the prompt.
     pub fn with_example_file(path: impl Into<String>) -> Self {
         Self {
-            schema: SchemaRef::Inline(serde_json::json!({})), // placeholder, replaced at load time
+            schema: SchemaRef::Inline(serde_json::json!({})), // placeholder — see INVARIANT on schema field
             from_example: Some(SchemaRef::File(path.into())),
+            enable_extractor: None,
+            enable_tool_injection: None,
+            enable_retry: None,
+            enable_repair: None,
+            max_retries: None,
+            repair_model: None,
+        }
+    }
+
+    /// Create with an inline JSON example (schema derived at runtime).
+    ///
+    /// The example structure is injected into the LLM prompt AND used for validation.
+    /// This gives the LLM full context about the expected output shape.
+    pub fn with_example_inline(example: serde_json::Value) -> Self {
+        Self {
+            schema: SchemaRef::Inline(serde_json::json!({})), // placeholder — see INVARIANT on schema field
+            from_example: Some(SchemaRef::Inline(example)),
             enable_extractor: None,
             enable_tool_injection: None,
             enable_retry: None,
@@ -278,9 +308,12 @@ pub fn json_to_schema(value: &serde_json::Value) -> serde_json::Value {
     match value {
         Value::Object(map) => {
             let mut properties = serde_json::Map::new();
-            let required: Vec<Value> =
-                map.keys().map(|k| Value::String(k.clone())).collect();
+            let mut required: Vec<Value> = Vec::new();
             for (key, val) in map {
+                // Null values are excluded from required — they likely represent optional fields.
+                if !val.is_null() {
+                    required.push(Value::String(key.clone()));
+                }
                 properties.insert(key.clone(), json_to_schema(val));
             }
             json!({
@@ -491,6 +524,24 @@ from_example: ./structure.json
         let schema = json_to_schema(&serde_json::json!([]));
         assert_eq!(schema["type"], "array");
         assert!(schema.get("items").is_none());
+    }
+
+    #[test]
+    fn json_to_schema_null_excluded_from_required() {
+        let example = serde_json::json!({
+            "name": "alice",
+            "optional": null,
+            "score": 42
+        });
+        let schema = json_to_schema(&example);
+        let required = schema["required"].as_array().unwrap();
+        let required_keys: Vec<&str> = required.iter().map(|v| v.as_str().unwrap()).collect();
+        assert!(required_keys.contains(&"name"), "name should be required");
+        assert!(required_keys.contains(&"score"), "score should be required");
+        assert!(
+            !required_keys.contains(&"optional"),
+            "null field should NOT be required"
+        );
     }
 
     #[test]
