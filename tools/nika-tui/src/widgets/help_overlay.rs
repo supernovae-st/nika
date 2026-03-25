@@ -112,6 +112,8 @@ pub struct HelpOverlayState {
     pub scroll: usize,
     /// Search query (optional)
     pub search: Option<String>,
+    /// PERF: Cached rendered content lines (built once, reused every frame)
+    cached_content: Option<Vec<Line<'static>>>,
 }
 
 impl HelpOverlayState {
@@ -171,16 +173,20 @@ impl HelpOverlayState {
 
 /// Help overlay widget
 pub struct HelpOverlay<'a> {
-    state: &'a HelpOverlayState,
+    state: &'a mut HelpOverlayState,
 }
 
 impl<'a> HelpOverlay<'a> {
-    pub fn new(state: &'a HelpOverlayState) -> Self {
+    pub fn new(state: &'a mut HelpOverlayState) -> Self {
+        // PERF: Ensure content is cached on first use (built once, never changes)
+        if state.cached_content.is_none() {
+            state.cached_content = Some(Self::build_content_static());
+        }
         Self { state }
     }
 
-    /// Build content lines
-    fn build_content(&self) -> Vec<Line<'static>> {
+    /// Build content lines (static — only called once, then cached)
+    fn build_content_static() -> Vec<Line<'static>> {
         let mut lines = Vec::new();
 
         for section in HELP_SECTIONS {
@@ -251,15 +257,16 @@ impl Widget for HelpOverlay<'_> {
         let inner = block.inner(box_area);
         block.render(box_area, buf);
 
-        // Build and render content
-        let content = self.build_content();
+        // PERF: Use cached content (built once in new(), never changes)
+        let content = self.state.cached_content.as_ref().unwrap();
         let content_height = content.len();
 
-        // Apply scroll
+        // Apply scroll — clone only the visible slice
         let visible_lines: Vec<Line> = content
-            .into_iter()
+            .iter()
             .skip(self.state.scroll)
             .take(inner.height as usize)
+            .cloned()
             .collect();
 
         let paragraph = Paragraph::new(visible_lines).wrap(Wrap { trim: false });
@@ -388,10 +395,11 @@ mod tests {
 
     #[test]
     fn test_help_overlay_build_content() {
-        let state = HelpOverlayState::new();
-        let overlay = HelpOverlay::new(&state);
+        let mut state = HelpOverlayState::new();
+        let overlay = HelpOverlay::new(&mut state);
 
-        let content = overlay.build_content();
-        assert!(!content.is_empty());
+        // Content is cached in state after new()
+        assert!(overlay.state.cached_content.is_some());
+        assert!(!overlay.state.cached_content.as_ref().unwrap().is_empty());
     }
 }
