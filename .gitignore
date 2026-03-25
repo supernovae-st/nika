@@ -23,6 +23,9 @@ Thumbs.db
 # Only CLAUDE.md is public (project context for contributors)
 !CLAUDE.md
 
+# MCP config (machine-specific local paths)
+.mcp.json
+
 # Local dev
 *.local
 *.log
