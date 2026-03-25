@@ -11,7 +11,7 @@
 //! Users switch modes with Ctrl+M. Workflows auto-switch to Monitor mode.
 //! Both views stay alive — chat history persists while monitoring.
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{
@@ -170,7 +170,7 @@ impl CommandView {
             area.height.saturating_sub(1),
         );
         let mut nodes: Vec<NodeBoxData> = Vec::new();
-        let mut deps: HashMap<String, Vec<String>> = HashMap::new();
+        let mut deps: FxHashMap<String, Vec<String>> = FxHashMap::default();
 
         for task_id in &state.task_order {
             if let Some(task) = state.tasks.get(task_id) {
@@ -293,7 +293,7 @@ impl CommandView {
         let mut lines: Vec<Line> = vec![header];
 
         // Aggregate MCP calls by server: (tool_count, total_ms, calls_with_duration)
-        let mut server_stats: HashMap<&str, (usize, u64, usize)> = HashMap::new();
+        let mut server_stats: FxHashMap<&str, (usize, u64, usize)> = FxHashMap::default();
         for call in &state.mcp.calls {
             let entry = server_stats
                 .entry(call.server.as_str())

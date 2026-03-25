@@ -3,8 +3,6 @@
 //! Complete DAG visualization composing layout, nodes, and edges.
 //! Renders a directed acyclic graph of workflow tasks with bindings and data previews.
 
-use std::collections::HashMap;
-
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
@@ -40,11 +38,11 @@ pub struct DagAscii<'a> {
     /// Nodes to render
     nodes: &'a [NodeBoxData],
     /// Dependencies per node (node_id -> [dep_ids])
-    dependencies: HashMap<String, Vec<String>>,
+    dependencies: FxHashMap<String, Vec<String>>,
     /// Binding labels per edge (from_id -> [(to_id, binding)])
-    bindings: HashMap<String, Vec<(String, String)>>,
+    bindings: FxHashMap<String, Vec<(String, String)>>,
     /// Data previews per binding (binding -> preview)
-    previews: HashMap<String, String>,
+    previews: FxHashMap<String, String>,
     /// View mode
     mode: NodeBoxMode,
     /// Animation frame (for future animation support)
@@ -60,9 +58,9 @@ impl<'a> DagAscii<'a> {
     pub fn new(nodes: &'a [NodeBoxData]) -> Self {
         Self {
             nodes,
-            dependencies: HashMap::new(),
-            bindings: HashMap::new(),
-            previews: HashMap::new(),
+            dependencies: FxHashMap::default(),
+            bindings: FxHashMap::default(),
+            previews: FxHashMap::default(),
             mode: NodeBoxMode::default(),
             frame: 0,
             scroll: (0, 0),
@@ -79,7 +77,7 @@ impl<'a> DagAscii<'a> {
     /// Set dependencies map (node_id -> `[dep_ids]`)
     ///
     /// Dependencies indicate which tasks a node depends on (its predecessors).
-    pub fn with_dependencies(mut self, deps: HashMap<String, Vec<String>>) -> Self {
+    pub fn with_dependencies(mut self, deps: FxHashMap<String, Vec<String>>) -> Self {
         self.dependencies = deps;
         self
     }
@@ -88,7 +86,7 @@ impl<'a> DagAscii<'a> {
     ///
     /// Format: from_id -> [(to_id, binding_label)]
     /// The binding label (e.g., "{{with.data}}") is shown on the edge.
-    pub fn with_bindings(mut self, bindings: HashMap<String, Vec<(String, String)>>) -> Self {
+    pub fn with_bindings(mut self, bindings: FxHashMap<String, Vec<(String, String)>>) -> Self {
         self.bindings = bindings;
         self
     }
@@ -97,7 +95,7 @@ impl<'a> DagAscii<'a> {
     ///
     /// Format: binding_label -> preview_text
     /// Preview text is shown in grey below the binding label.
-    pub fn with_previews(mut self, previews: HashMap<String, String>) -> Self {
+    pub fn with_previews(mut self, previews: FxHashMap<String, String>) -> Self {
         self.previews = previews;
         self
     }
@@ -166,7 +164,7 @@ impl<'a> DagAscii<'a> {
     /// Render edges between nodes
     fn render_edges(&self, buf: &mut Buffer, area: Rect, layout: &DagLayout) {
         // Group dependencies by target node to detect merge points
-        let mut target_sources: HashMap<&str, Vec<&str>> = HashMap::new();
+        let mut target_sources: FxHashMap<&str, Vec<&str>> = FxHashMap::default();
 
         for node_data in self.nodes {
             if let Some(deps) = self.dependencies.get(&node_data.id) {
@@ -436,7 +434,7 @@ mod tests {
             NodeBoxData::new("c", VerbColor::Fetch),
         ];
 
-        let mut deps = HashMap::new();
+        let mut deps = FxHashMap::default();
         deps.insert("b".to_string(), vec!["a".to_string()]);
         deps.insert("c".to_string(), vec!["b".to_string()]);
 
@@ -470,7 +468,7 @@ mod tests {
             NodeBoxData::new("end", VerbColor::Agent),
         ];
 
-        let mut deps = HashMap::new();
+        let mut deps = FxHashMap::default();
         deps.insert("a".to_string(), vec!["start".to_string()]);
         deps.insert("b".to_string(), vec!["start".to_string()]);
         deps.insert("end".to_string(), vec!["a".to_string(), "b".to_string()]);
@@ -502,16 +500,16 @@ mod tests {
             NodeBoxData::new("process", VerbColor::Exec),
         ];
 
-        let mut deps = HashMap::new();
+        let mut deps = FxHashMap::default();
         deps.insert("process".to_string(), vec!["generate".to_string()]);
 
-        let mut bindings = HashMap::new();
+        let mut bindings = FxHashMap::default();
         bindings.insert(
             "generate".to_string(),
             vec![("process".to_string(), "{{with.data}}".to_string())],
         );
 
-        let mut previews = HashMap::new();
+        let mut previews = FxHashMap::default();
         previews.insert("{{with.data}}".to_string(), "Hello world...".to_string());
 
         let widget = DagAscii::new(&nodes)
@@ -583,13 +581,13 @@ mod tests {
     fn test_dag_ascii_builder_methods() {
         let nodes = vec![NodeBoxData::new("task", VerbColor::Infer)];
 
-        let mut deps = HashMap::new();
+        let mut deps = FxHashMap::default();
         deps.insert("task".to_string(), vec![]);
 
         let widget = DagAscii::new(&nodes)
             .with_dependencies(deps)
-            .with_bindings(HashMap::new())
-            .with_previews(HashMap::new())
+            .with_bindings(FxHashMap::default())
+            .with_previews(FxHashMap::default())
             .mode(NodeBoxMode::Expanded)
             .frame(5)
             .scroll(10, 20);
@@ -623,7 +621,7 @@ mod tests {
             NodeBoxData::new("b", VerbColor::Exec),
         ];
 
-        let mut deps = HashMap::new();
+        let mut deps = FxHashMap::default();
         deps.insert("b".to_string(), vec!["a".to_string()]);
 
         let widget = DagAscii::new(&nodes).with_dependencies(deps).scroll(5, 3);
@@ -641,7 +639,7 @@ mod tests {
             NodeBoxData::new("b", VerbColor::Exec),
         ];
 
-        let mut deps = HashMap::new();
+        let mut deps = FxHashMap::default();
         deps.insert("b".to_string(), vec!["a".to_string()]);
 
         // Frame 0 = inactive edges
@@ -672,7 +670,7 @@ mod tests {
             NodeBoxData::new("b", VerbColor::Exec),
         ];
 
-        let mut deps = HashMap::new();
+        let mut deps = FxHashMap::default();
         deps.insert("b".to_string(), vec!["a".to_string()]);
 
         let widget = DagAscii::new(&nodes).with_dependencies(deps);
@@ -714,7 +712,7 @@ mod tests {
             NodeBoxData::new("b", VerbColor::Exec),
         ];
 
-        let mut bindings = HashMap::new();
+        let mut bindings = FxHashMap::default();
         bindings.insert(
             "a".to_string(),
             vec![("b".to_string(), "{{with.data}}".to_string())],
@@ -734,7 +732,7 @@ mod tests {
     fn test_get_preview() {
         let nodes = vec![NodeBoxData::new("a", VerbColor::Infer)];
 
-        let mut previews = HashMap::new();
+        let mut previews = FxHashMap::default();
         previews.insert("{{with.data}}".to_string(), "preview text".to_string());
 
         let widget = DagAscii::new(&nodes).with_previews(previews);
