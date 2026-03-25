@@ -7,7 +7,7 @@
 [![crates.io](https://img.shields.io/crates/v/nika?style=flat-square&logo=rust&logoColor=white&color=e6522c)](https://crates.io/crates/nika)
 [![Version](https://img.shields.io/badge/v0.42.0-7c3aed?style=flat-square&logo=semver&logoColor=white)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/AGPL--3.0--or--later-22c55e?style=flat-square&logo=gnu&logoColor=white)](LICENSE)
-[![Tests](https://img.shields.io/badge/7,900+_tests-10b981?style=flat-square)](https://github.com/supernovae-st/nika/actions)
+[![Tests](https://img.shields.io/badge/8,100+_tests-10b981?style=flat-square)](https://github.com/supernovae-st/nika/actions)
 
 [Quick Start](#quick-start) | [How It Works](#how-it-works) | [Use Cases](#use-cases) | [Documentation](#documentation)
 
@@ -747,8 +747,7 @@ code --install-extension supernovae-studio.nika-lang
 Nika integrates with 43+ AI coding tools out of the box. Install once, every AI understands `.nika.yaml`.
 
 ```bash
-nika setup              # Detect + configure all AI tools on your machine
-nika init               # Generates AI rules for detected tools
+nika init               # Auto-detects editors + generates AI rules
 ```
 
 | Tier | What | Tools |
@@ -839,7 +838,7 @@ Inspired by rustc, the AST passes through three distinct phases with increasing 
 ```
 nika/tools/
 ├── nika/               Binary entry point (2k LOC) .... cargo install nika
-├── nika-engine/        Embeddable runtime (115k LOC) .. cargo add nika-engine
+├── nika-engine/        Embeddable runtime (162k LOC) .. cargo add nika-engine
 │   ├── runtime/        DAG execution + 5 verb implementations
 │   ├── provider/       8 LLM providers (rig-core + mistral.rs)
 │   ├── dag/            Graph validation + execution ordering
@@ -851,7 +850,7 @@ nika/tools/
 ├── nika-mcp/           MCP client, rmcp adapter (7.5k LOC)
 ├── nika-media/         CAS store, media processor (3.5k LOC)
 ├── nika-cli/           CLI subcommands (5.5k LOC)
-├── nika-tui/           Terminal UI with ratatui (90k LOC)
+├── nika-tui/           Terminal UI with ratatui (86k LOC)
 ├── nika-lsp-core/      Protocol-agnostic LSP intelligence (9k LOC)
 └── nika-lsp/           Standalone LSP server binary (2k LOC)
 ```
@@ -883,13 +882,6 @@ nika studio workflow.nika.yaml           # Open Studio view
 # Initialization
 nika init                                # Minimal project (5 workflows, 1 per verb)
 nika init --course                       # Interactive 12-level course (44 exercises)
-
-# AI Integration
-nika setup                               # Machine-level IDE + AI tool setup
-nika setup editors                       # Install editor extensions
-nika setup ai                            # Configure AI coding tool rules
-nika setup completions                   # Shell completions
-nika setup git                           # Git co-author hook
 
 # Course
 nika course status                       # Constellation progress map
@@ -969,7 +961,7 @@ cargo install --path tools/nika
 ### Verify
 
 ```bash
-nika --version       # nika 0.41.3
+nika --version       # nika 0.42.0
 nika doctor          # Full system health check
 ```
 
@@ -1251,7 +1243,7 @@ flowchart LR
 
 **Nika v0.42.0** | Schema `nika/workflow@0.12` | Rust 1.86+ | AGPL-3.0-or-later
 
-270k+ LOC across 10 crates | 7,900+ tests | 0 clippy warnings
+310k+ LOC across 10 crates | 8,100+ tests | 0 clippy warnings
 
 [SuperNovae Studio](https://supernovae.studio) | [QR Code AI](https://qrcode-ai.com) | [GitHub](https://github.com/supernovae-st/nika)
 
