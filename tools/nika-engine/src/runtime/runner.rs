@@ -233,6 +233,13 @@ impl Runner {
         self
     }
 
+    /// Get a reference to the run context (task results store).
+    ///
+    /// Available after `run()` completes to collect task outputs for `-o/--output`.
+    pub fn datastore(&self) -> &RunContext {
+        &self.datastore
+    }
+
     /// Inject initial context into the datastore
     ///
     /// Used by nika_run to pass parent context to child workflows.

@@ -5284,6 +5284,7 @@ version = "0.43.0"
 dependencies = [
  "clap",
  "clap_complete",
+ "cliclack",
  "colored",
  "criterion",
  "crossterm 0.29.0",
