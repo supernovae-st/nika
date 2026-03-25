@@ -100,7 +100,13 @@ impl ChatView {
     }
 
     /// Build line-position cache for text selection mouse hit testing.
+    /// PERF: Only runs when selection is active (saves O(messages*lines) per frame)
     fn build_line_positions(&mut self, area: Rect) {
+        // Guard: skip entirely when no selection is in progress
+        if !self.is_selecting && self.text_selection.is_none() {
+            self.line_positions.clear();
+            return;
+        }
         self.line_positions.clear();
         let content_start_x = area.x + 3; // "│ " prefix = 2 chars + border
         let mut current_line = 0usize;
