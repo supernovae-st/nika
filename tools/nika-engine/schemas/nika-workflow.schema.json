@@ -814,7 +814,6 @@
         },
         {
           "type": "object",
-          "required": ["schema"],
           "additionalProperties": false,
           "properties": {
             "schema": {
@@ -823,6 +822,13 @@
                 { "type": "string", "description": "Path to JSON Schema file" }
               ],
               "description": "JSON Schema for output validation (inline object or file path)"
+            },
+            "from_example": {
+              "oneOf": [
+                { "type": "object", "description": "Inline JSON example object (schema derived at runtime)" },
+                { "type": "string", "description": "Path to JSON example file (schema derived at runtime)" }
+              ],
+              "description": "JSON example — Nika auto-derives the JSON Schema from this structure"
             },
             "enable_extractor": {
               "type": "boolean",

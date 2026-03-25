@@ -112,6 +112,7 @@ impl OutputPolicy {
         let schema = self.schema.clone()?;
         Some(super::structured::StructuredOutputSpec {
             schema,
+            from_example: None,
             enable_extractor: None,
             enable_tool_injection: None,
             enable_retry: Some(true),

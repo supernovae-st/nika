@@ -252,6 +252,28 @@ impl TaskExecutor {
         if policy.format != OutputFormat::Json {
             return None;
         }
+
+        // If the policy was bridged from a structured spec with inline from_example,
+        // inject the example directly as the target structure (not the derived schema)
+        if let Some(ref spec) = policy.source_structured_spec {
+            if let Some(SchemaRef::Inline(ref example)) = spec.from_example {
+                let example_str = serde_json::to_string_pretty(example).unwrap_or_default();
+                return Some(format!(
+                    "\n\n---\n\
+                     CRITICAL OUTPUT REQUIREMENT:\n\
+                     Your response MUST be valid JSON matching this exact structure:\n\n\
+                     ```json\n{}\n```\n\n\
+                     Rules:\n\
+                     - Output ONLY the JSON object, no additional text\n\
+                     - Do NOT wrap in markdown code blocks (no ```json)\n\
+                     - All keys shown above must be present\n\
+                     - Value types must match (strings, numbers, arrays, objects)",
+                    example_str
+                ));
+            }
+            // File-based from_example or no from_example: fall through to generic instruction
+        }
+
         let schema_ref = policy.schema.as_ref()?;
         let schema_json = match schema_ref {
             SchemaRef::Inline(v) => v.clone(),

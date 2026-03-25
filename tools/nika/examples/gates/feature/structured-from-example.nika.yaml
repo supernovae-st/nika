@@ -1,0 +1,30 @@
+# FEATURE: structured output from example (auto-derived schema)
+schema: "nika/workflow@0.12"
+workflow: feat-structured-from-example
+provider: openai
+model: gpt-4.1-mini
+
+tasks:
+  - id: gen_example
+    description: "Write example file for the test"
+    exec: |
+      echo '{"name": "test", "age": 25, "active": true}' > /tmp/nika-test-example.json
+      echo "OK"
+
+  - id: extract
+    depends_on: [gen_example]
+    infer: "Return a JSON object about a person named Alice who is 30 and active"
+    max_tokens: 100
+    structured:
+      from_example:
+        name: "example"
+        age: 25
+        active: true
+
+  - id: extract_file
+    depends_on: [gen_example]
+    infer: "Return a JSON object about a person named Bob who is 40 and not active"
+    max_tokens: 100
+    structured:
+      from_example: /tmp/nika-test-example.json
+      enable_repair: true

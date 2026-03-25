@@ -190,17 +190,36 @@ impl StructuredOutputEngine {
     /// Returns an `Arc<Value>` for cheap cloning across async boundaries.
     pub async fn load_schema(&mut self) -> Result<Arc<Value>, NikaError> {
         if self.compiled_schema.is_none() {
-            let schema = match &self.spec.schema {
-                SchemaRef::Inline(v) => v.clone(),
-                SchemaRef::File(path) => {
-                    let content = tokio::fs::read_to_string(path).await.map_err(|e| {
-                        NikaError::SchemaFailed {
-                            details: format!("Failed to read schema '{}': {}", path, e),
-                        }
-                    })?;
-                    serde_json::from_str(&content).map_err(|e| NikaError::SchemaFailed {
-                        details: format!("Invalid JSON in schema '{}': {}", path, e),
-                    })?
+            let schema = if let Some(ref example_ref) = self.spec.from_example {
+                // from_example: load example then derive JSON Schema from it
+                let example_value = match example_ref {
+                    SchemaRef::Inline(v) => v.clone(),
+                    SchemaRef::File(path) => {
+                        let content = tokio::fs::read_to_string(path).await.map_err(|e| {
+                            NikaError::SchemaFailed {
+                                details: format!("Failed to read example '{}': {}", path, e),
+                            }
+                        })?;
+                        serde_json::from_str(&content).map_err(|e| NikaError::SchemaFailed {
+                            details: format!("Invalid JSON in example '{}': {}", path, e),
+                        })?
+                    }
+                };
+                crate::ast::structured::json_to_schema(&example_value)
+            } else {
+                // Standard: load schema directly
+                match &self.spec.schema {
+                    SchemaRef::Inline(v) => v.clone(),
+                    SchemaRef::File(path) => {
+                        let content = tokio::fs::read_to_string(path).await.map_err(|e| {
+                            NikaError::SchemaFailed {
+                                details: format!("Failed to read schema '{}': {}", path, e),
+                            }
+                        })?;
+                        serde_json::from_str(&content).map_err(|e| NikaError::SchemaFailed {
+                            details: format!("Invalid JSON in schema '{}': {}", path, e),
+                        })?
+                    }
                 }
             };
             self.compiled_schema = Some(Arc::new(schema));
