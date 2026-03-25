@@ -126,6 +126,9 @@ impl StudioView {
         let root_path = Utf8Path::from_path(&root_dir).unwrap_or(Utf8Path::new("."));
         let git_cache = build_git_status_cache(root_path);
 
+        // Pre-build tree once at construction (avoids redundant rebuild in on_enter)
+        let tree = TreeNode::build_tree(root_path, Some(&git_cache), None);
+
         // Scan for .nika.yaml files for Quick Access
         let quick_access = Self::scan_nika_files(&root_dir);
 
@@ -140,7 +143,7 @@ impl StudioView {
             ratio: StudioRatio::default(),
             git_cache,
             git_cache_time: Instant::now(),
-            cached_tree: None,
+            cached_tree: Some(tree),
             quick_access,
             // Overlay states
             command_palette: CommandPaletteState::new(),
@@ -497,30 +500,33 @@ impl View for StudioView {
     }
 
     fn on_enter(&mut self, _state: &mut TuiState) {
-        // Root cause: visible_nodes was never populated at startup,
-        // causing keyboard navigation to fail.
-
+        // PERF: Reuse git cache + tree from with_root() constructor.
+        // Only rebuild if cache is stale (> 5s) or missing.
         let root_path = Utf8Path::from_path(&self.root_dir).unwrap_or(Utf8Path::new("."));
 
-        // 1. Refresh git cache
-        self.git_cache = build_git_status_cache(root_path);
-        self.git_cache_time = Instant::now();
+        // Refresh git cache only if stale
+        if self.git_cache.is_empty()
+            || self.git_cache_time.elapsed() > std::time::Duration::from_secs(5)
+        {
+            self.git_cache = build_git_status_cache(root_path);
+            self.git_cache_time = Instant::now();
+        }
 
-        // 2. Build tree and cache it
-        let root_node = TreeNode::build_tree(root_path, Some(&self.git_cache), None);
-        self.cached_tree = Some(root_node.clone());
+        // Reuse cached tree if available, else build once
+        if self.cached_tree.is_none() {
+            let tree = TreeNode::build_tree(root_path, Some(&self.git_cache), None);
+            self.cached_tree = Some(tree);
+        }
 
-        // 3. Update visible_nodes for navigation
-        self.tree_state.update_visible_nodes(&root_node);
-
-        // 4. Expand root directory so children are visible
-        self.tree_state.expand(root_node.id);
-
-        // 5. Re-update visible_nodes after expansion (to include children)
-        self.tree_state.update_visible_nodes(&root_node);
-
-        // 6. Select first item for immediate navigation
-        self.tree_state.select_first_if_none();
+        // Init navigation state from cached tree (fast, in-memory only)
+        if let Some(ref root_node) = self.cached_tree {
+            self.tree_state.update_visible_nodes(root_node);
+            if !self.tree_state.is_expanded(root_node.id) {
+                self.tree_state.expand(root_node.id);
+                self.tree_state.update_visible_nodes(root_node);
+            }
+            self.tree_state.select_first_if_none();
+        }
     }
 
     fn on_leave(&mut self, _state: &mut TuiState) {
