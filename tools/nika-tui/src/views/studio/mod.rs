@@ -220,21 +220,19 @@ impl StudioView {
         self.cached_tree = None;
     }
 
-    /// Get or build the cached tree node
-    fn get_or_build_tree(&mut self) -> TreeNode {
-        if let Some(ref cached) = self.cached_tree {
-            return cached.clone();
+    /// Get or build the cached tree node (borrows from cache, zero-clone)
+    fn ensure_tree(&mut self) {
+        if self.cached_tree.is_none() {
+            let root_path = Utf8Path::from_path(&self.root_dir).unwrap_or(Utf8Path::new("."));
+            let tree = TreeNode::build_tree(root_path, Some(&self.git_cache), None);
+            self.cached_tree = Some(tree);
         }
-        let root_path = Utf8Path::from_path(&self.root_dir).unwrap_or(Utf8Path::new("."));
-        let tree = TreeNode::build_tree(root_path, Some(&self.git_cache), None);
-        self.cached_tree = Some(tree.clone());
-        tree
     }
 
     /// Handle keyboard input for the browser panel
     fn handle_browser_key(&mut self, key: KeyEvent) -> ViewAction {
-        // Get cached tree for tree operations
-        let root_node = self.get_or_build_tree();
+        // PERF: Ensure tree is built, then borrow from cache (zero-clone)
+        self.ensure_tree();
 
         // Try TreeAction navigation first
         if let Some(action) = TreeAction::from_key_event(key) {
@@ -243,9 +241,11 @@ impl StudioView {
                 action,
                 TreeAction::Toggle | TreeAction::Left | TreeAction::Right
             );
-            self.tree_state.handle_action(action, &root_node);
-            if needs_update {
-                self.tree_state.update_visible_nodes(&root_node);
+            if let Some(ref root_node) = self.cached_tree {
+                self.tree_state.handle_action(action, root_node);
+                if needs_update {
+                    self.tree_state.update_visible_nodes(root_node);
+                }
             }
             return ViewAction::None;
         }
@@ -255,8 +255,12 @@ impl StudioView {
             KeyCode::Enter => {
                 // Open selected file in editor
                 if let Some(node_id) = self.tree_state.selected() {
-                    if let Some(node) = self.tree_state.find_node(&root_node, node_id) {
-                        let path = PathBuf::from(node.path.as_str());
+                    let node_path = self
+                        .cached_tree
+                        .as_ref()
+                        .and_then(|root| self.tree_state.find_node(root, node_id))
+                        .map(|node| PathBuf::from(node.path.as_str()));
+                    if let Some(path) = node_path {
                         if path.is_file()
                             && path.extension().is_some_and(|e| e == "yaml" || e == "yml")
                         {
