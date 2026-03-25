@@ -112,6 +112,11 @@ pub struct StructuredOutputEngine {
     log: Arc<EventLog>,
     /// Cached compiled schema (for validation speed, Arc for cheap cloning)
     compiled_schema: Option<Arc<Value>>,
+    /// Cached example value when `from_example` is a file.
+    ///
+    /// Set during `load_schema()` so that `build_json_schema_instruction` can
+    /// inject the file-based example into the LLM prompt without async I/O.
+    cached_example: Option<Value>,
     /// Callback for LLM inference in Layer 3 & 4
     ///
     /// When set, enables actual LLM retries and repairs instead of just re-validation.
@@ -133,6 +138,7 @@ impl StructuredOutputEngine {
             spec,
             log,
             compiled_schema: None,
+            cached_example: None,
             infer_fn: None,
             original_prompt: None,
             provider_name: None,
@@ -200,17 +206,26 @@ impl StructuredOutputEngine {
                                 details: format!("Failed to read example '{}': {}", path, e),
                             }
                         })?;
-                        serde_json::from_str(&content).map_err(|e| NikaError::SchemaFailed {
-                            details: format!("Invalid JSON in example '{}': {}", path, e),
-                        })?
+                        let parsed: Value = serde_json::from_str(&content).map_err(|e| {
+                            NikaError::SchemaFailed {
+                                details: format!("Invalid JSON in example '{}': {}", path, e),
+                            }
+                        })?;
+                        // Cache example for prompt injection
+                        self.cached_example = Some(parsed.clone());
+                        parsed
                     }
                 };
-                crate::ast::structured::json_to_schema(&example_value)
+                if self.spec.strict == Some(true) {
+                    crate::ast::structured::json_to_schema_strict(&example_value)
+                } else {
+                    crate::ast::structured::json_to_schema(&example_value)
+                }
             } else {
                 // Standard: load schema directly
-                match &self.spec.schema {
-                    SchemaRef::Inline(v) => v.clone(),
-                    SchemaRef::File(path) => {
+                match self.spec.schema.as_ref() {
+                    Some(SchemaRef::Inline(v)) => v.clone(),
+                    Some(SchemaRef::File(path)) => {
                         let content = tokio::fs::read_to_string(path).await.map_err(|e| {
                             NikaError::SchemaFailed {
                                 details: format!("Failed to read schema '{}': {}", path, e),
@@ -219,6 +234,11 @@ impl StructuredOutputEngine {
                         serde_json::from_str(&content).map_err(|e| NikaError::SchemaFailed {
                             details: format!("Invalid JSON in schema '{}': {}", path, e),
                         })?
+                    }
+                    None => {
+                        return Err(NikaError::SchemaFailed {
+                            details: "No schema or from_example defined".to_string(),
+                        });
                     }
                 }
             };
@@ -233,10 +253,18 @@ impl StructuredOutputEngine {
 
     /// Get the raw schema reference from the spec.
     ///
-    /// NOTE: When `from_example` is set, this returns the placeholder `SchemaRef::Inline({})`.
-    /// Use `load_schema()` to get the resolved, effective schema (handles `from_example` derivation).
-    pub fn schema(&self) -> &SchemaRef {
-        &self.spec.schema
+    /// Returns `None` when `from_example` is set (schema derived at runtime).
+    /// Use `load_schema()` to get the resolved, effective schema.
+    pub fn schema(&self) -> Option<&SchemaRef> {
+        self.spec.schema.as_ref()
+    }
+
+    /// Get the cached example value (set during `load_schema()` for file-based examples).
+    ///
+    /// Returns `Some` after `load_schema()` has been called when `from_example` is a file.
+    /// For inline examples, returns `None` (the value is in `spec.from_example` directly).
+    pub fn cached_example(&self) -> Option<&Value> {
+        self.cached_example.as_ref()
     }
 
     /// Validate raw output through the 4-layer defense system
@@ -857,9 +885,20 @@ pub async fn validate_structured_output(
                 })?
             }
         };
-        SchemaRef::Inline(crate::ast::structured::json_to_schema(&example_value))
+        if spec.strict == Some(true) {
+            SchemaRef::Inline(crate::ast::structured::json_to_schema_strict(&example_value))
+        } else {
+            SchemaRef::Inline(crate::ast::structured::json_to_schema(&example_value))
+        }
     } else {
-        spec.schema.clone()
+        match spec.schema.clone() {
+            Some(schema) => schema,
+            None => {
+                return Err(NikaError::SchemaFailed {
+                    details: "No schema or from_example defined".to_string(),
+                });
+            }
+        }
     };
 
     // Validate

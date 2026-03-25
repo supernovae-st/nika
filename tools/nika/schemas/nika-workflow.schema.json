@@ -865,6 +865,11 @@
             "repair_model": {
               "type": "string",
               "description": "Model to use for Layer 4 repair (defaults to task model)"
+            },
+            "strict": {
+              "type": "boolean",
+              "default": false,
+              "description": "When true, derived from_example schemas add additionalProperties: false to all objects"
             }
           }
         }
@@ -894,6 +899,11 @@
             "score": 42,
             "active": true
           }
+        },
+        {
+          "from_example": "./structure.json",
+          "strict": true,
+          "enable_repair": true
         }
       ]
     },

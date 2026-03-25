@@ -46,10 +46,10 @@ use super::output::SchemaRef;
 pub struct StructuredOutputSpec {
     /// JSON Schema reference (inline or file path).
     ///
-    /// INVARIANT: When `from_example` is `Some`, this field holds a placeholder `{}`.
-    /// Do NOT read `schema` directly without checking `from_example` first.
+    /// `None` when `from_example` is set — schema is derived at runtime.
     /// Use `StructuredOutputEngine::load_schema()` which handles derivation correctly.
-    pub schema: SchemaRef,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub schema: Option<SchemaRef>,
 
     /// JSON example — Nika auto-derives the JSON Schema from this at runtime.
     ///
@@ -89,13 +89,19 @@ pub struct StructuredOutputSpec {
     /// Default: same as task model
     #[serde(default)]
     pub repair_model: Option<String>,
+
+    /// When true, derived `from_example` schemas add `additionalProperties: false`
+    /// to all object schemas recursively. Prevents the LLM from injecting extra keys.
+    /// Default: false. Only meaningful when `from_example` is set.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub strict: Option<bool>,
 }
 
 impl StructuredOutputSpec {
     /// Create with a schema reference
     pub fn with_schema(schema: SchemaRef) -> Self {
         Self {
-            schema,
+            schema: Some(schema),
             from_example: None,
             enable_extractor: None,
             enable_tool_injection: None,
@@ -103,6 +109,7 @@ impl StructuredOutputSpec {
             enable_repair: None,
             max_retries: None,
             repair_model: None,
+            strict: None,
         }
     }
 
@@ -116,7 +123,7 @@ impl StructuredOutputSpec {
     /// the example shown in the prompt.
     pub fn with_example_file(path: impl Into<String>) -> Self {
         Self {
-            schema: SchemaRef::Inline(serde_json::json!({})), // placeholder — see INVARIANT on schema field
+            schema: None,
             from_example: Some(SchemaRef::File(path.into())),
             enable_extractor: None,
             enable_tool_injection: None,
@@ -124,6 +131,7 @@ impl StructuredOutputSpec {
             enable_repair: None,
             max_retries: None,
             repair_model: None,
+            strict: None,
         }
     }
 
@@ -133,7 +141,7 @@ impl StructuredOutputSpec {
     /// This gives the LLM full context about the expected output shape.
     pub fn with_example_inline(example: serde_json::Value) -> Self {
         Self {
-            schema: SchemaRef::Inline(serde_json::json!({})), // placeholder — see INVARIANT on schema field
+            schema: None,
             from_example: Some(SchemaRef::Inline(example)),
             enable_extractor: None,
             enable_tool_injection: None,
@@ -141,6 +149,7 @@ impl StructuredOutputSpec {
             enable_repair: None,
             max_retries: None,
             repair_model: None,
+            strict: None,
         }
     }
 
@@ -183,7 +192,8 @@ impl StructuredOutputSpec {
     pub fn to_output_policy(&self) -> super::output::OutputPolicy {
         super::output::OutputPolicy {
             format: super::output::OutputFormat::Json,
-            schema: Some(self.schema.clone()),
+            schema: self.schema.clone(),
+            from_example: self.from_example.clone(),
             max_retries: self.max_retries,
             source_structured_spec: Some(self.clone()),
         }
@@ -233,6 +243,7 @@ impl<'de> Deserialize<'de> for StructuredOutputSpec {
                 let mut enable_repair: Option<bool> = None;
                 let mut max_retries: Option<u8> = None;
                 let mut repair_model: Option<String> = None;
+                let mut strict: Option<bool> = None;
 
                 while let Some(key) = map.next_key::<String>()? {
                     match key.as_str() {
@@ -260,6 +271,9 @@ impl<'de> Deserialize<'de> for StructuredOutputSpec {
                         "repair_model" => {
                             repair_model = Some(map.next_value()?);
                         }
+                        "strict" => {
+                            strict = Some(map.next_value()?);
+                        }
                         _ => {
                             // Ignore unknown fields
                             let _: serde_json::Value = map.next_value()?;
@@ -268,12 +282,10 @@ impl<'de> Deserialize<'de> for StructuredOutputSpec {
                 }
 
                 // from_example and schema are mutually exclusive.
-                // When from_example is set, schema is a placeholder (derived at runtime by the engine).
-                let schema = if from_example.is_some() {
-                    schema.unwrap_or(SchemaRef::Inline(serde_json::json!({})))
-                } else {
-                    schema.ok_or_else(|| de::Error::missing_field("schema or from_example"))?
-                };
+                // When from_example is set, schema is None (derived at runtime by the engine).
+                if schema.is_none() && from_example.is_none() {
+                    return Err(de::Error::missing_field("schema or from_example"));
+                }
 
                 Ok(StructuredOutputSpec {
                     schema,
@@ -284,6 +296,7 @@ impl<'de> Deserialize<'de> for StructuredOutputSpec {
                     enable_repair,
                     max_retries,
                     repair_model,
+                    strict,
                 })
             }
         }
@@ -292,55 +305,10 @@ impl<'de> Deserialize<'de> for StructuredOutputSpec {
     }
 }
 
-/// Derive a JSON Schema from a JSON example value.
-///
-/// Recursively inspects the example and produces a schema that would validate
-/// any JSON with the same structure (same keys, same types, same nesting).
-///
-/// - Objects → `{ "type": "object", "properties": {...}, "required": [...] }`
-/// - Arrays  → `{ "type": "array", "items": <schema of first element> }`
-/// - Strings → `{ "type": "string" }`
-/// - Numbers → `{ "type": "number" }` (integers get `"integer"`)
-/// - Bools   → `{ "type": "boolean" }`
-/// - Null    → `{ "type": "null" }`
-pub fn json_to_schema(value: &serde_json::Value) -> serde_json::Value {
-    use serde_json::{json, Value};
-    match value {
-        Value::Object(map) => {
-            let mut properties = serde_json::Map::new();
-            let mut required: Vec<Value> = Vec::new();
-            for (key, val) in map {
-                // Null values are excluded from required — they likely represent optional fields.
-                if !val.is_null() {
-                    required.push(Value::String(key.clone()));
-                }
-                properties.insert(key.clone(), json_to_schema(val));
-            }
-            json!({
-                "type": "object",
-                "properties": Value::Object(properties),
-                "required": required
-            })
-        }
-        Value::Array(items) => {
-            if let Some(first) = items.first() {
-                json!({ "type": "array", "items": json_to_schema(first) })
-            } else {
-                json!({ "type": "array" })
-            }
-        }
-        Value::String(_) => json!({ "type": "string" }),
-        Value::Number(n) => {
-            if n.is_i64() || n.is_u64() {
-                json!({ "type": "integer" })
-            } else {
-                json!({ "type": "number" })
-            }
-        }
-        Value::Bool(_) => json!({ "type": "boolean" }),
-        Value::Null => json!({ "type": "null" }),
-    }
-}
+// Re-export from the dedicated schema module.
+// json_to_schema lives in nika_core::schema but is re-exported here
+// so existing callers (nika-engine via `crate::ast::structured::json_to_schema`) keep working.
+pub use crate::schema::{json_to_schema, json_to_schema_strict};
 
 #[cfg(test)]
 mod tests {
@@ -352,7 +320,7 @@ mod tests {
         let yaml = "structured: ./schemas/user.json";
         let spec: StructuredOutputSpec =
             serde_yaml::from_str(&yaml.replace("structured: ", "")).unwrap();
-        assert!(matches!(spec.schema, SchemaRef::File(ref p) if p == "./schemas/user.json"));
+        assert!(matches!(spec.schema, Some(SchemaRef::File(ref p)) if p == "./schemas/user.json"));
     }
 
     #[test]
@@ -363,7 +331,7 @@ max_retries: 3
 enable_repair: false
 "#;
         let spec: StructuredOutputSpec = serde_yaml::from_str(yaml).unwrap();
-        assert!(matches!(spec.schema, SchemaRef::File(ref p) if p == "./schemas/user.json"));
+        assert!(matches!(spec.schema, Some(SchemaRef::File(ref p)) if p == "./schemas/user.json"));
         assert_eq!(spec.max_retries, Some(3));
         assert_eq!(spec.enable_repair, Some(false));
     }
@@ -381,7 +349,7 @@ schema:
 max_retries: 2
 "#;
         let spec: StructuredOutputSpec = serde_yaml::from_str(yaml).unwrap();
-        assert!(matches!(spec.schema, SchemaRef::Inline(_)));
+        assert!(matches!(spec.schema, Some(SchemaRef::Inline(_))));
         assert_eq!(spec.max_retries, Some(2));
     }
 
@@ -397,12 +365,12 @@ max_retries: 2
     #[test]
     fn constructors_work() {
         let file_spec = StructuredOutputSpec::with_file_schema("./test.json");
-        assert!(matches!(file_spec.schema, SchemaRef::File(_)));
+        assert!(matches!(file_spec.schema, Some(SchemaRef::File(_))));
 
         let inline_spec = StructuredOutputSpec::with_inline_schema(serde_json::json!({
             "type": "object"
         }));
-        assert!(matches!(inline_spec.schema, SchemaRef::Inline(_)));
+        assert!(matches!(inline_spec.schema, Some(SchemaRef::Inline(_))));
     }
 
     #[test]
@@ -456,6 +424,7 @@ from_example: ./structure.json
 enable_repair: true
 "#;
         let spec: StructuredOutputSpec = serde_yaml::from_str(yaml).unwrap();
+        assert!(spec.schema.is_none(), "schema should be None when from_example is set");
         assert!(spec.from_example.is_some());
         assert!(
             matches!(spec.from_example.as_ref().unwrap(), SchemaRef::File(ref p) if p == "./structure.json")
@@ -486,72 +455,15 @@ schema:
 from_example: ./structure.json
 "#;
         let spec: StructuredOutputSpec = serde_yaml::from_str(yaml).unwrap();
-        assert!(matches!(spec.schema, SchemaRef::Inline(_)));
+        assert!(matches!(spec.schema, Some(SchemaRef::Inline(_))));
         assert!(spec.from_example.is_some());
     }
 
+    // json_to_schema tests are in nika_core::schema::tests (dedicated module).
+    // This test verifies the re-export works.
     #[test]
-    fn json_to_schema_flat_object() {
-        let example = serde_json::json!({
-            "title": "hello",
-            "count": 42
-        });
-        let schema = json_to_schema(&example);
+    fn json_to_schema_reexport_works() {
+        let schema = json_to_schema(&serde_json::json!({"x": 1}));
         assert_eq!(schema["type"], "object");
-        assert_eq!(schema["properties"]["title"]["type"], "string");
-        assert_eq!(schema["properties"]["count"]["type"], "integer");
-    }
-
-    #[test]
-    fn json_to_schema_nested() {
-        let example = serde_json::json!({
-            "head": { "title": "x", "rating": { "value": 4.7 } },
-            "sections": [{ "type": "hero", "fields": { "title": "y" } }]
-        });
-        let schema = json_to_schema(&example);
-        assert_eq!(schema["properties"]["head"]["type"], "object");
-        assert_eq!(
-            schema["properties"]["head"]["properties"]["rating"]["properties"]["value"]["type"],
-            "number"
-        );
-        assert_eq!(schema["properties"]["sections"]["type"], "array");
-        assert_eq!(
-            schema["properties"]["sections"]["items"]["properties"]["type"]["type"],
-            "string"
-        );
-    }
-
-    #[test]
-    fn json_to_schema_empty_array() {
-        let schema = json_to_schema(&serde_json::json!([]));
-        assert_eq!(schema["type"], "array");
-        assert!(schema.get("items").is_none());
-    }
-
-    #[test]
-    fn json_to_schema_null_excluded_from_required() {
-        let example = serde_json::json!({
-            "name": "alice",
-            "optional": null,
-            "score": 42
-        });
-        let schema = json_to_schema(&example);
-        let required = schema["required"].as_array().unwrap();
-        let required_keys: Vec<&str> = required.iter().map(|v| v.as_str().unwrap()).collect();
-        assert!(required_keys.contains(&"name"), "name should be required");
-        assert!(required_keys.contains(&"score"), "score should be required");
-        assert!(
-            !required_keys.contains(&"optional"),
-            "null field should NOT be required"
-        );
-    }
-
-    #[test]
-    fn json_to_schema_primitives() {
-        assert_eq!(json_to_schema(&serde_json::json!("hello"))["type"], "string");
-        assert_eq!(json_to_schema(&serde_json::json!(true))["type"], "boolean");
-        assert_eq!(json_to_schema(&serde_json::json!(null))["type"], "null");
-        assert_eq!(json_to_schema(&serde_json::json!(1.5))["type"], "number");
-        assert_eq!(json_to_schema(&serde_json::json!(42))["type"], "integer");
     }
 }
