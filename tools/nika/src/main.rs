@@ -230,6 +230,18 @@ enum Commands {
         #[arg(long)]
         no_interactive: bool,
 
+        /// Run only this task and its dependencies
+        #[arg(long, value_name = "TASK_ID")]
+        task: Option<String>,
+
+        /// Run from this task onwards (skip earlier layers)
+        #[arg(long, value_name = "TASK_ID")]
+        from: Option<String>,
+
+        /// Skip cost confirmation (auto-accept)
+        #[arg(short = 'y', long)]
+        yes: bool,
+
         /// Permission mode for file tools: deny, plan, accept-edits, yolo
         #[arg(long, default_value = "accept-edits")]
         permission: String,
@@ -667,6 +679,9 @@ async fn main() {
                 None,
                 true,
                 None,
+                None,
+                None,
+                false,
                 cli.quiet,
                 cli.detail,
                 "accept-edits",
@@ -766,6 +781,9 @@ async fn main() {
             dry_run,
             output,
             no_interactive,
+            task,
+            from,
+            yes,
             permission,
         }) => {
             // Auto-discover workflow if no file specified
@@ -784,6 +802,8 @@ async fn main() {
                     model,
                     &inputs,
                     input_file.as_deref(),
+                    task.as_deref(),
+                    from.as_deref(),
                 )
                 .await
             } else {
@@ -795,6 +815,9 @@ async fn main() {
                     input_file.as_deref(),
                     !no_interactive,
                     output.as_deref(),
+                    task.as_deref(),
+                    from.as_deref(),
+                    yes,
                     quiet,
                     detail,
                     &permission,
@@ -1170,6 +1193,9 @@ tasks:
         None,
         false,
         None,
+        None,
+        None,
+        true, // skip cost confirm for demo
         quiet,
         detail,
         "deny",
@@ -1204,6 +1230,9 @@ async fn run_workflow(
     input_file: Option<&str>,
     interactive: bool,
     output_file: Option<&str>,
+    task_filter: Option<&str>,
+    from_filter: Option<&str>,
+    skip_confirm: bool,
     quiet: bool,
     detail: nika::display::DetailLevel,
     permission: &str,
@@ -1264,6 +1293,72 @@ async fn run_workflow(
                         reason: format!("Input '{}' required but not provided", key),
                     })?;
                 workflow.inputs.insert(key, parse_input_value(&input));
+            }
+        }
+    }
+
+    // Task filtering: --task (single task + deps) or --from (from task onwards)
+    if let Some(target) = task_filter {
+        filter_tasks_for_target(&mut workflow, target)?;
+        if !quiet {
+            eprintln!(
+                "  {} running task '{}' + dependencies ({} tasks)",
+                "Filter:".cyan(),
+                target,
+                workflow.tasks.len()
+            );
+        }
+    } else if let Some(from_id) = from_filter {
+        filter_tasks_from(&mut workflow, from_id)?;
+        if !quiet {
+            eprintln!(
+                "  {} running from '{}' onwards ({} tasks)",
+                "Filter:".cyan(),
+                from_id,
+                workflow.tasks.len()
+            );
+        }
+    }
+
+    // Cost estimation: warn if LLM tasks detected and not --yes
+    if !skip_confirm && std::io::stdin().is_terminal() {
+        let infer_count = workflow
+            .tasks
+            .iter()
+            .filter(|t| matches!(t.action.verb_name(), "infer" | "agent"))
+            .count();
+        if infer_count > 0 {
+            let provider_name = workflow.provider.as_deref().unwrap_or("anthropic");
+            let model_name = workflow
+                .model
+                .as_deref()
+                .unwrap_or("claude-sonnet-4-20250514");
+            if let Some(pk) = nika::provider::cost::ProviderKind::parse(provider_name) {
+                let avg_tokens = 2000u64;
+                let est_cost = nika::provider::cost::calculate_cost(
+                    pk,
+                    model_name,
+                    avg_tokens * infer_count as u64,
+                    avg_tokens * infer_count as u64,
+                );
+                if est_cost > 0.10 {
+                    eprintln!(
+                        "  {} ~${:.4} ({} LLM tasks, {})",
+                        "Estimated cost:".yellow(),
+                        est_cost,
+                        infer_count,
+                        model_name
+                    );
+                    let confirm: bool = cliclack::confirm("Continue?")
+                        .initial_value(true)
+                        .interact()
+                        .unwrap_or(false);
+                    if !confirm {
+                        return Err(NikaError::ValidationError {
+                            reason: "Cancelled by user".to_string(),
+                        });
+                    }
+                }
             }
         }
     }
@@ -2180,6 +2275,111 @@ async fn validate_workflow_strict(file: &str) -> Result<(), NikaError> {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// TASK FILTERING (--task / --from)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Filter workflow to keep only the target task and its transitive dependencies.
+fn filter_tasks_for_target(
+    workflow: &mut nika::ast::analyzed::AnalyzedWorkflow,
+    target_id: &str,
+) -> Result<(), NikaError> {
+    // Verify target exists
+    if !workflow.tasks.iter().any(|t| t.name == target_id) {
+        return Err(NikaError::ValidationError {
+            reason: format!(
+                "Task '{}' not found. Available: {}",
+                target_id,
+                workflow
+                    .tasks
+                    .iter()
+                    .map(|t| t.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+        });
+    }
+
+    // BFS to collect transitive dependencies
+    let mut required: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut queue: std::collections::VecDeque<String> = std::collections::VecDeque::new();
+    required.insert(target_id.to_string());
+    queue.push_back(target_id.to_string());
+
+    while let Some(task_name) = queue.pop_front() {
+        if let Some(task) = workflow.tasks.iter().find(|t| t.name == task_name) {
+            // Explicit depends_on
+            for dep_id in &task.depends_on {
+                if let Some(dep_name) = workflow.task_table.get_name(*dep_id) {
+                    if required.insert(dep_name.to_string()) {
+                        queue.push_back(dep_name.to_string());
+                    }
+                }
+            }
+            // Implicit deps from with: bindings
+            for dep_id in &task.implicit_deps {
+                if let Some(dep_name) = workflow.task_table.get_name(*dep_id) {
+                    if required.insert(dep_name.to_string()) {
+                        queue.push_back(dep_name.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    workflow
+        .tasks
+        .retain(|t| required.contains(t.name.as_str()));
+    Ok(())
+}
+
+/// Filter workflow to keep tasks from the given task's layer onwards.
+fn filter_tasks_from(
+    workflow: &mut nika::ast::analyzed::AnalyzedWorkflow,
+    from_id: &str,
+) -> Result<(), NikaError> {
+    // Collect owned strings to avoid borrow conflict with retain()
+    let nodes: Vec<String> = workflow.tasks.iter().map(|t| t.name.clone()).collect();
+    let node_refs: Vec<&str> = nodes.iter().map(|s| s.as_str()).collect();
+
+    let edges: Vec<(String, String)> = workflow
+        .tasks
+        .iter()
+        .flat_map(|task| {
+            task.depends_on.iter().filter_map(|dep_id| {
+                workflow
+                    .task_table
+                    .get_name(*dep_id)
+                    .map(|dep_name| (dep_name.to_string(), task.name.clone()))
+            })
+        })
+        .collect();
+    let edge_refs: Vec<(&str, &str)> = edges
+        .iter()
+        .map(|(a, b)| (a.as_str(), b.as_str()))
+        .collect();
+    let depths = nika::dag::flow::compute_layers(&node_refs, &edge_refs);
+
+    let from_layer = depths
+        .get(from_id)
+        .ok_or_else(|| NikaError::ValidationError {
+            reason: format!(
+                "Task '{}' not found. Available: {}",
+                from_id,
+                node_refs.join(", ")
+            ),
+        })?;
+
+    let keep: std::collections::HashSet<String> = depths
+        .iter()
+        .filter(|(_, &depth)| depth >= *from_layer)
+        .map(|(&name, _)| name.to_string())
+        .collect();
+
+    workflow.tasks.retain(|t| keep.contains(t.name.as_str()));
+    Ok(())
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // AUTO-DISCOVER + INTERACTIVE HELPERS
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -2259,6 +2459,8 @@ async fn dry_run_workflow(
     model_override: Option<String>,
     cli_inputs: &[String],
     input_file: Option<&str>,
+    task_filter: Option<&str>,
+    from_filter: Option<&str>,
 ) -> Result<(), NikaError> {
     let resolved_path = resolve_workflow_path(file).await?;
     let yaml = tokio::fs::read_to_string(&resolved_path).await?;
@@ -2290,6 +2492,13 @@ async fn dry_run_workflow(
         for (k, v) in parsed {
             workflow.inputs.insert(k, v);
         }
+    }
+
+    // Apply task filters
+    if let Some(target) = task_filter {
+        filter_tasks_for_target(&mut workflow, target)?;
+    } else if let Some(from_id) = from_filter {
+        filter_tasks_from(&mut workflow, from_id)?;
     }
 
     // Header
