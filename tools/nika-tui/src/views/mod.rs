@@ -22,6 +22,8 @@
 //! Shortcuts: [1-3] jump directly, [s/c/x] letter shortcuts.
 
 mod chat;
+/// Chat-specific widgets, re-exported for public API access
+pub use chat::widgets as chat_widgets;
 pub mod command;
 mod control;
 mod monitor;

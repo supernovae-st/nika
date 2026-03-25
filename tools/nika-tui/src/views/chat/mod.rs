@@ -53,6 +53,11 @@ const SEPARATOR_52: &str = "╰────────────────�
                                                                                     // PERF: 200-char separator for dynamic slicing (avoids .repeat() allocation)
 const SEPARATOR_200: &str = "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────";
 // tui utils moved to messages.rs
+// Chat DAG Widgets (moved to views/chat/widgets/)
+use self::widgets::{
+    ChatDagPanel, ChatNodeKind, ChatNodeState, ChatTaskQueue, ChatTaskQueueItem, ChatTaskState,
+    ChatTaskVerb, DagEdgeData, DagNodeData,
+};
 use crate::widgets::{
     centered_rect,
     // Task Box widgets
@@ -61,15 +66,7 @@ use crate::widgets::{
     ActivityTemp,
     AgentPhase,
     AgentPhaseIndicator,
-    // Chat DAG Widgets (node-as-graph visualization)
-    ChatDagPanel,
     ChatModeIndicator,
-    ChatNodeKind,
-    ChatNodeState,
-    ChatTaskQueue,
-    ChatTaskQueueItem,
-    ChatTaskState,
-    ChatTaskVerb,
     CommandPalette,
     CommandPaletteState,
     // Confirmation dialog
@@ -77,8 +74,6 @@ use crate::widgets::{
     ConfirmDialog,
     ContextItem,
     CurrentVerb,
-    DagEdgeData,
-    DagNodeData,
     DecryptVerb,
     HelpOverlay,
     HelpOverlayState,
@@ -131,6 +126,7 @@ mod session;
 mod streaming;
 mod task_boxes;
 mod types;
+pub mod widgets;
 
 use helpers::categorize_error;
 pub use types::*;

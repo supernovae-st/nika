@@ -5,7 +5,8 @@
 //!
 //! Chat-as-DAG architecture
 
-use super::{ChatEdgeLine, ChatNodeBox, ChatNodeKind, ChatNodeState, ChatPosition};
+use super::edge_line::{ChatEdgeLine, ChatPosition};
+use super::node_box::{ChatNodeBox, ChatNodeKind, ChatNodeState};
 use ratatui::{
     buffer::Buffer,
     layout::Rect,

@@ -83,13 +83,11 @@ impl ChatEdgeLine {
         self
     }
 
-    /// Set the edge color
-    pub fn with_color(mut self, color: Color) -> Self {
-        self.color = color;
-        self
+    /// Get the binding label
+    pub fn label(&self) -> Option<&str> {
+        self.label.as_deref()
     }
 
-    // Getters
     /// Get the source position
     pub fn from(&self) -> ChatPosition {
         self.from
@@ -98,11 +96,6 @@ impl ChatEdgeLine {
     /// Get the target position
     pub fn to(&self) -> ChatPosition {
         self.to
-    }
-
-    /// Get the binding label
-    pub fn label(&self) -> Option<&str> {
-        self.label.as_deref()
     }
 
     /// Check if data is actively flowing
