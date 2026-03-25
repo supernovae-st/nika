@@ -47,6 +47,11 @@ pub struct StructuredOutputSpec {
     /// JSON Schema reference (inline or file path)
     pub schema: SchemaRef,
 
+    /// JSON example — Nika auto-derives the JSON Schema from this.
+    /// Mutually exclusive with `schema`. When set, `schema` is derived at runtime.
+    #[serde(default)]
+    pub from_example: Option<SchemaRef>,
+
     /// Enable Layer 1: rig Extractor (Rust type extraction)
     /// Default: true
     #[serde(default)]
@@ -85,6 +90,21 @@ impl StructuredOutputSpec {
     pub fn with_schema(schema: SchemaRef) -> Self {
         Self {
             schema,
+            from_example: None,
+            enable_extractor: None,
+            enable_tool_injection: None,
+            enable_retry: None,
+            enable_repair: None,
+            max_retries: None,
+            repair_model: None,
+        }
+    }
+
+    /// Create with an example file (schema derived at runtime)
+    pub fn with_example_file(path: impl Into<String>) -> Self {
+        Self {
+            schema: SchemaRef::Inline(serde_json::json!({})), // placeholder, replaced at load time
+            from_example: Some(SchemaRef::File(path.into())),
             enable_extractor: None,
             enable_tool_injection: None,
             enable_retry: None,
@@ -176,6 +196,7 @@ impl<'de> Deserialize<'de> for StructuredOutputSpec {
                 A: MapAccess<'de>,
             {
                 let mut schema: Option<SchemaRef> = None;
+                let mut from_example: Option<SchemaRef> = None;
                 let mut enable_extractor: Option<bool> = None;
                 let mut enable_tool_injection: Option<bool> = None;
                 let mut enable_retry: Option<bool> = None;
@@ -187,6 +208,9 @@ impl<'de> Deserialize<'de> for StructuredOutputSpec {
                     match key.as_str() {
                         "schema" => {
                             schema = Some(map.next_value()?);
+                        }
+                        "from_example" => {
+                            from_example = Some(map.next_value()?);
                         }
                         "enable_extractor" => {
                             enable_extractor = Some(map.next_value()?);
@@ -213,10 +237,17 @@ impl<'de> Deserialize<'de> for StructuredOutputSpec {
                     }
                 }
 
-                let schema = schema.ok_or_else(|| de::Error::missing_field("schema"))?;
+                // from_example and schema are mutually exclusive.
+                // When from_example is set, schema is a placeholder (derived at runtime by the engine).
+                let schema = if from_example.is_some() {
+                    schema.unwrap_or(SchemaRef::Inline(serde_json::json!({})))
+                } else {
+                    schema.ok_or_else(|| de::Error::missing_field("schema or from_example"))?
+                };
 
                 Ok(StructuredOutputSpec {
                     schema,
+                    from_example,
                     enable_extractor,
                     enable_tool_injection,
                     enable_retry,
@@ -228,6 +259,53 @@ impl<'de> Deserialize<'de> for StructuredOutputSpec {
         }
 
         deserializer.deserialize_any(StructuredOutputSpecVisitor)
+    }
+}
+
+/// Derive a JSON Schema from a JSON example value.
+///
+/// Recursively inspects the example and produces a schema that would validate
+/// any JSON with the same structure (same keys, same types, same nesting).
+///
+/// - Objects → `{ "type": "object", "properties": {...}, "required": [...] }`
+/// - Arrays  → `{ "type": "array", "items": <schema of first element> }`
+/// - Strings → `{ "type": "string" }`
+/// - Numbers → `{ "type": "number" }` (integers get `"integer"`)
+/// - Bools   → `{ "type": "boolean" }`
+/// - Null    → `{ "type": "null" }`
+pub fn json_to_schema(value: &serde_json::Value) -> serde_json::Value {
+    use serde_json::{json, Value};
+    match value {
+        Value::Object(map) => {
+            let mut properties = serde_json::Map::new();
+            let required: Vec<Value> =
+                map.keys().map(|k| Value::String(k.clone())).collect();
+            for (key, val) in map {
+                properties.insert(key.clone(), json_to_schema(val));
+            }
+            json!({
+                "type": "object",
+                "properties": Value::Object(properties),
+                "required": required
+            })
+        }
+        Value::Array(items) => {
+            if let Some(first) = items.first() {
+                json!({ "type": "array", "items": json_to_schema(first) })
+            } else {
+                json!({ "type": "array" })
+            }
+        }
+        Value::String(_) => json!({ "type": "string" }),
+        Value::Number(n) => {
+            if n.is_i64() || n.is_u64() {
+                json!({ "type": "integer" })
+            } else {
+                json!({ "type": "number" })
+            }
+        }
+        Value::Bool(_) => json!({ "type": "boolean" }),
+        Value::Null => json!({ "type": "null" }),
     }
 }
 
@@ -336,5 +414,91 @@ enable_tool_use: false
         let spec = StructuredOutputSpec::with_file_schema("./test.json");
         let json = serde_json::to_string(&spec).unwrap();
         assert!(json.contains("./test.json"));
+    }
+
+    #[test]
+    fn parse_from_example_file() {
+        let yaml = r#"
+from_example: ./structure.json
+enable_repair: true
+"#;
+        let spec: StructuredOutputSpec = serde_yaml::from_str(yaml).unwrap();
+        assert!(spec.from_example.is_some());
+        assert!(
+            matches!(spec.from_example.as_ref().unwrap(), SchemaRef::File(ref p) if p == "./structure.json")
+        );
+        assert_eq!(spec.enable_repair, Some(true));
+    }
+
+    #[test]
+    fn parse_from_example_inline() {
+        let yaml = r#"
+from_example:
+  title: "hello"
+  count: 42
+"#;
+        let spec: StructuredOutputSpec = serde_yaml::from_str(yaml).unwrap();
+        assert!(spec.from_example.is_some());
+        assert!(matches!(spec.from_example.as_ref().unwrap(), SchemaRef::Inline(_)));
+    }
+
+    #[test]
+    fn schema_and_from_example_schema_wins() {
+        let yaml = r#"
+schema:
+  type: object
+from_example: ./structure.json
+"#;
+        let spec: StructuredOutputSpec = serde_yaml::from_str(yaml).unwrap();
+        // Both are set — schema is preserved, from_example is also preserved
+        assert!(matches!(spec.schema, SchemaRef::Inline(_)));
+        assert!(spec.from_example.is_some());
+    }
+
+    #[test]
+    fn json_to_schema_flat_object() {
+        let example = serde_json::json!({
+            "title": "hello",
+            "count": 42
+        });
+        let schema = json_to_schema(&example);
+        assert_eq!(schema["type"], "object");
+        assert_eq!(schema["properties"]["title"]["type"], "string");
+        assert_eq!(schema["properties"]["count"]["type"], "integer");
+    }
+
+    #[test]
+    fn json_to_schema_nested() {
+        let example = serde_json::json!({
+            "head": { "title": "x", "rating": { "value": 4.7 } },
+            "sections": [{ "type": "hero", "fields": { "title": "y" } }]
+        });
+        let schema = json_to_schema(&example);
+        assert_eq!(schema["properties"]["head"]["type"], "object");
+        assert_eq!(
+            schema["properties"]["head"]["properties"]["rating"]["properties"]["value"]["type"],
+            "number"
+        );
+        assert_eq!(schema["properties"]["sections"]["type"], "array");
+        assert_eq!(
+            schema["properties"]["sections"]["items"]["properties"]["type"]["type"],
+            "string"
+        );
+    }
+
+    #[test]
+    fn json_to_schema_empty_array() {
+        let schema = json_to_schema(&serde_json::json!([]));
+        assert_eq!(schema["type"], "array");
+        assert!(schema.get("items").is_none());
+    }
+
+    #[test]
+    fn json_to_schema_primitives() {
+        assert_eq!(json_to_schema(&serde_json::json!("hello"))["type"], "string");
+        assert_eq!(json_to_schema(&serde_json::json!(true))["type"], "boolean");
+        assert_eq!(json_to_schema(&serde_json::json!(null))["type"], "null");
+        assert_eq!(json_to_schema(&serde_json::json!(1.5))["type"], "number");
+        assert_eq!(json_to_schema(&serde_json::json!(42))["type"], "integer");
     }
 }
