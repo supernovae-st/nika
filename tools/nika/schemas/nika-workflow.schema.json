@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://nika.dev/schemas/workflow.json",
+  "$id": "https://nika.sh/schemas/workflow.json",
   "title": "Nika Workflow",
   "description": "Schema for .nika.yaml workflow files - DAG workflow runner for AI tasks",
   "type": "object",

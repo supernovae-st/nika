@@ -85,9 +85,9 @@ fn setup_editors() -> Vec<SetupResult> {
     let mut results = Vec::new();
 
     let editors: &[(&str, &str, &str)] = &[
-        ("VS Code", "code", "supernovae-studio.nika-lang"),
-        ("Cursor", "cursor", "supernovae-studio.nika-lang"),
-        ("Windsurf", "windsurf", "supernovae-studio.nika-lang"),
+        ("VS Code", "code", "supernovae.nika-lang"),
+        ("Cursor", "cursor", "supernovae.nika-lang"),
+        ("Windsurf", "windsurf", "supernovae.nika-lang"),
     ];
 
     for (name, binary, ext_id) in editors {
