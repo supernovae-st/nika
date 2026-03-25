@@ -476,14 +476,16 @@ from_example:
     }
 
     #[test]
-    fn schema_and_from_example_schema_wins() {
+    fn parse_both_schema_and_from_example_are_preserved() {
+        // When both are set, both fields survive deserialization.
+        // load_schema() in nika-engine always checks from_example first,
+        // so schema acts as a fallback — but we don't test that here (engine tests cover it).
         let yaml = r#"
 schema:
   type: object
 from_example: ./structure.json
 "#;
         let spec: StructuredOutputSpec = serde_yaml::from_str(yaml).unwrap();
-        // Both are set — schema is preserved, from_example is also preserved
         assert!(matches!(spec.schema, SchemaRef::Inline(_)));
         assert!(spec.from_example.is_some());
     }

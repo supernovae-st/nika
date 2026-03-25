@@ -882,6 +882,18 @@
             "properties": { "name": { "type": "string" } },
             "required": ["name"]
           }
+        },
+        {
+          "from_example": "./structure.json",
+          "enable_repair": true,
+          "max_retries": 3
+        },
+        {
+          "from_example": {
+            "name": "Alice",
+            "score": 42,
+            "active": true
+          }
         }
       ]
     },

@@ -253,31 +253,51 @@ impl TaskExecutor {
             return None;
         }
 
-        // If the policy was bridged from a structured spec with inline from_example,
-        // inject the example directly as the target structure (not the derived schema)
+        // If the policy was bridged from a structured spec with from_example, handle it here.
+        // Inline: inject the example directly so the LLM sees the exact expected structure.
+        // File: return generic instruction — file content is only available after async load_schema().
         if let Some(ref spec) = policy.source_structured_spec {
-            if let Some(SchemaRef::Inline(ref example)) = spec.from_example {
-                let example_str = match serde_json::to_string_pretty(example) {
-                    Ok(s) => s,
-                    Err(e) => {
-                        tracing::warn!("Failed to serialize from_example for prompt injection: {}", e);
-                        return None;
-                    }
-                };
-                return Some(format!(
-                    "\n\n---\n\
-                     CRITICAL OUTPUT REQUIREMENT:\n\
-                     Your response MUST be valid JSON matching this exact structure:\n\n\
-                     ```json\n{}\n```\n\n\
-                     Rules:\n\
-                     - Output ONLY the JSON object, no additional text\n\
-                     - Do NOT wrap in markdown code blocks (no ```json)\n\
-                     - All keys shown above must be present\n\
-                     - Value types must match (strings, numbers, arrays, objects)",
-                    example_str
-                ));
+            match spec.from_example.as_ref() {
+                Some(SchemaRef::Inline(ref example)) => {
+                    let example_str = match serde_json::to_string_pretty(example) {
+                        Ok(s) => s,
+                        Err(e) => {
+                            tracing::warn!(
+                                "Failed to serialize from_example for prompt injection: {}",
+                                e
+                            );
+                            return None;
+                        }
+                    };
+                    return Some(format!(
+                        "\n\n---\n\
+                         CRITICAL OUTPUT REQUIREMENT:\n\
+                         Your response MUST be valid JSON matching this exact structure:\n\n\
+                         ```json\n{}\n```\n\n\
+                         Rules:\n\
+                         - Output ONLY the JSON object, no additional text\n\
+                         - Do NOT wrap in markdown code blocks (no ```json)\n\
+                         - All keys shown above must be present\n\
+                         - Value types must match (strings, numbers, arrays, objects)",
+                        example_str
+                    ));
+                }
+                Some(SchemaRef::File(_)) => {
+                    // File content is loaded async in load_schema() — cannot inline here.
+                    // Return the generic instruction; schema validation still uses the derived schema.
+                    return Some(
+                        "\n\n---\n\
+                         CRITICAL OUTPUT REQUIREMENT:\n\
+                         Your response MUST be valid JSON.\n\n\
+                         Rules:\n\
+                         - Output ONLY the JSON object, no additional text\n\
+                         - Do NOT wrap in markdown code blocks (no ```json)\n\
+                         - Ensure all JSON is properly formatted and valid"
+                            .to_string(),
+                    );
+                }
+                None => {} // no from_example — fall through to schema-based injection below
             }
-            // File-based from_example or no from_example: fall through to generic instruction
         }
 
         let schema_ref = policy.schema.as_ref()?;
