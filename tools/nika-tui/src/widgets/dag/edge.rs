@@ -12,6 +12,15 @@ use ratatui::{
 use crate::theme::Theme;
 use crate::unicode::{display_width, truncate_to_width};
 
+/// PERF: Set a single char with style, avoiding heap allocation from char.to_string()
+#[inline]
+fn set_cell(buf: &mut Buffer, x: u16, y: u16, ch: char, style: Style) {
+    if let Some(cell) = buf.cell_mut(ratatui::layout::Position::new(x, y)) {
+        cell.set_char(ch);
+        cell.set_style(style);
+    }
+}
+
 // ===============================================================================
 // CONSTANTS (fallback defaults when theme is not provided)
 // ===============================================================================
@@ -239,7 +248,7 @@ impl<'a> DagEdge<'a> {
 
                 if !is_label_area {
                     let line_char = self.animated_v_char(y);
-                    buf.set_string(x, y, line_char.to_string(), style);
+                    set_cell(buf, x, y, line_char, style);
                 }
             }
         }
@@ -273,7 +282,7 @@ impl<'a> DagEdge<'a> {
         for x in start_x..=end_x {
             if self.is_in_bounds(x, y, &area) {
                 let line_char = self.animated_h_char(x);
-                buf.set_string(x, y, line_char.to_string(), style);
+                set_cell(buf, x, y, line_char, style);
             }
         }
     }
@@ -312,7 +321,7 @@ impl<'a> DagEdge<'a> {
 
                 if !is_label_area {
                     let line_char = self.animated_v_char(y);
-                    buf.set_string(corner_x, y, line_char.to_string(), style);
+                    set_cell(buf, corner_x, y, line_char, style);
                 }
             }
         }
@@ -350,7 +359,7 @@ impl<'a> DagEdge<'a> {
                     buf.set_string(x, corner_y, arrow, style);
                 } else {
                     let line_char = self.animated_h_char(x);
-                    buf.set_string(x, corner_y, line_char.to_string(), style);
+                    set_cell(buf, x, corner_y, line_char, style);
                 }
             }
         }
