@@ -375,14 +375,22 @@ impl<'a> StatusBar<'a> {
     /// Set custom status text from the view's status_line() method
     pub fn custom_text(mut self, text: String) -> Self {
         if !text.is_empty() {
-            // Auto-detect severity from text content
-            let lower = text.to_lowercase();
-            if lower.contains("error") || text.starts_with("NIKA-") || text.contains("failed") {
+            // PERF: Detect severity without to_lowercase() allocation.
+            let has_error = text.contains("error")
+                || text.contains("Error")
+                || text.contains("ERROR")
+                || text.starts_with("NIKA-")
+                || text.contains("failed")
+                || text.contains("Failed");
+            let has_warning = text.contains("warning")
+                || text.contains("Warning")
+                || text.contains("disconnected")
+                || text.contains("Disconnected")
+                || text.contains("retrying")
+                || text.contains("Retrying");
+            if has_error {
                 self.status_severity = StatusSeverity::Error;
-            } else if lower.contains("warning")
-                || lower.contains("disconnected")
-                || lower.contains("retrying")
-            {
+            } else if has_warning {
                 self.status_severity = StatusSeverity::Warning;
             }
             self.custom_text = Some(text);

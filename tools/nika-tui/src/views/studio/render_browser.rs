@@ -81,26 +81,24 @@ impl StudioView {
             self.cached_tree = None;
         }
 
-        // Build tree with caching (rebuild only when cache is empty)
-        // Track if tree was just rebuilt to avoid per-frame overhead
+        // PERF: Build tree with caching (rebuild only when cache is empty).
+        // Borrow from cache instead of cloning — eliminates deep tree clone per frame.
         let tree_rebuilt = self.cached_tree.is_none();
-        let root_node = if let Some(ref cached) = self.cached_tree {
-            cached.clone()
-        } else {
+        if self.cached_tree.is_none() {
             let tree = TreeNode::build_tree(root_path, Some(&self.git_cache), None);
-            self.cached_tree = Some(tree.clone());
-            tree
-        };
+            self.cached_tree = Some(tree);
+        }
+        let root_node = self.cached_tree.as_ref().unwrap();
 
         // Only update visible_nodes when tree structure changes
         // This was being called EVERY frame causing severe performance issues
         if tree_rebuilt {
-            self.tree_state.update_visible_nodes(&root_node);
+            self.tree_state.update_visible_nodes(root_node);
             self.tree_state.select_first_if_none();
             // Ensure root is expanded on rebuild
             if !self.tree_state.is_expanded(root_node.id) {
                 self.tree_state.expand(root_node.id);
-                self.tree_state.update_visible_nodes(&root_node);
+                self.tree_state.update_visible_nodes(root_node);
             }
         }
 
@@ -109,9 +107,9 @@ impl StudioView {
             self.tree_colors = TreeColors::from_theme(theme);
         }
 
-        // Render TreeWidget with state
+        // Render TreeWidget with state (borrows from cache, zero clone)
         // FilterConfig is Copy — no heap allocation on clone
-        let tree_widget = TreeWidget::new(&root_node)
+        let tree_widget = TreeWidget::new(root_node)
             .colors(self.tree_colors.clone())
             .ticker(&self.animation_ticker)
             .filter(self.filter_config);
