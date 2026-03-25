@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.43.0](https://github.com/supernovae-st/nika/releases/tag/v0.43.0) — 2026-03-25
+
+### Added
+- **`from_example` structured output** — auto-derive JSON Schema from a JSON example
+  ```yaml
+  structured:
+    from_example: { name: "Alice", age: 30, active: true }
+  # or from file:
+    from_example: ./structure.json
+  ```
+- **`strict: true` flag** — adds `additionalProperties: false` recursively to derived schemas, preventing LLM from injecting extra keys
+- **Array union in schema derivation** — multi-item arrays merge all objects' properties (union keys, intersect required, anyOf for type conflicts)
+- **`json_to_schema_strict()`** — new public API in `nika-core::schema` module
+- **`OutputPolicy.from_example`** — first-class field, no more `source_structured_spec` indirection
+- **File-based prompt injection** — file `from_example` examples are pre-read and injected into LLM prompts (cached_example)
+- Gate workflow: `structured-from-example.nika.yaml` with inline, file, and strict examples
+
+### Changed
+- **`schema: Option<SchemaRef>`** — StructuredOutputSpec.schema is now `Option`. When `from_example` is set, schema is `None` (removed placeholder `{}` anti-pattern)
+- **`is_structured()`** — now returns true when `from_example` is set (even without `schema`)
+- **`json_to_schema` moved** to dedicated `nika-core/src/schema/` module (re-exported from `structured.rs` for compat)
+- **`build_json_schema_instruction`** reads `policy.from_example` directly instead of going through `source_structured_spec`
+
+### Stats
+- 7 commits, 18 files changed
+- +1,379 / -414 lines
+- 8,188 tests pass (717 core + 4,389 engine + 3,082 other)
+
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════╗
 ║  NIKA v0.42.0 — DX OVERHAUL + SECURITY HARDENING                           ║
@@ -21,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ║  v0.41.4  Parser: duplicate task IDs + timeout: 0 warning                  ║
 ║  v0.41.5  Overflow-safe timeout + error code collision fix                 ║
 ║  v0.42.0  DX overhaul — auto-setup, TUI polish, nika setup removed        ║
+║  v0.43.0  from_example structured output — auto-derive JSON Schema         ║
 ║                                                                             ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
