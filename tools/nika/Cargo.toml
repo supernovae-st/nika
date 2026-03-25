@@ -74,6 +74,9 @@ serde_json = { workspace = true }
 miette = { workspace = true }
 thiserror = { workspace = true }
 
+# Interactive prompts (auto-discover, input prompts, cost confirm)
+cliclack = "0.5"
+
 # Utilities (used by main.rs, cli/, tui/)
 colored = { workspace = true }
 dotenvy = "0.15"

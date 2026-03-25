@@ -1,0 +1,24 @@
+# FEATURE: --dry-run + -o/--output + auto-discover
+schema: "nika/workflow@0.12"
+workflow: feat-cli-dry-run
+provider: mock
+model: mock
+
+inputs:
+  greeting: "Hello"
+  target: "World"
+
+tasks:
+  - id: prepare
+    exec: "echo 'preparing {{inputs.greeting}} {{inputs.target}}'"
+
+  - id: generate
+    depends_on: [prepare]
+    infer: "Say {{inputs.greeting}} to {{inputs.target}}"
+    max_tokens: 50
+
+  - id: format
+    depends_on: [generate]
+    with:
+      result: $generate
+    exec: "echo 'Result: {{with.result}}'"

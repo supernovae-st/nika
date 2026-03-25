@@ -4,6 +4,7 @@ mod cli;
 
 use clap::{ArgAction, CommandFactory, Parser, Subcommand, ValueEnum};
 use colored::Colorize;
+use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 
 use nika::ast::output::SchemaRef;
@@ -198,8 +199,8 @@ enum Commands {
     /// Run a workflow file (headless, no TUI)
     #[command(visible_alias = "r")]
     Run {
-        /// Path to .nika.yaml file
-        file: String,
+        /// Path to .nika.yaml file (auto-discovered if omitted)
+        file: Option<String>,
 
         /// Override default provider (claude, openai, mock)
         #[arg(short, long)]
@@ -216,6 +217,18 @@ enum Commands {
         /// Load inputs from JSON/YAML file (or "-" for stdin)
         #[arg(long, value_name = "FILE")]
         input_file: Option<String>,
+
+        /// Validate and show execution plan without running
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Save all task outputs to a JSON file
+        #[arg(short = 'o', long = "output", value_name = "FILE")]
+        output: Option<String>,
+
+        /// Skip interactive prompts (fail on missing inputs)
+        #[arg(long)]
+        no_interactive: bool,
 
         /// Permission mode for file tools: deny, plan, accept-edits, yolo
         #[arg(long, default_value = "accept-edits")]
@@ -652,6 +665,8 @@ async fn main() {
                 None,
                 &[],
                 None,
+                true,
+                None,
                 cli.quiet,
                 cli.detail,
                 "accept-edits",
@@ -748,19 +763,44 @@ async fn main() {
             model,
             inputs,
             input_file,
+            dry_run,
+            output,
+            no_interactive,
             permission,
         }) => {
-            run_workflow(
-                &file,
-                provider,
-                model,
-                &inputs,
-                input_file.as_deref(),
-                quiet,
-                detail,
-                &permission,
-            )
-            .await
+            // Auto-discover workflow if no file specified
+            let resolved_file = match file {
+                Some(f) => f,
+                None => match resolve_or_discover_workflow(quiet).await {
+                    Ok(f) => f,
+                    Err(e) => return handle_result(Err(e)),
+                },
+            };
+
+            if dry_run {
+                dry_run_workflow(
+                    &resolved_file,
+                    provider,
+                    model,
+                    &inputs,
+                    input_file.as_deref(),
+                )
+                .await
+            } else {
+                run_workflow(
+                    &resolved_file,
+                    provider,
+                    model,
+                    &inputs,
+                    input_file.as_deref(),
+                    !no_interactive,
+                    output.as_deref(),
+                    quiet,
+                    detail,
+                    &permission,
+                )
+                .await
+            }
         }
 
         Some(Commands::Check { file, strict }) => {
@@ -1128,6 +1168,8 @@ tasks:
         None,
         &[],
         None,
+        false,
+        None,
         quiet,
         detail,
         "deny",
@@ -1160,6 +1202,8 @@ async fn run_workflow(
     model_override: Option<String>,
     cli_inputs: &[String],
     input_file: Option<&str>,
+    interactive: bool,
+    output_file: Option<&str>,
     quiet: bool,
     detail: nika::display::DetailLevel,
     permission: &str,
@@ -1200,6 +1244,27 @@ async fn run_workflow(
         let parsed = parse_cli_inputs(cli_inputs)?;
         for (k, v) in parsed {
             workflow.inputs.insert(k, v);
+        }
+    }
+
+    // Interactive prompts for inputs without defaults
+    if interactive && std::io::stdin().is_terminal() {
+        let keys: Vec<String> = workflow.inputs.keys().cloned().collect();
+        for key in keys {
+            let value = &workflow.inputs[&key];
+            let has_value = match value {
+                serde_json::Value::Null => false,
+                serde_json::Value::Object(obj) => obj.contains_key("default"),
+                _ => true,
+            };
+            if !has_value {
+                let input: String = cliclack::input(format!("Enter value for '{}':", key))
+                    .interact()
+                    .map_err(|_| NikaError::ValidationError {
+                        reason: format!("Input '{}' required but not provided", key),
+                    })?;
+                workflow.inputs.insert(key, parse_input_value(&input));
+            }
         }
     }
 
@@ -1257,11 +1322,40 @@ async fn run_workflow(
         runner = runner.quiet();
     }
     let mut runner = runner.with_detail_level(detail);
-    let output = runner.run().await?;
+    let run_output = runner.run().await?;
 
-    if !quiet && !output.is_empty() {
+    // Save task outputs to file if -o/--output specified
+    if let Some(output_path) = output_file {
+        let results = runner.datastore().iter_results();
+        let mut output_map = serde_json::Map::new();
+        for (task_id, result) in &results {
+            let mut task_obj = serde_json::Map::new();
+            task_obj.insert("output".to_string(), (*result.output).clone());
+            task_obj.insert(
+                "status".to_string(),
+                serde_json::json!(format!("{:?}", result.status)),
+            );
+            task_obj.insert(
+                "duration_ms".to_string(),
+                serde_json::json!(result.duration.as_millis() as u64),
+            );
+            output_map.insert(task_id.to_string(), serde_json::Value::Object(task_obj));
+        }
+        let json = serde_json::to_string_pretty(&serde_json::Value::Object(output_map))
+            .unwrap_or_default();
+        tokio::fs::write(output_path, &json)
+            .await
+            .map_err(|e| NikaError::ParseError {
+                details: format!("Failed to write output file '{}': {}", output_path, e),
+            })?;
+        if !quiet {
+            eprintln!("  {} {}", "Output saved:".green(), output_path);
+        }
+    }
+
+    if !quiet && !run_output.is_empty() {
         println!("{}", "Output:".cyan().bold());
-        println!("{output}");
+        println!("{run_output}");
     }
 
     Ok(())
@@ -2081,6 +2175,225 @@ async fn validate_workflow_strict(file: &str) -> Result<(), NikaError> {
                 .to_string(),
         });
     }
+
+    Ok(())
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUTO-DISCOVER + INTERACTIVE HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Auto-discover a workflow when no file argument is provided.
+async fn resolve_or_discover_workflow(quiet: bool) -> Result<String, NikaError> {
+    let workflows = discover_workflows(".").await?;
+    match workflows.len() {
+        0 => Err(NikaError::ValidationError {
+            reason: "No .nika.yaml files found in current directory. Try: nika init".to_string(),
+        }),
+        1 => {
+            if !quiet {
+                eprintln!("  {} {}", "Auto-discovered:".dimmed(), workflows[0]);
+            }
+            Ok(workflows.into_iter().next().unwrap())
+        }
+        _ => pick_workflow(&workflows),
+    }
+}
+
+/// Discover .nika.yaml files in the given directory (non-recursive).
+async fn discover_workflows(dir: &str) -> Result<Vec<String>, NikaError> {
+    let mut entries = tokio::fs::read_dir(dir)
+        .await
+        .map_err(|e| NikaError::ParseError {
+            details: format!("Failed to read directory '{}': {}", dir, e),
+        })?;
+    let mut found = Vec::new();
+    while let Some(entry) = entries
+        .next_entry()
+        .await
+        .map_err(|e| NikaError::ParseError {
+            details: format!("Failed to read directory entry: {}", e),
+        })?
+    {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if name.ends_with(".nika.yaml") {
+            found.push(name);
+        }
+    }
+    found.sort();
+    Ok(found)
+}
+
+/// Interactive workflow picker when multiple .nika.yaml files found.
+fn pick_workflow(workflows: &[String]) -> Result<String, NikaError> {
+    if !std::io::stdin().is_terminal() {
+        return Err(NikaError::ValidationError {
+            reason: format!(
+                "Multiple .nika.yaml files found ({}). Specify one: nika run <file>",
+                workflows.join(", ")
+            ),
+        });
+    }
+    let items: Vec<(String, String, &str)> = workflows
+        .iter()
+        .map(|w| (w.clone(), w.clone(), ""))
+        .collect();
+    let selected: String = cliclack::select("Which workflow?")
+        .items(&items)
+        .interact()
+        .map_err(|e| NikaError::ValidationError {
+            reason: format!("Workflow selection cancelled: {}", e),
+        })?;
+    Ok(selected)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DRY RUN
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Show execution plan without running anything.
+#[allow(clippy::too_many_arguments)]
+async fn dry_run_workflow(
+    file: &str,
+    provider_override: Option<String>,
+    model_override: Option<String>,
+    cli_inputs: &[String],
+    input_file: Option<&str>,
+) -> Result<(), NikaError> {
+    let resolved_path = resolve_workflow_path(file).await?;
+    let yaml = tokio::fs::read_to_string(&resolved_path).await?;
+    let validator = WorkflowSchemaValidator::new()?;
+    validator.validate_yaml(&yaml)?;
+    let workflow = parse_workflow(&yaml)?;
+    let base_path = resolved_path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    let workflow = expand_includes(workflow, base_path)?;
+    let mut workflow = nika::ast::unlower(workflow)?;
+
+    // Apply overrides
+    if let Some(p) = provider_override {
+        workflow.provider = Some(p);
+    }
+    if let Some(m) = model_override {
+        workflow.model = Some(m);
+    }
+    if let Some(ifp) = input_file {
+        let file_inputs = load_input_file(ifp).await?;
+        for (k, v) in file_inputs {
+            workflow.inputs.insert(k, v);
+        }
+    }
+    if !cli_inputs.is_empty() {
+        let parsed = parse_cli_inputs(cli_inputs)?;
+        for (k, v) in parsed {
+            workflow.inputs.insert(k, v);
+        }
+    }
+
+    // Header
+    println!("\n  {}", "DRY RUN — no tasks will execute".yellow().bold());
+    println!();
+
+    // Show resolved inputs
+    if !workflow.inputs.is_empty() {
+        println!("  {}", "Inputs:".bold());
+        for (k, v) in &workflow.inputs {
+            println!(
+                "    {} = {}",
+                k.cyan(),
+                serde_json::to_string(v).unwrap_or_default()
+            );
+        }
+        println!();
+    }
+
+    // Compute DAG layers
+    let nodes: Vec<&str> = workflow.tasks.iter().map(|t| t.name.as_str()).collect();
+    let edges: Vec<(&str, &str)> = workflow
+        .tasks
+        .iter()
+        .flat_map(|task| {
+            task.depends_on.iter().filter_map(|dep_id| {
+                workflow
+                    .task_table
+                    .get_name(*dep_id)
+                    .map(|dep_name| (dep_name, task.name.as_str()))
+            })
+        })
+        .collect();
+    let depths = nika::dag::flow::compute_layers(&nodes, &edges);
+    let max_layer = depths.values().max().copied().unwrap_or(0);
+
+    // Execution plan
+    println!("  {}", "Execution Plan:".bold());
+    for layer in 0..=max_layer {
+        let mut tasks_in_layer: Vec<&str> = depths
+            .iter()
+            .filter(|(_, &d)| d == layer)
+            .map(|(&name, _)| name)
+            .collect();
+        tasks_in_layer.sort();
+        println!(
+            "    Layer {} (parallel): {}",
+            layer,
+            tasks_in_layer.join(", ").cyan()
+        );
+    }
+    println!();
+
+    // Per-task details
+    let default_provider = workflow.provider.as_deref().unwrap_or("(auto)");
+    let default_model = workflow.model.as_deref().unwrap_or("(default)");
+
+    println!("  {}", "Tasks:".bold());
+    for task in &workflow.tasks {
+        let verb = task.action.verb_name();
+        let provider = task.provider.as_deref().unwrap_or(default_provider);
+        let model = task.model.as_deref().unwrap_or(default_model);
+        let deps: Vec<&str> = task
+            .depends_on
+            .iter()
+            .filter_map(|id| workflow.task_table.get_name(*id))
+            .collect();
+        let dep_str = if deps.is_empty() {
+            String::new()
+        } else {
+            format!(" deps=[{}]", deps.join(", "))
+        };
+        println!(
+            "    {} [{}] provider={} model={}{}",
+            task.name.cyan(),
+            verb,
+            provider.dimmed(),
+            model.dimmed(),
+            dep_str.dimmed()
+        );
+    }
+    println!();
+
+    // LLM task count
+    let infer_count = workflow
+        .tasks
+        .iter()
+        .filter(|t| matches!(t.action.verb_name(), "infer" | "agent"))
+        .count();
+    if infer_count > 0 {
+        println!(
+            "  {} {} LLM tasks, {} total",
+            "Summary:".bold(),
+            infer_count,
+            workflow.tasks.len()
+        );
+    } else {
+        println!(
+            "  {} {} tasks (no LLM calls)",
+            "Summary:".bold(),
+            workflow.tasks.len()
+        );
+    }
+    println!();
 
     Ok(())
 }
