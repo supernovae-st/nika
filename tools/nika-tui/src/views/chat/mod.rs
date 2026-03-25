@@ -742,7 +742,7 @@ impl View for ChatView {
         // 7. Help overlay (if visible) - ? or F1
         if self.help_overlay.visible {
             let help_area = centered_rect(70, 80, area);
-            HelpOverlay::new(&self.help_overlay).render(help_area, frame.buffer_mut());
+            HelpOverlay::new(&mut self.help_overlay).render(help_area, frame.buffer_mut());
         }
 
         // 8. Mention autocomplete popup (if visible)
