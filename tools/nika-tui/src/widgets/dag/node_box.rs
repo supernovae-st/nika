@@ -264,6 +264,15 @@ impl<'a> NodeBox<'a> {
     }
 }
 
+/// PERF: Set a single char with style, avoiding heap allocation from char.to_string()
+#[inline]
+fn set_cell(buf: &mut Buffer, x: u16, y: u16, ch: char, style: Style) {
+    if let Some(cell) = buf.cell_mut(ratatui::layout::Position::new(x, y)) {
+        cell.set_char(ch);
+        cell.set_style(style);
+    }
+}
+
 impl Widget for NodeBox<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         if area.height < 3 || area.width < 5 {
@@ -277,31 +286,22 @@ impl Widget for NodeBox<'_> {
         let border_render_style = self.border_render_style();
         let content_style = self.content_style();
 
-        // Draw top border
-        buf.set_string(
-            area.x,
-            area.y,
-            border_chars.tl.to_string(),
-            border_render_style,
-        );
+        // Draw top border — PERF: set_cell avoids char.to_string() heap alloc
+        set_cell(buf, area.x, area.y, border_chars.tl, border_render_style);
         for x in (area.x + 1)..(area.x + area.width - 1) {
-            buf.set_string(x, area.y, border_chars.h.to_string(), border_render_style);
+            set_cell(buf, x, area.y, border_chars.h, border_render_style);
         }
-        buf.set_string(
+        set_cell(
+            buf,
             area.x + area.width - 1,
             area.y,
-            border_chars.tr.to_string(),
+            border_chars.tr,
             border_render_style,
         );
 
         // Draw content line (y + 1)
         let content_y = area.y + 1;
-        buf.set_string(
-            area.x,
-            content_y,
-            border_chars.v.to_string(),
-            border_render_style,
-        );
+        set_cell(buf, area.x, content_y, border_chars.v, border_render_style);
 
         // Clear content area
         for x in (area.x + 1)..(area.x + area.width - 1) {
@@ -372,10 +372,11 @@ impl Widget for NodeBox<'_> {
             buf.set_string(badge_x, content_y, badge, self.badge_style());
         }
 
-        buf.set_string(
+        set_cell(
+            buf,
             area.x + area.width - 1,
             content_y,
-            border_chars.v.to_string(),
+            border_chars.v,
             border_render_style,
         );
 
@@ -386,12 +387,7 @@ impl Widget for NodeBox<'_> {
             // Model line
             if let Some(model) = &self.data.model {
                 if extra_y < area.y + area.height - 1 {
-                    buf.set_string(
-                        area.x,
-                        extra_y,
-                        border_chars.v.to_string(),
-                        border_render_style,
-                    );
+                    set_cell(buf, area.x, extra_y, border_chars.v, border_render_style);
                     for x in (area.x + 1)..(area.x + area.width - 1) {
                         buf.set_string(x, extra_y, " ", content_style);
                     }
@@ -405,10 +401,11 @@ impl Widget for NodeBox<'_> {
                         &truncated,
                         Style::default().fg(secondary_color),
                     );
-                    buf.set_string(
+                    set_cell(
+                        buf,
                         area.x + area.width - 1,
                         extra_y,
-                        border_chars.v.to_string(),
+                        border_chars.v,
                         border_render_style,
                     );
                     extra_y += 1;
@@ -418,12 +415,7 @@ impl Widget for NodeBox<'_> {
             // Prompt preview line
             if let Some(preview) = &self.data.prompt_preview {
                 if extra_y < area.y + area.height - 1 {
-                    buf.set_string(
-                        area.x,
-                        extra_y,
-                        border_chars.v.to_string(),
-                        border_render_style,
-                    );
+                    set_cell(buf, area.x, extra_y, border_chars.v, border_render_style);
                     for x in (area.x + 1)..(area.x + area.width - 1) {
                         buf.set_string(x, extra_y, " ", content_style);
                     }
@@ -448,10 +440,11 @@ impl Widget for NodeBox<'_> {
                             .fg(secondary_color)
                             .add_modifier(Modifier::ITALIC),
                     );
-                    buf.set_string(
+                    set_cell(
+                        buf,
                         area.x + area.width - 1,
                         extra_y,
-                        border_chars.v.to_string(),
+                        border_chars.v,
                         border_render_style,
                     );
                 }
@@ -460,19 +453,15 @@ impl Widget for NodeBox<'_> {
 
         // Draw bottom border
         let bottom_y = area.y + area.height - 1;
-        buf.set_string(
-            area.x,
-            bottom_y,
-            border_chars.bl.to_string(),
-            border_render_style,
-        );
+        set_cell(buf, area.x, bottom_y, border_chars.bl, border_render_style);
         for x in (area.x + 1)..(area.x + area.width - 1) {
-            buf.set_string(x, bottom_y, border_chars.h.to_string(), border_render_style);
+            set_cell(buf, x, bottom_y, border_chars.h, border_render_style);
         }
-        buf.set_string(
+        set_cell(
+            buf,
             area.x + area.width - 1,
             bottom_y,
-            border_chars.br.to_string(),
+            border_chars.br,
             border_render_style,
         );
     }
