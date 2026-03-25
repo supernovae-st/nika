@@ -316,6 +316,43 @@ const FREE_PRICING: ModelPricing = ModelPricing::new(0.0, 0.0);
 // COST CALCULATION
 // ═══════════════════════════════════════════════════════════════════════════
 
+/// List all known models with pricing for a provider.
+///
+/// Returns `(model_name, pricing)` pairs sorted by model name.
+/// Used by `nika model list` to display cloud models with costs.
+pub fn list_provider_models(provider: ProviderKind) -> Vec<(&'static str, ModelPricing)> {
+    if provider.is_free() {
+        return Vec::new();
+    }
+    let table: &HashMap<&'static str, ModelPricing> = match provider {
+        ProviderKind::Claude => &CLAUDE_PRICING,
+        ProviderKind::OpenAI => &OPENAI_PRICING,
+        ProviderKind::Mistral => &MISTRAL_PRICING,
+        ProviderKind::Groq => &GROQ_PRICING,
+        ProviderKind::DeepSeek => &DEEPSEEK_PRICING,
+        ProviderKind::Gemini => &GEMINI_PRICING,
+        ProviderKind::XAi => &XAI_PRICING,
+        ProviderKind::Native => return Vec::new(),
+    };
+    // Deduplicate: only keep shortest alias per unique pricing
+    let mut seen_prices: Vec<(&str, ModelPricing)> = Vec::new();
+    let mut entries: Vec<(&str, ModelPricing)> = table.iter().map(|(&k, &v)| (k, v)).collect();
+    entries.sort_by_key(|(name, _)| name.len());
+    for (name, pricing) in entries {
+        // Skip date-suffixed variants if a shorter name exists with same pricing
+        let already_covered = seen_prices.iter().any(|(_, p)| {
+            p.input_per_million == pricing.input_per_million
+                && p.output_per_million == pricing.output_per_million
+                && name.len() > 20
+        });
+        if !already_covered {
+            seen_prices.push((name, pricing));
+        }
+    }
+    seen_prices.sort_by(|(a, _), (b, _)| a.cmp(b));
+    seen_prices
+}
+
 /// Get pricing for a specific model
 pub fn get_model_pricing(provider: ProviderKind, model: &str) -> ModelPricing {
     if provider.is_free() {

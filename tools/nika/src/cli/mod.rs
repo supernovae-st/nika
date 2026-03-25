@@ -11,6 +11,7 @@ pub use nika_cli::init;
 pub use nika_cli::machine;
 pub use nika_cli::mcp;
 pub use nika_cli::media;
+pub use nika_cli::model_cloud;
 pub use nika_cli::new_cmd;
 pub use nika_cli::pkg;
 pub use nika_cli::schema;

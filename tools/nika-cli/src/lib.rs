@@ -11,6 +11,8 @@ pub mod init;
 pub mod mcp;
 pub mod pkg;
 
+pub mod model_cloud;
+
 #[cfg(feature = "native-inference")]
 pub mod model;
 
