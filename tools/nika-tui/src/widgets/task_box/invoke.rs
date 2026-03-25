@@ -225,7 +225,6 @@ impl InvokeBox {
 
         height
     }
-
 }
 
 #[cfg(test)]
@@ -568,5 +567,4 @@ mod tests {
         let thumb_box = InvokeBox::new("nika:thumbnail", "builtin");
         assert_eq!(thumb_box.builtin_hint, BuiltinHint::MediaThumbnail);
     }
-
 }

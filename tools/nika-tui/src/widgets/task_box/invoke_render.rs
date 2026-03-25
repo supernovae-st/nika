@@ -357,6 +357,12 @@ impl InvokeBox {
 
 impl Widget for InvokeBox {
     fn render(self, area: Rect, buf: &mut Buffer) {
+        (&self).render(area, buf);
+    }
+}
+
+impl Widget for &InvokeBox {
+    fn render(self, area: Rect, buf: &mut Buffer) {
         // Check for compact mode first
         if self.render_mode == RenderMode::Compact {
             self.render_compact(area, buf);
@@ -427,12 +433,7 @@ impl Widget for InvokeBox {
                         buf.set_string(area.x + area.width - 1, y, "│", border_style);
 
                         let line_display = truncate(line, inner_width - 4);
-                        buf.set_string(
-                            area.x + 2,
-                            y,
-                            format!("┊ {}", line_display),
-                            content_style,
-                        );
+                        buf.set_string(area.x + 2, y, format!("┊ {}", line_display), content_style);
                         y += 1;
                     }
                 } else {
@@ -543,8 +544,8 @@ impl Widget for InvokeBox {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::BoxState;
+    use super::*;
 
     #[test]
     fn test_invoke_box_compact_render() {

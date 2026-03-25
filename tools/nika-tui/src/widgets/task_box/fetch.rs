@@ -207,7 +207,7 @@ impl FetchBox {
         {
             "***".to_string()
         } else if value.len() > 50 {
-            Self::truncate(value, 50)
+            FetchBox::truncate(value, 50)
         } else {
             value.to_string()
         }
@@ -236,7 +236,7 @@ impl FetchBox {
             .saturating_sub(display_width(&prefix))
             .saturating_sub(display_width(&suffix))
             .saturating_sub(display_width(&self.method) + 1);
-        let url = Self::truncate(&self.url, available);
+        let url = FetchBox::truncate(&self.url, available);
 
         // Build the line
         buf.set_string(area.x, area.y, &prefix, line_style);
@@ -277,7 +277,7 @@ impl FetchBox {
             let line = Line::from(vec![
                 Span::styled(format!("{} ", verb.icon_label()), border_style),
                 Span::styled(format!("{} ", self.method), method_style),
-                Span::styled(Self::truncate(&self.url, 50), content_style),
+                Span::styled(FetchBox::truncate(&self.url, 50), content_style),
                 Span::styled(format!("  {} {}", status_icon, status_text), dim_style),
             ]);
             items.push(ListItem::new(line));
@@ -296,7 +296,7 @@ impl FetchBox {
         items.push(ListItem::new(top_border));
 
         // Method + URL line: │ GET https://api.example.com │
-        let url_display = Self::truncate(&self.url, 60);
+        let url_display = FetchBox::truncate(&self.url, 60);
         let method_line = Line::from(vec![
             Span::styled("│ ", border_style),
             Span::styled(format!("{} ", self.method), method_style),
@@ -321,7 +321,7 @@ impl FetchBox {
         // Headers (if expanded)
         if self.expanded_request {
             for (key, value) in &self.request_headers {
-                let masked_value = Self::mask_header_value(key, value);
+                let masked_value = FetchBox::mask_header_value(key, value);
                 let header_line = Line::from(vec![
                     Span::styled("│ ", border_style),
                     Span::styled(format!("┊ {}: {}", key, masked_value), dim_style),
@@ -341,7 +341,7 @@ impl FetchBox {
 
         // Request body (if any)
         if let Some(ref body) = self.request_body {
-            let body_display = Self::truncate(body, 50);
+            let body_display = FetchBox::truncate(body, 50);
             let body_line = Line::from(vec![
                 Span::styled("│ ", border_style),
                 Span::styled(format!("┊ body: {}", body_display), dim_style),
@@ -392,7 +392,7 @@ impl FetchBox {
         }
 
         // Footer with metrics
-        let size_str = Self::format_bytes(self.response_size);
+        let size_str = FetchBox::format_bytes(self.response_size);
         let retry_str = if self.retries > 0 {
             format!(" │ 🔄 {}", self.retries)
         } else {
@@ -420,6 +420,12 @@ impl FetchBox {
 }
 
 impl Widget for FetchBox {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        (&self).render(area, buf);
+    }
+}
+
+impl Widget for &FetchBox {
     fn render(self, area: Rect, buf: &mut Buffer) {
         // Compact mode: single line
         if self.render_mode == RenderMode::Compact {
@@ -463,7 +469,7 @@ impl Widget for FetchBox {
             buf.set_string(area.x + area.width - 1, y, "│", border_style);
 
             let method_style = Style::default().fg(compat::CYAN_400); // Cyan
-            let url_display = Self::truncate(&self.url, inner_width - self.method.len() - 4);
+            let url_display = FetchBox::truncate(&self.url, inner_width - self.method.len() - 4);
             buf.set_string(area.x + 2, y, &self.method, method_style);
             buf.set_string(
                 area.x + 2 + self.method.len() as u16 + 1,
@@ -497,9 +503,9 @@ impl Widget for FetchBox {
                     buf.set_string(area.x, y, "│", border_style);
                     buf.set_string(area.x + area.width - 1, y, "│", border_style);
 
-                    let masked_value = Self::mask_header_value(key, value);
+                    let masked_value = FetchBox::mask_header_value(key, value);
                     let header_str = format!("┊ {}: {}", key, masked_value);
-                    let header_display = Self::truncate(&header_str, inner_width - 2);
+                    let header_display = FetchBox::truncate(&header_str, inner_width - 2);
                     buf.set_string(area.x + 2, y, &header_display, dim_style);
                     y += 1;
                 }
@@ -521,7 +527,7 @@ impl Widget for FetchBox {
                     buf.set_string(area.x, y, "│", border_style);
                     buf.set_string(area.x + area.width - 1, y, "│", border_style);
 
-                    let body_display = Self::truncate(body, inner_width - 10);
+                    let body_display = FetchBox::truncate(body, inner_width - 10);
                     buf.set_string(
                         area.x + 2,
                         y,
@@ -558,7 +564,7 @@ impl Widget for FetchBox {
                 "RESPONSE                                          {}",
                 status_text
             );
-            let header_truncated = Self::truncate(&response_header, inner_width - 2);
+            let header_truncated = FetchBox::truncate(&response_header, inner_width - 2);
             buf.set_string(
                 area.x + 2,
                 y,
@@ -573,7 +579,7 @@ impl Widget for FetchBox {
                     buf.set_string(area.x, y, "│", border_style);
                     buf.set_string(area.x + area.width - 1, y, "│", border_style);
 
-                    let body_display = Self::truncate(body, inner_width - 4);
+                    let body_display = FetchBox::truncate(body, inner_width - 4);
                     buf.set_string(area.x + 2, y, format!("┊ {}", body_display), content_style);
                     y += 1;
                 }
@@ -588,7 +594,7 @@ impl Widget for FetchBox {
         }
 
         // Footer with metrics
-        let size_str = Self::format_bytes(self.response_size);
+        let size_str = FetchBox::format_bytes(self.response_size);
         let retry_str = if self.retries > 0 {
             format!(" │ 🔄 retries: {}", self.retries)
         } else {
@@ -599,7 +605,7 @@ impl Widget for FetchBox {
             "│ 📦 {} │ ⏱️ TTFB: {}ms{}│",
             size_str, self.ttfb_ms, retry_str
         );
-        let footer_truncated = Self::truncate(&footer, inner_width + 2);
+        let footer_truncated = FetchBox::truncate(&footer, inner_width + 2);
         buf.set_string(
             area.x,
             area.y + area.height - 2,

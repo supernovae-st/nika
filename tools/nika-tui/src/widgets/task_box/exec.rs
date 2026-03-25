@@ -197,7 +197,7 @@ impl ExecBox {
                     Style::default().fg(verb_color),
                 ),
                 Span::styled(
-                    Self::truncate(&self.command, 30),
+                    ExecBox::truncate(&self.command, 30),
                     Style::default().fg(compat::SLATE_200),
                 ),
                 Span::styled(format!("  {} ", status), Style::default().fg(verb_color)),
@@ -233,7 +233,7 @@ impl ExecBox {
         items.push(ListItem::new(header));
 
         // Command line: │ $ command
-        let cmd_display = Self::truncate(&self.command, 60);
+        let cmd_display = ExecBox::truncate(&self.command, 60);
         let command_line = Line::from(vec![
             Span::styled("│ ", border_style),
             Span::styled("$ ", dim_style),
@@ -257,7 +257,7 @@ impl ExecBox {
                 RenderMode::Full => 50,
             };
             for line in self.stdout.lines().take(max_lines) {
-                let truncated = Self::truncate(line, 70);
+                let truncated = ExecBox::truncate(line, 70);
                 items.push(ListItem::new(Line::from(vec![
                     Span::styled("│   ", border_style),
                     Span::styled(truncated, content_style),
@@ -293,7 +293,7 @@ impl ExecBox {
                 RenderMode::Full => 50,
             };
             for line in self.stderr.lines().take(max_lines) {
-                let truncated = Self::truncate(line, 70);
+                let truncated = ExecBox::truncate(line, 70);
                 items.push(ListItem::new(Line::from(vec![
                     Span::styled("│   ", border_style),
                     Span::styled(truncated, stderr_style),
@@ -353,6 +353,12 @@ impl ExecBox {
 
 impl Widget for ExecBox {
     fn render(self, area: Rect, buf: &mut Buffer) {
+        (&self).render(area, buf);
+    }
+}
+
+impl Widget for &ExecBox {
+    fn render(self, area: Rect, buf: &mut Buffer) {
         if area.width < 30 || area.height < 4 {
             return;
         }
@@ -386,7 +392,7 @@ impl Widget for ExecBox {
             buf.set_string(area.x, y, "│", border_style);
             buf.set_string(area.x + area.width - 1, y, "│", border_style);
 
-            let cmd_display = Self::truncate(&self.command, inner_width - 4);
+            let cmd_display = ExecBox::truncate(&self.command, inner_width - 4);
             buf.set_string(area.x + 2, y, format!("$ {}", cmd_display), content_style);
             y += 1;
         }
@@ -419,7 +425,7 @@ impl Widget for ExecBox {
                 buf.set_string(area.x, y, "│", border_style);
                 buf.set_string(area.x + area.width - 1, y, "│", border_style);
 
-                let line_display = Self::truncate(line, inner_width - 4);
+                let line_display = ExecBox::truncate(line, inner_width - 4);
                 buf.set_string(area.x + 2, y, format!("┊ {}", line_display), content_style);
                 y += 1;
             }
@@ -453,7 +459,7 @@ impl Widget for ExecBox {
                 buf.set_string(area.x, y, "│", border_style);
                 buf.set_string(area.x + area.width - 1, y, "│", border_style);
 
-                let line_display = Self::truncate(line, inner_width - 4);
+                let line_display = ExecBox::truncate(line, inner_width - 4);
                 buf.set_string(area.x + 2, y, format!("┊ {}", line_display), stderr_style);
                 y += 1;
             }
@@ -505,7 +511,7 @@ impl Widget for ExecBox {
             .unwrap_or_default();
 
         let footer = format!("│ {}{}{}│", self.exit_display(), pid_str, cwd_str);
-        let footer_truncated = Self::truncate(&footer, inner_width + 2);
+        let footer_truncated = ExecBox::truncate(&footer, inner_width + 2);
         buf.set_string(
             area.x,
             area.y + area.height - 2,
