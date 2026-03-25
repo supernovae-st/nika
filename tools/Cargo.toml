@@ -14,7 +14,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.43.0"
+version = "0.44.0"
 edition = "2021"
 authors = ["Thibaut MÉLEN <thibaut@supernovae.studio>", "SuperNovae Studio <contact@supernovae.studio>"]
 license = "AGPL-3.0-or-later"
@@ -23,14 +23,14 @@ rust-version = "1.86"
 
 [workspace.dependencies]
 # Internal crates
-nika-cli = { path = "nika-cli", version = "0.43.0" }
-nika-core = { path = "nika-core", version = "0.43.0" }
-nika-engine = { path = "nika-engine", version = "0.43.0", default-features = true }
-nika-tui = { path = "nika-tui", version = "0.43.0" }
-nika-event = { path = "nika-event", version = "0.43.0" }
-nika-mcp = { path = "nika-mcp", version = "0.43.0" }
-nika-media = { path = "nika-media", version = "0.43.0" }
-nika-lsp-core = { path = "nika-lsp-core", version = "0.43.0" }
+nika-cli = { path = "nika-cli", version = "0.44.0" }
+nika-core = { path = "nika-core", version = "0.44.0" }
+nika-engine = { path = "nika-engine", version = "0.44.0", default-features = true }
+nika-tui = { path = "nika-tui", version = "0.44.0" }
+nika-event = { path = "nika-event", version = "0.44.0" }
+nika-mcp = { path = "nika-mcp", version = "0.44.0" }
+nika-media = { path = "nika-media", version = "0.44.0" }
+nika-lsp-core = { path = "nika-lsp-core", version = "0.44.0" }
 
 # Async
 tokio = { version = "1.49", features = ["rt-multi-thread", "macros", "process", "sync", "time", "fs", "signal"] }
