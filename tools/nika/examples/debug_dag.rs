@@ -3,7 +3,7 @@
 use nika::tui::widgets::{DagAscii, NodeBoxData, NodeBoxMode};
 use nika::tui::{TaskStatus, VerbColor};
 use ratatui::{buffer::Buffer, layout::Rect, widgets::Widget};
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 
 fn main() {
     // Create test nodes
@@ -17,7 +17,7 @@ fn main() {
     ];
 
     // Dependencies: task2 depends on task1
-    let mut deps = HashMap::new();
+    let mut deps = FxHashMap::default();
     deps.insert("task2".to_string(), vec!["task1".to_string()]);
 
     let widget = DagAscii::new(&nodes)

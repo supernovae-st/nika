@@ -37,7 +37,7 @@ mod render_mission;
 mod render_output;
 mod render_reasoning;
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{
@@ -82,7 +82,7 @@ pub struct MonitorView {
     /// Cached DAG nodes (rebuilt only when dag_cache_version changes)
     cached_dag_nodes: Vec<NodeBoxData>,
     /// Cached DAG dependencies (rebuilt only when dag_cache_version changes)
-    cached_dag_deps: HashMap<String, Vec<String>>,
+    cached_dag_deps: FxHashMap<String, Vec<String>>,
     /// Version counter for cache invalidation
     dag_cache_version: u32,
     /// Cached formatted JSON for selected task input
@@ -116,7 +116,7 @@ impl MonitorView {
             render_mode: RenderMode::Expanded,
             dag_mode: NodeBoxMode::Minimal,
             cached_dag_nodes: Vec::new(),
-            cached_dag_deps: HashMap::new(),
+            cached_dag_deps: FxHashMap::default(),
             dag_cache_version: 0,
             cached_task_input_json: String::new(),
             cached_task_output_json: String::new(),
@@ -164,8 +164,8 @@ impl MonitorView {
     }
 
     /// Build dependencies map from TuiState for DagAscii
-    fn build_dag_dependencies(state: &TuiState) -> HashMap<String, Vec<String>> {
-        let mut deps = HashMap::new();
+    fn build_dag_dependencies(state: &TuiState) -> FxHashMap<String, Vec<String>> {
+        let mut deps = FxHashMap::default();
         for (task_id, task) in &state.tasks {
             if !task.dependencies.is_empty() {
                 deps.insert(task_id.clone(), task.dependencies.clone());

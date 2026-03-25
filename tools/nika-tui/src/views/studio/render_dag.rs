@@ -4,7 +4,7 @@
 //! `render_dag_structure()`, `render_validation()`, `render_complexity_meter()`,
 //! and dependency/verb helpers on `YamlEditorPanel`.
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 
 use ratatui::{
     layout::Rect,
@@ -177,8 +177,8 @@ impl YamlEditorPanel {
     /// Extract dependencies from depends_on fields
     ///
     /// Returns a map: target_task_id -> [source_task_ids]
-    pub(super) fn extract_flow_dependencies(&self, wf: &Workflow) -> HashMap<String, Vec<String>> {
-        let mut deps: HashMap<String, Vec<String>> = HashMap::new();
+    pub(super) fn extract_flow_dependencies(&self, wf: &Workflow) -> FxHashMap<String, Vec<String>> {
+        let mut deps: FxHashMap<String, Vec<String>> = FxHashMap::default();
 
         for task in &wf.tasks {
             if let Some(ref task_deps) = task.depends_on {
