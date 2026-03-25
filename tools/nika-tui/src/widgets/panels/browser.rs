@@ -146,15 +146,13 @@ impl BrowserPanel {
         self.cached_tree = None;
     }
 
-    /// Get or build the cached tree node
-    fn get_or_build_tree(&mut self) -> TreeNode {
-        if let Some(ref cached) = self.cached_tree {
-            return cached.clone();
+    /// Ensure tree is built and cached (zero-clone)
+    fn ensure_tree(&mut self) {
+        if self.cached_tree.is_none() {
+            let root_path = Utf8Path::from_path(&self.root_dir).unwrap_or(Utf8Path::new("."));
+            let tree = TreeNode::build_tree(root_path, Some(&self.git_cache), None);
+            self.cached_tree = Some(tree);
         }
-        let root_path = Utf8Path::from_path(&self.root_dir).unwrap_or(Utf8Path::new("."));
-        let tree = TreeNode::build_tree(root_path, Some(&self.git_cache), None);
-        self.cached_tree = Some(tree.clone());
-        tree
     }
 
     /// Initialize tree state (call on view enter)
@@ -356,7 +354,8 @@ impl BrowserPanel {
     ///
     /// Returns a BrowserAction indicating what happened.
     pub fn handle_key(&mut self, key: KeyEvent) -> BrowserAction {
-        let root_node = self.get_or_build_tree();
+        // PERF: Ensure tree exists, then borrow (zero-clone)
+        self.ensure_tree();
 
         // Ctrl+H: Toggle filter between All and WorkflowsOnly
         if key.code == KeyCode::Char('h') && key.modifiers == KeyModifiers::CONTROL {
@@ -375,9 +374,11 @@ impl BrowserPanel {
                 action,
                 TreeAction::Toggle | TreeAction::Left | TreeAction::Right
             );
-            self.tree_state.handle_action(action, &root_node);
-            if needs_update {
-                self.tree_state.update_visible_nodes(&root_node);
+            if let Some(ref root_node) = self.cached_tree {
+                self.tree_state.handle_action(action, root_node);
+                if needs_update {
+                    self.tree_state.update_visible_nodes(root_node);
+                }
             }
             return BrowserAction::None;
         }
@@ -387,8 +388,12 @@ impl BrowserPanel {
             KeyCode::Enter => {
                 // Return selected file
                 if let Some(node_id) = self.tree_state.selected() {
-                    if let Some(node) = self.tree_state.find_node(&root_node, node_id) {
-                        let path = PathBuf::from(node.path.as_str());
+                    let node_path = self
+                        .cached_tree
+                        .as_ref()
+                        .and_then(|root| self.tree_state.find_node(root, node_id))
+                        .map(|node| PathBuf::from(node.path.as_str()));
+                    if let Some(path) = node_path {
                         if path.is_file()
                             && path.extension().is_some_and(|e| e == "yaml" || e == "yml")
                         {
@@ -430,14 +435,14 @@ impl BrowserPanel {
 
     /// Get currently selected file path (if any)
     pub fn selected_file(&mut self) -> Option<PathBuf> {
-        let root_node = self.get_or_build_tree();
+        self.ensure_tree();
         if let Some(node_id) = self.tree_state.selected() {
-            if let Some(node) = self.tree_state.find_node(&root_node, node_id) {
-                let path = PathBuf::from(node.path.as_str());
-                if path.is_file() {
-                    return Some(path);
-                }
-            }
+            return self
+                .cached_tree
+                .as_ref()
+                .and_then(|root| self.tree_state.find_node(root, node_id))
+                .map(|node| PathBuf::from(node.path.as_str()))
+                .filter(|path| path.is_file());
         }
         None
     }
