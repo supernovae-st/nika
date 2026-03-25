@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use rig::agent::AgentBuilder;
 use rig::client::{CompletionClient, ProviderClient};
-use rig::completion::Chat;
+use rig::completion::{Chat, CompletionModel};
 use rig::message::Message;
 use rig::providers::{anthropic, openai};
 use serde_json;
@@ -140,671 +140,88 @@ impl RigAgentLoop {
         }
     }
 
-    /// Continue conversation with Claude
-    ///
-    /// **Note:** Token tracking uses char-based estimation (Chat trait returns only String).
-    /// Use `run_claude()` for single-turn requests with full token tracking.
-    async fn chat_continue_claude(
-        &mut self,
-        prompt: &str,
-    ) -> Result<RigAgentLoopResult, NikaError> {
-        let client = anthropic::Client::from_env();
-        let model_name =
-            Self::strip_model_prefix(self.params.model.as_deref().ok_or_else(|| {
-                NikaError::ValidationError {
-                    reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
-                }
-            })?);
-        let model = client.completion_model(model_name);
+    // =========================================================================
+    // Provider-specific chat_continue wrappers
+    // =========================================================================
+    //
+    // Each wrapper creates a provider client and delegates to the generic
+    // `chat_continue_with_model()`. Adding a new provider requires only
+    // a 4-line wrapper + a match arm in `chat_continue()`.
 
-        let turn_index = self.turn_count + 1;
-
-        // Inject skills into system prompt if configured
-        let preamble = self.inject_skills_into_prompt().await?;
-
-        // Emit start event
-        self.event_log.emit(EventKind::AgentTurn {
-            task_id: Arc::from(self.task_id.as_str()),
-            turn_index,
-            kind: "started".to_string(),
-            metadata: None,
-        });
-
-        // Build agent with full config
-        let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
-        let mut builder = AgentBuilder::new(model)
-            .preamble(&preamble)
-            .max_tokens(effective_max_tokens);
-
-        if let Some(temp) = self.params.effective_temperature() {
-            builder = builder.temperature(f64::from(temp));
-        }
-
-        if self.params.has_explicit_tool_choice() {
-            let tool_choice = self.params.effective_tool_choice();
-            builder = builder.tool_choice(tool_choice.into());
-        }
-
-        if let Some(stop_params) = Self::stop_sequences_params(
-            self.params.provider.as_deref().unwrap_or(""),
-            &self.params.stop_sequences,
-        ) {
-            builder = builder.additional_params(stop_params);
-        }
-
-        let tools = self.tools_as_boxed();
-        let agent = builder.tools(tools).build();
-
-        let response = agent
-            .chat(prompt, self.history.clone())
-            .await
-            .map_err(|e| NikaError::AgentExecutionError {
-                task_id: self.task_id.clone(),
-                reason: e.to_string(),
-            })?;
-
-        // Update history and increment turn count
-        self.history.push(Message::user(prompt));
-        self.history.push(Message::assistant(&response));
-        self.turn_count += 1;
-
-        // Determine status
-        let status = self.determine_status(&response);
-
-        // Emit completion
-        let stop_reason = status.as_canonical_str();
-        let metadata = AgentTurnMetadata::text_only(&response, stop_reason);
-
-        self.event_log.emit(EventKind::AgentTurn {
-            task_id: Arc::from(self.task_id.as_str()),
-            turn_index,
-            kind: stop_reason.to_string(),
-            metadata: Some(metadata),
-        });
-
-        // Check guardrails
-        let guardrail_result = self.check_guardrails(&response);
-        let guardrails_passed = guardrail_result.is_passed();
-
-        // Estimate tokens for cost tracking (Chat trait returns only String, no metadata)
-        let est_input = prompt.chars().count().div_ceil(4) as u64;
-        let est_output = response.chars().count().div_ceil(4) as u64;
-        let provider_kind = crate::provider::cost::ProviderKind::parse(
-            self.params.provider.as_deref().unwrap_or(""),
-        );
-        let cost = provider_kind
-            .map(|pk| crate::provider::cost::calculate_cost(pk, model_name, est_input, est_output))
-            .unwrap_or(0.0);
-
-        Ok(RigAgentLoopResult {
-            status: status.clone(),
-            turns: turn_index as usize,
-            final_output: serde_json::json!({ "response": response }),
-            total_tokens: est_input + est_output,
-            confidence: status.confidence(),
-            retry_count: 0,
-            guardrails_passed,
-            cost_usd: cost,
-            partial_result: None,
-        })
+    async fn chat_continue_claude(&mut self, prompt: &str) -> Result<RigAgentLoopResult, NikaError> {
+        let model_name = self.resolve_model_name()?;
+        let model = anthropic::Client::from_env().completion_model(&model_name);
+        self.chat_continue_with_model(prompt, model, &model_name).await
     }
 
-    /// Continue conversation with OpenAI
-    ///
-    /// **Note:** Token tracking uses char-based estimation (Chat trait returns only String).
-    /// Use `run_openai()` for single-turn requests with full token tracking.
-    async fn chat_continue_openai(
-        &mut self,
-        prompt: &str,
-    ) -> Result<RigAgentLoopResult, NikaError> {
-        let client = openai::Client::from_env();
-        let model_name =
-            Self::strip_model_prefix(self.params.model.as_deref().ok_or_else(|| {
-                NikaError::ValidationError {
-                    reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
-                }
-            })?);
-        let model = client.completion_model(model_name);
-
-        let turn_index = self.turn_count + 1;
-
-        // Inject skills into system prompt if configured
-        let preamble = self.inject_skills_into_prompt().await?;
-
-        // Emit start event
-        self.event_log.emit(EventKind::AgentTurn {
-            task_id: Arc::from(self.task_id.as_str()),
-            turn_index,
-            kind: "started".to_string(),
-            metadata: None,
-        });
-
-        // Build agent with full config
-        let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
-        let mut builder = AgentBuilder::new(model)
-            .preamble(&preamble)
-            .max_tokens(effective_max_tokens);
-
-        if let Some(temp) = self.params.effective_temperature() {
-            builder = builder.temperature(f64::from(temp));
-        }
-
-        if self.params.has_explicit_tool_choice() {
-            let tool_choice = self.params.effective_tool_choice();
-            builder = builder.tool_choice(tool_choice.into());
-        }
-
-        if let Some(stop_params) = Self::stop_sequences_params(
-            self.params.provider.as_deref().unwrap_or(""),
-            &self.params.stop_sequences,
-        ) {
-            builder = builder.additional_params(stop_params);
-        }
-
-        let tools = self.tools_as_boxed();
-        let agent = builder.tools(tools).build();
-
-        let response = agent
-            .chat(prompt, self.history.clone())
-            .await
-            .map_err(|e| NikaError::AgentExecutionError {
-                task_id: self.task_id.clone(),
-                reason: e.to_string(),
-            })?;
-
-        // Update history and increment turn count
-        self.history.push(Message::user(prompt));
-        self.history.push(Message::assistant(&response));
-        self.turn_count += 1;
-
-        // Determine status
-        let status = self.determine_status(&response);
-
-        // Emit completion
-        let stop_reason = status.as_canonical_str();
-        let metadata = AgentTurnMetadata::text_only(&response, stop_reason);
-
-        self.event_log.emit(EventKind::AgentTurn {
-            task_id: Arc::from(self.task_id.as_str()),
-            turn_index,
-            kind: stop_reason.to_string(),
-            metadata: Some(metadata),
-        });
-
-        // Check guardrails
-        let guardrail_result = self.check_guardrails(&response);
-        let guardrails_passed = guardrail_result.is_passed();
-
-        // Estimate tokens for cost tracking (Chat trait returns only String, no metadata)
-        let est_input = prompt.chars().count().div_ceil(4) as u64;
-        let est_output = response.chars().count().div_ceil(4) as u64;
-        let provider_kind = crate::provider::cost::ProviderKind::parse(
-            self.params.provider.as_deref().unwrap_or(""),
-        );
-        let cost = provider_kind
-            .map(|pk| crate::provider::cost::calculate_cost(pk, model_name, est_input, est_output))
-            .unwrap_or(0.0);
-
-        Ok(RigAgentLoopResult {
-            status: status.clone(),
-            turns: turn_index as usize,
-            final_output: serde_json::json!({ "response": response }),
-            total_tokens: est_input + est_output,
-            confidence: status.confidence(),
-            retry_count: 0,
-            guardrails_passed,
-            cost_usd: cost,
-            partial_result: None,
-        })
+    async fn chat_continue_openai(&mut self, prompt: &str) -> Result<RigAgentLoopResult, NikaError> {
+        let model_name = self.resolve_model_name()?;
+        let model = openai::Client::from_env().completion_model(&model_name);
+        self.chat_continue_with_model(prompt, model, &model_name).await
     }
 
-    /// Continue conversation with Mistral
-    ///
-    /// **Note:** Token tracking uses char-based estimation (Chat trait returns only String).
-    /// Use `run_mistral()` for single-turn requests with full token tracking.
-    async fn chat_continue_mistral(
-        &mut self,
-        prompt: &str,
-    ) -> Result<RigAgentLoopResult, NikaError> {
-        let client = rig::providers::mistral::Client::from_env();
-        let model_name =
-            Self::strip_model_prefix(self.params.model.as_deref().ok_or_else(|| {
-                NikaError::ValidationError {
-                    reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
-                }
-            })?);
-        let model = client.completion_model(model_name);
-
-        let turn_index = self.turn_count + 1;
-
-        // Inject skills into system prompt if configured
-        let preamble = self.inject_skills_into_prompt().await?;
-
-        // Emit start event
-        self.event_log.emit(EventKind::AgentTurn {
-            task_id: Arc::from(self.task_id.as_str()),
-            turn_index,
-            kind: "started".to_string(),
-            metadata: None,
-        });
-
-        // Build agent with full config
-        let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
-        let mut builder = AgentBuilder::new(model)
-            .preamble(&preamble)
-            .max_tokens(effective_max_tokens);
-
-        if let Some(temp) = self.params.effective_temperature() {
-            builder = builder.temperature(f64::from(temp));
-        }
-
-        if self.params.has_explicit_tool_choice() {
-            let tool_choice = self.params.effective_tool_choice();
-            builder = builder.tool_choice(tool_choice.into());
-        }
-
-        if let Some(stop_params) = Self::stop_sequences_params(
-            self.params.provider.as_deref().unwrap_or(""),
-            &self.params.stop_sequences,
-        ) {
-            builder = builder.additional_params(stop_params);
-        }
-
-        let tools = self.tools_as_boxed();
-        let agent = builder.tools(tools).build();
-
-        let response = agent
-            .chat(prompt, self.history.clone())
-            .await
-            .map_err(|e| NikaError::AgentExecutionError {
-                task_id: self.task_id.clone(),
-                reason: format!("mistral chat error: {}", e),
-            })?;
-
-        // Update history and increment turn count
-        self.history.push(Message::user(prompt));
-        self.history.push(Message::assistant(&response));
-        self.turn_count += 1;
-
-        // Determine status
-        let status = self.determine_status(&response);
-
-        // Emit completion
-        let stop_reason = status.as_canonical_str();
-        let metadata = AgentTurnMetadata::text_only(&response, stop_reason);
-
-        self.event_log.emit(EventKind::AgentTurn {
-            task_id: Arc::from(self.task_id.as_str()),
-            turn_index,
-            kind: stop_reason.to_string(),
-            metadata: Some(metadata),
-        });
-
-        // Check guardrails
-        let guardrail_result = self.check_guardrails(&response);
-        let guardrails_passed = guardrail_result.is_passed();
-
-        // Estimate tokens for cost tracking (Chat trait returns only String, no metadata)
-        let est_input = prompt.chars().count().div_ceil(4) as u64;
-        let est_output = response.chars().count().div_ceil(4) as u64;
-        let provider_kind = crate::provider::cost::ProviderKind::parse(
-            self.params.provider.as_deref().unwrap_or(""),
-        );
-        let cost = provider_kind
-            .map(|pk| crate::provider::cost::calculate_cost(pk, model_name, est_input, est_output))
-            .unwrap_or(0.0);
-
-        Ok(RigAgentLoopResult {
-            status: status.clone(),
-            turns: turn_index as usize,
-            final_output: serde_json::json!({ "response": response }),
-            total_tokens: est_input + est_output,
-            confidence: status.confidence(),
-            retry_count: 0,
-            guardrails_passed,
-            cost_usd: cost,
-            partial_result: None,
-        })
+    async fn chat_continue_mistral(&mut self, prompt: &str) -> Result<RigAgentLoopResult, NikaError> {
+        let model_name = self.resolve_model_name()?;
+        let model = rig::providers::mistral::Client::from_env().completion_model(&model_name);
+        self.chat_continue_with_model(prompt, model, &model_name).await
     }
 
-    /// Continue conversation with Groq
-    ///
-    /// **Note:** Token tracking uses char-based estimation (Chat trait returns only String).
-    /// Use `run_groq()` for single-turn requests with full token tracking.
     async fn chat_continue_groq(&mut self, prompt: &str) -> Result<RigAgentLoopResult, NikaError> {
-        let client = rig::providers::groq::Client::from_env();
-        let model_name =
-            Self::strip_model_prefix(self.params.model.as_deref().ok_or_else(|| {
-                NikaError::ValidationError {
-                    reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
-                }
-            })?);
-        let model = client.completion_model(model_name);
-
-        let turn_index = self.turn_count + 1;
-
-        // Inject skills into system prompt if configured
-        let preamble = self.inject_skills_into_prompt().await?;
-
-        // Emit start event
-        self.event_log.emit(EventKind::AgentTurn {
-            task_id: Arc::from(self.task_id.as_str()),
-            turn_index,
-            kind: "started".to_string(),
-            metadata: None,
-        });
-
-        // Build agent with full config
-        let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
-        let mut builder = AgentBuilder::new(model)
-            .preamble(&preamble)
-            .max_tokens(effective_max_tokens);
-
-        if let Some(temp) = self.params.effective_temperature() {
-            builder = builder.temperature(f64::from(temp));
-        }
-
-        if self.params.has_explicit_tool_choice() {
-            let tool_choice = self.params.effective_tool_choice();
-            builder = builder.tool_choice(tool_choice.into());
-        }
-
-        if let Some(stop_params) = Self::stop_sequences_params(
-            self.params.provider.as_deref().unwrap_or(""),
-            &self.params.stop_sequences,
-        ) {
-            builder = builder.additional_params(stop_params);
-        }
-
-        let tools = self.tools_as_boxed();
-        let agent = builder.tools(tools).build();
-
-        let response = agent
-            .chat(prompt, self.history.clone())
-            .await
-            .map_err(|e| NikaError::AgentExecutionError {
-                task_id: self.task_id.clone(),
-                reason: format!("groq chat error: {}", e),
-            })?;
-
-        // Update history and increment turn count
-        self.history.push(Message::user(prompt));
-        self.history.push(Message::assistant(&response));
-        self.turn_count += 1;
-
-        // Determine status
-        let status = self.determine_status(&response);
-
-        // Emit completion
-        let stop_reason = status.as_canonical_str();
-        let metadata = AgentTurnMetadata::text_only(&response, stop_reason);
-
-        self.event_log.emit(EventKind::AgentTurn {
-            task_id: Arc::from(self.task_id.as_str()),
-            turn_index,
-            kind: stop_reason.to_string(),
-            metadata: Some(metadata),
-        });
-
-        // Check guardrails
-        let guardrail_result = self.check_guardrails(&response);
-        let guardrails_passed = guardrail_result.is_passed();
-
-        // Estimate tokens for cost tracking (Chat trait returns only String, no metadata)
-        let est_input = prompt.chars().count().div_ceil(4) as u64;
-        let est_output = response.chars().count().div_ceil(4) as u64;
-        let provider_kind = crate::provider::cost::ProviderKind::parse(
-            self.params.provider.as_deref().unwrap_or(""),
-        );
-        let cost = provider_kind
-            .map(|pk| crate::provider::cost::calculate_cost(pk, model_name, est_input, est_output))
-            .unwrap_or(0.0);
-
-        Ok(RigAgentLoopResult {
-            status: status.clone(),
-            turns: turn_index as usize,
-            final_output: serde_json::json!({ "response": response }),
-            total_tokens: est_input + est_output,
-            confidence: status.confidence(),
-            retry_count: 0,
-            guardrails_passed,
-            cost_usd: cost,
-            partial_result: None,
-        })
+        let model_name = self.resolve_model_name()?;
+        let model = rig::providers::groq::Client::from_env().completion_model(&model_name);
+        self.chat_continue_with_model(prompt, model, &model_name).await
     }
 
-    /// Continue conversation with DeepSeek
-    ///
-    /// **Note:** Token tracking uses char-based estimation (Chat trait returns only String).
-    /// Use `run_deepseek()` for single-turn requests with full token tracking.
-    async fn chat_continue_deepseek(
-        &mut self,
-        prompt: &str,
-    ) -> Result<RigAgentLoopResult, NikaError> {
-        let client = rig::providers::deepseek::Client::from_env();
-        let model_name =
-            Self::strip_model_prefix(self.params.model.as_deref().ok_or_else(|| {
-                NikaError::ValidationError {
-                    reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
-                }
-            })?);
-        let model = client.completion_model(model_name);
-
-        let turn_index = self.turn_count + 1;
-
-        // Inject skills into system prompt if configured
-        let preamble = self.inject_skills_into_prompt().await?;
-
-        // Emit start event
-        self.event_log.emit(EventKind::AgentTurn {
-            task_id: Arc::from(self.task_id.as_str()),
-            turn_index,
-            kind: "started".to_string(),
-            metadata: None,
-        });
-
-        // Build agent with full config
-        let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
-        let mut builder = AgentBuilder::new(model)
-            .preamble(&preamble)
-            .max_tokens(effective_max_tokens);
-
-        if let Some(temp) = self.params.effective_temperature() {
-            builder = builder.temperature(f64::from(temp));
-        }
-
-        if self.params.has_explicit_tool_choice() {
-            let tool_choice = self.params.effective_tool_choice();
-            builder = builder.tool_choice(tool_choice.into());
-        }
-
-        if let Some(stop_params) = Self::stop_sequences_params(
-            self.params.provider.as_deref().unwrap_or(""),
-            &self.params.stop_sequences,
-        ) {
-            builder = builder.additional_params(stop_params);
-        }
-
-        let tools = self.tools_as_boxed();
-        let agent = builder.tools(tools).build();
-
-        let response = agent
-            .chat(prompt, self.history.clone())
-            .await
-            .map_err(|e| NikaError::AgentExecutionError {
-                task_id: self.task_id.clone(),
-                reason: format!("deepseek chat error: {}", e),
-            })?;
-
-        // Update history and increment turn count
-        self.history.push(Message::user(prompt));
-        self.history.push(Message::assistant(&response));
-        self.turn_count += 1;
-
-        // Determine status
-        let status = self.determine_status(&response);
-
-        // Emit completion
-        let stop_reason = status.as_canonical_str();
-        let metadata = AgentTurnMetadata::text_only(&response, stop_reason);
-
-        self.event_log.emit(EventKind::AgentTurn {
-            task_id: Arc::from(self.task_id.as_str()),
-            turn_index,
-            kind: stop_reason.to_string(),
-            metadata: Some(metadata),
-        });
-
-        // Check guardrails
-        let guardrail_result = self.check_guardrails(&response);
-        let guardrails_passed = guardrail_result.is_passed();
-
-        // Estimate tokens for cost tracking (Chat trait returns only String, no metadata)
-        let est_input = prompt.chars().count().div_ceil(4) as u64;
-        let est_output = response.chars().count().div_ceil(4) as u64;
-        let provider_kind = crate::provider::cost::ProviderKind::parse(
-            self.params.provider.as_deref().unwrap_or(""),
-        );
-        let cost = provider_kind
-            .map(|pk| crate::provider::cost::calculate_cost(pk, model_name, est_input, est_output))
-            .unwrap_or(0.0);
-
-        Ok(RigAgentLoopResult {
-            status: status.clone(),
-            turns: turn_index as usize,
-            final_output: serde_json::json!({ "response": response }),
-            total_tokens: est_input + est_output,
-            confidence: status.confidence(),
-            retry_count: 0,
-            guardrails_passed,
-            cost_usd: cost,
-            partial_result: None,
-        })
+    async fn chat_continue_deepseek(&mut self, prompt: &str) -> Result<RigAgentLoopResult, NikaError> {
+        let model_name = self.resolve_model_name()?;
+        let model = rig::providers::deepseek::Client::from_env().completion_model(&model_name);
+        self.chat_continue_with_model(prompt, model, &model_name).await
     }
 
-    /// Continue conversation with Gemini
-    ///
-    /// **Note:** Token tracking uses char-based estimation (Chat trait returns only String).
-    /// Use `run_gemini()` for single-turn requests with full token tracking.
-    async fn chat_continue_gemini(
-        &mut self,
-        prompt: &str,
-    ) -> Result<RigAgentLoopResult, NikaError> {
-        let client = rig::providers::gemini::Client::from_env();
-        let model_name =
-            Self::strip_model_prefix(self.params.model.as_deref().ok_or_else(|| {
-                NikaError::ValidationError {
-                    reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
-                }
-            })?);
-        let model = client.completion_model(model_name);
-
-        let turn_index = self.turn_count + 1;
-
-        // Inject skills into system prompt if configured
-        let preamble = self.inject_skills_into_prompt().await?;
-
-        // Emit start event
-        self.event_log.emit(EventKind::AgentTurn {
-            task_id: Arc::from(self.task_id.as_str()),
-            turn_index,
-            kind: "started".to_string(),
-            metadata: None,
-        });
-
-        // Build agent with full config
-        let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
-        let mut builder = AgentBuilder::new(model)
-            .preamble(&preamble)
-            .max_tokens(effective_max_tokens);
-
-        if let Some(temp) = self.params.effective_temperature() {
-            builder = builder.temperature(f64::from(temp));
-        }
-
-        if self.params.has_explicit_tool_choice() {
-            let tool_choice = self.params.effective_tool_choice();
-            builder = builder.tool_choice(tool_choice.into());
-        }
-
-        if let Some(stop_params) = Self::stop_sequences_params(
-            self.params.provider.as_deref().unwrap_or(""),
-            &self.params.stop_sequences,
-        ) {
-            builder = builder.additional_params(stop_params);
-        }
-
-        let tools = self.tools_as_boxed();
-        let agent = builder.tools(tools).build();
-
-        let response = agent
-            .chat(prompt, self.history.clone())
-            .await
-            .map_err(|e| NikaError::AgentExecutionError {
-                task_id: self.task_id.clone(),
-                reason: format!("gemini chat error: {}", e),
-            })?;
-
-        // Update history and increment turn count
-        self.history.push(Message::user(prompt));
-        self.history.push(Message::assistant(&response));
-        self.turn_count += 1;
-
-        // Determine status
-        let status = self.determine_status(&response);
-
-        // Emit completion
-        let stop_reason = status.as_canonical_str();
-        let metadata = AgentTurnMetadata::text_only(&response, stop_reason);
-
-        self.event_log.emit(EventKind::AgentTurn {
-            task_id: Arc::from(self.task_id.as_str()),
-            turn_index,
-            kind: stop_reason.to_string(),
-            metadata: Some(metadata),
-        });
-
-        // Check guardrails
-        let guardrail_result = self.check_guardrails(&response);
-        let guardrails_passed = guardrail_result.is_passed();
-
-        // Estimate tokens for cost tracking (Chat trait returns only String, no metadata)
-        let est_input = prompt.chars().count().div_ceil(4) as u64;
-        let est_output = response.chars().count().div_ceil(4) as u64;
-        let provider_kind = crate::provider::cost::ProviderKind::parse(
-            self.params.provider.as_deref().unwrap_or(""),
-        );
-        let cost = provider_kind
-            .map(|pk| crate::provider::cost::calculate_cost(pk, model_name, est_input, est_output))
-            .unwrap_or(0.0);
-
-        Ok(RigAgentLoopResult {
-            status: status.clone(),
-            turns: turn_index as usize,
-            final_output: serde_json::json!({ "response": response }),
-            total_tokens: est_input + est_output,
-            confidence: status.confidence(),
-            retry_count: 0,
-            guardrails_passed,
-            cost_usd: cost,
-            partial_result: None,
-        })
+    async fn chat_continue_gemini(&mut self, prompt: &str) -> Result<RigAgentLoopResult, NikaError> {
+        let model_name = self.resolve_model_name()?;
+        let model = rig::providers::gemini::Client::from_env().completion_model(&model_name);
+        self.chat_continue_with_model(prompt, model, &model_name).await
     }
 
-    /// Continue conversation with xAI (Grok)
-    ///
-    /// **Note:** Token tracking uses char-based estimation (Chat trait returns only String).
-    /// Use `run_xai()` for single-turn requests with full token tracking.
     async fn chat_continue_xai(&mut self, prompt: &str) -> Result<RigAgentLoopResult, NikaError> {
-        let client = rig::providers::xai::Client::from_env();
-        let model_name =
-            Self::strip_model_prefix(self.params.model.as_deref().ok_or_else(|| {
-                NikaError::ValidationError {
-                    reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
-                }
-            })?);
-        let model = client.completion_model(model_name);
+        let model_name = self.resolve_model_name()?;
+        let model = rig::providers::xai::Client::from_env().completion_model(&model_name);
+        self.chat_continue_with_model(prompt, model, &model_name).await
+    }
 
+    // =========================================================================
+    // Shared Implementation
+    // =========================================================================
+
+    /// Extract and validate the model name from params.
+    ///
+    /// Returns an owned String to avoid holding an immutable borrow on `self`
+    /// across the `&mut self` call to `chat_continue_with_model`.
+    fn resolve_model_name(&self) -> Result<String, NikaError> {
+        let raw = self.params.model.as_deref().ok_or_else(|| {
+            NikaError::ValidationError {
+                reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
+            }
+        })?;
+        Ok(Self::strip_model_prefix(raw).to_string())
+    }
+
+    /// Generic chat continuation — all provider wrappers delegate here.
+    ///
+    /// Builds a rig Agent from the given CompletionModel, runs the chat with
+    /// accumulated history, updates history, emits telemetry events, estimates
+    /// token costs, and checks guardrails.
+    ///
+    /// **Note:** Token tracking uses char-based estimation (Chat trait returns
+    /// only String, no usage metadata). Use `run_claude()` / `run_openai()` etc.
+    /// for single-turn requests with full streaming token tracking.
+    async fn chat_continue_with_model<M: CompletionModel>(
+        &mut self,
+        prompt: &str,
+        model: M,
+        model_name: &str,
+    ) -> Result<RigAgentLoopResult, NikaError> {
         let turn_index = self.turn_count + 1;
 
         // Inject skills into system prompt if configured
@@ -848,7 +265,7 @@ impl RigAgentLoop {
             .await
             .map_err(|e| NikaError::AgentExecutionError {
                 task_id: self.task_id.clone(),
-                reason: format!("xai chat error: {}", e),
+                reason: e.to_string(),
             })?;
 
         // Update history and increment turn count
