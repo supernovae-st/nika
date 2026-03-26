@@ -7,13 +7,13 @@ Source code for `nika` binary. See `nika/CLAUDE.md` for user-facing docs.
 ```
 tools/
 ├── nika/           Binary (2k lines) — CLI entry point
-├── nika-engine/    Execution engine (162k) — embeddable runtime
+├── nika-engine/    Execution engine (135k) — embeddable runtime
 ├── nika-daemon/    Background daemon (5k) — secrets, jobs, watch, cache
 ├── nika-init/      Project scaffolding (21k) — init wizard + course
 ├── nika-core/      AST, types, catalogs (23k) — zero I/O
 ├── nika-event/     EventLog, TraceWriter (4k)
 ├── nika-mcp/       MCP client, rmcp (9k)
-├── nika-media/     CAS store, processor (3.5k)
+├── nika-media/     CAS store, processor (13k)
 ├── nika-cli/       CLI subcommands (8k)
 ├── nika-tui/       Terminal UI (86k) — ratatui
 ├── nika-lsp-core/  LSP intelligence (9k)
