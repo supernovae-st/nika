@@ -22,6 +22,7 @@ use base64::Engine;
 
 use super::verbs::{detect_image_media_type, estimate_tokens, json_value_size_estimate, redact_for_event};
 use super::TaskExecutor;
+use crate::error_domains::ProviderError;
 
 impl TaskExecutor {
     #[instrument(skip(self, infer, bindings, datastore, output_policy), fields(%task_id))]
@@ -557,7 +558,7 @@ impl TaskExecutor {
             provider
                 .infer_stream_with_options(&prompt, tx, &options)
                 .await
-                .map_err(|e| NikaError::ProviderApiError {
+                .map_err(|e| ProviderError::ApiError {
                     message: e.to_string(),
                 })?
         } else {
@@ -565,7 +566,7 @@ impl TaskExecutor {
             provider
                 .infer_stream(&prompt, tx, model)
                 .await
-                .map_err(|e| NikaError::ProviderApiError {
+                .map_err(|e| ProviderError::ApiError {
                     message: e.to_string(),
                 })?
         };
@@ -731,7 +732,7 @@ impl TaskExecutor {
                     let cas_read = self.cas.read(&resolved_source);
                     let image_data = tokio::select! {
                         result = cas_read => {
-                            result.map_err(|e| NikaError::ProviderApiError {
+                            result.map_err(|e| ProviderError::ApiError {
                                 message: format!("Vision: CAS read '{}': {}", resolved_source, e),
                             })?
                         }
@@ -835,7 +836,7 @@ impl TaskExecutor {
             provider.infer_vision(user_content, model, resolved_system, infer.max_tokens);
         let vision_result = tokio::select! {
             result = vision_work => {
-                result.map_err(|e| NikaError::ProviderApiError { message: e.to_string() })?
+                result.map_err(|e| ProviderError::ApiError { message: e.to_string() })?
             }
             _ = self.cancel_token.cancelled() => {
                 return Err(NikaError::TaskCancelled {
