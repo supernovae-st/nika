@@ -72,17 +72,16 @@ impl WatchService {
 
         // Create watcher with channel bridge (notify → tokio mpsc)
         let tx = raw_tx;
-        let mut watcher = notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
-            match res {
+        let mut watcher =
+            notify::recommended_watcher(move |res: Result<Event, notify::Error>| match res {
                 Ok(event) => {
                     let _ = tx.blocking_send(event);
                 }
                 Err(e) => {
                     warn!(error = %e, "watch error");
                 }
-            }
-        })
-        .map_err(|e| DaemonError::Lifecycle(format!("create watcher: {e}")))?;
+            })
+            .map_err(|e| DaemonError::Lifecycle(format!("create watcher: {e}")))?;
 
         let mode = if config.recursive {
             RecursiveMode::Recursive
@@ -217,8 +216,7 @@ mod tests {
 
     #[test]
     fn glob_set_multiple_patterns() {
-        let set =
-            build_glob_set(&["*.nika.yaml".to_string(), "*.nika.yml".to_string()]).unwrap();
+        let set = build_glob_set(&["*.nika.yaml".to_string(), "*.nika.yml".to_string()]).unwrap();
         assert!(set.is_match("test.nika.yaml"));
         assert!(set.is_match("test.nika.yml"));
         assert!(!set.is_match("test.yaml"));

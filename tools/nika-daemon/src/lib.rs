@@ -18,6 +18,7 @@
 
 pub mod client;
 pub mod error;
+pub mod events;
 pub mod lifecycle;
 pub mod protocol;
 pub mod server;
