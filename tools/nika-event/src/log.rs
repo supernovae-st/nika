@@ -967,16 +967,30 @@ impl EventLog {
             kind,
         };
 
-        self.events.write().push(event.clone()); // parking_lot: no unwrap needed
+        // PERF(M3): Clone only when broadcast or trace needs a copy.
+        // In CLI mode (no broadcast, no trace), the event moves directly
+        // into the Vec with zero clones.
+        let needs_broadcast = self.broadcast_tx.is_some();
+        let needs_trace = self.trace_writer.is_some();
 
-        // If trace writer attached, write immediately (ignore errors — best-effort)
-        if let Some(ref writer) = self.trace_writer {
-            let _ = writer.append_event(&event);
-        }
+        if needs_broadcast || needs_trace {
+            // Clone for Vec storage; original moves to broadcast/trace
+            let for_vec = event.clone();
 
-        // Broadcast to TUI if configured (ignore errors - TUI might be closed)
-        if let Some(ref tx) = self.broadcast_tx {
-            let _ = tx.send(event);
+            if let Some(ref writer) = self.trace_writer {
+                let _ = writer.append_event(&event);
+            }
+
+            if let Some(ref tx) = self.broadcast_tx {
+                let _ = tx.send(event);
+            } else {
+                drop(event); // consumed by trace above, explicit drop for clarity
+            }
+
+            self.events.write().push(for_vec);
+        } else {
+            // Fast path: no clone needed
+            self.events.write().push(event);
         }
 
         id
