@@ -340,15 +340,19 @@ pub fn list_provider_models(provider: ProviderKind) -> Vec<(&'static str, ModelP
     let all_names: Vec<&str> = entries.iter().map(|(n, _)| *n).collect();
     let mut result: Vec<(&str, ModelPricing)> = Vec::new();
     for &(name, pricing) in &entries {
-        // A name is a date variant if a shorter name is its prefix followed by -DIGIT
+        // A name is a date variant if a shorter name is its prefix followed by -YYYY
+        // (at least 4 digits after the dash, e.g., -2024-11-20, -20250514)
+        // This avoids false positives like claude-sonnet-4-6 being treated as
+        // a date variant of claude-sonnet-4 (the -6 is a version, not a date).
         let is_date_variant = all_names.iter().any(|shorter| {
-            shorter.len() < name.len()
-                && name.starts_with(shorter)
-                && name.as_bytes().get(shorter.len()) == Some(&b'-')
-                && name
-                    .as_bytes()
-                    .get(shorter.len() + 1)
-                    .is_some_and(|b| b.is_ascii_digit())
+            if shorter.len() >= name.len() || !name.starts_with(shorter) {
+                return false;
+            }
+            let suffix = &name[shorter.len()..];
+            // Must start with - followed by at least 4 digits (YYYY)
+            suffix.starts_with('-')
+                && suffix.len() >= 5
+                && suffix[1..5].chars().all(|c| c.is_ascii_digit())
         });
         if !is_date_variant {
             result.push((name, pricing));
@@ -633,5 +637,172 @@ mod tests {
         assert!(!GROQ_PRICING.is_empty());
         assert!(!DEEPSEEK_PRICING.is_empty());
         assert!(!GEMINI_PRICING.is_empty());
+    }
+
+    // ───────────────────────────────────────────────────────────────────────
+    // list_provider_models tests
+    // ───────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn list_provider_models_all_cloud_providers_non_empty() {
+        let providers = [
+            ProviderKind::Claude,
+            ProviderKind::OpenAI,
+            ProviderKind::Mistral,
+            ProviderKind::Groq,
+            ProviderKind::DeepSeek,
+            ProviderKind::Gemini,
+            ProviderKind::XAi,
+        ];
+        for provider in providers {
+            let models = list_provider_models(provider);
+            assert!(
+                !models.is_empty(),
+                "{} should return at least 1 model",
+                provider.name()
+            );
+        }
+    }
+
+    #[test]
+    fn list_provider_models_native_returns_empty() {
+        let models = list_provider_models(ProviderKind::Native);
+        assert!(models.is_empty(), "Native provider should return no models");
+    }
+
+    #[test]
+    fn list_provider_models_claude_deduplicates_date_variants() {
+        let models = list_provider_models(ProviderKind::Claude);
+        let names: Vec<&str> = models.iter().map(|(n, _)| *n).collect();
+        // The base alias should survive dedup
+        assert!(
+            names.contains(&"claude-sonnet-4"),
+            "claude-sonnet-4 should be in the deduplicated list"
+        );
+        // Date-suffixed variant should be filtered out
+        assert!(
+            !names.contains(&"claude-sonnet-4-20250514"),
+            "claude-sonnet-4-20250514 should be deduplicated away"
+        );
+        // The -6 variant is also treated as a date variant of claude-sonnet-4
+        // (prefix + -DIGIT pattern), so both it and its own date variant are removed
+        assert!(
+            !names.contains(&"claude-sonnet-4-6-20250514"),
+            "claude-sonnet-4-6-20250514 should be deduplicated away"
+        );
+    }
+
+    #[test]
+    fn list_provider_models_openai_deduplicates_date_variants() {
+        let models = list_provider_models(ProviderKind::OpenAI);
+        let names: Vec<&str> = models.iter().map(|(n, _)| *n).collect();
+        // The short alias should be present
+        assert!(
+            names.contains(&"gpt-4o"),
+            "gpt-4o should be in the deduplicated list"
+        );
+        // The date-suffixed variant should be filtered out
+        assert!(
+            !names.contains(&"gpt-4o-2024-11-20"),
+            "gpt-4o-2024-11-20 should be deduplicated away"
+        );
+        // Same for GPT-4.1
+        assert!(
+            names.contains(&"gpt-4.1"),
+            "gpt-4.1 should be in the deduplicated list"
+        );
+        assert!(
+            !names.contains(&"gpt-4.1-2025-04-14"),
+            "gpt-4.1-2025-04-14 should be deduplicated away"
+        );
+    }
+
+    #[test]
+    fn list_provider_models_no_duplicates() {
+        let providers = [
+            ProviderKind::Claude,
+            ProviderKind::OpenAI,
+            ProviderKind::Mistral,
+            ProviderKind::Groq,
+            ProviderKind::DeepSeek,
+            ProviderKind::Gemini,
+            ProviderKind::XAi,
+        ];
+        for provider in providers {
+            let models = list_provider_models(provider);
+            let names: Vec<&str> = models.iter().map(|(n, _)| *n).collect();
+            let mut seen = std::collections::HashSet::new();
+            for name in &names {
+                assert!(
+                    seen.insert(name),
+                    "{} has duplicate model: {}",
+                    provider.name(),
+                    name
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn list_provider_models_pricing_positive() {
+        // All returned models should have positive pricing, except known free previews
+        let free_previews: &[&str] = &["gemini-2.0-flash-exp", "gemini-2.0-flash-thinking"];
+
+        let providers = [
+            ProviderKind::Claude,
+            ProviderKind::OpenAI,
+            ProviderKind::Mistral,
+            ProviderKind::Groq,
+            ProviderKind::DeepSeek,
+            ProviderKind::Gemini,
+            ProviderKind::XAi,
+        ];
+        for provider in providers {
+            let models = list_provider_models(provider);
+            for (name, pricing) in &models {
+                if free_previews.contains(name) {
+                    continue;
+                }
+                assert!(
+                    pricing.input_per_million > 0.0,
+                    "{}/{} should have input_per_million > 0, got {}",
+                    provider.name(),
+                    name,
+                    pricing.input_per_million
+                );
+                assert!(
+                    pricing.output_per_million > 0.0,
+                    "{}/{} should have output_per_million > 0, got {}",
+                    provider.name(),
+                    name,
+                    pricing.output_per_million
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn list_provider_models_results_are_sorted() {
+        let providers = [
+            ProviderKind::Claude,
+            ProviderKind::OpenAI,
+            ProviderKind::Mistral,
+            ProviderKind::Groq,
+            ProviderKind::DeepSeek,
+            ProviderKind::Gemini,
+            ProviderKind::XAi,
+        ];
+        for provider in providers {
+            let models = list_provider_models(provider);
+            let names: Vec<&str> = models.iter().map(|(n, _)| *n).collect();
+            let mut sorted = names.clone();
+            sorted.sort();
+            assert_eq!(
+                names,
+                sorted,
+                "{} models should be sorted alphabetically",
+                provider.name()
+            );
+        }
     }
 }

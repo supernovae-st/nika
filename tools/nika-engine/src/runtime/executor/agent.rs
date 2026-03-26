@@ -6,7 +6,7 @@ use futures::FutureExt;
 use rustc_hash::FxHashMap;
 use std::sync::Arc;
 
-use tracing::{debug, instrument};
+use tracing::{debug, instrument, warn};
 
 use crate::ast::output::OutputPolicy;
 use crate::ast::AgentParams;
@@ -39,7 +39,18 @@ impl TaskExecutor {
         let cached_example = if let Some(policy) = output_policy {
             if let Some(crate::ast::output::SchemaRef::File(ref path)) = policy.from_example {
                 match tokio::fs::read_to_string(path).await {
-                    Ok(content) => serde_json::from_str(&content).ok(),
+                    Ok(content) => match serde_json::from_str(&content) {
+                        Ok(value) => Some(value),
+                        Err(e) => {
+                            warn!(
+                                task_id = %task_id,
+                                path = %path,
+                                error = %e,
+                                "from_example file contains invalid JSON, ignoring"
+                            );
+                            None
+                        }
+                    },
                     Err(e) => {
                         debug!(task_id = %task_id, "Failed to pre-read from_example '{}': {}", path, e);
                         None
