@@ -406,7 +406,7 @@ impl CliRenderer {
                 task_id,
                 error,
                 duration_ms,
-                ..
+                error_code,
             } => {
                 let dur_secs = *duration_ms as f32 / 1000.0;
                 let verb = self
@@ -441,6 +441,18 @@ impl CliRenderer {
                     "error".red(),
                     error.red()
                 );
+                // Show fix suggestion if available (parse error code from message)
+                if let Some(err_code) = error_code {
+                    if let Some(fix) = crate::error::fix_suggestion_for_code(err_code) {
+                        println!(
+                            "{}  {} {} {}",
+                            " ".repeat(6),
+                            "│".dimmed(),
+                            "→ Fix:".yellow(),
+                            fix.dimmed()
+                        );
+                    }
+                }
             }
 
             EventKind::TaskSkipped { task_id, reason } => {
