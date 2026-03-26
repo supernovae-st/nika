@@ -16,6 +16,7 @@ use crate::store::RunContext;
 
 use super::verbs::redact_for_event;
 use super::TaskExecutor;
+use crate::error_domains::ProviderError;
 
 impl TaskExecutor {
     #[instrument(skip(self, bindings, datastore), fields(url = %fetch.url))]
@@ -84,7 +85,7 @@ impl TaskExecutor {
                         .redirect(reqwest::redirect::Policy::none())
                         .user_agent(format!("nika/{}", env!("CARGO_PKG_VERSION")))
                         .build()
-                        .map_err(|e| NikaError::ProviderApiError {
+                        .map_err(|e| ProviderError::ApiError {
                             message: format!("HTTP client build failed: {e}"),
                         })?,
                 )
