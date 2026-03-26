@@ -9,7 +9,7 @@
 # 5. build: Release build verification
 # 6. summary: PR comment with results
 #
-# Nika v0.40.2 — Schema @0.12 + AI Integration Suite | 7,800+ tests
+# Schema @0.12 | 8,100+ tests
 
 name: CI
 
@@ -34,7 +34,6 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -Dwarnings
-  NIKA_VERSION: v0.40.2
   # Minimum Rust version (matches Cargo.toml rust-version)
   # Note: Using stable to get latest; deps require 1.88+ (time crate)
   RUST_VERSION: stable
@@ -459,6 +458,17 @@ jobs:
     permissions:
       pull-requests: write
     steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: tools/Cargo.toml
+
+      - name: Extract version from Cargo.toml
+        id: version
+        run: |
+          VER=$(grep '^version' tools/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          echo "nika_version=v${VER}" >> $GITHUB_OUTPUT
+
       - name: Generate summary comment
         uses: actions/github-script@v8
         env:
@@ -467,7 +477,7 @@ jobs:
           COVERAGE_RESULT: ${{ needs.coverage.result }}
           SECURITY_RESULT: ${{ needs.security.result }}
           BUILD_RESULT: ${{ needs.build.result }}
-          NIKA_VER: ${{ env.NIKA_VERSION }}
+          NIKA_VER: ${{ steps.version.outputs.nika_version }}
           RUST_VER: ${{ env.RUST_VERSION }}
           SERVER_URL: ${{ github.server_url }}
           REPO: ${{ github.repository }}
@@ -508,7 +518,7 @@ jobs:
             ### Nika Info
             - **Version**: ${nikaVersion}
             - **Rust Version**: ${rustVersion}
-            - **Crates**: nika-core, nika-mcp, nika-provider, nika-runtime, nika-tui, nika-cli
+            - **Crates**: nika-core, nika-event, nika-mcp, nika-media, nika-engine, nika-cli, nika-tui, nika-lsp-core, nika-lsp
 
             <details>
             <summary>View detailed results</summary>
