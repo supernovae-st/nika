@@ -55,9 +55,8 @@ impl RigAgentLoop {
         // Apply temperature — but strip for reasoning models (o3, gpt-5, deepseek-reasoner)
         // which reject temperature with HTTP 400
         if let Some(temp) = self.params.effective_temperature() {
-            if crate::provider::rig::is_reasoning_model(
-                self.params.model.as_deref().unwrap_or(""),
-            ) {
+            if crate::provider::rig::is_reasoning_model(self.params.model.as_deref().unwrap_or(""))
+            {
                 tracing::warn!(
                     model = self.params.model.as_deref().unwrap_or("unknown"),
                     "Stripping temperature for reasoning model in agent stream path"
@@ -381,9 +380,8 @@ impl RigAgentLoop {
 
         // Apply temperature — strip for reasoning models
         if let Some(temp) = self.params.effective_temperature() {
-            if crate::provider::rig::is_reasoning_model(
-                self.params.model.as_deref().unwrap_or(""),
-            ) {
+            if crate::provider::rig::is_reasoning_model(self.params.model.as_deref().unwrap_or(""))
+            {
                 tracing::warn!(
                     model = self.params.model.as_deref().unwrap_or("unknown"),
                     "Stripping temperature for reasoning model in streaming agent path"

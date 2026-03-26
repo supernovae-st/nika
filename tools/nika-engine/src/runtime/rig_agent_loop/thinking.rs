@@ -347,18 +347,23 @@ impl RigAgentLoop {
             .effective_max_tokens()
             .unwrap_or((thinking_budget as u32) + 8192);
 
-        let mut request_builder = model
+        // Extended thinking requires temperature=1 (Anthropic API constraint).
+        // Skip user-specified temperature to avoid HTTP 400.
+        if let Some(temp) = self.params.effective_temperature() {
+            if (temp - 1.0).abs() > f32::EPSILON {
+                tracing::warn!(
+                    temperature = temp,
+                    "Ignoring temperature={temp} — extended thinking requires temperature=1.0"
+                );
+            }
+        }
+
+        let request = model
             .completion_request(&self.params.prompt)
             .preamble(preamble)
             .max_tokens(max_tokens as u64)
-            .additional_params(thinking_config);
-
-        // Apply temperature using native rig-core method
-        if let Some(temp) = self.params.effective_temperature() {
-            request_builder = request_builder.temperature(f64::from(temp));
-        }
-
-        let request = request_builder.build();
+            .additional_params(thinking_config)
+            .build();
 
         // Emit start event
         self.event_log.emit(EventKind::AgentTurn {
