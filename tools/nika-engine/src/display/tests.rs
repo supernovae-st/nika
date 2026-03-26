@@ -2270,3 +2270,172 @@ fn doctor_summary_nika_dir_exists_skips_init() {
     let stripped = strip_ansi(&joined);
     assert!(!stripped.contains("nika init"), "should not suggest init when dir exists");
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// TestRenderer tests
+// ═══════════════════════════════════════════════════════════════════════
+
+use super::renderer::{Renderer, TestRenderer};
+use crate::event::{Event, EventKind};
+use std::sync::Arc;
+
+fn make_event(id: u64, kind: EventKind) -> Event {
+    Event {
+        id,
+        timestamp_ms: id * 100,
+        kind,
+    }
+}
+
+#[test]
+fn test_renderer_records_events() {
+    let mut r = TestRenderer::new();
+    assert_eq!(r.last_rendered_id(), None);
+    assert!(r.rendered_events.is_empty());
+
+    let events = vec![
+        make_event(
+            1,
+            EventKind::TaskStarted {
+                task_id: Arc::from("a"),
+                verb: "infer".into(),
+                inputs: serde_json::Value::Null,
+            },
+        ),
+        make_event(
+            2,
+            EventKind::TaskCompleted {
+                task_id: Arc::from("a"),
+                output: Arc::new(serde_json::Value::String("hello".into())),
+                duration_ms: 500,
+            },
+        ),
+    ];
+
+    r.render_new_events(&events);
+
+    assert_eq!(r.last_rendered_id(), Some(2));
+    assert_eq!(r.rendered_events.len(), 2);
+    assert_eq!(r.stats.tasks_passed, 1);
+}
+
+#[test]
+fn test_renderer_skips_already_rendered() {
+    let mut r = TestRenderer::new();
+
+    let events = vec![
+        make_event(
+            1,
+            EventKind::TaskStarted {
+                task_id: Arc::from("a"),
+                verb: "exec".into(),
+                inputs: serde_json::Value::Null,
+            },
+        ),
+        make_event(
+            2,
+            EventKind::TaskCompleted {
+                task_id: Arc::from("a"),
+                output: Arc::new(serde_json::Value::Null),
+                duration_ms: 100,
+            },
+        ),
+    ];
+
+    r.render_new_events(&events);
+    assert_eq!(r.rendered_events.len(), 2);
+
+    // Render same events again — should be no-ops
+    r.render_new_events(&events);
+    assert_eq!(r.rendered_events.len(), 2);
+    assert_eq!(r.last_rendered_id(), Some(2));
+}
+
+#[test]
+fn test_renderer_tracks_failures() {
+    let mut r = TestRenderer::new();
+
+    let events = vec![make_event(
+        1,
+        EventKind::TaskFailed {
+            task_id: Arc::from("broken"),
+            error: "something went wrong".into(),
+            duration_ms: 200,
+            error_code: None,
+        },
+    )];
+
+    r.render_new_events(&events);
+
+    assert_eq!(r.stats.tasks_failed, 1);
+    assert_eq!(r.stats.root_failure.as_deref(), Some("broken"));
+}
+
+#[test]
+fn test_renderer_render_kind_records_event() {
+    let mut r = TestRenderer::new();
+
+    r.render_kind(&EventKind::WorkflowPaused);
+    r.render_kind(&EventKind::WorkflowResumed);
+
+    assert_eq!(r.rendered_events.len(), 2);
+    assert!(matches!(r.rendered_events[0], EventKind::WorkflowPaused));
+    assert!(matches!(r.rendered_events[1], EventKind::WorkflowResumed));
+    // render_kind does not update last_id (id=0 synthetic events)
+}
+
+#[test]
+fn test_renderer_summary_flags() {
+    let mut r = TestRenderer::new();
+
+    assert!(!r.summary_called);
+    assert!(!r.quiet_summary_called);
+
+    r.render_summary(1000, Some("/tmp/trace.json"));
+    assert!(r.summary_called);
+    assert_eq!(r.summary_duration_ms, Some(1000));
+
+    let mut r2 = TestRenderer::new();
+    r2.render_quiet_summary(500);
+    assert!(r2.quiet_summary_called);
+    assert_eq!(r2.summary_duration_ms, Some(500));
+}
+
+#[test]
+fn test_renderer_stats_accumulates_tokens() {
+    let mut r = TestRenderer::new();
+
+    let events = vec![make_event(
+        1,
+        EventKind::ProviderResponded {
+            task_id: Arc::from("infer1"),
+            request_id: None,
+            input_tokens: 100,
+            output_tokens: 50,
+            cache_read_tokens: 10,
+            ttft_ms: Some(42),
+            finish_reason: "end_turn".into(),
+            cost_usd: 0.003,
+        },
+    )];
+
+    r.render_new_events(&events);
+
+    assert_eq!(r.stats().total_input_tokens, 100);
+    assert_eq!(r.stats().total_output_tokens, 50);
+    assert_eq!(r.stats().total_cache_tokens, 10);
+    assert_eq!(r.stats().ttft_values, vec![42]);
+    assert!((r.stats().total_cost - 0.003).abs() < f64::EPSILON);
+}
+
+#[test]
+fn test_renderer_default_trait_methods_are_noops() {
+    let mut r = TestRenderer::new();
+
+    // set_task_layers and init_tasks use default no-ops — should not panic
+    r.set_task_layers(std::collections::HashMap::new());
+    r.init_tasks(&["a".to_string()], &std::collections::HashMap::new());
+
+    // State unchanged
+    assert!(r.rendered_events.is_empty());
+}

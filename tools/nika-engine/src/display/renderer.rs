@@ -42,6 +42,73 @@ pub trait Renderer {
     fn stats(&self) -> &RunStats;
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// TestRenderer — in-memory mock for assertions
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Test-only renderer that records events in memory for assertions.
+///
+/// Does not print anything. Useful for verifying that the runner emits the
+/// expected sequence of events without relying on terminal output.
+#[cfg(test)]
+pub struct TestRenderer {
+    pub stats: RunStats,
+    pub rendered_events: Vec<EventKind>,
+    pub last_id: Option<u64>,
+    pub summary_called: bool,
+    pub quiet_summary_called: bool,
+    pub summary_duration_ms: Option<u64>,
+}
+
+#[cfg(test)]
+impl TestRenderer {
+    pub fn new() -> Self {
+        Self {
+            stats: RunStats::default(),
+            rendered_events: Vec::new(),
+            last_id: None,
+            summary_called: false,
+            quiet_summary_called: false,
+            summary_duration_ms: None,
+        }
+    }
+}
+
+#[cfg(test)]
+impl Renderer for TestRenderer {
+    fn last_rendered_id(&self) -> Option<u64> {
+        self.last_id
+    }
+
+    fn render_kind(&mut self, kind: &EventKind) {
+        self.rendered_events.push(kind.clone());
+    }
+
+    fn render_new_events(&mut self, events: &[Event]) {
+        for event in events {
+            if self.last_id.is_none_or(|last| event.id > last) {
+                self.stats.apply_event(event);
+                self.rendered_events.push(event.kind.clone());
+                self.last_id = Some(event.id);
+            }
+        }
+    }
+
+    fn render_summary(&mut self, total_duration_ms: u64, _trace_path: Option<&str>) {
+        self.summary_called = true;
+        self.summary_duration_ms = Some(total_duration_ms);
+    }
+
+    fn render_quiet_summary(&mut self, total_duration_ms: u64) {
+        self.quiet_summary_called = true;
+        self.summary_duration_ms = Some(total_duration_ms);
+    }
+
+    fn stats(&self) -> &RunStats {
+        &self.stats
+    }
+}
+
 /// Accumulated stats for the summary.
 #[derive(Debug, Default)]
 pub struct RunStats {
