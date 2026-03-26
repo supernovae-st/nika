@@ -1769,4 +1769,440 @@ mod tests {
         ));
         assert_eq!(renderer.stats.tasks_failed, 1);
     }
+
+    // ── Atomic token counter tests ────────────────────────────────────
+
+    #[test]
+    fn streaming_delta_updates_out_tokens_atomic() {
+        let mut renderer = LiveRenderer::hidden(DetailLevel::Max);
+        let task_ids = vec!["streamer".to_string()];
+        let deps = HashMap::new();
+        renderer.init_tasks(&task_ids, &deps);
+
+        renderer.render(&make_event(
+            1,
+            0,
+            EventKind::TaskStarted {
+                task_id: Arc::from("streamer"),
+                verb: Arc::from("infer"),
+                inputs: serde_json::Value::Null,
+            },
+        ));
+
+        renderer.render(&make_event(
+            2,
+            50,
+            EventKind::StreamingDelta {
+                task_id: Arc::from("streamer"),
+                delta_tokens: 42,
+                total_tokens: 42,
+            },
+        ));
+
+        let count = renderer.task_bars["streamer"]
+            .out_tokens
+            .load(Ordering::Relaxed);
+        assert_eq!(count, 42);
+    }
+
+    #[test]
+    fn streaming_delta_ignored_when_not_running() {
+        // Delta before TaskStarted must not panic and must leave atomic at 0.
+        let mut renderer = LiveRenderer::hidden(DetailLevel::Max);
+        let task_ids = vec!["pending_task".to_string()];
+        let deps = HashMap::new();
+        renderer.init_tasks(&task_ids, &deps);
+
+        renderer.render(&make_event(
+            1,
+            0,
+            EventKind::StreamingDelta {
+                task_id: Arc::from("pending_task"),
+                delta_tokens: 99,
+                total_tokens: 99,
+            },
+        ));
+
+        let count = renderer.task_bars["pending_task"]
+            .out_tokens
+            .load(Ordering::Relaxed);
+        assert_eq!(count, 0, "pending bar must not be updated");
+    }
+
+    #[test]
+    fn two_tasks_have_independent_out_tokens() {
+        let mut renderer = LiveRenderer::hidden(DetailLevel::Max);
+        let task_ids = vec!["a".to_string(), "b".to_string()];
+        let mut deps = HashMap::new();
+        deps.insert("a".to_string(), vec![]);
+        deps.insert("b".to_string(), vec![]);
+        renderer.init_tasks(&task_ids, &deps);
+
+        for task_id in ["a", "b"] {
+            renderer.render(&make_event(
+                1,
+                0,
+                EventKind::TaskStarted {
+                    task_id: Arc::from(task_id),
+                    verb: Arc::from("infer"),
+                    inputs: serde_json::Value::Null,
+                },
+            ));
+        }
+
+        renderer.render(&make_event(
+            2,
+            10,
+            EventKind::StreamingDelta {
+                task_id: Arc::from("a"),
+                delta_tokens: 10,
+                total_tokens: 10,
+            },
+        ));
+        renderer.render(&make_event(
+            3,
+            20,
+            EventKind::StreamingDelta {
+                task_id: Arc::from("b"),
+                delta_tokens: 25,
+                total_tokens: 25,
+            },
+        ));
+
+        assert_eq!(
+            renderer.task_bars["a"].out_tokens.load(Ordering::Relaxed),
+            10
+        );
+        assert_eq!(
+            renderer.task_bars["b"].out_tokens.load(Ordering::Relaxed),
+            25
+        );
+    }
+
+    #[test]
+    fn task_token_acc_reset_on_task_restart() {
+        // After a TaskFailed → TaskStarted, the accumulator must be 0 (no inflation).
+        let mut renderer = LiveRenderer::hidden(DetailLevel::Max);
+        let task_ids = vec!["flaky".to_string()];
+        let deps = HashMap::new();
+        renderer.init_tasks(&task_ids, &deps);
+
+        // First attempt
+        renderer.render(&make_event(
+            1,
+            0,
+            EventKind::TaskStarted {
+                task_id: Arc::from("flaky"),
+                verb: Arc::from("infer"),
+                inputs: serde_json::Value::Null,
+            },
+        ));
+        renderer.render(&make_event(
+            2,
+            100,
+            EventKind::ProviderResponded {
+                task_id: Arc::from("flaky"),
+                request_id: None,
+                input_tokens: 300,
+                output_tokens: 100,
+                cache_read_tokens: 0,
+                ttft_ms: None,
+                finish_reason: "stop".to_string(),
+                cost_usd: 0.001,
+            },
+        ));
+        renderer.render(&make_event(
+            3,
+            200,
+            EventKind::TaskFailed {
+                task_id: Arc::from("flaky"),
+                error: "timeout".to_string(),
+                duration_ms: 200,
+                error_code: None,
+            },
+        ));
+
+        // Second attempt
+        renderer.render(&make_event(
+            4,
+            300,
+            EventKind::TaskStarted {
+                task_id: Arc::from("flaky"),
+                verb: Arc::from("infer"),
+                inputs: serde_json::Value::Null,
+            },
+        ));
+
+        // After second TaskStarted the accumulator entry must be absent (will be recreated fresh).
+        assert!(
+            !renderer.task_token_acc.contains_key("flaky"),
+            "accumulator must be reset on task restart"
+        );
+        // Atomic must also be cleared.
+        assert_eq!(
+            renderer.task_bars["flaky"].out_tokens.load(Ordering::Relaxed),
+            0,
+            "out_tokens atomic must be cleared on restart"
+        );
+    }
+
+    // ── for_each sub-bar tests ────────────────────────────────────────
+
+    #[test]
+    fn for_each_started_creates_sub_bar() {
+        let mut renderer = LiveRenderer::hidden(DetailLevel::Max);
+        let task_ids = vec!["process".to_string()];
+        let deps = HashMap::new();
+        renderer.init_tasks(&task_ids, &deps);
+
+        renderer.render(&make_event(
+            1,
+            0,
+            EventKind::TaskStarted {
+                task_id: Arc::from("process"),
+                verb: Arc::from("infer"),
+                inputs: serde_json::Value::Null,
+            },
+        ));
+        renderer.render(&make_event(
+            2,
+            10,
+            EventKind::ForEachStarted {
+                task_id: Arc::from("process"),
+                item_count: 3,
+                concurrency: 1,
+                fail_fast: false,
+            },
+        ));
+
+        assert_eq!(renderer.for_each_bars.len(), 1, "one sub-bar per for_each task");
+        let (_, completed) = &renderer.for_each_bars["process"];
+        assert_eq!(*completed, 0, "no items completed yet");
+    }
+
+    #[test]
+    fn for_each_completed_item_advances_sub_bar() {
+        let mut renderer = LiveRenderer::hidden(DetailLevel::Max);
+        let task_ids = vec!["batch".to_string()];
+        let deps = HashMap::new();
+        renderer.init_tasks(&task_ids, &deps);
+
+        renderer.render(&make_event(
+            1,
+            0,
+            EventKind::TaskStarted {
+                task_id: Arc::from("batch"),
+                verb: Arc::from("infer"),
+                inputs: serde_json::Value::Null,
+            },
+        ));
+        renderer.render(&make_event(
+            2,
+            0,
+            EventKind::ForEachStarted {
+                task_id: Arc::from("batch"),
+                item_count: 5,
+                concurrency: 1,
+                fail_fast: false,
+            },
+        ));
+
+        // Complete task_id "batch[0]"
+        renderer.render(&make_event(
+            3,
+            500,
+            EventKind::TaskCompleted {
+                task_id: Arc::from("batch[0]"),
+                output: Arc::new(serde_json::Value::Null),
+                duration_ms: 500,
+            },
+        ));
+
+        let (_, completed) = &renderer.for_each_bars["batch"];
+        assert_eq!(*completed, 1);
+    }
+
+    #[test]
+    fn for_each_failed_item_advances_sub_bar() {
+        let mut renderer = LiveRenderer::hidden(DetailLevel::Max);
+        let task_ids = vec!["batch2".to_string()];
+        let deps = HashMap::new();
+        renderer.init_tasks(&task_ids, &deps);
+
+        renderer.render(&make_event(
+            1,
+            0,
+            EventKind::TaskStarted {
+                task_id: Arc::from("batch2"),
+                verb: Arc::from("infer"),
+                inputs: serde_json::Value::Null,
+            },
+        ));
+        renderer.render(&make_event(
+            2,
+            0,
+            EventKind::ForEachStarted {
+                task_id: Arc::from("batch2"),
+                item_count: 4,
+                concurrency: 1,
+                fail_fast: false,
+            },
+        ));
+
+        renderer.render(&make_event(
+            3,
+            200,
+            EventKind::TaskFailed {
+                task_id: Arc::from("batch2[1]"),
+                error: "bad item".to_string(),
+                duration_ms: 200,
+                error_code: None,
+            },
+        ));
+
+        let (_, completed) = &renderer.for_each_bars["batch2"];
+        assert_eq!(*completed, 1, "failed item must advance sub-bar");
+    }
+
+    #[test]
+    fn for_each_removed_on_for_each_completed() {
+        let mut renderer = LiveRenderer::hidden(DetailLevel::Max);
+        let task_ids = vec!["seq".to_string()];
+        let deps = HashMap::new();
+        renderer.init_tasks(&task_ids, &deps);
+
+        renderer.render(&make_event(
+            1,
+            0,
+            EventKind::TaskStarted {
+                task_id: Arc::from("seq"),
+                verb: Arc::from("infer"),
+                inputs: serde_json::Value::Null,
+            },
+        ));
+        renderer.render(&make_event(
+            2,
+            0,
+            EventKind::ForEachStarted {
+                task_id: Arc::from("seq"),
+                item_count: 2,
+                concurrency: 1,
+                fail_fast: false,
+            },
+        ));
+        renderer.render(&make_event(
+            3,
+            100,
+            EventKind::ForEachCompleted {
+                task_id: Arc::from("seq"),
+                total: 2,
+                succeeded: 2,
+                failed: 0,
+                skipped: 0,
+                duration_ms: 100,
+            },
+        ));
+
+        assert!(
+            renderer.for_each_bars.is_empty(),
+            "sub-bar must be removed on ForEachCompleted"
+        );
+    }
+
+    // ── Overall bar position tests ────────────────────────────────────
+
+    #[test]
+    fn overall_bar_position_counts_failed_tasks() {
+        let mut renderer = LiveRenderer::hidden(DetailLevel::Max);
+        let task_ids = vec!["ok".to_string(), "bad".to_string()];
+        let mut deps = HashMap::new();
+        deps.insert("ok".to_string(), vec![]);
+        deps.insert("bad".to_string(), vec![]);
+        renderer.init_tasks(&task_ids, &deps);
+
+        // Start and complete ok
+        renderer.render(&make_event(
+            1,
+            0,
+            EventKind::TaskStarted {
+                task_id: Arc::from("ok"),
+                verb: Arc::from("exec"),
+                inputs: serde_json::Value::Null,
+            },
+        ));
+        renderer.render(&make_event(
+            2,
+            100,
+            EventKind::TaskCompleted {
+                task_id: Arc::from("ok"),
+                output: Arc::new(serde_json::Value::Null),
+                duration_ms: 100,
+            },
+        ));
+
+        // Start and fail bad
+        renderer.render(&make_event(
+            3,
+            100,
+            EventKind::TaskStarted {
+                task_id: Arc::from("bad"),
+                verb: Arc::from("exec"),
+                inputs: serde_json::Value::Null,
+            },
+        ));
+        renderer.render(&make_event(
+            4,
+            200,
+            EventKind::TaskFailed {
+                task_id: Arc::from("bad"),
+                error: "oops".to_string(),
+                duration_ms: 100,
+                error_code: None,
+            },
+        ));
+
+        assert_eq!(renderer.stats.tasks_passed, 1);
+        assert_eq!(renderer.stats.tasks_failed, 1);
+        // Overall bar position = passed + skipped + failed = 2
+        assert_eq!(
+            renderer.overall_bar.position(),
+            2,
+            "overall bar must count completed + failed"
+        );
+    }
+
+    // ── format_running_msg pure function tests ────────────────────────
+
+    #[test]
+    fn format_running_msg_empty_tokens_returns_running() {
+        let msg = LiveRenderer::format_running_msg("");
+        // Strip ANSI for comparison
+        let stripped: String = msg
+            .chars()
+            .fold((String::new(), false), |(mut s, in_esc), c| {
+                if in_esc {
+                    if c == 'm' { (s, false) } else { (s, true) }
+                } else if c == '\x1b' {
+                    (s, true)
+                } else {
+                    s.push(c);
+                    (s, false)
+                }
+            })
+            .0;
+        assert_eq!(stripped, "running");
+    }
+
+    #[test]
+    fn format_running_msg_with_tokens_appends_info() {
+        let msg = LiveRenderer::format_running_msg("in:100 out:50");
+        assert!(
+            msg.contains("running"),
+            "message must contain 'running'"
+        );
+        assert!(
+            msg.contains("in:100 out:50"),
+            "message must contain token info"
+        );
+    }
 }
