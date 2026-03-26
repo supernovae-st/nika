@@ -930,6 +930,14 @@ impl RigAgentLoop {
         let model_name = Self::strip_model_prefix(model_name);
         let model = client.completion_model(model_name);
 
+        // Ensure params.provider is set for downstream use (stop_sequences key mapping, etc.)
+        // In auto-detect mode, params.provider may be None even though we know the provider.
+        if self.params.provider.is_none() {
+            if let Some(ref pk) = provider_kind {
+                self.params.provider = Some(pk.to_provider_id().to_string());
+            }
+        }
+
         // Take ownership of tools for first attempt
         let tools = self.tools_as_boxed();
         let max_turns = self.params.max_turns.unwrap_or(10) as usize;

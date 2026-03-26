@@ -77,6 +77,21 @@ impl ProviderKind {
         }
     }
 
+    /// Get the canonical provider ID (lowercase) used for API-level config
+    /// (e.g., stop_sequences key mapping, additional_params).
+    pub fn to_provider_id(&self) -> &'static str {
+        match self {
+            Self::Claude => "anthropic",
+            Self::OpenAI => "openai",
+            Self::Mistral => "mistral",
+            Self::Groq => "groq",
+            Self::DeepSeek => "deepseek",
+            Self::Gemini => "gemini",
+            Self::XAi => "xai",
+            Self::Native => "native",
+        }
+    }
+
     /// Check if provider is free (local or free tier)
     pub fn is_free(&self) -> bool {
         matches!(self, Self::Native)
