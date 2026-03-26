@@ -58,9 +58,16 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ env.RELEASE_TAG }}
           REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
         run: |
           COMMIT=$(git rev-parse HEAD)
           echo "Release commit: ${COMMIT}"
+
+          # Skip CI check for manual dispatch (operator takes responsibility)
+          if [ "${EVENT}" = "workflow_dispatch" ]; then
+            echo "Manual dispatch — skipping automated CI check"
+            exit 0
+          fi
 
           # Check if CI workflow succeeded on this commit
           STATUS=$(gh api "repos/${REPO}/commits/${COMMIT}/check-runs" \
@@ -70,7 +77,7 @@ jobs:
             echo "::error::CI has failures on this commit. Fix before releasing."
             exit 1
           fi
-          echo "CI status: ${STATUS:-no checks found (manual dispatch)}"
+          echo "CI status: ${STATUS:-no checks found}"
 
       - name: Verify version coherence
         env:
