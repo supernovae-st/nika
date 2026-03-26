@@ -63,7 +63,7 @@ pub fn compute_layers<'a>(
                     depths.insert(succ, new_depth);
                 }
                 let deg = in_degree.get_mut(succ).unwrap();
-                *deg -= 1;
+                *deg = deg.saturating_sub(1);
                 if *deg == 0 {
                     queue.push_back(succ);
                 }
