@@ -196,7 +196,7 @@ fn install_panic_hook() {
     });
 }
 
-/// Install signal handlers for SIGTERM and SIGHUP.
+/// Install signal handlers for SIGTERM and SIGHUP (Unix only).
 ///
 /// These signals are sent when the terminal is closed (SIGHUP) or when the
 /// process is killed (SIGTERM). Without handlers, the terminal is left in raw
@@ -204,11 +204,12 @@ fn install_panic_hook() {
 ///
 /// The handler restores terminal state (disable raw mode, leave alternate
 /// screen) and exits with the conventional 128+signal code.
+#[cfg(unix)]
 fn install_signal_handlers() {
     use signal_hook::consts::{SIGHUP, SIGTERM};
     use signal_hook::iterator::Signals;
 
-    let mut signals = match Signals::new([SIGTERM, SIGHUP]) {
+    let mut signals: Signals = match Signals::new([SIGTERM, SIGHUP]) {
         Ok(s) => s,
         Err(e) => {
             tracing::warn!("Failed to install signal handlers: {e}");
@@ -226,6 +227,10 @@ fn install_signal_handlers() {
         }
     });
 }
+
+/// No-op on Windows — signal_hook::iterator is Unix-only.
+#[cfg(not(unix))]
+fn install_signal_handlers() {}
 
 /// Run the TUI for a workflow
 ///

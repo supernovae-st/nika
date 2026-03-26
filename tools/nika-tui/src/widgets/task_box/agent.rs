@@ -363,7 +363,7 @@ impl AgentBox {
                 );
                 let cost_str = format!("${:.4}", self.cost);
                 let tools_str = format!("🔧{}", self.tool_calls);
-                let velocity_sparkline = self.velocity.sparkline_chars();
+                let velocity_sparkline = self.velocity.sparkline_chars().to_owned();
 
                 items.push(ListItem::new(Line::from(vec![
                     Span::styled("│ ", border_style),

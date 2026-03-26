@@ -54,6 +54,8 @@ pub struct InferBox {
     pub decrypt: StreamingDecrypt,
     /// Whether to use decrypt effect for streaming
     pub use_decrypt_effect: bool,
+    /// Cached first line of response for collapsed mode (avoids alloc per frame)
+    response_first_line: String,
 }
 
 impl InferBox {
@@ -76,6 +78,7 @@ impl InferBox {
             cost: None,
             decrypt: StreamingDecrypt::new().with_verb(DecryptVerb::Infer),
             use_decrypt_effect: true, // Enable by default
+            response_first_line: String::new(),
         }
     }
 
@@ -155,6 +158,12 @@ impl InferBox {
     /// Also pushes text to decrypt effect for Matrix animation
     pub fn append_response(&mut self, text: &str) {
         self.response.push_str(text);
+        // Update first-line cache (avoids replace('\n'," ") alloc every frame)
+        if self.response_first_line.len() < 200 {
+            let end = self.response.find('\n').unwrap_or(self.response.len());
+            let end = end.min(200);
+            self.response_first_line = self.response[..end].to_string();
+        }
         // Push to decrypt for Matrix animation effect
         if self.use_decrypt_effect {
             self.decrypt.push_text(text);
@@ -194,6 +203,7 @@ impl InferBox {
     /// Clear response and reset decrypt state
     pub fn clear_response(&mut self) {
         self.response.clear();
+        self.response_first_line.clear();
         self.decrypt.clear();
     }
 
@@ -447,8 +457,8 @@ impl InferBox {
                     items.push(ListItem::new(response_line));
                 }
             } else {
-                // Truncated single line
-                let text = InferBox::truncate(&self.response.replace('\n', " "), 60);
+                // Truncated single line (use cached first-line — avoids alloc per frame)
+                let text = InferBox::truncate(&self.response_first_line, 60);
                 let response_line = Line::from(vec![
                     Span::styled("│ ", border_style),
                     Span::styled(format!("┊ {}{}", text, cursor), content_style),

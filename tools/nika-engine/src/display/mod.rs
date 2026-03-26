@@ -11,6 +11,7 @@
 //! - `spinner` — Spinner constants and progress bar templates
 
 pub mod check;
+pub mod cli_format;
 pub mod colors;
 pub mod dag;
 mod dag_render;
@@ -28,6 +29,11 @@ mod summary;
 pub use check::{
     print_check_header, print_check_summary, print_mcp_validation, print_phase,
     print_phase_skipped, McpCallValidation, McpCheckResult, McpParamError, PhaseResult,
+};
+pub use cli_format::{
+    hint, key_value, key_value_width, panel, panel_with_content, section_header,
+    section_header_with_subtitle, separator, status_line, status_line_with_hint, terminal_width,
+    tree_connector, StatusIcon, TREE_BRANCH, TREE_LAST, TREE_PIPE,
 };
 pub use dag_render::{render_dag, DagTask, DagTaskStatus};
 pub use detail::DetailLevel;

@@ -1,7 +1,10 @@
 //! Provider management subcommand handler
 
 use clap::Subcommand;
+use colored::Colorize;
+use std::io::IsTerminal;
 
+use nika::display::{hint, status_line, tree_connector, StatusIcon};
 use nika::error::NikaError;
 
 /// Provider management actions
@@ -12,13 +15,13 @@ pub enum ProviderAction {
 
     /// Set API key for a provider (stored in system keychain)
     Set {
-        /// Provider name (anthropic, openai, mistral, groq, deepseek)
-        provider: String,
-        /// API key (or use --prompt to enter interactively)
+        /// Provider name (anthropic, openai, mistral, groq, deepseek, gemini, xai)
+        provider: Option<String>,
+        /// API key (omit to enter interactively with hidden input)
         key: Option<String>,
-        /// Prompt for key interactively (hidden input)
-        #[arg(short, long)]
-        prompt: bool,
+        /// Skip connection test after storing
+        #[arg(long)]
+        no_test: bool,
     },
 
     /// Get API key for a provider (masked for security)
@@ -43,7 +46,21 @@ pub enum ProviderAction {
     },
 }
 
-/// Get all LLM provider IDs (from nika::core::KNOWN_PROVIDERS).
+const KEY_PREFIXES: &[(&str, &str)] = &[
+    ("sk-ant-", "anthropic"),
+    ("sk-proj-", "openai"),
+    ("sk-svcacct-", "openai"),
+    ("gsk_", "groq"),
+    ("xai-", "xai"),
+];
+
+pub fn detect_provider_from_key(key: &str) -> Option<&'static str> {
+    KEY_PREFIXES
+        .iter()
+        .find(|(prefix, _)| key.starts_with(prefix))
+        .map(|(_, provider)| *provider)
+}
+
 fn llm_provider_ids() -> Vec<&'static str> {
     use nika::core::{ProviderCategory, KNOWN_PROVIDERS};
     KNOWN_PROVIDERS
@@ -53,61 +70,112 @@ fn llm_provider_ids() -> Vec<&'static str> {
         .collect()
 }
 
-/// Handle provider management commands
+const PROVIDER_DESCRIPTIONS: &[(&str, &str)] = &[
+    ("anthropic", "Claude — recommended for reasoning & code"),
+    ("openai", "GPT-4o, GPT-4.1, o3, o4-mini"),
+    ("mistral", "Mistral Large, Small, Codestral"),
+    ("groq", "Llama 4, Mixtral — ultra-fast inference"),
+    ("deepseek", "DeepSeek Chat, Reasoner — budget-friendly"),
+    ("gemini", "Gemini 2.5 Pro, Flash — large context"),
+    ("xai", "Grok 3 — real-time knowledge"),
+];
+
+fn provider_description(id: &str) -> &'static str {
+    PROVIDER_DESCRIPTIONS
+        .iter()
+        .find(|(p, _)| *p == id)
+        .map(|(_, d)| *d)
+        .unwrap_or("")
+}
+
 pub async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaError> {
-    use colored::Colorize;
     use nika::core::provider_to_env_var;
     use nika::secrets::{mask_api_key, migrate_env_to_keyring, validate_key_format, NikaKeyring};
-    use std::io::{self, Write};
 
-    // Get LLM provider IDs from nika::core
     let all_providers = llm_provider_ids();
 
     match action {
         ProviderAction::List => {
-            println!("{}", "LLM Providers".bold());
-            println!("{}", "─".repeat(60));
-
+            let mut configured = 0usize;
+            let total = all_providers.len();
             for provider in &all_providers {
                 let env_var = provider_to_env_var(provider).unwrap_or("UNKNOWN_API_KEY");
-                let has_keychain = NikaKeyring::exists(provider);
-                let has_env = std::env::var(env_var).is_ok();
-
-                let status = match (has_keychain, has_env) {
-                    (true, true) => format!("{} (keychain + env)", "✓".green()),
-                    (true, false) => format!("{} (keychain)", "✓".green()),
-                    (false, true) => format!("{} (env only)", "~".yellow()),
-                    (false, false) => format!("{}", "✗".red()),
-                };
-
-                let masked = if has_keychain {
-                    NikaKeyring::get_masked(provider).unwrap_or_default()
-                } else if has_env {
-                    std::env::var(env_var)
-                        .ok()
-                        .map(|k| mask_api_key(&k))
-                        .unwrap_or_default()
-                } else {
-                    String::new()
-                };
-
-                let hint = if !has_keychain && !has_env {
-                    format!("  \u{2192} nika provider set {}", provider)
-                        .dimmed()
-                        .to_string()
-                } else if masked.is_empty() {
-                    String::new()
-                } else {
-                    format!("[{}]", masked.dimmed())
-                };
-
-                println!("  {:12} {} {}", provider, status, hint);
+                if NikaKeyring::exists(provider)
+                    || std::env::var(env_var)
+                        .map(|v| !v.is_empty())
+                        .unwrap_or(false)
+                {
+                    configured += 1;
+                }
             }
-
+            let count_color = if configured == total {
+                format!("{configured}/{total} all configured")
+                    .green()
+                    .to_string()
+            } else if configured > 0 {
+                format!("{configured}/{total} configured")
+                    .yellow()
+                    .to_string()
+            } else {
+                format!("0/{total} configured").red().to_string()
+            };
+            println!("\n  {} ({})", "LLM Providers".bold(), count_color);
+            println!("  {}", "─".repeat(50).dimmed());
+            println!();
+            for (i, provider) in all_providers.iter().enumerate() {
+                let env_var = provider_to_env_var(provider).unwrap_or("UNKNOWN_API_KEY");
+                let has_keychain = NikaKeyring::exists(provider);
+                let has_env = std::env::var(env_var)
+                    .map(|v| !v.is_empty())
+                    .unwrap_or(false);
+                let is_last = i == all_providers.len() - 1;
+                let connector = tree_connector(is_last).dimmed();
+                let (icon, source, masked) = match (has_keychain, has_env) {
+                    (true, _) => {
+                        let m = NikaKeyring::get_masked(provider).unwrap_or_default();
+                        let s = if has_env {
+                            "keychain + env"
+                        } else {
+                            "keychain"
+                        };
+                        (StatusIcon::Ok, s, m)
+                    }
+                    (false, true) => {
+                        let m = std::env::var(env_var)
+                            .ok()
+                            .map(|k| mask_api_key(&k))
+                            .unwrap_or_default();
+                        (StatusIcon::Ok, "env", m)
+                    }
+                    (false, false) => (StatusIcon::Fail, "", String::new()),
+                };
+                if masked.is_empty() {
+                    println!(
+                        "  {} {} {:12} {}",
+                        connector,
+                        icon,
+                        provider,
+                        format!("→ nika provider set {provider}").dimmed()
+                    );
+                } else {
+                    println!(
+                        "  {} {} {:12} {} {}",
+                        connector,
+                        icon,
+                        provider,
+                        format!("[{masked}]").dimmed(),
+                        format!("({source})").dimmed()
+                    );
+                }
+            }
             println!();
             println!(
                 "{}",
-                "Use 'nika provider set <name>' to add an API key".dimmed()
+                hint("nika provider set <name>  Add or update an API key")
+            );
+            println!(
+                "{}",
+                hint("nika provider test <name> Test provider connection")
             );
             Ok(())
         }
@@ -115,90 +183,149 @@ pub async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaE
         ProviderAction::Set {
             provider,
             key,
-            prompt,
+            no_test,
         } => {
-            // Validate provider name using nika::core
-            if !all_providers.contains(&provider.as_str()) {
-                return Err(NikaError::ValidationError {
-                    reason: format!(
-                        "Unknown provider '{}'. Valid: {}",
-                        provider,
-                        all_providers.join(", ")
-                    ),
-                });
-            }
-
-            // Get key from argument or prompt
-            let api_key = match (prompt, key) {
-                // If prompt flag is set or no key provided, read from stdin
-                (true, _) | (false, None) => {
-                    print!("Enter API key for {provider}: ");
-                    let _ = io::stdout().flush();
-
-                    let mut input = String::new();
-                    io::stdin().read_line(&mut input).map_err(|e| {
-                        NikaError::IoError(std::io::Error::new(
-                            e.kind(),
-                            format!("Failed to read input: {e}"),
-                        ))
-                    })?;
-                    input.trim().to_string()
+            let is_tty = std::io::stdin().is_terminal();
+            let provider = match provider {
+                Some(p) => {
+                    if !all_providers.contains(&p.as_str()) {
+                        return Err(NikaError::ValidationError {
+                            reason: format!(
+                                "Unknown provider '{}'. Valid: {}",
+                                p,
+                                all_providers.join(", ")
+                            ),
+                        });
+                    }
+                    p
                 }
-                // Key provided as argument
-                (false, Some(k)) => k,
+                None if is_tty => {
+                    let items: Vec<(String, String, String)> = all_providers
+                        .iter()
+                        .map(|&p| {
+                            (
+                                p.to_string(),
+                                p.to_string(),
+                                provider_description(p).to_string(),
+                            )
+                        })
+                        .collect();
+                    cliclack::select("Which provider?")
+                        .items(
+                            &items
+                                .iter()
+                                .map(|(v, l, h)| (v.as_str(), l.as_str(), h.as_str()))
+                                .collect::<Vec<_>>(),
+                        )
+                        .interact()
+                        .map_err(|e| {
+                            NikaError::IoError(std::io::Error::new(
+                                std::io::ErrorKind::Interrupted,
+                                format!("Cancelled: {e}"),
+                            ))
+                        })?
+                        .to_string()
+                }
+                None => {
+                    return Err(NikaError::ValidationError {
+                        reason: "Provider name required in non-interactive mode".into(),
+                    })
+                }
             };
-
-            // Validate key format
+            let api_key = match key {
+                Some(k) => k,
+                None if is_tty => cliclack::password(format!("Paste your {provider} API key:"))
+                    .mask('•')
+                    .interact()
+                    .map_err(|e| {
+                        NikaError::IoError(std::io::Error::new(
+                            std::io::ErrorKind::Interrupted,
+                            format!("Cancelled: {e}"),
+                        ))
+                    })?,
+                None => {
+                    return Err(NikaError::ValidationError {
+                        reason: "API key required. Usage: nika provider set <provider> <key>"
+                            .into(),
+                    })
+                }
+            };
+            if let Some(detected) = detect_provider_from_key(&api_key) {
+                if detected != provider {
+                    println!(
+                        "  {} Key prefix suggests {} but storing as {}",
+                        StatusIcon::Warn,
+                        detected.cyan(),
+                        provider.cyan()
+                    );
+                }
+            }
             if let Err(e) = validate_key_format(&provider, &api_key) {
                 return Err(NikaError::ValidationError { reason: e });
             }
-
-            // Store in keychain
             NikaKeyring::set(&provider, &api_key).map_err(|e| NikaError::ConfigError {
                 reason: format!("Failed to store key: {e}"),
             })?;
-
             println!(
-                "{} API key for {} stored in system keychain",
-                "✓".green(),
+                "  {} API key for {} stored in system keychain",
+                StatusIcon::Ok,
                 provider.bold()
             );
+            if !no_test
+                && is_tty
+                && cliclack::confirm("Test connection now?")
+                    .initial_value(true)
+                    .interact()
+                    .unwrap_or(false)
+            {
+                let env_var = provider_to_env_var(&provider).unwrap_or("UNKNOWN_API_KEY");
+                std::env::set_var(env_var, &api_key);
+                test_provider_connection(&provider).await;
+            }
             Ok(())
         }
 
         ProviderAction::Get { provider } => {
+            let env_var = provider_to_env_var(&provider).unwrap_or("UNKNOWN_API_KEY");
             match NikaKeyring::get_masked(&provider) {
-                Some(masked) => {
-                    println!("{provider}: {masked}");
-                }
-                None => {
-                    let env_var = provider_to_env_var(&provider).unwrap_or("UNKNOWN_API_KEY");
-                    match std::env::var(env_var) {
-                        Ok(key) => {
-                            println!("{}: {} (from env)", provider, mask_api_key(&key));
-                        }
-                        Err(_) => {
-                            println!("{}: {}", provider, "Not configured".red());
-                        }
+                Some(masked) => println!(
+                    "  {} {}: {} {}",
+                    StatusIcon::Ok,
+                    provider.bold(),
+                    masked,
+                    "(keychain)".dimmed()
+                ),
+                None => match std::env::var(env_var) {
+                    Ok(key) if !key.is_empty() => println!(
+                        "  {} {}: {} {}",
+                        StatusIcon::Ok,
+                        provider.bold(),
+                        mask_api_key(&key),
+                        "(env)".dimmed()
+                    ),
+                    _ => {
+                        println!(
+                            "{}",
+                            status_line(StatusIcon::Fail, &format!("{provider}: not configured"))
+                        );
+                        println!("{}", hint(&format!("nika provider set {provider}")));
                     }
-                }
+                },
             }
             Ok(())
         }
 
         ProviderAction::Delete { provider } => {
             match NikaKeyring::delete(&provider) {
-                Ok(()) => {
-                    println!(
-                        "{} API key for {} deleted from keychain",
-                        "✓".green(),
-                        provider.bold()
-                    );
-                }
+                Ok(()) => println!(
+                    "  {} API key for {} deleted from keychain",
+                    StatusIcon::Ok,
+                    provider.bold()
+                ),
                 Err(e) => {
                     return Err(NikaError::ConfigError {
                         reason: format!("Failed to delete key: {e}"),
-                    });
+                    })
                 }
             }
             Ok(())
@@ -216,66 +343,111 @@ pub async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaE
         }
 
         ProviderAction::Test { provider } => {
-            println!("Testing connection to {}...", provider.bold());
-
-            // First check if API key is configured
-            let env_var = provider_to_env_var(&provider).unwrap_or("UNKNOWN_API_KEY");
-            let has_key = NikaKeyring::exists(&provider)
-                || std::env::var(env_var).is_ok_and(|v| !v.is_empty());
-
-            if !has_key && provider != "native" {
-                println!(
-                    "{} No API key configured for {}",
-                    "✗".red(),
-                    provider.bold()
-                );
-                println!("  Use 'nika provider set {provider}' to add your API key");
-                return Ok(());
-            }
-
-            // Try to create provider and make a simple request
-            use nika::provider::rig::RigProvider;
-
-            let prov = match provider.as_str() {
-                "anthropic" => RigProvider::claude(),
-                "openai" => RigProvider::openai(),
-                "mistral" => RigProvider::mistral(),
-                "groq" => RigProvider::groq(),
-                "deepseek" => RigProvider::deepseek(),
-                "gemini" => RigProvider::gemini(),
-                "xai" => RigProvider::xai(),
-                "native" => {
-                    #[cfg(feature = "native-inference")]
-                    {
-                        RigProvider::native()
-                    }
-                    #[cfg(not(feature = "native-inference"))]
-                    {
-                        return Err(NikaError::ValidationError {
-                            reason: "Native inference requires --features native-inference"
-                                .to_string(),
-                        });
-                    }
-                }
-                _ => {
-                    return Err(NikaError::ValidationError {
-                        reason: format!("Unknown provider: {provider}"),
-                    })
-                }
-            };
-
-            // Simple test inference
-            match prov.infer("Say 'OK' if you can hear me.", None).await {
-                Ok(response) => {
-                    println!("{} Connection successful!", "✓".green());
-                    let truncated: String = response.chars().take(100).collect();
-                    println!("  Response: {truncated}");
-                }
-                Err(e) => {
-                    println!("{} Connection failed: {}", "✗".red(), e);
-                }
-            }
+            test_provider_connection(&provider).await;
             Ok(())
         }
+    }
+}
+
+async fn test_provider_connection(provider: &str) {
+    use nika::core::provider_to_env_var;
+    use nika::secrets::NikaKeyring;
+    let env_var = provider_to_env_var(provider).unwrap_or("UNKNOWN_API_KEY");
+    let has_key =
+        NikaKeyring::exists(provider) || std::env::var(env_var).is_ok_and(|v| !v.is_empty());
+    if !has_key && provider != "native" {
+        println!(
+            "{}",
+            status_line(StatusIcon::Fail, &format!("No API key for {provider}"))
+        );
+        println!("{}", hint(&format!("nika provider set {provider}")));
+        return;
+    }
+    let spinner = cliclack::spinner();
+    spinner.start(format!("Testing {provider}..."));
+    use nika::provider::rig::RigProvider;
+    let prov = match provider {
+        "anthropic" => RigProvider::claude(),
+        "openai" => RigProvider::openai(),
+        "mistral" => RigProvider::mistral(),
+        "groq" => RigProvider::groq(),
+        "deepseek" => RigProvider::deepseek(),
+        "gemini" => RigProvider::gemini(),
+        "xai" => RigProvider::xai(),
+        "native" => {
+            #[cfg(feature = "native-inference")]
+            {
+                RigProvider::native()
+            }
+            #[cfg(not(feature = "native-inference"))]
+            {
+                spinner.stop("Native inference not available");
+                return;
+            }
+        }
+        _ => {
+            spinner.stop(format!("Unknown provider: {provider}"));
+            return;
+        }
+    };
+    match prov.infer("Say 'OK' if you can hear me.", None).await {
+        Ok(response) => {
+            let truncated: String = response.chars().take(80).collect();
+            spinner.stop(format!("{} Connection OK — {truncated}", "✓".green()));
+        }
+        Err(e) => spinner.stop(format!("{} Connection failed: {e}", "✗".red())),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn detect_anthropic_key() {
+        assert_eq!(
+            detect_provider_from_key("sk-ant-api03-test"),
+            Some("anthropic")
+        );
+    }
+    #[test]
+    fn detect_openai_key() {
+        assert_eq!(detect_provider_from_key("sk-proj-abc123"), Some("openai"));
+        assert_eq!(
+            detect_provider_from_key("sk-svcacct-abc123"),
+            Some("openai")
+        );
+    }
+    #[test]
+    fn detect_groq_key() {
+        assert_eq!(detect_provider_from_key("gsk_abc123"), Some("groq"));
+    }
+    #[test]
+    fn detect_xai_key() {
+        assert_eq!(detect_provider_from_key("xai-abc123"), Some("xai"));
+    }
+    #[test]
+    fn detect_unknown_key() {
+        assert_eq!(detect_provider_from_key("unknown-key-format"), None);
+    }
+    #[test]
+    fn detect_empty_key() {
+        assert_eq!(detect_provider_from_key(""), None);
+    }
+    #[test]
+    fn provider_description_known() {
+        assert!(provider_description("anthropic").contains("Claude"));
+    }
+    #[test]
+    fn provider_description_unknown() {
+        assert!(provider_description("nonexistent").is_empty());
+    }
+    #[test]
+    fn llm_provider_ids_includes_all_seven() {
+        let ids = llm_provider_ids();
+        assert!(ids.len() >= 7);
+        assert!(ids.contains(&"anthropic"));
+        assert!(ids.contains(&"openai"));
+        assert!(ids.contains(&"xai"));
     }
 }
