@@ -101,6 +101,9 @@ pub async fn handle_doctor_command(
     checks.extend(with_section(check_agent_skills(), "AI Integration"));
     checks.push(check_agents_md().in_section("AI Integration"));
 
+    // ─── Daemon ──────────────────────────────────────────────────────────────
+    checks.extend(with_section(check_daemon().await, "Daemon"));
+
     // ─── Environment ───────────────────────────────────────────────────────
     checks.extend(with_section(check_trace_directory(), "Environment"));
     checks.push(check_rust_version().in_section("Environment"));
@@ -1035,6 +1038,80 @@ fn output_doctor_text(checks: &[DiagnosticCheck], quiet: bool) {
             );
         }
     }
+}
+
+async fn check_daemon() -> Vec<DiagnosticCheck> {
+    use nika_daemon::{daemon_pid_path, daemon_socket_path, DaemonClient};
+    use std::time::Duration;
+
+    let mut checks = vec![];
+    let socket_path = daemon_socket_path();
+    let pid_path = daemon_pid_path();
+
+    // Check socket exists
+    if !socket_path.exists() {
+        checks.push(DiagnosticCheck::warn(
+            "Daemon socket",
+            "daemon not running",
+            "start with: nika daemon start",
+        ));
+        return checks;
+    }
+    checks.push(DiagnosticCheck::pass(
+        "Daemon socket",
+        format!("{}", socket_path.display()),
+    ));
+
+    // Check PID file
+    match nika_daemon::lifecycle::check_pid_file(&pid_path) {
+        Ok(Some(pid)) => {
+            checks.push(DiagnosticCheck::pass("Daemon PID", format!("pid {pid}")));
+        }
+        Ok(None) => {
+            checks.push(DiagnosticCheck::warn(
+                "Daemon PID",
+                "socket exists but no valid PID file",
+                "try: nika daemon restart",
+            ));
+        }
+        Err(e) => {
+            checks.push(DiagnosticCheck::fail(
+                "Daemon PID",
+                format!("PID check failed: {e}"),
+                "try: nika daemon restart",
+            ));
+        }
+    }
+
+    // Ping the daemon
+    let client = DaemonClient::new(&socket_path).with_timeout(Duration::from_secs(2));
+    match client.ping().await {
+        Ok((version, uptime_secs)) => {
+            checks.push(DiagnosticCheck::pass(
+                "Daemon ping",
+                format!("v{version}, uptime {uptime_secs}s"),
+            ));
+
+            // Version mismatch check
+            let cli_version = env!("CARGO_PKG_VERSION");
+            if version != cli_version {
+                checks.push(DiagnosticCheck::warn(
+                    "Daemon version",
+                    format!("daemon v{version} != CLI v{cli_version}"),
+                    "restart daemon: nika daemon restart",
+                ));
+            }
+        }
+        Err(e) => {
+            checks.push(DiagnosticCheck::fail(
+                "Daemon ping",
+                format!("ping failed: {e}"),
+                "try: nika daemon restart",
+            ));
+        }
+    }
+
+    checks
 }
 
 fn output_doctor_json(checks: &[DiagnosticCheck]) -> Result<(), NikaError> {
