@@ -2107,8 +2107,7 @@ fn summary_min_delegates_to_quiet() {
 
 #[test]
 fn summary_zero_tokens() {
-    let mut stats = RunStats::default();
-    stats.tasks_passed = 1;
+    let stats = RunStats { tasks_passed: 1, ..RunStats::default() };
     let lines = summary::format_run_summary(&stats, DetailLevel::Default, 1000, None, 80)
         .expect("should produce output");
     let joined = lines.join("\n");
@@ -2122,8 +2121,7 @@ fn summary_zero_tokens() {
 
 #[test]
 fn summary_zero_cost() {
-    let mut stats = RunStats::default();
-    stats.tasks_passed = 1;
+    let stats = RunStats { tasks_passed: 1, ..RunStats::default() };
     let lines = summary::format_run_summary(&stats, DetailLevel::Default, 1000, None, 80)
         .expect("should produce output");
     let joined = lines.join("\n");
