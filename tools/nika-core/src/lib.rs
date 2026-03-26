@@ -20,5 +20,6 @@ pub mod ast;
 pub mod binding;
 pub mod catalogs;
 pub mod error;
+pub mod mcp;
 pub mod schema;
 pub mod source;

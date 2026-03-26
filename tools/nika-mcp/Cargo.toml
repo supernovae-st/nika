@@ -9,6 +9,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+nika-core = { workspace = true }
 nika-event = { workspace = true }
 rmcp = { workspace = true }
 tokio = { workspace = true }
