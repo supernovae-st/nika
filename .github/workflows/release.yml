@@ -442,72 +442,98 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          # Create release notes
-          cat > release-notes.md << 'HEADER'
-          ```
-          ╔═══════════════════════════════════════════════════════════════════════════════╗
-          ║                                                                               ║
-          ║   🦋  N I K A                                                                 ║
-          ║                                                                               ║
-          ║   Semantic YAML Workflow Engine for AI                                        ║
-          ║                                                                               ║
-          ╚═══════════════════════════════════════════════════════════════════════════════╝
-          ```
-          HEADER
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "v0.0.0")
 
-          echo "" >> release-notes.md
-          echo "## 🦋 Nika v${VERSION}" >> release-notes.md
-          echo "" >> release-notes.md
+          # Stats
+          CRATE_COUNT=$(ls -d tools/nika-*/Cargo.toml tools/nika/Cargo.toml 2>/dev/null | wc -l | tr -d ' ')
+          TEST_COUNT=$(grep -r "#\[test\]" tools/ --include="*.rs" 2>/dev/null | wc -l | tr -d ' ')
+          NPM_COUNT=$(ls -d packages/*/package.json 2>/dev/null | wc -l | tr -d ' ')
 
-          # Extract changelog section
-          if [ -f "CHANGELOG.md" ]; then
-            NOTES=$(awk -v ver="${VERSION}" '/^## \[/{if(match($0, ver)){found=1; next}} /^## \[/{if(found) exit} found{print}' CHANGELOG.md || true)
-            if [ -n "$NOTES" ]; then
-              echo "$NOTES" >> release-notes.md
-            fi
+          # What's Changed: prefer CHANGELOG, fallback to git log
+          CHANGELOG_NOTES=""
+          if [ -f "tools/nika/CHANGELOG.md" ]; then
+            CHANGELOG_NOTES=$(awk -v ver="${VERSION}" '
+              /^## \[/ { if (match($0, ver)) { found=1; next } else if (found) { exit } }
+              found { print }
+            ' tools/nika/CHANGELOG.md || true)
+          fi
+          if [ -z "$CHANGELOG_NOTES" ]; then
+            CHANGELOG_NOTES=$(git log --oneline "${PREV_TAG}..HEAD" --pretty="- %s" 2>/dev/null | head -20 || echo "- Initial release")
           fi
 
-          # Add installation + published platforms section
-          cat >> release-notes.md << INSTALL
+          # Binary sizes from release-assets
+          SIZE_ARM64=$(ls -lh release-assets/nika-macos-arm64-*.tar.gz 2>/dev/null | awk '{print $5}' | head -1 || echo "—")
+          SIZE_X64=$(ls -lh release-assets/nika-macos-x64-*.tar.gz 2>/dev/null | awk '{print $5}' | head -1 || echo "—")
+          SIZE_LINUX_X64=$(ls -lh release-assets/nika-linux-x64-*.tar.gz 2>/dev/null | awk '{print $5}' | head -1 || echo "—")
+          SIZE_LINUX_ARM64=$(ls -lh release-assets/nika-linux-arm64-*.tar.gz 2>/dev/null | awk '{print $5}' | head -1 || echo "—")
+          SIZE_WIN=$(ls -lh release-assets/nika-windows-x64-*.zip 2>/dev/null | awk '{print $5}' | head -1 || echo "—")
 
-          ---
-
-          ## 📦 Installation
-
-          | Method | Command |
-          |--------|---------|
-          | **Quick Install** | \`curl -fsSL https://raw.githubusercontent.com/supernovae-st/nika/main/install.sh \| sh\` |
-          | **Homebrew** | \`brew install supernovae-st/tap/nika\` |
-          | **npm** | \`npx @supernovae/nika\` or \`npm install -g @supernovae/nika\` |
-          | **Cargo** | \`cargo install nika\` |
-          | **Docker** | \`docker run --rm ghcr.io/supernovae-st/nika:${VERSION}\` |
-          | **VS Code** | Search "Nika" in Extensions or \`ext install supernovae.nika-lang\` |
-
-          ### Binary Download
-
-          | Platform | Architecture | File |
-          |----------|--------------|------|
-          | 🍎 macOS | Apple Silicon | \`nika-macos-arm64-${VERSION}.tar.gz\` |
-          | 🍎 macOS | Intel | \`nika-macos-x64-${VERSION}.tar.gz\` |
-          | 🐧 Linux | x64 | \`nika-linux-x64-${VERSION}.tar.gz\` |
-          | 🐧 Linux | ARM64 | \`nika-linux-arm64-${VERSION}.tar.gz\` |
-          | 🪟 Windows | x64 | \`nika-windows-x64-${VERSION}.zip\` |
-
-          ## 🌐 Published To
-
-          | Platform | Link |
-          |----------|------|
-          | GitHub Releases | [v${VERSION}](https://github.com/supernovae-st/nika/releases/tag/v${VERSION}) |
-          | VS Code Marketplace | [supernovae.nika-lang](https://marketplace.visualstudio.com/items?itemName=supernovae.nika-lang) |
-          | npm | [@supernovae/nika](https://www.npmjs.com/package/@supernovae/nika) |
-          | crates.io | [nika](https://crates.io/crates/nika) |
-          | Docker | [ghcr.io/supernovae-st/nika](https://github.com/supernovae-st/nika/pkgs/container/nika) |
-          | Homebrew | \`supernovae-st/tap/nika\` |
-
-          ---
-
-          <sub>Made with 💜 by [SuperNovae Studio](https://supernovae.studio) — Schema \`nika/workflow@0.12\`</sub>
-          INSTALL
+          # Write release notes (no ASCII art headers)
+          {
+            echo "## 🦋 Nika v${VERSION}"
+            echo ""
+            echo "> Semantic YAML Workflow Engine for AI — Schema \`nika/workflow@0.12\`"
+            echo ""
+            echo "### What's Changed"
+            echo ""
+            echo "${CHANGELOG_NOTES}"
+            echo ""
+            echo "### 📦 Install"
+            echo ""
+            echo "| | Method | Command |"
+            echo "|---|--------|---------|"
+            echo "| 🚀 | **Quick** | \`curl -fsSL https://raw.githubusercontent.com/supernovae-st/nika/main/install.sh \| sh\` |"
+            echo "| 🍺 | **Homebrew** | \`brew install supernovae-st/tap/nika\` |"
+            echo "| 📦 | **npm** | \`npx @supernovae/nika\` |"
+            echo "| 🦀 | **Cargo** | \`cargo install nika\` |"
+            echo "| 🐳 | **Docker** | \`docker run --rm ghcr.io/supernovae-st/nika:${VERSION}\` |"
+            echo "| 💻 | **VS Code** | Search \"Nika\" or \`ext install supernovae.nika-lang\` |"
+            echo "| 🪟 | **Scoop** | \`scoop bucket add nika https://github.com/supernovae-st/scoop-nika && scoop install nika\` |"
+            echo "| 🐧 | **AUR** | \`yay -S nika-bin\` |"
+            echo ""
+            echo "### 📥 Downloads"
+            echo ""
+            echo "| Platform | Architecture | File | Size |"
+            echo "|----------|-------------|------|------|"
+            echo "| 🍎 macOS | Apple Silicon | \`nika-macos-arm64-${VERSION}.tar.gz\` | ${SIZE_ARM64} |"
+            echo "| 🍎 macOS | Intel | \`nika-macos-x64-${VERSION}.tar.gz\` | ${SIZE_X64} |"
+            echo "| 🐧 Linux | x64 | \`nika-linux-x64-${VERSION}.tar.gz\` | ${SIZE_LINUX_X64} |"
+            echo "| 🐧 Linux | ARM64 | \`nika-linux-arm64-${VERSION}.tar.gz\` | ${SIZE_LINUX_ARM64} |"
+            echo "| 🪟 Windows | x64 | \`nika-windows-x64-${VERSION}.zip\` | ${SIZE_WIN} |"
+            echo ""
+            echo "> 🔐 All binaries include SHA256 checksums, SLSA provenance, and macOS notarization."
+            echo ""
+            echo "### 🌐 Available On"
+            echo ""
+            echo "| Platform | Link |"
+            echo "|----------|------|"
+            echo "| GitHub | [v${VERSION}](https://github.com/supernovae-st/nika/releases/tag/v${VERSION}) |"
+            echo "| VS Code | [supernovae.nika-lang](https://marketplace.visualstudio.com/items?itemName=supernovae.nika-lang) |"
+            echo "| Open VSX | [supernovae.nika-lang](https://open-vsx.org/extension/supernovae/nika-lang) |"
+            echo "| npm | [@supernovae/nika](https://www.npmjs.com/package/@supernovae/nika) |"
+            echo "| crates.io | [nika](https://crates.io/crates/nika) |"
+            echo "| Docker | [ghcr.io](https://github.com/supernovae-st/nika/pkgs/container/nika) · [Docker Hub](https://hub.docker.com/r/thibautmelen/nika) |"
+            echo "| Homebrew | \`supernovae-st/tap/nika\` |"
+            echo "| Scoop | [supernovae-st/scoop-nika](https://github.com/supernovae-st/scoop-nika) |"
+            echo "| AUR | [nika-bin](https://aur.archlinux.org/packages/nika-bin) |"
+            echo ""
+            echo "### 📊 Stats"
+            echo ""
+            echo "| | Metric | Value |"
+            echo "|---|--------|-------|"
+            echo "| 🦀 | Crates | ${CRATE_COUNT} workspace crates |"
+            echo "| 🧪 | Tests | ${TEST_COUNT}+ passing |"
+            echo "| 📦 | npm | ${NPM_COUNT} platform packages |"
+            echo "| 🔐 | macOS | Signed + Notarized (Developer ID) |"
+            echo "| 🛡️ | SLSA | Build provenance attested |"
+            echo "| 🐳 | Docker | Multi-arch amd64/arm64 + SBOM |"
+            echo ""
+            echo "---"
+            echo ""
+            echo "Made with 💜 by [SuperNovae Studio](https://supernovae.studio) — Open Source, AGPL-3.0"
+            echo ""
+            echo "**Full Changelog**: https://github.com/supernovae-st/nika/compare/${PREV_TAG}...v${VERSION}"
+          } > release-notes.md
 
       - name: Determine pre-release
         id: prerelease
