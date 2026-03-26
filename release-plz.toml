@@ -14,7 +14,7 @@ changelog_config = "cliff.toml"
 git_release_enable = true
 
 # PR labels for automated release PRs
-pr_labels = ["release", "automated", "armada"]
+pr_labels = ["release", "automated"]
 
 # Run cargo semver-checks before releasing
 semver_check = true
@@ -50,10 +50,9 @@ semver_check = true
 # Git tag format
 git_tag_name = "v{{ version }}"
 
-# 🏴‍☠️ CAPTAIN'S ORDERS: Version Lock
+# Version Lock
 # Nika must NEVER be version 1.0.0 or higher
 # This is enforced by:
 # - tests/version_lock_test.rs (Rust tests)
-# - .github/workflows/version-lock.yml (CI)
-# - .github/workflows/armada-checkpoints.yml (Station 10)
+# - ci.yml (job: check, version gate step)
 # See: docs/plans/2025-02-25-nika-fortress-design.md
