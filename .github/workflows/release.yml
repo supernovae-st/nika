@@ -937,6 +937,40 @@ jobs:
         continue-on-error: true
 
   # ─────────────────────────────────────────────────────────────────────────────
+  # Post-publish Smoke Test
+  # ─────────────────────────────────────────────────────────────────────────────
+  smoke-test:
+    name: Post-publish Smoke Test
+    needs: [npm-publish, crates-publish, vscode-publish]
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for registry propagation
+        run: sleep 60
+
+      - name: Test npm package
+        run: |
+          npm info @supernovae/nika version 2>/dev/null && echo "✅ npm: package visible" || echo "⚠️ npm: not yet visible"
+        continue-on-error: true
+
+      - name: Test crates.io
+        run: |
+          curl -s "https://crates.io/api/v1/crates/nika" | grep -q '"newest_version"' && echo "✅ crates.io: visible" || echo "⚠️ crates.io: not yet visible"
+        continue-on-error: true
+
+      - name: Test VS Code Marketplace
+        run: |
+          curl -s "https://marketplace.visualstudio.com/items?itemName=supernovae.nika-lang" | grep -q "nika-lang" && echo "✅ VS Code: visible" || echo "⚠️ VS Code: not yet visible"
+        continue-on-error: true
+
+      - name: Test Docker image
+        env:
+          TAG: ${{ env.RELEASE_TAG }}
+        run: |
+          docker manifest inspect "ghcr.io/supernovae-st/nika:${TAG}" && echo "✅ Docker: visible" || echo "⚠️ Docker: not yet visible"
+        continue-on-error: true
+
+  # ─────────────────────────────────────────────────────────────────────────────
   # Release Notification (Telegram)
   # ─────────────────────────────────────────────────────────────────────────────
   notify:
@@ -950,6 +984,7 @@ jobs:
       - crates-publish
       - update-scoop
       - update-aur
+      - smoke-test
     if: always() && !inputs.dry_run
     runs-on: ubuntu-latest
 
