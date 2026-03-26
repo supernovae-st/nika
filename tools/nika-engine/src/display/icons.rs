@@ -20,7 +20,7 @@ pub fn verb(v: &str) -> ColoredString {
 }
 
 /// Return the plain (uncolored) Cosmic icon for the given verb name.
-pub fn verb_plain(v: &str) -> &'static str {
+pub(crate) fn verb_plain(v: &str) -> &'static str {
     match v {
         "infer" => "\u{2727}",  // ✧
         "exec" => "\u{2388}",   // ⎈
@@ -106,7 +106,7 @@ pub fn retry() -> ColoredString {
 }
 
 /// Agent metadata: circled times.
-pub fn agent_meta() -> ColoredString {
+pub(crate) fn agent_meta() -> ColoredString {
     "\u{2297}".red() // ⊗
 }
 

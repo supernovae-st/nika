@@ -138,7 +138,7 @@ pub fn print_doctor_header(version: &str) {
 // ═══════════════════════════════════════════════════════════════
 
 /// Print the compact single-line summary (quiet / min mode).
-pub fn print_run_quiet_summary(stats: &RunStats, total_duration_ms: u64) {
+pub(crate) fn print_run_quiet_summary(stats: &RunStats, total_duration_ms: u64) {
     let dur_secs = total_duration_ms as f32 / 1000.0;
     let total = stats.tasks_passed + stats.tasks_failed + stats.tasks_skipped;
     let status = if stats.tasks_failed > 0 {

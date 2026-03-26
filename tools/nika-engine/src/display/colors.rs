@@ -49,7 +49,8 @@ pub fn tokens(n: u64) -> String {
 /// Pad a colored string to `width` visible characters.
 ///
 /// ANSI escape sequences are not counted toward width.
-pub fn pad_colored(cs: &ColoredString, width: usize) -> String {
+#[cfg(test)]
+pub(crate) fn pad_colored(cs: &ColoredString, width: usize) -> String {
     let visible_len = stripped_len(&cs.to_string());
     let pad = width.saturating_sub(visible_len);
     format!("{}{}", cs, " ".repeat(pad))
@@ -58,7 +59,7 @@ pub fn pad_colored(cs: &ColoredString, width: usize) -> String {
 /// Count visible terminal columns in a string, ignoring ANSI escape sequences.
 ///
 /// Uses `unicode_width` to correctly count CJK characters and wide emoji as 2 columns.
-pub fn stripped_len(s: &str) -> usize {
+pub(crate) fn stripped_len(s: &str) -> usize {
     let mut len = 0;
     let mut chars = s.chars().peekable();
     while let Some(ch) = chars.next() {
@@ -78,7 +79,7 @@ pub fn stripped_len(s: &str) -> usize {
 }
 
 /// Render a sparkline bar for `value` relative to `max`.
-pub fn sparkline(value: u64, max: u64) -> ColoredString {
+pub(crate) fn sparkline(value: u64, max: u64) -> ColoredString {
     const CHARS: &[char] = &[
         '\u{2581}', '\u{2582}', '\u{2583}', '\u{2584}', '\u{2585}', '\u{2586}', '\u{2587}',
         '\u{2588}',
@@ -96,7 +97,7 @@ pub fn sparkline(value: u64, max: u64) -> ColoredString {
 }
 
 /// Render a budget usage bar with percentage.
-pub fn budget_bar(pct: f32, width: usize) -> String {
+pub(crate) fn budget_bar(pct: f32, width: usize) -> String {
     let pct = pct.clamp(0.0, 100.0);
     let filled = ((pct / 100.0) * width as f32).round() as usize;
     let empty = width.saturating_sub(filled);
@@ -133,7 +134,7 @@ pub fn cost(usd: f64) -> ColoredString {
 }
 
 /// Format time-to-first-token with color.
-pub fn ttft(ms: u64) -> ColoredString {
+pub(crate) fn ttft(ms: u64) -> ColoredString {
     let text = format!("{}ms", ms);
     if ms < 200 {
         text.green()
@@ -148,7 +149,7 @@ pub fn ttft(ms: u64) -> ColoredString {
 ///
 /// Equivalent to `str::floor_char_boundary` (stable since 1.91) but works on
 /// our MSRV (1.86).
-pub fn floor_char_boundary(s: &str, i: usize) -> usize {
+pub(crate) fn floor_char_boundary(s: &str, i: usize) -> usize {
     if i >= s.len() {
         return s.len();
     }
@@ -163,7 +164,7 @@ pub fn floor_char_boundary(s: &str, i: usize) -> usize {
 /// Syntax-highlight a JSON string with ANSI colors, truncated to `max_chars`.
 ///
 /// Uses a safe char-boundary truncation to avoid splitting multi-byte characters.
-pub fn json_preview(json: &str, max_chars: usize) -> String {
+pub(crate) fn json_preview(json: &str, max_chars: usize) -> String {
     let truncated = if json.len() > max_chars {
         let end = floor_char_boundary(json, max_chars);
         format!("{}\u{2026}", &json[..end]) // … ellipsis
@@ -215,7 +216,7 @@ pub fn json_preview(json: &str, max_chars: usize) -> String {
 }
 
 /// Render a Markdown preview with basic header highlighting.
-pub fn markdown_preview(md: &str, max_lines: usize) -> Vec<String> {
+pub(crate) fn markdown_preview(md: &str, max_lines: usize) -> Vec<String> {
     md.lines()
         .take(max_lines)
         .map(|line| {
