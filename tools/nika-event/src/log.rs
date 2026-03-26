@@ -960,7 +960,9 @@ impl EventLog {
     /// If a trace writer is attached, the event is immediately flushed
     /// to the NDJSON trace file for crash resilience.
     pub fn emit(&self, kind: EventKind) -> u64 {
-        let id = self.next_id.fetch_add(1, Ordering::SeqCst);
+        // Relaxed is sufficient: fetch_add guarantees unique monotonic IDs regardless
+        // of ordering, and the subsequent RwLock::write() provides the memory fence.
+        let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let event = Event {
             id,
             timestamp_ms: self.start_time.elapsed().as_millis() as u64,
