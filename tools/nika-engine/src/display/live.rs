@@ -67,6 +67,8 @@ pub struct LiveRenderer {
     style_running: ProgressStyle,
     /// Cached ProgressStyle for static tasks (pending/completed/failed/skipped).
     style_static: ProgressStyle,
+    /// For-each sub-bars: parent_task_id → (sub_bar, total_items, completed_items).
+    for_each_bars: HashMap<String, (ProgressBar, usize, usize)>,
 }
 
 impl LiveRenderer {
@@ -107,6 +109,7 @@ impl LiveRenderer {
             finalized: false,
             style_running,
             style_static,
+            for_each_bars: HashMap::new(),
         }
     }
 
@@ -491,6 +494,18 @@ impl LiveRenderer {
                     .set_position(self.stats.tasks_passed as u64 + self.stats.tasks_skipped as u64);
                 self.update_overall_cost();
 
+                // Increment for_each sub-bar if this is a decomposed item (task_id contains "__")
+                if let Some(parent) = task_id.split("__").next() {
+                    if parent != task_id.as_ref() {
+                        if let Some((bar, _, completed)) =
+                            self.for_each_bars.get_mut(parent)
+                        {
+                            *completed += 1;
+                            bar.set_position(*completed as u64);
+                        }
+                    }
+                }
+
                 // Output preview (Max detail only)
                 if self.detail.show_previews() {
                     let tw = terminal_size::terminal_size()
@@ -712,6 +727,14 @@ impl LiveRenderer {
                         mcp_servers,
                     ));
                 }
+                // Show agent turn budget on task bar
+                let task_id = event.kind.task_id().unwrap_or("?");
+                if let Some(tb) = self.task_bars.get(task_id) {
+                    if tb.status == TaskStatus::Running {
+                        let budget = format!("agent 0/{}", max_turns);
+                        tb.bar.set_message(Self::format_running_msg(&budget));
+                    }
+                }
             }
 
             EventKind::AgentTurn {
@@ -729,12 +752,13 @@ impl LiveRenderer {
                     }
                 }
 
-                // Update task bar with turn count
+                // Update task bar with turn count (show turn N for agents)
                 let task_id = event.kind.task_id().unwrap_or("?");
                 if let Some(tb) = self.task_bars.get(task_id) {
                     if tb.status == TaskStatus::Running {
                         let turn_info = format!("turn {}", turn_index + 1);
-                        tb.bar.set_message(Self::format_running_msg(&turn_info));
+                        tb.bar
+                            .set_message(Self::format_running_msg(&turn_info));
                     }
                 }
             }
@@ -961,6 +985,11 @@ impl LiveRenderer {
                         task_id, *total, *succeeded, *failed,
                     ));
                 }
+                // Remove the sub-bar when for_each completes
+                if let Some((bar, _, _)) = self.for_each_bars.remove(task_id.as_ref()) {
+                    bar.finish_and_clear();
+                    self.multi.remove(&bar);
+                }
             }
 
             // ── Exec completed ────────────────────────────────────
@@ -1108,6 +1137,22 @@ impl LiveRenderer {
                         *item_count,
                         *concurrency,
                     ));
+                }
+                // Insert a sub-bar after the parent task bar to show item progress
+                if *item_count > 0 {
+                    if let Some(tb) = self.task_bars.get(task_id.as_ref()) {
+                        let sub_style = ProgressStyle::with_template(
+                            "    {bar:20.yellow/dim} {pos}/{len} items",
+                        )
+                        .expect("for_each template")
+                        .progress_chars(spinner::PROGRESS_CHARS);
+                        let sub_bar = self
+                            .multi
+                            .insert_after(&tb.bar, ProgressBar::new(*item_count as u64));
+                        sub_bar.set_style(sub_style);
+                        self.for_each_bars
+                            .insert(task_id.to_string(), (sub_bar, *item_count, 0));
+                    }
                 }
             }
 
