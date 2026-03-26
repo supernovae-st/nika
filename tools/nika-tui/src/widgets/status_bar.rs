@@ -494,15 +494,15 @@ impl Widget for StatusBar<'_> {
         // Build left side (input mode indicator + key hints)
         let mut left_spans = vec![Span::raw(" ")];
 
-        // Add input mode indicator if set
+        // Add input mode indicator if set — PERF: static strings (zero format!)
         if let Some(mode) = self.input_mode {
-            let (mode_char, mode_color) = match mode {
-                InputMode::Normal => ('N', self.theme.status_success), // Green for Normal
-                InputMode::Insert => ('I', self.theme.status_running), // Amber for Insert
-                InputMode::Search => ('/', self.theme.highlight),      // Cyan for Search
+            let (mode_label, mode_color) = match mode {
+                InputMode::Normal => ("[N]", self.theme.status_success),
+                InputMode::Insert => ("[I]", self.theme.status_running),
+                InputMode::Search => ("[/]", self.theme.highlight),
             };
             left_spans.push(Span::styled(
-                format!("[{}]", mode_char),
+                mode_label,
                 Style::default().fg(mode_color).add_modifier(Modifier::BOLD),
             ));
             left_spans.push(Span::raw(" "));
@@ -510,7 +510,8 @@ impl Widget for StatusBar<'_> {
 
         // Add custom status text from view (if present)
         // Error/Warning severity gets colored and bold for visibility
-        if let Some(ref text) = self.custom_text {
+        let had_custom_text = self.custom_text.is_some();
+        if let Some(text) = self.custom_text {
             let text_style = match self.status_severity {
                 StatusSeverity::Error => Style::default()
                     .fg(self.theme.status_failed)
@@ -540,7 +541,7 @@ impl Widget for StatusBar<'_> {
                 }
                 StatusSeverity::Info => {}
             }
-            left_spans.push(Span::styled(text.clone(), text_style));
+            left_spans.push(Span::styled(text, text_style));
             left_spans.push(Span::styled(
                 " \u{2502} ",
                 Style::default().fg(self.theme.text_muted),
@@ -600,13 +601,13 @@ impl Widget for StatusBar<'_> {
                 // Show error code if failed
                 if metrics.phase == WorkflowPhase::Failed {
                     if let Some(ref code) = metrics.error_code {
+                        let error_style = Style::default()
+                            .fg(self.theme.status_failed)
+                            .add_modifier(Modifier::BOLD);
                         right_spans.push(Span::raw(" "));
-                        right_spans.push(Span::styled(
-                            format!("[{}]", code),
-                            Style::default()
-                                .fg(self.theme.status_failed)
-                                .add_modifier(Modifier::BOLD),
-                        ));
+                        right_spans.push(Span::styled("[", error_style));
+                        right_spans.push(Span::styled(code.as_str(), error_style));
+                        right_spans.push(Span::styled("]", error_style));
                     }
                 }
             }
@@ -736,18 +737,20 @@ impl Widget for StatusBar<'_> {
             }
             hints_width += hint_width;
 
-            if i > 0 || self.input_mode.is_some() || self.custom_text.is_some() {
+            if i > 0 || self.input_mode.is_some() || had_custom_text {
                 left_spans.push(Span::raw("  "));
             }
-            left_spans.push(Span::styled(
-                format!("[{}]", &*hint.key),
-                Style::default()
-                    .fg(self.theme.highlight)
-                    .add_modifier(Modifier::BOLD),
-            ));
+            // PERF: 3 spans instead of format!("[{}]", key) — zero alloc for static keys
+            let key_style = Style::default()
+                .fg(self.theme.highlight)
+                .add_modifier(Modifier::BOLD);
+            left_spans.push(Span::styled("[", key_style));
+            left_spans.push(Span::styled(hint.key.clone(), key_style));
+            left_spans.push(Span::styled("]", key_style));
             left_spans.push(Span::raw(" "));
+            // PERF: Pass Cow directly — avoids to_string() allocation for static hints
             left_spans.push(Span::styled(
-                hint.action.to_string(),
+                hint.action.clone(),
                 Style::default().fg(self.theme.text_secondary),
             ));
         }
