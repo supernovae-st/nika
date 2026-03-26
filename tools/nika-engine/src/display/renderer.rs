@@ -61,6 +61,13 @@ pub struct TestRenderer {
 }
 
 #[cfg(test)]
+impl Default for TestRenderer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(test)]
 impl TestRenderer {
     pub fn new() -> Self {
         Self {
