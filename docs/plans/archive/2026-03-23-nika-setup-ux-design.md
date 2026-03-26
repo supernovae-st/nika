@@ -67,8 +67,8 @@ nika setup --check             # Dry-run: show what WOULD be done
 │  (only detected editors shown)
 │
 ├  Installing nika-lang extension...
-│  ✓ VS Code: supernovae-studio.nika-lang installed
-│  ✓ Cursor: supernovae-studio.nika-lang installed
+│  ✓ VS Code: supernovae-st.nika-lang installed
+│  ✓ Cursor: supernovae-st.nika-lang installed
 │
 ├  Configuring LSP...
 │  ✓ VS Code: .vscode/settings.json updated (nika-lsp path)
@@ -158,7 +158,7 @@ For **VS Code / Cursor / Windsurf** (VS Code forks):
 
 1. **Extension install:**
    ```bash
-   code --install-extension supernovae-studio.nika-lang
+   code --install-extension supernovae-st.nika-lang
    ```
 
 2. **LSP configuration** (only if extension not yet configured):
@@ -452,11 +452,11 @@ $ nika setup editors
 └────────────────────────────────────────────────────┘
 
   ✓ Editor VS Code 1.96.2 detected
-  ✓ Extension supernovae-studio.nika-lang already installed
+  ✓ Extension supernovae-st.nika-lang already installed
   ✓ LSP path configured in VS Code settings
 
   ✓ Editor Cursor 0.45.3 detected
-  ✓ Extension supernovae-studio.nika-lang installed
+  ✓ Extension supernovae-st.nika-lang installed
   ✓ LSP path configured in Cursor settings
 
   ✓ Editor Neovim 0.11.0 detected
@@ -618,7 +618,7 @@ When `nika init` runs (project mode), it should ALSO create these project-level 
 ```json
 {
   "recommendations": [
-    "supernovae-studio.nika-lang"
+    "supernovae-st.nika-lang"
   ]
 }
 ```

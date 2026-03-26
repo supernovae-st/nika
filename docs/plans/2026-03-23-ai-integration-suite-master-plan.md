@@ -60,17 +60,17 @@ ln -s AGENTS.md CLAUDE.md
 
 ### 0.2 VS Code Extension Marketplace Publishing
 
-**Why**: `code --install-extension supernovae-studio.nika-lang` requires marketplace listing
+**Why**: `code --install-extension supernovae.nika-lang` requires marketplace listing
 **What**: Publish the existing `editors/vscode/` extension to:
 - VS Code Marketplace (primary)
 - Open VSX Registry (for Cursor, Windsurf, VSCodium)
 
 **Pre-requisites**:
-- Azure DevOps PAT for `supernovae-studio` publisher
+- Azure DevOps PAT for `supernovae` publisher
 - `npm run package` produces valid VSIX
 - Version bump to match `nika --version`
 
-**Test**: `code --install-extension supernovae-studio.nika-lang` succeeds
+**Test**: `code --install-extension supernovae.nika-lang` succeeds
 
 ### 0.3 Cargo Workspace Crate: `nika-setup`
 
@@ -153,9 +153,9 @@ For each detected editor:
 
 | Editor | Install Method | Config |
 |--------|---------------|--------|
-| VS Code | `code --install-extension supernovae-studio.nika-lang` | — |
-| Cursor | `cursor --install-extension supernovae-studio.nika-lang` | — |
-| Windsurf | `windsurf --install-extension supernovae-studio.nika-lang` | — |
+| VS Code | `code --install-extension supernovae.nika-lang` | — |
+| Cursor | `cursor --install-extension supernovae.nika-lang` | — |
+| Windsurf | `windsurf --install-extension supernovae.nika-lang` | — |
 | Zed | Merge `auto_install_extensions.nika` into `~/.config/zed/settings.json` | JSON merge |
 | Neovim | Print config snippet for `lsp/nika.lua` | Manual |
 | Sublime | Merge into `Package Control.sublime-settings` + LSP settings | JSON merge |
@@ -178,7 +178,7 @@ For each detected AI tool, install **global** Agent Skills:
 For Claude Code specifically, also offer:
 ```bash
 # Claude Code plugin install
-claude plugin install nika@supernovae-studio
+claude plugin install nika@supernovae-st
 # Or: claude --plugin-dir ~/.claude/plugins/nika
 ```
 
@@ -222,7 +222,7 @@ Using `cliclack` (same as `nika init`):
 ◆  Install Nika extension in Cursor?
 │  ● Yes  ○ No
 │
-◇  cursor --install-extension supernovae-studio.nika-lang ✓
+◇  cursor --install-extension supernovae.nika-lang ✓
 │
 ◆  Detected AI tools:
 │  ✓ Claude Code — plugin not installed

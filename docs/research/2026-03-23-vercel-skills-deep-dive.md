@@ -325,7 +325,7 @@ my-skill/
 #### Multi-skill repo (recommended)
 
 ```
-supernovae-studio/nika-skills/
+supernovae-st/nika-skills/
  README.md
  skills/
    nika-workflow-authoring/
@@ -442,10 +442,10 @@ then users run `npx skills experimental_sync` to discover and install from
 
 ## 7. Nika Skill Package Design
 
-### Repository: `github.com/supernovae-studio/nika-skills`
+### Repository: `github.com/supernovae-st/nika-skills`
 
 ```
-supernovae-studio/nika-skills/
+supernovae-st/nika-skills/
  README.md
  SKILL.md                              # Root skill (workflow authoring guide)
  skills/
@@ -498,7 +498,7 @@ description: >
   template bindings, or the 5 Nika verbs (infer, exec, fetch, invoke, agent).
 license: AGPL-3.0-or-later
 metadata:
-  author: supernovae-studio
+  author: supernovae-st
   version: "0.39.1"
 ---
 
@@ -523,16 +523,16 @@ Nika is a semantic YAML workflow engine for AI tasks, schema `nika/workflow@0.12
 
 ```bash
 # All Nika skills
-npx skills add supernovae-studio/nika-skills --all
+npx skills add supernovae-st/nika-skills --all
 
 # Specific skill only
-npx skills add supernovae-studio/nika-skills --skill nika-workflow-authoring
+npx skills add supernovae-st/nika-skills --skill nika-workflow-authoring
 
 # For Claude Code only
-npx skills add supernovae-studio/nika-skills --agent claude-code
+npx skills add supernovae-st/nika-skills --agent claude-code
 
 # Global install
-npx skills add supernovae-studio/nika-skills -g --all
+npx skills add supernovae-st/nika-skills -g --all
 ```
 
 ---
@@ -678,7 +678,7 @@ DO_NOT_TRACK=1 npx skills add owner/repo
 
 ### Immediate opportunity
 
-1. Create `github.com/supernovae-studio/nika-skills` with the structure in section 7
+1. Create `github.com/supernovae-st/nika-skills` with the structure in section 7
 2. Each SKILL.md becomes a knowledge module for any AI agent
 3. The `description` field is critical -- it determines when agents activate the skill
 4. Skills can include `.nika.yaml` example files alongside the Markdown

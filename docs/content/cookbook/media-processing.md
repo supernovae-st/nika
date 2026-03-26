@@ -239,7 +239,7 @@ tasks:
   # Generate a test QR code
   - id: fetch_qr
     fetch:
-      url: "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=https://github.com/supernovae-studio/nika"
+      url: "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=https://github.com/supernovae-st/nika"
       response: binary
       timeout: 15
 
