@@ -140,12 +140,12 @@ impl ChatView {
                 items.push(ListItem::new(Line::from(vec![
                     Span::styled("│ ", Style::default().fg(border_color)),
                     Span::styled(
-                        truncate_str(&invoke.tool, 20),
+                        truncate_str(&invoke.tool, 20).into_owned(),
                         Style::default().fg(content_color),
                     ),
                     Span::styled(" @ ", Style::default().fg(colors.muted_color)),
                     Span::styled(
-                        truncate_str(&invoke.server, 12),
+                        truncate_str(&invoke.server, 12).into_owned(),
                         Style::default().fg(emerald_400),
                     ),
                     Span::styled(
@@ -172,12 +172,12 @@ impl ChatView {
                 items.push(ListItem::new(Line::from(vec![
                     Span::styled("│ ", Style::default().fg(border_color)),
                     Span::styled(
-                        truncate_str(&invoke.tool, 25),
+                        truncate_str(&invoke.tool, 25).into_owned(),
                         Style::default().fg(content_color),
                     ),
                     Span::styled(" @ ", Style::default().fg(colors.muted_color)),
                     Span::styled(
-                        truncate_str(&invoke.server, 18),
+                        truncate_str(&invoke.server, 18).into_owned(),
                         Style::default().fg(emerald_400),
                     ),
                 ])));
@@ -202,7 +202,7 @@ impl ChatView {
                         Span::styled("│ ", Style::default().fg(border_color)),
                         Span::styled("┊ ", Style::default().fg(colors.muted_color)),
                         Span::styled(
-                            truncate_str(&params_str, 44),
+                            truncate_str(&params_str, 44).into_owned(),
                             Style::default().fg(content_color),
                         ),
                     ])));
@@ -230,7 +230,7 @@ impl ChatView {
                             Span::styled("│ ", Style::default().fg(border_color)),
                             Span::styled("┊ ", Style::default().fg(colors.muted_color)),
                             Span::styled(
-                                truncate_str(&result_str, 44),
+                                truncate_str(&result_str, 44).into_owned(),
                                 Style::default().fg(colors.success_color),
                             ),
                         ])));
@@ -240,7 +240,7 @@ impl ChatView {
                                 Span::styled("│ ", Style::default().fg(border_color)),
                                 Span::styled("┊ ", Style::default().fg(colors.muted_color)),
                                 Span::styled(
-                                    truncate_str(line, 44),
+                                    truncate_str(line, 44).into_owned(),
                                     Style::default().fg(colors.success_color),
                                 ),
                             ])));
@@ -252,7 +252,7 @@ impl ChatView {
                         Span::styled("┊ ", Style::default().fg(colors.muted_color)),
                         Span::styled("❌ ", Style::default().fg(colors.error_color)),
                         Span::styled(
-                            truncate_str(err, 40),
+                            truncate_str(err, 40).into_owned(),
                             Style::default().fg(colors.error_color),
                         ),
                     ])));
@@ -312,7 +312,8 @@ impl ChatView {
 
         match self.task_box_render_mode {
             RenderMode::Compact => {
-                let prompt_preview = truncate_str(&infer.prompt.replace('\n', " "), 28);
+                let prompt_flat = infer.prompt.replace('\n', " ");
+                let prompt_preview = truncate_str(&prompt_flat, 28);
                 items.push(ListItem::new(Line::from(vec![Span::styled(
                     format!(
                         "╭─ ⚡ INFER ──────────────────────────── {} {} ─╮",
@@ -631,7 +632,7 @@ impl ChatView {
                     Span::styled("│ ", Style::default().fg(border_color)),
                     Span::styled(format!("{} ", fetch.method), Style::default().fg(amber_400)),
                     Span::styled(
-                        truncate_str(&fetch.url, 28),
+                        truncate_str(&fetch.url, 28).into_owned(),
                         Style::default().fg(content_color),
                     ),
                     Span::styled(" │ ", Style::default().fg(colors.muted_color)),
@@ -661,7 +662,7 @@ impl ChatView {
                     Span::styled("│ ", Style::default().fg(border_color)),
                     Span::styled(format!("{} ", fetch.method), Style::default().fg(amber_400)),
                     Span::styled(
-                        truncate_str(&fetch.url, 42),
+                        truncate_str(&fetch.url, 42).into_owned(),
                         Style::default().fg(content_color),
                     ),
                 ])));
@@ -694,7 +695,7 @@ impl ChatView {
                             Span::styled("│ ", Style::default().fg(border_color)),
                             Span::styled("┊ ", Style::default().fg(colors.muted_color)),
                             Span::styled(
-                                truncate_str(line, 44),
+                                truncate_str(line, 44).into_owned(),
                                 Style::default().fg(content_color),
                             ),
                         ])));
@@ -794,7 +795,7 @@ impl ChatView {
                     Span::styled("│ ", Style::default().fg(border_color)),
                     Span::styled("🎯 ", Style::default().fg(amber_400)),
                     Span::styled(
-                        truncate_str(&agent.prompt, 25),
+                        truncate_str(&agent.prompt, 25).into_owned(),
                         Style::default().fg(content_color),
                     ),
                     Span::styled(
@@ -822,7 +823,7 @@ impl ChatView {
                     Span::styled("│ ", Style::default().fg(border_color)),
                     Span::styled("🎯 ", Style::default().fg(amber_400)),
                     Span::styled(
-                        truncate_str(&agent.prompt, 45),
+                        truncate_str(&agent.prompt, 45).into_owned(),
                         Style::default().fg(content_color),
                     ),
                 ])));
@@ -847,7 +848,7 @@ impl ChatView {
                             Span::styled("│ ", Style::default().fg(border_color)),
                             Span::styled("┊ ", Style::default().fg(colors.muted_color)),
                             Span::styled(
-                                truncate_str(line, 44),
+                                truncate_str(line, 44).into_owned(),
                                 Style::default().fg(content_color),
                             ),
                         ])));

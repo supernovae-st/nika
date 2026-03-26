@@ -2,6 +2,8 @@
 //!
 //! Shared formatting and helper functions used across TUI modules.
 
+use std::borrow::Cow;
+
 /// Format number with thousands separator
 ///
 /// # Examples
@@ -61,6 +63,7 @@ pub fn format_number_compact(n: u64) -> String {
 ///
 /// This function handles UTF-8 correctly by counting characters, not bytes.
 /// It adds "..." suffix when truncation occurs.
+/// Returns `Cow::Borrowed` when no truncation is needed (zero allocation).
 ///
 /// # Examples
 ///
@@ -69,17 +72,17 @@ pub fn format_number_compact(n: u64) -> String {
 /// assert_eq!(truncate_str("hi", 10), "hi");
 /// assert_eq!(truncate_str("日本語テスト", 4), "日...");  // UTF-8 safe
 /// ```
-pub fn truncate_str(s: &str, max_chars: usize) -> String {
+pub fn truncate_str(s: &str, max_chars: usize) -> Cow<'_, str> {
     let char_count = s.chars().count();
     if char_count <= max_chars {
-        s.to_string()
+        Cow::Borrowed(s)
     } else if max_chars <= 3 {
         // Not enough room for any content + "..."
-        s.chars().take(max_chars).collect()
+        Cow::Owned(s.chars().take(max_chars).collect())
     } else {
         // Take max_chars - 3 characters and add "..."
         let truncated: String = s.chars().take(max_chars - 3).collect();
-        format!("{}...", truncated)
+        Cow::Owned(format!("{}...", truncated))
     }
 }
 
