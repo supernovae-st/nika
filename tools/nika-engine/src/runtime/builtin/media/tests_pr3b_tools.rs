@@ -5,7 +5,7 @@ mod tests {
     use crate::media::CasStore;
     use crate::runtime::builtin::media::context::MediaToolContext;
     use crate::runtime::builtin::media::import::ImportOp;
-    use crate::runtime::builtin::media::{MediaOp, MediaOpResult, MediaToolAdapter};
+    use crate::runtime::builtin::media::{MediaOp, MediaToolAdapter};
     use crate::runtime::builtin::BuiltinTool;
     use std::sync::Arc;
 
