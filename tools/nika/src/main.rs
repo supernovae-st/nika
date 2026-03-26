@@ -157,6 +157,10 @@ struct Cli {
     #[arg(long, default_value = "max", global = true)]
     detail: nika::display::DetailLevel,
 
+    /// Disable live animated display (use classic append-only output)
+    #[arg(long, global = true)]
+    no_live: bool,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -835,6 +839,7 @@ async fn main() {
                 false,
                 cli.quiet,
                 cli.detail,
+                cli.no_live,
                 "accept-edits",
             )
             .await;
@@ -971,6 +976,7 @@ async fn main() {
                     yes,
                     quiet,
                     detail,
+                    cli.no_live,
                     &permission,
                 )
                 .await
@@ -1456,6 +1462,7 @@ tasks:
         true, // skip cost confirm for demo
         quiet,
         detail,
+        false, // demo always uses live renderer
         "deny",
     )
     .await;
@@ -1493,6 +1500,7 @@ async fn run_workflow(
     skip_confirm: bool,
     quiet: bool,
     detail: nika::display::DetailLevel,
+    no_live: bool,
     permission: &str,
 ) -> Result<(), NikaError> {
     let resolved_path = resolve_workflow_path(file).await?;
@@ -1674,7 +1682,11 @@ async fn run_workflow(
     if quiet {
         runner = runner.quiet();
     }
-    let mut runner = runner.with_detail_level(detail);
+    let mut runner = if no_live {
+        runner.with_classic_renderer(detail)
+    } else {
+        runner.with_detail_level(detail)
+    };
     let run_output = runner.run().await?;
 
     // Save task outputs to file if -o/--output specified
