@@ -13,22 +13,37 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Display v3** — `Renderer` trait with `CliRenderer` + `LiveRenderer` implementations
 - **`Box<dyn Renderer>`** — factory functions replace `RunRenderer` enum dispatch
 - **`TestRenderer`** — in-memory mock for assertion-based display tests
-- **Agent turn budget bar** — dynamic sub-bars for `for_each` in live renderer
+- **`for_each` sub-bars** — live progress bars per iteration with correct `[idx]` key detection
 - **Fix suggestions on `TaskFailed`** — inline hints pointing to NIKA-XXX docs
 - **`format_output_preview`** — shared preview formatting across renderers
+- **Telemetry** — `NativeModelLoaded` and `MediaCleanup` events
+- **Daemon** — `DaemonRequest::Shutdown`, pipelining (multiple requests/connection), persistent `ConnectedClient`
+- **Daemon watch** — `DaemonError::Watch` variant, WatchStart dir validation, MAX_GLOB_PATTERNS limit
+- **`nika:*` builtin tools** — resource limits, LIMIT 1000 for job list
 
 ### Changed
 - **ARCH-3 Phase 3+4** — `DagError`, `BindingError`, `ExecutionError` domain enums extracted from `NikaError`
 - **CI pipeline rewrite** — 8-job `ci.yml` replacing 4 redundant workflow files
 - **Release pipeline** — rich Telegram notifications, smoke tests, release notes template
+- **Live renderer** — steady tick for elapsed time, cost shown on first `ProviderResponded`
+- **Terminal resize** — separator bar width refreshes dynamically
 
 ### Fixed
+- **Security** — `$env` allowlist bypass in traced binding path; shell blocklist extended with `<(`, `<<<`, interpreter pipe sequences
+- **AST** — NIKA-145: tasks without any verb now rejected at analysis time with fix suggestion
+- **MCP** — retry closures use `self.reconnect()` (clears cache+schema); `McpToolCallFailed` only retried on transient errors
+- **Provider** — Gemini `stop_sequences` in auto-detect mode; temperature stripped for reasoning models in agent loop
+- **Runtime** — feed `entry_count` reports total not truncated count; structured output retry counter `u8` → `u32` (overflow fix); skipped iterations excluded from `for_each` error list
+- **Display** — JSON colorizer escape tracking (`\"` inside strings); `json_preview` byte-vs-char length; markdown preview ANSI truncation
+- **Daemon** — TOCTOU race on concurrent job submit; `try_send` in notify callback; mutex released before async calls in `cancel()`; blocking `exists()` removed from client `send()`; custom `Debug` redacts `Secret` values; `MAX_CACHE_RESPONSE_BYTES` + `MAX_PENDING_JOBS` resource limits
 - **Daemon security** — cache key collision, path traversal, orphan kill, idle timeout
 - **Display** — `root_failure` includes error message, `format_skipped` truncation, `stripped_len` calculation
 - **Event** — broadcast channel capacity 512 → 1024
-- **CI** — 13 correctness issues (pipefail, cargo audit --deny warnings, Docker latest tag, etc.)
+- **CI** — 13 correctness issues; Windows build (`nika-daemon` moved to `[target.'cfg(unix)'.dependencies]`, build from `tools/nika` crate dir); fix suggestions on 11 missing NIKA-XXX codes
+- **Error** — 11 missing codes added to `fix_suggestion_for_code` lookup
 
 ### Performance
+- `with_key` + `AtomicU64` for zero-alloc token tracking in live renderer
 - `fetch_retries` in summary, dedup `task_id`, O(n) cost aggregation
 - `thiserror` 2.0, `is_failed` no-clone, schema `mtime` caching
 - Remove unused `tracing-subscriber` from `nika-engine`
