@@ -332,7 +332,11 @@ pub fn fmt_media_extracted(block_count: u32, content_types: &[String]) -> String
 }
 
 pub fn fmt_media_stored(size_bytes: u64, path: &str, hash: &str) -> String {
-    let short_hash = if hash.len() > 16 { &hash[..16] } else { hash };
+    let short_hash = if hash.len() > 16 {
+        &hash[..super::colors::floor_char_boundary(hash, 16)]
+    } else {
+        hash
+    };
     sub(format!(
         "{} {} · {} · {}…",
         icons::media(),
