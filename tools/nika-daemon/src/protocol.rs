@@ -65,11 +65,41 @@ pub enum DaemonRequest {
 
     /// Get job history events.
     JobHistory { id: String },
-    // ── Watch (Phase 3) ─────────────────────────────────────────────────
-    // WatchStart, WatchStop, WatchStatus
+    // ── Watch ─────────────────────────────────────────────────────────────
+    /// Start watching a directory for workflow changes.
+    WatchStart { dir: String, patterns: Vec<String> },
 
-    // ── Cache (Phase 3) ─────────────────────────────────────────────────
-    // CacheGet, CacheSet, CacheClear, CacheStats
+    /// Stop watching.
+    WatchStop,
+
+    /// Get watch status.
+    WatchStatus,
+
+    // ── Cache ────────────────────────────────────────────────────────────
+    /// Get a cached LLM response.
+    CacheGet { key: String },
+
+    /// Store a response in the cache.
+    CacheSet {
+        key: String,
+        provider: String,
+        model: String,
+        response: String,
+        tokens_in: u64,
+        tokens_out: u64,
+        cost: f64,
+        ttl_secs: Option<u64>,
+    },
+
+    /// Clear all cache entries.
+    CacheClear,
+
+    /// Get cache statistics.
+    CacheStats,
+
+    // ── Events ───────────────────────────────────────────────────────────
+    /// Subscribe to daemon events (streaming).
+    EventSubscribe,
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -84,10 +114,16 @@ pub enum DaemonResponse {
     Ok,
 
     /// Error response with code and message.
-    Error { code: String, message: String },
+    Error {
+        code: String,
+        message: String,
+    },
 
     /// Pong response with daemon info.
-    Pong { version: String, uptime_secs: u64 },
+    Pong {
+        version: String,
+        uptime_secs: u64,
+    },
 
     /// Daemon status info.
     StatusInfo {
@@ -97,26 +133,66 @@ pub enum DaemonResponse {
     },
 
     /// Secret value (None if not found).
-    Secret { value: Option<String> },
+    Secret {
+        value: Option<String>,
+    },
 
     /// Whether a secret exists.
-    SecretExists { exists: bool },
+    SecretExists {
+        exists: bool,
+    },
 
     /// List of provider secret info.
-    SecretList { providers: Vec<ProviderSecretInfo> },
+    SecretList {
+        providers: Vec<ProviderSecretInfo>,
+    },
 
     // ── Jobs ──────────────────────────────────────────────────────────────
     /// Job created successfully.
-    JobCreated { id: String },
+    JobCreated {
+        id: String,
+    },
 
     /// List of jobs.
-    JobList { jobs: Vec<serde_json::Value> },
+    JobList {
+        jobs: Vec<serde_json::Value>,
+    },
 
     /// Single job details.
-    JobDetail { job: serde_json::Value },
+    JobDetail {
+        job: serde_json::Value,
+    },
 
     /// Job history events.
-    JobHistoryList { events: Vec<serde_json::Value> },
+    JobHistoryList {
+        events: Vec<serde_json::Value>,
+    },
+
+    // ── Watch ──────────────────────────────────────────────────────────────
+    WatchActive {
+        dir: String,
+        patterns: Vec<String>,
+    },
+    WatchInactive,
+
+    // ── Cache ──────────────────────────────────────────────────────────────
+    CacheHit {
+        response: String,
+    },
+    CacheMiss,
+    CacheStatsResult {
+        entries: usize,
+        hits: u64,
+        misses: u64,
+        evictions: u64,
+        total_tokens_saved: u64,
+        total_cost_saved: f64,
+    },
+
+    // ── Events ─────────────────────────────────────────────────────────────
+    Event {
+        event: serde_json::Value,
+    },
 }
 
 /// Information about a provider's secret status.

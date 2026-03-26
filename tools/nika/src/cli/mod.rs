@@ -4,6 +4,7 @@
 //! that stay in the binary crate (provider).
 
 // Re-export all non-TUI handlers from nika-cli
+pub use nika_cli::cache_cmd;
 pub use nika_cli::config;
 pub use nika_cli::course;
 pub use nika_cli::daemon;

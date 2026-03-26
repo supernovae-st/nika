@@ -135,9 +135,10 @@ impl CacheService {
         }
 
         // Increment hit count (non-blocking)
-        self.cache.entry(key.to_string()).and_modify(|e| e.hits += 1);
-        self.hits
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.cache
+            .entry(key.to_string())
+            .and_modify(|e| e.hits += 1);
+        self.hits.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         debug!(key, "cache hit");
         Some(entry)
     }
@@ -206,7 +207,8 @@ impl CacheService {
     /// Remove expired entries (called periodically by reaper task).
     pub fn cleanup_expired(&self) {
         let before = self.cache.len();
-        self.cache.retain(|_, entry| entry.created_at.elapsed() <= entry.ttl);
+        self.cache
+            .retain(|_, entry| entry.created_at.elapsed() <= entry.ttl);
         let evicted = before - self.cache.len();
         if evicted > 0 {
             self.evictions
@@ -248,22 +250,28 @@ mod tests {
 
     #[test]
     fn cache_key_deterministic() {
-        let k1 = CacheService::compute_key("anthropic", "claude-sonnet-4-6", "hello", None, None, None);
-        let k2 = CacheService::compute_key("anthropic", "claude-sonnet-4-6", "hello", None, None, None);
+        let k1 =
+            CacheService::compute_key("anthropic", "claude-sonnet-4-6", "hello", None, None, None);
+        let k2 =
+            CacheService::compute_key("anthropic", "claude-sonnet-4-6", "hello", None, None, None);
         assert_eq!(k1, k2);
     }
 
     #[test]
     fn cache_key_differs_on_prompt() {
-        let k1 = CacheService::compute_key("anthropic", "claude-sonnet-4-6", "hello", None, None, None);
-        let k2 = CacheService::compute_key("anthropic", "claude-sonnet-4-6", "world", None, None, None);
+        let k1 =
+            CacheService::compute_key("anthropic", "claude-sonnet-4-6", "hello", None, None, None);
+        let k2 =
+            CacheService::compute_key("anthropic", "claude-sonnet-4-6", "world", None, None, None);
         assert_ne!(k1, k2);
     }
 
     #[test]
     fn cache_key_differs_on_model() {
-        let k1 = CacheService::compute_key("anthropic", "claude-sonnet-4-6", "hello", None, None, None);
-        let k2 = CacheService::compute_key("anthropic", "claude-haiku-4-5", "hello", None, None, None);
+        let k1 =
+            CacheService::compute_key("anthropic", "claude-sonnet-4-6", "hello", None, None, None);
+        let k2 =
+            CacheService::compute_key("anthropic", "claude-haiku-4-5", "hello", None, None, None);
         assert_ne!(k1, k2);
     }
 
@@ -439,7 +447,8 @@ mod tests {
 
     #[test]
     fn cache_key_with_system_prompt() {
-        let k1 = CacheService::compute_key("anthropic", "sonnet", "hi", Some("be helpful"), None, None);
+        let k1 =
+            CacheService::compute_key("anthropic", "sonnet", "hi", Some("be helpful"), None, None);
         let k2 = CacheService::compute_key("anthropic", "sonnet", "hi", None, None, None);
         assert_ne!(k1, k2);
     }

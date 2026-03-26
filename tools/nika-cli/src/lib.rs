@@ -16,6 +16,7 @@ pub mod model_cloud;
 #[cfg(feature = "native-inference")]
 pub mod model;
 
+pub mod cache_cmd;
 pub mod config;
 pub mod daemon;
 pub mod doctor;

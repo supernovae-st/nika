@@ -557,6 +557,12 @@ enum Commands {
         action: cli::workflow::WorkflowAction,
     },
 
+    /// Manage LLM response cache
+    Cache {
+        #[command(subcommand)]
+        action: cli::cache_cmd::CacheAction,
+    },
+
     /// Manage background jobs via daemon
     Job {
         #[command(subcommand)]
@@ -1178,6 +1184,8 @@ async fn main() {
 
         Some(Commands::Job { action }) => cli::jobs::handle_job_command(action).await,
 
+        Some(Commands::Cache { action }) => cli::cache_cmd::handle_cache_command(action).await,
+
         Some(Commands::New {
             name,
             verb,
@@ -1242,6 +1250,7 @@ fn should_skip_auto_setup(cmd: &Option<Commands>) -> bool {
         Some(Commands::Features) => true,
         Some(Commands::Schema { .. }) => true,
         Some(Commands::Daemon { .. }) => true,
+        Some(Commands::Cache { .. }) => true,
         Some(Commands::Job { .. }) => true,
         Some(Commands::Doctor { .. }) => true,
         _ => {

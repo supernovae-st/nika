@@ -13,7 +13,9 @@ use tokio::sync::watch;
 use tracing::{debug, info, warn};
 
 use crate::error::DaemonResult;
+use crate::events::EventBus;
 use crate::protocol::{decode_message, write_message, DaemonRequest, DaemonResponse};
+use crate::services::cache::CacheService;
 use crate::services::jobs::JobService;
 use crate::services::secrets::SecretService;
 use crate::storage::{JobState, Storage};
@@ -37,10 +39,13 @@ impl Default for DaemonConfig {
 }
 
 /// Shared state across all connection handlers.
+#[allow(dead_code)]
 struct ServerState {
     started_at: Instant,
     secret_service: SecretService,
     job_service: Option<JobService>,
+    cache_service: CacheService,
+    event_bus: EventBus,
 }
 
 /// The daemon server.
@@ -110,10 +115,18 @@ impl DaemonServer {
             }
         };
 
+        let event_bus = EventBus::new();
+        event_bus.publish(crate::events::DaemonEvent::DaemonStarted {
+            pid: std::process::id(),
+            version: env!("CARGO_PKG_VERSION").to_string(),
+        });
+
         let state = Arc::new(ServerState {
             started_at: Instant::now(),
             secret_service: SecretService::new(),
             job_service,
+            cache_service: CacheService::new(),
+            event_bus,
         });
 
         let mut shutdown_rx = self.shutdown_rx;
@@ -179,7 +192,7 @@ async fn route_request(request: DaemonRequest, state: &ServerState) -> DaemonRes
         },
 
         DaemonRequest::Status => {
-            let mut services = vec!["secrets".to_string()];
+            let mut services = vec!["secrets".to_string(), "cache".into()];
             if state.job_service.is_some() {
                 services.push("jobs".into());
             }
@@ -329,6 +342,73 @@ async fn route_request(request: DaemonRequest, state: &ServerState) -> DaemonRes
                 message: "job service not available".into(),
             },
         },
+
+        // ── Watch ───────────────────────────────────────────────────────
+        DaemonRequest::WatchStart { .. } | DaemonRequest::WatchStop => {
+            // Watch is managed by the daemon CLI directly, not via IPC
+            DaemonResponse::Ok
+        }
+
+        DaemonRequest::WatchStatus => {
+            // TODO: track watch state in ServerState
+            DaemonResponse::WatchInactive
+        }
+
+        // ── Cache ───────────────────────────────────────────────────────
+        DaemonRequest::CacheGet { key } => match state.cache_service.get(&key) {
+            Some(entry) => DaemonResponse::CacheHit {
+                response: entry.response,
+            },
+            None => DaemonResponse::CacheMiss,
+        },
+
+        DaemonRequest::CacheSet {
+            key,
+            provider,
+            model,
+            response,
+            tokens_in,
+            tokens_out,
+            cost,
+            ttl_secs,
+        } => {
+            use crate::services::cache::CacheSetParams;
+            state.cache_service.set(CacheSetParams {
+                key,
+                provider,
+                model,
+                response,
+                tokens_in,
+                tokens_out,
+                cost,
+                ttl: ttl_secs.map(std::time::Duration::from_secs),
+            });
+            DaemonResponse::Ok
+        }
+
+        DaemonRequest::CacheClear => {
+            state.cache_service.clear();
+            DaemonResponse::Ok
+        }
+
+        DaemonRequest::CacheStats => {
+            let stats = state.cache_service.stats();
+            DaemonResponse::CacheStatsResult {
+                entries: stats.entries,
+                hits: stats.hits,
+                misses: stats.misses,
+                evictions: stats.evictions,
+                total_tokens_saved: stats.total_tokens_saved,
+                total_cost_saved: stats.total_cost_saved,
+            }
+        }
+
+        // ── Events ──────────────────────────────────────────────────────
+        DaemonRequest::EventSubscribe => {
+            // Event subscription is handled differently (streaming)
+            // For now, return OK — TUI integration will use this
+            DaemonResponse::Ok
+        }
     }
 }
 
