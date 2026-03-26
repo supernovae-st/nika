@@ -2,6 +2,7 @@
 # Tests: provider fallback strategy, ?? operator on provider outputs, resilience
 schema: nika/workflow@0.12
 workflow: complex-provider-fallback
+model: gpt-4o
 
 tasks:
   - id: primary_attempt

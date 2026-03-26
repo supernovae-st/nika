@@ -8,6 +8,8 @@ Source code for `nika` binary. See `nika/CLAUDE.md` for user-facing docs.
 tools/
 ├── nika/           Binary (2k lines) — CLI entry point
 ├── nika-engine/    Execution engine (162k) — embeddable runtime
+├── nika-daemon/    Background daemon (5k) — secrets, jobs, watch, cache
+├── nika-init/      Project scaffolding (21k) — init wizard + course
 ├── nika-core/      AST, types, catalogs (23k) — zero I/O
 ├── nika-event/     EventLog, TraceWriter (4k)
 ├── nika-mcp/       MCP client, rmcp (9k)
@@ -23,7 +25,8 @@ tools/
 ```
 src/
 ├── lib.rs               # Public API
-├── error.rs             # NikaError (NIKA-XXX codes)
+├── error.rs             # NikaError (NIKA-XXX codes) + FixSuggestion trait
+├── error_domains.rs     # Domain sub-enums: ExecutionError, ProviderError, BindingError, DagError
 ├── config.rs            # Configuration types
 ├── ast/                 # Three-phase: Raw → Analyzed → Lower
 │   └── lower.rs         #   Phase 3: Analyzed → Runtime types
@@ -38,15 +41,16 @@ src/
 ├── provider/            # LLM providers (rig-core cloud + mistral.rs native + cost.rs)
 ├── binding/             # Data flow: templates, transforms, JSONPath, resolve
 ├── tools/               # File tools: read, write, edit, glob, grep
-├── display/             # CLI display renderers
-│   ├── renderer.rs      #   CliRenderer (append-only, classic)
-│   ├── live.rs          #   LiveRenderer (animated, indicatif spinners)
-│   ├── run_renderer.rs  #   RunRenderer dispatch (auto TTY detection)
-│   ├── summary.rs       #   Shared summary box (free functions)
-│   ├── spinner.rs       #   Spinner constants + progress templates
+├── display/             # CLI display renderers (Renderer trait + Box<dyn Renderer>)
+│   ├── renderer.rs      #   Renderer trait, CliRenderer, RunStats, TestRenderer
+│   ├── live.rs          #   LiveRenderer (indicatif: spinners, progress, for_each sub-bars)
+│   ├── run_renderer.rs  #   Factory: auto_renderer/classic_renderer/live_renderer
+│   ├── format_event.rs  #   44+ shared fmt_*() → String formatters
+│   ├── summary.rs       #   format_run_summary + format_doctor_summary (testable pure fns)
+│   ├── spinner.rs       #   Spinner constants + progress templates ({elapsed}, {eta})
 │   ├── header.rs        #   Workflow header box
 │   ├── icons.rs         #   Cosmic icon palette
-│   ├── colors.rs        #   Color helpers + sparklines
+│   ├── colors.rs        #   Color helpers + sparklines + stripped_len (unicode-width)
 │   ├── detail.rs        #   DetailLevel verbosity control
 │   ├── check.rs         #   Pre-flight validation checklist
 │   └── dag_render.rs    #   Static DAG visualization
@@ -109,11 +113,12 @@ src/
 ## Testing
 
 ```bash
-cargo test --workspace --lib             # All crates (8100+, safe — no keychain)
+cargo test --workspace --lib             # All crates (8260+, safe — no keychain)
 cargo test --lib                         # nika binary tests only
-cargo test -p nika-engine --lib          # Engine tests only (4100+)
-cargo test -p nika-tui --lib             # TUI tests only (2100+)
-cargo test -p nika-engine --lib -- display  # Display system tests
+cargo test -p nika-engine --lib          # Engine tests only (3870+)
+cargo test -p nika-daemon --lib          # Daemon tests only (116)
+cargo test -p nika-tui --lib             # TUI tests only (2120+)
+cargo test -p nika-engine --lib -- display  # Display system tests (255+)
 cargo test --features lsp               # Include LSP tests
 cargo clippy --workspace -- -D warnings  # Zero warnings policy
 ```
@@ -122,7 +127,7 @@ cargo clippy --workspace -- -D warnings  # Zero warnings policy
 
 ## Conventions
 
-- **Errors:** `NikaError` with NIKA-XXX codes, not `anyhow`
+- **Errors:** `NikaError` with NIKA-XXX codes, not `anyhow`. Domain sub-enums: `ExecutionError`, `ProviderError`, `BindingError`, `DagError` (in `error_domains.rs`, with `From` impls)
 - **AST:** Always Raw -> Analyzed -> Lower. Never skip phases.
 - **Providers:** `RigProvider::auto()` for auto-detect. `native` for local GGUF.
 - **Extensions:** `.nika.yaml` for workflows

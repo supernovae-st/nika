@@ -2,6 +2,7 @@
 # Tests: provider switching between tasks, binding across provider boundaries
 schema: nika/workflow@0.12
 workflow: complex-multi-provider-chain
+model: gpt-4o
 
 tasks:
   - id: step1_openai
