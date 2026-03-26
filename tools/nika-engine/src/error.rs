@@ -20,9 +20,8 @@
 //! - NIKA-120-129: Resilience errors
 //! - NIKA-130-139: TUI errors
 //! - NIKA-140-151: AST analysis errors (Phase 2 analyzer)
-//! - NIKA-160-164: Parse errors (Phase 1 parser — ParseErrorKind in nika-core)
-//! - NIKA-160-169: Startup errors (StartupError in nika-engine, shares 160 prefix with ParseErrorKind)
-//! - NIKA-165-166: Policy/Boot errors (renumbered to avoid 160/161 collision)
+//! - NIKA-160-164: Parse errors (Phase 1 parser — ParseErrorKind in nika-core, DO NOT REUSE)
+//! - NIKA-165-169: Startup/Policy/Boot errors (165=Policy, 166=Boot, 167=Startup)
 //!
 //! Extended ranges:
 //! - NIKA-200-209: File Tool errors (ToolErrorCode in src/tools/mod.rs)
@@ -494,17 +493,8 @@ pub enum NikaError {
     ConfigError { reason: String },
 
     // ═══════════════════════════════════════════
-    // STARTUP ERRORS (160-169)
-    // NOTE: Shares NIKA-160 prefix with ParseErrorKind::Syntax in nika-core,
-    //       but they live in separate error enums (NikaError vs ParseErrorKind).
-    // ═══════════════════════════════════════════
-    #[error("[NIKA-160] Startup verification failed in '{phase}': {reason}")]
-    StartupError { phase: String, reason: String },
-
-    // ═══════════════════════════════════════════
-    // POLICY ERRORS (165-166)
-    // Renumbered from 160-161 to avoid collision with ParseErrorKind::Syntax (NIKA-160)
-    // and ParseErrorKind::MissingField (NIKA-161) in src/ast/raw/parser.rs
+    // STARTUP / POLICY / BOOT ERRORS (165-169)
+    // NIKA-160-164 are reserved for ParseErrorKind in nika-core.
     // ═══════════════════════════════════════════
     #[error("[NIKA-165] Policy violation: {reason}")]
     #[diagnostic(
@@ -519,6 +509,9 @@ pub enum NikaError {
         help("Run 'nika doctor' to diagnose boot issues")
     )]
     BootFailed { phase: String, reason: String },
+
+    #[error("[NIKA-167] Startup verification failed in '{phase}': {reason}")]
+    StartupError { phase: String, reason: String },
 
     // ═══════════════════════════════════════════
     // RUNTIME ERRORS (170-179)
@@ -968,7 +961,7 @@ impl NikaError {
             // Config errors
             Self::ConfigError { .. } => "NIKA-135",
             // Startup errors
-            Self::StartupError { .. } => "NIKA-160",
+            Self::StartupError { .. } => "NIKA-167",
             // Tool errors (code is dynamic)
             Self::ToolError { .. } => "NIKA-200",
             // Builtin tool errors
