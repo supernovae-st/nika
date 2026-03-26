@@ -309,6 +309,17 @@ impl CliRenderer {
                     .get(task_id.as_ref())
                     .map(|(_, v)| v.clone())
                     .unwrap_or_default();
+
+                // Record timeline (failed tasks should appear in Gantt chart too)
+                if let Some((start, _)) = self.task_starts.get(task_id.as_ref()) {
+                    self.stats.task_timeline.push((
+                        task_id.to_string(),
+                        verb.clone(),
+                        start.saturating_sub(self.workflow_start_ms),
+                        *duration_ms,
+                    ));
+                }
+
                 let padded_id = format!("{:<14}", task_id);
                 println!(
                     "{}  {} {} {} {}",
