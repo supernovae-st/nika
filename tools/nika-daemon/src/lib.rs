@@ -31,7 +31,7 @@ pub mod services;
 pub mod storage;
 
 #[cfg(unix)]
-pub use client::{ConnectedClient, DaemonClient};
+pub use client::{read_auth_token, ConnectedClient, DaemonClient};
 pub use error::{DaemonError, DaemonResult};
 pub use protocol::{DaemonRequest, DaemonResponse};
 
@@ -65,6 +65,11 @@ pub fn daemon_pid_path() -> PathBuf {
 /// Returns the daemon log file path (`~/.nika/daemon/nika.log`).
 pub fn daemon_log_path() -> PathBuf {
     daemon_dir().join("nika.log")
+}
+
+/// Returns the daemon auth token file path (`~/.nika/daemon/.token`).
+pub fn daemon_token_path() -> PathBuf {
+    daemon_dir().join(".token")
 }
 
 fn nika_home() -> PathBuf {

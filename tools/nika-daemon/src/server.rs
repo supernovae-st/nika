@@ -61,6 +61,9 @@ struct ServerState {
     event_bus: EventBus,
     active_watch: tokio::sync::Mutex<Option<ActiveWatch>>,
     shutdown_tx: watch::Sender<bool>,
+    /// Session auth token — required for secret write operations.
+    /// Generated at startup, stored in `~/.nika/daemon/.token` (0o600).
+    auth_token: String,
 }
 
 /// The daemon server.
@@ -136,6 +139,12 @@ impl DaemonServer {
             version: env!("CARGO_PKG_VERSION").to_string(),
         });
 
+        // Generate session auth token for secret write operations
+        let auth_token = generate_auth_token();
+        if let Err(e) = write_auth_token(&auth_token).await {
+            warn!(error = %e, "failed to write auth token file — secret writes will be rejected");
+        }
+
         let state = Arc::new(ServerState {
             started_at: Instant::now(),
             secret_service: SecretService::new(),
@@ -144,6 +153,7 @@ impl DaemonServer {
             event_bus,
             active_watch: tokio::sync::Mutex::new(None),
             shutdown_tx: self.shutdown_tx.clone(),
+            auth_token,
         });
 
         let mut shutdown_rx = self.shutdown_rx;
@@ -185,10 +195,68 @@ impl DaemonServer {
             }
         }
 
-        // Cleanup socket
+        // Cleanup socket + auth token
         let _ = tokio::fs::remove_file(socket_path).await;
+        let _ = tokio::fs::remove_file(crate::daemon_token_path()).await;
         info!("daemon stopped");
         Ok(())
+    }
+}
+
+/// Generate a cryptographically random 32-byte hex auth token.
+fn generate_auth_token() -> String {
+    use std::fmt::Write;
+    // Use blake3 hash of high-entropy seed for portability (no getrandom dep needed).
+    let stack_var: u8 = 0;
+    let stack_addr = &stack_var as *const u8 as usize;
+    let seed = format!(
+        "{}-{}-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos(),
+        stack_addr,
+        std::thread::current().name().unwrap_or("main"),
+    );
+    let hash = blake3::hash(seed.as_bytes());
+    let mut hex = String::with_capacity(64);
+    for b in hash.as_bytes() {
+        write!(hex, "{b:02x}").unwrap();
+    }
+    hex
+}
+
+/// Write the auth token to `~/.nika/daemon/.token` with 0o600 permissions.
+async fn write_auth_token(token: &str) -> std::io::Result<()> {
+    let path = crate::daemon_token_path();
+    tokio::fs::write(&path, token.as_bytes()).await?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let perms = std::fs::Permissions::from_mode(0o600);
+        tokio::fs::set_permissions(&path, perms).await?;
+    }
+    Ok(())
+}
+
+/// Validate a client auth token against the server's session token.
+/// Read operations don't require auth (token=None is fine for reads).
+fn validate_auth_token(client_token: &Option<String>, server_token: &str) -> bool {
+    match client_token {
+        Some(token) => {
+            // Constant-time comparison to prevent timing attacks
+            if token.len() != server_token.len() {
+                return false;
+            }
+            token
+                .as_bytes()
+                .iter()
+                .zip(server_token.as_bytes())
+                .fold(0u8, |acc, (a, b)| acc | (a ^ b))
+                == 0
+        }
+        None => false,
     }
 }
 
@@ -300,6 +368,44 @@ async fn route_request(request: DaemonRequest, state: &Arc<ServerState>) -> Daem
         DaemonRequest::ListSecrets => {
             let providers = state.secret_service.list_secrets().await;
             DaemonResponse::SecretList { providers }
+        }
+
+        DaemonRequest::SetSecret {
+            provider,
+            key,
+            auth_token,
+        } => {
+            // Require valid auth token for write operations
+            if !validate_auth_token(&auth_token, &state.auth_token) {
+                return DaemonResponse::AuthRequired;
+            }
+            match state.secret_service.set_secret(&provider, &key).await {
+                Ok(true) => DaemonResponse::SecretStored,
+                Ok(false) => DaemonResponse::Error {
+                    code: "SECRET-001".into(),
+                    message: "keychain not available (feature disabled)".into(),
+                },
+                Err(e) => DaemonResponse::Error {
+                    code: "SECRET-002".into(),
+                    message: e,
+                },
+            }
+        }
+
+        DaemonRequest::DeleteSecret {
+            provider,
+            auth_token,
+        } => {
+            if !validate_auth_token(&auth_token, &state.auth_token) {
+                return DaemonResponse::AuthRequired;
+            }
+            match state.secret_service.delete_secret(&provider).await {
+                Ok(_) => DaemonResponse::SecretDeleted,
+                Err(e) => DaemonResponse::Error {
+                    code: "SECRET-003".into(),
+                    message: e,
+                },
+            }
         }
 
         // ── Jobs ────────────────────────────────────────────────────────
@@ -615,6 +721,7 @@ async fn route_request(request: DaemonRequest, state: &Arc<ServerState>) -> Daem
 mod tests {
     use super::*;
     use crate::client::DaemonClient;
+    use serial_test::serial;
     use std::time::Duration;
 
     fn test_config(socket_path: PathBuf) -> DaemonConfig {
@@ -850,5 +957,203 @@ mod tests {
         let config = DaemonConfig::default();
         assert!(config.socket_path.ends_with("nika.sock"));
         assert_eq!(config.max_connections, 64);
+    }
+
+    // ── Auth token tests ─────────────────────────────────────────────
+
+    #[test]
+    fn generate_auth_token_is_64_hex_chars() {
+        let token = generate_auth_token();
+        assert_eq!(token.len(), 64, "auth token must be 64 hex chars");
+        assert!(
+            token.chars().all(|c| c.is_ascii_hexdigit()),
+            "auth token must be hex"
+        );
+    }
+
+    #[test]
+    fn generate_auth_token_is_unique() {
+        let t1 = generate_auth_token();
+        let t2 = generate_auth_token();
+        assert_ne!(t1, t2, "two tokens must differ");
+    }
+
+    #[test]
+    fn validate_auth_token_valid() {
+        let server = "abc123def456";
+        assert!(validate_auth_token(&Some(server.into()), server));
+    }
+
+    #[test]
+    fn validate_auth_token_invalid() {
+        assert!(!validate_auth_token(&Some("wrong".into()), "correct"));
+    }
+
+    #[test]
+    fn validate_auth_token_none_rejected() {
+        assert!(!validate_auth_token(&None, "any-token"));
+    }
+
+    #[test]
+    fn validate_auth_token_length_mismatch_rejected() {
+        assert!(!validate_auth_token(
+            &Some("short".into()),
+            "much-longer-token"
+        ));
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn write_auth_token_creates_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let orig = std::env::var("NIKA_HOME").ok();
+        std::env::set_var("NIKA_HOME", dir.path());
+
+        // Create daemon dir
+        tokio::fs::create_dir_all(crate::daemon_dir())
+            .await
+            .unwrap();
+
+        let token = "test-token-12345";
+        write_auth_token(token).await.unwrap();
+
+        let path = crate::daemon_token_path();
+        assert!(path.exists());
+        let content = tokio::fs::read_to_string(&path).await.unwrap();
+        assert_eq!(content, token);
+
+        // Check permissions (unix only)
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let meta = tokio::fs::metadata(&path).await.unwrap();
+            let mode = meta.permissions().mode() & 0o777;
+            assert_eq!(mode, 0o600, "token file must be owner-only");
+        }
+
+        match orig {
+            Some(v) => std::env::set_var("NIKA_HOME", v),
+            None => unsafe { std::env::remove_var("NIKA_HOME") },
+        }
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn server_set_secret_requires_auth() {
+        let dir = tempfile::tempdir().unwrap();
+        let sock = dir.path().join("test.sock");
+        let orig = std::env::var("NIKA_HOME").ok();
+        std::env::set_var("NIKA_HOME", dir.path());
+
+        let config = test_config(sock.clone());
+        let server = DaemonServer::new(config);
+        let shutdown = server.shutdown_handle();
+        let server_handle = tokio::spawn(server.run());
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // SetSecret without auth token -> AuthRequired
+        let client = DaemonClient::new(&sock);
+        let resp = client
+            .send(DaemonRequest::SetSecret {
+                provider: "anthropic".into(),
+                key: "sk-test".into(),
+                auth_token: None,
+            })
+            .await
+            .unwrap();
+        assert!(
+            matches!(resp, DaemonResponse::AuthRequired),
+            "SetSecret without auth must return AuthRequired"
+        );
+
+        // SetSecret with wrong token -> AuthRequired
+        let resp = client
+            .send(DaemonRequest::SetSecret {
+                provider: "anthropic".into(),
+                key: "sk-test".into(),
+                auth_token: Some("wrong-token".into()),
+            })
+            .await
+            .unwrap();
+        assert!(
+            matches!(resp, DaemonResponse::AuthRequired),
+            "SetSecret with wrong token must return AuthRequired"
+        );
+
+        shutdown.send(true).unwrap();
+        let _ = tokio::time::timeout(Duration::from_secs(2), server_handle).await;
+
+        match orig {
+            Some(v) => std::env::set_var("NIKA_HOME", v),
+            None => unsafe { std::env::remove_var("NIKA_HOME") },
+        }
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn server_delete_secret_requires_auth() {
+        let dir = tempfile::tempdir().unwrap();
+        let sock = dir.path().join("test.sock");
+        let orig = std::env::var("NIKA_HOME").ok();
+        std::env::set_var("NIKA_HOME", dir.path());
+
+        let config = test_config(sock.clone());
+        let server = DaemonServer::new(config);
+        let shutdown = server.shutdown_handle();
+        let server_handle = tokio::spawn(server.run());
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let client = DaemonClient::new(&sock);
+        let resp = client
+            .send(DaemonRequest::DeleteSecret {
+                provider: "anthropic".into(),
+                auth_token: None,
+            })
+            .await
+            .unwrap();
+        assert!(matches!(resp, DaemonResponse::AuthRequired));
+
+        shutdown.send(true).unwrap();
+        let _ = tokio::time::timeout(Duration::from_secs(2), server_handle).await;
+
+        match orig {
+            Some(v) => std::env::set_var("NIKA_HOME", v),
+            None => unsafe { std::env::remove_var("NIKA_HOME") },
+        }
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn server_cleanup_removes_token_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let sock = dir.path().join("test.sock");
+        let orig = std::env::var("NIKA_HOME").ok();
+        std::env::set_var("NIKA_HOME", dir.path());
+
+        let config = test_config(sock.clone());
+        let server = DaemonServer::new(config);
+        let shutdown = server.shutdown_handle();
+        let server_handle = tokio::spawn(server.run());
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // Token file should exist while server is running
+        let token_path = crate::daemon_token_path();
+        assert!(token_path.exists(), "token file must exist while running");
+
+        // Shutdown
+        shutdown.send(true).unwrap();
+        let result = tokio::time::timeout(Duration::from_secs(2), server_handle)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(result.is_ok());
+
+        // Token file should be cleaned up
+        assert!(!token_path.exists(), "token file must be removed on shutdown");
+
+        match orig {
+            Some(v) => std::env::set_var("NIKA_HOME", v),
+            None => unsafe { std::env::remove_var("NIKA_HOME") },
+        }
     }
 }
