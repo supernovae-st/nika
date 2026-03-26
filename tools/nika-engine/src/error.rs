@@ -1320,6 +1320,18 @@ pub fn fix_suggestion_for_code(code: &str) -> Option<&'static str> {
         "NIKA-105" => Some("Add mcp_servers: to your workflow header"),
         "NIKA-121" => Some("Increase the timeout: value (in seconds)"),
         "NIKA-165" => Some("Review the security policy — some URLs or commands may be blocked"),
+        // Codes from FixSuggestion impl that may appear in TaskFailed events
+        "NIKA-004" => Some("Check workflow structure matches schema"),
+        "NIKA-005" => Some("Check YAML against schemas/nika-workflow.schema.json"),
+        "NIKA-022" => Some("Each task must have a unique ID"),
+        "NIKA-026" => Some("Fix the root task failure, then re-run"),
+        "NIKA-027" => Some("Task was cancelled due to upstream failure"),
+        "NIKA-033" => Some("Check configuration value is valid"),
+        "NIKA-043" => Some("Check binding value type matches expected type"),
+        "NIKA-047" => Some("Check invoke params are valid JSON"),
+        "NIKA-096" => Some("Check command/URL is valid"),
+        "NIKA-097" => Some("The workflow was cancelled. No action needed."),
+        "NIKA-098" => Some("A task panicked unexpectedly — check task logic"),
         _ => None,
     }
 }
