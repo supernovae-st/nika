@@ -4,7 +4,7 @@
 
 use std::collections::VecDeque;
 
-use super::types::ConnectionStatus;
+use super::types::{ConnectionStatus, ProviderModalTab};
 use super::ProviderModalState;
 
 /// Maximum latency history samples per provider
@@ -203,9 +203,16 @@ impl ProviderModalState {
         }
     }
 
-    /// Set Native models
+    /// Set Native models, clamping selection index if the list shrinks
     pub fn set_native_models(&mut self, models: Vec<super::types::NativeModelInfo>) {
         self.native_models = models;
+        // Keep selected_idx and item_count consistent when the list changes
+        // (e.g. after a model delete or a native server restart with fewer models)
+        if self.active_tab == ProviderModalTab::Native {
+            let max = self.native_models.len().saturating_sub(1);
+            self.selected_idx = self.selected_idx.min(max);
+            self.item_count = self.native_models.len().max(1);
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

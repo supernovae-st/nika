@@ -334,29 +334,22 @@ impl ModalEventHandler {
     }
 
     /// Get currently selected provider name for Keys tab
+    ///
+    /// Uses the canonical `llm_provider_ids()` list so new providers (e.g. xAI)
+    /// are automatically covered without updating a parallel match table.
     fn selected_provider(state: &ProviderModalState) -> &'static str {
-        match state.selected_idx {
-            0 => "anthropic",
-            1 => "openai",
-            2 => "mistral",
-            3 => "groq",
-            4 => "deepseek",
-            5 => "gemini",
-            _ => "anthropic",
-        }
+        crate::providers::llm_provider_ids()
+            .nth(state.selected_idx)
+            .unwrap_or("anthropic")
     }
 
     /// Get cloud provider name by index
+    ///
+    /// Uses the canonical `llm_provider_ids()` list — single source of truth.
     fn selected_cloud_provider_by_idx(idx: usize) -> &'static str {
-        match idx {
-            0 => "anthropic",
-            1 => "openai",
-            2 => "mistral",
-            3 => "groq",
-            4 => "deepseek",
-            5 => "gemini",
-            _ => "anthropic",
-        }
+        crate::providers::llm_provider_ids()
+            .nth(idx)
+            .unwrap_or("anthropic")
     }
 
     /// Get default model for provider index
@@ -368,6 +361,7 @@ impl ModalEventHandler {
             3 => "llama-3.3-70b",
             4 => "deepseek-chat",
             5 => "gemini-2.0-flash",
+            6 => "grok-3",
             _ => "claude-sonnet-4",
         }
     }
