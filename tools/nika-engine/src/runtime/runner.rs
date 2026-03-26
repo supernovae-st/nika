@@ -646,7 +646,7 @@ impl Runner {
     ) -> TaskResult {
         let mut current_infer = original_infer;
         let original_prompt = current_infer.prompt.clone();
-        let mut attempts = 0u8;
+        let mut attempts = 0u32;
 
         // PERF: Compile JSON Schema validator ONCE before the retry loop.
         // Previously compiled on every iteration (10-50ms per retry wasted).
@@ -683,7 +683,7 @@ impl Runner {
                     let json_value = match extract_json(&output) {
                         Ok(v) => v,
                         Err(e) => {
-                            if attempts > max_retries {
+                            if attempts > u32::from(max_retries) {
                                 // Max retries exhausted
                                 event_log.emit(EventKind::TaskFailed {
                                     task_id: Arc::clone(task_id),
@@ -748,7 +748,7 @@ impl Runner {
                     }
 
                     // Validation failed
-                    if attempts > max_retries {
+                    if attempts > u32::from(max_retries) {
                         let error_feedback = format_validation_errors(&json_value, schema);
                         event_log.emit(EventKind::TaskFailed {
                             task_id: Arc::clone(task_id),
@@ -2256,9 +2256,10 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     TaskResult::success(Value::Array(outputs), total_duration)
                         .with_media(merged_media)
                 } else {
-                    // Collect errors
+                    // Collect only actual failures (exclude skipped/cancelled items)
                     let errors: Vec<String> = results
                         .iter()
+                        .filter(|(_, r)| !r.is_success() && !r.is_skipped())
                         .filter_map(|(idx, r)| r.error().map(|e| format!("[{}]: {}", idx, e)))
                         .collect();
                     // Preserve partial results in output even on failure
