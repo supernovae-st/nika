@@ -84,6 +84,11 @@ pub fn check_pid_file(path: &Path) -> DaemonResult<Option<u32>> {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Remove a stale socket file if the daemon PID is dead.
+///
+/// Detection strategy (defense in depth):
+/// 1. If PID file exists and process is alive → refuse (AlreadyRunning)
+/// 2. If socket exists but no PID or PID dead → try connect as final check
+/// 3. If connect fails (ConnectionRefused/timeout) → safe to remove socket
 pub fn cleanup_stale_socket(socket_path: &Path, pid_path: &Path) -> DaemonResult<()> {
     if !socket_path.exists() {
         return Ok(());
@@ -91,11 +96,24 @@ pub fn cleanup_stale_socket(socket_path: &Path, pid_path: &Path) -> DaemonResult
 
     match check_pid_file(pid_path)? {
         Some(pid) => {
-            // Daemon is alive
+            // Daemon is alive per PID — refuse
             Err(DaemonError::AlreadyRunning { pid })
         }
         None => {
-            // PID dead or no PID file — safe to remove socket
+            // PID dead or no PID file — try connecting as extra safety check
+            #[cfg(unix)]
+            {
+                use std::os::unix::net::UnixStream;
+                if UnixStream::connect(socket_path).is_ok() {
+                    // Something is listening! Don't remove.
+                    warn!(path = %socket_path.display(), "socket responds but no PID file — refusing to remove");
+                    return Err(DaemonError::Lifecycle(
+                        "socket is active but no PID file found — manually investigate".into(),
+                    ));
+                }
+            }
+
+            // Socket is stale — safe to remove
             info!(path = %socket_path.display(), "removing stale socket");
             std::fs::remove_file(socket_path)?;
             Ok(())

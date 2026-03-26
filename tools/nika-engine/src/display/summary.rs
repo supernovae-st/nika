@@ -610,6 +610,55 @@ fn token_bar(value: u64, max: u64, width: usize, color: &str) -> String {
     }
 }
 
+/// Print the doctor summary with colored counts, separator, and optional next steps.
+pub fn print_doctor_summary(pass_count: usize, warn_count: usize, fail_count: usize) {
+    println!();
+    println!("{}", HORIZONTAL.repeat(50).dimmed());
+
+    let status_icon = if fail_count > 0 {
+        "\u{2717}".red().bold() // ✗
+    } else if warn_count > 0 {
+        "\u{26a0}".yellow().bold() // ⚠
+    } else {
+        "\u{2713}".green().bold() // ✓
+    };
+
+    let status_word = if fail_count > 0 {
+        "Issues found".red().bold()
+    } else if warn_count > 0 {
+        "Mostly healthy".yellow().bold()
+    } else {
+        "All good!".green().bold()
+    };
+
+    println!(
+        "{} {} \u{2014} {} passed, {} warnings, {} failed", // — (em dash)
+        status_icon,
+        status_word,
+        pass_count.to_string().green(),
+        warn_count.to_string().yellow(),
+        fail_count.to_string().red()
+    );
+
+    if warn_count > 0 || fail_count > 0 {
+        println!();
+        if !std::path::Path::new(".nika").exists() {
+            println!(
+                "  {} Run {} to initialize project",
+                "\u{2192}".cyan(),
+                "nika init".bold()
+            );
+        }
+        println!(
+            "  {} Run {} to auto-fix issues",
+            "\u{2192}".cyan(),
+            "nika doctor --fix".bold()
+        );
+    }
+
+    println!();
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -700,51 +749,3 @@ mod tests {
     }
 }
 
-/// Print the doctor summary with colored counts, separator, and optional next steps.
-pub fn print_doctor_summary(pass_count: usize, warn_count: usize, fail_count: usize) {
-    println!();
-    println!("{}", HORIZONTAL.repeat(50).dimmed());
-
-    let status_icon = if fail_count > 0 {
-        "\u{2717}".red().bold() // ✗
-    } else if warn_count > 0 {
-        "\u{26a0}".yellow().bold() // ⚠
-    } else {
-        "\u{2713}".green().bold() // ✓
-    };
-
-    let status_word = if fail_count > 0 {
-        "Issues found".red().bold()
-    } else if warn_count > 0 {
-        "Mostly healthy".yellow().bold()
-    } else {
-        "All good!".green().bold()
-    };
-
-    println!(
-        "{} {} \u{2014} {} passed, {} warnings, {} failed", // — (em dash)
-        status_icon,
-        status_word,
-        pass_count.to_string().green(),
-        warn_count.to_string().yellow(),
-        fail_count.to_string().red()
-    );
-
-    if warn_count > 0 || fail_count > 0 {
-        println!();
-        if !std::path::Path::new(".nika").exists() {
-            println!(
-                "  {} Run {} to initialize project",
-                "\u{2192}".cyan(),
-                "nika init".bold()
-            );
-        }
-        println!(
-            "  {} Run {} to auto-fix issues",
-            "\u{2192}".cyan(),
-            "nika doctor --fix".bold()
-        );
-    }
-
-    println!();
-}

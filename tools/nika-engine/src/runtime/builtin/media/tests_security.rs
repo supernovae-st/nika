@@ -11,6 +11,7 @@
 
 #[cfg(test)]
 mod tests {
+    use crate::runtime::builtin::media::MediaOpResult;
     use std::sync::Arc;
 
     use crate::media::{CasStore, MediaBudget};
