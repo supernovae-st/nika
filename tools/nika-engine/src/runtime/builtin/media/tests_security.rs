@@ -18,7 +18,7 @@ mod tests {
     use crate::runtime::builtin::media::dimensions::DimensionsOp;
     use crate::runtime::builtin::media::safety::sanitize_svg;
     use crate::runtime::builtin::media::thumbhash_tool::ThumbhashOp;
-    use crate::runtime::builtin::media::{MediaOp, MediaToolAdapter};
+    use crate::runtime::builtin::media::{MediaOp, MediaOpResult, MediaToolAdapter};
     use crate::runtime::builtin::BuiltinTool;
 
     async fn setup() -> (tempfile::TempDir, Arc<MediaToolContext>) {

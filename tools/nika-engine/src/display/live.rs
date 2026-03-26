@@ -6,6 +6,8 @@
 //! Falls back to the classic `CliRenderer` when stdout is not a TTY.
 
 use std::collections::HashMap;
+use std::fmt;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -13,7 +15,7 @@ use colored::Colorize;
 use indexmap::IndexMap;
 #[cfg(test)]
 use indicatif::ProgressDrawTarget;
-use indicatif::{MultiProgress, ProgressBar, ProgressFinish, ProgressStyle};
+use indicatif::{MultiProgress, ProgressBar, ProgressFinish, ProgressState, ProgressStyle};
 
 use crate::display::{colors, icons, spinner, DetailLevel};
 use crate::event::{Event, EventKind};
@@ -35,6 +37,11 @@ struct TaskBar {
     bar: ProgressBar,
     verb: String,
     status: TaskStatus,
+    /// Streaming out-token counter — updated by `StreamingDelta` / `ProviderResponded`.
+    /// Read by the `{tokens}` `with_key` closure registered on `style_running`.
+    out_tokens: Arc<AtomicU64>,
+    /// Per-bar running style with the `{tokens}` closure bound to `out_tokens`.
+    style_running: ProgressStyle,
 }
 
 // ── LiveRenderer ──────────────────────────────────────────────────────
@@ -154,6 +161,8 @@ impl LiveRenderer {
         let visible = total.min(spinner::MAX_VISIBLE_TASKS);
 
         let static_style = self.style_static.clone();
+        // Cache the base running style (tick_strings already set) for per-bar with_key extension
+        let base_running_style = self.style_running.clone();
 
         for (i, task_id) in task_ids.iter().enumerate() {
             if i >= visible {
@@ -172,12 +181,28 @@ impl LiveRenderer {
             let msg = Self::format_pending(task_id, &dep_refs);
             bar.set_message(msg);
 
+            // Per-bar AtomicU64 — the {tokens} closure captures this Arc and reads it on each tick.
+            // Zero-alloc hot path: StreamingDelta just stores into the atomic, no String formatting.
+            let out_tokens = Arc::new(AtomicU64::new(0));
+            let tokens_arc = Arc::clone(&out_tokens);
+            let running_style =
+                base_running_style
+                    .clone()
+                    .with_key("tokens", move |_state: &ProgressState, w: &mut dyn fmt::Write| {
+                        let t = tokens_arc.load(Ordering::Relaxed);
+                        if t > 0 {
+                            let _ = write!(w, "out:{}", crate::display::colors::tokens(t));
+                        }
+                    });
+
             self.task_bars.insert(
                 task_id.clone(),
                 TaskBar {
                     bar,
                     verb: String::new(),
                     status: TaskStatus::Pending,
+                    out_tokens,
+                    style_running: running_style,
                 },
             );
         }
@@ -190,13 +215,15 @@ impl LiveRenderer {
                 .insert_before(&self.overall_bar, ProgressBar::new(0));
             bar.set_style(static_style);
             bar.set_message(format!("  {} +{} more tasks", "…".dimmed(), overflow).to_string());
-            // Store with a synthetic key
+            // Store with a synthetic key (overflow bar never runs, so dummy AtomicU64 + base style)
             self.task_bars.insert(
                 "__overflow__".to_string(),
                 TaskBar {
                     bar,
                     verb: String::new(),
                     status: TaskStatus::Pending,
+                    out_tokens: Arc::new(AtomicU64::new(0)),
+                    style_running: base_running_style,
                 },
             );
         }
@@ -460,12 +487,14 @@ impl LiveRenderer {
                 if let Some(tb) = self.task_bars.get_mut(task_id.as_ref()) {
                     tb.verb = verb.to_string();
                     tb.status = TaskStatus::Running;
+                    tb.out_tokens.store(0, Ordering::Relaxed);
 
-                    // Switch to running style with spinner
-                    tb.bar.set_style(self.style_running.clone());
+                    // Per-bar style has {tokens} closure bound to this bar's AtomicU64
+                    let running_style = tb.style_running.clone();
+                    tb.bar.set_style(running_style);
                     tb.bar.enable_steady_tick(spinner::TICK_INTERVAL);
 
-                    // Use prefix/msg split: prefix = verb+id (stable), msg = volatile info
+                    // prefix = stable (verb + id), msg = status label (running / turn N / agent N/M)
                     tb.bar
                         .set_prefix(Self::format_running_prefix(task_id, verb));
                     tb.bar.set_message(Self::format_running_msg(""));
@@ -508,6 +537,8 @@ impl LiveRenderer {
                     tb.bar.set_style(self.style_static.clone());
                     let msg = Self::format_completed(task_id, &verb, dur_secs, in_tok, out_tok);
                     tb.bar.finish_with_message(msg);
+                    // Guarantee immediate render — don't wait for the next 80ms tick
+                    tb.bar.force_draw();
                 }
 
                 self.overall_bar
@@ -565,6 +596,8 @@ impl LiveRenderer {
                     tb.bar.set_style(self.style_static.clone());
                     let msg = Self::format_failed(task_id, &verb, dur_secs, error);
                     tb.bar.finish_with_message(msg);
+                    // Guarantee immediate render — don't wait for the next 80ms tick
+                    tb.bar.force_draw();
                 }
 
                 // Update progress bar (failed tasks count toward completion)
@@ -655,21 +688,14 @@ impl LiveRenderer {
                     }
                 }
 
-                // Update running task bar with token info (elapsed auto-updates via template)
-                // Show accumulated tokens (not just this call's) for multi-turn agents
+                // Update atomic out-token counter — {tokens} with_key reads this on the next tick.
+                // Accumulated out_tokens across all ProviderResponded calls (multi-turn agents).
+                // No set_message() needed — the with_key closure is zero-alloc on the hot path.
                 if let Some(tb) = self.task_bars.get(task_id) {
                     if tb.status == TaskStatus::Running {
-                        let (acc_in, acc_out) = self
-                            .task_token_acc
-                            .get(task_id)
-                            .copied()
-                            .unwrap_or_default();
-                        let tok_info = format!(
-                            "in:{} out:{}",
-                            colors::tokens(acc_in),
-                            colors::tokens(acc_out)
-                        );
-                        tb.bar.set_message(Self::format_running_msg(&tok_info));
+                        let (_, acc_out) =
+                            self.task_token_acc.get(task_id).copied().unwrap_or_default();
+                        tb.out_tokens.store(acc_out, Ordering::Relaxed);
                     }
                 }
 
@@ -682,11 +708,10 @@ impl LiveRenderer {
                 total_tokens,
                 ..
             } => {
+                // Zero-alloc hot path: just update the atomic; {tokens} with_key reads it on tick.
                 if let Some(tb) = self.task_bars.get(task_id.as_ref()) {
                     if tb.status == TaskStatus::Running {
-                        let tok_str = colors::tokens(*total_tokens);
-                        tb.bar
-                            .set_message(Self::format_running_msg(&format!("out:{}", tok_str)));
+                        tb.out_tokens.store(*total_tokens, Ordering::Relaxed);
                     }
                 }
             }

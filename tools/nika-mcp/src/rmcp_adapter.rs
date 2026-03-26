@@ -151,7 +151,7 @@ impl RmcpClientAdapter {
     }
 
     /// Get the server name.
-    #[allow(dead_code)] // Used in tests
+    #[allow(dead_code)]
     pub fn name(&self) -> &str {
         &self.name
     }
