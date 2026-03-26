@@ -121,9 +121,9 @@ impl JobService {
         cmd.stdout(std::process::Stdio::piped());
         cmd.stderr(std::process::Stdio::piped());
 
-        let child = cmd.spawn().map_err(|e| {
-            DaemonError::Lifecycle(format!("failed to spawn nika run: {e}"))
-        })?;
+        let child = cmd
+            .spawn()
+            .map_err(|e| DaemonError::Lifecycle(format!("failed to spawn nika run: {e}")))?;
 
         let child_pid = child.id().unwrap_or(0);
         debug!(job_id, child_pid, "job process spawned");
@@ -154,7 +154,12 @@ impl JobService {
                     };
 
                     let _ = storage
-                        .update_state(&job_id, state.clone(), Some(exit_code), Some(output.clone()))
+                        .update_state(
+                            &job_id,
+                            state.clone(),
+                            Some(exit_code),
+                            Some(output.clone()),
+                        )
                         .await;
 
                     let _ = storage
@@ -288,10 +293,7 @@ impl JobService {
 }
 
 /// Wait for a child process to complete, capturing output.
-async fn wait_for_child(
-    child: tokio::process::Child,
-    job_id: &str,
-) -> DaemonResult<(i32, String)> {
+async fn wait_for_child(child: tokio::process::Child, job_id: &str) -> DaemonResult<(i32, String)> {
     let output = child
         .wait_with_output()
         .await
@@ -309,7 +311,10 @@ async fn wait_for_child(
     // Truncate to 10KB max
     const MAX_OUTPUT: usize = 10 * 1024;
     if combined.len() > MAX_OUTPUT {
-        combined = format!("...(truncated)...\n{}", &combined[combined.len() - MAX_OUTPUT..]);
+        combined = format!(
+            "...(truncated)...\n{}",
+            &combined[combined.len() - MAX_OUTPUT..]
+        );
     }
 
     Ok((exit_code, combined))
@@ -365,8 +370,12 @@ mod tests {
     #[tokio::test]
     async fn list_jobs_returns_submitted() {
         let svc = setup().await;
-        svc.submit("a.nika.yaml", None, None, None, 0).await.unwrap();
-        svc.submit("b.nika.yaml", None, None, None, 0).await.unwrap();
+        svc.submit("a.nika.yaml", None, None, None, 0)
+            .await
+            .unwrap();
+        svc.submit("b.nika.yaml", None, None, None, 0)
+            .await
+            .unwrap();
 
         let jobs = svc.list_jobs(None).await.unwrap();
         assert_eq!(jobs.len(), 2);

@@ -19,6 +19,7 @@ pub mod model;
 pub mod config;
 pub mod daemon;
 pub mod doctor;
+pub mod jobs;
 pub mod media;
 pub mod schema;
 pub mod workflow;

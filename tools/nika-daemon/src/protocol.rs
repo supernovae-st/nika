@@ -65,7 +65,6 @@ pub enum DaemonRequest {
 
     /// Get job history events.
     JobHistory { id: String },
-
     // ── Watch (Phase 3) ─────────────────────────────────────────────────
     // WatchStart, WatchStop, WatchStatus
 
@@ -111,19 +110,13 @@ pub enum DaemonResponse {
     JobCreated { id: String },
 
     /// List of jobs.
-    JobList {
-        jobs: Vec<serde_json::Value>,
-    },
+    JobList { jobs: Vec<serde_json::Value> },
 
     /// Single job details.
-    JobDetail {
-        job: serde_json::Value,
-    },
+    JobDetail { job: serde_json::Value },
 
     /// Job history events.
-    JobHistoryList {
-        events: Vec<serde_json::Value>,
-    },
+    JobHistoryList { events: Vec<serde_json::Value> },
 }
 
 /// Information about a provider's secret status.
