@@ -724,7 +724,7 @@ impl Widget for StatusBar<'_> {
         // Only add hints that fit in remaining space
         let mut hints_width = 0usize;
         for (i, hint) in hints.iter().enumerate() {
-            let hint_width = if i > 0 || self.input_mode.is_some() || self.custom_text.is_some() {
+            let hint_width = if i > 0 || self.input_mode.is_some() || had_custom_text {
                 2 // leading "  "
             } else {
                 0
