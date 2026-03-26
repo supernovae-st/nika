@@ -35,9 +35,10 @@ pub const MAX_VISIBLE_TASKS: usize = 24;
 /// Overall progress bar at the bottom.
 ///
 /// ```text
-///   ━━━━━━━━━╸─────────────────── 2/6  +3.1s  $0.004
+///   ━━━━━━━━━╸─────────────────── 2/6 (33%)  +3.1s  ETA 6s  $0.004
 /// ```
-pub const OVERALL_TEMPLATE: &str = "  {bar:30.cyan/dim} {pos}/{len}  {elapsed_precise}  {msg}";
+pub const OVERALL_TEMPLATE: &str =
+    "  {bar:30.cyan/dim} {pos}/{len} ({percent}%)  {elapsed_precise}  ETA {eta}  {msg}";
 
 /// Progress bar characters: filled ━, tip ╸, empty ─
 pub const PROGRESS_CHARS: &str = "\u{2501}\u{257A}\u{2500}";
@@ -47,7 +48,9 @@ pub const PROGRESS_CHARS: &str = "\u{2501}\u{257A}\u{2500}";
 /// ```text
 ///   ⠹ ✧ fetch_data       running  +2.3s  in:1.2k
 /// ```
-pub const TASK_RUNNING_TEMPLATE: &str = "  {spinner:.cyan} {msg}";
+/// Uses `{prefix}` for stable part (verb + id) and `{msg}` for volatile (tokens).
+/// `{elapsed}` auto-updates on every tick — no event needed for live time.
+pub const TASK_RUNNING_TEMPLATE: &str = "  {spinner:.cyan} {prefix} {msg}  {elapsed:.dim}";
 
 /// Task bar in pending/completed state (no spinner, space placeholder).
 pub const TASK_STATIC_TEMPLATE: &str = "  {msg}";
