@@ -228,6 +228,13 @@ impl TreeNode {
         let mut children = Vec::new();
 
         for entry in entries.flatten() {
+            // Security: Skip symlinks to prevent traversal outside project root
+            if let Ok(ft) = entry.file_type() {
+                if ft.is_symlink() {
+                    continue;
+                }
+            }
+
             // Convert to UTF-8 path (skip non-UTF-8 paths)
             let entry_path = match Utf8PathBuf::try_from(entry.path()) {
                 Ok(p) => p,
