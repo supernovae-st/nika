@@ -1,0 +1,14 @@
+{
+  "name": "@supernovae/nika-win32-x64",
+  "version": "0.46.1",
+  "description": "Nika binary for Windows x64",
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SuperNovae-studio/nika.git"
+  },
+  "os": ["win32"],
+  "cpu": ["x64"],
+  "files": ["nika.exe"],
+  "preferUnplugged": true
+}
