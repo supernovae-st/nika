@@ -1,3 +1,4 @@
+#![cfg(unix)]
 //! Daemon server — accepts connections on Unix socket and routes requests.
 //!
 //! The server listens on `~/.nika/daemon/nika.sock`, accepts connections,

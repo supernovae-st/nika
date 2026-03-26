@@ -1,3 +1,4 @@
+#![cfg(unix)]
 //! Daemon client — connects to the daemon over Unix socket.
 //!
 //! The client is used by `nika run`, `nika doctor`, and the TUI to communicate

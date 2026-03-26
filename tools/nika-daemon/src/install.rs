@@ -1,3 +1,4 @@
+#![cfg(unix)]
 //! Daemon auto-start installation — launchd (macOS) + systemd (Linux).
 //!
 //! `nika daemon install` generates and installs a platform-specific service
