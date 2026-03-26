@@ -630,6 +630,10 @@ impl Runner {
         let original_prompt = current_infer.prompt.clone();
         let mut attempts = 0u8;
 
+        // PERF: Compile JSON Schema validator ONCE before the retry loop.
+        // Previously compiled on every iteration (10-50ms per retry wasted).
+        let compiled_validator = jsonschema::validator_for(schema).ok();
+
         loop {
             // Check cancellation before each retry attempt (avoids wasting LLM calls)
             if executor.is_cancelled() {
@@ -697,18 +701,18 @@ impl Runner {
                         }
                     };
 
-                    // Validate against schema
-                    let compiled = match jsonschema::validator_for(schema) {
-                        Ok(c) => c,
-                        Err(e) => {
+                    // Validate against schema (using pre-compiled validator)
+                    let compiled = match compiled_validator.as_ref() {
+                        Some(c) => c,
+                        None => {
                             event_log.emit(EventKind::TaskFailed {
                                 task_id: Arc::clone(task_id),
-                                error: format!("Invalid schema: {}", e),
+                                error: "Invalid schema (failed to compile)".to_string(),
                                 duration_ms: duration.as_millis() as u64,
                                 error_code: Some("NIKA-061".to_string()),
                             });
                             return TaskResult::failed(
-                                format!("Invalid inline schema: {}", e),
+                                "Invalid inline schema (compilation failed)".to_string(),
                                 duration,
                             );
                         }
