@@ -74,7 +74,8 @@ pub(crate) fn apply_extract(
                 .collect();
             Ok(serde_json::json!({
                 "title": feed.title.map(|t| t.content),
-                "entry_count": feed.entries.len(),
+                "entry_count": entries.len(),
+                "total_count": feed.entries.len(),
                 "entries": entries,
             })
             .to_string())
