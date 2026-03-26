@@ -1423,15 +1423,21 @@ mod tests {
 }
 
 /// Write data to a file, failing if the file already exists (O_EXCL semantics).
-/// Inlined from nika's io::atomic module.
+/// Uses spawn_blocking to avoid blocking the Tokio worker thread.
 #[allow(clippy::items_after_test_module)]
 async fn write_fail_if_exists(path: &Path, data: impl AsRef<[u8]>) -> std::io::Result<()> {
-    use std::io::Write;
-    let mut file = std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(path)?;
-    file.write_all(data.as_ref())?;
-    file.sync_all()?;
-    Ok(())
+    let path = path.to_owned();
+    let data = data.as_ref().to_vec();
+    tokio::task::spawn_blocking(move || {
+        use std::io::Write;
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)?;
+        file.write_all(&data)?;
+        file.sync_all()?;
+        Ok(())
+    })
+    .await
+    .map_err(std::io::Error::other)?
 }
