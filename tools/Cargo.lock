@@ -5368,6 +5368,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-daemon"
+version = "0.46.1"
+dependencies = [
+ "blake3",
+ "chrono",
+ "dirs",
+ "nika-core",
+ "nix 0.29.0",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+ "uuid 1.22.0",
+]
+
+[[package]]
 name = "nika-engine"
 version = "0.46.1"
 dependencies = [
