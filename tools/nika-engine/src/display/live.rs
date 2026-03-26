@@ -18,7 +18,7 @@ use indicatif::ProgressDrawTarget;
 use crate::display::{colors, icons, spinner, DetailLevel};
 use crate::event::{Event, EventKind};
 
-use super::renderer::{ProviderCallStat, RunStats};
+use super::renderer::RunStats;
 
 // ── Task state ────────────────────────────────────────────────────────
 
@@ -366,6 +366,9 @@ impl LiveRenderer {
     /// Note: JSON mode is handled exclusively by `CliRenderer`. The `RunRenderer::auto()`
     /// constructor ensures `LiveRenderer` is never used with `DetailLevel::Json`.
     pub fn render(&mut self, event: &Event) {
+        // Centralized stat accumulation — covers all ~15 stat-bearing event types
+        self.stats.apply_event(event);
+
         match &event.kind {
             // ── Workflow level ─────────────────────────────────────
             EventKind::WorkflowStarted { .. } => {
@@ -442,7 +445,6 @@ impl LiveRenderer {
                 output,
                 duration_ms,
             } => {
-                self.stats.tasks_passed += 1;
                 let dur_secs = *duration_ms as f32 / 1000.0;
 
                 let verb = self
@@ -496,10 +498,6 @@ impl LiveRenderer {
                 duration_ms,
                 ..
             } => {
-                self.stats.tasks_failed += 1;
-                if self.stats.root_failure.is_none() {
-                    self.stats.root_failure = Some(task_id.to_string());
-                }
                 let dur_secs = *duration_ms as f32 / 1000.0;
                 let verb = self
                     .task_starts
@@ -541,8 +539,6 @@ impl LiveRenderer {
             }
 
             EventKind::TaskSkipped { task_id, reason } => {
-                self.stats.tasks_skipped += 1;
-
                 if let Some(tb) = self.task_bars.get_mut(task_id.as_ref()) {
                     tb.status = TaskStatus::Skipped;
                     tb.bar.set_style(self.style_static.clone());
@@ -574,24 +570,8 @@ impl LiveRenderer {
                 cost_usd,
                 ..
             } => {
-                self.stats.total_input_tokens += input_tokens;
-                self.stats.total_output_tokens += output_tokens;
-                self.stats.total_cache_tokens += cache_read_tokens;
-                self.stats.total_cost += cost_usd;
-                if let Some(t) = ttft_ms {
-                    self.stats.ttft_values.push(*t);
-                }
+                // O(1) per-task token accumulator (LiveRenderer-specific: for task bar display)
                 let provider_task_id = event.kind.task_id().unwrap_or("?").to_string();
-                self.stats.provider_calls.push(ProviderCallStat {
-                    task_id: provider_task_id.clone(),
-                    input_tokens: *input_tokens,
-                    output_tokens: *output_tokens,
-                    cache_tokens: *cache_read_tokens,
-                    ttft_ms: *ttft_ms,
-                    cost: *cost_usd,
-                });
-
-                // O(1) per-task token accumulator (avoids O(n) scan in TaskCompleted)
                 let acc = self.task_token_acc.entry(provider_task_id).or_default();
                 acc.0 += input_tokens;
                 acc.1 += output_tokens;
@@ -648,7 +628,6 @@ impl LiveRenderer {
             }
 
             EventKind::McpError { server_name, error } => {
-                self.stats.mcp_errors += 1;
                 self.log(&super::format_event::fmt_mcp_error(server_name, error));
             }
 
@@ -659,7 +638,6 @@ impl LiveRenderer {
                 resource,
                 ..
             } => {
-                self.stats.mcp_calls += 1;
                 if self.detail.show_sub_events() {
                     self.log(&super::format_event::fmt_mcp_invoke(
                         mcp_server, tool.as_deref(), resource.as_deref(), call_id,
@@ -689,7 +667,6 @@ impl LiveRenderer {
                 error,
                 ..
             } => {
-                self.stats.mcp_retries += 1;
                 self.log(&super::format_event::fmt_mcp_retry(
                     operation, *attempt, *max_attempts, error,
                 ));
@@ -760,7 +737,6 @@ impl LiveRenderer {
                 description,
                 ..
             } => {
-                self.stats.guardrails_passed += 1;
                 if self.detail.show_sub_events() {
                     self.log(&super::format_event::fmt_guardrail_passed(guardrail_type, description));
                 }
@@ -771,14 +747,12 @@ impl LiveRenderer {
                 message,
                 ..
             } => {
-                self.stats.guardrails_failed += 1;
                 self.log(&super::format_event::fmt_guardrail_failed(guardrail_type, message));
             }
 
             EventKind::GuardrailEscalation {
                 severity, message, ..
             } => {
-                self.stats.guardrails_escalations += 1;
                 self.log(&super::format_event::fmt_guardrail_escalation(severity, message));
             }
 
@@ -800,8 +774,6 @@ impl LiveRenderer {
                 format,
                 ..
             } => {
-                self.stats.artifacts_count += 1;
-                self.stats.artifacts_bytes += size;
                 if self.detail.show_sub_events() {
                     self.log(&super::format_event::fmt_artifact_written(path, *size, format));
                 }
@@ -831,11 +803,6 @@ impl LiveRenderer {
                 pipeline_ms,
                 ..
             } => {
-                self.stats.media_stored += 1;
-                self.stats.media_bytes += size_bytes;
-                if *deduplicated {
-                    self.stats.media_dedup += 1;
-                }
                 if self.detail.show_sub_events() {
                     self.log(&super::format_event::fmt_media_stored(*size_bytes, path, hash));
                     if self.detail.show_previews() {
@@ -858,7 +825,6 @@ impl LiveRenderer {
                 error,
                 ..
             } => {
-                self.stats.structured_attempts += 1;
                 if self.detail.show_sub_events() {
                     self.log(&super::format_event::fmt_structured_output_attempt(
                         *layer, layer_name, *success, error.as_deref(),
@@ -866,8 +832,8 @@ impl LiveRenderer {
                 }
             }
 
-            EventKind::StructuredOutputSuccess { layer, .. } => {
-                self.stats.structured_success_layer = Some(*layer);
+            EventKind::StructuredOutputSuccess { .. } => {
+                // Stats handled by apply_event()
             }
 
             // ── Vision ────────────────────────────────────────────
