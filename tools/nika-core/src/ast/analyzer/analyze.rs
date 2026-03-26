@@ -694,7 +694,7 @@ fn analyze_task(
         span: raw.span,
     };
 
-    // Analyze action
+    // Analyze action — reject tasks with no verb
     if let Some(ref action) = raw.action {
         task.action = analyze_action(action, ctx);
 
@@ -708,6 +708,18 @@ fn analyze_task(
                 task.model = agent.model.as_ref().map(|s| s.value.clone());
             }
         }
+    } else {
+        ctx.errors.push(AnalyzeError {
+            kind: AnalyzeErrorKind::MissingField,
+            span: raw.span,
+            message: format!(
+                "Task '{}' has no verb (infer:, exec:, fetch:, invoke:, or agent:)",
+                raw.id.value
+            ),
+            note: None,
+            suggestion: Some("Add one of: infer:, exec:, fetch:, invoke:, or agent:".to_string()),
+        });
+        return None;
     }
 
     // Warn if retry: is used on non-fetch verbs (it only applies to fetch:)
@@ -1505,8 +1517,19 @@ mod tests {
     }
 
     fn make_raw_task(id: &str) -> RawTask {
+        use crate::ast::raw::{RawExecAction, RawTaskAction};
         RawTask {
             id: Spanned::new(id.to_string(), make_span(0, id.len() as u32)),
+            action: Some(RawTaskAction::Exec(Spanned::new(
+                RawExecAction {
+                    command: Spanned::new("echo test".to_string(), make_span(0, 9)),
+                    shell: None,
+                    cwd: None,
+                    env: None,
+                    timeout_ms: None,
+                },
+                make_span(0, 20),
+            ))),
             ..Default::default()
         }
     }

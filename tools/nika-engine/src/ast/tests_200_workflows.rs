@@ -2593,14 +2593,12 @@ fn i05_error_empty_tasks() {
 }
 
 #[test]
-fn i06_no_verb_defaults_to_empty_infer() {
-    // A task with no verb defaults to an Infer with empty prompt (not an error at parse time)
+fn i06_no_verb_rejected_with_missing_field_error() {
+    // A task with no verb is rejected at analysis time (NIKA-145)
     let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: no_verb";
-    let w = ok(yaml);
-    match &w.tasks[0].action {
-        TaskAction::Infer { infer } => assert!(infer.prompt.is_empty()),
-        _ => panic!("expected Infer"),
-    }
+    let e = err(yaml);
+    let msg = format!("{e}");
+    assert!(msg.contains("NIKA-145") || msg.contains("no verb"));
 }
 
 #[test]
