@@ -181,23 +181,23 @@ jobs:
       # Build commands based on target type
       - name: Build (native, full features)
         if: "!matrix.cross && !matrix.docker"
-        working-directory: tools/nika
-        run: cargo build --release --target ${{ matrix.target }}
+        working-directory: tools
+        run: cargo build --release --target ${{ matrix.target }} -p nika
 
       - name: Build (native, musl static)
         if: "!matrix.cross && matrix.docker"
-        working-directory: tools/nika
-        run: cargo build --release --target ${{ matrix.target }} --no-default-features
+        working-directory: tools
+        run: cargo build --release --target ${{ matrix.target }} -p nika --no-default-features
 
       - name: Build (cross, full features)
         if: matrix.cross && !matrix.docker
-        working-directory: tools/nika
-        run: cross build --release --target ${{ matrix.target }}
+        working-directory: tools
+        run: cross build --release --target ${{ matrix.target }} -p nika
 
       - name: Build (cross, musl static)
         if: matrix.cross && matrix.docker
-        working-directory: tools/nika
-        run: cross build --release --target ${{ matrix.target }} --no-default-features
+        working-directory: tools
+        run: cross build --release --target ${{ matrix.target }} -p nika --no-default-features
 
       - name: macOS code sign and notarize
         if: runner.os == 'macOS' && !inputs.dry_run
