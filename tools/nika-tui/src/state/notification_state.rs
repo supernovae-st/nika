@@ -33,8 +33,15 @@ impl NotificationState {
         Self::default()
     }
 
-    /// Add a notification, evicting oldest if at capacity
+    /// Add a notification, evicting oldest if at capacity.
+    /// Consecutive identical notifications (same level + message) are deduped.
     pub fn push(&mut self, notification: Notification) {
+        // Deduplicate consecutive identical notifications
+        if let Some(last) = self.items.back() {
+            if last.level == notification.level && last.message == notification.message {
+                return;
+            }
+        }
         if self.items.len() >= self.max_items {
             self.items.pop_front();
         }
