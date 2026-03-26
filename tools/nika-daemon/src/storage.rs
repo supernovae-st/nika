@@ -51,7 +51,7 @@ pub enum JobState {
 }
 
 impl JobState {
-    fn as_str(&self) -> &'static str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             Self::Pending => "pending",
             Self::Running => "running",
@@ -61,7 +61,7 @@ impl JobState {
         }
     }
 
-    fn from_str(s: &str) -> Self {
+    pub fn parse(s: &str) -> Self {
         match s {
             "pending" => Self::Pending,
             "running" => Self::Running,
@@ -539,7 +539,7 @@ fn row_to_job(row: &rusqlite::Row) -> rusqlite::Result<Job> {
         workflow: row.get(2)?,
         args: row.get(3)?,
         cron: row.get(4)?,
-        state: JobState::from_str(&row.get::<_, String>(5)?),
+        state: JobState::parse(&row.get::<_, String>(5)?),
         created_at: row.get(6)?,
         started_at: row.get(7)?,
         completed_at: row.get(8)?,
@@ -763,7 +763,7 @@ mod tests {
             JobState::Failed,
             JobState::Cancelled,
         ] {
-            assert_eq!(JobState::from_str(state.as_str()), state);
+            assert_eq!(JobState::parse(state.as_str()), state);
         }
     }
 

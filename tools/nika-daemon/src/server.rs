@@ -14,7 +14,9 @@ use tracing::{debug, info, warn};
 
 use crate::error::DaemonResult;
 use crate::protocol::{decode_message, write_message, DaemonRequest, DaemonResponse};
+use crate::services::jobs::JobService;
 use crate::services::secrets::SecretService;
+use crate::storage::{JobState, Storage};
 
 /// Daemon server configuration.
 #[derive(Debug, Clone)]
@@ -38,6 +40,7 @@ impl Default for DaemonConfig {
 struct ServerState {
     started_at: Instant,
     secret_service: SecretService,
+    job_service: Option<JobService>,
 }
 
 /// The daemon server.
@@ -94,9 +97,23 @@ impl DaemonServer {
 
         info!(path = %socket_path.display(), "daemon listening");
 
+        // Initialize job storage
+        let db_path = crate::daemon_dir().join("jobs.db");
+        let job_service = match Storage::open(&db_path) {
+            Ok(storage) => {
+                info!(path = %db_path.display(), "job storage opened");
+                Some(JobService::new(storage))
+            }
+            Err(e) => {
+                warn!(error = %e, "failed to open job storage — jobs disabled");
+                None
+            }
+        };
+
         let state = Arc::new(ServerState {
             started_at: Instant::now(),
             secret_service: SecretService::new(),
+            job_service,
         });
 
         let mut shutdown_rx = self.shutdown_rx;
@@ -161,11 +178,17 @@ async fn route_request(request: DaemonRequest, state: &ServerState) -> DaemonRes
             uptime_secs: state.started_at.elapsed().as_secs(),
         },
 
-        DaemonRequest::Status => DaemonResponse::StatusInfo {
-            pid: std::process::id(),
-            uptime_secs: state.started_at.elapsed().as_secs(),
-            services: vec!["secrets".into()],
-        },
+        DaemonRequest::Status => {
+            let mut services = vec!["secrets".to_string()];
+            if state.job_service.is_some() {
+                services.push("jobs".into());
+            }
+            DaemonResponse::StatusInfo {
+                pid: std::process::id(),
+                uptime_secs: state.started_at.elapsed().as_secs(),
+                services,
+            }
+        }
 
         DaemonRequest::GetSecret { provider } => {
             match state.secret_service.get_secret(&provider).await {
@@ -183,6 +206,129 @@ async fn route_request(request: DaemonRequest, state: &ServerState) -> DaemonRes
             let providers = state.secret_service.list_secrets().await;
             DaemonResponse::SecretList { providers }
         }
+
+        // ── Jobs ────────────────────────────────────────────────────────
+        DaemonRequest::JobSubmit {
+            workflow,
+            name,
+            args,
+            cron,
+            max_retries,
+        } => match &state.job_service {
+            Some(svc) => match svc
+                .submit(
+                    &workflow,
+                    name.as_deref(),
+                    args.as_deref(),
+                    cron.as_deref(),
+                    max_retries.unwrap_or(0),
+                )
+                .await
+            {
+                Ok(id) => DaemonResponse::JobCreated { id },
+                Err(e) => DaemonResponse::Error {
+                    code: "JOB-001".into(),
+                    message: e.to_string(),
+                },
+            },
+            None => DaemonResponse::Error {
+                code: "JOB-000".into(),
+                message: "job service not available".into(),
+            },
+        },
+
+        DaemonRequest::JobList { state: filter } => match &state.job_service {
+            Some(svc) => {
+                let job_state = filter.map(|s| JobState::parse(&s));
+                match svc.list_jobs(job_state).await {
+                    Ok(jobs) => {
+                        let json_jobs: Vec<serde_json::Value> = jobs
+                            .iter()
+                            .map(|j| serde_json::to_value(j).unwrap_or_default())
+                            .collect();
+                        DaemonResponse::JobList { jobs: json_jobs }
+                    }
+                    Err(e) => DaemonResponse::Error {
+                        code: "JOB-002".into(),
+                        message: e.to_string(),
+                    },
+                }
+            }
+            None => DaemonResponse::Error {
+                code: "JOB-000".into(),
+                message: "job service not available".into(),
+            },
+        },
+
+        DaemonRequest::JobStatus { id } => match &state.job_service {
+            Some(svc) => match svc.get_job(&id).await {
+                Ok(Some(job)) => DaemonResponse::JobDetail {
+                    job: serde_json::to_value(&job).unwrap_or_default(),
+                },
+                Ok(None) => DaemonResponse::Error {
+                    code: "JOB-004".into(),
+                    message: format!("job not found: {id}"),
+                },
+                Err(e) => DaemonResponse::Error {
+                    code: "JOB-002".into(),
+                    message: e.to_string(),
+                },
+            },
+            None => DaemonResponse::Error {
+                code: "JOB-000".into(),
+                message: "job service not available".into(),
+            },
+        },
+
+        DaemonRequest::JobCancel { id } => match &state.job_service {
+            Some(svc) => match svc.cancel(&id).await {
+                Ok(()) => DaemonResponse::Ok,
+                Err(e) => DaemonResponse::Error {
+                    code: "JOB-003".into(),
+                    message: e.to_string(),
+                },
+            },
+            None => DaemonResponse::Error {
+                code: "JOB-000".into(),
+                message: "job service not available".into(),
+            },
+        },
+
+        DaemonRequest::JobRetry { id } => match &state.job_service {
+            Some(svc) => match svc.retry(&id).await {
+                Ok(new_id) => DaemonResponse::JobCreated { id: new_id },
+                Err(e) => DaemonResponse::Error {
+                    code: "JOB-005".into(),
+                    message: e.to_string(),
+                },
+            },
+            None => DaemonResponse::Error {
+                code: "JOB-000".into(),
+                message: "job service not available".into(),
+            },
+        },
+
+        DaemonRequest::JobHistory { id } => match &state.job_service {
+            Some(svc) => match svc.get_history(&id).await {
+                Ok(events) => {
+                    let json_events: Vec<serde_json::Value> = events
+                        .iter()
+                        .map(|e| serde_json::to_value(e).unwrap_or_default())
+                        .collect();
+                    DaemonResponse::JobHistoryList {
+                        events: json_events,
+                    }
+                }
+                Err(e) => DaemonResponse::Error {
+                    code: "JOB-006".into(),
+                    message: e.to_string(),
+                },
+            },
+            None => DaemonResponse::Error {
+                code: "JOB-000".into(),
+                message: "job service not available".into(),
+            },
+        },
     }
 }
 
