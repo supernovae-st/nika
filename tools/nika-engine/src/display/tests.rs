@@ -2004,3 +2004,269 @@ fn fmt_binding_transform_output() {
         "should contain transform chain"
     );
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Summary format tests (Task 8)
+// ═══════════════════════════════════════════════════════════════════════
+
+use super::renderer::{ProviderCallStat, RunStats};
+use super::summary;
+
+/// Build a realistic `RunStats` for summary tests.
+fn make_stats() -> RunStats {
+    RunStats {
+        tasks_passed: 3,
+        tasks_failed: 0,
+        tasks_skipped: 0,
+        total_input_tokens: 5000,
+        total_output_tokens: 1200,
+        total_cache_tokens: 800,
+        total_cost: 0.0042,
+        ttft_values: vec![120, 180, 150],
+        mcp_calls: 2,
+        mcp_retries: 1,
+        mcp_errors: 0,
+        media_stored: 1,
+        media_bytes: 2048,
+        media_dedup: 0,
+        artifacts_count: 1,
+        artifacts_bytes: 4096,
+        guardrails_passed: 2,
+        guardrails_failed: 0,
+        guardrails_escalations: 0,
+        fetch_retries: 0,
+        structured_attempts: 0,
+        structured_success_layer: None,
+        root_failure: None,
+        task_timeline: vec![
+            ("fetch".to_string(), "fetch".to_string(), 0, 500),
+            ("summarize".to_string(), "infer".to_string(), 500, 1200),
+            ("save".to_string(), "exec".to_string(), 1700, 300),
+        ],
+        provider_calls: vec![
+            ProviderCallStat {
+                task_id: "summarize".to_string(),
+                input_tokens: 5000,
+                output_tokens: 1200,
+                cache_tokens: 800,
+                ttft_ms: Some(150),
+                cost: 0.0042,
+            },
+        ],
+    }
+}
+
+// ── format_run_summary tests ─────────────────────────────────────────
+
+#[test]
+fn summary_all_passed() {
+    let stats = make_stats();
+    let lines = summary::format_run_summary(&stats, DetailLevel::Default, 2000, None, 80)
+        .expect("should produce output");
+    let joined = lines.join("\n");
+    let stripped = strip_ansi(&joined);
+    assert!(stripped.contains("D O N E"), "should show DONE");
+    assert!(stripped.contains("3/3 passed"), "should show pass count");
+}
+
+#[test]
+fn summary_with_failures() {
+    let mut stats = make_stats();
+    stats.tasks_failed = 1;
+    stats.tasks_passed = 2;
+    stats.root_failure = Some("summarize".to_string());
+    let lines = summary::format_run_summary(&stats, DetailLevel::Default, 2000, None, 80)
+        .expect("should produce output");
+    let joined = lines.join("\n");
+    let stripped = strip_ansi(&joined);
+    assert!(stripped.contains("F A I L E D"), "should show FAILED");
+    assert!(stripped.contains("root cause: summarize"), "should show root cause");
+    assert!(stripped.contains("2/3 passed"), "should show pass count");
+}
+
+#[test]
+fn summary_json_returns_none() {
+    let stats = make_stats();
+    let result = summary::format_run_summary(&stats, DetailLevel::Json, 2000, None, 80);
+    assert!(result.is_none(), "JSON mode should return None");
+}
+
+#[test]
+fn summary_min_delegates_to_quiet() {
+    let stats = make_stats();
+    let lines = summary::format_run_summary(&stats, DetailLevel::Min, 2000, None, 80)
+        .expect("should produce output");
+    assert_eq!(lines.len(), 1, "Min should produce exactly one line (quiet)");
+    let stripped = strip_ansi(&lines[0]);
+    assert!(stripped.contains("3/3"), "should contain pass ratio");
+}
+
+#[test]
+fn summary_zero_tokens() {
+    let mut stats = RunStats::default();
+    stats.tasks_passed = 1;
+    let lines = summary::format_run_summary(&stats, DetailLevel::Default, 1000, None, 80)
+        .expect("should produce output");
+    let joined = lines.join("\n");
+    let stripped = strip_ansi(&joined);
+    // Should NOT contain the Tokens section header
+    assert!(!stripped.contains("Tokens ─"), "zero tokens should skip token section");
+}
+
+#[test]
+fn summary_zero_cost() {
+    let mut stats = RunStats::default();
+    stats.tasks_passed = 1;
+    let lines = summary::format_run_summary(&stats, DetailLevel::Default, 1000, None, 80)
+        .expect("should produce output");
+    let joined = lines.join("\n");
+    let stripped = strip_ansi(&joined);
+    assert!(!stripped.contains("Cost ─"), "zero cost should skip cost section");
+}
+
+#[test]
+fn summary_with_trace_path() {
+    let stats = make_stats();
+    let lines = summary::format_run_summary(
+        &stats, DetailLevel::Default, 2000, Some("/tmp/trace.ndjson"), 80,
+    ).expect("should produce output");
+    let joined = lines.join("\n");
+    let stripped = strip_ansi(&joined);
+    assert!(stripped.contains("trace /tmp/trace.ndjson"), "should show trace path");
+}
+
+#[test]
+fn summary_width_clamping_narrow() {
+    let stats = make_stats();
+    // Very narrow terminal — should clamp to 30
+    let lines = summary::format_run_summary(&stats, DetailLevel::Default, 2000, None, 20)
+        .expect("should produce output");
+    // Should not panic, and box should be at least 30 wide
+    assert!(!lines.is_empty());
+}
+
+#[test]
+fn summary_width_clamping_wide() {
+    let stats = make_stats();
+    // Very wide terminal — should clamp to 72
+    let lines = summary::format_run_summary(&stats, DetailLevel::Default, 2000, None, 200)
+        .expect("should produce output");
+    assert!(!lines.is_empty());
+}
+
+// ── format_run_quiet_summary tests ───────────────────────────────────
+
+#[test]
+fn quiet_summary_passed() {
+    let stats = make_stats();
+    let line = summary::format_run_quiet_summary(&stats, 2000);
+    let stripped = strip_ansi(&line);
+    assert!(stripped.contains("3/3"), "should contain pass ratio");
+    assert!(stripped.contains("2.0s"), "should contain duration");
+}
+
+#[test]
+fn quiet_summary_failed_icon() {
+    let mut stats = make_stats();
+    stats.tasks_failed = 1;
+    let line = summary::format_run_quiet_summary(&stats, 2000);
+    let stripped = strip_ansi(&line);
+    // Failed uses ✗ icon (\u{2717})
+    assert!(stripped.contains('\u{2717}'), "should contain failed icon");
+}
+
+// ── format_done_summary tests ────────────────────────────────────────
+
+#[test]
+fn done_summary_basic() {
+    let lines = summary::format_done_summary("1.5s", 1200, 0.003, None, 3, 0);
+    let joined = lines.join("\n");
+    let stripped = strip_ansi(&joined);
+    assert!(stripped.contains("Done!"), "should contain Done!");
+    assert!(stripped.contains("3 tasks"), "should contain task count");
+    assert!(stripped.contains("1.2k tokens"), "should show token count");
+    assert!(stripped.contains("1.5s"), "should show elapsed");
+}
+
+#[test]
+fn done_summary_with_trace() {
+    let lines = summary::format_done_summary("2.0s", 500, 0.001, Some("/tmp/trace.ndjson"), 2, 1);
+    let joined = lines.join("\n");
+    let stripped = strip_ansi(&joined);
+    assert!(stripped.contains("trace:"), "should contain trace label");
+    assert!(stripped.contains("/tmp/trace.ndjson"), "should contain trace path");
+    assert!(stripped.contains("1 parallel"), "should show parallel count");
+}
+
+#[test]
+fn done_summary_zero_tokens() {
+    let lines = summary::format_done_summary("0.5s", 0, 0.0, None, 1, 0);
+    let joined = lines.join("\n");
+    let stripped = strip_ansi(&joined);
+    assert!(stripped.contains("1 task"), "should say '1 task' (singular)");
+    // Should NOT contain tokens when total is 0
+    assert!(!stripped.contains("tokens"), "zero tokens should not show tokens");
+}
+
+// ── format_doctor_header tests ───────────────────────────────────────
+
+#[test]
+fn doctor_header_box() {
+    let lines = summary::format_doctor_header("0.42.0");
+    let joined = lines.join("\n");
+    let stripped = strip_ansi(&joined);
+    assert!(stripped.contains("Nika Doctor"), "should contain title");
+    assert!(stripped.contains("v0.42.0"), "should contain version");
+    assert!(stripped.contains("Checking system health"), "should contain subtitle");
+    // Box characters
+    assert!(joined.contains('\u{250c}'), "should have top-left corner");
+    assert!(joined.contains('\u{2518}'), "should have bottom-right corner");
+}
+
+// ── format_doctor_summary tests ──────────────────────────────────────
+
+#[test]
+fn doctor_summary_all_pass() {
+    let lines = summary::format_doctor_summary(5, 0, 0, true);
+    let joined = lines.join("\n");
+    let stripped = strip_ansi(&joined);
+    assert!(stripped.contains("All good!"), "should say all good");
+    assert!(stripped.contains("5 passed"), "should show pass count");
+    assert!(!stripped.contains("nika init"), "should not suggest init when .nika exists");
+}
+
+#[test]
+fn doctor_summary_with_warnings() {
+    let lines = summary::format_doctor_summary(3, 2, 0, true);
+    let joined = lines.join("\n");
+    let stripped = strip_ansi(&joined);
+    assert!(stripped.contains("Mostly healthy"), "should say mostly healthy");
+    assert!(stripped.contains("2 warnings"), "should show warning count");
+    assert!(stripped.contains("nika doctor --fix"), "should suggest --fix");
+}
+
+#[test]
+fn doctor_summary_with_failures() {
+    let lines = summary::format_doctor_summary(2, 1, 3, false);
+    let joined = lines.join("\n");
+    let stripped = strip_ansi(&joined);
+    assert!(stripped.contains("Issues found"), "should say issues found");
+    assert!(stripped.contains("3 failed"), "should show fail count");
+    assert!(stripped.contains("nika init"), "should suggest init when no .nika dir");
+}
+
+#[test]
+fn doctor_summary_no_nika_dir_suggests_init() {
+    let lines = summary::format_doctor_summary(0, 0, 1, false);
+    let joined = lines.join("\n");
+    let stripped = strip_ansi(&joined);
+    assert!(stripped.contains("nika init"), "should suggest init");
+}
+
+#[test]
+fn doctor_summary_nika_dir_exists_skips_init() {
+    let lines = summary::format_doctor_summary(0, 0, 1, true);
+    let joined = lines.join("\n");
+    let stripped = strip_ansi(&joined);
+    assert!(!stripped.contains("nika init"), "should not suggest init when dir exists");
+}
