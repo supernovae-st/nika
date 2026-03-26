@@ -97,7 +97,7 @@ impl From<DagError> for NikaError {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// EXECUTION ERRORS (090-099)
+// EXECUTION ERRORS (044-046 exec/fetch/extract + 096-098 general/cancel/panic)
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Runtime execution errors.
