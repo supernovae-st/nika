@@ -294,6 +294,8 @@ pub struct ChatView {
     pub task_queue: Vec<ChatTaskQueueItem>,
     /// Selected DAG node index (for navigation)
     pub dag_selected: Option<usize>,
+    /// Cached DAG panel — rebuilt only when dag_nodes/dag_edges change
+    cached_dag_panel: Option<ChatDagPanel>,
 
     /// Current render mode for inline TaskBoxes (Compact/Expanded/Full)
     /// Toggle with `m` key when not in input mode
@@ -532,6 +534,7 @@ impl ChatView {
             dag_edges: Vec::new(),
             task_queue: Vec::new(),
             dag_selected: None,
+            cached_dag_panel: None,
 
             // TaskBox RenderMode (default to Expanded for rich inline display)
             task_box_render_mode: RenderMode::Expanded,

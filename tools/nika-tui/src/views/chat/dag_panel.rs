@@ -30,14 +30,18 @@ impl ChatView {
             .constraints([Constraint::Percentage(60), Constraint::Percentage(40)])
             .split(area);
 
-        // 1. DAG Graph Panel (nodes + edges)
-        let mut dag_panel = ChatDagPanel::new().with_title("CHAT DAG");
-        for node in &self.dag_nodes {
-            dag_panel.add_node(node.clone());
-        }
-        for edge in &self.dag_edges {
-            dag_panel.add_edge(edge.clone());
-        }
+        // 1. DAG Graph Panel (nodes + edges) — cached, rebuilt only on data change
+        let base_panel = self.cached_dag_panel.get_or_insert_with(|| {
+            let mut panel = ChatDagPanel::new().with_title("CHAT DAG");
+            for node in &self.dag_nodes {
+                panel.add_node(node.clone());
+            }
+            for edge in &self.dag_edges {
+                panel.add_edge(edge.clone());
+            }
+            panel
+        });
+        let mut dag_panel = base_panel.clone();
         if let Some(idx) = self.dag_selected {
             if let Some(node) = self.dag_nodes.get(idx) {
                 dag_panel.select(&node.id);
@@ -58,6 +62,7 @@ impl ChatView {
     pub fn sync_dag_from_messages(&mut self) {
         self.dag_nodes.clear();
         self.dag_edges.clear();
+        self.cached_dag_panel = None;
 
         // Use ChatWorkflow's DAG for proper dependency edges
         let messages = self.workflow.all_messages();
