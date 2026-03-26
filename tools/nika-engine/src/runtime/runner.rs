@@ -1198,30 +1198,37 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             }
         }
 
+        // PERF(M2): Compute DAG layers ONCE, reuse for both display and summary.
+        // compute_layers() is O(N²) worst-case; previously called twice with identical inputs.
+        let cached_depths = if total_tasks > 1 {
+            let nodes: Vec<&str> = self
+                .workflow
+                .tasks
+                .iter()
+                .map(|t| t.name.as_str())
+                .collect();
+            let edges: Vec<(&str, &str)> = self
+                .workflow
+                .tasks
+                .iter()
+                .flat_map(|task| {
+                    task.depends_on.iter().filter_map(|dep_id| {
+                        self.workflow
+                            .task_table
+                            .get_name(*dep_id)
+                            .map(|dep_name| (dep_name, task.name.as_str()))
+                    })
+                })
+                .collect();
+            Some(crate::dag::flow::compute_layers(&nodes, &edges))
+        } else {
+            None
+        };
+
         // Print static DAG + set up CliRenderer task layers
         if let Some(ref mut renderer) = self.cli_renderer {
-            if total_tasks > 1 {
+            if let Some(ref depths) = cached_depths {
                 use crate::display::dag::{StaticDagEdge, StaticDagTask};
-                let nodes: Vec<&str> = self
-                    .workflow
-                    .tasks
-                    .iter()
-                    .map(|t| t.name.as_str())
-                    .collect();
-                let edges: Vec<(&str, &str)> = self
-                    .workflow
-                    .tasks
-                    .iter()
-                    .flat_map(|task| {
-                        task.depends_on.iter().filter_map(|dep_id| {
-                            self.workflow
-                                .task_table
-                                .get_name(*dep_id)
-                                .map(|dep_name| (dep_name, task.name.as_str()))
-                        })
-                    })
-                    .collect();
-                let depths = crate::dag::flow::compute_layers(&nodes, &edges);
                 let dag_tasks: Vec<StaticDagTask> = self
                     .workflow
                     .tasks
@@ -2289,34 +2296,14 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         (tokens, cost)
                     }
                 });
-            // Compute task/parallel counts for summary
+            // PERF(M2): Reuse cached_depths from earlier computation
             let task_count = self.workflow.tasks.len();
-            let parallel_count = {
-                let nodes: Vec<&str> = self
-                    .workflow
-                    .tasks
-                    .iter()
-                    .map(|t| t.name.as_str())
-                    .collect();
-                let edges: Vec<(&str, &str)> = self
-                    .workflow
-                    .tasks
-                    .iter()
-                    .flat_map(|task| {
-                        task.depends_on.iter().filter_map(|dep_id| {
-                            self.workflow
-                                .task_table
-                                .get_name(*dep_id)
-                                .map(|dep_name| (dep_name, task.name.as_str()))
-                        })
-                    })
-                    .collect();
-                let depths = crate::dag::flow::compute_layers(&nodes, &edges);
+            let parallel_count = if let Some(ref depths) = cached_depths {
                 let max_layer = depths.values().copied().max().unwrap_or(0);
                 let mut layers: Vec<Vec<&str>> = vec![Vec::new(); max_layer + 1];
-                for &name in &nodes {
-                    if let Some(&layer) = depths.get(name) {
-                        layers[layer].push(name);
+                for task in &self.workflow.tasks {
+                    if let Some(&layer) = depths.get(task.name.as_str()) {
+                        layers[layer].push(task.name.as_str());
                     }
                 }
                 layers
@@ -2324,6 +2311,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     .filter(|l| l.len() > 1)
                     .flat_map(|l| l.iter())
                     .count()
+            } else {
+                0
             };
             crate::display::print_done_summary(
                 &elapsed_str,
