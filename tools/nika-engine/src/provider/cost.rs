@@ -13,7 +13,7 @@
 //! println!("Cost: ${:.6}", cost);
 //! ```
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::sync::LazyLock;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -37,17 +37,26 @@ pub enum ProviderKind {
 
 impl ProviderKind {
     /// Parse provider kind from string (case-insensitive)
+    /// PERF(L3): eq_ignore_ascii_case avoids to_lowercase() allocation
     pub fn parse(s: &str) -> Option<Self> {
-        match s.to_lowercase().as_str() {
-            "claude" | "anthropic" => Some(Self::Claude),
-            "openai" | "gpt" => Some(Self::OpenAI),
-            "mistral" => Some(Self::Mistral),
-            "groq" => Some(Self::Groq),
-            "deepseek" => Some(Self::DeepSeek),
-            "gemini" | "google" => Some(Self::Gemini),
-            "xai" | "grok" | "x-ai" => Some(Self::XAi),
-            "native" => Some(Self::Native),
-            _ => None,
+        if s.eq_ignore_ascii_case("claude") || s.eq_ignore_ascii_case("anthropic") {
+            Some(Self::Claude)
+        } else if s.eq_ignore_ascii_case("openai") || s.eq_ignore_ascii_case("gpt") {
+            Some(Self::OpenAI)
+        } else if s.eq_ignore_ascii_case("mistral") {
+            Some(Self::Mistral)
+        } else if s.eq_ignore_ascii_case("groq") {
+            Some(Self::Groq)
+        } else if s.eq_ignore_ascii_case("deepseek") {
+            Some(Self::DeepSeek)
+        } else if s.eq_ignore_ascii_case("gemini") || s.eq_ignore_ascii_case("google") {
+            Some(Self::Gemini)
+        } else if s.eq_ignore_ascii_case("xai") || s.eq_ignore_ascii_case("grok") || s.eq_ignore_ascii_case("x-ai") {
+            Some(Self::XAi)
+        } else if s.eq_ignore_ascii_case("native") {
+            Some(Self::Native)
+        } else {
+            None
         }
     }
 
@@ -131,8 +140,8 @@ impl ModelPricing {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Claude models pricing
-static CLAUDE_PRICING: LazyLock<HashMap<&'static str, ModelPricing>> = LazyLock::new(|| {
-    let mut m = HashMap::new();
+static CLAUDE_PRICING: LazyLock<FxHashMap<&'static str, ModelPricing>> = LazyLock::new(|| {
+    let mut m = FxHashMap::default();
     // Claude 4.6 Opus
     m.insert("claude-opus-4-6", ModelPricing::new(15.0, 75.0));
     // Claude 4 Opus
@@ -164,8 +173,8 @@ static CLAUDE_PRICING: LazyLock<HashMap<&'static str, ModelPricing>> = LazyLock:
 });
 
 /// OpenAI models pricing
-static OPENAI_PRICING: LazyLock<HashMap<&'static str, ModelPricing>> = LazyLock::new(|| {
-    let mut m = HashMap::new();
+static OPENAI_PRICING: LazyLock<FxHashMap<&'static str, ModelPricing>> = LazyLock::new(|| {
+    let mut m = FxHashMap::default();
     // GPT-4o
     m.insert("gpt-4o", ModelPricing::new(2.5, 10.0));
     m.insert("gpt-4o-2024-11-20", ModelPricing::new(2.5, 10.0));
@@ -207,8 +216,8 @@ static OPENAI_PRICING: LazyLock<HashMap<&'static str, ModelPricing>> = LazyLock:
 });
 
 /// Mistral models pricing
-static MISTRAL_PRICING: LazyLock<HashMap<&'static str, ModelPricing>> = LazyLock::new(|| {
-    let mut m = HashMap::new();
+static MISTRAL_PRICING: LazyLock<FxHashMap<&'static str, ModelPricing>> = LazyLock::new(|| {
+    let mut m = FxHashMap::default();
     // Large
     m.insert("mistral-large-latest", ModelPricing::new(2.0, 6.0));
     m.insert("mistral-large-2411", ModelPricing::new(2.0, 6.0));
@@ -230,8 +239,8 @@ static MISTRAL_PRICING: LazyLock<HashMap<&'static str, ModelPricing>> = LazyLock
 });
 
 /// Groq models pricing (very low cost)
-static GROQ_PRICING: LazyLock<HashMap<&'static str, ModelPricing>> = LazyLock::new(|| {
-    let mut m = HashMap::new();
+static GROQ_PRICING: LazyLock<FxHashMap<&'static str, ModelPricing>> = LazyLock::new(|| {
+    let mut m = FxHashMap::default();
     // Llama 3.3
     m.insert("llama-3.3-70b-versatile", ModelPricing::new(0.59, 0.79));
     m.insert("llama-3.3-70b-specdec", ModelPricing::new(0.59, 0.99));
@@ -249,8 +258,8 @@ static GROQ_PRICING: LazyLock<HashMap<&'static str, ModelPricing>> = LazyLock::n
 });
 
 /// DeepSeek models pricing
-static DEEPSEEK_PRICING: LazyLock<HashMap<&'static str, ModelPricing>> = LazyLock::new(|| {
-    let mut m = HashMap::new();
+static DEEPSEEK_PRICING: LazyLock<FxHashMap<&'static str, ModelPricing>> = LazyLock::new(|| {
+    let mut m = FxHashMap::default();
     m.insert("deepseek-chat", ModelPricing::new(0.14, 0.28));
     m.insert("deepseek-reasoner", ModelPricing::new(0.55, 2.19));
     m.insert("deepseek-coder", ModelPricing::new(0.14, 0.28));
@@ -258,8 +267,8 @@ static DEEPSEEK_PRICING: LazyLock<HashMap<&'static str, ModelPricing>> = LazyLoc
 });
 
 /// Gemini models pricing
-static GEMINI_PRICING: LazyLock<HashMap<&'static str, ModelPricing>> = LazyLock::new(|| {
-    let mut m = HashMap::new();
+static GEMINI_PRICING: LazyLock<FxHashMap<&'static str, ModelPricing>> = LazyLock::new(|| {
+    let mut m = FxHashMap::default();
     // Gemini 2.5
     m.insert("gemini-2.5-pro", ModelPricing::new(1.25, 10.0));
     m.insert(
@@ -287,8 +296,8 @@ static GEMINI_PRICING: LazyLock<HashMap<&'static str, ModelPricing>> = LazyLock:
 });
 
 /// xAI (Grok) models pricing
-static XAI_PRICING: LazyLock<HashMap<&'static str, ModelPricing>> = LazyLock::new(|| {
-    let mut m = HashMap::new();
+static XAI_PRICING: LazyLock<FxHashMap<&'static str, ModelPricing>> = LazyLock::new(|| {
+    let mut m = FxHashMap::default();
     // Grok-3
     m.insert("grok-3", ModelPricing::new(3.0, 15.0));
     // Grok-3 Fast
@@ -324,7 +333,7 @@ pub fn list_provider_models(provider: ProviderKind) -> Vec<(&'static str, ModelP
     if provider.is_free() {
         return Vec::new();
     }
-    let table: &HashMap<&'static str, ModelPricing> = match provider {
+    let table: &FxHashMap<&'static str, ModelPricing> = match provider {
         ProviderKind::Claude => &CLAUDE_PRICING,
         ProviderKind::OpenAI => &OPENAI_PRICING,
         ProviderKind::Mistral => &MISTRAL_PRICING,
