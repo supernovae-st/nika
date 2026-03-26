@@ -90,11 +90,13 @@ impl ChatView {
             .last()
             .map(|m| m.content.len())
             .unwrap_or(0);
-        let needs_rebuild = self.cached_msg_count != msg_count
+        let needs_rebuild = self.cached_msg_dirty
+            || self.cached_msg_count != msg_count
             || self.cached_msg_width != content_width
             || (self.is_streaming && self.cached_streaming_len != streaming_len);
 
         if needs_rebuild {
+            self.cached_msg_dirty = false;
             self.cached_msg_items =
                 self.build_message_items(theme, &colors, content_width, &sel_ctx);
             self.cached_msg_count = msg_count;

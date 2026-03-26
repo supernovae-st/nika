@@ -317,6 +317,7 @@ impl ChatView {
                 } else {
                     self.thinking_collapsed.insert(msg_id);
                 }
+                self.cached_msg_dirty = true;
             }
         }
     }
@@ -328,6 +329,7 @@ impl ChatView {
     pub fn toggle_all_thinking(&mut self) {
         self.thinking_expanded_default = !self.thinking_expanded_default;
         self.thinking_collapsed.clear();
+        self.cached_msg_dirty = true;
         // Add system message to confirm the toggle
         let state = if self.thinking_expanded_default {
             "expanded"
