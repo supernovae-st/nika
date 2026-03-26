@@ -897,6 +897,13 @@ impl EventKind {
 /// Optionally supports real-time event broadcasting for TUI integration.
 /// Use `new_with_broadcast()` to create an EventLog that sends events
 /// to subscribers via tokio broadcast channel.
+///
+/// The event log has a capacity of [`MAX_EVENTS`]. When exceeded, the oldest
+/// half is dropped to amortize eviction cost (H2 discovery fix).
+///
+/// Maximum events to keep in memory (~2-5 MB at 10,000 events).
+const MAX_EVENTS: usize = 10_000;
+
 #[derive(Clone)]
 pub struct EventLog {
     events: Arc<RwLock<Vec<Event>>>,
@@ -989,10 +996,21 @@ impl EventLog {
                 drop(event); // consumed by trace above, explicit drop for clarity
             }
 
-            self.events.write().push(for_vec);
+            let mut events = self.events.write();
+            if events.len() >= MAX_EVENTS {
+                // Drop oldest half to amortize eviction cost
+                let drain_to = events.len() / 2;
+                events.drain(..drain_to);
+            }
+            events.push(for_vec);
         } else {
             // Fast path: no clone needed
-            self.events.write().push(event);
+            let mut events = self.events.write();
+            if events.len() >= MAX_EVENTS {
+                let drain_to = events.len() / 2;
+                events.drain(..drain_to);
+            }
+            events.push(event);
         }
 
         id
