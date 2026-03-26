@@ -215,6 +215,7 @@ impl ChatView {
             match action {
                 ModalAction::Close => {
                     self.provider_modal.visible = false;
+                    self.focus_panel(ChatPanel::Input);
                 }
                 ModalAction::RefreshProviders => {
                     return ViewAction::VerifyProviders;
@@ -757,14 +758,10 @@ impl ChatView {
                 self.scroll_to_bottom();
                 Some(ViewAction::None)
             }
-            // Esc = Defocus to Conversation (Input panel) or switch to Studio
+            // Esc = always return focus to Input panel (Ctrl+W / shortcut key to leave view)
             KeyCode::Esc => {
-                if self.focused_panel == ChatPanel::Input {
-                    self.focus_panel(ChatPanel::Conversation);
-                    Some(ViewAction::None)
-                } else {
-                    Some(ViewAction::SwitchView(TuiView::Studio))
-                }
+                self.focus_panel(ChatPanel::Input);
+                Some(ViewAction::None)
             }
             _ => None,
         }
