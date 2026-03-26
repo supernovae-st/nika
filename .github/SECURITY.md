@@ -40,7 +40,7 @@ Nika implements the following security measures:
 - **cargo-geiger**: Unsafe code inventory (weekly scans)
 - **CodeQL**: Semantic SAST analysis (weekly)
 - **Semgrep**: Pattern-based security scanning (weekly)
-- **ARMADA**: 10 quality checkpoints for all PRs
+- **CI**: 8 quality gates for all PRs (ci.yml)
 
 ### Code Quality
 - **Zero unsafe blocks**: Nika contains 0 unsafe code

@@ -26,7 +26,7 @@ feature:
   option: value
 \`\`\`
 
-## 🚀 ARMADA CI (if CI changes)
+## 🚀 CI Changes (if any)
 
 - Added `{job-name}` job
 - Validates {what it validates}
@@ -89,7 +89,7 @@ Breaking changes:
 |---------|-------|
 | Security | `🔐` |
 | Features | `✨` |
-| CI/ARMADA | `🚀` |
+| CI | `🚀` |
 | Examples | `📚` |
 | Schema | `📋` |
 | TUI | `🖥️` |

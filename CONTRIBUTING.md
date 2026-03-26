@@ -2,18 +2,10 @@
 
 Thank you for your interest in contributing to Nika! This document provides guidelines and workflows for contributing.
 
-```
-╔═══════════════════════════════════════════════════════════════════════════════╗
-║  🏴‍☠️ ARMADA — Nika Contribution Guide                                         ║
-║  ───────────────────────────────────────────────────────────────────────────  ║
-║  "All ships must pass the checkpoint"                                         ║
-╚═══════════════════════════════════════════════════════════════════════════════╝
-```
-
 ## Table of Contents
 
 - [Version Lock Policy](#version-lock-policy)
-- [ARMADA Quality System](#armada-quality-system)
+- [CI Quality Gates](#ci-quality-gates)
 - [Development Workflow](#development-workflow)
 - [Commit Convention](#commit-convention)
 - [Pull Request Process](#pull-request-process)
@@ -41,62 +33,54 @@ Thank you for your interest in contributing to Nika! This document provides guid
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
 
-See the ARMADA CI workflows in `.github/workflows/` for details.
+See `.github/workflows/ci.yml` for details.
 
-## ARMADA Quality System
+## CI Quality Gates
 
-Every contribution passes through the **10-station ARMADA checkpoint**:
+Every contribution passes through 8 jobs in ci.yml:
 
 ```
-╔═══════════════════════════════════════════════════════════════════════════════╗
-║  🏴‍☠️ ARMADA — 10 QUALITY STATIONS                                             ║
-╠═══════════════════════════════════════════════════════════════════════════════╣
-║                                                                               ║
-║   Station 1: 🔧 Format         cargo fmt --check                              ║
-║   Station 2: 📎 Lint           cargo clippy -- -D warnings                    ║
-║   Station 3: 🧪 Tests          cargo nextest run                              ║
-║   Station 4: 📊 Coverage       cargo llvm-cov (>80%)                          ║
-║   Station 5: 📖 Docs           cargo doc --no-deps                            ║
-║   Station 6: 🔒 Security       cargo audit + cargo deny                       ║
-║   Station 7: 🤖 CodeRabbit     AI review (general patterns)                   ║
-║   Station 8: 🧠 Claude AI      AI review (Nika-specific)                      ║
-║   Station 9: 📝 Conventional   commitlint validation                          ║
-║   Station 10: ⚓ Version Lock  0.x.x enforcement (NEVER 1.0.0)                ║
-║                                                                               ║
-╚═══════════════════════════════════════════════════════════════════════════════╝
+check → test → test-features → coverage
+security → semver → validate → summary
 ```
+
+| Job | What it checks |
+|-----|---------------|
+| `check` | cargo fmt + clippy + doc + version lock |
+| `test` | cargo nextest --lib on ubuntu + macos |
+| `test-features` | no-default-features + all-features compatibility |
+| `coverage` | cargo-llvm-cov nextest → Codecov |
+| `security` | cargo audit + cargo deny + cargo machete |
+| `semver` | Breaking change detection |
+| `validate` | nika check on all examples |
+| `summary` | PR comment with all results |
 
 ### Running Locally
 
 ```bash
 # Quick check (minimum before push)
-cargo fmt --check && cargo clippy -- -D warnings && cargo nextest run
+cd tools/nika
+cargo fmt --check && cargo clippy --workspace -- -D warnings && cargo nextest run --workspace --lib
 
-# Full ARMADA check
+# Full local check
 cargo fmt --check
-cargo clippy -- -D warnings
-cargo nextest run --all-features
-cargo llvm-cov --all-features
-cargo doc --no-deps --all-features
+cargo clippy --workspace --all-targets -- -D warnings
+cargo nextest run --workspace --lib
+cargo test --workspace --doc
 cargo audit && cargo deny check
 ```
 
 ## Development Workflow
 
 ```
-╔═══════════════════════════════════════════════════════════════════════════════╗
-║  🏴‍☠️ ARMADA — DEVELOPER FLOW                                                  ║
-╠═══════════════════════════════════════════════════════════════════════════════╣
-║                                                                               ║
-║  ┌─────────┐     ┌─────────┐     ┌─────────┐     ┌─────────┐     ┌─────────┐ ║
-║  │WORKTREE │────▶│ DEVELOP │────▶│ COMMIT  │────▶│  PUSH   │────▶│   PR    │ ║
-║  └─────────┘     └─────────┘     └─────────┘     └─────────┘     └─────────┘ ║
-║       │               │               │               │               │      ║
-║       ▼               ▼               ▼               ▼               ▼      ║
-║  git worktree    cargo test     Conventional    Feature branch   ARMADA CI   ║
-║  add             cargo clippy   Commits         created          10 stations ║
-║                                                                               ║
-╚═══════════════════════════════════════════════════════════════════════════════╝
+WORKTREE → DEVELOP → COMMIT → PUSH → PR → CI → MERGE
+  │           │         │        │      │    │
+  │           │         │        │      │    └─ 8 jobs pass
+  │           │         │        │      └───── CodeRabbit + review
+  │           │         │        └──────────── Feature branch
+  │           │         └───────────────────── Conventional Commits
+  │           └─────────────────────────────── cargo nextest --lib
+  └─────────────────────────────────────────── git worktree add
 ```
 
 ### Step 1: Create Worktree (Recommended)
@@ -136,9 +120,9 @@ git push -u origin feat/my-feature
 gh pr create --title "feat(tui): add new widget" --body "..."
 ```
 
-### Step 5: Wait for ARMADA
+### Step 5: Wait for CI
 
-- All 10 stations must pass
+- All 8 jobs must pass (ci.yml)
 - CodeRabbit + Claude AI review automatically
 - Human review required
 
@@ -207,20 +191,14 @@ chore(ci): update rust version to 1.86
 ## Pull Request Process
 
 ```
-╔═══════════════════════════════════════════════════════════════════════════════╗
-║  🏴‍☠️ PR LIFECYCLE                                                             ║
-╠═══════════════════════════════════════════════════════════════════════════════╣
-║                                                                               ║
-║   1. Create feature branch from main                                          ║
-║   2. Make changes with conventional commits                                   ║
-║   3. Run quality gates locally                                                ║
-║   4. Push and open PR                                                         ║
-║   5. Fill out PR template completely                                          ║
-║   6. Wait for ARMADA CI (all 10 stations)                                     ║
-║   7. Address review feedback                                                  ║
-║   8. Squash merge when approved                                               ║
-║                                                                               ║
-╚═══════════════════════════════════════════════════════════════════════════════╝
+1. Create feature branch from main
+2. Make changes with conventional commits
+3. Run quality gates locally
+4. Push and open PR
+5. Fill out PR template completely
+6. Wait for CI (all 8 jobs)
+7. Address review feedback
+8. Squash merge when approved
 ```
 
 ### PR Title Format
@@ -238,7 +216,7 @@ fix(runtime): prevent infinite recursion in spawn_agent
 - [ ] Tests added for new functionality
 - [ ] Documentation updated if needed
 - [ ] CHANGELOG.md updated for significant changes
-- [ ] All ARMADA stations pass locally
+- [ ] All CI quality gates pass locally
 
 ## Testing
 

@@ -1,5 +1,4 @@
-# 🏴‍☠️ ARMADA: CodeRabbit AI Review Configuration
-# Station 7 of 10-station quality checkpoint system
+# CodeRabbit AI Review Configuration
 # https://docs.coderabbit.ai/guides/configure-coderabbit
 
 language: en-US
@@ -12,21 +11,19 @@ reviews:
     base_branches:
       - main
 
-  # Review profile (assertive = strict, as befits ARMADA)
   profile: assertive
 
   # Request changes on high severity issues
   request_changes_workflow: true
 
-  # ARMADA-specific review instructions
   path_instructions:
     - path: "**/*.rs"
       instructions: |
-        ARMADA Station 7 Review Rules:
+        Review Rules:
 
         VERSION LOCK (CRITICAL):
         - If Cargo.toml is modified, VERIFY version stays 0.x.x
-        - REJECT any version >= 1.0.0 (Captain's Orders)
+        - REJECT any version >= 1.0.0 (version lock policy)
 
         Code Quality:
         - Rust idioms and best practices
@@ -44,7 +41,6 @@ reviews:
       instructions: |
         VERSION LOCK ENFORCEMENT:
         - Version MUST be 0.x.x (NEVER 1.0.0 or higher)
-        - This is Captain's Orders - non-negotiable
         - If version >= 1.0.0, REQUEST CHANGES immediately
 
     - path: "tools/nika/src/tui/**"
@@ -76,15 +72,14 @@ reviews:
     - path: "**/*.yaml"
       instructions: |
         YAML Workflow Rules:
-        - Schema compliance (nika/workflow@0.5)
+        - Schema compliance (nika/workflow@0.12)
         - 5 semantic verbs only
-        - Binding syntax: {{use.alias}} or $alias
+        - Binding syntax: with: { alias: $task_id }, template: {{with.alias}}
         - for_each with concurrency limits
 
     - path: "**/*.md"
       instructions: |
         Documentation Rules:
-        - Keep ARMADA terminology consistent
         - Version references must be 0.x.x
         - ASCII diagrams for terminal display
         - Mermaid only in .md files
