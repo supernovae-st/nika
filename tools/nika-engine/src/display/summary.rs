@@ -163,8 +163,8 @@ pub fn print_doctor_header(version: &str) {
 // Run summary — free functions shared by CliRenderer + LiveRenderer
 // ═══════════════════════════════════════════════════════════════
 
-/// Print the compact single-line summary (quiet / min mode).
-pub(crate) fn print_run_quiet_summary(stats: &RunStats, total_duration_ms: u64) {
+/// Format the compact single-line summary (quiet / min mode).
+pub(crate) fn format_run_quiet_summary(stats: &RunStats, total_duration_ms: u64) -> String {
     let dur_secs = total_duration_ms as f32 / 1000.0;
     let total = stats.tasks_passed + stats.tasks_failed + stats.tasks_skipped;
     let status = if stats.tasks_failed > 0 {
@@ -177,14 +177,19 @@ pub(crate) fn print_run_quiet_summary(stats: &RunStats, total_duration_ms: u64) 
     } else {
         String::new()
     };
-    println!(
+    format!(
         "{} {} · {}/{}{}",
         status,
         colors::duration(dur_secs),
         stats.tasks_passed,
         total,
         cost_str
-    );
+    )
+}
+
+/// Print the compact single-line summary (thin wrapper over `format_run_quiet_summary`).
+pub(crate) fn print_run_quiet_summary(stats: &RunStats, total_duration_ms: u64) {
+    println!("{}", format_run_quiet_summary(stats, total_duration_ms));
 }
 
 /// Print the full summary box with tokens, cost, timeline, and provider breakdown.
