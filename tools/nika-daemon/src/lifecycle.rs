@@ -17,13 +17,33 @@ use crate::error::{DaemonError, DaemonResult};
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Write the current process PID to a file.
+/// C2 fix: Use create_new(true) for exclusive creation to prevent TOCTOU race.
 pub fn write_pid_file(path: &Path) -> DaemonResult<()> {
+    use std::io::Write;
+
     let pid = std::process::id();
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    std::fs::write(path, pid.to_string())?;
-    debug!(pid, path = %path.display(), "wrote PID file");
+
+    // Exclusive create: fails if file already exists (prevents two daemons racing)
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+        .map_err(|e| {
+            if e.kind() == std::io::ErrorKind::AlreadyExists {
+                DaemonError::Lifecycle(format!(
+                    "PID file already exists at {} — another daemon may be starting",
+                    path.display()
+                ))
+            } else {
+                DaemonError::Connection(e)
+            }
+        })?;
+
+    write!(file, "{pid}")?;
+    debug!(pid, path = %path.display(), "wrote PID file (exclusive)");
     Ok(())
 }
 

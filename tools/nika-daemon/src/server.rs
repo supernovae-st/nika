@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use tokio::net::UnixListener;
-use tokio::sync::watch;
+use tokio::sync::{watch, Semaphore};
 use tracing::{debug, info, warn};
 
 use crate::error::DaemonResult;
@@ -130,6 +130,8 @@ impl DaemonServer {
         });
 
         let mut shutdown_rx = self.shutdown_rx;
+        // H1 fix: enforce max_connections via semaphore
+        let conn_semaphore = Arc::new(Semaphore::new(self.config.max_connections));
 
         loop {
             tokio::select! {
@@ -146,10 +148,16 @@ impl DaemonServer {
                     match accept_result {
                         Ok((stream, _addr)) => {
                             let state = Arc::clone(&state);
+                            let sem = Arc::clone(&conn_semaphore);
                             tokio::spawn(async move {
+                                let _permit = match sem.acquire().await {
+                                    Ok(p) => p,
+                                    Err(_) => return, // Semaphore closed
+                                };
                                 if let Err(e) = handle_connection(stream, &state).await {
                                     debug!(error = %e, "connection handler error");
                                 }
+                                // Permit dropped here → slot released
                             });
                         }
                         Err(e) => {

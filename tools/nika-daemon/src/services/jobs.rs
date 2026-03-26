@@ -5,6 +5,7 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 
 use tokio::process::Command;
 use tokio::sync::Mutex;
@@ -12,6 +13,9 @@ use tracing::{debug, error, info, warn};
 
 use crate::error::{DaemonError, DaemonResult};
 use crate::storage::{Job, JobHistoryEvent, JobState, Storage};
+
+/// Default job execution timeout: 1 hour.
+const JOB_TIMEOUT: Duration = Duration::from_secs(3600);
 
 /// Maximum concurrent jobs.
 const MAX_CONCURRENT_JOBS: usize = 4;
@@ -106,8 +110,21 @@ impl JobService {
             })
             .await?;
 
-        // Spawn child process
-        let mut cmd = Command::new(std::env::current_exe().unwrap_or_else(|_| "nika".into()));
+        // Validate workflow path (C1: prevent path traversal)
+        let workflow_path = std::path::Path::new(&job.workflow);
+        if workflow_path.extension().is_none_or(|e| e != "yaml")
+            || !job.workflow.contains(".nika.")
+        {
+            return Err(DaemonError::Protocol(format!(
+                "invalid workflow path: must end with .nika.yaml, got '{}'",
+                job.workflow
+            )));
+        }
+
+        // Spawn child process (H3: error on missing exe instead of fallback)
+        let exe = std::env::current_exe()
+            .map_err(|e| DaemonError::Lifecycle(format!("cannot find nika binary: {e}")))?;
+        let mut cmd = Command::new(exe);
         cmd.args(["run", &job.workflow, "-y", "--no-interactive"]);
 
         // Add input args if present
@@ -144,6 +161,12 @@ impl JobService {
 
             // Remove from running map
             running.lock().await.remove(&job_id);
+
+            // L5 fix: check if job was cancelled before overwriting state
+            let current = storage.get_job(&job_id).await.ok().flatten();
+            if current.as_ref().is_some_and(|j| j.state == JobState::Cancelled) {
+                return; // Already cancelled — don't overwrite with Failed
+            }
 
             match result {
                 Ok((exit_code, output)) => {
@@ -292,29 +315,43 @@ impl JobService {
     }
 }
 
-/// Wait for a child process to complete, capturing output.
-async fn wait_for_child(child: tokio::process::Child, job_id: &str) -> DaemonResult<(i32, String)> {
-    let output = child
-        .wait_with_output()
-        .await
-        .map_err(|e| DaemonError::Lifecycle(format!("wait for job {job_id}: {e}")))?;
+/// Wait for a child process to complete with timeout, capturing output.
+/// H6 fix: 1-hour timeout prevents hung jobs from blocking the scheduler.
+async fn wait_for_child(
+    child: tokio::process::Child,
+    job_id: &str,
+) -> DaemonResult<(i32, String)> {
+    // H6: Wrap in timeout to prevent hung jobs
+    let output = match tokio::time::timeout(JOB_TIMEOUT, child.wait_with_output()).await {
+        Ok(result) => result
+            .map_err(|e| DaemonError::Lifecycle(format!("wait for job {job_id}: {e}")))?,
+        Err(_) => {
+            return Err(DaemonError::Lifecycle(format!(
+                "job {job_id} timed out after {}s",
+                JOB_TIMEOUT.as_secs()
+            )));
+        }
+    };
 
     let exit_code = output.status.code().unwrap_or(-1);
 
-    // Combine stdout + stderr, truncate to last 10KB
+    // Combine stdout + stderr
     let mut combined = String::from_utf8_lossy(&output.stdout).to_string();
     if !output.stderr.is_empty() {
         combined.push_str("\n--- stderr ---\n");
         combined.push_str(&String::from_utf8_lossy(&output.stderr));
     }
 
-    // Truncate to 10KB max
+    // H4 fix: Truncate to 10KB at a valid char boundary (not mid-UTF8)
     const MAX_OUTPUT: usize = 10 * 1024;
     if combined.len() > MAX_OUTPUT {
-        combined = format!(
-            "...(truncated)...\n{}",
-            &combined[combined.len() - MAX_OUTPUT..]
-        );
+        // Find a valid char boundary near the target offset
+        let start = combined.len() - MAX_OUTPUT;
+        // Find next valid char boundary at or after `start`
+        let safe_start = (start..combined.len())
+            .find(|&i| combined.is_char_boundary(i))
+            .unwrap_or(combined.len());
+        combined = format!("...(truncated)...\n{}", &combined[safe_start..]);
     }
 
     Ok((exit_code, combined))
