@@ -142,6 +142,8 @@ pub struct App {
     // ═══ Star Field ═══
     /// Pre-computed star positions for O(stars) rendering instead of O(w*h)
     pub(crate) star_field: super::widgets::StarField,
+    /// PERF(M7): Last user interaction time — star animation decays after 5s idle
+    pub(crate) last_interaction: std::time::Instant,
     // ═══ First-Launch Welcome Hint ═══
     /// Shown on first launch, auto-dismisses after 10s or on first keypress
     pub(crate) welcome_hint_until: Option<std::time::Instant>,
@@ -230,6 +232,7 @@ impl App {
             verification_cache: Arc::new(Mutex::new(VerificationCache::default())),
             loading: true,
             star_field: super::widgets::StarField::new(),
+            last_interaction: std::time::Instant::now(),
             welcome_hint_until: Self::check_first_launch(),
         })
     }
@@ -301,6 +304,7 @@ impl App {
             verification_cache: Arc::new(Mutex::new(VerificationCache::default())),
             loading: true,
             star_field: super::widgets::StarField::new(),
+            last_interaction: std::time::Instant::now(),
             welcome_hint_until: Self::check_first_launch(),
         })
     }
@@ -487,9 +491,11 @@ impl App {
             }
 
             // 4. PERF: Skip render when nothing changed (DirtyFlags guard).
-            // Still render periodically for star animations (~10fps via frame % 6).
+            // PERF(M7): Star animation only renders for 5s after last interaction,
+            // then goes idle. Prevents perpetual 10 FPS rendering when user is AFK.
+            let star_active = self.last_interaction.elapsed().as_secs() < 5;
             let needs_render =
-                self.state.dirty.any() || needs_fast_render || self.state.frame % 6 == 0;
+                self.state.dirty.any() || needs_fast_render || (star_active && self.state.frame % 6 == 0);
             if needs_render {
                 self.render_unified_frame()?;
             }
@@ -507,6 +513,9 @@ impl App {
                 let event = event::read().map_err(|e| NikaError::TuiError {
                     reason: format!("Failed to read event: {}", e),
                 })?;
+
+                // PERF(M7): Reset interaction timer on any input
+                self.last_interaction = std::time::Instant::now();
 
                 let action = match event {
                     Event::Key(key) => self.handle_unified_key(key.code, key.modifiers),
