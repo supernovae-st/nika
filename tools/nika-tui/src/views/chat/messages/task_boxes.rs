@@ -194,10 +194,13 @@ impl ChatView {
                     Span::styled("📥 INPUT", Style::default().fg(colors.muted_color)),
                 ])));
 
-                // 5. Params preview (truncated JSON)
+                // 5. Params preview (truncated JSON) — use cache to avoid serde in render loop (H9)
                 if !invoke.params.is_null() {
-                    let params_str =
-                        serde_json::to_string(&invoke.params).unwrap_or_else(|_| "{}".to_string());
+                    let params_str = invoke
+                        .params_oneline_cached
+                        .as_deref()
+                        .unwrap_or("{}")
+                        .to_string();
                     items.push(ListItem::new(Line::from(vec![
                         Span::styled("│ ", Style::default().fg(border_color)),
                         Span::styled("┊ ", Style::default().fg(colors.muted_color)),
@@ -220,10 +223,13 @@ impl ChatView {
                     Span::styled("📤 OUTPUT", Style::default().fg(colors.muted_color)),
                 ])));
 
-                // 7. Result or error preview
-                if let Some(ref result) = invoke.result {
-                    let result_str =
-                        serde_json::to_string(result).unwrap_or_else(|_| "null".to_string());
+                // 7. Result or error preview — use cache to avoid serde in render loop (H9)
+                if invoke.result.is_some() {
+                    let result_str = invoke
+                        .result_oneline_cached
+                        .as_deref()
+                        .unwrap_or("null")
+                        .to_string();
                     let result_lines: Vec<&str> = result_str.lines().take(2).collect();
                     if result_lines.is_empty() {
                         items.push(ListItem::new(Line::from(vec![
