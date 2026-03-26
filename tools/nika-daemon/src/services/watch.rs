@@ -102,8 +102,15 @@ impl WatchService {
         // Spawn debounce + filter task
         tokio::spawn(async move {
             let mut last_seen = std::collections::HashMap::<PathBuf, tokio::time::Instant>::new();
+            let mut prune_counter = 0u32;
 
             while let Some(event) = raw_rx.recv().await {
+                // H5 fix: prune stale entries every 100 events to prevent unbounded growth
+                prune_counter += 1;
+                if prune_counter % 100 == 0 {
+                    let now = tokio::time::Instant::now();
+                    last_seen.retain(|_, t| now.duration_since(*t) < debounce * 10);
+                }
                 for path in event.paths {
                     // Filter by glob
                     if let Some(filename) = path.file_name() {
