@@ -611,6 +611,8 @@ impl App {
 
 impl Drop for App {
     fn drop(&mut self) {
+        // Cancel background tasks BEFORE terminal cleanup to prevent leaks
+        self.cancel_background_tasks();
         // Ensure terminal is cleaned up
         if self.terminal.is_some() {
             let _ = self.cleanup();
