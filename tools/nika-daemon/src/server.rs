@@ -200,29 +200,37 @@ async fn handle_connection(
     if matches!(request, DaemonRequest::EventSubscribe) {
         let mut rx = state.event_bus.subscribe();
         debug!("event subscriber connected");
+        // 5 minute idle timeout — prevents connection slot exhaustion from idle clients
+        let idle_timeout = std::time::Duration::from_secs(300);
         loop {
-            match rx.recv().await {
-                Ok(event) => {
-                    let json = match serde_json::to_value(&event) {
-                        Ok(v) => v,
-                        Err(e) => {
-                            warn!(error = %e, "failed to serialize daemon event");
-                            continue;
-                        }
-                    };
-                    let resp = DaemonResponse::Event { event: json };
-                    if write_message(&mut writer, &resp).await.is_err() {
-                        debug!("event subscriber disconnected");
-                        break;
-                    }
-                }
-                Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                    warn!(lagged = n, "event subscriber lagged");
-                }
-                Err(tokio::sync::broadcast::error::RecvError::Closed) => {
-                    debug!("event bus closed");
+            match tokio::time::timeout(idle_timeout, rx.recv()).await {
+                Err(_) => {
+                    debug!("event subscriber idle timeout (5min)");
                     break;
                 }
+                Ok(result) => match result {
+                    Ok(event) => {
+                        let json = match serde_json::to_value(&event) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                warn!(error = %e, "failed to serialize daemon event");
+                                continue;
+                            }
+                        };
+                        let resp = DaemonResponse::Event { event: json };
+                        if write_message(&mut writer, &resp).await.is_err() {
+                            debug!("event subscriber disconnected");
+                            break;
+                        }
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                        warn!(lagged = n, "event subscriber lagged");
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                        debug!("event bus closed");
+                        break;
+                    }
+                },
             }
         }
         return Ok(());

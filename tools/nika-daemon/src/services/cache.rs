@@ -90,12 +90,14 @@ impl CacheService {
         max_tokens: Option<u32>,
     ) -> String {
         let mut hasher = blake3::Hasher::new();
+        // Length-prefix variable fields to prevent delimiter injection collisions
+        // (e.g., provider="a|b" model="c" vs provider="a" model="b|c")
+        hasher.update(&(provider.len() as u32).to_le_bytes());
         hasher.update(provider.as_bytes());
-        hasher.update(b"|");
+        hasher.update(&(model.len() as u32).to_le_bytes());
         hasher.update(model.as_bytes());
-        hasher.update(b"|");
+        hasher.update(&(prompt.len() as u32).to_le_bytes());
         hasher.update(prompt.as_bytes());
-        hasher.update(b"|");
         match system {
             Some(sys) => {
                 hasher.update(&[0x01]);
@@ -105,7 +107,6 @@ impl CacheService {
                 hasher.update(&[0x00]);
             }
         }
-        hasher.update(b"|");
         match temperature {
             Some(temp) => {
                 hasher.update(&[0x01]);
@@ -115,7 +116,6 @@ impl CacheService {
                 hasher.update(&[0x00]);
             }
         }
-        hasher.update(b"|");
         match max_tokens {
             Some(max) => {
                 hasher.update(&[0x01]);

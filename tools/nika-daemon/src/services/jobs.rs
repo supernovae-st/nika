@@ -120,6 +120,17 @@ impl JobService {
                 job.workflow
             )));
         }
+        // J1: Canonicalize and verify path is under current directory (prevent traversal)
+        if let Ok(canonical) = workflow_path.canonicalize() {
+            let cwd = std::env::current_dir().unwrap_or_default();
+            if !canonical.starts_with(&cwd) {
+                return Err(DaemonError::Protocol(format!(
+                    "workflow path '{}' escapes working directory '{}'",
+                    job.workflow,
+                    cwd.display()
+                )));
+            }
+        }
 
         // Spawn child process (H3: error on missing exe instead of fallback)
         let exe = std::env::current_exe()
@@ -137,6 +148,8 @@ impl JobService {
 
         cmd.stdout(std::process::Stdio::piped());
         cmd.stderr(std::process::Stdio::piped());
+        // J2: kill child on drop (prevents orphans on timeout or panic)
+        cmd.kill_on_drop(true);
 
         let child = cmd
             .spawn()
@@ -317,17 +330,19 @@ impl JobService {
 
 /// Wait for a child process to complete with timeout, capturing output.
 /// H6 fix: 1-hour timeout prevents hung jobs from blocking the scheduler.
+/// J2 fix: caller must set kill_on_drop(true) — child is killed when future drops on timeout.
 async fn wait_for_child(
     child: tokio::process::Child,
     job_id: &str,
 ) -> DaemonResult<(i32, String)> {
     // H6: Wrap in timeout to prevent hung jobs
+    // J2: child has kill_on_drop(true), so dropping the future kills the process
     let output = match tokio::time::timeout(JOB_TIMEOUT, child.wait_with_output()).await {
         Ok(result) => result
             .map_err(|e| DaemonError::Lifecycle(format!("wait for job {job_id}: {e}")))?,
         Err(_) => {
             return Err(DaemonError::Lifecycle(format!(
-                "job {job_id} timed out after {}s",
+                "job {job_id} timed out after {}s (process killed)",
                 JOB_TIMEOUT.as_secs()
             )));
         }
