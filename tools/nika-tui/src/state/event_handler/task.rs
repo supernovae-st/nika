@@ -17,7 +17,10 @@ impl TuiState {
         let deps: Vec<String> = dependencies.iter().map(|s| s.to_string()).collect();
         let task = TaskState::new(task_id.to_string(), deps);
         self.tasks.insert(task_id.to_string(), task);
-        self.task_order.push(task_id.to_string());
+        // Guard against duplicates on retry (task may be re-scheduled)
+        if !self.task_order.contains(&task_id.to_string()) {
+            self.task_order.push(task_id.to_string());
+        }
         // TIER 4.1: Mark progress and dag dirty
         self.dirty.progress = true;
         self.dirty.dag = true;
@@ -100,6 +103,10 @@ impl TuiState {
             task.status = TaskStatus::Failed;
             task.duration_ms = Some(duration_ms);
             task.error = Some(error.to_string());
+        }
+        // Clear current_task so the UI stops highlighting this task as active
+        if self.current_task.as_deref() == Some(task_id) {
+            self.current_task = None;
         }
         // TIER 4.1: Mark progress, dag, and status dirty
         self.dirty.progress = true;

@@ -3196,10 +3196,10 @@ fn test_duplicate_task_scheduled_overwrites() {
         },
         10,
     );
-    // HashMap overwrites, task_order appends (known behavior)
+    // HashMap overwrites; task_order deduplicates (no ghost entry on retry)
     assert_eq!(state.tasks.len(), 1);
     assert_eq!(state.tasks["dup-task"].dependencies, vec!["dep1"]);
-    assert_eq!(state.task_order.len(), 2); // Both entries remain
+    assert_eq!(state.task_order.len(), 1); // Deduped — still one entry
 }
 
 #[test]
