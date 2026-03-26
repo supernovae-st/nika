@@ -54,6 +54,109 @@ pub struct ProviderCallStat {
     pub cost: f64,
 }
 
+impl RunStats {
+    /// Apply a single event to accumulate stats.
+    ///
+    /// Centralizes stat accumulation that was previously duplicated in both
+    /// `CliRenderer::render()` and `LiveRenderer::render()`.
+    /// Renderers call this at the top of their render method, then only handle
+    /// display-specific logic (printing, progress bars, etc.) in their match arms.
+    pub fn apply_event(&mut self, event: &crate::event::Event) {
+        match &event.kind {
+            EventKind::ProviderResponded {
+                input_tokens,
+                output_tokens,
+                cache_read_tokens,
+                ttft_ms,
+                cost_usd,
+                ..
+            } => {
+                self.total_input_tokens += input_tokens;
+                self.total_output_tokens += output_tokens;
+                self.total_cache_tokens += cache_read_tokens;
+                self.total_cost += cost_usd;
+                if let Some(t) = ttft_ms {
+                    self.ttft_values.push(*t);
+                }
+                self.provider_calls.push(ProviderCallStat {
+                    task_id: event.kind.task_id().unwrap_or("?").to_string(),
+                    input_tokens: *input_tokens,
+                    output_tokens: *output_tokens,
+                    cache_tokens: *cache_read_tokens,
+                    ttft_ms: *ttft_ms,
+                    cost: *cost_usd,
+                });
+            }
+
+            EventKind::McpError { .. } => {
+                self.mcp_errors += 1;
+            }
+
+            EventKind::McpInvoke { .. } => {
+                self.mcp_calls += 1;
+            }
+
+            EventKind::McpRetry { .. } => {
+                self.mcp_retries += 1;
+            }
+
+            EventKind::GuardrailPassed { .. } => {
+                self.guardrails_passed += 1;
+            }
+
+            EventKind::GuardrailFailed { .. } => {
+                self.guardrails_failed += 1;
+            }
+
+            EventKind::GuardrailEscalation { .. } => {
+                self.guardrails_escalations += 1;
+            }
+
+            EventKind::ArtifactWritten { size, .. } => {
+                self.artifacts_count += 1;
+                self.artifacts_bytes += size;
+            }
+
+            EventKind::MediaStored {
+                size_bytes,
+                deduplicated,
+                ..
+            } => {
+                self.media_stored += 1;
+                self.media_bytes += size_bytes;
+                if *deduplicated {
+                    self.media_dedup += 1;
+                }
+            }
+
+            EventKind::StructuredOutputAttempt { .. } => {
+                self.structured_attempts += 1;
+            }
+
+            EventKind::StructuredOutputSuccess { layer, .. } => {
+                self.structured_success_layer = Some(*layer);
+            }
+
+            EventKind::TaskCompleted { .. } => {
+                self.tasks_passed += 1;
+            }
+
+            EventKind::TaskFailed { task_id, .. } => {
+                self.tasks_failed += 1;
+                if self.root_failure.is_none() {
+                    self.root_failure = Some(task_id.to_string());
+                }
+            }
+
+            EventKind::TaskSkipped { .. } => {
+                self.tasks_skipped += 1;
+            }
+
+            _ => {}
+        }
+    }
+}
+
 pub struct CliRenderer {
     detail: DetailLevel,
     start: Instant,

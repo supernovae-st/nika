@@ -866,3 +866,418 @@ fn fmt_extract_applied_zero_input() {
     assert!(out.contains("extract:text"), "should contain extract mode");
     assert!(!out.contains('%'), "should NOT contain percentage with zero input");
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// 14. RunStats::apply_event
+// ═══════════════════════════════════════════════════════════════════════
+
+#[test]
+fn run_stats_apply_provider_responded() {
+    use super::renderer::RunStats;
+    use crate::event::{Event, EventKind};
+    use std::sync::Arc;
+
+    let mut stats = RunStats::default();
+    let event = Event {
+        id: 1,
+        timestamp_ms: 0,
+        kind: EventKind::ProviderResponded {
+            task_id: Arc::from("t1"),
+            request_id: None,
+            input_tokens: 100,
+            output_tokens: 50,
+            cache_read_tokens: 10,
+            ttft_ms: Some(45),
+            finish_reason: String::new(),
+            cost_usd: 0.005,
+        },
+    };
+    stats.apply_event(&event);
+    assert_eq!(stats.total_input_tokens, 100);
+    assert_eq!(stats.total_output_tokens, 50);
+    assert_eq!(stats.total_cache_tokens, 10);
+    assert_eq!(stats.ttft_values, vec![45]);
+    assert_eq!(stats.provider_calls.len(), 1);
+    assert!((stats.total_cost - 0.005).abs() < f64::EPSILON);
+}
+
+#[test]
+fn run_stats_apply_provider_responded_no_ttft() {
+    use super::renderer::RunStats;
+    use crate::event::{Event, EventKind};
+    use std::sync::Arc;
+
+    let mut stats = RunStats::default();
+    let event = Event {
+        id: 1,
+        timestamp_ms: 0,
+        kind: EventKind::ProviderResponded {
+            task_id: Arc::from("t1"),
+            request_id: None,
+            input_tokens: 200,
+            output_tokens: 80,
+            cache_read_tokens: 0,
+            ttft_ms: None,
+            finish_reason: String::new(),
+            cost_usd: 0.01,
+        },
+    };
+    stats.apply_event(&event);
+    assert_eq!(stats.total_input_tokens, 200);
+    assert_eq!(stats.total_output_tokens, 80);
+    assert_eq!(stats.total_cache_tokens, 0);
+    assert!(stats.ttft_values.is_empty(), "ttft_values should be empty when ttft_ms is None");
+    assert_eq!(stats.provider_calls.len(), 1);
+    assert!((stats.total_cost - 0.01).abs() < f64::EPSILON);
+}
+
+#[test]
+fn run_stats_apply_multiple_provider_calls_accumulate() {
+    use super::renderer::RunStats;
+    use crate::event::{Event, EventKind};
+    use std::sync::Arc;
+
+    let mut stats = RunStats::default();
+    for i in 0..3 {
+        let event = Event {
+            id: i,
+            timestamp_ms: 0,
+            kind: EventKind::ProviderResponded {
+                task_id: Arc::from(format!("t{}", i).as_str()),
+                request_id: None,
+                input_tokens: 100,
+                output_tokens: 50,
+                cache_read_tokens: 5,
+                ttft_ms: Some(40 + i),
+                finish_reason: String::new(),
+                cost_usd: 0.001,
+            },
+        };
+        stats.apply_event(&event);
+    }
+    assert_eq!(stats.total_input_tokens, 300);
+    assert_eq!(stats.total_output_tokens, 150);
+    assert_eq!(stats.total_cache_tokens, 15);
+    assert_eq!(stats.ttft_values, vec![40, 41, 42]);
+    assert_eq!(stats.provider_calls.len(), 3);
+    assert!((stats.total_cost - 0.003).abs() < f64::EPSILON);
+}
+
+#[test]
+fn run_stats_apply_mcp_events() {
+    use super::renderer::RunStats;
+    use crate::event::{Event, EventKind};
+    use std::sync::Arc;
+
+    let mut stats = RunStats::default();
+
+    // McpInvoke
+    let event = Event {
+        id: 1,
+        timestamp_ms: 0,
+        kind: EventKind::McpInvoke {
+            task_id: Arc::from("t1"),
+            call_id: "1".into(),
+            mcp_server: "neo4j".into(),
+            tool: Some("query".into()),
+            resource: None,
+            params: None,
+        },
+    };
+    stats.apply_event(&event);
+    assert_eq!(stats.mcp_calls, 1);
+
+    // McpError
+    let event2 = Event {
+        id: 2,
+        timestamp_ms: 0,
+        kind: EventKind::McpError {
+            server_name: "neo4j".into(),
+            error: "timeout".into(),
+        },
+    };
+    stats.apply_event(&event2);
+    assert_eq!(stats.mcp_errors, 1);
+
+    // McpRetry
+    let event3 = Event {
+        id: 3,
+        timestamp_ms: 0,
+        kind: EventKind::McpRetry {
+            task_id: Arc::from("t1"),
+            server_name: "neo4j".into(),
+            operation: "query".into(),
+            attempt: 1,
+            max_attempts: 3,
+            error: "connection reset".into(),
+        },
+    };
+    stats.apply_event(&event3);
+    assert_eq!(stats.mcp_retries, 1);
+}
+
+#[test]
+fn run_stats_apply_guardrail_events() {
+    use super::renderer::RunStats;
+    use crate::event::{Event, EventKind};
+    use std::sync::Arc;
+
+    let mut stats = RunStats::default();
+
+    // GuardrailPassed
+    stats.apply_event(&Event {
+        id: 1,
+        timestamp_ms: 0,
+        kind: EventKind::GuardrailPassed {
+            task_id: Arc::from("t1"),
+            guardrail_type: "length".into(),
+            description: "max 1000 chars".into(),
+        },
+    });
+    assert_eq!(stats.guardrails_passed, 1);
+
+    // GuardrailFailed
+    stats.apply_event(&Event {
+        id: 2,
+        timestamp_ms: 0,
+        kind: EventKind::GuardrailFailed {
+            task_id: Arc::from("t1"),
+            guardrail_type: "schema".into(),
+            description: "JSON schema".into(),
+            message: "missing field".into(),
+        },
+    });
+    assert_eq!(stats.guardrails_failed, 1);
+
+    // GuardrailEscalation
+    stats.apply_event(&Event {
+        id: 3,
+        timestamp_ms: 0,
+        kind: EventKind::GuardrailEscalation {
+            task_id: Arc::from("t1"),
+            guardrail_type: "llm".into(),
+            guardrail_id: "safety-1".into(),
+            message: "content unsafe".into(),
+            severity: "high".into(),
+            suggested_action: None,
+        },
+    });
+    assert_eq!(stats.guardrails_escalations, 1);
+}
+
+#[test]
+fn run_stats_apply_artifact_written() {
+    use super::renderer::RunStats;
+    use crate::event::{Event, EventKind};
+    use std::sync::Arc;
+
+    let mut stats = RunStats::default();
+    stats.apply_event(&Event {
+        id: 1,
+        timestamp_ms: 0,
+        kind: EventKind::ArtifactWritten {
+            task_id: Arc::from("t1"),
+            path: "/tmp/out.md".into(),
+            size: 2048,
+            format: "markdown".into(),
+            checksum: None,
+        },
+    });
+    assert_eq!(stats.artifacts_count, 1);
+    assert_eq!(stats.artifacts_bytes, 2048);
+
+    // Second artifact accumulates
+    stats.apply_event(&Event {
+        id: 2,
+        timestamp_ms: 0,
+        kind: EventKind::ArtifactWritten {
+            task_id: Arc::from("t2"),
+            path: "/tmp/out2.json".into(),
+            size: 512,
+            format: "json".into(),
+            checksum: None,
+        },
+    });
+    assert_eq!(stats.artifacts_count, 2);
+    assert_eq!(stats.artifacts_bytes, 2560);
+}
+
+#[test]
+fn run_stats_apply_media_stored_with_dedup() {
+    use super::renderer::RunStats;
+    use crate::event::{Event, EventKind};
+    use std::sync::Arc;
+
+    let mut stats = RunStats::default();
+    let event = Event {
+        id: 1,
+        timestamp_ms: 0,
+        kind: EventKind::MediaStored {
+            task_id: Arc::from("t1"),
+            hash: "abc123".into(),
+            path: "/tmp/img.png".into(),
+            size_bytes: 1024,
+            verified: true,
+            deduplicated: true,
+            pipeline_ms: 50,
+        },
+    };
+    stats.apply_event(&event);
+    assert_eq!(stats.media_stored, 1);
+    assert_eq!(stats.media_bytes, 1024);
+    assert_eq!(stats.media_dedup, 1);
+}
+
+#[test]
+fn run_stats_apply_media_stored_without_dedup() {
+    use super::renderer::RunStats;
+    use crate::event::{Event, EventKind};
+    use std::sync::Arc;
+
+    let mut stats = RunStats::default();
+    stats.apply_event(&Event {
+        id: 1,
+        timestamp_ms: 0,
+        kind: EventKind::MediaStored {
+            task_id: Arc::from("t1"),
+            hash: "abc123".into(),
+            path: "/tmp/img.png".into(),
+            size_bytes: 2048,
+            verified: true,
+            deduplicated: false,
+            pipeline_ms: 30,
+        },
+    });
+    assert_eq!(stats.media_stored, 1);
+    assert_eq!(stats.media_bytes, 2048);
+    assert_eq!(stats.media_dedup, 0, "should not increment dedup when deduplicated=false");
+}
+
+#[test]
+fn run_stats_apply_structured_output_events() {
+    use super::renderer::RunStats;
+    use crate::event::{Event, EventKind};
+    use std::sync::Arc;
+
+    let mut stats = RunStats::default();
+
+    // StructuredOutputAttempt
+    stats.apply_event(&Event {
+        id: 1,
+        timestamp_ms: 0,
+        kind: EventKind::StructuredOutputAttempt {
+            task_id: Arc::from("t1"),
+            layer: 1,
+            layer_name: "tool_injection".into(),
+            attempt: 1,
+            success: false,
+            error: Some("parse error".into()),
+        },
+    });
+    assert_eq!(stats.structured_attempts, 1);
+
+    // StructuredOutputSuccess
+    stats.apply_event(&Event {
+        id: 2,
+        timestamp_ms: 0,
+        kind: EventKind::StructuredOutputSuccess {
+            task_id: Arc::from("t1"),
+            layer: 2,
+            layer_name: "extract_validate".into(),
+            total_attempts: 2,
+        },
+    });
+    assert_eq!(stats.structured_success_layer, Some(2));
+}
+
+#[test]
+fn run_stats_apply_task_completed_and_failed() {
+    use super::renderer::RunStats;
+    use crate::event::{Event, EventKind};
+    use std::sync::Arc;
+    use serde_json::Value;
+
+    let mut stats = RunStats::default();
+
+    // TaskCompleted
+    stats.apply_event(&Event {
+        id: 1,
+        timestamp_ms: 100,
+        kind: EventKind::TaskCompleted {
+            task_id: Arc::from("t1"),
+            output: Arc::new(Value::String("done".into())),
+            duration_ms: 500,
+        },
+    });
+    assert_eq!(stats.tasks_passed, 1);
+
+    // TaskFailed
+    stats.apply_event(&Event {
+        id: 2,
+        timestamp_ms: 200,
+        kind: EventKind::TaskFailed {
+            task_id: Arc::from("t2"),
+            error: "boom".into(),
+            duration_ms: 100,
+            error_code: Some("NIKA-044".into()),
+        },
+    });
+    assert_eq!(stats.tasks_failed, 1);
+    assert_eq!(stats.root_failure, Some("t2".to_string()));
+
+    // Second failure should NOT overwrite root_failure
+    stats.apply_event(&Event {
+        id: 3,
+        timestamp_ms: 300,
+        kind: EventKind::TaskFailed {
+            task_id: Arc::from("t3"),
+            error: "also boom".into(),
+            duration_ms: 50,
+            error_code: None,
+        },
+    });
+    assert_eq!(stats.tasks_failed, 2);
+    assert_eq!(stats.root_failure, Some("t2".to_string()), "root_failure should be first failure");
+}
+
+#[test]
+fn run_stats_apply_task_skipped() {
+    use super::renderer::RunStats;
+    use crate::event::{Event, EventKind};
+    use std::sync::Arc;
+
+    let mut stats = RunStats::default();
+    stats.apply_event(&Event {
+        id: 1,
+        timestamp_ms: 0,
+        kind: EventKind::TaskSkipped {
+            task_id: Arc::from("t3"),
+            reason: "dep t2 failed".into(),
+        },
+    });
+    assert_eq!(stats.tasks_skipped, 1);
+}
+
+#[test]
+fn run_stats_apply_ignores_unrelated_events() {
+    use super::renderer::RunStats;
+    use crate::event::{Event, EventKind};
+
+    let mut stats = RunStats::default();
+
+    // WorkflowStarted should not touch any counters
+    stats.apply_event(&Event {
+        id: 1,
+        timestamp_ms: 0,
+        kind: EventKind::WorkflowStarted {
+            task_count: 5,
+            generation_id: "gen1".into(),
+            workflow_hash: "hash1".into(),
+            nika_version: "0.47.0".into(),
+        },
+    });
+    assert_eq!(stats.tasks_passed, 0);
+    assert_eq!(stats.tasks_failed, 0);
+    assert_eq!(stats.mcp_calls, 0);
+    assert_eq!(stats.total_input_tokens, 0);
+}
