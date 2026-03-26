@@ -5398,6 +5398,7 @@ dependencies = [
  "image_hasher",
  "imagesize",
  "indexmap 2.13.0",
+ "indicatif 0.18.4",
  "infer",
  "insta",
  "jsonschema",
