@@ -105,6 +105,9 @@ impl TaskBoxFlow {
         self.content_height = (task_count as u16) * TASK_BOX_HEIGHT;
         self.running_task_index = None;
 
+        // Clamp scroll offset in case content shrank (prevents blank view)
+        self.scroll_offset = self.scroll_offset.min(self.max_scroll());
+
         // Find the currently running task index
         for (idx, task_id) in state.task_order.iter().enumerate() {
             if let Some(task) = state.tasks.get(task_id) {
