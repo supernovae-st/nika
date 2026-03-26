@@ -256,8 +256,6 @@ fn contrast_ratio(foreground: Color, background: Color) -> f64 {
 
 const WCAG_AA_NORMAL: f64 = 4.5;
 const WCAG_AA_LARGE: f64 = 3.0;
-#[allow(dead_code)]
-const WCAG_AAA_NORMAL: f64 = 7.0; // Reserved for future AAA tests
 
 #[test]
 fn test_cosmic_dark_text_contrast_meets_wcag_aa() {

@@ -207,11 +207,21 @@ mod tests {
     }
 
     #[test]
-    fn get_from_env_existing() {
-        // This tests the sync env helper directly
-        // Using CARGO_PKG_NAME which is always set during tests
-        assert!(get_from_env("anthropic").is_some() || get_from_env("anthropic").is_none());
-        // At minimum, unknown returns None
+    fn get_from_env_unknown_returns_none() {
+        // Unknown provider never has an env var
         assert_eq!(get_from_env("nonexistent_provider_xyz"), None);
+    }
+
+    #[test]
+    fn get_from_env_known_provider_returns_option() {
+        // Known provider returns Some only if env var is set
+        // We can't guarantee ANTHROPIC_API_KEY is set in CI, but we
+        // can verify the function doesn't panic and returns a valid Option
+        let result = get_from_env("anthropic");
+        if std::env::var("ANTHROPIC_API_KEY").is_ok() {
+            assert!(result.is_some(), "Expected Some when ANTHROPIC_API_KEY is set");
+        } else {
+            assert!(result.is_none(), "Expected None when ANTHROPIC_API_KEY is not set");
+        }
     }
 }

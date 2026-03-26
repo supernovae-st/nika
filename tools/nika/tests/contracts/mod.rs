@@ -42,30 +42,7 @@ pub mod common {
             .expect("Failed to execute nika command")
     }
 
-    /// Parse provider list output into a vec of provider names
-    #[allow(dead_code)]
-    pub fn parse_provider_names(output: &[u8]) -> Vec<String> {
-        String::from_utf8_lossy(output)
-            .lines()
-            .filter(|line| !line.is_empty() && !line.starts_with("Provider"))
-            .filter_map(|line| line.split_whitespace().next())
-            .map(|s| s.to_string())
-            .collect()
-    }
-
-    /// Parse MCP server list output
-    #[allow(dead_code)]
-    pub fn parse_mcp_servers(output: &[u8]) -> Vec<String> {
-        String::from_utf8_lossy(output)
-            .lines()
-            .filter(|line| !line.is_empty() && !line.starts_with("Server"))
-            .filter_map(|line| line.split_whitespace().next())
-            .map(|s| s.to_string())
-            .collect()
-    }
-
     /// LLM providers shown by `nika provider list`
-    /// NOTE: Ollama removed in v0.27 -- use provider: native instead
     pub const LLM_PROVIDERS: &[&str] = &[
         "anthropic",
         "openai",
@@ -74,17 +51,6 @@ pub mod common {
         "deepseek",
         "gemini",
         "xai",
-    ];
-
-    /// MCP providers (not shown in `nika provider list`, managed via `nika mcp`)
-    #[allow(dead_code)]
-    pub const MCP_PROVIDERS: &[&str] = &[
-        "neo4j",
-        "github",
-        "slack",
-        "perplexity",
-        "firecrawl",
-        "supadata",
     ];
 
     /// All known providers (LLM + MCP) for reference
