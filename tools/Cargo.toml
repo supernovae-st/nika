@@ -14,7 +14,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.46.0"
+version = "0.46.1"
 edition = "2021"
 authors = ["Thibaut MÉLEN <thibaut@supernovae.studio>", "SuperNovae Studio <contact@supernovae.studio>"]
 license = "AGPL-3.0-or-later"
