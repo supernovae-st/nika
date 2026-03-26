@@ -519,6 +519,7 @@ impl LiveRenderer {
             EventKind::TaskFailed {
                 task_id,
                 error,
+                error_code,
                 duration_ms,
                 ..
             } => {
@@ -561,6 +562,18 @@ impl LiveRenderer {
                     "error".red(),
                     error.red()
                 ));
+                // Show fix suggestion if available (same as CliRenderer)
+                if let Some(code) = error_code {
+                    if let Some(fix) = crate::error::fix_suggestion_for_code(code) {
+                        self.log(&format!(
+                            "{}  {} {} {}",
+                            " ".repeat(6),
+                            "│".dimmed(),
+                            "→ Fix:".yellow(),
+                            fix.dimmed()
+                        ));
+                    }
+                }
             }
 
             EventKind::TaskSkipped { task_id, reason } => {
@@ -1563,5 +1576,67 @@ mod tests {
         ));
         assert_eq!(renderer.stats.tasks_skipped, 1);
         assert_eq!(renderer.task_bars["skippable"].status, TaskStatus::Skipped);
+    }
+
+    #[test]
+    fn event_task_failed_with_fix_suggestion_does_not_panic() {
+        // Regression: LiveRenderer must show fix suggestion via self.log()
+        // without panicking. Use NIKA-032 which has a known fix suggestion.
+        let mut renderer = LiveRenderer::hidden(DetailLevel::Max);
+        let task_ids = vec!["auth_task".to_string()];
+        let deps = HashMap::new();
+        renderer.init_tasks(&task_ids, &deps);
+
+        renderer.render(&make_event(
+            1,
+            0,
+            EventKind::TaskStarted {
+                task_id: Arc::from("auth_task"),
+                verb: Arc::from("infer"),
+                inputs: serde_json::Value::Null,
+            },
+        ));
+        renderer.render(&make_event(
+            2,
+            800,
+            EventKind::TaskFailed {
+                task_id: Arc::from("auth_task"),
+                error: "API key not found".to_string(),
+                duration_ms: 800,
+                error_code: Some("NIKA-032".to_string()),
+            },
+        ));
+        // Fix suggestion is available for NIKA-032; must not panic
+        assert_eq!(renderer.stats.tasks_failed, 1);
+    }
+
+    #[test]
+    fn event_task_failed_without_fix_suggestion_does_not_panic() {
+        // Ensure None fix suggestion path is also safe
+        let mut renderer = LiveRenderer::hidden(DetailLevel::Max);
+        let task_ids = vec!["task_x".to_string()];
+        let deps = HashMap::new();
+        renderer.init_tasks(&task_ids, &deps);
+
+        renderer.render(&make_event(
+            1,
+            0,
+            EventKind::TaskStarted {
+                task_id: Arc::from("task_x"),
+                verb: Arc::from("exec"),
+                inputs: serde_json::Value::Null,
+            },
+        ));
+        renderer.render(&make_event(
+            2,
+            200,
+            EventKind::TaskFailed {
+                task_id: Arc::from("task_x"),
+                error: "exit code 1".to_string(),
+                duration_ms: 200,
+                error_code: None,
+            },
+        ));
+        assert_eq!(renderer.stats.tasks_failed, 1);
     }
 }
