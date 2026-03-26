@@ -987,6 +987,80 @@ impl CliRenderer {
                 }
             }
 
+            // ═══════════════════════════════════════
+            // FOR-EACH
+            // ═══════════════════════════════════════
+            EventKind::ForEachCompleted {
+                task_id,
+                total,
+                succeeded,
+                failed,
+                ..
+            } => {
+                if self.detail.show_sub_events() {
+                    let status = if *failed > 0 {
+                        format!("{}/{} ok · {} failed", succeeded, total, failed)
+                            .yellow()
+                            .to_string()
+                    } else {
+                        format!("{}/{} ok", succeeded, total)
+                            .green()
+                            .to_string()
+                    };
+                    println!(
+                        "{}     {} {} for_each {} · {}",
+                        " ".repeat(6),
+                        "│".dimmed(),
+                        icons::log(),
+                        task_id.dimmed(),
+                        status
+                    );
+                }
+            }
+
+            // ═══════════════════════════════════════
+            // EXEC
+            // ═══════════════════════════════════════
+            EventKind::ExecCompleted {
+                exit_code,
+                duration_ms,
+                ..
+            } => {
+                if self.detail.show_sub_events() {
+                    let code_str = if *exit_code == 0 {
+                        "0".green().to_string()
+                    } else {
+                        exit_code.to_string().red().to_string()
+                    };
+                    println!(
+                        "{}     {} {} exit:{} · {}ms",
+                        " ".repeat(6),
+                        "│".dimmed(),
+                        icons::verb("exec"),
+                        code_str,
+                        duration_ms
+                    );
+                }
+            }
+
+            // ═══════════════════════════════════════
+            // POLICY
+            // ═══════════════════════════════════════
+            EventKind::PolicyBlocked {
+                policy_type,
+                reason,
+                ..
+            } => {
+                println!(
+                    "{}  {} {} {} · {}",
+                    self.ts(),
+                    "⊘".red().bold(),
+                    "BLOCKED".red().bold(),
+                    policy_type.yellow(),
+                    reason.red()
+                );
+            }
+
             // Catch-all for WorkflowCompleted/WorkflowFailed (handled by summary)
             _ => {}
         }
