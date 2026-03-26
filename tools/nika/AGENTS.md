@@ -38,7 +38,18 @@ src/
 ├── provider/            # LLM providers (rig-core cloud + mistral.rs native + cost.rs)
 ├── binding/             # Data flow: templates, transforms, JSONPath, resolve
 ├── tools/               # File tools: read, write, edit, glob, grep
-├── display/             # Header + check renderers
+├── display/             # CLI display renderers
+│   ├── renderer.rs      #   CliRenderer (append-only, classic)
+│   ├── live.rs          #   LiveRenderer (animated, indicatif spinners)
+│   ├── run_renderer.rs  #   RunRenderer dispatch (auto TTY detection)
+│   ├── summary.rs       #   Shared summary box (free functions)
+│   ├── spinner.rs       #   Spinner constants + progress templates
+│   ├── header.rs        #   Workflow header box
+│   ├── icons.rs         #   Cosmic icon palette
+│   ├── colors.rs        #   Color helpers + sparklines
+│   ├── detail.rs        #   DetailLevel verbosity control
+│   ├── check.rs         #   Pre-flight validation checklist
+│   └── dag_render.rs    #   Static DAG visualization
 ├── init/                # nika init (minimal scaffold + course generator)
 │   ├── course/          #   12-level interactive course (44 exercises)
 │   └── showcase_*.rs    #   Showcase workflow generators
@@ -102,6 +113,7 @@ cargo test --workspace --lib             # All crates (8100+, safe — no keycha
 cargo test --lib                         # nika binary tests only
 cargo test -p nika-engine --lib          # Engine tests only (4100+)
 cargo test -p nika-tui --lib             # TUI tests only (2100+)
+cargo test -p nika-engine --lib -- display  # Display system tests
 cargo test --features lsp               # Include LSP tests
 cargo clippy --workspace -- -D warnings  # Zero warnings policy
 ```
