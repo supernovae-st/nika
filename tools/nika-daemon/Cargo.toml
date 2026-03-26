@@ -1,0 +1,46 @@
+[package]
+name = "nika-daemon"
+description = "Nika background daemon — secrets, jobs, watch, cache"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+# Internal (lightweight — no nika-engine dependency)
+nika-core = { workspace = true }
+
+# Async runtime
+tokio = { workspace = true, features = ["net", "signal", "process", "fs", "io-util", "rt-multi-thread", "macros", "sync", "time"] }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Errors
+thiserror = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# Hashing
+blake3 = { workspace = true }
+
+# Time
+chrono = { workspace = true }
+
+# IDs
+uuid = { workspace = true }
+
+# Paths
+dirs = { workspace = true }
+
+# Unix (daemonize, signals, socket perms)
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.29", features = ["signal", "process", "fs", "net"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "test-util"] }
+tempfile = { workspace = true }
