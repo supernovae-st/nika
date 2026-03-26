@@ -121,13 +121,13 @@ impl StudioView {
     }
 
     /// Create a StudioView with a specific root directory
+    ///
+    /// PERF: Git status and tree are built lazily in on_enter(), not here.
+    /// This makes construction instant — the skeleton frame renders first,
+    /// then on_enter() populates the data (100-300ms saved from startup).
     pub fn with_root(root_dir: PathBuf) -> Self {
-        // Build git status cache from root directory
-        let root_path = Utf8Path::from_path(&root_dir).unwrap_or(Utf8Path::new("."));
-        let git_cache = build_git_status_cache(root_path);
-
-        // Pre-build tree once at construction (avoids redundant rebuild in on_enter)
-        let tree = TreeNode::build_tree(root_path, Some(&git_cache), None);
+        // PERF: Defer git cache + tree build to on_enter() (non-blocking construction)
+        let git_cache = GitStatusCache::default();
 
         // Scan for .nika.yaml files for Quick Access
         let quick_access = Self::scan_nika_files(&root_dir);
@@ -143,7 +143,7 @@ impl StudioView {
             ratio: StudioRatio::default(),
             git_cache,
             git_cache_time: Instant::now(),
-            cached_tree: Some(tree),
+            cached_tree: None, // Built lazily in on_enter()
             quick_access,
             // Overlay states
             command_palette: CommandPaletteState::new(),
