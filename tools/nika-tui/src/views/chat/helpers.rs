@@ -32,23 +32,42 @@ pub fn categorize_error(error: &str) -> (&'static str, &'static str) {
     } else if error_lower.contains("rate limit")
         || error_lower.contains("too many requests")
         || error_lower.contains("quota")
+        || error_lower.contains("status: 429")
+        || error_lower.contains("429 too many")
     {
         (
             "Rate Limit",
             "API rate limit reached. Wait a moment and try again.",
         )
+    } else if error_lower.contains("status: 401")
+        || error_lower.contains("status: 403")
+    {
+        (
+            "Auth",
+            "Authentication failed (HTTP 401/403). Check your API key.",
+        )
+    } else if error_lower.contains("status: 500")
+        || error_lower.contains("status: 502")
+        || error_lower.contains("status: 503")
+    {
+        (
+            "Server",
+            "LLM provider server error (5xx). Try again in a moment.",
+        )
     } else if error_lower.contains("connection")
         || error_lower.contains("network")
         || error_lower.contains("dns")
         || error_lower.contains("resolve")
+        || error_lower.contains("not responding")
     {
         (
             "Network",
             "Connection failed. Check your internet connection.",
         )
     } else if error_lower.contains("mcp")
-        || error_lower.contains("server")
-        || error_lower.contains("tool")
+        || error_lower.contains("mcp server")
+        || error_lower.contains("tool not found")
+        || error_lower.contains("tool call failed")
     {
         (
             "MCP",
@@ -128,8 +147,9 @@ mod tests {
         let (cat, _) = categorize_error("MCP server error");
         assert_eq!(cat, "MCP");
 
+        // "Server not responding" is a network issue, not MCP-specific
         let (cat, _) = categorize_error("Server not responding");
-        assert_eq!(cat, "MCP");
+        assert_eq!(cat, "Network");
 
         let (cat, _) = categorize_error("Tool not found");
         assert_eq!(cat, "MCP");
