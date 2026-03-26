@@ -382,14 +382,13 @@ fn format_section_cost(stats: &RunStats, w: usize) -> Vec<String> {
             w
         )
     ));
-    let mut task_costs: Vec<(String, f64)> = Vec::new();
+    // Aggregate cost per task (O(n) via HashMap instead of O(n*m) linear search)
+    let mut cost_map: std::collections::HashMap<&str, f64> = std::collections::HashMap::new();
     for call in &stats.provider_calls {
-        if let Some(existing) = task_costs.iter_mut().find(|(t, _)| *t == call.task_id) {
-            existing.1 += call.cost;
-        } else {
-            task_costs.push((call.task_id.clone(), call.cost));
-        }
+        *cost_map.entry(&call.task_id).or_default() += call.cost;
     }
+    let mut task_costs: Vec<(&str, f64)> = cost_map.into_iter().collect();
+    task_costs.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
     let mut cost_parts = Vec::new();
     for (task, c) in &task_costs {
         let blocks = ((c / stats.total_cost) * 20.0).round() as usize;
@@ -511,6 +510,18 @@ fn format_section_infrastructure(stats: &RunStats, w: usize) -> Vec<String> {
                     "  Output   {} artifacts · {} total",
                     stats.artifacts_count,
                     format_bytes(stats.artifacts_bytes)
+                ),
+                w
+            )
+        ));
+    }
+    if stats.fetch_retries > 0 {
+        lines.push(format!(
+            "│{}│",
+            pad_right(
+                &format!(
+                    "  Fetch    {} retries",
+                    stats.fetch_retries.to_string().yellow(),
                 ),
                 w
             )
