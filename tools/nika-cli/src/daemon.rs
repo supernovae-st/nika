@@ -44,6 +44,12 @@ pub enum DaemonAction {
     /// Show daemon status
     Status,
 
+    /// Install daemon as system service (launchd on macOS, systemd on Linux)
+    Install,
+
+    /// Uninstall daemon system service
+    Uninstall,
+
     /// Tail daemon log file
     Logs {
         /// Follow log output (like tail -f)
@@ -66,6 +72,16 @@ pub async fn handle_daemon_command(action: DaemonAction) -> Result<(), NikaError
             start_daemon(foreground).await
         }
         DaemonAction::Status => show_status().await,
+        DaemonAction::Install => {
+            nika_daemon::install::install().map_err(daemon_err)?;
+            eprintln!("{} daemon service installed", "✓".green().bold());
+            Ok(())
+        }
+        DaemonAction::Uninstall => {
+            nika_daemon::install::uninstall().map_err(daemon_err)?;
+            eprintln!("{} daemon service removed", "✓".green().bold());
+            Ok(())
+        }
         DaemonAction::Logs { follow, lines } => show_logs(follow, lines).await,
     }
 }
