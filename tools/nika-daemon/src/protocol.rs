@@ -41,8 +41,30 @@ pub enum DaemonRequest {
 
     /// List all provider secret status.
     ListSecrets,
-    // ── Jobs (Phase 2) ──────────────────────────────────────────────────
-    // JobSubmit, JobList, JobStatus, JobCancel, JobRetry
+    // ── Jobs ──────────────────────────────────────────────────────────────
+    /// Submit a new job.
+    JobSubmit {
+        workflow: String,
+        name: Option<String>,
+        args: Option<String>,
+        cron: Option<String>,
+        max_retries: Option<u32>,
+    },
+
+    /// List jobs, optionally filtered by state.
+    JobList { state: Option<String> },
+
+    /// Get job status/details.
+    JobStatus { id: String },
+
+    /// Cancel a running job.
+    JobCancel { id: String },
+
+    /// Retry a failed job.
+    JobRetry { id: String },
+
+    /// Get job history events.
+    JobHistory { id: String },
 
     // ── Watch (Phase 3) ─────────────────────────────────────────────────
     // WatchStart, WatchStop, WatchStatus
@@ -83,6 +105,25 @@ pub enum DaemonResponse {
 
     /// List of provider secret info.
     SecretList { providers: Vec<ProviderSecretInfo> },
+
+    // ── Jobs ──────────────────────────────────────────────────────────────
+    /// Job created successfully.
+    JobCreated { id: String },
+
+    /// List of jobs.
+    JobList {
+        jobs: Vec<serde_json::Value>,
+    },
+
+    /// Single job details.
+    JobDetail {
+        job: serde_json::Value,
+    },
+
+    /// Job history events.
+    JobHistoryList {
+        events: Vec<serde_json::Value>,
+    },
 }
 
 /// Information about a provider's secret status.
