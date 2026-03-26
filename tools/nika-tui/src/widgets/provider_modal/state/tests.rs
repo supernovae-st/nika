@@ -907,3 +907,76 @@ fn test_mcp_connections_update_multiple_times() {
     state.set_mcp_connections(0);
     assert_eq!(state.get_session_stats().mcp_connections, 0);
 }
+
+// ═══ TESTS: Task-16 bug fixes ═══
+
+#[test]
+fn test_switch_tab_clears_key_input_mode() {
+    let mut state = ProviderModalState::default();
+    state.switch_tab(ProviderModalTab::Keys);
+    state.key_input_mode = true;
+    state.key_input_buffer = "sk-ant-partial".to_string();
+
+    // Switching tab while in input mode must clear input state
+    state.switch_tab(ProviderModalTab::Cloud);
+
+    assert!(!state.key_input_mode, "key_input_mode must be cleared on tab switch");
+    assert!(state.key_input_buffer.is_empty(), "key_input_buffer must be zeroized on tab switch");
+    assert_eq!(state.active_tab, ProviderModalTab::Cloud);
+    assert_eq!(state.selected_idx, 0);
+}
+
+#[test]
+fn test_switch_tab_no_input_mode_noop() {
+    let mut state = ProviderModalState::default();
+    // key_input_mode is false — switch_tab must not panic or break anything
+    state.switch_tab(ProviderModalTab::Native);
+    assert_eq!(state.active_tab, ProviderModalTab::Native);
+    assert!(!state.key_input_mode);
+}
+
+#[test]
+fn test_set_native_models_clamps_selected_idx_when_native_tab() {
+    let mut state = ProviderModalState::default();
+    state.switch_tab(ProviderModalTab::Native);
+    state.selected_idx = 5; // Would be OOB after the shrink
+
+    let details = NativeModelDetails {
+        parameter_size: "7B".to_string(),
+        quantization_level: "Q4_0".to_string(),
+        family: None,
+    };
+    let two_models = vec![
+        NativeModelInfo {
+            name: "a".to_string(),
+            size: 0,
+            digest: "d".to_string(),
+            modified_at: "2024".to_string(),
+            details: details.clone(),
+        },
+        NativeModelInfo {
+            name: "b".to_string(),
+            size: 0,
+            digest: "d".to_string(),
+            modified_at: "2024".to_string(),
+            details,
+        },
+    ];
+
+    state.set_native_models(two_models);
+
+    // selected_idx must be clamped to the new max (1) and item_count must match
+    assert_eq!(state.selected_idx, 1, "selected_idx clamped to last valid index");
+    assert_eq!(state.item_count, 2, "item_count updated to model count");
+}
+
+#[test]
+fn test_set_native_models_no_clamp_when_not_native_tab() {
+    let mut state = ProviderModalState::default();
+    // Active tab is Cloud (default) — set_native_models must NOT change selected_idx
+    state.selected_idx = 3;
+
+    state.set_native_models(vec![]); // Would clamp to 0 if tab were Native
+
+    assert_eq!(state.selected_idx, 3, "selected_idx unchanged when not on Native tab");
+}

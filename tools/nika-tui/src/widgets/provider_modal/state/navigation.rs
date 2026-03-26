@@ -8,6 +8,13 @@ use super::ProviderModalState;
 impl ProviderModalState {
     /// Switch to a different tab
     pub fn switch_tab(&mut self, tab: ProviderModalTab) {
+        // SEC: If user switches tab while entering an API key, zeroize the buffer
+        // so partial key material doesn't linger in memory across tab contexts.
+        if self.key_input_mode {
+            use zeroize::Zeroize;
+            self.key_input_mode = false;
+            self.key_input_buffer.zeroize();
+        }
         self.active_tab = tab;
         self.selected_idx = 0; // Reset selection on tab change
                                // Update item_count based on tab
