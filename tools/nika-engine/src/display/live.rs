@@ -641,6 +641,21 @@ impl LiveRenderer {
                 self.update_overall_cost();
             }
 
+            // ── Streaming delta — live token counter ─────────────
+            EventKind::StreamingDelta {
+                task_id,
+                total_tokens,
+                ..
+            } => {
+                if let Some(tb) = self.task_bars.get(task_id.as_ref()) {
+                    if tb.status == TaskStatus::Running {
+                        let tok_str = colors::tokens(*total_tokens);
+                        tb.bar
+                            .set_message(Self::format_running_msg(&format!("out:{}", tok_str)));
+                    }
+                }
+            }
+
             // ── Context ───────────────────────────────────────────
             EventKind::ContextAssembled {
                 sources,

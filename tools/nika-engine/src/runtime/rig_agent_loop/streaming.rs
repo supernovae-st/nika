@@ -77,6 +77,8 @@ impl RigAgentLoop {
         let mut input_tokens: u64 = 0;
         let mut output_tokens: u64 = 0;
         let mut cached_input_tokens: u64 = 0;
+        // Streaming token counter for live progress display
+        let mut streaming_tokens: u64 = 0;
 
         // Stream chunks with timeout protection to prevent infinite hangs
         loop {
@@ -99,6 +101,17 @@ impl RigAgentLoop {
                             let _ = tx.try_send(crate::provider::rig::StreamChunk::Token(
                                 text.text.clone(),
                             ));
+                        }
+                        // Approximate token count: ~4 chars per token
+                        let delta = (text.text.len() as u64 / 4).max(1);
+                        streaming_tokens += delta;
+                        // Emit StreamingDelta for live progress (every ~10 tokens to avoid flood)
+                        if streaming_tokens % 10 < delta {
+                            self.event_log.emit(EventKind::StreamingDelta {
+                                task_id: Arc::from(self.task_id.as_str()),
+                                delta_tokens: delta,
+                                total_tokens: streaming_tokens,
+                            });
                         }
                         response_parts.push(text.text);
                     }
@@ -380,6 +393,7 @@ impl RigAgentLoop {
         let mut output_tokens = 0u64;
         let mut cached_input_tokens = 0u64;
         let mut tool_count = 0u32;
+        let mut streaming_tokens: u64 = 0;
 
         // Per-chunk timeout to prevent hanging streams
         loop {
@@ -416,6 +430,16 @@ impl RigAgentLoop {
                             let _ = tx.try_send(crate::provider::rig::StreamChunk::Token(
                                 text.text.clone(),
                             ));
+                        }
+                        // StreamingDelta for live progress
+                        let delta = (text.text.len() as u64 / 4).max(1);
+                        streaming_tokens += delta;
+                        if streaming_tokens % 10 < delta {
+                            self.event_log.emit(EventKind::StreamingDelta {
+                                task_id: Arc::from(self.task_id.as_str()),
+                                delta_tokens: delta,
+                                total_tokens: streaming_tokens,
+                            });
                         }
                         response_text.push_str(&text.text);
                     }
