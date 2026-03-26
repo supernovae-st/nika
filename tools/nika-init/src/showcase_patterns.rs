@@ -1251,7 +1251,7 @@ mod tests {
             if w.content.contains("{{PROVIDER}}") || w.content.contains("{{MODEL}}") {
                 continue;
             }
-            let parsed: Result<serde_json::Value, _> = crate::serde_yaml::from_str(w.content);
+            let parsed: Result<serde_json::Value, _> = serde_saphyr::from_str(w.content);
             assert!(
                 parsed.is_ok(),
                 "Workflow {} must be valid YAML: {:?}",

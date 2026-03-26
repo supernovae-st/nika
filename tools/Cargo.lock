@@ -5409,6 +5409,7 @@ dependencies = [
  "mistralrs",
  "nika-core",
  "nika-event",
+ "nika-init",
  "nika-lsp-core",
  "nika-mcp",
  "nika-media",
@@ -5484,6 +5485,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-init"
+version = "0.46.1"
+dependencies = [
+ "serde",
+ "serde-saphyr 0.0.20",
+ "serde_json",
+ "tempfile",
+ "thiserror 1.0.69",
+ "toml 0.8.23",
+]
+
+[[package]]
 name = "nika-lsp"
 version = "0.46.1"
 dependencies = [
@@ -5532,6 +5545,7 @@ dependencies = [
  "dashmap",
  "dirs",
  "jsonschema",
+ "nika-core",
  "nika-event",
  "parking_lot",
  "pretty_assertions",

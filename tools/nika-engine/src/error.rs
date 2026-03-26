@@ -816,6 +816,20 @@ impl From<nika_mcp::McpError> for NikaError {
     }
 }
 
+impl From<nika_init::error::NikaInitError> for NikaError {
+    fn from(e: nika_init::error::NikaInitError) -> Self {
+        match e {
+            nika_init::error::NikaInitError::IoError(io) => NikaError::IoError(io),
+            nika_init::error::NikaInitError::ConfigError { reason } => {
+                NikaError::ConfigError { reason }
+            }
+            nika_init::error::NikaInitError::ValidationError { reason } => {
+                NikaError::ValidationError { reason }
+            }
+        }
+    }
+}
+
 impl NikaError {
     /// Get the error code (e.g., "NIKA-001")
     pub fn code(&self) -> &'static str {

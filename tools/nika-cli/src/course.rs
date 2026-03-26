@@ -110,7 +110,7 @@ fn find_course_root() -> Result<PathBuf, NikaError> {
 fn load_progress(root: &Path) -> Result<CourseProgress, NikaError> {
     let path = root.join(PROGRESS_FILE);
     if path.exists() {
-        CourseProgress::load(&path)
+        Ok(CourseProgress::load(&path)?)
     } else {
         Ok(CourseProgress::new_course())
     }
@@ -119,7 +119,7 @@ fn load_progress(root: &Path) -> Result<CourseProgress, NikaError> {
 /// Save course progress
 fn save_progress(root: &Path, progress: &mut CourseProgress) -> Result<(), NikaError> {
     let path = root.join(PROGRESS_FILE);
-    progress.save(&path)
+    Ok(progress.save(&path)?)
 }
 
 // ─── Level resolution ───────────────────────────────────────────────────────
