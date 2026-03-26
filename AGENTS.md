@@ -28,7 +28,8 @@ Nika connects to NovaNet via MCP only (Zero Cypher rule). Use `invoke:` verb.
 
 ```bash
 nika check workflow.nika.yaml    # Validate
-nika run workflow.nika.yaml      # Execute
+nika run workflow.nika.yaml            # Execute workflow (auto-detect live/classic)
+nika run workflow.nika.yaml --no-live  # Force classic append-only output
 nika ui                          # TUI
 nika provider list               # API key status
 nika init                        # Interactive project setup (wizard)
