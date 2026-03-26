@@ -57,12 +57,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ env.RELEASE_TAG }}
+          REPO: ${{ github.repository }}
         run: |
           COMMIT=$(git rev-parse HEAD)
           echo "Release commit: ${COMMIT}"
 
           # Check if CI workflow succeeded on this commit
-          STATUS=$(gh api "repos/${{ github.repository }}/commits/${COMMIT}/check-runs" \
+          STATUS=$(gh api "repos/${REPO}/commits/${COMMIT}/check-runs" \
             --jq '[.check_runs[] | select(.name | test("check|test|security"; "i")) | .conclusion] | unique | join(",")') || true
 
           if echo "$STATUS" | grep -q "failure"; then
@@ -201,10 +202,11 @@ jobs:
           TARGET: ${{ matrix.target }}
         run: |
           # Import certificate into temporary keychain
-          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
           KEYCHAIN_PASSWORD=$(openssl rand -hex 16)
 
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          trap "security delete-keychain '$KEYCHAIN_PATH'" EXIT
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
@@ -568,12 +570,10 @@ jobs:
     needs: release
     if: ${{ !inputs.dry_run }}
     runs-on: ubuntu-latest
-    env:
-      TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - name: Extract version
         id: version
-        run: echo "version=${TAG#v}" >> $GITHUB_OUTPUT
+        run: echo "version=${RELEASE_TAG#v}" >> $GITHUB_OUTPUT
 
       - name: Update Homebrew formula
         uses: mislav/bump-homebrew-formula-action@v3
@@ -735,10 +735,11 @@ jobs:
           cd packages/npm
           # Update version in package.json and optionalDependencies
           node -e "
+            const v = process.env.VERSION;
             const pkg = require('./package.json');
-            pkg.version = '$VERSION';
+            pkg.version = v;
             for (const dep of Object.keys(pkg.optionalDependencies || {})) {
-              pkg.optionalDependencies[dep] = '$VERSION';
+              pkg.optionalDependencies[dep] = v;
             }
             require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
           "
@@ -878,8 +879,8 @@ jobs:
           git add -A
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git commit -m "Update nika to ${VERSION}" || true
-          git push || true
+          git commit -m "Update nika to ${VERSION}"
+          git push
         continue-on-error: true
 
   # NOTE: Winget requires .exe/.msi installer, not .zip
