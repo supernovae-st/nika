@@ -1,6 +1,7 @@
 //! Color helpers — formatting, syntax highlighting, sparklines.
 
 use colored::{ColoredString, Colorize};
+use unicode_width::UnicodeWidthChar;
 
 /// Format a duration with color based on speed.
 ///
@@ -54,7 +55,9 @@ pub fn pad_colored(cs: &ColoredString, width: usize) -> String {
     format!("{}{}", cs, " ".repeat(pad))
 }
 
-/// Count visible characters in a string, ignoring ANSI escape sequences.
+/// Count visible terminal columns in a string, ignoring ANSI escape sequences.
+///
+/// Uses `unicode_width` to correctly count CJK characters and wide emoji as 2 columns.
 pub fn stripped_len(s: &str) -> usize {
     let mut len = 0;
     let mut chars = s.chars().peekable();
@@ -68,7 +71,7 @@ pub fn stripped_len(s: &str) -> usize {
                 }
             }
         } else {
-            len += 1;
+            len += UnicodeWidthChar::width(ch).unwrap_or(0);
         }
     }
     len
