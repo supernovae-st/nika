@@ -234,9 +234,8 @@ fn contract_provider_status_shows_detail() {
 #[test]
 fn contract_provider_priority_keychain_over_env() {
     // This test documents the expected priority:
-    // 1. nika daemon (IPC)
-    // 2. OS Keychain
-    // 3. Environment variable
+    // 1. OS Keychain (opt-in via NIKA_KEYCHAIN_BOOT=1)
+    // 2. Environment variable
 
     let output = run_nika(&["provider", "list"]);
     assert!(output.status.success());
@@ -244,9 +243,6 @@ fn contract_provider_priority_keychain_over_env() {
     // The output should reflect the priority - we can't easily test this
     // without modifying keychain state, but we document the contract
     let _stdout = String::from_utf8_lossy(&output.stdout);
-
-    // This is a documentation test - the actual priority testing requires
-    // integration with keychain mocking which we do in daemon_contracts.rs
 }
 
 /// Contract: Environment variable fallback works for each provider
