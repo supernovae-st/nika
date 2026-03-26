@@ -19,29 +19,31 @@ const BOTTOM_RIGHT: &str = "\u{2518}"; // ┘
 const HORIZONTAL: &str = "\u{2500}"; // ─
 const VERTICAL: &str = "\u{2502}"; // │
 
-/// Print the workflow completion summary.
+/// Format the workflow completion summary as a list of lines.
 ///
 /// ```text
 /// ──────────────────────────────────────────────────
 /// ✓ Done! (1.7s | 42 tokens | $0.0003)
 /// ```
-pub fn print_done_summary(
+pub fn format_done_summary(
     elapsed_str: &str,
     total_tokens: u64,
     total_cost: f64,
     trace_path: Option<&str>,
     task_count: usize,
     parallel_count: usize,
-) {
-    println!();
-    println!("{}", HORIZONTAL.repeat(50).dimmed());
+) -> Vec<String> {
+    let mut lines = Vec::new();
+
+    lines.push(String::new());
+    lines.push(format!("{}", HORIZONTAL.repeat(50).dimmed()));
 
     // Main done line
-    println!(
+    lines.push(format!(
         "{} {}",
         "\u{2713}".green().bold(), // ✓
         "Done!".green().bold(),
-    );
+    ));
 
     // One-liner stats
     let mut parts: Vec<String> = Vec::new();
@@ -67,14 +69,29 @@ pub fn print_done_summary(
     }
     parts.push(elapsed_str.to_string());
 
-    println!("  {}", parts.join(" | ").dimmed());
+    lines.push(format!("  {}", parts.join(" | ").dimmed()));
 
     // Trace link
     if let Some(path) = trace_path {
-        println!("  {} {}", "trace:".dimmed(), path.dimmed());
+        lines.push(format!("  {} {}", "trace:".dimmed(), path.dimmed()));
     }
 
-    println!();
+    lines.push(String::new());
+    lines
+}
+
+/// Print the workflow completion summary (thin wrapper over `format_done_summary`).
+pub fn print_done_summary(
+    elapsed_str: &str,
+    total_tokens: u64,
+    total_cost: f64,
+    trace_path: Option<&str>,
+    task_count: usize,
+    parallel_count: usize,
+) {
+    for line in format_done_summary(elapsed_str, total_tokens, total_cost, trace_path, task_count, parallel_count) {
+        println!("{}", line);
+    }
 }
 
 /// Print the doctor header with a nice box.

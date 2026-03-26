@@ -35,7 +35,8 @@ pub use live::LiveRenderer;
 pub use renderer::CliRenderer;
 pub use run_renderer::RunRenderer;
 pub use summary::{
-    print_doctor_header, print_doctor_summary, print_done_summary, print_run_summary,
+    format_done_summary, print_doctor_header, print_doctor_summary, print_done_summary,
+    print_run_summary,
 };
 
 #[cfg(test)]
