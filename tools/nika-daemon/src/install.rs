@@ -258,6 +258,7 @@ mod tests {
         assert!(super::LAUNCHD_LABEL.starts_with("studio.supernovae"));
     }
 
+    #[cfg(target_os = "linux")]
     #[test]
     fn systemd_service_name() {
         assert!(super::SYSTEMD_SERVICE.ends_with(".service"));
