@@ -572,10 +572,13 @@ impl App {
                 reason: format!("Failed to disable raw mode: {}", e),
             })?;
 
-            execute!(terminal.backend_mut(), LeaveAlternateScreen).map_err(|e| {
-                NikaError::TuiError {
-                    reason: format!("Failed to leave alternate screen: {}", e),
-                }
+            execute!(
+                terminal.backend_mut(),
+                crossterm::event::DisableMouseCapture,
+                LeaveAlternateScreen
+            )
+            .map_err(|e| NikaError::TuiError {
+                reason: format!("Failed to leave alternate screen: {}", e),
             })?;
 
             terminal.show_cursor().map_err(|e| NikaError::TuiError {
