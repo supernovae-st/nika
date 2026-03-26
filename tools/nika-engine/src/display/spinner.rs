@@ -50,8 +50,11 @@ pub const PROGRESS_CHARS: &str = "\u{2501}\u{257A}\u{2500}";
 /// ```
 /// Uses `{prefix}` for stable part (verb + id), `{msg}` for status label (running/turn N),
 /// and `{tokens}` for the live streaming counter (registered via `with_key`, zero-alloc).
+/// The `{tokens}` closure writes the leading spaces itself ("  out:1.2k") so the line
+/// ends cleanly with no trailing whitespace when no tokens have been received yet.
 /// `{elapsed}` auto-updates on every tick — no event needed for live time.
-pub const TASK_RUNNING_TEMPLATE: &str = "  {spinner:.cyan} {prefix} {msg}  {elapsed:.dim}  {tokens}";
+pub const TASK_RUNNING_TEMPLATE: &str =
+    "  {spinner:.cyan} {prefix} {msg}  {elapsed:.dim}{tokens}";
 
 /// Task bar in pending/completed state (no spinner, space placeholder).
 pub const TASK_STATIC_TEMPLATE: &str = "  {msg}";

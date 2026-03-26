@@ -292,7 +292,8 @@ impl RigProvider {
         model_path: impl Into<std::path::PathBuf>,
         config: Option<super::native::LoadConfig>,
     ) -> Result<(), RigInferError> {
-        self.load_native_model_traced(model_path, config, None).await
+        self.load_native_model_traced(model_path, config, None)
+            .await
     }
 
     /// Like `load_native_model` but emits a `NativeModelLoaded` event on success.
@@ -325,12 +326,9 @@ impl RigProvider {
 
         match self {
             RigProvider::Native(runtime) => {
-                runtime
-                    .load(path.clone(), resolved_config)
-                    .await
-                    .map_err(|e: super::native::NativeError| {
-                        RigInferError::PromptError(e.to_string())
-                    })?;
+                runtime.load(path.clone(), resolved_config).await.map_err(
+                    |e: super::native::NativeError| RigInferError::PromptError(e.to_string()),
+                )?;
 
                 let duration_ms = load_start.elapsed().as_millis() as u64;
                 let is_vision = runtime.supports_vision();
