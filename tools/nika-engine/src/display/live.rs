@@ -465,7 +465,7 @@ impl LiveRenderer {
 
             EventKind::TaskCompleted {
                 task_id,
-                output: _,
+                output,
                 duration_ms,
             } => {
                 self.stats.tasks_passed += 1;
@@ -500,6 +500,16 @@ impl LiveRenderer {
                 self.overall_bar
                     .set_position(self.stats.tasks_passed as u64 + self.stats.tasks_skipped as u64);
                 self.update_overall_cost();
+
+                // Output preview (Max detail only)
+                if self.detail.show_previews() {
+                    let tw = terminal_size::terminal_size()
+                        .map(|(w, _)| w.0)
+                        .unwrap_or(80);
+                    for line in super::renderer::format_output_preview(output, tw) {
+                        self.log(&line);
+                    }
+                }
             }
 
             EventKind::TaskFailed {
@@ -626,6 +636,17 @@ impl LiveRenderer {
                         colors::tokens(*cache_read_tokens).as_str().dimmed(),
                         ttft_str
                     ));
+
+                    if self.detail.show_sparklines() {
+                        let max_tok = (*input_tokens).max(*output_tokens);
+                        self.log(&format!(
+                            "{}     {}    tok {} cost {}",
+                            " ".repeat(6),
+                            "│".dimmed(),
+                            colors::sparkline(*output_tokens, max_tok),
+                            colors::cost(*cost_usd)
+                        ));
+                    }
                 }
 
                 // Update running task bar with token info
