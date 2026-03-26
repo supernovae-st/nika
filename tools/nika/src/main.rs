@@ -422,7 +422,6 @@ enum Commands {
     },
 
     /// Manage LLM provider API keys
-    #[cfg(feature = "tui")]
     Provider {
         #[command(subcommand)]
         action: cli::provider::ProviderAction,
@@ -1118,7 +1117,6 @@ async fn main() {
 
         Some(Commands::Trace { action }) => cli::trace::handle_trace_command(action),
 
-        #[cfg(feature = "tui")]
         Some(Commands::Provider { action }) => cli::provider::handle_provider_command(action).await,
 
         Some(Commands::Mcp { action }) => cli::mcp::handle_mcp_command(action).await,

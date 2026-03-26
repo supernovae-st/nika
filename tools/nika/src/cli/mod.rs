@@ -23,6 +23,5 @@ pub use nika_cli::workflow;
 #[cfg(feature = "native-inference")]
 pub use nika_cli::model;
 
-// TUI-dependent handlers remain local
-#[cfg(feature = "tui")]
+// Provider command has no TUI dependency — always available
 pub mod provider;
