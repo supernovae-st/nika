@@ -5511,7 +5511,6 @@ dependencies = [
  "toml 0.8.23",
  "tower-lsp-server",
  "tracing",
- "tracing-subscriber",
  "unicode-normalization",
  "unicode-width 0.2.2",
  "url",
