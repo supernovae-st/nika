@@ -112,8 +112,7 @@ impl JobService {
 
         // Validate workflow path (C1: prevent path traversal)
         let workflow_path = std::path::Path::new(&job.workflow);
-        if workflow_path.extension().is_none_or(|e| e != "yaml")
-            || !job.workflow.contains(".nika.")
+        if workflow_path.extension().is_none_or(|e| e != "yaml") || !job.workflow.contains(".nika.")
         {
             return Err(DaemonError::Protocol(format!(
                 "invalid workflow path: must end with .nika.yaml, got '{}'",
@@ -177,7 +176,10 @@ impl JobService {
 
             // L5 fix: check if job was cancelled before overwriting state
             let current = storage.get_job(&job_id).await.ok().flatten();
-            if current.as_ref().is_some_and(|j| j.state == JobState::Cancelled) {
+            if current
+                .as_ref()
+                .is_some_and(|j| j.state == JobState::Cancelled)
+            {
                 return; // Already cancelled — don't overwrite with Failed
             }
 
@@ -331,15 +333,13 @@ impl JobService {
 /// Wait for a child process to complete with timeout, capturing output.
 /// H6 fix: 1-hour timeout prevents hung jobs from blocking the scheduler.
 /// J2 fix: caller must set kill_on_drop(true) — child is killed when future drops on timeout.
-async fn wait_for_child(
-    child: tokio::process::Child,
-    job_id: &str,
-) -> DaemonResult<(i32, String)> {
+async fn wait_for_child(child: tokio::process::Child, job_id: &str) -> DaemonResult<(i32, String)> {
     // H6: Wrap in timeout to prevent hung jobs
     // J2: child has kill_on_drop(true), so dropping the future kills the process
     let output = match tokio::time::timeout(JOB_TIMEOUT, child.wait_with_output()).await {
-        Ok(result) => result
-            .map_err(|e| DaemonError::Lifecycle(format!("wait for job {job_id}: {e}")))?,
+        Ok(result) => {
+            result.map_err(|e| DaemonError::Lifecycle(format!("wait for job {job_id}: {e}")))?
+        }
         Err(_) => {
             return Err(DaemonError::Lifecycle(format!(
                 "job {job_id} timed out after {}s (process killed)",

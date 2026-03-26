@@ -255,7 +255,8 @@ fn resolve_alias_path(
                 "Path depth {} exceeds maximum of {} segments",
                 segment_count, MAX_PATH_DEPTH
             ),
-        }.into());
+        }
+        .into());
     }
 
     let mut segments = path.split('.');
@@ -356,7 +357,8 @@ pub fn resolve_with<'a>(
                 "Template contains {} variable references, exceeding the maximum of {}",
                 var_count, MAX_TEMPLATE_VARS
             ),
-        }.into());
+        }
+        .into());
     }
 
     // Normalize bracket notation to dot notation
@@ -482,7 +484,8 @@ pub fn resolve_with<'a>(
         return Err(BindingError::TemplateError {
             template: errors.join(", "),
             reason: "Alias(es) not resolved. Did you declare them in 'with:'?".to_string(),
-        }.into());
+        }
+        .into());
     }
 
     // Copy remaining segment after last match
@@ -557,7 +560,8 @@ pub fn resolve_with<'a>(
                 template: context_errors.join(", "),
                 reason: "Context binding(s) not resolved. Check your 'context:' block in workflow."
                     .to_string(),
-            }.into());
+            }
+            .into());
         }
 
         result.push_str(&intermediate[last_end..]);
@@ -836,7 +840,8 @@ pub fn resolve<'a>(
                 "Template contains {} variable references, exceeding the maximum of {}",
                 var_count, MAX_TEMPLATE_VARS
             ),
-        }.into());
+        }
+        .into());
     }
 
     // Normalize bracket notation to dot notation
@@ -871,7 +876,8 @@ pub fn resolve<'a>(
                             "Path depth {} exceeds maximum of {} segments",
                             segment_count, MAX_PATH_DEPTH
                         ),
-                    }.into());
+                    }
+                    .into());
                 }
 
                 // Split: first segment is alias, rest is nested path
@@ -1012,7 +1018,8 @@ pub fn resolve<'a>(
         return Err(BindingError::TemplateError {
             template: errors.join(", "),
             reason: "Alias(es) not resolved. Did you declare them in 'with:'?".to_string(),
-        }.into());
+        }
+        .into());
     }
 
     // Copy remaining segment after last match
@@ -1079,7 +1086,8 @@ pub fn resolve<'a>(
                 template: context_errors.join(", "),
                 reason: "Context binding(s) not resolved. Check your 'context:' block in workflow."
                     .to_string(),
-            }.into());
+            }
+            .into());
         }
 
         // Copy remaining segment
@@ -1304,7 +1312,8 @@ pub fn resolve_for_shell<'a>(
         return Err(BindingError::TemplateError {
             template: errors.join(", "),
             reason: "Alias(es) not resolved. Did you declare them in 'with:'?".to_string(),
-        }.into());
+        }
+        .into());
     }
 
     result.push_str(&template_str[last_end..]);
@@ -1360,7 +1369,8 @@ pub fn resolve_for_shell<'a>(
                 template: context_errors.join(", "),
                 reason: "Context binding(s) not resolved. Check your 'context:' block in workflow."
                     .to_string(),
-            }.into());
+            }
+            .into());
         }
 
         result.push_str(&intermediate[last_end..]);
@@ -1456,7 +1466,8 @@ fn context_value_to_string<'a>(value: &'a Value, path: &str) -> Result<Cow<'a, s
         Value::Null => Err(BindingError::TemplateError {
             template: path.to_string(),
             reason: "Context binding resolved to null".to_string(),
-        }.into()),
+        }
+        .into()),
         Value::Bool(b) => Ok(Cow::Owned(b.to_string())),
         Value::Number(n) => Ok(Cow::Owned(n.to_string())),
         // For objects/arrays, return compact JSON representation

@@ -601,8 +601,12 @@ impl LanguageServer for NikaLanguageServer {
                 end_line: e.end_line,
                 end_character: None,
                 kind: Some(match e.kind {
-                    nika_lsp_core::handlers::folding_ranges::FoldKind::Region => FoldingRangeKind::Region,
-                    nika_lsp_core::handlers::folding_ranges::FoldKind::Comment => FoldingRangeKind::Comment,
+                    nika_lsp_core::handlers::folding_ranges::FoldKind::Region => {
+                        FoldingRangeKind::Region
+                    }
+                    nika_lsp_core::handlers::folding_ranges::FoldKind::Comment => {
+                        FoldingRangeKind::Comment
+                    }
                 }),
                 collapsed_text: None,
             })
@@ -637,7 +641,8 @@ impl LanguageServer for NikaLanguageServer {
 
         // Convert position to byte offset for lsp-core
         let offset = position_to_offset(&text, position);
-        let task_id = match nika_lsp_core::handlers::references::find_task_at_offset(&text, offset) {
+        let task_id = match nika_lsp_core::handlers::references::find_task_at_offset(&text, offset)
+        {
             Some(id) => id,
             None => return Ok(None),
         };

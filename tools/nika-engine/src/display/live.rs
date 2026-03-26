@@ -304,7 +304,6 @@ impl LiveRenderer {
         }
     }
 
-
     fn format_completed(
         task_id: &str,
         verb: &str,
@@ -448,7 +447,8 @@ impl LiveRenderer {
                     tb.bar.enable_steady_tick(spinner::TICK_INTERVAL);
 
                     // Use prefix/msg split: prefix = verb+id (stable), msg = volatile info
-                    tb.bar.set_prefix(Self::format_running_prefix(task_id, verb));
+                    tb.bar
+                        .set_prefix(Self::format_running_prefix(task_id, verb));
                     tb.bar.set_message(Self::format_running_msg(""));
                 }
             }
@@ -469,7 +469,11 @@ impl LiveRenderer {
                 // Record timeline
                 if let Some((start, _)) = self.task_starts.get(task_id.as_ref()) {
                     self.stats.record_timeline(
-                        task_id, &verb, *start, self.workflow_start_ms, *duration_ms,
+                        task_id,
+                        &verb,
+                        *start,
+                        self.workflow_start_ms,
+                        *duration_ms,
                     );
                 }
 
@@ -494,9 +498,7 @@ impl LiveRenderer {
                 // Increment for_each sub-bar if this is a decomposed item (task_id contains "__")
                 if let Some(parent) = task_id.split("__").next() {
                     if parent != task_id.as_ref() {
-                        if let Some((bar, _, completed)) =
-                            self.for_each_bars.get_mut(parent)
-                        {
+                        if let Some((bar, _, completed)) = self.for_each_bars.get_mut(parent) {
                             *completed += 1;
                             bar.set_position(*completed as u64);
                         }
@@ -530,7 +532,11 @@ impl LiveRenderer {
                 // Record timeline
                 if let Some((start, _)) = self.task_starts.get(task_id.as_ref()) {
                     self.stats.record_timeline(
-                        task_id, &verb, *start, self.workflow_start_ms, *duration_ms,
+                        task_id,
+                        &verb,
+                        *start,
+                        self.workflow_start_ms,
+                        *duration_ms,
                     );
                 }
 
@@ -597,10 +603,7 @@ impl LiveRenderer {
                 let task_id = event.kind.task_id().unwrap_or("?");
 
                 // O(1) per-task token accumulator (LiveRenderer-specific: for task bar display)
-                let acc = self
-                    .task_token_acc
-                    .entry(task_id.to_string())
-                    .or_default();
+                let acc = self.task_token_acc.entry(task_id.to_string()).or_default();
                 acc.0 += input_tokens;
                 acc.1 += output_tokens;
 
@@ -621,12 +624,18 @@ impl LiveRenderer {
                 }
 
                 // Update running task bar with token info (elapsed auto-updates via template)
+                // Show accumulated tokens (not just this call's) for multi-turn agents
                 if let Some(tb) = self.task_bars.get(task_id) {
                     if tb.status == TaskStatus::Running {
+                        let (acc_in, acc_out) = self
+                            .task_token_acc
+                            .get(task_id)
+                            .copied()
+                            .unwrap_or_default();
                         let tok_info = format!(
                             "in:{} out:{}",
-                            colors::tokens(*input_tokens),
-                            colors::tokens(*output_tokens)
+                            colors::tokens(acc_in),
+                            colors::tokens(acc_out)
                         );
                         tb.bar.set_message(Self::format_running_msg(&tok_info));
                     }
@@ -770,8 +779,7 @@ impl LiveRenderer {
                 if let Some(tb) = self.task_bars.get(task_id) {
                     if tb.status == TaskStatus::Running {
                         let turn_info = format!("turn {}", turn_index + 1);
-                        tb.bar
-                            .set_message(Self::format_running_msg(&turn_info));
+                        tb.bar.set_message(Self::format_running_msg(&turn_info));
                     }
                 }
             }
@@ -832,7 +840,9 @@ impl LiveRenderer {
                 ..
             } => {
                 self.log(&super::format_event::fmt_guardrail_escalation(
-                    guardrail_type, severity, message,
+                    guardrail_type,
+                    severity,
+                    message,
                 ));
             }
 
@@ -1457,7 +1467,12 @@ mod tests {
         ));
         assert_eq!(renderer.stats.tasks_failed, 1);
         assert!(
-            renderer.stats.root_failure.as_deref().unwrap().starts_with("broken:"),
+            renderer
+                .stats
+                .root_failure
+                .as_deref()
+                .unwrap()
+                .starts_with("broken:"),
             "should record first failure task + error as root"
         );
         assert_eq!(renderer.task_bars["broken"].status, TaskStatus::Failed);
@@ -1499,7 +1514,10 @@ mod tests {
         // Second call with same events renders nothing new
         let prev_passed = renderer.stats.tasks_passed;
         renderer.render_new_events(&events);
-        assert_eq!(renderer.stats.tasks_passed, prev_passed, "should not re-render");
+        assert_eq!(
+            renderer.stats.tasks_passed, prev_passed,
+            "should not re-render"
+        );
     }
 
     #[test]
@@ -1522,7 +1540,10 @@ mod tests {
         ));
         // No panic, no assertion on output (hidden target) — just verifying no crash
         // Stats are still accumulated even when display is suppressed
-        assert_eq!(renderer.stats.tasks_passed, 0, "provider call does not affect pass count");
+        assert_eq!(
+            renderer.stats.tasks_passed, 0,
+            "provider call does not affect pass count"
+        );
     }
 
     #[test]

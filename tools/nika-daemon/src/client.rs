@@ -169,6 +169,7 @@ impl DaemonClient {
             reader,
             writer,
             timeout: self.timeout,
+            poisoned: false,
         })
     }
 
@@ -186,10 +187,16 @@ impl DaemonClient {
 ///
 /// Created via [`DaemonClient::connect`]. Holds a single Unix socket connection
 /// open and reuses it for all requests, avoiding per-request connection overhead.
+///
+/// **Important:** After any error (including timeout), the connection is poisoned
+/// and all subsequent requests will return `DaemonError::Connection`. Create a
+/// new `ConnectedClient` via `DaemonClient::connect()` to recover.
 pub struct ConnectedClient {
     reader: ReadHalf<UnixStream>,
     writer: WriteHalf<UnixStream>,
     timeout: Duration,
+    /// Poisoned after any error to prevent response desynchronization.
+    poisoned: bool,
 }
 
 impl std::fmt::Debug for ConnectedClient {
@@ -202,14 +209,35 @@ impl std::fmt::Debug for ConnectedClient {
 
 impl ConnectedClient {
     /// Send a request and wait for the response.
+    ///
+    /// After any error (timeout, I/O, protocol), the connection is poisoned.
+    /// Subsequent calls will return `DaemonError::Connection` immediately.
     pub async fn request(&mut self, req: DaemonRequest) -> DaemonResult<DaemonResponse> {
+        if self.poisoned {
+            return Err(DaemonError::Connection(std::io::Error::new(
+                std::io::ErrorKind::BrokenPipe,
+                "connection poisoned after previous error — reconnect",
+            )));
+        }
         let result = timeout(self.timeout, self.request_inner(req)).await;
         match result {
-            Ok(inner) => inner,
-            Err(_) => Err(DaemonError::Timeout {
-                timeout_secs: self.timeout.as_secs(),
-            }),
+            Ok(Ok(resp)) => Ok(resp),
+            Ok(Err(e)) => {
+                self.poisoned = true;
+                Err(e)
+            }
+            Err(_) => {
+                self.poisoned = true;
+                Err(DaemonError::Timeout {
+                    timeout_secs: self.timeout.as_secs(),
+                })
+            }
         }
+    }
+
+    /// Check if connection is poisoned (any previous error occurred).
+    pub fn is_poisoned(&self) -> bool {
+        self.poisoned
     }
 
     async fn request_inner(&mut self, req: DaemonRequest) -> DaemonResult<DaemonResponse> {
@@ -431,7 +459,10 @@ mod tests {
     async fn connected_client_not_running() {
         let client = DaemonClient::new("/tmp/nonexistent_nika_connected_test.sock");
         let result = client.connect().await;
-        assert!(matches!(result.unwrap_err(), DaemonError::NotRunning { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            DaemonError::NotRunning { .. }
+        ));
     }
 
     #[tokio::test]

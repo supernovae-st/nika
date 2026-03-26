@@ -12,7 +12,7 @@ use tokio::net::UnixListener;
 use tokio::sync::{watch, Semaphore};
 use tracing::{debug, info, warn};
 
-use crate::error::DaemonResult;
+use crate::error::{DaemonError, DaemonResult};
 use crate::events::EventBus;
 use crate::protocol::{decode_message, write_message, DaemonRequest, DaemonResponse};
 use crate::services::cache::CacheService;
@@ -201,7 +201,14 @@ async fn handle_connection(
     loop {
         let request: DaemonRequest = match decode_message(&mut reader).await {
             Ok(req) => req,
-            Err(_) => break, // connection closed or protocol error
+            Err(e) => {
+                // Distinguish clean EOF from protocol errors for observability
+                if !matches!(e, DaemonError::Connection(ref io) if io.kind() == std::io::ErrorKind::UnexpectedEof)
+                {
+                    debug!(error = %e, "connection decode error (not EOF)");
+                }
+                break;
+            }
         };
         debug!(?request, "received request");
 
@@ -749,17 +756,23 @@ mod tests {
         let (mut reader, mut writer) = tokio::io::split(stream);
 
         // Request 1: Ping
-        write_message(&mut writer, &DaemonRequest::Ping).await.unwrap();
+        write_message(&mut writer, &DaemonRequest::Ping)
+            .await
+            .unwrap();
         let resp: DaemonResponse = decode_message(&mut reader).await.unwrap();
         assert!(matches!(resp, DaemonResponse::Pong { .. }));
 
         // Request 2: Status
-        write_message(&mut writer, &DaemonRequest::Status).await.unwrap();
+        write_message(&mut writer, &DaemonRequest::Status)
+            .await
+            .unwrap();
         let resp: DaemonResponse = decode_message(&mut reader).await.unwrap();
         assert!(matches!(resp, DaemonResponse::StatusInfo { .. }));
 
         // Request 3: Ping again
-        write_message(&mut writer, &DaemonRequest::Ping).await.unwrap();
+        write_message(&mut writer, &DaemonRequest::Ping)
+            .await
+            .unwrap();
         let resp: DaemonResponse = decode_message(&mut reader).await.unwrap();
         assert!(matches!(resp, DaemonResponse::Pong { .. }));
 

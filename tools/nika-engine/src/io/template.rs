@@ -58,7 +58,8 @@ fn validate_var_value(key: &str, value: &str) -> Result<(), NikaError> {
                     "Variable value contains forbidden character '{}': path traversal risk",
                     c
                 ),
-            }.into());
+            }
+            .into());
         }
     }
 
@@ -71,7 +72,8 @@ fn validate_var_value(key: &str, value: &str) -> Result<(), NikaError> {
                     "Variable value contains forbidden pattern '{}': path traversal risk",
                     pattern
                 ),
-            }.into());
+            }
+            .into());
         }
     }
 
@@ -122,7 +124,8 @@ impl TemplateResolver {
             return Err(BindingError::TemplateError {
                 template: "{{}}".to_string(),
                 reason: "Variable name cannot be empty".to_string(),
-            }.into());
+            }
+            .into());
         }
 
         // Validate value for path traversal
@@ -144,7 +147,8 @@ impl TemplateResolver {
                 return Err(BindingError::TemplateError {
                     template: "{{}}".to_string(),
                     reason: "Variable name cannot be empty".to_string(),
-                }.into());
+                }
+                .into());
             }
             validate_var_value(key, value)?;
         }
@@ -224,7 +228,8 @@ impl TemplateResolver {
                 Err(BindingError::TemplateError {
                     template: format!("{{{{{}}}}}", var_name),
                     reason: format!("Unknown template variable: {}", var_name),
-                }.into())
+                }
+                .into())
             }
         }
     }

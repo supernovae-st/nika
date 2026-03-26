@@ -130,7 +130,8 @@ impl Dag {
             if task_set.contains(&id) {
                 return Err(DagError::DuplicateTaskId {
                     task_id: task.name.clone(),
-                }.into());
+                }
+                .into());
             }
             task_ids.push(Arc::clone(&id));
             task_set.insert(Arc::clone(&id));
@@ -479,7 +480,8 @@ impl Dag {
             if task_set.contains(&id) {
                 return Err(DagError::DuplicateTaskId {
                     task_id: task.id.clone(),
-                }.into());
+                }
+                .into());
             }
             task_ids.push(Arc::clone(&id));
             task_set.insert(Arc::clone(&id));
@@ -526,7 +528,8 @@ impl Dag {
                         return Err(DagError::MissingDependency {
                             task_id: task.id.clone(),
                             dep_id: dep.clone(),
-                        }.into());
+                        }
+                        .into());
                     }
                     let src_arc = task_set
                         .get(dep.as_str())

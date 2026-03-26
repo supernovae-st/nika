@@ -2042,16 +2042,14 @@ fn make_stats() -> RunStats {
             ("summarize".to_string(), "infer".to_string(), 500, 1200),
             ("save".to_string(), "exec".to_string(), 1700, 300),
         ],
-        provider_calls: vec![
-            ProviderCallStat {
-                task_id: "summarize".to_string(),
-                input_tokens: 5000,
-                output_tokens: 1200,
-                cache_tokens: 800,
-                ttft_ms: Some(150),
-                cost: 0.0042,
-            },
-        ],
+        provider_calls: vec![ProviderCallStat {
+            task_id: "summarize".to_string(),
+            input_tokens: 5000,
+            output_tokens: 1200,
+            cache_tokens: 800,
+            ttft_ms: Some(150),
+            cost: 0.0042,
+        }],
     }
 }
 
@@ -2079,7 +2077,10 @@ fn summary_with_failures() {
     let joined = lines.join("\n");
     let stripped = strip_ansi(&joined);
     assert!(stripped.contains("F A I L E D"), "should show FAILED");
-    assert!(stripped.contains("root cause: summarize"), "should show root cause");
+    assert!(
+        stripped.contains("root cause: summarize"),
+        "should show root cause"
+    );
     assert!(stripped.contains("2/3 passed"), "should show pass count");
 }
 
@@ -2095,7 +2096,11 @@ fn summary_min_delegates_to_quiet() {
     let stats = make_stats();
     let lines = summary::format_run_summary(&stats, DetailLevel::Min, 2000, None, 80)
         .expect("should produce output");
-    assert_eq!(lines.len(), 1, "Min should produce exactly one line (quiet)");
+    assert_eq!(
+        lines.len(),
+        1,
+        "Min should produce exactly one line (quiet)"
+    );
     let stripped = strip_ansi(&lines[0]);
     assert!(stripped.contains("3/3"), "should contain pass ratio");
 }
@@ -2109,7 +2114,10 @@ fn summary_zero_tokens() {
     let joined = lines.join("\n");
     let stripped = strip_ansi(&joined);
     // Should NOT contain the Tokens section header
-    assert!(!stripped.contains("Tokens ─"), "zero tokens should skip token section");
+    assert!(
+        !stripped.contains("Tokens ─"),
+        "zero tokens should skip token section"
+    );
 }
 
 #[test]
@@ -2120,18 +2128,29 @@ fn summary_zero_cost() {
         .expect("should produce output");
     let joined = lines.join("\n");
     let stripped = strip_ansi(&joined);
-    assert!(!stripped.contains("Cost ─"), "zero cost should skip cost section");
+    assert!(
+        !stripped.contains("Cost ─"),
+        "zero cost should skip cost section"
+    );
 }
 
 #[test]
 fn summary_with_trace_path() {
     let stats = make_stats();
     let lines = summary::format_run_summary(
-        &stats, DetailLevel::Default, 2000, Some("/tmp/trace.ndjson"), 80,
-    ).expect("should produce output");
+        &stats,
+        DetailLevel::Default,
+        2000,
+        Some("/tmp/trace.ndjson"),
+        80,
+    )
+    .expect("should produce output");
     let joined = lines.join("\n");
     let stripped = strip_ansi(&joined);
-    assert!(stripped.contains("trace /tmp/trace.ndjson"), "should show trace path");
+    assert!(
+        stripped.contains("trace /tmp/trace.ndjson"),
+        "should show trace path"
+    );
 }
 
 #[test]
@@ -2193,8 +2212,14 @@ fn done_summary_with_trace() {
     let joined = lines.join("\n");
     let stripped = strip_ansi(&joined);
     assert!(stripped.contains("trace:"), "should contain trace label");
-    assert!(stripped.contains("/tmp/trace.ndjson"), "should contain trace path");
-    assert!(stripped.contains("1 parallel"), "should show parallel count");
+    assert!(
+        stripped.contains("/tmp/trace.ndjson"),
+        "should contain trace path"
+    );
+    assert!(
+        stripped.contains("1 parallel"),
+        "should show parallel count"
+    );
 }
 
 #[test]
@@ -2202,9 +2227,15 @@ fn done_summary_zero_tokens() {
     let lines = summary::format_done_summary("0.5s", 0, 0.0, None, 1, 0);
     let joined = lines.join("\n");
     let stripped = strip_ansi(&joined);
-    assert!(stripped.contains("1 task"), "should say '1 task' (singular)");
+    assert!(
+        stripped.contains("1 task"),
+        "should say '1 task' (singular)"
+    );
     // Should NOT contain tokens when total is 0
-    assert!(!stripped.contains("tokens"), "zero tokens should not show tokens");
+    assert!(
+        !stripped.contains("tokens"),
+        "zero tokens should not show tokens"
+    );
 }
 
 // ── format_doctor_header tests ───────────────────────────────────────
@@ -2216,10 +2247,16 @@ fn doctor_header_box() {
     let stripped = strip_ansi(&joined);
     assert!(stripped.contains("Nika Doctor"), "should contain title");
     assert!(stripped.contains("v0.42.0"), "should contain version");
-    assert!(stripped.contains("Checking system health"), "should contain subtitle");
+    assert!(
+        stripped.contains("Checking system health"),
+        "should contain subtitle"
+    );
     // Box characters
     assert!(joined.contains('\u{250c}'), "should have top-left corner");
-    assert!(joined.contains('\u{2518}'), "should have bottom-right corner");
+    assert!(
+        joined.contains('\u{2518}'),
+        "should have bottom-right corner"
+    );
 }
 
 // ── format_doctor_summary tests ──────────────────────────────────────
@@ -2231,7 +2268,10 @@ fn doctor_summary_all_pass() {
     let stripped = strip_ansi(&joined);
     assert!(stripped.contains("All good!"), "should say all good");
     assert!(stripped.contains("5 passed"), "should show pass count");
-    assert!(!stripped.contains("nika init"), "should not suggest init when .nika exists");
+    assert!(
+        !stripped.contains("nika init"),
+        "should not suggest init when .nika exists"
+    );
 }
 
 #[test]
@@ -2239,9 +2279,15 @@ fn doctor_summary_with_warnings() {
     let lines = summary::format_doctor_summary(3, 2, 0, true);
     let joined = lines.join("\n");
     let stripped = strip_ansi(&joined);
-    assert!(stripped.contains("Mostly healthy"), "should say mostly healthy");
+    assert!(
+        stripped.contains("Mostly healthy"),
+        "should say mostly healthy"
+    );
     assert!(stripped.contains("2 warnings"), "should show warning count");
-    assert!(stripped.contains("nika doctor --fix"), "should suggest --fix");
+    assert!(
+        stripped.contains("nika doctor --fix"),
+        "should suggest --fix"
+    );
 }
 
 #[test]
@@ -2251,7 +2297,10 @@ fn doctor_summary_with_failures() {
     let stripped = strip_ansi(&joined);
     assert!(stripped.contains("Issues found"), "should say issues found");
     assert!(stripped.contains("3 failed"), "should show fail count");
-    assert!(stripped.contains("nika init"), "should suggest init when no .nika dir");
+    assert!(
+        stripped.contains("nika init"),
+        "should suggest init when no .nika dir"
+    );
 }
 
 #[test]
@@ -2267,7 +2316,10 @@ fn doctor_summary_nika_dir_exists_skips_init() {
     let lines = summary::format_doctor_summary(0, 0, 1, true);
     let joined = lines.join("\n");
     let stripped = strip_ansi(&joined);
-    assert!(!stripped.contains("nika init"), "should not suggest init when dir exists");
+    assert!(
+        !stripped.contains("nika init"),
+        "should not suggest init when dir exists"
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -2292,7 +2344,10 @@ fn output_preview_null_returns_empty() {
 fn output_preview_json_object() {
     let json = serde_json::json!({"key": "value", "count": 42});
     let lines = renderer::format_output_preview(&json, 80);
-    assert!(!lines.is_empty(), "JSON object should produce preview lines");
+    assert!(
+        !lines.is_empty(),
+        "JSON object should produce preview lines"
+    );
     // Should have top border + content + bottom border (at least 3 lines)
     assert!(lines.len() >= 3, "should have border + content + border");
 }
@@ -2304,7 +2359,10 @@ fn output_preview_markdown() {
     assert!(!lines.is_empty(), "markdown should produce preview lines");
     let joined = lines.join("\n");
     let stripped = strip_ansi(&joined);
-    assert!(stripped.contains("Hello World"), "should contain heading text");
+    assert!(
+        stripped.contains("Hello World"),
+        "should contain heading text"
+    );
 }
 
 #[test]
@@ -2315,7 +2373,10 @@ fn output_preview_plain_text() {
     let joined = lines.join("\n");
     let stripped = strip_ansi(&joined);
     assert!(stripped.contains("Hello"), "should contain first line");
-    assert!(stripped.contains("Second line"), "should contain second line");
+    assert!(
+        stripped.contains("Second line"),
+        "should contain second line"
+    );
 }
 
 #[test]
@@ -2337,7 +2398,10 @@ fn output_preview_unicode_safety() {
     // Test with multi-byte UTF-8 characters
     let text = Value::String("cafe\u{0301} re\u{0301}sume\u{0301}".to_string());
     let lines = renderer::format_output_preview(&text, 80);
-    assert!(!lines.is_empty(), "unicode text should produce preview lines");
+    assert!(
+        !lines.is_empty(),
+        "unicode text should produce preview lines"
+    );
     // Verify all output lines are valid UTF-8 (implicit — Rust strings are always valid)
     for line in &lines {
         let _ = line.chars().count();
@@ -2441,7 +2505,12 @@ fn test_renderer_tracks_failures() {
     r.render_new_events(&events);
 
     assert_eq!(r.stats.tasks_failed, 1);
-    assert!(r.stats.root_failure.as_deref().unwrap().starts_with("broken:"));
+    assert!(r
+        .stats
+        .root_failure
+        .as_deref()
+        .unwrap()
+        .starts_with("broken:"));
 }
 
 #[test]
@@ -2520,5 +2589,8 @@ fn output_preview_size_label() {
     let joined = lines.join("\n");
     let stripped = strip_ansi(&joined);
     // Bottom border should contain character count
-    assert!(stripped.contains("11 ch"), "should show character count in size label");
+    assert!(
+        stripped.contains("11 ch"),
+        "should show character count in size label"
+    );
 }

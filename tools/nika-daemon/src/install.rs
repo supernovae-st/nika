@@ -130,9 +130,17 @@ fn install_launchd(exe: &std::path::Path) -> DaemonResult<()> {
     std::fs::write(&plist_path, plist)?;
 
     // launchctl bootstrap (modern API, replaces deprecated `launchctl load`)
-    let uid_str = std::process::Command::new("id").arg("-u").output().map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string()).unwrap_or_else(|_| "501".to_string());
+    let uid_str = std::process::Command::new("id")
+        .arg("-u")
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_else(|_| "501".to_string());
     let status = std::process::Command::new("launchctl")
-        .args(["bootstrap", &format!("gui/{uid_str}"), &plist_path.to_string_lossy()])
+        .args([
+            "bootstrap",
+            &format!("gui/{uid_str}"),
+            &plist_path.to_string_lossy(),
+        ])
         .status()
         .map_err(|e| DaemonError::Lifecycle(format!("launchctl bootstrap failed: {e}")))?;
 
@@ -156,7 +164,11 @@ fn uninstall_launchd() -> DaemonResult<()> {
     }
 
     // launchctl bootout (modern API)
-    let uid_str = std::process::Command::new("id").arg("-u").output().map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string()).unwrap_or_else(|_| "501".to_string());
+    let uid_str = std::process::Command::new("id")
+        .arg("-u")
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_else(|_| "501".to_string());
     let _ = std::process::Command::new("launchctl")
         .args(["bootout", &format!("gui/{uid_str}/{LAUNCHD_LABEL}")])
         .status();

@@ -20,7 +20,9 @@ use crate::store::RunContext;
 
 use base64::Engine;
 
-use super::verbs::{detect_image_media_type, estimate_tokens, json_value_size_estimate, redact_for_event};
+use super::verbs::{
+    detect_image_media_type, estimate_tokens, json_value_size_estimate, redact_for_event,
+};
 use super::TaskExecutor;
 use crate::error_domains::ProviderError;
 
