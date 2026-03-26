@@ -44,3 +44,4 @@ nix = { version = "0.29", features = ["signal", "process", "fs", "net"] }
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "test-util"] }
 tempfile = { workspace = true }
+serial_test = "3"
