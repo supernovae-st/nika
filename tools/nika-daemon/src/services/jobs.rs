@@ -243,20 +243,20 @@ impl JobService {
 
     /// Cancel a running job.
     pub async fn cancel(&self, job_id: &str) -> DaemonResult<()> {
-        let mut running = self.running.lock().await;
-
-        if let Some(&pid) = running.get(job_id) {
-            // Kill the child process
-            #[cfg(unix)]
-            {
-                let _ = nix::sys::signal::kill(
-                    nix::unistd::Pid::from_raw(pid as i32),
-                    nix::sys::signal::Signal::SIGTERM,
-                );
+        // Kill the process and release the slot, then drop the lock before storage I/O.
+        {
+            let mut running = self.running.lock().await;
+            if let Some(&pid) = running.get(job_id) {
+                #[cfg(unix)]
+                {
+                    let _ = nix::sys::signal::kill(
+                        nix::unistd::Pid::from_raw(pid as i32),
+                        nix::sys::signal::Signal::SIGTERM,
+                    );
+                }
+                running.remove(job_id);
             }
-
-            running.remove(job_id);
-        }
+        } // lock released — storage calls below are outside the critical section
 
         self.storage
             .update_state(job_id, JobState::Cancelled, None, None)
