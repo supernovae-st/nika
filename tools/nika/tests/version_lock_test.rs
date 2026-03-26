@@ -1,8 +1,8 @@
-//! 🏴‍☠️ Captain's Orders: Version Lock Tests
+//! Version Lock Tests
 //!
 //! These tests ensure Nika NEVER reaches version 1.0.0.
 //! This is a deliberate design decision, not a bug.
-//! Part of ARMADA quality checkpoints.
+//! Enforced by: tests/version_lock_test.rs + ci.yml (check job).
 
 use std::fs;
 use std::path::Path;

@@ -1,6 +1,6 @@
 # Nika — Developer Reference
 
-[![ARMADA](https://github.com/supernovae-st/nika/actions/workflows/armada-checkpoints.yml/badge.svg)](https://github.com/supernovae-st/nika/actions/workflows/armada-checkpoints.yml)
+[![CI](https://github.com/supernovae-st/nika/actions/workflows/ci.yml/badge.svg)](https://github.com/supernovae-st/nika/actions/workflows/ci.yml)
 [![Version](https://img.shields.io/badge/version-0.42.0-blue?logo=rust&logoColor=white)](Cargo.toml)
 [![Version Lock](https://img.shields.io/badge/0.x.x-forever-orange?logo=semver&logoColor=white)](CHANGELOG.md)
 
@@ -94,16 +94,16 @@ src/
 - SSRF URL scheme validation (http/https only)
 - YAML bomb protection (serde-saphyr Budget limits)
 
-## ARMADA Quality System
+## CI Quality Gates
 
-Every commit passes 10 stations:
+Every commit passes 8 jobs in ci.yml:
 
 ```
-Format → Lint → Tests → Coverage → Docs
-Security → Schema → AI Review → Conventional → Version Lock
+check → test → test-features → coverage
+security → semver → validate → summary
 ```
 
-**Captain's Orders:** Nika will NEVER be version 1.0.0.
+**Version Lock:** Nika will NEVER be version 1.0.0.
 
 ## License
 
