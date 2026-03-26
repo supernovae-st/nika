@@ -249,7 +249,9 @@ mod tests {
             None => String::new(),
         };
 
-        assert_eq!(response, r#"{"title":"Hello","score":42}"#);
+        // Compare as parsed JSON (key order is non-deterministic)
+        let parsed: serde_json::Value = serde_json::from_str(&response).unwrap();
+        assert_eq!(parsed, serde_json::json!({"title": "Hello", "score": 42}));
     }
 
     #[test]
