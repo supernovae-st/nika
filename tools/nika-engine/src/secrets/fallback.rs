@@ -47,7 +47,8 @@ pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
             continue;
         }
 
-        // 2. Try daemon IPC (if available)
+        // 2. Try daemon IPC (if available) — Unix only
+        #[cfg(unix)]
         if let Some(ref client) = daemon {
             if let Ok(Some(secret)) = client.get_secret(provider_id).await {
                 std::env::set_var(env_var, &secret);
