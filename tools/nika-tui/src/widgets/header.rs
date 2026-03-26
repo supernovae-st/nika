@@ -32,6 +32,10 @@ const TAB_NAMES: &[(&str, TuiView)] = &[
 const TAB_LABELS_ACTIVE: &[&str] = &[" 1:Studio ", " 2:Command ", " 3:⚙ "];
 const TAB_LABELS_INACTIVE: &[&str] = &["1:Studio", "2:Command", "3:⚙"];
 
+// Compile-time guard: labels arrays must match TAB_NAMES length
+const _: () = assert!(TAB_LABELS_ACTIVE.len() == 3);
+const _: () = assert!(TAB_LABELS_INACTIVE.len() == 3);
+
 /// Header configuration
 pub struct Header<'a> {
     /// Current active view
