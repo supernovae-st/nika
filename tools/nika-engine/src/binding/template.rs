@@ -387,14 +387,16 @@ pub fn resolve_with<'a>(
                         // When shell is in transforms, skip the full-chain application
                         // to avoid double-processing. Only run the non-shell transforms
                         // followed by escape_for_shell.
+                        // PERF(M5): Avoid value.clone() when no transforms —
+                        // value_to_display() takes &Value, so pass reference directly.
                         let display = if has_shell {
                             let non_shell: Vec<String> = transforms
                                 .iter()
                                 .filter(|t| *t != "shell")
                                 .cloned()
                                 .collect();
-                            let pre_shell_value = if non_shell.is_empty() {
-                                value.clone()
+                            if non_shell.is_empty() {
+                                escape_for_shell(&value_to_display(&value))
                             } else {
                                 let transform_str = non_shell.join(" | ");
                                 let expr = TransformExpr::parse(&transform_str).map_err(|e| {
@@ -406,42 +408,47 @@ pub fn resolve_with<'a>(
                                         ),
                                     }
                                 })?;
-                                expr.apply(&value).map_err(|e| NikaError::TemplateParse {
-                                    position: m.start(),
-                                    details: format!(
-                                        "Transform apply error in '{{{{{}}}}}': {}",
-                                        content, e
-                                    ),
-                                })?
-                            };
-                            escape_for_shell(&value_to_display(&pre_shell_value))
-                        } else {
-                            // Apply transform chain (no shell)
-                            let final_value = if transforms.is_empty() {
-                                value.clone()
-                            } else {
-                                let transform_str = transforms.join(" | ");
-                                let expr = TransformExpr::parse(&transform_str).map_err(|e| {
-                                    NikaError::TemplateParse {
+                                let transformed =
+                                    expr.apply(&value).map_err(|e| NikaError::TemplateParse {
                                         position: m.start(),
                                         details: format!(
-                                            "Transform parse error in '{{{{{}}}}}': {}",
+                                            "Transform apply error in '{{{{{}}}}}': {}",
                                             content, e
                                         ),
-                                    }
-                                })?;
+                                    })?;
+                                escape_for_shell(&value_to_display(&transformed))
+                            }
+                        } else if transforms.is_empty() {
+                            // No transforms at all — direct reference, zero clone
+                            if is_in_json_context(template_str, m.start()) {
+                                escape_for_json(&value_to_display(&value)).into_owned()
+                            } else {
+                                value_to_display(&value).into_owned()
+                            }
+                        } else {
+                            // Apply transform chain (no shell)
+                            let transform_str = transforms.join(" | ");
+                            let expr = TransformExpr::parse(&transform_str).map_err(|e| {
+                                NikaError::TemplateParse {
+                                    position: m.start(),
+                                    details: format!(
+                                        "Transform parse error in '{{{{{}}}}}': {}",
+                                        content, e
+                                    ),
+                                }
+                            })?;
+                            let transformed =
                                 expr.apply(&value).map_err(|e| NikaError::TemplateParse {
                                     position: m.start(),
                                     details: format!(
                                         "Transform apply error in '{{{{{}}}}}': {}",
                                         content, e
                                     ),
-                                })?
-                            };
+                                })?;
                             if is_in_json_context(template_str, m.start()) {
-                                escape_for_json(&value_to_display(&final_value)).into_owned()
+                                escape_for_json(&value_to_display(&transformed)).into_owned()
                             } else {
-                                value_to_display(&final_value).into_owned()
+                                value_to_display(&transformed).into_owned()
                             }
                         };
                         result.push_str(&display);
