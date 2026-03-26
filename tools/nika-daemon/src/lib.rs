@@ -26,7 +26,7 @@ pub mod server;
 pub mod services;
 pub mod storage;
 
-pub use client::DaemonClient;
+pub use client::{ConnectedClient, DaemonClient};
 pub use error::{DaemonError, DaemonResult};
 pub use protocol::{DaemonRequest, DaemonResponse};
 

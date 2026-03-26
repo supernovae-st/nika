@@ -7,6 +7,7 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use tokio::io::{ReadHalf, WriteHalf};
 use tokio::net::UnixStream;
 use tokio::time::timeout;
 
@@ -151,9 +152,69 @@ impl DaemonClient {
         }
     }
 
+    /// Open a persistent connection to the daemon for sending multiple requests.
+    ///
+    /// The returned [`ConnectedClient`] reuses a single Unix socket connection,
+    /// avoiding the overhead of reconnecting for each request. The server supports
+    /// pipelining, so multiple requests can be sent sequentially on one connection.
+    pub async fn connect(&self) -> DaemonResult<ConnectedClient> {
+        if !self.socket_path.exists() {
+            return Err(DaemonError::NotRunning {
+                path: self.socket_path.clone(),
+            });
+        }
+        let stream = UnixStream::connect(&self.socket_path).await?;
+        let (reader, writer) = tokio::io::split(stream);
+        Ok(ConnectedClient {
+            reader,
+            writer,
+            timeout: self.timeout,
+        })
+    }
+
     /// Get the socket path this client targets.
     pub fn socket_path(&self) -> &Path {
         &self.socket_path
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CONNECTED CLIENT
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// A persistent connection to the daemon that supports sending multiple requests.
+///
+/// Created via [`DaemonClient::connect`]. Holds a single Unix socket connection
+/// open and reuses it for all requests, avoiding per-request connection overhead.
+pub struct ConnectedClient {
+    reader: ReadHalf<UnixStream>,
+    writer: WriteHalf<UnixStream>,
+    timeout: Duration,
+}
+
+impl std::fmt::Debug for ConnectedClient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ConnectedClient")
+            .field("timeout", &self.timeout)
+            .finish_non_exhaustive()
+    }
+}
+
+impl ConnectedClient {
+    /// Send a request and wait for the response.
+    pub async fn request(&mut self, req: DaemonRequest) -> DaemonResult<DaemonResponse> {
+        let result = timeout(self.timeout, self.request_inner(req)).await;
+        match result {
+            Ok(inner) => inner,
+            Err(_) => Err(DaemonError::Timeout {
+                timeout_secs: self.timeout.as_secs(),
+            }),
+        }
+    }
+
+    async fn request_inner(&mut self, req: DaemonRequest) -> DaemonResult<DaemonResponse> {
+        write_message(&mut self.writer, &req).await?;
+        decode_message(&mut self.reader).await
     }
 }
 
@@ -331,6 +392,46 @@ mod tests {
 
         let client = DaemonClient::new(&sock);
         client.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn connected_client_multiple_requests() {
+        let dir = tempfile::tempdir().unwrap();
+        let sock = dir.path().join("test.sock");
+
+        // Mock server that handles multiple requests on one connection (pipelining)
+        let listener = UnixListener::bind(&sock).unwrap();
+        tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let (mut reader, mut writer) = tokio::io::split(stream);
+
+            // Handle 3 sequential requests
+            for _ in 0..3 {
+                let _req: DaemonRequest = decode_message(&mut reader).await.unwrap();
+                let resp = DaemonResponse::Pong {
+                    version: "0.48.0".into(),
+                    uptime_secs: 1,
+                };
+                write_message(&mut writer, &resp).await.unwrap();
+            }
+        });
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        let client = DaemonClient::new(&sock);
+        let mut conn = client.connect().await.unwrap();
+
+        // Send 3 requests on the same connection
+        for _ in 0..3 {
+            let resp = conn.request(DaemonRequest::Ping).await.unwrap();
+            assert!(matches!(resp, DaemonResponse::Pong { .. }));
+        }
+    }
+
+    #[tokio::test]
+    async fn connected_client_not_running() {
+        let client = DaemonClient::new("/tmp/nonexistent_nika_connected_test.sock");
+        let result = client.connect().await;
+        assert!(matches!(result.unwrap_err(), DaemonError::NotRunning { .. }));
     }
 
     #[tokio::test]
