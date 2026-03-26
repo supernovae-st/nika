@@ -2587,12 +2587,12 @@ mod tests {
 
     #[test]
     fn wave2_broadcast_channel_lagged_on_overflow() {
-        // EventLog broadcast capacity is 512
+        // EventLog broadcast capacity is 1024
         // new_with_broadcast returns (EventLog, Receiver)
         let (log, mut rx) = EventLog::new_with_broadcast();
 
-        // Emit 600 events (exceeds 512 capacity)
-        for _ in 0..600 {
+        // Emit 1100 events (exceeds 1024 capacity)
+        for _ in 0..1100 {
             log.emit(EventKind::WorkflowPaused);
         }
 
@@ -2611,13 +2611,13 @@ mod tests {
                 Err(broadcast::error::TryRecvError::Closed) => break,
             }
         }
-        // Should have experienced lag because 600 > 512
+        // Should have experienced lag because 1100 > 1024
         assert!(
             lagged,
-            "Expected broadcast lag when emitting 600 events into 512 capacity channel"
+            "Expected broadcast lag when emitting 1100 events into 1024 capacity channel"
         );
-        // But all 600 events should be in the log (log is unbounded)
-        assert_eq!(log.events().len(), 600);
+        // But all 1100 events should be in the log (log is unbounded)
+        assert_eq!(log.events().len(), 1100);
     }
 
     // Dead variant tests: LimitReached and PartialCompletion are defined but never emitted in runtime code.
