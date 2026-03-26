@@ -478,6 +478,7 @@ impl TuiState {
             | EventKind::ForEachCompleted { .. }
             | EventKind::ProviderInitialized { .. }
             | EventKind::BuiltinToolInvoked { .. }
+            | EventKind::StreamingDelta { .. }
             | EventKind::ExtractApplied { .. } => {
                 // Observability events: captured in trace NDJSON but don't
                 // require TUI state mutations -- the TUI tracks task-level
