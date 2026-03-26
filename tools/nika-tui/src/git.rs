@@ -1,64 +1,43 @@
-//! Git Integration for TUI
+//! Git Integration for TUI — pure CLI implementation (no git2/openssl)
 //!
 //! Provides git status tracking for:
 //! - File browser: Show modified/added/deleted status
 //! - Editor gutter: Show line-level changes (+/~/-)
 //!
-//! # Architecture
-//!
-//! ```text
-//! GitStatus:
-//! ├── repository: git2::Repository
-//! ├── file_statuses: HashMap<PathBuf, FileStatus>  (cached)
-//! └── line_changes: HashMap<PathBuf, LineChanges>  (lazy-loaded)
-//!
-//! LineChanges:
-//! ├── added: Vec<usize>      (new lines)
-//! ├── modified: Vec<usize>   (changed lines)
-//! └── deleted: Vec<usize>    (after this line, content was removed)
-//! ```
+//! Uses `git` CLI instead of git2 crate to avoid 130s C/openssl compile.
+//! All operations shell out to `git` (available on all dev machines).
 
-use git2::{DiffOptions, Repository, Status, StatusOptions};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 /// File status from git perspective
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FileStatus {
-    /// File is tracked and unmodified
     Clean,
-    /// File has modifications (working tree differs from index)
     Modified,
-    /// File is new (not in index)
     Added,
-    /// File was deleted (in index but not in working tree)
     Deleted,
-    /// File was renamed
     Renamed,
-    /// File has conflicts
     Conflicted,
-    /// File is ignored
     Ignored,
-    /// File is untracked
     Untracked,
 }
 
 impl FileStatus {
-    /// Get the gutter symbol for this status
     pub fn gutter_symbol(&self) -> &'static str {
         match self {
             Self::Clean => " ",
             Self::Modified => "~",
             Self::Added => "+",
             Self::Deleted => "-",
-            Self::Renamed => "R",
+            Self::Renamed => "→",
             Self::Conflicted => "!",
             Self::Ignored => ".",
             Self::Untracked => "?",
         }
     }
 
-    /// Get whether this status indicates changes
     pub fn is_changed(&self) -> bool {
         !matches!(self, Self::Clean | Self::Ignored)
     }
@@ -67,16 +46,12 @@ impl FileStatus {
 /// Line-level change type
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LineChange {
-    /// Line was added
     Added,
-    /// Line was modified
     Modified,
-    /// Line(s) were deleted after this line
     Deleted,
 }
 
 impl LineChange {
-    /// Get the gutter symbol for this change
     pub fn gutter_symbol(&self) -> &'static str {
         match self {
             Self::Added => "+",
@@ -89,58 +64,58 @@ impl LineChange {
 /// Line-level changes for a file
 #[derive(Debug, Clone, Default)]
 pub struct LineChanges {
-    /// Map of line number to change type
     changes: HashMap<usize, LineChange>,
 }
 
 impl LineChanges {
-    /// Create empty line changes
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Get change for a specific line (0-indexed)
     pub fn get(&self, line: usize) -> Option<LineChange> {
         self.changes.get(&line).copied()
     }
 
-    /// Check if any changes exist
     pub fn is_empty(&self) -> bool {
         self.changes.is_empty()
     }
 
-    /// Get number of changes
     pub fn len(&self) -> usize {
         self.changes.len()
     }
 
-    /// Add a change for a line
     fn add(&mut self, line: usize, change: LineChange) {
         self.changes.insert(line, change);
     }
 
-    /// Get a cloned map of all changes (for use in render closures)
     pub fn changes_map(&self) -> HashMap<usize, LineChange> {
         self.changes.clone()
     }
 }
 
-/// Git status tracker for the TUI
+/// Git status tracker for the TUI (CLI-based, no git2)
 pub struct GitStatus {
-    /// Repository root path
     root: PathBuf,
-    /// Cached file statuses
     file_statuses: HashMap<PathBuf, FileStatus>,
-    /// Cached line changes (lazy-loaded per file)
     line_changes: HashMap<PathBuf, LineChanges>,
 }
 
 impl GitStatus {
-    /// Try to open a git repository at the given path
-    /// Returns None if not a git repository
+    /// Try to open a git repository at the given path.
+    /// Returns None if not a git repository or git CLI not available.
     pub fn open(path: &Path) -> Option<Self> {
-        let repo = Repository::discover(path).ok()?;
-        let root = repo.workdir()?.to_path_buf();
+        // `git rev-parse --show-toplevel` to find repo root
+        let output = Command::new("git")
+            .args(["rev-parse", "--show-toplevel"])
+            .current_dir(path)
+            .output()
+            .ok()?;
+
+        if !output.status.success() {
+            return None;
+        }
+
+        let root = PathBuf::from(String::from_utf8_lossy(&output.stdout).trim());
 
         let mut status = Self {
             root,
@@ -148,53 +123,57 @@ impl GitStatus {
             line_changes: HashMap::new(),
         };
 
-        // Pre-load file statuses
         status.refresh_file_statuses();
-
         Some(status)
     }
 
-    /// Get the repository root path
     pub fn root(&self) -> &Path {
         &self.root
     }
 
-    /// Refresh all file statuses from git
+    /// Refresh file statuses via `git status --porcelain=v1`
     pub fn refresh_file_statuses(&mut self) {
         self.file_statuses.clear();
 
-        let repo = match Repository::open(&self.root) {
-            Ok(r) => r,
-            Err(_) => return,
+        let output = match Command::new("git")
+            .args(["status", "--porcelain=v1", "-uall"])
+            .current_dir(&self.root)
+            .output()
+        {
+            Ok(o) if o.status.success() => o,
+            _ => return,
         };
 
-        let mut opts = StatusOptions::new();
-        opts.include_untracked(true)
-            .include_ignored(false)
-            .include_unmodified(false);
-
-        let statuses = match repo.statuses(Some(&mut opts)) {
-            Ok(s) => s,
-            Err(_) => return,
-        };
-
-        for entry in statuses.iter() {
-            if let Some(path) = entry.path() {
-                let full_path = self.root.join(path);
-                let status = Self::convert_status(entry.status());
-                self.file_statuses.insert(full_path, status);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        for line in stdout.lines() {
+            if line.len() < 4 {
+                continue;
             }
+
+            let xy = &line[..2];
+            let path_str = &line[3..];
+            let full_path = self.root.join(path_str);
+
+            let status = match xy.trim() {
+                "M" | " M" | "MM" => FileStatus::Modified,
+                "A" | " A" | "AM" => FileStatus::Added,
+                "D" | " D" => FileStatus::Deleted,
+                "R" | " R" => FileStatus::Renamed,
+                "UU" | "AA" | "DD" => FileStatus::Conflicted,
+                "??" => FileStatus::Untracked,
+                "!!" => FileStatus::Ignored,
+                _ => FileStatus::Modified, // Default to modified for unknown
+            };
+
+            self.file_statuses.insert(full_path, status);
         }
     }
 
-    /// Get status for a specific file
     pub fn file_status(&self, path: &Path) -> FileStatus {
-        // Try absolute path first
         if let Some(status) = self.file_statuses.get(path) {
             return *status;
         }
 
-        // Try relative to root
         if let Ok(rel_path) = path.strip_prefix(&self.root) {
             if let Some(status) = self.file_statuses.get(&self.root.join(rel_path)) {
                 return *status;
@@ -204,114 +183,106 @@ impl GitStatus {
         FileStatus::Clean
     }
 
-    /// Get line changes for a file (lazy-loads if not cached)
+    /// Get line changes for a file (lazy-loads via `git diff`)
     pub fn line_changes(&mut self, path: &Path) -> &LineChanges {
-        // Check if already cached
         if !self.line_changes.contains_key(path) {
-            // Load line changes
             let changes = self.compute_line_changes(path);
             self.line_changes.insert(path.to_path_buf(), changes);
         }
-
-        // Safe to unwrap since we just inserted
         self.line_changes.get(path).unwrap()
     }
 
-    /// Clear line changes cache for a file (call after file is modified)
     pub fn invalidate_line_changes(&mut self, path: &Path) {
         self.line_changes.remove(path);
     }
 
-    /// Compute line changes by diffing file against index
+    /// Compute line changes via `git diff --unified=0`
     fn compute_line_changes(&self, path: &Path) -> LineChanges {
         let mut changes = LineChanges::new();
 
-        let repo = match Repository::open(&self.root) {
-            Ok(r) => r,
-            Err(_) => return changes,
-        };
-
-        // Get relative path
         let rel_path = match path.strip_prefix(&self.root) {
             Ok(p) => p,
             Err(_) => return changes,
         };
 
-        // Get the HEAD tree
-        let head = match repo.head() {
-            Ok(h) => h,
-            Err(_) => return changes,
+        let output = match Command::new("git")
+            .args([
+                "diff",
+                "--unified=0",
+                "--no-color",
+                "--",
+                &rel_path.to_string_lossy(),
+            ])
+            .current_dir(&self.root)
+            .output()
+        {
+            Ok(o) if o.status.success() => o,
+            _ => return changes,
         };
 
-        let tree = match head.peel_to_tree() {
-            Ok(t) => t,
-            Err(_) => return changes,
-        };
+        let stdout = String::from_utf8_lossy(&output.stdout);
 
-        // Setup diff options
-        let mut diff_opts = DiffOptions::new();
-        diff_opts.pathspec(rel_path);
+        // Parse unified diff hunks: @@ -old,count +new,count @@
+        for line in stdout.lines() {
+            if !line.starts_with("@@") {
+                continue;
+            }
 
-        // Diff HEAD against working directory
-        let diff = match repo.diff_tree_to_workdir(Some(&tree), Some(&mut diff_opts)) {
-            Ok(d) => d,
-            Err(_) => return changes,
-        };
+            // Parse: @@ -X[,N] +Y[,M] @@
+            if let Some((old_info, new_info)) = parse_hunk_header(line) {
+                let (new_start, new_count) = new_info;
+                let (_old_start, old_count) = old_info;
 
-        // Process hunks to get line-level changes
-        let _ = diff.foreach(
-            &mut |_, _| true,
-            None,
-            Some(&mut |_, hunk| {
-                let new_start = hunk.new_start() as usize;
-                let new_lines = hunk.new_lines() as usize;
-                let old_lines = hunk.old_lines() as usize;
-
-                // Determine change type based on hunk
-                if old_lines == 0 {
+                if old_count == 0 {
                     // Pure addition
-                    for i in 0..new_lines {
+                    for i in 0..new_count {
                         changes.add(new_start + i - 1, LineChange::Added);
                     }
-                } else if new_lines == 0 {
-                    // Pure deletion - mark the line after which deletion occurred
+                } else if new_count == 0 {
+                    // Pure deletion
                     if new_start > 0 {
                         changes.add(new_start - 1, LineChange::Deleted);
                     }
                 } else {
                     // Modification
-                    for i in 0..new_lines {
+                    for i in 0..new_count {
                         changes.add(new_start + i - 1, LineChange::Modified);
                     }
                 }
-
-                true
-            }),
-            None,
-        );
+            }
+        }
 
         changes
     }
+}
 
-    /// Convert git2 Status to our FileStatus
-    fn convert_status(status: Status) -> FileStatus {
-        if status.is_conflicted() {
-            FileStatus::Conflicted
-        } else if status.is_wt_new() || status.is_index_new() {
-            FileStatus::Added
-        } else if status.is_wt_deleted() || status.is_index_deleted() {
-            FileStatus::Deleted
-        } else if status.is_wt_renamed() || status.is_index_renamed() {
-            FileStatus::Renamed
-        } else if status.is_wt_modified() || status.is_index_modified() {
-            FileStatus::Modified
-        } else if status.is_ignored() {
-            FileStatus::Ignored
-        } else if status.is_wt_new() {
-            FileStatus::Untracked
-        } else {
-            FileStatus::Clean
-        }
+/// Parse a unified diff hunk header: `@@ -X[,N] +Y[,M] @@`
+/// Returns ((old_start, old_count), (new_start, new_count))
+fn parse_hunk_header(line: &str) -> Option<((usize, usize), (usize, usize))> {
+    // Find the ranges between @@ markers
+    let line = line.strip_prefix("@@ ")?;
+    let end = line.find(" @@")?;
+    let ranges = &line[..end];
+
+    let mut parts = ranges.split_whitespace();
+
+    let old_range = parts.next()?.strip_prefix('-')?;
+    let new_range = parts.next()?.strip_prefix('+')?;
+
+    let old = parse_range(old_range);
+    let new = parse_range(new_range);
+
+    Some((old, new))
+}
+
+fn parse_range(s: &str) -> (usize, usize) {
+    if let Some((start, count)) = s.split_once(',') {
+        (
+            start.parse().unwrap_or(1),
+            count.parse().unwrap_or(1),
+        )
+    } else {
+        (s.parse().unwrap_or(1), 1)
     }
 }
 
@@ -365,9 +336,41 @@ mod tests {
 
     #[test]
     fn test_git_status_open_non_repo() {
-        // /tmp is not a git repo
         let status = GitStatus::open(Path::new("/tmp"));
-        // This might succeed if /tmp is inside a repo, so just check it doesn't crash
         let _ = status;
+    }
+
+    #[test]
+    fn parse_hunk_header_basic() {
+        let result = parse_hunk_header("@@ -1,3 +1,4 @@");
+        assert_eq!(result, Some(((1, 3), (1, 4))));
+    }
+
+    #[test]
+    fn parse_hunk_header_single_line() {
+        let result = parse_hunk_header("@@ -5 +5,2 @@");
+        assert_eq!(result, Some(((5, 1), (5, 2))));
+    }
+
+    #[test]
+    fn parse_hunk_header_deletion() {
+        let result = parse_hunk_header("@@ -10,3 +9,0 @@");
+        assert_eq!(result, Some(((10, 3), (9, 0))));
+    }
+
+    #[test]
+    fn parse_hunk_header_addition() {
+        let result = parse_hunk_header("@@ -5,0 +6,3 @@");
+        assert_eq!(result, Some(((5, 0), (6, 3))));
+    }
+
+    #[test]
+    fn parse_range_with_count() {
+        assert_eq!(parse_range("10,3"), (10, 3));
+    }
+
+    #[test]
+    fn parse_range_single() {
+        assert_eq!(parse_range("5"), (5, 1));
     }
 }
