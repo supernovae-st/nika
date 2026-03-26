@@ -150,7 +150,7 @@ impl TuiState {
             is_error: false,
             duration_ms: None,
         };
-        self.mcp.calls.push(call);
+        self.mcp.calls.push_back(call);
         self.mcp.seq += 1;
 
         // Update phase

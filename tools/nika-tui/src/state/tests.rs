@@ -981,7 +981,7 @@ fn test_mcp_navigation_select_prev() {
 
     // Add some MCP calls
     for i in 0..3 {
-        state.mcp.calls.push(McpCall {
+        state.mcp.calls.push_back(McpCall {
             call_id: format!("call-{}", i),
             seq: i,
             server: "novanet".to_string(),
@@ -1021,7 +1021,7 @@ fn test_mcp_navigation_select_next() {
 
     // Add some MCP calls
     for i in 0..3 {
-        state.mcp.calls.push(McpCall {
+        state.mcp.calls.push_back(McpCall {
             call_id: format!("call-{}", i),
             seq: i,
             server: "novanet".to_string(),
@@ -1060,7 +1060,7 @@ fn test_mcp_navigation_get_selected() {
     let mut state = TuiState::new("test.yaml");
 
     // Add MCP call
-    state.mcp.calls.push(McpCall {
+    state.mcp.calls.push_back(McpCall {
         call_id: "call-0".to_string(),
         seq: 0,
         server: "novanet".to_string(),
@@ -1284,7 +1284,7 @@ fn test_filtered_task_ids_case_insensitive() {
 #[test]
 fn test_filtered_mcp_calls_no_filter() {
     let mut state = TuiState::new("test.yaml");
-    state.mcp.calls.push(McpCall {
+    state.mcp.calls.push_back(McpCall {
         call_id: "call-0".to_string(),
         seq: 0,
         server: "novanet".to_string(),
@@ -1308,7 +1308,7 @@ fn test_filtered_mcp_calls_no_filter() {
 #[test]
 fn test_filtered_mcp_calls_matches_server() {
     let mut state = TuiState::new("test.yaml");
-    state.mcp.calls.push(McpCall {
+    state.mcp.calls.push_back(McpCall {
         call_id: "call-0".to_string(),
         seq: 0,
         server: "novanet".to_string(),
@@ -1323,7 +1323,7 @@ fn test_filtered_mcp_calls_matches_server() {
         is_error: false,
         duration_ms: Some(10),
     });
-    state.mcp.calls.push(McpCall {
+    state.mcp.calls.push_back(McpCall {
         call_id: "call-1".to_string(),
         seq: 1,
         server: "other_server".to_string(),
@@ -1348,7 +1348,7 @@ fn test_filtered_mcp_calls_matches_server() {
 #[test]
 fn test_filtered_mcp_calls_matches_tool() {
     let mut state = TuiState::new("test.yaml");
-    state.mcp.calls.push(McpCall {
+    state.mcp.calls.push_back(McpCall {
         call_id: "call-0".to_string(),
         seq: 0,
         server: "novanet".to_string(),
@@ -1363,7 +1363,7 @@ fn test_filtered_mcp_calls_matches_tool() {
         is_error: false,
         duration_ms: Some(10),
     });
-    state.mcp.calls.push(McpCall {
+    state.mcp.calls.push_back(McpCall {
         call_id: "call-1".to_string(),
         seq: 1,
         server: "novanet".to_string(),
@@ -1388,7 +1388,7 @@ fn test_filtered_mcp_calls_matches_tool() {
 #[test]
 fn test_filtered_mcp_calls_matches_resource() {
     let mut state = TuiState::new("test.yaml");
-    state.mcp.calls.push(McpCall {
+    state.mcp.calls.push_back(McpCall {
         call_id: "call-0".to_string(),
         seq: 0,
         server: "novanet".to_string(),
