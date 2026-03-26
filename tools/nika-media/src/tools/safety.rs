@@ -4,7 +4,7 @@
 //! Never call `image::load_from_memory()` directly — a 1x1 PNG can decompress to 16 GB.
 
 use super::error::{security_violation, tool_error};
-use crate::error::NikaError;
+use super::error::MediaToolError;
 
 /// Maximum decoded pixel buffer size (256 MB).
 #[cfg(any(
@@ -42,7 +42,7 @@ pub(crate) const MAX_IMAGE_DIM: u32 = 10_000;
     feature = "media-qr",
     feature = "media-iqa"
 ))]
-pub fn decode_image_safe(data: &[u8]) -> Result<image::DynamicImage, NikaError> {
+pub fn decode_image_safe(data: &[u8]) -> Result<image::DynamicImage, MediaToolError> {
     use image::ImageReader;
     use std::io::Cursor;
 
@@ -97,7 +97,7 @@ pub fn composite_on_white(img: &image::DynamicImage) -> image::RgbImage {
 /// - `<foreignObject>` — HTML injection
 /// - `javascript:` — XSS via href
 /// - `on*=` event handlers — XSS via DOM events
-pub fn sanitize_svg(input: &str) -> Result<&str, NikaError> {
+pub fn sanitize_svg(input: &str) -> Result<&str, MediaToolError> {
     let lower = input.to_ascii_lowercase();
 
     for pattern in [

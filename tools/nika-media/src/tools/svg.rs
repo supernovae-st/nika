@@ -11,7 +11,7 @@ use super::context::MediaToolContext;
 use super::error::{invalid_args, tool_error};
 use super::safety::sanitize_svg;
 use super::{MediaOp, MediaOpResult};
-use crate::error::NikaError;
+use super::error::MediaToolError;
 
 /// Lazy-loaded fontdb database (expensive first-time init).
 static FONTDB: OnceLock<Arc<fontdb::Database>> = OnceLock::new();
@@ -60,7 +60,7 @@ impl MediaOp for SvgRenderOp {
         &'a self,
         args: serde_json::Value,
         ctx: &'a MediaToolContext,
-    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, MediaToolError>> + Send + 'a>> {
         Box::pin(async move {
             ctx.check_cancelled()?;
             let hash = args
@@ -83,7 +83,7 @@ impl MediaOp for SvgRenderOp {
 
             let png_data = ctx
                 .compute
-                .compute(move || -> Result<Vec<u8>, NikaError> {
+                .compute(move || -> Result<Vec<u8>, MediaToolError> {
                     let fontdb = get_fontdb();
 
                     let opts = usvg::Options {
@@ -147,7 +147,7 @@ impl MediaOp for SvgRenderOp {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::media::CasStore;
+    use crate::CasStore;
 
     async fn setup() -> (tempfile::TempDir, Arc<MediaToolContext>) {
         let dir = tempfile::tempdir().unwrap();

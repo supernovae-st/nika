@@ -19,7 +19,7 @@ use super::context::MediaToolContext;
 use super::error::invalid_args;
 use super::safety::decode_image_safe;
 use super::{MediaOp, MediaOpResult};
-use crate::error::NikaError;
+use super::error::MediaToolError;
 
 pub struct QrValidateOp;
 
@@ -55,7 +55,7 @@ impl MediaOp for QrValidateOp {
         &'a self,
         args: serde_json::Value,
         ctx: &'a MediaToolContext,
-    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, MediaToolError>> + Send + 'a>> {
         Box::pin(async move {
             ctx.check_cancelled()?;
 
@@ -71,7 +71,7 @@ impl MediaOp for QrValidateOp {
             // Decode + validate on compute pool (CPU-bound: image decode, multi-decoder, stress tests)
             let result = ctx
                 .compute
-                .compute(move || -> Result<serde_json::Value, NikaError> {
+                .compute(move || -> Result<serde_json::Value, MediaToolError> {
                     // Phase 1: Safe decode with Nika resource limits (10k x 10k, 256MB)
                     let img = decode_image_safe(&data)?;
 
@@ -164,7 +164,7 @@ impl MediaOp for QrValidateOp {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::media::CasStore;
+    use crate::CasStore;
     use std::sync::Arc;
 
     async fn setup() -> (tempfile::TempDir, Arc<MediaToolContext>) {
@@ -375,14 +375,6 @@ mod tests {
             let score = v["scan_score"].as_u64().unwrap();
             assert!(score >= 50, "clean QR should score >= 50, got {score}");
         }
-    }
-
-    #[tokio::test]
-    async fn qr_adapter_dispatch() {
-        use crate::runtime::builtin::BuiltinTool;
-        let (_dir, ctx) = setup().await;
-        let adapter = super::super::MediaToolAdapter::new(Arc::new(QrValidateOp), ctx);
-        assert_eq!(adapter.name(), "qr_validate");
     }
 
     #[tokio::test]

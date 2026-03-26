@@ -11,7 +11,7 @@ use super::error::{invalid_args, pipeline_empty, pipeline_step_failed};
 #[cfg(feature = "media-thumbnail")]
 use super::safety::{decode_image_safe, MAX_IMAGE_DIM};
 use super::{MediaOp, MediaOpResult};
-use crate::error::NikaError;
+use super::error::MediaToolError;
 
 pub struct PipelineOp;
 
@@ -56,7 +56,7 @@ impl MediaOp for PipelineOp {
         &'a self,
         args: serde_json::Value,
         ctx: &'a MediaToolContext,
-    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, MediaToolError>> + Send + 'a>> {
         Box::pin(async move {
             ctx.check_cancelled()?;
             let hash = args
@@ -77,7 +77,7 @@ impl MediaOp for PipelineOp {
 
             let output = ctx
                 .compute
-                .compute(move || -> Result<(Vec<u8>, String, String), NikaError> {
+                .compute(move || -> Result<(Vec<u8>, String, String), MediaToolError> {
                     let mut current_data = data;
                     let mut current_mime = "image/png".to_string();
                     let mut current_ext = "png".to_string();
@@ -264,7 +264,7 @@ impl MediaOp for PipelineOp {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::media::CasStore;
+    use crate::CasStore;
     use std::sync::Arc;
 
     async fn setup() -> (tempfile::TempDir, Arc<MediaToolContext>) {

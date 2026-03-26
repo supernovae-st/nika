@@ -1,69 +1,49 @@
-//! Media Builtin Tools — nika:* media operations
+//! Media Builtin Tools — thin adapter layer
 //!
-//! Provides image/audio/video processing tools accessible via `invoke: nika:thumbnail`, etc.
-//!
-//! # Architecture
-//!
-//! ```text
-//! invoke: nika:thumbnail → BuiltinToolRouter → MediaToolAdapter → ThumbnailOp
-//!                                                    │
-//!                                                    ├── Parse JSON args
-//!                                                    ├── Timeout wrap (30s)
-//!                                                    ├── MediaOp::execute()
-//!                                                    ├── CAS write (Binary result)
-//!                                                    └── Serialize → JSON String
-//! ```
-//!
-//! Each tool implements `MediaOp`. The `MediaToolAdapter` bridges `MediaOp` → `BuiltinTool`.
+//! Tool implementations live in `nika-media::tools`. This module provides:
+//! - `MediaToolAdapter`: bridges `MediaOp` → `BuiltinTool`
+//! - `create_media_tool_adapters()`: factory for all media tools
+//! - Re-exports for test compatibility
 
-pub(crate) mod context;
-pub(crate) mod error;
-pub(crate) mod safety;
+// Re-export context (used by router.rs and executor/mod.rs)
+pub(crate) use nika_media::tools::context;
 
-// Tool implementations
-mod color;
-#[cfg(feature = "media-thumbnail")]
-mod convert;
-mod dimensions;
-mod import;
-#[cfg(feature = "media-metadata")]
-mod metadata;
-#[cfg(feature = "media-optimize")]
-mod optimize;
-#[cfg(feature = "media-thumbnail")]
-mod strip;
-#[cfg(feature = "media-svg")]
-mod svg;
-mod thumbhash_tool;
-#[cfg(feature = "media-thumbnail")]
-mod thumbnail;
-// PR3b tools
-#[cfg(feature = "media-chart")]
-mod chart;
-#[cfg(feature = "media-phash")]
-mod compare;
-#[cfg(feature = "media-pdf")]
-mod pdf;
-#[cfg(feature = "media-phash")]
-mod phash;
-mod pipeline;
-#[cfg(feature = "media-provenance")]
-mod provenance;
-#[cfg(feature = "media-qr")]
-mod qr;
-#[cfg(feature = "media-iqa")]
-mod quality;
-// PR5b tools — Web extraction builtins
-#[cfg(feature = "fetch-html")]
-mod css_select;
-#[cfg(feature = "fetch-html")]
-mod extract_links;
-#[cfg(feature = "fetch-html")]
-mod extract_metadata;
-#[cfg(feature = "fetch-markdown")]
-mod html_to_md;
-#[cfg(feature = "fetch-article")]
-mod readability;
+// Re-export tool modules from nika-media for test compatibility
+#[cfg(test)]
+pub(crate) use nika_media::tools::{
+    color, dimensions, import, safety, thumbhash_tool,
+};
+#[cfg(all(test, feature = "media-thumbnail"))]
+pub(crate) use nika_media::tools::{convert, strip, thumbnail};
+#[cfg(all(test, feature = "media-metadata"))]
+pub(crate) use nika_media::tools::metadata;
+#[cfg(all(test, feature = "media-optimize"))]
+pub(crate) use nika_media::tools::optimize;
+#[cfg(all(test, feature = "media-svg"))]
+pub(crate) use nika_media::tools::svg;
+#[cfg(all(test, feature = "media-chart"))]
+pub(crate) use nika_media::tools::chart;
+#[cfg(all(test, feature = "media-phash"))]
+pub(crate) use nika_media::tools::{compare, phash};
+#[cfg(all(test, feature = "media-pdf"))]
+pub(crate) use nika_media::tools::pdf;
+#[cfg(all(test, feature = "media-provenance"))]
+pub(crate) use nika_media::tools::{provenance, verify};
+#[cfg(all(test, feature = "media-qr"))]
+pub(crate) use nika_media::tools::qr;
+#[cfg(all(test, feature = "media-iqa"))]
+pub(crate) use nika_media::tools::quality;
+#[cfg(all(test, feature = "fetch-html"))]
+pub(crate) use nika_media::tools::{css_select, extract_links, extract_metadata};
+#[cfg(all(test, feature = "fetch-markdown"))]
+pub(crate) use nika_media::tools::html_to_md;
+#[cfg(all(test, feature = "fetch-article"))]
+pub(crate) use nika_media::tools::readability;
+
+// Re-export core types (used by adapter + tests)
+pub(crate) use nika_media::tools::{MediaOp, MediaOpResult, MediaToolContext};
+
+// Test modules (remain in nika-engine — they test integration with engine types)
 #[cfg(test)]
 mod tests_comprehensive;
 #[cfg(test)]
@@ -82,8 +62,6 @@ mod tests_pr4_pipelines;
 mod tests_pr5_integration;
 #[cfg(test)]
 mod tests_security;
-#[cfg(feature = "media-provenance")]
-mod verify;
 
 use std::future::Future;
 use std::pin::Pin;
@@ -92,55 +70,14 @@ use std::time::Duration;
 
 use super::BuiltinTool;
 use crate::error::NikaError;
-use context::MediaToolContext;
-use error::timeout_error;
+use nika_media::tools::error::{timeout_error, invalid_args, tool_error};
 
 /// Default timeout for media operations (30 seconds).
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// Internal trait for media operations.
-///
-/// Each media tool (thumbnail, metadata, optimize, etc.) implements this.
-/// The `MediaToolAdapter` bridges it to the `BuiltinTool` trait.
-pub(crate) trait MediaOp: Send + Sync {
-    /// Tool name without prefix (e.g., "thumbnail").
-    fn name(&self) -> &'static str;
-
-    /// Tool description for LLM discovery.
-    fn description(&self) -> &'static str;
-
-    /// JSON Schema for tool parameters.
-    fn parameters_schema(&self) -> serde_json::Value;
-
-    /// Execute the media operation.
-    fn execute<'a>(
-        &'a self,
-        args: serde_json::Value,
-        ctx: &'a MediaToolContext,
-    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, NikaError>> + Send + 'a>>;
-}
-
-/// Result of a media operation.
-#[derive(Debug)]
-pub(crate) enum MediaOpResult {
-    /// Metadata-only result (dimensions, phash, etc.).
-    Metadata(serde_json::Value),
-    /// Binary output (thumbnail, optimized image, etc.).
-    Binary {
-        data: Vec<u8>,
-        mime_type: String,
-        extension: String,
-        metadata: serde_json::Value,
-    },
-}
-
 /// Adapter that bridges `MediaOp` → `BuiltinTool`.
 ///
-/// Handles:
-/// 1. JSON arg parsing
-/// 2. Timeout wrapping (30s default)
-/// 3. CAS write for Binary results
-/// 4. Serialization to JSON String
+/// Handles: JSON arg parsing, timeout wrapping, CAS write, serialization.
 pub(crate) struct MediaToolAdapter {
     op: Arc<dyn MediaOp>,
     ctx: Arc<MediaToolContext>,
@@ -170,18 +107,17 @@ impl BuiltinTool for MediaToolAdapter {
         args: String,
     ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + 'a>> {
         Box::pin(async move {
-            // Parse JSON args (outside timeout — parsing is instant)
             let parsed: serde_json::Value = serde_json::from_str(&args)
-                .map_err(|e| error::invalid_args(self.op.name(), e.to_string()))?;
+                .map_err(|e| NikaError::from(invalid_args(self.op.name(), e.to_string())))?;
 
-            // Timeout wraps BOTH execute AND CAS write to prevent unbounded operations
             let tool_name = self.op.name();
             tokio::time::timeout(DEFAULT_TIMEOUT, async {
-                let result = self.op.execute(parsed, &self.ctx).await?;
+                let result = self.op.execute(parsed, &self.ctx).await
+                    .map_err(NikaError::from)?;
 
                 match result {
                     MediaOpResult::Metadata(value) => serde_json::to_string(&value).map_err(|e| {
-                        error::tool_error(tool_name, format!("serialize metadata: {e}"))
+                        NikaError::from(tool_error(tool_name, format!("serialize metadata: {e}")))
                     }),
                     MediaOpResult::Binary {
                         data,
@@ -189,8 +125,8 @@ impl BuiltinTool for MediaToolAdapter {
                         extension,
                         metadata,
                     } => {
-                        // Store in CAS (inside timeout)
-                        let store_result = self.ctx.store_media(&data, "media_tool").await?;
+                        let store_result = self.ctx.store_media(&data, "media_tool").await
+                            .map_err(NikaError::from)?;
 
                         let response = serde_json::json!({
                           "hash": store_result.hash,
@@ -203,184 +139,33 @@ impl BuiltinTool for MediaToolAdapter {
                         });
 
                         serde_json::to_string(&response).map_err(|e| {
-                            error::tool_error(tool_name, format!("serialize result: {e}"))
+                            NikaError::from(tool_error(tool_name, format!("serialize result: {e}")))
                         })
                     }
                 }
             })
             .await
-            .map_err(|_| timeout_error(tool_name))?
+            .map_err(|_| NikaError::from(timeout_error(tool_name)))?
         })
     }
 }
 
 /// Create all media tool adapters for registration in the BuiltinToolRouter.
-#[allow(clippy::vec_init_then_push)] // Feature-gated pushes require incremental construction
 pub(crate) fn create_media_tool_adapters(ctx: Arc<MediaToolContext>) -> Vec<Box<dyn BuiltinTool>> {
-    let mut tools: Vec<Box<dyn BuiltinTool>> = Vec::new();
-
-    // Tier 1 — Always on (zero/tiny deps)
-    tools.push(Box::new(MediaToolAdapter::new(
-        Arc::new(import::ImportOp),
-        Arc::clone(&ctx),
-    )));
-    tools.push(Box::new(MediaToolAdapter::new(
-        Arc::new(dimensions::DimensionsOp),
-        Arc::clone(&ctx),
-    )));
-    tools.push(Box::new(MediaToolAdapter::new(
-        Arc::new(thumbhash_tool::ThumbhashOp),
-        Arc::clone(&ctx),
-    )));
-    tools.push(Box::new(MediaToolAdapter::new(
-        Arc::new(color::DominantColorOp),
-        Arc::clone(&ctx),
-    )));
-
-    // Tier 2 — Feature-gated
-    #[cfg(feature = "media-thumbnail")]
-    {
-        tools.push(Box::new(MediaToolAdapter::new(
-            Arc::new(thumbnail::ThumbnailOp),
-            Arc::clone(&ctx),
-        )));
-        tools.push(Box::new(MediaToolAdapter::new(
-            Arc::new(convert::ConvertOp),
-            Arc::clone(&ctx),
-        )));
-        tools.push(Box::new(MediaToolAdapter::new(
-            Arc::new(strip::StripOp),
-            Arc::clone(&ctx),
-        )));
-    }
-
-    #[cfg(feature = "media-metadata")]
-    {
-        tools.push(Box::new(MediaToolAdapter::new(
-            Arc::new(metadata::MetadataOp),
-            Arc::clone(&ctx),
-        )));
-    }
-
-    #[cfg(feature = "media-optimize")]
-    {
-        tools.push(Box::new(MediaToolAdapter::new(
-            Arc::new(optimize::OptimizeOp),
-            Arc::clone(&ctx),
-        )));
-    }
-
-    #[cfg(feature = "media-svg")]
-    {
-        tools.push(Box::new(MediaToolAdapter::new(
-            Arc::new(svg::SvgRenderOp),
-            Arc::clone(&ctx),
-        )));
-    }
-
-    // Tier 3 — PR3b tools
-    #[cfg(feature = "media-chart")]
-    {
-        tools.push(Box::new(MediaToolAdapter::new(
-            Arc::new(chart::ChartOp),
-            Arc::clone(&ctx),
-        )));
-    }
-
-    #[cfg(feature = "media-phash")]
-    {
-        tools.push(Box::new(MediaToolAdapter::new(
-            Arc::new(phash::PhashOp),
-            Arc::clone(&ctx),
-        )));
-        tools.push(Box::new(MediaToolAdapter::new(
-            Arc::new(compare::CompareOp),
-            Arc::clone(&ctx),
-        )));
-    }
-
-    #[cfg(feature = "media-pdf")]
-    {
-        tools.push(Box::new(MediaToolAdapter::new(
-            Arc::new(pdf::PdfExtractOp),
-            Arc::clone(&ctx),
-        )));
-    }
-
-    #[cfg(feature = "media-provenance")]
-    {
-        tools.push(Box::new(MediaToolAdapter::new(
-            Arc::new(provenance::ProvenanceOp),
-            Arc::clone(&ctx),
-        )));
-        tools.push(Box::new(MediaToolAdapter::new(
-            Arc::new(verify::VerifyOp),
-            Arc::clone(&ctx),
-        )));
-    }
-
-    #[cfg(feature = "media-qr")]
-    {
-        tools.push(Box::new(MediaToolAdapter::new(
-            Arc::new(qr::QrValidateOp),
-            Arc::clone(&ctx),
-        )));
-    }
-
-    #[cfg(feature = "media-iqa")]
-    {
-        tools.push(Box::new(MediaToolAdapter::new(
-            Arc::new(quality::QualityOp),
-            Arc::clone(&ctx),
-        )));
-    }
-
-    // PR5b — Web extraction builtins
-    #[cfg(feature = "fetch-html")]
-    {
-        tools.push(Box::new(MediaToolAdapter::new(
-            Arc::new(css_select::CssSelectOp),
-            Arc::clone(&ctx),
-        )));
-        tools.push(Box::new(MediaToolAdapter::new(
-            Arc::new(extract_metadata::ExtractMetadataOp),
-            Arc::clone(&ctx),
-        )));
-        tools.push(Box::new(MediaToolAdapter::new(
-            Arc::new(extract_links::ExtractLinksOp),
-            Arc::clone(&ctx),
-        )));
-    }
-
-    #[cfg(feature = "fetch-markdown")]
-    {
-        tools.push(Box::new(MediaToolAdapter::new(
-            Arc::new(html_to_md::HtmlToMdOp),
-            Arc::clone(&ctx),
-        )));
-    }
-
-    #[cfg(feature = "fetch-article")]
-    {
-        tools.push(Box::new(MediaToolAdapter::new(
-            Arc::new(readability::ReadabilityOp),
-            Arc::clone(&ctx),
-        )));
-    }
-
-    // Pipeline — always on (orchestrates other tools)
-    tools.push(Box::new(MediaToolAdapter::new(
-        Arc::new(pipeline::PipelineOp),
-        Arc::clone(&ctx),
-    )));
-
-    tools
+    nika_media::tools::create_all_media_ops()
+        .into_iter()
+        .map(|op| {
+            Box::new(MediaToolAdapter::new(Arc::from(op), Arc::clone(&ctx)))
+                as Box<dyn BuiltinTool>
+        })
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::media::CasStore;
+    use nika_media::tools::error::MediaToolError;
 
     /// Dummy MediaOp for testing the adapter pattern.
     struct DummyOp;
@@ -404,7 +189,7 @@ mod tests {
             &'a self,
             args: serde_json::Value,
             _ctx: &'a MediaToolContext,
-        ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, NikaError>> + Send + 'a>> {
+        ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, MediaToolError>> + Send + 'a>> {
             Box::pin(async move {
                 let value = args
                     .get("value")
@@ -471,7 +256,7 @@ mod tests {
                 &'a self,
                 _args: serde_json::Value,
                 _ctx: &'a MediaToolContext,
-            ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, NikaError>> + Send + 'a>>
+            ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, MediaToolError>> + Send + 'a>>
             {
                 Box::pin(async {
                     Ok(MediaOpResult::Binary {
@@ -493,7 +278,6 @@ mod tests {
         assert_eq!(parsed["extension"], "png");
         assert_eq!(parsed["metadata"]["width"], 256);
 
-        // Verify data is in CAS
         let hash = parsed["hash"].as_str().unwrap();
         let data = ctx.cas.read(hash).await.unwrap();
         assert_eq!(data, b"fake png data here");
@@ -516,7 +300,6 @@ mod tests {
         let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
         let tools = create_media_tool_adapters(ctx);
 
-        // At minimum: import, dimensions, thumbhash, dominant_color (always on)
         assert!(tools.len() >= 4, "expected >= 4 tools, got {}", tools.len());
 
         let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();

@@ -13,7 +13,7 @@ use std::pin::Pin;
 use super::context::MediaToolContext;
 use super::error::{invalid_args, tool_error};
 use super::{MediaOp, MediaOpResult};
-use crate::error::NikaError;
+use super::error::MediaToolError;
 
 pub struct ProvenanceOp;
 
@@ -56,7 +56,7 @@ impl MediaOp for ProvenanceOp {
         &'a self,
         args: serde_json::Value,
         ctx: &'a MediaToolContext,
-    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, MediaToolError>> + Send + 'a>> {
         Box::pin(async move {
             ctx.check_cancelled()?;
 
@@ -99,7 +99,7 @@ impl MediaOp for ProvenanceOp {
             // Sign on compute pool (CPU-bound crypto)
             let signed_data = ctx
                 .compute
-                .compute(move || -> Result<Vec<u8>, NikaError> {
+                .compute(move || -> Result<Vec<u8>, MediaToolError> {
                     sign_with_c2pa(&data, &source_mime, &title, &assertion_owned)
                 })
                 .await??;
@@ -124,7 +124,7 @@ impl MediaOp for ProvenanceOp {
 }
 
 /// Detect image format from magic bytes.
-fn detect_image_format(data: &[u8]) -> Result<(String, String), NikaError> {
+fn detect_image_format(data: &[u8]) -> Result<(String, String), MediaToolError> {
     if data.len() < 4 {
         return Err(invalid_args(
             "provenance",
@@ -176,7 +176,7 @@ fn sign_with_c2pa(
     mime_type: &str,
     title: &str,
     assertion: &str,
-) -> Result<Vec<u8>, NikaError> {
+) -> Result<Vec<u8>, MediaToolError> {
     use c2pa::{Builder, EphemeralSigner};
 
     // Create ephemeral signer (self-signed Ed25519, no OpenSSL)
@@ -225,7 +225,7 @@ fn sign_with_c2pa(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::media::CasStore;
+    use crate::CasStore;
     use std::sync::Arc;
 
     async fn setup() -> (tempfile::TempDir, Arc<MediaToolContext>) {

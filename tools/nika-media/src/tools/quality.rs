@@ -17,7 +17,7 @@ use super::context::MediaToolContext;
 use super::error::invalid_args;
 use super::safety::decode_image_safe;
 use super::{MediaOp, MediaOpResult};
-use crate::error::NikaError;
+use super::error::MediaToolError;
 
 pub struct QualityOp;
 
@@ -65,7 +65,7 @@ impl MediaOp for QualityOp {
         &'a self,
         args: serde_json::Value,
         ctx: &'a MediaToolContext,
-    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, MediaToolError>> + Send + 'a>> {
         Box::pin(async move {
             ctx.check_cancelled()?;
 
@@ -84,7 +84,7 @@ impl MediaOp for QualityOp {
             // DSSIM comparison on compute pool (CPU-bound)
             let result = ctx
                 .compute
-                .compute(move || -> Result<serde_json::Value, NikaError> {
+                .compute(move || -> Result<serde_json::Value, MediaToolError> {
                     let img_a = decode_image_safe(&data_a)?;
                     let img_b = decode_image_safe(&data_b)?;
 
@@ -95,12 +95,10 @@ impl MediaOp for QualityOp {
                     let (w_b, h_b) = (rgba_b.width() as usize, rgba_b.height() as usize);
 
                     if w_a != w_b || h_a != h_b {
-                        return Err(NikaError::ValidationError {
-                            reason: format!(
-                                "Image dimensions must match: {}x{} vs {}x{}",
-                                w_a, h_a, w_b, h_b
-                            ),
-                        });
+                        return Err(super::error::invalid_args("quality", format!(
+                            "Image dimensions must match: {}x{} vs {}x{}",
+                            w_a, h_a, w_b, h_b
+                        )));
                     }
 
                     // Build DSSIM attribute images
@@ -114,15 +112,15 @@ impl MediaOp for QualityOp {
 
                     let img_a_dssim =
                         attr.create_image_rgba(rgba_slice_a, w_a, h_a)
-                            .ok_or_else(|| NikaError::ValidationError {
-                                reason: "Failed to create DSSIM image A".to_string(),
-                            })?;
+                            .ok_or_else(|| super::error::invalid_args("quality",
+                                "Failed to create DSSIM image A",
+                            ))?;
 
                     let img_b_dssim =
                         attr.create_image_rgba(rgba_slice_b, w_b, h_b)
-                            .ok_or_else(|| NikaError::ValidationError {
-                                reason: "Failed to create DSSIM image B".to_string(),
-                            })?;
+                            .ok_or_else(|| super::error::invalid_args("quality",
+                                "Failed to create DSSIM image B",
+                            ))?;
 
                     let (dssim_val, _ssim_maps) = attr.compare(&img_a_dssim, img_b_dssim);
                     let dssim_f64: f64 = dssim_val.into();
@@ -150,7 +148,7 @@ impl MediaOp for QualityOp {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::media::CasStore;
+    use crate::CasStore;
     use std::sync::Arc;
 
     async fn setup() -> (tempfile::TempDir, Arc<MediaToolContext>) {
@@ -311,14 +309,6 @@ mod tests {
             .await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("cancelled"));
-    }
-
-    #[tokio::test]
-    async fn quality_adapter_dispatch() {
-        use crate::runtime::builtin::BuiltinTool;
-        let (_dir, ctx) = setup().await;
-        let adapter = super::super::MediaToolAdapter::new(Arc::new(QualityOp), ctx);
-        assert_eq!(adapter.name(), "quality");
     }
 
     #[test]

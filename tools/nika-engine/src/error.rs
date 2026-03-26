@@ -816,6 +816,59 @@ impl From<nika_mcp::McpError> for NikaError {
     }
 }
 
+impl From<nika_media::tools::error::MediaToolError> for NikaError {
+    fn from(e: nika_media::tools::error::MediaToolError) -> Self {
+        match e {
+            nika_media::tools::error::MediaToolError::ToolError { tool, reason } => {
+                NikaError::BuiltinToolError { tool: format!("nika:{tool}"), reason }
+            }
+            nika_media::tools::error::MediaToolError::UnsupportedFormat { tool, mime } => {
+                NikaError::BuiltinToolError {
+                    tool: format!("nika:{tool}"),
+                    reason: format!("[NIKA-291] unsupported format '{mime}'"),
+                }
+            }
+            nika_media::tools::error::MediaToolError::DependencyMissing { tool, feature } => {
+                NikaError::BuiltinToolError {
+                    tool: format!("nika:{tool}"),
+                    reason: format!("[NIKA-292] feature '{feature}' required"),
+                }
+            }
+            nika_media::tools::error::MediaToolError::Timeout { tool } => {
+                NikaError::BuiltinToolError {
+                    tool: format!("nika:{tool}"),
+                    reason: "[NIKA-293] operation timed out".to_string(),
+                }
+            }
+            nika_media::tools::error::MediaToolError::InvalidArgs { tool, reason } => {
+                NikaError::BuiltinInvalidParams {
+                    tool: format!("nika:{tool}"),
+                    reason: format!("[NIKA-294] {reason}"),
+                }
+            }
+            nika_media::tools::error::MediaToolError::PipelineStepFailed { step, reason } => {
+                NikaError::BuiltinToolError {
+                    tool: "nika:pipeline".to_string(),
+                    reason: format!("[NIKA-295] step {step} failed: {reason}"),
+                }
+            }
+            nika_media::tools::error::MediaToolError::PipelineEmpty => {
+                NikaError::BuiltinToolError {
+                    tool: "nika:pipeline".to_string(),
+                    reason: "[NIKA-296] pipeline has no steps".to_string(),
+                }
+            }
+            nika_media::tools::error::MediaToolError::SecurityViolation { tool, reason } => {
+                NikaError::BuiltinToolError {
+                    tool: format!("nika:{tool}"),
+                    reason: format!("[NIKA-297] security violation: {reason}"),
+                }
+            }
+            nika_media::tools::error::MediaToolError::Media(me) => me.into(),
+        }
+    }
+}
+
 impl From<nika_init::error::NikaInitError> for NikaError {
     fn from(e: nika_init::error::NikaInitError) -> Self {
         match e {

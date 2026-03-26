@@ -9,7 +9,7 @@ use std::pin::Pin;
 use super::context::MediaToolContext;
 use super::error::{invalid_args, tool_error, unsupported_format};
 use super::{MediaOp, MediaOpResult};
-use crate::error::NikaError;
+use super::error::MediaToolError;
 
 pub struct OptimizeOp;
 
@@ -39,7 +39,7 @@ impl MediaOp for OptimizeOp {
         &'a self,
         args: serde_json::Value,
         ctx: &'a MediaToolContext,
-    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, MediaToolError>> + Send + 'a>> {
         Box::pin(async move {
             ctx.check_cancelled()?;
             let hash = args
@@ -64,7 +64,7 @@ impl MediaOp for OptimizeOp {
 
             let optimized = ctx
                 .compute
-                .compute(move || -> Result<Vec<u8>, NikaError> {
+                .compute(move || -> Result<Vec<u8>, MediaToolError> {
                     let mut opts = oxipng::Options::from_preset(level);
                     if strip {
                         opts.strip = oxipng::StripChunks::Safe;
@@ -100,7 +100,7 @@ impl MediaOp for OptimizeOp {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::media::CasStore;
+    use crate::CasStore;
     use std::sync::Arc;
 
     async fn setup() -> (tempfile::TempDir, Arc<MediaToolContext>) {

@@ -18,7 +18,7 @@ use std::pin::Pin;
 use super::context::MediaToolContext;
 use super::error::invalid_args;
 use super::{MediaOp, MediaOpResult};
-use crate::error::NikaError;
+use super::error::MediaToolError;
 
 pub struct VerifyOp;
 
@@ -56,7 +56,7 @@ impl MediaOp for VerifyOp {
         &'a self,
         args: serde_json::Value,
         ctx: &'a MediaToolContext,
-    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, MediaToolError>> + Send + 'a>> {
         Box::pin(async move {
             ctx.check_cancelled()?;
 
@@ -70,7 +70,7 @@ impl MediaOp for VerifyOp {
             // Verify on compute pool (CPU-bound crypto verification)
             let result = ctx
                 .compute
-                .compute(move || -> Result<serde_json::Value, NikaError> {
+                .compute(move || -> Result<serde_json::Value, MediaToolError> {
                     // Detect format from magic bytes
                     let mime_type = detect_mime(&data)?;
 
@@ -209,7 +209,7 @@ impl MediaOp for VerifyOp {
 }
 
 /// Detect MIME type from magic bytes for C2PA Reader.
-fn detect_mime(data: &[u8]) -> Result<String, NikaError> {
+fn detect_mime(data: &[u8]) -> Result<String, MediaToolError> {
     if data.len() < 4 {
         return Err(invalid_args("verify", "file too small to detect format"));
     }
@@ -228,7 +228,7 @@ fn detect_mime(data: &[u8]) -> Result<String, NikaError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::media::CasStore;
+    use crate::CasStore;
     use std::sync::Arc;
 
     async fn setup() -> (tempfile::TempDir, Arc<MediaToolContext>) {
@@ -439,14 +439,6 @@ mod tests {
                 }
             }
         }
-    }
-
-    #[tokio::test]
-    async fn verify_adapter_dispatch() {
-        use crate::runtime::builtin::BuiltinTool;
-        let (_dir, ctx) = setup().await;
-        let adapter = super::super::MediaToolAdapter::new(Arc::new(VerifyOp), ctx);
-        assert_eq!(adapter.name(), "verify");
     }
 
     #[test]

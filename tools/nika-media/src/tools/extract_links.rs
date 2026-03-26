@@ -10,7 +10,7 @@ use std::pin::Pin;
 use super::context::MediaToolContext;
 use super::error::{invalid_args, tool_error};
 use super::{MediaOp, MediaOpResult};
-use crate::error::NikaError;
+use super::error::MediaToolError;
 
 /// Maximum HTML input size: 10 MB.
 const MAX_HTML_SIZE: usize = 10 * 1024 * 1024;
@@ -55,7 +55,7 @@ impl MediaOp for ExtractLinksOp {
         &'a self,
         args: serde_json::Value,
         ctx: &'a MediaToolContext,
-    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, MediaToolError>> + Send + 'a>> {
         Box::pin(async move {
             ctx.check_cancelled()?;
 
@@ -101,7 +101,7 @@ impl LinkInfo {
 }
 
 /// Extract and classify all links from HTML.
-fn extract_links(html: &str, base_url_str: &str) -> Result<serde_json::Value, NikaError> {
+fn extract_links(html: &str, base_url_str: &str) -> Result<serde_json::Value, MediaToolError> {
     let base_url = url::Url::parse(base_url_str).map_err(|e| {
         invalid_args(
             "extract_links",
@@ -261,7 +261,7 @@ fn registrable_domain(host: &str) -> String {
 async fn resolve_html(
     args: &serde_json::Value,
     ctx: &MediaToolContext,
-) -> Result<String, NikaError> {
+) -> Result<String, MediaToolError> {
     if let Some(hash) = args.get("hash").and_then(|v| v.as_str()) {
         let data = ctx.read_media(hash).await?;
         if data.len() > MAX_HTML_SIZE {
@@ -303,7 +303,7 @@ async fn resolve_html(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::media::CasStore;
+    use crate::CasStore;
     use std::sync::Arc;
 
     async fn setup() -> (tempfile::TempDir, Arc<MediaToolContext>) {

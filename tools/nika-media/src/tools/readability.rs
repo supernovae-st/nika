@@ -10,7 +10,7 @@ use std::pin::Pin;
 use super::context::MediaToolContext;
 use super::error::{invalid_args, tool_error};
 use super::{MediaOp, MediaOpResult};
-use crate::error::NikaError;
+use super::error::MediaToolError;
 
 /// Maximum HTML input size: 10 MB.
 const MAX_HTML_SIZE: usize = 10 * 1024 * 1024;
@@ -52,7 +52,7 @@ impl MediaOp for ReadabilityOp {
         &'a self,
         args: serde_json::Value,
         ctx: &'a MediaToolContext,
-    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, MediaToolError>> + Send + 'a>> {
         Box::pin(async move {
             ctx.check_cancelled()?;
 
@@ -75,7 +75,7 @@ impl MediaOp for ReadabilityOp {
             // dom_smoothie is CPU-intensive — run on compute pool
             let result = ctx
                 .compute
-                .compute(move || -> Result<serde_json::Value, NikaError> {
+                .compute(move || -> Result<serde_json::Value, MediaToolError> {
                     let mut readability =
                         dom_smoothie::Readability::new(html.as_str(), url.as_deref(), None)
                             .map_err(|e| {
@@ -113,7 +113,7 @@ impl MediaOp for ReadabilityOp {
 async fn resolve_html(
     args: &serde_json::Value,
     ctx: &MediaToolContext,
-) -> Result<String, NikaError> {
+) -> Result<String, MediaToolError> {
     if let Some(hash) = args.get("hash").and_then(|v| v.as_str()) {
         let data = ctx.read_media(hash).await?;
         if data.len() > MAX_HTML_SIZE {
@@ -155,7 +155,7 @@ async fn resolve_html(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::media::CasStore;
+    use crate::CasStore;
     use std::sync::Arc;
 
     async fn setup() -> (tempfile::TempDir, Arc<MediaToolContext>) {

@@ -10,7 +10,7 @@ use std::pin::Pin;
 use super::context::MediaToolContext;
 use super::error::{invalid_args, tool_error};
 use super::{MediaOp, MediaOpResult};
-use crate::error::NikaError;
+use super::error::MediaToolError;
 
 pub struct ChartOp;
 
@@ -73,7 +73,7 @@ impl MediaOp for ChartOp {
         &'a self,
         args: serde_json::Value,
         ctx: &'a MediaToolContext,
-    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, MediaToolError>> + Send + 'a>> {
         Box::pin(async move {
             ctx.check_cancelled()?;
 
@@ -129,7 +129,7 @@ impl MediaOp for ChartOp {
             // Render chart on compute pool (CPU-bound SVG generation + PNG encoding)
             let png_data = ctx
                 .compute
-                .compute(move || -> Result<Vec<u8>, NikaError> {
+                .compute(move || -> Result<Vec<u8>, MediaToolError> {
                     let svg = render_chart_svg(
                         &chart_type_owned,
                         &title,
@@ -158,7 +158,7 @@ impl MediaOp for ChartOp {
 }
 
 /// Parse JSON series array into charts-rs Series objects.
-fn parse_series(arr: &[serde_json::Value]) -> Result<Vec<charts_rs::Series>, NikaError> {
+fn parse_series(arr: &[serde_json::Value]) -> Result<Vec<charts_rs::Series>, MediaToolError> {
     let mut result = Vec::with_capacity(arr.len());
     for (i, item) in arr.iter().enumerate() {
         let name = item
@@ -209,7 +209,7 @@ fn render_chart_svg(
     height: f32,
     series_list: Vec<charts_rs::Series>,
     labels: &[String],
-) -> Result<String, NikaError> {
+) -> Result<String, MediaToolError> {
     match chart_type {
         "bar" => {
             let mut chart = charts_rs::BarChart::new(series_list, labels.to_vec());
@@ -254,7 +254,7 @@ fn render_chart_svg(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::media::CasStore;
+    use crate::CasStore;
     use std::sync::Arc;
 
     async fn setup() -> (tempfile::TempDir, Arc<MediaToolContext>) {

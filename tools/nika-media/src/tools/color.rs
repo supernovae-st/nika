@@ -8,7 +8,7 @@ use std::pin::Pin;
 use super::context::MediaToolContext;
 use super::error::{invalid_args, tool_error};
 use super::{MediaOp, MediaOpResult};
-use crate::error::NikaError;
+use super::error::MediaToolError;
 
 pub struct DominantColorOp;
 
@@ -53,7 +53,7 @@ impl MediaOp for DominantColorOp {
         &'a self,
         args: serde_json::Value,
         ctx: &'a MediaToolContext,
-    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, MediaToolError>> + Send + 'a>> {
         Box::pin(async move {
             ctx.check_cancelled()?;
             let hash = args.get("hash").and_then(|v| v.as_str()).ok_or_else(|| {
@@ -92,7 +92,7 @@ fn extract_palette(
     data: &[u8],
     max_colors: u8,
     quality: u8,
-) -> Result<Vec<serde_json::Value>, NikaError> {
+) -> Result<Vec<serde_json::Value>, MediaToolError> {
     #[cfg(not(feature = "media-thumbnail"))]
     {
         let _ = (data, quality, max_colors);
@@ -134,7 +134,7 @@ fn extract_palette(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::media::CasStore;
+    use crate::CasStore;
     use std::sync::Arc;
 
     async fn setup() -> (tempfile::TempDir, Arc<MediaToolContext>) {

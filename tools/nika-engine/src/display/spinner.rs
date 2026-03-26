@@ -78,6 +78,6 @@ mod tests {
 
     #[test]
     fn max_visible_tasks_positive() {
-        assert!(MAX_VISIBLE_TASKS > 0);
+        assert_ne!(MAX_VISIBLE_TASKS, 0);
     }
 }

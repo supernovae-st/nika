@@ -9,7 +9,7 @@ use std::pin::Pin;
 use super::context::MediaToolContext;
 use super::error::{invalid_args, tool_error};
 use super::{MediaOp, MediaOpResult};
-use crate::error::NikaError;
+use super::error::MediaToolError;
 
 pub struct PdfExtractOp;
 
@@ -37,7 +37,7 @@ impl MediaOp for PdfExtractOp {
         &'a self,
         args: serde_json::Value,
         ctx: &'a MediaToolContext,
-    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, MediaToolError>> + Send + 'a>> {
         Box::pin(async move {
             ctx.check_cancelled()?;
             let hash = args
@@ -70,7 +70,7 @@ impl MediaOp for PdfExtractOp {
 ///
 /// PDF files can contain deeply recursive structures that cause stack overflow.
 /// Running in a dedicated thread with a 4MB stack limit contains the damage.
-fn extract_pdf_safe(data: &[u8]) -> Result<String, NikaError> {
+fn extract_pdf_safe(data: &[u8]) -> Result<String, MediaToolError> {
     let data = data.to_vec();
     let handle = std::thread::Builder::new()
         .stack_size(4 * 1024 * 1024) // 4 MB stack limit
@@ -91,7 +91,7 @@ fn extract_pdf_safe(data: &[u8]) -> Result<String, NikaError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::media::CasStore;
+    use crate::CasStore;
     use std::sync::Arc;
 
     async fn setup() -> (tempfile::TempDir, Arc<MediaToolContext>) {

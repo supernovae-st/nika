@@ -9,7 +9,7 @@ use std::pin::Pin;
 use super::context::MediaToolContext;
 use super::error::invalid_args;
 use super::{MediaOp, MediaOpResult};
-use crate::error::NikaError;
+use super::error::MediaToolError;
 
 pub struct ThumbhashOp;
 
@@ -40,7 +40,7 @@ impl MediaOp for ThumbhashOp {
         &'a self,
         args: serde_json::Value,
         ctx: &'a MediaToolContext,
-    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, MediaToolError>> + Send + 'a>> {
         Box::pin(async move {
             ctx.check_cancelled()?;
             let hash = args
@@ -71,7 +71,7 @@ impl MediaOp for ThumbhashOp {
 /// Compute thumbhash from raw image data.
 ///
 /// Decodes the image, resizes to max 100x100, extracts RGBA, then hashes.
-fn compute_thumbhash(data: &[u8]) -> Result<Vec<u8>, NikaError> {
+fn compute_thumbhash(data: &[u8]) -> Result<Vec<u8>, MediaToolError> {
     // Try to decode with image crate if available
     #[cfg(feature = "media-thumbnail")]
     {
@@ -98,7 +98,7 @@ fn compute_thumbhash(data: &[u8]) -> Result<Vec<u8>, NikaError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::media::CasStore;
+    use crate::CasStore;
     use std::sync::Arc;
 
     async fn setup() -> (tempfile::TempDir, Arc<MediaToolContext>) {
