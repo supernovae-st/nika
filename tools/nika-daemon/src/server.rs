@@ -108,7 +108,7 @@ impl DaemonServer {
         {
             use std::os::unix::fs::PermissionsExt;
             let perms = std::fs::Permissions::from_mode(0o600);
-            std::fs::set_permissions(socket_path, perms)?;
+            tokio::fs::set_permissions(socket_path, perms).await?;
         }
 
         info!(path = %socket_path.display(), "daemon listening");
