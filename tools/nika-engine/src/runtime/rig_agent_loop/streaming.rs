@@ -52,9 +52,19 @@ impl RigAgentLoop {
             request_builder = request_builder.preamble(sys.to_string());
         }
 
-        // Apply temperature if specified using native rig-core method
+        // Apply temperature — but strip for reasoning models (o3, gpt-5, deepseek-reasoner)
+        // which reject temperature with HTTP 400
         if let Some(temp) = self.params.effective_temperature() {
-            request_builder = request_builder.temperature(f64::from(temp));
+            if crate::provider::rig::is_reasoning_model(
+                self.params.model.as_deref().unwrap_or(""),
+            ) {
+                tracing::warn!(
+                    model = self.params.model.as_deref().unwrap_or("unknown"),
+                    "Stripping temperature for reasoning model in agent stream path"
+                );
+            } else {
+                request_builder = request_builder.temperature(f64::from(temp));
+            }
         }
 
         let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
@@ -229,9 +239,18 @@ impl RigAgentLoop {
                 .tools(tools)
                 .max_tokens(effective_max_tokens);
 
-            // Apply temperature using native rig-core method
+            // Apply temperature — strip for reasoning models
             if let Some(temp) = self.params.effective_temperature() {
-                builder = builder.temperature(f64::from(temp));
+                if crate::provider::rig::is_reasoning_model(
+                    self.params.model.as_deref().unwrap_or(""),
+                ) {
+                    tracing::warn!(
+                        model = self.params.model.as_deref().unwrap_or("unknown"),
+                        "Stripping temperature for reasoning model in agent path"
+                    );
+                } else {
+                    builder = builder.temperature(f64::from(temp));
+                }
             }
 
             // Apply tool_choice only if explicitly set
@@ -360,8 +379,18 @@ impl RigAgentLoop {
             .tools(tools)
             .max_tokens(effective_max_tokens);
 
+        // Apply temperature — strip for reasoning models
         if let Some(temp) = self.params.effective_temperature() {
-            builder = builder.temperature(f64::from(temp));
+            if crate::provider::rig::is_reasoning_model(
+                self.params.model.as_deref().unwrap_or(""),
+            ) {
+                tracing::warn!(
+                    model = self.params.model.as_deref().unwrap_or("unknown"),
+                    "Stripping temperature for reasoning model in streaming agent path"
+                );
+            } else {
+                builder = builder.temperature(f64::from(temp));
+            }
         }
 
         if self.params.has_explicit_tool_choice() {

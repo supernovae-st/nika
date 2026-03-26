@@ -46,11 +46,12 @@ pub const PROGRESS_CHARS: &str = "\u{2501}\u{257A}\u{2500}";
 /// Task bar in running state (with spinner).
 ///
 /// ```text
-///   ⠹ ✧ fetch_data       running  +2.3s  in:1.2k
+///   ⠹ ✧ fetch_data       running  +2.3s  out:1.2k
 /// ```
-/// Uses `{prefix}` for stable part (verb + id) and `{msg}` for volatile (tokens).
+/// Uses `{prefix}` for stable part (verb + id), `{msg}` for status label (running/turn N),
+/// and `{tokens}` for the live streaming counter (registered via `with_key`, zero-alloc).
 /// `{elapsed}` auto-updates on every tick — no event needed for live time.
-pub const TASK_RUNNING_TEMPLATE: &str = "  {spinner:.cyan} {prefix} {msg}  {elapsed:.dim}";
+pub const TASK_RUNNING_TEMPLATE: &str = "  {spinner:.cyan} {prefix} {msg}  {elapsed:.dim}  {tokens}";
 
 /// Task bar in pending/completed state (no spinner, space placeholder).
 pub const TASK_STATIC_TEMPLATE: &str = "  {msg}";
