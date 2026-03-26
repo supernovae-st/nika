@@ -18,7 +18,7 @@ mod tests {
     use crate::runtime::builtin::media::dimensions::DimensionsOp;
     use crate::runtime::builtin::media::safety::sanitize_svg;
     use crate::runtime::builtin::media::thumbhash_tool::ThumbhashOp;
-    use crate::runtime::builtin::media::{MediaOp, MediaOpResult, MediaToolAdapter};
+    use crate::runtime::builtin::media::{MediaOp, MediaToolAdapter};
     use crate::runtime::builtin::BuiltinTool;
 
     async fn setup() -> (tempfile::TempDir, Arc<MediaToolContext>) {
@@ -1351,6 +1351,7 @@ mod tests {
     // HELPERS
     // ═══════════════════════════════════════════════════════════════════════
 
+    #[allow(dead_code)]
     fn png_crc(chunk_type: &[u8], data: &[u8]) -> u32 {
         let table = crc32_table();
         let mut crc: u32 = 0xFFFF_FFFF;
@@ -1360,6 +1361,7 @@ mod tests {
         crc ^ 0xFFFF_FFFF
     }
 
+    #[allow(dead_code)]
     fn crc32_table() -> [u32; 256] {
         let mut t = [0u32; 256];
         for n in 0..256u32 {
