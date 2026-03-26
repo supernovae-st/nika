@@ -13,6 +13,7 @@ use super::live::LiveRenderer;
 
 /// Unified renderer that dispatches to either LiveRenderer (animated, in-place)
 /// or CliRenderer (append-only, for non-TTY / CI / JSON).
+#[allow(clippy::large_enum_variant)]
 pub enum RunRenderer {
     /// Animated display with spinners, progress bars, and in-place updates.
     Live(LiveRenderer),

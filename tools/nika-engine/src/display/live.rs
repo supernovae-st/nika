@@ -56,6 +56,7 @@ pub struct LiveRenderer {
     /// Task start times for duration calculation: task_id → (timestamp_ms, verb).
     task_starts: HashMap<String, (u64, String)>,
     /// Per-task token accumulator for O(1) lookup in TaskCompleted.
+    #[allow(dead_code)]
     task_token_acc: HashMap<String, (u64, u64)>,
     /// Workflow start timestamp from events.
     workflow_start_ms: u64,
