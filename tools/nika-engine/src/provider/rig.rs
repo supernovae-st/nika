@@ -23,6 +23,7 @@
 //! rig-core AgentBuilder.tool()
 //! ```
 
+use crate::error_domains::ProviderError;
 use crate::mcp::McpClient;
 use crate::util::STREAM_CHUNK_TIMEOUT;
 use futures::StreamExt;
@@ -191,20 +192,20 @@ impl RigProvider {
     ///
     /// # Errors
     ///
-    /// - `NikaError::MissingApiKey` if the provider requires a key and the env var is not set
-    /// - `NikaError::ProviderNotConfigured` if the provider name is unknown
+    /// - `ProviderError::MissingApiKey` if the provider requires a key and the env var is not set
+    /// - `ProviderError::NotConfigured` if the provider name is unknown
     pub fn from_name(name: &str) -> Result<Self, crate::error::NikaError> {
-        let provider = crate::core::find_provider(name).ok_or_else(|| {
-            crate::error::NikaError::ProviderNotConfigured {
+        let provider = crate::core::find_provider(name).ok_or(
+            ProviderError::NotConfigured {
                 provider: name.to_string(),
             }
-        })?;
+        )?;
 
         // Check env var is set (rig-core panics without it)
         if provider.requires_key && !provider.has_env_key() {
-            return Err(crate::error::NikaError::MissingApiKey {
+            return Err(ProviderError::MissingApiKey {
                 provider: provider.id.to_string(),
-            });
+            }.into());
         }
 
         match provider.id {
@@ -217,9 +218,9 @@ impl RigProvider {
             "xai" => Ok(Self::xai()),
             #[cfg(feature = "native-inference")]
             "native" => Ok(Self::native()),
-            _ => Err(crate::error::NikaError::ProviderNotConfigured {
+            _ => Err(ProviderError::NotConfigured {
                 provider: name.to_string(),
-            }),
+            }.into()),
         }
     }
 
