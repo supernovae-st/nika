@@ -117,9 +117,9 @@ impl TuiState {
         self.workflow.tasks_completed = 0;
         self.workflow.started_at = None;
 
-        // Reset all failed tasks to pending
+        // Reset all non-Success tasks to pending (Running/Skipped/Failed from aborted runs)
         for (task_id, task) in &mut self.tasks {
-            if task.status == TaskStatus::Failed {
+            if !matches!(task.status, TaskStatus::Success) {
                 task.status = TaskStatus::Pending;
                 task.duration_ms = None;
                 task.error = None;
