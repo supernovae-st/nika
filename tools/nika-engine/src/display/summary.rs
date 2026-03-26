@@ -94,14 +94,14 @@ pub fn print_done_summary(
     }
 }
 
-/// Print the doctor header with a nice box.
+/// Format the doctor header box as a list of lines.
 ///
 /// ```text
 /// ┌─ Nika Doctor ──────────────────────────────────┐
 /// │ v0.12.0 | Checking system health...            │
 /// └────────────────────────────────────────────────┘
 /// ```
-pub fn print_doctor_header(version: &str) {
+pub fn format_doctor_header(version: &str) -> Vec<String> {
     let title = "Nika Doctor";
     let inner = format!(" v{} | Checking system health... ", version);
 
@@ -143,11 +143,20 @@ pub fn print_doctor_header(version: &str) {
         BOTTOM_RIGHT.dimmed()
     );
 
-    println!();
-    println!("{}", top_line);
-    println!("{}", content_line);
-    println!("{}", bottom_line);
-    println!();
+    vec![
+        String::new(),
+        top_line,
+        content_line,
+        bottom_line,
+        String::new(),
+    ]
+}
+
+/// Print the doctor header box (thin wrapper over `format_doctor_header`).
+pub fn print_doctor_header(version: &str) {
+    for line in format_doctor_header(version) {
+        println!("{}", line);
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -627,10 +636,20 @@ fn token_bar(value: u64, max: u64, width: usize, color: &str) -> String {
     }
 }
 
-/// Print the doctor summary with colored counts, separator, and optional next steps.
-pub fn print_doctor_summary(pass_count: usize, warn_count: usize, fail_count: usize) {
-    println!();
-    println!("{}", HORIZONTAL.repeat(50).dimmed());
+/// Format the doctor summary with colored counts, separator, and optional next steps.
+///
+/// `nika_dir_exists` controls whether the "nika init" hint is shown, eliminating
+/// filesystem coupling so the function is testable in isolation.
+pub fn format_doctor_summary(
+    pass_count: usize,
+    warn_count: usize,
+    fail_count: usize,
+    nika_dir_exists: bool,
+) -> Vec<String> {
+    let mut lines = Vec::new();
+
+    lines.push(String::new());
+    lines.push(format!("{}", HORIZONTAL.repeat(50).dimmed()));
 
     let status_icon = if fail_count > 0 {
         "\u{2717}".red().bold() // ✗
@@ -648,32 +667,41 @@ pub fn print_doctor_summary(pass_count: usize, warn_count: usize, fail_count: us
         "All good!".green().bold()
     };
 
-    println!(
+    lines.push(format!(
         "{} {} \u{2014} {} passed, {} warnings, {} failed", // — (em dash)
         status_icon,
         status_word,
         pass_count.to_string().green(),
         warn_count.to_string().yellow(),
         fail_count.to_string().red()
-    );
+    ));
 
     if warn_count > 0 || fail_count > 0 {
-        println!();
-        if !std::path::Path::new(".nika").exists() {
-            println!(
+        lines.push(String::new());
+        if !nika_dir_exists {
+            lines.push(format!(
                 "  {} Run {} to initialize project",
                 "\u{2192}".cyan(),
                 "nika init".bold()
-            );
+            ));
         }
-        println!(
+        lines.push(format!(
             "  {} Run {} to auto-fix issues",
             "\u{2192}".cyan(),
             "nika doctor --fix".bold()
-        );
+        ));
     }
 
-    println!();
+    lines.push(String::new());
+    lines
+}
+
+/// Print the doctor summary (thin wrapper over `format_doctor_summary`).
+pub fn print_doctor_summary(pass_count: usize, warn_count: usize, fail_count: usize) {
+    let nika_dir_exists = std::path::Path::new(".nika").exists();
+    for line in format_doctor_summary(pass_count, warn_count, fail_count, nika_dir_exists) {
+        println!("{}", line);
+    }
 }
 
 #[cfg(test)]
