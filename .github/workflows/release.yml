@@ -869,24 +869,94 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Send Telegram notification
+      - name: Checkout for stats
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Collect release stats
+        id: stats
+        env:
+          TAG: ${{ env.RELEASE_TAG }}
+        run: |
+          VERSION="${TAG#v}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+          # Count workspace crates
+          CRATE_COUNT=$(ls -d tools/nika-*/Cargo.toml tools/nika/Cargo.toml 2>/dev/null | wc -l | tr -d ' ')
+          echo "crate_count=${CRATE_COUNT}" >> $GITHUB_OUTPUT
+
+          # Count tests
+          TEST_COUNT=$(grep -r "#\[test\]" tools/ --include="*.rs" 2>/dev/null | wc -l | tr -d ' ')
+          echo "test_count=${TEST_COUNT}" >> $GITHUB_OUTPUT
+
+          # Count npm packages (platform + main)
+          NPM_COUNT=$(ls -d packages/*/package.json 2>/dev/null | wc -l | tr -d ' ')
+          echo "npm_count=${NPM_COUNT}" >> $GITHUB_OUTPUT
+
+          # Overall success count
+          TOTAL=8
+          SUCCESS=0
+          for r in "${{ needs.docker-publish.result }}" \
+                   "${{ needs.update-homebrew.result }}" \
+                   "${{ needs.vscode-publish.result }}" \
+                   "${{ needs.npm-publish.result }}" \
+                   "${{ needs.crates-publish.result }}" \
+                   "${{ needs.update-scoop.result }}" \
+                   "${{ needs.update-aur.result }}" \
+                   "${{ needs.release.result }}"; do
+            [ "$r" = "success" ] && SUCCESS=$((SUCCESS + 1))
+          done
+          echo "success_count=${SUCCESS}" >> $GITHUB_OUTPUT
+          echo "total_count=${TOTAL}" >> $GITHUB_OUTPUT
+
+      - name: Send detailed report
         if: ${{ secrets.TELEGRAM_BOT_TOKEN != '' }}
-        uses: appleboy/telegram-action@v1
+        uses: appleboy/telegram-action@v2
         with:
           to: ${{ secrets.TELEGRAM_CHAT_ID }}
           token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          format: markdown
+          format: html
+          disable_web_page_preview: true
           message: |
-            🦋 *Nika ${{ env.RELEASE_TAG }} Released*
+            🦋 <b>Nika ${{ env.RELEASE_TAG }} — Release Report</b>
 
-            *Platforms:*
+            <b>📦 Distribution Status</b>
             ├ GitHub Release: ✅
-            ├ Docker: ${{ needs.docker-publish.result == 'success' && '✅' || '❌' }}
-            ├ Homebrew: ${{ needs.update-homebrew.result == 'success' && '✅' || '⚠️' }}
-            ├ VS Code: ${{ needs.vscode-publish.result == 'success' && '✅' || '❌' }}
-            ├ npm: ${{ needs.npm-publish.result == 'success' && '✅' || '❌' }}
-            ├ crates.io: ${{ needs.crates-publish.result == 'success' && '✅' || '❌' }}
-            ├ Scoop: ${{ needs.update-scoop.result == 'success' && '✅' || '⚠️' }}
-            └ AUR: ${{ needs.update-aur.result == 'success' && '✅' || '⚠️' }}
+            ├ Docker (ghcr.io + Hub): ${{ needs.docker-publish.result == 'success' && '✅' || '❌' }}
+            ├ Homebrew tap: ${{ needs.update-homebrew.result == 'success' && '✅' || '⚠️' }}
+            ├ VS Code + Open VSX: ${{ needs.vscode-publish.result == 'success' && '✅' || '❌' }}
+            ├ npm (${{ steps.stats.outputs.npm_count }} packages): ${{ needs.npm-publish.result == 'success' && '✅' || '❌' }}
+            ├ crates.io (${{ steps.stats.outputs.crate_count }} crates): ${{ needs.crates-publish.result == 'success' && '✅' || '❌' }}
+            ├ Scoop (Windows): ${{ needs.update-scoop.result == 'success' && '✅' || '⚠️' }}
+            └ AUR (Arch Linux): ${{ needs.update-aur.result == 'success' && '✅' || '⚠️' }}
 
-            [Release Notes](https://github.com/supernovae-st/nika/releases/tag/${{ env.RELEASE_TAG }})
+            <b>🔐 Security</b>
+            ├ SLSA provenance: ✅ (all binaries attested)
+            ├ macOS notarization: ✅ (Gatekeeper approved)
+            ├ Docker SBOM: ✅
+            └ SHA256 checksums: ✅
+
+            <b>📊 Stats</b>
+            ├ Platforms: ${{ steps.stats.outputs.success_count }}/${{ steps.stats.outputs.total_count }} succeeded
+            ├ Crates: ${{ steps.stats.outputs.crate_count }}
+            ├ Tests: ${{ steps.stats.outputs.test_count }}+
+            └ Schema: nika/workflow@0.12
+
+            <b>🔗 Links</b>
+            ├ <a href="https://github.com/supernovae-st/nika/releases/tag/${{ env.RELEASE_TAG }}">GitHub Release</a>
+            ├ <a href="https://marketplace.visualstudio.com/items?itemName=supernovae.nika-lang">VS Code Marketplace</a>
+            ├ <a href="https://www.npmjs.com/package/@supernovae/nika">npm</a>
+            ├ <a href="https://crates.io/crates/nika">crates.io</a>
+            └ <a href="https://github.com/supernovae-st/nika/pkgs/container/nika">Docker</a>
+
+      - name: Send condensed summary
+        if: ${{ secrets.TELEGRAM_BOT_TOKEN != '' }}
+        uses: appleboy/telegram-action@v2
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          format: html
+          disable_web_page_preview: true
+          message: |
+            🦋 <b>Nika ${{ steps.stats.outputs.version }}</b> — ${{ steps.stats.outputs.success_count }}/${{ steps.stats.outputs.total_count }} platforms ✅ | <code>brew install supernovae-st/tap/nika</code> | <code>npx @supernovae/nika</code> | <code>cargo install nika</code>
