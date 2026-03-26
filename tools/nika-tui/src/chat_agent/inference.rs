@@ -35,6 +35,34 @@ impl ChatAgent {
         // Start streaming state
         self.streaming_state.start();
 
+        // Run inference — capture result without early-return so we can always clean up
+        let result = self.run_inference_inner(prompt).await;
+
+        // Always finish streaming regardless of success/failure
+        self.streaming_state.finish();
+
+        match result {
+            Ok(response) => {
+                // Add assistant message to history
+                self.history.push(ChatMessage::assistant(&response));
+
+                // Send completion to streaming channel
+                if let Some(tx) = &self.streaming_tx {
+                    let _ = tx.send(response.clone()).await;
+                }
+
+                Ok(response)
+            }
+            Err(e) => {
+                // Roll back dangling user message — keeps history consistent
+                self.history.pop();
+                Err(e)
+            }
+        }
+    }
+
+    /// Inner inference logic — called by `infer` which handles cleanup.
+    async fn run_inference_inner(&mut self, prompt: &str) -> Result<String, NikaError> {
         // Send prompt to streaming channel if available
         if let Some(tx) = &self.streaming_tx {
             let _ = tx
@@ -43,7 +71,7 @@ impl ChatAgent {
         }
 
         // Use streaming if stream_chunk_tx is set, otherwise blocking
-        let response = if let Some(tx) = self.stream_chunk_tx.clone() {
+        if let Some(tx) = self.stream_chunk_tx.clone() {
             // Clone tx for metrics send (infer_stream takes ownership)
             let metrics_tx = tx.clone();
 
@@ -68,7 +96,7 @@ impl ChatAgent {
                 })
                 .await;
 
-            result.text
+            Ok(result.text)
         } else {
             // Blocking call - full response at once
             self.provider
@@ -76,20 +104,7 @@ impl ChatAgent {
                 .await
                 .map_err(|e| NikaError::ProviderApiError {
                     message: e.to_string(),
-                })?
-        };
-
-        // Finish streaming
-        self.streaming_state.finish();
-
-        // Add assistant message to history
-        self.history.push(ChatMessage::assistant(&response));
-
-        // Send completion to streaming channel
-        if let Some(tx) = &self.streaming_tx {
-            let _ = tx.send(response.clone()).await;
+                })
         }
-
-        Ok(response)
     }
 }
