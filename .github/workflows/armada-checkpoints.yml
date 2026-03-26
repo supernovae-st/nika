@@ -142,10 +142,30 @@ jobs:
         run: cargo deny check 2>/dev/null || echo "::warning::cargo-deny found issues (deny.toml may be missing)"
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # STATION 7-8: AI Reviews (Slow, parallel)
+  # STATION 7: Semver Check (API compatibility)
   # ═══════════════════════════════════════════════════════════════════════════
-  station-7-coderabbit:
-    name: "🤖 Station 7: CodeRabbit"
+  station-7-semver:
+    name: "📦 Station 7: Semver Check"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "tools/nika -> target"
+      - name: Check semver compatibility
+        uses: obi1kenobi/cargo-semver-checks-action@v2
+        with:
+          manifest-path: tools/Cargo.toml
+        continue-on-error: true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # STATION 8-9: AI Reviews (Slow, parallel)
+  # ═══════════════════════════════════════════════════════════════════════════
+  station-8-coderabbit:
+    name: "🤖 Station 8: CodeRabbit"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -154,8 +174,8 @@ jobs:
           echo "If CodeRabbit GitHub App is installed, it reviews automatically."
           echo "Otherwise, this station passes without AI review."
 
-  station-8-claude:
-    name: "🧠 Station 8: Claude AI"
+  station-9-claude:
+    name: "🧠 Station 9: Claude AI"
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
     steps:
@@ -171,8 +191,8 @@ jobs:
   # ═══════════════════════════════════════════════════════════════════════════
   # STATION 9-10: Process Checkpoints (Fast, parallel)
   # ═══════════════════════════════════════════════════════════════════════════
-  station-9-commits:
-    name: "📝 Station 9: Ship's Log"
+  station-10-commits:
+    name: "📝 Station 10: Ship's Log"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -196,8 +216,8 @@ jobs:
             echo "::warning::Some log entries don't follow conventional commits format"
           fi
 
-  station-10-version:
-    name: "🏴‍☠️ Station 10: Captain's Orders"
+  station-11-version:
+    name: "🏴‍☠️ Station 11: Captain's Orders"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -237,10 +257,11 @@ jobs:
       - station-4-coverage
       - station-5-docs
       - station-6-security
-      - station-7-coderabbit
-      - station-8-claude
-      - station-9-commits
-      - station-10-version
+      - station-7-semver
+      - station-8-coderabbit
+      - station-9-claude
+      - station-10-commits
+      - station-11-version
     steps:
       - uses: actions/checkout@v6
       - run: |
@@ -253,9 +274,10 @@ jobs:
           echo "Station 4:  Coverage      - CLEARED"
           echo "Station 5:  Docs          - CLEARED"
           echo "Station 6:  Security      - CLEARED"
-          echo "Station 7:  CodeRabbit    - CLEARED"
-          echo "Station 8:  Claude AI     - CLEARED"
-          echo "Station 9:  Ship's Log    - CLEARED"
-          echo "Station 10: Captain       - CLEARED"
+          echo "Station 7:  Semver Check  - CLEARED"
+          echo "Station 8:  CodeRabbit    - CLEARED"
+          echo "Station 9:  Claude AI     - CLEARED"
+          echo "Station 10: Ship's Log    - CLEARED"
+          echo "Station 11: Captain       - CLEARED"
           echo ""
           echo "All hands on deck! This PR is ready for merge!"

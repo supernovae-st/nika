@@ -33,6 +33,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 env:
   CARGO_TERM_COLOR: always
@@ -179,6 +181,14 @@ jobs:
             dist/*.zip
             dist/*.sha256
           retention-days: 7
+
+      - name: Generate SLSA provenance attestation
+        if: "!inputs.dry_run"
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/*.zip
 
   # ─────────────────────────────────────────────────────────────────────────────
   # Publish Docker Image (from pre-built musl binaries)
@@ -604,3 +614,105 @@ jobs:
             cd ../..
           done
           echo "=== All crates published ==="
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Update Scoop Bucket (Windows)
+  # ─────────────────────────────────────────────────────────────────────────────
+  update-scoop:
+    name: Update Scoop Bucket
+    needs: release
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: nika-windows-x64
+          path: artifacts
+
+      - name: Extract version and hash
+        id: info
+        env:
+          TAG: ${{ env.RELEASE_TAG }}
+        run: |
+          echo "version=${TAG#v}" >> $GITHUB_OUTPUT
+          HASH=$(cat artifacts/nika-windows-x64-${TAG#v}.zip.sha256 | awk '{print $1}')
+          echo "hash=${HASH}" >> $GITHUB_OUTPUT
+
+      - name: Update Scoop manifest
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          VERSION: ${{ steps.info.outputs.version }}
+          HASH: ${{ steps.info.outputs.hash }}
+          TAG: ${{ env.RELEASE_TAG }}
+        run: |
+          # Clone or create the scoop bucket repo
+          if gh repo view supernovae-st/scoop-nika &>/dev/null; then
+            gh repo clone supernovae-st/scoop-nika /tmp/scoop-nika
+          else
+            mkdir -p /tmp/scoop-nika/bucket
+            cd /tmp/scoop-nika
+            git init
+            echo "# Scoop Bucket for Nika" > README.md
+            gh repo create supernovae-st/scoop-nika --public --source=. --push
+          fi
+
+          # Generate manifest
+          cat > /tmp/scoop-nika/bucket/nika.json << MANIFEST
+          {
+            "version": "${VERSION}",
+            "description": "Semantic YAML workflow engine for AI tasks",
+            "homepage": "https://github.com/SuperNovae-studio/nika",
+            "license": "AGPL-3.0-or-later",
+            "architecture": {
+              "64bit": {
+                "url": "https://github.com/SuperNovae-studio/nika/releases/download/${TAG}/nika-windows-x64-${VERSION}.zip",
+                "hash": "${HASH}"
+              }
+            },
+            "bin": "nika.exe",
+            "checkver": {
+              "github": "https://github.com/SuperNovae-studio/nika"
+            },
+            "autoupdate": {
+              "architecture": {
+                "64bit": {
+                  "url": "https://github.com/SuperNovae-studio/nika/releases/download/v\$version/nika-windows-x64-\$version.zip"
+                }
+              }
+            }
+          }
+          MANIFEST
+
+          # Commit and push
+          cd /tmp/scoop-nika
+          git add -A
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "Update nika to ${VERSION}" || true
+          git push || true
+        continue-on-error: true
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Update Winget Package (Windows Package Manager)
+  # ─────────────────────────────────────────────────────────────────────────────
+  update-winget:
+    name: Update Winget Package
+    needs: release
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Publish to Winget
+        uses: vedantmgoyal9/winget-releaser@v2
+        with:
+          identifier: SuperNovae.Nika
+          installers-regex: 'nika-windows-x64-[\d\.]+\.zip$'
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        continue-on-error: true
