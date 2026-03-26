@@ -42,7 +42,7 @@ env:
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────────────
-  # Build Release Binaries (6 targets)
+  # Build Release Binaries (7 targets)
   # ─────────────────────────────────────────────────────────────────────────────
   build:
     name: Build ${{ matrix.target }}
@@ -129,6 +129,49 @@ jobs:
         if: matrix.cross && matrix.docker
         working-directory: tools/nika
         run: cross build --release --target ${{ matrix.target }} --no-default-features
+
+      - name: macOS code sign and notarize
+        if: runner.os == 'macOS' && !inputs.dry_run
+        env:
+          APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          # Import certificate into temporary keychain
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          KEYCHAIN_PASSWORD=$(openssl rand -hex 16)
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          echo "$APPLE_CERTIFICATE_P12" | base64 --decode > $RUNNER_TEMP/certificate.p12
+          security import $RUNNER_TEMP/certificate.p12 \
+            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Sign the binary
+          BINARY_PATH="tools/nika/target/${TARGET}/release/nika"
+          codesign --sign "Developer ID Application: SuperNovae ($APPLE_TEAM_ID)" \
+            --options runtime \
+            --timestamp \
+            "$BINARY_PATH"
+
+          # Notarize
+          zip -j $RUNNER_TEMP/nika-notarize.zip "$BINARY_PATH"
+          xcrun notarytool submit $RUNNER_TEMP/nika-notarize.zip \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait --timeout 10m
+
+          echo "macOS binary signed and notarized successfully"
 
       - name: Extract version from tag
         id: version
@@ -634,14 +677,16 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Publish order: leaf dependencies first
+          # Publish order: leaf dependencies first (12 crates)
           CRATES=(
             nika-core
             nika-event
             nika-lsp-core
             nika-mcp
             nika-media
+            nika-init
             nika-engine
+            nika-daemon
             nika-cli
             nika-tui
             nika-lsp
@@ -651,17 +696,9 @@ jobs:
           for crate in "${CRATES[@]}"; do
             echo "=== Publishing ${crate} ==="
             cd "tools/${crate}"
-            # Skip if already published at this version
-            if cargo publish --dry-run 2>&1 | grep -q "already uploaded"; then
-              echo "  -> ${crate} already published, skipping"
-            else
-              cargo publish --allow-dirty || {
-                echo "  -> WARN: ${crate} publish failed (may already exist)"
-              }
-              # Wait for crates.io index propagation
-              echo "  -> Waiting 30s for index propagation..."
-              sleep 30
-            fi
+            cargo publish --allow-dirty 2>&1 || echo "  -> WARN: ${crate} may already exist at this version"
+            echo "  -> Waiting 30s for index propagation..."
+            sleep 30
             cd ../..
           done
           echo "=== All crates published ==="
@@ -727,6 +764,7 @@ jobs:
                 "hash": "${HASH}"
               }
             },
+            "extract_dir": "nika-windows-x64-${VERSION}",
             "bin": "nika.exe",
             "checkver": {
               "github": "https://github.com/supernovae-st/nika"
@@ -750,20 +788,5 @@ jobs:
           git push || true
         continue-on-error: true
 
-  # ─────────────────────────────────────────────────────────────────────────────
-  # Update Winget Package (Windows Package Manager)
-  # ─────────────────────────────────────────────────────────────────────────────
-  update-winget:
-    name: Update Winget Package
-    needs: release
-    if: ${{ !inputs.dry_run }}
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Publish to Winget
-        uses: vedantmgoyal9/winget-releaser@v2
-        with:
-          identifier: SuperNovae.Nika
-          installers-regex: 'nika-windows-x64-[\d\.]+\.zip$'
-          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-        continue-on-error: true
+  # NOTE: Winget requires .exe/.msi installer, not .zip
+  # TODO: Add winget-releaser once we have an NSIS/WiX installer
