@@ -123,15 +123,27 @@ impl App {
         // Dismiss first-launch welcome hint on any keypress
         self.dismiss_welcome_hint();
 
-        // 1. Global shortcuts (always available)
-        // In Studio Insert mode, let Ctrl+C pass through to the view (copy)
+        // 1. Ctrl+C is always global (never delegate — prevents copy from stealing quit)
         if let (KeyCode::Char('c'), KeyModifiers::CONTROL) = (code, modifiers) {
             if !(self.current_view == TuiView::Studio && self.input_mode == InputMode::Insert) {
                 return self.handle_ctrl_c();
             }
         }
 
-        // 2. Quit (Normal mode only)
+        // 2. Dispatch to view FIRST — views must be able to close their own overlays
+        //    (provider modal, command palette, help) before global shortcuts fire.
+        let view_action = self.dispatch_to_current_view(code, modifiers);
+        if view_action != ViewAction::None {
+            return Action::from_view_action(view_action);
+        }
+
+        // 3. Global Escape: exit Insert/Search mode (only if view didn't handle it)
+        if code == KeyCode::Esc && self.input_mode != InputMode::Normal {
+            self.input_mode = InputMode::Normal;
+            return Action::Continue;
+        }
+
+        // 4. Quit (Normal mode only, only if view didn't consume the key)
         if code == KeyCode::Char('q')
             && modifiers.is_empty()
             && self.input_mode == InputMode::Normal
@@ -139,15 +151,8 @@ impl App {
             return Action::Quit;
         }
 
-        // 3. Mode switching with Escape
-        if code == KeyCode::Esc && self.input_mode != InputMode::Normal {
-            self.input_mode = InputMode::Normal;
-            return Action::Continue;
-        }
-
-        // 4. View switching - 3-view architecture
-        // Allow Alt+1-3 in ANY mode for view switching
-        // This ensures users can always navigate even in Insert/Search mode
+        // 5. View switching - 3-view architecture
+        // Allow Alt+1-3 in ANY mode for view switching.
         let alt_pressed = modifiers.contains(KeyModifiers::ALT);
         let is_normal = self.input_mode == InputMode::Normal;
 
@@ -179,11 +184,7 @@ impl App {
             }
         }
 
-        // 5. Delegate to current view's handle_key
-        let view_action = self.dispatch_to_current_view(code, modifiers);
-
-        // 6. Convert ViewAction to Action
-        Action::from_view_action(view_action)
+        Action::Continue
     }
 
     /// Dispatch key event to the current view's handle_key method
