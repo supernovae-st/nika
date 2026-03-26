@@ -56,9 +56,9 @@ impl TuiState {
         if let Some(last_turn) = self.agent.turns.last() {
             if let Some(tokens) = last_turn.tokens {
                 if self.metrics.token_history.len() >= MAX_HISTORY_ENTRIES {
-                    self.metrics.token_history.remove(0);
+                    self.metrics.token_history.pop_front();
                 }
-                self.metrics.token_history.push(tokens);
+                self.metrics.token_history.push_back(tokens);
             }
         }
         // TIER 4.1: Mark reasoning panel dirty

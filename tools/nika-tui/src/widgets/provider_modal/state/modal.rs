@@ -1,5 +1,7 @@
 //! Core modal state struct, Default, Debug, visibility, animation, verification, tab labels.
 
+use std::collections::VecDeque;
+
 use super::types::{ConnectionStatus, DownloadState, NativeModelInfo, ProviderModalTab};
 
 /// Main provider modal state
@@ -35,7 +37,7 @@ pub struct ProviderModalState {
     /// Cached cloud tab label to avoid allocation per frame
     pub(super) cached_cloud_label: Option<String>,
     /// Latency history per provider (7 providers x 10 samples)
-    pub(super) latency_history: Vec<Vec<u64>>,
+    pub(super) latency_history: Vec<VecDeque<u64>>,
     /// Matrix verification effect state
     pub verification_state: super::super::components::VerificationState,
     /// Whether verification animation is active
@@ -67,7 +69,7 @@ impl Default for ProviderModalState {
             active_model: None,
             animation_frame: 0,
             cached_cloud_label: None,
-            latency_history: vec![Vec::new(); 7], // Pre-allocate for 7 providers
+            latency_history: vec![VecDeque::new(); 7], // Pre-allocate for 7 providers
             verification_state: super::super::components::VerificationState::new_providers(),
             verification_active: false,
             expanded_provider_idx: None,

@@ -368,7 +368,7 @@ impl Widget for CloudTab<'_> {
                         .features(p.features.clone())
                         .context_window(p.context_window)
                         .active_indicator(self.state.active_indicator())
-                        .latency_history(latency_history);
+                        .latency_history(&latency_history);
 
                     // Add verification entry if present
                     if let Some(entry) = verify_entry {
