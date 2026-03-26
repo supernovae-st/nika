@@ -312,6 +312,9 @@ pub struct ChatView {
     cached_msg_width: usize,
     /// Streaming content length when cache was built (for incremental updates)
     cached_streaming_len: usize,
+    /// Dirty flag: set when copy_flash, thinking_collapsed, or text_selection change
+    /// Forces cache rebuild on next frame even if msg_count/width are unchanged
+    pub(crate) cached_msg_dirty: bool,
 }
 
 impl ChatView {
@@ -526,6 +529,7 @@ impl ChatView {
             cached_msg_count: 0,
             cached_msg_width: 0,
             cached_streaming_len: 0,
+            cached_msg_dirty: false,
         }
     }
 

@@ -73,6 +73,7 @@ impl ChatView {
                         let (start, _) = selection.normalized();
                         self.copy_flash_index = Some(start.message_index);
                         self.copy_flash_start = self.frame;
+                        self.cached_msg_dirty = true;
                     }
                     return true;
                 }
@@ -122,6 +123,7 @@ impl ChatView {
                 // WOW: Trigger flash effect on copied message
                 self.copy_flash_index = Some(cursor);
                 self.copy_flash_start = self.frame;
+                self.cached_msg_dirty = true;
             }
             success
         } else {

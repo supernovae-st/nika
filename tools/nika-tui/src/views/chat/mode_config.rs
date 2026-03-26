@@ -86,6 +86,7 @@ impl ChatView {
             let elapsed = self.frame.wrapping_sub(self.copy_flash_start);
             if elapsed > 16 {
                 self.copy_flash_index = None;
+                self.cached_msg_dirty = true;
             }
         }
     }
