@@ -1,3 +1,371 @@
 //! Daemon lifecycle — PID file, daemonize, signal handling.
+//!
+//! Handles the full lifecycle of the daemon process:
+//! - PID file creation/cleanup and stale detection
+//! - Socket cleanup on startup
+//! - Daemonize (double-fork on Unix)
+//! - Signal handling (SIGTERM → graceful shutdown)
 
-// Placeholder — TDD tests come first in Phase 1.5
+use std::path::Path;
+
+use tracing::{debug, info, warn};
+
+use crate::error::{DaemonError, DaemonResult};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PID FILE
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Write the current process PID to a file.
+pub fn write_pid_file(path: &Path) -> DaemonResult<()> {
+    let pid = std::process::id();
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(path, pid.to_string())?;
+    debug!(pid, path = %path.display(), "wrote PID file");
+    Ok(())
+}
+
+/// Read the PID from a PID file.
+pub fn read_pid_file(path: &Path) -> DaemonResult<u32> {
+    let content = std::fs::read_to_string(path)?;
+    content
+        .trim()
+        .parse::<u32>()
+        .map_err(|_| DaemonError::Protocol(format!("invalid PID in {}: {:?}", path.display(), content)))
+}
+
+/// Remove the PID file.
+pub fn remove_pid_file(path: &Path) {
+    if let Err(e) = std::fs::remove_file(path) {
+        if e.kind() != std::io::ErrorKind::NotFound {
+            warn!(error = %e, path = %path.display(), "failed to remove PID file");
+        }
+    }
+}
+
+/// Check if a process with the given PID is alive.
+#[cfg(unix)]
+pub fn is_process_alive(pid: u32) -> bool {
+    // kill(pid, 0) checks if the process exists without sending a signal
+    nix::sys::signal::kill(
+        nix::unistd::Pid::from_raw(pid as i32),
+        None, // Signal 0 = check existence
+    )
+    .is_ok()
+}
+
+#[cfg(not(unix))]
+pub fn is_process_alive(_pid: u32) -> bool {
+    // Conservative: assume alive on non-Unix
+    true
+}
+
+/// Check if the PID file refers to a still-running daemon.
+/// Returns Ok(pid) if alive, Err(StalePid) if stale.
+pub fn check_pid_file(path: &Path) -> DaemonResult<Option<u32>> {
+    if !path.exists() {
+        return Ok(None);
+    }
+
+    let pid = read_pid_file(path)?;
+
+    if is_process_alive(pid) {
+        Ok(Some(pid))
+    } else {
+        info!(pid, "stale PID file detected — removing");
+        remove_pid_file(path);
+        Ok(None)
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SOCKET CLEANUP
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Remove a stale socket file if the daemon PID is dead.
+pub fn cleanup_stale_socket(socket_path: &Path, pid_path: &Path) -> DaemonResult<()> {
+    if !socket_path.exists() {
+        return Ok(());
+    }
+
+    match check_pid_file(pid_path)? {
+        Some(pid) => {
+            // Daemon is alive
+            Err(DaemonError::AlreadyRunning { pid })
+        }
+        None => {
+            // PID dead or no PID file — safe to remove socket
+            info!(path = %socket_path.display(), "removing stale socket");
+            std::fs::remove_file(socket_path)?;
+            Ok(())
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DAEMONIZE
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Daemonize the current process (double-fork pattern).
+///
+/// After calling this, the process:
+/// 1. Is detached from the terminal
+/// 2. Has a new session ID
+/// 3. Has stdin/stdout/stderr redirected to /dev/null
+///
+/// Returns Ok(()) in the daemon child process.
+/// The parent process exits after the first fork.
+#[cfg(unix)]
+pub fn daemonize() -> DaemonResult<()> {
+    use nix::unistd::{fork, setsid, ForkResult};
+
+    // First fork — detach from parent
+    match unsafe { fork() } {
+        Ok(ForkResult::Parent { .. }) => {
+            // Parent exits immediately
+            std::process::exit(0);
+        }
+        Ok(ForkResult::Child) => {
+            // Child continues
+        }
+        Err(e) => {
+            return Err(DaemonError::Lifecycle(format!("first fork failed: {e}")));
+        }
+    }
+
+    // Create new session
+    setsid().map_err(|e| DaemonError::Lifecycle(format!("setsid failed: {e}")))?;
+
+    // Second fork — prevent re-acquiring terminal
+    match unsafe { fork() } {
+        Ok(ForkResult::Parent { .. }) => {
+            std::process::exit(0);
+        }
+        Ok(ForkResult::Child) => {
+            // This is the final daemon process
+        }
+        Err(e) => {
+            return Err(DaemonError::Lifecycle(format!("second fork failed: {e}")));
+        }
+    }
+
+    // Redirect stdio to /dev/null
+    redirect_stdio_to_devnull()?;
+
+    info!("daemonized (pid={})", std::process::id());
+    Ok(())
+}
+
+#[cfg(unix)]
+fn redirect_stdio_to_devnull() -> DaemonResult<()> {
+    use std::os::unix::io::AsRawFd;
+
+    let devnull = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open("/dev/null")?;
+
+    let fd = devnull.as_raw_fd();
+
+    // dup2 stdin, stdout, stderr to /dev/null
+    nix::unistd::dup2(fd, 0).map_err(|e| DaemonError::Lifecycle(format!("dup2 stdin: {e}")))?;
+    nix::unistd::dup2(fd, 1).map_err(|e| DaemonError::Lifecycle(format!("dup2 stdout: {e}")))?;
+    nix::unistd::dup2(fd, 2).map_err(|e| DaemonError::Lifecycle(format!("dup2 stderr: {e}")))?;
+
+    Ok(())
+}
+
+#[cfg(not(unix))]
+pub fn daemonize() -> DaemonResult<()> {
+    Err(DaemonError::Lifecycle(
+        "daemonize is not supported on this platform".into(),
+    ))
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SIGNAL HANDLING
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Install signal handlers and return a future that resolves on shutdown signal.
+///
+/// Handles:
+/// - SIGTERM → graceful shutdown
+/// - SIGINT → graceful shutdown
+/// - SIGHUP → (future: config reload)
+#[cfg(unix)]
+pub async fn wait_for_shutdown_signal() {
+    use tokio::signal::unix::{signal, SignalKind};
+
+    let mut sigterm = signal(SignalKind::terminate()).expect("SIGTERM handler");
+    let mut sigint = signal(SignalKind::interrupt()).expect("SIGINT handler");
+
+    tokio::select! {
+        biased;
+        _ = sigterm.recv() => {
+            info!("received SIGTERM");
+        }
+        _ = sigint.recv() => {
+            info!("received SIGINT");
+        }
+    }
+}
+
+#[cfg(not(unix))]
+pub async fn wait_for_shutdown_signal() {
+    tokio::signal::ctrl_c()
+        .await
+        .expect("Ctrl-C handler");
+    info!("received Ctrl-C");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TESTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pid_file_write_and_read() {
+        let dir = tempfile::tempdir().unwrap();
+        let pid_path = dir.path().join("test.pid");
+
+        write_pid_file(&pid_path).unwrap();
+
+        let pid = read_pid_file(&pid_path).unwrap();
+        assert_eq!(pid, std::process::id());
+    }
+
+    #[test]
+    fn pid_file_read_nonexistent_returns_error() {
+        let result = read_pid_file(Path::new("/tmp/nonexistent_nika_test.pid"));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn pid_file_read_invalid_content() {
+        let dir = tempfile::tempdir().unwrap();
+        let pid_path = dir.path().join("bad.pid");
+        std::fs::write(&pid_path, "not-a-number").unwrap();
+
+        let result = read_pid_file(&pid_path);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn pid_file_remove() {
+        let dir = tempfile::tempdir().unwrap();
+        let pid_path = dir.path().join("test.pid");
+        std::fs::write(&pid_path, "1234").unwrap();
+
+        remove_pid_file(&pid_path);
+        assert!(!pid_path.exists());
+    }
+
+    #[test]
+    fn pid_file_remove_nonexistent_no_panic() {
+        remove_pid_file(Path::new("/tmp/nonexistent_nika_test.pid"));
+        // Should not panic
+    }
+
+    #[test]
+    fn is_process_alive_for_current_process() {
+        assert!(is_process_alive(std::process::id()));
+    }
+
+    #[test]
+    fn is_process_alive_for_dead_process() {
+        // PID 99999999 is almost certainly not running
+        assert!(!is_process_alive(99_999_999));
+    }
+
+    #[test]
+    fn check_pid_file_no_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let pid_path = dir.path().join("test.pid");
+
+        let result = check_pid_file(&pid_path).unwrap();
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn check_pid_file_alive_process() {
+        let dir = tempfile::tempdir().unwrap();
+        let pid_path = dir.path().join("test.pid");
+
+        // Write current process PID (guaranteed alive)
+        write_pid_file(&pid_path).unwrap();
+
+        let result = check_pid_file(&pid_path).unwrap();
+        assert_eq!(result, Some(std::process::id()));
+    }
+
+    #[test]
+    fn check_pid_file_stale_removes_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let pid_path = dir.path().join("test.pid");
+
+        // Write a PID that doesn't exist
+        std::fs::write(&pid_path, "99999999").unwrap();
+
+        let result = check_pid_file(&pid_path).unwrap();
+        assert_eq!(result, None);
+        // Stale file should be removed
+        assert!(!pid_path.exists());
+    }
+
+    #[test]
+    fn cleanup_stale_socket_no_socket() {
+        let dir = tempfile::tempdir().unwrap();
+        let sock = dir.path().join("test.sock");
+        let pid = dir.path().join("test.pid");
+
+        // No socket = nothing to clean
+        let result = cleanup_stale_socket(&sock, &pid);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn cleanup_stale_socket_removes_dead_daemon_socket() {
+        let dir = tempfile::tempdir().unwrap();
+        let sock = dir.path().join("test.sock");
+        let pid_path = dir.path().join("test.pid");
+
+        // Create a stale socket + PID file with dead PID
+        std::fs::write(&sock, "stale-socket").unwrap();
+        std::fs::write(&pid_path, "99999999").unwrap();
+
+        let result = cleanup_stale_socket(&sock, &pid_path);
+        assert!(result.is_ok());
+        assert!(!sock.exists());
+    }
+
+    #[test]
+    fn cleanup_stale_socket_refuses_if_daemon_alive() {
+        let dir = tempfile::tempdir().unwrap();
+        let sock = dir.path().join("test.sock");
+        let pid_path = dir.path().join("test.pid");
+
+        // Create socket + PID file with current PID (alive)
+        std::fs::write(&sock, "active-socket").unwrap();
+        write_pid_file(&pid_path).unwrap();
+
+        let result = cleanup_stale_socket(&sock, &pid_path);
+        assert!(matches!(
+            result.unwrap_err(),
+            DaemonError::AlreadyRunning { .. }
+        ));
+    }
+
+    #[test]
+    fn pid_file_creates_parent_dirs() {
+        let dir = tempfile::tempdir().unwrap();
+        let pid_path = dir.path().join("nested").join("deep").join("test.pid");
+
+        write_pid_file(&pid_path).unwrap();
+        assert!(pid_path.exists());
+    }
+}
