@@ -247,6 +247,9 @@ impl CliRenderer {
             return;
         }
 
+        // Centralized stat accumulation — covers all ~15 stat-bearing event types
+        self.stats.apply_event(event);
+
         match &event.kind {
             // ═══════════════════════════════════════
             // WORKFLOW LEVEL
@@ -359,7 +362,6 @@ impl CliRenderer {
                 output,
                 duration_ms,
             } => {
-                self.stats.tasks_passed += 1;
                 let dur_secs = *duration_ms as f32 / 1000.0;
 
                 // Look up verb
@@ -401,10 +403,6 @@ impl CliRenderer {
                 duration_ms,
                 ..
             } => {
-                self.stats.tasks_failed += 1;
-                if self.stats.root_failure.is_none() {
-                    self.stats.root_failure = Some(task_id.to_string());
-                }
                 let dur_secs = *duration_ms as f32 / 1000.0;
                 let verb = self
                     .task_starts
@@ -441,7 +439,6 @@ impl CliRenderer {
             }
 
             EventKind::TaskSkipped { task_id, reason } => {
-                self.stats.tasks_skipped += 1;
                 let padded_id = format!("{:<14}", task_id);
                 println!(
                     "{}  {} {} {} {}",
@@ -478,32 +475,13 @@ impl CliRenderer {
             }
 
             EventKind::ProviderResponded {
-                task_id: _,
                 input_tokens,
                 output_tokens,
                 cache_read_tokens,
                 ttft_ms,
-                finish_reason: _,
                 cost_usd,
                 ..
             } => {
-                // Accumulate stats
-                self.stats.total_input_tokens += input_tokens;
-                self.stats.total_output_tokens += output_tokens;
-                self.stats.total_cache_tokens += cache_read_tokens;
-                self.stats.total_cost += cost_usd;
-                if let Some(t) = ttft_ms {
-                    self.stats.ttft_values.push(*t);
-                }
-                self.stats.provider_calls.push(ProviderCallStat {
-                    task_id: event.kind.task_id().unwrap_or("?").to_string(),
-                    input_tokens: *input_tokens,
-                    output_tokens: *output_tokens,
-                    cache_tokens: *cache_read_tokens,
-                    ttft_ms: *ttft_ms,
-                    cost: *cost_usd,
-                });
-
                 if self.detail.show_sub_events() {
                     println!("{}", super::format_event::fmt_provider_responded(
                         *input_tokens, *output_tokens, *cache_read_tokens, *ttft_ms,
@@ -544,19 +522,16 @@ impl CliRenderer {
             }
 
             EventKind::McpError { server_name, error } => {
-                self.stats.mcp_errors += 1;
                 println!("{}", super::format_event::fmt_mcp_error(server_name, error));
             }
 
             EventKind::McpInvoke {
-                task_id: _,
                 call_id,
                 mcp_server,
                 tool,
                 resource,
                 ..
             } => {
-                self.stats.mcp_calls += 1;
                 if self.detail.show_sub_events() {
                     println!("{}", super::format_event::fmt_mcp_invoke(
                         mcp_server, tool.as_deref(), resource.as_deref(), call_id,
@@ -580,14 +555,12 @@ impl CliRenderer {
             }
 
             EventKind::McpRetry {
-                task_id: _,
-                server_name: _,
                 operation,
                 attempt,
                 max_attempts,
                 error,
+                ..
             } => {
-                self.stats.mcp_retries += 1;
                 println!("{}", super::format_event::fmt_mcp_retry(
                     operation, *attempt, *max_attempts, error,
                 ));
@@ -650,7 +623,6 @@ impl CliRenderer {
                 description,
                 ..
             } => {
-                self.stats.guardrails_passed += 1;
                 if self.detail.show_sub_events() {
                     println!("{}", super::format_event::fmt_guardrail_passed(guardrail_type, description));
                 }
@@ -661,17 +633,14 @@ impl CliRenderer {
                 message,
                 ..
             } => {
-                self.stats.guardrails_failed += 1;
                 println!("{}", super::format_event::fmt_guardrail_failed(guardrail_type, message));
             }
 
             EventKind::GuardrailEscalation {
-                guardrail_type: _,
                 severity,
                 message,
                 ..
             } => {
-                self.stats.guardrails_escalations += 1;
                 println!("{}", super::format_event::fmt_guardrail_escalation(severity, message));
             }
 
@@ -692,14 +661,11 @@ impl CliRenderer {
             // ARTIFACTS
             // ═══════════════════════════════════════
             EventKind::ArtifactWritten {
-                task_id: _,
                 path,
                 size,
                 format,
                 ..
             } => {
-                self.stats.artifacts_count += 1;
-                self.stats.artifacts_bytes += size;
                 if self.detail.show_sub_events() {
                     println!("{}", super::format_event::fmt_artifact_written(path, *size, format));
                 }
@@ -723,20 +689,14 @@ impl CliRenderer {
             }
 
             EventKind::MediaStored {
-                task_id: _,
                 hash,
                 path,
                 size_bytes,
                 verified,
                 deduplicated,
                 pipeline_ms,
+                ..
             } => {
-                self.stats.media_stored += 1;
-                self.stats.media_bytes += size_bytes;
-                if *deduplicated {
-                    self.stats.media_dedup += 1;
-                }
-
                 if self.detail.show_sub_events() {
                     println!("{}", super::format_event::fmt_media_stored(*size_bytes, path, hash));
                     if self.detail.show_previews() {
@@ -775,7 +735,6 @@ impl CliRenderer {
                 error,
                 ..
             } => {
-                self.stats.structured_attempts += 1;
                 if self.detail.show_sub_events() {
                     println!("{}", super::format_event::fmt_structured_output_attempt(
                         *layer, layer_name, *success, error.as_deref(),
@@ -783,13 +742,8 @@ impl CliRenderer {
                 }
             }
 
-            EventKind::StructuredOutputSuccess {
-                layer,
-                layer_name: _,
-                total_attempts: _,
-                ..
-            } => {
-                self.stats.structured_success_layer = Some(*layer);
+            EventKind::StructuredOutputSuccess { .. } => {
+                // Stats handled by apply_event()
             }
 
             // ═══════════════════════════════════════
