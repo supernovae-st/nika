@@ -46,6 +46,7 @@ use serde_json::Value;
 
 use super::jsonpath;
 use crate::error::NikaError;
+use crate::error_domains::BindingError;
 use crate::event::EventKind;
 use crate::store::RunContext;
 
@@ -350,9 +351,9 @@ impl ResolvedBindings {
                 };
                 resolve_with_entry(&entry, alias, datastore)
             }
-            None => Err(NikaError::BindingNotFound {
+            None => Err(BindingError::NotFound {
                 alias: alias.to_string(),
-            }),
+            }.into()),
         }
     }
 
@@ -685,9 +686,9 @@ fn resolve_binding_path(
         BindingSource::LoopVar(name) => {
             // Loop variables should be pre-resolved by the executor before reaching here.
             // If we get here, it means the loop variable wasn't set.
-            Err(NikaError::BindingNotFound {
+            Err(BindingError::NotFound {
                 alias: format!("{} (loop variable '{}' not pre-resolved)", alias, name),
-            })
+            }.into())
         }
     }
 }
@@ -859,11 +860,11 @@ fn validate_binding_type(
     };
 
     if !matches {
-        return Err(NikaError::BindingTypeMismatch {
+        return Err(BindingError::TypeMismatch {
             expected: binding_type.to_string(),
             actual: json_type_name(value).to_string(),
             path: format!("{} (alias: {})", path, alias),
-        });
+        }.into());
     }
 
     Ok(())

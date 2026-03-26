@@ -21,6 +21,7 @@ use smallvec::SmallVec;
 use crate::ast::analyzed::AnalyzedWorkflow;
 use crate::ast::Workflow;
 use crate::error::NikaError;
+use crate::error_domains::DagError;
 use crate::util::intern;
 
 /// Compute topological depth for each node in a DAG.
@@ -127,9 +128,9 @@ impl Dag {
         for task in &workflow.tasks {
             let id = intern(&task.name);
             if task_set.contains(&id) {
-                return Err(NikaError::DuplicateTaskId {
+                return Err(DagError::DuplicateTaskId {
                     task_id: task.name.clone(),
-                });
+                }.into());
             }
             task_ids.push(Arc::clone(&id));
             task_set.insert(Arc::clone(&id));
@@ -156,7 +157,7 @@ impl Dag {
             // Process explicit depends_on edges
             for dep_id in &task.depends_on {
                 let dep_name = workflow.task_table.get_name(*dep_id).ok_or_else(|| {
-                    NikaError::MissingDependency {
+                    DagError::MissingDependency {
                         task_id: task.name.clone(),
                         dep_id: format!("TaskId({})", dep_id.0),
                     }
@@ -187,7 +188,7 @@ impl Dag {
             // Process implicit dependencies (from with: bindings)
             for dep_id in &task.implicit_deps {
                 let dep_name = workflow.task_table.get_name(*dep_id).ok_or_else(|| {
-                    NikaError::MissingDependency {
+                    DagError::MissingDependency {
                         task_id: task.name.clone(),
                         dep_id: format!("TaskId({})", dep_id.0),
                     }
@@ -446,7 +447,7 @@ impl Dag {
                     &mut colors,
                     &mut stack,
                 ) {
-                    return Err(NikaError::CycleDetected { cycle });
+                    return Err(DagError::CycleDetected { cycle }.into());
                 }
             }
         }
@@ -476,9 +477,9 @@ impl Dag {
         for task in &workflow.tasks {
             let id = intern(&task.id);
             if task_set.contains(&id) {
-                return Err(NikaError::DuplicateTaskId {
+                return Err(DagError::DuplicateTaskId {
                     task_id: task.id.clone(),
-                });
+                }.into());
             }
             task_ids.push(Arc::clone(&id));
             task_set.insert(Arc::clone(&id));
@@ -522,10 +523,10 @@ impl Dag {
                         continue; // Skip self-references
                     }
                     if !task_set.contains(dep.as_str()) {
-                        return Err(NikaError::MissingDependency {
+                        return Err(DagError::MissingDependency {
                             task_id: task.id.clone(),
                             dep_id: dep.clone(),
-                        });
+                        }.into());
                     }
                     let src_arc = task_set
                         .get(dep.as_str())
