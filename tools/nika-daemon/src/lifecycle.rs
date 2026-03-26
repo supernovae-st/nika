@@ -154,6 +154,7 @@ pub fn cleanup_stale_socket(socket_path: &Path, pid_path: &Path) -> DaemonResult
 ///
 /// The child process starts a fresh tokio runtime with zero inherited state.
 /// This is the same pattern used by Turborepo's daemon.
+#[cfg(unix)]
 pub fn daemonize(log_path: &std::path::Path) -> DaemonResult<()> {
     let exe = std::env::current_exe()
         .map_err(|e| DaemonError::Lifecycle(format!("cannot find current exe: {e}")))?;
