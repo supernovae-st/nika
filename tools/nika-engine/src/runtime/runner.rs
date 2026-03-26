@@ -65,7 +65,24 @@ impl LockfileGuard {
     ///
     /// Logs warnings on failure but does not block execution — lockfile is
     /// best-effort protection against concurrent runs, not a hard requirement.
+    ///
+    /// NOTE: With `panic = "abort"` (release profile), panics bypass Drop.
+    /// The lockfile includes a timestamp — callers should treat locks older
+    /// than 10 minutes as stale.
     fn create(path: PathBuf) -> Self {
+        // Check for stale lockfile (>10min = likely from panic=abort crash)
+        if path.exists() {
+            if let Ok(metadata) = path.metadata() {
+                if let Ok(modified) = metadata.modified() {
+                    if modified.elapsed().unwrap_or_default() > std::time::Duration::from_secs(600)
+                    {
+                        tracing::warn!("Removing stale lockfile (>10min old)");
+                        let _ = std::fs::remove_file(&path);
+                    }
+                }
+            }
+        }
+
         if let Some(parent) = path.parent() {
             if let Err(e) = std::fs::create_dir_all(parent) {
                 tracing::warn!(path = %parent.display(), error = %e, "Failed to create lockfile directory");
