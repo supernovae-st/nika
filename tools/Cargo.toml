@@ -72,6 +72,7 @@ parking_lot = "0.12"
 # Utilities
 regex = "1.11"
 colored = "2.1"
+indicatif = "0.18"
 semver = "1.0"
 smallvec = "1.13"
 rustc-hash = "2.1"
