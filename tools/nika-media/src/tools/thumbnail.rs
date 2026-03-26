@@ -10,7 +10,7 @@ use super::context::MediaToolContext;
 use super::error::{invalid_args, tool_error};
 use super::safety::{composite_on_white, decode_image_safe, MAX_IMAGE_DIM};
 use super::{MediaOp, MediaOpResult};
-use crate::error::NikaError;
+use super::error::MediaToolError;
 
 pub struct ThumbnailOp;
 
@@ -41,7 +41,7 @@ impl MediaOp for ThumbnailOp {
         &'a self,
         args: serde_json::Value,
         ctx: &'a MediaToolContext,
-    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, MediaToolError>> + Send + 'a>> {
         Box::pin(async move {
             ctx.check_cancelled()?;
             let hash = args
@@ -77,7 +77,7 @@ impl MediaOp for ThumbnailOp {
             let output = ctx
                 .compute
                 .compute(
-                    move || -> Result<(Vec<u8>, String, String, u32, u32), NikaError> {
+                    move || -> Result<(Vec<u8>, String, String, u32, u32), MediaToolError> {
                         let img = decode_image_safe(&data)?;
                         let (orig_w, orig_h) = (img.width(), img.height());
 
@@ -166,7 +166,7 @@ impl MediaOp for ThumbnailOp {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::media::CasStore;
+    use crate::CasStore;
     use std::sync::Arc;
 
     async fn setup() -> (tempfile::TempDir, Arc<MediaToolContext>) {

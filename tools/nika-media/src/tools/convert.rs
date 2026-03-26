@@ -9,7 +9,7 @@ use super::context::MediaToolContext;
 use super::error::{invalid_args, tool_error, unsupported_format};
 use super::safety::{composite_on_white, decode_image_safe};
 use super::{MediaOp, MediaOpResult};
-use crate::error::NikaError;
+use super::error::MediaToolError;
 
 pub struct ConvertOp;
 
@@ -39,7 +39,7 @@ impl MediaOp for ConvertOp {
         &'a self,
         args: serde_json::Value,
         ctx: &'a MediaToolContext,
-    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, MediaToolError>> + Send + 'a>> {
         Box::pin(async move {
             ctx.check_cancelled()?;
             let hash = args
@@ -61,7 +61,7 @@ impl MediaOp for ConvertOp {
 
             let output = ctx
                 .compute
-                .compute(move || -> Result<(Vec<u8>, String, String), NikaError> {
+                .compute(move || -> Result<(Vec<u8>, String, String), MediaToolError> {
                     let img = decode_image_safe(&data)?;
                     let (w, h) = (img.width(), img.height());
                     let mut buf = Vec::new();
@@ -129,7 +129,7 @@ impl MediaOp for ConvertOp {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::media::CasStore;
+    use crate::CasStore;
     use std::sync::Arc;
 
     async fn setup() -> (tempfile::TempDir, Arc<MediaToolContext>) {

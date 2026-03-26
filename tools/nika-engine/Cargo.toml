@@ -17,27 +17,27 @@ default = ["media-core", "fetch-extract", "fetch-article", "fetch-feed", "media-
 # Everything else is default.
 nika-daemon = ["dep:spn-client"]  # Use nika daemon for unified secret management
 native-keychain = ["dep:keyring"]  # OS keychain support
-native-inference = ["dep:mistralrs", "dep:async-stream"]  # Native LLM inference via mistral.rs
+native-inference = ["dep:mistralrs", "dep:async-stream", "dep:image"]  # Native LLM inference via mistral.rs
 lsp = ["dep:tower-lsp-server", "dep:nika-lsp-core", "tokio/io-std", "tokio/io-util"]  # Language Server Protocol support
 
-# Media tool features
-media-core = ["media-thumbnail", "media-metadata", "media-optimize", "media-svg"]
-media-thumbnail = ["dep:fast_image_resize", "dep:image", "nika-media/media-thumbnail"]
-media-metadata = ["dep:nom-exif", "dep:lofty"]
-media-optimize = ["dep:oxipng"]
-media-svg = ["dep:resvg", "dep:usvg", "dep:tiny-skia", "dep:fontdb"]
-media-phash = ["dep:image_hasher", "dep:image"]
-media-pdf = ["dep:pdf-extract"]
-media-chart = ["dep:charts-rs"]
-media-provenance = ["dep:c2pa"]
-media-qr = ["dep:qrcode-ai-scanner-core", "dep:image"]
-media-compression = ["dep:zstd", "nika-media/media-compression"]
-media-iqa = ["dep:dssim-core", "dep:rgb", "dep:image"]
-# Web extraction builtins
-fetch-html = ["dep:scraper", "dep:psl"]
-fetch-markdown = ["dep:htmd"]
-fetch-article = ["dep:dom_smoothie", "dep:scraper"]
-fetch-feed = ["dep:feed-rs"]
+# Media tool features — forwarded to nika-media
+media-core = ["nika-media/media-core"]
+media-thumbnail = ["nika-media/media-thumbnail"]
+media-metadata = ["nika-media/media-metadata"]
+media-optimize = ["nika-media/media-optimize"]
+media-svg = ["nika-media/media-svg"]
+media-phash = ["nika-media/media-phash"]
+media-pdf = ["nika-media/media-pdf"]
+media-chart = ["nika-media/media-chart"]
+media-provenance = ["nika-media/media-provenance"]
+media-qr = ["nika-media/media-qr"]
+media-compression = ["nika-media/media-compression"]
+media-iqa = ["nika-media/media-iqa"]
+# Web extraction — forwarded to nika-media
+fetch-html = ["nika-media/fetch-html", "dep:scraper", "dep:psl"]
+fetch-markdown = ["nika-media/fetch-markdown", "dep:htmd"]
+fetch-article = ["nika-media/fetch-article", "dep:dom_smoothie", "dep:scraper"]
+fetch-feed = ["nika-media/fetch-feed", "dep:feed-rs"]
 fetch-extract = ["fetch-html", "fetch-markdown"]
 
 [dependencies]
@@ -136,38 +136,14 @@ blake3 = { workspace = true }
 infer = "0.19"
 base64 = { workspace = true }
 
-# Media tools — Tier 1
-imagesize = "0.14"
-thumbhash = "0.1"
-color-thief = "0.2"
-rayon = "1.10"
-
-# Media tools — Tier 2 (feature-gated)
-fast_image_resize = { version = "6.0", features = ["image"], optional = true }
+# Image processing (used by native vision — provider/native/runtime.rs)
 image = { version = "0.25", optional = true, default-features = false, features = ["png", "jpeg", "webp", "gif"] }
-nom-exif = { version = "2.7", optional = true }
-lofty = { version = "0.23", optional = true }
-oxipng = { version = "10.1", optional = true, default-features = false, features = ["parallel"] }
-resvg = { version = "0.47", optional = true }
-usvg = { version = "0.47", optional = true }
-tiny-skia = { version = "0.12", optional = true }
-fontdb = { version = "0.23", optional = true }
 
-# Media tools — Tier 3
-image_hasher = { version = "3.1", optional = true }
-pdf-extract = { version = "0.10", optional = true }
-charts-rs = { version = "0.3", optional = true, features = ["image-encoder"] }
-c2pa = { version = "0.78", optional = true, features = ["rust_native_crypto"] }
-qrcode-ai-scanner-core = { version = "0.2", optional = true }
-zstd = { version = "0.13", optional = true, default-features = false }
-dssim-core = { version = "3.4", optional = true }
-rgb = { version = "0.8", optional = true }
-
-# Web extraction tools
-scraper = { version = "0.22", optional = true, features = ["atomic"] }
-htmd = { version = "0.5", optional = true }
+# Fetch extract (used by executor/extract.rs, not media tools)
 dom_smoothie = { version = "0.16", optional = true }
 feed-rs = { version = "2.3", optional = true }
+scraper = { version = "0.22", optional = true, features = ["atomic"] }
+htmd = { version = "0.5", optional = true }
 psl = { version = "2", optional = true }
 
 # LSP Server (feature-gated)
@@ -188,3 +164,4 @@ criterion = { version = "0.5", features = ["async_tokio"] }
 serial_test = "3.1"
 wiremock = "0.6"
 qrcode = "0.14"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"] }

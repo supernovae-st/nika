@@ -9,7 +9,7 @@ use super::context::MediaToolContext;
 use super::error::invalid_args;
 use super::safety::decode_image_safe;
 use super::{MediaOp, MediaOpResult};
-use crate::error::NikaError;
+use super::error::MediaToolError;
 
 pub struct CompareOp;
 
@@ -38,7 +38,7 @@ impl MediaOp for CompareOp {
         &'a self,
         args: serde_json::Value,
         ctx: &'a MediaToolContext,
-    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, MediaToolError>> + Send + 'a>> {
         Box::pin(async move {
             ctx.check_cancelled()?;
             let hash_a = args
@@ -55,7 +55,7 @@ impl MediaOp for CompareOp {
 
             let result = ctx
                 .compute
-                .compute(move || -> Result<(u32, bool), NikaError> {
+                .compute(move || -> Result<(u32, bool), MediaToolError> {
                     let img_a = decode_image_safe(&data_a)?;
                     let img_b = decode_image_safe(&data_b)?;
 
@@ -89,7 +89,7 @@ impl MediaOp for CompareOp {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::media::CasStore;
+    use crate::CasStore;
     use std::sync::Arc;
 
     async fn setup() -> (tempfile::TempDir, Arc<MediaToolContext>) {

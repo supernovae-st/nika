@@ -11,7 +11,7 @@ use std::pin::Pin;
 use super::context::MediaToolContext;
 use super::error::{invalid_args, security_violation, tool_error};
 use super::{MediaOp, MediaOpResult};
-use crate::error::NikaError;
+use super::error::MediaToolError;
 
 /// Maximum import file size: 100 MB (matches CAS MAX_STORE_SIZE).
 ///
@@ -35,7 +35,7 @@ const SENSITIVE_PREFIXES: &[&str] = &[
 ];
 
 /// Validate import path: reject path traversal and known sensitive directories.
-fn validate_import_path(path: &std::path::Path) -> Result<(), NikaError> {
+fn validate_import_path(path: &std::path::Path) -> Result<(), MediaToolError> {
     let path_str = path.to_string_lossy();
 
     // Reject paths containing ".."
@@ -103,7 +103,7 @@ impl MediaOp for ImportOp {
         &'a self,
         args: serde_json::Value,
         ctx: &'a MediaToolContext,
-    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, MediaToolError>> + Send + 'a>> {
         Box::pin(async move {
             ctx.check_cancelled()?;
 
@@ -181,7 +181,7 @@ impl MediaOp for ImportOp {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::media::CasStore;
+    use crate::CasStore;
     use std::sync::Arc;
 
     async fn setup() -> (tempfile::TempDir, Arc<MediaToolContext>) {

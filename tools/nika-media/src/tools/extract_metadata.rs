@@ -9,7 +9,7 @@ use std::pin::Pin;
 use super::context::MediaToolContext;
 use super::error::invalid_args;
 use super::{MediaOp, MediaOpResult};
-use crate::error::NikaError;
+use super::error::MediaToolError;
 
 /// Maximum HTML input size: 10 MB.
 const MAX_HTML_SIZE: usize = 10 * 1024 * 1024;
@@ -47,7 +47,7 @@ impl MediaOp for ExtractMetadataOp {
         &'a self,
         args: serde_json::Value,
         ctx: &'a MediaToolContext,
-    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, MediaToolError>> + Send + 'a>> {
         Box::pin(async move {
             ctx.check_cancelled()?;
 
@@ -65,7 +65,7 @@ impl MediaOp for ExtractMetadataOp {
 }
 
 /// Extract all metadata from HTML.
-fn extract_all_metadata(html: &str) -> Result<serde_json::Value, NikaError> {
+fn extract_all_metadata(html: &str) -> Result<serde_json::Value, MediaToolError> {
     let document = scraper::Html::parse_document(html);
 
     let title = extract_title(&document);
@@ -279,7 +279,7 @@ fn extract_feeds(doc: &scraper::Html) -> Vec<serde_json::Value> {
 async fn resolve_html(
     args: &serde_json::Value,
     ctx: &MediaToolContext,
-) -> Result<String, NikaError> {
+) -> Result<String, MediaToolError> {
     if let Some(hash) = args.get("hash").and_then(|v| v.as_str()) {
         let data = ctx.read_media(hash).await?;
         if data.len() > MAX_HTML_SIZE {
@@ -321,7 +321,7 @@ async fn resolve_html(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::media::CasStore;
+    use crate::CasStore;
     use std::sync::Arc;
 
     async fn setup() -> (tempfile::TempDir, Arc<MediaToolContext>) {

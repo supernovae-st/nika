@@ -8,7 +8,7 @@ use std::pin::Pin;
 use super::context::MediaToolContext;
 use super::error::{invalid_args, unsupported_format};
 use super::{MediaOp, MediaOpResult};
-use crate::error::NikaError;
+use super::error::MediaToolError;
 
 pub struct DimensionsOp;
 
@@ -39,7 +39,7 @@ impl MediaOp for DimensionsOp {
         &'a self,
         args: serde_json::Value,
         ctx: &'a MediaToolContext,
-    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, MediaToolError>> + Send + 'a>> {
         Box::pin(async move {
             ctx.check_cancelled()?;
             let hash = args
@@ -73,7 +73,7 @@ impl MediaOp for DimensionsOp {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::media::CasStore;
+    use crate::CasStore;
     use std::sync::Arc;
 
     /// Create a minimal valid PNG (1x1 red pixel).

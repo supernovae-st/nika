@@ -18,7 +18,7 @@ use indicatif::ProgressDrawTarget;
 use crate::display::{colors, icons, spinner, DetailLevel};
 use crate::event::{Event, EventKind};
 
-use super::renderer::{format_bytes, ProviderCallStat, RunStats};
+use super::renderer::{ProviderCallStat, RunStats};
 
 // ── Task state ────────────────────────────────────────────────────────
 
@@ -632,29 +632,12 @@ impl LiveRenderer {
                 acc.1 += output_tokens;
 
                 if self.detail.show_sub_events() {
-                    let ttft_str = ttft_ms
-                        .map(|t| format!(" · ttft:{}", colors::ttft(t)))
-                        .unwrap_or_default();
-                    self.log(&format!(
-                        "{}     {} {} {} in:{} out:{} cache:{}{}",
-                        " ".repeat(6),
-                        "│".dimmed(),
-                        icons::provider(),
-                        "←".dimmed(),
-                        colors::tokens(*input_tokens).as_str().dimmed(),
-                        colors::tokens(*output_tokens).as_str().white(),
-                        colors::tokens(*cache_read_tokens).as_str().dimmed(),
-                        ttft_str
+                    self.log(&super::format_event::fmt_provider_responded(
+                        *input_tokens, *output_tokens, *cache_read_tokens, *ttft_ms,
                     ));
-
                     if self.detail.show_sparklines() {
-                        let max_tok = (*input_tokens).max(*output_tokens);
-                        self.log(&format!(
-                            "{}     {}    tok {} cost {}",
-                            " ".repeat(6),
-                            "│".dimmed(),
-                            colors::sparkline(*output_tokens, max_tok),
-                            colors::cost(*cost_usd)
+                        self.log(&super::format_event::fmt_provider_sparkline(
+                            *output_tokens, *input_tokens, *cost_usd,
                         ));
                     }
                 }
@@ -686,20 +669,8 @@ impl LiveRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    let warn = if *budget_used_pct > 90.0 {
-                        " ⚠".red().to_string()
-                    } else {
-                        String::new()
-                    };
-                    self.log(&format!(
-                        "{}     {} {} {} src · {} tok · {}{}",
-                        " ".repeat(6),
-                        "│".dimmed(),
-                        "ctx".dimmed(),
-                        sources.len(),
-                        colors::tokens(*total_tokens),
-                        colors::budget_bar(*budget_used_pct, 25),
-                        warn
+                    self.log(&super::format_event::fmt_context_assembled(
+                        sources.len(), *total_tokens, *budget_used_pct as f64,
                     ));
                 }
             }
@@ -707,26 +678,13 @@ impl LiveRenderer {
             // ── MCP ───────────────────────────────────────────────
             EventKind::McpConnected { server_name } => {
                 if self.detail.show_sub_events() {
-                    self.log(&format!(
-                        "{}     {} {} connected {}",
-                        " ".repeat(6),
-                        "│".dimmed(),
-                        icons::mcp(),
-                        server_name.green()
-                    ));
+                    self.log(&super::format_event::fmt_mcp_connected(server_name));
                 }
             }
 
             EventKind::McpError { server_name, error } => {
                 self.stats.mcp_errors += 1;
-                self.log(&format!(
-                    "{}     {} {} {} {}",
-                    " ".repeat(6),
-                    "│".dimmed(),
-                    icons::mcp(),
-                    format!("{} ✗", server_name).red(),
-                    error.red()
-                ));
+                self.log(&super::format_event::fmt_mcp_error(server_name, error));
             }
 
             EventKind::McpInvoke {
@@ -738,15 +696,8 @@ impl LiveRenderer {
             } => {
                 self.stats.mcp_calls += 1;
                 if self.detail.show_sub_events() {
-                    let target = tool.as_deref().or(resource.as_deref()).unwrap_or("?");
-                    self.log(&format!(
-                        "{}     {} {} {} → {} {}",
-                        " ".repeat(6),
-                        "│".dimmed(),
-                        icons::mcp(),
-                        mcp_server.dimmed(),
-                        target.white(),
-                        format!("call:{}", call_id).dimmed()
+                    self.log(&super::format_event::fmt_mcp_invoke(
+                        mcp_server, tool.as_deref(), resource.as_deref(), call_id,
                     ));
                 }
             }
@@ -760,29 +711,8 @@ impl LiveRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    let cache_tag = if *cached {
-                        " cached".green().to_string()
-                    } else {
-                        String::new()
-                    };
-                    let err_tag = if *is_error {
-                        " ✗".red().to_string()
-                    } else {
-                        String::new()
-                    };
-                    let call_label = format!("call:{}", call_id);
-                    let dur_label = format!(" · {}ms", duration_ms);
-                    let suffix = format!("{}{}", cache_tag, err_tag);
-                    self.log(&format!(
-                        "{}     {} {} {} {} · {}{}{}",
-                        " ".repeat(6),
-                        "│".dimmed(),
-                        icons::mcp(),
-                        call_label.dimmed(),
-                        "←".dimmed(),
-                        format_bytes(*output_len as u64),
-                        dur_label.dimmed(),
-                        suffix
+                    self.log(&super::format_event::fmt_mcp_response(
+                        call_id, *output_len as u64, *duration_ms, *cached, *is_error,
                     ));
                 }
             }
@@ -795,15 +725,8 @@ impl LiveRenderer {
                 ..
             } => {
                 self.stats.mcp_retries += 1;
-                self.log(&format!(
-                    "{}     {} {} {} {}/{} · {}",
-                    " ".repeat(6),
-                    "│".dimmed(),
-                    icons::retry(),
-                    format!("retry {}", operation).yellow(),
-                    attempt.to_string().yellow(),
-                    max_attempts,
-                    error.dimmed()
+                self.log(&super::format_event::fmt_mcp_retry(
+                    operation, *attempt, *max_attempts, error,
                 ));
             }
 
@@ -814,16 +737,7 @@ impl LiveRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    let servers = mcp_servers.join(", ");
-                    self.log(&format!(
-                        "{}     {} {} {} max_turns:{} · mcp:[{}]",
-                        " ".repeat(6),
-                        "│".dimmed(),
-                        icons::agent_meta(),
-                        "agent".dimmed(),
-                        max_turns,
-                        servers.green()
-                    ));
+                    self.log(&super::format_event::fmt_agent_start(*max_turns, mcp_servers));
                 }
             }
 
@@ -834,23 +748,10 @@ impl LiveRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    self.log(&format!(
-                        "{}     {} {} turn {}/…  {}",
-                        " ".repeat(6),
-                        "│".dimmed(),
-                        icons::agent_meta(),
-                        (turn_index + 1).to_string().white(),
-                        kind.dimmed()
-                    ));
-
+                    self.log(&super::format_event::fmt_agent_turn(*turn_index, kind));
                     if let Some(meta) = metadata {
                         if meta.stop_reason == "tool_use" {
-                            self.log(&format!(
-                                "{}     {} {} tool_use",
-                                " ".repeat(6),
-                                "│".dimmed(),
-                                "↳".dimmed()
-                            ));
+                            self.log(&super::format_event::fmt_agent_turn_tool_use());
                         }
                     }
                 }
@@ -874,15 +775,7 @@ impl LiveRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    self.log(&format!(
-                        "{}     {} {} {} {} turns · {}",
-                        " ".repeat(6),
-                        "│".dimmed(),
-                        icons::agent_meta(),
-                        "done".green(),
-                        turns,
-                        stop_reason.dimmed()
-                    ));
+                    self.log(&super::format_event::fmt_agent_complete(*turns, stop_reason));
                 }
             }
 
@@ -892,14 +785,7 @@ impl LiveRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    self.log(&format!(
-                        "{}     {} {} spawned {} depth:{}",
-                        " ".repeat(6),
-                        "│".dimmed(),
-                        "⤋".magenta(),
-                        child_task_id.white(),
-                        depth
-                    ));
+                    self.log(&super::format_event::fmt_agent_spawned(child_task_id, *depth));
                 }
             }
 
@@ -911,14 +797,7 @@ impl LiveRenderer {
             } => {
                 self.stats.guardrails_passed += 1;
                 if self.detail.show_sub_events() {
-                    self.log(&format!(
-                        "{}     {} {} {} {}",
-                        " ".repeat(6),
-                        "│".dimmed(),
-                        icons::guardrail(),
-                        icons::success(),
-                        format!("{} · {}", guardrail_type, description).dimmed()
-                    ));
+                    self.log(&super::format_event::fmt_guardrail_passed(guardrail_type, description));
                 }
             }
 
@@ -928,67 +807,24 @@ impl LiveRenderer {
                 ..
             } => {
                 self.stats.guardrails_failed += 1;
-                self.log(&format!(
-                    "{}     {} {} {} {}",
-                    " ".repeat(6),
-                    "│".dimmed(),
-                    icons::guardrail(),
-                    icons::failed(),
-                    format!("{} · {}", guardrail_type, message).red()
-                ));
+                self.log(&super::format_event::fmt_guardrail_failed(guardrail_type, message));
             }
 
             EventKind::GuardrailEscalation {
                 severity, message, ..
             } => {
                 self.stats.guardrails_escalations += 1;
-                self.log(&format!(
-                    "{}     {}   {} {} · {}",
-                    " ".repeat(6),
-                    "│".dimmed(),
-                    icons::retry(),
-                    format!("escalation · {}", severity).yellow(),
-                    message.dimmed()
-                ));
+                self.log(&super::format_event::fmt_guardrail_escalation(severity, message));
             }
 
             // ── Builtin / Log ─────────────────────────────────────
             EventKind::Log { level, message, .. } => {
-                let level_colored = match level.as_str() {
-                    "error" => level.red(),
-                    "warn" => level.yellow(),
-                    "info" => level.green(),
-                    "debug" => level.dimmed(),
-                    "trace" => level.dimmed(),
-                    _ => level.normal(),
-                };
-                self.log(&format!(
-                    "{}  {} {} · {}",
-                    self.ts(),
-                    icons::log(),
-                    level_colored,
-                    message
-                ));
+                self.log(&super::format_event::fmt_log(&self.ts(), level, message));
             }
 
             EventKind::Custom { name, payload, .. } => {
                 if self.detail.show_sub_events() {
-                    let preview = serde_json::to_string(payload).unwrap_or_default();
-                    let short = if preview.len() > 60 {
-                        format!(
-                            "{}…",
-                            &preview[..colors::floor_char_boundary(&preview, 60)]
-                        )
-                    } else {
-                        preview
-                    };
-                    self.log(&format!(
-                        "{}  {} {} · {}",
-                        self.ts(),
-                        icons::log(),
-                        name.cyan(),
-                        short.dimmed()
-                    ));
+                    self.log(&super::format_event::fmt_custom(&self.ts(), name, payload));
                 }
             }
 
@@ -1002,26 +838,12 @@ impl LiveRenderer {
                 self.stats.artifacts_count += 1;
                 self.stats.artifacts_bytes += size;
                 if self.detail.show_sub_events() {
-                    self.log(&format!(
-                        "{}     {} {} {} {}",
-                        " ".repeat(6),
-                        "│".dimmed(),
-                        icons::artifact(),
-                        format!("→ {}", path).cyan(),
-                        format!("{} · {}", format_bytes(*size), format).dimmed()
-                    ));
+                    self.log(&super::format_event::fmt_artifact_written(path, *size, format));
                 }
             }
 
             EventKind::ArtifactFailed { path, reason, .. } => {
-                self.log(&format!(
-                    "{}     {} {} {} {}",
-                    " ".repeat(6),
-                    "│".dimmed(),
-                    icons::artifact(),
-                    format!("✗ {}", path).red(),
-                    reason.dimmed()
-                ));
+                self.log(&super::format_event::fmt_artifact_failed(path, reason));
             }
 
             // ── Media ─────────────────────────────────────────────
@@ -1031,14 +853,7 @@ impl LiveRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    self.log(&format!(
-                        "{}     {} {} {} blocks · types: [{}]",
-                        " ".repeat(6),
-                        "│".dimmed(),
-                        icons::media(),
-                        block_count,
-                        content_types.join(", ").magenta()
-                    ));
+                    self.log(&super::format_event::fmt_media_extracted(*block_count, content_types));
                 }
             }
 
@@ -1055,28 +870,12 @@ impl LiveRenderer {
                     self.stats.media_dedup += 1;
                 }
                 if self.detail.show_sub_events() {
-                    let short_hash = if hash.len() > 16 { &hash[..16] } else { hash };
-                    self.log(&format!(
-                        "{}     {} {} {} · {} · {}…",
-                        " ".repeat(6),
-                        "│".dimmed(),
-                        icons::media(),
-                        format_bytes(*size_bytes),
-                        path.dimmed(),
-                        short_hash.dimmed()
-                    ));
+                    self.log(&super::format_event::fmt_media_stored(*size_bytes, path, hash));
                 }
             }
 
             EventKind::MediaStoreFailed { reason, .. } => {
-                self.log(&format!(
-                    "{}     {} {} {} {}",
-                    " ".repeat(6),
-                    "│".dimmed(),
-                    icons::media(),
-                    "✗".red(),
-                    reason.red()
-                ));
+                self.log(&super::format_event::fmt_media_store_failed(reason));
             }
 
             // ── Structured output ─────────────────────────────────
@@ -1089,24 +888,8 @@ impl LiveRenderer {
             } => {
                 self.stats.structured_attempts += 1;
                 if self.detail.show_sub_events() {
-                    let status = if *success {
-                        icons::success()
-                    } else {
-                        icons::failed()
-                    };
-                    let err_msg = error
-                        .as_deref()
-                        .map(|e| format!(" {}", e.dimmed()))
-                        .unwrap_or_default();
-                    self.log(&format!(
-                        "{}     {} {} L{}: {} {}{}",
-                        " ".repeat(6),
-                        "│".dimmed(),
-                        icons::structured(),
-                        layer,
-                        layer_name,
-                        status,
-                        err_msg
+                    self.log(&super::format_event::fmt_structured_output_attempt(
+                        *layer, layer_name, *success, error.as_deref(),
                     ));
                 }
             }
@@ -1123,14 +906,8 @@ impl LiveRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    self.log(&format!(
-                        "{}     {} {} {} images · {} · resolved {}ms",
-                        " ".repeat(6),
-                        "│".dimmed(),
-                        icons::vision(),
-                        image_count,
-                        format_bytes(*total_bytes),
-                        resolve_ms
+                    self.log(&super::format_event::fmt_vision_content_resolved(
+                        *image_count, *total_bytes, *resolve_ms,
                     ));
                 }
             }
@@ -1138,14 +915,7 @@ impl LiveRenderer {
             // ── HTTP ──────────────────────────────────────────────
             EventKind::HttpRequest { method, url, .. } => {
                 if self.detail.show_sub_events() {
-                    self.log(&format!(
-                        "{}     {} {} → {} {}",
-                        " ".repeat(6),
-                        "│".dimmed(),
-                        icons::http(),
-                        method.cyan(),
-                        url.underline()
-                    ));
+                    self.log(&super::format_event::fmt_http_request(method, url));
                 }
             }
 
@@ -1157,24 +927,8 @@ impl LiveRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    let status_colored = if *status_code < 300 {
-                        status_code.to_string().green()
-                    } else if *status_code < 400 {
-                        status_code.to_string().yellow()
-                    } else {
-                        status_code.to_string().red()
-                    };
-                    let ct = content_type.as_deref().unwrap_or("?");
-                    let cl = content_length.map(format_bytes).unwrap_or_default();
-                    self.log(&format!(
-                        "{}     {} {} ← {} · {} · {} · {}ms",
-                        " ".repeat(6),
-                        "│".dimmed(),
-                        icons::http(),
-                        status_colored,
-                        ct.dimmed(),
-                        cl,
-                        elapsed_ms
+                    self.log(&super::format_event::fmt_http_response(
+                        *status_code, content_type.as_deref(), *content_length, *elapsed_ms,
                     ));
                 }
             }
@@ -1184,14 +938,7 @@ impl LiveRenderer {
                 template, result, ..
             } => {
                 if self.detail.show_template_events() {
-                    self.log(&format!(
-                        "{}     {} {} {} → {}",
-                        " ".repeat(6),
-                        "│".dimmed(),
-                        "tmpl".dimmed(),
-                        template.dimmed(),
-                        result.dimmed()
-                    ));
+                    self.log(&super::format_event::fmt_template_resolved(template, result));
                 }
             }
 
@@ -1211,22 +958,8 @@ impl LiveRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    let status = if *failed > 0 {
-                        format!("{}/{} ok · {} failed", succeeded, total, failed)
-                            .yellow()
-                            .to_string()
-                    } else {
-                        format!("{}/{} ok", succeeded, total)
-                            .green()
-                            .to_string()
-                    };
-                    self.log(&format!(
-                        "{}     {} {} for_each {} · {}",
-                        " ".repeat(6),
-                        "│".dimmed(),
-                        icons::log(),
-                        task_id.dimmed(),
-                        status
+                    self.log(&super::format_event::fmt_for_each_completed(
+                        task_id, *total, *succeeded, *failed,
                     ));
                 }
             }
@@ -1238,19 +971,7 @@ impl LiveRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    let code_str = if *exit_code == 0 {
-                        "0".green().to_string()
-                    } else {
-                        exit_code.to_string().red().to_string()
-                    };
-                    self.log(&format!(
-                        "{}     {} {} exit:{} · {}ms",
-                        " ".repeat(6),
-                        "│".dimmed(),
-                        icons::verb("exec"),
-                        code_str,
-                        duration_ms
-                    ));
+                    self.log(&super::format_event::fmt_exec_completed(*exit_code, *duration_ms));
                 }
             }
 
@@ -1260,14 +981,7 @@ impl LiveRenderer {
                 reason,
                 ..
             } => {
-                self.log(&format!(
-                    "{}  {} {} {} · {}",
-                    self.ts(),
-                    "⊘".red().bold(),
-                    "BLOCKED".red().bold(),
-                    policy_type.yellow(),
-                    reason.red()
-                ));
+                self.log(&super::format_event::fmt_policy_blocked(&self.ts(), policy_type, reason));
             }
 
             // Catch-all for events handled elsewhere (media lifecycle, boot, etc.)

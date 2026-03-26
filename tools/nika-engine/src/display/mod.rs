@@ -15,6 +15,7 @@ pub mod colors;
 pub mod dag;
 mod dag_render;
 pub mod detail;
+pub mod format_event;
 pub mod header;
 pub mod icons;
 pub mod live;

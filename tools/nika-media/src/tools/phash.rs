@@ -9,7 +9,7 @@ use super::context::MediaToolContext;
 use super::error::invalid_args;
 use super::safety::decode_image_safe;
 use super::{MediaOp, MediaOpResult};
-use crate::error::NikaError;
+use super::error::MediaToolError;
 
 pub struct PhashOp;
 
@@ -38,7 +38,7 @@ impl MediaOp for PhashOp {
         &'a self,
         args: serde_json::Value,
         ctx: &'a MediaToolContext,
-    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, MediaToolError>> + Send + 'a>> {
         Box::pin(async move {
             ctx.check_cancelled()?;
             let hash = args
@@ -55,7 +55,7 @@ impl MediaOp for PhashOp {
 
             let phash = ctx
                 .compute
-                .compute(move || -> Result<String, NikaError> {
+                .compute(move || -> Result<String, MediaToolError> {
                     let img = decode_image_safe(&data)?;
                     let hasher = image_hasher::HasherConfig::new()
                         .hash_size(hash_size, hash_size)
@@ -77,7 +77,7 @@ impl MediaOp for PhashOp {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::media::CasStore;
+    use crate::CasStore;
     use std::sync::Arc;
 
     async fn setup() -> (tempfile::TempDir, Arc<MediaToolContext>) {

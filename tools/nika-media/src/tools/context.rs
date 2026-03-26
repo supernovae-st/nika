@@ -13,8 +13,8 @@ use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
 use super::error::tool_error;
-use crate::error::NikaError;
-use crate::media::{CasStore, MediaBudget};
+use super::error::MediaToolError;
+use crate::{CasStore, MediaBudget};
 
 /// Shared context for all media tool operations within a workflow run.
 pub struct MediaToolContext {
@@ -34,7 +34,7 @@ impl MediaToolContext {
     /// Create a new context with the given CAS store.
     ///
     /// Returns an error if the compute pool cannot be created.
-    pub fn new(cas: CasStore) -> Result<Self, NikaError> {
+    pub fn new(cas: CasStore) -> Result<Self, MediaToolError> {
         Ok(Self {
             cas,
             budget: Arc::new(MediaBudget::new()),
@@ -45,7 +45,7 @@ impl MediaToolContext {
     }
 
     /// Read media data from CAS by hash.
-    pub async fn read_media(&self, hash: &str) -> Result<Vec<u8>, NikaError> {
+    pub async fn read_media(&self, hash: &str) -> Result<Vec<u8>, MediaToolError> {
         self.cas.read(hash).await.map_err(|e| e.into())
     }
 
@@ -54,11 +54,11 @@ impl MediaToolContext {
         &self,
         data: &[u8],
         task_id: &str,
-    ) -> Result<crate::media::store::StoreResult, NikaError> {
+    ) -> Result<crate::store::StoreResult, MediaToolError> {
         // Charge budget first
         self.budget
             .check_and_add(data.len() as u64, task_id)
-            .map_err(|e| -> NikaError { e.into() })?;
+            .map_err(|e| -> MediaToolError { e.into() })?;
 
         // Store in CAS
         match self.cas.store(data).await {
@@ -72,7 +72,7 @@ impl MediaToolContext {
     }
 
     /// Check if the workflow has been cancelled.
-    pub fn check_cancelled(&self) -> Result<(), NikaError> {
+    pub fn check_cancelled(&self) -> Result<(), MediaToolError> {
         if self.cancel.is_cancelled() {
             Err(tool_error("media", "workflow cancelled"))
         } else {
@@ -93,21 +93,18 @@ pub struct ComputePool {
 
 impl ComputePool {
     /// Create a new compute pool.
-    pub fn new() -> Result<Self, NikaError> {
+    pub fn new() -> Result<Self, MediaToolError> {
         Ok(Self {
             pool: rayon::ThreadPoolBuilder::new()
                 .num_threads(num_cpus().min(4))
                 .thread_name(|idx| format!("nika-media-{idx}"))
                 .panic_handler(|info| {
                     // Log the panic for debugging, then absorb — the oneshot channel
-                    // receiver gets RecvError which is mapped to a NikaError.
+                    // receiver gets RecvError which is mapped to a MediaToolError.
                     tracing::error!("media compute thread panicked: {info:?}");
                 })
                 .build()
-                .map_err(|e| NikaError::BuiltinToolError {
-                    tool: "compute_pool".to_string(),
-                    reason: format!("Failed to create media compute pool: {e}"),
-                })?,
+                .map_err(|e| tool_error("compute_pool", format!("Failed to create media compute pool: {e}")))?,
         })
     }
 
@@ -115,7 +112,7 @@ impl ComputePool {
     ///
     /// Bridges rayon → tokio via a oneshot channel.
     /// If the closure panics, returns an error instead of crashing.
-    pub async fn compute<F, T>(&self, f: F) -> Result<T, NikaError>
+    pub async fn compute<F, T>(&self, f: F) -> Result<T, MediaToolError>
     where
         F: FnOnce() -> T + Send + 'static,
         T: Send + 'static,
@@ -167,7 +164,7 @@ impl WorkingMemoryBudget {
     }
 
     /// Try to acquire `size` bytes. Returns a guard that releases on drop.
-    pub fn acquire(&self, size: usize) -> Result<WorkingMemoryGuard<'_>, NikaError> {
+    pub fn acquire(&self, size: usize) -> Result<WorkingMemoryGuard<'_>, MediaToolError> {
         let result = self
             .used
             .fetch_update(Ordering::AcqRel, Ordering::Acquire, |current| {
