@@ -4,7 +4,7 @@ use crate::error::NikaError;
 
 /// Apply extraction to a fetch response body.
 /// Returns processed text or original body if no extraction configured.
-pub fn apply_extract(
+pub(crate) fn apply_extract(
     body: &str,
     extract: Option<&str>,
     selector: Option<&str>,

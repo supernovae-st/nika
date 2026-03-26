@@ -20,7 +20,7 @@ fn sub(content: String) -> String {
 
 // ── Provider ────────────────────────────────────────────────────────────
 
-pub fn fmt_provider_responded(
+pub(crate) fn fmt_provider_responded(
     input_tokens: u64,
     output_tokens: u64,
     cache_read_tokens: u64,
@@ -40,7 +40,7 @@ pub fn fmt_provider_responded(
     ))
 }
 
-pub fn fmt_provider_sparkline(output_tokens: u64, input_tokens: u64, cost_usd: f64) -> String {
+pub(crate) fn fmt_provider_sparkline(output_tokens: u64, input_tokens: u64, cost_usd: f64) -> String {
     let max_tok = input_tokens.max(output_tokens);
     sub(format!(
         "   tok {} cost {}",
@@ -51,7 +51,7 @@ pub fn fmt_provider_sparkline(output_tokens: u64, input_tokens: u64, cost_usd: f
 
 // ── Context ─────────────────────────────────────────────────────────────
 
-pub fn fmt_context_assembled(
+pub(crate) fn fmt_context_assembled(
     sources_len: usize,
     total_tokens: u64,
     budget_used_pct: f32,
@@ -73,7 +73,7 @@ pub fn fmt_context_assembled(
 
 // ── MCP ─────────────────────────────────────────────────────────────────
 
-pub fn fmt_mcp_connected(server_name: &str) -> String {
+pub(crate) fn fmt_mcp_connected(server_name: &str) -> String {
     sub(format!(
         "{} connected {}",
         icons::mcp(),
@@ -81,7 +81,7 @@ pub fn fmt_mcp_connected(server_name: &str) -> String {
     ))
 }
 
-pub fn fmt_mcp_error(server_name: &str, error: &str) -> String {
+pub(crate) fn fmt_mcp_error(server_name: &str, error: &str) -> String {
     sub(format!(
         "{} {} {}",
         icons::mcp(),
@@ -90,7 +90,7 @@ pub fn fmt_mcp_error(server_name: &str, error: &str) -> String {
     ))
 }
 
-pub fn fmt_mcp_invoke(
+pub(crate) fn fmt_mcp_invoke(
     mcp_server: &str,
     tool: Option<&str>,
     resource: Option<&str>,
@@ -106,7 +106,7 @@ pub fn fmt_mcp_invoke(
     ))
 }
 
-pub fn fmt_mcp_response(
+pub(crate) fn fmt_mcp_response(
     call_id: &str,
     output_len: usize,
     duration_ms: u64,
@@ -135,7 +135,7 @@ pub fn fmt_mcp_response(
     ))
 }
 
-pub fn fmt_mcp_retry(operation: &str, attempt: u32, max_attempts: u32, error: &str) -> String {
+pub(crate) fn fmt_mcp_retry(operation: &str, attempt: u32, max_attempts: u32, error: &str) -> String {
     sub(format!(
         "{} {} {}/{} · {}",
         icons::retry(),
@@ -148,7 +148,7 @@ pub fn fmt_mcp_retry(operation: &str, attempt: u32, max_attempts: u32, error: &s
 
 // ── Agent ───────────────────────────────────────────────────────────────
 
-pub fn fmt_agent_start(max_turns: u32, mcp_servers: &[String]) -> String {
+pub(crate) fn fmt_agent_start(max_turns: u32, mcp_servers: &[String]) -> String {
     let servers = mcp_servers.join(", ");
     sub(format!(
         "{} {} max_turns:{} · mcp:[{}]",
@@ -159,7 +159,7 @@ pub fn fmt_agent_start(max_turns: u32, mcp_servers: &[String]) -> String {
     ))
 }
 
-pub fn fmt_agent_turn(turn_index: u32, kind: &str) -> String {
+pub(crate) fn fmt_agent_turn(turn_index: u32, kind: &str) -> String {
     sub(format!(
         "{} turn {}/…  {}",
         icons::agent_meta(),
@@ -168,11 +168,11 @@ pub fn fmt_agent_turn(turn_index: u32, kind: &str) -> String {
     ))
 }
 
-pub fn fmt_agent_turn_tool_use() -> String {
+pub(crate) fn fmt_agent_turn_tool_use() -> String {
     sub(format!("{} tool_use", "↳".dimmed()))
 }
 
-pub fn fmt_agent_complete(turns: u32, stop_reason: &str) -> String {
+pub(crate) fn fmt_agent_complete(turns: u32, stop_reason: &str) -> String {
     sub(format!(
         "{} {} {} turns · {}",
         icons::agent_meta(),
@@ -182,7 +182,7 @@ pub fn fmt_agent_complete(turns: u32, stop_reason: &str) -> String {
     ))
 }
 
-pub fn fmt_agent_spawned(child_task_id: &str, depth: u32) -> String {
+pub(crate) fn fmt_agent_spawned(child_task_id: &str, depth: u32) -> String {
     sub(format!(
         "{} spawned {} depth:{}",
         "⤋".magenta(),
@@ -193,7 +193,7 @@ pub fn fmt_agent_spawned(child_task_id: &str, depth: u32) -> String {
 
 // ── For-each ────────────────────────────────────────────────────────────
 
-pub fn fmt_for_each_completed(task_id: &str, total: u32, succeeded: u32, failed: u32) -> String {
+pub(crate) fn fmt_for_each_completed(task_id: &str, total: u32, succeeded: u32, failed: u32) -> String {
     let status = if failed > 0 {
         format!("{}/{} ok · {} failed", succeeded, total, failed)
             .yellow()
@@ -211,7 +211,7 @@ pub fn fmt_for_each_completed(task_id: &str, total: u32, succeeded: u32, failed:
 
 // ── Exec ────────────────────────────────────────────────────────────────
 
-pub fn fmt_exec_completed(exit_code: i32, duration_ms: u64) -> String {
+pub(crate) fn fmt_exec_completed(exit_code: i32, duration_ms: u64) -> String {
     let code_str = if exit_code == 0 {
         "0".green().to_string()
     } else {
@@ -227,7 +227,7 @@ pub fn fmt_exec_completed(exit_code: i32, duration_ms: u64) -> String {
 
 // ── Policy ──────────────────────────────────────────────────────────────
 
-pub fn fmt_policy_blocked(ts: &str, policy_type: &str, reason: &str) -> String {
+pub(crate) fn fmt_policy_blocked(ts: &str, policy_type: &str, reason: &str) -> String {
     format!(
         "{}  {} {} {} · {}",
         ts,
@@ -240,7 +240,7 @@ pub fn fmt_policy_blocked(ts: &str, policy_type: &str, reason: &str) -> String {
 
 // ── Guardrails ──────────────────────────────────────────────────────────
 
-pub fn fmt_guardrail_passed(guardrail_type: &str, description: &str) -> String {
+pub(crate) fn fmt_guardrail_passed(guardrail_type: &str, description: &str) -> String {
     sub(format!(
         "{} {} {}",
         icons::guardrail(),
@@ -249,7 +249,7 @@ pub fn fmt_guardrail_passed(guardrail_type: &str, description: &str) -> String {
     ))
 }
 
-pub fn fmt_guardrail_failed(guardrail_type: &str, message: &str) -> String {
+pub(crate) fn fmt_guardrail_failed(guardrail_type: &str, message: &str) -> String {
     sub(format!(
         "{} {} {}",
         icons::guardrail(),
@@ -258,7 +258,7 @@ pub fn fmt_guardrail_failed(guardrail_type: &str, message: &str) -> String {
     ))
 }
 
-pub fn fmt_guardrail_escalation(severity: &str, message: &str) -> String {
+pub(crate) fn fmt_guardrail_escalation(severity: &str, message: &str) -> String {
     sub(format!(
         "  {} {} · {}",
         icons::retry(),
@@ -269,7 +269,7 @@ pub fn fmt_guardrail_escalation(severity: &str, message: &str) -> String {
 
 // ── Log / Custom ────────────────────────────────────────────────────────
 
-pub fn fmt_log(ts: &str, level: &str, message: &str) -> String {
+pub(crate) fn fmt_log(ts: &str, level: &str, message: &str) -> String {
     let level_colored = match level {
         "error" => level.red(),
         "warn" => level.yellow(),
@@ -281,7 +281,7 @@ pub fn fmt_log(ts: &str, level: &str, message: &str) -> String {
     format!("{}  {} {} · {}", ts, icons::log(), level_colored, message)
 }
 
-pub fn fmt_custom(ts: &str, name: &str, payload: &Value) -> String {
+pub(crate) fn fmt_custom(ts: &str, name: &str, payload: &Value) -> String {
     let preview = serde_json::to_string(payload).unwrap_or_default();
     let short = if preview.len() > 60 {
         format!("{}…", &preview[..colors::floor_char_boundary(&preview, 60)])
@@ -299,7 +299,7 @@ pub fn fmt_custom(ts: &str, name: &str, payload: &Value) -> String {
 
 // ── Artifacts ───────────────────────────────────────────────────────────
 
-pub fn fmt_artifact_written(path: &str, size: u64, format: &str) -> String {
+pub(crate) fn fmt_artifact_written(path: &str, size: u64, format: &str) -> String {
     sub(format!(
         "{} {} {}",
         icons::artifact(),
@@ -308,7 +308,7 @@ pub fn fmt_artifact_written(path: &str, size: u64, format: &str) -> String {
     ))
 }
 
-pub fn fmt_artifact_failed(path: &str, reason: &str) -> String {
+pub(crate) fn fmt_artifact_failed(path: &str, reason: &str) -> String {
     sub(format!(
         "{} {} {}",
         icons::artifact(),
@@ -319,7 +319,7 @@ pub fn fmt_artifact_failed(path: &str, reason: &str) -> String {
 
 // ── Media ───────────────────────────────────────────────────────────────
 
-pub fn fmt_media_extracted(block_count: u32, content_types: &[String]) -> String {
+pub(crate) fn fmt_media_extracted(block_count: u32, content_types: &[String]) -> String {
     sub(format!(
         "{} {} blocks · types: [{}]",
         icons::media(),
@@ -328,7 +328,7 @@ pub fn fmt_media_extracted(block_count: u32, content_types: &[String]) -> String
     ))
 }
 
-pub fn fmt_media_stored(size_bytes: u64, path: &str, hash: &str) -> String {
+pub(crate) fn fmt_media_stored(size_bytes: u64, path: &str, hash: &str) -> String {
     let short_hash = if hash.len() > 16 {
         &hash[..super::colors::floor_char_boundary(hash, 16)]
     } else {
@@ -343,7 +343,7 @@ pub fn fmt_media_stored(size_bytes: u64, path: &str, hash: &str) -> String {
     ))
 }
 
-pub fn fmt_media_stored_detail(deduplicated: bool, verified: bool, pipeline_ms: u64) -> String {
+pub(crate) fn fmt_media_stored_detail(deduplicated: bool, verified: bool, pipeline_ms: u64) -> String {
     let dedup = if deduplicated {
         "yes".yellow()
     } else {
@@ -356,13 +356,13 @@ pub fn fmt_media_stored_detail(deduplicated: bool, verified: bool, pipeline_ms: 
     ))
 }
 
-pub fn fmt_media_store_failed(reason: &str) -> String {
+pub(crate) fn fmt_media_store_failed(reason: &str) -> String {
     sub(format!("{} {} {}", icons::media(), "✗".red(), reason.red()))
 }
 
 // ── Structured output ───────────────────────────────────────────────────
 
-pub fn fmt_structured_output_attempt(
+pub(crate) fn fmt_structured_output_attempt(
     layer: u8,
     layer_name: &str,
     success: bool,
@@ -388,7 +388,7 @@ pub fn fmt_structured_output_attempt(
 
 // ── Vision ──────────────────────────────────────────────────────────────
 
-pub fn fmt_vision_content_resolved(image_count: u32, total_bytes: u64, resolve_ms: u64) -> String {
+pub(crate) fn fmt_vision_content_resolved(image_count: u32, total_bytes: u64, resolve_ms: u64) -> String {
     sub(format!(
         "{} {} images · {} · resolved {}ms",
         icons::vision(),
@@ -400,7 +400,7 @@ pub fn fmt_vision_content_resolved(image_count: u32, total_bytes: u64, resolve_m
 
 // ── HTTP ────────────────────────────────────────────────────────────────
 
-pub fn fmt_http_request(method: &str, url: &str) -> String {
+pub(crate) fn fmt_http_request(method: &str, url: &str) -> String {
     sub(format!(
         "{} → {} {}",
         icons::http(),
@@ -409,7 +409,7 @@ pub fn fmt_http_request(method: &str, url: &str) -> String {
     ))
 }
 
-pub fn fmt_http_response(
+pub(crate) fn fmt_http_response(
     status_code: u16,
     content_type: Option<&str>,
     content_length: Option<u64>,
@@ -436,7 +436,7 @@ pub fn fmt_http_response(
 
 // ── Provider Called ─────────────────────────────────────────────────────
 
-pub fn fmt_provider_called(provider: &str, model: &str, prompt_len: usize) -> String {
+pub(crate) fn fmt_provider_called(provider: &str, model: &str, prompt_len: usize) -> String {
     sub(format!(
         "{} {}/{} {} {} chars",
         icons::provider(),
@@ -449,7 +449,7 @@ pub fn fmt_provider_called(provider: &str, model: &str, prompt_len: usize) -> St
 
 // ── Fetch retry ────────────────────────────────────────────────────────
 
-pub fn fmt_fetch_retry(
+pub(crate) fn fmt_fetch_retry(
     url: &str,
     attempt: u32,
     max_attempts: u32,
@@ -473,7 +473,7 @@ pub fn fmt_fetch_retry(
 
 // ── Boot ───────────────────────────────────────────────────────────────
 
-pub fn fmt_boot_phase(phase: &str, success: bool, duration_ms: u64, warnings: &[String]) -> String {
+pub(crate) fn fmt_boot_phase(phase: &str, success: bool, duration_ms: u64, warnings: &[String]) -> String {
     let status = if success {
         icons::success()
     } else {
@@ -498,7 +498,7 @@ pub fn fmt_boot_phase(phase: &str, success: bool, duration_ms: u64, warnings: &[
 
 // ── Native model ───────────────────────────────────────────────────────
 
-pub fn fmt_native_model_loaded(
+pub(crate) fn fmt_native_model_loaded(
     model: &str,
     kind: &str,
     duration_ms: u64,
@@ -521,7 +521,7 @@ pub fn fmt_native_model_loaded(
 
 // ── Binding ────────────────────────────────────────────────────────────
 
-pub fn fmt_binding_default(alias: &str, path: &str) -> String {
+pub(crate) fn fmt_binding_default(alias: &str, path: &str) -> String {
     sub(format!(
         "{} {} ?? → default ({})",
         "bind".dimmed(),
@@ -530,7 +530,7 @@ pub fn fmt_binding_default(alias: &str, path: &str) -> String {
     ))
 }
 
-pub fn fmt_binding_transform(alias: &str, transform_chain: &str) -> String {
+pub(crate) fn fmt_binding_transform(alias: &str, transform_chain: &str) -> String {
     sub(format!(
         "{} {} | {}",
         "bind".dimmed(),
@@ -539,7 +539,7 @@ pub fn fmt_binding_transform(alias: &str, transform_chain: &str) -> String {
     ))
 }
 
-pub fn fmt_binding_env(var_name: &str, found: bool) -> String {
+pub(crate) fn fmt_binding_env(var_name: &str, found: bool) -> String {
     let status = if found {
         icons::success()
     } else {
@@ -555,7 +555,7 @@ pub fn fmt_binding_env(var_name: &str, found: bool) -> String {
 
 // ── Decompose ──────────────────────────────────────────────────────────
 
-pub fn fmt_decompose_started(task_id: &str, strategy: &str) -> String {
+pub(crate) fn fmt_decompose_started(task_id: &str, strategy: &str) -> String {
     sub(format!(
         "{} decompose {} · strategy:{}",
         icons::log(),
@@ -564,7 +564,7 @@ pub fn fmt_decompose_started(task_id: &str, strategy: &str) -> String {
     ))
 }
 
-pub fn fmt_decompose_completed(task_id: &str, item_count: usize, duration_ms: u64) -> String {
+pub(crate) fn fmt_decompose_completed(task_id: &str, item_count: usize, duration_ms: u64) -> String {
     sub(format!(
         "{} decompose {} · {} items · {}ms",
         icons::success(),
@@ -576,7 +576,7 @@ pub fn fmt_decompose_completed(task_id: &str, item_count: usize, duration_ms: u6
 
 // ── For-each started ───────────────────────────────────────────────────
 
-pub fn fmt_for_each_started(task_id: &str, item_count: usize, concurrency: usize) -> String {
+pub(crate) fn fmt_for_each_started(task_id: &str, item_count: usize, concurrency: usize) -> String {
     sub(format!(
         "{} for_each {} · {} items · concurrency:{}",
         icons::log(),
@@ -588,7 +588,7 @@ pub fn fmt_for_each_started(task_id: &str, item_count: usize, concurrency: usize
 
 // ── Provider initialized ───────────────────────────────────────────────
 
-pub fn fmt_provider_initialized(provider: &str, model: &str, cached: bool) -> String {
+pub(crate) fn fmt_provider_initialized(provider: &str, model: &str, cached: bool) -> String {
     let cache_tag = if cached {
         " cached".green().to_string()
     } else {
@@ -605,7 +605,7 @@ pub fn fmt_provider_initialized(provider: &str, model: &str, cached: bool) -> St
 
 // ── Builtin tool invoked ───────────────────────────────────────────────
 
-pub fn fmt_builtin_tool_invoked(tool_name: &str, duration_ms: u64, success: bool) -> String {
+pub(crate) fn fmt_builtin_tool_invoked(tool_name: &str, duration_ms: u64, success: bool) -> String {
     let status = if success {
         icons::success()
     } else {
@@ -622,7 +622,7 @@ pub fn fmt_builtin_tool_invoked(tool_name: &str, duration_ms: u64, success: bool
 
 // ── Extract applied ────────────────────────────────────────────────────
 
-pub fn fmt_extract_applied(mode: &str, input_len: usize, output_len: usize) -> String {
+pub(crate) fn fmt_extract_applied(mode: &str, input_len: usize, output_len: usize) -> String {
     let ratio = if input_len > 0 {
         format!(" ({}%)", output_len * 100 / input_len)
     } else {
@@ -640,7 +640,7 @@ pub fn fmt_extract_applied(mode: &str, input_len: usize, output_len: usize) -> S
 
 // ── Template ────────────────────────────────────────────────────────────
 
-pub fn fmt_template_resolved(template: &str, result: &str) -> String {
+pub(crate) fn fmt_template_resolved(template: &str, result: &str) -> String {
     sub(format!(
         "{} {} → {}",
         "tmpl".dimmed(),

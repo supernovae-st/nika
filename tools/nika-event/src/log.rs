@@ -932,9 +932,9 @@ impl EventLog {
     /// Create a new event log with broadcast channel for TUI
     ///
     /// Returns (EventLog, Receiver) tuple. Pass the receiver to TUI App.
-    /// P1 Fix: Increase channel capacity from 256 to 512 events (buffer for TUI lag + fast providers).
+    /// Broadcast capacity: 1024 events (M6 fix: accommodate heavy for_each + fast providers).
     pub fn new_with_broadcast() -> (Self, broadcast::Receiver<Event>) {
-        let (tx, rx) = broadcast::channel(512);
+        let (tx, rx) = broadcast::channel(1024);
         let event_log = Self {
             events: Arc::new(RwLock::new(Vec::with_capacity(256))),
             start_time: Instant::now(),

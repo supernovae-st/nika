@@ -263,7 +263,7 @@ const BLOCKED_ENV_VARS: &[&str] = &[
 /// # Errors
 ///
 /// Returns `BlockedCommand` if a blocked or invalid env var name is found.
-pub fn validate_env_vars(vars: &[(String, String)]) -> Result<(), NikaError> {
+pub(crate) fn validate_env_vars(vars: &[(String, String)]) -> Result<(), NikaError> {
     for (key, _) in vars {
         // Validate env var name format: must be [A-Za-z_][A-Za-z0-9_]*
         if !is_valid_env_var_name(key) {
@@ -316,7 +316,7 @@ fn is_valid_env_var_name(name: &str) -> bool {
 
 /// Returns the list of sensitive env var names that should be stripped
 /// from child processes to prevent API key leakage.
-pub fn sensitive_env_vars() -> Vec<&'static str> {
+pub(crate) fn sensitive_env_vars() -> Vec<&'static str> {
     // Collect from KNOWN_PROVIDERS
     let mut vars: Vec<&'static str> = crate::core::providers::KNOWN_PROVIDERS
         .iter()
@@ -355,7 +355,7 @@ pub fn sensitive_env_vars() -> Vec<&'static str> {
 }
 
 /// Remove sensitive API key env vars from a Command before spawning.
-pub fn strip_sensitive_env_vars(cmd: &mut tokio::process::Command) {
+pub(crate) fn strip_sensitive_env_vars(cmd: &mut tokio::process::Command) {
     for var in sensitive_env_vars() {
         cmd.env_remove(var);
     }

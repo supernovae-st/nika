@@ -302,7 +302,7 @@ pub fn validate_inline_schema(value: &Value, schema: &Value) -> Result<(), NikaE
 }
 
 /// Format validation errors for retry feedback to LLM
-pub fn format_validation_errors(value: &Value, schema: &Value) -> String {
+pub(crate) fn format_validation_errors(value: &Value, schema: &Value) -> String {
     // PERF: Use cached compiled validator (H4)
     let compiled = match get_or_compile_validator(schema) {
         Ok(c) => c,
@@ -329,7 +329,7 @@ pub fn format_validation_errors(value: &Value, schema: &Value) -> String {
 }
 
 /// Extract JSON from LLM output - public version for executor retry loop
-pub fn extract_json(output: &str) -> Result<Value, String> {
+pub(crate) fn extract_json(output: &str) -> Result<Value, String> {
     extract_json_from_output(output)
 }
 
