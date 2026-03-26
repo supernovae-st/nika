@@ -96,14 +96,14 @@ cd ../.worktrees/nika-my-feature
 ### Step 2: Develop
 
 ```bash
-# Run tests continuously
-cargo test
+# Run tests (--lib avoids macOS Keychain popups)
+cargo nextest run --workspace --lib
 
 # Check lints
-cargo clippy -- -D warnings
+cargo clippy --workspace -- -D warnings
 
 # Validate before commit
-cargo fmt --check && cargo clippy -- -D warnings && cargo nextest run
+cargo fmt --check && cargo clippy --workspace -- -D warnings && cargo nextest run --workspace --lib
 ```
 
 ### Step 3: Commit (Conventional)
@@ -314,8 +314,8 @@ cd nika/tools/nika
 # Build
 cargo build
 
-# Run tests
-cargo nextest run
+# Run tests (--lib avoids macOS Keychain popups)
+cargo nextest run --workspace --lib
 
 # Run the TUI
 cargo run

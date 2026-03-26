@@ -184,7 +184,7 @@ jobs:
         working-directory: tools/nika
         run: |
           cargo llvm-cov nextest --workspace --lib --lcov --output-path lcov.info
-          cargo llvm-cov report --workspace --summary-only | tee /tmp/coverage-summary.txt
+          cargo llvm-cov report --workspace --lib --summary-only | tee /tmp/coverage-summary.txt
 
       - name: Upload to Codecov
         uses: codecov/codecov-action@v5
@@ -335,6 +335,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           sparse-checkout: tools/Cargo.toml
+          sparse-checkout-cone-mode: false
 
       - name: Extract version
         id: version
