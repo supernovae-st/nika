@@ -56,7 +56,6 @@ pub struct LiveRenderer {
     /// Task start times for duration calculation: task_id → (timestamp_ms, verb).
     task_starts: HashMap<String, (u64, String)>,
     /// Per-task token accumulator for O(1) lookup in TaskCompleted.
-    /// Per-task token accumulator for O(1) lookup in TaskCompleted.
     task_token_acc: HashMap<String, (u64, u64)>,
     /// Workflow start timestamp from events.
     workflow_start_ms: u64,
@@ -438,7 +437,6 @@ impl LiveRenderer {
                 task_id,
                 dependencies,
             } => {
-                self.stats.task_count += 1;
                 // Update the task bar to show deps
                 if let Some(tb) = self.task_bars.get_mut(task_id.as_ref()) {
                     let msg = Self::format_pending_arc(task_id, dependencies);
@@ -670,7 +668,7 @@ impl LiveRenderer {
             } => {
                 if self.detail.show_sub_events() {
                     self.log(&super::format_event::fmt_context_assembled(
-                        sources.len(), *total_tokens, *budget_used_pct as f64,
+                        sources.len(), *total_tokens, *budget_used_pct,
                     ));
                 }
             }
@@ -712,7 +710,7 @@ impl LiveRenderer {
             } => {
                 if self.detail.show_sub_events() {
                     self.log(&super::format_event::fmt_mcp_response(
-                        call_id, *output_len as u64, *duration_ms, *cached, *is_error,
+                        call_id, *output_len, *duration_ms, *cached, *is_error,
                     ));
                 }
             }

@@ -25,7 +25,7 @@ pub enum BootPhase {
     ConfigValidation,
     /// Phase 3: Loading memory files
     MemoryLoading,
-    /// Phase 4: Loading secrets from nika daemon
+    /// Phase 4: Loading secrets from env vars + keychain
     SecretsLoading,
     /// Phase 5: Starting MCP servers
     McpStartup,
@@ -555,28 +555,19 @@ impl BootSequence {
         }
     }
 
-    /// Phase 4: Load secrets from nika daemon or fallback
+    /// Phase 4: Load secrets from env vars + keychain
     async fn phase_secrets_loading(&self, ctx: &mut BootContext) -> PhaseResult {
         let start = Instant::now();
-        let mut warnings = vec![];
+        let warnings = vec![];
 
-        // Load secrets from daemon (or fallback to keyring/env)
+        // Load secrets from env vars (+ keychain if NIKA_KEYCHAIN_BOOT=1)
         let result = crate::secrets::load_from_daemon_or_fallback().await;
 
-        if !result.daemon_available {
-            warnings.push("nika daemon not running, using fallback".into());
-        }
-
-        let message = if result.daemon_available {
-            format!(
-                "{} secrets loaded ({} daemon, {} fallback)",
-                result.total_loaded(),
-                result.from_daemon.len(),
-                result.from_fallback.len()
-            )
-        } else {
-            format!("{} secrets loaded (fallback)", result.total_loaded())
-        };
+        let message = format!(
+            "{} secrets loaded ({})",
+            result.total_loaded(),
+            result.summary()
+        );
 
         ctx.secrets_loaded = Some(result);
 

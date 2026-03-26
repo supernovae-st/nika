@@ -3,38 +3,25 @@
 /// Result of loading secrets.
 #[derive(Debug, Clone, Default)]
 pub struct SecretsLoadResult {
-    /// Providers loaded from nika daemon.
-    pub from_daemon: Vec<String>,
-    /// Providers loaded from fallback (keyring/env).
-    pub from_fallback: Vec<String>,
+    /// Providers loaded from env vars / keyring.
+    pub from_env: Vec<String>,
     /// Providers with no key found.
     pub not_found: Vec<String>,
-    /// Whether daemon was available.
-    pub daemon_available: bool,
 }
 
 impl SecretsLoadResult {
     /// Total number of secrets loaded.
     pub fn total_loaded(&self) -> usize {
-        self.from_daemon.len() + self.from_fallback.len()
+        self.from_env.len()
     }
 
     /// Human-readable summary.
     pub fn summary(&self) -> String {
-        if self.daemon_available {
-            format!(
-                "{} from daemon, {} fallback, {} not found",
-                self.from_daemon.len(),
-                self.from_fallback.len(),
-                self.not_found.len()
-            )
-        } else {
-            format!(
-                "daemon unavailable, {} from fallback, {} not found",
-                self.from_fallback.len(),
-                self.not_found.len()
-            )
-        }
+        format!(
+            "{} from env, {} not found",
+            self.from_env.len(),
+            self.not_found.len()
+        )
     }
 }
 
@@ -45,23 +32,20 @@ mod tests {
     #[test]
     fn test_secrets_load_result_summary() {
         let result = SecretsLoadResult {
-            from_daemon: vec!["anthropic".into()],
-            from_fallback: vec!["openai".into()],
+            from_env: vec!["anthropic".into(), "openai".into()],
             not_found: vec!["groq".into()],
-            daemon_available: true,
         };
         assert_eq!(result.total_loaded(), 2);
-        assert!(result.summary().contains("1 from daemon"));
+        assert!(result.summary().contains("2 from env"));
     }
 
     #[test]
-    fn test_secrets_load_result_no_daemon() {
+    fn test_secrets_load_result_empty() {
         let result = SecretsLoadResult {
-            from_daemon: vec![],
-            from_fallback: vec!["anthropic".into()],
-            not_found: vec![],
-            daemon_available: false,
+            from_env: vec![],
+            not_found: vec!["anthropic".into()],
         };
-        assert!(result.summary().contains("daemon unavailable"));
+        assert_eq!(result.total_loaded(), 0);
+        assert!(result.summary().contains("0 from env"));
     }
 }

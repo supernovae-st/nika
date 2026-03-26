@@ -534,10 +534,6 @@ pub fn print_run_summary(
             )
         );
         for (i, call) in stats.provider_calls.iter().enumerate() {
-            let _ttft_str = call
-                .ttft_ms
-                .map(|t| format!("{}ms", t))
-                .unwrap_or_else(|| "\u{2014}".to_string());
             let padded_task = format!("{:<12}", call.task_id);
             println!(
                 "│{}│",

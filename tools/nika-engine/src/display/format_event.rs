@@ -54,7 +54,7 @@ pub fn fmt_provider_sparkline(output_tokens: u64, input_tokens: u64, cost_usd: f
 pub fn fmt_context_assembled(
     sources_len: usize,
     total_tokens: u64,
-    budget_used_pct: f64,
+    budget_used_pct: f32,
 ) -> String {
     let warn = if budget_used_pct > 90.0 {
         " ⚠".red().to_string()
@@ -66,7 +66,7 @@ pub fn fmt_context_assembled(
         "ctx".dimmed(),
         sources_len,
         colors::tokens(total_tokens),
-        colors::budget_bar(budget_used_pct as f32, 25),
+        colors::budget_bar(budget_used_pct, 25),
         warn
     ))
 }
@@ -103,7 +103,7 @@ pub fn fmt_mcp_invoke(mcp_server: &str, tool: Option<&str>, resource: Option<&st
 
 pub fn fmt_mcp_response(
     call_id: &str,
-    output_len: u64,
+    output_len: usize,
     duration_ms: u64,
     cached: bool,
     is_error: bool,
@@ -124,7 +124,7 @@ pub fn fmt_mcp_response(
         icons::mcp(),
         format!("call:{}", call_id).dimmed(),
         "←".dimmed(),
-        format_bytes(output_len),
+        format_bytes(output_len as u64),
         format!(" · {}ms", duration_ms).dimmed(),
         suffix
     ))
