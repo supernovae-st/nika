@@ -187,7 +187,16 @@ impl WatchService {
     }
 }
 
+/// Maximum number of glob patterns per watch (prevents ReDoS on GlobSet compile).
+const MAX_GLOB_PATTERNS: usize = 32;
+
 fn build_glob_set(patterns: &[String]) -> DaemonResult<globset::GlobSet> {
+    if patterns.len() > MAX_GLOB_PATTERNS {
+        return Err(DaemonError::Protocol(format!(
+            "too many glob patterns: {} > {MAX_GLOB_PATTERNS} limit",
+            patterns.len()
+        )));
+    }
     let mut builder = globset::GlobSet::builder();
     for pattern in patterns {
         let glob = globset::Glob::new(pattern)

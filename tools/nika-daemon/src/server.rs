@@ -446,6 +446,35 @@ async fn route_request(request: DaemonRequest, state: &Arc<ServerState>) -> Daem
 
         // ── Watch ───────────────────────────────────────────────────────
         DaemonRequest::WatchStart { dir, patterns } => {
+            // Validate: reject paths with ".." components and absolute paths
+            // outside the user's home directory (prevents watching sensitive dirs).
+            let watch_path = std::path::Path::new(&dir);
+            if watch_path
+                .components()
+                .any(|c| c == std::path::Component::ParentDir)
+            {
+                return DaemonResponse::Error {
+                    code: "WATCH-003".into(),
+                    message: "watch dir must not contain '..' path components".into(),
+                };
+            }
+            if watch_path.is_absolute() {
+                // Use ~/.nika parent as a proxy for the home directory
+                let home = crate::nika_home()
+                    .parent()
+                    .map(|p| p.to_path_buf())
+                    .unwrap_or_default();
+                if !watch_path.starts_with(&home) {
+                    return DaemonResponse::Error {
+                        code: "WATCH-003".into(),
+                        message: format!(
+                            "watch dir '{}' must be under home directory",
+                            dir
+                        ),
+                    };
+                }
+            }
+
             let mut guard = state.active_watch.lock().await;
             if guard.is_some() {
                 return DaemonResponse::Error {
