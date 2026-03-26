@@ -1301,4 +1301,189 @@ mod tests {
         renderer.finalize_bars(); // second call is a no-op
         assert!(renderer.finalized);
     }
+
+    // ── Event rendering tests (Task 9) ───────────────────────────────
+
+    /// Helper: create a minimal Event with the given kind and id.
+    fn make_event(id: u64, timestamp_ms: u64, kind: EventKind) -> Event {
+        Event {
+            id,
+            timestamp_ms,
+            kind,
+        }
+    }
+
+    #[test]
+    fn event_task_started_through_completed_updates_stats() {
+        let mut renderer = LiveRenderer::hidden(DetailLevel::Max);
+        let task_ids = vec!["research".to_string()];
+        let deps = HashMap::new();
+        renderer.init_tasks(&task_ids, &deps);
+
+        // TaskStarted
+        renderer.render(&make_event(
+            1,
+            0,
+            EventKind::TaskStarted {
+                task_id: Arc::from("research"),
+                verb: Arc::from("infer"),
+                inputs: serde_json::Value::Null,
+            },
+        ));
+        assert_eq!(renderer.task_bars["research"].status, TaskStatus::Running);
+
+        // ProviderResponded
+        renderer.render(&make_event(
+            2,
+            100,
+            EventKind::ProviderResponded {
+                task_id: Arc::from("research"),
+                request_id: None,
+                input_tokens: 500,
+                output_tokens: 200,
+                cache_read_tokens: 50,
+                ttft_ms: Some(120),
+                finish_reason: "stop".to_string(),
+                cost_usd: 0.002,
+            },
+        ));
+        assert_eq!(renderer.stats.total_input_tokens, 500);
+        assert_eq!(renderer.stats.total_output_tokens, 200);
+        assert_eq!(renderer.stats.total_cache_tokens, 50);
+        assert_eq!(renderer.stats.total_cost, 0.002);
+        assert_eq!(renderer.stats.ttft_values, vec![120]);
+
+        // TaskCompleted
+        renderer.render(&make_event(
+            3,
+            1500,
+            EventKind::TaskCompleted {
+                task_id: Arc::from("research"),
+                output: Arc::new(serde_json::Value::String("result".to_string())),
+                duration_ms: 1500,
+            },
+        ));
+        assert_eq!(renderer.stats.tasks_passed, 1);
+        assert_eq!(renderer.task_bars["research"].status, TaskStatus::Completed);
+        assert_eq!(renderer.stats.task_timeline.len(), 1);
+    }
+
+    #[test]
+    fn event_task_failed_sets_root_failure() {
+        let mut renderer = LiveRenderer::hidden(DetailLevel::Max);
+        let task_ids = vec!["broken".to_string()];
+        let deps = HashMap::new();
+        renderer.init_tasks(&task_ids, &deps);
+
+        // Start the task
+        renderer.render(&make_event(
+            1,
+            0,
+            EventKind::TaskStarted {
+                task_id: Arc::from("broken"),
+                verb: Arc::from("exec"),
+                inputs: serde_json::Value::Null,
+            },
+        ));
+
+        // Fail the task
+        renderer.render(&make_event(
+            2,
+            500,
+            EventKind::TaskFailed {
+                task_id: Arc::from("broken"),
+                error: "command not found".to_string(),
+                duration_ms: 500,
+                error_code: Some("NIKA-055".to_string()),
+            },
+        ));
+        assert_eq!(renderer.stats.tasks_failed, 1);
+        assert_eq!(
+            renderer.stats.root_failure.as_deref(),
+            Some("broken"),
+            "should record first failure as root"
+        );
+        assert_eq!(renderer.task_bars["broken"].status, TaskStatus::Failed);
+    }
+
+    #[test]
+    fn event_render_new_events_incremental() {
+        let mut renderer = LiveRenderer::hidden(DetailLevel::Max);
+        let task_ids = vec!["t1".to_string()];
+        let deps = HashMap::new();
+        renderer.init_tasks(&task_ids, &deps);
+
+        let events = vec![
+            make_event(
+                1,
+                0,
+                EventKind::TaskStarted {
+                    task_id: Arc::from("t1"),
+                    verb: Arc::from("fetch"),
+                    inputs: serde_json::Value::Null,
+                },
+            ),
+            make_event(
+                2,
+                1000,
+                EventKind::TaskCompleted {
+                    task_id: Arc::from("t1"),
+                    output: Arc::new(serde_json::Value::Null),
+                    duration_ms: 1000,
+                },
+            ),
+        ];
+
+        // First call renders both
+        renderer.render_new_events(&events);
+        assert_eq!(renderer.last_rendered_id(), Some(2));
+        assert_eq!(renderer.stats.tasks_passed, 1);
+
+        // Second call with same events renders nothing new
+        let prev_passed = renderer.stats.tasks_passed;
+        renderer.render_new_events(&events);
+        assert_eq!(renderer.stats.tasks_passed, prev_passed, "should not re-render");
+    }
+
+    #[test]
+    fn detail_min_suppresses_sub_events() {
+        let mut renderer = LiveRenderer::hidden(DetailLevel::Min);
+        let task_ids = vec!["t1".to_string()];
+        let deps = HashMap::new();
+        renderer.init_tasks(&task_ids, &deps);
+
+        // ProviderCalled is a sub-event — Min should suppress it
+        renderer.render(&make_event(
+            1,
+            0,
+            EventKind::ProviderCalled {
+                task_id: Arc::from("t1"),
+                provider: "anthropic".to_string(),
+                model: "claude-sonnet-4-20250514".to_string(),
+                prompt_len: 500,
+            },
+        ));
+        // No panic, no assertion on output (hidden target) — just verifying no crash
+        // Stats are still accumulated even when display is suppressed
+        assert_eq!(renderer.stats.tasks_passed, 0, "provider call does not affect pass count");
+    }
+
+    #[test]
+    fn event_task_skipped_updates_stats() {
+        let mut renderer = LiveRenderer::hidden(DetailLevel::Max);
+        let task_ids = vec!["skippable".to_string()];
+        let deps = HashMap::new();
+        renderer.init_tasks(&task_ids, &deps);
+
+        renderer.render(&make_event(
+            1,
+            0,
+            EventKind::TaskSkipped {
+                task_id: Arc::from("skippable"),
+                reason: "dependency failed".to_string(),
+            },
+        ));
+        assert_eq!(renderer.stats.tasks_skipped, 1);
+        assert_eq!(renderer.task_bars["skippable"].status, TaskStatus::Skipped);
+    }
 }
