@@ -2161,9 +2161,9 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
                                 // Render new events via CliRenderer
                                 if let Some(ref mut r) = self.cli_renderer {
-                                    let new_events =
-                                        self.event_log.events_since(r.last_rendered_id());
-                                    r.render_new_events(&new_events);
+                                    self.event_log.with_events_since(r.last_rendered_id(), |events| {
+                                        r.render_new_events(events);
+                                    });
                                 }
 
                                 // Store individual result
@@ -2311,8 +2311,9 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         let trace_path = self.write_trace();
 
         if let Some(ref mut renderer) = self.cli_renderer {
-            let remaining = self.event_log.events_since(renderer.last_rendered_id());
-            renderer.render_new_events(&remaining);
+            self.event_log.with_events_since(renderer.last_rendered_id(), |events| {
+                renderer.render_new_events(events);
+            });
             let total_duration_ms = workflow_start.elapsed().as_millis() as u64;
             if self.quiet {
                 renderer.render_quiet_summary(total_duration_ms);
