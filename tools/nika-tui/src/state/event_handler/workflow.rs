@@ -10,7 +10,7 @@ use serde_json::Value;
 
 use super::TuiState;
 use crate::state::notification::Notification;
-use crate::theme::MissionPhase;
+use crate::theme::{MissionPhase, TaskStatus};
 
 impl TuiState {
     pub(super) fn on_workflow_started(&mut self, task_count: usize, generation_id: &str) {
@@ -52,6 +52,17 @@ impl TuiState {
     pub(super) fn on_workflow_failed(&mut self, error: &str, timestamp_ms: u64) {
         self.workflow.phase = MissionPhase::Abort;
         self.workflow.error_message = Some(error.to_string());
+        self.current_task = None;
+
+        // Kill any still-Running tasks — they will never receive a TaskFailed event
+        for task in self.tasks.values_mut() {
+            if task.status == TaskStatus::Running {
+                task.status = TaskStatus::Failed;
+                if task.error.is_none() {
+                    task.error = Some(error.to_string());
+                }
+            }
+        }
 
         // TIER 3.4: Add error notification
         self.add_notification(Notification::error(
@@ -75,6 +86,15 @@ impl TuiState {
         self.workflow.error_message = Some(format!("Aborted: {}", reason));
         self.workflow.total_duration_ms = Some(duration_ms);
         self.current_task = None;
+
+        // Mark interrupted running tasks as Skipped so they stop spinning
+        for task_id in running_tasks {
+            if let Some(task) = self.tasks.get_mut(task_id.as_ref()) {
+                if task.status == TaskStatus::Running {
+                    task.status = TaskStatus::Skipped;
+                }
+            }
+        }
 
         // TIER 3.4: Add abort notification
         let task_info = if running_tasks.is_empty() {

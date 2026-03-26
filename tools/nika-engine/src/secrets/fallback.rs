@@ -51,7 +51,8 @@ pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
         #[cfg(unix)]
         if let Some(ref client) = daemon {
             if let Ok(Some(secret)) = client.get_secret(provider_id).await {
-                std::env::set_var(env_var, &secret);
+                // SAFETY: called during sequential boot before spawning workflow tasks
+                unsafe { std::env::set_var(env_var, &secret) };
                 debug!("{}: loaded from daemon", provider_id);
                 result.from_env.push(provider_id.to_string());
                 continue;
@@ -79,7 +80,8 @@ fn try_load_from_keyring(provider: &str, env_var: &str) -> bool {
     }
     match NikaKeyring::get(provider) {
         Ok(secret) => {
-            std::env::set_var(env_var, &*secret);
+            // SAFETY: called during sequential boot before spawning workflow tasks
+            unsafe { std::env::set_var(env_var, &*secret) };
             debug!("{}: loaded from keyring", provider);
             true
         }
