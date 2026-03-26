@@ -827,7 +827,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
     /// * `base_path` - Base path for artifact resolution
     #[allow(clippy::too_many_arguments)] // Artifact integration requires additional params
     async fn execute_task_iteration(
-        task: AnalyzedTask,
+        task: Arc<AnalyzedTask>,
         task_id: Arc<str>,
         parent_task_id: Arc<str>,
         datastore: RunContext,
@@ -1892,8 +1892,10 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         }
 
                         // Spawn one execution per item in the array
-                        // Spawn one execution per item in the array
                         let var_name = fe.map(|f| f.as_var.as_str()).unwrap_or("item").to_string();
+                        // PERF(M1): Wrap in Arc once, then Arc::clone per iteration
+                        // instead of deep-cloning AnalyzedTask (~800-1200 bytes each).
+                        let task = Arc::new(task.clone());
                         for (idx, item) in items.iter().enumerate() {
                             // Check if cancelled before spawning
                             if fail_fast && cancel.is_cancelled() {
@@ -1905,7 +1907,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                 break;
                             }
 
-                            let task = task.clone();
+                            let task = Arc::clone(&task);
                             let task_id = intern(&format!("{}[{}]", task.name, idx));
                             let parent_task_id = intern(&task.name);
                             let datastore = self.datastore.clone();
@@ -2027,7 +2029,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     continue;
                 } else {
                     // Regular task without for_each
-                    let task = task.clone();
+                    let task = Arc::new(task.clone());
                     let datastore = self.datastore.clone();
                     let executor = self.executor.clone();
                     let event_log = self.event_log.clone();
