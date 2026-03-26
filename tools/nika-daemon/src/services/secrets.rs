@@ -219,9 +219,15 @@ mod tests {
         // can verify the function doesn't panic and returns a valid Option
         let result = get_from_env("anthropic");
         if std::env::var("ANTHROPIC_API_KEY").is_ok() {
-            assert!(result.is_some(), "Expected Some when ANTHROPIC_API_KEY is set");
+            assert!(
+                result.is_some(),
+                "Expected Some when ANTHROPIC_API_KEY is set"
+            );
         } else {
-            assert!(result.is_none(), "Expected None when ANTHROPIC_API_KEY is not set");
+            assert!(
+                result.is_none(),
+                "Expected None when ANTHROPIC_API_KEY is not set"
+            );
         }
     }
 }
