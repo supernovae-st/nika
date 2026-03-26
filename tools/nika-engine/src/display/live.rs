@@ -74,8 +74,9 @@ pub struct LiveRenderer {
     style_running: ProgressStyle,
     /// Cached ProgressStyle for static tasks (pending/completed/failed/skipped).
     style_static: ProgressStyle,
-    /// For-each sub-bars: parent_task_id → (sub_bar, total_items, completed_items).
-    for_each_bars: HashMap<String, (ProgressBar, usize, usize)>,
+    /// For-each sub-bars: parent_task_id → (sub_bar, completed_items).
+    /// Total items is encoded in the ProgressBar length — no need to duplicate.
+    for_each_bars: HashMap<String, (ProgressBar, usize)>,
 }
 
 impl LiveRenderer {
@@ -185,15 +186,17 @@ impl LiveRenderer {
             // Zero-alloc hot path: StreamingDelta just stores into the atomic, no String formatting.
             let out_tokens = Arc::new(AtomicU64::new(0));
             let tokens_arc = Arc::clone(&out_tokens);
-            let running_style =
-                base_running_style
-                    .clone()
-                    .with_key("tokens", move |_state: &ProgressState, w: &mut dyn fmt::Write| {
-                        let t = tokens_arc.load(Ordering::Relaxed);
-                        if t > 0 {
-                            let _ = write!(w, "out:{}", crate::display::colors::tokens(t));
-                        }
-                    });
+            let running_style = base_running_style.clone().with_key(
+                "tokens",
+                move |_state: &ProgressState, w: &mut dyn fmt::Write| {
+                    let t = tokens_arc.load(Ordering::Relaxed);
+                    if t > 0 {
+                        // Leading spaces inside the closure so the line ends cleanly at {elapsed}
+                        // when t==0 (avoids trailing whitespace in the template).
+                        let _ = write!(w, "  out:{}", crate::display::colors::tokens(t));
+                    }
+                },
+            );
 
             self.task_bars.insert(
                 task_id.clone(),
@@ -230,7 +233,9 @@ impl LiveRenderer {
 
         // Update the overall bar's total (already in multi from new())
         self.overall_bar.set_length(total as u64);
-        self.overall_bar.set_message("$0.0000".to_string());
+        self.overall_bar.set_message(String::new()); // cost shown once first ProviderResponded fires
+        // Tick the overall bar so {elapsed_precise} updates in real time between task events
+        self.overall_bar.enable_steady_tick(spinner::TICK_INTERVAL);
     }
 
     /// Render a single EventKind (without an Event wrapper).
@@ -278,10 +283,7 @@ impl LiveRenderer {
         let tw = terminal_size::terminal_size()
             .map(|(w, _)| w.0 as usize)
             .unwrap_or(80);
-        let sep_line = "━"
-            .repeat(tw.min(72))
-            .dimmed()
-            .to_string();
+        let sep_line = "━".repeat(tw.min(72)).dimmed().to_string();
         self.separator_bar.set_message(sep_line);
     }
 
@@ -484,6 +486,9 @@ impl LiveRenderer {
                 self.task_starts
                     .insert(task_id.to_string(), (event.timestamp_ms, verb.to_string()));
 
+                // Reset per-task token accumulator on restart to avoid inflation across retries
+                self.task_token_acc.remove(task_id.as_ref());
+
                 if let Some(tb) = self.task_bars.get_mut(task_id.as_ref()) {
                     tb.verb = verb.to_string();
                     tb.status = TaskStatus::Running;
@@ -541,17 +546,19 @@ impl LiveRenderer {
                     tb.bar.force_draw();
                 }
 
-                self.overall_bar
-                    .set_position(self.stats.tasks_passed as u64 + self.stats.tasks_skipped as u64);
+                self.overall_bar.set_position(
+                    (self.stats.tasks_passed
+                        + self.stats.tasks_skipped
+                        + self.stats.tasks_failed) as u64,
+                );
                 self.update_overall_cost();
 
-                // Increment for_each sub-bar if this is a decomposed item (task_id contains "__")
-                if let Some(parent) = task_id.split("__").next() {
-                    if parent != task_id.as_ref() {
-                        if let Some((bar, _, completed)) = self.for_each_bars.get_mut(parent) {
-                            *completed += 1;
-                            bar.set_position(*completed as u64);
-                        }
+                // Increment for_each sub-bar if this is a child item (task_id format: "parent[idx]")
+                if let Some(bracket_pos) = task_id.as_ref().rfind('[') {
+                    let parent = &task_id.as_ref()[..bracket_pos];
+                    if let Some((bar, completed)) = self.for_each_bars.get_mut(parent) {
+                        *completed += 1;
+                        bar.set_position(*completed as u64);
                     }
                 }
 
@@ -606,6 +613,15 @@ impl LiveRenderer {
                         as u64,
                 );
 
+                // Increment for_each sub-bar if this is a child item (task_id format: "parent[idx]")
+                if let Some(bracket_pos) = task_id.as_ref().rfind('[') {
+                    let parent = &task_id.as_ref()[..bracket_pos];
+                    if let Some((bar, completed)) = self.for_each_bars.get_mut(parent) {
+                        *completed += 1;
+                        bar.set_position(*completed as u64);
+                    }
+                }
+
                 // Also log the full error as a scrolling line
                 self.log(&format!(
                     "{}  {} {} {}",
@@ -634,10 +650,25 @@ impl LiveRenderer {
                     tb.bar.set_style(self.style_static.clone());
                     let msg = Self::format_skipped(task_id, reason);
                     tb.bar.finish_with_message(msg);
+                    // Guarantee immediate render — don't wait for the next 80ms tick
+                    tb.bar.force_draw();
                 }
 
-                self.overall_bar
-                    .set_position(self.stats.tasks_passed as u64 + self.stats.tasks_skipped as u64);
+                self.overall_bar.set_position(
+                    (self.stats.tasks_passed
+                        + self.stats.tasks_skipped
+                        + self.stats.tasks_failed) as u64,
+                );
+                self.update_overall_cost();
+
+                // Increment for_each sub-bar if this is a child item (task_id format: "parent[idx]")
+                if let Some(bracket_pos) = task_id.as_ref().rfind('[') {
+                    let parent = &task_id.as_ref()[..bracket_pos];
+                    if let Some((bar, completed)) = self.for_each_bars.get_mut(parent) {
+                        *completed += 1;
+                        bar.set_position(*completed as u64);
+                    }
+                }
             }
 
             // ── Provider events (scrolling log) ───────────────────
@@ -671,6 +702,8 @@ impl LiveRenderer {
                 let acc = self.task_token_acc.entry(task_id.to_string()).or_default();
                 acc.0 += input_tokens;
                 acc.1 += output_tokens;
+                // Capture acc_out before dropping the mutable borrow — avoids redundant re-lookup
+                let acc_out = acc.1;
 
                 if self.detail.show_sub_events() {
                     self.log(&super::format_event::fmt_provider_responded(
@@ -693,8 +726,6 @@ impl LiveRenderer {
                 // No set_message() needed — the with_key closure is zero-alloc on the hot path.
                 if let Some(tb) = self.task_bars.get(task_id) {
                     if tb.status == TaskStatus::Running {
-                        let (_, acc_out) =
-                            self.task_token_acc.get(task_id).copied().unwrap_or_default();
                         tb.out_tokens.store(acc_out, Ordering::Relaxed);
                     }
                 }
@@ -806,12 +837,12 @@ impl LiveRenderer {
                         mcp_servers,
                     ));
                 }
-                // Show agent turn budget on task bar
+                // Show agent turn budget on task bar — show "agent 0/N" directly, no "running" prefix
                 let task_id = event.kind.task_id().unwrap_or("?");
                 if let Some(tb) = self.task_bars.get(task_id) {
                     if tb.status == TaskStatus::Running {
-                        let budget = format!("agent 0/{}", max_turns);
-                        tb.bar.set_message(Self::format_running_msg(&budget));
+                        tb.bar
+                            .set_message(format!("agent 0/{}", max_turns).white().to_string());
                     }
                 }
             }
@@ -831,12 +862,13 @@ impl LiveRenderer {
                     }
                 }
 
-                // Update task bar with turn count (show turn N for agents)
+                // Update task bar with turn count — "turn N" directly, no "running" prefix
                 let task_id = event.kind.task_id().unwrap_or("?");
                 if let Some(tb) = self.task_bars.get(task_id) {
                     if tb.status == TaskStatus::Running {
-                        let turn_info = format!("turn {}", turn_index + 1);
-                        tb.bar.set_message(Self::format_running_msg(&turn_info));
+                        tb.bar.set_message(
+                            format!("turn {}", turn_index + 1).white().to_string(),
+                        );
                     }
                 }
             }
@@ -849,6 +881,13 @@ impl LiveRenderer {
                         *turns,
                         stop_reason,
                     ));
+                }
+                // Clear the stale "turn N" message — agent loop is done, post-processing may follow
+                let task_id = event.kind.task_id().unwrap_or("?");
+                if let Some(tb) = self.task_bars.get(task_id) {
+                    if tb.status == TaskStatus::Running {
+                        tb.bar.set_message(Self::format_running_msg(""));
+                    }
                 }
             }
 
@@ -1046,7 +1085,15 @@ impl LiveRenderer {
             }
 
             // ── Workflow completion ────────────────────────────────
-            EventKind::WorkflowCompleted { .. } | EventKind::WorkflowFailed { .. } => {
+            EventKind::WorkflowCompleted { .. } => {
+                // Drive bar to 100% so user sees completion before finalize_bars clears it
+                if let Some(len) = self.overall_bar.length() {
+                    self.overall_bar.set_position(len);
+                }
+                self.update_overall_cost();
+                self.finalize_bars();
+            }
+            EventKind::WorkflowFailed { .. } => {
                 // Defensive: ensure bars are finalized even if caller forgets.
                 // The summary is printed by the caller via render_summary().
                 self.finalize_bars();
@@ -1066,7 +1113,7 @@ impl LiveRenderer {
                     ));
                 }
                 // Remove the sub-bar when for_each completes
-                if let Some((bar, _, _)) = self.for_each_bars.remove(task_id.as_ref()) {
+                if let Some((bar, _)) = self.for_each_bars.remove(task_id.as_ref()) {
                     bar.finish_and_clear();
                     self.multi.remove(&bar);
                 }
@@ -1230,8 +1277,7 @@ impl LiveRenderer {
                             .multi
                             .insert_after(&tb.bar, ProgressBar::new(*item_count as u64));
                         sub_bar.set_style(sub_style);
-                        self.for_each_bars
-                            .insert(task_id.to_string(), (sub_bar, *item_count, 0));
+                        self.for_each_bars.insert(task_id.to_string(), (sub_bar, 0));
                     }
                 }
             }
@@ -1307,7 +1353,15 @@ impl LiveRenderer {
         }
         self.finalized = true;
 
-        // Finish all bars
+        // Abandon any active for_each sub-bars (may still be live if workflow aborted mid-loop)
+        for (bar, _) in self.for_each_bars.values() {
+            if !bar.is_finished() {
+                bar.abandon();
+            }
+        }
+        self.for_each_bars.clear();
+
+        // Finish all task bars
         for tb in self.task_bars.values() {
             if !tb.bar.is_finished() {
                 tb.bar.abandon();

@@ -176,8 +176,20 @@ pub(crate) fn json_preview(json: &str, max_chars: usize) -> String {
     let mut in_key = false;
     let mut in_string = false;
     let mut after_colon = false;
+    let mut escaped = false;
 
     for ch in truncated.chars() {
+        // Track backslash escaping inside strings
+        if in_string && escaped {
+            escaped = false;
+            result.push(ch);
+            continue;
+        }
+        if in_string && ch == '\\' {
+            escaped = true;
+            result.push(ch);
+            continue;
+        }
         match ch {
             '"' if !in_string && !after_colon => {
                 in_key = true;
