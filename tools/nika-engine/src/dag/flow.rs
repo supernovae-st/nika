@@ -27,27 +27,50 @@ use crate::util::intern;
 ///
 /// Returns a map from node name to its depth (layer). Root nodes have depth 0.
 /// Edges are `(from, to)` pairs where `from` must complete before `to`.
+/// PERF(L1): Kahn's algorithm — O(V+E) instead of previous O(V*E) iterative approach.
 pub fn compute_layers<'a>(
     nodes: &[&'a str],
     edges: &[(&'a str, &'a str)],
 ) -> std::collections::HashMap<&'a str, usize> {
+    // Build adjacency list and in-degree map
+    let mut in_degree: std::collections::HashMap<&'a str, usize> =
+        nodes.iter().map(|&n| (n, 0)).collect();
+    let mut successors: std::collections::HashMap<&'a str, Vec<&'a str>> =
+        std::collections::HashMap::new();
+
+    for &(from, to) in edges {
+        if in_degree.contains_key(from) && in_degree.contains_key(to) {
+            *in_degree.entry(to).or_default() += 1;
+            successors.entry(from).or_default().push(to);
+        }
+    }
+
+    // BFS from roots (in-degree 0)
     let mut depths: std::collections::HashMap<&'a str, usize> =
         nodes.iter().map(|&n| (n, 0)).collect();
-    let mut changed = true;
-    let mut iters = 0;
-    while changed && iters < 100 {
-        changed = false;
-        iters += 1;
-        for &(from, to) in edges {
-            if let (Some(&from_depth), Some(&to_depth)) = (depths.get(from), depths.get(to)) {
-                let new_depth = from_depth + 1;
-                if new_depth > to_depth {
-                    depths.insert(to, new_depth);
-                    changed = true;
+    let mut queue: std::collections::VecDeque<&'a str> = in_degree
+        .iter()
+        .filter(|(_, &deg)| deg == 0)
+        .map(|(&n, _)| n)
+        .collect();
+
+    while let Some(node) = queue.pop_front() {
+        let node_depth = depths[node];
+        if let Some(succs) = successors.get(node) {
+            for &succ in succs {
+                let new_depth = node_depth + 1;
+                if new_depth > depths[succ] {
+                    depths.insert(succ, new_depth);
+                }
+                let deg = in_degree.get_mut(succ).unwrap();
+                *deg -= 1;
+                if *deg == 0 {
+                    queue.push_back(succ);
                 }
             }
         }
     }
+
     depths
 }
 
