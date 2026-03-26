@@ -51,33 +51,55 @@ impl HistoryEntry {
         }
     }
 
-    /// Format timestamp for display
+    /// Format timestamp for display using correct Gregorian calendar arithmetic
     pub fn timestamp_display(&self) -> String {
         use std::time::UNIX_EPOCH;
-        let duration = self
-            .timestamp
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default();
-        let secs = duration.as_secs();
+        let secs = match self.timestamp.duration_since(UNIX_EPOCH) {
+            Ok(d) => d.as_secs(),
+            Err(_) => return "unknown".to_string(),
+        };
 
-        // Simple formatting: YYYY-MM-DD HH:MM:SS
-        let days_since_epoch = secs / 86400;
+        // Time components
         let secs_today = secs % 86400;
         let hours = secs_today / 3600;
         let mins = (secs_today % 3600) / 60;
-        let secs = secs_today % 60;
+        let secs_part = secs_today % 60;
 
-        // Approximate date calculation (not accounting for leap years precisely)
-        let year = 1970 + (days_since_epoch / 365);
-        let day_of_year = days_since_epoch % 365;
-        let month = (day_of_year / 30) + 1;
-        let day = (day_of_year % 30) + 1;
+        // Gregorian date: peel off years using correct leap-year calculation
+        let mut days = secs / 86400;
+        let mut year = 1970u32;
+        loop {
+            let days_in_year = if is_leap_year(year) { 366 } else { 365 };
+            if days < days_in_year {
+                break;
+            }
+            days -= days_in_year;
+            year += 1;
+        }
+        let month_days: &[u64] = if is_leap_year(year) {
+            &[31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+        } else {
+            &[31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+        };
+        let mut month = 1u32;
+        for &md in month_days {
+            if days < md {
+                break;
+            }
+            days -= md;
+            month += 1;
+        }
+        let day = days + 1;
 
         format!(
             "{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
-            year, month, day, hours, mins, secs
+            year, month, day, hours, mins, secs_part
         )
     }
+}
+
+fn is_leap_year(y: u32) -> bool {
+    (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0)
 }
 
 #[cfg(test)]
@@ -175,6 +197,39 @@ mod tests {
         assert_eq!(timestamp_str.chars().nth(10), Some(' '));
         assert_eq!(timestamp_str.chars().nth(13), Some(':'));
         assert_eq!(timestamp_str.chars().nth(16), Some(':'));
+    }
+
+    #[test]
+    fn timestamp_never_produces_month_13() {
+        // 2026-01-01 00:00:00 UTC = 1767225600 seconds
+        let ts = std::time::UNIX_EPOCH + Duration::from_secs(1_767_225_600);
+        let entry = HistoryEntry {
+            workflow_path: PathBuf::from("test.nika.yaml"),
+            timestamp: ts,
+            duration_ms: 0,
+            task_count: 1,
+            success: true,
+            summary: String::new(),
+        };
+        let s = entry.timestamp_display();
+        assert!(s.starts_with("2026-01"), "expected 2026-01-xx, got: {s}");
+        assert!(!s.contains("-13-"), "month 13 found in: {s}");
+    }
+
+    #[test]
+    fn timestamp_leap_year_feb29() {
+        // 2024-02-29 00:00:00 UTC = 1709164800
+        let ts = std::time::UNIX_EPOCH + Duration::from_secs(1_709_164_800);
+        let entry = HistoryEntry {
+            workflow_path: PathBuf::from("test.nika.yaml"),
+            timestamp: ts,
+            duration_ms: 0,
+            task_count: 1,
+            success: true,
+            summary: String::new(),
+        };
+        let s = entry.timestamp_display();
+        assert!(s.starts_with("2024-02-29"), "expected 2024-02-29, got: {s}");
     }
 
     #[test]
