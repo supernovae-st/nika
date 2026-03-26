@@ -885,11 +885,12 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         });
 
         // Bridge AnalyzedTask to lowered types at executor boundary
+        // PERF(M4): pass references — lower_action clones only what each verb needs
         let lowered_action = lower_action(
-            task.action.clone(),
-            task.provider.clone(),
-            task.model.clone(),
-            task.retry.clone(),
+            &task.action,
+            &task.provider,
+            &task.model,
+            &task.retry,
         );
         let lowered_output = task
             .output
