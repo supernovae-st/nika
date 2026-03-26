@@ -555,6 +555,8 @@ impl App {
         for handle in handles.iter() {
             handle.abort();
         }
+        // Reset global guards that background tasks may have held
+        PROVIDER_VERIFICATION_RUNNING.store(false, Ordering::SeqCst);
         tracing::debug!("Aborted {} background tasks", count);
     }
 

@@ -2592,48 +2592,52 @@ fn filter_tasks_for_target(
     Ok(())
 }
 
-/// Filter workflow to keep tasks from the given task's layer onwards.
+/// Filter workflow to keep the from task and all its transitive successors.
+///
+/// Uses forward BFS through successor edges (inverse of dependency traversal).
 fn filter_tasks_from(
     workflow: &mut nika::ast::analyzed::AnalyzedWorkflow,
     from_id: &str,
 ) -> Result<(), NikaError> {
-    // Collect owned strings to avoid borrow conflict with retain()
-    let nodes: Vec<String> = workflow.tasks.iter().map(|t| t.name.clone()).collect();
-    let node_refs: Vec<&str> = nodes.iter().map(|s| s.as_str()).collect();
-
-    let edges: Vec<(String, String)> = workflow
-        .tasks
-        .iter()
-        .flat_map(|task| {
-            task.depends_on.iter().filter_map(|dep_id| {
-                workflow
-                    .task_table
-                    .get_name(*dep_id)
-                    .map(|dep_name| (dep_name.to_string(), task.name.clone()))
-            })
-        })
-        .collect();
-    let edge_refs: Vec<(&str, &str)> = edges
-        .iter()
-        .map(|(a, b)| (a.as_str(), b.as_str()))
-        .collect();
-    let depths = nika::dag::flow::compute_layers(&node_refs, &edge_refs);
-
-    let from_layer = depths
-        .get(from_id)
-        .ok_or_else(|| NikaError::ValidationError {
+    if !workflow.tasks.iter().any(|t| t.name == from_id) {
+        return Err(NikaError::ValidationError {
             reason: format!(
                 "Task '{}' not found. Available: {}",
                 from_id,
-                node_refs.join(", ")
+                workflow
+                    .tasks
+                    .iter()
+                    .map(|t| t.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
             ),
-        })?;
+        });
+    }
 
-    let keep: std::collections::HashSet<String> = depths
-        .iter()
-        .filter(|(_, &depth)| depth >= *from_layer)
-        .map(|(&name, _)| name.to_string())
-        .collect();
+    // Forward BFS: find from_id + all transitive successors
+    let mut keep: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut queue: std::collections::VecDeque<String> = std::collections::VecDeque::new();
+    keep.insert(from_id.to_string());
+    queue.push_back(from_id.to_string());
+
+    while let Some(current) = queue.pop_front() {
+        for task in &workflow.tasks {
+            // Check if this task depends on `current` (making it a successor)
+            let is_successor =
+                task.depends_on
+                    .iter()
+                    .chain(task.implicit_deps.iter())
+                    .any(|dep_id| {
+                        workflow
+                            .task_table
+                            .get_name(*dep_id)
+                            .is_some_and(|name| name == current)
+                    });
+            if is_successor && keep.insert(task.name.clone()) {
+                queue.push_back(task.name.clone());
+            }
+        }
+    }
 
     workflow.tasks.retain(|t| keep.contains(t.name.as_str()));
     Ok(())
@@ -2890,8 +2894,11 @@ fn parse_input_value(s: &str) -> serde_json::Value {
             if let Ok(n) = s.parse::<i64>() {
                 return serde_json::json!(n);
             }
-            if let Ok(n) = s.parse::<f64>() {
-                return serde_json::json!(n);
+            // Only coerce to float for plain decimal notation (not scientific like "1e3")
+            if !s.contains('e') && !s.contains('E') {
+                if let Ok(n) = s.parse::<f64>() {
+                    return serde_json::json!(n);
+                }
             }
             if s.starts_with('{') || s.starts_with('[') {
                 if let Ok(v) = serde_json::from_str::<Value>(s) {

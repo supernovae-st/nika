@@ -105,11 +105,13 @@ async fn one_shot_executor(
     Ok((executor, event_log))
 }
 
-/// Read stdin content (spawn_blocking to avoid blocking tokio runtime).
+/// Read stdin content (spawn_blocking + 10MB limit to prevent OOM).
 async fn read_stdin_content() -> Result<String, NikaError> {
+    const MAX_STDIN_SIZE: u64 = 10 * 1024 * 1024; // 10 MB
     tokio::task::spawn_blocking(|| {
         let mut buf = String::new();
         std::io::stdin()
+            .take(MAX_STDIN_SIZE)
             .read_to_string(&mut buf)
             .map_err(|e| NikaError::ParseError {
                 details: format!("Failed to read stdin: {}", e),
