@@ -56,7 +56,7 @@ pub struct LiveRenderer {
     /// Task start times for duration calculation: task_id → (timestamp_ms, verb).
     task_starts: HashMap<String, (u64, String)>,
     /// Per-task token accumulator for O(1) lookup in TaskCompleted.
-    #[allow(dead_code)]
+    /// Per-task token accumulator for O(1) lookup in TaskCompleted.
     task_token_acc: HashMap<String, (u64, u64)>,
     /// Workflow start timestamp from events.
     workflow_start_ms: u64,
@@ -487,8 +487,12 @@ impl LiveRenderer {
                     ));
                 }
 
-                // Get accumulated tokens for this task from provider_calls
-                let (in_tok, out_tok) = self.task_token_totals(task_id);
+                // O(1) token lookup from per-task accumulator
+                let (in_tok, out_tok) = self
+                    .task_token_acc
+                    .get(task_id.as_ref())
+                    .copied()
+                    .unwrap_or_default();
 
                 if let Some(tb) = self.task_bars.get_mut(task_id.as_ref()) {
                     tb.status = TaskStatus::Completed;
@@ -612,14 +616,20 @@ impl LiveRenderer {
                 if let Some(t) = ttft_ms {
                     self.stats.ttft_values.push(*t);
                 }
+                let provider_task_id = event.kind.task_id().unwrap_or("?").to_string();
                 self.stats.provider_calls.push(ProviderCallStat {
-                    task_id: event.kind.task_id().unwrap_or("?").to_string(),
+                    task_id: provider_task_id.clone(),
                     input_tokens: *input_tokens,
                     output_tokens: *output_tokens,
                     cache_tokens: *cache_read_tokens,
                     ttft_ms: *ttft_ms,
                     cost: *cost_usd,
                 });
+
+                // O(1) per-task token accumulator (avoids O(n) scan in TaskCompleted)
+                let acc = self.task_token_acc.entry(provider_task_id).or_default();
+                acc.0 += input_tokens;
+                acc.1 += output_tokens;
 
                 if self.detail.show_sub_events() {
                     let ttft_str = ttft_ms
@@ -1263,19 +1273,6 @@ impl LiveRenderer {
             // Catch-all for events handled elsewhere (media lifecycle, boot, etc.)
             _ => {}
         }
-    }
-
-    /// Helper: sum tokens for a task from provider_calls.
-    fn task_token_totals(&self, task_id: &str) -> (u64, u64) {
-        let mut in_tok = 0u64;
-        let mut out_tok = 0u64;
-        for call in &self.stats.provider_calls {
-            if call.task_id == task_id {
-                in_tok += call.input_tokens;
-                out_tok += call.output_tokens;
-            }
-        }
-        (in_tok, out_tok)
     }
 
     // ── Summary ───────────────────────────────────────────────────────
