@@ -239,6 +239,29 @@ impl TreeSitterHighlighter {
     }
 }
 
+impl TreeSitterHighlighter {
+    /// Render syntax-highlighted lines from an already-parsed tree.
+    ///
+    /// Shared by `highlight()` and `highlight_incremental()` so neither
+    /// method re-parses when it already has a valid tree.
+    fn render_highlights<'a>(&self, tree: &Tree, source: &'a str) -> Vec<Line<'a>> {
+        let lines: Vec<&str> = source.lines().collect();
+        let mut result = Vec::with_capacity(lines.len());
+        let mut byte_offset = 0;
+
+        for (line_num, line) in lines.iter().enumerate() {
+            let line_end = byte_offset + line.len();
+            let highlights =
+                self.get_line_highlights(tree, source, line_num, byte_offset, line_end);
+            let spans = Self::spans_from_highlights(line, highlights);
+            result.push(Line::from(spans));
+            byte_offset = line_end + 1; // +1 for newline
+        }
+
+        result
+    }
+}
+
 impl Highlighter for TreeSitterHighlighter {
     fn highlight<'a>(&self, source: &'a str) -> Vec<Line<'a>> {
         // Reuse the cached parser and tree via RefCell interior mutability
@@ -256,20 +279,7 @@ impl Highlighter for TreeSitterHighlighter {
         // Cache the new tree for future incremental parses
         *self.tree.borrow_mut() = Some(tree.clone());
 
-        let lines: Vec<&str> = source.lines().collect();
-        let mut result = Vec::with_capacity(lines.len());
-        let mut byte_offset = 0;
-
-        for (line_num, line) in lines.iter().enumerate() {
-            let line_end = byte_offset + line.len();
-            let highlights =
-                self.get_line_highlights(&tree, source, line_num, byte_offset, line_end);
-            let spans = Self::spans_from_highlights(line, highlights);
-            result.push(Line::from(spans));
-            byte_offset = line_end + 1; // +1 for newline
-        }
-
-        result
+        self.render_highlights(&tree, source)
     }
 
     fn highlight_incremental<'a>(
@@ -279,7 +289,7 @@ impl Highlighter for TreeSitterHighlighter {
         old_end_byte: usize,
         new_end_byte: usize,
     ) -> Vec<Line<'a>> {
-        // Update the cached tree with edit information
+        // Apply edit metadata to the cached tree so tree-sitter can reuse it
         if let Some(ref mut tree) = *self.tree.borrow_mut() {
             let start_position = {
                 let (line, col) = Self::byte_to_line_col(source, start_byte);
@@ -304,12 +314,24 @@ impl Highlighter for TreeSitterHighlighter {
             });
         }
 
-        // Re-parse with old tree for incremental update
+        // Incremental re-parse: tree-sitter reuses unchanged subtrees
         let new_tree = self.parse(source);
-        *self.tree.borrow_mut() = new_tree;
 
-        // Generate highlights
-        self.highlight(source)
+        match new_tree {
+            Some(tree) => {
+                // Render directly from the incremental result — do NOT call
+                // self.highlight() which would re-parse from scratch and throw
+                // away the incremental work we just did.
+                let result = self.render_highlights(&tree, source);
+                *self.tree.borrow_mut() = Some(tree);
+                result
+            }
+            None => {
+                // Parse failed entirely (corrupt buffer) — reset and fall back
+                *self.tree.borrow_mut() = None;
+                source.lines().map(Line::raw).collect()
+            }
+        }
     }
 }
 
