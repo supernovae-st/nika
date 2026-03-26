@@ -45,35 +45,60 @@ display/
 
 ## Phase 1: Renderer Trait Extraction (3 tasks)
 
-### Task 1: Define the Renderer trait
+### Task 1: Define the Renderer trait + implement for both renderers
 
 **Files:**
-- Create: `nika-engine/src/display/traits.rs`
-- Modify: `nika-engine/src/display/mod.rs`
+- Modify: `nika-engine/src/display/renderer.rs` (trait definition + impl for CliRenderer)
+- Modify: `nika-engine/src/display/live.rs` (impl for LiveRenderer)
+- Modify: `nika-engine/src/display/mod.rs` (re-export Renderer)
 
-Define:
+**Trait signature (from architect research):**
+
 ```rust
 pub trait Renderer {
-    fn render_new_events(&mut self, events: &[Event]);
-    fn render_summary(&mut self, total_duration_ms: u64, trace_path: Option<&str>);
-    fn render_quiet_summary(&mut self, total_duration_ms: u64);
-    fn set_task_layers(&mut self, layers: HashMap<Arc<str>, usize>);
+    /// Set task-to-DAG-layer mapping. Default: no-op.
+    fn set_task_layers(&mut self, _layers: HashMap<Arc<str>, usize>) {}
+    /// Initialize per-task display state. Default: no-op.
+    fn init_tasks(&mut self, _task_ids: &[String], _task_deps: &HashMap<String, Vec<String>>) {}
+    /// ID of the last rendered event.
     fn last_rendered_id(&self) -> Option<u64>;
+    /// Render a single EventKind (synthesizes temporary Event).
+    fn render_kind(&mut self, kind: &EventKind);
+    /// Render all events newer than last_rendered_id.
+    fn render_new_events(&mut self, events: &[Event]);
+    /// Render full summary footer.
+    fn render_summary(&mut self, total_duration_ms: u64, trace_path: Option<&str>);
+    /// Render compact one-line summary.
+    fn render_quiet_summary(&mut self, total_duration_ms: u64);
+    /// Access accumulated stats.
     fn stats(&self) -> &RunStats;
 }
 ```
 
-### Task 2: Implement trait for both renderers
+Key decisions:
+- `set_task_layers` + `init_tasks` have default no-ops (CliRenderer inherits)
+- All `render_*` methods take `&mut self` (LiveRenderer needs mutability for finalize_bars)
+- `stats()` accessor instead of trait field
+
+### Task 2: Replace RunRenderer enum with `Box<dyn Renderer>`
 
 **Files:**
-- Modify: `nika-engine/src/display/renderer.rs` (impl Renderer for CliRenderer)
-- Modify: `nika-engine/src/display/live.rs` (impl Renderer for LiveRenderer)
+- Modify: `nika-engine/src/display/run_renderer.rs` (enum → 3 factory functions)
+- Modify: `nika-engine/src/runtime/runner.rs` (Option<RunRenderer> → Option<Box<dyn Renderer>>)
+- Modify: `nika-engine/src/display/mod.rs` (re-exports)
 
-### Task 3: Replace RunRenderer enum with `Box<dyn Renderer>`
+Replace 157-line enum dispatch with ~40 lines:
+```rust
+pub fn auto_renderer(detail: DetailLevel) -> Box<dyn Renderer> { ... }
+pub fn classic_renderer(detail: DetailLevel) -> Box<dyn Renderer> { ... }
+pub fn live_renderer(detail: DetailLevel) -> Box<dyn Renderer> { ... }
+```
+
+### Task 3: Add TestRenderer for mocking + runner integration tests
 
 **Files:**
-- Modify: `nika-engine/src/display/run_renderer.rs`
-- Modify: `nika-engine/src/runtime/runner.rs` (callers)
+- Modify: `nika-engine/src/display/renderer.rs` (add #[cfg(test)] TestRenderer)
+- Modify: `nika-engine/src/display/tests.rs` (TestRenderer tests)
 
 ---
 
@@ -106,27 +131,36 @@ Thread `event_log: &EventLog` and `task_id: Arc<str>` through:
 
 ## Phase 3: Testability + LiveRenderer Tests (4 tasks)
 
-### Task 7: Refactor summary.rs to return Vec<String>
+### Task 7: Refactor summary.rs — extract format_* functions (4 incremental commits)
 
 **Files:**
 - Modify: `nika-engine/src/display/summary.rs`
+- Modify: `nika-engine/src/display/mod.rs` (re-exports)
 
-Split:
-```rust
-pub fn format_run_summary(stats: &RunStats, detail: DetailLevel, ...) -> Vec<String>
-pub fn print_run_summary(stats: &RunStats, detail: DetailLevel, ...) {
-    for line in format_run_summary(stats, detail, ...) {
-        println!("{}", line);
-    }
-}
-```
+**Commit order (each independently compilable):**
+1. `format_done_summary()` + thin `print_done_summary()` wrapper (~50 LOC)
+2. `format_doctor_header()` + `format_doctor_summary()` + wrappers
+3. `format_run_quiet_summary()` + wrapper
+4. `format_run_summary(stats, detail, duration, trace, term_width)` + 6 section extractors
 
-### Task 8: Add summary section tests
+Key: `term_width: u16` becomes an explicit parameter on `format_run_summary`. The `print_` wrapper queries terminal_size. Tests pass `80`.
+
+Also extract `nika_dir_exists: bool` parameter on `format_doctor_summary` (eliminates filesystem coupling).
+
+### Task 8: Add 20 summary tests
 
 **Files:**
 - Modify: `nika-engine/src/display/tests.rs`
 
-Test each section: tokens, cost, performance, infrastructure, timeline, provider breakdown. Use format_run_summary() with crafted RunStats.
+**Test cases (from summary research):**
+- Full box: all_passed, with_failures, json_returns_empty, min_delegates_to_quiet, default_detail, zero_tokens, zero_cost, width_clamping
+- Sections: tokens_with_cache, tokens_no_cache, cost_per_task, performance_ttft, infrastructure_all, timeline_gantt
+- Quiet: passed, failed_icon
+- Done: basic, with_trace
+- Doctor: header_box, all_3_scenarios
+
+Use `make_stats()` helper function with realistic RunStats data.
+Consider `insta` snapshots for full box visual regression (already in deps).
 
 ### Task 9: Add LiveRenderer event rendering tests
 
