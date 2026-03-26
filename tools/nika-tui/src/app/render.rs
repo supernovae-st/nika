@@ -83,12 +83,10 @@ impl App {
                         return;
                     }
 
-                    // Clear + paint bg every frame (ratatui 0.30 retains buffers).
-                    // set_style is zero-alloc vs Paragraph widget overhead.
-                    frame.render_widget(Clear, size);
-                    frame
-                        .buffer_mut()
-                        .set_style(size, Style::default().bg(theme.background));
+                    // PERF: Removed Clear + set_style that wrote to ALL buffer cells
+                    // every frame, defeating ratatui's diff-based rendering.
+                    // Widgets set their own backgrounds; unchanged cells are not
+                    // flushed to the terminal backend.
 
                     // Layout: Header (1) + Content (dynamic) + StatusBar (1)
                     let chunks = Layout::default()
