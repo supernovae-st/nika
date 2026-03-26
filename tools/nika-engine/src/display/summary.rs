@@ -192,34 +192,39 @@ pub(crate) fn print_run_quiet_summary(stats: &RunStats, total_duration_ms: u64) 
     println!("{}", format_run_quiet_summary(stats, total_duration_ms));
 }
 
-/// Print the full summary box with tokens, cost, timeline, and provider breakdown.
-pub fn print_run_summary(
+/// Format the full summary box with tokens, cost, timeline, and provider breakdown.
+///
+/// `term_width` is an explicit parameter so callers (and tests) can control layout
+/// without depending on `terminal_size`. The `print_run_summary` wrapper queries
+/// the real terminal width.
+///
+/// Returns `None` for JSON mode, or `Some(lines)` for all other detail levels.
+pub fn format_run_summary(
     stats: &RunStats,
     detail: DetailLevel,
     total_duration_ms: u64,
     trace_path: Option<&str>,
-) {
+    term_width: u16,
+) -> Option<Vec<String>> {
     if detail.is_json() {
-        return;
+        return None;
     }
 
     if detail == DetailLevel::Min {
-        print_run_quiet_summary(stats, total_duration_ms);
-        return;
+        return Some(vec![format_run_quiet_summary(stats, total_duration_ms)]);
     }
 
-    let term_width = terminal_size::terminal_size()
-        .map(|(w, _)| w.0)
-        .unwrap_or(80);
     let dur_secs = total_duration_ms as f32 / 1000.0;
+    let w = (term_width as usize).clamp(30, 72);
 
-    println!();
+    let mut lines = Vec::new();
+
+    lines.push(String::new());
 
     // ── Summary box ──
-    let w = (term_width as usize).clamp(30, 72);
     let border = "─".repeat(w);
-    println!("╭{}╮", border.dimmed());
-    println!("│{}│", " ".repeat(w));
+    lines.push(format!("╭{}╮", border.dimmed()));
+    lines.push(format!("│{}│", " ".repeat(w)));
 
     // Done/Failed line
     if stats.tasks_failed > 0 {
@@ -229,388 +234,449 @@ pub fn print_run_summary(
             icons::failed(),
             colors::duration(dur_secs)
         );
-        println!("│{}│", pad_right(&failed_line, w));
-        println!(
+        lines.push(format!("│{}│", pad_right(&failed_line, w)));
+        lines.push(format!(
             "│{}│",
             pad_right(&format!("  root cause: {}", root_cause.red()), w)
-        );
+        ));
     } else {
         let done = format!(
             "  {}  D O N E                                              {}",
             icons::success(),
             colors::duration(dur_secs)
         );
-        println!("│{}│", pad_right(&done, w));
+        lines.push(format!("│{}│", pad_right(&done, w)));
     }
-    println!("│{}│", " ".repeat(w));
+    lines.push(format!("│{}│", " ".repeat(w)));
 
     // Tasks
     let passed = stats.tasks_passed.to_string().green();
     let total = (stats.tasks_passed + stats.tasks_failed + stats.tasks_skipped).to_string();
-    println!(
+    lines.push(format!(
         "│{}│",
         pad_right(&format!("  Tasks    {}/{} passed", passed, total), w)
-    );
-    println!("│{}│", " ".repeat(w));
+    ));
+    lines.push(format!("│{}│", " ".repeat(w)));
 
     // ── Tokens ──
     if stats.total_input_tokens > 0 && detail.show_full_summary() {
-        println!(
-            "│{}│",
-            pad_right(
-                &format!("  {} Tokens {}", "──".dimmed(), "─".repeat(w - 16).dimmed()),
-                w
-            )
-        );
-        let max_tok = stats
-            .total_input_tokens
-            .max(stats.total_output_tokens)
-            .max(stats.total_cache_tokens);
-        println!(
-            "│{}│",
-            pad_right(
-                &format!(
-                    "    in {} {}",
-                    token_bar(stats.total_input_tokens, max_tok, 30, "blue"),
-                    colors::tokens(stats.total_input_tokens)
-                ),
-                w
-            )
-        );
-        println!(
-            "│{}│",
-            pad_right(
-                &format!(
-                    "   out {} {}",
-                    token_bar(stats.total_output_tokens, max_tok, 30, "magenta"),
-                    colors::tokens(stats.total_output_tokens)
-                ),
-                w
-            )
-        );
-        if stats.total_cache_tokens > 0 {
-            println!(
-                "│{}│",
-                pad_right(
-                    &format!(
-                        "    $↻ {} {} saved",
-                        token_bar(stats.total_cache_tokens, max_tok, 30, "green"),
-                        colors::tokens(stats.total_cache_tokens)
-                    ),
-                    w
-                )
-            );
-        }
-        println!("│{}│", " ".repeat(w));
+        lines.extend(format_section_tokens(stats, w));
     }
 
     // ── Cost ──
     if stats.total_cost > 0.0 && detail.show_full_summary() {
-        println!(
-            "│{}│",
-            pad_right(
-                &format!("  {} Cost {}", "──".dimmed(), "─".repeat(w - 14).dimmed()),
-                w
-            )
-        );
-        // Per-task cost breakdown using blocks
-        let mut task_costs: Vec<(String, f64)> = Vec::new();
-        for call in &stats.provider_calls {
-            if let Some(existing) = task_costs.iter_mut().find(|(t, _)| *t == call.task_id) {
-                existing.1 += call.cost;
-            } else {
-                task_costs.push((call.task_id.clone(), call.cost));
-            }
-        }
-        let mut cost_parts = Vec::new();
-        for (task, c) in &task_costs {
-            let blocks = ((c / stats.total_cost) * 20.0).round() as usize;
-            cost_parts.push(format!("{} {}", task.dimmed(), "▪".repeat(blocks.max(1))));
-        }
-        println!(
-            "│{}│",
-            pad_right(
-                &format!(
-                    "  {} {}",
-                    colors::cost(stats.total_cost),
-                    cost_parts.join("  ")
-                ),
-                w
-            )
-        );
-        println!("│{}│", " ".repeat(w));
+        lines.extend(format_section_cost(stats, w));
     }
 
     // ── Performance ──
     if !stats.ttft_values.is_empty() && detail.show_full_summary() {
-        println!(
-            "│{}│",
-            pad_right(
-                &format!(
-                    "  {} Performance {}",
-                    "──".dimmed(),
-                    "─".repeat(w - 20).dimmed()
-                ),
-                w
-            )
-        );
-        let count = stats.ttft_values.len() as u64;
-        let avg_ttft = if count > 0 {
-            stats.ttft_values.iter().sum::<u64>() / count
-        } else {
-            0
-        };
-        let min_ttft = stats.ttft_values.iter().min().copied().unwrap_or(0);
-        let max_ttft = stats.ttft_values.iter().max().copied().unwrap_or(0);
-        let throughput = if dur_secs > 0.0 {
-            (stats.total_output_tokens as f32 / dur_secs).round() as u64
-        } else {
-            0
-        };
-
-        println!(
-            "│{}│",
-            pad_right(
-                &format!(
-                    "  TTFT     avg {} · min {} · max {}",
-                    colors::ttft(avg_ttft),
-                    colors::ttft(min_ttft),
-                    colors::ttft(max_ttft)
-                ),
-                w
-            )
-        );
-        println!(
-            "│{}│",
-            pad_right(&format!("  Throughput  {} tok/s", throughput), w)
-        );
-        println!("│{}│", " ".repeat(w));
+        lines.extend(format_section_performance(stats, w, dur_secs));
     }
 
     // ── Infrastructure ──
     if detail.show_full_summary() {
-        println!(
-            "│{}│",
-            pad_right(
-                &format!(
-                    "  {} Infrastructure {}",
-                    "──".dimmed(),
-                    "─".repeat(w - 24).dimmed()
-                ),
-                w
-            )
-        );
-        if stats.mcp_calls > 0 {
-            let errors_str = if stats.mcp_errors > 0 {
-                stats.mcp_errors.to_string().red().to_string()
-            } else {
-                stats.mcp_errors.to_string().green().to_string()
-            };
-            println!(
-                "│{}│",
-                pad_right(
-                    &format!(
-                        "  MCP      {} calls · {} retries · {} errors",
-                        stats.mcp_calls,
-                        stats.mcp_retries.to_string().yellow(),
-                        errors_str
-                    ),
-                    w
-                )
-            );
-        }
-        if stats.media_stored > 0 {
-            println!(
-                "│{}│",
-                pad_right(
-                    &format!(
-                        "  Media    {} stored · {} · {} dedup · ✓ integrity",
-                        stats.media_stored,
-                        format_bytes(stats.media_bytes),
-                        stats.media_dedup
-                    ),
-                    w
-                )
-            );
-        }
-        if stats.artifacts_count > 0 {
-            println!(
-                "│{}│",
-                pad_right(
-                    &format!(
-                        "  Output   {} artifacts · {} total",
-                        stats.artifacts_count,
-                        format_bytes(stats.artifacts_bytes)
-                    ),
-                    w
-                )
-            );
-        }
-        if stats.guardrails_passed + stats.guardrails_failed > 0 {
-            println!(
-                "│{}│",
-                pad_right(
-                    &format!(
-                        "  Guards   {} passed · {} failed · {} escalations",
-                        stats.guardrails_passed.to_string().green(),
-                        stats.guardrails_failed.to_string().yellow(),
-                        stats.guardrails_escalations
-                    ),
-                    w
-                )
-            );
-        }
-        println!("│{}│", " ".repeat(w));
+        lines.extend(format_section_infrastructure(stats, w));
     }
 
     // ── Timeline (Gantt) ──
     if !stats.task_timeline.is_empty() && detail.show_full_summary() {
-        println!(
-            "│{}│",
-            pad_right(
-                &format!(
-                    "  {} Timeline {}",
-                    "──".dimmed(),
-                    "─".repeat(w - 18).dimmed()
-                ),
-                w
-            )
-        );
-
-        let total_ms = total_duration_ms;
-        let bar_width = 38;
-
-        for (task_id, verb, start_ms, dur_ms) in &stats.task_timeline {
-            if total_ms == 0 {
-                break;
-            }
-            let start_pct = *start_ms as f64 / total_ms as f64;
-            let dur_pct = *dur_ms as f64 / total_ms as f64;
-            let start_col = (start_pct * bar_width as f64).round() as usize;
-            let dur_col = (dur_pct * bar_width as f64).round().max(1.0) as usize;
-            let end_col = (start_col + dur_col).min(bar_width);
-
-            let mut bar = String::new();
-            for i in 0..bar_width {
-                if i >= start_col && i < end_col {
-                    bar.push('\u{2588}');
-                } else {
-                    bar.push('\u{2591}');
-                }
-            }
-            // Color the bar based on verb
-            let colored_bar = match verb.as_str() {
-                "infer" => bar.magenta().to_string(),
-                "exec" => bar.yellow().to_string(),
-                "fetch" => bar.cyan().to_string(),
-                "invoke" => bar.green().to_string(),
-                "agent" => bar.red().to_string(),
-                _ => bar,
-            };
-            let dur_secs = *dur_ms as f32 / 1000.0;
-            let padded_id = format!("{:<12}", task_id);
-            println!(
-                "│{}│",
-                pad_right(
-                    &format!(
-                        "  {} {} {} {:>5}",
-                        icons::verb(verb),
-                        padded_id.dimmed(),
-                        colored_bar,
-                        colors::duration(dur_secs)
-                    ),
-                    w
-                )
-            );
-        }
-
-        // Time axis
-        let axis = format!(
-            "  {:12} 0s{:>12}{:>12} {:.1}s",
-            "",
-            "",
-            "",
-            total_ms as f64 / 1000.0
-        );
-        println!("│{}│", pad_right(&axis.dimmed().to_string(), w));
-        println!("│{}│", " ".repeat(w));
+        lines.extend(format_section_timeline(stats, w, total_duration_ms));
     }
 
     // ── Provider Breakdown Table ──
     if !stats.provider_calls.is_empty() && detail.show_full_summary() {
-        println!(
-            "│{}│",
-            pad_right(
-                &format!(
-                    "  {} Provider Breakdown {}",
-                    "──".dimmed(),
-                    "─".repeat(w - 27).dimmed()
-                ),
-                w
-            )
-        );
-        println!(
-            "│{}│",
-            pad_right(
-                &format!(
-                    "  {}   {}      {}    {}   {}    {}",
-                    "#".dimmed(),
-                    "Task".dimmed(),
-                    "In".dimmed(),
-                    "Out".dimmed(),
-                    "Cache".dimmed(),
-                    "Cost".dimmed()
-                ),
-                w
-            )
-        );
-        for (i, call) in stats.provider_calls.iter().enumerate() {
-            let padded_task = format!("{:<12}", call.task_id);
-            println!(
-                "│{}│",
-                pad_right(
-                    &format!(
-                        "  {}   {} {:>5}  {:>5}  {:>5}   {}",
-                        i + 1,
-                        padded_task,
-                        colors::tokens(call.input_tokens),
-                        colors::tokens(call.output_tokens),
-                        colors::tokens(call.cache_tokens),
-                        colors::cost(call.cost)
-                    ),
-                    w
-                )
-            );
-        }
-        // Totals row
-        println!(
-            "│{}│",
-            pad_right(&format!("  {}", "─".repeat(w - 4).dimmed()), w)
-        );
-        println!(
-            "│{}│",
-            pad_right(
-                &format!(
-                    "  \u{03a3}   {:12} {:>5}  {:>5}  {:>5}   {}",
-                    "",
-                    colors::tokens(stats.total_input_tokens),
-                    colors::tokens(stats.total_output_tokens),
-                    colors::tokens(stats.total_cache_tokens),
-                    colors::cost(stats.total_cost)
-                ),
-                w
-            )
-        );
-        println!("│{}│", " ".repeat(w));
+        lines.extend(format_section_provider_breakdown(stats, w));
     }
 
     // Trace path
     if let Some(path) = trace_path {
-        println!("│{}│", pad_right(&format!("  trace {}", path.dimmed()), w));
+        lines.push(format!(
+            "│{}│",
+            pad_right(&format!("  trace {}", path.dimmed()), w)
+        ));
     }
 
-    println!("│{}│", " ".repeat(w));
-    println!("╰{}╯", border.dimmed());
+    lines.push(format!("│{}│", " ".repeat(w)));
+    lines.push(format!("╰{}╯", border.dimmed()));
+
+    Some(lines)
+}
+
+/// Print the full summary box (thin wrapper over `format_run_summary`).
+pub fn print_run_summary(
+    stats: &RunStats,
+    detail: DetailLevel,
+    total_duration_ms: u64,
+    trace_path: Option<&str>,
+) {
+    let term_width = terminal_size::terminal_size()
+        .map(|(w, _)| w.0)
+        .unwrap_or(80);
+    if let Some(lines) = format_run_summary(stats, detail, total_duration_ms, trace_path, term_width) {
+        for line in lines {
+            println!("{}", line);
+        }
+    }
+}
+
+// ── Section extractors (pure helpers for format_run_summary) ─────────
+
+fn format_section_tokens(stats: &RunStats, w: usize) -> Vec<String> {
+    let mut lines = Vec::new();
+    lines.push(format!(
+        "│{}│",
+        pad_right(
+            &format!("  {} Tokens {}", "──".dimmed(), "─".repeat(w - 16).dimmed()),
+            w
+        )
+    ));
+    let max_tok = stats
+        .total_input_tokens
+        .max(stats.total_output_tokens)
+        .max(stats.total_cache_tokens);
+    lines.push(format!(
+        "│{}│",
+        pad_right(
+            &format!(
+                "    in {} {}",
+                token_bar(stats.total_input_tokens, max_tok, 30, "blue"),
+                colors::tokens(stats.total_input_tokens)
+            ),
+            w
+        )
+    ));
+    lines.push(format!(
+        "│{}│",
+        pad_right(
+            &format!(
+                "   out {} {}",
+                token_bar(stats.total_output_tokens, max_tok, 30, "magenta"),
+                colors::tokens(stats.total_output_tokens)
+            ),
+            w
+        )
+    ));
+    if stats.total_cache_tokens > 0 {
+        lines.push(format!(
+            "│{}│",
+            pad_right(
+                &format!(
+                    "    $↻ {} {} saved",
+                    token_bar(stats.total_cache_tokens, max_tok, 30, "green"),
+                    colors::tokens(stats.total_cache_tokens)
+                ),
+                w
+            )
+        ));
+    }
+    lines.push(format!("│{}│", " ".repeat(w)));
+    lines
+}
+
+fn format_section_cost(stats: &RunStats, w: usize) -> Vec<String> {
+    let mut lines = Vec::new();
+    lines.push(format!(
+        "│{}│",
+        pad_right(
+            &format!("  {} Cost {}", "──".dimmed(), "─".repeat(w - 14).dimmed()),
+            w
+        )
+    ));
+    let mut task_costs: Vec<(String, f64)> = Vec::new();
+    for call in &stats.provider_calls {
+        if let Some(existing) = task_costs.iter_mut().find(|(t, _)| *t == call.task_id) {
+            existing.1 += call.cost;
+        } else {
+            task_costs.push((call.task_id.clone(), call.cost));
+        }
+    }
+    let mut cost_parts = Vec::new();
+    for (task, c) in &task_costs {
+        let blocks = ((c / stats.total_cost) * 20.0).round() as usize;
+        cost_parts.push(format!("{} {}", task.dimmed(), "▪".repeat(blocks.max(1))));
+    }
+    lines.push(format!(
+        "│{}│",
+        pad_right(
+            &format!(
+                "  {} {}",
+                colors::cost(stats.total_cost),
+                cost_parts.join("  ")
+            ),
+            w
+        )
+    ));
+    lines.push(format!("│{}│", " ".repeat(w)));
+    lines
+}
+
+fn format_section_performance(stats: &RunStats, w: usize, dur_secs: f32) -> Vec<String> {
+    let mut lines = Vec::new();
+    lines.push(format!(
+        "│{}│",
+        pad_right(
+            &format!(
+                "  {} Performance {}",
+                "──".dimmed(),
+                "─".repeat(w - 20).dimmed()
+            ),
+            w
+        )
+    ));
+    let count = stats.ttft_values.len() as u64;
+    let avg_ttft = if count > 0 {
+        stats.ttft_values.iter().sum::<u64>() / count
+    } else {
+        0
+    };
+    let min_ttft = stats.ttft_values.iter().min().copied().unwrap_or(0);
+    let max_ttft = stats.ttft_values.iter().max().copied().unwrap_or(0);
+    let throughput = if dur_secs > 0.0 {
+        (stats.total_output_tokens as f32 / dur_secs).round() as u64
+    } else {
+        0
+    };
+
+    lines.push(format!(
+        "│{}│",
+        pad_right(
+            &format!(
+                "  TTFT     avg {} · min {} · max {}",
+                colors::ttft(avg_ttft),
+                colors::ttft(min_ttft),
+                colors::ttft(max_ttft)
+            ),
+            w
+        )
+    ));
+    lines.push(format!(
+        "│{}│",
+        pad_right(&format!("  Throughput  {} tok/s", throughput), w)
+    ));
+    lines.push(format!("│{}│", " ".repeat(w)));
+    lines
+}
+
+fn format_section_infrastructure(stats: &RunStats, w: usize) -> Vec<String> {
+    let mut lines = Vec::new();
+    lines.push(format!(
+        "│{}│",
+        pad_right(
+            &format!(
+                "  {} Infrastructure {}",
+                "──".dimmed(),
+                "─".repeat(w - 24).dimmed()
+            ),
+            w
+        )
+    ));
+    if stats.mcp_calls > 0 {
+        let errors_str = if stats.mcp_errors > 0 {
+            stats.mcp_errors.to_string().red().to_string()
+        } else {
+            stats.mcp_errors.to_string().green().to_string()
+        };
+        lines.push(format!(
+            "│{}│",
+            pad_right(
+                &format!(
+                    "  MCP      {} calls · {} retries · {} errors",
+                    stats.mcp_calls,
+                    stats.mcp_retries.to_string().yellow(),
+                    errors_str
+                ),
+                w
+            )
+        ));
+    }
+    if stats.media_stored > 0 {
+        lines.push(format!(
+            "│{}│",
+            pad_right(
+                &format!(
+                    "  Media    {} stored · {} · {} dedup · ✓ integrity",
+                    stats.media_stored,
+                    format_bytes(stats.media_bytes),
+                    stats.media_dedup
+                ),
+                w
+            )
+        ));
+    }
+    if stats.artifacts_count > 0 {
+        lines.push(format!(
+            "│{}│",
+            pad_right(
+                &format!(
+                    "  Output   {} artifacts · {} total",
+                    stats.artifacts_count,
+                    format_bytes(stats.artifacts_bytes)
+                ),
+                w
+            )
+        ));
+    }
+    if stats.guardrails_passed + stats.guardrails_failed > 0 {
+        lines.push(format!(
+            "│{}│",
+            pad_right(
+                &format!(
+                    "  Guards   {} passed · {} failed · {} escalations",
+                    stats.guardrails_passed.to_string().green(),
+                    stats.guardrails_failed.to_string().yellow(),
+                    stats.guardrails_escalations
+                ),
+                w
+            )
+        ));
+    }
+    lines.push(format!("│{}│", " ".repeat(w)));
+    lines
+}
+
+fn format_section_timeline(stats: &RunStats, w: usize, total_duration_ms: u64) -> Vec<String> {
+    let mut lines = Vec::new();
+    lines.push(format!(
+        "│{}│",
+        pad_right(
+            &format!(
+                "  {} Timeline {}",
+                "──".dimmed(),
+                "─".repeat(w - 18).dimmed()
+            ),
+            w
+        )
+    ));
+
+    let total_ms = total_duration_ms;
+    let bar_width = 38;
+
+    for (task_id, verb, start_ms, dur_ms) in &stats.task_timeline {
+        if total_ms == 0 {
+            break;
+        }
+        let start_pct = *start_ms as f64 / total_ms as f64;
+        let dur_pct = *dur_ms as f64 / total_ms as f64;
+        let start_col = (start_pct * bar_width as f64).round() as usize;
+        let dur_col = (dur_pct * bar_width as f64).round().max(1.0) as usize;
+        let end_col = (start_col + dur_col).min(bar_width);
+
+        let mut bar = String::new();
+        for i in 0..bar_width {
+            if i >= start_col && i < end_col {
+                bar.push('\u{2588}');
+            } else {
+                bar.push('\u{2591}');
+            }
+        }
+        let colored_bar = match verb.as_str() {
+            "infer" => bar.magenta().to_string(),
+            "exec" => bar.yellow().to_string(),
+            "fetch" => bar.cyan().to_string(),
+            "invoke" => bar.green().to_string(),
+            "agent" => bar.red().to_string(),
+            _ => bar,
+        };
+        let dur_secs = *dur_ms as f32 / 1000.0;
+        let padded_id = format!("{:<12}", task_id);
+        lines.push(format!(
+            "│{}│",
+            pad_right(
+                &format!(
+                    "  {} {} {} {:>5}",
+                    icons::verb(verb),
+                    padded_id.dimmed(),
+                    colored_bar,
+                    colors::duration(dur_secs)
+                ),
+                w
+            )
+        ));
+    }
+
+    // Time axis
+    let axis = format!(
+        "  {:12} 0s{:>12}{:>12} {:.1}s",
+        "",
+        "",
+        "",
+        total_ms as f64 / 1000.0
+    );
+    lines.push(format!(
+        "│{}│",
+        pad_right(&axis.dimmed().to_string(), w)
+    ));
+    lines.push(format!("│{}│", " ".repeat(w)));
+    lines
+}
+
+fn format_section_provider_breakdown(stats: &RunStats, w: usize) -> Vec<String> {
+    let mut lines = Vec::new();
+    lines.push(format!(
+        "│{}│",
+        pad_right(
+            &format!(
+                "  {} Provider Breakdown {}",
+                "──".dimmed(),
+                "─".repeat(w - 27).dimmed()
+            ),
+            w
+        )
+    ));
+    lines.push(format!(
+        "│{}│",
+        pad_right(
+            &format!(
+                "  {}   {}      {}    {}   {}    {}",
+                "#".dimmed(),
+                "Task".dimmed(),
+                "In".dimmed(),
+                "Out".dimmed(),
+                "Cache".dimmed(),
+                "Cost".dimmed()
+            ),
+            w
+        )
+    ));
+    for (i, call) in stats.provider_calls.iter().enumerate() {
+        let padded_task = format!("{:<12}", call.task_id);
+        lines.push(format!(
+            "│{}│",
+            pad_right(
+                &format!(
+                    "  {}   {} {:>5}  {:>5}  {:>5}   {}",
+                    i + 1,
+                    padded_task,
+                    colors::tokens(call.input_tokens),
+                    colors::tokens(call.output_tokens),
+                    colors::tokens(call.cache_tokens),
+                    colors::cost(call.cost)
+                ),
+                w
+            )
+        ));
+    }
+    // Totals row
+    lines.push(format!(
+        "│{}│",
+        pad_right(&format!("  {}", "─".repeat(w - 4).dimmed()), w)
+    ));
+    lines.push(format!(
+        "│{}│",
+        pad_right(
+            &format!(
+                "  \u{03a3}   {:12} {:>5}  {:>5}  {:>5}   {}",
+                "",
+                colors::tokens(stats.total_input_tokens),
+                colors::tokens(stats.total_output_tokens),
+                colors::tokens(stats.total_cache_tokens),
+                colors::cost(stats.total_cost)
+            ),
+            w
+        )
+    ));
+    lines.push(format!("│{}│", " ".repeat(w)));
+    lines
 }
 
 /// Pad a string to width, accounting for ANSI escape codes.
