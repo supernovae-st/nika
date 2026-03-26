@@ -99,13 +99,14 @@ jobs:
           TAG: ${{ env.RELEASE_TAG }}
         run: |
           VERSION="${TAG#v}"
-          if [ -f "CHANGELOG.md" ]; then
-            if grep -q "\[${VERSION}\]" CHANGELOG.md; then
-              echo "CHANGELOG entry found for ${VERSION}"
-            else
-              echo "::warning::No CHANGELOG entry for ${VERSION}"
+          # Check both root and tools/nika CHANGELOG
+          for f in "CHANGELOG.md" "tools/nika/CHANGELOG.md"; do
+            if [ -f "$f" ] && grep -q "\[${VERSION}\]" "$f"; then
+              echo "CHANGELOG entry found in $f for ${VERSION}"
+              exit 0
             fi
-          fi
+          done
+          echo "::warning::No CHANGELOG entry found for ${VERSION}"
 
   # ─────────────────────────────────────────────────────────────────────────────
   # Build Release Binaries (7 targets)
