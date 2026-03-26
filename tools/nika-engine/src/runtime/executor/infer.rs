@@ -5,6 +5,7 @@
 use std::sync::Arc;
 use std::time::Instant;
 
+use serde_json::Value;
 use tokio::sync::mpsc;
 use tracing::{debug, instrument, warn};
 
@@ -268,28 +269,72 @@ impl TaskExecutor {
         // through to streaming + post-processing (Layers 1-3).
         if let Some(policy) = output_policy {
             if policy.is_structured() {
-                if let Some(schema_ref) = &policy.schema {
-                    // Resolve schema to Value
-                    let schema_value = match schema_ref {
-                        crate::ast::output::SchemaRef::Inline(v) => Ok(v.clone()),
-                        crate::ast::output::SchemaRef::File(path) => {
-                            tokio::fs::read_to_string(path)
-                                .await
-                                .map_err(|e| NikaError::SchemaFailed {
-                                    details: format!("Failed to read schema '{}': {}", path, e),
-                                })
-                                .and_then(|content| {
-                                    serde_json::from_str(&content).map_err(|e| {
-                                        NikaError::SchemaFailed {
-                                            details: format!(
-                                                "Invalid JSON in schema '{}': {}",
-                                                path, e
-                                            ),
-                                        }
+                // FIX(A2): Resolve schema from EITHER `schema:` or `from_example:`.
+                // Previously only checked policy.schema, skipping Layer 0 tool injection
+                // entirely when users provided from_example instead of schema.
+                let schema_value: Result<Value, NikaError> =
+                    if let Some(example_ref) = &policy.from_example {
+                        // Derive JSON Schema from example (same as StructuredOutputEngine::load_schema)
+                        match example_ref {
+                            crate::ast::output::SchemaRef::Inline(v) => {
+                                Ok(crate::ast::structured::json_to_schema(v))
+                            }
+                            crate::ast::output::SchemaRef::File(path) => {
+                                tokio::fs::read_to_string(path)
+                                    .await
+                                    .map_err(|e| NikaError::SchemaFailed {
+                                        details: format!(
+                                            "Failed to read example '{}': {}",
+                                            path, e
+                                        ),
                                     })
-                                })
+                                    .and_then(|content| {
+                                        let example: Value = serde_json::from_str(&content)
+                                            .map_err(|e| NikaError::SchemaFailed {
+                                                details: format!(
+                                                    "Invalid JSON in example '{}': {}",
+                                                    path, e
+                                                ),
+                                            })?;
+                                        Ok(crate::ast::structured::json_to_schema(&example))
+                                    })
+                            }
                         }
+                    } else if let Some(schema_ref) = &policy.schema {
+                        // Standard: resolve schema directly
+                        match schema_ref {
+                            crate::ast::output::SchemaRef::Inline(v) => Ok(v.clone()),
+                            crate::ast::output::SchemaRef::File(path) => {
+                                tokio::fs::read_to_string(path)
+                                    .await
+                                    .map_err(|e| NikaError::SchemaFailed {
+                                        details: format!(
+                                            "Failed to read schema '{}': {}",
+                                            path, e
+                                        ),
+                                    })
+                                    .and_then(|content| {
+                                        serde_json::from_str(&content).map_err(|e| {
+                                            NikaError::SchemaFailed {
+                                                details: format!(
+                                                    "Invalid JSON in schema '{}': {}",
+                                                    path, e
+                                                ),
+                                            }
+                                        })
+                                    })
+                            }
+                        }
+                    } else {
+                        // is_structured() returned true but neither schema nor from_example
+                        // is set — defensive fallback, should not happen
+                        Err(NikaError::SchemaFailed {
+                            details: "Structured output configured but no schema or from_example"
+                                .to_string(),
+                        })
                     };
+
+                {
 
                     if let Err(ref e) = schema_value {
                         warn!(
