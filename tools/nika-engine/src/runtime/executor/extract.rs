@@ -1,6 +1,7 @@
 //! Post-processing extraction for the fetch: verb.
 
 use crate::error::NikaError;
+use crate::error_domains::ExecutionError;
 
 /// Apply extraction to a fetch response body.
 /// Returns processed text or original body if no extraction configured.
@@ -90,28 +91,33 @@ pub(crate) fn apply_extract(
         }
 
         #[cfg(not(feature = "fetch-markdown"))]
-        Some("markdown") => Err(NikaError::ExtractError {
+        Some("markdown") => Err(ExecutionError::ExtractFailed {
             reason: "extract: markdown requires feature 'fetch-markdown'. Build with: cargo build --features fetch-markdown".to_string(),
-        }),
+        }
+        .into()),
         #[cfg(not(feature = "fetch-html"))]
-        Some("text" | "selector" | "metadata" | "links") => Err(NikaError::ExtractError {
+        Some("text" | "selector" | "metadata" | "links") => Err(ExecutionError::ExtractFailed {
             reason: "extract: text/selector/metadata/links requires feature 'fetch-html'. Build with: cargo build --features fetch-html".to_string(),
-        }),
+        }
+        .into()),
         #[cfg(not(feature = "fetch-article"))]
-        Some("article") => Err(NikaError::ExtractError {
+        Some("article") => Err(ExecutionError::ExtractFailed {
             reason: "extract: article requires feature 'fetch-article'. Build with: cargo build --features fetch-article".to_string(),
-        }),
+        }
+        .into()),
         #[cfg(not(feature = "fetch-feed"))]
-        Some("feed") => Err(NikaError::ExtractError {
+        Some("feed") => Err(ExecutionError::ExtractFailed {
             reason: "extract: feed requires feature 'fetch-feed'. Build with: cargo build --features fetch-feed".to_string(),
-        }),
+        }
+        .into()),
 
-        Some(unknown) => Err(NikaError::ExtractError {
+        Some(unknown) => Err(ExecutionError::ExtractFailed {
             reason: format!(
                 "Unknown extract mode '{}'. Available: markdown, article, text, selector, metadata, links, jsonpath, feed, llm_txt",
                 unknown
             ),
-        }),
+        }
+        .into()),
     }
 }
 

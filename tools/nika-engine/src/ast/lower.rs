@@ -26,6 +26,7 @@ use super::output::{OutputFormat, OutputPolicy, SchemaRef};
 use super::schema::SchemaVersion;
 use super::workflow::{McpConfigInline, Task, Workflow};
 use crate::error::NikaError;
+use crate::error_domains::ExecutionError;
 use crate::source::Span;
 
 // ---------------------------------------------------------------------------
@@ -516,10 +517,11 @@ pub fn unlower(workflow: Workflow) -> Result<AnalyzedWorkflow, NikaError> {
     for task in workflow.tasks {
         let task = Arc::try_unwrap(task).unwrap_or_else(|arc| (*arc).clone());
         let Some(id) = task_table.get_id(&task.id) else {
-            return Err(NikaError::Execution(format!(
+            return Err(ExecutionError::General(format!(
                 "task '{}' missing from table after insert",
                 task.id
-            )));
+            ))
+            .into());
         };
 
         // Resolve flow dependencies to TaskIds (reject dangling names)

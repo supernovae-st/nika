@@ -27,6 +27,7 @@ use crate::ast::{InferParams, TaskAction};
 use crate::binding::ResolvedBindings;
 use crate::dag::Dag;
 use crate::error::NikaError;
+use crate::error_domains::ExecutionError;
 use crate::event::{prune_traces, EventKind, EventLog, TraceWriter};
 use crate::runtime::boot::TraceConfig;
 use crate::store::{RunContext, TaskResult};
@@ -1114,9 +1115,10 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 running_tasks: vec![],
             });
             self.write_trace();
-            return Err(NikaError::WorkflowCancelled {
+            return Err(ExecutionError::Cancelled {
                 phase: "before start".to_string(),
-            });
+            }
+            .into());
         }
 
         // Load context files if workflow has context_files
@@ -1318,9 +1320,10 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     running_tasks,
                 });
                 self.write_trace();
-                return Err(NikaError::WorkflowCancelled {
+                return Err(ExecutionError::Cancelled {
                     phase: "by user".to_string(),
-                });
+                }
+                .into());
             }
 
             // Check for pause at start of each loop iteration
@@ -1345,9 +1348,10 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             running_tasks,
                         });
                         self.write_trace();
-                        return Err(NikaError::WorkflowCancelled {
+                        return Err(ExecutionError::Cancelled {
                             phase: "while paused".to_string(),
-                        });
+                        }
+                        .into());
                     }
                     _ = self.resume_notify.notified() => {
                         // Resumed, continue loop
@@ -2134,9 +2138,10 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             running_tasks,
                         });
                         self.write_trace();
-                        return Err(NikaError::WorkflowCancelled {
+                        return Err(ExecutionError::Cancelled {
                             phase: "during execution".to_string(),
-                        });
+                        }
+                        .into());
                     }
                     // Wait for next task result
                     result = join_set.join_next() => {
@@ -2204,7 +2209,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                         failed_task: None,
                                     });
                                     self.write_trace();
-                                    return Err(NikaError::TaskPanicked { reason: format!("{}", e) });
+                                    return Err(ExecutionError::Panicked { reason: format!("{}", e) }.into());
                                 }
                             }
                             None => {
