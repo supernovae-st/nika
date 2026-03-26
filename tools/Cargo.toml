@@ -58,7 +58,7 @@ serde_json_path = "0.7"
 jsonschema = { version = "0.26", default-features = false }
 
 # Errors
-thiserror = "1.0"
+thiserror = "2.0"
 miette = { version = "7.6", features = ["fancy"] }
 
 # HTTP

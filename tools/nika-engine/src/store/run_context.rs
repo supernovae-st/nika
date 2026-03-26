@@ -229,6 +229,11 @@ impl RunContext {
         self.results.get(task_id).map(|r| r.value().clone())
     }
 
+    /// Check task status without cloning the full TaskResult (M11 perf fix).
+    pub fn status_of(&self, task_id: &str) -> Option<TaskOutcome> {
+        self.results.get(task_id).map(|r| r.status.clone())
+    }
+
     /// Check if task exists
     pub fn contains(&self, task_id: &str) -> bool {
         self.results.contains_key(task_id)
@@ -262,19 +267,18 @@ impl RunContext {
         self.get(task_id).is_some_and(|r| r.is_success())
     }
 
-    /// Check if task failed (either directly or due to dependency failure)
+    /// Check if task failed (either directly or due to dependency failure).
+    /// Uses status_of() to avoid cloning the full TaskResult (M11 fix).
     pub fn is_failed(&self, task_id: &str) -> bool {
-        self.get(task_id).is_some_and(|r| {
-            matches!(
-                r.status,
-                TaskOutcome::Failed(_) | TaskOutcome::DependencyFailed { .. }
-            )
+        self.status_of(task_id).is_some_and(|s| {
+            matches!(s, TaskOutcome::Failed(_) | TaskOutcome::DependencyFailed { .. })
         })
     }
 
     /// Check if task failed due to a dependency failure
     pub fn is_dependency_failed(&self, task_id: &str) -> bool {
-        self.get(task_id).is_some_and(|r| r.is_dependency_failed())
+        self.status_of(task_id)
+            .is_some_and(|s| matches!(s, TaskOutcome::DependencyFailed { .. }))
     }
 
     /// Get the failed dependency name if task has DependencyFailed status
