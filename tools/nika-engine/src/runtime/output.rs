@@ -23,7 +23,13 @@ const CACHE_MAX_ENTRIES: usize = 512;
 
 /// Global schema cache: path → parsed JSON schema
 /// Avoids re-reading and re-parsing schema files on repeated validations.
-static SCHEMA_CACHE: LazyLock<DashMap<Arc<str>, Arc<Value>>> = LazyLock::new(DashMap::new);
+/// Cache entry with mtime for staleness detection (M14 fix).
+struct SchemaCacheEntry {
+    schema: Arc<Value>,
+    mtime: std::time::SystemTime,
+}
+
+static SCHEMA_CACHE: LazyLock<DashMap<Arc<str>, SchemaCacheEntry>> = LazyLock::new(DashMap::new);
 
 /// Global compiled validator cache: blake3 hash of schema JSON → compiled validator.
 /// Uses blake3 for cryptographic collision resistance (replaces DefaultHasher u64).
@@ -198,11 +204,32 @@ pub async fn make_task_result(
 ///
 /// Schema files are cached after first load to avoid repeated file I/O.
 pub async fn validate_schema(value: &Value, schema_path: &str) -> Result<(), NikaError> {
-    // Try cache first (fast path)
+    // Check file mtime for cache invalidation (M14 fix: stale data detection)
+    let current_mtime = tokio::fs::metadata(schema_path)
+        .await
+        .ok()
+        .and_then(|m| m.modified().ok());
+
+    // Try cache first (fast path) — invalidate if mtime changed
     let schema = if let Some(cached) = SCHEMA_CACHE.get(schema_path) {
-        Arc::clone(cached.value())
+        let stale = current_mtime
+            .map(|mt| mt != cached.mtime)
+            .unwrap_or(false);
+        if stale {
+            drop(cached); // Release guard before remove
+            SCHEMA_CACHE.remove(schema_path);
+            None
+        } else {
+            Some(Arc::clone(&cached.schema))
+        }
     } else {
-        // Cache miss: read and parse schema
+        None
+    };
+
+    let schema = if let Some(s) = schema {
+        s
+    } else {
+        // Cache miss or invalidated: read and parse schema
         let schema_str =
             tokio::fs::read_to_string(schema_path)
                 .await
@@ -220,7 +247,13 @@ pub async fn validate_schema(value: &Value, schema_path: &str) -> Result<(), Nik
         if SCHEMA_CACHE.len() >= CACHE_MAX_ENTRIES {
             SCHEMA_CACHE.clear();
         }
-        SCHEMA_CACHE.insert(Arc::from(schema_path), Arc::clone(&schema));
+        SCHEMA_CACHE.insert(
+            Arc::from(schema_path),
+            SchemaCacheEntry {
+                schema: Arc::clone(&schema),
+                mtime: current_mtime.unwrap_or(std::time::SystemTime::UNIX_EPOCH),
+            },
+        );
         schema
     };
 
