@@ -2272,6 +2272,80 @@ fn doctor_summary_nika_dir_exists_skips_init() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// format_output_preview tests (Task 10)
+// ═══════════════════════════════════════════════════════════════════════
+
+use serde_json::Value;
+
+#[test]
+fn output_preview_empty_returns_empty() {
+    let result = renderer::format_output_preview(&Value::String(String::new()), 80);
+    assert!(result.is_empty(), "empty string should produce empty vec");
+}
+
+#[test]
+fn output_preview_null_returns_empty() {
+    let result = renderer::format_output_preview(&Value::Null, 80);
+    assert!(result.is_empty(), "null value should produce empty vec");
+}
+
+#[test]
+fn output_preview_json_object() {
+    let json = serde_json::json!({"key": "value", "count": 42});
+    let lines = renderer::format_output_preview(&json, 80);
+    assert!(!lines.is_empty(), "JSON object should produce preview lines");
+    // Should have top border + content + bottom border (at least 3 lines)
+    assert!(lines.len() >= 3, "should have border + content + border");
+}
+
+#[test]
+fn output_preview_markdown() {
+    let md = Value::String("# Hello World\n\nThis is a paragraph.".to_string());
+    let lines = renderer::format_output_preview(&md, 80);
+    assert!(!lines.is_empty(), "markdown should produce preview lines");
+    let joined = lines.join("\n");
+    let stripped = strip_ansi(&joined);
+    assert!(stripped.contains("Hello World"), "should contain heading text");
+}
+
+#[test]
+fn output_preview_plain_text() {
+    let text = Value::String("Hello, this is a plain text output.\nSecond line here.".to_string());
+    let lines = renderer::format_output_preview(&text, 80);
+    assert!(!lines.is_empty(), "plain text should produce preview lines");
+    let joined = lines.join("\n");
+    let stripped = strip_ansi(&joined);
+    assert!(stripped.contains("Hello"), "should contain first line");
+    assert!(stripped.contains("Second line"), "should contain second line");
+}
+
+#[test]
+fn output_preview_long_text_truncated() {
+    let long = "x".repeat(500);
+    let text = Value::String(long);
+    let lines = renderer::format_output_preview(&text, 80);
+    assert!(!lines.is_empty(), "long text should produce preview lines");
+    let joined = lines.join("\n");
+    // Should contain ellipsis (truncation indicator)
+    assert!(
+        joined.contains('\u{2026}'),
+        "long text should be truncated with ellipsis"
+    );
+}
+
+#[test]
+fn output_preview_unicode_safety() {
+    // Test with multi-byte UTF-8 characters
+    let text = Value::String("cafe\u{0301} re\u{0301}sume\u{0301}".to_string());
+    let lines = renderer::format_output_preview(&text, 80);
+    assert!(!lines.is_empty(), "unicode text should produce preview lines");
+    // Verify all output lines are valid UTF-8 (implicit — Rust strings are always valid)
+    for line in &lines {
+        let _ = line.chars().count();
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // TestRenderer tests
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -2438,4 +2512,14 @@ fn test_renderer_default_trait_methods_are_noops() {
 
     // State unchanged
     assert!(r.rendered_events.is_empty());
+}
+
+#[test]
+fn output_preview_size_label() {
+    let text = Value::String("Hello world".to_string());
+    let lines = renderer::format_output_preview(&text, 80);
+    let joined = lines.join("\n");
+    let stripped = strip_ansi(&joined);
+    // Bottom border should contain character count
+    assert!(stripped.contains("11 ch"), "should show character count in size label");
 }
