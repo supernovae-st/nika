@@ -103,7 +103,7 @@ pub fn lower(analyzed: AnalyzedWorkflow) -> Result<Workflow, NikaError> {
 fn lower_task(task: AnalyzedTask, table: &TaskTable) -> Result<Task, NikaError> {
     let depends_on = task_dep_names(&task.depends_on, &task.implicit_deps, table)?;
     let (for_each, for_each_as, fe_concurrency, fe_fail_fast) = lower_for_each(task.for_each);
-    let action = lower_action(task.action, task.provider, task.model, task.retry);
+    let action = lower_action(&task.action, &task.provider, &task.model, &task.retry);
     let output = task.output.map(lower_output);
     let with_spec = if task.with_spec.is_empty() {
         None
@@ -137,26 +137,26 @@ fn lower_task(task: AnalyzedTask, table: &TaskTable) -> Result<Task, NikaError> 
 // ---------------------------------------------------------------------------
 
 pub(crate) fn lower_action(
-    action: AnalyzedTaskAction,
-    provider: Option<String>,
-    model: Option<String>,
-    retry: Option<AnalyzedRetry>,
+    action: &AnalyzedTaskAction,
+    provider: &Option<String>,
+    model: &Option<String>,
+    retry: &Option<AnalyzedRetry>,
 ) -> TaskAction {
     match action {
         AnalyzedTaskAction::Infer(a) => TaskAction::Infer {
-            infer: lower_infer(a, provider, model),
+            infer: lower_infer(a.clone(), provider.clone(), model.clone()),
         },
         AnalyzedTaskAction::Exec(a) => TaskAction::Exec {
-            exec: lower_exec(a),
+            exec: lower_exec(a.clone()),
         },
         AnalyzedTaskAction::Fetch(a) => TaskAction::Fetch {
-            fetch: lower_fetch(a, retry),
+            fetch: lower_fetch(a.clone(), retry.clone()),
         },
         AnalyzedTaskAction::Invoke(a) => TaskAction::Invoke {
-            invoke: lower_invoke(a),
+            invoke: lower_invoke(a.clone()),
         },
         AnalyzedTaskAction::Agent(a) => TaskAction::Agent {
-            agent: lower_agent(*a, provider, model),
+            agent: lower_agent(a.as_ref().clone(), provider.clone(), model.clone()),
         },
     }
 }
