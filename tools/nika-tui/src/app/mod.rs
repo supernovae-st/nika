@@ -316,7 +316,12 @@ impl App {
         })?;
 
         let mut stdout = io::stdout();
-        execute!(stdout, EnterAlternateScreen).map_err(|e| NikaError::TuiError {
+        execute!(
+            stdout,
+            EnterAlternateScreen,
+            crossterm::event::EnableMouseCapture
+        )
+        .map_err(|e| NikaError::TuiError {
             reason: format!("Failed to enter alternate screen: {}", e),
         })?;
 
@@ -505,6 +510,23 @@ impl App {
 
                 let action = match event {
                     Event::Key(key) => self.handle_unified_key(key.code, key.modifiers),
+                    Event::Mouse(mouse) => {
+                        // Dispatch mouse events to the active view
+                        if self.current_view == TuiView::Command {
+                            let size = self
+                                .terminal
+                                .as_ref()
+                                .map(|t| t.size().unwrap_or_default())
+                                .unwrap_or_default();
+                            let area =
+                                ratatui::layout::Rect::new(0, 0, size.width, size.height);
+                            self.command_view
+                                .chat
+                                .handle_mouse(mouse.kind, mouse.column, mouse.row, area);
+                        }
+                        self.state.dirty.mark_all();
+                        Action::Continue
+                    }
                     Event::Resize(_, _) => {
                         // Force full re-render on terminal resize
                         self.state.dirty.mark_all();
