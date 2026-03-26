@@ -18,6 +18,9 @@ use crate::ast::OutputFormat;
 use crate::error::NikaError;
 use crate::store::TaskResult;
 
+/// Maximum number of entries in each cache before eviction.
+const CACHE_MAX_ENTRIES: usize = 512;
+
 /// Global schema cache: path → parsed JSON schema
 /// Avoids re-reading and re-parsing schema files on repeated validations.
 static SCHEMA_CACHE: LazyLock<DashMap<Arc<str>, Arc<Value>>> = LazyLock::new(DashMap::new);
@@ -44,6 +47,10 @@ fn get_or_compile_validator(schema: &Value) -> Result<Arc<Validator>, NikaError>
         details: format!("Invalid schema: {e}"),
     })?;
     let compiled = Arc::new(compiled);
+    // Evict all entries if cache exceeds size cap to prevent unbounded growth
+    if VALIDATOR_CACHE.len() >= CACHE_MAX_ENTRIES {
+        VALIDATOR_CACHE.clear();
+    }
     VALIDATOR_CACHE.insert(key, Arc::clone(&compiled));
     Ok(compiled)
 }
@@ -208,8 +215,11 @@ pub async fn validate_schema(value: &Value, schema_path: &str) -> Result<(), Nik
                 details: format!("Invalid JSON in schema '{}': {}", schema_path, e),
             })?;
 
-        // Store in cache
+        // Store in cache (evict all if exceeding size cap)
         let schema = Arc::new(schema);
+        if SCHEMA_CACHE.len() >= CACHE_MAX_ENTRIES {
+            SCHEMA_CACHE.clear();
+        }
         SCHEMA_CACHE.insert(Arc::from(schema_path), Arc::clone(&schema));
         schema
     };
