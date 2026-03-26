@@ -1335,9 +1335,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             // Waits until resumed, while also checking for cancellation
             while self.paused.load(Ordering::SeqCst) {
                 tokio::select! {
-                    _ = self.resume_notify.notified() => {
-                        // Resumed, continue loop
-                    }
+                    biased;
                     _ = self.cancel_token.cancelled() => {
                         // Cancelled while paused
                         let duration = workflow_start.elapsed();
@@ -1358,6 +1356,9 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         return Err(NikaError::WorkflowCancelled {
                             phase: "while paused".to_string(),
                         });
+                    }
+                    _ = self.resume_notify.notified() => {
+                        // Resumed, continue loop
                     }
                 }
             }
@@ -2119,7 +2120,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             // Wait for all spawned tasks to complete (with cancellation support)
             loop {
                 tokio::select! {
-                    // Check for cancellation
+                    biased;
+                    // Check for cancellation first (biased ensures priority)
                     _ = self.cancel_token.cancelled() => {
                         // Abort all pending tasks
                         join_set.abort_all();
