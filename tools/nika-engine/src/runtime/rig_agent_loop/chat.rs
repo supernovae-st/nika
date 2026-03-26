@@ -148,46 +148,68 @@ impl RigAgentLoop {
     // `chat_continue_with_model()`. Adding a new provider requires only
     // a 4-line wrapper + a match arm in `chat_continue()`.
 
-    async fn chat_continue_claude(&mut self, prompt: &str) -> Result<RigAgentLoopResult, NikaError> {
+    async fn chat_continue_claude(
+        &mut self,
+        prompt: &str,
+    ) -> Result<RigAgentLoopResult, NikaError> {
         let model_name = self.resolve_model_name()?;
         let model = anthropic::Client::from_env().completion_model(&model_name);
-        self.chat_continue_with_model(prompt, model, &model_name).await
+        self.chat_continue_with_model(prompt, model, &model_name)
+            .await
     }
 
-    async fn chat_continue_openai(&mut self, prompt: &str) -> Result<RigAgentLoopResult, NikaError> {
+    async fn chat_continue_openai(
+        &mut self,
+        prompt: &str,
+    ) -> Result<RigAgentLoopResult, NikaError> {
         let model_name = self.resolve_model_name()?;
         let model = openai::Client::from_env().completion_model(&model_name);
-        self.chat_continue_with_model(prompt, model, &model_name).await
+        self.chat_continue_with_model(prompt, model, &model_name)
+            .await
     }
 
-    async fn chat_continue_mistral(&mut self, prompt: &str) -> Result<RigAgentLoopResult, NikaError> {
+    async fn chat_continue_mistral(
+        &mut self,
+        prompt: &str,
+    ) -> Result<RigAgentLoopResult, NikaError> {
         let model_name = self.resolve_model_name()?;
         let model = rig::providers::mistral::Client::from_env().completion_model(&model_name);
-        self.chat_continue_with_model(prompt, model, &model_name).await
+        self.chat_continue_with_model(prompt, model, &model_name)
+            .await
     }
 
     async fn chat_continue_groq(&mut self, prompt: &str) -> Result<RigAgentLoopResult, NikaError> {
         let model_name = self.resolve_model_name()?;
         let model = rig::providers::groq::Client::from_env().completion_model(&model_name);
-        self.chat_continue_with_model(prompt, model, &model_name).await
+        self.chat_continue_with_model(prompt, model, &model_name)
+            .await
     }
 
-    async fn chat_continue_deepseek(&mut self, prompt: &str) -> Result<RigAgentLoopResult, NikaError> {
+    async fn chat_continue_deepseek(
+        &mut self,
+        prompt: &str,
+    ) -> Result<RigAgentLoopResult, NikaError> {
         let model_name = self.resolve_model_name()?;
         let model = rig::providers::deepseek::Client::from_env().completion_model(&model_name);
-        self.chat_continue_with_model(prompt, model, &model_name).await
+        self.chat_continue_with_model(prompt, model, &model_name)
+            .await
     }
 
-    async fn chat_continue_gemini(&mut self, prompt: &str) -> Result<RigAgentLoopResult, NikaError> {
+    async fn chat_continue_gemini(
+        &mut self,
+        prompt: &str,
+    ) -> Result<RigAgentLoopResult, NikaError> {
         let model_name = self.resolve_model_name()?;
         let model = rig::providers::gemini::Client::from_env().completion_model(&model_name);
-        self.chat_continue_with_model(prompt, model, &model_name).await
+        self.chat_continue_with_model(prompt, model, &model_name)
+            .await
     }
 
     async fn chat_continue_xai(&mut self, prompt: &str) -> Result<RigAgentLoopResult, NikaError> {
         let model_name = self.resolve_model_name()?;
         let model = rig::providers::xai::Client::from_env().completion_model(&model_name);
-        self.chat_continue_with_model(prompt, model, &model_name).await
+        self.chat_continue_with_model(prompt, model, &model_name)
+            .await
     }
 
     // =========================================================================
@@ -199,11 +221,13 @@ impl RigAgentLoop {
     /// Returns an owned String to avoid holding an immutable borrow on `self`
     /// across the `&mut self` call to `chat_continue_with_model`.
     fn resolve_model_name(&self) -> Result<String, NikaError> {
-        let raw = self.params.model.as_deref().ok_or_else(|| {
-            NikaError::ValidationError {
+        let raw = self
+            .params
+            .model
+            .as_deref()
+            .ok_or_else(|| NikaError::ValidationError {
                 reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
-            }
-        })?;
+            })?;
         Ok(Self::strip_model_prefix(raw).to_string())
     }
 

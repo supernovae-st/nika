@@ -107,13 +107,14 @@ pub fn find_task_references(text: &str, task_id: &str) -> Vec<ReferenceEntry> {
         // Advance past the line + its actual line ending (\r\n or \n)
         let line_end = line_offset + line.len();
         let bytes = text.as_bytes();
-        line_offset = if bytes.get(line_end) == Some(&b'\r') && bytes.get(line_end + 1) == Some(&b'\n') {
-            line_end + 2
-        } else if bytes.get(line_end) == Some(&b'\n') {
-            line_end + 1
-        } else {
-            line_end
-        };
+        line_offset =
+            if bytes.get(line_end) == Some(&b'\r') && bytes.get(line_end + 1) == Some(&b'\n') {
+                line_end + 2
+            } else if bytes.get(line_end) == Some(&b'\n') {
+                line_end + 1
+            } else {
+                line_end
+            };
 
         // Suppress unused variable warning
         let _ = line_num;

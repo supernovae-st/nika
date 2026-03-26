@@ -875,18 +875,21 @@ pub async fn validate_structured_output(
         let example_value = match example_ref {
             SchemaRef::Inline(v) => v.clone(),
             SchemaRef::File(path) => {
-                let content = tokio::fs::read_to_string(path).await.map_err(|e| {
-                    NikaError::SchemaFailed {
-                        details: format!("Failed to read example '{}': {}", path, e),
-                    }
-                })?;
+                let content =
+                    tokio::fs::read_to_string(path)
+                        .await
+                        .map_err(|e| NikaError::SchemaFailed {
+                            details: format!("Failed to read example '{}': {}", path, e),
+                        })?;
                 serde_json::from_str(&content).map_err(|e| NikaError::SchemaFailed {
                     details: format!("Invalid JSON in example '{}': {}", path, e),
                 })?
             }
         };
         if spec.strict == Some(true) {
-            SchemaRef::Inline(crate::ast::structured::json_to_schema_strict(&example_value))
+            SchemaRef::Inline(crate::ast::structured::json_to_schema_strict(
+                &example_value,
+            ))
         } else {
             SchemaRef::Inline(crate::ast::structured::json_to_schema(&example_value))
         }
@@ -1131,8 +1134,7 @@ Hope this helps!"#;
             "score": 0
         }));
         let result =
-            validate_structured_output("t3", r#"{"name":"alice","score":42}"#, &spec, &log)
-                .await;
+            validate_structured_output("t3", r#"{"name":"alice","score":42}"#, &spec, &log).await;
         assert!(result.is_ok(), "expected ok, got: {:?}", result);
     }
 

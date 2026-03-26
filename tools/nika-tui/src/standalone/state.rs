@@ -114,7 +114,10 @@ impl StandaloneState {
         for entry in walker.flatten() {
             // Safety: stop scanning if we've hit the limit
             if self.browser_entries.len() >= Self::MAX_BROWSER_ENTRIES {
-                tracing::warn!("Browser entry limit reached ({}), stopping scan", Self::MAX_BROWSER_ENTRIES);
+                tracing::warn!(
+                    "Browser entry limit reached ({}), stopping scan",
+                    Self::MAX_BROWSER_ENTRIES
+                );
                 break;
             }
             let path = entry.path();

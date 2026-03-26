@@ -114,10 +114,7 @@ impl Widget for Header<'_> {
             if is_active {
                 spans.push(Span::styled(TAB_LABELS_ACTIVE[i], self.tab_style(true)));
             } else {
-                spans.push(Span::styled(
-                    TAB_LABELS_INACTIVE[i],
-                    self.tab_style(false),
-                ));
+                spans.push(Span::styled(TAB_LABELS_INACTIVE[i], self.tab_style(false)));
             }
         }
 

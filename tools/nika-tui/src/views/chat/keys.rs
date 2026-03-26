@@ -307,8 +307,8 @@ impl ChatView {
 
     /// All known slash commands for tab completion
     const ALL_COMMANDS: &'static [&'static str] = &[
-        "infer", "exec", "fetch", "invoke", "agent",
-        "help", "model", "mcp", "clear", "export", "run",
+        "infer", "exec", "fetch", "invoke", "agent", "help", "model", "mcp", "clear", "export",
+        "run",
     ];
 
     /// Try to autocomplete verb command with Tab
@@ -340,7 +340,10 @@ impl ChatView {
         if input.starts_with('/') && !input.contains(' ') {
             let partial = &input[1..].to_lowercase();
             if partial.len() >= 2 {
-                if let Some(cmd) = Self::ALL_COMMANDS.iter().find(|c| c.starts_with(partial) && *c != partial) {
+                if let Some(cmd) = Self::ALL_COMMANDS
+                    .iter()
+                    .find(|c| c.starts_with(partial) && *c != partial)
+                {
                     return Some(format!("/{} ", cmd));
                 }
             }

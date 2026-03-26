@@ -177,7 +177,10 @@ impl YamlEditorPanel {
     /// Extract dependencies from depends_on fields
     ///
     /// Returns a map: target_task_id -> [source_task_ids]
-    pub(super) fn extract_flow_dependencies(&self, wf: &Workflow) -> FxHashMap<String, Vec<String>> {
+    pub(super) fn extract_flow_dependencies(
+        &self,
+        wf: &Workflow,
+    ) -> FxHashMap<String, Vec<String>> {
         let mut deps: FxHashMap<String, Vec<String>> = FxHashMap::default();
 
         for task in &wf.tasks {
