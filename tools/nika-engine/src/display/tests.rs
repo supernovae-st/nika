@@ -413,6 +413,19 @@ fn stripped_len_plain_text() {
 }
 
 #[test]
+fn stripped_len_cjk_double_width() {
+    // CJK characters occupy 2 terminal columns
+    assert_eq!(colors::stripped_len("你好"), 4);
+    assert_eq!(colors::stripped_len("AB你好CD"), 8);
+}
+
+#[test]
+fn stripped_len_emoji_double_width() {
+    assert_eq!(colors::stripped_len("✓"), 1); // narrow
+    assert_eq!(colors::stripped_len("🎉"), 2); // wide emoji
+}
+
+#[test]
 fn stripped_len_with_colored_crate() {
     // The colored crate may or may not emit ANSI codes depending on the
     // terminal environment. stripped_len must return the correct visible
