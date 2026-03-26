@@ -1262,22 +1262,13 @@ impl LiveRenderer {
     /// Finalize the multi-progress and print the summary box.
     pub fn render_summary(&mut self, total_duration_ms: u64, trace_path: Option<&str>) {
         self.finalize_bars();
-
-        // Reuse the CliRenderer summary format — it's already excellent.
-        // We build a temporary CliRenderer with our stats and delegate.
-        let mut cli = super::CliRenderer::new(self.detail);
-        // Transfer stats
-        cli.stats = std::mem::take(&mut self.stats);
-        cli.render_summary(total_duration_ms, trace_path);
+        super::summary::print_run_summary(&self.stats, self.detail, total_duration_ms, trace_path);
     }
 
     /// Finalize the multi-progress and print compact summary.
     pub fn render_quiet_summary(&mut self, total_duration_ms: u64) {
         self.finalize_bars();
-
-        let mut cli = super::CliRenderer::new(self.detail);
-        cli.stats = std::mem::take(&mut self.stats);
-        cli.render_quiet_summary(total_duration_ms);
+        super::summary::print_run_quiet_summary(&self.stats, total_duration_ms);
     }
 
     /// Clear all progress bars so they stop updating.
