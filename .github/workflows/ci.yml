@@ -270,6 +270,7 @@ jobs:
         uses: obi1kenobi/cargo-semver-checks-action@v2
         with:
           manifest-path: tools/Cargo.toml
+          package: nika
         continue-on-error: true
 
   # ─────────────────────────────────────────────────────────────────────────────
@@ -304,20 +305,9 @@ jobs:
         working-directory: tools/nika
         run: |
           FAILED=0
-          for f in examples/*.nika.yaml; do
-            [ -f "$f" ] || continue
+          while IFS= read -r -d '' f; do
             ./target/release/nika check "$f" || FAILED=1
-          done
-          [ "$FAILED" -eq 0 ] || exit 1
-
-      - name: Validate schema version tests
-        working-directory: tools/nika
-        run: |
-          FAILED=0
-          for f in tests/schema-version-tests/*.nika.yaml; do
-            [ -f "$f" ] || continue
-            ./target/release/nika check "$f" || FAILED=1
-          done
+          done < <(find examples -name "*.nika.yaml" -print0)
           [ "$FAILED" -eq 0 ] || exit 1
 
   # ─────────────────────────────────────────────────────────────────────────────
