@@ -599,9 +599,14 @@ impl LiveRenderer {
                 cost_usd,
                 ..
             } => {
+                // Extract task_id once (avoid double event.kind.task_id() call)
+                let task_id = event.kind.task_id().unwrap_or("?");
+
                 // O(1) per-task token accumulator (LiveRenderer-specific: for task bar display)
-                let provider_task_id = event.kind.task_id().unwrap_or("?").to_string();
-                let acc = self.task_token_acc.entry(provider_task_id).or_default();
+                let acc = self
+                    .task_token_acc
+                    .entry(task_id.to_string())
+                    .or_default();
                 acc.0 += input_tokens;
                 acc.1 += output_tokens;
 
@@ -622,7 +627,6 @@ impl LiveRenderer {
                 }
 
                 // Update running task bar with token info (elapsed auto-updates via template)
-                let task_id = event.kind.task_id().unwrap_or("?");
                 if let Some(tb) = self.task_bars.get(task_id) {
                     if tb.status == TaskStatus::Running {
                         let tok_info = format!(
