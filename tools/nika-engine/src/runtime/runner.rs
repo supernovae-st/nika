@@ -1255,7 +1255,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         layer: depths[t.name.as_str()],
                     })
                     .collect();
-                let mut dag_edges = Vec::new();
+                let total_deps: usize = self.workflow.tasks.iter().map(|t| t.depends_on.len()).sum();
+                let mut dag_edges = Vec::with_capacity(total_deps);
                 for task in &self.workflow.tasks {
                     for dep_id in &task.depends_on {
                         if let Some(dep_name) = self.workflow.task_table.get_name(*dep_id) {
@@ -1946,6 +1947,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         // PERF(M1): Wrap in Arc once, then Arc::clone per iteration
                         // instead of deep-cloning AnalyzedTask (~800-1200 bytes each).
                         let task = Arc::new(task.clone());
+                        // PERF(L7): Pre-allocate format buffer for task_id construction
+                        let mut task_id_buf = String::with_capacity(task.name.len() + 8);
                         for (idx, item) in items.iter().enumerate() {
                             // Check if cancelled before spawning
                             if fail_fast && cancel.is_cancelled() {
@@ -1958,7 +1961,10 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             }
 
                             let task = Arc::clone(&task);
-                            let task_id = intern(&format!("{}[{}]", task.name, idx));
+                            task_id_buf.clear();
+                            use std::fmt::Write;
+                            let _ = write!(task_id_buf, "{}[{}]", task.name, idx);
+                            let task_id = intern(&task_id_buf);
                             let parent_task_id = intern(&task.name);
                             let datastore = self.datastore.clone();
                             let executor = self.executor.clone();
