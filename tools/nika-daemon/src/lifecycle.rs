@@ -1,3 +1,4 @@
+#![cfg(unix)]
 //! Daemon lifecycle — PID file, daemonize, signal handling.
 //!
 //! Handles the full lifecycle of the daemon process:
