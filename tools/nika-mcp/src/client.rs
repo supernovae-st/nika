@@ -297,9 +297,11 @@ impl ResponseCache {
 
         if let Some(entry) = self.entries.get(&key) {
             if entry.is_expired(self.config.ttl) {
-                // Entry expired, remove it
+                // Entry expired — remove atomically only if still expired
+                // (avoids TOCTOU where a fresh entry gets deleted between drop+remove)
+                let ttl = self.config.ttl;
                 drop(entry);
-                self.entries.remove(&key);
+                self.entries.remove_if(&key, |_, e| e.is_expired(ttl));
                 self.misses.fetch_add(1, Ordering::Relaxed);
                 return None;
             }
