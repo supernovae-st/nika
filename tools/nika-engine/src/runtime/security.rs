@@ -77,6 +77,19 @@ const BLOCKLIST: &[&str] = &[
     "perl -e",
     "ruby -e",
     "node -e",
+    // Piping to interpreter stdin (bypasses -e flag checks)
+    "| python",
+    "|python",
+    "| python3",
+    "|python3",
+    "| ruby",
+    "|ruby",
+    "| node",
+    "|node",
+    "| perl",
+    "|perl",
+    "| php",
+    "|php",
     // Command wrapper bypass (env can prefix any blocked command)
     "env ",
     // Privilege escalation (su; sudo already covered above)
@@ -90,7 +103,9 @@ const BLOCKLIST: &[&str] = &[
 const SHELL_MODE_BLOCKLIST: &[&str] = &[
     // Command substitution — executes arbitrary commands inside $()
     "$(", // Backtick command substitution — legacy form of $()
-    "`",
+    "`",  // Bash process substitution — executes commands via /dev/fd
+    "<(", // Here-string — feeds arbitrary input to interpreters
+    "<<<",
 ];
 
 /// Check command against shell-mode-specific blocklist.
