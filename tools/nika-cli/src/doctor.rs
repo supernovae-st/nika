@@ -102,6 +102,7 @@ pub async fn handle_doctor_command(
     checks.push(check_agents_md().in_section("AI Integration"));
 
     // ─── Daemon ──────────────────────────────────────────────────────────────
+    #[cfg(unix)]
     checks.extend(with_section(check_daemon().await, "Daemon"));
 
     // ─── Environment ───────────────────────────────────────────────────────
@@ -1040,6 +1041,7 @@ fn output_doctor_text(checks: &[DiagnosticCheck], quiet: bool) {
     }
 }
 
+#[cfg(unix)]
 async fn check_daemon() -> Vec<DiagnosticCheck> {
     use nika_daemon::{daemon_pid_path, daemon_socket_path, DaemonClient};
     use std::time::Duration;
