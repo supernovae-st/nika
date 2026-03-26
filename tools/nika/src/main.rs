@@ -557,6 +557,12 @@ enum Commands {
         action: cli::workflow::WorkflowAction,
     },
 
+    /// Manage background jobs via daemon
+    Job {
+        #[command(subcommand)]
+        action: cli::jobs::JobAction,
+    },
+
     /// Manage background daemon (secrets, jobs, cache)
     Daemon {
         #[command(subcommand)]
@@ -1170,6 +1176,8 @@ async fn main() {
 
         Some(Commands::Daemon { action }) => cli::daemon::handle_daemon_command(action).await,
 
+        Some(Commands::Job { action }) => cli::jobs::handle_job_command(action).await,
+
         Some(Commands::New {
             name,
             verb,
@@ -1234,6 +1242,7 @@ fn should_skip_auto_setup(cmd: &Option<Commands>) -> bool {
         Some(Commands::Features) => true,
         Some(Commands::Schema { .. }) => true,
         Some(Commands::Daemon { .. }) => true,
+        Some(Commands::Job { .. }) => true,
         Some(Commands::Doctor { .. }) => true,
         _ => {
             // Skip TUI commands if tui feature enabled

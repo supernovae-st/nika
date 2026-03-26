@@ -748,4 +748,3 @@ mod tests {
         assert_eq!(vis, 0);
     }
 }
-

@@ -9,6 +9,7 @@ pub use nika_cli::course;
 pub use nika_cli::daemon;
 pub use nika_cli::doctor;
 pub use nika_cli::init;
+pub use nika_cli::jobs;
 pub use nika_cli::machine;
 pub use nika_cli::mcp;
 pub use nika_cli::media;

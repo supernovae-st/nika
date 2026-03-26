@@ -306,7 +306,13 @@ fn run_db_loop(conn: Connection, mut rx: mpsc::Receiver<DbCommand>) {
                 output,
                 reply,
             } => {
-                let _ = reply.send(do_update_state(&conn, &id, &state, exit_code, output.as_deref()));
+                let _ = reply.send(do_update_state(
+                    &conn,
+                    &id,
+                    &state,
+                    exit_code,
+                    output.as_deref(),
+                ));
             }
             DbCommand::AddHistory { event, reply } => {
                 let _ = reply.send(do_add_history(&conn, &event));
@@ -524,9 +530,11 @@ fn do_increment_retry(conn: &Connection, id: &str) -> DaemonResult<u32> {
     .map_err(|e| DaemonError::Lifecycle(format!("increment retry: {e}")))?;
 
     let count: u32 = conn
-        .query_row("SELECT retry_count FROM jobs WHERE id = ?1", params![id], |r| {
-            r.get(0)
-        })
+        .query_row(
+            "SELECT retry_count FROM jobs WHERE id = ?1",
+            params![id],
+            |r| r.get(0),
+        )
         .map_err(|e| DaemonError::Lifecycle(format!("read retry_count: {e}")))?;
 
     Ok(count)
@@ -607,9 +615,18 @@ mod tests {
     #[tokio::test]
     async fn list_jobs_all() {
         let storage = Storage::open_memory().unwrap();
-        storage.insert_job(make_job("j1", "a.nika.yaml")).await.unwrap();
-        storage.insert_job(make_job("j2", "b.nika.yaml")).await.unwrap();
-        storage.insert_job(make_job("j3", "c.nika.yaml")).await.unwrap();
+        storage
+            .insert_job(make_job("j1", "a.nika.yaml"))
+            .await
+            .unwrap();
+        storage
+            .insert_job(make_job("j2", "b.nika.yaml"))
+            .await
+            .unwrap();
+        storage
+            .insert_job(make_job("j3", "c.nika.yaml"))
+            .await
+            .unwrap();
 
         let all = storage.list_jobs(None).await.unwrap();
         assert_eq!(all.len(), 3);
@@ -618,8 +635,14 @@ mod tests {
     #[tokio::test]
     async fn list_jobs_by_state() {
         let storage = Storage::open_memory().unwrap();
-        storage.insert_job(make_job("j1", "a.nika.yaml")).await.unwrap();
-        storage.insert_job(make_job("j2", "b.nika.yaml")).await.unwrap();
+        storage
+            .insert_job(make_job("j1", "a.nika.yaml"))
+            .await
+            .unwrap();
+        storage
+            .insert_job(make_job("j2", "b.nika.yaml"))
+            .await
+            .unwrap();
 
         // Update j1 to running
         storage
@@ -639,7 +662,10 @@ mod tests {
     #[tokio::test]
     async fn update_job_state_running() {
         let storage = Storage::open_memory().unwrap();
-        storage.insert_job(make_job("j1", "test.nika.yaml")).await.unwrap();
+        storage
+            .insert_job(make_job("j1", "test.nika.yaml"))
+            .await
+            .unwrap();
 
         storage
             .update_state("j1", JobState::Running, None, None)
@@ -654,7 +680,10 @@ mod tests {
     #[tokio::test]
     async fn update_job_state_completed() {
         let storage = Storage::open_memory().unwrap();
-        storage.insert_job(make_job("j1", "test.nika.yaml")).await.unwrap();
+        storage
+            .insert_job(make_job("j1", "test.nika.yaml"))
+            .await
+            .unwrap();
 
         storage
             .update_state("j1", JobState::Completed, Some(0), Some("done".to_string()))
@@ -671,7 +700,10 @@ mod tests {
     #[tokio::test]
     async fn update_job_state_failed() {
         let storage = Storage::open_memory().unwrap();
-        storage.insert_job(make_job("j1", "test.nika.yaml")).await.unwrap();
+        storage
+            .insert_job(make_job("j1", "test.nika.yaml"))
+            .await
+            .unwrap();
 
         storage
             .update_state("j1", JobState::Failed, Some(1), Some("error".to_string()))
@@ -686,7 +718,10 @@ mod tests {
     #[tokio::test]
     async fn job_history_tracking() {
         let storage = Storage::open_memory().unwrap();
-        storage.insert_job(make_job("j1", "test.nika.yaml")).await.unwrap();
+        storage
+            .insert_job(make_job("j1", "test.nika.yaml"))
+            .await
+            .unwrap();
 
         storage
             .add_history(JobHistoryEvent {
@@ -718,7 +753,10 @@ mod tests {
     #[tokio::test]
     async fn increment_retry_count() {
         let storage = Storage::open_memory().unwrap();
-        storage.insert_job(make_job("j1", "test.nika.yaml")).await.unwrap();
+        storage
+            .insert_job(make_job("j1", "test.nika.yaml"))
+            .await
+            .unwrap();
 
         let count = storage.increment_retry("j1").await.unwrap();
         assert_eq!(count, 1);
@@ -749,7 +787,10 @@ mod tests {
     #[tokio::test]
     async fn insert_duplicate_job_fails() {
         let storage = Storage::open_memory().unwrap();
-        storage.insert_job(make_job("j1", "a.nika.yaml")).await.unwrap();
+        storage
+            .insert_job(make_job("j1", "a.nika.yaml"))
+            .await
+            .unwrap();
         let result = storage.insert_job(make_job("j1", "b.nika.yaml")).await;
         assert!(result.is_err());
     }
@@ -773,7 +814,10 @@ mod tests {
         let db_path = dir.path().join("test.db");
 
         let storage = Storage::open(&db_path).unwrap();
-        storage.insert_job(make_job("j1", "test.nika.yaml")).await.unwrap();
+        storage
+            .insert_job(make_job("j1", "test.nika.yaml"))
+            .await
+            .unwrap();
 
         // Verify file was created
         assert!(db_path.exists());
