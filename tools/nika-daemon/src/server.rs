@@ -56,6 +56,7 @@ struct ServerState {
     cache_service: CacheService,
     event_bus: EventBus,
     active_watch: tokio::sync::Mutex<Option<ActiveWatch>>,
+    shutdown_tx: watch::Sender<bool>,
 }
 
 /// The daemon server.
@@ -138,6 +139,7 @@ impl DaemonServer {
             cache_service: CacheService::new(),
             event_bus,
             active_watch: tokio::sync::Mutex::new(None),
+            shutdown_tx: self.shutdown_tx.clone(),
         });
 
         let mut shutdown_rx = self.shutdown_rx;
@@ -538,6 +540,13 @@ async fn route_request(request: DaemonRequest, state: &Arc<ServerState>) -> Daem
             // Handled in handle_connection (streaming mode) — should not reach here
             DaemonResponse::Ok
         }
+
+        // ── Lifecycle ────────────────────────────────────────────────────
+        DaemonRequest::Shutdown => {
+            info!("shutdown requested via IPC");
+            let _ = state.shutdown_tx.send(true);
+            DaemonResponse::ShuttingDown
+        }
     }
 }
 
@@ -709,6 +718,31 @@ mod tests {
 
         shutdown.send(true).unwrap();
         let _ = tokio::time::timeout(Duration::from_secs(2), server_handle).await;
+    }
+
+    #[tokio::test]
+    async fn server_shutdown_via_ipc() {
+        let dir = tempfile::tempdir().unwrap();
+        let sock = dir.path().join("test.sock");
+        let config = test_config(sock.clone());
+
+        let server = DaemonServer::new(config);
+        let server_handle = tokio::spawn(server.run());
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // Send Shutdown request via client
+        let client = DaemonClient::new(&sock);
+        client.shutdown().await.unwrap();
+
+        // Server should stop within 2 seconds
+        let result = tokio::time::timeout(Duration::from_secs(2), server_handle)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(result.is_ok());
+
+        // Socket should be cleaned up
+        assert!(!sock.exists());
     }
 
     #[test]

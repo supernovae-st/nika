@@ -100,6 +100,10 @@ pub enum DaemonRequest {
     // ── Events ───────────────────────────────────────────────────────────
     /// Subscribe to daemon events (streaming).
     EventSubscribe,
+
+    // ── Lifecycle ─────────────────────────────────────────────────────────
+    /// Request graceful daemon shutdown.
+    Shutdown,
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -193,6 +197,10 @@ pub enum DaemonResponse {
     Event {
         event: serde_json::Value,
     },
+
+    // ── Lifecycle ─────────────────────────────────────────────────────────
+    /// Acknowledgement that daemon is shutting down.
+    ShuttingDown,
 }
 
 /// Information about a provider's secret status.
@@ -334,6 +342,20 @@ mod tests {
     }
 
     #[test]
+    fn request_serialize_shutdown() {
+        let req = DaemonRequest::Shutdown;
+        let json = serde_json::to_string(&req).unwrap();
+        assert_eq!(json, r#"{"type":"Shutdown"}"#);
+    }
+
+    #[test]
+    fn response_serialize_shutting_down() {
+        let resp = DaemonResponse::ShuttingDown;
+        let json = serde_json::to_string(&resp).unwrap();
+        assert_eq!(json, r#"{"type":"ShuttingDown"}"#);
+    }
+
+    #[test]
     fn response_serialize_pong() {
         let resp = DaemonResponse::Pong {
             version: "0.46.1".into(),
@@ -425,6 +447,7 @@ mod tests {
                 provider: "openai".into(),
             },
             DaemonRequest::ListSecrets,
+            DaemonRequest::Shutdown,
         ];
         for req in requests {
             let json = serde_json::to_string(&req).unwrap();
@@ -456,6 +479,7 @@ mod tests {
             DaemonResponse::Secret { value: None },
             DaemonResponse::SecretExists { exists: true },
             DaemonResponse::SecretList { providers: vec![] },
+            DaemonResponse::ShuttingDown,
         ];
         for resp in responses {
             let json = serde_json::to_string(&resp).unwrap();
