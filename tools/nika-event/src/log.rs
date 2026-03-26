@@ -914,7 +914,7 @@ impl EventLog {
     /// Create a new event log (call at workflow start)
     pub fn new() -> Self {
         Self {
-            events: Arc::new(RwLock::new(Vec::new())),
+            events: Arc::new(RwLock::new(Vec::with_capacity(256))),
             start_time: Instant::now(),
             next_id: Arc::new(AtomicU64::new(0)),
             broadcast_tx: None,
@@ -929,7 +929,7 @@ impl EventLog {
     pub fn new_with_broadcast() -> (Self, broadcast::Receiver<Event>) {
         let (tx, rx) = broadcast::channel(512);
         let event_log = Self {
-            events: Arc::new(RwLock::new(Vec::new())),
+            events: Arc::new(RwLock::new(Vec::with_capacity(256))),
             start_time: Instant::now(),
             next_id: Arc::new(AtomicU64::new(0)),
             broadcast_tx: Some(tx),
