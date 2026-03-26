@@ -238,6 +238,23 @@ Add `suggested_fix()` method to NikaError. Render in output:
 
 ---
 
+## Code Review Fixes (from final session review — do FIRST)
+
+These are bugs found by the code reviewer. Fix before Phase 1.
+
+| ID | Severity | File | Fix |
+|----|----------|------|-----|
+| H2 | HIGH | `live.rs:323` | `format_failed` must call `truncate_task_id(task_id, 16)` like all other `format_*` methods |
+| H3 | HIGH | `renderer.rs:1090` | Plain-text preview: replace `l.len()` with `stripped_len(l)` for multi-byte correctness |
+| H4 | HIGH | `renderer.rs:992` | Add explicit `WorkflowCompleted/Failed => {}` arms before the catch-all, with comment |
+| M2 | MEDIUM | `renderer.rs:1019` | Add GB branch to `format_bytes`: `>= 1024*1024*1024 → "{:.1} GB"` |
+| M5 | MEDIUM | `renderer.rs` | Add `fetch_retries: u32` to RunStats + `FetchRetry` arm in `apply_event` |
+| M6 | MEDIUM | `format_event.rs:258` | Add `guardrail_type: &str` param to `fmt_guardrail_escalation` + update both renderer call sites |
+| L2 | LOW | `mod.rs:18` | Change `pub mod format_event` → `pub(crate) mod format_event` |
+| L4 | LOW | `live.rs:278` | `truncate_task_id` guard: use `stripped_len(id)` instead of `id.len()` |
+
+---
+
 ## Socratic Questions for UX Improvement
 
 1. **When a task hangs for 30s, what does the user see?** Just a spinning indicator. Should we show a "slow" warning with elapsed time?
