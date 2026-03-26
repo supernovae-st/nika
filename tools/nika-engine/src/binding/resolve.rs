@@ -783,18 +783,16 @@ fn resolve_binding_path_traced(
 ) -> Result<Option<Value>, NikaError> {
     match &binding_path.source {
         BindingSource::Env(var_name) => {
-            let result = std::env::var(var_name.as_ref());
-            let found = result.is_ok();
-            // EMIT: BindingEnvResolved
+            // Delegate to the secure resolve_binding_path (which enforces the
+            // allowlist/blocklist), then emit the telemetry event.
+            let result = resolve_binding_path(binding_path, alias, datastore)?;
+            let found = result.is_some();
             events.push(EventKind::BindingEnvResolved {
                 task_id: Arc::clone(task_id),
                 var_name: var_name.to_string(),
                 found,
             });
-            match result {
-                Ok(val) => Ok(Some(Value::String(val))),
-                Err(_) => Ok(None),
-            }
+            Ok(result)
         }
         // For all other sources, delegate to the original function
         _ => resolve_binding_path(binding_path, alias, datastore),
