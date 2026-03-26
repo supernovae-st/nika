@@ -152,6 +152,23 @@ pub struct ProviderCallStat {
 }
 
 impl RunStats {
+    /// Record a task in the timeline (deduplicates logic across 4 call sites).
+    pub fn record_timeline(
+        &mut self,
+        task_id: &str,
+        verb: &str,
+        start_ms: u64,
+        workflow_start_ms: u64,
+        duration_ms: u64,
+    ) {
+        self.task_timeline.push((
+            task_id.to_string(),
+            verb.to_string(),
+            start_ms.saturating_sub(workflow_start_ms),
+            duration_ms,
+        ));
+    }
+
     /// Apply a single event to accumulate stats.
     ///
     /// Centralizes stat accumulation that was previously duplicated in both
@@ -476,12 +493,9 @@ impl CliRenderer {
 
                 // Record timeline
                 if let Some((start, _)) = self.task_starts.get(task_id.as_ref()) {
-                    self.stats.task_timeline.push((
-                        task_id.to_string(),
-                        verb.clone(),
-                        start.saturating_sub(self.workflow_start_ms),
-                        *duration_ms,
-                    ));
+                    self.stats.record_timeline(
+                        task_id, &verb, *start, self.workflow_start_ms, *duration_ms,
+                    );
                 }
 
                 let padded_id = format!("{:<14}", task_id);
@@ -515,12 +529,9 @@ impl CliRenderer {
 
                 // Record timeline (failed tasks should appear in Gantt chart too)
                 if let Some((start, _)) = self.task_starts.get(task_id.as_ref()) {
-                    self.stats.task_timeline.push((
-                        task_id.to_string(),
-                        verb.clone(),
-                        start.saturating_sub(self.workflow_start_ms),
-                        *duration_ms,
-                    ));
+                    self.stats.record_timeline(
+                        task_id, &verb, *start, self.workflow_start_ms, *duration_ms,
+                    );
                 }
 
                 let padded_id = format!("{:<14}", task_id);

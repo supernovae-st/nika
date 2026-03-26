@@ -334,8 +334,8 @@ impl LiveRenderer {
 
     fn format_failed(task_id: &str, verb: &str, dur_secs: f32, error: &str) -> String {
         let padded_id = Self::truncate_task_id(task_id, 16);
-        let short_err = if colors::stripped_len(error) > 40 {
-            let cut = colors::floor_char_boundary(error, 39);
+        let short_err = if colors::stripped_len(error) > 60 {
+            let cut = colors::floor_char_boundary(error, 59);
             format!("{}…", &error[..cut])
         } else {
             error.to_string()
@@ -468,12 +468,9 @@ impl LiveRenderer {
 
                 // Record timeline
                 if let Some((start, _)) = self.task_starts.get(task_id.as_ref()) {
-                    self.stats.task_timeline.push((
-                        task_id.to_string(),
-                        verb.clone(),
-                        start.saturating_sub(self.workflow_start_ms),
-                        *duration_ms,
-                    ));
+                    self.stats.record_timeline(
+                        task_id, &verb, *start, self.workflow_start_ms, *duration_ms,
+                    );
                 }
 
                 // O(1) token lookup from per-task accumulator
@@ -532,12 +529,9 @@ impl LiveRenderer {
 
                 // Record timeline
                 if let Some((start, _)) = self.task_starts.get(task_id.as_ref()) {
-                    self.stats.task_timeline.push((
-                        task_id.to_string(),
-                        verb.clone(),
-                        start.saturating_sub(self.workflow_start_ms),
-                        *duration_ms,
-                    ));
+                    self.stats.record_timeline(
+                        task_id, &verb, *start, self.workflow_start_ms, *duration_ms,
+                    );
                 }
 
                 if let Some(tb) = self.task_bars.get_mut(task_id.as_ref()) {

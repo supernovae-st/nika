@@ -287,7 +287,7 @@ pub(crate) fn fmt_log(ts: &str, level: &str, message: &str) -> String {
 
 pub(crate) fn fmt_custom(ts: &str, name: &str, payload: &Value) -> String {
     let preview = serde_json::to_string(payload).unwrap_or_default();
-    let short = if preview.len() > 60 {
+    let short = if colors::stripped_len(&preview) > 60 {
         format!("{}…", &preview[..colors::floor_char_boundary(&preview, 60)])
     } else {
         preview
