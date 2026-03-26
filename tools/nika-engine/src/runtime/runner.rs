@@ -171,8 +171,9 @@ pub struct Runner {
     resolved_assets: ResolvedAssets,
     /// Trace retention config (max_traces + retention_days)
     trace_config: TraceConfig,
-    /// CLI event stream renderer (None when quiet or TUI mode)
-    cli_renderer: Option<crate::display::CliRenderer>,
+    /// CLI event stream renderer (None when quiet or TUI mode).
+    /// Uses `RunRenderer` to auto-select Live (animated) vs Classic (append-only).
+    cli_renderer: Option<crate::display::RunRenderer>,
 }
 
 impl Runner {
@@ -240,13 +241,27 @@ impl Runner {
     }
 
     /// Set the CLI detail level for event rendering.
+    ///
+    /// Automatically selects Live (animated) or Classic (append-only)
+    /// renderer based on TTY detection and detail level.
     pub fn with_detail_level(mut self, detail: crate::display::DetailLevel) -> Self {
         let effective_detail = if self.quiet {
             crate::display::DetailLevel::Min
         } else {
             detail
         };
-        self.cli_renderer = Some(crate::display::CliRenderer::new(effective_detail));
+        self.cli_renderer = Some(crate::display::RunRenderer::auto(effective_detail));
+        self
+    }
+
+    /// Force the classic (append-only) renderer regardless of TTY.
+    pub fn with_classic_renderer(mut self, detail: crate::display::DetailLevel) -> Self {
+        let effective_detail = if self.quiet {
+            crate::display::DetailLevel::Min
+        } else {
+            detail
+        };
+        self.cli_renderer = Some(crate::display::RunRenderer::classic(effective_detail));
         self
     }
 
@@ -1262,6 +1277,33 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     .collect();
                 renderer.set_task_layers(task_layers);
             }
+
+            // Initialize live task bars (no-op for Classic renderer)
+            let task_ids: Vec<String> = self
+                .workflow
+                .tasks
+                .iter()
+                .map(|t| t.name.clone())
+                .collect();
+            let task_deps: std::collections::HashMap<String, Vec<String>> = self
+                .workflow
+                .tasks
+                .iter()
+                .map(|t| {
+                    let deps: Vec<String> = t
+                        .depends_on
+                        .iter()
+                        .filter_map(|dep_id| {
+                            self.workflow
+                                .task_table
+                                .get_name(*dep_id)
+                                .map(|s| s.to_string())
+                        })
+                        .collect();
+                    (t.name.clone(), deps)
+                })
+                .collect();
+            renderer.init_tasks(&task_ids, &task_deps);
         }
 
         loop {
