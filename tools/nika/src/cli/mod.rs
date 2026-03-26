@@ -4,12 +4,15 @@
 //! that stay in the binary crate (provider).
 
 // Re-export all non-TUI handlers from nika-cli
+#[cfg(unix)]
 pub use nika_cli::cache_cmd;
 pub use nika_cli::config;
 pub use nika_cli::course;
+#[cfg(unix)]
 pub use nika_cli::daemon;
 pub use nika_cli::doctor;
 pub use nika_cli::init;
+#[cfg(unix)]
 pub use nika_cli::jobs;
 pub use nika_cli::machine;
 pub use nika_cli::mcp;
@@ -28,3 +31,6 @@ pub use nika_cli::model;
 
 // Provider command has no TUI dependency — always available
 pub mod provider;
+
+// Onboarding wizard — first-run API key setup
+pub mod onboarding;
