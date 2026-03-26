@@ -11,7 +11,6 @@ publish = true
 
 [features]
 default = []
-nika-daemon = ["nika-engine/nika-daemon"]
 native-inference = ["nika-engine/native-inference"]
 media-core = ["nika-engine/media-core"]
 media-thumbnail = ["nika-engine/media-thumbnail"]

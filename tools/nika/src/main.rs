@@ -601,11 +601,6 @@ fn print_features() {
         "Local GGUF models (mistral.rs)",
     );
     print_feature("lsp", cfg!(feature = "lsp"), "Language Server Protocol");
-    print_feature(
-        "nika-daemon",
-        cfg!(feature = "nika-daemon"),
-        "Unified secret management",
-    );
     println!();
 
     // Media Tier 2
@@ -724,9 +719,6 @@ fn count_features() -> usize {
         count += 1;
     }
     if cfg!(feature = "lsp") {
-        count += 1;
-    }
-    if cfg!(feature = "nika-daemon") {
         count += 1;
     }
     if cfg!(feature = "media-thumbnail") {

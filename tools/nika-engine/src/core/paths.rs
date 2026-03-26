@@ -9,7 +9,7 @@
 //! ~/.nika/
 //! ├── config.toml          # Global configuration
 //! ├── mcp.yaml             # MCP server definitions
-//! ├── daemon/              # Daemon state
+//! ├── daemon/              # Reserved for future nika daemon
 //! │   ├── nika.sock        # Unix socket for IPC
 //! │   └── nika.pid         # PID file
 //! ├── models/              # GGUF models for native inference
@@ -169,6 +169,7 @@ pub fn cache_dir() -> PathBuf {
 }
 
 /// Returns the daemon directory (`~/.nika/daemon/`).
+/// Reserved for future native nika daemon.
 pub fn daemon_dir() -> PathBuf {
     nika_home().join("daemon")
 }
@@ -193,11 +194,13 @@ pub fn registry_index_path() -> PathBuf {
 }
 
 /// Returns the daemon socket path (`~/.nika/daemon/nika.sock`).
+/// Reserved for future native nika daemon.
 pub fn daemon_socket_path() -> PathBuf {
     daemon_dir().join(DAEMON_SOCKET)
 }
 
 /// Returns the daemon PID file path (`~/.nika/daemon/nika.pid`).
+/// Reserved for future native nika daemon.
 pub fn daemon_pid_path() -> PathBuf {
     daemon_dir().join(DAEMON_PID)
 }

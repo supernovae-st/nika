@@ -11,8 +11,6 @@
 //! - Model contracts (10 tests): Local model management (`nika model *`)
 //! - Sync contracts (8 tests): Editor sync (`nika sync *`)
 //! - Setup contracts (10 tests): Setup wizard (`nika setup *`)
-//! - Daemon contracts (15 tests): Daemon IPC protocol (`nika daemon *`)
-//! - Jobs contracts (10 tests): Job scheduler (`nika job *`)
 //!
 //! # Running Contract Tests
 //!
@@ -25,8 +23,6 @@
 //! Contract tests verify behavior, not implementation. They ensure nika
 //! commands work correctly.
 
-mod daemon_contracts;
-mod jobs_contracts;
 mod mcp_contracts;
 mod model_contracts;
 mod pkg_contracts;
@@ -44,12 +40,6 @@ pub mod common {
             .args(args)
             .output()
             .expect("Failed to execute nika command")
-    }
-
-    /// Check if nika daemon is running
-    pub fn is_daemon_running() -> bool {
-        let output = run_nika(&["daemon", "status"]);
-        output.status.success()
     }
 
     /// Parse provider list output into a vec of provider names
@@ -75,7 +65,7 @@ pub mod common {
     }
 
     /// LLM providers shown by `nika provider list`
-    /// NOTE: Ollama removed in v0.27 — use provider: native instead
+    /// NOTE: Ollama removed in v0.27 -- use provider: native instead
     pub const LLM_PROVIDERS: &[&str] = &[
         "anthropic",
         "openai",

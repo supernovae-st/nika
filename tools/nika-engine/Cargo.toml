@@ -15,7 +15,6 @@ default = ["media-core", "fetch-extract", "fetch-article", "fetch-feed", "media-
 #   - media-provenance (C2PA): heavy dep (openssl, crypto) + legal/compliance use case
 #   - lsp: editor-specific, not needed for engine users
 # Everything else is default.
-nika-daemon = ["dep:spn-client"]  # Use nika daemon for unified secret management
 native-keychain = ["dep:keyring"]  # OS keychain support
 native-inference = ["dep:mistralrs", "dep:async-stream", "dep:image"]  # Native LLM inference via mistral.rs
 lsp = ["dep:tower-lsp-server", "dep:nika-lsp-core", "tokio/io-std", "tokio/io-util"]  # Language Server Protocol support
@@ -85,8 +84,6 @@ keyring = { version = "3", features = ["apple-native", "windows-native", "sync-s
 secrecy = "0.10"
 zeroize = "1.8"
 
-# Nika daemon client
-spn-client = { version = "0.3.4", optional = true }
 
 # Native inference via mistral.rs
 mistralrs = { version = "0.7", optional = true }

@@ -113,12 +113,10 @@ impl SettingsSection {
 /// Secrets info for display
 #[derive(Debug, Clone, Default)]
 pub struct SecretsInfo {
-    /// Source (nika-daemon or fallback)
+    /// Source description (e.g., "env vars")
     pub source: String,
-    /// Number of keychain entries
+    /// Number of configured entries
     pub keychain_count: usize,
-    /// Whether daemon is available
-    pub daemon_available: bool,
 }
 
 /// Settings view state (5 sections for SPN integration)
@@ -157,7 +155,6 @@ impl SettingsView {
             secrets_info: SecretsInfo {
                 source: "checking...".to_string(),
                 keychain_count: 0,
-                daemon_available: false,
             },
             installed_packages: Vec::new(),
         }
@@ -190,11 +187,10 @@ impl SettingsView {
     }
 
     /// Update secrets info
-    pub fn update_secrets_info(&mut self, source: &str, count: usize, daemon_available: bool) {
+    pub fn update_secrets_info(&mut self, source: &str, count: usize) {
         self.secrets_info = SecretsInfo {
             source: source.to_string(),
             keychain_count: count,
-            daemon_available,
         };
     }
 
@@ -230,17 +226,8 @@ impl SettingsView {
 
         self.update_provider_counts(llm_count, mcp_count);
 
-        // Check secrets/daemon status
-        #[cfg(feature = "nika-daemon")]
-        {
-            // With nika-daemon feature, secrets go through daemon
-            self.update_secrets_info("nika-daemon", llm_count + mcp_count, true);
-        }
-        #[cfg(not(feature = "nika-daemon"))]
-        {
-            // Without daemon, we use fallback (env vars only)
-            self.update_secrets_info("env vars (fallback)", llm_count + mcp_count, false);
-        }
+        // Secrets source: env vars + optional keyring
+        self.update_secrets_info("env vars", llm_count + mcp_count);
 
         // MCP servers: Will be updated when a workflow is loaded
         // For now, show current state (from state if any)
@@ -392,11 +379,7 @@ impl View for SettingsView {
             Span::styled(
                 &self.secrets_info.source,
                 Style::default()
-                    .fg(if self.secrets_info.daemon_available {
-                        theme.highlight
-                    } else {
-                        theme.text_muted
-                    })
+                    .fg(theme.text_muted)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::styled("  │  Keychain: ", Style::default().fg(theme.text_muted)),
@@ -668,10 +651,9 @@ mod tests {
     #[test]
     fn test_update_secrets_info() {
         let mut view = SettingsView::new();
-        view.update_secrets_info("nika-daemon", 5, true);
-        assert_eq!(view.secrets_info.source, "nika-daemon");
+        view.update_secrets_info("env vars", 5);
+        assert_eq!(view.secrets_info.source, "env vars");
         assert_eq!(view.secrets_info.keychain_count, 5);
-        assert!(view.secrets_info.daemon_available);
     }
 
     #[test]
@@ -820,7 +802,6 @@ mod tests {
         let info = SecretsInfo::default();
         assert!(info.source.is_empty());
         assert_eq!(info.keychain_count, 0);
-        assert!(!info.daemon_available);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════
@@ -869,11 +850,6 @@ mod tests {
         let mut view = SettingsView::new();
         view.refresh_data();
 
-        // Source should be set to either "nika-daemon" or "env vars (fallback)"
-        #[cfg(feature = "nika-daemon")]
-        assert_eq!(view.secrets_info.source, "nika-daemon");
-
-        #[cfg(not(feature = "nika-daemon"))]
-        assert_eq!(view.secrets_info.source, "env vars (fallback)");
+        assert_eq!(view.secrets_info.source, "env vars");
     }
 }

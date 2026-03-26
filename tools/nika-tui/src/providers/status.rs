@@ -7,8 +7,6 @@ use std::time::Instant;
 /// Source of an API key/secret
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KeySource {
-    /// Retrieved from nika daemon IPC
-    NikaDaemon,
     /// Retrieved from OS keychain directly
     OsKeychain,
     /// Retrieved from environment variable
@@ -21,7 +19,6 @@ impl KeySource {
     /// Get display label for the key source
     pub fn label(&self) -> &'static str {
         match self {
-            KeySource::NikaDaemon => "daemon",
             KeySource::OsKeychain => "keychain",
             KeySource::EnvVar => "env",
             KeySource::NotConfigured => "none",
@@ -31,7 +28,6 @@ impl KeySource {
     /// Get icon for the key source
     pub fn icon(&self) -> &'static str {
         match self {
-            KeySource::NikaDaemon => "🔐",
             KeySource::OsKeychain => "🔑",
             KeySource::EnvVar => "📦",
             KeySource::NotConfigured => "❌",
@@ -40,7 +36,7 @@ impl KeySource {
 
     /// Is the key secure (keychain-based)?
     pub fn is_secure(&self) -> bool {
-        matches!(self, KeySource::NikaDaemon | KeySource::OsKeychain)
+matches!(self, KeySource::OsKeychain)
     }
 }
 
@@ -173,7 +169,6 @@ mod tests {
 
     #[test]
     fn test_key_source_secure() {
-        assert!(KeySource::NikaDaemon.is_secure());
         assert!(KeySource::OsKeychain.is_secure());
         assert!(!KeySource::EnvVar.is_secure());
         assert!(!KeySource::NotConfigured.is_secure());
@@ -197,7 +192,7 @@ mod tests {
         status.connection = ConnectionStatus::Connected { latency_ms: 50 };
         assert!(!status.is_ready()); // Still no key source
 
-        status.key_source = KeySource::NikaDaemon;
+        status.key_source = KeySource::EnvVar;
         assert!(status.is_ready());
     }
 
