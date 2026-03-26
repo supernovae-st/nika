@@ -580,7 +580,7 @@ impl LanguageServer for NikaLanguageServer {
         }
     }
 
-    // ===== Folding Ranges =====
+    // ===== Folding Ranges (delegated to nika-lsp-core) =====
 
     async fn folding_range(&self, params: FoldingRangeParams) -> Result<Option<Vec<FoldingRange>>> {
         let uri = &params.text_document.uri;
@@ -588,12 +588,26 @@ impl LanguageServer for NikaLanguageServer {
         let docs = self.documents.read().await;
         let text = docs.get(uri).cloned().unwrap_or_default();
 
-        let ranges = handlers::folding_ranges::compute_folding_ranges(&text);
-        if ranges.is_empty() {
-            Ok(None)
-        } else {
-            Ok(Some(ranges))
+        let entries = nika_lsp_core::handlers::folding_ranges::folding_ranges(&text);
+        if entries.is_empty() {
+            return Ok(None);
         }
+
+        let ranges: Vec<FoldingRange> = entries
+            .into_iter()
+            .map(|e| FoldingRange {
+                start_line: e.start_line,
+                start_character: None,
+                end_line: e.end_line,
+                end_character: None,
+                kind: Some(match e.kind {
+                    nika_lsp_core::handlers::folding_ranges::FoldKind::Region => FoldingRangeKind::Region,
+                    nika_lsp_core::handlers::folding_ranges::FoldKind::Comment => FoldingRangeKind::Comment,
+                }),
+                collapsed_text: None,
+            })
+            .collect();
+        Ok(Some(ranges))
     }
 
     // ===== Code Lens =====
@@ -612,7 +626,7 @@ impl LanguageServer for NikaLanguageServer {
         }
     }
 
-    // ===== References =====
+    // ===== References (delegated to nika-lsp-core) =====
 
     async fn references(&self, params: ReferenceParams) -> Result<Option<Vec<Location>>> {
         let uri = &params.text_document_position.text_document.uri;
@@ -621,27 +635,29 @@ impl LanguageServer for NikaLanguageServer {
         let docs = self.documents.read().await;
         let text = docs.get(uri).cloned().unwrap_or_default();
 
-        let task_id = match handlers::references::find_task_at_cursor(&text, position) {
+        // Convert position to byte offset for lsp-core
+        let offset = position_to_offset(&text, position);
+        let task_id = match nika_lsp_core::handlers::references::find_task_at_offset(&text, offset) {
             Some(id) => id,
             None => return Ok(None),
         };
 
-        let ranges = handlers::references::find_task_references(&text, &task_id);
-        if ranges.is_empty() {
+        let entries = nika_lsp_core::handlers::references::find_task_references(&text, &task_id);
+        if entries.is_empty() {
             return Ok(None);
         }
 
-        let locations: Vec<Location> = ranges
+        let locations: Vec<Location> = entries
             .into_iter()
-            .map(|range| Location {
+            .map(|e| Location {
                 uri: uri.clone(),
-                range,
+                range: offset_range_to_lsp(&text, e.start_offset, e.end_offset),
             })
             .collect();
         Ok(Some(locations))
     }
 
-    // ===== Document Links =====
+    // ===== Document Links (delegated to nika-lsp-core) =====
 
     async fn document_link(&self, params: DocumentLinkParams) -> Result<Option<Vec<DocumentLink>>> {
         let uri = &params.text_document.uri;
@@ -649,13 +665,68 @@ impl LanguageServer for NikaLanguageServer {
         let docs = self.documents.read().await;
         let text = docs.get(uri).cloned().unwrap_or_default();
 
-        let links = handlers::document_links::compute_document_links(&text);
-        if links.is_empty() {
-            Ok(None)
+        let entries = nika_lsp_core::handlers::document_links::document_links(&text);
+        if entries.is_empty() {
+            return Ok(None);
+        }
+
+        let links: Vec<DocumentLink> = entries
+            .into_iter()
+            .map(|e| DocumentLink {
+                range: offset_range_to_lsp(&text, e.start_offset, e.end_offset),
+                target: e.target.parse().ok(),
+                tooltip: Some(e.tooltip),
+                data: None,
+            })
+            .collect();
+        Ok(Some(links))
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// OFFSET / POSITION CONVERSION HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Convert a line/column Position to a byte offset in the text.
+#[cfg(feature = "lsp")]
+fn position_to_offset(text: &str, position: Position) -> u32 {
+    let mut offset = 0u32;
+    for (i, line) in text.lines().enumerate() {
+        if i == position.line as usize {
+            return offset + position.character.min(line.len() as u32);
+        }
+        offset += line.len() as u32 + 1; // +1 for newline
+    }
+    offset
+}
+
+/// Convert a byte offset range to an LSP Range (line/column).
+#[cfg(feature = "lsp")]
+fn offset_range_to_lsp(text: &str, start: u32, end: u32) -> Range {
+    let start_pos = offset_to_position(text, start);
+    let end_pos = offset_to_position(text, end);
+    Range {
+        start: start_pos,
+        end: end_pos,
+    }
+}
+
+#[cfg(feature = "lsp")]
+fn offset_to_position(text: &str, offset: u32) -> Position {
+    let mut line = 0u32;
+    let mut col = 0u32;
+    for (i, ch) in text.char_indices() {
+        if i as u32 >= offset {
+            break;
+        }
+        if ch == '\n' {
+            line += 1;
+            col = 0;
         } else {
-            Ok(Some(links))
+            col += 1;
         }
     }
+    Position::new(line, col)
 }
 
 // Stub when LSP feature is disabled

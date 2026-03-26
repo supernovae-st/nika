@@ -6,10 +6,10 @@ pub mod code_action;
 pub mod code_lens;
 pub mod completion;
 pub mod definition;
-pub mod document_links;
-pub mod folding_ranges;
+// document_links: migrated to nika-lsp-core
+// folding_ranges: migrated to nika-lsp-core
 pub mod hover;
 pub mod inlay_hints;
-pub mod references;
+// references: migrated to nika-lsp-core
 pub mod semantic_tokens;
 pub mod symbols;
