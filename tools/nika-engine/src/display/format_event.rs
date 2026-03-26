@@ -437,6 +437,19 @@ pub fn fmt_http_response(
     ))
 }
 
+// ── Provider Called ─────────────────────────────────────────────────────
+
+pub fn fmt_provider_called(provider: &str, model: &str, prompt_len: usize) -> String {
+    sub(format!(
+        "{} {}/{} {} {} chars",
+        icons::provider(),
+        provider.dimmed(),
+        model.white(),
+        "· prompt:".dimmed(),
+        prompt_len
+    ))
+}
+
 // ── Template ────────────────────────────────────────────────────────────
 
 pub fn fmt_template_resolved(template: &str, result: &str) -> String {

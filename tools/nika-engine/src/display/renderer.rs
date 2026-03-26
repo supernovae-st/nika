@@ -359,14 +359,7 @@ impl CliRenderer {
                 result,
             } => {
                 if self.detail.show_template_events() {
-                    println!(
-                        "{}     {} {} {} → {}",
-                        " ".repeat(6),
-                        "│".dimmed(),
-                        "tmpl".dimmed(),
-                        template.dimmed(),
-                        result.dimmed()
-                    );
+                    println!("{}", super::format_event::fmt_template_resolved(template, result));
                 }
             }
 
@@ -377,16 +370,7 @@ impl CliRenderer {
                 prompt_len,
             } => {
                 if self.detail.show_sub_events() {
-                    println!(
-                        "{}     {} {} {}/{} {} {} chars",
-                        " ".repeat(6),
-                        "│".dimmed(),
-                        icons::provider(),
-                        provider.dimmed(),
-                        model.white(),
-                        "· prompt:".dimmed(),
-                        prompt_len
-                    );
+                    println!("{}", super::format_event::fmt_provider_called(provider, model, *prompt_len));
                 }
             }
 

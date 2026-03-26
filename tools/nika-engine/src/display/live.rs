@@ -586,16 +586,7 @@ impl LiveRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    self.log(&format!(
-                        "{}     {} {} {}/{} {} {} chars",
-                        " ".repeat(6),
-                        "│".dimmed(),
-                        icons::provider(),
-                        provider.dimmed(),
-                        model.white(),
-                        "· prompt:".dimmed(),
-                        prompt_len
-                    ));
+                    self.log(&super::format_event::fmt_provider_called(provider, model, *prompt_len));
                 }
             }
 
