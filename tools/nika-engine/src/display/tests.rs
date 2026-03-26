@@ -728,3 +728,141 @@ fn ttft_formatting() {
     let slow = strip_ansi(&colors::ttft(600).to_string());
     assert_eq!(slow, "600ms");
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// 13. Event formatters (new: 12 swallowed event types)
+// ═══════════════════════════════════════════════════════════════════════
+
+use super::format_event;
+
+#[test]
+fn fmt_fetch_retry_with_status_code() {
+    let out = strip_ansi(&format_event::fmt_fetch_retry(
+        "https://api.example.com/data",
+        2,
+        3,
+        Some(429),
+        2000,
+    ));
+    assert!(out.contains("fetch retry"), "should contain 'fetch retry'");
+    assert!(out.contains("2/3"), "should contain attempt fraction");
+    assert!(out.contains("https://api.example.com/data"), "should contain URL");
+    assert!(out.contains("http:429"), "should contain status code");
+    assert!(out.contains("backoff:2000ms"), "should contain backoff");
+}
+
+#[test]
+fn fmt_fetch_retry_without_status_code() {
+    let out = strip_ansi(&format_event::fmt_fetch_retry(
+        "https://api.example.com",
+        1,
+        5,
+        None,
+        500,
+    ));
+    assert!(out.contains("1/5"), "should contain attempt fraction");
+    assert!(!out.contains("http:"), "should NOT contain http: when no status code");
+    assert!(out.contains("backoff:500ms"), "should contain backoff");
+}
+
+#[test]
+fn fmt_boot_phase_success() {
+    let out = strip_ansi(&format_event::fmt_boot_phase(
+        "config_discovery",
+        true,
+        42,
+        &[],
+    ));
+    assert!(out.contains("boot"), "should contain 'boot'");
+    assert!(out.contains("config_discovery"), "should contain phase name");
+    assert!(out.contains("42ms"), "should contain duration");
+    assert!(out.contains('\u{2713}'), "should contain success icon");
+}
+
+#[test]
+fn fmt_boot_phase_with_warnings() {
+    let out = strip_ansi(&format_event::fmt_boot_phase(
+        "mcp_startup",
+        true,
+        100,
+        &["server timeout".to_string(), "retry succeeded".to_string()],
+    ));
+    assert!(out.contains("2 warnings"), "should show warning count");
+}
+
+#[test]
+fn fmt_native_model_loaded_with_vision() {
+    let out = strip_ansi(&format_event::fmt_native_model_loaded(
+        "Qwen/Qwen2.5-VL-7B",
+        "huggingface",
+        5200,
+        true,
+    ));
+    assert!(out.contains("native"), "should contain 'native'");
+    assert!(out.contains("Qwen/Qwen2.5-VL-7B"), "should contain model name");
+    assert!(out.contains("huggingface"), "should contain kind");
+    assert!(out.contains("5200ms"), "should contain duration");
+    assert!(out.contains("+vision"), "should contain vision tag");
+}
+
+#[test]
+fn fmt_binding_default_output() {
+    let out = strip_ansi(&format_event::fmt_binding_default("data", "$task1.missing"));
+    assert!(out.contains("bind"), "should contain 'bind'");
+    assert!(out.contains("data"), "should contain alias");
+    assert!(out.contains("??"), "should contain default operator");
+    assert!(out.contains("$task1.missing"), "should contain path");
+}
+
+#[test]
+fn fmt_binding_env_found() {
+    let out = strip_ansi(&format_event::fmt_binding_env("API_KEY", true));
+    assert!(out.contains("$env.API_KEY"), "should contain env var");
+    assert!(out.contains('\u{2713}'), "should contain success icon");
+}
+
+#[test]
+fn fmt_decompose_completed_output() {
+    let out = strip_ansi(&format_event::fmt_decompose_completed("research", 5, 120));
+    assert!(out.contains("decompose"), "should contain 'decompose'");
+    assert!(out.contains("research"), "should contain task id");
+    assert!(out.contains("5 items"), "should contain item count");
+    assert!(out.contains("120ms"), "should contain duration");
+}
+
+#[test]
+fn fmt_for_each_started_output() {
+    let out = strip_ansi(&format_event::fmt_for_each_started("process", 10, 3));
+    assert!(out.contains("for_each"), "should contain 'for_each'");
+    assert!(out.contains("10 items"), "should contain item count");
+    assert!(out.contains("concurrency:3"), "should contain concurrency");
+}
+
+#[test]
+fn fmt_provider_initialized_cached() {
+    let out = strip_ansi(&format_event::fmt_provider_initialized("openai", "gpt-4o", true));
+    assert!(out.contains("openai"), "should contain provider");
+    assert!(out.contains("cached"), "should contain cached");
+}
+
+#[test]
+fn fmt_builtin_tool_invoked_success() {
+    let out = strip_ansi(&format_event::fmt_builtin_tool_invoked("nika:read", 15, true));
+    assert!(out.contains("nika:read"), "should contain tool name");
+    assert!(out.contains("15ms"), "should contain duration");
+    assert!(out.contains('\u{2713}'), "should contain success icon");
+}
+
+#[test]
+fn fmt_extract_applied_output() {
+    let out = strip_ansi(&format_event::fmt_extract_applied("markdown", 50000, 12000));
+    assert!(out.contains("extract:markdown"), "should contain extract mode");
+    assert!(out.contains("24%"), "should contain ratio (12000/50000 = 24%)");
+}
+
+#[test]
+fn fmt_extract_applied_zero_input() {
+    let out = strip_ansi(&format_event::fmt_extract_applied("text", 0, 0));
+    assert!(out.contains("extract:text"), "should contain extract mode");
+    assert!(!out.contains('%'), "should NOT contain percentage with zero input");
+}

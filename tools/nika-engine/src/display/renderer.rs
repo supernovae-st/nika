@@ -769,6 +769,169 @@ impl CliRenderer {
                 println!("{}", super::format_event::fmt_policy_blocked(&self.ts(), policy_type, reason));
             }
 
+            // ═══════════════════════════════════════
+            // FETCH RETRY (always show)
+            // ═══════════════════════════════════════
+            EventKind::FetchRetry {
+                url,
+                attempt,
+                max_attempts,
+                status_code,
+                backoff_ms,
+                ..
+            } => {
+                println!("{}", super::format_event::fmt_fetch_retry(
+                    url, *attempt, *max_attempts, *status_code, *backoff_ms,
+                ));
+            }
+
+            // ═══════════════════════════════════════
+            // BOOT (always show)
+            // ═══════════════════════════════════════
+            EventKind::BootPhaseCompleted {
+                phase,
+                success,
+                duration_ms,
+                warnings,
+            } => {
+                println!("{}", super::format_event::fmt_boot_phase(
+                    phase, *success, *duration_ms, warnings,
+                ));
+            }
+
+            // ═══════════════════════════════════════
+            // NATIVE MODEL
+            // ═══════════════════════════════════════
+            EventKind::NativeModelLoaded {
+                model,
+                kind,
+                duration_ms,
+                is_vision,
+                ..
+            } => {
+                if self.detail.show_sub_events() {
+                    println!("{}", super::format_event::fmt_native_model_loaded(
+                        model, kind, *duration_ms, *is_vision,
+                    ));
+                }
+            }
+
+            // ═══════════════════════════════════════
+            // BINDING EVENTS
+            // ═══════════════════════════════════════
+            EventKind::BindingDefaultApplied {
+                alias, path, ..
+            } => {
+                if self.detail.show_sub_events() {
+                    println!("{}", super::format_event::fmt_binding_default(alias, path));
+                }
+            }
+
+            EventKind::BindingTransformApplied {
+                alias,
+                transform_chain,
+                ..
+            } => {
+                if self.detail.show_sub_events() {
+                    println!("{}", super::format_event::fmt_binding_transform(alias, transform_chain));
+                }
+            }
+
+            EventKind::BindingEnvResolved {
+                var_name, found, ..
+            } => {
+                if self.detail.show_sub_events() {
+                    println!("{}", super::format_event::fmt_binding_env(var_name, *found));
+                }
+            }
+
+            // ═══════════════════════════════════════
+            // DECOMPOSE
+            // ═══════════════════════════════════════
+            EventKind::DecomposeStarted {
+                task_id, strategy, ..
+            } => {
+                if self.detail.show_sub_events() {
+                    println!("{}", super::format_event::fmt_decompose_started(task_id, strategy));
+                }
+            }
+
+            EventKind::DecomposeCompleted {
+                task_id,
+                item_count,
+                duration_ms,
+                ..
+            } => {
+                if self.detail.show_sub_events() {
+                    println!("{}", super::format_event::fmt_decompose_completed(
+                        task_id, *item_count, *duration_ms,
+                    ));
+                }
+            }
+
+            // ═══════════════════════════════════════
+            // FOR-EACH STARTED
+            // ═══════════════════════════════════════
+            EventKind::ForEachStarted {
+                task_id,
+                item_count,
+                concurrency,
+                ..
+            } => {
+                if self.detail.show_sub_events() {
+                    println!("{}", super::format_event::fmt_for_each_started(
+                        task_id, *item_count, *concurrency,
+                    ));
+                }
+            }
+
+            // ═══════════════════════════════════════
+            // PROVIDER INITIALIZED
+            // ═══════════════════════════════════════
+            EventKind::ProviderInitialized {
+                provider,
+                model,
+                cached,
+            } => {
+                if self.detail.show_sub_events() {
+                    println!("{}", super::format_event::fmt_provider_initialized(
+                        provider, model, *cached,
+                    ));
+                }
+            }
+
+            // ═══════════════════════════════════════
+            // BUILTIN TOOL INVOKED
+            // ═══════════════════════════════════════
+            EventKind::BuiltinToolInvoked {
+                tool_name,
+                duration_ms,
+                success,
+                ..
+            } => {
+                if self.detail.show_sub_events() {
+                    println!("{}", super::format_event::fmt_builtin_tool_invoked(
+                        tool_name, *duration_ms, *success,
+                    ));
+                }
+            }
+
+            // ═══════════════════════════════════════
+            // EXTRACT APPLIED
+            // ═══════════════════════════════════════
+            EventKind::ExtractApplied {
+                mode,
+                input_len,
+                output_len,
+                ..
+            } => {
+                if self.detail.show_sub_events() {
+                    println!("{}", super::format_event::fmt_extract_applied(
+                        mode, *input_len, *output_len,
+                    ));
+                }
+            }
+
             // Catch-all for WorkflowCompleted/WorkflowFailed (handled by summary)
             _ => {}
         }
