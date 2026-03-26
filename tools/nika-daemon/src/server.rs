@@ -188,58 +188,68 @@ impl DaemonServer {
     }
 }
 
-/// Handle a single client connection.
+/// Handle a client connection — loops reading requests until EOF or error.
+///
+/// Normal requests get a response then the loop continues (pipelining).
+/// `EventSubscribe` enters streaming mode and holds the connection open.
 async fn handle_connection(
     stream: tokio::net::UnixStream,
     state: &Arc<ServerState>,
 ) -> DaemonResult<()> {
     let (mut reader, mut writer) = tokio::io::split(stream);
 
-    let request: DaemonRequest = decode_message(&mut reader).await?;
-    debug!(?request, "received request");
+    loop {
+        let request: DaemonRequest = match decode_message(&mut reader).await {
+            Ok(req) => req,
+            Err(_) => break, // connection closed or protocol error
+        };
+        debug!(?request, "received request");
 
-    // EventSubscribe enters streaming mode — holds connection open
-    if matches!(request, DaemonRequest::EventSubscribe) {
-        let mut rx = state.event_bus.subscribe();
-        debug!("event subscriber connected");
-        // 5 minute idle timeout — prevents connection slot exhaustion from idle clients
-        let idle_timeout = std::time::Duration::from_secs(300);
-        loop {
-            match tokio::time::timeout(idle_timeout, rx.recv()).await {
-                Err(_) => {
-                    debug!("event subscriber idle timeout (5min)");
-                    break;
-                }
-                Ok(result) => match result {
-                    Ok(event) => {
-                        let json = match serde_json::to_value(&event) {
-                            Ok(v) => v,
-                            Err(e) => {
-                                warn!(error = %e, "failed to serialize daemon event");
-                                continue;
-                            }
-                        };
-                        let resp = DaemonResponse::Event { event: json };
-                        if write_message(&mut writer, &resp).await.is_err() {
-                            debug!("event subscriber disconnected");
-                            break;
-                        }
-                    }
-                    Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                        warn!(lagged = n, "event subscriber lagged");
-                    }
-                    Err(tokio::sync::broadcast::error::RecvError::Closed) => {
-                        debug!("event bus closed");
+        // EventSubscribe enters streaming mode — holds connection open
+        if matches!(request, DaemonRequest::EventSubscribe) {
+            let mut rx = state.event_bus.subscribe();
+            debug!("event subscriber connected");
+            // 5 minute idle timeout — prevents connection slot exhaustion from idle clients
+            let idle_timeout = std::time::Duration::from_secs(300);
+            loop {
+                match tokio::time::timeout(idle_timeout, rx.recv()).await {
+                    Err(_) => {
+                        debug!("event subscriber idle timeout (5min)");
                         break;
                     }
-                },
+                    Ok(result) => match result {
+                        Ok(event) => {
+                            let json = match serde_json::to_value(&event) {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    warn!(error = %e, "failed to serialize daemon event");
+                                    continue;
+                                }
+                            };
+                            let resp = DaemonResponse::Event { event: json };
+                            if write_message(&mut writer, &resp).await.is_err() {
+                                debug!("event subscriber disconnected");
+                                break;
+                            }
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                            warn!(lagged = n, "event subscriber lagged");
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                            debug!("event bus closed");
+                            break;
+                        }
+                    },
+                }
             }
+            return Ok(());
         }
-        return Ok(());
-    }
 
-    let response = route_request(request, state).await;
-    write_message(&mut writer, &response).await?;
+        let response = route_request(request, state).await;
+        if write_message(&mut writer, &response).await.is_err() {
+            break; // client disconnected
+        }
+    }
 
     Ok(())
 }
@@ -715,6 +725,43 @@ mod tests {
             let mode = metadata.permissions().mode() & 0o777;
             assert_eq!(mode, 0o600, "socket should be owner-only (0o600)");
         }
+
+        shutdown.send(true).unwrap();
+        let _ = tokio::time::timeout(Duration::from_secs(2), server_handle).await;
+    }
+
+    #[tokio::test]
+    async fn server_pipelining_multiple_requests_one_connection() {
+        use crate::protocol::{decode_message, write_message};
+        use tokio::net::UnixStream;
+
+        let dir = tempfile::tempdir().unwrap();
+        let sock = dir.path().join("test.sock");
+        let config = test_config(sock.clone());
+
+        let server = DaemonServer::new(config);
+        let shutdown = server.shutdown_handle();
+        let server_handle = tokio::spawn(server.run());
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // Open a single connection and send multiple requests
+        let stream = UnixStream::connect(&sock).await.unwrap();
+        let (mut reader, mut writer) = tokio::io::split(stream);
+
+        // Request 1: Ping
+        write_message(&mut writer, &DaemonRequest::Ping).await.unwrap();
+        let resp: DaemonResponse = decode_message(&mut reader).await.unwrap();
+        assert!(matches!(resp, DaemonResponse::Pong { .. }));
+
+        // Request 2: Status
+        write_message(&mut writer, &DaemonRequest::Status).await.unwrap();
+        let resp: DaemonResponse = decode_message(&mut reader).await.unwrap();
+        assert!(matches!(resp, DaemonResponse::StatusInfo { .. }));
+
+        // Request 3: Ping again
+        write_message(&mut writer, &DaemonRequest::Ping).await.unwrap();
+        let resp: DaemonResponse = decode_message(&mut reader).await.unwrap();
+        assert!(matches!(resp, DaemonResponse::Pong { .. }));
 
         shutdown.send(true).unwrap();
         let _ = tokio::time::timeout(Duration::from_secs(2), server_handle).await;
