@@ -16,7 +16,7 @@ use crate::store::RunContext;
 
 use super::verbs::redact_for_event;
 use super::TaskExecutor;
-use crate::error_domains::ProviderError;
+use crate::error_domains::{ExecutionError, ProviderError};
 
 impl TaskExecutor {
     #[instrument(skip(self, bindings, datastore), fields(url = %fetch.url))]
@@ -184,14 +184,15 @@ impl TaskExecutor {
         for attempt in 1..=effective_max_attempts {
             // Check overall deadline before each attempt
             if Instant::now() >= overall_deadline {
-                return Err(NikaError::FetchError {
+                return Err(ExecutionError::FetchFailed {
                     reason: format!(
                         "Overall fetch deadline exceeded ({}s) after {} of {} attempts",
                         per_request_secs * effective_max_attempts as u64 * 3,
                         attempt - 1,
                         effective_max_attempts,
                     ),
-                });
+                }
+                .into());
             }
 
             // Get the request for this attempt
@@ -270,12 +271,13 @@ impl TaskExecutor {
                         let bounded_delay =
                             std::time::Duration::from_millis(delay_ms).min(remaining);
                         if bounded_delay.is_zero() {
-                            return Err(NikaError::FetchError {
+                            return Err(ExecutionError::FetchFailed {
                                 reason: format!(
                                     "Overall fetch deadline exceeded during backoff after {} of {} attempts",
                                     attempt, effective_max_attempts,
                                 ),
-                            });
+                            }
+                            .into());
                         }
                         tokio::time::sleep(bounded_delay).await;
                         continue;
@@ -301,25 +303,27 @@ impl TaskExecutor {
                         const FULL_MAX_RESPONSE_SIZE: u64 = 50 * 1024 * 1024;
                         if let Some(len) = response.content_length() {
                             if len > FULL_MAX_RESPONSE_SIZE {
-                                return Err(NikaError::FetchError {
+                                return Err(ExecutionError::FetchFailed {
                                     reason: format!(
                                         "Response too large ({} bytes, max {} bytes)",
                                         len, FULL_MAX_RESPONSE_SIZE
                                     ),
-                                });
+                                }
+                                .into());
                             }
                         }
                         let body = response.text().await.map_err(|e| NikaError::FetchError {
                             reason: format!("Failed to read response: {}", e),
                         })?;
                         if body.len() as u64 > FULL_MAX_RESPONSE_SIZE {
-                            return Err(NikaError::FetchError {
+                            return Err(ExecutionError::FetchFailed {
                                 reason: format!(
                                     "Response body too large ({} bytes, max {} bytes)",
                                     body.len(),
                                     FULL_MAX_RESPONSE_SIZE
                                 ),
-                            });
+                            }
+                            .into());
                         }
                         return Ok(serde_json::json!({
                             "status": status,
@@ -334,13 +338,14 @@ impl TaskExecutor {
                         // Reject non-success HTTP status before storing anything in CAS.
                         // Without this, 4xx/5xx error pages (HTML) get stored as binary artifacts.
                         if !response.status().is_success() {
-                            return Err(NikaError::FetchError {
+                            return Err(ExecutionError::FetchFailed {
                                 reason: format!(
                                     "HTTP {} for binary fetch: {}",
                                     response.status(),
                                     url
                                 ),
-                            });
+                            }
+                            .into());
                         }
                         // Strip Content-Type parameters (e.g. "image/png; charset=utf-8" -> "image/png")
                         // so that mime_to_extension() exact matching works correctly.
@@ -358,12 +363,13 @@ impl TaskExecutor {
                         const BINARY_MAX_RESPONSE_SIZE: u64 = 100 * 1024 * 1024; // 100 MB (CAS limit)
                         if let Some(len) = response.content_length() {
                             if len > BINARY_MAX_RESPONSE_SIZE {
-                                return Err(NikaError::FetchError {
+                                return Err(ExecutionError::FetchFailed {
                                     reason: format!(
                                         "Binary response too large ({} bytes, max {} bytes)",
                                         len, BINARY_MAX_RESPONSE_SIZE
                                     ),
-                                });
+                                }
+                                .into());
                             }
                         }
                         let bytes = response.bytes().await.map_err(|e| NikaError::FetchError {
@@ -371,13 +377,14 @@ impl TaskExecutor {
                         })?;
                         // Bug 3: Post-read size check (catches chunked encoding bypass)
                         if bytes.len() as u64 > BINARY_MAX_RESPONSE_SIZE {
-                            return Err(NikaError::FetchError {
+                            return Err(ExecutionError::FetchFailed {
                                 reason: format!(
                                     "Binary response too large ({} bytes, max {} bytes)",
                                     bytes.len(),
                                     BINARY_MAX_RESPONSE_SIZE
                                 ),
-                            });
+                            }
+                            .into());
                         }
                         // Bug 11: Handle 0-byte responses gracefully
                         if bytes.is_empty() {
@@ -422,12 +429,13 @@ impl TaskExecutor {
                     const MAX_RESPONSE_SIZE: u64 = 50 * 1024 * 1024;
                     if let Some(len) = response.content_length() {
                         if len > MAX_RESPONSE_SIZE {
-                            return Err(NikaError::FetchError {
+                            return Err(ExecutionError::FetchFailed {
                                 reason: format!(
                                     "Response too large ({} bytes, max {} bytes)",
                                     len, MAX_RESPONSE_SIZE
                                 ),
-                            });
+                            }
+                            .into());
                         }
                     }
                     // Special case: llm_txt requires sub-requests, handled here not in extract.rs
@@ -494,13 +502,14 @@ impl TaskExecutor {
                         reason: format!("Failed to read response: {}", e),
                     })?;
                     if raw_body.len() as u64 > MAX_RESPONSE_SIZE {
-                        return Err(NikaError::FetchError {
+                        return Err(ExecutionError::FetchFailed {
                             reason: format!(
                                 "Response body too large ({} bytes, max {} bytes)",
                                 raw_body.len(),
                                 MAX_RESPONSE_SIZE
                             ),
-                        });
+                        }
+                        .into());
                     }
                     let extract_result = super::extract::apply_extract(
                         &raw_body,
@@ -553,23 +562,25 @@ impl TaskExecutor {
                         let bounded_delay =
                             std::time::Duration::from_millis(delay_ms).min(remaining);
                         if bounded_delay.is_zero() {
-                            return Err(NikaError::FetchError {
+                            return Err(ExecutionError::FetchFailed {
                                 reason: format!(
                                     "Overall fetch deadline exceeded during backoff after {} of {} attempts",
                                     attempt, effective_max_attempts,
                                 ),
-                            });
+                            }
+                            .into());
                         }
                         tokio::time::sleep(bounded_delay).await;
                         continue;
                     }
 
-                    return Err(NikaError::FetchError {
+                    return Err(ExecutionError::FetchFailed {
                         reason: format!(
                             "HTTP request failed after {} attempts: {}",
                             effective_max_attempts, e
                         ),
-                    });
+                    }
+                    .into());
                 }
             }
         }

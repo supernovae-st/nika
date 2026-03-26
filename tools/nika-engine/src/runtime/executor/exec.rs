@@ -10,6 +10,7 @@ use tracing::instrument;
 use crate::ast::ExecParams;
 use crate::binding::{template_resolve, ResolvedBindings};
 use crate::error::NikaError;
+use crate::error_domains::ExecutionError;
 use crate::event::EventKind;
 use crate::runtime::policy::PolicyDecision;
 use crate::store::RunContext;
@@ -98,13 +99,14 @@ impl TaskExecutor {
                         .canonicalize()
                         .unwrap_or_else(|_| self.workflow_base_dir.clone());
                     if !resolved.starts_with(&working_dir) {
-                        return Err(NikaError::ExecError {
+                        return Err(ExecutionError::ExecFailed {
                             reason: format!(
                                 "Security: exec cwd '{}' escapes working directory '{}'",
                                 cwd,
                                 working_dir.display()
                             ),
-                        });
+                        }
+                        .into());
                     }
                     cmd.current_dir(resolved);
                 }
@@ -130,15 +132,17 @@ impl TaskExecutor {
                 match tokio::time::timeout(exec_deadline, child.wait_with_output()).await {
                     Ok(Ok(out)) => out,
                     Ok(Err(e)) => {
-                        return Err(NikaError::ExecError {
+                        return Err(ExecutionError::ExecFailed {
                             reason: format!("Failed to execute command: {}", e),
-                        });
+                        }
+                        .into());
                     }
                     Err(_) => {
                         // child is dropped here -> kill_on_drop sends SIGKILL
-                        return Err(NikaError::ExecError {
+                        return Err(ExecutionError::ExecFailed {
                             reason: format!("Command timed out after {}s", exec_deadline.as_secs()),
-                        });
+                        }
+                        .into());
                     }
                 }
             } else {
@@ -152,9 +156,10 @@ impl TaskExecutor {
                 })?;
 
                 if parts.is_empty() {
-                    return Err(NikaError::ExecError {
+                    return Err(ExecutionError::ExecFailed {
                         reason: "Empty command".to_string(),
-                    });
+                    }
+                    .into());
                 }
 
                 let mut cmd = tokio::process::Command::new(&parts[0]);
@@ -179,13 +184,14 @@ impl TaskExecutor {
                         .canonicalize()
                         .unwrap_or_else(|_| self.workflow_base_dir.clone());
                     if !resolved.starts_with(&working_dir) {
-                        return Err(NikaError::ExecError {
+                        return Err(ExecutionError::ExecFailed {
                             reason: format!(
                                 "Security: exec cwd '{}' escapes working directory '{}'",
                                 cwd,
                                 working_dir.display()
                             ),
-                        });
+                        }
+                        .into());
                     }
                     cmd.current_dir(resolved);
                 }
@@ -211,15 +217,17 @@ impl TaskExecutor {
                 match tokio::time::timeout(exec_deadline, child.wait_with_output()).await {
                     Ok(Ok(out)) => out,
                     Ok(Err(e)) => {
-                        return Err(NikaError::ExecError {
+                        return Err(ExecutionError::ExecFailed {
                             reason: format!("Failed to execute command: {}", e),
-                        });
+                        }
+                        .into());
                     }
                     Err(_) => {
                         // child is dropped here -> kill_on_drop sends SIGKILL
-                        return Err(NikaError::ExecError {
+                        return Err(ExecutionError::ExecFailed {
                             reason: format!("Command timed out after {}s", exec_deadline.as_secs()),
-                        });
+                        }
+                        .into());
                     }
                 }
             };
@@ -237,9 +245,10 @@ impl TaskExecutor {
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(NikaError::ExecError {
+            return Err(ExecutionError::ExecFailed {
                 reason: format!("Command failed: {}", stderr),
-            });
+            }
+            .into());
         }
 
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
