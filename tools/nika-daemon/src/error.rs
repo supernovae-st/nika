@@ -34,7 +34,53 @@ pub enum DaemonError {
 
     #[error("lifecycle error: {0}")]
     Lifecycle(String),
+
+    #[error("watch error: {0}")]
+    Watch(String),
 }
 
 /// Result type alias for daemon operations.
 pub type DaemonResult<T> = std::result::Result<T, DaemonError>;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TESTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn watch_error_display() {
+        let err = DaemonError::Watch("directory not found".into());
+        assert_eq!(err.to_string(), "watch error: directory not found");
+    }
+
+    #[test]
+    fn all_variants_are_debug() {
+        let errors: Vec<DaemonError> = vec![
+            DaemonError::NotRunning {
+                path: PathBuf::from("/tmp/test.sock"),
+            },
+            DaemonError::Protocol("bad frame".into()),
+            DaemonError::Timeout { timeout_secs: 5 },
+            DaemonError::AlreadyRunning { pid: 1234 },
+            DaemonError::StalePid { pid: 5678 },
+            DaemonError::RemoteError {
+                code: "E001".into(),
+                message: "fail".into(),
+            },
+            DaemonError::MessageTooLarge {
+                size: 100,
+                max: 50,
+            },
+            DaemonError::Lifecycle("shutdown".into()),
+            DaemonError::Watch("notify error".into()),
+        ];
+        for err in &errors {
+            // Ensure Display and Debug work
+            let _ = format!("{err}");
+            let _ = format!("{err:?}");
+        }
+    }
+}
