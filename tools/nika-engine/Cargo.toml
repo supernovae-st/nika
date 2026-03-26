@@ -150,7 +150,6 @@ nika-lsp-core = { workspace = true, optional = true }
 
 # Logging
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
 futures = { version = "0.3.32", default-features = false, features = ["alloc"] }
 
 [dev-dependencies]
