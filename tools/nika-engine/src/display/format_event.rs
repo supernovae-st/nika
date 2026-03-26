@@ -450,6 +450,195 @@ pub fn fmt_provider_called(provider: &str, model: &str, prompt_len: usize) -> St
     ))
 }
 
+// ── Fetch retry ────────────────────────────────────────────────────────
+
+pub fn fmt_fetch_retry(
+    url: &str,
+    attempt: u32,
+    max_attempts: u32,
+    status_code: Option<u16>,
+    backoff_ms: u64,
+) -> String {
+    let status = status_code
+        .map(|c| format!(" http:{}", c.to_string().yellow()))
+        .unwrap_or_default();
+    sub(format!(
+        "{} {} {}/{} · {}{}  backoff:{}ms",
+        icons::retry(),
+        "fetch retry".yellow(),
+        attempt.to_string().yellow(),
+        max_attempts,
+        url.underline(),
+        status,
+        backoff_ms
+    ))
+}
+
+// ── Boot ───────────────────────────────────────────────────────────────
+
+pub fn fmt_boot_phase(phase: &str, success: bool, duration_ms: u64, warnings: &[String]) -> String {
+    let status = if success {
+        icons::success()
+    } else {
+        icons::failed()
+    };
+    let warn = if warnings.is_empty() {
+        String::new()
+    } else {
+        format!(" · {} warnings", warnings.len()).yellow().to_string()
+    };
+    sub(format!(
+        "{} boot {} {} · {}ms{}",
+        icons::log(),
+        phase.cyan(),
+        status,
+        duration_ms,
+        warn
+    ))
+}
+
+// ── Native model ───────────────────────────────────────────────────────
+
+pub fn fmt_native_model_loaded(
+    model: &str,
+    kind: &str,
+    duration_ms: u64,
+    is_vision: bool,
+) -> String {
+    let vision_tag = if is_vision {
+        " +vision".magenta().to_string()
+    } else {
+        String::new()
+    };
+    sub(format!(
+        "{} native {} · {} · {}ms{}",
+        icons::provider(),
+        model.white(),
+        kind.dimmed(),
+        duration_ms,
+        vision_tag
+    ))
+}
+
+// ── Binding ────────────────────────────────────────────────────────────
+
+pub fn fmt_binding_default(alias: &str, path: &str) -> String {
+    sub(format!(
+        "{} {} ?? → default ({})",
+        "bind".dimmed(),
+        alias.cyan(),
+        path.dimmed()
+    ))
+}
+
+pub fn fmt_binding_transform(alias: &str, transform_chain: &str) -> String {
+    sub(format!(
+        "{} {} | {}",
+        "bind".dimmed(),
+        alias.cyan(),
+        transform_chain.dimmed()
+    ))
+}
+
+pub fn fmt_binding_env(var_name: &str, found: bool) -> String {
+    let status = if found {
+        icons::success()
+    } else {
+        icons::failed()
+    };
+    sub(format!(
+        "{} $env.{} {}",
+        "bind".dimmed(),
+        var_name.cyan(),
+        status
+    ))
+}
+
+// ── Decompose ──────────────────────────────────────────────────────────
+
+pub fn fmt_decompose_started(task_id: &str, strategy: &str) -> String {
+    sub(format!(
+        "{} decompose {} · strategy:{}",
+        icons::log(),
+        task_id.white(),
+        strategy.cyan()
+    ))
+}
+
+pub fn fmt_decompose_completed(task_id: &str, item_count: usize, duration_ms: u64) -> String {
+    sub(format!(
+        "{} decompose {} · {} items · {}ms",
+        icons::success(),
+        task_id.white(),
+        item_count.to_string().green(),
+        duration_ms
+    ))
+}
+
+// ── For-each started ───────────────────────────────────────────────────
+
+pub fn fmt_for_each_started(task_id: &str, item_count: usize, concurrency: usize) -> String {
+    sub(format!(
+        "{} for_each {} · {} items · concurrency:{}",
+        icons::log(),
+        task_id.dimmed(),
+        item_count,
+        concurrency
+    ))
+}
+
+// ── Provider initialized ───────────────────────────────────────────────
+
+pub fn fmt_provider_initialized(provider: &str, model: &str, cached: bool) -> String {
+    let cache_tag = if cached {
+        " cached".green().to_string()
+    } else {
+        String::new()
+    };
+    sub(format!(
+        "{} {} · {}{}",
+        icons::provider(),
+        provider.cyan(),
+        model.white(),
+        cache_tag
+    ))
+}
+
+// ── Builtin tool invoked ───────────────────────────────────────────────
+
+pub fn fmt_builtin_tool_invoked(tool_name: &str, duration_ms: u64, success: bool) -> String {
+    let status = if success {
+        icons::success()
+    } else {
+        icons::failed()
+    };
+    sub(format!(
+        "{} {} {} · {}ms",
+        icons::log(),
+        tool_name.cyan(),
+        status,
+        duration_ms
+    ))
+}
+
+// ── Extract applied ────────────────────────────────────────────────────
+
+pub fn fmt_extract_applied(mode: &str, input_len: usize, output_len: usize) -> String {
+    let ratio = if input_len > 0 {
+        format!(" ({}%)", output_len * 100 / input_len)
+    } else {
+        String::new()
+    };
+    sub(format!(
+        "{} extract:{} · {} → {}{}",
+        icons::http(),
+        mode.cyan(),
+        format_bytes(input_len as u64),
+        format_bytes(output_len as u64),
+        ratio.dimmed()
+    ))
+}
+
 // ── Template ────────────────────────────────────────────────────────────
 
 pub fn fmt_template_resolved(template: &str, result: &str) -> String {

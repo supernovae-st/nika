@@ -980,7 +980,152 @@ impl LiveRenderer {
                 self.log(&super::format_event::fmt_policy_blocked(&self.ts(), policy_type, reason));
             }
 
-            // Catch-all for events handled elsewhere (media lifecycle, boot, etc.)
+            // ── Fetch retry (always show) ─────────────────────────
+            EventKind::FetchRetry {
+                url,
+                attempt,
+                max_attempts,
+                status_code,
+                backoff_ms,
+                ..
+            } => {
+                self.log(&super::format_event::fmt_fetch_retry(
+                    url, *attempt, *max_attempts, *status_code, *backoff_ms,
+                ));
+            }
+
+            // ── Boot (always show) ───────────────────────────────
+            EventKind::BootPhaseCompleted {
+                phase,
+                success,
+                duration_ms,
+                warnings,
+            } => {
+                self.log(&super::format_event::fmt_boot_phase(
+                    phase, *success, *duration_ms, warnings,
+                ));
+            }
+
+            // ── Native model ─────────────────────────────────────
+            EventKind::NativeModelLoaded {
+                model,
+                kind,
+                duration_ms,
+                is_vision,
+                ..
+            } => {
+                if self.detail.show_sub_events() {
+                    self.log(&super::format_event::fmt_native_model_loaded(
+                        model, kind, *duration_ms, *is_vision,
+                    ));
+                }
+            }
+
+            // ── Binding events ───────────────────────────────────
+            EventKind::BindingDefaultApplied {
+                alias, path, ..
+            } => {
+                if self.detail.show_sub_events() {
+                    self.log(&super::format_event::fmt_binding_default(alias, path));
+                }
+            }
+
+            EventKind::BindingTransformApplied {
+                alias,
+                transform_chain,
+                ..
+            } => {
+                if self.detail.show_sub_events() {
+                    self.log(&super::format_event::fmt_binding_transform(alias, transform_chain));
+                }
+            }
+
+            EventKind::BindingEnvResolved {
+                var_name, found, ..
+            } => {
+                if self.detail.show_sub_events() {
+                    self.log(&super::format_event::fmt_binding_env(var_name, *found));
+                }
+            }
+
+            // ── Decompose ────────────────────────────────────────
+            EventKind::DecomposeStarted {
+                task_id, strategy, ..
+            } => {
+                if self.detail.show_sub_events() {
+                    self.log(&super::format_event::fmt_decompose_started(task_id, strategy));
+                }
+            }
+
+            EventKind::DecomposeCompleted {
+                task_id,
+                item_count,
+                duration_ms,
+                ..
+            } => {
+                if self.detail.show_sub_events() {
+                    self.log(&super::format_event::fmt_decompose_completed(
+                        task_id, *item_count, *duration_ms,
+                    ));
+                }
+            }
+
+            // ── For-each started ─────────────────────────────────
+            EventKind::ForEachStarted {
+                task_id,
+                item_count,
+                concurrency,
+                ..
+            } => {
+                if self.detail.show_sub_events() {
+                    self.log(&super::format_event::fmt_for_each_started(
+                        task_id, *item_count, *concurrency,
+                    ));
+                }
+            }
+
+            // ── Provider initialized ─────────────────────────────
+            EventKind::ProviderInitialized {
+                provider,
+                model,
+                cached,
+            } => {
+                if self.detail.show_sub_events() {
+                    self.log(&super::format_event::fmt_provider_initialized(
+                        provider, model, *cached,
+                    ));
+                }
+            }
+
+            // ── Builtin tool invoked ─────────────────────────────
+            EventKind::BuiltinToolInvoked {
+                tool_name,
+                duration_ms,
+                success,
+                ..
+            } => {
+                if self.detail.show_sub_events() {
+                    self.log(&super::format_event::fmt_builtin_tool_invoked(
+                        tool_name, *duration_ms, *success,
+                    ));
+                }
+            }
+
+            // ── Extract applied ──────────────────────────────────
+            EventKind::ExtractApplied {
+                mode,
+                input_len,
+                output_len,
+                ..
+            } => {
+                if self.detail.show_sub_events() {
+                    self.log(&super::format_event::fmt_extract_applied(
+                        mode, *input_len, *output_len,
+                    ));
+                }
+            }
+
+            // Catch-all for events handled elsewhere (media lifecycle, etc.)
             _ => {}
         }
     }
