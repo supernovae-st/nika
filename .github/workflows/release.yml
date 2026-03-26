@@ -42,10 +42,69 @@ env:
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────────────
+  # Pre-flight: verify CI passed + version coherence
+  # ─────────────────────────────────────────────────────────────────────────────
+  preflight:
+    name: Pre-flight Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Verify CI passed on this commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ env.RELEASE_TAG }}
+        run: |
+          COMMIT=$(git rev-parse HEAD)
+          echo "Release commit: ${COMMIT}"
+
+          # Check if CI workflow succeeded on this commit
+          STATUS=$(gh api "repos/${{ github.repository }}/commits/${COMMIT}/check-runs" \
+            --jq '[.check_runs[] | select(.name | test("check|test|security"; "i")) | .conclusion] | unique | join(",")') || true
+
+          if echo "$STATUS" | grep -q "failure"; then
+            echo "::error::CI has failures on this commit. Fix before releasing."
+            exit 1
+          fi
+          echo "CI status: ${STATUS:-no checks found (manual dispatch)}"
+
+      - name: Verify version coherence
+        env:
+          TAG: ${{ env.RELEASE_TAG }}
+        run: |
+          VERSION="${TAG#v}"
+          CARGO_VERSION=$(grep '^version = ' tools/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          echo "Tag version: ${VERSION}"
+          echo "Cargo version: ${CARGO_VERSION}"
+
+          if [ "$VERSION" != "$CARGO_VERSION" ]; then
+            echo "::error::Tag ${TAG} does not match Cargo.toml version ${CARGO_VERSION}"
+            exit 1
+          fi
+          echo "Version coherence: OK"
+
+      - name: Verify CHANGELOG has entry
+        env:
+          TAG: ${{ env.RELEASE_TAG }}
+        run: |
+          VERSION="${TAG#v}"
+          if [ -f "CHANGELOG.md" ]; then
+            if grep -q "\[${VERSION}\]" CHANGELOG.md; then
+              echo "CHANGELOG entry found for ${VERSION}"
+            else
+              echo "::warning::No CHANGELOG entry for ${VERSION}"
+            fi
+          fi
+
+  # ─────────────────────────────────────────────────────────────────────────────
   # Build Release Binaries (7 targets)
   # ─────────────────────────────────────────────────────────────────────────────
   build:
     name: Build ${{ matrix.target }}
+    needs: preflight
     strategy:
       fail-fast: false
       matrix:
