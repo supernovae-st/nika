@@ -1006,6 +1006,13 @@ impl NikaError {
         }
     }
 
+    /// Convenience: look up fix suggestion by error code string (e.g., "NIKA-044").
+    ///
+    /// Used by the display layer which only has the error code from TaskFailed events.
+    pub fn fix_for_code(code: &str) -> Option<&'static str> {
+        fix_suggestion_for_code(code)
+    }
+
     /// Check if error is recoverable (can be retried)
     pub fn is_recoverable(&self) -> bool {
         match self {
@@ -1283,6 +1290,37 @@ impl FixSuggestion for NikaError {
                 Some("Check file permissions and that the course directory exists")
             }
         }
+    }
+}
+
+/// Look up a fix suggestion by error code string (e.g., "NIKA-044").
+///
+/// This is a code-only lookup table, separate from the full NikaError enum,
+/// for use by the display layer which only has the error code from events.
+pub fn fix_suggestion_for_code(code: &str) -> Option<&'static str> {
+    match code {
+        "NIKA-001" | "NIKA-095" => Some("Check YAML syntax: indentation and quoting"),
+        "NIKA-002" => Some("Use schema: \"nika/workflow@0.12\""),
+        "NIKA-003" => Some("Check the file path exists"),
+        "NIKA-020" => Some("Remove circular dependencies from your workflow"),
+        "NIKA-021" => Some("Verify all task IDs in depends_on: exist"),
+        "NIKA-030" => Some("Add provider: to your workflow header"),
+        "NIKA-032" => Some("Set the API key env var (e.g., ANTHROPIC_API_KEY)"),
+        "NIKA-041" | "NIKA-074" => Some("Use {{with.alias}} format with with: block"),
+        "NIKA-042" => Some("Add the alias to your with: block"),
+        "NIKA-044" => Some("Check command syntax and working directory"),
+        "NIKA-045" => Some("Check URL, network connectivity, and response size limits"),
+        "NIKA-046" => Some("Check extract mode name or enable required feature"),
+        "NIKA-052" => Some("Add '?? default' or ensure task outputs JSON"),
+        "NIKA-053" => Some("This command is blocked for security. Use shell: true or a different command"),
+        "NIKA-072" => Some("Provide a default value or ensure non-null output"),
+        "NIKA-080" => Some("Verify the task_id exists in your workflow"),
+        "NIKA-081" => Some("Add depends_on: [source_task] to this task"),
+        "NIKA-100" => Some("Check MCP server is running and configured correctly"),
+        "NIKA-105" => Some("Add mcp_servers: to your workflow header"),
+        "NIKA-121" => Some("Increase the timeout: value (in seconds)"),
+        "NIKA-165" => Some("Review the security policy — some URLs or commands may be blocked"),
+        _ => None,
     }
 }
 
