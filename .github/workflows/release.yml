@@ -576,7 +576,7 @@ jobs:
         run: echo "version=${RELEASE_TAG#v}" >> $GITHUB_OUTPUT
 
       - name: Update Homebrew formula
-        uses: mislav/bump-homebrew-formula-action@v3
+        uses: mislav/bump-homebrew-formula-action@v4
         with:
           formula-name: nika
           homebrew-tap: supernovae-st/homebrew-tap
@@ -604,7 +604,7 @@ jobs:
           ref: ${{ env.RELEASE_TAG }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -669,7 +669,7 @@ jobs:
           ref: ${{ env.RELEASE_TAG }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
