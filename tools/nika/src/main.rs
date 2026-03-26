@@ -557,6 +557,12 @@ enum Commands {
         action: cli::workflow::WorkflowAction,
     },
 
+    /// Manage background daemon (secrets, jobs, cache)
+    Daemon {
+        #[command(subcommand)]
+        action: cli::daemon::DaemonAction,
+    },
+
     /// Start Language Server Protocol server
     ///
     /// Provides IDE integration for .nika.yaml workflow files:
@@ -1162,6 +1168,8 @@ async fn main() {
             cli::doctor::handle_doctor_command(full, &format, quiet, fix).await
         }
 
+        Some(Commands::Daemon { action }) => cli::daemon::handle_daemon_command(action).await,
+
         Some(Commands::New {
             name,
             verb,
@@ -1225,6 +1233,7 @@ fn should_skip_auto_setup(cmd: &Option<Commands>) -> bool {
         Some(Commands::Completion { .. }) => true,
         Some(Commands::Features) => true,
         Some(Commands::Schema { .. }) => true,
+        Some(Commands::Daemon { .. }) => true,
         Some(Commands::Doctor { .. }) => true,
         _ => {
             // Skip TUI commands if tui feature enabled

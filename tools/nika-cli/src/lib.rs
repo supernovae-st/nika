@@ -17,6 +17,7 @@ pub mod model_cloud;
 pub mod model;
 
 pub mod config;
+pub mod daemon;
 pub mod doctor;
 pub mod media;
 pub mod schema;

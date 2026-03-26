@@ -5330,6 +5330,7 @@ dependencies = [
  "humantime",
  "image",
  "infer",
+ "nika-daemon",
  "nika-engine",
  "nika-mcp",
  "regex",

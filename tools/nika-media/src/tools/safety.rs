@@ -3,8 +3,8 @@
 //! SECURITY: Every media tool that decodes images MUST use `decode_image_safe()`.
 //! Never call `image::load_from_memory()` directly — a 1x1 PNG can decompress to 16 GB.
 
-use super::error::{security_violation, tool_error};
 use super::error::MediaToolError;
+use super::error::{security_violation, tool_error};
 
 /// Maximum decoded pixel buffer size (256 MB).
 #[cfg(any(

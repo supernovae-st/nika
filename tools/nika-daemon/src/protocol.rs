@@ -41,7 +41,6 @@ pub enum DaemonRequest {
 
     /// List all provider secret status.
     ListSecrets,
-
     // ── Jobs (Phase 2) ──────────────────────────────────────────────────
     // JobSubmit, JobList, JobStatus, JobCancel, JobRetry
 
@@ -367,8 +366,7 @@ mod tests {
         assert_eq!(len, buf.len() - LENGTH_PREFIX_SIZE);
 
         // Remaining bytes = valid JSON
-        let json: DaemonRequest =
-            serde_json::from_slice(&buf[LENGTH_PREFIX_SIZE..]).unwrap();
+        let json: DaemonRequest = serde_json::from_slice(&buf[LENGTH_PREFIX_SIZE..]).unwrap();
         assert_eq!(json, req);
     }
 
@@ -478,9 +476,7 @@ mod tests {
     fn wire_format_too_large_message() {
         // Create a message that would exceed the limit
         let huge = "x".repeat(MAX_MESSAGE_SIZE + 1);
-        let resp = DaemonResponse::Secret {
-            value: Some(huge),
-        };
+        let resp = DaemonResponse::Secret { value: Some(huge) };
         let result = encode_message(&resp);
         assert!(result.is_err());
         if let Err(DaemonError::MessageTooLarge { .. }) = result {
@@ -503,7 +499,11 @@ mod tests {
 
     #[test]
     fn secret_source_all_variants_roundtrip() {
-        for source in [SecretSource::Env, SecretSource::Keychain, SecretSource::NotFound] {
+        for source in [
+            SecretSource::Env,
+            SecretSource::Keychain,
+            SecretSource::NotFound,
+        ] {
             let json = serde_json::to_string(&source).unwrap();
             let decoded: SecretSource = serde_json::from_str(&json).unwrap();
             assert_eq!(source, decoded);

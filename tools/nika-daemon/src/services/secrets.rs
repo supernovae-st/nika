@@ -18,6 +18,7 @@ const PROVIDERS: &[(&str, &str)] = &[
 ];
 
 /// The secrets service.
+#[derive(Default)]
 pub struct SecretService {
     // Future: keyring integration, secret rotation, etc.
 }
@@ -25,15 +26,13 @@ pub struct SecretService {
 impl SecretService {
     /// Create a new secrets service.
     pub fn new() -> Self {
-        Self {}
+        Self::default()
     }
 
     /// Get a secret for a provider (env var lookup).
     pub async fn get_secret(&self, provider: &str) -> Option<String> {
         let env_var = provider_env_var(provider)?;
-        std::env::var(env_var)
-            .ok()
-            .filter(|v| !v.is_empty())
+        std::env::var(env_var).ok().filter(|v| !v.is_empty())
     }
 
     /// Check if a secret exists for a provider.

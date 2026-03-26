@@ -36,7 +36,7 @@ impl KeySource {
 
     /// Is the key secure (keychain-based)?
     pub fn is_secure(&self) -> bool {
-matches!(self, KeySource::OsKeychain)
+        matches!(self, KeySource::OsKeychain)
     }
 }
 

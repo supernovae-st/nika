@@ -52,11 +52,7 @@ impl RunRenderer {
     }
 
     /// Initialize task bars for the LiveRenderer (no-op for Classic).
-    pub fn init_tasks(
-        &mut self,
-        task_ids: &[String],
-        task_deps: &HashMap<String, Vec<String>>,
-    ) {
+    pub fn init_tasks(&mut self, task_ids: &[String], task_deps: &HashMap<String, Vec<String>>) {
         if let Self::Live(ref mut live) = self {
             live.init_tasks(task_ids, task_deps);
         }

@@ -175,7 +175,8 @@ default = "{}"
         for exercise in &level_exercises {
             // Substitute placeholders in template
             let template = substitute_placeholders(exercise.template, config);
-            fs::write(level_dir.join(exercise.filename), template).map_err(NikaInitError::IoError)?;
+            fs::write(level_dir.join(exercise.filename), template)
+                .map_err(NikaInitError::IoError)?;
             exercise_count += 1;
 
             // Substitute placeholders in solution

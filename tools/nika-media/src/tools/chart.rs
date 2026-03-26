@@ -8,9 +8,9 @@ use std::future::Future;
 use std::pin::Pin;
 
 use super::context::MediaToolContext;
+use super::error::MediaToolError;
 use super::error::{invalid_args, tool_error};
 use super::{MediaOp, MediaOpResult};
-use super::error::MediaToolError;
 
 pub struct ChartOp;
 

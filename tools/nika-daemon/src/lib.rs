@@ -27,8 +27,7 @@ pub use client::DaemonClient;
 pub use error::{DaemonError, DaemonResult};
 pub use protocol::{DaemonRequest, DaemonResponse};
 
-// Re-exports added as types are implemented:
-// pub use server::DaemonServer;
+pub use server::{DaemonConfig, DaemonServer};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DAEMON PATHS

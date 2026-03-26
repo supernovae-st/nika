@@ -30,10 +30,9 @@ pub fn write_pid_file(path: &Path) -> DaemonResult<()> {
 /// Read the PID from a PID file.
 pub fn read_pid_file(path: &Path) -> DaemonResult<u32> {
     let content = std::fs::read_to_string(path)?;
-    content
-        .trim()
-        .parse::<u32>()
-        .map_err(|_| DaemonError::Protocol(format!("invalid PID in {}: {:?}", path.display(), content)))
+    content.trim().parse::<u32>().map_err(|_| {
+        DaemonError::Protocol(format!("invalid PID in {}: {:?}", path.display(), content))
+    })
 }
 
 /// Remove the PID file.
@@ -108,85 +107,70 @@ pub fn cleanup_stale_socket(socket_path: &Path, pid_path: &Path) -> DaemonResult
 // DAEMONIZE
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// Daemonize the current process (double-fork pattern).
+/// Daemonize by re-executing the current binary with `--foreground`.
 ///
-/// After calling this, the process:
-/// 1. Is detached from the terminal
-/// 2. Has a new session ID
-/// 3. Has stdin/stdout/stderr redirected to /dev/null
+/// Why self-exec instead of double-fork: Tokio's async runtime (thread pools,
+/// epoll/kqueue FDs, timer wheels) does NOT survive `fork()`. The correct
+/// pattern for async Rust daemons is to spawn a new process via
+/// `Command::new(current_exe())` with `--foreground` flag, then exit the parent.
 ///
-/// Returns Ok(()) in the daemon child process.
-/// The parent process exits after the first fork.
-#[cfg(unix)]
-pub fn daemonize() -> DaemonResult<()> {
-    use nix::unistd::{fork, setsid, ForkResult};
+/// The child process starts a fresh tokio runtime with zero inherited state.
+/// This is the same pattern used by Turborepo's daemon.
+pub fn daemonize(log_path: &std::path::Path) -> DaemonResult<()> {
+    let exe = std::env::current_exe()
+        .map_err(|e| DaemonError::Lifecycle(format!("cannot find current exe: {e}")))?;
 
-    // First fork — detach from parent
-    match unsafe { fork() } {
-        Ok(ForkResult::Parent { .. }) => {
-            // Parent exits immediately
-            std::process::exit(0);
-        }
-        Ok(ForkResult::Child) => {
-            // Child continues
-        }
-        Err(e) => {
-            return Err(DaemonError::Lifecycle(format!("first fork failed: {e}")));
-        }
-    }
+    // Open log file for daemon stdout/stderr
+    let log_file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log_path)
+        .map_err(|e| DaemonError::Lifecycle(format!("cannot open log file: {e}")))?;
+    let log_stderr = log_file
+        .try_clone()
+        .map_err(|e| DaemonError::Lifecycle(format!("cannot clone log fd: {e}")))?;
 
-    // Create new session
-    setsid().map_err(|e| DaemonError::Lifecycle(format!("setsid failed: {e}")))?;
+    // Spawn detached child: `nika daemon start --foreground`
+    let child = std::process::Command::new(exe)
+        .args(["daemon", "start", "--foreground"])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::from(log_file))
+        .stderr(std::process::Stdio::from(log_stderr))
+        .spawn()
+        .map_err(|e| DaemonError::Lifecycle(format!("failed to spawn daemon: {e}")))?;
 
-    // Second fork — prevent re-acquiring terminal
-    match unsafe { fork() } {
-        Ok(ForkResult::Parent { .. }) => {
-            std::process::exit(0);
-        }
-        Ok(ForkResult::Child) => {
-            // This is the final daemon process
-        }
-        Err(e) => {
-            return Err(DaemonError::Lifecycle(format!("second fork failed: {e}")));
-        }
-    }
-
-    // Redirect stdio to /dev/null
-    redirect_stdio_to_devnull()?;
-
-    info!("daemonized (pid={})", std::process::id());
-    Ok(())
-}
-
-#[cfg(unix)]
-fn redirect_stdio_to_devnull() -> DaemonResult<()> {
-    use std::os::unix::io::AsRawFd;
-
-    let devnull = std::fs::OpenOptions::new()
-        .read(true)
-        .write(true)
-        .open("/dev/null")?;
-
-    let fd = devnull.as_raw_fd();
-
-    // dup2 stdin, stdout, stderr to /dev/null
-    nix::unistd::dup2(fd, 0).map_err(|e| DaemonError::Lifecycle(format!("dup2 stdin: {e}")))?;
-    nix::unistd::dup2(fd, 1).map_err(|e| DaemonError::Lifecycle(format!("dup2 stdout: {e}")))?;
-    nix::unistd::dup2(fd, 2).map_err(|e| DaemonError::Lifecycle(format!("dup2 stderr: {e}")))?;
-
+    info!(pid = child.id(), "daemon spawned in background");
     Ok(())
 }
 
 #[cfg(not(unix))]
-pub fn daemonize() -> DaemonResult<()> {
+pub fn daemonize(_log_path: &std::path::Path) -> DaemonResult<()> {
     Err(DaemonError::Lifecycle(
-        "daemonize is not supported on this platform".into(),
+        "background daemon is not supported on this platform — use --foreground".into(),
     ))
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SIGNAL HANDLING
 // ═══════════════════════════════════════════════════════════════════════════
+
+/// Send SIGTERM to a process.
+#[cfg(unix)]
+pub fn send_sigterm(pid: u32) -> DaemonResult<()> {
+    nix::sys::signal::kill(
+        nix::unistd::Pid::from_raw(pid as i32),
+        nix::sys::signal::Signal::SIGTERM,
+    )
+    .map_err(|e| DaemonError::Lifecycle(format!("failed to send SIGTERM to pid {pid}: {e}")))?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+pub fn send_sigterm(_pid: u32) -> DaemonResult<()> {
+    Err(DaemonError::Lifecycle(
+        "SIGTERM not supported on this platform".into(),
+    ))
+}
 
 /// Install signal handlers and return a future that resolves on shutdown signal.
 ///
@@ -214,9 +198,7 @@ pub async fn wait_for_shutdown_signal() {
 
 #[cfg(not(unix))]
 pub async fn wait_for_shutdown_signal() {
-    tokio::signal::ctrl_c()
-        .await
-        .expect("Ctrl-C handler");
+    tokio::signal::ctrl_c().await.expect("Ctrl-C handler");
     info!("received Ctrl-C");
 }
 

@@ -8,26 +8,27 @@ pub mod error;
 pub mod safety;
 
 // Tool implementations
+#[cfg(feature = "media-chart")]
+pub mod chart;
 pub mod color;
+#[cfg(feature = "media-phash")]
+pub mod compare;
 #[cfg(feature = "media-thumbnail")]
 pub mod convert;
+#[cfg(feature = "fetch-html")]
+pub mod css_select;
 pub mod dimensions;
+#[cfg(feature = "fetch-html")]
+pub mod extract_links;
+#[cfg(feature = "fetch-html")]
+pub mod extract_metadata;
+#[cfg(feature = "fetch-markdown")]
+pub mod html_to_md;
 pub mod import;
 #[cfg(feature = "media-metadata")]
 pub mod metadata;
 #[cfg(feature = "media-optimize")]
 pub mod optimize;
-#[cfg(feature = "media-thumbnail")]
-pub mod strip;
-#[cfg(feature = "media-svg")]
-pub mod svg;
-pub mod thumbhash_tool;
-#[cfg(feature = "media-thumbnail")]
-pub mod thumbnail;
-#[cfg(feature = "media-chart")]
-pub mod chart;
-#[cfg(feature = "media-phash")]
-pub mod compare;
 #[cfg(feature = "media-pdf")]
 pub mod pdf;
 #[cfg(feature = "media-phash")]
@@ -39,24 +40,23 @@ pub mod provenance;
 pub mod qr;
 #[cfg(feature = "media-iqa")]
 pub mod quality;
-#[cfg(feature = "fetch-html")]
-pub mod css_select;
-#[cfg(feature = "fetch-html")]
-pub mod extract_links;
-#[cfg(feature = "fetch-html")]
-pub mod extract_metadata;
-#[cfg(feature = "fetch-markdown")]
-pub mod html_to_md;
 #[cfg(feature = "fetch-article")]
 pub mod readability;
+#[cfg(feature = "media-thumbnail")]
+pub mod strip;
+#[cfg(feature = "media-svg")]
+pub mod svg;
+pub mod thumbhash_tool;
+#[cfg(feature = "media-thumbnail")]
+pub mod thumbnail;
 #[cfg(feature = "media-provenance")]
 pub mod verify;
 
 use std::future::Future;
 use std::pin::Pin;
 
-use error::MediaToolError;
 pub use context::MediaToolContext;
+use error::MediaToolError;
 
 /// Internal trait for media operations.
 ///

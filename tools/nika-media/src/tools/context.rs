@@ -104,7 +104,12 @@ impl ComputePool {
                     tracing::error!("media compute thread panicked: {info:?}");
                 })
                 .build()
-                .map_err(|e| tool_error("compute_pool", format!("Failed to create media compute pool: {e}")))?,
+                .map_err(|e| {
+                    tool_error(
+                        "compute_pool",
+                        format!("Failed to create media compute pool: {e}"),
+                    )
+                })?,
         })
     }
 

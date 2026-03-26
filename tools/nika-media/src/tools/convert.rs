@@ -6,10 +6,10 @@ use std::future::Future;
 use std::pin::Pin;
 
 use super::context::MediaToolContext;
+use super::error::MediaToolError;
 use super::error::{invalid_args, tool_error, unsupported_format};
 use super::safety::{composite_on_white, decode_image_safe};
 use super::{MediaOp, MediaOpResult};
-use super::error::MediaToolError;
 
 pub struct ConvertOp;
 
@@ -61,55 +61,57 @@ impl MediaOp for ConvertOp {
 
             let output = ctx
                 .compute
-                .compute(move || -> Result<(Vec<u8>, String, String), MediaToolError> {
-                    let img = decode_image_safe(&data)?;
-                    let (w, h) = (img.width(), img.height());
-                    let mut buf = Vec::new();
+                .compute(
+                    move || -> Result<(Vec<u8>, String, String), MediaToolError> {
+                        let img = decode_image_safe(&data)?;
+                        let (w, h) = (img.width(), img.height());
+                        let mut buf = Vec::new();
 
-                    let (mime, ext) = match format_owned.as_str() {
-                        "jpeg" | "jpg" => {
-                            // SAFETY: to_rgb8() silently drops alpha — RGBA(255,0,0,0) becomes
-                            // RGB(255,0,0). We must composite on white before JPEG encoding.
-                            let rgb = composite_on_white(&img);
-                            let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(
-                                &mut buf, quality,
-                            );
-                            image::ImageEncoder::write_image(
-                                encoder,
-                                rgb.as_raw(),
-                                w,
-                                h,
-                                image::ExtendedColorType::Rgb8,
-                            )
-                            .map_err(|e| tool_error("convert", format!("JPEG encode: {e}")))?;
-                            ("image/jpeg", "jpg")
-                        }
-                        "webp" => {
-                            img.write_to(
-                                &mut std::io::Cursor::new(&mut buf),
-                                image::ImageFormat::WebP,
-                            )
-                            .map_err(|e| tool_error("convert", format!("WebP encode: {e}")))?;
-                            ("image/webp", "webp")
-                        }
-                        "png" => {
-                            let rgba = img.to_rgba8();
-                            let encoder = image::codecs::png::PngEncoder::new(&mut buf);
-                            image::ImageEncoder::write_image(
-                                encoder,
-                                rgba.as_raw(),
-                                w,
-                                h,
-                                image::ExtendedColorType::Rgba8,
-                            )
-                            .map_err(|e| tool_error("convert", format!("PNG encode: {e}")))?;
-                            ("image/png", "png")
-                        }
-                        other => return Err(unsupported_format("convert", other)),
-                    };
+                        let (mime, ext) = match format_owned.as_str() {
+                            "jpeg" | "jpg" => {
+                                // SAFETY: to_rgb8() silently drops alpha — RGBA(255,0,0,0) becomes
+                                // RGB(255,0,0). We must composite on white before JPEG encoding.
+                                let rgb = composite_on_white(&img);
+                                let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(
+                                    &mut buf, quality,
+                                );
+                                image::ImageEncoder::write_image(
+                                    encoder,
+                                    rgb.as_raw(),
+                                    w,
+                                    h,
+                                    image::ExtendedColorType::Rgb8,
+                                )
+                                .map_err(|e| tool_error("convert", format!("JPEG encode: {e}")))?;
+                                ("image/jpeg", "jpg")
+                            }
+                            "webp" => {
+                                img.write_to(
+                                    &mut std::io::Cursor::new(&mut buf),
+                                    image::ImageFormat::WebP,
+                                )
+                                .map_err(|e| tool_error("convert", format!("WebP encode: {e}")))?;
+                                ("image/webp", "webp")
+                            }
+                            "png" => {
+                                let rgba = img.to_rgba8();
+                                let encoder = image::codecs::png::PngEncoder::new(&mut buf);
+                                image::ImageEncoder::write_image(
+                                    encoder,
+                                    rgba.as_raw(),
+                                    w,
+                                    h,
+                                    image::ExtendedColorType::Rgba8,
+                                )
+                                .map_err(|e| tool_error("convert", format!("PNG encode: {e}")))?;
+                                ("image/png", "png")
+                            }
+                            other => return Err(unsupported_format("convert", other)),
+                        };
 
-                    Ok((buf, mime.to_string(), ext.to_string()))
-                })
+                        Ok((buf, mime.to_string(), ext.to_string()))
+                    },
+                )
                 .await??;
 
             let (buf, mime_type, extension) = output;

@@ -241,11 +241,7 @@ mod tests {
         let client = DaemonClient::new(&sock);
         let resp = client.status().await.unwrap();
         match resp {
-            DaemonResponse::StatusInfo {
-                pid,
-                services,
-                ..
-            } => {
+            DaemonResponse::StatusInfo { pid, services, .. } => {
                 assert!(pid > 0);
                 assert!(services.contains(&"secrets".to_string()));
             }

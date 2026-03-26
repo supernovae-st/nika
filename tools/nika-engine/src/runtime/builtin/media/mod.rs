@@ -9,36 +9,34 @@
 pub(crate) use nika_media::tools::context;
 
 // Re-export tool modules from nika-media for test compatibility
-#[cfg(test)]
-pub(crate) use nika_media::tools::{
-    color, dimensions, import, safety, thumbhash_tool,
-};
-#[cfg(all(test, feature = "media-thumbnail"))]
-pub(crate) use nika_media::tools::{convert, strip, thumbnail};
+#[cfg(all(test, feature = "media-chart"))]
+pub(crate) use nika_media::tools::chart;
+#[cfg(all(test, feature = "fetch-markdown"))]
+pub(crate) use nika_media::tools::html_to_md;
 #[cfg(all(test, feature = "media-metadata"))]
 pub(crate) use nika_media::tools::metadata;
 #[cfg(all(test, feature = "media-optimize"))]
 pub(crate) use nika_media::tools::optimize;
-#[cfg(all(test, feature = "media-svg"))]
-pub(crate) use nika_media::tools::svg;
-#[cfg(all(test, feature = "media-chart"))]
-pub(crate) use nika_media::tools::chart;
-#[cfg(all(test, feature = "media-phash"))]
-pub(crate) use nika_media::tools::{compare, phash};
 #[cfg(all(test, feature = "media-pdf"))]
 pub(crate) use nika_media::tools::pdf;
-#[cfg(all(test, feature = "media-provenance"))]
-pub(crate) use nika_media::tools::{provenance, verify};
 #[cfg(all(test, feature = "media-qr"))]
 pub(crate) use nika_media::tools::qr;
 #[cfg(all(test, feature = "media-iqa"))]
 pub(crate) use nika_media::tools::quality;
-#[cfg(all(test, feature = "fetch-html"))]
-pub(crate) use nika_media::tools::{css_select, extract_links, extract_metadata};
-#[cfg(all(test, feature = "fetch-markdown"))]
-pub(crate) use nika_media::tools::html_to_md;
 #[cfg(all(test, feature = "fetch-article"))]
 pub(crate) use nika_media::tools::readability;
+#[cfg(all(test, feature = "media-svg"))]
+pub(crate) use nika_media::tools::svg;
+#[cfg(test)]
+pub(crate) use nika_media::tools::{color, dimensions, import, safety, thumbhash_tool};
+#[cfg(all(test, feature = "media-phash"))]
+pub(crate) use nika_media::tools::{compare, phash};
+#[cfg(all(test, feature = "media-thumbnail"))]
+pub(crate) use nika_media::tools::{convert, strip, thumbnail};
+#[cfg(all(test, feature = "fetch-html"))]
+pub(crate) use nika_media::tools::{css_select, extract_links, extract_metadata};
+#[cfg(all(test, feature = "media-provenance"))]
+pub(crate) use nika_media::tools::{provenance, verify};
 
 // Re-export core types (used by adapter + tests)
 pub(crate) use nika_media::tools::{MediaOp, MediaOpResult, MediaToolContext};
@@ -70,7 +68,7 @@ use std::time::Duration;
 
 use super::BuiltinTool;
 use crate::error::NikaError;
-use nika_media::tools::error::{timeout_error, invalid_args, tool_error};
+use nika_media::tools::error::{invalid_args, timeout_error, tool_error};
 
 /// Default timeout for media operations (30 seconds).
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
@@ -112,7 +110,10 @@ impl BuiltinTool for MediaToolAdapter {
 
             let tool_name = self.op.name();
             tokio::time::timeout(DEFAULT_TIMEOUT, async {
-                let result = self.op.execute(parsed, &self.ctx).await
+                let result = self
+                    .op
+                    .execute(parsed, &self.ctx)
+                    .await
                     .map_err(NikaError::from)?;
 
                 match result {
@@ -125,7 +126,10 @@ impl BuiltinTool for MediaToolAdapter {
                         extension,
                         metadata,
                     } => {
-                        let store_result = self.ctx.store_media(&data, "media_tool").await
+                        let store_result = self
+                            .ctx
+                            .store_media(&data, "media_tool")
+                            .await
                             .map_err(NikaError::from)?;
 
                         let response = serde_json::json!({
@@ -155,8 +159,7 @@ pub(crate) fn create_media_tool_adapters(ctx: Arc<MediaToolContext>) -> Vec<Box<
     nika_media::tools::create_all_media_ops()
         .into_iter()
         .map(|op| {
-            Box::new(MediaToolAdapter::new(Arc::from(op), Arc::clone(&ctx)))
-                as Box<dyn BuiltinTool>
+            Box::new(MediaToolAdapter::new(Arc::from(op), Arc::clone(&ctx))) as Box<dyn BuiltinTool>
         })
         .collect()
 }
@@ -189,7 +192,8 @@ mod tests {
             &'a self,
             args: serde_json::Value,
             _ctx: &'a MediaToolContext,
-        ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, MediaToolError>> + Send + 'a>> {
+        ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, MediaToolError>> + Send + 'a>>
+        {
             Box::pin(async move {
                 let value = args
                     .get("value")

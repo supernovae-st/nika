@@ -8,9 +8,9 @@ use std::future::Future;
 use std::pin::Pin;
 
 use super::context::MediaToolContext;
+use super::error::MediaToolError;
 use super::error::{invalid_args, tool_error};
 use super::{MediaOp, MediaOpResult};
-use super::error::MediaToolError;
 
 /// Maximum HTML input size: 10 MB.
 const MAX_HTML_SIZE: usize = 10 * 1024 * 1024;

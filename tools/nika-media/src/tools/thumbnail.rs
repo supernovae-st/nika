@@ -7,10 +7,10 @@ use std::future::Future;
 use std::pin::Pin;
 
 use super::context::MediaToolContext;
+use super::error::MediaToolError;
 use super::error::{invalid_args, tool_error};
 use super::safety::{composite_on_white, decode_image_safe, MAX_IMAGE_DIM};
 use super::{MediaOp, MediaOpResult};
-use super::error::MediaToolError;
 
 pub struct ThumbnailOp;
 

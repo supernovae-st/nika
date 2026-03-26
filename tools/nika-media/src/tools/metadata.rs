@@ -10,8 +10,8 @@ use std::pin::Pin;
 
 use super::context::MediaToolContext;
 use super::error::invalid_args;
-use super::{MediaOp, MediaOpResult};
 use super::error::MediaToolError;
+use super::{MediaOp, MediaOpResult};
 
 pub struct MetadataOp;
 

@@ -90,7 +90,12 @@ pub fn fmt_mcp_error(server_name: &str, error: &str) -> String {
     ))
 }
 
-pub fn fmt_mcp_invoke(mcp_server: &str, tool: Option<&str>, resource: Option<&str>, call_id: &str) -> String {
+pub fn fmt_mcp_invoke(
+    mcp_server: &str,
+    tool: Option<&str>,
+    resource: Option<&str>,
+    call_id: &str,
+) -> String {
     let target = tool.or(resource).unwrap_or("?");
     sub(format!(
         "{} {} → {} {}",
@@ -194,9 +199,7 @@ pub fn fmt_for_each_completed(task_id: &str, total: u32, succeeded: u32, failed:
             .yellow()
             .to_string()
     } else {
-        format!("{}/{} ok", succeeded, total)
-            .green()
-            .to_string()
+        format!("{}/{} ok", succeeded, total).green().to_string()
     };
     sub(format!(
         "{} for_each {} · {}",
@@ -275,13 +278,7 @@ pub fn fmt_log(ts: &str, level: &str, message: &str) -> String {
         "trace" => level.dimmed(),
         _ => level.normal(),
     };
-    format!(
-        "{}  {} {} · {}",
-        ts,
-        icons::log(),
-        level_colored,
-        message
-    )
+    format!("{}  {} {} · {}", ts, icons::log(), level_colored, message)
 }
 
 pub fn fmt_custom(ts: &str, name: &str, payload: &Value) -> String {
@@ -485,7 +482,9 @@ pub fn fmt_boot_phase(phase: &str, success: bool, duration_ms: u64, warnings: &[
     let warn = if warnings.is_empty() {
         String::new()
     } else {
-        format!(" · {} warnings", warnings.len()).yellow().to_string()
+        format!(" · {} warnings", warnings.len())
+            .yellow()
+            .to_string()
     };
     sub(format!(
         "{} boot {} {} · {}ms{}",
