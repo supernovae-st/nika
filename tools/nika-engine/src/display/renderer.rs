@@ -58,7 +58,7 @@ pub struct ProviderCallStat {
 pub struct CliRenderer {
     detail: DetailLevel,
     start: Instant,
-    stats: RunStats,
+    pub(crate) stats: RunStats,
     /// Track which DAG layer each task belongs to (for layer separators)
     task_layers: HashMap<Arc<str>, usize>,
     /// Current layer being displayed
