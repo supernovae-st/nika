@@ -1433,3 +1433,403 @@ fn fmt_exec_completed_failure() {
     let out = strip_ansi(&format_event::fmt_exec_completed(1, 500));
     assert!(out.contains("exit:1"));
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// 16. Color boundary tests
+// ═══════════════════════════════════════════════════════════════════════
+
+#[test]
+fn duration_zero() {
+    let out = strip_ansi(&colors::duration(0.0).to_string());
+    assert!(
+        out.contains("0") || out.contains("\u{00B5}s"),
+        "duration(0.0) should format as microseconds, got: {}",
+        out
+    );
+}
+
+#[test]
+fn ttft_zero() {
+    let out = strip_ansi(&colors::ttft(0).to_string());
+    assert_eq!(out, "0ms");
+}
+
+#[test]
+fn cost_zero() {
+    let out = strip_ansi(&colors::cost(0.0).to_string());
+    assert!(out.starts_with('$'), "cost should start with $, got: {}", out);
+    assert!(out.contains("0"), "cost(0.0) should contain '0', got: {}", out);
+}
+
+#[test]
+fn cost_very_small() {
+    let out = strip_ansi(&colors::cost(0.000001).to_string());
+    assert!(out.starts_with('$'), "cost should start with $, got: {}", out);
+}
+
+#[test]
+fn tokens_max_u64() {
+    // Should not panic on extreme values
+    let out = colors::tokens(u64::MAX);
+    assert!(!out.is_empty());
+    assert!(out.contains('M'), "u64::MAX should format as M, got: {}", out);
+}
+
+#[test]
+fn format_bytes_large_megabytes() {
+    let out = renderer::format_bytes(1_500_000);
+    assert!(out.contains("MB"), "1.5M bytes should format as MB, got: {}", out);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 17. fmt_log level coloring (5 standard + unknown)
+// ═══════════════════════════════════════════════════════════════════════
+
+#[test]
+fn fmt_log_all_levels() {
+    for level in &["error", "warn", "info", "debug", "trace"] {
+        let out = strip_ansi(&format_event::fmt_log("+1.0s", level, "test message"));
+        assert!(
+            out.contains(level),
+            "should contain level '{}', got: {}",
+            level,
+            out
+        );
+        assert!(
+            out.contains("test message"),
+            "should contain message for level '{}'",
+            level
+        );
+    }
+}
+
+#[test]
+fn fmt_log_unknown_level() {
+    let out = strip_ansi(&format_event::fmt_log("+0.0s", "custom", "msg"));
+    assert!(out.contains("custom"), "should contain unknown level name");
+    assert!(out.contains("msg"), "should contain message");
+}
+
+#[test]
+fn fmt_log_contains_timestamp() {
+    let out = strip_ansi(&format_event::fmt_log("+2.5s", "info", "hello"));
+    assert!(out.contains("+2.5s"), "should contain timestamp");
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 18. fmt_custom truncation
+// ═══════════════════════════════════════════════════════════════════════
+
+#[test]
+fn fmt_custom_short_payload() {
+    let payload = serde_json::json!({"key": "value"});
+    let out = strip_ansi(&format_event::fmt_custom("+0.5s", "my_event", &payload));
+    assert!(out.contains("my_event"), "should contain event name");
+    assert!(out.contains("key"), "should contain payload key");
+}
+
+#[test]
+fn fmt_custom_long_payload_truncated() {
+    let long_val = "x".repeat(100);
+    let payload = serde_json::json!({"data": long_val});
+    let out = strip_ansi(&format_event::fmt_custom("+0.5s", "big", &payload));
+    assert!(
+        out.contains("\u{2026}"),
+        "long payload should be truncated with ellipsis"
+    );
+}
+
+#[test]
+fn fmt_custom_contains_timestamp() {
+    let payload = serde_json::json!(null);
+    let out = strip_ansi(&format_event::fmt_custom("+1.0s", "evt", &payload));
+    assert!(out.contains("+1.0s"), "should contain timestamp");
+    assert!(out.contains("evt"), "should contain event name");
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 19. Remaining format_event coverage — MCP, agent, guardrail, artifact,
+//     media, structured output, vision, HTTP, policy, template, provider,
+//     decompose, binding
+// ═══════════════════════════════════════════════════════════════════════
+
+// ── MCP formatters ───────────────────────────────────────────────────
+
+#[test]
+fn fmt_mcp_connected_output() {
+    let out = strip_ansi(&format_event::fmt_mcp_connected("neo4j-local"));
+    assert!(out.contains("connected"), "should contain 'connected'");
+    assert!(out.contains("neo4j-local"), "should contain server name");
+}
+
+#[test]
+fn fmt_mcp_error_output() {
+    let out = strip_ansi(&format_event::fmt_mcp_error("neo4j", "connection refused"));
+    assert!(out.contains("neo4j"), "should contain server name");
+    assert!(out.contains("connection refused"), "should contain error");
+}
+
+#[test]
+fn fmt_mcp_invoke_with_tool() {
+    let out = strip_ansi(&format_event::fmt_mcp_invoke("neo4j", Some("query"), None, "42"));
+    assert!(out.contains("neo4j"), "should contain server name");
+    assert!(out.contains("query"), "should contain tool name");
+    assert!(out.contains("call:42"), "should contain call id");
+}
+
+#[test]
+fn fmt_mcp_invoke_with_resource() {
+    let out = strip_ansi(&format_event::fmt_mcp_invoke("server", None, Some("data://res"), "1"));
+    assert!(out.contains("data://res"), "should contain resource URI");
+}
+
+#[test]
+fn fmt_mcp_invoke_neither() {
+    let out = strip_ansi(&format_event::fmt_mcp_invoke("srv", None, None, "1"));
+    assert!(out.contains("?"), "should show '?' fallback when no tool or resource");
+}
+
+#[test]
+fn fmt_mcp_retry_output() {
+    let out = strip_ansi(&format_event::fmt_mcp_retry("connect", 2, 5, "ECONNREFUSED"));
+    assert!(out.contains("retry"), "should contain 'retry'");
+    assert!(out.contains("2/5"), "should contain attempt fraction");
+    assert!(out.contains("ECONNREFUSED"), "should contain error");
+}
+
+// ── Agent formatters ─────────────────────────────────────────────────
+
+#[test]
+fn fmt_agent_start_output() {
+    let servers = vec!["neo4j".to_string(), "slack".to_string()];
+    let out = strip_ansi(&format_event::fmt_agent_start(5, &servers));
+    assert!(out.contains("max_turns:5"), "should contain max_turns");
+    assert!(out.contains("neo4j, slack"), "should contain server list");
+}
+
+#[test]
+fn fmt_agent_turn_output() {
+    let out = strip_ansi(&format_event::fmt_agent_turn(0, "inference"));
+    assert!(out.contains("turn 1"), "0-indexed should display as turn 1");
+    assert!(out.contains("inference"), "should contain kind");
+}
+
+#[test]
+fn fmt_agent_complete_output() {
+    let out = strip_ansi(&format_event::fmt_agent_complete(3, "end_turn"));
+    assert!(out.contains("done"), "should contain 'done'");
+    assert!(out.contains("3 turns"), "should contain turn count");
+    assert!(out.contains("end_turn"), "should contain stop reason");
+}
+
+#[test]
+fn fmt_agent_spawned_output() {
+    let out = strip_ansi(&format_event::fmt_agent_spawned("child_1", 2));
+    assert!(out.contains("spawned"), "should contain 'spawned'");
+    assert!(out.contains("child_1"), "should contain child task id");
+    assert!(out.contains("depth:2"), "should contain depth");
+}
+
+#[test]
+fn fmt_agent_turn_tool_use_output() {
+    let out = strip_ansi(&format_event::fmt_agent_turn_tool_use());
+    assert!(out.contains("tool_use"), "should contain 'tool_use'");
+}
+
+// ── Policy formatter ─────────────────────────────────────────────────
+
+#[test]
+fn fmt_policy_blocked_output() {
+    let out = strip_ansi(&format_event::fmt_policy_blocked("+1.0s", "command_blocklist", "rm -rf /"));
+    assert!(out.contains("BLOCKED"), "should contain 'BLOCKED'");
+    assert!(out.contains("command_blocklist"), "should contain policy type");
+    assert!(out.contains("rm -rf /"), "should contain reason");
+}
+
+// ── Guardrail formatters ─────────────────────────────────────────────
+
+#[test]
+fn fmt_guardrail_passed_output() {
+    let out = strip_ansi(&format_event::fmt_guardrail_passed("content_filter", "safe output"));
+    assert!(out.contains("content_filter"), "should contain guardrail type");
+    assert!(out.contains("safe output"), "should contain description");
+}
+
+#[test]
+fn fmt_guardrail_failed_output() {
+    let out = strip_ansi(&format_event::fmt_guardrail_failed("pii_check", "email detected"));
+    assert!(out.contains("pii_check"), "should contain guardrail type");
+    assert!(out.contains("email detected"), "should contain message");
+}
+
+#[test]
+fn fmt_guardrail_escalation_output() {
+    let out = strip_ansi(&format_event::fmt_guardrail_escalation("high", "needs human review"));
+    assert!(out.contains("escalation"), "should contain 'escalation'");
+    assert!(out.contains("high"), "should contain severity");
+    assert!(out.contains("needs human review"), "should contain message");
+}
+
+// ── Artifact formatters ──────────────────────────────────────────────
+
+#[test]
+fn fmt_artifact_written_output() {
+    let out = strip_ansi(&format_event::fmt_artifact_written("output/report.md", 4096, "markdown"));
+    assert!(out.contains("report.md"), "should contain path");
+    assert!(out.contains("markdown"), "should contain format");
+}
+
+#[test]
+fn fmt_artifact_failed_output() {
+    let out = strip_ansi(&format_event::fmt_artifact_failed("output/data.json", "permission denied"));
+    assert!(out.contains("data.json"), "should contain path");
+    assert!(out.contains("permission denied"), "should contain reason");
+}
+
+// ── Media formatters ─────────────────────────────────────────────────
+
+#[test]
+fn fmt_media_extracted_output() {
+    let types = vec!["image/png".to_string(), "image/jpeg".to_string()];
+    let out = strip_ansi(&format_event::fmt_media_extracted(3, &types));
+    assert!(out.contains("3 blocks"), "should contain block count");
+    assert!(out.contains("image/png"), "should contain first content type");
+}
+
+#[test]
+fn fmt_media_stored_output() {
+    let out = strip_ansi(&format_event::fmt_media_stored(
+        2048,
+        "/cas/img.png",
+        "abcdef1234567890abcdef",
+    ));
+    assert!(out.contains("/cas/img.png"), "should contain path");
+    assert!(
+        out.contains("abcdef1234567890"),
+        "should contain truncated hash (first 16 chars)"
+    );
+    assert!(
+        !out.contains("abcdef1234567890a"),
+        "should NOT contain 17th char — hash must be truncated at 16"
+    );
+}
+
+#[test]
+fn fmt_media_store_failed_output() {
+    let out = strip_ansi(&format_event::fmt_media_store_failed("disk full"));
+    assert!(out.contains("disk full"), "should contain reason");
+}
+
+#[test]
+fn fmt_media_stored_detail_dedup() {
+    let out = strip_ansi(&format_event::fmt_media_stored_detail(true, true, 50));
+    assert!(out.contains("dedup:"), "should contain dedup label");
+    assert!(out.contains("verified:"), "should contain verified label");
+    assert!(out.contains("50ms"), "should contain pipeline duration");
+}
+
+#[test]
+fn fmt_media_stored_detail_no_dedup() {
+    let out = strip_ansi(&format_event::fmt_media_stored_detail(false, false, 10));
+    assert!(out.contains("dedup:"), "should contain dedup label");
+    assert!(out.contains("verified:"), "should contain verified label");
+    assert!(out.contains("10ms"), "should contain pipeline duration");
+}
+
+// ── Structured output formatters ─────────────────────────────────────
+
+#[test]
+fn fmt_structured_output_attempt_success() {
+    let out =
+        strip_ansi(&format_event::fmt_structured_output_attempt(2, "json_schema", true, None));
+    assert!(out.contains("L2"), "should contain layer number");
+    assert!(out.contains("json_schema"), "should contain layer name");
+}
+
+#[test]
+fn fmt_structured_output_attempt_failure() {
+    let out = strip_ansi(&format_event::fmt_structured_output_attempt(
+        1,
+        "regex",
+        false,
+        Some("no match"),
+    ));
+    assert!(out.contains("L1"), "should contain layer number");
+    assert!(out.contains("no match"), "should contain error message");
+}
+
+// ── Vision formatter ─────────────────────────────────────────────────
+
+#[test]
+fn fmt_vision_content_resolved_output() {
+    let out = strip_ansi(&format_event::fmt_vision_content_resolved(2, 500_000, 150));
+    assert!(out.contains("2 images"), "should contain image count");
+    assert!(out.contains("150ms"), "should contain resolve time");
+}
+
+// ── HTTP request formatter ───────────────────────────────────────────
+
+#[test]
+fn fmt_http_request_output() {
+    let out = strip_ansi(&format_event::fmt_http_request("GET", "https://api.example.com/data"));
+    assert!(out.contains("GET"), "should contain HTTP method");
+    assert!(
+        out.contains("https://api.example.com/data"),
+        "should contain URL"
+    );
+}
+
+// ── Provider formatters ──────────────────────────────────────────────
+
+#[test]
+fn fmt_provider_called_output() {
+    let out = strip_ansi(&format_event::fmt_provider_called(
+        "anthropic",
+        "claude-sonnet-4",
+        2500,
+    ));
+    assert!(out.contains("anthropic"), "should contain provider name");
+    assert!(out.contains("claude-sonnet-4"), "should contain model name");
+    assert!(out.contains("2500 chars"), "should contain prompt length");
+}
+
+#[test]
+fn fmt_provider_sparkline_output() {
+    let out = strip_ansi(&format_event::fmt_provider_sparkline(500, 1000, 0.05));
+    assert!(out.contains("tok"), "should contain 'tok' label");
+    assert!(out.contains("cost"), "should contain 'cost' label");
+}
+
+// ── Template formatter ───────────────────────────────────────────────
+
+#[test]
+fn fmt_template_resolved_output() {
+    let out =
+        strip_ansi(&format_event::fmt_template_resolved("{{with.data}}", "hello world"));
+    assert!(out.contains("tmpl"), "should contain 'tmpl' label");
+    assert!(out.contains("{{with.data}}"), "should contain template");
+    assert!(out.contains("hello world"), "should contain resolved value");
+}
+
+// ── Decompose formatter ──────────────────────────────────────────────
+
+#[test]
+fn fmt_decompose_started_output() {
+    let out = strip_ansi(&format_event::fmt_decompose_started("research", "semantic"));
+    assert!(out.contains("decompose"), "should contain 'decompose'");
+    assert!(out.contains("research"), "should contain task id");
+    assert!(out.contains("semantic"), "should contain strategy");
+}
+
+// ── Binding transform formatter ──────────────────────────────────────
+
+#[test]
+fn fmt_binding_transform_output() {
+    let out =
+        strip_ansi(&format_event::fmt_binding_transform("items", "upper | trim | sort"));
+    assert!(out.contains("items"), "should contain alias");
+    assert!(
+        out.contains("upper | trim | sort"),
+        "should contain transform chain"
+    );
+}

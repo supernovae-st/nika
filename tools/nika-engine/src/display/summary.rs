@@ -614,6 +614,93 @@ fn token_bar(value: u64, max: u64, width: usize, color: &str) -> String {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pad_right_no_padding_needed() {
+        let result = pad_right("hello", 5);
+        assert_eq!(result, "hello");
+    }
+
+    #[test]
+    fn pad_right_adds_spaces() {
+        let result = pad_right("hi", 5);
+        assert_eq!(result, "hi   ");
+    }
+
+    #[test]
+    fn pad_right_wider_than_target() {
+        // No truncation — returns the original string as-is
+        let result = pad_right("hello world", 5);
+        assert_eq!(result, "hello world");
+    }
+
+    #[test]
+    fn pad_right_exact_width() {
+        let result = pad_right("abcde", 5);
+        assert_eq!(result, "abcde");
+    }
+
+    #[test]
+    fn pad_right_empty_string() {
+        let result = pad_right("", 5);
+        assert_eq!(result, "     ");
+    }
+
+    #[test]
+    fn pad_right_zero_width() {
+        let result = pad_right("hi", 0);
+        assert_eq!(result, "hi");
+    }
+
+    #[test]
+    fn token_bar_zero_max() {
+        // Should not panic; ratio becomes 0.0 so all blocks are empty
+        let bar = token_bar(100, 0, 10, "blue");
+        assert!(!bar.is_empty());
+    }
+
+    #[test]
+    fn token_bar_full_ratio() {
+        let bar = token_bar(100, 100, 10, "blue");
+        let vis = stripped_len(&bar);
+        assert_eq!(vis, 10, "full ratio bar should be 10 visible columns");
+    }
+
+    #[test]
+    fn token_bar_zero_value() {
+        let bar = token_bar(0, 100, 10, "blue");
+        let vis = stripped_len(&bar);
+        assert_eq!(vis, 10, "zero-value bar should still be 10 visible columns");
+    }
+
+    #[test]
+    fn token_bar_half_ratio() {
+        let bar = token_bar(50, 100, 10, "magenta");
+        let vis = stripped_len(&bar);
+        assert_eq!(vis, 10, "half ratio bar should be 10 visible columns");
+    }
+
+    #[test]
+    fn token_bar_unknown_color_returns_uncolored() {
+        let bar = token_bar(50, 100, 10, "unknown");
+        // Should not panic; returns the bar without ANSI codes
+        assert!(!bar.is_empty());
+        // No ANSI escape sequences
+        assert!(!bar.contains('\x1b'), "unknown color should produce no ANSI codes");
+    }
+
+    #[test]
+    fn token_bar_zero_width() {
+        let bar = token_bar(50, 100, 0, "green");
+        // Width 0 means empty bar (just the color wrapper)
+        let vis = stripped_len(&bar);
+        assert_eq!(vis, 0);
+    }
+}
+
 /// Print the doctor summary with colored counts, separator, and optional next steps.
 pub fn print_doctor_summary(pass_count: usize, warn_count: usize, fail_count: usize) {
     println!();
