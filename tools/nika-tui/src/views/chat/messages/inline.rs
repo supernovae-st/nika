@@ -57,7 +57,7 @@ fn render_mcp_call<'a>(
     ])));
 
     if !data.params.is_empty() {
-        let params_display = truncate_str(&data.params, 40);
+        let params_display = truncate_str(&data.params, 40).into_owned();
         items.push(ListItem::new(Line::from(vec![
             Span::styled("│ ", Style::default().fg(colors.mcp_box_color)),
             Span::styled("📥 ", Style::default().fg(colors.muted_color)),
@@ -66,14 +66,14 @@ fn render_mcp_call<'a>(
     }
 
     if let Some(ref result) = data.result {
-        let result_display = truncate_str(result, 40);
+        let result_display = truncate_str(result, 40).into_owned();
         items.push(ListItem::new(Line::from(vec![
             Span::styled("│ ", Style::default().fg(colors.mcp_box_color)),
             Span::styled("📤 ", Style::default().fg(colors.success_color)),
             Span::raw(result_display),
         ])));
     } else if let Some(ref error) = data.error {
-        let error_display = truncate_str(error, 40);
+        let error_display = truncate_str(error, 40).into_owned();
         items.push(ListItem::new(Line::from(vec![
             Span::styled("│ ", Style::default().fg(colors.mcp_box_color)),
             Span::styled("❌ ", Style::default().fg(colors.error_color)),
@@ -122,7 +122,7 @@ fn render_infer_stream<'a>(
     let content_lines: Vec<&str> = data.content.lines().collect();
     let start = content_lines.len().saturating_sub(3);
     for line in content_lines.iter().skip(start) {
-        let display = truncate_str(line, 50);
+        let display = truncate_str(line, 50).into_owned();
         items.push(ListItem::new(Line::from(vec![
             Span::styled("│ ", Style::default().fg(colors.infer_box_color)),
             Span::raw(display),
