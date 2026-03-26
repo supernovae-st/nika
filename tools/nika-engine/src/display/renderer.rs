@@ -1374,11 +1374,19 @@ pub(crate) fn format_output_preview(output: &Value, term_width: u16) -> Vec<Stri
     let preview_lines: Vec<String> = if is_json {
         vec![colors::json_preview(&text.replace('\n', " "), max_width)]
     } else if is_markdown {
+        // Markdown preview lines may contain ANSI codes from colorization.
+        // Truncate the raw text first, then re-colorize would be ideal,
+        // but for simplicity we accept slightly imprecise truncation on
+        // ANSI-colored headings (cosmetic only, no crash due to floor_char_boundary).
         colors::markdown_preview(text, 4)
             .into_iter()
             .map(|l| {
-                if stripped_len(&l) > max_width {
-                    let end = floor_char_boundary(&l, max_width - 1);
+                let visual_len = stripped_len(&l);
+                if visual_len > max_width {
+                    // For ANSI strings, truncation by byte offset may cut escape codes.
+                    // Use stripped text length as a heuristic upper bound for byte position.
+                    let byte_budget = l.len().min(max_width * 4); // generous for ANSI overhead
+                    let end = floor_char_boundary(&l, byte_budget);
                     format!("{}\u{2026}", &l[..end])
                 } else {
                     l
