@@ -414,6 +414,9 @@ fn do_get_job(conn: &Connection, id: &str) -> DaemonResult<Option<Job>> {
     .map_err(|e| DaemonError::Lifecycle(format!("get job: {e}")))
 }
 
+/// Maximum rows returned by list_jobs (prevents unbounded allocation on large tables).
+const MAX_JOB_LIST: i64 = 1000;
+
 fn do_list_jobs(conn: &Connection, state: Option<&JobState>) -> DaemonResult<Vec<Job>> {
     let mut jobs = Vec::new();
 
@@ -422,12 +425,12 @@ fn do_list_jobs(conn: &Connection, state: Option<&JobState>) -> DaemonResult<Vec
             .prepare_cached(
                 "SELECT id, name, workflow, args, cron, state, created_at, started_at, completed_at,
                         exit_code, output, retry_count, max_retries
-                 FROM jobs WHERE state = ?1 ORDER BY created_at DESC",
+                 FROM jobs WHERE state = ?1 ORDER BY created_at DESC LIMIT ?2",
             )
             .map_err(|e| DaemonError::Lifecycle(format!("prepare list: {e}")))?;
 
         let rows = stmt
-            .query_map(params![state.as_str()], row_to_job)
+            .query_map(params![state.as_str(), MAX_JOB_LIST], row_to_job)
             .map_err(|e| DaemonError::Lifecycle(format!("list jobs: {e}")))?;
 
         for row in rows {
@@ -438,12 +441,12 @@ fn do_list_jobs(conn: &Connection, state: Option<&JobState>) -> DaemonResult<Vec
             .prepare_cached(
                 "SELECT id, name, workflow, args, cron, state, created_at, started_at, completed_at,
                         exit_code, output, retry_count, max_retries
-                 FROM jobs ORDER BY created_at DESC",
+                 FROM jobs ORDER BY created_at DESC LIMIT ?1",
             )
             .map_err(|e| DaemonError::Lifecycle(format!("prepare list: {e}")))?;
 
         let rows = stmt
-            .query_map([], row_to_job)
+            .query_map(params![MAX_JOB_LIST], row_to_job)
             .map_err(|e| DaemonError::Lifecycle(format!("list jobs: {e}")))?;
 
         for row in rows {
