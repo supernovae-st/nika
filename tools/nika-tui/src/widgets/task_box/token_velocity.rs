@@ -11,6 +11,8 @@ pub struct TokenVelocity {
     samples: VecDeque<f32>,
     /// Maximum capacity
     capacity: usize,
+    /// Cached sparkline string — rebuilt on push, returned by sparkline_chars()
+    cached_sparkline: String,
 }
 
 impl TokenVelocity {
@@ -19,15 +21,17 @@ impl TokenVelocity {
         Self {
             samples: VecDeque::with_capacity(capacity),
             capacity,
+            cached_sparkline: String::new(),
         }
     }
 
-    /// Push a new sample (tokens/sec)
+    /// Push a new sample (tokens/sec) and rebuild sparkline cache
     pub fn push(&mut self, tokens_per_sec: f32) {
         if self.samples.len() >= self.capacity {
             self.samples.pop_front();
         }
         self.samples.push_back(tokens_per_sec);
+        self.rebuild_sparkline_cache();
     }
 
     /// Get all samples as slice
@@ -79,6 +83,7 @@ impl TokenVelocity {
     /// Clear all samples
     pub fn clear(&mut self) {
         self.samples.clear();
+        self.cached_sparkline.clear();
     }
 }
 
@@ -92,24 +97,30 @@ impl Default for TokenVelocity {
 const SPARKLINE_CHARS: &[char] = &['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
 
 impl TokenVelocity {
-    /// Generate sparkline character string
-    pub fn sparkline_chars(&self) -> String {
-        if self.samples.is_empty() {
-            return String::new();
-        }
-
-        let peak = self.peak().max(1.0); // Avoid division by zero
-        self.samples
-            .iter()
-            .map(|&v| {
-                let idx = ((v / peak) * (SPARKLINE_CHARS.len() - 1) as f32).round() as usize;
-                SPARKLINE_CHARS[idx.min(SPARKLINE_CHARS.len() - 1)]
-            })
-            .collect()
+    /// Return cached sparkline string — O(1), no allocation in hot render path
+    pub fn sparkline_chars(&self) -> &str {
+        &self.cached_sparkline
     }
 
-    /// Minimum velocity
+    /// Rebuild sparkline cache — called by push() and clear()
+    fn rebuild_sparkline_cache(&mut self) {
+        self.cached_sparkline.clear();
+        if self.samples.is_empty() {
+            return;
+        }
+        let peak = self.peak().max(1.0); // Avoid division by zero
+        for &v in &self.samples {
+            let idx = ((v / peak) * (SPARKLINE_CHARS.len() - 1) as f32).round() as usize;
+            self.cached_sparkline
+                .push(SPARKLINE_CHARS[idx.min(SPARKLINE_CHARS.len() - 1)]);
+        }
+    }
+
+    /// Minimum velocity (0.0 when empty — avoids returning f32::INFINITY)
     pub fn min(&self) -> f32 {
+        if self.samples.is_empty() {
+            return 0.0;
+        }
         self.samples.iter().copied().fold(f32::INFINITY, f32::min)
     }
 }

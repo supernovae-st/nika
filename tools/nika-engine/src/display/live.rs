@@ -1940,7 +1940,9 @@ mod tests {
         );
         // Atomic must also be cleared.
         assert_eq!(
-            renderer.task_bars["flaky"].out_tokens.load(Ordering::Relaxed),
+            renderer.task_bars["flaky"]
+                .out_tokens
+                .load(Ordering::Relaxed),
             0,
             "out_tokens atomic must be cleared on restart"
         );
@@ -1975,7 +1977,11 @@ mod tests {
             },
         ));
 
-        assert_eq!(renderer.for_each_bars.len(), 1, "one sub-bar per for_each task");
+        assert_eq!(
+            renderer.for_each_bars.len(),
+            1,
+            "one sub-bar per for_each task"
+        );
         let (_, completed) = &renderer.for_each_bars["process"];
         assert_eq!(*completed, 0, "no items completed yet");
     }
@@ -2181,7 +2187,11 @@ mod tests {
             .chars()
             .fold((String::new(), false), |(mut s, in_esc), c| {
                 if in_esc {
-                    if c == 'm' { (s, false) } else { (s, true) }
+                    if c == 'm' {
+                        (s, false)
+                    } else {
+                        (s, true)
+                    }
                 } else if c == '\x1b' {
                     (s, true)
                 } else {
@@ -2196,10 +2206,7 @@ mod tests {
     #[test]
     fn format_running_msg_with_tokens_appends_info() {
         let msg = LiveRenderer::format_running_msg("in:100 out:50");
-        assert!(
-            msg.contains("running"),
-            "message must contain 'running'"
-        );
+        assert!(msg.contains("running"), "message must contain 'running'");
         assert!(
             msg.contains("in:100 out:50"),
             "message must contain token info"

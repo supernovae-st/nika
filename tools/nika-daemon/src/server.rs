@@ -230,6 +230,10 @@ fn generate_auth_token() -> String {
 /// Write the auth token to `~/.nika/daemon/.token` with 0o600 permissions.
 async fn write_auth_token(token: &str) -> std::io::Result<()> {
     let path = crate::daemon_token_path();
+    // Ensure daemon dir exists (may differ from socket dir in tests)
+    if let Some(parent) = path.parent() {
+        tokio::fs::create_dir_all(parent).await?;
+    }
     tokio::fs::write(&path, token.as_bytes()).await?;
     #[cfg(unix)]
     {
@@ -732,6 +736,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn server_starts_and_accepts_ping() {
         let dir = tempfile::tempdir().unwrap();
         let sock = dir.path().join("test.sock");
@@ -756,6 +761,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn server_responds_to_status() {
         let dir = tempfile::tempdir().unwrap();
         let sock = dir.path().join("test.sock");
@@ -781,6 +787,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn server_handles_concurrent_connections() {
         let dir = tempfile::tempdir().unwrap();
         let sock = dir.path().join("test.sock");
@@ -811,6 +818,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn server_graceful_shutdown() {
         let dir = tempfile::tempdir().unwrap();
         let sock = dir.path().join("test.sock");
@@ -837,6 +845,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn server_removes_stale_socket_on_start() {
         let dir = tempfile::tempdir().unwrap();
         let sock = dir.path().join("test.sock");
@@ -861,6 +870,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn server_socket_permissions_owner_only() {
         let dir = tempfile::tempdir().unwrap();
         let sock = dir.path().join("test.sock");
@@ -885,6 +895,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn server_pipelining_multiple_requests_one_connection() {
         use crate::protocol::{decode_message, write_message};
         use tokio::net::UnixStream;
@@ -928,6 +939,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn server_shutdown_via_ipc() {
         let dir = tempfile::tempdir().unwrap();
         let sock = dir.path().join("test.sock");
@@ -1149,7 +1161,10 @@ mod tests {
         assert!(result.is_ok());
 
         // Token file should be cleaned up
-        assert!(!token_path.exists(), "token file must be removed on shutdown");
+        assert!(
+            !token_path.exists(),
+            "token file must be removed on shutdown"
+        );
 
         match orig {
             Some(v) => std::env::set_var("NIKA_HOME", v),

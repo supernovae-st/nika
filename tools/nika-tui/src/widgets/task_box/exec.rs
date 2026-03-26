@@ -36,6 +36,10 @@ pub struct ExecBox {
     pub expanded_stdout: bool,
     /// Is stderr section expanded
     pub expanded_stderr: bool,
+    /// Cached stdout line count (updated on append, avoids O(n) scan per frame)
+    stdout_line_count: usize,
+    /// Cached stderr line count (updated on append, avoids O(n) scan per frame)
+    stderr_line_count: usize,
     /// Pulse intensity for border animation (0.0-1.0)
     pub pulse_intensity: f32,
     /// Render mode (Compact/Expanded/Full)
@@ -55,6 +59,8 @@ impl ExecBox {
             state: BoxState::default(),
             expanded_stdout: false,
             expanded_stderr: false,
+            stdout_line_count: 0,
+            stderr_line_count: 0,
             pulse_intensity: 0.0,
             render_mode: RenderMode::default(),
         }
@@ -110,11 +116,13 @@ impl ExecBox {
 
     /// Append to stdout (streaming)
     pub fn append_stdout(&mut self, text: &str) {
+        self.stdout_line_count += text.bytes().filter(|&b| b == b'\n').count();
         self.stdout.push_str(text);
     }
 
     /// Append to stderr (streaming)
     pub fn append_stderr(&mut self, text: &str) {
+        self.stderr_line_count += text.bytes().filter(|&b| b == b'\n').count();
         self.stderr.push_str(text);
     }
 
@@ -136,7 +144,7 @@ impl ExecBox {
         if !self.stdout.is_empty() {
             height += 2; // Header + content
             if self.expanded_stdout {
-                height += self.stdout.lines().count().min(10) as u16;
+                height += self.stdout_line_count.min(10) as u16;
             }
         }
 
@@ -144,7 +152,7 @@ impl ExecBox {
         if !self.stderr.is_empty() {
             height += 2; // Header + content
             if self.expanded_stderr {
-                height += self.stderr.lines().count().min(5) as u16;
+                height += self.stderr_line_count.min(5) as u16;
             }
         }
 
@@ -202,10 +210,7 @@ impl ExecBox {
                 ),
                 Span::styled(format!("  {} ", status), Style::default().fg(verb_color)),
                 Span::styled(suffix.into_owned(), dim_style),
-                Span::styled(
-                    format!(" │ {} lines", self.stdout.lines().count()),
-                    dim_style,
-                ),
+                Span::styled(format!(" │ {} lines", self.stdout_line_count), dim_style),
             ]);
             return vec![ListItem::new(line)];
         }
@@ -265,7 +270,7 @@ impl ExecBox {
             }
 
             // Overflow indicator
-            let line_count = self.stdout.lines().count();
+            let line_count = self.stdout_line_count;
             if line_count > max_lines {
                 items.push(ListItem::new(Line::from(vec![
                     Span::styled("│   ", border_style),
@@ -301,7 +306,7 @@ impl ExecBox {
             }
 
             // Overflow indicator
-            let line_count = self.stderr.lines().count();
+            let line_count = self.stderr_line_count;
             if line_count > max_lines {
                 items.push(ListItem::new(Line::from(vec![
                     Span::styled("│   ", border_style),
