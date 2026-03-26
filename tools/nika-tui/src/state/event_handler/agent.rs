@@ -11,8 +11,8 @@ use crate::state::types::{AgentTurnState, ContextAssembly, SpawnedAgent, Templat
 
 impl TuiState {
     pub(super) fn on_agent_start(&mut self, max_turns: u32) {
-        self.agent.turns.clear();
-        self.agent.streaming_buffer.clear();
+        // Use reset() to clear all fields including spawned_agents (was leaked before)
+        self.agent.reset();
         self.agent.max_turns = Some(max_turns);
         // TIER 4.1: Mark reasoning panel dirty
         self.dirty.reasoning = true;
