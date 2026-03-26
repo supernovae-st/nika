@@ -234,7 +234,7 @@ impl LiveRenderer {
         // Update the overall bar's total (already in multi from new())
         self.overall_bar.set_length(total as u64);
         self.overall_bar.set_message(String::new()); // cost shown once first ProviderResponded fires
-        // Tick the overall bar so {elapsed_precise} updates in real time between task events
+                                                     // Tick the overall bar so {elapsed_precise} updates in real time between task events
         self.overall_bar.enable_steady_tick(spinner::TICK_INTERVAL);
     }
 
@@ -574,9 +574,8 @@ impl LiveRenderer {
                 }
 
                 self.overall_bar.set_position(
-                    (self.stats.tasks_passed
-                        + self.stats.tasks_skipped
-                        + self.stats.tasks_failed) as u64,
+                    (self.stats.tasks_passed + self.stats.tasks_skipped + self.stats.tasks_failed)
+                        as u64,
                 );
                 self.update_overall_cost();
 
@@ -682,9 +681,8 @@ impl LiveRenderer {
                 }
 
                 self.overall_bar.set_position(
-                    (self.stats.tasks_passed
-                        + self.stats.tasks_skipped
-                        + self.stats.tasks_failed) as u64,
+                    (self.stats.tasks_passed + self.stats.tasks_skipped + self.stats.tasks_failed)
+                        as u64,
                 );
                 self.update_overall_cost();
 
@@ -893,9 +891,8 @@ impl LiveRenderer {
                 let task_id = event.kind.task_id().unwrap_or("?");
                 if let Some(tb) = self.task_bars.get(task_id) {
                     if tb.status == TaskStatus::Running {
-                        tb.bar.set_message(
-                            format!("turn {}", turn_index + 1).white().to_string(),
-                        );
+                        tb.bar
+                            .set_message(format!("turn {}", turn_index + 1).white().to_string());
                     }
                 }
             }
