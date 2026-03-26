@@ -2,6 +2,7 @@
 # Tests: multi-provider parallel execution, output comparison, provider isolation
 schema: nika/workflow@0.12
 workflow: complex-multi-provider-compare
+model: gpt-4o
 
 tasks:
   - id: prompt_source

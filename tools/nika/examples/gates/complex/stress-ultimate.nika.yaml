@@ -4,6 +4,7 @@
 schema: nika/workflow@0.12
 workflow: complex-stress-ultimate
 description: "Maximum complexity workflow testing every Nika feature simultaneously"
+model: gpt-4o
 
 artifacts:
   dir: ./examples/gates/.test-output/artifacts/ultimate

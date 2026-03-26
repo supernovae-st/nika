@@ -2,6 +2,7 @@
 # Tests: per-task provider override, 5 different provider configs, merge all outputs
 schema: nika/workflow@0.12
 workflow: complex-provider-per-task
+model: gpt-4o
 
 tasks:
   - id: openai_task
