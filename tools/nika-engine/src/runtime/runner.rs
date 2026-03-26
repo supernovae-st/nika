@@ -173,8 +173,8 @@ pub struct Runner {
     /// Trace retention config (max_traces + retention_days)
     trace_config: TraceConfig,
     /// CLI event stream renderer (None when quiet or TUI mode).
-    /// Uses `RunRenderer` to auto-select Live (animated) vs Classic (append-only).
-    cli_renderer: Option<crate::display::RunRenderer>,
+    /// Uses `auto_renderer()` to auto-select Live (animated) vs Classic (append-only).
+    cli_renderer: Option<Box<dyn crate::display::Renderer + Send>>,
 }
 
 impl Runner {
@@ -251,7 +251,7 @@ impl Runner {
         } else {
             detail
         };
-        self.cli_renderer = Some(crate::display::RunRenderer::auto(effective_detail));
+        self.cli_renderer = Some(crate::display::auto_renderer(effective_detail));
         self
     }
 
@@ -262,7 +262,7 @@ impl Runner {
         } else {
             detail
         };
-        self.cli_renderer = Some(crate::display::RunRenderer::classic(effective_detail));
+        self.cli_renderer = Some(crate::display::classic_renderer(effective_detail));
         self
     }
 
