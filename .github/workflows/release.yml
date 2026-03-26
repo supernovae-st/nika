@@ -175,7 +175,7 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: 'tools/nika -> target'
+          workspaces: 'tools -> target'
           shared-key: release-${{ matrix.target }}
 
       # Build commands based on target type
@@ -227,7 +227,7 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
           # Sign the binary
-          BINARY_PATH="tools/nika/target/${TARGET}/release/nika"
+          BINARY_PATH="tools/target/${TARGET}/release/nika"
           codesign --sign "Developer ID Application: SuperNovae ($APPLE_TEAM_ID)" \
             --options runtime \
             --timestamp \
@@ -260,7 +260,7 @@ jobs:
           mkdir -p "dist/${ARTIFACT}-${VERSION}"
 
           # Copy binary
-          cp "tools/nika/target/${TARGET}/release/nika" "dist/${ARTIFACT}-${VERSION}/"
+          cp "tools/target/${TARGET}/release/nika" "dist/${ARTIFACT}-${VERSION}/"
 
           # Copy documentation
           cp README.md LICENSE CHANGELOG.md "dist/${ARTIFACT}-${VERSION}/" 2>/dev/null || true
@@ -279,7 +279,7 @@ jobs:
           TARGET: ${{ matrix.target }}
         run: |
           New-Item -ItemType Directory -Force -Path "dist/$env:ARTIFACT-$env:VERSION"
-          Copy-Item "tools/nika/target/$env:TARGET/release/nika.exe" "dist/$env:ARTIFACT-$env:VERSION/"
+          Copy-Item "tools/target/$env:TARGET/release/nika.exe" "dist/$env:ARTIFACT-$env:VERSION/"
           Copy-Item README.md, LICENSE, CHANGELOG.md "dist/$env:ARTIFACT-$env:VERSION/" -ErrorAction SilentlyContinue
           Compress-Archive -Path "dist/$env:ARTIFACT-$env:VERSION" -DestinationPath "dist/$env:ARTIFACT-$env:VERSION.zip"
           $hash = (Get-FileHash "dist/$env:ARTIFACT-$env:VERSION.zip" -Algorithm SHA256).Hash.ToLower()
@@ -1054,7 +1054,7 @@ jobs:
 
       - name: "Message 1: Header + Changelog"
         if: env.HAS_TELEGRAM == 'true'
-        uses: appleboy/telegram-action@v2
+        uses: appleboy/telegram-action@v1.0.0
         with:
           to: ${{ secrets.TELEGRAM_CHAT_ID }}
           token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -1070,7 +1070,7 @@ jobs:
 
       - name: "Message 2: Platform status"
         if: env.HAS_TELEGRAM == 'true'
-        uses: appleboy/telegram-action@v2
+        uses: appleboy/telegram-action@v1.0.0
         with:
           to: ${{ secrets.TELEGRAM_CHAT_ID }}
           token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -1090,7 +1090,7 @@ jobs:
 
       - name: "Message 3: Stats"
         if: env.HAS_TELEGRAM == 'true'
-        uses: appleboy/telegram-action@v2
+        uses: appleboy/telegram-action@v1.0.0
         with:
           to: ${{ secrets.TELEGRAM_CHAT_ID }}
           token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -1108,7 +1108,7 @@ jobs:
 
       - name: "Message 4: One-liner"
         if: env.HAS_TELEGRAM == 'true'
-        uses: appleboy/telegram-action@v2
+        uses: appleboy/telegram-action@v1.0.0
         with:
           to: ${{ secrets.TELEGRAM_CHAT_ID }}
           token: ${{ secrets.TELEGRAM_BOT_TOKEN }}

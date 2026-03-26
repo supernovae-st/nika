@@ -558,18 +558,21 @@ enum Commands {
     },
 
     /// Manage LLM response cache
+    #[cfg(unix)]
     Cache {
         #[command(subcommand)]
         action: cli::cache_cmd::CacheAction,
     },
 
     /// Manage background jobs via daemon
+    #[cfg(unix)]
     Job {
         #[command(subcommand)]
         action: cli::jobs::JobAction,
     },
 
     /// Manage background daemon (secrets, jobs, cache)
+    #[cfg(unix)]
     Daemon {
         #[command(subcommand)]
         action: cli::daemon::DaemonAction,
@@ -1180,10 +1183,13 @@ async fn main() {
             cli::doctor::handle_doctor_command(full, &format, quiet, fix).await
         }
 
+        #[cfg(unix)]
         Some(Commands::Daemon { action }) => cli::daemon::handle_daemon_command(action).await,
 
+        #[cfg(unix)]
         Some(Commands::Job { action }) => cli::jobs::handle_job_command(action).await,
 
+        #[cfg(unix)]
         Some(Commands::Cache { action }) => cli::cache_cmd::handle_cache_command(action).await,
 
         Some(Commands::New {
@@ -1249,8 +1255,11 @@ fn should_skip_auto_setup(cmd: &Option<Commands>) -> bool {
         Some(Commands::Completion { .. }) => true,
         Some(Commands::Features) => true,
         Some(Commands::Schema { .. }) => true,
+        #[cfg(unix)]
         Some(Commands::Daemon { .. }) => true,
+        #[cfg(unix)]
         Some(Commands::Cache { .. }) => true,
+        #[cfg(unix)]
         Some(Commands::Job { .. }) => true,
         Some(Commands::Doctor { .. }) => true,
         _ => {
