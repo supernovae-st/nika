@@ -517,16 +517,13 @@ jobs:
         continue-on-error: true
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # Publish npm Package
+  # Publish npm Packages (platform binaries + main wrapper)
   # ─────────────────────────────────────────────────────────────────────────────
   npm-publish:
-    name: Publish npm Package
+    name: Publish npm Packages
     needs: release
     if: ${{ !inputs.dry_run }}
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: packages/npm
 
     steps:
       - name: Checkout
@@ -540,21 +537,75 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+
       - name: Extract version from tag
         id: version
         env:
           TAG: ${{ env.RELEASE_TAG }}
         run: echo "version=${TAG#v}" >> $GITHUB_OUTPUT
 
-      - name: Sync version from tag
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: npm version "$VERSION" --no-git-tag-version
-
-      - name: Publish to npm
+      - name: Prepare and publish platform packages
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          # Map: artifact-name → npm-package-dir → binary-name
+          declare -A PLATFORMS=(
+            ["nika-macos-arm64"]="packages/nika-darwin-arm64:nika"
+            ["nika-macos-x64"]="packages/nika-darwin-x64:nika"
+            ["nika-linux-x64"]="packages/nika-linux-x64:nika"
+            ["nika-linux-arm64"]="packages/nika-linux-arm64:nika"
+            ["nika-windows-x64"]="packages/nika-win32-x64:nika.exe"
+          )
+
+          for artifact in "${!PLATFORMS[@]}"; do
+            IFS=':' read -r pkg_dir binary_name <<< "${PLATFORMS[$artifact]}"
+            echo "=== Publishing ${pkg_dir} ==="
+
+            # Extract binary from tarball/zip
+            if [[ "$artifact" == *"windows"* ]]; then
+              # Windows: zip archive
+              unzip -o "artifacts/${artifact}/${artifact}-${VERSION}.zip" -d /tmp/extract
+              cp "/tmp/extract/${artifact}-${VERSION}/nika.exe" "${pkg_dir}/${binary_name}"
+            else
+              # Unix: tarball
+              tar -xzf "artifacts/${artifact}/${artifact}-${VERSION}.tar.gz" \
+                --strip-components=1 -C /tmp/extract-unix 2>/dev/null || mkdir -p /tmp/extract-unix
+              tar -xzf "artifacts/${artifact}/${artifact}-${VERSION}.tar.gz" -C /tmp/extract-unix --strip-components=1
+              cp "/tmp/extract-unix/nika" "${pkg_dir}/${binary_name}"
+              chmod +x "${pkg_dir}/${binary_name}"
+            fi
+            rm -rf /tmp/extract /tmp/extract-unix
+
+            # Sync version
+            cd "${pkg_dir}"
+            npm version "$VERSION" --no-git-tag-version
+            npm publish --access public || echo "  -> WARN: may already exist"
+            cd ../..
+          done
+
+      - name: Publish main @supernovae/nika package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          cd packages/npm
+          # Update version in package.json and optionalDependencies
+          node -e "
+            const pkg = require('./package.json');
+            pkg.version = '$VERSION';
+            for (const dep of Object.keys(pkg.optionalDependencies || {})) {
+              pkg.optionalDependencies[dep] = '$VERSION';
+            }
+            require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+          npm publish --access public
 
   # ─────────────────────────────────────────────────────────────────────────────
   # Publish to crates.io (10 workspace crates in dependency order)
