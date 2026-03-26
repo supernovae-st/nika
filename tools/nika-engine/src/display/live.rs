@@ -51,18 +51,22 @@ pub struct LiveRenderer {
     stats: RunStats,
     /// Verbosity control.
     detail: DetailLevel,
-    /// Terminal width for layout.
-    _term_width: u16,
     /// Workflow start instant.
     start: Instant,
     /// Task start times for duration calculation: task_id → (timestamp_ms, verb).
     task_starts: HashMap<String, (u64, String)>,
+    /// Per-task token accumulator for O(1) lookup in TaskCompleted.
+    task_token_acc: HashMap<String, (u64, u64)>,
     /// Workflow start timestamp from events.
     workflow_start_ms: u64,
     /// Last rendered event ID for incremental rendering.
     last_rendered_id: Option<u64>,
     /// Whether multi is finalized (no more in-place updates).
     finalized: bool,
+    /// Cached ProgressStyle for running tasks (with spinner).
+    style_running: ProgressStyle,
+    /// Cached ProgressStyle for static tasks (pending/completed/failed/skipped).
+    style_static: ProgressStyle,
 }
 
 impl LiveRenderer {
@@ -74,24 +78,30 @@ impl LiveRenderer {
 
         let multi = MultiProgress::new();
 
-        // Separator (thin dimmed line)
+        // Separator — heavy rule ━ to distinguish from header's ─
         let sep_style =
-            ProgressStyle::with_template(spinner::SEPARATOR_TEMPLATE).expect("valid template");
+            ProgressStyle::with_template(spinner::SEPARATOR_TEMPLATE).expect("sep template");
         let separator_bar = multi.add(ProgressBar::new(0));
         separator_bar.set_style(sep_style);
-        let sep_line = "─"
+        let sep_line = "━"
             .repeat((term_width as usize).min(72))
             .dimmed()
             .to_string();
         separator_bar.set_message(sep_line);
 
-        // Overall progress bar (bottom) — added to multi now, task bars will be
-        // inserted BEFORE it in init_tasks() so they appear above.
+        // Overall progress bar (bottom) — task bars inserted BEFORE it in init_tasks()
         let overall_style = ProgressStyle::with_template(spinner::OVERALL_TEMPLATE)
-            .expect("valid template")
+            .expect("overall template")
             .progress_chars(spinner::PROGRESS_CHARS);
         let overall_bar = multi.add(ProgressBar::new(0));
         overall_bar.set_style(overall_style);
+
+        // Cache styles — ProgressStyle::clone() is cheap (Arc internals)
+        let style_running = ProgressStyle::with_template(spinner::TASK_RUNNING_TEMPLATE)
+            .expect("running template")
+            .tick_strings(spinner::TICK_STRINGS);
+        let style_static = ProgressStyle::with_template(spinner::TASK_STATIC_TEMPLATE)
+            .expect("static template");
 
         Self {
             multi,
@@ -100,31 +110,38 @@ impl LiveRenderer {
             separator_bar,
             stats: RunStats::default(),
             detail,
-            _term_width: term_width,
             start: Instant::now(),
             task_starts: HashMap::new(),
+            task_token_acc: HashMap::new(),
             workflow_start_ms: 0,
             last_rendered_id: None,
             finalized: false,
+            style_running,
+            style_static,
         }
     }
 
     /// Create a LiveRenderer with a hidden draw target (for testing).
     #[cfg(test)]
     pub fn hidden(detail: DetailLevel) -> Self {
-        let term_width = 80u16;
         let multi = MultiProgress::with_draw_target(ProgressDrawTarget::hidden());
 
         let sep_style =
-            ProgressStyle::with_template(spinner::SEPARATOR_TEMPLATE).expect("valid template");
+            ProgressStyle::with_template(spinner::SEPARATOR_TEMPLATE).expect("sep template");
         let separator_bar = multi.add(ProgressBar::new(0));
         separator_bar.set_style(sep_style);
 
         let overall_style = ProgressStyle::with_template(spinner::OVERALL_TEMPLATE)
-            .expect("valid template")
+            .expect("overall template")
             .progress_chars(spinner::PROGRESS_CHARS);
         let overall_bar = multi.add(ProgressBar::new(0));
         overall_bar.set_style(overall_style);
+
+        let style_running = ProgressStyle::with_template(spinner::TASK_RUNNING_TEMPLATE)
+            .expect("running template")
+            .tick_strings(spinner::TICK_STRINGS);
+        let style_static = ProgressStyle::with_template(spinner::TASK_STATIC_TEMPLATE)
+            .expect("static template");
 
         Self {
             multi,
@@ -133,12 +150,14 @@ impl LiveRenderer {
             separator_bar,
             stats: RunStats::default(),
             detail,
-            _term_width: term_width,
             start: Instant::now(),
             task_starts: HashMap::new(),
+            task_token_acc: HashMap::new(),
             workflow_start_ms: 0,
             last_rendered_id: None,
             finalized: false,
+            style_running,
+            style_static,
         }
     }
 
@@ -159,9 +178,7 @@ impl LiveRenderer {
         let total = task_ids.len();
         let visible = total.min(spinner::MAX_VISIBLE_TASKS);
 
-        // Static style for pending/completed bars (no spinner)
-        let static_style =
-            ProgressStyle::with_template(spinner::TASK_STATIC_TEMPLATE).expect("valid template");
+        let static_style = self.style_static.clone();
 
         for (i, task_id) in task_ids.iter().enumerate() {
             if i >= visible {
@@ -261,7 +278,7 @@ impl LiveRenderer {
     }
 
     fn format_pending(task_id: &str, deps: &[&str]) -> String {
-        let padded_id = format!("{:<16}", task_id);
+        let padded_id = Self::truncate_task_id(task_id, 16);
         let deps_str = if deps.is_empty() {
             String::new()
         } else {
@@ -270,7 +287,7 @@ impl LiveRenderer {
         format!(
             "{} {} {}  {}",
             icons::pending(),
-            "  ".normal(), // verb placeholder
+            " ".normal(), // 1-char verb placeholder (matches icon width)
             padded_id.dimmed(),
             if deps_str.is_empty() {
                 "pending".dimmed().to_string()
@@ -280,8 +297,18 @@ impl LiveRenderer {
         )
     }
 
+    /// Truncate task ID to fit within `width` columns, adding ellipsis if needed.
+    fn truncate_task_id(id: &str, width: usize) -> String {
+        if id.len() <= width {
+            format!("{:<width$}", id)
+        } else {
+            let cut = colors::floor_char_boundary(id, width - 1);
+            format!("{:<width$}", format!("{}…", &id[..cut]))
+        }
+    }
+
     fn format_running(task_id: &str, verb: &str, elapsed: &str, tokens_info: &str) -> String {
-        let padded_id = format!("{:<16}", task_id);
+        let padded_id = Self::truncate_task_id(task_id, 16);
         format!(
             "{} {} {}  {}{}",
             icons::verb(verb),
@@ -297,7 +324,7 @@ impl LiveRenderer {
     }
 
     fn format_completed(task_id: &str, verb: &str, dur_secs: f32, in_tok: u64, out_tok: u64) -> String {
-        let padded_id = format!("{:<16}", task_id);
+        let padded_id = Self::truncate_task_id(task_id, 16);
         let tok_str = if in_tok > 0 || out_tok > 0 {
             format!(
                 "  in:{} out:{}",
@@ -427,10 +454,7 @@ impl LiveRenderer {
                     tb.status = TaskStatus::Running;
 
                     // Switch to running style with spinner
-                    let running_style = ProgressStyle::with_template(spinner::TASK_RUNNING_TEMPLATE)
-                        .expect("valid template")
-                        .tick_strings(spinner::TICK_STRINGS);
-                    tb.bar.set_style(running_style);
+                    tb.bar.set_style(self.style_running.clone());
                     tb.bar.enable_steady_tick(spinner::TICK_INTERVAL);
 
                     let msg = Self::format_running(task_id, verb, "", "");
@@ -467,10 +491,7 @@ impl LiveRenderer {
 
                 if let Some(tb) = self.task_bars.get_mut(task_id.as_ref()) {
                     tb.status = TaskStatus::Completed;
-                    let static_style =
-                        ProgressStyle::with_template(spinner::TASK_STATIC_TEMPLATE)
-                            .expect("static template");
-                    tb.bar.set_style(static_style);
+                    tb.bar.set_style(self.style_static.clone());
                     let msg = Self::format_completed(task_id, &verb, dur_secs, in_tok, out_tok);
                     tb.bar.finish_with_message(msg);
                 }
@@ -509,10 +530,7 @@ impl LiveRenderer {
 
                 if let Some(tb) = self.task_bars.get_mut(task_id.as_ref()) {
                     tb.status = TaskStatus::Failed;
-                    let static_style =
-                        ProgressStyle::with_template(spinner::TASK_STATIC_TEMPLATE)
-                            .expect("static template");
-                    tb.bar.set_style(static_style);
+                    tb.bar.set_style(self.style_static.clone());
                     let msg = Self::format_failed(task_id, &verb, dur_secs, error);
                     tb.bar.finish_with_message(msg);
                 }
@@ -532,10 +550,7 @@ impl LiveRenderer {
 
                 if let Some(tb) = self.task_bars.get_mut(task_id.as_ref()) {
                     tb.status = TaskStatus::Skipped;
-                    let static_style =
-                        ProgressStyle::with_template(spinner::TASK_STATIC_TEMPLATE)
-                            .expect("static template");
-                    tb.bar.set_style(static_style);
+                    tb.bar.set_style(self.style_static.clone());
                     let msg = Self::format_skipped(task_id, reason);
                     tb.bar.finish_with_message(msg);
                 }
