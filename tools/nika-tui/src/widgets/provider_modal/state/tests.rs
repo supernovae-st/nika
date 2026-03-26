@@ -920,8 +920,14 @@ fn test_switch_tab_clears_key_input_mode() {
     // Switching tab while in input mode must clear input state
     state.switch_tab(ProviderModalTab::Cloud);
 
-    assert!(!state.key_input_mode, "key_input_mode must be cleared on tab switch");
-    assert!(state.key_input_buffer.is_empty(), "key_input_buffer must be zeroized on tab switch");
+    assert!(
+        !state.key_input_mode,
+        "key_input_mode must be cleared on tab switch"
+    );
+    assert!(
+        state.key_input_buffer.is_empty(),
+        "key_input_buffer must be zeroized on tab switch"
+    );
     assert_eq!(state.active_tab, ProviderModalTab::Cloud);
     assert_eq!(state.selected_idx, 0);
 }
@@ -966,7 +972,10 @@ fn test_set_native_models_clamps_selected_idx_when_native_tab() {
     state.set_native_models(two_models);
 
     // selected_idx must be clamped to the new max (1) and item_count must match
-    assert_eq!(state.selected_idx, 1, "selected_idx clamped to last valid index");
+    assert_eq!(
+        state.selected_idx, 1,
+        "selected_idx clamped to last valid index"
+    );
     assert_eq!(state.item_count, 2, "item_count updated to model count");
 }
 
@@ -978,5 +987,8 @@ fn test_set_native_models_no_clamp_when_not_native_tab() {
 
     state.set_native_models(vec![]); // Would clamp to 0 if tab were Native
 
-    assert_eq!(state.selected_idx, 3, "selected_idx unchanged when not on Native tab");
+    assert_eq!(
+        state.selected_idx, 3,
+        "selected_idx unchanged when not on Native tab"
+    );
 }
