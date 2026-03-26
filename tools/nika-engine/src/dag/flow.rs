@@ -579,6 +579,67 @@ impl Dag {
 }
 
 #[cfg(test)]
+mod tests_compute_layers {
+    use super::*;
+
+    #[test]
+    fn empty_graph() {
+        let depths = compute_layers(&[], &[]);
+        assert!(depths.is_empty());
+    }
+
+    #[test]
+    fn single_node() {
+        let depths = compute_layers(&["a"], &[]);
+        assert_eq!(depths["a"], 0);
+    }
+
+    #[test]
+    fn linear_chain() {
+        let depths = compute_layers(&["a", "b", "c", "d"], &[("a", "b"), ("b", "c"), ("c", "d")]);
+        assert_eq!(depths["a"], 0);
+        assert_eq!(depths["b"], 1);
+        assert_eq!(depths["c"], 2);
+        assert_eq!(depths["d"], 3);
+    }
+
+    #[test]
+    fn diamond() {
+        let depths = compute_layers(
+            &["a", "b", "c", "d"],
+            &[("a", "b"), ("a", "c"), ("b", "d"), ("c", "d")],
+        );
+        assert_eq!(depths["a"], 0);
+        assert_eq!(depths["b"], 1);
+        assert_eq!(depths["c"], 1);
+        assert_eq!(depths["d"], 2);
+    }
+
+    #[test]
+    fn ignores_unknown_edge_nodes() {
+        let depths = compute_layers(&["a", "b"], &[("a", "b"), ("a", "phantom")]);
+        assert_eq!(depths["a"], 0);
+        assert_eq!(depths["b"], 1);
+        assert!(!depths.contains_key("phantom"));
+    }
+
+    #[test]
+    fn layer_count_empty() {
+        let depths = compute_layers(&[], &[]);
+        assert_eq!(layer_count(&depths), 1); // max(empty)+1 wraps to 0+1=1
+    }
+
+    #[test]
+    fn layer_count_diamond() {
+        let depths = compute_layers(
+            &["a", "b", "c", "d"],
+            &[("a", "b"), ("a", "c"), ("b", "d"), ("c", "d")],
+        );
+        assert_eq!(layer_count(&depths), 3);
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::ast::analyzed::{
