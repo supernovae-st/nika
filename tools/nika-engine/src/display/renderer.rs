@@ -272,7 +272,7 @@ impl CliRenderer {
                     self.stats.task_timeline.push((
                         task_id.to_string(),
                         verb.clone(),
-                        start - self.workflow_start_ms,
+                        start.saturating_sub(self.workflow_start_ms),
                         *duration_ms,
                     ));
                 }
