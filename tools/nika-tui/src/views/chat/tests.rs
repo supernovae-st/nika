@@ -1389,7 +1389,9 @@ fn test_provider_id_matches_model() {
         "openai" => assert!(view.provider.model.starts_with("gpt")),
         "mistral" => assert!(view.provider.model.starts_with("mistral")),
         "groq" => {
-            assert!(view.provider.model.contains("llama") || view.provider.model.contains("mixtral"))
+            assert!(
+                view.provider.model.contains("llama") || view.provider.model.contains("mixtral")
+            )
         }
         "deepseek" => assert!(view.provider.model.starts_with("deepseek")),
         "none" => assert!(view.provider.model == "No API Key"), // CI without keys

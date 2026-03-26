@@ -363,10 +363,7 @@ mod tests {
         });
         let schema = json_to_schema_strict(&example);
         assert_eq!(schema["additionalProperties"], false);
-        assert_eq!(
-            schema["properties"]["user"]["additionalProperties"],
-            false
-        );
+        assert_eq!(schema["properties"]["user"]["additionalProperties"], false);
         assert_eq!(
             schema["properties"]["settings"]["additionalProperties"],
             false

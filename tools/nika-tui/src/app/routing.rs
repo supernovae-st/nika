@@ -93,7 +93,11 @@ impl App {
             // ═══ Pause/Step ═══
             Action::TogglePause => {
                 self.state.toggle_pause();
-                let label = if self.state.workflow.paused { "Paused" } else { "Resumed" };
+                let label = if self.state.workflow.paused {
+                    "Paused"
+                } else {
+                    "Resumed"
+                };
                 self.set_status(label);
             }
             Action::Step => {
@@ -133,12 +137,10 @@ impl App {
             Action::RetryWorkflow => {
                 self.retry_workflow();
             }
-            Action::ExportTrace => {
-                match self.command_view.chat.export_session(None) {
-                    Ok(path) => self.set_status(&format!("Exported: {path}")),
-                    Err(e) => self.set_status(&format!("Export failed: {e}")),
-                }
-            }
+            Action::ExportTrace => match self.command_view.chat.export_session(None) {
+                Ok(path) => self.set_status(&format!("Exported: {path}")),
+                Err(e) => self.set_status(&format!("Export failed: {e}")),
+            },
 
             // ═══ Breakpoints ═══
             Action::ToggleBreakpoint => {
@@ -344,15 +346,22 @@ impl App {
                         self.command_view.chat.add_system_message(msg);
                     }
                     McpAction::Select(servers) => {
-                        self.command_view.chat.set_mcp_servers(servers.iter().cloned());
+                        self.command_view
+                            .chat
+                            .set_mcp_servers(servers.iter().cloned());
                         self.set_status("MCP servers updated");
                     }
                     McpAction::Toggle(server) => {
                         let servers = &mut self.command_view.chat.session_context.mcp_servers;
                         if let Some(s) = servers.iter_mut().find(|s| s.name == server) {
                             use crate::widgets::McpStatus;
-                            let was_cold = s.status == McpStatus::Cold || s.status == McpStatus::Error;
-                            s.status = if was_cold { McpStatus::Connected } else { McpStatus::Cold };
+                            let was_cold =
+                                s.status == McpStatus::Cold || s.status == McpStatus::Error;
+                            s.status = if was_cold {
+                                McpStatus::Connected
+                            } else {
+                                McpStatus::Cold
+                            };
                             let label = if was_cold { "enabled" } else { "disabled" };
                             self.set_status(&format!("MCP server '{}' {}", server, label));
                         } else {

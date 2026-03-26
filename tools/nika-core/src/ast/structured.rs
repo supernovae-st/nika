@@ -424,7 +424,10 @@ from_example: ./structure.json
 enable_repair: true
 "#;
         let spec: StructuredOutputSpec = serde_yaml::from_str(yaml).unwrap();
-        assert!(spec.schema.is_none(), "schema should be None when from_example is set");
+        assert!(
+            spec.schema.is_none(),
+            "schema should be None when from_example is set"
+        );
         assert!(spec.from_example.is_some());
         assert!(
             matches!(spec.from_example.as_ref().unwrap(), SchemaRef::File(ref p) if p == "./structure.json")
@@ -441,7 +444,10 @@ from_example:
 "#;
         let spec: StructuredOutputSpec = serde_yaml::from_str(yaml).unwrap();
         assert!(spec.from_example.is_some());
-        assert!(matches!(spec.from_example.as_ref().unwrap(), SchemaRef::Inline(_)));
+        assert!(matches!(
+            spec.from_example.as_ref().unwrap(),
+            SchemaRef::Inline(_)
+        ));
     }
 
     #[test]

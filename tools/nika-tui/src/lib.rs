@@ -220,10 +220,8 @@ fn install_signal_handlers() {
         // Blocks on epoll/kqueue — no CPU-wasting poll loop
         if let Some(sig) = signals.forever().next() {
             let _ = crossterm::terminal::disable_raw_mode();
-            let _ = crossterm::execute!(
-                std::io::stdout(),
-                crossterm::terminal::LeaveAlternateScreen
-            );
+            let _ =
+                crossterm::execute!(std::io::stdout(), crossterm::terminal::LeaveAlternateScreen);
             std::process::exit(128 + sig);
         }
     });

@@ -94,8 +94,7 @@ impl OutputPolicy {
     /// Returns true when format is JSON and a schema is provided.
     /// This is used by the executor to decide whether to use StructuredOutputEngine.
     pub fn is_structured(&self) -> bool {
-        self.format == OutputFormat::Json
-            && (self.schema.is_some() || self.from_example.is_some())
+        self.format == OutputFormat::Json && (self.schema.is_some() || self.from_example.is_some())
     }
 
     /// Convert to StructuredOutputSpec for use with StructuredOutputEngine.

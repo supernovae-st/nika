@@ -289,11 +289,7 @@ mod tests {
         assert_eq!(sf.width, 200);
         assert_eq!(sf.height, 50);
         assert!(sf.stars.len() > 200, "too few stars: {}", sf.stars.len());
-        assert!(
-            sf.stars.len() < 1000,
-            "too many stars: {}",
-            sf.stars.len()
-        );
+        assert!(sf.stars.len() < 1000, "too many stars: {}", sf.stars.len());
     }
 
     #[test]
