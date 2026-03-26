@@ -345,14 +345,8 @@ impl InferBox {
         ]);
         items.push(ListItem::new(prompt_header));
 
-        // Prompt content - use streaming partial if available, otherwise stored prompt
-        if ctx.is_streaming && !ctx.partial_response.is_empty() {
-            let prompt_line = Line::from(vec![
-                Span::styled("│ ", border_style),
-                Span::styled(format!("┊ {}", ctx.partial_response), content_style),
-            ]);
-            items.push(ListItem::new(prompt_line));
-        } else if self.expanded_prompt {
+        // Prompt content - always show the actual prompt (partial_response belongs in RESPONSE)
+        if self.expanded_prompt {
             // Show full prompt with line breaks when expanded
             for line in self.prompt.lines() {
                 let prompt_line = Line::from(vec![
