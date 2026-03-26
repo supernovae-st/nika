@@ -1281,3 +1281,155 @@ fn run_stats_apply_ignores_unrelated_events() {
     assert_eq!(stats.mcp_calls, 0);
     assert_eq!(stats.total_input_tokens, 0);
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// 15. Must-fix coverage: format_event branch tests
+// ═══════════════════════════════════════════════════════════════════════
+
+// ── fmt_http_response: 3-way status code coloring + optional fields ──
+
+#[test]
+fn fmt_http_response_success() {
+    let out = strip_ansi(&format_event::fmt_http_response(200, Some("application/json"), Some(1024), 150));
+    assert!(out.contains("200"));
+    assert!(out.contains("application/json"));
+    assert!(out.contains("150ms"));
+}
+
+#[test]
+fn fmt_http_response_redirect() {
+    let out = strip_ansi(&format_event::fmt_http_response(301, None, None, 50));
+    assert!(out.contains("301"));
+    assert!(out.contains("?"), "default for None content_type should be '?'");
+}
+
+#[test]
+fn fmt_http_response_error() {
+    let out = strip_ansi(&format_event::fmt_http_response(500, Some("text/html"), Some(256), 3000));
+    assert!(out.contains("500"));
+    assert!(out.contains("3000ms"));
+}
+
+// ── fmt_mcp_response: 4 combinations of cached/error flags ───────────
+
+#[test]
+fn fmt_mcp_response_basic() {
+    let out = strip_ansi(&format_event::fmt_mcp_response("42", 1024, 150, false, false));
+    assert!(out.contains("call:42"));
+    assert!(!out.contains("cached"));
+}
+
+#[test]
+fn fmt_mcp_response_cached() {
+    let out = strip_ansi(&format_event::fmt_mcp_response("1", 512, 5, true, false));
+    assert!(out.contains("cached"));
+}
+
+#[test]
+fn fmt_mcp_response_error() {
+    let out = strip_ansi(&format_event::fmt_mcp_response("1", 0, 100, false, true));
+    assert!(!out.contains("cached"));
+}
+
+#[test]
+fn fmt_mcp_response_cached_and_error() {
+    let out = strip_ansi(&format_event::fmt_mcp_response("7", 256, 80, true, true));
+    assert!(out.contains("cached"), "should show cached tag");
+    assert!(out.contains("call:7"), "should contain call id");
+}
+
+// ── fmt_provider_responded: tokens + optional ttft ───────────────────
+
+#[test]
+fn fmt_provider_responded_with_ttft() {
+    let out = strip_ansi(&format_event::fmt_provider_responded(500, 200, 100, Some(45)));
+    assert!(out.contains("in:"));
+    assert!(out.contains("out:"));
+    assert!(out.contains("cache:"));
+    assert!(out.contains("ttft:45"));
+}
+
+#[test]
+fn fmt_provider_responded_no_ttft() {
+    let out = strip_ansi(&format_event::fmt_provider_responded(1000, 50, 0, None));
+    assert!(out.contains("in:"));
+    assert!(!out.contains("ttft"));
+}
+
+// ── fmt_context_assembled: budget warning threshold ──────────────────
+
+#[test]
+fn fmt_context_assembled_normal() {
+    let out = strip_ansi(&format_event::fmt_context_assembled(3, 5000, 50.0));
+    assert!(out.contains("3 src"));
+    assert!(!out.contains('\u{26A0}'), "should NOT have warning emoji below 90%");
+}
+
+#[test]
+fn fmt_context_assembled_budget_warning() {
+    let out = strip_ansi(&format_event::fmt_context_assembled(5, 12000, 95.0));
+    assert!(out.contains("5 src"));
+    // Warning emoji (⚠) should appear above 90%
+    assert!(out.contains('\u{26A0}'), "should have warning emoji above 90%");
+}
+
+// ── Negative tests for boolean-flag formatters ───────────────────────
+
+#[test]
+fn fmt_native_model_loaded_no_vision() {
+    let out = strip_ansi(&format_event::fmt_native_model_loaded("llama-3.2", "gguf", 3000, false));
+    assert!(!out.contains("+vision"));
+    assert!(out.contains("llama-3.2"));
+}
+
+#[test]
+fn fmt_binding_env_not_found() {
+    let out = strip_ansi(&format_event::fmt_binding_env("MISSING_KEY", false));
+    assert!(out.contains("$env.MISSING_KEY"));
+    assert!(!out.contains('\u{2713}'), "should NOT have success checkmark");
+}
+
+#[test]
+fn fmt_provider_initialized_not_cached() {
+    let out = strip_ansi(&format_event::fmt_provider_initialized("anthropic", "claude-sonnet-4", false));
+    assert!(!out.contains("cached"));
+    assert!(out.contains("anthropic"));
+}
+
+#[test]
+fn fmt_builtin_tool_invoked_failure() {
+    let out = strip_ansi(&format_event::fmt_builtin_tool_invoked("nika:write", 200, false));
+    assert!(out.contains("nika:write"));
+    assert!(!out.contains('\u{2713}'), "should NOT have success checkmark");
+}
+
+// ── fmt_for_each_completed: both branches ────────────────────────────
+
+#[test]
+fn fmt_for_each_completed_all_ok() {
+    let out = strip_ansi(&format_event::fmt_for_each_completed("process", 10, 10, 0));
+    assert!(out.contains("10/10 ok"));
+    assert!(!out.contains("failed"));
+}
+
+#[test]
+fn fmt_for_each_completed_with_failures() {
+    let out = strip_ansi(&format_event::fmt_for_each_completed("process", 10, 7, 3));
+    assert!(out.contains("7/10 ok"));
+    assert!(out.contains("3 failed"));
+}
+
+// ── fmt_exec_completed: both branches ────────────────────────────────
+
+#[test]
+fn fmt_exec_completed_success() {
+    let out = strip_ansi(&format_event::fmt_exec_completed(0, 150));
+    assert!(out.contains("exit:0"));
+    assert!(out.contains("150ms"));
+}
+
+#[test]
+fn fmt_exec_completed_failure() {
+    let out = strip_ansi(&format_event::fmt_exec_completed(1, 500));
+    assert!(out.contains("exit:1"));
+}
