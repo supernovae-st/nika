@@ -5419,6 +5419,7 @@ dependencies = [
  "miette",
  "mistralrs",
  "nika-core",
+ "nika-daemon",
  "nika-event",
  "nika-init",
  "nika-lsp-core",
