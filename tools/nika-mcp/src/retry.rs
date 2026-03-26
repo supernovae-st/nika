@@ -79,8 +79,14 @@ pub fn is_retryable_mcp_error(error: &McpError) -> bool {
     match error {
         McpError::McpTimeout { .. }
         | McpError::McpNotConnected { .. }
-        | McpError::McpToolCallFailed { .. }
         | McpError::McpProtocolError { .. } => true,
+
+        // Tool call failures have no error code — cannot distinguish transient
+        // from permanent. Only retry if the reason suggests transience.
+        McpError::McpToolCallFailed { reason, .. } => {
+            let r = reason.to_lowercase();
+            r.contains("timeout") || r.contains("unavailable") || r.contains("overloaded")
+        }
 
         // Tool errors: only retry if the error code is retryable (server-side)
         // InvalidParams, MethodNotFound etc. will always fail on retry
