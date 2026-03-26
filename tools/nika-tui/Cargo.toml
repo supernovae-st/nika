@@ -61,9 +61,7 @@ tree-sitter = "0.24"
 tree-sitter-yaml = "0.7"
 streaming-iterator = "0.1"
 
-# Git integration
-git2 = "0.19"
-openssl = { version = "0.10", features = ["vendored"] }
+# Git integration (via CLI — no git2/openssl C compilation)
 
 # Unicode text handling
 unicode-width = "0.2"
