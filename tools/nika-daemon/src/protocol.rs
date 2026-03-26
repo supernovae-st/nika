@@ -111,7 +111,11 @@ pub enum DaemonRequest {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// A response from the daemon to a client.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+///
+/// # Debug
+/// The `Debug` impl redacts `Secret { value }` to prevent API key leakage
+/// in tracing output. All other variants print their type tag only.
+#[derive(Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type")]
 pub enum DaemonResponse {
     /// Generic success (no payload).
@@ -201,6 +205,34 @@ pub enum DaemonResponse {
     // ── Lifecycle ─────────────────────────────────────────────────────────
     /// Acknowledgement that daemon is shutting down.
     ShuttingDown,
+}
+
+impl std::fmt::Debug for DaemonResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Type-tag only to prevent any future debug!(?response) from leaking API keys.
+        // Secret variant is explicitly redacted.
+        let tag = match self {
+            Self::Ok => "Ok",
+            Self::Error { .. } => "Error",
+            Self::Pong { .. } => "Pong",
+            Self::StatusInfo { .. } => "StatusInfo",
+            Self::Secret { .. } => "Secret(<redacted>)",
+            Self::SecretExists { .. } => "SecretExists",
+            Self::SecretList { .. } => "SecretList",
+            Self::JobCreated { .. } => "JobCreated",
+            Self::JobList { .. } => "JobList",
+            Self::JobDetail { .. } => "JobDetail",
+            Self::JobHistoryList { .. } => "JobHistoryList",
+            Self::WatchActive { .. } => "WatchActive",
+            Self::WatchInactive => "WatchInactive",
+            Self::CacheHit { .. } => "CacheHit",
+            Self::CacheMiss => "CacheMiss",
+            Self::CacheStatsResult { .. } => "CacheStatsResult",
+            Self::Event { .. } => "Event",
+            Self::ShuttingDown => "ShuttingDown",
+        };
+        write!(f, "DaemonResponse::{tag}")
+    }
 }
 
 /// Information about a provider's secret status.
