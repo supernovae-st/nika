@@ -189,7 +189,7 @@ jobs:
           echo "For now, manual review suffices."
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # STATION 9-10: Process Checkpoints (Fast, parallel)
+  # STATION 10-11: Process Checkpoints (Fast, parallel)
   # ═══════════════════════════════════════════════════════════════════════════
   station-10-commits:
     name: "📝 Station 10: Ship's Log"
@@ -223,13 +223,10 @@ jobs:
       - uses: actions/checkout@v6
       - name: Enforce 0.x.x version (Captain's Orders)
         run: |
-          if [[ -f "tools/nika/Cargo.toml" ]]; then
-            CARGO_FILE="tools/nika/Cargo.toml"
-          elif [[ -f "Cargo.toml" ]]; then
+          # Read from workspace Cargo.toml (working-directory is tools/nika)
+          CARGO_FILE="../../tools/Cargo.toml"
+          if [[ ! -f "$CARGO_FILE" ]]; then
             CARGO_FILE="Cargo.toml"
-          else
-            echo "::error::Could not find Cargo.toml"
-            exit 1
           fi
 
           VERSION=$(grep '^version = ' "$CARGO_FILE" | head -1 | sed 's/version = "\(.*\)"/\1/')

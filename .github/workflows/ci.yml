@@ -466,7 +466,7 @@ jobs:
       - name: Extract version from Cargo.toml
         id: version
         run: |
-          VER=$(grep '^version' tools/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          VER=$(grep '^version = ' ../../tools/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
           echo "nika_version=v${VER}" >> $GITHUB_OUTPUT
 
       - name: Generate summary comment
