@@ -165,7 +165,7 @@ pub(crate) fn floor_char_boundary(s: &str, i: usize) -> usize {
 ///
 /// Uses a safe char-boundary truncation to avoid splitting multi-byte characters.
 pub(crate) fn json_preview(json: &str, max_chars: usize) -> String {
-    let truncated = if json.len() > max_chars {
+    let truncated = if stripped_len(json) > max_chars {
         let end = floor_char_boundary(json, max_chars);
         format!("{}\u{2026}", &json[..end]) // … ellipsis
     } else {
