@@ -1056,6 +1056,22 @@ impl EventLog {
         })
     }
 
+    /// Iterate over events since `since_id` without cloning.
+    ///
+    /// The closure receives a slice of events that have not yet been rendered.
+    /// Uses `partition_point` for O(log n) lookup since event IDs are monotonically
+    /// increasing.
+    pub fn with_events_since<R>(&self, since_id: Option<u64>, f: impl FnOnce(&[Event]) -> R) -> R {
+        self.with_events(|events| {
+            if let Some(last_id) = since_id {
+                let start = events.partition_point(|e| e.id <= last_id);
+                f(&events[start..])
+            } else {
+                f(events)
+            }
+        })
+    }
+
     /// Number of events
     pub fn len(&self) -> usize {
         self.events.read().len()
