@@ -104,7 +104,9 @@ jobs:
 
       - name: Run unit tests (--lib, all workspace crates)
         working-directory: tools/nika
-        run: cargo nextest run --workspace --lib 2>&1 | tee /tmp/test-results.txt
+        run: |
+          set -o pipefail
+          cargo nextest run --workspace --lib 2>&1 | tee /tmp/test-results.txt
 
       - name: Run doc tests
         working-directory: tools/nika
@@ -113,7 +115,7 @@ jobs:
       - name: Output test summary
         if: always()
         run: |
-          PASSED=$(grep -E 'tests? passed' /tmp/test-results.txt | grep -oE '[0-9]+' | head -1 || echo '0')
+          PASSED=$(grep -oE '[0-9]+ passed' /tmp/test-results.txt | grep -oE '[0-9]+' | head -1 || echo '0')
           echo "### Tests (${{ matrix.os }})" >> "$GITHUB_STEP_SUMMARY"
           echo "Tests passed: **$PASSED**" >> "$GITHUB_STEP_SUMMARY"
 
@@ -239,7 +241,7 @@ jobs:
         working-directory: tools/nika
         run: |
           rm -rf ~/.cargo/advisory-db || true
-          cargo audit 2>&1 || true
+          cargo audit --deny warnings
 
       - name: cargo deny (licenses + bans + sources)
         working-directory: tools/nika

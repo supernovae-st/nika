@@ -379,7 +379,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest,enable=true
             type=sha,prefix=sha-,format=short
 
       - name: Build and push
@@ -790,7 +790,7 @@ jobs:
           for crate in "${CRATES[@]}"; do
             echo "=== Publishing ${crate} ==="
             cd "tools/${crate}"
-            cargo publish --allow-dirty 2>&1 || echo "  -> WARN: ${crate} may already exist at this version"
+            cargo publish 2>&1 || echo "  -> WARN: ${crate} may already exist at this version (skipping)"
             echo "  -> Waiting 30s for index propagation..."
             sleep 30
             cd ../..
@@ -1040,7 +1040,7 @@ jobs:
           echo "total_count=${TOTAL}" >> $GITHUB_OUTPUT
 
       - name: "Message 1: Header + Changelog"
-        if: ${{ secrets.TELEGRAM_BOT_TOKEN != '' }}
+        if: ${{ secrets.TELEGRAM_BOT_TOKEN != '' && secrets.TELEGRAM_CHAT_ID != '' }}
         uses: appleboy/telegram-action@v2
         with:
           to: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -1056,7 +1056,7 @@ jobs:
             <a href="https://github.com/supernovae-st/nika/releases/tag/${{ env.RELEASE_TAG }}">View release</a>
 
       - name: "Message 2: Platform status"
-        if: ${{ secrets.TELEGRAM_BOT_TOKEN != '' }}
+        if: ${{ secrets.TELEGRAM_BOT_TOKEN != '' && secrets.TELEGRAM_CHAT_ID != '' }}
         uses: appleboy/telegram-action@v2
         with:
           to: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -1076,7 +1076,7 @@ jobs:
             ${{ needs.update-aur.result == 'success' && '✅' || needs.update-aur.result == 'skipped' && '⏭️' || '⚠️' }} AUR (nika-bin)
 
       - name: "Message 3: Stats"
-        if: ${{ secrets.TELEGRAM_BOT_TOKEN != '' }}
+        if: ${{ secrets.TELEGRAM_BOT_TOKEN != '' && secrets.TELEGRAM_CHAT_ID != '' }}
         uses: appleboy/telegram-action@v2
         with:
           to: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -1094,7 +1094,7 @@ jobs:
             📦 ${{ steps.stats.outputs.npm_count }} npm platform packages
 
       - name: "Message 4: One-liner"
-        if: ${{ secrets.TELEGRAM_BOT_TOKEN != '' }}
+        if: ${{ secrets.TELEGRAM_BOT_TOKEN != '' && secrets.TELEGRAM_CHAT_ID != '' }}
         uses: appleboy/telegram-action@v2
         with:
           to: ${{ secrets.TELEGRAM_CHAT_ID }}
