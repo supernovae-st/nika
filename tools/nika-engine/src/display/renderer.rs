@@ -1033,9 +1033,15 @@ use super::colors::{floor_char_boundary, stripped_len};
 /// Returns a Vec of pre-formatted lines (with ANSI colors and box characters)
 /// ready for printing. Returns empty Vec if output is null/empty.
 pub(crate) fn format_output_preview(output: &Value, term_width: u16) -> Vec<String> {
-    let text = match output {
-        Value::String(s) => s.clone(),
-        _ => serde_json::to_string_pretty(output).unwrap_or_default(),
+    // Use Cow to avoid cloning large LLM output strings (often 10KB+)
+    // when we only need the first few lines for the preview box.
+    let owned;
+    let text: &str = match output {
+        Value::String(s) => s.as_str(),
+        _ => {
+            owned = serde_json::to_string_pretty(output).unwrap_or_default();
+            &owned
+        }
     };
 
     if text.is_empty() || text == "null" {
@@ -1066,7 +1072,7 @@ pub(crate) fn format_output_preview(output: &Value, term_width: u16) -> Vec<Stri
     let preview_lines: Vec<String> = if is_json {
         vec![colors::json_preview(&text.replace('\n', " "), max_width)]
     } else if is_markdown {
-        colors::markdown_preview(&text, 4)
+        colors::markdown_preview(text, 4)
             .into_iter()
             .map(|l| {
                 if stripped_len(&l) > max_width {
