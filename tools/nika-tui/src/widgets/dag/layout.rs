@@ -9,8 +9,17 @@
 //! 2. Order nodes within each layer
 //! 3. Compute x/y coordinates based on spacing config
 
-use rustc_hash::FxHashMap;
 use std::collections::VecDeque;
+use std::hash::{Hash, Hasher};
+use std::sync::{LazyLock, Mutex};
+
+use rustc_hash::FxHashMap;
+
+/// PERF(M8): Static layout cache. DagAscii is ephemeral (created fresh each frame)
+/// but layout is deterministic from (nodes, deps, config). Cache avoids recomputing
+/// the O(N³) Sugiyama algorithm every frame when structure hasn't changed.
+static LAYOUT_CACHE: LazyLock<Mutex<Option<(u64, DagLayout)>>> =
+    LazyLock::new(|| Mutex::new(None));
 
 /// Position of a node in the DAG layout
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -109,6 +118,16 @@ impl DagLayout {
             };
         }
 
+        // PERF(M8): Check static cache before expensive computation
+        let hash = Self::compute_input_hash(nodes, config, node_widths);
+        if let Ok(guard) = LAYOUT_CACHE.lock() {
+            if let Some((cached_hash, cached_layout)) = guard.as_ref() {
+                if *cached_hash == hash {
+                    return cached_layout.clone();
+                }
+            }
+        }
+
         // Step 1: Assign layers via topological sort
         let layer_assignments = Self::assign_layers(nodes);
 
@@ -118,7 +137,46 @@ impl DagLayout {
         // Step 3: Compute positions
         let positions = Self::compute_positions(&layers, config, node_widths);
 
-        Self { positions, layers }
+        let layout = Self { positions, layers };
+
+        // Store in cache
+        if let Ok(mut guard) = LAYOUT_CACHE.lock() {
+            *guard = Some((hash, layout.clone()));
+        }
+
+        layout
+    }
+
+    /// Hash all inputs that determine layout output.
+    fn compute_input_hash(
+        nodes: &[LayoutNode<'_>],
+        config: &LayoutConfig,
+        node_widths: Option<&FxHashMap<String, u16>>,
+    ) -> u64 {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        nodes.len().hash(&mut hasher);
+        for node in nodes {
+            node.id.hash(&mut hasher);
+            node.dependencies.len().hash(&mut hasher);
+            for dep in &node.dependencies {
+                dep.hash(&mut hasher);
+            }
+        }
+        config.h_spacing.hash(&mut hasher);
+        config.v_spacing.hash(&mut hasher);
+        config.max_node_width.hash(&mut hasher);
+        config.expanded.hash(&mut hasher);
+        if let Some(widths) = node_widths {
+            widths.len().hash(&mut hasher);
+            // Sort keys for deterministic hashing
+            let mut keys: Vec<_> = widths.keys().collect();
+            keys.sort();
+            for key in keys {
+                key.hash(&mut hasher);
+                widths[key].hash(&mut hasher);
+            }
+        }
+        hasher.finish()
     }
 
     /// Get position for a node by ID
