@@ -1196,6 +1196,44 @@ impl LiveRenderer {
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// Renderer trait impl for LiveRenderer
+// ═══════════════════════════════════════════════════════════════════════
+
+impl super::renderer::Renderer for LiveRenderer {
+    fn set_task_layers(&mut self, _layers: HashMap<Arc<str>, usize>) {
+        // LiveRenderer doesn't use layer separators — tasks are always visible in the fixed area.
+    }
+
+    fn init_tasks(&mut self, task_ids: &[String], task_deps: &HashMap<String, Vec<String>>) {
+        LiveRenderer::init_tasks(self, task_ids, task_deps);
+    }
+
+    fn last_rendered_id(&self) -> Option<u64> {
+        self.last_rendered_id
+    }
+
+    fn render_kind(&mut self, kind: &EventKind) {
+        LiveRenderer::render_kind(self, kind);
+    }
+
+    fn render_new_events(&mut self, events: &[Event]) {
+        LiveRenderer::render_new_events(self, events);
+    }
+
+    fn render_summary(&mut self, total_duration_ms: u64, trace_path: Option<&str>) {
+        LiveRenderer::render_summary(self, total_duration_ms, trace_path);
+    }
+
+    fn render_quiet_summary(&mut self, total_duration_ms: u64) {
+        LiveRenderer::render_quiet_summary(self, total_duration_ms);
+    }
+
+    fn stats(&self) -> &super::renderer::RunStats {
+        &self.stats
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

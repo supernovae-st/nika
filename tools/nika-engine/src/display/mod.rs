@@ -32,7 +32,7 @@ pub use check::{
 pub use dag_render::{render_dag, DagTask, DagTaskStatus};
 pub use detail::DetailLevel;
 pub use live::LiveRenderer;
-pub use renderer::CliRenderer;
+pub use renderer::{CliRenderer, Renderer};
 pub use run_renderer::RunRenderer;
 pub use summary::{
     format_doctor_header, format_doctor_summary, format_done_summary, format_run_summary,

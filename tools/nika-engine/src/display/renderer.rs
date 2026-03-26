@@ -2,6 +2,8 @@
 //!
 //! Receives Event structs from the runner and prints formatted lines.
 //! NO ANSI cursor movement. Every print is a simple println!().
+//!
+//! Also defines the `Renderer` trait — the shared interface for all display backends.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -11,7 +13,34 @@ use colored::Colorize;
 use serde_json::Value;
 
 use crate::display::{colors, icons, DetailLevel};
-use crate::event::EventKind;
+use crate::event::{Event, EventKind};
+
+// ═══════════════════════════════════════════════════════════════════════
+// Renderer trait
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Shared interface for all display backends (CLI, Live, Test).
+///
+/// Enables the runner to be generic over display strategy — animated indicatif
+/// spinners, plain append-only println, JSON NDJSON, or a test mock.
+pub trait Renderer {
+    /// Set task-to-DAG-layer mapping. Default: no-op.
+    fn set_task_layers(&mut self, _layers: HashMap<Arc<str>, usize>) {}
+    /// Initialize per-task display state. Default: no-op.
+    fn init_tasks(&mut self, _task_ids: &[String], _task_deps: &HashMap<String, Vec<String>>) {}
+    /// ID of the last rendered event.
+    fn last_rendered_id(&self) -> Option<u64>;
+    /// Render a single EventKind (synthesizes temporary Event).
+    fn render_kind(&mut self, kind: &EventKind);
+    /// Render all events newer than last_rendered_id.
+    fn render_new_events(&mut self, events: &[Event]);
+    /// Render full summary footer.
+    fn render_summary(&mut self, total_duration_ms: u64, trace_path: Option<&str>);
+    /// Render compact one-line summary.
+    fn render_quiet_summary(&mut self, total_duration_ms: u64);
+    /// Access accumulated stats.
+    fn stats(&self) -> &RunStats;
+}
 
 /// Accumulated stats for the summary.
 #[derive(Debug, Default)]
@@ -1163,6 +1192,42 @@ impl CliRenderer {
     /// Render the full summary footer.
     pub fn render_summary(&self, total_duration_ms: u64, trace_path: Option<&str>) {
         super::summary::print_run_summary(&self.stats, self.detail, total_duration_ms, trace_path);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Renderer trait impl for CliRenderer
+// ═══════════════════════════════════════════════════════════════════════
+
+impl Renderer for CliRenderer {
+    fn set_task_layers(&mut self, layers: HashMap<Arc<str>, usize>) {
+        self.task_layers = layers;
+    }
+
+    // init_tasks: uses default no-op (CliRenderer has no progress bars to set up)
+
+    fn last_rendered_id(&self) -> Option<u64> {
+        self.last_rendered_id
+    }
+
+    fn render_kind(&mut self, kind: &EventKind) {
+        CliRenderer::render_kind(self, kind);
+    }
+
+    fn render_new_events(&mut self, events: &[Event]) {
+        CliRenderer::render_new_events(self, events);
+    }
+
+    fn render_summary(&mut self, total_duration_ms: u64, trace_path: Option<&str>) {
+        super::summary::print_run_summary(&self.stats, self.detail, total_duration_ms, trace_path);
+    }
+
+    fn render_quiet_summary(&mut self, total_duration_ms: u64) {
+        super::summary::print_run_quiet_summary(&self.stats, total_duration_ms);
+    }
+
+    fn stats(&self) -> &RunStats {
+        &self.stats
     }
 }
 
