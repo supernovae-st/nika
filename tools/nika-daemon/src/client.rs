@@ -137,6 +137,20 @@ impl DaemonClient {
         decode_message(&mut reader).await
     }
 
+    /// Request the daemon to shut down gracefully.
+    pub async fn shutdown(&self) -> DaemonResult<()> {
+        match self.send(DaemonRequest::Shutdown).await? {
+            DaemonResponse::ShuttingDown => Ok(()),
+            DaemonResponse::Error { code, message } => {
+                Err(DaemonError::RemoteError { code, message })
+            }
+            other => Err(DaemonError::Protocol(format!(
+                "unexpected response to Shutdown: {:?}",
+                other
+            ))),
+        }
+    }
+
     /// Get the socket path this client targets.
     pub fn socket_path(&self) -> &Path {
         &self.socket_path
@@ -304,6 +318,19 @@ mod tests {
         let client = DaemonClient::new(&sock).with_timeout(Duration::from_millis(100));
         let result = client.send(DaemonRequest::Ping).await;
         assert!(matches!(result.unwrap_err(), DaemonError::Timeout { .. }));
+    }
+
+    #[tokio::test]
+    async fn client_shutdown_returns_ok() {
+        let dir = tempfile::tempdir().unwrap();
+        let sock = dir.path().join("test.sock");
+
+        let response = DaemonResponse::ShuttingDown;
+        mock_server(&sock, response).await;
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        let client = DaemonClient::new(&sock);
+        client.shutdown().await.unwrap();
     }
 
     #[tokio::test]
