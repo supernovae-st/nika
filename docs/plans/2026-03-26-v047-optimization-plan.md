@@ -127,34 +127,65 @@ Return reference or Cow instead of owned clone.
 
 ## Architecture Issues (from rust-architect)
 
-### A1: Unify Model / Models commands
+### A1: Provider command behind TUI feature gate
 
-Currently `nika model` (gated) and `nika models` (always) are separate.
-Should be one command with feature-gated subcommands.
+`nika provider` disappears without TUI feature. Move to nika-cli. 5-min fix.
 
-### A2: VerbRunner abstraction
-
-4 handle_* functions share ~60% boilerplate. Extract into VerbRunner struct.
-
-### A3: Provider command behind TUI feature gate
-
-`nika provider` disappears without TUI feature. Should always be available.
-
-### A4: Layer 0 tool injection for from_example
+### A2: Layer 0 tool injection for from_example
 
 `policy.schema` is None for from_example tasks → Layer 0 DynamicSubmitTool
-injection skipped. Need to resolve schema before tool injection.
+injection skipped. Need to resolve schema from example before tool injection.
+
+### A3: Model/Models — confirmed by-design (no action needed)
+
+### A4: VerbRunner — already resolved (verbs split into per-verb modules)
+
+---
+
+## Architecture (from rust-architect, 317k LOC audit)
+
+### ARCH-1: Extract nika-init crate (HIGH — saves ~13% compile)
+
+`init/` module is 20,872 LOC of pure code generation (courses, showcases,
+scaffolds). Zero runtime coupling. Moving to `nika-init` crate eliminates
+recompilation of engine when init code changes.
+
+### ARCH-2: Move builtin media tools to nika-media (HIGH — saves ~7% compile)
+
+24 media tools (11k LOC prod) live in `nika-engine/src/runtime/builtin/media/`.
+They already depend on `nika-media` for CAS. Moving implementations there
+eliminates duplicate deps (blake3, infer, imagesize, thumbhash).
+
+### ARCH-3: Split NikaError (91 variants → per-crate errors)
+
+Current: monolithic 91-variant enum with NIKA-160 collision. Manual 60-line
+`From<McpError>` conversion. 125-line `code()` match.
+
+Target: `EngineError` (~30 variants), `RuntimeError`, `InitError`, keep
+existing `CoreError` (3), `McpError`, `EventError`.
+
+### ARCH-4: Seal nika-engine public API
+
+21 `pub mod` declarations leak internals. Change `io`, `util`, `new`, `secrets`
+to `pub(crate)`. Replace wildcard re-exports with explicit type lists.
+
+### ARCH-5: Extract ContentBlock to nika-core
+
+Breaks `nika-media → nika-mcp` dependency (imported for 1 enum).
 
 ---
 
 ## Execution Order
 
-| Phase | Tasks | Estimated LOC |
-|-------|-------|--------------|
-| 1 | H1 + H2 (TUI frame perf) | ~80 |
-| 2 | H3 + H4 (schema caching) | ~60 |
-| 3 | M1-M5 (runtime clones) | ~120 |
-| 4 | M6-M9 (TUI memory + render) | ~100 |
-| 5 | A1-A4 (architecture) | ~200 |
-| 6 | Low priority items | ~100 |
+| Phase | Tasks | Estimated LOC | Impact |
+|-------|-------|--------------|--------|
+| 1 | H1 + H2 (TUI frame perf) | ~80 | 10x fewer cell writes/frame |
+| 2 | H3 + H4 (schema caching) | ~60 | 10-50ms saved per retry |
+| 3 | M1-M5 (runtime clones) | ~120 | Less GC pressure |
+| 4 | M6-M9 (TUI memory + render) | ~100 | Lower memory, fewer idle renders |
+| 5 | A1-A2 (quick arch fixes) | ~50 | Provider always available |
+| 6 | ARCH-1 (extract nika-init) | ~200 | 13% faster incremental compile |
+| 7 | ARCH-2 (media tools → nika-media) | ~300 | 7% faster, no dup deps |
+| 8 | ARCH-3 (split NikaError) | ~400 | Clean error boundaries |
+| **Total** | | **~1,310** | |
 | **Total** | | **~660** |
