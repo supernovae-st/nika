@@ -55,38 +55,50 @@ pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
         }
     };
 
-    let mut guard = client_lock.lock().await;
-    let client = match guard.as_mut() {
-        Some(c) => c,
-        None => {
-            drop(guard);
-            return load_fallback_only().await;
+    // Check daemon mode (brief lock)
+    let is_fallback = {
+        let guard = client_lock.lock().await;
+        match guard.as_ref() {
+            Some(c) => c.is_fallback_mode(),
+            None => return load_fallback_only().await,
         }
     };
+    result.daemon_available = !is_fallback;
 
-    result.daemon_available = !client.is_fallback_mode();
+    // Collect providers that need daemon lookup (no lock needed)
+    let providers_to_check: Vec<_> = KNOWN_PROVIDERS
+        .iter()
+        .filter(|p| {
+            if std::env::var(p.env_var)
+                .map(|v| !v.is_empty())
+                .unwrap_or(false)
+            {
+                trace!("{}: already in env", p.id);
+                result.from_fallback.push(p.id.to_string());
+                false
+            } else {
+                true
+            }
+        })
+        .collect();
 
-    // Iterate all known providers (LLM + MCP + Local = 19)
-    for p in KNOWN_PROVIDERS {
+    // Query daemon for each missing provider (lock per call, not across all)
+    for p in providers_to_check {
         let provider_id = p.id;
         let env_var = p.env_var;
 
-        // Check if already in env (skip empty values)
-        if std::env::var(env_var)
-            .map(|v| !v.is_empty())
-            .unwrap_or(false)
-        {
-            trace!("{}: already in env", provider_id);
-            result.from_fallback.push(provider_id.to_string());
-            continue;
-        }
+        let secret_result = {
+            let mut guard = client_lock.lock().await;
+            let client = guard.as_mut().unwrap();
+            client.get_secret(provider_id).await
+        };
+        // Lock released here — other callers can proceed between iterations
 
-        // Try daemon (or its internal fallback)
-        match client.get_secret(provider_id).await {
+        match secret_result {
             Ok(secret) if !secret.expose_secret().is_empty() => {
                 // Inject into env for rig-core compatibility
                 std::env::set_var(env_var, secret.expose_secret());
-                if client.is_fallback_mode() {
+                if is_fallback {
                     debug!("{}: loaded from env fallback → {}", provider_id, env_var);
                     result.from_fallback.push(provider_id.to_string());
                 } else {
@@ -95,9 +107,6 @@ pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
                 }
             }
             _ => {
-                // Do NOT fall back to direct keyring when daemon is available.
-                // The daemon is the SOLE keychain accessor to prevent macOS popups.
-                // If daemon doesn't have the secret (or returned empty), mark as not found.
                 trace!("{}: not found in daemon", provider_id);
                 result.not_found.push(provider_id.to_string());
             }
