@@ -16,20 +16,26 @@
 //! This crate depends on `nika-core` only (for path constants and provider info).
 //! It does NOT depend on `nika-engine` — the daemon is lightweight.
 
+#[cfg(unix)]
 pub mod client;
 pub mod error;
 pub mod events;
+#[cfg(unix)]
 pub mod install;
+#[cfg(unix)]
 pub mod lifecycle;
 pub mod protocol;
+#[cfg(unix)]
 pub mod server;
 pub mod services;
 pub mod storage;
 
+#[cfg(unix)]
 pub use client::{ConnectedClient, DaemonClient};
 pub use error::{DaemonError, DaemonResult};
 pub use protocol::{DaemonRequest, DaemonResponse};
 
+#[cfg(unix)]
 pub use server::{DaemonConfig, DaemonServer};
 
 // ═══════════════════════════════════════════════════════════════════════════

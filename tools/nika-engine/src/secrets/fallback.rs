@@ -13,16 +13,22 @@ use tracing::{debug, info, trace};
 
 /// Check if the daemon is running (socket file exists).
 pub fn daemon_available() -> bool {
-    nika_daemon::daemon_socket_path().exists()
+    #[cfg(unix)]
+    return nika_daemon::daemon_socket_path().exists();
+    #[cfg(not(unix))]
+    false
 }
 
 pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
     let mut result = SecretsLoadResult::default();
+    #[cfg(unix)]
     let daemon = if daemon_available() {
         Some(nika_daemon::DaemonClient::default_path())
     } else {
         None
     };
+    #[cfg(not(unix))]
+    let daemon: Option<()> = None;
 
     for provider in KNOWN_PROVIDERS
         .iter()
@@ -94,6 +100,7 @@ pub async fn get_secret(provider: &str) -> Option<SecretString> {
     }
 
     // 2. Try daemon
+    #[cfg(unix)]
     if daemon_available() {
         let client = nika_daemon::DaemonClient::default_path();
         if let Ok(Some(secret)) = client.get_secret(provider).await {
@@ -123,6 +130,7 @@ pub async fn has_secret(provider: &str) -> bool {
     }
 
     // 2. Try daemon
+    #[cfg(unix)]
     if daemon_available() {
         let client = nika_daemon::DaemonClient::default_path();
         if let Ok(exists) = client.has_secret(provider).await {

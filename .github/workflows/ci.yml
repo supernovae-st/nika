@@ -45,7 +45,7 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: 'tools/nika -> target'
+          workspaces: 'tools -> target'
           cache-on-failure: true
           shared-key: check-${{ matrix.os }}
 
@@ -95,7 +95,7 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: 'tools/nika -> target'
+          workspaces: 'tools -> target'
           cache-on-failure: true
           shared-key: test-${{ matrix.os }}
 
@@ -139,7 +139,7 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: 'tools/nika -> target'
+          workspaces: 'tools -> target'
           cache-on-failure: true
           shared-key: features
 
@@ -173,7 +173,7 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: 'tools/nika -> target'
+          workspaces: 'tools -> target'
           cache-on-failure: true
           shared-key: coverage
 
@@ -228,7 +228,7 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: 'tools/nika -> target'
+          workspaces: 'tools -> target'
           cache-on-failure: true
           shared-key: security
 
@@ -295,7 +295,7 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: 'tools/nika -> target'
+          workspaces: 'tools -> target'
           cache-on-failure: true
           shared-key: validate
 
