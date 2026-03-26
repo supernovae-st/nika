@@ -114,6 +114,61 @@ impl DaemonClient {
         }
     }
 
+    /// Store a secret for a provider via the daemon.
+    ///
+    /// Requires auth token from `~/.nika/daemon/.token`.
+    pub async fn set_secret(&self, provider: &str, key: &str) -> DaemonResult<()> {
+        let auth_token = read_auth_token().ok();
+        match self
+            .send(DaemonRequest::SetSecret {
+                provider: provider.to_string(),
+                key: key.to_string(),
+                auth_token,
+            })
+            .await?
+        {
+            DaemonResponse::SecretStored => Ok(()),
+            DaemonResponse::AuthRequired => Err(DaemonError::RemoteError {
+                code: "AUTH-001".into(),
+                message: "auth token required — restart daemon or check ~/.nika/daemon/.token"
+                    .into(),
+            }),
+            DaemonResponse::Error { code, message } => {
+                Err(DaemonError::RemoteError { code, message })
+            }
+            other => Err(DaemonError::Protocol(format!(
+                "unexpected response to SetSecret: {:?}",
+                other
+            ))),
+        }
+    }
+
+    /// Delete a secret for a provider via the daemon.
+    pub async fn delete_secret(&self, provider: &str) -> DaemonResult<()> {
+        let auth_token = read_auth_token().ok();
+        match self
+            .send(DaemonRequest::DeleteSecret {
+                provider: provider.to_string(),
+                auth_token,
+            })
+            .await?
+        {
+            DaemonResponse::SecretDeleted => Ok(()),
+            DaemonResponse::AuthRequired => Err(DaemonError::RemoteError {
+                code: "AUTH-001".into(),
+                message: "auth token required — restart daemon or check ~/.nika/daemon/.token"
+                    .into(),
+            }),
+            DaemonResponse::Error { code, message } => {
+                Err(DaemonError::RemoteError { code, message })
+            }
+            other => Err(DaemonError::Protocol(format!(
+                "unexpected response to DeleteSecret: {:?}",
+                other
+            ))),
+        }
+    }
+
     /// Send a raw request and get the response.
     pub async fn send(&self, request: DaemonRequest) -> DaemonResult<DaemonResponse> {
         // No exists() check here — it's a blocking syscall with a TOCTOU race.
@@ -184,6 +239,15 @@ impl DaemonClient {
     pub fn socket_path(&self) -> &Path {
         &self.socket_path
     }
+}
+
+/// Read the daemon auth token from `~/.nika/daemon/.token`.
+///
+/// Returns the token string or an error if the file doesn't exist or is unreadable.
+pub fn read_auth_token() -> Result<String, std::io::Error> {
+    let path = crate::daemon_token_path();
+    let token = std::fs::read_to_string(&path)?;
+    Ok(token.trim().to_string())
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -470,6 +534,89 @@ mod tests {
             result.unwrap_err(),
             DaemonError::NotRunning { .. }
         ));
+    }
+
+    #[tokio::test]
+    async fn client_set_secret_returns_stored() {
+        let dir = tempfile::tempdir().unwrap();
+        let sock = dir.path().join("test.sock");
+
+        let response = DaemonResponse::SecretStored;
+        mock_server(&sock, response).await;
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        let client = DaemonClient::new(&sock);
+        // set_secret reads auth token from file, which won't exist in test,
+        // but the mock server ignores the request content
+        let result = client.set_secret("anthropic", "sk-test").await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn client_delete_secret_returns_deleted() {
+        let dir = tempfile::tempdir().unwrap();
+        let sock = dir.path().join("test.sock");
+
+        let response = DaemonResponse::SecretDeleted;
+        mock_server(&sock, response).await;
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        let client = DaemonClient::new(&sock);
+        let result = client.delete_secret("anthropic").await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn client_set_secret_auth_required() {
+        let dir = tempfile::tempdir().unwrap();
+        let sock = dir.path().join("test.sock");
+
+        let response = DaemonResponse::AuthRequired;
+        mock_server(&sock, response).await;
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        let client = DaemonClient::new(&sock);
+        let result = client.set_secret("anthropic", "sk-test").await;
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            DaemonError::RemoteError { .. }
+        ));
+    }
+
+    #[test]
+    fn read_auth_token_nonexistent_returns_error() {
+        // Set NIKA_HOME to a temp dir where no token exists
+        let dir = tempfile::tempdir().unwrap();
+        let orig = std::env::var("NIKA_HOME").ok();
+        std::env::set_var("NIKA_HOME", dir.path());
+
+        let result = read_auth_token();
+        assert!(result.is_err());
+
+        match orig {
+            Some(v) => std::env::set_var("NIKA_HOME", v),
+            None => unsafe { std::env::remove_var("NIKA_HOME") },
+        }
+    }
+
+    #[test]
+    fn read_auth_token_reads_file_content() {
+        let dir = tempfile::tempdir().unwrap();
+        let daemon_dir = dir.path().join("daemon");
+        std::fs::create_dir_all(&daemon_dir).unwrap();
+        std::fs::write(daemon_dir.join(".token"), "test-token-abc123\n").unwrap();
+
+        let orig = std::env::var("NIKA_HOME").ok();
+        std::env::set_var("NIKA_HOME", dir.path());
+
+        let result = read_auth_token();
+        assert_eq!(result.unwrap(), "test-token-abc123");
+
+        match orig {
+            Some(v) => std::env::set_var("NIKA_HOME", v),
+            None => unsafe { std::env::remove_var("NIKA_HOME") },
+        }
     }
 
     #[tokio::test]

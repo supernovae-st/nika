@@ -41,6 +41,22 @@ pub enum DaemonRequest {
 
     /// List all provider secret status.
     ListSecrets,
+
+    /// Store a secret (API key) for a provider in the system keychain.
+    SetSecret {
+        provider: String,
+        key: String,
+        /// Auth token for write operations (read from `~/.nika/daemon/.token`).
+        auth_token: Option<String>,
+    },
+
+    /// Delete a secret (API key) for a provider from the system keychain.
+    DeleteSecret {
+        provider: String,
+        /// Auth token for write operations.
+        auth_token: Option<String>,
+    },
+
     // ── Jobs ──────────────────────────────────────────────────────────────
     /// Submit a new job.
     JobSubmit {
@@ -155,6 +171,15 @@ pub enum DaemonResponse {
         providers: Vec<ProviderSecretInfo>,
     },
 
+    /// Secret stored successfully.
+    SecretStored,
+
+    /// Secret deleted successfully.
+    SecretDeleted,
+
+    /// Authentication required for this operation.
+    AuthRequired,
+
     // ── Jobs ──────────────────────────────────────────────────────────────
     /// Job created successfully.
     JobCreated {
@@ -219,6 +244,9 @@ impl std::fmt::Debug for DaemonResponse {
             Self::Secret { .. } => "Secret(<redacted>)",
             Self::SecretExists { .. } => "SecretExists",
             Self::SecretList { .. } => "SecretList",
+            Self::SecretStored => "SecretStored",
+            Self::SecretDeleted => "SecretDeleted",
+            Self::AuthRequired => "AuthRequired",
             Self::JobCreated { .. } => "JobCreated",
             Self::JobList { .. } => "JobList",
             Self::JobDetail { .. } => "JobDetail",
@@ -467,6 +495,65 @@ mod tests {
 
     // ── Roundtrip tests ─────────────────────────────────────────────────
 
+    // ── SetSecret / DeleteSecret tests ─────────────────────────────────
+
+    #[test]
+    fn request_serialize_set_secret() {
+        let req = DaemonRequest::SetSecret {
+            provider: "anthropic".into(),
+            key: "sk-ant-test".into(),
+            auth_token: Some("tok-abc".into()),
+        };
+        let json = serde_json::to_string(&req).unwrap();
+        assert!(json.contains(r#""type":"SetSecret""#));
+        assert!(json.contains(r#""provider":"anthropic""#));
+        assert!(json.contains(r#""key":"sk-ant-test""#));
+        assert!(json.contains(r#""auth_token":"tok-abc""#));
+    }
+
+    #[test]
+    fn request_serialize_set_secret_no_token() {
+        let req = DaemonRequest::SetSecret {
+            provider: "openai".into(),
+            key: "sk-proj-test".into(),
+            auth_token: None,
+        };
+        let json = serde_json::to_string(&req).unwrap();
+        assert!(json.contains(r#""auth_token":null"#));
+    }
+
+    #[test]
+    fn request_serialize_delete_secret() {
+        let req = DaemonRequest::DeleteSecret {
+            provider: "mistral".into(),
+            auth_token: Some("tok-xyz".into()),
+        };
+        let json = serde_json::to_string(&req).unwrap();
+        assert!(json.contains(r#""type":"DeleteSecret""#));
+        assert!(json.contains(r#""provider":"mistral""#));
+    }
+
+    #[test]
+    fn response_serialize_secret_stored() {
+        let resp = DaemonResponse::SecretStored;
+        let json = serde_json::to_string(&resp).unwrap();
+        assert_eq!(json, r#"{"type":"SecretStored"}"#);
+    }
+
+    #[test]
+    fn response_serialize_secret_deleted() {
+        let resp = DaemonResponse::SecretDeleted;
+        let json = serde_json::to_string(&resp).unwrap();
+        assert_eq!(json, r#"{"type":"SecretDeleted"}"#);
+    }
+
+    #[test]
+    fn response_serialize_auth_required() {
+        let resp = DaemonResponse::AuthRequired;
+        let json = serde_json::to_string(&resp).unwrap();
+        assert_eq!(json, r#"{"type":"AuthRequired"}"#);
+    }
+
     #[test]
     fn roundtrip_request_all_variants() {
         let requests = vec![
@@ -479,6 +566,15 @@ mod tests {
                 provider: "openai".into(),
             },
             DaemonRequest::ListSecrets,
+            DaemonRequest::SetSecret {
+                provider: "anthropic".into(),
+                key: "sk-ant-test".into(),
+                auth_token: Some("tok-123".into()),
+            },
+            DaemonRequest::DeleteSecret {
+                provider: "mistral".into(),
+                auth_token: None,
+            },
             DaemonRequest::Shutdown,
         ];
         for req in requests {
@@ -511,6 +607,9 @@ mod tests {
             DaemonResponse::Secret { value: None },
             DaemonResponse::SecretExists { exists: true },
             DaemonResponse::SecretList { providers: vec![] },
+            DaemonResponse::SecretStored,
+            DaemonResponse::SecretDeleted,
+            DaemonResponse::AuthRequired,
             DaemonResponse::ShuttingDown,
         ];
         for resp in responses {
