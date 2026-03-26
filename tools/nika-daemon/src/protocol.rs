@@ -22,7 +22,11 @@ pub const LENGTH_PREFIX_SIZE: usize = 4;
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// A request from a client to the daemon.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+///
+/// # Debug
+/// The `Debug` impl redacts `SetSecret.key` and `auth_token` fields to prevent
+/// API key leakage in tracing output.
+#[derive(Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type")]
 pub enum DaemonRequest {
     // ── Health ───────────────────────────────────────────────────────────
@@ -120,6 +124,50 @@ pub enum DaemonRequest {
     // ── Lifecycle ─────────────────────────────────────────────────────────
     /// Request graceful daemon shutdown.
     Shutdown,
+}
+
+impl std::fmt::Debug for DaemonRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Redact sensitive fields (API keys, auth tokens) to prevent log leakage.
+        match self {
+            Self::SetSecret { provider, .. } => {
+                write!(f, "DaemonRequest::SetSecret {{ provider: {provider:?}, key: <redacted>, auth_token: <redacted> }}")
+            }
+            Self::DeleteSecret { provider, .. } => {
+                write!(f, "DaemonRequest::DeleteSecret {{ provider: {provider:?}, auth_token: <redacted> }}")
+            }
+            Self::GetSecret { provider } => {
+                write!(f, "DaemonRequest::GetSecret {{ provider: {provider:?} }}")
+            }
+            Self::Ping => write!(f, "DaemonRequest::Ping"),
+            Self::Status => write!(f, "DaemonRequest::Status"),
+            Self::HasSecret { provider } => {
+                write!(f, "DaemonRequest::HasSecret {{ provider: {provider:?} }}")
+            }
+            Self::ListSecrets => write!(f, "DaemonRequest::ListSecrets"),
+            Self::Shutdown => write!(f, "DaemonRequest::Shutdown"),
+            // All other variants use type-tag only to keep debug output manageable
+            Self::JobSubmit { workflow, .. } => write!(
+                f,
+                "DaemonRequest::JobSubmit {{ workflow: {workflow:?}, .. }}"
+            ),
+            Self::JobList { .. } => write!(f, "DaemonRequest::JobList"),
+            Self::JobStatus { id } => write!(f, "DaemonRequest::JobStatus {{ id: {id:?} }}"),
+            Self::JobCancel { id } => write!(f, "DaemonRequest::JobCancel {{ id: {id:?} }}"),
+            Self::JobRetry { id } => write!(f, "DaemonRequest::JobRetry {{ id: {id:?} }}"),
+            Self::JobHistory { id } => write!(f, "DaemonRequest::JobHistory {{ id: {id:?} }}"),
+            Self::WatchStart { dir, .. } => {
+                write!(f, "DaemonRequest::WatchStart {{ dir: {dir:?}, .. }}")
+            }
+            Self::WatchStop => write!(f, "DaemonRequest::WatchStop"),
+            Self::WatchStatus => write!(f, "DaemonRequest::WatchStatus"),
+            Self::CacheGet { .. } => write!(f, "DaemonRequest::CacheGet"),
+            Self::CacheSet { .. } => write!(f, "DaemonRequest::CacheSet"),
+            Self::CacheClear => write!(f, "DaemonRequest::CacheClear"),
+            Self::CacheStats => write!(f, "DaemonRequest::CacheStats"),
+            Self::EventSubscribe => write!(f, "DaemonRequest::EventSubscribe"),
+        }
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -15,7 +15,7 @@ use tracing::trace;
 use tracing::debug;
 
 /// Known LLM providers and their environment variable names.
-const PROVIDERS: &[(&str, &str)] = &[
+pub const PROVIDERS: &[(&str, &str)] = &[
     ("anthropic", "ANTHROPIC_API_KEY"),
     ("openai", "OPENAI_API_KEY"),
     ("mistral", "MISTRAL_API_KEY"),
