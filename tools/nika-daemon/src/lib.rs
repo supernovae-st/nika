@@ -23,9 +23,47 @@ pub mod protocol;
 pub mod server;
 pub mod services;
 
+pub use client::DaemonClient;
 pub use error::{DaemonError, DaemonResult};
 pub use protocol::{DaemonRequest, DaemonResponse};
 
 // Re-exports added as types are implemented:
-// pub use client::DaemonClient;
 // pub use server::DaemonServer;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DAEMON PATHS
+// ═══════════════════════════════════════════════════════════════════════════
+
+use std::path::PathBuf;
+
+/// Environment variable to override the Nika home directory.
+pub const NIKA_HOME_ENV: &str = "NIKA_HOME";
+
+/// Returns the daemon directory (`~/.nika/daemon/`).
+pub fn daemon_dir() -> PathBuf {
+    nika_home().join("daemon")
+}
+
+/// Returns the daemon socket path (`~/.nika/daemon/nika.sock`).
+pub fn daemon_socket_path() -> PathBuf {
+    daemon_dir().join("nika.sock")
+}
+
+/// Returns the daemon PID file path (`~/.nika/daemon/nika.pid`).
+pub fn daemon_pid_path() -> PathBuf {
+    daemon_dir().join("nika.pid")
+}
+
+/// Returns the daemon log file path (`~/.nika/daemon/nika.log`).
+pub fn daemon_log_path() -> PathBuf {
+    daemon_dir().join("nika.log")
+}
+
+fn nika_home() -> PathBuf {
+    if let Ok(custom) = std::env::var(NIKA_HOME_ENV) {
+        return PathBuf::from(custom);
+    }
+    dirs::home_dir()
+        .map(|h| h.join(".nika"))
+        .unwrap_or_else(|| std::env::temp_dir().join(".nika"))
+}
