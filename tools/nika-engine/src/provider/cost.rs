@@ -334,23 +334,28 @@ pub fn list_provider_models(provider: ProviderKind) -> Vec<(&'static str, ModelP
         ProviderKind::XAi => &XAI_PRICING,
         ProviderKind::Native => return Vec::new(),
     };
-    // Deduplicate: only keep shortest alias per unique pricing
-    let mut seen_prices: Vec<(&str, ModelPricing)> = Vec::new();
+    // Deduplicate: skip date-suffixed variants (e.g., "gpt-4o-2024-11-20" when "gpt-4o" exists)
     let mut entries: Vec<(&str, ModelPricing)> = table.iter().map(|(&k, &v)| (k, v)).collect();
     entries.sort_by_key(|(name, _)| name.len());
-    for (name, pricing) in entries {
-        // Skip date-suffixed variants if a shorter name exists with same pricing
-        let already_covered = seen_prices.iter().any(|(_, p)| {
-            p.input_per_million == pricing.input_per_million
-                && p.output_per_million == pricing.output_per_million
-                && name.len() > 20
+    let all_names: Vec<&str> = entries.iter().map(|(n, _)| *n).collect();
+    let mut result: Vec<(&str, ModelPricing)> = Vec::new();
+    for &(name, pricing) in &entries {
+        // A name is a date variant if a shorter name is its prefix followed by -DIGIT
+        let is_date_variant = all_names.iter().any(|shorter| {
+            shorter.len() < name.len()
+                && name.starts_with(shorter)
+                && name.as_bytes().get(shorter.len()) == Some(&b'-')
+                && name
+                    .as_bytes()
+                    .get(shorter.len() + 1)
+                    .is_some_and(|b| b.is_ascii_digit())
         });
-        if !already_covered {
-            seen_prices.push((name, pricing));
+        if !is_date_variant {
+            result.push((name, pricing));
         }
     }
-    seen_prices.sort_by(|(a, _), (b, _)| a.cmp(b));
-    seen_prices
+    result.sort_by(|(a, _), (b, _)| a.cmp(b));
+    result
 }
 
 /// Get pricing for a specific model
