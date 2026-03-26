@@ -564,7 +564,7 @@ Thank you.
 [SLIDE] "Questions?" with contact information:
 
 ```
-@SuperNovae-studio on GitHub
+@supernovae-st on GitHub
 @ThibautMelen
 supernovae.studio
 ```

@@ -346,7 +346,7 @@ tasks:
     invoke:
       tool: "github::list_issues"
       params:
-        repo: "SuperNovae-studio/nika"
+        repo: "supernovae-st/nika"
         state: open
 
   - id: store

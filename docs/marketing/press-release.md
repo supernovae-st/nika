@@ -176,7 +176,7 @@ Products: **Nika** (workflow engine), **NovaNet** (knowledge graph), **QR Code A
 (https://qrcode-ai.com).
 
 **Website:** https://supernovae.studio
-**GitHub:** https://github.com/SuperNovae-studio
+**GitHub:** https://github.com/supernovae-st
 **Contact:** thibaut@supernovae.studio
 
 ---

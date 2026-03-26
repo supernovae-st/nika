@@ -39,7 +39,7 @@ The name "Nika" and the project's broader cultural identity draw from Eiichiro O
 
 **Contact:** thibaut@supernovae.studio
 **GitHub:** [@ThibautMelen](https://github.com/ThibautMelen)
-**Organization:** [@SuperNovae-studio](https://github.com/SuperNovae-studio)
+**Organization:** [@supernovae-st](https://github.com/supernovae-st)
 
 ---
 

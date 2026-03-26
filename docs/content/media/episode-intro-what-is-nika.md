@@ -331,7 +331,7 @@ And it is named after the Sun God of liberation from One Piece, because the phil
 
 In the next episode, we are going to go deep on the five verbs. We will look at real YAML examples for each one, explore multimodal vision with `infer:`, the nine extraction modes of `fetch:`, the 24 built-in tools of `invoke:`, and the autonomous agent loop. We will also answer the design question: why exactly five verbs? Why not three? Why not ten?
 
-Until then, you can find Nika at [github.com/SuperNovae-studio](https://github.com/SuperNovae-studio) and [qrcode-ai.com](https://qrcode-ai.com).
+Until then, you can find Nika at [github.com/supernovae-st](https://github.com/supernovae-st) and [qrcode-ai.com](https://qrcode-ai.com).
 
 [MUSIC: Outro theme]
 
@@ -342,7 +342,7 @@ Until then, you can find Nika at [github.com/SuperNovae-studio](https://github.c
 ## Show Notes
 
 ### Links
-- Nika GitHub: [github.com/SuperNovae-studio](https://github.com/SuperNovae-studio)
+- Nika GitHub: [github.com/supernovae-st](https://github.com/supernovae-st)
 - QR Code AI: [qrcode-ai.com](https://qrcode-ai.com)
 - Model Context Protocol (MCP): [modelcontextprotocol.io](https://modelcontextprotocol.io)
 - One Piece (Nika / Sun God): [onepiece.fandom.com/wiki/Nika](https://onepiece.fandom.com/wiki/Nika)

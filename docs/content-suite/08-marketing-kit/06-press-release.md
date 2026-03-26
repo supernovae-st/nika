@@ -129,7 +129,7 @@ Nika v0.42.0 is available immediately:
 SuperNovae Studio is an independent software studio founded by Thibaut Melen, building open source AI infrastructure. The studio's products include Nika (workflow engine), NovaNet (knowledge graph), and QR Code AI (https://qrcode-ai.com). Based in Paris, France, SuperNovae Studio is committed to building AI tools that remain accessible, open, and community-owned.
 
 **Website:** https://supernovae.studio
-**GitHub:** https://github.com/SuperNovae-studio
+**GitHub:** https://github.com/supernovae-st
 **Contact:** thibaut@supernovae.studio
 
 ---

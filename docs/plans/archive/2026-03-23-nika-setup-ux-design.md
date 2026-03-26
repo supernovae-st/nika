@@ -679,7 +679,7 @@ globs: ["*.nika.yaml"]
 ```markdown
 # Agents
 
-This project uses [Nika](https://github.com/SuperNovae-studio/nika) for AI workflows.
+This project uses [Nika](https://github.com/supernovae-st/nika) for AI workflows.
 
 ## Workflow Files
 All `.nika.yaml` files define DAG workflows with 5 verbs:

@@ -355,7 +355,7 @@ Yes, pair programming works well. One student drives (writes YAML), the other na
 - Report bugs or unclear behavior to the Nika repository
 
 ### Community
-- GitHub: SuperNovae-studio/nika
+- GitHub: supernovae-st/nika
 - Issues: Bug reports and feature requests
 - Discussions: Questions and showcase sharing
 

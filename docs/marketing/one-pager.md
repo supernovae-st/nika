@@ -123,7 +123,7 @@ in production.
 **Thibaut Melen** — Creator. Solo developer with AI assistance (Claude).
 451K lines of Rust. 7,800+ tests. Pre-launch.
 
-**SuperNovae Studio** — @SuperNovae-studio
+**SuperNovae Studio** — @supernovae-st
 **Product:** QR Code AI (qrcode-ai.com)
 **GitHub:** github.com/supernovae-st/nika
 

@@ -870,7 +870,7 @@ fn check_agent_skills() -> Vec<DiagnosticCheck> {
         checks.push(DiagnosticCheck::warn(
             "Agent Skills",
             "No Nika Agent Skills installed (user or project)",
-            "Run: nika doctor --fix (global) or: npx skills add SuperNovae-studio/nika-skills",
+            "Run: nika doctor --fix (global) or: npx skills add supernovae-st/nika-skills",
         ));
     }
 

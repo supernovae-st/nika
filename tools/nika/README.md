@@ -1,6 +1,6 @@
 # Nika — Developer Reference
 
-[![ARMADA](https://github.com/SuperNovae-studio/nika/actions/workflows/armada-checkpoints.yml/badge.svg)](https://github.com/SuperNovae-studio/nika/actions/workflows/armada-checkpoints.yml)
+[![ARMADA](https://github.com/supernovae-st/nika/actions/workflows/armada-checkpoints.yml/badge.svg)](https://github.com/supernovae-st/nika/actions/workflows/armada-checkpoints.yml)
 [![Version](https://img.shields.io/badge/version-0.42.0-blue?logo=rust&logoColor=white)](Cargo.toml)
 [![Version Lock](https://img.shields.io/badge/0.x.x-forever-orange?logo=semver&logoColor=white)](CHANGELOG.md)
 

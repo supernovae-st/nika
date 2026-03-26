@@ -9,7 +9,7 @@ Show HN: Nika – 5 verbs. 22 providers. Zero Python. (open source, Rust)
 ## Post URL
 
 ```
-https://github.com/SuperNovae-studio/nika
+https://github.com/supernovae-st/nika
 ```
 
 ---
@@ -66,7 +66,7 @@ Honest limitations: Nika is pre-1.0 (schema @0.12). There's no web GUI — only 
 terminal UI and CLI. YAML has a learning curve if you've never used it. The
 ecosystem is young — no plugin marketplace yet.
 
-- GitHub: https://github.com/SuperNovae-studio/nika
+- GitHub: https://github.com/supernovae-st/nika
 - Docs: https://nika.supernovae.studio
 - Quick start: `brew install supernovae-studio/tap/nika && nika init --course`
 - License: AGPL-3.0 (the engine stays open; your YAML workflows are yours)

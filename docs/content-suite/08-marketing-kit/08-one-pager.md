@@ -179,7 +179,7 @@ The `nika-engine` crate (134K lines) is a standalone library. It can be integrat
 ## Team and Contact
 
 **Creator:** Thibaut Melen (@ThibautMelen)
-**Organization:** SuperNovae Studio (@SuperNovae-studio)
+**Organization:** SuperNovae Studio (@supernovae-st)
 **Product:** QR Code AI (https://qrcode-ai.com)
 **Website:** https://supernovae.studio
 **GitHub:** https://github.com/supernovae-st/nika

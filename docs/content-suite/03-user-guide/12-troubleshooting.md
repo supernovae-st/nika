@@ -581,4 +581,4 @@ If you cannot resolve an issue:
 2. Check the error code in this guide
 3. Use `nika -vvv run workflow.yaml` for maximum debug info
 4. Check the [FAQ](13-faq.md) for common questions
-5. File an issue at https://github.com/SuperNovae-studio/nika/issues
+5. File an issue at https://github.com/supernovae-st/nika/issues

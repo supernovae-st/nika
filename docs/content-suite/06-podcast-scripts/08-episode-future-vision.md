@@ -268,7 +268,7 @@ And that is the point. Nika is not just a tool -- it is an idea about how AI wor
 
 [LONG PAUSE]
 
-Thank you for listening. If you want to try Nika, it is at [github.com/SuperNovae-studio](https://github.com/SuperNovae-studio). If you want to contribute, the AGPL license means everything you build stays open. And if you want to reach out, find Thibaut Melen at [@ThibautMelen](https://github.com/ThibautMelen).
+Thank you for listening. If you want to try Nika, it is at [github.com/supernovae-st](https://github.com/supernovae-st). If you want to contribute, the AGPL license means everything you build stays open. And if you want to reach out, find Thibaut Melen at [@ThibautMelen](https://github.com/ThibautMelen).
 
 Fair winds and following seas.
 
@@ -329,7 +329,7 @@ Fair winds and following seas.
 | 08 | The Future of AI Workflows -- Open Source, AGPL, and Liberation | ~25 min |
 
 ### Full Series Links
-- Nika GitHub: [github.com/SuperNovae-studio](https://github.com/SuperNovae-studio)
+- Nika GitHub: [github.com/supernovae-st](https://github.com/supernovae-st)
 - QR Code AI: [qrcode-ai.com](https://qrcode-ai.com)
 - MCP Protocol: [modelcontextprotocol.io](https://modelcontextprotocol.io)
 - AGPL-3.0: [gnu.org/licenses/agpl-3.0](https://www.gnu.org/licenses/agpl-3.0.html)

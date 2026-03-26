@@ -5,7 +5,7 @@
   "license": "AGPL-3.0-or-later",
   "repository": {
     "type": "git",
-    "url": "https://github.com/SuperNovae-studio/nika.git"
+    "url": "https://github.com/supernovae-st/nika.git"
   },
   "os": ["win32"],
   "cpu": ["x64"],

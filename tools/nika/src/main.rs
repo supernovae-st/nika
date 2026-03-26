@@ -112,7 +112,7 @@ TUI VIEWS (in nika ui):
     [4/,] Settings   Provider config, theme, preferences
 
 DOCUMENTATION:
-    https://github.com/SuperNovae-studio/nika"#;
+    https://github.com/supernovae-st/nika"#;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CLI STRUCTURE

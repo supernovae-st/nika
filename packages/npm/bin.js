@@ -20,7 +20,7 @@ function getBinaryPath() {
     console.error(
       `Unsupported platform: ${key}\n` +
       `Supported: ${Object.keys(PLATFORM_PACKAGES).join(', ')}\n` +
-      'Install manually: https://github.com/SuperNovae-studio/nika/releases'
+      'Install manually: https://github.com/supernovae-st/nika/releases'
     );
     process.exit(1);
   }
@@ -36,7 +36,7 @@ function getBinaryPath() {
       `Platform package ${pkg} not found.\n` +
       'This usually means your package manager did not install the optional dependency.\n' +
       'Try: npm install @supernovae/nika --force\n' +
-      'Or install directly: https://github.com/SuperNovae-studio/nika/releases'
+      'Or install directly: https://github.com/supernovae-st/nika/releases'
     );
     process.exit(1);
   }

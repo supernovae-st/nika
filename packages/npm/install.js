@@ -22,7 +22,7 @@ function getPlatformKey() {
     console.error(
       `Unsupported platform: ${key}\n` +
       'Supported: darwin-arm64, darwin-x64, linux-x64, linux-arm64\n' +
-      'Install manually from https://github.com/SuperNovae-studio/nika/releases'
+      'Install manually from https://github.com/supernovae-st/nika/releases'
     );
     process.exit(1);
   }
@@ -63,7 +63,7 @@ function download(url, dest) {
 async function install() {
   const platformKey = getPlatformKey();
   const tarballName = `nika-${platformKey}-${VERSION}.tar.gz`;
-  const url = `https://github.com/SuperNovae-studio/nika/releases/download/v${VERSION}/${tarballName}`;
+  const url = `https://github.com/supernovae-st/nika/releases/download/v${VERSION}/${tarballName}`;
 
   const binDir = path.join(__dirname, 'bin');
   const tarballPath = path.join(__dirname, tarballName);
@@ -123,7 +123,7 @@ function fallback() {
   console.error(
     '\nFailed to install nika binary.\n' +
     'You can install it manually from:\n' +
-    `  https://github.com/SuperNovae-studio/nika/releases/tag/v${VERSION}\n`
+    `  https://github.com/supernovae-st/nika/releases/tag/v${VERSION}\n`
   );
   process.exit(1);
 }
