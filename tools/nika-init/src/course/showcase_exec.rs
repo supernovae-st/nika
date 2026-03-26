@@ -835,14 +835,14 @@ tasks:
     fetch:
       url: "https://crates.io/api/v1/crates/serde"
       headers:
-        User-Agent: "nika-workflow (https://github.com/SuperNovae-studio)"
+        User-Agent: "nika-workflow (https://github.com/supernovae-st)"
       timeout: 10
 
   - id: crate_versions
     fetch:
       url: "https://crates.io/api/v1/crates/serde/versions"
       headers:
-        User-Agent: "nika-workflow (https://github.com/SuperNovae-studio)"
+        User-Agent: "nika-workflow (https://github.com/supernovae-st)"
       extract: jsonpath
       selector: "$.versions[0:3].num"
       timeout: 10

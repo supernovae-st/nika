@@ -184,7 +184,7 @@ fn install_panic_hook() {
                 crash_log_path.display()
             );
             eprintln!(
-                "\x1b[31m║  Please report: https://github.com/SuperNovae-studio/nika    ║\x1b[0m"
+                "\x1b[31m║  Please report: https://github.com/supernovae-st/nika    ║\x1b[0m"
             );
             eprintln!(
                 "\x1b[31m╚══════════════════════════════════════════════════════════════╝\x1b[0m"

@@ -814,7 +814,7 @@ Three commands to start. Install, initialize the course, open your first exercis
 
 ```
 github.com/supernovae-st/nika
-@SuperNovae-studio | @ThibautMelen
+@supernovae-st | @ThibautMelen
 supernovae.studio
 
 "Limited only by the YAML you write."

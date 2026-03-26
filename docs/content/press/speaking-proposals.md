@@ -334,7 +334,7 @@ Thibaut Melen is the founder of SuperNovae Studio and creator of Nika, the first
 **Location:** Available for European and international conferences
 **Email:** thibaut@supernovae.studio
 **GitHub:** [@ThibautMelen](https://github.com/ThibautMelen)
-**Organization:** [@SuperNovae-studio](https://github.com/SuperNovae-studio)
+**Organization:** [@supernovae-st](https://github.com/supernovae-st)
 
 **Speaker experience:** Available for keynotes, breakout sessions, panels, and lightning talks. All talks include live demos unless otherwise specified.
 

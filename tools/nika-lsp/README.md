@@ -34,7 +34,7 @@ brew install supernovae-st/tap/nika-lsp
 ### From source
 
 ```bash
-git clone https://github.com/SuperNovae-studio/nika
+git clone https://github.com/supernovae-st/nika
 cd nika/tools/nika-lsp
 cargo install --path .
 ```
@@ -258,7 +258,7 @@ The LSP integrates with the main `nika` crate for:
 
 ## Related
 
-- [nika](https://github.com/SuperNovae-studio/nika) — Main CLI and runtime
+- [nika](https://github.com/supernovae-st/nika) — Main CLI and runtime
 - [nika.sh](https://nika.sh) — Documentation
 - [JSON Schema](https://nika.sh/schema/workflow.json) — Workflow schema
 

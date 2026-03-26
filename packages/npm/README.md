@@ -1,6 +1,6 @@
 # @supernovae/nika
 
-Thin npm wrapper for the [Nika CLI](https://github.com/SuperNovae-studio/nika) -- a semantic YAML workflow engine for AI tasks.
+Thin npm wrapper for the [Nika CLI](https://github.com/supernovae-st/nika) -- a semantic YAML workflow engine for AI tasks.
 
 This package downloads the pre-built Nika binary for your platform during `npm install`.
 
@@ -43,5 +43,5 @@ AGPL-3.0-or-later
 
 ## Links
 
-- [GitHub Repository](https://github.com/SuperNovae-studio/nika)
+- [GitHub Repository](https://github.com/supernovae-st/nika)
 - [SuperNovae Studio](https://supernovae.studio)

@@ -37,7 +37,7 @@ product. It's a movement.
 | **Mission tagline** | AI shouldn't have a subscription fee. |
 | **License** | AGPL-3.0-or-later |
 | **Website** | https://nika.supernovae.studio |
-| **GitHub** | https://github.com/SuperNovae-studio/nika |
+| **GitHub** | https://github.com/supernovae-st/nika |
 
 ### Visual Palette
 
@@ -296,7 +296,7 @@ so that describing an AI workflow is as simple as writing a recipe."
 - **Terminal UI**: Rich interactive interface for monitoring workflow execution
 - **AGPL licensed**: Ensures the tool and all derivatives remain open source
 
-Nika is available now on GitHub at https://github.com/SuperNovae-studio/nika and
+Nika is available now on GitHub at https://github.com/supernovae-st/nika and
 via Homebrew (`brew install supernovae-studio/tap/nika`).
 
 **About SuperNovae Studio**

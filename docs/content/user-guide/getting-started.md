@@ -21,14 +21,14 @@ Workflows are written in YAML with the `.nika.yaml` extension and follow the `ni
 ### Using Homebrew (macOS)
 
 ```bash
-brew tap SuperNovae-studio/tap
+brew tap supernovae-st/tap
 brew install nika
 ```
 
 ### From Source (Rust toolchain required)
 
 ```bash
-git clone https://github.com/SuperNovae-studio/nika.git
+git clone https://github.com/supernovae-st/nika.git
 cd nika
 cargo install --path tools/nika
 ```

@@ -588,7 +588,7 @@ End with actionable, copy-pasteable commands:
   nika provider set anthropic
   nika run workflows/tier-2-llm/04-infer-basics.nika.yaml
 
-  Problems? https://github.com/SuperNovae-studio/nika/issues
+  Problems? https://github.com/supernovae-st/nika/issues
 ```
 
 ### 5.8 ASCII Art (Optional, Sparingly)
@@ -710,7 +710,7 @@ console = "0.15"      # Styling + terminal detection
   # Then try LLM workflows
   nika run workflows/tier-2-llm/04-infer-basics.nika.yaml
 
-  Docs: https://nika.dev | Issues: https://github.com/SuperNovae-studio/nika
+  Docs: https://nika.dev | Issues: https://github.com/supernovae-st/nika
 ```
 
 ### Implementation Skeleton
@@ -802,7 +802,7 @@ pub fn init_wizard() -> Result<(), NikaError> {
 
     outro(format!(
         "Problems? {}",
-        style("https://github.com/SuperNovae-studio/nika/issues").cyan().underlined()
+        style("https://github.com/supernovae-st/nika/issues").cyan().underlined()
     ))?;
 
     Ok(())

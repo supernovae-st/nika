@@ -366,7 +366,7 @@ jobs:
 
           | Method | Command |
           |--------|---------|
-          | **Quick Install** | \`curl -fsSL https://raw.githubusercontent.com/SuperNovae-studio/nika/main/install.sh \| sh\` |
+          | **Quick Install** | \`curl -fsSL https://raw.githubusercontent.com/supernovae-st/nika/main/install.sh \| sh\` |
           | **Homebrew** | \`brew install supernovae-st/tap/nika\` |
           | **npm** | \`npx @supernovae/nika\` or \`npm install -g @supernovae/nika\` |
           | **Cargo** | \`cargo install nika\` |
@@ -387,11 +387,11 @@ jobs:
 
           | Platform | Link |
           |----------|------|
-          | GitHub Releases | [v${VERSION}](https://github.com/SuperNovae-studio/nika/releases/tag/v${VERSION}) |
+          | GitHub Releases | [v${VERSION}](https://github.com/supernovae-st/nika/releases/tag/v${VERSION}) |
           | VS Code Marketplace | [supernovae.nika-lang](https://marketplace.visualstudio.com/items?itemName=supernovae.nika-lang) |
           | npm | [@supernovae/nika](https://www.npmjs.com/package/@supernovae/nika) |
           | crates.io | [nika](https://crates.io/crates/nika) |
-          | Docker | [ghcr.io/supernovae-st/nika](https://github.com/SuperNovae-studio/nika/pkgs/container/nika) |
+          | Docker | [ghcr.io/supernovae-st/nika](https://github.com/supernovae-st/nika/pkgs/container/nika) |
           | Homebrew | \`supernovae-st/tap/nika\` |
 
           ---
@@ -719,22 +719,22 @@ jobs:
           {
             "version": "${VERSION}",
             "description": "Semantic YAML workflow engine for AI tasks",
-            "homepage": "https://github.com/SuperNovae-studio/nika",
+            "homepage": "https://github.com/supernovae-st/nika",
             "license": "AGPL-3.0-or-later",
             "architecture": {
               "64bit": {
-                "url": "https://github.com/SuperNovae-studio/nika/releases/download/${TAG}/nika-windows-x64-${VERSION}.zip",
+                "url": "https://github.com/supernovae-st/nika/releases/download/${TAG}/nika-windows-x64-${VERSION}.zip",
                 "hash": "${HASH}"
               }
             },
             "bin": "nika.exe",
             "checkver": {
-              "github": "https://github.com/SuperNovae-studio/nika"
+              "github": "https://github.com/supernovae-st/nika"
             },
             "autoupdate": {
               "architecture": {
                 "64bit": {
-                  "url": "https://github.com/SuperNovae-studio/nika/releases/download/v\$version/nika-windows-x64-\$version.zip"
+                  "url": "https://github.com/supernovae-st/nika/releases/download/v\$version/nika-windows-x64-\$version.zip"
                 }
               }
             }

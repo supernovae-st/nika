@@ -37,7 +37,7 @@ body = """
 - {% if commit.scope %}**{{ commit.scope }}:** {% endif %}\
 {{ commit.message | upper_first }}\
 {% if commit.github.username %} by @{{ commit.github.username }}{%- endif %}\
-{% if commit.github.pr_number %} ([#{{ commit.github.pr_number }}](https://github.com/SuperNovae-studio/nika/pull/{{ commit.github.pr_number }})){%- endif %}
+{% if commit.github.pr_number %} ([#{{ commit.github.pr_number }}](https://github.com/supernovae-st/nika/pull/{{ commit.github.pr_number }})){%- endif %}
 {% endfor %}
 {% endfor %}
 
@@ -82,5 +82,5 @@ topo_order = false
 sort_commits = "newest"
 
 [remote.github]
-owner = "SuperNovae-studio"
+owner = "supernovae-st"
 repo = "nika"

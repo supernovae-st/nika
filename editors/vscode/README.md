@@ -1,6 +1,6 @@
 # Nika Workflow Language - VS Code Extension
 
-Language support for [Nika](https://github.com/SuperNovae-studio/nika) `.nika.yaml` workflow files.
+Language support for [Nika](https://github.com/supernovae-st/nika) `.nika.yaml` workflow files.
 
 ## Features
 

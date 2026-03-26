@@ -94,7 +94,7 @@ tasks:
 [NARRATION] "Nika is open source, AGPL licensed, and free forever. Five verbs, any AI provider, one binary. Link in the description. Star us on GitHub if this is useful to you."
 
 [SCREEN] End card:
-- GitHub: `github.com/SuperNovae-studio/nika`
+- GitHub: `github.com/supernovae-st/nika`
 - Install: `brew install supernovae/tap/nika`
 - Website: `qrcode-ai.com`
 

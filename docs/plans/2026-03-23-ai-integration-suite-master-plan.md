@@ -375,7 +375,7 @@ impl NikaAiContext {
 
 ## Phase 3 — Agent Skills Package (Universal, 43 Agents)
 
-### 3.1 Repository: `github.com/SuperNovae-studio/nika-skills`
+### 3.1 Repository: `github.com/supernovae-st/nika-skills`
 
 ```
 nika-skills/
@@ -444,13 +444,13 @@ nika-skills/
 
 ```bash
 # Method 1: npx skills (Vercel CLI — 43 agents)
-npx skills add SuperNovae-studio/nika-skills
+npx skills add supernovae-st/nika-skills
 
 # Method 2: Claude Code plugin
 claude plugin install nika@supernovae-nika-skills
 
 # Method 3: Manual (any agent)
-git clone https://github.com/SuperNovae-studio/nika-skills
+git clone https://github.com/supernovae-st/nika-skills
 cp -r nika-skills/skills/nika-* .agents/skills/
 
 # Method 4: nika setup (auto-detected)
@@ -819,7 +819,7 @@ tools/nika/CLAUDE.md -> AGENTS.md
 
 ### New Repository
 ```
-github.com/SuperNovae-studio/nika-skills/
+github.com/supernovae-st/nika-skills/
 ├── 15 skills, 3 agents, hooks, scripts, MCP, LSP config
 └── ~3000 lines total
 ```

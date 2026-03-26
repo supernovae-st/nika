@@ -330,7 +330,7 @@ pub fn my_function(param: &str) -> Result<Output, Error> {
 
 ```bash
 # Clone the repository
-git clone https://github.com/SuperNovae-studio/nika.git
+git clone https://github.com/supernovae-st/nika.git
 cd nika/tools/nika
 
 # Build
