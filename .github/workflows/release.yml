@@ -166,6 +166,7 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
         with:
+          workspaces: 'tools/nika -> target'
           shared-key: release-${{ matrix.target }}
 
       # Build commands based on target type
@@ -453,7 +454,7 @@ jobs:
           CHANGELOG_NOTES=""
           if [ -f "tools/nika/CHANGELOG.md" ]; then
             CHANGELOG_NOTES=$(awk -v ver="${VERSION}" '
-              /^## \[/ { if (match($0, ver)) { found=1; next } else if (found) { exit } }
+              /^## \[/ { if (index($0, "[" ver "]")) { found=1; next } else if (found) { exit } }
               found { print }
             ' tools/nika/CHANGELOG.md || true)
           fi
@@ -1016,9 +1017,10 @@ jobs:
 
           # Git log for changelog (max 10 commits)
           CHANGELOG=$(git log --oneline "${PREV_TAG}..HEAD" --pretty="• %s" 2>/dev/null | head -10 || echo "• Initial release")
-          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          DELIMITER=$(openssl rand -hex 8)
+          echo "changelog<<${DELIMITER}" >> $GITHUB_OUTPUT
           echo "$CHANGELOG" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          echo "${DELIMITER}" >> $GITHUB_OUTPUT
 
           # Success count
           TOTAL=8
