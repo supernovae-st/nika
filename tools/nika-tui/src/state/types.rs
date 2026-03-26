@@ -464,6 +464,11 @@ pub struct Metrics {
     pub last_model: Option<String>,
     /// Token velocity tracker for sparkline display
     pub token_velocity: TokenVelocity,
+    /// Dedup guards: prevent repeat token threshold notifications
+    pub notified_50pct: bool,
+    pub notified_70pct: bool,
+    pub notified_85pct: bool,
+    pub notified_95pct: bool,
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

@@ -75,11 +75,12 @@ impl TuiState {
             self.metrics.token_velocity.push(output_tokens as f32);
         }
 
-        // TIER 3.4: Token usage progression with cosmic pirate emojis
+        // TIER 3.4: Token usage progression with cosmic pirate emojis (fire-once per threshold)
         const CONTEXT_WINDOW: u64 = 100_000;
         let pct = (self.metrics.total_tokens as f64 / CONTEXT_WINDOW as f64) * 100.0;
 
-        if pct > 95.0 {
+        if pct > 95.0 && !self.metrics.notified_95pct {
+            self.metrics.notified_95pct = true;
             self.add_notification(Notification::alert(
                 format!(
                     "ABANDON SHIP! {:.0}% fuel ({}/{}k)",
@@ -89,7 +90,8 @@ impl TuiState {
                 ),
                 timestamp_ms,
             ));
-        } else if pct > 85.0 {
+        } else if pct > 85.0 && !self.metrics.notified_85pct {
+            self.metrics.notified_85pct = true;
             self.add_notification(Notification::alert(
                 format!(
                     "Danger zone! {:.0}% fuel ({}/{}k)",
@@ -99,7 +101,8 @@ impl TuiState {
                 ),
                 timestamp_ms,
             ));
-        } else if pct > 70.0 {
+        } else if pct > 70.0 && !self.metrics.notified_70pct {
+            self.metrics.notified_70pct = true;
             self.add_notification(Notification::warning(
                 format!(
                     "Getting spicy! {:.0}% fuel ({}/{}k)",
@@ -109,7 +112,8 @@ impl TuiState {
                 ),
                 timestamp_ms,
             ));
-        } else if pct > 50.0 {
+        } else if pct > 50.0 && !self.metrics.notified_50pct {
+            self.metrics.notified_50pct = true;
             self.add_notification(Notification::info(
                 format!(
                     "Heating up... {:.0}% fuel ({}/{}k)",
