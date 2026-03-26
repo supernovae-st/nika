@@ -578,6 +578,9 @@ enum Commands {
         action: cli::daemon::DaemonAction,
     },
 
+    /// Set up API keys interactively (first-run wizard)
+    Setup,
+
     /// Start Language Server Protocol server
     ///
     /// Provides IDE integration for .nika.yaml workflow files:
@@ -1137,6 +1140,8 @@ async fn main() {
         Some(Commands::Trace { action }) => cli::trace::handle_trace_command(action),
 
         Some(Commands::Provider { action }) => cli::provider::handle_provider_command(action).await,
+
+        Some(Commands::Setup) => cli::onboarding::handle_setup_command().await,
 
         Some(Commands::Mcp { action }) => cli::mcp::handle_mcp_command(action).await,
 
