@@ -42,10 +42,21 @@ pub fn detect_provider() -> Option<String> {
 }
 
 /// Parse composite model identifier: "anthropic/claude-sonnet" → (Some("anthropic"), "claude-sonnet")
-pub fn parse_composite_model(model: &str) -> (Option<&str>, &str) {
+pub fn parse_composite_model(model: &str) -> Result<(Option<&str>, &str), NikaError> {
     match model.split_once('/') {
-        Some((provider, model_name)) => (Some(provider), model_name),
-        None => (None, model),
+        Some((provider, model_name)) => {
+            if provider.is_empty() || model_name.is_empty() || model_name.contains('/') {
+                Err(NikaError::ValidationError {
+                    reason: format!(
+                        "Invalid model format '{}'. Expected 'provider/model' or 'model'",
+                        model
+                    ),
+                })
+            } else {
+                Ok((Some(provider), model_name))
+            }
+        }
+        None => Ok((None, model)),
     }
 }
 
@@ -56,7 +67,7 @@ fn resolve_provider_model(
 ) -> Result<(String, Option<String>), NikaError> {
     // If model has composite syntax (provider/model), extract both
     if let Some(model) = model_flag {
-        let (composite_provider, model_name) = parse_composite_model(model);
+        let (composite_provider, model_name) = parse_composite_model(model)?;
         if let Some(cp) = composite_provider {
             return Ok((cp.to_string(), Some(model_name.to_string())));
         }
@@ -94,15 +105,21 @@ async fn one_shot_executor(
     Ok((executor, event_log))
 }
 
-/// Read stdin content.
-fn read_stdin_content() -> Result<String, NikaError> {
-    let mut buf = String::new();
-    std::io::stdin()
-        .read_to_string(&mut buf)
-        .map_err(|e| NikaError::ParseError {
-            details: format!("Failed to read stdin: {}", e),
-        })?;
-    Ok(buf)
+/// Read stdin content (spawn_blocking to avoid blocking tokio runtime).
+async fn read_stdin_content() -> Result<String, NikaError> {
+    tokio::task::spawn_blocking(|| {
+        let mut buf = String::new();
+        std::io::stdin()
+            .read_to_string(&mut buf)
+            .map_err(|e| NikaError::ParseError {
+                details: format!("Failed to read stdin: {}", e),
+            })?;
+        Ok(buf)
+    })
+    .await
+    .map_err(|e| NikaError::ParseError {
+        details: format!("stdin reader panicked: {}", e),
+    })?
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -148,7 +165,7 @@ pub async fn handle_infer(
 
     // Read stdin if requested
     let full_prompt = if read_stdin || prompt == "-" {
-        let stdin_content = read_stdin_content()?;
+        let stdin_content = read_stdin_content().await?;
         if prompt == "-" {
             stdin_content
         } else {
@@ -471,7 +488,7 @@ pub async fn handle_agent(
     let is_tty = std::io::stdout().is_terminal();
 
     let full_prompt = if read_stdin || prompt == "-" {
-        let stdin_content = read_stdin_content()?;
+        let stdin_content = read_stdin_content().await?;
         if prompt == "-" {
             stdin_content
         } else {
