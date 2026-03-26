@@ -16,7 +16,6 @@ use crate::event::EventKind;
 /// Accumulated stats for the summary.
 #[derive(Debug, Default)]
 pub struct RunStats {
-    pub task_count: usize,
     pub tasks_passed: usize,
     pub tasks_failed: usize,
     pub tasks_skipped: usize,
@@ -443,7 +442,7 @@ impl CliRenderer {
             } => {
                 if self.detail.show_sub_events() {
                     println!("{}", super::format_event::fmt_context_assembled(
-                        sources.len(), *total_tokens, *budget_used_pct as f64,
+                        sources.len(), *total_tokens, *budget_used_pct,
                     ));
                 }
             }
@@ -488,7 +487,7 @@ impl CliRenderer {
             } => {
                 if self.detail.show_sub_events() {
                     println!("{}", super::format_event::fmt_mcp_response(
-                        call_id, *output_len as u64, *duration_ms, *cached, *is_error,
+                        call_id, *output_len, *duration_ms, *cached, *is_error,
                     ));
                 }
             }

@@ -1,7 +1,4 @@
-//! Fallback secrets management (when nika-daemon feature is NOT enabled).
-//!
-//! Uses direct keyring access and environment variables.
-//! This module is only compiled when nika-daemon is not enabled.
+//! Secrets management -- env vars + optional keyring.
 
 use crate::core::{ProviderCategory, KNOWN_PROVIDERS};
 use crate::secrets::keyring::{should_skip_keychain, NikaKeyring};
@@ -9,143 +6,56 @@ use crate::secrets::result::SecretsLoadResult;
 use secrecy::SecretString;
 use tracing::{debug, info, trace};
 
-/// Check if daemon is available (always false without feature).
-pub fn daemon_available() -> bool {
-    false
-}
+pub fn daemon_available() -> bool { false }
 
-/// Load secrets from keyring/env (no daemon).
 pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
-    let mut result = SecretsLoadResult {
-        daemon_available: false,
-        ..Default::default()
-    };
-
-    // Iterate LLM providers only (7) when daemon not available
-    // MCP and Local providers typically don't need secrets loaded this way
-    for provider in KNOWN_PROVIDERS
-        .iter()
-        .filter(|p| p.category == ProviderCategory::Llm)
-    {
+    let mut result = SecretsLoadResult::default();
+    for provider in KNOWN_PROVIDERS.iter().filter(|p| p.category == ProviderCategory::Llm) {
         let provider_id = provider.id;
         let env_var = provider.env_var;
-
-        // Check if already in env (skip empty values)
-        if std::env::var(env_var)
-            .map(|v| !v.is_empty())
-            .unwrap_or(false)
-        {
+        if std::env::var(env_var).map(|v| !v.is_empty()).unwrap_or(false) {
             trace!("{}: already in env", provider_id);
-            result.from_fallback.push(provider_id.to_string());
+            result.from_env.push(provider_id.to_string());
             continue;
         }
-
-        if try_load_from_fallback(provider_id, env_var) {
-            result.from_fallback.push(provider_id.to_string());
+        if try_load_from_keyring(provider_id, env_var) {
+            result.from_env.push(provider_id.to_string());
         } else {
             result.not_found.push(provider_id.to_string());
         }
     }
-
     info!("Secrets: {}", result.summary());
     result
 }
 
-/// Try loading from keyring and inject into env if found.
-///
-/// DISABLED during automatic boot to prevent macOS Keychain popup storms.
-/// The keychain is only accessed via explicit CLI commands:
-/// - `nika provider set <name>` — stores a key
-/// - `nika provider get <name>` — retrieves a key
-/// - `nika provider list` — checks which keys exist
-///
-/// During `nika run` / `nika check` / `nika ui`, only env vars are used.
-/// Set `NIKA_KEYCHAIN_BOOT=1` to re-enable keychain access during boot.
-fn try_load_from_fallback(provider: &str, env_var: &str) -> bool {
-    // Default: never access keychain during automatic boot
-    // This prevents the macOS "nika wants to use your confidential information" popup
-    // Users should set API keys via env vars or .env files
-    let keychain_boot = std::env::var("NIKA_KEYCHAIN_BOOT")
-        .map(|v| matches!(v.as_str(), "1" | "true" | "yes"))
-        .unwrap_or(false);
-
+fn try_load_from_keyring(provider: &str, env_var: &str) -> bool {
+    let keychain_boot = std::env::var("NIKA_KEYCHAIN_BOOT").map(|v| matches!(v.as_str(), "1" | "true" | "yes")).unwrap_or(false);
     if cfg!(test) || should_skip_keychain() || !keychain_boot {
-        trace!(
-            "{}: keychain skipped (boot mode — use env vars or NIKA_KEYCHAIN_BOOT=1)",
-            provider
-        );
+        trace!("{}: keychain skipped", provider);
         return false;
     }
-
     match NikaKeyring::get(provider) {
-        Ok(secret) => {
-            std::env::set_var(env_var, &*secret);
-            debug!("{}: loaded from keyring → {}", provider, env_var);
-            true
-        }
-        Err(_) => {
-            trace!("{}: not in keyring", provider);
-            false
-        }
+        Ok(secret) => { std::env::set_var(env_var, &*secret); debug!("{}: loaded from keyring", provider); true }
+        Err(_) => { trace!("{}: not in keyring", provider); false }
     }
 }
 
-/// Get a secret for a provider.
 pub async fn get_secret(provider: &str) -> Option<SecretString> {
     let env_var = provider_env_var(provider);
-
-    // Check env first (may have been loaded at boot)
-    if let Ok(value) = std::env::var(env_var) {
-        if !value.is_empty() {
-            return Some(SecretString::from(value));
-        }
-    }
-
-    // Never access keychain during run/check — only via explicit CLI commands
-    // This prevents macOS Keychain popup during nika run
-    let keychain_allowed = std::env::var("NIKA_KEYCHAIN_BOOT")
-        .map(|v| matches!(v.as_str(), "1" | "true" | "yes"))
-        .unwrap_or(false);
-
-    if cfg!(test) || should_skip_keychain() || !keychain_allowed {
-        return None;
-    }
-
-    // Fall back to keyring (only when NIKA_KEYCHAIN_BOOT=1)
+    if let Ok(value) = std::env::var(env_var) { if !value.is_empty() { return Some(SecretString::from(value)); } }
+    let keychain_allowed = std::env::var("NIKA_KEYCHAIN_BOOT").map(|v| matches!(v.as_str(), "1" | "true" | "yes")).unwrap_or(false);
+    if cfg!(test) || should_skip_keychain() || !keychain_allowed { return None; }
     NikaKeyring::get_secret(provider).ok()
 }
 
-/// Check if a secret exists for a provider.
 pub async fn has_secret(provider: &str) -> bool {
     let env_var = provider_env_var(provider);
-
-    // Check env first (skip empty values)
-    if std::env::var(env_var)
-        .map(|v| !v.is_empty())
-        .unwrap_or(false)
-    {
-        return true;
-    }
-
-    // Never access keychain during run/check
-    let keychain_allowed = std::env::var("NIKA_KEYCHAIN_BOOT")
-        .map(|v| matches!(v.as_str(), "1" | "true" | "yes"))
-        .unwrap_or(false);
-
-    if cfg!(test) || should_skip_keychain() || !keychain_allowed {
-        return false;
-    }
-
-    // Fall back to keyring (only when NIKA_KEYCHAIN_BOOT=1)
+    if std::env::var(env_var).map(|v| !v.is_empty()).unwrap_or(false) { return true; }
+    let keychain_allowed = std::env::var("NIKA_KEYCHAIN_BOOT").map(|v| matches!(v.as_str(), "1" | "true" | "yes")).unwrap_or(false);
+    if cfg!(test) || should_skip_keychain() || !keychain_allowed { return false; }
     NikaKeyring::exists(provider)
 }
 
-/// Get the environment variable name for a provider ID.
 fn provider_env_var(provider: &str) -> &'static str {
-    // Use KNOWN_PROVIDERS as source of truth
     crate::core::provider_to_env_var(provider).unwrap_or("UNKNOWN_API_KEY")
 }
-
-// Tests for the public API live in secrets/mod.rs to work with
-// both daemon and fallback backends (Cargo workspace feature
-// unification keeps nika-daemon always enabled).
