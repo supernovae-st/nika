@@ -851,6 +851,8 @@ impl LiveRenderer {
                 path,
                 size_bytes,
                 deduplicated,
+                verified,
+                pipeline_ms,
                 ..
             } => {
                 self.stats.media_stored += 1;
@@ -860,6 +862,11 @@ impl LiveRenderer {
                 }
                 if self.detail.show_sub_events() {
                     self.log(&super::format_event::fmt_media_stored(*size_bytes, path, hash));
+                    if self.detail.show_previews() {
+                        self.log(&super::format_event::fmt_media_stored_detail(
+                            *deduplicated, *verified, *pipeline_ms,
+                        ));
+                    }
                 }
             }
 
