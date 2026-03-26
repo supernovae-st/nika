@@ -1068,84 +1068,9 @@ impl CliRenderer {
 
     /// Render the output preview box with syntax highlighting.
     fn render_output_preview(&self, output: &Value) {
-        let text = match output {
-            Value::String(s) => s.clone(),
-            _ => serde_json::to_string_pretty(output).unwrap_or_default(),
-        };
-
-        if text.is_empty() || text == "null" {
-            return;
+        for line in format_output_preview(output, self.term_width) {
+            println!("{}", line);
         }
-
-        let is_json = text.starts_with('{') || text.starts_with('[');
-        let is_markdown = text.starts_with('#') || text.contains("\n## ");
-
-        let max_width = (self.term_width as usize).min(72).saturating_sub(16);
-        let dashes = "╌".repeat(max_width);
-        let size_label = format!("{} ch", text.chars().count());
-        let padding = max_width.saturating_sub(size_label.len() + 1);
-
-        println!(
-            "{}     {} {}{}{}",
-            " ".repeat(6),
-            "│".dimmed(),
-            "╭╌".dimmed(),
-            dashes.dimmed(),
-            "╮".dimmed()
-        );
-
-        let preview_lines: Vec<String> = if is_json {
-            // Take first line of compact JSON, syntax-highlighted
-            vec![colors::json_preview(&text.replace('\n', " "), max_width)]
-        } else if is_markdown {
-            colors::markdown_preview(&text, 4)
-                .into_iter()
-                .map(|l| {
-                    if stripped_len(&l) > max_width {
-                        let end = floor_char_boundary(&l, max_width - 1);
-                        format!("{}…", &l[..end])
-                    } else {
-                        l
-                    }
-                })
-                .collect()
-        } else {
-            // Plain text
-            text.lines()
-                .take(2)
-                .map(|l| {
-                    if l.len() > max_width {
-                        let end = floor_char_boundary(l, max_width - 1);
-                        format!("{}…", &l[..end])
-                    } else {
-                        l.to_string()
-                    }
-                })
-                .collect()
-        };
-
-        for line in &preview_lines {
-            let pad = max_width.saturating_sub(stripped_len(line));
-            println!(
-                "{}     {} {} {}{} {}",
-                " ".repeat(6),
-                "│".dimmed(),
-                "│".dimmed(),
-                line,
-                " ".repeat(pad),
-                "│".dimmed()
-            );
-        }
-
-        println!(
-            "{}     {} {}{} {} {}",
-            " ".repeat(6),
-            "│".dimmed(),
-            "╰╌".dimmed(),
-            "╌".repeat(padding).dimmed(),
-            size_label.dimmed(),
-            "╌╯".dimmed()
-        );
     }
 
     pub fn render_quiet_summary(&self, total_duration_ms: u64) {
@@ -1174,3 +1099,93 @@ pub(crate) fn format_bytes(bytes: u64) -> String {
 }
 
 use super::colors::{floor_char_boundary, stripped_len};
+
+/// Format output preview as a mini box with syntax-highlighted content.
+///
+/// Returns a Vec of pre-formatted lines (with ANSI colors and box characters)
+/// ready for printing. Returns empty Vec if output is null/empty.
+pub(crate) fn format_output_preview(output: &Value, term_width: u16) -> Vec<String> {
+    let text = match output {
+        Value::String(s) => s.clone(),
+        _ => serde_json::to_string_pretty(output).unwrap_or_default(),
+    };
+
+    if text.is_empty() || text == "null" {
+        return Vec::new();
+    }
+
+    let is_json = text.starts_with('{') || text.starts_with('[');
+    let is_markdown = text.starts_with('#') || text.contains("\n## ");
+
+    let max_width = (term_width as usize).min(72).saturating_sub(16);
+    let dashes = "\u{254c}".repeat(max_width);
+    let size_label = format!("{} ch", text.chars().count());
+    let padding = max_width.saturating_sub(size_label.len() + 1);
+
+    let mut lines = Vec::new();
+
+    // Top border
+    lines.push(format!(
+        "{}     {} {}{}{}",
+        " ".repeat(6),
+        "\u{2502}".dimmed(),
+        "\u{256d}\u{254c}".dimmed(),
+        dashes.dimmed(),
+        "\u{256e}".dimmed()
+    ));
+
+    // Content lines
+    let preview_lines: Vec<String> = if is_json {
+        vec![colors::json_preview(&text.replace('\n', " "), max_width)]
+    } else if is_markdown {
+        colors::markdown_preview(&text, 4)
+            .into_iter()
+            .map(|l| {
+                if stripped_len(&l) > max_width {
+                    let end = floor_char_boundary(&l, max_width - 1);
+                    format!("{}\u{2026}", &l[..end])
+                } else {
+                    l
+                }
+            })
+            .collect()
+    } else {
+        text.lines()
+            .take(2)
+            .map(|l| {
+                if l.len() > max_width {
+                    let end = floor_char_boundary(l, max_width - 1);
+                    format!("{}\u{2026}", &l[..end])
+                } else {
+                    l.to_string()
+                }
+            })
+            .collect()
+    };
+
+    for line in &preview_lines {
+        let pad = max_width.saturating_sub(stripped_len(line));
+        lines.push(format!(
+            "{}     {} {} {}{} {}",
+            " ".repeat(6),
+            "\u{2502}".dimmed(),
+            "\u{2502}".dimmed(),
+            line,
+            " ".repeat(pad),
+            "\u{2502}".dimmed()
+        ));
+    }
+
+    // Bottom border
+    lines.push(format!(
+        "{}     {} {}{} {} {}",
+        " ".repeat(6),
+        "\u{2502}".dimmed(),
+        "\u{2570}\u{254c}".dimmed(),
+        "\u{254c}".repeat(padding).dimmed(),
+        size_label.dimmed(),
+        "\u{254c}\u{256f}".dimmed()
+    ));
+
+    lines
+}
