@@ -302,6 +302,16 @@ pub struct ChatView {
     /// Runtime workflow DAG that mirrors chat messages
     /// Used for /export yaml and unified execution with YAML workflows
     pub workflow: ChatWorkflow,
+
+    // === PERF: Message render cache ===
+    /// Cached rendered message items (rebuilt only on data change)
+    cached_msg_items: Vec<ratatui::widgets::ListItem<'static>>,
+    /// Message count when cache was built
+    cached_msg_count: usize,
+    /// Content width when cache was built
+    cached_msg_width: usize,
+    /// Streaming content length when cache was built (for incremental updates)
+    cached_streaming_len: usize,
 }
 
 impl ChatView {
@@ -510,6 +520,12 @@ impl ChatView {
 
             // ChatWorkflow DAG (unified execution)
             workflow,
+
+            // PERF: Message render cache
+            cached_msg_items: Vec::new(),
+            cached_msg_count: 0,
+            cached_msg_width: 0,
+            cached_streaming_len: 0,
         }
     }
 
