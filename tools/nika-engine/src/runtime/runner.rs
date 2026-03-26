@@ -17,6 +17,8 @@ use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, instrument};
 
+use crate::media::CasStore;
+
 use crate::ast::analyzed::{
     AnalyzedOutput, AnalyzedTask, AnalyzedTaskAction, AnalyzedWorkflow,
     OutputFormat as AnalyzedOutputFormat,
@@ -2299,6 +2301,22 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             total_duration_ms: workflow_start.elapsed().as_millis() as u64,
         });
 
+        // GC: remove CAS media files older than 30 days and emit MediaCleanup
+        let cas_store = CasStore::workspace_default(&base_path);
+        let gc = cas_store.clean_older_than(std::time::Duration::from_secs(30 * 24 * 3600));
+        if gc.removed > 0 || gc.bytes_freed > 0 {
+            tracing::debug!(
+                removed = gc.removed,
+                bytes_freed = gc.bytes_freed,
+                "CAS GC: removed stale media files"
+            );
+        }
+        self.event_log.emit(EventKind::MediaCleanup {
+            removed: gc.removed,
+            bytes_freed: gc.bytes_freed,
+            dry_run: false,
+        });
+
         if media_warnings > 0 {
             tracing::warn!(
                 warnings = media_warnings,
@@ -2735,9 +2753,16 @@ mod tests {
             EventKind::WorkflowStarted { task_count: 1, .. }
         ));
 
-        // Last event should be WorkflowCompleted
+        // WorkflowCompleted should be emitted (followed by MediaCleanup GC event)
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(&e.kind, EventKind::WorkflowCompleted { .. })),
+            "WorkflowCompleted should be emitted"
+        );
+        // Last event is MediaCleanup (GC runs after workflow)
         let last = events.last().unwrap();
-        assert!(matches!(&last.kind, EventKind::WorkflowCompleted { .. }));
+        assert!(matches!(&last.kind, EventKind::MediaCleanup { .. }));
 
         // Verify task events exist
         let task_events = runner.event_log().filter_task("greet");
@@ -2827,9 +2852,15 @@ mod tests {
             .collect();
         assert_eq!(completed.len(), 2, "Both tasks should complete");
 
-        // WorkflowCompleted should be last
+        // WorkflowCompleted should be present; MediaCleanup GC event follows it
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(&e.kind, EventKind::WorkflowCompleted { .. })),
+            "WorkflowCompleted should be emitted"
+        );
         let last = events.last().unwrap();
-        assert!(matches!(&last.kind, EventKind::WorkflowCompleted { .. }));
+        assert!(matches!(&last.kind, EventKind::MediaCleanup { .. }));
     }
 
     #[tokio::test]
