@@ -3,6 +3,8 @@
 //! Extracted from TuiState to isolate notification management
 //! (system notifications with severity levels and dismissal).
 
+use std::collections::VecDeque;
+
 use super::notification::Notification;
 
 /// Notification-related state extracted from TuiState
@@ -12,7 +14,7 @@ use super::notification::Notification;
 #[derive(Debug)]
 pub struct NotificationState {
     /// System notifications
-    pub items: Vec<Notification>,
+    pub items: VecDeque<Notification>,
     /// Maximum number of notifications to keep
     pub max_items: usize,
 }
@@ -20,7 +22,7 @@ pub struct NotificationState {
 impl Default for NotificationState {
     fn default() -> Self {
         Self {
-            items: Vec::new(),
+            items: VecDeque::new(),
             max_items: 10,
         }
     }
@@ -34,9 +36,9 @@ impl NotificationState {
     /// Add a notification, evicting oldest if at capacity
     pub fn push(&mut self, notification: Notification) {
         if self.items.len() >= self.max_items {
-            self.items.remove(0);
+            self.items.pop_front();
         }
-        self.items.push(notification);
+        self.items.push_back(notification);
     }
 
     /// Dismiss a notification by index, then compact dismissed items
@@ -101,7 +103,7 @@ mod tests {
     #[test]
     fn test_notification_state_eviction() {
         let mut ns = NotificationState {
-            items: Vec::new(),
+            items: VecDeque::new(),
             max_items: 3,
         };
         for i in 0..5 {

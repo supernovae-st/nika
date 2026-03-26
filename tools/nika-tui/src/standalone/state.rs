@@ -1,6 +1,7 @@
 //! Standalone TUI state: browser, history, preview, and validation.
 
 use ignore::WalkBuilder;
+use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 
 use nika_engine::ast::parse_workflow;
@@ -22,7 +23,7 @@ pub struct StandaloneState {
     /// Selected index in browser
     pub browser_index: usize,
     /// Execution history
-    pub history: Vec<HistoryEntry>,
+    pub history: VecDeque<HistoryEntry>,
     /// Selected index in history
     pub history_index: usize,
     /// Preview content (YAML of selected file)
@@ -43,7 +44,7 @@ impl StandaloneState {
             focused_panel: StandalonePanel::Browser,
             browser_entries: Vec::new(),
             browser_index: 0,
-            history: Vec::new(),
+            history: VecDeque::new(),
             history_index: 0,
             preview_content: String::new(),
             preview_scroll: 0,
@@ -149,7 +150,7 @@ impl StandaloneState {
             .unwrap_or_else(|| PathBuf::from(".nika/history.json"));
 
         if let Ok(content) = std::fs::read_to_string(&history_path) {
-            if let Ok(history) = serde_json::from_str::<Vec<HistoryEntry>>(&content) {
+            if let Ok(history) = serde_json::from_str::<VecDeque<HistoryEntry>>(&content) {
                 self.history = history;
             }
         }
@@ -173,9 +174,9 @@ impl StandaloneState {
     pub fn add_history(&mut self, entry: HistoryEntry) {
         // Keep last 50 entries
         if self.history.len() >= 50 {
-            self.history.remove(0);
+            self.history.pop_front();
         }
-        self.history.push(entry);
+        self.history.push_back(entry);
         self.save_history();
     }
 
@@ -477,7 +478,7 @@ mod tests {
     fn test_standalone_state_history_up_decrements() {
         let root = PathBuf::from("/tmp/nika_test");
         let mut state = StandaloneState::new(root);
-        state.history = vec![
+        state.history = VecDeque::from(vec![
             HistoryEntry::new(
                 PathBuf::from("test1.nika.yaml"),
                 Duration::from_secs(1),
@@ -492,7 +493,7 @@ mod tests {
                 true,
                 "summary2".to_string(),
             ),
-        ];
+        ]);
         state.history_index = 1;
 
         state.history_up();
@@ -504,13 +505,13 @@ mod tests {
     fn test_standalone_state_history_down_at_end() {
         let root = PathBuf::from("/tmp/nika_test");
         let mut state = StandaloneState::new(root);
-        state.history = vec![HistoryEntry::new(
+        state.history = VecDeque::from(vec![HistoryEntry::new(
             PathBuf::from("test1.nika.yaml"),
             Duration::from_secs(1),
             1,
             true,
             "summary1".to_string(),
-        )];
+        )]);
         state.history_index = 0;
 
         state.history_down();
@@ -523,7 +524,7 @@ mod tests {
     fn test_standalone_state_history_down_increments() {
         let root = PathBuf::from("/tmp/nika_test");
         let mut state = StandaloneState::new(root);
-        state.history = vec![
+        state.history = VecDeque::from(vec![
             HistoryEntry::new(
                 PathBuf::from("test1.nika.yaml"),
                 Duration::from_secs(1),
@@ -538,7 +539,7 @@ mod tests {
                 true,
                 "summary2".to_string(),
             ),
-        ];
+        ]);
         state.history_index = 0;
 
         state.history_down();

@@ -54,16 +54,16 @@ impl TuiState {
         self.metrics.total_tokens += input_tokens + output_tokens;
         self.metrics.cost_usd += cost_usd;
         if self.metrics.token_history.len() >= MAX_HISTORY_ENTRIES {
-            self.metrics.token_history.remove(0);
+            self.metrics.token_history.pop_front();
         }
         self.metrics
             .token_history
-            .push(input_tokens + output_tokens);
+            .push_back(input_tokens + output_tokens);
         if let Some(ttft) = ttft_ms {
             if self.metrics.latency_history.len() >= MAX_HISTORY_ENTRIES {
-                self.metrics.latency_history.remove(0);
+                self.metrics.latency_history.pop_front();
             }
-            self.metrics.latency_history.push(*ttft);
+            self.metrics.latency_history.push_back(*ttft);
             // Calculate tokens/sec from TTFT and push to velocity tracker
             // TTFT in ms, output_tokens is total - estimate avg rate
             let ttft_secs = (*ttft as f32).max(1.0) / 1000.0;
@@ -201,9 +201,9 @@ impl TuiState {
 
         // Track MCP latency for sparkline
         if self.metrics.latency_history.len() >= MAX_HISTORY_ENTRIES {
-            self.metrics.latency_history.remove(0);
+            self.metrics.latency_history.pop_front();
         }
-        self.metrics.latency_history.push(duration_ms);
+        self.metrics.latency_history.push_back(duration_ms);
 
         // Show MCP errors in status bar for user visibility
         if is_error {

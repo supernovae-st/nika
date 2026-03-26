@@ -2983,7 +2983,7 @@ fn test_workflow_aborted_event() {
     assert!(state
         .notifs
         .items
-        .last()
+        .back()
         .unwrap()
         .message
         .contains("1 tasks interrupted"));
@@ -3003,7 +3003,7 @@ fn test_workflow_aborted_no_running_tasks() {
     );
 
     // Notification should NOT mention interrupted tasks
-    let msg = &state.notifs.items.last().unwrap().message;
+    let msg = &state.notifs.items.back().unwrap().message;
     assert!(!msg.contains("interrupted"));
     assert!(msg.contains("Timeout"));
 }
@@ -3392,7 +3392,7 @@ fn test_agent_spawned_event() {
     assert!(state
         .notifs
         .items
-        .last()
+        .back()
         .unwrap()
         .message
         .contains("child-agent"));
@@ -3550,13 +3550,13 @@ fn test_mcp_connected_event() {
 
     assert!(state.dirty.status);
     assert_eq!(
-        state.notifs.items.last().unwrap().level,
+        state.notifs.items.back().unwrap().level,
         NotificationLevel::Success
     );
     assert!(state
         .notifs
         .items
-        .last()
+        .back()
         .unwrap()
         .message
         .contains("novanet"));
@@ -3577,13 +3577,13 @@ fn test_mcp_error_event() {
 
     assert!(state.dirty.status);
     assert_eq!(
-        state.notifs.items.last().unwrap().level,
+        state.notifs.items.back().unwrap().level,
         NotificationLevel::Error
     );
     assert!(state
         .notifs
         .items
-        .last()
+        .back()
         .unwrap()
         .message
         .contains("connection refused"));
@@ -3607,7 +3607,7 @@ fn test_mcp_retry_event() {
     );
 
     assert!(state.dirty.status);
-    let msg = &state.notifs.items.last().unwrap().message;
+    let msg = &state.notifs.items.back().unwrap().message;
     assert!(msg.contains("2/3"));
     assert!(msg.contains("novanet_describe"));
 }
@@ -3650,7 +3650,7 @@ fn test_slow_mcp_response_adds_warning() {
     );
 
     assert!(state.notifs.items.len() > notifs_before);
-    let last = state.notifs.items.last().unwrap();
+    let last = state.notifs.items.back().unwrap();
     assert_eq!(last.level, NotificationLevel::Warning);
     assert!(last.message.contains("slow_tool"));
 }

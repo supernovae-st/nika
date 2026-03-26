@@ -15,6 +15,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Paragraph, Widget},
 };
+use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
 // Status colors
@@ -146,24 +147,24 @@ impl StatusMessage {
 /// Status message queue for managing multiple messages
 #[derive(Debug, Default, Clone)]
 pub struct StatusQueue {
-    messages: Vec<StatusMessage>,
+    messages: VecDeque<StatusMessage>,
     max_messages: usize,
 }
 
 impl StatusQueue {
     pub fn new() -> Self {
         Self {
-            messages: Vec::new(),
+            messages: VecDeque::new(),
             max_messages: 5,
         }
     }
 
     /// Push a new status message
     pub fn push(&mut self, message: StatusMessage) {
-        self.messages.push(message);
+        self.messages.push_back(message);
         // Trim to max
         while self.messages.len() > self.max_messages {
-            self.messages.remove(0);
+            self.messages.pop_front();
         }
     }
 

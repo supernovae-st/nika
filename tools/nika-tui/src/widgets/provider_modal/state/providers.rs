@@ -2,6 +2,8 @@
 //!
 //! Connection status tracking, latency history (sparklines), session statistics.
 
+use std::collections::VecDeque;
+
 use super::types::ConnectionStatus;
 use super::ProviderModalState;
 
@@ -125,14 +127,14 @@ impl ProviderModalState {
         }
         // Ensure vector has space for this provider
         while self.latency_history.len() <= index {
-            self.latency_history.push(Vec::new());
+            self.latency_history.push(VecDeque::new());
         }
         let history = &mut self.latency_history[index];
         // Push new value, remove oldest if at max
         if history.len() >= LATENCY_HISTORY_MAX {
-            history.remove(0);
+            history.pop_front();
         }
-        history.push(latency_ms);
+        history.push_back(latency_ms);
     }
 
     /// Push latency by provider name
@@ -152,11 +154,15 @@ impl ProviderModalState {
     }
 
     /// Get latency history for a provider (for sparkline)
-    pub fn get_latency_history(&self, index: usize) -> &[u64] {
+    ///
+    /// Returns a contiguous slice view. Since VecDeque storage may be
+    /// split across two segments, we use make_contiguous to linearize
+    /// (max 10 elements, negligible cost).
+    pub fn get_latency_history(&self, index: usize) -> Vec<u64> {
         self.latency_history
             .get(index)
-            .map(|h| h.as_slice())
-            .unwrap_or(&[])
+            .map(|h| h.iter().copied().collect())
+            .unwrap_or_default()
     }
 
     /// Compute session statistics for footer display

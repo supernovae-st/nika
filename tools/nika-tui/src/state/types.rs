@@ -8,7 +8,7 @@
 //! - Agent turn state
 //! - Metrics aggregation
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -455,9 +455,9 @@ pub struct Metrics {
     /// MCP cache misses (responses fetched fresh)
     pub mcp_cache_misses: u32,
     /// Token history (for sparkline)
-    pub token_history: Vec<u64>,
+    pub token_history: VecDeque<u64>,
     /// Latency history in ms (for sparkline)
-    pub latency_history: Vec<u64>,
+    pub latency_history: VecDeque<u64>,
     /// Provider call count
     pub provider_calls: usize,
     /// Last model used (for status display)
