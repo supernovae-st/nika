@@ -331,7 +331,7 @@ impl LiveRenderer {
 
     fn format_failed(task_id: &str, verb: &str, dur_secs: f32, error: &str) -> String {
         let padded_id = Self::truncate_task_id(task_id, 16);
-        let short_err = if error.len() > 40 {
+        let short_err = if colors::stripped_len(error) > 40 {
             let cut = colors::floor_char_boundary(error, 39);
             format!("{}…", &error[..cut])
         } else {
@@ -348,7 +348,7 @@ impl LiveRenderer {
     }
 
     fn format_skipped(task_id: &str, reason: &str) -> String {
-        let padded_id = format!("{:<16}", task_id);
+        let padded_id = Self::truncate_task_id(task_id, 16);
         format!(
             "{} {} {} {}",
             icons::skipped(),
@@ -1398,10 +1398,9 @@ mod tests {
             },
         ));
         assert_eq!(renderer.stats.tasks_failed, 1);
-        assert_eq!(
-            renderer.stats.root_failure.as_deref(),
-            Some("broken"),
-            "should record first failure as root"
+        assert!(
+            renderer.stats.root_failure.as_deref().unwrap().starts_with("broken:"),
+            "should record first failure task + error as root"
         );
         assert_eq!(renderer.task_bars["broken"].status, TaskStatus::Failed);
     }

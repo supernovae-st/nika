@@ -242,10 +242,12 @@ impl RunStats {
                 self.tasks_passed += 1;
             }
 
-            EventKind::TaskFailed { task_id, .. } => {
+            EventKind::TaskFailed {
+                task_id, error, ..
+            } => {
                 self.tasks_failed += 1;
                 if self.root_failure.is_none() {
-                    self.root_failure = Some(task_id.to_string());
+                    self.root_failure = Some(format!("{}: {}", task_id, error));
                 }
             }
 

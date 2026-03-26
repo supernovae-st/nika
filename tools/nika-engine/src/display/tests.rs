@@ -1256,7 +1256,7 @@ fn run_stats_apply_task_completed_and_failed() {
         },
     });
     assert_eq!(stats.tasks_failed, 1);
-    assert_eq!(stats.root_failure, Some("t2".to_string()));
+    assert!(stats.root_failure.as_deref().unwrap().starts_with("t2:"));
 
     // Second failure should NOT overwrite root_failure
     stats.apply_event(&Event {
@@ -1270,10 +1270,9 @@ fn run_stats_apply_task_completed_and_failed() {
         },
     });
     assert_eq!(stats.tasks_failed, 2);
-    assert_eq!(
-        stats.root_failure,
-        Some("t2".to_string()),
-        "root_failure should be first failure"
+    assert!(
+        stats.root_failure.as_deref().unwrap().starts_with("t2:"),
+        "root_failure should be first failure (with error)"
     );
 }
 
@@ -2442,7 +2441,7 @@ fn test_renderer_tracks_failures() {
     r.render_new_events(&events);
 
     assert_eq!(r.stats.tasks_failed, 1);
-    assert_eq!(r.stats.root_failure.as_deref(), Some("broken"));
+    assert!(r.stats.root_failure.as_deref().unwrap().starts_with("broken:"));
 }
 
 #[test]
