@@ -75,17 +75,24 @@ impl JobService {
 
         info!(job_id = %id, workflow, "job submitted");
 
-        // Auto-start if not at capacity
-        let running_count = self.running.lock().await.len();
-        if running_count < MAX_CONCURRENT_JOBS {
-            self.start_job(&id).await?;
-        }
+        // Auto-start (capacity check is inside start_job, atomically)
+        self.start_job(&id).await?;
 
         Ok(id)
     }
 
     /// Start executing a pending job.
     async fn start_job(&self, job_id: &str) -> DaemonResult<()> {
+        // Atomically check capacity and reserve a slot (prevents concurrent over-spawning).
+        // Uses placeholder PID=0 so capacity is claimed before any storage I/O.
+        {
+            let mut running = self.running.lock().await;
+            if running.len() >= MAX_CONCURRENT_JOBS {
+                return Ok(()); // At capacity — job stays pending
+            }
+            running.insert(job_id.to_string(), 0); // Reserve slot
+        }
+
         let job = self
             .storage
             .get_job(job_id)
@@ -93,7 +100,9 @@ impl JobService {
             .ok_or_else(|| DaemonError::Protocol(format!("job not found: {job_id}")))?;
 
         if job.state != JobState::Pending {
-            return Ok(()); // Already started or completed
+            // Job was cancelled or already started — release the reserved slot
+            self.running.lock().await.remove(job_id);
+            return Ok(());
         }
 
         // Update state to Running
