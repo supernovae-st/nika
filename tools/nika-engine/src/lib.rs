@@ -40,7 +40,7 @@ pub mod dag;
 pub mod display;
 pub mod error;
 pub mod event;
-pub mod init;
+pub use nika_init as init;
 pub mod mcp;
 pub mod media;
 pub mod new;

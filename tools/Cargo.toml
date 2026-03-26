@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "nika",
     "nika-engine",
+    "nika-init",
     "nika-cli",
     "nika-tui",
     "nika-core",
@@ -26,6 +27,7 @@ rust-version = "1.86"
 nika-cli = { path = "nika-cli", version = "0.46.0" }
 nika-core = { path = "nika-core", version = "0.46.0" }
 nika-engine = { path = "nika-engine", version = "0.46.0", default-features = true }
+nika-init = { path = "nika-init", version = "0.46.0" }
 nika-tui = { path = "nika-tui", version = "0.46.0" }
 nika-event = { path = "nika-event", version = "0.46.0" }
 nika-mcp = { path = "nika-mcp", version = "0.46.0" }

@@ -8,7 +8,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::{NikaError, Result};
+use crate::error::{NikaInitError, Result};
 
 /// Top-level progress file
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -101,14 +101,14 @@ impl CourseProgress {
 
     /// Load progress from a TOML file
     pub fn load(path: &Path) -> Result<Self> {
-        let content = std::fs::read_to_string(path).map_err(|e| NikaError::ConfigError {
+        let content = std::fs::read_to_string(path).map_err(|e| NikaInitError::ConfigError {
             reason: format!(
                 "Failed to read course progress at {}: {}",
                 path.display(),
                 e
             ),
         })?;
-        toml::from_str(&content).map_err(|e| NikaError::ConfigError {
+        toml::from_str(&content).map_err(|e| NikaInitError::ConfigError {
             reason: format!("Failed to parse course progress: {}", e),
         })
     }
@@ -116,15 +116,15 @@ impl CourseProgress {
     /// Save progress to a TOML file
     pub fn save(&mut self, path: &Path) -> Result<()> {
         self.metadata.last_activity = now_iso8601();
-        let content = toml::to_string_pretty(self).map_err(|e| NikaError::ConfigError {
+        let content = toml::to_string_pretty(self).map_err(|e| NikaInitError::ConfigError {
             reason: format!("Failed to serialize course progress: {}", e),
         })?;
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| NikaError::ConfigError {
+            std::fs::create_dir_all(parent).map_err(|e| NikaInitError::ConfigError {
                 reason: format!("Failed to create directory {}: {}", parent.display(), e),
             })?;
         }
-        std::fs::write(path, content).map_err(|e| NikaError::ConfigError {
+        std::fs::write(path, content).map_err(|e| NikaInitError::ConfigError {
             reason: format!(
                 "Failed to write course progress to {}: {}",
                 path.display(),

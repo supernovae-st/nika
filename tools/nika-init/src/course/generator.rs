@@ -10,7 +10,7 @@ use std::env;
 use std::fs;
 use std::path::PathBuf;
 
-use crate::error::{NikaError, Result};
+use crate::error::{NikaInitError, Result};
 
 use super::exercises::ExerciseContent;
 use super::levels::LEVELS;
@@ -102,7 +102,7 @@ pub fn generate_course(config: &CourseConfig) -> Result<CourseResult> {
 
     // Don't overwrite existing course
     if dest.join(".nika").join("course-progress.toml").exists() {
-        return Err(NikaError::ValidationError {
+        return Err(NikaInitError::ValidationError {
             reason: format!(
                 "Course already exists at {}. Use `nika course reset` to start over.",
                 dest.display()
@@ -111,11 +111,11 @@ pub fn generate_course(config: &CourseConfig) -> Result<CourseResult> {
     }
 
     // Create root directory
-    fs::create_dir_all(dest).map_err(NikaError::IoError)?;
+    fs::create_dir_all(dest).map_err(NikaInitError::IoError)?;
 
     // Create .nika/ directory with config
     let nika_dir = dest.join(".nika");
-    fs::create_dir_all(&nika_dir).map_err(NikaError::IoError)?;
+    fs::create_dir_all(&nika_dir).map_err(NikaInitError::IoError)?;
 
     // Write config.toml
     let config_content = format!(
@@ -130,7 +130,7 @@ default = "{}"
 "#,
         config.provider
     );
-    fs::write(nika_dir.join("config.toml"), config_content).map_err(NikaError::IoError)?;
+    fs::write(nika_dir.join("config.toml"), config_content).map_err(NikaInitError::IoError)?;
 
     // Write initial course progress
     let mut progress = CourseProgress::new_course();
@@ -155,15 +155,15 @@ default = "{}"
     // Generate each level directory
     for level in LEVELS.iter() {
         let level_dir = dest.join(format!("{:02}-{}", level.number, level.slug));
-        fs::create_dir_all(&level_dir).map_err(NikaError::IoError)?;
+        fs::create_dir_all(&level_dir).map_err(NikaInitError::IoError)?;
 
         // Create .solutions/ directory
         let solutions_dir = level_dir.join(".solutions");
-        fs::create_dir_all(&solutions_dir).map_err(NikaError::IoError)?;
+        fs::create_dir_all(&solutions_dir).map_err(NikaInitError::IoError)?;
 
         // Write MISSION.md
         let mission = missions::get_mission(level.slug);
-        fs::write(level_dir.join("MISSION.md"), mission).map_err(NikaError::IoError)?;
+        fs::write(level_dir.join("MISSION.md"), mission).map_err(NikaInitError::IoError)?;
 
         // Write exercises for this level
         let level_exercises: Vec<&ExerciseContent> = all_exercises
@@ -175,24 +175,24 @@ default = "{}"
         for exercise in &level_exercises {
             // Substitute placeholders in template
             let template = substitute_placeholders(exercise.template, config);
-            fs::write(level_dir.join(exercise.filename), template).map_err(NikaError::IoError)?;
+            fs::write(level_dir.join(exercise.filename), template).map_err(NikaInitError::IoError)?;
             exercise_count += 1;
 
             // Substitute placeholders in solution
             let solution = substitute_placeholders(exercise.solution, config);
             fs::write(solutions_dir.join(exercise.filename), solution)
-                .map_err(NikaError::IoError)?;
+                .map_err(NikaInitError::IoError)?;
             solution_count += 1;
         }
     }
 
     // Write course README.md
     let readme = generate_readme(config);
-    fs::write(dest.join("README.md"), readme).map_err(NikaError::IoError)?;
+    fs::write(dest.join("README.md"), readme).map_err(NikaInitError::IoError)?;
 
     // Write .gitignore for .solutions directories
     let gitignore = "# Hide solutions from git\n.solutions/\n\n# Nika runtime\n.nika/traces/\n.nika/media/\n.nika/cache/\noutput/\n";
-    fs::write(dest.join(".gitignore"), gitignore).map_err(NikaError::IoError)?;
+    fs::write(dest.join(".gitignore"), gitignore).map_err(NikaInitError::IoError)?;
 
     Ok(CourseResult {
         root: dest.clone(),

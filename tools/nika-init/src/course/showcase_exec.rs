@@ -1173,7 +1173,7 @@ mod tests {
     #[test]
     fn test_showcase_exec_valid_yaml() {
         for w in SHOWCASE_EXEC {
-            let parsed: Result<serde_json::Value, _> = crate::serde_yaml::from_str(w.content);
+            let parsed: Result<serde_json::Value, _> = serde_saphyr::from_str(w.content);
             assert!(
                 parsed.is_ok(),
                 "Workflow '{}' must be valid YAML: {:?}",

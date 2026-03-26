@@ -1,0 +1,23 @@
+[package]
+name = "nika-init"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Nika project scaffolding — course generator, workflow templates, showcase"
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = true
+
+[dependencies]
+# Serialization (CourseProgress persistence)
+serde = { workspace = true }
+toml = { workspace = true }
+
+# Errors
+thiserror = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+serde-saphyr = { workspace = true }
+tempfile = { workspace = true }
