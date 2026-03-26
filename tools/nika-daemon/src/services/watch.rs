@@ -75,7 +75,10 @@ impl WatchService {
         let mut watcher =
             notify::recommended_watcher(move |res: Result<Event, notify::Error>| match res {
                 Ok(event) => {
-                    let _ = tx.blocking_send(event);
+                    // try_send: drop events rather than blocking the notify thread on a full channel
+                    if tx.try_send(event).is_err() {
+                        warn!("watch event dropped — raw channel full");
+                    }
                 }
                 Err(e) => {
                     warn!(error = %e, "watch error");
