@@ -20,6 +20,9 @@ const JOB_TIMEOUT: Duration = Duration::from_secs(3600);
 /// Maximum concurrent jobs.
 const MAX_CONCURRENT_JOBS: usize = 4;
 
+/// Maximum pending jobs in the queue (prevents unbounded DB growth / disk exhaustion).
+const MAX_PENDING_JOBS: usize = 1000;
+
 /// The job service manages job lifecycle.
 pub struct JobService {
     storage: Storage,
@@ -45,6 +48,14 @@ impl JobService {
         cron: Option<&str>,
         max_retries: u32,
     ) -> DaemonResult<String> {
+        // Reject submissions when the queue is full to prevent disk exhaustion.
+        let pending = self.storage.list_jobs(Some(JobState::Pending)).await?;
+        if pending.len() >= MAX_PENDING_JOBS {
+            return Err(DaemonError::Protocol(format!(
+                "job queue full: {MAX_PENDING_JOBS} pending jobs — wait for jobs to complete"
+            )));
+        }
+
         let id = uuid::Uuid::new_v4().to_string();
         let job = Job {
             id: id.clone(),
