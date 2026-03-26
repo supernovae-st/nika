@@ -96,16 +96,34 @@ impl CacheService {
         hasher.update(b"|");
         hasher.update(prompt.as_bytes());
         hasher.update(b"|");
-        if let Some(sys) = system {
-            hasher.update(sys.as_bytes());
+        match system {
+            Some(sys) => {
+                hasher.update(&[0x01]);
+                hasher.update(sys.as_bytes());
+            }
+            None => {
+                hasher.update(&[0x00]);
+            }
         }
         hasher.update(b"|");
-        if let Some(temp) = temperature {
-            hasher.update(&temp.to_le_bytes());
+        match temperature {
+            Some(temp) => {
+                hasher.update(&[0x01]);
+                hasher.update(&temp.to_le_bytes());
+            }
+            None => {
+                hasher.update(&[0x00]);
+            }
         }
         hasher.update(b"|");
-        if let Some(max) = max_tokens {
-            hasher.update(&max.to_le_bytes());
+        match max_tokens {
+            Some(max) => {
+                hasher.update(&[0x01]);
+                hasher.update(&max.to_le_bytes());
+            }
+            None => {
+                hasher.update(&[0x00]);
+            }
         }
         hasher.finalize().to_hex().to_string()
     }
@@ -443,6 +461,27 @@ mod tests {
 
         assert!(cache.get("stale").is_none());
         assert!(cache.get("fresh").is_some());
+    }
+
+    #[test]
+    fn cache_key_none_vs_empty_string_differ() {
+        let k1 = CacheService::compute_key("p", "m", "hi", None, None, None);
+        let k2 = CacheService::compute_key("p", "m", "hi", Some(""), None, None);
+        assert_ne!(k1, k2, "None and Some(\"\") must produce different keys");
+    }
+
+    #[test]
+    fn cache_key_none_vs_zero_temperature_differ() {
+        let k1 = CacheService::compute_key("p", "m", "hi", None, None, None);
+        let k2 = CacheService::compute_key("p", "m", "hi", None, Some(0.0), None);
+        assert_ne!(k1, k2);
+    }
+
+    #[test]
+    fn cache_key_none_vs_zero_max_tokens_differ() {
+        let k1 = CacheService::compute_key("p", "m", "hi", None, None, None);
+        let k2 = CacheService::compute_key("p", "m", "hi", None, None, Some(0));
+        assert_ne!(k1, k2);
     }
 
     #[test]

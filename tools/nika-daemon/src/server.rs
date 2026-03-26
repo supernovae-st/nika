@@ -18,6 +18,7 @@ use crate::protocol::{decode_message, write_message, DaemonRequest, DaemonRespon
 use crate::services::cache::CacheService;
 use crate::services::jobs::JobService;
 use crate::services::secrets::SecretService;
+use crate::services::watch::{WatchConfig, WatchService};
 use crate::storage::{JobState, Storage};
 
 /// Daemon server configuration.
@@ -38,6 +39,14 @@ impl Default for DaemonConfig {
     }
 }
 
+/// Tracks active watch session (dir + patterns + ability to stop it).
+struct ActiveWatch {
+    dir: String,
+    patterns: Vec<String>,
+    /// Send true to stop the watch background task.
+    stop_tx: watch::Sender<bool>,
+}
+
 /// Shared state across all connection handlers.
 #[allow(dead_code)]
 struct ServerState {
@@ -46,6 +55,7 @@ struct ServerState {
     job_service: Option<JobService>,
     cache_service: CacheService,
     event_bus: EventBus,
+    active_watch: tokio::sync::Mutex<Option<ActiveWatch>>,
 }
 
 /// The daemon server.
@@ -127,6 +137,7 @@ impl DaemonServer {
             job_service,
             cache_service: CacheService::new(),
             event_bus,
+            active_watch: tokio::sync::Mutex::new(None),
         });
 
         let mut shutdown_rx = self.shutdown_rx;
@@ -178,12 +189,44 @@ impl DaemonServer {
 /// Handle a single client connection.
 async fn handle_connection(
     stream: tokio::net::UnixStream,
-    state: &ServerState,
+    state: &Arc<ServerState>,
 ) -> DaemonResult<()> {
     let (mut reader, mut writer) = tokio::io::split(stream);
 
     let request: DaemonRequest = decode_message(&mut reader).await?;
     debug!(?request, "received request");
+
+    // EventSubscribe enters streaming mode — holds connection open
+    if matches!(request, DaemonRequest::EventSubscribe) {
+        let mut rx = state.event_bus.subscribe();
+        debug!("event subscriber connected");
+        loop {
+            match rx.recv().await {
+                Ok(event) => {
+                    let json = match serde_json::to_value(&event) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            warn!(error = %e, "failed to serialize daemon event");
+                            continue;
+                        }
+                    };
+                    let resp = DaemonResponse::Event { event: json };
+                    if write_message(&mut writer, &resp).await.is_err() {
+                        debug!("event subscriber disconnected");
+                        break;
+                    }
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                    warn!(lagged = n, "event subscriber lagged");
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                    debug!("event bus closed");
+                    break;
+                }
+            }
+        }
+        return Ok(());
+    }
 
     let response = route_request(request, state).await;
     write_message(&mut writer, &response).await?;
@@ -192,7 +235,7 @@ async fn handle_connection(
 }
 
 /// Route a request to the appropriate service.
-async fn route_request(request: DaemonRequest, state: &ServerState) -> DaemonResponse {
+async fn route_request(request: DaemonRequest, state: &Arc<ServerState>) -> DaemonResponse {
     match request {
         DaemonRequest::Ping => DaemonResponse::Pong {
             version: env!("CARGO_PKG_VERSION").to_string(),
@@ -265,7 +308,13 @@ async fn route_request(request: DaemonRequest, state: &ServerState) -> DaemonRes
                     Ok(jobs) => {
                         let json_jobs: Vec<serde_json::Value> = jobs
                             .iter()
-                            .map(|j| serde_json::to_value(j).unwrap_or_default())
+                            .filter_map(|j| match serde_json::to_value(j) {
+                                Ok(v) => Some(v),
+                                Err(e) => {
+                                    warn!(error = %e, "failed to serialize job");
+                                    None
+                                }
+                            })
                             .collect();
                         DaemonResponse::JobList { jobs: json_jobs }
                     }
@@ -283,8 +332,15 @@ async fn route_request(request: DaemonRequest, state: &ServerState) -> DaemonRes
 
         DaemonRequest::JobStatus { id } => match &state.job_service {
             Some(svc) => match svc.get_job(&id).await {
-                Ok(Some(job)) => DaemonResponse::JobDetail {
-                    job: serde_json::to_value(&job).unwrap_or_default(),
+                Ok(Some(job)) => match serde_json::to_value(&job) {
+                    Ok(v) => DaemonResponse::JobDetail { job: v },
+                    Err(e) => {
+                        warn!(error = %e, id, "failed to serialize job");
+                        DaemonResponse::Error {
+                            code: "JOB-002".into(),
+                            message: format!("failed to serialize job: {e}"),
+                        }
+                    }
                 },
                 Ok(None) => DaemonResponse::Error {
                     code: "JOB-004".into(),
@@ -334,7 +390,13 @@ async fn route_request(request: DaemonRequest, state: &ServerState) -> DaemonRes
                 Ok(events) => {
                     let json_events: Vec<serde_json::Value> = events
                         .iter()
-                        .map(|e| serde_json::to_value(e).unwrap_or_default())
+                        .filter_map(|e| match serde_json::to_value(e) {
+                            Ok(v) => Some(v),
+                            Err(err) => {
+                                warn!(error = %err, "failed to serialize job history event");
+                                None
+                            }
+                        })
                         .collect();
                     DaemonResponse::JobHistoryList {
                         events: json_events,
@@ -352,14 +414,66 @@ async fn route_request(request: DaemonRequest, state: &ServerState) -> DaemonRes
         },
 
         // ── Watch ───────────────────────────────────────────────────────
-        DaemonRequest::WatchStart { .. } | DaemonRequest::WatchStop => {
-            // Watch is managed by the daemon CLI directly, not via IPC
+        DaemonRequest::WatchStart { dir, patterns } => {
+            let mut guard = state.active_watch.lock().await;
+            if guard.is_some() {
+                return DaemonResponse::Error {
+                    code: "WATCH-001".into(),
+                    message: "watch already active — stop first".into(),
+                };
+            }
+            let (stop_tx, stop_rx) = watch::channel(false);
+            let config = WatchConfig {
+                dir: std::path::PathBuf::from(&dir),
+                patterns: patterns.clone(),
+                ..WatchConfig::default()
+            };
+            match WatchService::start(config, stop_rx) {
+                Ok(mut svc) => {
+                    let state_ref = Arc::clone(state);
+                    let dir_clone = dir.clone();
+                    // Spawn background task to forward watch events to EventBus
+                    tokio::spawn(async move {
+                        while let Some(event) = svc.next_event().await {
+                            state_ref.event_bus.publish(
+                                crate::events::DaemonEvent::WatchTriggered {
+                                    path: event.path.display().to_string(),
+                                },
+                            );
+                        }
+                        debug!(dir = %dir_clone, "watch event loop ended");
+                    });
+                    *guard = Some(ActiveWatch {
+                        dir: dir.clone(),
+                        patterns: patterns.clone(),
+                        stop_tx,
+                    });
+                    DaemonResponse::WatchActive { dir, patterns }
+                }
+                Err(e) => DaemonResponse::Error {
+                    code: "WATCH-002".into(),
+                    message: e.to_string(),
+                },
+            }
+        }
+
+        DaemonRequest::WatchStop => {
+            let mut guard = state.active_watch.lock().await;
+            if let Some(active) = guard.take() {
+                let _ = active.stop_tx.send(true);
+            }
             DaemonResponse::Ok
         }
 
         DaemonRequest::WatchStatus => {
-            // TODO: track watch state in ServerState
-            DaemonResponse::WatchInactive
+            let guard = state.active_watch.lock().await;
+            match &*guard {
+                Some(active) => DaemonResponse::WatchActive {
+                    dir: active.dir.clone(),
+                    patterns: active.patterns.clone(),
+                },
+                None => DaemonResponse::WatchInactive,
+            }
         }
 
         // ── Cache ───────────────────────────────────────────────────────
@@ -413,8 +527,7 @@ async fn route_request(request: DaemonRequest, state: &ServerState) -> DaemonRes
 
         // ── Events ──────────────────────────────────────────────────────
         DaemonRequest::EventSubscribe => {
-            // Event subscription is handled differently (streaming)
-            // For now, return OK — TUI integration will use this
+            // Handled in handle_connection (streaming mode) — should not reach here
             DaemonResponse::Ok
         }
     }

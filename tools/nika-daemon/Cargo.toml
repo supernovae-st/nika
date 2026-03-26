@@ -49,9 +49,6 @@ dirs = { workspace = true }
 # Storage (SQLite for jobs + cache persistence)
 rusqlite = { version = "0.32", features = ["bundled"] }
 
-# Scheduling
-cron = "0.13"
-
 # File watching
 notify = "7"
 globset = { workspace = true }
