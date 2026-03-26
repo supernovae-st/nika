@@ -323,7 +323,12 @@ pub fn print_run_summary(
                 w
             )
         );
-        let avg_ttft = stats.ttft_values.iter().sum::<u64>() / stats.ttft_values.len() as u64;
+        let count = stats.ttft_values.len() as u64;
+        let avg_ttft = if count > 0 {
+            stats.ttft_values.iter().sum::<u64>() / count
+        } else {
+            0
+        };
         let min_ttft = stats.ttft_values.iter().min().copied().unwrap_or(0);
         let max_ttft = stats.ttft_values.iter().max().copied().unwrap_or(0);
         let throughput = if dur_secs > 0.0 {
