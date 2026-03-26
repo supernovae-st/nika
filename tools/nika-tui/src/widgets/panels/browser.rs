@@ -110,6 +110,10 @@ impl BrowserPanel {
         // First pass: root directory
         if let Ok(entries) = std::fs::read_dir(root) {
             for entry in entries.filter_map(|e| e.ok()) {
+                // Security: skip symlinks
+                if entry.file_type().ok().is_some_and(|ft| ft.is_symlink()) {
+                    continue;
+                }
                 let path = entry.path();
                 if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
                     if name.ends_with(".nika.yaml") {
@@ -124,6 +128,10 @@ impl BrowserPanel {
         if workflows_dir.is_dir() {
             if let Ok(entries) = std::fs::read_dir(&workflows_dir) {
                 for entry in entries.filter_map(|e| e.ok()) {
+                    // Security: skip symlinks
+                    if entry.file_type().ok().is_some_and(|ft| ft.is_symlink()) {
+                        continue;
+                    }
                     let path = entry.path();
                     if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
                         if name.ends_with(".nika.yaml") && files.len() < 5 {

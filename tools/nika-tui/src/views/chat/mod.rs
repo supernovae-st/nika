@@ -567,6 +567,10 @@ impl ChatView {
         // Check for .nika/context/ directory files
         if let Ok(entries) = std::fs::read_dir(".nika/context") {
             for entry in entries.flatten() {
+                // Security: skip symlinks
+                if entry.file_type().ok().is_some_and(|ft| ft.is_symlink()) {
+                    continue;
+                }
                 if let Some(name) = entry.file_name().to_str() {
                     if name.ends_with(".md") || name.ends_with(".yaml") {
                         files.push(MemoryFile::session(format!(".nika/context/{}", name)));
