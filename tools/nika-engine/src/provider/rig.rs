@@ -292,11 +292,61 @@ impl RigProvider {
         model_path: impl Into<std::path::PathBuf>,
         config: Option<super::native::LoadConfig>,
     ) -> Result<(), RigInferError> {
+        self.load_native_model_traced(model_path, config, None).await
+    }
+
+    /// Like `load_native_model` but emits a `NativeModelLoaded` event on success.
+    ///
+    /// Used by the executor to wire telemetry without breaking the existing API.
+    #[cfg(feature = "native-inference")]
+    pub async fn load_native_model_traced(
+        &mut self,
+        model_path: impl Into<std::path::PathBuf>,
+        config: Option<super::native::LoadConfig>,
+        event_log: Option<&crate::event::EventLog>,
+    ) -> Result<(), RigInferError> {
+        let path = model_path.into();
+        let resolved_config = config.unwrap_or_default();
+
+        // Determine kind + identifier before move
+        let (model_id, kind) = match &resolved_config.model_kind {
+            super::native::NativeModelKind::TextGguf => (
+                path.file_name()
+                    .map(|f| f.to_string_lossy().to_string())
+                    .unwrap_or_else(|| path.to_string_lossy().to_string()),
+                "gguf".to_string(),
+            ),
+            super::native::NativeModelKind::VisionHf { model_id, .. } => {
+                (model_id.clone(), "huggingface".to_string())
+            }
+        };
+
+        let load_start = Instant::now();
+
         match self {
-            RigProvider::Native(runtime) => runtime
-                .load(model_path.into(), config.unwrap_or_default())
-                .await
-                .map_err(|e: super::native::NativeError| RigInferError::PromptError(e.to_string())),
+            RigProvider::Native(runtime) => {
+                runtime
+                    .load(path.clone(), resolved_config)
+                    .await
+                    .map_err(|e: super::native::NativeError| {
+                        RigInferError::PromptError(e.to_string())
+                    })?;
+
+                let duration_ms = load_start.elapsed().as_millis() as u64;
+                let is_vision = runtime.supports_vision();
+                let size_bytes = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+
+                if let Some(log) = event_log {
+                    log.emit(crate::event::EventKind::NativeModelLoaded {
+                        model: model_id,
+                        kind,
+                        size_bytes,
+                        duration_ms,
+                        is_vision,
+                    });
+                }
+                Ok(())
+            }
             _ => Err(RigInferError::PromptError(
                 "load_native_model only valid for Native provider".to_string(),
             )),
