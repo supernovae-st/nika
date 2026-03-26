@@ -115,12 +115,8 @@ impl DaemonClient {
 
     /// Send a raw request and get the response.
     pub async fn send(&self, request: DaemonRequest) -> DaemonResult<DaemonResponse> {
-        if !self.socket_path.exists() {
-            return Err(DaemonError::NotRunning {
-                path: self.socket_path.clone(),
-            });
-        }
-
+        // No exists() check here — it's a blocking syscall with a TOCTOU race.
+        // send_inner maps NotFound/ConnectionRefused to DaemonError::NotRunning.
         let result = timeout(self.timeout, self.send_inner(request)).await;
         match result {
             Ok(inner) => inner,
@@ -131,7 +127,19 @@ impl DaemonClient {
     }
 
     async fn send_inner(&self, request: DaemonRequest) -> DaemonResult<DaemonResponse> {
-        let stream = UnixStream::connect(&self.socket_path).await?;
+        let stream = UnixStream::connect(&self.socket_path)
+            .await
+            .map_err(|e| {
+                if e.kind() == std::io::ErrorKind::NotFound
+                    || e.kind() == std::io::ErrorKind::ConnectionRefused
+                {
+                    DaemonError::NotRunning {
+                        path: self.socket_path.clone(),
+                    }
+                } else {
+                    DaemonError::Connection(e)
+                }
+            })?;
         let (mut reader, mut writer) = tokio::io::split(stream);
 
         write_message(&mut writer, &request).await?;
