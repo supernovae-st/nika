@@ -7,7 +7,6 @@
 //! - `extract_json_from_output`: Extract JSON from markdown code blocks
 //! - `format_validation_errors`: Format errors for retry feedback
 
-use std::hash::{Hash, Hasher};
 use std::sync::{Arc, LazyLock};
 
 use dashmap::DashMap;
@@ -23,17 +22,16 @@ use crate::store::TaskResult;
 /// Avoids re-reading and re-parsing schema files on repeated validations.
 static SCHEMA_CACHE: LazyLock<DashMap<Arc<str>, Arc<Value>>> = LazyLock::new(DashMap::new);
 
-/// Global compiled validator cache: schema content hash → compiled validator.
+/// Global compiled validator cache: blake3 hash of schema JSON → compiled validator.
+/// Uses blake3 for cryptographic collision resistance (replaces DefaultHasher u64).
 /// Avoids recompiling the same JSON Schema on every validation call (10-50ms each).
-static VALIDATOR_CACHE: LazyLock<DashMap<u64, Arc<Validator>>> = LazyLock::new(DashMap::new);
+static VALIDATOR_CACHE: LazyLock<DashMap<String, Arc<Validator>>> = LazyLock::new(DashMap::new);
 
-/// Hash a JSON Schema value for use as cache key.
-fn hash_schema(schema: &Value) -> u64 {
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    // Canonical JSON string is deterministic for identical schemas
+/// Compute a blake3 hash of a JSON Schema value for use as cache key.
+/// Returns a hex-encoded hash string with cryptographic collision resistance.
+fn hash_schema(schema: &Value) -> String {
     let canonical = serde_json::to_string(schema).unwrap_or_default();
-    canonical.hash(&mut hasher);
-    hasher.finish()
+    blake3::hash(canonical.as_bytes()).to_hex().to_string()
 }
 
 /// Get or compile a JSON Schema validator, using the global cache.
