@@ -1312,7 +1312,9 @@ pub fn fix_suggestion_for_code(code: &str) -> Option<&'static str> {
         "NIKA-045" => Some("Check URL, network connectivity, and response size limits"),
         "NIKA-046" => Some("Check extract mode name or enable required feature"),
         "NIKA-052" => Some("Add '?? default' or ensure task outputs JSON"),
-        "NIKA-053" => Some("This command is blocked for security. Use shell: true or a different command"),
+        "NIKA-053" => {
+            Some("This command is blocked for security. Use shell: true or a different command")
+        }
         "NIKA-072" => Some("Provide a default value or ensure non-null output"),
         "NIKA-080" => Some("Verify the task_id exists in your workflow"),
         "NIKA-081" => Some("Add depends_on: [source_task] to this task"),

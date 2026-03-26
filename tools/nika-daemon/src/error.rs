@@ -70,10 +70,7 @@ mod tests {
                 code: "E001".into(),
                 message: "fail".into(),
             },
-            DaemonError::MessageTooLarge {
-                size: 100,
-                max: 50,
-            },
+            DaemonError::MessageTooLarge { size: 100, max: 50 },
             DaemonError::Lifecycle("shutdown".into()),
             DaemonError::Watch("notify error".into()),
         ];

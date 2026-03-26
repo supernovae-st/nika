@@ -89,7 +89,14 @@ pub fn print_done_summary(
     task_count: usize,
     parallel_count: usize,
 ) {
-    for line in format_done_summary(elapsed_str, total_tokens, total_cost, trace_path, task_count, parallel_count) {
+    for line in format_done_summary(
+        elapsed_str,
+        total_tokens,
+        total_cost,
+        trace_path,
+        task_count,
+        parallel_count,
+    ) {
         println!("{}", line);
     }
 }
@@ -312,7 +319,9 @@ pub fn print_run_summary(
     let term_width = terminal_size::terminal_size()
         .map(|(w, _)| w.0)
         .unwrap_or(80);
-    if let Some(lines) = format_run_summary(stats, detail, total_duration_ms, trace_path, term_width) {
+    if let Some(lines) =
+        format_run_summary(stats, detail, total_duration_ms, trace_path, term_width)
+    {
         for line in lines {
             println!("{}", line);
         }
@@ -326,7 +335,11 @@ fn format_section_tokens(stats: &RunStats, w: usize) -> Vec<String> {
     lines.push(format!(
         "│{}│",
         pad_right(
-            &format!("  {} Tokens {}", "──".dimmed(), "─".repeat(w - 16).dimmed()),
+            &format!(
+                "  {} Tokens {}",
+                "──".dimmed(),
+                "─".repeat(w.saturating_sub(16)).dimmed()
+            ),
             w
         )
     ));
@@ -378,7 +391,11 @@ fn format_section_cost(stats: &RunStats, w: usize) -> Vec<String> {
     lines.push(format!(
         "│{}│",
         pad_right(
-            &format!("  {} Cost {}", "──".dimmed(), "─".repeat(w - 14).dimmed()),
+            &format!(
+                "  {} Cost {}",
+                "──".dimmed(),
+                "─".repeat(w.saturating_sub(14)).dimmed()
+            ),
             w
         )
     ));
@@ -417,7 +434,7 @@ fn format_section_performance(stats: &RunStats, w: usize, dur_secs: f32) -> Vec<
             &format!(
                 "  {} Performance {}",
                 "──".dimmed(),
-                "─".repeat(w - 20).dimmed()
+                "─".repeat(w.saturating_sub(20)).dimmed()
             ),
             w
         )
@@ -464,7 +481,7 @@ fn format_section_infrastructure(stats: &RunStats, w: usize) -> Vec<String> {
             &format!(
                 "  {} Infrastructure {}",
                 "──".dimmed(),
-                "─".repeat(w - 24).dimmed()
+                "─".repeat(w.saturating_sub(24)).dimmed()
             ),
             w
         )
@@ -553,7 +570,7 @@ fn format_section_timeline(stats: &RunStats, w: usize, total_duration_ms: u64) -
             &format!(
                 "  {} Timeline {}",
                 "──".dimmed(),
-                "─".repeat(w - 18).dimmed()
+                "─".repeat(w.saturating_sub(18)).dimmed()
             ),
             w
         )
@@ -613,10 +630,7 @@ fn format_section_timeline(stats: &RunStats, w: usize, total_duration_ms: u64) -
         "",
         total_ms as f64 / 1000.0
     );
-    lines.push(format!(
-        "│{}│",
-        pad_right(&axis.dimmed().to_string(), w)
-    ));
+    lines.push(format!("│{}│", pad_right(&axis.dimmed().to_string(), w)));
     lines.push(format!("│{}│", " ".repeat(w)));
     lines
 }
@@ -629,7 +643,7 @@ fn format_section_provider_breakdown(stats: &RunStats, w: usize) -> Vec<String> 
             &format!(
                 "  {} Provider Breakdown {}",
                 "──".dimmed(),
-                "─".repeat(w - 27).dimmed()
+                "─".repeat(w.saturating_sub(27)).dimmed()
             ),
             w
         )
@@ -670,7 +684,10 @@ fn format_section_provider_breakdown(stats: &RunStats, w: usize) -> Vec<String> 
     // Totals row
     lines.push(format!(
         "│{}│",
-        pad_right(&format!("  {}", "─".repeat(w - 4).dimmed()), w)
+        pad_right(
+            &format!("  {}", "─".repeat(w.saturating_sub(4)).dimmed()),
+            w
+        )
     ));
     lines.push(format!(
         "│{}│",

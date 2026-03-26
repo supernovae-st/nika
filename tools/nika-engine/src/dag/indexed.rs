@@ -260,7 +260,8 @@ fn kahn_sort(
 
         return Err(DagError::CycleDetected {
             cycle: cycle_tasks.join(" → "),
-        }.into());
+        }
+        .into());
     }
 
     Ok(TopoOrder {

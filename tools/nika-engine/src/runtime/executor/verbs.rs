@@ -21,7 +21,13 @@ pub(crate) fn estimate_tokens(char_len: usize) -> u64 {
 pub(crate) fn json_value_size_estimate(value: &serde_json::Value) -> usize {
     match value {
         serde_json::Value::Null => 4,
-        serde_json::Value::Bool(b) => if *b { 4 } else { 5 },
+        serde_json::Value::Bool(b) => {
+            if *b {
+                4
+            } else {
+                5
+            }
+        }
         serde_json::Value::Number(n) => {
             // Most numbers are 1-20 chars
             let s = n.to_string();
@@ -29,10 +35,15 @@ pub(crate) fn json_value_size_estimate(value: &serde_json::Value) -> usize {
         }
         serde_json::Value::String(s) => s.len() + 2, // +2 for quotes
         serde_json::Value::Array(arr) => {
-            2 + arr.iter().map(json_value_size_estimate).sum::<usize>() + arr.len().saturating_sub(1) // commas
+            2 + arr.iter().map(json_value_size_estimate).sum::<usize>()
+                + arr.len().saturating_sub(1) // commas
         }
         serde_json::Value::Object(obj) => {
-            2 + obj.iter().map(|(k, v)| k.len() + 3 + json_value_size_estimate(v)).sum::<usize>() + obj.len().saturating_sub(1)
+            2 + obj
+                .iter()
+                .map(|(k, v)| k.len() + 3 + json_value_size_estimate(v))
+                .sum::<usize>()
+                + obj.len().saturating_sub(1)
         }
     }
 }

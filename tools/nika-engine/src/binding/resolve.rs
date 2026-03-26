@@ -353,7 +353,8 @@ impl ResolvedBindings {
             }
             None => Err(BindingError::NotFound {
                 alias: alias.to_string(),
-            }.into()),
+            }
+            .into()),
         }
     }
 
@@ -688,7 +689,8 @@ fn resolve_binding_path(
             // If we get here, it means the loop variable wasn't set.
             Err(BindingError::NotFound {
                 alias: format!("{} (loop variable '{}' not pre-resolved)", alias, name),
-            }.into())
+            }
+            .into())
         }
     }
 }
@@ -864,7 +866,8 @@ fn validate_binding_type(
             expected: binding_type.to_string(),
             actual: json_type_name(value).to_string(),
             path: format!("{} (alias: {})", path, alias),
-        }.into());
+        }
+        .into());
     }
 
     Ok(())

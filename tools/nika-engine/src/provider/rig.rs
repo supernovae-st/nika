@@ -195,17 +195,16 @@ impl RigProvider {
     /// - `ProviderError::MissingApiKey` if the provider requires a key and the env var is not set
     /// - `ProviderError::NotConfigured` if the provider name is unknown
     pub fn from_name(name: &str) -> Result<Self, crate::error::NikaError> {
-        let provider = crate::core::find_provider(name).ok_or(
-            ProviderError::NotConfigured {
-                provider: name.to_string(),
-            }
-        )?;
+        let provider = crate::core::find_provider(name).ok_or(ProviderError::NotConfigured {
+            provider: name.to_string(),
+        })?;
 
         // Check env var is set (rig-core panics without it)
         if provider.requires_key && !provider.has_env_key() {
             return Err(ProviderError::MissingApiKey {
                 provider: provider.id.to_string(),
-            }.into());
+            }
+            .into());
         }
 
         match provider.id {
@@ -220,7 +219,8 @@ impl RigProvider {
             "native" => Ok(Self::native()),
             _ => Err(ProviderError::NotConfigured {
                 provider: name.to_string(),
-            }.into()),
+            }
+            .into()),
         }
     }
 

@@ -259,9 +259,7 @@ impl RunStats {
                 self.tasks_passed += 1;
             }
 
-            EventKind::TaskFailed {
-                task_id, error, ..
-            } => {
+            EventKind::TaskFailed { task_id, error, .. } => {
                 self.tasks_failed += 1;
                 if self.root_failure.is_none() {
                     self.root_failure = Some(format!("{}: {}", task_id, error));
@@ -494,7 +492,11 @@ impl CliRenderer {
                 // Record timeline
                 if let Some((start, _)) = self.task_starts.get(task_id.as_ref()) {
                     self.stats.record_timeline(
-                        task_id, &verb, *start, self.workflow_start_ms, *duration_ms,
+                        task_id,
+                        &verb,
+                        *start,
+                        self.workflow_start_ms,
+                        *duration_ms,
                     );
                 }
 
@@ -530,7 +532,11 @@ impl CliRenderer {
                 // Record timeline (failed tasks should appear in Gantt chart too)
                 if let Some((start, _)) = self.task_starts.get(task_id.as_ref()) {
                     self.stats.record_timeline(
-                        task_id, &verb, *start, self.workflow_start_ms, *duration_ms,
+                        task_id,
+                        &verb,
+                        *start,
+                        self.workflow_start_ms,
+                        *duration_ms,
                     );
                 }
 

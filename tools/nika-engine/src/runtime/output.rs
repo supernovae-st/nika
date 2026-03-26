@@ -212,9 +212,7 @@ pub async fn validate_schema(value: &Value, schema_path: &str) -> Result<(), Nik
 
     // Try cache first (fast path) — invalidate if mtime changed
     let schema = if let Some(cached) = SCHEMA_CACHE.get(schema_path) {
-        let stale = current_mtime
-            .map(|mt| mt != cached.mtime)
-            .unwrap_or(false);
+        let stale = current_mtime.map(|mt| mt != cached.mtime).unwrap_or(false);
         if stale {
             drop(cached); // Release guard before remove
             SCHEMA_CACHE.remove(schema_path);

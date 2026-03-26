@@ -40,7 +40,11 @@ pub(crate) fn fmt_provider_responded(
     ))
 }
 
-pub(crate) fn fmt_provider_sparkline(output_tokens: u64, input_tokens: u64, cost_usd: f64) -> String {
+pub(crate) fn fmt_provider_sparkline(
+    output_tokens: u64,
+    input_tokens: u64,
+    cost_usd: f64,
+) -> String {
     let max_tok = input_tokens.max(output_tokens);
     sub(format!(
         "   tok {} cost {}",
@@ -135,7 +139,12 @@ pub(crate) fn fmt_mcp_response(
     ))
 }
 
-pub(crate) fn fmt_mcp_retry(operation: &str, attempt: u32, max_attempts: u32, error: &str) -> String {
+pub(crate) fn fmt_mcp_retry(
+    operation: &str,
+    attempt: u32,
+    max_attempts: u32,
+    error: &str,
+) -> String {
     sub(format!(
         "{} {} {}/{} · {}",
         icons::retry(),
@@ -193,7 +202,12 @@ pub(crate) fn fmt_agent_spawned(child_task_id: &str, depth: u32) -> String {
 
 // ── For-each ────────────────────────────────────────────────────────────
 
-pub(crate) fn fmt_for_each_completed(task_id: &str, total: u32, succeeded: u32, failed: u32) -> String {
+pub(crate) fn fmt_for_each_completed(
+    task_id: &str,
+    total: u32,
+    succeeded: u32,
+    failed: u32,
+) -> String {
     let status = if failed > 0 {
         format!("{}/{} ok · {} failed", succeeded, total, failed)
             .yellow()
@@ -347,7 +361,11 @@ pub(crate) fn fmt_media_stored(size_bytes: u64, path: &str, hash: &str) -> Strin
     ))
 }
 
-pub(crate) fn fmt_media_stored_detail(deduplicated: bool, verified: bool, pipeline_ms: u64) -> String {
+pub(crate) fn fmt_media_stored_detail(
+    deduplicated: bool,
+    verified: bool,
+    pipeline_ms: u64,
+) -> String {
     let dedup = if deduplicated {
         "yes".yellow()
     } else {
@@ -392,7 +410,11 @@ pub(crate) fn fmt_structured_output_attempt(
 
 // ── Vision ──────────────────────────────────────────────────────────────
 
-pub(crate) fn fmt_vision_content_resolved(image_count: u32, total_bytes: u64, resolve_ms: u64) -> String {
+pub(crate) fn fmt_vision_content_resolved(
+    image_count: u32,
+    total_bytes: u64,
+    resolve_ms: u64,
+) -> String {
     sub(format!(
         "{} {} images · {} · resolved {}ms",
         icons::vision(),
@@ -477,7 +499,12 @@ pub(crate) fn fmt_fetch_retry(
 
 // ── Boot ───────────────────────────────────────────────────────────────
 
-pub(crate) fn fmt_boot_phase(phase: &str, success: bool, duration_ms: u64, warnings: &[String]) -> String {
+pub(crate) fn fmt_boot_phase(
+    phase: &str,
+    success: bool,
+    duration_ms: u64,
+    warnings: &[String],
+) -> String {
     let status = if success {
         icons::success()
     } else {
@@ -568,7 +595,11 @@ pub(crate) fn fmt_decompose_started(task_id: &str, strategy: &str) -> String {
     ))
 }
 
-pub(crate) fn fmt_decompose_completed(task_id: &str, item_count: usize, duration_ms: u64) -> String {
+pub(crate) fn fmt_decompose_completed(
+    task_id: &str,
+    item_count: usize,
+    duration_ms: u64,
+) -> String {
     sub(format!(
         "{} decompose {} · {} items · {}ms",
         icons::success(),

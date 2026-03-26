@@ -59,9 +59,7 @@ impl From<ProviderError> for NikaError {
                 NikaError::ProviderNotConfigured { provider }
             }
             ProviderError::ApiError { message } => NikaError::ProviderApiError { message },
-            ProviderError::MissingApiKey { provider } => {
-                NikaError::MissingApiKey { provider }
-            }
+            ProviderError::MissingApiKey { provider } => NikaError::MissingApiKey { provider },
             ProviderError::InvalidConfig { message } => NikaError::InvalidConfig { message },
         }
     }

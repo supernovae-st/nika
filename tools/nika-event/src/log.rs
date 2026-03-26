@@ -794,9 +794,8 @@ pub enum EventKind {
     },
 
     // ═══════════════════════════════════════════
-    // FETCH EXTRACT EVENTS
+    // STREAMING EVENTS
     // ═══════════════════════════════════════════
-    /// Extraction mode applied to fetch response
     /// Streaming token delta — emitted during LLM streaming for live progress.
     ///
     /// This is the highest-frequency event and should be lightweight.
@@ -810,6 +809,10 @@ pub enum EventKind {
         total_tokens: u64,
     },
 
+    // ═══════════════════════════════════════════
+    // FETCH EXTRACT EVENTS
+    // ═══════════════════════════════════════════
+    /// Extraction mode applied to fetch response.
     ExtractApplied {
         task_id: Arc<str>,
         /// Extract mode: "css", "jq", "text", "markdown", "llm_txt"

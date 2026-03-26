@@ -113,11 +113,14 @@ impl TaskExecutor {
         // Expect array
         let items = source_value
             .as_array()
-            .ok_or_else(|| -> NikaError { BindingError::TypeMismatch {
-                expected: "array".to_string(),
-                actual: self.json_type_name(&source_value),
-                path: spec.source.clone(),
-            }.into() })?
+            .ok_or_else(|| -> NikaError {
+                BindingError::TypeMismatch {
+                    expected: "array".to_string(),
+                    actual: self.json_type_name(&source_value),
+                    path: spec.source.clone(),
+                }
+                .into()
+            })?
             .clone();
 
         // Apply max_items limit
@@ -259,11 +262,12 @@ impl TaskExecutor {
         } else if let Some(alias) = source.strip_prefix('$') {
             if alias.contains('.') {
                 // Path syntax: $task.field
-                datastore
-                    .resolve_path(alias)
-                    .ok_or_else(|| BindingError::NotFound {
+                datastore.resolve_path(alias).ok_or_else(|| {
+                    BindingError::NotFound {
                         alias: alias.to_string(),
-                    }.into())
+                    }
+                    .into()
+                })
             } else {
                 // Simple alias - supports lazy bindings
                 bindings.get_resolved(alias, datastore)
@@ -285,16 +289,20 @@ impl TaskExecutor {
                 .get("key")
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string())
-                .ok_or_else(|| BindingError::TypeMismatch {
-                    expected: "string or object with 'key'".to_string(),
-                    actual: "object without 'key'".to_string(),
-                    path: "decompose.source".to_string(),
-                }.into()),
+                .ok_or_else(|| {
+                    BindingError::TypeMismatch {
+                        expected: "string or object with 'key'".to_string(),
+                        actual: "object without 'key'".to_string(),
+                        path: "decompose.source".to_string(),
+                    }
+                    .into()
+                }),
             _ => Err(BindingError::TypeMismatch {
                 expected: "string or object".to_string(),
                 actual: self.json_type_name(value),
                 path: "decompose.source".to_string(),
-            }.into()),
+            }
+            .into()),
         }
     }
 

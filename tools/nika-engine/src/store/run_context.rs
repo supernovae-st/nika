@@ -271,7 +271,10 @@ impl RunContext {
     /// Uses status_of() to avoid cloning the full TaskResult (M11 fix).
     pub fn is_failed(&self, task_id: &str) -> bool {
         self.status_of(task_id).is_some_and(|s| {
-            matches!(s, TaskOutcome::Failed(_) | TaskOutcome::DependencyFailed { .. })
+            matches!(
+                s,
+                TaskOutcome::Failed(_) | TaskOutcome::DependencyFailed { .. }
+            )
         })
     }
 
