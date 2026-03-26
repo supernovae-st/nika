@@ -94,6 +94,7 @@ pub fn sparkline(value: u64, max: u64) -> ColoredString {
 
 /// Render a budget usage bar with percentage.
 pub fn budget_bar(pct: f32, width: usize) -> String {
+    let pct = pct.clamp(0.0, 100.0);
     let filled = ((pct / 100.0) * width as f32).round() as usize;
     let empty = width.saturating_sub(filled);
     let bar = format!("{}{}", "\u{2593}".repeat(filled), "\u{2591}".repeat(empty));

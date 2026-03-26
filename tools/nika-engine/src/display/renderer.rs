@@ -1374,12 +1374,12 @@ impl CliRenderer {
             );
 
             let total_ms = total_duration_ms;
-            if total_ms == 0 {
-                return;
-            }
             let bar_width = 38;
 
             for (task_id, verb, start_ms, dur_ms) in &self.stats.task_timeline {
+                if total_ms == 0 {
+                    break;
+                }
                 let start_pct = *start_ms as f64 / total_ms as f64;
                 let dur_pct = *dur_ms as f64 / total_ms as f64;
                 let start_col = (start_pct * bar_width as f64).round() as usize;

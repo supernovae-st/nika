@@ -482,7 +482,7 @@ impl LiveRenderer {
                     self.stats.task_timeline.push((
                         task_id.to_string(),
                         verb.clone(),
-                        start - self.workflow_start_ms,
+                        start.saturating_sub(self.workflow_start_ms),
                         *duration_ms,
                     ));
                 }
@@ -524,7 +524,7 @@ impl LiveRenderer {
                     self.stats.task_timeline.push((
                         task_id.to_string(),
                         verb.clone(),
-                        start - self.workflow_start_ms,
+                        start.saturating_sub(self.workflow_start_ms),
                         *duration_ms,
                     ));
                 }
@@ -535,6 +535,12 @@ impl LiveRenderer {
                     let msg = Self::format_failed(task_id, &verb, dur_secs, error);
                     tb.bar.finish_with_message(msg);
                 }
+
+                // Update progress bar (failed tasks count toward completion)
+                self.overall_bar.set_position(
+                    (self.stats.tasks_passed + self.stats.tasks_skipped + self.stats.tasks_failed)
+                        as u64,
+                );
 
                 // Also log the full error as a scrolling line
                 self.log(&format!(
