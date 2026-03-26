@@ -449,7 +449,7 @@ impl App {
         // - Fast (60 FPS) when streaming or animations active
         // - Slow (10 FPS) when idle to save CPU
         const FAST_TICK_MS: u64 = 16; // 60 FPS for smooth animations
-        const SLOW_TICK_MS: u64 = 100; // 10 FPS when idle
+        const SLOW_TICK_MS: u64 = 50; // 20 FPS when idle (50ms max input lag)
 
         // Track if user had recent input (stays fast for one frame after input)
         let mut had_recent_input = true; // Start fast on first frame
@@ -505,11 +505,16 @@ impl App {
 
                 let action = match event {
                     Event::Key(key) => self.handle_unified_key(key.code, key.modifiers),
+                    Event::Resize(_, _) => {
+                        // Force full re-render on terminal resize
+                        self.state.dirty.mark_all();
+                        Action::Continue
+                    }
                     _ => Action::Continue,
                 };
                 self.apply_action(action);
 
-                // After input, render at full speed on next frame
+                // After input/resize, render at full speed on next frame
                 had_recent_input = true;
             }
 

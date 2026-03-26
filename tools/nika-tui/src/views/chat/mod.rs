@@ -351,6 +351,18 @@ impl ChatView {
                     "DeepSeek".to_string(),
                     "deepseek".to_string(),
                 )
+            } else if std::env::var("GEMINI_API_KEY").is_ok_and(|v| !v.is_empty()) {
+                (
+                    "gemini-2.5-flash".to_string(),
+                    "Google Gemini".to_string(),
+                    "gemini".to_string(),
+                )
+            } else if std::env::var("XAI_API_KEY").is_ok_and(|v| !v.is_empty()) {
+                (
+                    "grok-3-fast".to_string(),
+                    "xAI".to_string(),
+                    "xai".to_string(),
+                )
             } else {
                 // No API key found - will show error on inference attempt
                 (
