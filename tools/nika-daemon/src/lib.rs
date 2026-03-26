@@ -24,8 +24,8 @@ pub mod server;
 pub mod services;
 
 pub use error::{DaemonError, DaemonResult};
+pub use protocol::{DaemonRequest, DaemonResponse};
 
 // Re-exports added as types are implemented:
 // pub use client::DaemonClient;
-// pub use protocol::{DaemonRequest, DaemonResponse};
 // pub use server::DaemonServer;
