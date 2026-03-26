@@ -42,7 +42,6 @@ fetch-extract = ["fetch-html", "fetch-markdown"]
 [dependencies]
 # Core crates
 nika-core = { workspace = true }
-nika-daemon = { workspace = true }
 nika-init = { workspace = true }
 nika-event = { workspace = true }
 nika-mcp = { workspace = true }
@@ -162,3 +161,6 @@ serial_test = "3.1"
 wiremock = "0.6"
 qrcode = "0.14"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"] }
+
+[target.'cfg(unix)'.dependencies]
+nika-daemon = { workspace = true }
