@@ -20,7 +20,7 @@ use crate::store::RunContext;
 
 use base64::Engine;
 
-use super::verbs::{detect_image_media_type, estimate_tokens, redact_for_event};
+use super::verbs::{detect_image_media_type, estimate_tokens, json_value_size_estimate, redact_for_event};
 use super::TaskExecutor;
 
 impl TaskExecutor {
@@ -106,7 +106,7 @@ impl TaskExecutor {
                 obj.iter()
                     .map(|(alias, value)| ContextSource {
                         node: alias.clone(),
-                        tokens: estimate_tokens(value.to_string().len()),
+                        tokens: estimate_tokens(json_value_size_estimate(value)),
                     })
                     .collect()
             })

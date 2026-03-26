@@ -13,6 +13,30 @@ pub(crate) fn estimate_tokens(char_len: usize) -> u64 {
     char_len.div_ceil(4) as u64
 }
 
+/// Estimate the serialized size of a JSON Value without allocating a String.
+///
+/// Walks the Value tree recursively. Approximate (doesn't account for escaping
+/// or exact number formatting) but avoids the allocation from `value.to_string()`.
+/// Used by ContextAssembled event to estimate token counts (H10 fix).
+pub(crate) fn json_value_size_estimate(value: &serde_json::Value) -> usize {
+    match value {
+        serde_json::Value::Null => 4,
+        serde_json::Value::Bool(b) => if *b { 4 } else { 5 },
+        serde_json::Value::Number(n) => {
+            // Most numbers are 1-20 chars
+            let s = n.to_string();
+            s.len()
+        }
+        serde_json::Value::String(s) => s.len() + 2, // +2 for quotes
+        serde_json::Value::Array(arr) => {
+            2 + arr.iter().map(json_value_size_estimate).sum::<usize>() + arr.len().saturating_sub(1) // commas
+        }
+        serde_json::Value::Object(obj) => {
+            2 + obj.iter().map(|(k, v)| k.len() + 3 + json_value_size_estimate(v)).sum::<usize>() + obj.len().saturating_sub(1)
+        }
+    }
+}
+
 /// Coerce string values that look like numbers/booleans back to native JSON types.
 ///
 /// Template resolution is string-based: `{{with.count}}` resolving to 42 produces
