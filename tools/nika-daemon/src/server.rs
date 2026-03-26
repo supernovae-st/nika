@@ -21,6 +21,10 @@ use crate::services::secrets::SecretService;
 use crate::services::watch::{WatchConfig, WatchService};
 use crate::storage::{JobState, Storage};
 
+/// Maximum response size accepted in CacheSet requests (256 KB).
+/// Prevents a single client from allocating large amounts of heap.
+const MAX_CACHE_RESPONSE_BYTES: usize = 256 * 1024;
+
 /// Daemon server configuration.
 #[derive(Debug, Clone)]
 pub struct DaemonConfig {
@@ -521,6 +525,16 @@ async fn route_request(request: DaemonRequest, state: &Arc<ServerState>) -> Daem
             cost,
             ttl_secs,
         } => {
+            if response.len() > MAX_CACHE_RESPONSE_BYTES {
+                return DaemonResponse::Error {
+                    code: "CACHE-001".into(),
+                    message: format!(
+                        "response too large: {} bytes > {} byte limit",
+                        response.len(),
+                        MAX_CACHE_RESPONSE_BYTES
+                    ),
+                };
+            }
             use crate::services::cache::CacheSetParams;
             state.cache_service.set(CacheSetParams {
                 key,
