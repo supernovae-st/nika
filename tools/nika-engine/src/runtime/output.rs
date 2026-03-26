@@ -7,9 +7,11 @@
 //! - `extract_json_from_output`: Extract JSON from markdown code blocks
 //! - `format_validation_errors`: Format errors for retry feedback
 
+use std::hash::{Hash, Hasher};
 use std::sync::{Arc, LazyLock};
 
 use dashmap::DashMap;
+use jsonschema::Validator;
 use serde_json::Value;
 
 use crate::ast::output::SchemaRef;
@@ -20,6 +22,33 @@ use crate::store::TaskResult;
 /// Global schema cache: path → parsed JSON schema
 /// Avoids re-reading and re-parsing schema files on repeated validations.
 static SCHEMA_CACHE: LazyLock<DashMap<Arc<str>, Arc<Value>>> = LazyLock::new(DashMap::new);
+
+/// Global compiled validator cache: schema content hash → compiled validator.
+/// Avoids recompiling the same JSON Schema on every validation call (10-50ms each).
+static VALIDATOR_CACHE: LazyLock<DashMap<u64, Arc<Validator>>> = LazyLock::new(DashMap::new);
+
+/// Hash a JSON Schema value for use as cache key.
+fn hash_schema(schema: &Value) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    // Canonical JSON string is deterministic for identical schemas
+    let canonical = serde_json::to_string(schema).unwrap_or_default();
+    canonical.hash(&mut hasher);
+    hasher.finish()
+}
+
+/// Get or compile a JSON Schema validator, using the global cache.
+fn get_or_compile_validator(schema: &Value) -> Result<Arc<Validator>, NikaError> {
+    let key = hash_schema(schema);
+    if let Some(cached) = VALIDATOR_CACHE.get(&key) {
+        return Ok(Arc::clone(cached.value()));
+    }
+    let compiled = jsonschema::validator_for(schema).map_err(|e| NikaError::SchemaFailed {
+        details: format!("Invalid schema: {e}"),
+    })?;
+    let compiled = Arc::new(compiled);
+    VALIDATOR_CACHE.insert(key, Arc::clone(&compiled));
+    Ok(compiled)
+}
 
 /// Extract JSON from LLM output, handling markdown code blocks.
 ///
@@ -187,9 +216,9 @@ pub async fn validate_schema(value: &Value, schema_path: &str) -> Result<(), Nik
         schema
     };
 
-    // Compile and validate (compilation is fast, validation needs fresh instance)
-    let compiled = jsonschema::validator_for(&schema).map_err(|e| NikaError::SchemaFailed {
-        details: format!("Invalid schema '{}': {}", schema_path, e),
+    // PERF: Use cached compiled validator (H4 — saves 10-50ms per call)
+    let compiled = get_or_compile_validator(&schema).map_err(|_| NikaError::SchemaFailed {
+        details: format!("Invalid schema '{}'", schema_path),
     })?;
 
     // Collect all validation errors
@@ -214,9 +243,8 @@ pub async fn validate_schema_ref(value: &Value, schema_ref: &SchemaRef) -> Resul
 
 /// Validate against an inline JSON Schema
 pub fn validate_inline_schema(value: &Value, schema: &Value) -> Result<(), NikaError> {
-    let compiled = jsonschema::validator_for(schema).map_err(|e| NikaError::SchemaFailed {
-        details: format!("Invalid inline schema: {e}"),
-    })?;
+    // PERF: Use cached compiled validator (H4)
+    let compiled = get_or_compile_validator(schema)?;
 
     let errors: Vec<_> = compiled.iter_errors(value).collect();
     if errors.is_empty() {
@@ -234,9 +262,10 @@ pub fn validate_inline_schema(value: &Value, schema: &Value) -> Result<(), NikaE
 
 /// Format validation errors for retry feedback to LLM
 pub fn format_validation_errors(value: &Value, schema: &Value) -> String {
-    let compiled = match jsonschema::validator_for(schema) {
+    // PERF: Use cached compiled validator (H4)
+    let compiled = match get_or_compile_validator(schema) {
         Ok(c) => c,
-        Err(e) => return format!("Invalid schema: {e}"),
+        Err(e) => return format!("{e}"),
     };
 
     let errors: Vec<_> = compiled.iter_errors(value).collect();
