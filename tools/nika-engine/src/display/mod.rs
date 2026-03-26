@@ -7,7 +7,7 @@
 //! - `colors` — Color constants and helpers
 //! - `check` — Pre-flight validation checklist for `nika check`
 //! - `live` — Animated LiveRenderer with indicatif spinners and progress bars
-//! - `run_renderer` — Dispatch enum: Live (animated) vs Classic (append-only)
+//! - `run_renderer` — Factory functions: auto/classic/live renderer selection
 //! - `spinner` — Spinner constants and progress bar templates
 
 pub mod check;
@@ -33,7 +33,7 @@ pub use dag_render::{render_dag, DagTask, DagTaskStatus};
 pub use detail::DetailLevel;
 pub use live::LiveRenderer;
 pub use renderer::{CliRenderer, Renderer};
-pub use run_renderer::RunRenderer;
+pub use run_renderer::{auto_renderer, classic_renderer, live_renderer};
 pub use summary::{
     format_doctor_header, format_doctor_summary, format_done_summary, format_run_summary,
     print_doctor_header, print_doctor_summary, print_done_summary, print_run_summary,

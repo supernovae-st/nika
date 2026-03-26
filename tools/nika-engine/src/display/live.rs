@@ -372,8 +372,8 @@ impl LiveRenderer {
 
     /// Render a single event.
     ///
-    /// Note: JSON mode is handled exclusively by `CliRenderer`. The `RunRenderer::auto()`
-    /// constructor ensures `LiveRenderer` is never used with `DetailLevel::Json`.
+    /// Note: JSON mode is handled exclusively by `CliRenderer`. The `auto_renderer()`
+    /// factory ensures `LiveRenderer` is never used with `DetailLevel::Json`.
     pub fn render(&mut self, event: &Event) {
         // Centralized stat accumulation — covers all ~15 stat-bearing event types
         self.stats.apply_event(event);
