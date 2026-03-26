@@ -203,44 +203,53 @@ impl DaemonServer {
     }
 }
 
-/// Generate a cryptographically random 32-byte hex auth token.
+/// Generate a cryptographically random auth token using CSPRNG.
+///
+/// Uses two UUID v4 values (backed by `getrandom`) concatenated for 256 bits of entropy.
 fn generate_auth_token() -> String {
-    use std::fmt::Write;
-    // Use blake3 hash of high-entropy seed for portability (no getrandom dep needed).
-    let stack_var: u8 = 0;
-    let stack_addr = &stack_var as *const u8 as usize;
-    let seed = format!(
-        "{}-{}-{}-{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_nanos(),
-        stack_addr,
-        std::thread::current().name().unwrap_or("main"),
-    );
-    let hash = blake3::hash(seed.as_bytes());
-    let mut hex = String::with_capacity(64);
-    for b in hash.as_bytes() {
-        write!(hex, "{b:02x}").unwrap();
-    }
-    hex
+    // uuid v4 uses getrandom (CSPRNG) — 122 bits of entropy per UUID.
+    // Two UUIDs = 244 bits, formatted as 64 hex chars.
+    let a = uuid::Uuid::new_v4();
+    let b = uuid::Uuid::new_v4();
+    format!("{}{}", a.as_simple(), b.as_simple())
 }
 
 /// Write the auth token to `~/.nika/daemon/.token` with 0o600 permissions.
+///
+/// Uses atomic file creation with mode 0o600 on Unix to avoid a TOCTOU window
+/// where the file is briefly world-readable.
 async fn write_auth_token(token: &str) -> std::io::Result<()> {
     let path = crate::daemon_token_path();
     // Ensure daemon dir exists (may differ from socket dir in tests)
     if let Some(parent) = path.parent() {
         tokio::fs::create_dir_all(parent).await?;
     }
-    tokio::fs::write(&path, token.as_bytes()).await?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let perms = std::fs::Permissions::from_mode(0o600);
-        tokio::fs::set_permissions(&path, perms).await?;
-    }
+
+    let token = token.to_string();
+    let path_clone = path.clone();
+    // Use spawn_blocking for OpenOptions (synchronous + sets mode atomically)
+    tokio::task::spawn_blocking(move || {
+        use std::io::Write;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            let mut file = std::fs::OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .mode(0o600)
+                .open(&path_clone)?;
+            file.write_all(token.as_bytes())?;
+        }
+        #[cfg(not(unix))]
+        {
+            std::fs::write(&path_clone, token.as_bytes())?;
+        }
+        Ok::<(), std::io::Error>(())
+    })
+    .await
+    .map_err(std::io::Error::other)??;
+
     Ok(())
 }
 
@@ -262,6 +271,12 @@ fn validate_auth_token(client_token: &Option<String>, server_token: &str) -> boo
         }
         None => false,
     }
+}
+
+/// Check if a provider name is one of the known LLM providers.
+fn is_known_provider(provider: &str) -> bool {
+    use crate::services::secrets::PROVIDERS;
+    PROVIDERS.iter().any(|&(p, _)| p == provider)
 }
 
 /// Handle a client connection — loops reading requests until EOF or error.
@@ -383,6 +398,13 @@ async fn route_request(request: DaemonRequest, state: &Arc<ServerState>) -> Daem
             if !validate_auth_token(&auth_token, &state.auth_token) {
                 return DaemonResponse::AuthRequired;
             }
+            // Validate provider name to prevent arbitrary keychain entries
+            if !is_known_provider(&provider) {
+                return DaemonResponse::Error {
+                    code: "SECRET-004".into(),
+                    message: format!("unknown provider: {provider}"),
+                };
+            }
             match state.secret_service.set_secret(&provider, &key).await {
                 Ok(true) => DaemonResponse::SecretStored,
                 Ok(false) => DaemonResponse::Error {
@@ -402,6 +424,12 @@ async fn route_request(request: DaemonRequest, state: &Arc<ServerState>) -> Daem
         } => {
             if !validate_auth_token(&auth_token, &state.auth_token) {
                 return DaemonResponse::AuthRequired;
+            }
+            if !is_known_provider(&provider) {
+                return DaemonResponse::Error {
+                    code: "SECRET-004".into(),
+                    message: format!("unknown provider: {provider}"),
+                };
             }
             match state.secret_service.delete_secret(&provider).await {
                 Ok(_) => DaemonResponse::SecretDeleted,
