@@ -3,6 +3,8 @@
 //! Extracted from TuiState to isolate MCP call tracking
 //! and context assembly state.
 
+use std::collections::VecDeque;
+
 use super::types::{ContextAssembly, McpCall};
 
 /// MCP-related state extracted from TuiState
@@ -11,8 +13,8 @@ use super::types::{ContextAssembly, McpCall};
 /// and context assembly progress.
 #[derive(Debug, Default)]
 pub struct McpState {
-    /// MCP call log
-    pub calls: Vec<McpCall>,
+    /// MCP call log (PERF: VecDeque for O(1) front eviction)
+    pub calls: VecDeque<McpCall>,
     /// Next MCP call sequence number
     pub seq: usize,
     /// Selected MCP call index for Full JSON view
@@ -35,10 +37,10 @@ impl McpState {
         call.seq = seq;
         self.seq += 1;
         if self.calls.len() >= Self::MAX_CALLS {
-            self.calls.remove(0);
+            self.calls.pop_front(); // O(1) vs Vec::remove(0) O(n)
             self.selected_idx = self.selected_idx.map(|idx| idx.saturating_sub(1));
         }
-        self.calls.push(call);
+        self.calls.push_back(call);
         seq
     }
 
