@@ -6,6 +6,9 @@
 //! - `icons` — Cosmic icon palette (verb, status, subsystem)
 //! - `colors` — Color constants and helpers
 //! - `check` — Pre-flight validation checklist for `nika check`
+//! - `live` — Animated LiveRenderer with indicatif spinners and progress bars
+//! - `run_renderer` — Dispatch enum: Live (animated) vs Classic (append-only)
+//! - `spinner` — Spinner constants and progress bar templates
 
 pub mod check;
 pub mod colors;
@@ -14,7 +17,10 @@ mod dag_render;
 pub mod detail;
 pub mod header;
 pub mod icons;
+pub mod live;
 pub mod renderer;
+pub mod run_renderer;
+pub mod spinner;
 mod summary;
 
 // Re-export check API
@@ -24,7 +30,9 @@ pub use check::{
 };
 pub use dag_render::{render_dag, DagTask, DagTaskStatus};
 pub use detail::DetailLevel;
+pub use live::LiveRenderer;
 pub use renderer::CliRenderer;
+pub use run_renderer::RunRenderer;
 pub use summary::{print_doctor_header, print_doctor_summary, print_done_summary};
 
 #[cfg(test)]
