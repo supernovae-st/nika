@@ -552,24 +552,24 @@ async fn test_invoke_no_servers_configured() {
 }
 
 #[test]
-fn test_invoke_params_serialization() {
-    // Test that various parameter types serialize correctly
+fn test_invoke_params_round_trip_through_json_string() {
+    // Test that invoke params survive serialization → string → deserialization
     let params = serde_json::json!({
         "entity": "qr-code",
         "locale": "fr-FR",
         "count": 5,
-        "nested": {
-            "key": "value"
-        },
+        "nested": { "key": "value" },
         "array": [1, 2, 3]
     });
 
-    // Verify all param types are preserved
-    assert_eq!(params["entity"], "qr-code");
-    assert_eq!(params["locale"], "fr-FR");
-    assert_eq!(params["count"], 5);
-    assert_eq!(params["nested"]["key"], "value");
-    assert_eq!(params["array"][0], 1);
+    // Round-trip through JSON string (simulates MCP wire format)
+    let serialized = serde_json::to_string(&params).unwrap();
+    let deserialized: serde_json::Value = serde_json::from_str(&serialized).unwrap();
+
+    assert_eq!(deserialized["entity"], "qr-code");
+    assert_eq!(deserialized["count"], 5);
+    assert_eq!(deserialized["nested"]["key"], "value");
+    assert_eq!(deserialized["array"].as_array().unwrap().len(), 3);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -654,13 +654,12 @@ fn test_agent_params_construction() {
 }
 
 #[test]
-fn test_run_agent_default_max_turns() {
-    // Verify that default max_turns is 10 when None is provided
-    // This tests the .unwrap_or(10) logic
-    let actual: u32 = 10;
-    assert_eq!(actual, 10);
-
-    // And when provided, it should use that value
-    let actual: u32 = 5;
-    assert_eq!(actual, 5);
+fn test_default_max_turns_unwrap_or() {
+    // Verify the .unwrap_or(10) pattern used for max_turns
+    fn resolve_max_turns(input: Option<u32>) -> u32 {
+        input.unwrap_or(10)
+    }
+    assert_eq!(resolve_max_turns(None), 10);
+    assert_eq!(resolve_max_turns(Some(5)), 5);
+    assert_eq!(resolve_max_turns(Some(100)), 100);
 }

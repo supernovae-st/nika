@@ -981,7 +981,7 @@ impl McpClient {
                                 error = %enhanced,
                                 "Connection error, attempting reconnect"
                             );
-                            if let Err(reconnect_err) = adapter.reconnect().await {
+                            if let Err(reconnect_err) = self.reconnect().await {
                                 tracing::error!(
                                     mcp_server = %self.name,
                                     error = %reconnect_err,
@@ -1150,7 +1150,7 @@ impl McpClient {
                                 error = %enhanced,
                                 "Connection error, attempting reconnect (McpRetry event emitted)"
                             );
-                            if let Err(reconnect_err) = adapter.reconnect().await {
+                            if let Err(reconnect_err) = self.reconnect().await {
                                 tracing::error!(
                                     mcp_server = %self.name,
                                     error = %reconnect_err,
@@ -1224,7 +1224,7 @@ impl McpClient {
                                 error = %e,
                                 "Connection error, attempting reconnect"
                             );
-                            if let Err(reconnect_err) = adapter.reconnect().await {
+                            if let Err(reconnect_err) = self.reconnect().await {
                                 tracing::error!(
                                     mcp_server = %self.name,
                                     error = %reconnect_err,
