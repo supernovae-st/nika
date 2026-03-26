@@ -307,7 +307,15 @@ impl LiveRenderer {
         let deps_str = if deps.is_empty() {
             String::new()
         } else {
-            format!("deps: {}", deps.join(", ")).dimmed().to_string()
+            const MAX_DEPS_VISIBLE: usize = 50;
+            let joined = deps.join(", ");
+            let truncated = if colors::stripped_len(&joined) > MAX_DEPS_VISIBLE {
+                let cut = colors::floor_char_boundary(&joined, MAX_DEPS_VISIBLE - 1);
+                format!("{}…", &joined[..cut])
+            } else {
+                joined
+            };
+            format!("deps: {}", truncated).dimmed().to_string()
         };
         format!(
             "{} {} {}  {}",
@@ -378,11 +386,30 @@ impl LiveRenderer {
 
     fn format_failed(task_id: &str, verb: &str, dur_secs: f32, error: &str) -> String {
         let padded_id = Self::truncate_task_id(task_id, 16);
-        let short_err = if colors::stripped_len(error) > 60 {
-            let cut = colors::floor_char_boundary(error, 59);
-            format!("{}…", &error[..cut])
+        // Strip ANSI before measuring/truncating so floor_char_boundary works on visible chars only.
+        // Without this, stripped_len sees 60 visible chars but the raw byte offset cuts mid-escape.
+        let plain_err = {
+            let mut out = String::with_capacity(error.len());
+            let mut chars = error.chars().peekable();
+            while let Some(ch) = chars.next() {
+                if ch == '\x1b' {
+                    while let Some(&c) = chars.peek() {
+                        chars.next();
+                        if c.is_ascii_alphabetic() || ('@'..='~').contains(&c) {
+                            break;
+                        }
+                    }
+                } else {
+                    out.push(ch);
+                }
+            }
+            out
+        };
+        let short_err = if colors::stripped_len(&plain_err) > 60 {
+            let cut = colors::floor_char_boundary(&plain_err, 59);
+            format!("{}…", &plain_err[..cut])
         } else {
-            error.to_string()
+            plain_err
         };
         format!(
             "{} {} {} {} {}",
@@ -1327,8 +1354,16 @@ impl LiveRenderer {
                 }
             }
 
-            // Catch-all for events handled elsewhere (media lifecycle, etc.)
-            _ => {}
+            // ── Intentional no-ops ────────────────────────────────
+            // Explicit arms prevent new EventKind variants from being silently swallowed.
+            // If you add a new variant to EventKind, you MUST add an arm here (or a real handler).
+
+            // MediaCleanup is GC housekeeping noise — not worth surfacing in the live display
+            EventKind::MediaCleanup { .. } => {}
+            // MediaProcessed is emitted per-block by the media pipeline — too noisy for live view
+            EventKind::MediaProcessed { .. } => {}
+            // MediaIntegrityCheck warnings are surfaced in the summary, not the live spinner
+            EventKind::MediaIntegrityCheck { .. } => {}
         }
     }
 
