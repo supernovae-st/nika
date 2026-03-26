@@ -387,7 +387,6 @@ mod tests {
         use std::pin::Pin;
         use std::time::Duration;
 
-
         use crate::runtime::builtin::BuiltinTool;
 
         /// A deliberately slow MediaOp that sleeps for 60 seconds.
@@ -407,8 +406,17 @@ mod tests {
                 &'a self,
                 _args: serde_json::Value,
                 _ctx: &'a MediaToolContext,
-            ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, nika_media::tools::error::MediaToolError>> + Send + 'a>>
-            {
+            ) -> Pin<
+                Box<
+                    dyn Future<
+                            Output = Result<
+                                MediaOpResult,
+                                nika_media::tools::error::MediaToolError,
+                            >,
+                        > + Send
+                        + 'a,
+                >,
+            > {
                 Box::pin(async {
                     tokio::time::sleep(Duration::from_secs(60)).await;
                     Ok(MediaOpResult::Metadata(serde_json::json!({"done": true})))

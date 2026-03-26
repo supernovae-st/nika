@@ -18,8 +18,7 @@ use rustc_hash::FxHashMap;
 /// PERF(M8): Static layout cache. DagAscii is ephemeral (created fresh each frame)
 /// but layout is deterministic from (nodes, deps, config). Cache avoids recomputing
 /// the O(N³) Sugiyama algorithm every frame when structure hasn't changed.
-static LAYOUT_CACHE: LazyLock<Mutex<Option<(u64, DagLayout)>>> =
-    LazyLock::new(|| Mutex::new(None));
+static LAYOUT_CACHE: LazyLock<Mutex<Option<(u64, DagLayout)>>> = LazyLock::new(|| Mutex::new(None));
 
 /// Position of a node in the DAG layout
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

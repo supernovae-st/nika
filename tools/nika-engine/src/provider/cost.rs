@@ -51,7 +51,10 @@ impl ProviderKind {
             Some(Self::DeepSeek)
         } else if s.eq_ignore_ascii_case("gemini") || s.eq_ignore_ascii_case("google") {
             Some(Self::Gemini)
-        } else if s.eq_ignore_ascii_case("xai") || s.eq_ignore_ascii_case("grok") || s.eq_ignore_ascii_case("x-ai") {
+        } else if s.eq_ignore_ascii_case("xai")
+            || s.eq_ignore_ascii_case("grok")
+            || s.eq_ignore_ascii_case("x-ai")
+        {
             Some(Self::XAi)
         } else if s.eq_ignore_ascii_case("native") {
             Some(Self::Native)

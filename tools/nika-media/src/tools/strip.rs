@@ -6,10 +6,10 @@ use std::future::Future;
 use std::pin::Pin;
 
 use super::context::MediaToolContext;
+use super::error::MediaToolError;
 use super::error::{invalid_args, tool_error};
 use super::safety::{composite_on_white, decode_image_safe};
 use super::{MediaOp, MediaOpResult};
-use super::error::MediaToolError;
 
 pub struct StripOp;
 
@@ -54,55 +54,58 @@ impl MediaOp for StripOp {
 
             let output = ctx
                 .compute
-                .compute(move || -> Result<(Vec<u8>, String, String), MediaToolError> {
-                    let img = decode_image_safe(&data)?;
-                    let (w, h) = (img.width(), img.height());
+                .compute(
+                    move || -> Result<(Vec<u8>, String, String), MediaToolError> {
+                        let img = decode_image_safe(&data)?;
+                        let (w, h) = (img.width(), img.height());
 
-                    // Detect original format or use override
-                    let format = format_override.as_deref().unwrap_or_else(|| {
-                        if data.len() >= 2 && data[0] == 0xFF && data[1] == 0xD8 {
-                            "jpeg"
-                        } else {
-                            "png"
-                        }
-                    });
+                        // Detect original format or use override
+                        let format = format_override.as_deref().unwrap_or_else(|| {
+                            if data.len() >= 2 && data[0] == 0xFF && data[1] == 0xD8 {
+                                "jpeg"
+                            } else {
+                                "png"
+                            }
+                        });
 
-                    let mut buf = Vec::new();
-                    let (mime, ext) = match format {
-                        "jpeg" | "jpg" => {
-                            // SAFETY: to_rgb8() silently drops alpha — RGBA(255,0,0,0) becomes
-                            // RGB(255,0,0). We must composite on white before JPEG encoding.
-                            let rgb = composite_on_white(&img);
-                            // Quality 100 minimizes re-encoding loss — strip should not degrade image data
-                            let encoder =
-                                image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, 100);
-                            image::ImageEncoder::write_image(
-                                encoder,
-                                rgb.as_raw(),
-                                w,
-                                h,
-                                image::ExtendedColorType::Rgb8,
-                            )
-                            .map_err(|e| tool_error("strip", format!("encode: {e}")))?;
-                            ("image/jpeg", "jpg")
-                        }
-                        _ => {
-                            let rgba = img.to_rgba8();
-                            let encoder = image::codecs::png::PngEncoder::new(&mut buf);
-                            image::ImageEncoder::write_image(
-                                encoder,
-                                rgba.as_raw(),
-                                w,
-                                h,
-                                image::ExtendedColorType::Rgba8,
-                            )
-                            .map_err(|e| tool_error("strip", format!("encode: {e}")))?;
-                            ("image/png", "png")
-                        }
-                    };
+                        let mut buf = Vec::new();
+                        let (mime, ext) = match format {
+                            "jpeg" | "jpg" => {
+                                // SAFETY: to_rgb8() silently drops alpha — RGBA(255,0,0,0) becomes
+                                // RGB(255,0,0). We must composite on white before JPEG encoding.
+                                let rgb = composite_on_white(&img);
+                                // Quality 100 minimizes re-encoding loss — strip should not degrade image data
+                                let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(
+                                    &mut buf, 100,
+                                );
+                                image::ImageEncoder::write_image(
+                                    encoder,
+                                    rgb.as_raw(),
+                                    w,
+                                    h,
+                                    image::ExtendedColorType::Rgb8,
+                                )
+                                .map_err(|e| tool_error("strip", format!("encode: {e}")))?;
+                                ("image/jpeg", "jpg")
+                            }
+                            _ => {
+                                let rgba = img.to_rgba8();
+                                let encoder = image::codecs::png::PngEncoder::new(&mut buf);
+                                image::ImageEncoder::write_image(
+                                    encoder,
+                                    rgba.as_raw(),
+                                    w,
+                                    h,
+                                    image::ExtendedColorType::Rgba8,
+                                )
+                                .map_err(|e| tool_error("strip", format!("encode: {e}")))?;
+                                ("image/png", "png")
+                            }
+                        };
 
-                    Ok((buf, mime.to_string(), ext.to_string()))
-                })
+                        Ok((buf, mime.to_string(), ext.to_string()))
+                    },
+                )
                 .await??;
 
             let (buf, mime_type, extension) = output;

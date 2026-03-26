@@ -181,27 +181,60 @@ Test: empty output, JSON, Markdown, plain text, very long input, Unicode.
 
 ---
 
-## Phase 4: CLI UX Polish (5 tasks)
+## Phase 4: CLI UX Polish — indicatif Advanced (7 tasks)
 
-### Task 11: Add real-time cost counter to overall progress bar
+Based on deep indicatif research: we use ~30% of its features. Quick wins first.
 
-Live-updating `$0.0042` on the overall bar as ProviderResponded events arrive.
+### Task 11: Live `{elapsed}` + `{prefix}` split on task bars (trivial)
 
-### Task 12: Add elapsed time tick on running task bars
+**Files:** `live.rs`, `spinner.rs`
 
-Show `+2.3s` that updates every 500ms, not just on events.
+Change template to `"  {spinner:.cyan} {prefix} {msg}  {elapsed:.dim}"`.
+Use `set_prefix()` for stable part (verb icon + task_id), `set_message()` for volatile (tokens).
+The `{elapsed}` auto-updates on every 80ms tick — no event needed.
 
-### Task 13: Improve error presentation
+### Task 12: Overall bar: `{wide_bar}` + `{eta}` + `{percent}` + cost key
 
-Add `suggested_fix()` method to NikaError. Render fix suggestions in output.
+**Files:** `live.rs`, `spinner.rs`
 
-### Task 14: Add completion animation
+Template: `"  {wide_bar:.cyan/dim} {pos}/{len} ({percent}%)  {elapsed}  ETA {eta}  {cost}"`
+Register custom `{cost}` key via `with_key()` reading from shared `Arc<Mutex<f64>>`.
 
-Brief green flash / checkmark animation when task completes.
+### Task 13: Agent turn progress bar (red mini bar filling to max_turns)
 
-### Task 15: Improve daemon status display
+**Files:** `live.rs`
 
-`nika daemon status` with colored health indicators, uptime, connection count.
+On AgentStart: set bar length to `max_turns`, switch to agent-specific style with `{bar:10.red/dim} turn {pos}/{len}`. On AgentTurn: `bar.set_position(turn + 1)`. Gives clear turn budget visibility.
+
+### Task 14: Dynamic for_each sub-bars
+
+**Files:** `live.rs`
+
+On ForEachStarted: `multi.insert_after(parent_bar, sub_bar)` with item progress.
+On item completion: `sub_bar.inc(1)`.
+On ForEachCompleted: `sub_bar.finish_and_clear(); multi.remove(&sub_bar)`.
+
+### Task 15: Streaming token counter (NEW EVENT NEEDED)
+
+**Files:** `nika-event/src/log.rs` (new StreamingDelta event), `live.rs`
+
+Add `EventKind::StreamingDelta { task_id, delta_tokens, total_tokens }`.
+Emit from rig agent loop streaming handlers. Display live `out:1.2k` on task bar.
+This is the biggest UX win — turns 30s inference from "frozen" to "clearly alive".
+
+### Task 16: Improve error presentation
+
+Add `suggested_fix()` method to NikaError. Render in output:
+```
+✗ NIKA-044: Template syntax error at {{with.foo.bar}}
+  → Fix: check that 'foo' is defined in your with: block
+```
+
+### Task 17: Defensive improvements
+
+- `ProgressFinish::Abandon` as default on all bars (auto-clean on crash)
+- Terminal resize: update separator line on TaskStarted/TaskCompleted
+- `multi.suspend()` guard for future passthrough exec output
 
 ---
 

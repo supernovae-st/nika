@@ -8,10 +8,10 @@ use std::pin::Pin;
 use std::sync::{Arc, OnceLock};
 
 use super::context::MediaToolContext;
+use super::error::MediaToolError;
 use super::error::{invalid_args, tool_error};
 use super::safety::sanitize_svg;
 use super::{MediaOp, MediaOpResult};
-use super::error::MediaToolError;
 
 /// Lazy-loaded fontdb database (expensive first-time init).
 static FONTDB: OnceLock<Arc<fontdb::Database>> = OnceLock::new();

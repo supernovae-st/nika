@@ -190,7 +190,10 @@ mod tests {
         let client = DaemonClient::new("/tmp/nonexistent_nika_daemon_test.sock");
         let result = client.send(DaemonRequest::Ping).await;
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), DaemonError::NotRunning { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            DaemonError::NotRunning { .. }
+        ));
     }
 
     #[tokio::test]

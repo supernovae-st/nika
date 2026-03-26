@@ -901,12 +901,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
         // Bridge AnalyzedTask to lowered types at executor boundary
         // PERF(M4): pass references — lower_action clones only what each verb needs
-        let lowered_action = lower_action(
-            &task.action,
-            &task.provider,
-            &task.model,
-            &task.retry,
-        );
+        let lowered_action = lower_action(&task.action, &task.provider, &task.model, &task.retry);
         let lowered_output = task
             .output
             .as_ref()
@@ -1255,7 +1250,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         layer: depths[t.name.as_str()],
                     })
                     .collect();
-                let total_deps: usize = self.workflow.tasks.iter().map(|t| t.depends_on.len()).sum();
+                let total_deps: usize =
+                    self.workflow.tasks.iter().map(|t| t.depends_on.len()).sum();
                 let mut dag_edges = Vec::with_capacity(total_deps);
                 for task in &self.workflow.tasks {
                     for dep_id in &task.depends_on {
@@ -1280,12 +1276,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             }
 
             // Initialize live task bars (no-op for Classic renderer)
-            let task_ids: Vec<String> = self
-                .workflow
-                .tasks
-                .iter()
-                .map(|t| t.name.clone())
-                .collect();
+            let task_ids: Vec<String> =
+                self.workflow.tasks.iter().map(|t| t.name.clone()).collect();
             let task_deps: std::collections::HashMap<String, Vec<String>> = self
                 .workflow
                 .tasks
@@ -2313,9 +2305,10 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         let trace_path = self.write_trace();
 
         if let Some(ref mut renderer) = self.cli_renderer {
-            self.event_log.with_events_since(renderer.last_rendered_id(), |events| {
-                renderer.render_new_events(events);
-            });
+            self.event_log
+                .with_events_since(renderer.last_rendered_id(), |events| {
+                    renderer.render_new_events(events);
+                });
             let total_duration_ms = workflow_start.elapsed().as_millis() as u64;
             if self.quiet {
                 renderer.render_quiet_summary(total_duration_ms);

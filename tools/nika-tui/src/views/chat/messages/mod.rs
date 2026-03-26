@@ -105,9 +105,7 @@ impl ChatView {
         // Phase 1 (messages) is cached. Phases 2-4 are rebuilt each frame into
         // a separate vec that borrows the cached items via drain/extend.
         // This avoids deep-cloning hundreds of ListItem<'static> every frame.
-        let mut items = Vec::with_capacity(
-            self.cached_base_len + self.inline_content.len() + 8,
-        );
+        let mut items = Vec::with_capacity(self.cached_base_len + self.inline_content.len() + 8);
         // Extend from cache: ListItem is Clone but we only copy the phase-1 items
         // once per cache rebuild (not every frame). When cache is valid, this is
         // a shallow copy of the Vec (Arcs inside Spans are cheap to clone).

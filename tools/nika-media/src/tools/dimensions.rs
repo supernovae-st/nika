@@ -6,9 +6,9 @@ use std::future::Future;
 use std::pin::Pin;
 
 use super::context::MediaToolContext;
+use super::error::MediaToolError;
 use super::error::{invalid_args, unsupported_format};
 use super::{MediaOp, MediaOpResult};
-use super::error::MediaToolError;
 
 pub struct DimensionsOp;
 

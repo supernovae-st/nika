@@ -459,7 +459,10 @@ impl CliRenderer {
                 result,
             } => {
                 if self.detail.show_template_events() {
-                    println!("{}", super::format_event::fmt_template_resolved(template, result));
+                    println!(
+                        "{}",
+                        super::format_event::fmt_template_resolved(template, result)
+                    );
                 }
             }
 
@@ -470,7 +473,10 @@ impl CliRenderer {
                 prompt_len,
             } => {
                 if self.detail.show_sub_events() {
-                    println!("{}", super::format_event::fmt_provider_called(provider, model, *prompt_len));
+                    println!(
+                        "{}",
+                        super::format_event::fmt_provider_called(provider, model, *prompt_len)
+                    );
                 }
             }
 
@@ -483,13 +489,24 @@ impl CliRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    println!("{}", super::format_event::fmt_provider_responded(
-                        *input_tokens, *output_tokens, *cache_read_tokens, *ttft_ms,
-                    ));
+                    println!(
+                        "{}",
+                        super::format_event::fmt_provider_responded(
+                            *input_tokens,
+                            *output_tokens,
+                            *cache_read_tokens,
+                            *ttft_ms,
+                        )
+                    );
                     if self.detail.show_sparklines() {
-                        println!("{}", super::format_event::fmt_provider_sparkline(
-                            *output_tokens, *input_tokens, *cost_usd,
-                        ));
+                        println!(
+                            "{}",
+                            super::format_event::fmt_provider_sparkline(
+                                *output_tokens,
+                                *input_tokens,
+                                *cost_usd,
+                            )
+                        );
                     }
                 }
             }
@@ -506,9 +523,14 @@ impl CliRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    println!("{}", super::format_event::fmt_context_assembled(
-                        sources.len(), *total_tokens, *budget_used_pct,
-                    ));
+                    println!(
+                        "{}",
+                        super::format_event::fmt_context_assembled(
+                            sources.len(),
+                            *total_tokens,
+                            *budget_used_pct,
+                        )
+                    );
                 }
             }
 
@@ -533,9 +555,15 @@ impl CliRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    println!("{}", super::format_event::fmt_mcp_invoke(
-                        mcp_server, tool.as_deref(), resource.as_deref(), call_id,
-                    ));
+                    println!(
+                        "{}",
+                        super::format_event::fmt_mcp_invoke(
+                            mcp_server,
+                            tool.as_deref(),
+                            resource.as_deref(),
+                            call_id,
+                        )
+                    );
                 }
             }
 
@@ -548,9 +576,16 @@ impl CliRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    println!("{}", super::format_event::fmt_mcp_response(
-                        call_id, *output_len, *duration_ms, *cached, *is_error,
-                    ));
+                    println!(
+                        "{}",
+                        super::format_event::fmt_mcp_response(
+                            call_id,
+                            *output_len,
+                            *duration_ms,
+                            *cached,
+                            *is_error,
+                        )
+                    );
                 }
             }
 
@@ -561,9 +596,10 @@ impl CliRenderer {
                 error,
                 ..
             } => {
-                println!("{}", super::format_event::fmt_mcp_retry(
-                    operation, *attempt, *max_attempts, error,
-                ));
+                println!(
+                    "{}",
+                    super::format_event::fmt_mcp_retry(operation, *attempt, *max_attempts, error,)
+                );
             }
 
             // ═══════════════════════════════════════
@@ -575,7 +611,10 @@ impl CliRenderer {
                 mcp_servers,
             } => {
                 if self.detail.show_sub_events() {
-                    println!("{}", super::format_event::fmt_agent_start(*max_turns, mcp_servers));
+                    println!(
+                        "{}",
+                        super::format_event::fmt_agent_start(*max_turns, mcp_servers)
+                    );
                 }
             }
 
@@ -601,7 +640,10 @@ impl CliRenderer {
                 stop_reason,
             } => {
                 if self.detail.show_sub_events() {
-                    println!("{}", super::format_event::fmt_agent_complete(*turns, stop_reason));
+                    println!(
+                        "{}",
+                        super::format_event::fmt_agent_complete(*turns, stop_reason)
+                    );
                 }
             }
 
@@ -611,7 +653,10 @@ impl CliRenderer {
                 depth,
             } => {
                 if self.detail.show_sub_events() {
-                    println!("{}", super::format_event::fmt_agent_spawned(child_task_id, *depth));
+                    println!(
+                        "{}",
+                        super::format_event::fmt_agent_spawned(child_task_id, *depth)
+                    );
                 }
             }
 
@@ -624,7 +669,10 @@ impl CliRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    println!("{}", super::format_event::fmt_guardrail_passed(guardrail_type, description));
+                    println!(
+                        "{}",
+                        super::format_event::fmt_guardrail_passed(guardrail_type, description)
+                    );
                 }
             }
 
@@ -633,27 +681,37 @@ impl CliRenderer {
                 message,
                 ..
             } => {
-                println!("{}", super::format_event::fmt_guardrail_failed(guardrail_type, message));
+                println!(
+                    "{}",
+                    super::format_event::fmt_guardrail_failed(guardrail_type, message)
+                );
             }
 
             EventKind::GuardrailEscalation {
-                severity,
-                message,
-                ..
+                severity, message, ..
             } => {
-                println!("{}", super::format_event::fmt_guardrail_escalation(severity, message));
+                println!(
+                    "{}",
+                    super::format_event::fmt_guardrail_escalation(severity, message)
+                );
             }
 
             // ═══════════════════════════════════════
             // BUILTIN
             // ═══════════════════════════════════════
             EventKind::Log { level, message, .. } => {
-                println!("{}", super::format_event::fmt_log(&self.ts(), level, message));
+                println!(
+                    "{}",
+                    super::format_event::fmt_log(&self.ts(), level, message)
+                );
             }
 
             EventKind::Custom { name, payload, .. } => {
                 if self.detail.show_sub_events() {
-                    println!("{}", super::format_event::fmt_custom(&self.ts(), name, payload));
+                    println!(
+                        "{}",
+                        super::format_event::fmt_custom(&self.ts(), name, payload)
+                    );
                 }
             }
 
@@ -661,13 +719,13 @@ impl CliRenderer {
             // ARTIFACTS
             // ═══════════════════════════════════════
             EventKind::ArtifactWritten {
-                path,
-                size,
-                format,
-                ..
+                path, size, format, ..
             } => {
                 if self.detail.show_sub_events() {
-                    println!("{}", super::format_event::fmt_artifact_written(path, *size, format));
+                    println!(
+                        "{}",
+                        super::format_event::fmt_artifact_written(path, *size, format)
+                    );
                 }
             }
 
@@ -684,7 +742,10 @@ impl CliRenderer {
                 content_types,
             } => {
                 if self.detail.show_sub_events() {
-                    println!("{}", super::format_event::fmt_media_extracted(*block_count, content_types));
+                    println!(
+                        "{}",
+                        super::format_event::fmt_media_extracted(*block_count, content_types)
+                    );
                 }
             }
 
@@ -698,11 +759,19 @@ impl CliRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    println!("{}", super::format_event::fmt_media_stored(*size_bytes, path, hash));
+                    println!(
+                        "{}",
+                        super::format_event::fmt_media_stored(*size_bytes, path, hash)
+                    );
                     if self.detail.show_previews() {
-                        println!("{}", super::format_event::fmt_media_stored_detail(
-                            *deduplicated, *verified, *pipeline_ms,
-                        ));
+                        println!(
+                            "{}",
+                            super::format_event::fmt_media_stored_detail(
+                                *deduplicated,
+                                *verified,
+                                *pipeline_ms,
+                            )
+                        );
                     }
                 }
             }
@@ -736,9 +805,15 @@ impl CliRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    println!("{}", super::format_event::fmt_structured_output_attempt(
-                        *layer, layer_name, *success, error.as_deref(),
-                    ));
+                    println!(
+                        "{}",
+                        super::format_event::fmt_structured_output_attempt(
+                            *layer,
+                            layer_name,
+                            *success,
+                            error.as_deref(),
+                        )
+                    );
                 }
             }
 
@@ -756,9 +831,14 @@ impl CliRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    println!("{}", super::format_event::fmt_vision_content_resolved(
-                        *image_count, *total_bytes, *resolve_ms,
-                    ));
+                    println!(
+                        "{}",
+                        super::format_event::fmt_vision_content_resolved(
+                            *image_count,
+                            *total_bytes,
+                            *resolve_ms,
+                        )
+                    );
                 }
             }
 
@@ -779,9 +859,15 @@ impl CliRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    println!("{}", super::format_event::fmt_http_response(
-                        *status_code, content_type.as_deref(), *content_length, *elapsed_ms,
-                    ));
+                    println!(
+                        "{}",
+                        super::format_event::fmt_http_response(
+                            *status_code,
+                            content_type.as_deref(),
+                            *content_length,
+                            *elapsed_ms,
+                        )
+                    );
                 }
             }
 
@@ -796,9 +882,12 @@ impl CliRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    println!("{}", super::format_event::fmt_for_each_completed(
-                        task_id, *total, *succeeded, *failed,
-                    ));
+                    println!(
+                        "{}",
+                        super::format_event::fmt_for_each_completed(
+                            task_id, *total, *succeeded, *failed,
+                        )
+                    );
                 }
             }
 
@@ -811,7 +900,10 @@ impl CliRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    println!("{}", super::format_event::fmt_exec_completed(*exit_code, *duration_ms));
+                    println!(
+                        "{}",
+                        super::format_event::fmt_exec_completed(*exit_code, *duration_ms)
+                    );
                 }
             }
 
@@ -823,7 +915,10 @@ impl CliRenderer {
                 reason,
                 ..
             } => {
-                println!("{}", super::format_event::fmt_policy_blocked(&self.ts(), policy_type, reason));
+                println!(
+                    "{}",
+                    super::format_event::fmt_policy_blocked(&self.ts(), policy_type, reason)
+                );
             }
 
             // ═══════════════════════════════════════
@@ -837,9 +932,16 @@ impl CliRenderer {
                 backoff_ms,
                 ..
             } => {
-                println!("{}", super::format_event::fmt_fetch_retry(
-                    url, *attempt, *max_attempts, *status_code, *backoff_ms,
-                ));
+                println!(
+                    "{}",
+                    super::format_event::fmt_fetch_retry(
+                        url,
+                        *attempt,
+                        *max_attempts,
+                        *status_code,
+                        *backoff_ms,
+                    )
+                );
             }
 
             // ═══════════════════════════════════════
@@ -851,9 +953,10 @@ impl CliRenderer {
                 duration_ms,
                 warnings,
             } => {
-                println!("{}", super::format_event::fmt_boot_phase(
-                    phase, *success, *duration_ms, warnings,
-                ));
+                println!(
+                    "{}",
+                    super::format_event::fmt_boot_phase(phase, *success, *duration_ms, warnings,)
+                );
             }
 
             // ═══════════════════════════════════════
@@ -867,18 +970,22 @@ impl CliRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    println!("{}", super::format_event::fmt_native_model_loaded(
-                        model, kind, *duration_ms, *is_vision,
-                    ));
+                    println!(
+                        "{}",
+                        super::format_event::fmt_native_model_loaded(
+                            model,
+                            kind,
+                            *duration_ms,
+                            *is_vision,
+                        )
+                    );
                 }
             }
 
             // ═══════════════════════════════════════
             // BINDING EVENTS
             // ═══════════════════════════════════════
-            EventKind::BindingDefaultApplied {
-                alias, path, ..
-            } => {
+            EventKind::BindingDefaultApplied { alias, path, .. } => {
                 if self.detail.show_sub_events() {
                     println!("{}", super::format_event::fmt_binding_default(alias, path));
                 }
@@ -890,7 +997,10 @@ impl CliRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    println!("{}", super::format_event::fmt_binding_transform(alias, transform_chain));
+                    println!(
+                        "{}",
+                        super::format_event::fmt_binding_transform(alias, transform_chain)
+                    );
                 }
             }
 
@@ -909,7 +1019,10 @@ impl CliRenderer {
                 task_id, strategy, ..
             } => {
                 if self.detail.show_sub_events() {
-                    println!("{}", super::format_event::fmt_decompose_started(task_id, strategy));
+                    println!(
+                        "{}",
+                        super::format_event::fmt_decompose_started(task_id, strategy)
+                    );
                 }
             }
 
@@ -920,9 +1033,14 @@ impl CliRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    println!("{}", super::format_event::fmt_decompose_completed(
-                        task_id, *item_count, *duration_ms,
-                    ));
+                    println!(
+                        "{}",
+                        super::format_event::fmt_decompose_completed(
+                            task_id,
+                            *item_count,
+                            *duration_ms,
+                        )
+                    );
                 }
             }
 
@@ -936,9 +1054,14 @@ impl CliRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    println!("{}", super::format_event::fmt_for_each_started(
-                        task_id, *item_count, *concurrency,
-                    ));
+                    println!(
+                        "{}",
+                        super::format_event::fmt_for_each_started(
+                            task_id,
+                            *item_count,
+                            *concurrency,
+                        )
+                    );
                 }
             }
 
@@ -951,9 +1074,10 @@ impl CliRenderer {
                 cached,
             } => {
                 if self.detail.show_sub_events() {
-                    println!("{}", super::format_event::fmt_provider_initialized(
-                        provider, model, *cached,
-                    ));
+                    println!(
+                        "{}",
+                        super::format_event::fmt_provider_initialized(provider, model, *cached,)
+                    );
                 }
             }
 
@@ -967,9 +1091,14 @@ impl CliRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    println!("{}", super::format_event::fmt_builtin_tool_invoked(
-                        tool_name, *duration_ms, *success,
-                    ));
+                    println!(
+                        "{}",
+                        super::format_event::fmt_builtin_tool_invoked(
+                            tool_name,
+                            *duration_ms,
+                            *success,
+                        )
+                    );
                 }
             }
 
@@ -983,9 +1112,10 @@ impl CliRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    println!("{}", super::format_event::fmt_extract_applied(
-                        mode, *input_len, *output_len,
-                    ));
+                    println!(
+                        "{}",
+                        super::format_event::fmt_extract_applied(mode, *input_len, *output_len,)
+                    );
                 }
             }
 

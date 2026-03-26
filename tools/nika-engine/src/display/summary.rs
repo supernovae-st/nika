@@ -601,11 +601,7 @@ fn token_bar(value: u64, max: u64, width: usize, color: &str) -> String {
     };
     let filled = (ratio * width as f64).round() as usize;
     let empty = width.saturating_sub(filled);
-    let bar = format!(
-        "{}{}",
-        "\u{2588}".repeat(filled),
-        "\u{2591}".repeat(empty)
-    );
+    let bar = format!("{}{}", "\u{2588}".repeat(filled), "\u{2591}".repeat(empty));
     match color {
         "blue" => bar.blue().to_string(),
         "magenta" => bar.magenta().to_string(),
@@ -689,7 +685,10 @@ mod tests {
         // Should not panic; returns the bar without ANSI codes
         assert!(!bar.is_empty());
         // No ANSI escape sequences
-        assert!(!bar.contains('\x1b'), "unknown color should produce no ANSI codes");
+        assert!(
+            !bar.contains('\x1b'),
+            "unknown color should produce no ANSI codes"
+        );
     }
 
     #[test]

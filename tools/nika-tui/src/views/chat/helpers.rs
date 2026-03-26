@@ -39,9 +39,7 @@ pub fn categorize_error(error: &str) -> (&'static str, &'static str) {
             "Rate Limit",
             "API rate limit reached. Wait a moment and try again.",
         )
-    } else if error_lower.contains("status: 401")
-        || error_lower.contains("status: 403")
-    {
+    } else if error_lower.contains("status: 401") || error_lower.contains("status: 403") {
         (
             "Auth",
             "Authentication failed (HTTP 401/403). Check your API key.",

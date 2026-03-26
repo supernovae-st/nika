@@ -494,8 +494,9 @@ impl App {
             // PERF(M7): Star animation only renders for 5s after last interaction,
             // then goes idle. Prevents perpetual 10 FPS rendering when user is AFK.
             let star_active = self.last_interaction.elapsed().as_secs() < 5;
-            let needs_render =
-                self.state.dirty.any() || needs_fast_render || (star_active && self.state.frame % 6 == 0);
+            let needs_render = self.state.dirty.any()
+                || needs_fast_render
+                || (star_active && self.state.frame % 6 == 0);
             if needs_render {
                 self.render_unified_frame()?;
             }
@@ -527,11 +528,13 @@ impl App {
                                 .as_ref()
                                 .map(|t| t.size().unwrap_or_default())
                                 .unwrap_or_default();
-                            let area =
-                                ratatui::layout::Rect::new(0, 0, size.width, size.height);
-                            self.command_view
-                                .chat
-                                .handle_mouse(mouse.kind, mouse.column, mouse.row, area);
+                            let area = ratatui::layout::Rect::new(0, 0, size.width, size.height);
+                            self.command_view.chat.handle_mouse(
+                                mouse.kind,
+                                mouse.column,
+                                mouse.row,
+                                area,
+                            );
                         }
                         self.state.dirty.mark_all();
                         Action::Continue

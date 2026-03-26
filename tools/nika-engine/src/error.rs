@@ -813,7 +813,10 @@ impl From<nika_media::tools::error::MediaToolError> for NikaError {
     fn from(e: nika_media::tools::error::MediaToolError) -> Self {
         match e {
             nika_media::tools::error::MediaToolError::ToolError { tool, reason } => {
-                NikaError::BuiltinToolError { tool: format!("nika:{tool}"), reason }
+                NikaError::BuiltinToolError {
+                    tool: format!("nika:{tool}"),
+                    reason,
+                }
             }
             nika_media::tools::error::MediaToolError::UnsupportedFormat { tool, mime } => {
                 NikaError::BuiltinToolError {

@@ -11,9 +11,9 @@ use std::time::Instant;
 
 use colored::Colorize;
 use indexmap::IndexMap;
-use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 #[cfg(test)]
 use indicatif::ProgressDrawTarget;
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 
 use crate::display::{colors, icons, spinner, DetailLevel};
 use crate::event::{Event, EventKind};
@@ -89,8 +89,8 @@ impl LiveRenderer {
         let style_running = ProgressStyle::with_template(spinner::TASK_RUNNING_TEMPLATE)
             .expect("running template")
             .tick_strings(spinner::TICK_STRINGS);
-        let style_static = ProgressStyle::with_template(spinner::TASK_STATIC_TEMPLATE)
-            .expect("static template");
+        let style_static =
+            ProgressStyle::with_template(spinner::TASK_STATIC_TEMPLATE).expect("static template");
 
         Self {
             multi,
@@ -146,11 +146,7 @@ impl LiveRenderer {
     ///
     /// `task_ids` must be in topological (execution) order.
     /// `task_deps` maps task_id → dependency task_ids.
-    pub fn init_tasks(
-        &mut self,
-        task_ids: &[String],
-        task_deps: &HashMap<String, Vec<String>>,
-    ) {
+    pub fn init_tasks(&mut self, task_ids: &[String], task_deps: &HashMap<String, Vec<String>>) {
         let total = task_ids.len();
         let visible = total.min(spinner::MAX_VISIBLE_TASKS);
 
@@ -161,7 +157,9 @@ impl LiveRenderer {
                 break;
             }
 
-            let bar = self.multi.insert_before(&self.overall_bar, ProgressBar::new(0));
+            let bar = self
+                .multi
+                .insert_before(&self.overall_bar, ProgressBar::new(0));
             bar.set_style(static_style.clone());
 
             // Initial pending message
@@ -183,7 +181,9 @@ impl LiveRenderer {
         // If there are more tasks than visible, add an overflow indicator
         if total > visible {
             let overflow = total - visible;
-            let bar = self.multi.insert_before(&self.overall_bar, ProgressBar::new(0));
+            let bar = self
+                .multi
+                .insert_before(&self.overall_bar, ProgressBar::new(0));
             bar.set_style(static_style);
             bar.set_message(format!("  {} +{} more tasks", "…".dimmed(), overflow).to_string());
             // Store with a synthetic key
@@ -299,7 +299,13 @@ impl LiveRenderer {
         )
     }
 
-    fn format_completed(task_id: &str, verb: &str, dur_secs: f32, in_tok: u64, out_tok: u64) -> String {
+    fn format_completed(
+        task_id: &str,
+        verb: &str,
+        dur_secs: f32,
+        in_tok: u64,
+        out_tok: u64,
+    ) -> String {
         let padded_id = Self::truncate_task_id(task_id, 16);
         let tok_str = if in_tok > 0 || out_tok > 0 {
             format!(
@@ -558,7 +564,11 @@ impl LiveRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    self.log(&super::format_event::fmt_provider_called(provider, model, *prompt_len));
+                    self.log(&super::format_event::fmt_provider_called(
+                        provider,
+                        model,
+                        *prompt_len,
+                    ));
                 }
             }
 
@@ -578,11 +588,16 @@ impl LiveRenderer {
 
                 if self.detail.show_sub_events() {
                     self.log(&super::format_event::fmt_provider_responded(
-                        *input_tokens, *output_tokens, *cache_read_tokens, *ttft_ms,
+                        *input_tokens,
+                        *output_tokens,
+                        *cache_read_tokens,
+                        *ttft_ms,
                     ));
                     if self.detail.show_sparklines() {
                         self.log(&super::format_event::fmt_provider_sparkline(
-                            *output_tokens, *input_tokens, *cost_usd,
+                            *output_tokens,
+                            *input_tokens,
+                            *cost_usd,
                         ));
                     }
                 }
@@ -615,7 +630,9 @@ impl LiveRenderer {
             } => {
                 if self.detail.show_sub_events() {
                     self.log(&super::format_event::fmt_context_assembled(
-                        sources.len(), *total_tokens, *budget_used_pct,
+                        sources.len(),
+                        *total_tokens,
+                        *budget_used_pct,
                     ));
                 }
             }
@@ -640,7 +657,10 @@ impl LiveRenderer {
             } => {
                 if self.detail.show_sub_events() {
                     self.log(&super::format_event::fmt_mcp_invoke(
-                        mcp_server, tool.as_deref(), resource.as_deref(), call_id,
+                        mcp_server,
+                        tool.as_deref(),
+                        resource.as_deref(),
+                        call_id,
                     ));
                 }
             }
@@ -655,7 +675,11 @@ impl LiveRenderer {
             } => {
                 if self.detail.show_sub_events() {
                     self.log(&super::format_event::fmt_mcp_response(
-                        call_id, *output_len, *duration_ms, *cached, *is_error,
+                        call_id,
+                        *output_len,
+                        *duration_ms,
+                        *cached,
+                        *is_error,
                     ));
                 }
             }
@@ -668,7 +692,10 @@ impl LiveRenderer {
                 ..
             } => {
                 self.log(&super::format_event::fmt_mcp_retry(
-                    operation, *attempt, *max_attempts, error,
+                    operation,
+                    *attempt,
+                    *max_attempts,
+                    error,
                 ));
             }
 
@@ -679,7 +706,10 @@ impl LiveRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    self.log(&super::format_event::fmt_agent_start(*max_turns, mcp_servers));
+                    self.log(&super::format_event::fmt_agent_start(
+                        *max_turns,
+                        mcp_servers,
+                    ));
                 }
             }
 
@@ -712,12 +742,13 @@ impl LiveRenderer {
             }
 
             EventKind::AgentComplete {
-                turns,
-                stop_reason,
-                ..
+                turns, stop_reason, ..
             } => {
                 if self.detail.show_sub_events() {
-                    self.log(&super::format_event::fmt_agent_complete(*turns, stop_reason));
+                    self.log(&super::format_event::fmt_agent_complete(
+                        *turns,
+                        stop_reason,
+                    ));
                 }
             }
 
@@ -727,7 +758,10 @@ impl LiveRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    self.log(&super::format_event::fmt_agent_spawned(child_task_id, *depth));
+                    self.log(&super::format_event::fmt_agent_spawned(
+                        child_task_id,
+                        *depth,
+                    ));
                 }
             }
 
@@ -738,7 +772,10 @@ impl LiveRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    self.log(&super::format_event::fmt_guardrail_passed(guardrail_type, description));
+                    self.log(&super::format_event::fmt_guardrail_passed(
+                        guardrail_type,
+                        description,
+                    ));
                 }
             }
 
@@ -747,13 +784,18 @@ impl LiveRenderer {
                 message,
                 ..
             } => {
-                self.log(&super::format_event::fmt_guardrail_failed(guardrail_type, message));
+                self.log(&super::format_event::fmt_guardrail_failed(
+                    guardrail_type,
+                    message,
+                ));
             }
 
             EventKind::GuardrailEscalation {
                 severity, message, ..
             } => {
-                self.log(&super::format_event::fmt_guardrail_escalation(severity, message));
+                self.log(&super::format_event::fmt_guardrail_escalation(
+                    severity, message,
+                ));
             }
 
             // ── Builtin / Log ─────────────────────────────────────
@@ -769,13 +811,12 @@ impl LiveRenderer {
 
             // ── Artifacts ─────────────────────────────────────────
             EventKind::ArtifactWritten {
-                path,
-                size,
-                format,
-                ..
+                path, size, format, ..
             } => {
                 if self.detail.show_sub_events() {
-                    self.log(&super::format_event::fmt_artifact_written(path, *size, format));
+                    self.log(&super::format_event::fmt_artifact_written(
+                        path, *size, format,
+                    ));
                 }
             }
 
@@ -790,7 +831,10 @@ impl LiveRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    self.log(&super::format_event::fmt_media_extracted(*block_count, content_types));
+                    self.log(&super::format_event::fmt_media_extracted(
+                        *block_count,
+                        content_types,
+                    ));
                 }
             }
 
@@ -804,10 +848,16 @@ impl LiveRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    self.log(&super::format_event::fmt_media_stored(*size_bytes, path, hash));
+                    self.log(&super::format_event::fmt_media_stored(
+                        *size_bytes,
+                        path,
+                        hash,
+                    ));
                     if self.detail.show_previews() {
                         self.log(&super::format_event::fmt_media_stored_detail(
-                            *deduplicated, *verified, *pipeline_ms,
+                            *deduplicated,
+                            *verified,
+                            *pipeline_ms,
                         ));
                     }
                 }
@@ -827,7 +877,10 @@ impl LiveRenderer {
             } => {
                 if self.detail.show_sub_events() {
                     self.log(&super::format_event::fmt_structured_output_attempt(
-                        *layer, layer_name, *success, error.as_deref(),
+                        *layer,
+                        layer_name,
+                        *success,
+                        error.as_deref(),
                     ));
                 }
             }
@@ -845,7 +898,9 @@ impl LiveRenderer {
             } => {
                 if self.detail.show_sub_events() {
                     self.log(&super::format_event::fmt_vision_content_resolved(
-                        *image_count, *total_bytes, *resolve_ms,
+                        *image_count,
+                        *total_bytes,
+                        *resolve_ms,
                     ));
                 }
             }
@@ -866,7 +921,10 @@ impl LiveRenderer {
             } => {
                 if self.detail.show_sub_events() {
                     self.log(&super::format_event::fmt_http_response(
-                        *status_code, content_type.as_deref(), *content_length, *elapsed_ms,
+                        *status_code,
+                        content_type.as_deref(),
+                        *content_length,
+                        *elapsed_ms,
                     ));
                 }
             }
@@ -876,7 +934,9 @@ impl LiveRenderer {
                 template, result, ..
             } => {
                 if self.detail.show_template_events() {
-                    self.log(&super::format_event::fmt_template_resolved(template, result));
+                    self.log(&super::format_event::fmt_template_resolved(
+                        template, result,
+                    ));
                 }
             }
 
@@ -909,7 +969,10 @@ impl LiveRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    self.log(&super::format_event::fmt_exec_completed(*exit_code, *duration_ms));
+                    self.log(&super::format_event::fmt_exec_completed(
+                        *exit_code,
+                        *duration_ms,
+                    ));
                 }
             }
 
@@ -919,7 +982,11 @@ impl LiveRenderer {
                 reason,
                 ..
             } => {
-                self.log(&super::format_event::fmt_policy_blocked(&self.ts(), policy_type, reason));
+                self.log(&super::format_event::fmt_policy_blocked(
+                    &self.ts(),
+                    policy_type,
+                    reason,
+                ));
             }
 
             // ── Fetch retry (always show) ─────────────────────────
@@ -932,7 +999,11 @@ impl LiveRenderer {
                 ..
             } => {
                 self.log(&super::format_event::fmt_fetch_retry(
-                    url, *attempt, *max_attempts, *status_code, *backoff_ms,
+                    url,
+                    *attempt,
+                    *max_attempts,
+                    *status_code,
+                    *backoff_ms,
                 ));
             }
 
@@ -944,7 +1015,10 @@ impl LiveRenderer {
                 warnings,
             } => {
                 self.log(&super::format_event::fmt_boot_phase(
-                    phase, *success, *duration_ms, warnings,
+                    phase,
+                    *success,
+                    *duration_ms,
+                    warnings,
                 ));
             }
 
@@ -958,15 +1032,16 @@ impl LiveRenderer {
             } => {
                 if self.detail.show_sub_events() {
                     self.log(&super::format_event::fmt_native_model_loaded(
-                        model, kind, *duration_ms, *is_vision,
+                        model,
+                        kind,
+                        *duration_ms,
+                        *is_vision,
                     ));
                 }
             }
 
             // ── Binding events ───────────────────────────────────
-            EventKind::BindingDefaultApplied {
-                alias, path, ..
-            } => {
+            EventKind::BindingDefaultApplied { alias, path, .. } => {
                 if self.detail.show_sub_events() {
                     self.log(&super::format_event::fmt_binding_default(alias, path));
                 }
@@ -978,7 +1053,10 @@ impl LiveRenderer {
                 ..
             } => {
                 if self.detail.show_sub_events() {
-                    self.log(&super::format_event::fmt_binding_transform(alias, transform_chain));
+                    self.log(&super::format_event::fmt_binding_transform(
+                        alias,
+                        transform_chain,
+                    ));
                 }
             }
 
@@ -995,7 +1073,9 @@ impl LiveRenderer {
                 task_id, strategy, ..
             } => {
                 if self.detail.show_sub_events() {
-                    self.log(&super::format_event::fmt_decompose_started(task_id, strategy));
+                    self.log(&super::format_event::fmt_decompose_started(
+                        task_id, strategy,
+                    ));
                 }
             }
 
@@ -1007,7 +1087,9 @@ impl LiveRenderer {
             } => {
                 if self.detail.show_sub_events() {
                     self.log(&super::format_event::fmt_decompose_completed(
-                        task_id, *item_count, *duration_ms,
+                        task_id,
+                        *item_count,
+                        *duration_ms,
                     ));
                 }
             }
@@ -1021,7 +1103,9 @@ impl LiveRenderer {
             } => {
                 if self.detail.show_sub_events() {
                     self.log(&super::format_event::fmt_for_each_started(
-                        task_id, *item_count, *concurrency,
+                        task_id,
+                        *item_count,
+                        *concurrency,
                     ));
                 }
             }
@@ -1048,7 +1132,9 @@ impl LiveRenderer {
             } => {
                 if self.detail.show_sub_events() {
                     self.log(&super::format_event::fmt_builtin_tool_invoked(
-                        tool_name, *duration_ms, *success,
+                        tool_name,
+                        *duration_ms,
+                        *success,
                     ));
                 }
             }
@@ -1062,7 +1148,9 @@ impl LiveRenderer {
             } => {
                 if self.detail.show_sub_events() {
                     self.log(&super::format_event::fmt_extract_applied(
-                        mode, *input_len, *output_len,
+                        mode,
+                        *input_len,
+                        *output_len,
                     ));
                 }
             }
@@ -1138,10 +1226,7 @@ mod tests {
 
         renderer.init_tasks(&task_ids, &deps);
         // MAX_VISIBLE_TASKS + 1 overflow bar
-        assert_eq!(
-            renderer.task_bars.len(),
-            spinner::MAX_VISIBLE_TASKS + 1
-        );
+        assert_eq!(renderer.task_bars.len(), spinner::MAX_VISIBLE_TASKS + 1);
     }
 
     #[test]

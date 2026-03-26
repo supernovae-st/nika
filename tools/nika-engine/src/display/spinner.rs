@@ -37,8 +37,7 @@ pub const MAX_VISIBLE_TASKS: usize = 24;
 /// ```text
 ///   ━━━━━━━━━╸─────────────────── 2/6  +3.1s  $0.004
 /// ```
-pub const OVERALL_TEMPLATE: &str =
-    "  {bar:30.cyan/dim} {pos}/{len}  {elapsed_precise}  {msg}";
+pub const OVERALL_TEMPLATE: &str = "  {bar:30.cyan/dim} {pos}/{len}  {elapsed_precise}  {msg}";
 
 /// Progress bar characters: filled ━, tip ╸, empty ─
 pub const PROGRESS_CHARS: &str = "\u{2501}\u{257A}\u{2500}";

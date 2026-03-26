@@ -15,9 +15,9 @@ use std::pin::Pin;
 
 use super::context::MediaToolContext;
 use super::error::invalid_args;
+use super::error::MediaToolError;
 use super::safety::decode_image_safe;
 use super::{MediaOp, MediaOpResult};
-use super::error::MediaToolError;
 
 pub struct QualityOp;
 
@@ -95,10 +95,13 @@ impl MediaOp for QualityOp {
                     let (w_b, h_b) = (rgba_b.width() as usize, rgba_b.height() as usize);
 
                     if w_a != w_b || h_a != h_b {
-                        return Err(super::error::invalid_args("quality", format!(
-                            "Image dimensions must match: {}x{} vs {}x{}",
-                            w_a, h_a, w_b, h_b
-                        )));
+                        return Err(super::error::invalid_args(
+                            "quality",
+                            format!(
+                                "Image dimensions must match: {}x{} vs {}x{}",
+                                w_a, h_a, w_b, h_b
+                            ),
+                        ));
                     }
 
                     // Build DSSIM attribute images
@@ -112,15 +115,21 @@ impl MediaOp for QualityOp {
 
                     let img_a_dssim =
                         attr.create_image_rgba(rgba_slice_a, w_a, h_a)
-                            .ok_or_else(|| super::error::invalid_args("quality",
-                                "Failed to create DSSIM image A",
-                            ))?;
+                            .ok_or_else(|| {
+                                super::error::invalid_args(
+                                    "quality",
+                                    "Failed to create DSSIM image A",
+                                )
+                            })?;
 
                     let img_b_dssim =
                         attr.create_image_rgba(rgba_slice_b, w_b, h_b)
-                            .ok_or_else(|| super::error::invalid_args("quality",
-                                "Failed to create DSSIM image B",
-                            ))?;
+                            .ok_or_else(|| {
+                                super::error::invalid_args(
+                                    "quality",
+                                    "Failed to create DSSIM image B",
+                                )
+                            })?;
 
                     let (dssim_val, _ssim_maps) = attr.compare(&img_a_dssim, img_b_dssim);
                     let dssim_f64: f64 = dssim_val.into();

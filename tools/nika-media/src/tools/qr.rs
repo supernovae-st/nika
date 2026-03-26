@@ -17,9 +17,9 @@ use std::pin::Pin;
 
 use super::context::MediaToolContext;
 use super::error::invalid_args;
+use super::error::MediaToolError;
 use super::safety::decode_image_safe;
 use super::{MediaOp, MediaOpResult};
-use super::error::MediaToolError;
 
 pub struct QrValidateOp;
 

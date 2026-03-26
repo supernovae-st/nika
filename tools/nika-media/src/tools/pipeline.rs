@@ -7,11 +7,11 @@ use std::future::Future;
 use std::pin::Pin;
 
 use super::context::MediaToolContext;
+use super::error::MediaToolError;
 use super::error::{invalid_args, pipeline_empty, pipeline_step_failed};
 #[cfg(feature = "media-thumbnail")]
 use super::safety::{decode_image_safe, MAX_IMAGE_DIM};
 use super::{MediaOp, MediaOpResult};
-use super::error::MediaToolError;
 
 pub struct PipelineOp;
 
@@ -77,174 +77,195 @@ impl MediaOp for PipelineOp {
 
             let output = ctx
                 .compute
-                .compute(move || -> Result<(Vec<u8>, String, String), MediaToolError> {
-                    let mut current_data = data;
-                    let mut current_mime = "image/png".to_string();
-                    let mut current_ext = "png".to_string();
+                .compute(
+                    move || -> Result<(Vec<u8>, String, String), MediaToolError> {
+                        let mut current_data = data;
+                        let mut current_mime = "image/png".to_string();
+                        let mut current_ext = "png".to_string();
 
-                    for (i, step) in steps_owned.iter().enumerate() {
-                        let op = step
-                            .get("op")
-                            .and_then(|v| v.as_str())
-                            .ok_or_else(|| pipeline_step_failed(i, "missing 'op' field"))?;
+                        for (i, step) in steps_owned.iter().enumerate() {
+                            let op = step
+                                .get("op")
+                                .and_then(|v| v.as_str())
+                                .ok_or_else(|| pipeline_step_failed(i, "missing 'op' field"))?;
 
-                        match op {
-                            #[cfg(feature = "media-thumbnail")]
-                            "thumbnail" => {
-                                let width =
-                                    step.get("width").and_then(|v| v.as_u64()).unwrap_or(256);
-                                if width == 0 || width > MAX_IMAGE_DIM as u64 {
-                                    return Err(pipeline_step_failed(
-                                        i,
-                                        format!("width must be 1..10000, got {width}"),
-                                    ));
-                                }
-                                let width = width as u32;
-                                let target_height = step.get("height").and_then(|v| v.as_u64());
-                                if let Some(h) = target_height {
-                                    if h == 0 || h > MAX_IMAGE_DIM as u64 {
+                            match op {
+                                #[cfg(feature = "media-thumbnail")]
+                                "thumbnail" => {
+                                    let width =
+                                        step.get("width").and_then(|v| v.as_u64()).unwrap_or(256);
+                                    if width == 0 || width > MAX_IMAGE_DIM as u64 {
                                         return Err(pipeline_step_failed(
                                             i,
-                                            format!("height must be 1..10000, got {h}"),
+                                            format!("width must be 1..10000, got {width}"),
                                         ));
                                     }
+                                    let width = width as u32;
+                                    let target_height = step.get("height").and_then(|v| v.as_u64());
+                                    if let Some(h) = target_height {
+                                        if h == 0 || h > MAX_IMAGE_DIM as u64 {
+                                            return Err(pipeline_step_failed(
+                                                i,
+                                                format!("height must be 1..10000, got {h}"),
+                                            ));
+                                        }
+                                    }
+                                    let img = decode_image_safe(&current_data)?;
+                                    let (orig_w, orig_h) = (img.width(), img.height());
+                                    let th = target_height.map(|h| h as u32).unwrap_or_else(|| {
+                                        let ratio = orig_h as f64 / orig_w as f64;
+                                        (width as f64 * ratio).round().max(1.0) as u32
+                                    });
+                                    let resized = img.resize_exact(
+                                        width,
+                                        th,
+                                        image::imageops::FilterType::Lanczos3,
+                                    );
+                                    let mut buf = Vec::new();
+                                    let rgba = resized.to_rgba8();
+                                    let (w, h) = (rgba.width(), rgba.height());
+                                    let enc = image::codecs::png::PngEncoder::new(&mut buf);
+                                    image::ImageEncoder::write_image(
+                                        enc,
+                                        rgba.as_raw(),
+                                        w,
+                                        h,
+                                        image::ExtendedColorType::Rgba8,
+                                    )
+                                    .map_err(|e| pipeline_step_failed(i, format!("encode: {e}")))?;
+                                    current_data = buf;
+                                    current_mime = "image/png".to_string();
+                                    current_ext = "png".to_string();
                                 }
-                                let img = decode_image_safe(&current_data)?;
-                                let (orig_w, orig_h) = (img.width(), img.height());
-                                let th = target_height.map(|h| h as u32).unwrap_or_else(|| {
-                                    let ratio = orig_h as f64 / orig_w as f64;
-                                    (width as f64 * ratio).round().max(1.0) as u32
-                                });
-                                let resized = img.resize_exact(
-                                    width,
-                                    th,
-                                    image::imageops::FilterType::Lanczos3,
-                                );
-                                let mut buf = Vec::new();
-                                let rgba = resized.to_rgba8();
-                                let (w, h) = (rgba.width(), rgba.height());
-                                let enc = image::codecs::png::PngEncoder::new(&mut buf);
-                                image::ImageEncoder::write_image(
-                                    enc,
-                                    rgba.as_raw(),
-                                    w,
-                                    h,
-                                    image::ExtendedColorType::Rgba8,
-                                )
-                                .map_err(|e| pipeline_step_failed(i, format!("encode: {e}")))?;
-                                current_data = buf;
-                                current_mime = "image/png".to_string();
-                                current_ext = "png".to_string();
-                            }
-                            #[cfg(feature = "media-optimize")]
-                            "optimize" => {
-                                let level = step
-                                    .get("level")
-                                    .and_then(|v| v.as_u64())
-                                    .unwrap_or(2)
-                                    .clamp(1, 6) as u8;
-                                let mut opts = oxipng::Options::from_preset(level);
-                                if step.get("strip").and_then(|v| v.as_bool()).unwrap_or(true) {
-                                    opts.strip = oxipng::StripChunks::Safe;
+                                #[cfg(feature = "media-optimize")]
+                                "optimize" => {
+                                    let level = step
+                                        .get("level")
+                                        .and_then(|v| v.as_u64())
+                                        .unwrap_or(2)
+                                        .clamp(1, 6)
+                                        as u8;
+                                    let mut opts = oxipng::Options::from_preset(level);
+                                    if step.get("strip").and_then(|v| v.as_bool()).unwrap_or(true) {
+                                        opts.strip = oxipng::StripChunks::Safe;
+                                    }
+                                    current_data =
+                                        oxipng::optimize_from_memory(&current_data, &opts)
+                                            .map_err(|e| {
+                                                pipeline_step_failed(i, format!("optimize: {e}"))
+                                            })?;
                                 }
-                                current_data = oxipng::optimize_from_memory(&current_data, &opts)
+                                #[cfg(feature = "media-thumbnail")]
+                                "convert" => {
+                                    let format = step
+                                        .get("format")
+                                        .and_then(|v| v.as_str())
+                                        .unwrap_or("png");
+                                    let img = decode_image_safe(&current_data)?;
+                                    let (w, h) = (img.width(), img.height());
+                                    let mut buf = Vec::new();
+                                    match format {
+                                        "jpeg" | "jpg" => {
+                                            let quality = step
+                                                .get("quality")
+                                                .and_then(|v| v.as_u64())
+                                                .unwrap_or(85)
+                                                .clamp(1, 100)
+                                                as u8;
+                                            let rgb = super::safety::composite_on_white(&img);
+                                            let enc =
+                                                image::codecs::jpeg::JpegEncoder::new_with_quality(
+                                                    &mut buf, quality,
+                                                );
+                                            image::ImageEncoder::write_image(
+                                                enc,
+                                                rgb.as_raw(),
+                                                w,
+                                                h,
+                                                image::ExtendedColorType::Rgb8,
+                                            )
+                                            .map_err(
+                                                |e| {
+                                                    pipeline_step_failed(
+                                                        i,
+                                                        format!("jpeg encode: {e}"),
+                                                    )
+                                                },
+                                            )?;
+                                            current_mime = "image/jpeg".to_string();
+                                            current_ext = "jpg".to_string();
+                                        }
+                                        "webp" => {
+                                            img.write_to(
+                                                &mut std::io::Cursor::new(&mut buf),
+                                                image::ImageFormat::WebP,
+                                            )
+                                            .map_err(
+                                                |e| {
+                                                    pipeline_step_failed(
+                                                        i,
+                                                        format!("webp encode: {e}"),
+                                                    )
+                                                },
+                                            )?;
+                                            current_mime = "image/webp".to_string();
+                                            current_ext = "webp".to_string();
+                                        }
+                                        _ => {
+                                            let rgba = img.to_rgba8();
+                                            let enc = image::codecs::png::PngEncoder::new(&mut buf);
+                                            image::ImageEncoder::write_image(
+                                                enc,
+                                                rgba.as_raw(),
+                                                w,
+                                                h,
+                                                image::ExtendedColorType::Rgba8,
+                                            )
+                                            .map_err(
+                                                |e| {
+                                                    pipeline_step_failed(
+                                                        i,
+                                                        format!("png encode: {e}"),
+                                                    )
+                                                },
+                                            )?;
+                                            current_mime = "image/png".to_string();
+                                            current_ext = "png".to_string();
+                                        }
+                                    }
+                                    current_data = buf;
+                                }
+                                #[cfg(feature = "media-thumbnail")]
+                                "strip" => {
+                                    let img = decode_image_safe(&current_data)?;
+                                    let (w, h) = (img.width(), img.height());
+                                    let mut buf = Vec::new();
+                                    let rgba = img.to_rgba8();
+                                    let enc = image::codecs::png::PngEncoder::new(&mut buf);
+                                    image::ImageEncoder::write_image(
+                                        enc,
+                                        rgba.as_raw(),
+                                        w,
+                                        h,
+                                        image::ExtendedColorType::Rgba8,
+                                    )
                                     .map_err(|e| {
-                                    pipeline_step_failed(i, format!("optimize: {e}"))
-                                })?;
-                            }
-                            #[cfg(feature = "media-thumbnail")]
-                            "convert" => {
-                                let format =
-                                    step.get("format").and_then(|v| v.as_str()).unwrap_or("png");
-                                let img = decode_image_safe(&current_data)?;
-                                let (w, h) = (img.width(), img.height());
-                                let mut buf = Vec::new();
-                                match format {
-                                    "jpeg" | "jpg" => {
-                                        let quality = step
-                                            .get("quality")
-                                            .and_then(|v| v.as_u64())
-                                            .unwrap_or(85)
-                                            .clamp(1, 100)
-                                            as u8;
-                                        let rgb = super::safety::composite_on_white(&img);
-                                        let enc =
-                                            image::codecs::jpeg::JpegEncoder::new_with_quality(
-                                                &mut buf, quality,
-                                            );
-                                        image::ImageEncoder::write_image(
-                                            enc,
-                                            rgb.as_raw(),
-                                            w,
-                                            h,
-                                            image::ExtendedColorType::Rgb8,
-                                        )
-                                        .map_err(|e| {
-                                            pipeline_step_failed(i, format!("jpeg encode: {e}"))
-                                        })?;
-                                        current_mime = "image/jpeg".to_string();
-                                        current_ext = "jpg".to_string();
-                                    }
-                                    "webp" => {
-                                        img.write_to(
-                                            &mut std::io::Cursor::new(&mut buf),
-                                            image::ImageFormat::WebP,
-                                        )
-                                        .map_err(|e| {
-                                            pipeline_step_failed(i, format!("webp encode: {e}"))
-                                        })?;
-                                        current_mime = "image/webp".to_string();
-                                        current_ext = "webp".to_string();
-                                    }
-                                    _ => {
-                                        let rgba = img.to_rgba8();
-                                        let enc = image::codecs::png::PngEncoder::new(&mut buf);
-                                        image::ImageEncoder::write_image(
-                                            enc,
-                                            rgba.as_raw(),
-                                            w,
-                                            h,
-                                            image::ExtendedColorType::Rgba8,
-                                        )
-                                        .map_err(|e| {
-                                            pipeline_step_failed(i, format!("png encode: {e}"))
-                                        })?;
-                                        current_mime = "image/png".to_string();
-                                        current_ext = "png".to_string();
-                                    }
+                                        pipeline_step_failed(i, format!("strip encode: {e}"))
+                                    })?;
+                                    current_data = buf;
                                 }
-                                current_data = buf;
-                            }
-                            #[cfg(feature = "media-thumbnail")]
-                            "strip" => {
-                                let img = decode_image_safe(&current_data)?;
-                                let (w, h) = (img.width(), img.height());
-                                let mut buf = Vec::new();
-                                let rgba = img.to_rgba8();
-                                let enc = image::codecs::png::PngEncoder::new(&mut buf);
-                                image::ImageEncoder::write_image(
-                                    enc,
-                                    rgba.as_raw(),
-                                    w,
-                                    h,
-                                    image::ExtendedColorType::Rgba8,
-                                )
-                                .map_err(|e| {
-                                    pipeline_step_failed(i, format!("strip encode: {e}"))
-                                })?;
-                                current_data = buf;
-                            }
-                            other => {
-                                return Err(pipeline_step_failed(
-                                    i,
-                                    format!("unknown operation: {other}"),
-                                ));
+                                other => {
+                                    return Err(pipeline_step_failed(
+                                        i,
+                                        format!("unknown operation: {other}"),
+                                    ));
+                                }
                             }
                         }
-                    }
 
-                    Ok((current_data, current_mime, current_ext))
-                })
+                        Ok((current_data, current_mime, current_ext))
+                    },
+                )
                 .await??;
 
             let (data, mime_type, extension) = output;
