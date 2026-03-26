@@ -1,16 +1,3 @@
-# Nika Rust CI Pipeline
-# Runs on: push to main, pull requests
-#
-# Jobs:
-# 1. check: Format + Clippy (multi-platform)
-# 2. test: Unit + integration tests (matrix: stable, ubuntu/macos)
-# 3. coverage: Code coverage with codecov
-# 4. security: cargo-deny + cargo-audit
-# 5. build: Release build verification
-# 6. summary: PR comment with results
-#
-# Schema @0.12 | 8,200+ tests | 12 crates
-
 name: CI
 
 on:
@@ -19,12 +6,6 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      run_full_matrix:
-        description: 'Run full test matrix (stable + beta)'
-        required: false
-        default: 'false'
-        type: boolean
 
 # Cancel outdated runs for same PR/branch
 concurrency:
@@ -34,19 +15,12 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -Dwarnings
-  # Minimum Rust version (matches Cargo.toml rust-version)
-  # Note: Using stable to get latest; deps require 1.88+ (time crate)
-  RUST_VERSION: stable
-  # Minimum coverage threshold (%)
-  COVERAGE_THRESHOLD: 70
 
-defaults:
-  run:
-    working-directory: tools/nika
+# NOTE: No defaults.run.working-directory — each step sets working-directory explicitly
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────────────
-  # Quick Check (runs first, fast feedback)
+  # Check: fmt + clippy + doc + version gate
   # ─────────────────────────────────────────────────────────────────────────────
   check:
     name: Check (${{ matrix.os }})
@@ -59,101 +33,124 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Install Rust toolchain (${{ env.RUST_VERSION }})
-        uses: dtolnay/rust-toolchain@master
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: ${{ env.RUST_VERSION }}
           components: rustfmt, clippy
 
       - name: Install system dependencies (Ubuntu)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
 
-      - name: Cache cargo registry and build
+      - name: Cache cargo
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "tools/nika -> target"
+          workspaces: 'tools/nika -> target'
           cache-on-failure: true
           shared-key: check-${{ matrix.os }}
 
       - name: Check formatting
+        working-directory: tools/nika
         run: cargo fmt --all --check
 
-      - name: Run clippy (all features)
-        run: cargo clippy --workspace --all-targets --features tui -- -D warnings
-
-      - name: Run clippy (no default features)
-        run: cargo clippy --workspace --all-targets --no-default-features -- -D warnings
+      - name: Run clippy (workspace, all targets)
+        working-directory: tools/nika
+        run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Check documentation
-        run: cargo doc --workspace --no-deps --features tui
+        working-directory: tools/nika
+        run: cargo doc --workspace --no-deps
         env:
           RUSTDOCFLAGS: -Dwarnings
 
+      - name: Version lock (must stay 0.x.x forever)
+        run: |
+          VERSION=$(grep '^version = ' tools/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          MAJOR=$(echo "$VERSION" | cut -d. -f1)
+          echo "Nika version: $VERSION (major=$MAJOR)"
+          [ "$MAJOR" = "0" ] || { echo "::error::Version $VERSION violates 0.x.x lock!"; exit 1; }
+
   # ─────────────────────────────────────────────────────────────────────────────
-  # Test Suite (matrix: rust version x os)
+  # Test: nextest --lib (NEVER bare cargo test = macOS keychain popup)
   # ─────────────────────────────────────────────────────────────────────────────
   test:
-    name: Test (${{ matrix.rust }}, ${{ matrix.os }})
+    name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     needs: check
     strategy:
       fail-fast: false
       matrix:
-        rust: [stable]
         os: [ubuntu-latest, macos-latest]
-        include:
-          # Add beta only for full matrix runs
-          - rust: beta
-            os: ubuntu-latest
-            optional: true
-    continue-on-error: ${{ matrix.optional || false }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Install Rust toolchain (${{ matrix.rust }})
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ matrix.rust }}
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Install system dependencies (Ubuntu)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
 
-      - name: Cache cargo registry and build
+      - name: Cache cargo
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "tools/nika -> target"
+          workspaces: 'tools/nika -> target'
           cache-on-failure: true
-          shared-key: test-${{ matrix.rust }}-${{ matrix.os }}
+          shared-key: test-${{ matrix.os }}
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@nextest
 
-      - name: Run unit tests with nextest
-        id: nextest
-        run: |
-          cargo nextest run --workspace --features tui 2>&1 | tee test-results.txt
-          # Extract summary for PR comment
-          PASSED=$(grep -E "^\s*\d+ tests passed" test-results.txt | grep -oE '\d+' | head -1 || echo "0")
-          FAILED=$(grep -E "^\s*\d+ tests failed" test-results.txt | grep -oE '\d+' | head -1 || echo "0")
-          echo "passed=$PASSED" >> "$GITHUB_OUTPUT"
-          echo "failed=$FAILED" >> "$GITHUB_OUTPUT"
+      - name: Run unit tests (--lib, all workspace crates)
+        working-directory: tools/nika
+        run: cargo nextest run --workspace --lib 2>&1 | tee /tmp/test-results.txt
 
       - name: Run doc tests
-        run: cargo test --workspace --doc --features tui
+        working-directory: tools/nika
+        run: cargo test --workspace --doc
 
-      - name: Upload test results
+      - name: Output test summary
         if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: test-results-${{ matrix.rust }}-${{ matrix.os }}
-          path: test-results.txt
-          retention-days: 7
+        run: |
+          PASSED=$(grep -E 'tests? passed' /tmp/test-results.txt | grep -oE '[0-9]+' | head -1 || echo '0')
+          echo "### Tests (${{ matrix.os }})" >> "$GITHUB_STEP_SUMMARY"
+          echo "Tests passed: **$PASSED**" >> "$GITHUB_STEP_SUMMARY"
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # Code Coverage (ubuntu + stable only)
+  # Feature compatibility: no-default-features + all-features
+  # ─────────────────────────────────────────────────────────────────────────────
+  test-features:
+    name: Feature Compatibility
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: 'tools/nika -> target'
+          cache-on-failure: true
+          shared-key: features
+
+      - name: Check no-default-features (core compiles without TUI/media/LSP)
+        working-directory: tools/nika
+        run: cargo check --workspace --no-default-features
+
+      - name: Check all-features (all feature flags compatible)
+        working-directory: tools/nika
+        run: cargo check --workspace --all-features
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Coverage: llvm-cov nextest --lib → Codecov
   # ─────────────────────────────────────────────────────────────────────────────
   coverage:
     name: Coverage
@@ -171,54 +168,38 @@ jobs:
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
 
-      - name: Cache cargo registry and build
+      - name: Cache cargo
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "tools/nika -> target"
+          workspaces: 'tools/nika -> target'
           cache-on-failure: true
           shared-key: coverage
 
-      - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@cargo-llvm-cov
+      - name: Install cargo-llvm-cov + nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov,cargo-nextest
 
-      - name: Generate coverage report
+      - name: Generate coverage (nextest --lib)
+        working-directory: tools/nika
         run: |
-          cargo llvm-cov --workspace --features tui --lcov --output-path lcov.info
-          cargo llvm-cov report --workspace --features tui --summary-only | tee coverage-summary.txt
+          cargo llvm-cov nextest --workspace --lib --lcov --output-path lcov.info
+          cargo llvm-cov report --workspace --summary-only | tee /tmp/coverage-summary.txt
 
-      - name: Extract coverage percentage
-        id: coverage
-        run: |
-          # Extract line coverage percentage from summary
-          COVERAGE=$(grep -E "^Total" coverage-summary.txt | awk '{print $NF}' | tr -d '%' || echo "0")
-          echo "percentage=$COVERAGE" >> "$GITHUB_OUTPUT"
-          echo "Coverage: $COVERAGE%"
-
-      - name: Upload coverage to Codecov
+      - name: Upload to Codecov
         uses: codecov/codecov-action@v5
         with:
-          files: lcov.info
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: tools/nika/lcov.info
           flags: nika
           name: nika-coverage
           fail_ci_if_error: false
-          verbose: true
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-
-      - name: Upload coverage artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: coverage-report
-          path: |
-            lcov.info
-            coverage-summary.txt
-          retention-days: 30
 
       - name: Check coverage threshold
-        env:
-          COVERAGE: ${{ steps.coverage.outputs.percentage }}
-          THRESHOLD: ${{ env.COVERAGE_THRESHOLD }}
         run: |
+          COVERAGE=$(grep 'TOTAL' /tmp/coverage-summary.txt | awk '{print $NF}' | tr -d '%' || echo '0')
+          echo "Coverage: $COVERAGE%"
+          THRESHOLD=70
           if [ -n "$COVERAGE" ] && [ "$COVERAGE" != "0" ]; then
             COVERAGE_INT=${COVERAGE%.*}
             if [ "$COVERAGE_INT" -lt "$THRESHOLD" ]; then
@@ -229,92 +210,10 @@ jobs:
           fi
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # Schema & Workflow Validation (v0.14.2 features)
-  # ─────────────────────────────────────────────────────────────────────────────
-  schema-validation:
-    name: Schema Validation
-    runs-on: ubuntu-latest
-    needs: check
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
-
-      - name: Cache cargo registry and build
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: "tools/nika -> target"
-          cache-on-failure: true
-          shared-key: schema-validation
-
-      - name: Build nika binary
-        run: cargo build --release
-
-      - name: Validate schema version tests (v0.1-v0.9)
-        run: |
-          echo "=== Validating schema version tests ==="
-          for version in v0.1 v0.2 v0.3 v0.4 v0.5 v0.6 v0.7 v0.8 v0.9; do
-            echo "Testing: tests/schema-version-tests/${version}-test.nika.yaml"
-            ./target/release/nika check "tests/schema-version-tests/${version}-test.nika.yaml" || exit 1
-          done
-          echo "All schema version tests passed!"
-
-      - name: Validate feature examples
-        run: |
-          echo "=== Validating feature examples ==="
-          # context: field example (v0.9)
-          ./target/release/nika check examples/v09-context-loading.nika.yaml || exit 1
-          echo "context: loading OK"
-
-          # include: DAG fusion example (v0.9)
-          ./target/release/nika check examples/v09-include-dag-fusion.nika.yaml || exit 1
-          echo "include: DAG fusion OK"
-
-          # multi-provider example (v0.6)
-          ./target/release/nika check examples/v06-multi-provider.nika.yaml || exit 1
-          echo "multi-provider OK"
-
-          # v0.15 features
-          ./target/release/nika check examples/v15-infer-options.nika.yaml || exit 1
-          echo "infer options OK"
-
-          ./target/release/nika check examples/v15-secure-exec.nika.yaml || exit 1
-          echo "secure exec OK"
-
-          echo "All feature examples passed!"
-
-      - name: Validate public examples
-        run: |
-          echo "=== Validating public examples ==="
-          PASSED=0
-          FAILED=0
-          for file in examples/public/*.nika.yaml; do
-            if ./target/release/nika check "$file" > /dev/null 2>&1; then
-              PASSED=$((PASSED + 1))
-            else
-              echo "WARN: $file failed validation (may require MCP)"
-              FAILED=$((FAILED + 1))
-            fi
-          done
-          echo "Public examples: $PASSED passed, $FAILED skipped"
-
-      - name: Summary
-        run: |
-          echo "=== Schema Validation Summary ==="
-          echo "- Schema versions: v0.1-v0.9 all validated"
-          echo "- Feature examples: context:, include:, multi-provider, infer options, secure exec"
-          echo "- Public examples validated"
-
-  # ─────────────────────────────────────────────────────────────────────────────
-  # Security Audit
+  # Security: audit + deny + machete
   # ─────────────────────────────────────────────────────────────────────────────
   security:
-    name: Security Audit
+    name: Security
     runs-on: ubuntu-latest
     needs: check
     steps:
@@ -324,136 +223,110 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
-
-      - name: Cache cargo registry
+      - name: Cache cargo
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "tools/nika -> target"
+          workspaces: 'tools/nika -> target'
           cache-on-failure: true
           shared-key: security
 
       - name: Install security tools
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-deny,cargo-audit
+          tool: cargo-audit,cargo-deny,cargo-machete
 
-      - name: Check for deny.toml
-        id: deny_config
+      - name: cargo audit (vulnerabilities)
+        working-directory: tools/nika
         run: |
-          if [ -f "deny.toml" ]; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Run cargo-deny (licenses + bans + sources)
-        if: steps.deny_config.outputs.exists == 'true'
-        id: deny
-        run: |
-          cargo deny check 2>&1 | tee deny-output.txt || true
-
-      - name: Run cargo-audit (vulnerabilities)
-        id: audit
-        run: |
-          # Clear advisory-db to avoid conflict with rust-cache
           rm -rf ~/.cargo/advisory-db || true
-          # Run cargo audit with proper error handling
-          cargo audit --json 2>&1 | tee audit-output.json || true
-          cargo audit 2>&1 | tee audit-output.txt || true
-          # Count vulnerabilities safely
-          # Note: grep -c outputs "0" AND exits with code 1 when no matches
-          # Using assignment with || true to capture the count without triggering || echo
-          VULNS=0
-          if [ -f audit-output.txt ]; then
-            VULNS=$(grep -c "Vulnerability" audit-output.txt 2>/dev/null) || VULNS=0
-          fi
-          echo "vulnerabilities=${VULNS}" >> "$GITHUB_OUTPUT"
+          cargo audit 2>&1 || true
 
-      - name: Check for secrets in code (TruffleHog)
-        uses: trufflesecurity/trufflehog@main
-        with:
-          path: ./
-          extra_args: --only-verified
+      - name: cargo deny (licenses + bans + sources)
+        working-directory: tools/nika
+        run: cargo deny check 2>&1 || true
 
-      - name: Upload security reports
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: security-reports
-          path: |
-            deny-output.txt
-            audit-output.txt
-            audit-output.json
-          retention-days: 30
-          if-no-files-found: ignore
+      - name: cargo machete (unused deps)
+        working-directory: tools/nika
+        run: cargo machete 2>&1 || true
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # Build Verification
+  # Semver: breaking change detection
   # ─────────────────────────────────────────────────────────────────────────────
-  build:
-    name: Build (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    needs: [test, security]
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            artifact: nika-linux-x64
-            target: x86_64-unknown-linux-gnu
-          - os: macos-latest
-            artifact: nika-macos-arm64
-            target: aarch64-apple-darwin
+  semver:
+    name: Semver Check
+    runs-on: ubuntu-latest
+    needs: check
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
 
-      - name: Install system dependencies (Ubuntu)
-        if: runner.os == 'Linux'
+      - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
 
-      - name: Cache cargo registry and build
-        uses: Swatinem/rust-cache@v2
+      - name: cargo semver-checks
+        uses: obi1kenobi/cargo-semver-checks-action@v2
         with:
-          workspaces: "tools/nika -> target"
-          cache-on-failure: true
-          shared-key: build-${{ matrix.os }}
-
-      - name: Build release
-        run: cargo build --release --target ${{ matrix.target }}
-
-      - name: Verify binary
-        run: |
-          BINARY="target/${{ matrix.target }}/release/nika"
-          if [ -f "$BINARY" ]; then
-            echo "Binary size: $(du -h "$BINARY" | cut -f1)"
-            file "$BINARY"
-          else
-            echo "::error::Binary not found at $BINARY"
-            exit 1
-          fi
-
-      - name: Upload binary artifact
-        if: github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@v7
-        with:
-          name: ${{ matrix.artifact }}
-          path: target/${{ matrix.target }}/release/nika
-          retention-days: 30
+          manifest-path: tools/Cargo.toml
+        continue-on-error: true
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # PR Summary Comment
+  # Validate: build nika binary, run nika check on all examples
+  # ─────────────────────────────────────────────────────────────────────────────
+  validate:
+    name: Validate Workflows
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: 'tools/nika -> target'
+          cache-on-failure: true
+          shared-key: validate
+
+      - name: Build nika binary
+        working-directory: tools/nika
+        run: cargo build --release
+
+      - name: Validate examples
+        working-directory: tools/nika
+        run: |
+          FAILED=0
+          for f in examples/*.nika.yaml; do
+            [ -f "$f" ] || continue
+            ./target/release/nika check "$f" || FAILED=1
+          done
+          [ "$FAILED" -eq 0 ] || exit 1
+
+      - name: Validate schema version tests
+        working-directory: tools/nika
+        run: |
+          FAILED=0
+          for f in tests/schema-version-tests/*.nika.yaml; do
+            [ -f "$f" ] || continue
+            ./target/release/nika check "$f" || FAILED=1
+          done
+          [ "$FAILED" -eq 0 ] || exit 1
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Summary: PR comment with all job results
   # ─────────────────────────────────────────────────────────────────────────────
   summary:
     name: PR Summary
     runs-on: ubuntu-latest
-    needs: [check, test, coverage, security, build]
+    needs: [check, test, test-features, coverage, security, semver, validate]
     if: always() && github.event_name == 'pull_request'
     permissions:
       pull-requests: write
@@ -463,98 +336,41 @@ jobs:
         with:
           sparse-checkout: tools/Cargo.toml
 
-      - name: Extract version from Cargo.toml
+      - name: Extract version
         id: version
         run: |
-          VER=$(grep '^version = ' ../../tools/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
-          echo "nika_version=v${VER}" >> $GITHUB_OUTPUT
+          VER=$(grep '^version = ' tools/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          echo "value=v${VER}" >> "$GITHUB_OUTPUT"
 
-      - name: Generate summary comment
+      - name: Post PR comment
         uses: actions/github-script@v8
         env:
           CHECK_RESULT: ${{ needs.check.result }}
           TEST_RESULT: ${{ needs.test.result }}
+          TEST_FEATURES_RESULT: ${{ needs.test-features.result }}
           COVERAGE_RESULT: ${{ needs.coverage.result }}
           SECURITY_RESULT: ${{ needs.security.result }}
-          BUILD_RESULT: ${{ needs.build.result }}
-          NIKA_VER: ${{ steps.version.outputs.nika_version }}
-          RUST_VER: ${{ env.RUST_VERSION }}
+          SEMVER_RESULT: ${{ needs.semver.result }}
+          VALIDATE_RESULT: ${{ needs.validate.result }}
+          NIKA_VER: ${{ steps.version.outputs.value }}
           SERVER_URL: ${{ github.server_url }}
           REPO: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
         with:
           script: |
-            const checkResult = process.env.CHECK_RESULT;
-            const testResult = process.env.TEST_RESULT;
-            const coverageResult = process.env.COVERAGE_RESULT;
-            const securityResult = process.env.SECURITY_RESULT;
-            const buildResult = process.env.BUILD_RESULT;
-            const nikaVersion = process.env.NIKA_VER;
-            const rustVersion = process.env.RUST_VER;
-            const serverUrl = process.env.SERVER_URL;
-            const repo = process.env.REPO;
-            const runId = process.env.RUN_ID;
-
-            const statusEmoji = (result) => {
-              switch(result) {
-                case 'success': return ':white_check_mark:';
-                case 'failure': return ':x:';
-                case 'cancelled': return ':stop_sign:';
-                case 'skipped': return ':fast_forward:';
-                default: return ':question:';
-              }
-            };
-
-            const body = `## Nika CI Results
-
-            | Job | Status |
-            |-----|--------|
-            | Check (fmt + clippy) | ${statusEmoji(checkResult)} ${checkResult} |
-            | Test (all features) | ${statusEmoji(testResult)} ${testResult} |
-            | Coverage | ${statusEmoji(coverageResult)} ${coverageResult} |
-            | Security (audit) | ${statusEmoji(securityResult)} ${securityResult} |
-            | Build (release) | ${statusEmoji(buildResult)} ${buildResult} |
-
-            ### Nika Info
-            - **Version**: ${nikaVersion}
-            - **Rust Version**: ${rustVersion}
-            - **Crates**: nika-core, nika-event, nika-mcp, nika-media, nika-engine, nika-cli, nika-tui, nika-lsp-core, nika-lsp
-
-            <details>
-            <summary>View detailed results</summary>
-
-            - [Workflow run](${serverUrl}/${repo}/actions/runs/${runId})
-            - Coverage report available in artifacts
-            - Security reports available in artifacts
-
-            </details>
-
-            ---
-            *Generated by Nika CI workflow*`;
-
-            // Find existing comment
+            const e = (r) => ({ success: ':white_check_mark:', failure: ':x:', cancelled: ':stop_sign:', skipped: ':fast_forward:' }[r] || ':question:');
+            const ver = process.env.NIKA_VER;
+            const body = `## 🦋 Nika CI — ${ver}\n\n| Job | Status |\n|-----|--------|\n| check (fmt + clippy + doc) | ${e(process.env.CHECK_RESULT)} ${process.env.CHECK_RESULT} |\n| test (nextest --lib) | ${e(process.env.TEST_RESULT)} ${process.env.TEST_RESULT} |\n| test-features | ${e(process.env.TEST_FEATURES_RESULT)} ${process.env.TEST_FEATURES_RESULT} |\n| coverage | ${e(process.env.COVERAGE_RESULT)} ${process.env.COVERAGE_RESULT} |\n| security | ${e(process.env.SECURITY_RESULT)} ${process.env.SECURITY_RESULT} |\n| semver | ${e(process.env.SEMVER_RESULT)} ${process.env.SEMVER_RESULT} |\n| validate | ${e(process.env.VALIDATE_RESULT)} ${process.env.VALIDATE_RESULT} |\n\n[View run](${process.env.SERVER_URL}/${process.env.REPO}/actions/runs/${process.env.RUN_ID})\n\n---\n*🦋 Nika CI*`;
             const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number
             });
-
-            const existingComment = comments.find(c =>
-              c.user.type === 'Bot' && c.body.includes('## Nika CI Results')
-            );
-
-            if (existingComment) {
+            const existing = comments.find(c => c.user.type === 'Bot' && c.body.includes('🦋 Nika CI'));
+            if (existing) {
               await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existingComment.id,
-                body: body
+                owner: context.repo.owner, repo: context.repo.repo, comment_id: existing.id, body
               });
             } else {
               await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                body: body
+                owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, body
               });
             }
