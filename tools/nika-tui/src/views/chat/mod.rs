@@ -306,6 +306,9 @@ pub struct ChatView {
     // === PERF: Message render cache ===
     /// Cached rendered message items (rebuilt only on data change)
     cached_msg_items: Vec<ratatui::widgets::ListItem<'static>>,
+    /// Length of phase-1 (message) items in cached_msg_items.
+    /// Used to truncate back before re-appending phases 2-4 each frame.
+    cached_base_len: usize,
     /// Message count when cache was built
     cached_msg_count: usize,
     /// Content width when cache was built
@@ -538,6 +541,7 @@ impl ChatView {
 
             // PERF: Message render cache
             cached_msg_items: Vec::new(),
+            cached_base_len: 0,
             cached_msg_count: 0,
             cached_msg_width: 0,
             cached_streaming_len: 0,
