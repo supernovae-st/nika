@@ -275,7 +275,7 @@ impl LiveRenderer {
 
     /// Truncate task ID to fit within `width` columns, adding ellipsis if needed.
     fn truncate_task_id(id: &str, width: usize) -> String {
-        if id.len() <= width {
+        if colors::stripped_len(id) <= width {
             format!("{:<width$}", id)
         } else {
             let cut = colors::floor_char_boundary(id, width - 1);
@@ -327,7 +327,7 @@ impl LiveRenderer {
     }
 
     fn format_failed(task_id: &str, verb: &str, dur_secs: f32, error: &str) -> String {
-        let padded_id = format!("{:<16}", task_id);
+        let padded_id = Self::truncate_task_id(task_id, 16);
         let short_err = if error.len() > 40 {
             let cut = colors::floor_char_boundary(error, 39);
             format!("{}…", &error[..cut])
@@ -791,10 +791,13 @@ impl LiveRenderer {
             }
 
             EventKind::GuardrailEscalation {
-                severity, message, ..
+                guardrail_type,
+                severity,
+                message,
+                ..
             } => {
                 self.log(&super::format_event::fmt_guardrail_escalation(
-                    severity, message,
+                    guardrail_type, severity, message,
                 ));
             }
 
