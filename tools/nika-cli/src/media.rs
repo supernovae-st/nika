@@ -389,11 +389,6 @@ fn handle_clean(
         }
     } else {
         let result = store.clean_older_than(duration);
-        // TODO(PR2): Emit EventKind::MediaCleanup here. The CLI has no EventLog
-        // because it runs outside the workflow runner context. Options: accept an
-        // optional EventLog param, write one-shot NDJSON to trace dir, or defer
-        // until `nika media clean` integrates with the TUI. The MediaCleanup
-        // variant exists in EventKind but is never emitted.
         if !quiet {
             println!(
                 "{} Removed {} file(s), freed {}",

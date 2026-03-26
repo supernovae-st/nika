@@ -793,23 +793,13 @@ fn to_lsp_symbol(
     }
 }
 
-/// Convert byte offsets to LSP Range.
+/// Convert byte offsets to LSP Range (UTF-16 aware via position module).
 fn offset_range(text: &str, start_offset: u32, end_offset: u32) -> Range {
-    let start = offset_to_position(text, start_offset);
-    let end = offset_to_position(text, end_offset);
+    use crate::position::{offset_to_position, ByteOffset};
+    let start = offset_to_position(text, ByteOffset(start_offset));
+    let end = offset_to_position(text, ByteOffset(end_offset));
     Range { start, end }
 }
-
-/// Convert byte offset to LSP Position.
-fn offset_to_position(text: &str, offset: u32) -> Position {
-    let offset = (offset as usize).min(text.len());
-    let before = &text[..offset];
-    let line = before.matches('\n').count() as u32;
-    let character = before.rfind('\n').map(|p| offset - p - 1).unwrap_or(offset) as u32;
-    Position { line, character }
-}
-
-// position_to_offset: use crate::position::position_to_offset (CRLF-safe)
 
 /// Extract word at column position.
 fn extract_word_at_col(line: &str, col: usize) -> String {

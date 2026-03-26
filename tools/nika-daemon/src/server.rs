@@ -53,7 +53,6 @@ struct ActiveWatch {
 }
 
 /// Shared state across all connection handlers.
-#[allow(dead_code)]
 struct ServerState {
     started_at: Instant,
     secret_service: SecretService,
@@ -468,10 +467,7 @@ async fn route_request(request: DaemonRequest, state: &Arc<ServerState>) -> Daem
                 if !watch_path.starts_with(&home) {
                     return DaemonResponse::Error {
                         code: "WATCH-003".into(),
-                        message: format!(
-                            "watch dir '{}' must be under home directory",
-                            dir
-                        ),
+                        message: format!("watch dir '{}' must be under home directory", dir),
                     };
                 }
             }

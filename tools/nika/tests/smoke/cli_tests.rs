@@ -24,31 +24,6 @@ fn run_nika(args: &[&str]) -> std::process::Output {
         .expect("Failed to execute nika")
 }
 
-/// Run nika command with timeout
-#[allow(dead_code)]
-fn run_nika_timeout(args: &[&str], timeout_secs: u64) -> std::process::Output {
-    #[allow(unused_imports)]
-    use std::time::Duration;
-
-    let mut child = Command::new("cargo")
-        .current_dir(nika_binary())
-        .arg("run")
-        .arg("--quiet")
-        .arg("--")
-        .args(args)
-        .spawn()
-        .expect("Failed to spawn nika");
-
-    // Wait with timeout
-    match child.wait() {
-        Ok(_) => child.wait_with_output().unwrap(),
-        Err(e) => {
-            child.kill().ok();
-            panic!("Command timed out after {}s: {}", timeout_secs, e);
-        }
-    }
-}
-
 // ============================================================================
 // HELP COMMAND TESTS
 // ============================================================================
