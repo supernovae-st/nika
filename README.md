@@ -671,7 +671,7 @@ Three views for the complete workflow lifecycle:
 
 ```
 +-----------------------------------------------------------------------------+
-| Nika Studio                                                  v0.47.1        |
+| Nika Studio                                                  v0.48.0        |
 |-----------------------------------------------------------------------------|
 | +- Files ----------+ +- Editor ------------------------------------------+ |
 | | > workflows/     | |  1 | schema: "nika/workflow@0.12"                 | |
@@ -1249,7 +1249,7 @@ flowchart LR
 
 <div align="center">
 
-**Nika v0.47.1** | Schema `nika/workflow@0.12` | Rust 1.86+ | AGPL-3.0-or-later
+**Nika v0.48.0** | Schema `nika/workflow@0.12` | Rust 1.86+ | AGPL-3.0-or-later
 
 310k+ LOC across 10 crates | 8,100+ tests | 0 clippy warnings
 

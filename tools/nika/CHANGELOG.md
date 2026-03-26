@@ -5,7 +5,9 @@ All notable changes to Nika are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] — v0.48.0
+## [Unreleased]
+
+## [0.48.0](https://github.com/supernovae-st/nika/releases/tag/v0.48.0) - 2026-03-26
 
 ### Added
 - **Display v3** — `Renderer` trait with `CliRenderer` + `LiveRenderer` implementations
