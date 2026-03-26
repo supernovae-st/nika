@@ -177,7 +177,7 @@ All screenshots taken with a clean terminal (JetBrains Mono, navy background, no
 | 0:45-1:15 | Live demo | Run the HN scraper workflow. Show output streaming in real time. |
 | 1:15-1:35 | Features | Quick montage: swap providers (1 line change), TUI view, course system, 200+ showcases. |
 | 1:35-1:50 | Technical | Single binary, 28 MB RAM, <50ms startup, 7800+ tests, AGPL. |
-| 1:50-2:00 | CTA | "brew install supernovae-studio/tap/nika — or nika init --course to learn interactively." |
+| 1:50-2:00 | CTA | "brew install supernovae-st/tap/nika — or nika init --course to learn interactively." |
 
 ### 5-Minute Deep Dive
 
@@ -297,7 +297,7 @@ so that describing an AI workflow is as simple as writing a recipe."
 - **AGPL licensed**: Ensures the tool and all derivatives remain open source
 
 Nika is available now on GitHub at https://github.com/supernovae-st/nika and
-via Homebrew (`brew install supernovae-studio/tap/nika`).
+via Homebrew (`brew install supernovae-st/tap/nika`).
 
 **About SuperNovae Studio**
 

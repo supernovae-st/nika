@@ -68,7 +68,7 @@ ecosystem is young — no plugin marketplace yet.
 
 - GitHub: https://github.com/supernovae-st/nika
 - Docs: https://nika.supernovae.studio
-- Quick start: `brew install supernovae-studio/tap/nika && nika init --course`
+- Quick start: `brew install supernovae-st/tap/nika && nika init --course`
 - License: AGPL-3.0 (the engine stays open; your YAML workflows are yours)
 
 7,800+ tests. Single binary. Zero dependencies. Built with Rust.

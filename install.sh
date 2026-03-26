@@ -2,9 +2,9 @@
 # Nika CLI installer
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/SuperNovae-studio/nika/main/install.sh | sh
-#   curl -fsSL https://raw.githubusercontent.com/SuperNovae-studio/nika/main/install.sh | sh -s -- --version v0.42.0
-#   curl -fsSL https://raw.githubusercontent.com/SuperNovae-studio/nika/main/install.sh | sh -s -- --install-dir /custom/path
+#   curl -fsSL https://raw.githubusercontent.com/supernovae-st/nika/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/supernovae-st/nika/main/install.sh | sh -s -- --version v0.42.0
+#   curl -fsSL https://raw.githubusercontent.com/supernovae-st/nika/main/install.sh | sh -s -- --install-dir /custom/path
 #
 # Requirements: curl or wget, tar, shasum/sha256sum
 # POSIX-compatible: runs under sh, dash, bash, zsh
@@ -15,7 +15,7 @@ set -eu
 # Constants
 # ---------------------------------------------------------------------------
 
-GITHUB_ORG='SuperNovae-studio'
+GITHUB_ORG='supernovae-st'
 GITHUB_REPO='nika'
 GITHUB_API="https://api.github.com/repos/${GITHUB_ORG}/${GITHUB_REPO}"
 GITHUB_RELEASES="https://github.com/${GITHUB_ORG}/${GITHUB_REPO}/releases/download"
