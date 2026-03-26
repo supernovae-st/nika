@@ -9,7 +9,7 @@
 # 5. build: Release build verification
 # 6. summary: PR comment with results
 #
-# Schema @0.12 | 8,100+ tests
+# Schema @0.12 | 8,200+ tests | 12 crates
 
 name: CI
 
