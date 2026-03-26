@@ -35,6 +35,7 @@ pub struct RunStats {
     pub guardrails_passed: u32,
     pub guardrails_failed: u32,
     pub guardrails_escalations: u32,
+    pub fetch_retries: u32,
     pub structured_attempts: u32,
     pub structured_success_layer: Option<u8>,
     pub root_failure: Option<String>,
@@ -135,6 +136,10 @@ impl RunStats {
 
             EventKind::StructuredOutputSuccess { layer, .. } => {
                 self.structured_success_layer = Some(*layer);
+            }
+
+            EventKind::FetchRetry { .. } => {
+                self.fetch_retries += 1;
             }
 
             EventKind::TaskCompleted { .. } => {
@@ -688,11 +693,18 @@ impl CliRenderer {
             }
 
             EventKind::GuardrailEscalation {
-                severity, message, ..
+                guardrail_type,
+                severity,
+                message,
+                ..
             } => {
                 println!(
                     "{}",
-                    super::format_event::fmt_guardrail_escalation(severity, message)
+                    super::format_event::fmt_guardrail_escalation(
+                        guardrail_type,
+                        severity,
+                        message,
+                    )
                 );
             }
 
@@ -1119,7 +1131,8 @@ impl CliRenderer {
                 }
             }
 
-            // Catch-all for WorkflowCompleted/WorkflowFailed (handled by summary)
+            // Remaining events (WorkflowCompleted/Failed, WorkflowPaused/Resumed, etc.)
+            // are either handled by summary or intentionally not rendered per-event.
             _ => {}
         }
     }
@@ -1151,8 +1164,10 @@ pub(crate) fn format_bytes(bytes: u64) -> String {
         format!("{} B", bytes)
     } else if bytes < 1024 * 1024 {
         format!("{:.1} KB", bytes as f64 / 1024.0)
-    } else {
+    } else if bytes < 1024 * 1024 * 1024 {
         format!("{:.1} MB", bytes as f64 / (1024.0 * 1024.0))
+    } else {
+        format!("{:.1} GB", bytes as f64 / (1024.0 * 1024.0 * 1024.0))
     }
 }
 
@@ -1217,7 +1232,7 @@ pub(crate) fn format_output_preview(output: &Value, term_width: u16) -> Vec<Stri
         text.lines()
             .take(2)
             .map(|l| {
-                if l.len() > max_width {
+                if stripped_len(l) > max_width {
                     let end = floor_char_boundary(l, max_width - 1);
                     format!("{}\u{2026}", &l[..end])
                 } else {

@@ -258,11 +258,15 @@ pub(crate) fn fmt_guardrail_failed(guardrail_type: &str, message: &str) -> Strin
     ))
 }
 
-pub(crate) fn fmt_guardrail_escalation(severity: &str, message: &str) -> String {
+pub(crate) fn fmt_guardrail_escalation(
+    guardrail_type: &str,
+    severity: &str,
+    message: &str,
+) -> String {
     sub(format!(
         "  {} {} · {}",
         icons::retry(),
-        format!("escalation · {}", severity).yellow(),
+        format!("{} escalation · {}", guardrail_type, severity).yellow(),
         message.dimmed()
     ))
 }

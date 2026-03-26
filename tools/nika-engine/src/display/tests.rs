@@ -1583,6 +1583,16 @@ fn format_bytes_large_megabytes() {
     );
 }
 
+#[test]
+fn format_bytes_gigabytes() {
+    let out = renderer::format_bytes(2_500_000_000);
+    assert!(
+        out.contains("GB"),
+        "2.5G bytes should format as GB, got: {}",
+        out
+    );
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // 17. fmt_log level coloring (5 standard + unknown)
 // ═══════════════════════════════════════════════════════════════════════
@@ -1801,6 +1811,7 @@ fn fmt_guardrail_failed_output() {
 #[test]
 fn fmt_guardrail_escalation_output() {
     let out = strip_ansi(&format_event::fmt_guardrail_escalation(
+        "llm",
         "high",
         "needs human review",
     ));
