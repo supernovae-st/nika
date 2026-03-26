@@ -242,6 +242,22 @@ impl LiveRenderer {
         }
     }
 
+    /// Update the separator bar width on terminal resize.
+    ///
+    /// Called on each TaskStarted to catch resizes between tasks.
+    /// The separator line (━━━…) is set once at construction; this
+    /// refreshes it when the terminal width changes.
+    fn refresh_separator(&self) {
+        let tw = terminal_size::terminal_size()
+            .map(|(w, _)| w.0 as usize)
+            .unwrap_or(80);
+        let sep_line = "━"
+            .repeat(tw.min(72))
+            .dimmed()
+            .to_string();
+        self.separator_bar.set_message(sep_line);
+    }
+
     /// Format timestamp offset.
     fn ts(&self) -> String {
         let elapsed = self.start.elapsed().as_secs_f32();
@@ -435,6 +451,9 @@ impl LiveRenderer {
             }
 
             EventKind::TaskStarted { task_id, verb, .. } => {
+                // Refresh separator width on each task start (catches terminal resize)
+                self.refresh_separator();
+
                 self.task_starts
                     .insert(task_id.to_string(), (event.timestamp_ms, verb.to_string()));
 
