@@ -70,24 +70,13 @@ pub struct LiveRenderer {
 }
 
 impl LiveRenderer {
-    /// Create a new LiveRenderer. Does NOT create task bars yet — call `init_tasks()` after DAG analysis.
-    pub fn new(detail: DetailLevel) -> Self {
-        let term_width = terminal_size::terminal_size()
-            .map(|(w, _)| w.0)
-            .unwrap_or(80);
-
-        let multi = MultiProgress::new();
-
+    /// Shared construction logic — both `new()` and `hidden()` delegate here.
+    fn build(multi: MultiProgress, detail: DetailLevel) -> Self {
         // Separator — heavy rule ━ to distinguish from header's ─
         let sep_style =
             ProgressStyle::with_template(spinner::SEPARATOR_TEMPLATE).expect("sep template");
         let separator_bar = multi.add(ProgressBar::new(0));
         separator_bar.set_style(sep_style);
-        let sep_line = "━"
-            .repeat((term_width as usize).min(72))
-            .dimmed()
-            .to_string();
-        separator_bar.set_message(sep_line);
 
         // Overall progress bar (bottom) — task bars inserted BEFORE it in init_tasks()
         let overall_style = ProgressStyle::with_template(spinner::OVERALL_TEMPLATE)
@@ -121,44 +110,31 @@ impl LiveRenderer {
         }
     }
 
+    /// Create a new LiveRenderer. Does NOT create task bars yet — call `init_tasks()` after DAG analysis.
+    pub fn new(detail: DetailLevel) -> Self {
+        let term_width = terminal_size::terminal_size()
+            .map(|(w, _)| w.0)
+            .unwrap_or(80);
+
+        let renderer = Self::build(MultiProgress::new(), detail);
+
+        // Set separator line (only for real terminal output)
+        let sep_line = "━"
+            .repeat((term_width as usize).min(72))
+            .dimmed()
+            .to_string();
+        renderer.separator_bar.set_message(sep_line);
+
+        renderer
+    }
+
     /// Create a LiveRenderer with a hidden draw target (for testing).
     #[cfg(test)]
     pub fn hidden(detail: DetailLevel) -> Self {
-        let multi = MultiProgress::with_draw_target(ProgressDrawTarget::hidden());
-
-        let sep_style =
-            ProgressStyle::with_template(spinner::SEPARATOR_TEMPLATE).expect("sep template");
-        let separator_bar = multi.add(ProgressBar::new(0));
-        separator_bar.set_style(sep_style);
-
-        let overall_style = ProgressStyle::with_template(spinner::OVERALL_TEMPLATE)
-            .expect("overall template")
-            .progress_chars(spinner::PROGRESS_CHARS);
-        let overall_bar = multi.add(ProgressBar::new(0));
-        overall_bar.set_style(overall_style);
-
-        let style_running = ProgressStyle::with_template(spinner::TASK_RUNNING_TEMPLATE)
-            .expect("running template")
-            .tick_strings(spinner::TICK_STRINGS);
-        let style_static = ProgressStyle::with_template(spinner::TASK_STATIC_TEMPLATE)
-            .expect("static template");
-
-        Self {
-            multi,
-            task_bars: IndexMap::new(),
-            overall_bar,
-            separator_bar,
-            stats: RunStats::default(),
+        Self::build(
+            MultiProgress::with_draw_target(ProgressDrawTarget::hidden()),
             detail,
-            start: Instant::now(),
-            task_starts: HashMap::new(),
-            task_token_acc: HashMap::new(),
-            workflow_start_ms: 0,
-            last_rendered_id: None,
-            finalized: false,
-            style_running,
-            style_static,
-        }
+        )
     }
 
     /// Set task-to-layer mapping (for consistency with CliRenderer interface).
