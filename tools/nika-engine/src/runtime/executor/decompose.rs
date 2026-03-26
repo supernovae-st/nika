@@ -10,6 +10,7 @@ use tracing::{debug, instrument};
 use crate::ast::decompose::{DecomposeSpec, DecomposeStrategy};
 use crate::binding::ResolvedBindings;
 use crate::error::NikaError;
+use crate::error_domains::BindingError;
 use crate::store::RunContext;
 
 use super::TaskExecutor;
@@ -112,11 +113,11 @@ impl TaskExecutor {
         // Expect array
         let items = source_value
             .as_array()
-            .ok_or_else(|| NikaError::BindingTypeMismatch {
+            .ok_or_else(|| -> NikaError { BindingError::TypeMismatch {
                 expected: "array".to_string(),
                 actual: self.json_type_name(&source_value),
                 path: spec.source.clone(),
-            })?
+            }.into() })?
             .clone();
 
         // Apply max_items limit
@@ -260,9 +261,9 @@ impl TaskExecutor {
                 // Path syntax: $task.field
                 datastore
                     .resolve_path(alias)
-                    .ok_or_else(|| NikaError::BindingNotFound {
+                    .ok_or_else(|| BindingError::NotFound {
                         alias: alias.to_string(),
-                    })
+                    }.into())
             } else {
                 // Simple alias - supports lazy bindings
                 bindings.get_resolved(alias, datastore)
@@ -284,16 +285,16 @@ impl TaskExecutor {
                 .get("key")
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string())
-                .ok_or_else(|| NikaError::BindingTypeMismatch {
+                .ok_or_else(|| BindingError::TypeMismatch {
                     expected: "string or object with 'key'".to_string(),
                     actual: "object without 'key'".to_string(),
                     path: "decompose.source".to_string(),
-                }),
-            _ => Err(NikaError::BindingTypeMismatch {
+                }.into()),
+            _ => Err(BindingError::TypeMismatch {
                 expected: "string or object".to_string(),
                 actual: self.json_type_name(value),
                 path: "decompose.source".to_string(),
-            }),
+            }.into()),
         }
     }
 

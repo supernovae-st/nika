@@ -31,6 +31,7 @@ use chrono::{DateTime, Local};
 use uuid::Uuid;
 
 use crate::error::NikaError;
+use crate::error_domains::BindingError;
 
 /// Characters that are forbidden in custom variable values
 /// to prevent path traversal attacks
@@ -51,26 +52,26 @@ fn validate_var_value(key: &str, value: &str) -> Result<(), NikaError> {
     // Check for forbidden characters
     for c in FORBIDDEN_VAR_CHARS {
         if value.contains(*c) {
-            return Err(NikaError::TemplateError {
+            return Err(BindingError::TemplateError {
                 template: format!("{{{{{}}}}}", key),
                 reason: format!(
                     "Variable value contains forbidden character '{}': path traversal risk",
                     c
                 ),
-            });
+            }.into());
         }
     }
 
     // Check for forbidden patterns
     for pattern in FORBIDDEN_VAR_PATTERNS {
         if value.contains(pattern) {
-            return Err(NikaError::TemplateError {
+            return Err(BindingError::TemplateError {
                 template: format!("{{{{{}}}}}", key),
                 reason: format!(
                     "Variable value contains forbidden pattern '{}': path traversal risk",
                     pattern
                 ),
-            });
+            }.into());
         }
     }
 
@@ -118,10 +119,10 @@ impl TemplateResolver {
 
         // Reject empty variable names
         if key.is_empty() {
-            return Err(NikaError::TemplateError {
+            return Err(BindingError::TemplateError {
                 template: "{{}}".to_string(),
                 reason: "Variable name cannot be empty".to_string(),
-            });
+            }.into());
         }
 
         // Validate value for path traversal
@@ -140,10 +141,10 @@ impl TemplateResolver {
     pub fn with_vars(mut self, vars: HashMap<String, String>) -> Result<Self, NikaError> {
         for (key, value) in &vars {
             if key.is_empty() {
-                return Err(NikaError::TemplateError {
+                return Err(BindingError::TemplateError {
                     template: "{{}}".to_string(),
                     reason: "Variable name cannot be empty".to_string(),
-                });
+                }.into());
             }
             validate_var_value(key, value)?;
         }
@@ -220,10 +221,10 @@ impl TemplateResolver {
                     return Ok(value.clone());
                 }
 
-                Err(NikaError::TemplateError {
+                Err(BindingError::TemplateError {
                     template: format!("{{{{{}}}}}", var_name),
                     reason: format!("Unknown template variable: {}", var_name),
-                })
+                }.into())
             }
         }
     }

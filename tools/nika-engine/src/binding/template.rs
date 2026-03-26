@@ -75,6 +75,7 @@ use serde_json::Value;
 use smallvec::SmallVec;
 
 use crate::error::NikaError;
+use crate::error_domains::BindingError;
 use crate::store::RunContext;
 
 use super::resolve::ResolvedBindings;
@@ -248,24 +249,24 @@ fn resolve_alias_path(
     // Guard against pathologically deep paths
     let segment_count = path.split('.').count();
     if segment_count > MAX_PATH_DEPTH {
-        return Err(NikaError::TemplateError {
+        return Err(BindingError::TemplateError {
             template: path.to_string(),
             reason: format!(
                 "Path depth {} exceeds maximum of {} segments",
                 segment_count, MAX_PATH_DEPTH
             ),
-        });
+        }.into());
     }
 
     let mut segments = path.split('.');
-    let alias = segments.next().ok_or_else(|| NikaError::TemplateError {
+    let alias = segments.next().ok_or_else(|| BindingError::TemplateError {
         template: path.to_string(),
         reason: "Empty alias path (no segments)".to_string(),
     })?;
 
     let base = with_values
         .get(alias)
-        .ok_or_else(|| NikaError::TemplateError {
+        .ok_or_else(|| BindingError::TemplateError {
             template: alias.to_string(),
             reason: format!(
                 "Alias '{}' not found in 'with:' block. Available: [{}]",
@@ -349,13 +350,13 @@ pub fn resolve_with<'a>(
     // Guard: reject templates with too many variable references
     let var_count = template.matches("{{").count();
     if var_count > MAX_TEMPLATE_VARS {
-        return Err(NikaError::TemplateError {
+        return Err(BindingError::TemplateError {
             template: format!("(template with {} variables)", var_count),
             reason: format!(
                 "Template contains {} variable references, exceeding the maximum of {}",
                 var_count, MAX_TEMPLATE_VARS
             ),
-        });
+        }.into());
     }
 
     // Normalize bracket notation to dot notation
@@ -478,10 +479,10 @@ pub fn resolve_with<'a>(
     }
 
     if !errors.is_empty() {
-        return Err(NikaError::TemplateError {
+        return Err(BindingError::TemplateError {
             template: errors.join(", "),
             reason: "Alias(es) not resolved. Did you declare them in 'with:'?".to_string(),
-        });
+        }.into());
     }
 
     // Copy remaining segment after last match
@@ -552,11 +553,11 @@ pub fn resolve_with<'a>(
         }
 
         if !context_errors.is_empty() {
-            return Err(NikaError::TemplateError {
+            return Err(BindingError::TemplateError {
                 template: context_errors.join(", "),
                 reason: "Context binding(s) not resolved. Check your 'context:' block in workflow."
                     .to_string(),
-            });
+            }.into());
         }
 
         result.push_str(&intermediate[last_end..]);
@@ -616,10 +617,10 @@ pub fn resolve_with<'a>(
         }
 
         if !input_errors.is_empty() {
-            return Err(NikaError::TemplateError {
+            return Err(BindingError::TemplateError {
                 template: input_errors.join(", "),
                 reason: "Input binding(s) not resolved. Check your 'inputs:' block in workflow or provide defaults.".to_string(),
-            });
+            }.into());
         }
 
         result.push_str(&intermediate[last_end..]);
@@ -829,13 +830,13 @@ pub fn resolve<'a>(
     // Guard: reject templates with too many variable references
     let var_count = template.matches("{{").count();
     if var_count > MAX_TEMPLATE_VARS {
-        return Err(NikaError::TemplateError {
+        return Err(BindingError::TemplateError {
             template: format!("(template with {} variables)", var_count),
             reason: format!(
                 "Template contains {} variable references, exceeding the maximum of {}",
                 var_count, MAX_TEMPLATE_VARS
             ),
-        });
+        }.into());
     }
 
     // Normalize bracket notation to dot notation
@@ -864,13 +865,13 @@ pub fn resolve<'a>(
                 // Guard: reject pathologically deep alias paths
                 let segment_count = path.split('.').count();
                 if segment_count > MAX_PATH_DEPTH {
-                    return Err(NikaError::TemplateError {
+                    return Err(BindingError::TemplateError {
                         template: path.to_string(),
                         reason: format!(
                             "Path depth {} exceeds maximum of {} segments",
                             segment_count, MAX_PATH_DEPTH
                         ),
-                    });
+                    }.into());
                 }
 
                 // Split: first segment is alias, rest is nested path
@@ -1008,10 +1009,10 @@ pub fn resolve<'a>(
     }
 
     if !errors.is_empty() {
-        return Err(NikaError::TemplateError {
+        return Err(BindingError::TemplateError {
             template: errors.join(", "),
             reason: "Alias(es) not resolved. Did you declare them in 'with:'?".to_string(),
-        });
+        }.into());
     }
 
     // Copy remaining segment after last match
@@ -1074,11 +1075,11 @@ pub fn resolve<'a>(
         }
 
         if !context_errors.is_empty() {
-            return Err(NikaError::TemplateError {
+            return Err(BindingError::TemplateError {
                 template: context_errors.join(", "),
                 reason: "Context binding(s) not resolved. Check your 'context:' block in workflow."
                     .to_string(),
-            });
+            }.into());
         }
 
         // Copy remaining segment
@@ -1148,10 +1149,10 @@ pub fn resolve<'a>(
         }
 
         if !input_errors.is_empty() {
-            return Err(NikaError::TemplateError {
+            return Err(BindingError::TemplateError {
                 template: input_errors.join(", "),
                 reason: "Input binding(s) not resolved. Check your 'inputs:' block in workflow or provide defaults.".to_string(),
-            });
+            }.into());
         }
 
         // Copy remaining segment
@@ -1300,10 +1301,10 @@ pub fn resolve_for_shell<'a>(
     }
 
     if !errors.is_empty() {
-        return Err(NikaError::TemplateError {
+        return Err(BindingError::TemplateError {
             template: errors.join(", "),
             reason: "Alias(es) not resolved. Did you declare them in 'with:'?".to_string(),
-        });
+        }.into());
     }
 
     result.push_str(&template_str[last_end..]);
@@ -1355,11 +1356,11 @@ pub fn resolve_for_shell<'a>(
         }
 
         if !context_errors.is_empty() {
-            return Err(NikaError::TemplateError {
+            return Err(BindingError::TemplateError {
                 template: context_errors.join(", "),
                 reason: "Context binding(s) not resolved. Check your 'context:' block in workflow."
                     .to_string(),
-            });
+            }.into());
         }
 
         result.push_str(&intermediate[last_end..]);
@@ -1412,10 +1413,10 @@ pub fn resolve_for_shell<'a>(
         }
 
         if !input_errors.is_empty() {
-            return Err(NikaError::TemplateError {
+            return Err(BindingError::TemplateError {
                 template: input_errors.join(", "),
                 reason: "Input binding(s) not resolved. Check your 'inputs:' block in workflow or provide defaults.".to_string(),
-            });
+            }.into());
         }
 
         result.push_str(&intermediate[last_end..]);
@@ -1452,10 +1453,10 @@ fn value_to_string<'a>(
 fn context_value_to_string<'a>(value: &'a Value, path: &str) -> Result<Cow<'a, str>, NikaError> {
     match value {
         Value::String(s) => Ok(Cow::Borrowed(s.as_str())),
-        Value::Null => Err(NikaError::TemplateError {
+        Value::Null => Err(BindingError::TemplateError {
             template: path.to_string(),
             reason: "Context binding resolved to null".to_string(),
-        }),
+        }.into()),
         Value::Bool(b) => Ok(Cow::Owned(b.to_string())),
         Value::Number(n) => Ok(Cow::Owned(n.to_string())),
         // For objects/arrays, return compact JSON representation
@@ -1469,10 +1470,10 @@ fn context_value_to_string<'a>(value: &'a Value, path: &str) -> Result<Cow<'a, s
 fn input_value_to_string<'a>(value: &'a Value, path: &str) -> Result<Cow<'a, str>, NikaError> {
     match value {
         Value::String(s) => Ok(Cow::Borrowed(s.as_str())),
-        Value::Null => Err(NikaError::TemplateError {
+        Value::Null => Err(BindingError::TemplateError {
             template: path.to_string(),
             reason: "Input binding resolved to null. Provide a 'default' value in your inputs definition.".to_string(),
-        }),
+        }.into()),
         Value::Bool(b) => Ok(Cow::Owned(b.to_string())),
         Value::Number(n) => Ok(Cow::Owned(n.to_string())),
         // For objects/arrays, return compact JSON representation

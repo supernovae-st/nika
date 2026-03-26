@@ -29,6 +29,7 @@ use smallvec::SmallVec;
 
 use crate::ast::analyzed::{AnalyzedWorkflow, TaskId, TaskTable};
 use crate::error::NikaError;
+use crate::error_domains::DagError;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DepVec
@@ -257,9 +258,9 @@ fn kahn_sort(
             .map(|s| s.to_string())
             .collect();
 
-        return Err(NikaError::CycleDetected {
+        return Err(DagError::CycleDetected {
             cycle: cycle_tasks.join(" → "),
-        });
+        }.into());
     }
 
     Ok(TopoOrder {
