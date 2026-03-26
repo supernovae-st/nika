@@ -8,7 +8,7 @@
 [![CI](https://github.com/supernovae-st/nika/actions/workflows/ci.yml/badge.svg?style=flat-square)](https://github.com/supernovae-st/nika/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/supernovae-st/nika/graph/badge.svg?style=flat-square)](https://codecov.io/gh/supernovae-st/nika)
 [![License](https://img.shields.io/badge/AGPL--3.0--or--later-22c55e?style=flat-square&logo=gnu&logoColor=white)](LICENSE)
-[![Tests](https://img.shields.io/badge/8%2C200%2B_tests-10b981?style=flat-square)](https://github.com/supernovae-st/nika/actions)
+[![Tests](https://img.shields.io/badge/8%2C400%2B_tests-10b981?style=flat-square)](https://github.com/supernovae-st/nika/actions)
 [![Docker](https://img.shields.io/docker/pulls/supernovae/nika?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/r/supernovae/nika)
 
 [Quick Start](#quick-start) | [How It Works](#how-it-works) | [Use Cases](#use-cases) | [Documentation](#documentation)
@@ -671,7 +671,7 @@ Three views for the complete workflow lifecycle:
 
 ```
 +-----------------------------------------------------------------------------+
-| Nika Studio                                                  v0.42.0        |
+| Nika Studio                                                  v0.47.1        |
 |-----------------------------------------------------------------------------|
 | +- Files ----------+ +- Editor ------------------------------------------+ |
 | | > workflows/     | |  1 | schema: "nika/workflow@0.12"                 | |
@@ -1249,7 +1249,7 @@ flowchart LR
 
 <div align="center">
 
-**Nika v0.42.0** | Schema `nika/workflow@0.12` | Rust 1.86+ | AGPL-3.0-or-later
+**Nika v0.47.1** | Schema `nika/workflow@0.12` | Rust 1.86+ | AGPL-3.0-or-later
 
 310k+ LOC across 10 crates | 8,100+ tests | 0 clippy warnings
 
