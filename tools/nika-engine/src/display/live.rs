@@ -13,7 +13,7 @@ use colored::Colorize;
 use indexmap::IndexMap;
 #[cfg(test)]
 use indicatif::ProgressDrawTarget;
-use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use indicatif::{MultiProgress, ProgressBar, ProgressFinish, ProgressStyle};
 
 use crate::display::{colors, icons, spinner, DetailLevel};
 use crate::event::{Event, EventKind};
@@ -157,9 +157,10 @@ impl LiveRenderer {
                 break;
             }
 
-            let bar = self
-                .multi
-                .insert_before(&self.overall_bar, ProgressBar::new(0));
+            let bar = self.multi.insert_before(
+                &self.overall_bar,
+                ProgressBar::new(0).with_finish(ProgressFinish::Abandon),
+            );
             bar.set_style(static_style.clone());
 
             // Initial pending message
@@ -283,21 +284,23 @@ impl LiveRenderer {
         }
     }
 
-    fn format_running(task_id: &str, verb: &str, elapsed: &str, tokens_info: &str) -> String {
+    /// Build the prefix (stable part) for a running task bar.
+    /// Goes into `set_prefix()` — doesn't change while task runs.
+    fn format_running_prefix(task_id: &str, verb: &str) -> String {
         let padded_id = Self::truncate_task_id(task_id, 16);
-        format!(
-            "{} {} {}  {}{}",
-            icons::verb(verb),
-            padded_id.bold(),
-            "running".white(),
-            elapsed.dimmed(),
-            if tokens_info.is_empty() {
-                String::new()
-            } else {
-                format!("  {}", tokens_info)
-            }
-        )
+        format!("{} {}", icons::verb(verb), padded_id.bold())
     }
+
+    /// Build the message (volatile part) for a running task bar.
+    /// Goes into `set_message()` — updated on each ProviderResponded.
+    fn format_running_msg(tokens_info: &str) -> String {
+        if tokens_info.is_empty() {
+            "running".white().to_string()
+        } else {
+            format!("{}  {}", "running".white(), tokens_info)
+        }
+    }
+
 
     fn format_completed(
         task_id: &str,
@@ -441,8 +444,9 @@ impl LiveRenderer {
                     tb.bar.set_style(self.style_running.clone());
                     tb.bar.enable_steady_tick(spinner::TICK_INTERVAL);
 
-                    let msg = Self::format_running(task_id, verb, "", "");
-                    tb.bar.set_message(msg);
+                    // Use prefix/msg split: prefix = verb+id (stable), msg = volatile info
+                    tb.bar.set_prefix(Self::format_running_prefix(task_id, verb));
+                    tb.bar.set_message(Self::format_running_msg(""));
                 }
             }
 
@@ -602,19 +606,16 @@ impl LiveRenderer {
                     }
                 }
 
-                // Update running task bar with token info
+                // Update running task bar with token info (elapsed auto-updates via template)
                 let task_id = event.kind.task_id().unwrap_or("?");
                 if let Some(tb) = self.task_bars.get(task_id) {
                     if tb.status == TaskStatus::Running {
-                        let elapsed = self.start.elapsed().as_secs_f32();
-                        let elapsed_str = format!("+{:.1}s", elapsed);
                         let tok_info = format!(
                             "in:{} out:{}",
                             colors::tokens(*input_tokens),
                             colors::tokens(*output_tokens)
                         );
-                        let msg = Self::format_running(task_id, &tb.verb, &elapsed_str, &tok_info);
-                        tb.bar.set_message(msg);
+                        tb.bar.set_message(Self::format_running_msg(&tok_info));
                     }
                 }
 
@@ -732,11 +733,8 @@ impl LiveRenderer {
                 let task_id = event.kind.task_id().unwrap_or("?");
                 if let Some(tb) = self.task_bars.get(task_id) {
                     if tb.status == TaskStatus::Running {
-                        let elapsed = self.start.elapsed().as_secs_f32();
-                        let elapsed_str = format!("+{:.1}s", elapsed);
                         let turn_info = format!("turn {}", turn_index + 1);
-                        let msg = Self::format_running(task_id, &tb.verb, &elapsed_str, &turn_info);
-                        tb.bar.set_message(msg);
+                        tb.bar.set_message(Self::format_running_msg(&turn_info));
                     }
                 }
             }
