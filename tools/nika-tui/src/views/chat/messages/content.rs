@@ -334,7 +334,7 @@ fn render_thinking<'a>(
 
         let thinking_lines: Vec<&str> = thinking.lines().take(3).collect();
         for think_line in &thinking_lines {
-            let display_line = truncate_str(think_line, 60);
+            let display_line = truncate_str(think_line, 60).into_owned();
             lines.push(ListItem::new(Line::from(vec![
                 Span::styled("│   ", Style::default().fg(color)),
                 Span::styled(
