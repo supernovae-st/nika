@@ -1,110 +1,242 @@
 # Nika — Developer Reference
 
 [![CI](https://github.com/supernovae-st/nika/actions/workflows/ci.yml/badge.svg)](https://github.com/supernovae-st/nika/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-0.42.0-blue?logo=rust&logoColor=white)](Cargo.toml)
-[![Version Lock](https://img.shields.io/badge/0.x.x-forever-orange?logo=semver&logoColor=white)](CHANGELOG.md)
+[![crates.io](https://img.shields.io/crates/v/nika?style=flat-square&logo=rust&logoColor=white&color=e6522c)](https://crates.io/crates/nika)
+[![License](https://img.shields.io/badge/AGPL--3.0--or--later-22c55e?style=flat-square&logo=gnu&logoColor=white)](../../LICENSE)
 
-Source code for the `nika` binary. For user-facing docs, see [root README](../../README.md).
+Source code for the `nika` binary and all workspace crates. For user-facing documentation, see [root README](../../README.md).
+
+---
+
+## Workspace
+
+```
+tools/
+├── nika/               Binary entry point            (cargo install nika)
+├── nika-engine/        Embeddable runtime (162k LOC) (cargo add nika-engine)
+├── nika-core/          AST, types, catalogs (30k)    zero I/O
+├── nika-event/         EventLog, TraceWriter (4k)
+├── nika-mcp/           MCP client + rmcp (9k)
+├── nika-media/         CAS store + processor (3.5k)
+├── nika-cli/           CLI subcommands (8k)
+├── nika-tui/           Terminal UI — ratatui (86k)
+├── nika-lsp-core/      LSP intelligence (9k)
+└── nika-lsp/           Standalone LSP binary (2.5k)
+```
+
+**Workspace root:** `tools/Cargo.toml` — all crate versions are workspace-inherited.
+
+---
 
 ## Build
 
 ```bash
-cargo build --release           # Release build
-cargo build                     # Debug build
-cargo build --no-default-features  # Minimal (no TUI, no native, no media)
+cargo build --release               # Full release build
+cargo build                         # Debug build
+cargo build --no-default-features   # Minimal (no TUI, media, or native inference)
+cargo build --features lsp          # + standalone LSP binary
 ```
+
+---
 
 ## Test
 
 ```bash
-cargo test --lib                # 8,100+ unit tests (safe — no keychain)
-cargo test --lib --features lsp # + 283 LSP tests
-cargo clippy -- -D warnings     # Zero warnings policy
-cargo fmt --check               # Format check
+# Standard — runs all unit tests safely (no Keychain popups)
+cargo nextest run --workspace --lib
+
+# Single crate
+cargo nextest run -p nika-engine --lib
+
+# Filter by name
+cargo nextest run --workspace --lib -- display
+
+# Doc tests
+cargo test --workspace --doc
+
+# With LSP tests
+cargo nextest run --workspace --lib --features lsp
 ```
 
-**WARNING:** `cargo test` (without `--lib`) runs contract tests that may trigger macOS Keychain popups. Always use `--lib` for safe testing.
+> **WARNING:** `cargo test` without `--lib` runs integration tests that trigger macOS Keychain
+> dialogs. Always use `cargo nextest run --workspace --lib` for safe local testing.
 
-## Source Tree
+### Test counts by crate (approx.)
+
+| Crate | Tests |
+|:------|------:|
+| `nika-engine` | ~4,100 |
+| `nika-tui` | ~2,100 |
+| `nika-core` | ~800 |
+| `nika-mcp`, `nika-cli`, others | ~1,200 |
+| **Total** | **~8,200+** |
+
+---
+
+## Lint & Format
+
+```bash
+cargo fmt --all --check                          # Format check (CI gate)
+cargo clippy --workspace --all-targets -- -D warnings   # Zero warnings policy
+cargo doc --workspace --no-deps                  # Doc build check
+```
+
+---
+
+## Source Tree — `nika-engine/src/`
 
 ```
 src/
-├── main.rs              # CLI entry (clap)
 ├── lib.rs               # Public API
 ├── error.rs             # NikaError (NIKA-XXX codes)
 ├── config.rs            # Configuration types
-├── core/                # Zero-dep definitions (providers, models, mcp_aliases)
 ├── ast/                 # Three-phase: Raw → Analyzed → Lower
-│   ├── raw/             #   Phase 1: YAML → Raw AST (spans)
-│   ├── analyzed/        #   Phase 2: Validated, resolved
-│   ├── analyzer/        #   Validation + transformation
 │   └── lower.rs         #   Phase 3: Analyzed → Runtime types
-├── dag/                 # DAG validation + cycle detection
+├── dag/                 # DAG validation + cycle detection (flow.rs, indexed.rs)
 ├── runtime/             # Execution engine
 │   ├── runner.rs        #   Main workflow runner
-│   ├── executor/        #   Task executor (5 verb dispatch)
+│   ├── executor/        #   Task executor (verb dispatch)
 │   ├── rig_agent_loop/  #   Agent loop (per-provider)
-│   ├── builtin/         #   12 core + 26 media tools
-│   │   └── media/       #   Media: import, thumbnail, chart, etc.
+│   ├── builtin/         #   12 core + 24 media/fetch tools
+│   │   └── media/       #   Media tools: import, thumbnail, chart, provenance…
 │   └── security.rs      #   Command blocklist + env validation
-├── mcp/                 # MCP client (rmcp 0.16, pool, retry)
-├── provider/            # 8 LLM providers (rig-core + mistral.rs)
-├── binding/             # Data flow: templates, transforms, JSONPath
+├── provider/            # LLM providers (rig-core cloud + mistral.rs native)
+├── binding/             # Data flow: templates, transforms, JSONPath, resolve
+├── display/             # CLI display renderers
+│   ├── renderer.rs      #   Renderer trait + CliRenderer (append-only)
+│   ├── live.rs          #   LiveRenderer (animated, indicatif spinners)
+│   ├── run_renderer.rs  #   RunRenderer dispatch (auto TTY detection)
+│   ├── summary.rs       #   Shared summary box
+│   ├── dag_render.rs    #   Static DAG visualization
+│   └── ...              #   icons, colors, detail, check, header, spinner
 ├── tools/               # File tools: read, write, edit, glob, grep
-├── event/               # 41 event types + NDJSON tracing
-├── media/               # CAS store (blake3 + zstd)
-├── cli/                 # CLI subcommands
-├── display/             # CLI rendering (summary, dag_render, colors)
-├── init/                # nika init templates (6 tiers, 30 workflows)
-├── tui/                 # Terminal UI (3 views: Studio, Command, Control)
-├── lsp/                 # Embedded LSP (feature-gated)
-├── secrets/             # Keyring + daemon IPC
-├── registry/            # Package registry client
-├── store/               # RunContext + TaskResult
+├── init/                # nika init (wizard + course generator)
+│   └── course/          #   12-level interactive course (44 exercises)
 ├── io/                  # Atomic file I/O
-├── source/              # Source spans + registry
-└── util/                # Constants, fs helpers
+├── store/               # RunContext + TaskResult
+└── util/                # Constants, fs helpers, string interner
 ```
+
+---
 
 ## Error Codes
 
 | Range | Category |
 |:------|:---------|
-| `000-009` | Workflow parsing |
-| `010-019` | Schema validation |
-| `020-029` | DAG (cycles, missing deps) |
-| `030-039` | Provider errors |
-| `040-049` | Template/binding |
-| `050-059` | Security (path traversal, blocked commands) |
-| `060-069` | Output validation |
-| `100-109` | MCP (connection, tool errors) |
-| `110-119` | Agent + Guardrails |
-| `200-219` | Builtin tools |
-| `251-259` | Media pipeline |
-| `290-297` | Media tools |
-| `300-309` | Structured output |
+| `000–009` | Workflow parsing |
+| `010–019` | Schema/validation |
+| `020–029` | DAG (cycles, missing deps) |
+| `030–039` | Provider errors |
+| `040–049` | Template/binding |
+| `050–059` | Security (path traversal, blocked commands) |
+| `060–069` | Output (JSON/schema validation) |
+| `070–089` | `with:` block + DAG validation |
+| `090–099` | JSONPath/IO/Execution |
+| `100–109` | MCP (connection, tool errors) |
+| `110–119` | Agent + Guardrails (112 = guardrail violation) |
+| `120–129` | Resilience (retry, timeout) |
+| `130–139` | TUI/Config |
+| `140–151` | AST analysis (Phase 2) |
+| `160–164` | Policy/Boot errors |
+| `170–179` | Runtime (decompose) |
+| `200–219` | Builtin tools + file I/O (215 = FileAlreadyExists) |
+| `250–259` | Media pipeline |
+| `260–269` | Package URI errors |
+| `270–279` | Skill errors |
+| `280–285` | Artifacts + Media |
+| `290–297` | Media tools |
+| `300–309` | Structured output |
+| `310–319` | Course errors |
 
-## Security Model
+---
 
-- `exec:` defaults to `shell: false` (no shell injection)
-- Command blocklist (30+ patterns: `rm -rf`, `sudo`, reverse shells)
-- Unicode NFKC normalization + zero-width character stripping
-- API key stripping from child processes
-- MCP env var validation (LD_PRELOAD blocked)
-- SSRF URL scheme validation (http/https only)
-- YAML bomb protection (serde-saphyr Budget limits)
+## Feature Flags
+
+| Flag | Default | Description |
+|:-----|:--------|:------------|
+| `tui` | yes | Terminal UI (ratatui, tree-sitter, git2) |
+| `native-inference` | yes | Local GGUF/ISQ models via mistral.rs |
+| `media-core` | yes | Tier 2 media tools (thumbnail, convert, strip, metadata, optimize, svg) |
+| `media-phash` | yes | Perceptual hashing + comparison |
+| `media-pdf` | yes | PDF text extraction |
+| `media-chart` | yes | Bar/line/pie chart generation |
+| `media-qr` | yes | QR code validation |
+| `media-iqa` | yes | Image quality assessment (DSSIM/SSIM) |
+| `media-provenance` | no | C2PA signing + EU AI Act compliance |
+| `media-compression` | yes | zstd CAS compression |
+| `fetch-extract` | yes | HTML extraction (text, selector, metadata, links) |
+| `fetch-markdown` | yes | HTML → Markdown (htmd) |
+| `fetch-article` | yes | Article extraction (dom_smoothie/Readability) |
+| `fetch-feed` | yes | RSS/Atom/JSON Feed parsing |
+| `lsp` | no | Standalone LSP server binary |
+| `nika-daemon` | yes | Background daemon for keychain management |
+
+---
 
 ## CI Quality Gates
 
-Every commit passes 8 jobs in ci.yml:
+Every PR passes 8 jobs in `ci.yml`:
 
 ```
 check → test → test-features → coverage
 security → semver → validate → summary
 ```
 
-**Version Lock:** Nika will NEVER be version 1.0.0.
+| Job | What it checks |
+|:----|:---------------|
+| `check` | `cargo fmt` + `clippy` + `doc` + version lock (0.x.x) |
+| `test` | `cargo nextest run --workspace --lib` on ubuntu + macos |
+| `test-features` | `--no-default-features` + `--all-features` |
+| `coverage` | `cargo-llvm-cov nextest --lib` → Codecov |
+| `security` | `cargo audit` + `cargo deny` + `cargo machete` |
+| `semver` | Breaking change detection (`cargo-semver-checks`) |
+| `validate` | Build binary, run `nika check` on all 498 examples |
+| `summary` | PR comment with all results |
+
+**Version Lock:** Nika will never be `1.0.0` or higher. PRs violating this are rejected automatically.
+
+### Run locally before pushing
+
+```bash
+# Minimum (30 seconds)
+cargo fmt --check && cargo clippy --workspace -- -D warnings && cargo nextest run --workspace --lib
+
+# Full gate (mirrors CI exactly)
+cargo fmt --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo nextest run --workspace --lib
+cargo test --workspace --doc
+cargo audit && cargo deny check
+```
+
+---
+
+## Conventions
+
+- **Errors:** `NikaError` with `NIKA-XXX` codes — never `anyhow` in library code
+- **AST:** Always Raw → Analyzed → Lower. Never skip phases.
+- **Providers:** `RigProvider::auto()` for auto-detection; `native` for local GGUF.
+- **Extensions:** `.nika.yaml` for workflows (never `.yaml` alone)
+- **Bindings:** `with: { alias: $task_id }` — `$` prefix required
+- **Timeout:** `timeout:` in **seconds** (parser converts to ms internally)
+- **Logging:** `tracing` macros throughout
+- **Tests:** TDD preferred; `insta` for snapshots; always `--lib` flag
+
+---
+
+## Security Model
+
+- `exec:` defaults to `shell: false` (no shell injection)
+- Command blocklist (30+ patterns: `rm -rf`, `sudo`, reverse shells, etc.)
+- Unicode NFKC normalization + zero-width character stripping
+- API key redaction from child process environments
+- MCP env var validation (`LD_PRELOAD` blocked)
+- SSRF URL scheme validation (http/https only, CIDR blocklist)
+- YAML bomb protection via serde-saphyr budget limits
+- Media import: path traversal protection + 50 MB size limit
+
+---
 
 ## License
 
-AGPL-3.0-or-later
+AGPL-3.0-or-later — see [LICENSE](../../LICENSE)

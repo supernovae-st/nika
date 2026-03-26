@@ -4,10 +4,10 @@
 
 | Version | Supported          | Security Audit |
 | ------- | ------------------ | -------------- |
-| 0.16.x  | :white_check_mark: | [v0.16.5 Audit](../docs/SECURITY-AUDIT-v0.16.5.md) (Score: 92/100) |
-| 0.15.x  | :white_check_mark: | - |
-| 0.14.x  | :white_check_mark: | - |
-| < 0.14  | :x:                | - |
+| 0.42.x  | :white_check_mark: | Current |
+| 0.41.x  | :white_check_mark: | - |
+| 0.40.x  | :white_check_mark: | - |
+| < 0.40  | :x:                | - |
 
 ## Reporting a Vulnerability
 
@@ -45,14 +45,14 @@ Nika implements the following security measures:
 ### Code Quality
 - **Zero unsafe blocks**: Nika contains 0 unsafe code
 - **Zero CVE**: All dependencies verified safe
-- **3,358 tests**: Comprehensive test coverage
+- **8,200+ tests**: Comprehensive test coverage
 - **Zero clippy warnings**: Strict linting enabled
 
 ### Security Posture
 - **OWASP Top 10 (2021)**: 8/8 applicable checks passed
 - **CWE Coverage**: 6/6 applicable weaknesses mitigated
 - **SLSA Level**: 2 (signed provenance)
-- **Latest Audit**: v0.16.5 - Score 92/100 (Excellent)
+- **Latest Audit**: v0.42.0 - Ongoing
 
 ## Version Lock Policy
 

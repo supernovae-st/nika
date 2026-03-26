@@ -5,9 +5,11 @@
 **Automate AI. No code required.**
 
 [![crates.io](https://img.shields.io/crates/v/nika?style=flat-square&logo=rust&logoColor=white&color=e6522c)](https://crates.io/crates/nika)
-[![Version](https://img.shields.io/badge/v0.42.0-7c3aed?style=flat-square&logo=semver&logoColor=white)](CHANGELOG.md)
+[![CI](https://github.com/supernovae-st/nika/actions/workflows/ci.yml/badge.svg?style=flat-square)](https://github.com/supernovae-st/nika/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/supernovae-st/nika/graph/badge.svg?style=flat-square)](https://codecov.io/gh/supernovae-st/nika)
 [![License](https://img.shields.io/badge/AGPL--3.0--or--later-22c55e?style=flat-square&logo=gnu&logoColor=white)](LICENSE)
-[![Tests](https://img.shields.io/badge/8,100+_tests-10b981?style=flat-square)](https://github.com/supernovae-st/nika/actions)
+[![Tests](https://img.shields.io/badge/8%2C200%2B_tests-10b981?style=flat-square)](https://github.com/supernovae-st/nika/actions)
+[![Docker](https://img.shields.io/docker/pulls/supernovae/nika?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/r/supernovae/nika)
 
 [Quick Start](#quick-start) | [How It Works](#how-it-works) | [Use Cases](#use-cases) | [Documentation](#documentation)
 
@@ -477,7 +479,7 @@ with:
 
 ## Providers
 
-Eight LLM providers via [rig-core](https://github.com/0xPlaygrounds/rig), plus local inference:
+Seven cloud providers via [rig-core](https://github.com/0xPlaygrounds/rig) plus local inference via [mistral.rs](https://github.com/EricLBuehler/mistral.rs):
 
 | Provider | Env Variable | Example Models |
 |:---------|:-------------|:---------------|
@@ -803,7 +805,7 @@ flowchart TD
     DAG --> INF & EXC & FET & INV & AGT
 
     subgraph Backends
-        PROV["8 LLM Providers"]:::external
+        PROV["7 Cloud + Local LLMs"]:::external
         MCPS["MCP Server Pool"]:::external
         BUILT["43 Builtin Tools"]:::success
         CAS["CAS Media Store"]:::data
@@ -948,6 +950,12 @@ cargo install nika
 
 ```bash
 brew install supernovae-st/tap/nika
+```
+
+### Docker
+
+```bash
+docker run --rm -v "$(pwd)":/work supernovae/nika run /work/my-workflow.nika.yaml
 ```
 
 ### From Source
