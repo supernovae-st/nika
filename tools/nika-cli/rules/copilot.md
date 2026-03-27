@@ -100,10 +100,10 @@ Usage: `{{with.items | flatten | unique | join(", ")}}`
 
 | Provider | Env Var | Models |
 |----------|---------|--------|
-| `anthropic` | `ANTHROPIC_API_KEY` | claude-opus-4-20250514, claude-sonnet-4-20250514, claude-haiku-3.5 |
+| `anthropic` | `ANTHROPIC_API_KEY` | claude-opus-4-20250514, claude-sonnet-4-20250514, claude-haiku-4-5 |
 | `openai` | `OPENAI_API_KEY` | gpt-4o, gpt-4.1, o3, o4-mini |
 | `mistral` | `MISTRAL_API_KEY` | mistral-large-latest, mistral-small-latest |
-| `groq` | `GROQ_API_KEY` | llama-4-maverick, mixtral-8x7b |
+| `groq` | `GROQ_API_KEY` | llama-3.3-70b-versatile, mixtral-8x7b-32768 |
 | `deepseek` | `DEEPSEEK_API_KEY` | deepseek-chat, deepseek-reasoner |
 | `gemini` | `GEMINI_API_KEY` | gemini-2.5-pro, gemini-2.5-flash |
 | `xai` | `XAI_API_KEY` | grok-3 |
@@ -166,7 +166,7 @@ Use `content:` array instead of `prompt:` for images:
       required: [name, price]
     enable_repair: true           # LLM auto-repair on violation (default: true)
     max_retries: 3                # Retry attempts before failure (default: 2)
-    repair_model: claude-haiku-3.5  # Cheaper model for repair passes (default: task model)
+    repair_model: claude-haiku-4-5  # Cheaper model for repair passes (default: task model)
 ```
 
 **5-layer defense**: tool injection → rig extractor → JSON validation → retry with feedback → LLM repair
