@@ -127,8 +127,21 @@ impl TaskExecutor {
             truncated: false,
         });
 
+        // Resolve templates in model and provider fields
+        // e.g. model: "{{inputs.fast_model | default('claude-haiku-4-5')}}"
+        let resolved_model = match &infer.model {
+            Some(m) => Some(template_resolve(m, bindings, datastore)?.into_owned()),
+            None => None,
+        };
+        let resolved_provider = match &infer.provider {
+            Some(p) => Some(template_resolve(p, bindings, datastore)?.into_owned()),
+            None => None,
+        };
+
         // Use task-level override or workflow default
-        let provider_name = infer.provider.as_deref().unwrap_or(&self.default_provider);
+        let provider_name = resolved_provider
+            .as_deref()
+            .unwrap_or(&self.default_provider);
 
         // Mock provider support for testing (no API call)
         // Generates a generic JSON response with common test fields
@@ -164,7 +177,7 @@ impl TaskExecutor {
             self.event_log.emit(EventKind::ProviderCalled {
                 task_id: Arc::clone(task_id),
                 provider: "mock".to_string(),
-                model: infer.model.as_deref().unwrap_or("mock-model").to_string(),
+                model: resolved_model.as_deref().unwrap_or("mock-model").to_string(),
                 prompt_len: prompt.len(),
             });
 
@@ -219,14 +232,16 @@ impl TaskExecutor {
                 &format!("{}@inline", provider_name),
                 base_url,
                 &api_key,
-                infer.model.as_deref(),
+                resolved_model.as_deref(),
             )?
         } else {
             self.get_rig_provider(provider_name)?
         };
 
         // Resolve model: task override -> workflow default -> provider default
-        let model = infer.model.as_deref().or(self.default_model.as_deref());
+        let model = resolved_model
+            .as_deref()
+            .or(self.default_model.as_deref());
 
         // EMIT: ProviderCalled
         self.event_log.emit(EventKind::ProviderCalled {

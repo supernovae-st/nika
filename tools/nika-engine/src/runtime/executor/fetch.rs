@@ -511,10 +511,15 @@ impl TaskExecutor {
                         }
                         .into());
                     }
+                    // Resolve templates in selector (e.g. {{with.css_query}})
+                    let resolved_selector = match &fetch.selector {
+                        Some(s) => Some(template_resolve(s, bindings, datastore)?.into_owned()),
+                        None => None,
+                    };
                     let extract_result = super::extract::apply_extract(
                         &raw_body,
                         fetch.extract.as_deref(),
-                        fetch.selector.as_deref(),
+                        resolved_selector.as_deref(),
                     );
                     // EMIT: ExtractApplied (if an extract mode was specified)
                     if let Some(mode) = fetch.extract.as_deref() {

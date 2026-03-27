@@ -113,19 +113,24 @@ impl TaskExecutor {
             mcp_servers: resolved_agent.mcp.clone(),
         });
 
+        // Resolve templates in model and provider fields
+        let resolved_model = match &resolved_agent.model {
+            Some(m) => Some(template_resolve(m, bindings, datastore)?.into_owned()),
+            None => None,
+        };
+        let resolved_provider = match &resolved_agent.provider {
+            Some(p) => Some(template_resolve(p, bindings, datastore)?.into_owned()),
+            None => None,
+        };
+
         // Get provider name (task override or workflow default)
-        // Clone to avoid borrow conflict when moving resolved_agent into RigAgentLoop
-        let provider_name: String = resolved_agent
-            .provider
-            .clone()
+        let provider_name: String = resolved_provider
             .unwrap_or_else(|| self.default_provider.to_string());
 
         // Ensure resolved_agent has provider + model set for run_auto() dispatch
         let resolved_agent = AgentParams {
             provider: Some(provider_name.clone()),
-            model: resolved_agent
-                .model
-                .clone()
+            model: resolved_model
                 .or_else(|| self.default_model.as_ref().map(|m| m.to_string())),
             ..resolved_agent
         };
