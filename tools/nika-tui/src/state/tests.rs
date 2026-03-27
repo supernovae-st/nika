@@ -4426,6 +4426,43 @@ fn test_threshold_notifications_all_fire_on_large_jump() {
 }
 
 #[test]
+fn test_agent_complete_does_not_double_push_token_history() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    // Simulate 1 provider call (pushes 1 entry to token_history)
+    state.handle_event(
+        &EventKind::ProviderResponded {
+            task_id: "t".into(),
+            request_id: None,
+            input_tokens: 100,
+            output_tokens: 200,
+            cache_read_tokens: 0,
+            cost_usd: 0.0,
+            ttft_ms: None,
+            finish_reason: "stop".to_string(),
+        },
+        1,
+    );
+    let history_after_provider = state.metrics.token_history.len();
+
+    // Simulate agent complete
+    state.handle_event(
+        &EventKind::AgentComplete {
+            task_id: "t".into(),
+            turns: 1,
+            stop_reason: "natural_completion".to_string(),
+        },
+        2,
+    );
+
+    assert_eq!(
+        state.metrics.token_history.len(),
+        history_after_provider,
+        "AgentComplete must not push an extra entry to token_history"
+    );
+}
+
+#[test]
 fn test_mcp_calls_cap_enforced_on_invoke() {
     let mut state = TuiState::new("test.nika.yaml");
 

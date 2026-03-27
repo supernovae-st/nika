@@ -5,7 +5,7 @@
 
 use nika_engine::event::{AgentTurnMetadata, ContextSource, ExcludedItem};
 
-use super::{TuiState, MAX_HISTORY_ENTRIES};
+use super::TuiState;
 use crate::state::notification::Notification;
 use crate::state::types::{AgentTurnState, ContextAssembly, SpawnedAgent, TemplateResolution};
 
@@ -52,15 +52,7 @@ impl TuiState {
     }
 
     pub(super) fn on_agent_complete(&mut self) {
-        // Update metrics
-        if let Some(last_turn) = self.agent.turns.last() {
-            if let Some(tokens) = last_turn.tokens {
-                if self.metrics.token_history.len() >= MAX_HISTORY_ENTRIES {
-                    self.metrics.token_history.pop_front();
-                }
-                self.metrics.token_history.push_back(tokens);
-            }
-        }
+        // token_history is already populated per-turn by on_provider_responded
         // TIER 4.1: Mark reasoning panel dirty
         self.dirty.reasoning = true;
     }
