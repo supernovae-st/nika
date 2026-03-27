@@ -14,10 +14,14 @@ pub enum ProviderAction {
     List,
 
     /// Set API key for a provider (stored in system keychain)
+    ///
+    /// Prefer interactive mode (no key argument) — the key is masked during input.
+    /// Passing the key as an argument exposes it in the process list (ps aux).
     Set {
         /// Provider name (anthropic, openai, mistral, groq, deepseek, gemini, xai)
         provider: Option<String>,
-        /// API key (omit to enter interactively with hidden input)
+        /// API key — prefer interactive mode (omit this to enter with hidden input)
+        #[arg(hide = true)]
         key: Option<String>,
         /// Skip connection test after storing
         #[arg(long)]
@@ -236,7 +240,17 @@ pub async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaE
                 }
             };
             let api_key = match key {
-                Some(k) => k,
+                Some(k) => {
+                    eprintln!(
+                        "  {} API key passed as argument — visible in process list (ps aux)",
+                        StatusIcon::Warn
+                    );
+                    eprintln!(
+                        "{}",
+                        hint("Prefer: nika provider set (interactive, masked input)")
+                    );
+                    k
+                }
                 None if is_tty => cliclack::password(format!("Paste your {provider} API key:"))
                     .mask('•')
                     .interact()
