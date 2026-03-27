@@ -93,6 +93,8 @@ pub struct TaskExecutor {
     skills_map: std::collections::HashMap<String, String>,
     /// Base directory for resolving relative skill paths
     workflow_base_dir: std::path::PathBuf,
+    /// Custom endpoints for OpenAI-compatible servers (vLLM, TGI, Ollama)
+    custom_endpoints: Arc<crate::provider::endpoints::CustomEndpointMap>,
 }
 
 impl TaskExecutor {
@@ -103,7 +105,7 @@ impl TaskExecutor {
         mcp_configs: Option<FxHashMap<String, McpConfigInline>>,
         event_log: EventLog,
     ) -> Result<Self, NikaError> {
-        Self::with_policy(provider, model, mcp_configs, event_log, None, None)
+        Self::with_policy(provider, model, mcp_configs, event_log, None, None, None)
     }
 
     /// Create a new executor with explicit policy configuration.
@@ -116,6 +118,7 @@ impl TaskExecutor {
         event_log: EventLog,
         policy_config: Option<PolicyConfig>,
         permission_mode: Option<PermissionMode>,
+        custom_endpoints: Option<crate::provider::endpoints::CustomEndpointMap>,
     ) -> Result<Self, NikaError> {
         // SAFETY: ClientBuilder::build() only fails with custom TLS or proxy config.
         // We use defaults, so this is effectively infallible.
@@ -194,6 +197,7 @@ impl TaskExecutor {
             skill_injector: Arc::new(SkillInjector::new()),
             skills_map: std::collections::HashMap::new(),
             workflow_base_dir: working_dir,
+            custom_endpoints: Arc::new(custom_endpoints.unwrap_or_default()),
         })
     }
 
@@ -379,8 +383,25 @@ impl TaskExecutor {
     pub(super) fn get_rig_provider(&self, name: &str) -> Result<RigProvider, NikaError> {
         use dashmap::mapref::entry::Entry;
 
-        // Normalize provider name so aliases ("claude") and canonical ("anthropic")
-        // share the same cache entry, avoiding double-instantiation.
+        // Check custom endpoints first — they don't alias through the catalog
+        if self.custom_endpoints.contains_key(name) {
+            match self.rig_provider_cache.entry(name.to_string()) {
+                Entry::Occupied(e) => return Ok(e.get().clone()),
+                Entry::Vacant(e) => {
+                    let provider =
+                        RigProvider::from_name_with_endpoints(name, &self.custom_endpoints)?;
+                    e.insert(provider.clone());
+                    self.event_log.emit(EventKind::ProviderInitialized {
+                        provider: name.to_string(),
+                        model: provider.default_model().to_string(),
+                        cached: false,
+                    });
+                    return Ok(provider);
+                }
+            }
+        }
+
+        // Catalog providers — normalize alias to canonical name for cache key
         let canonical = crate::core::find_provider(name)
             .map(|p| p.id)
             .unwrap_or(name);
@@ -390,7 +411,6 @@ impl TaskExecutor {
             Entry::Vacant(e) => {
                 let provider = RigProvider::from_name(name)?;
                 e.insert(provider.clone());
-                // EMIT: ProviderInitialized (cache miss — first use)
                 self.event_log.emit(EventKind::ProviderInitialized {
                     provider: canonical.to_string(),
                     model: provider.default_model().to_string(),
