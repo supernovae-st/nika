@@ -11,18 +11,45 @@ use colored::Colorize;
 
 fn print_banner() {
     let version = env!("CARGO_PKG_VERSION");
+    let w = 60;
+    let bar = "\u{2500}".repeat(w); // ─
     println!();
     println!(
-        "  {} {}                                          {}",
-        "\u{2727}".magenta().bold(), // ✧
-        "N I K A".bold(),
-        format!("v{version}").dimmed()
+        "  {}{}{}",
+        "\u{256D}".dimmed(),
+        bar.dimmed(),
+        "\u{256E}".dimmed()
     );
     println!(
-        "  {}",
-        "Semantic YAML workflow engine for AI tasks".dimmed()
+        "  {}  {} {}{}{}  {}",
+        "\u{2502}".dimmed(),
+        "\u{2727}".magenta().bold(),
+        "N I K A".bold(),
+        " ".repeat(w - 34),
+        format!("v{version}").dimmed(),
+        "\u{2502}".dimmed(),
     );
-    println!("  {}", "\u{2501}".repeat(58).dimmed()); // ━
+    let tagline = "Semantic YAML workflow engine for AI tasks";
+    println!(
+        "  {}  {}{pad}  {}",
+        "\u{2502}".dimmed(),
+        tagline,
+        "\u{2502}".dimmed(),
+        pad = " ".repeat(w - 44),
+    );
+    println!(
+        "  {}  {}{}  {}",
+        "\u{2502}".dimmed(),
+        "5 verbs \u{00B7} 9 providers \u{00B7} 24 builtin tools".dimmed(),
+        " ".repeat(w - 42),
+        "\u{2502}".dimmed(),
+    );
+    println!(
+        "  {}{}{}",
+        "\u{2570}".dimmed(),
+        bar.dimmed(),
+        "\u{256F}".dimmed()
+    );
     println!();
 }
 
@@ -33,6 +60,13 @@ fn print_banner() {
 /// Print the full custom help (called from `nika` with no args or `nika help`).
 pub fn print_help() {
     print_banner();
+
+    // ── Quick Start ────────────────────────────────────────────────────
+    section("QUICK START");
+    quick("nika infer \"Explain quantum computing\"", "LLM call");
+    quick("nika run workflow.nika.yaml", "Execute workflow");
+    quick("nika help verbs", "Learn the 5 verbs");
+    sep();
 
     // ── Workflows ────────────────────────────────────────────────────────
     section("WORKFLOWS");
@@ -58,9 +92,9 @@ pub fn print_help() {
         "workflow",
         Some("w"),
         "Edit, graph, add-task",
-        "nika workflow graph flow.nika.yaml",
+        "nika workflow graph f.nika.yaml",
     );
-    println!();
+    sep();
 
     // ── 5 Verbs ──────────────────────────────────────────────────────────
     section("5 VERBS \u{2014} Direct Use");
@@ -70,7 +104,15 @@ pub fn print_help() {
         "\u{2727}",
         "magenta",
         "Call an LLM directly",
-        "nika infer \"Explain AI\"",
+        "nika infer \"hello\"",
+    );
+    verb_cmd(
+        "exec",
+        None,
+        "\u{2388}",
+        "yellow",
+        "Shell command (workflows)",
+        "exec: \"npm build\"",
     );
     verb_cmd(
         "fetch",
@@ -85,7 +127,7 @@ pub fn print_help() {
         None,
         "\u{229B}",
         "green",
-        "Call builtin or MCP tool",
+        "Builtin or MCP tool",
         "nika invoke nika:thumbnail img.jpg",
     );
     verb_cmd(
@@ -94,9 +136,9 @@ pub fn print_help() {
         "\u{274B}",
         "red",
         "Multi-turn AI agent",
-        "nika agent \"Research AI\" --turns 5",
+        "nika agent \"Research AI\"",
     );
-    println!();
+    sep();
 
     // ── Interactive ──────────────────────────────────────────────────────
     #[cfg(feature = "tui")]
@@ -105,7 +147,7 @@ pub fn print_help() {
         cmd("ui", None, "Launch TUI", "nika ui");
         cmd("chat", Some("c"), "Chat mode", "nika chat");
         cmd("studio", Some("s"), "Studio editor", "nika studio");
-        println!();
+        sep();
     }
 
     // ── Models & Providers ───────────────────────────────────────────────
@@ -118,7 +160,7 @@ pub fn print_help() {
     );
     cmd("provider", None, "Manage API keys", "nika provider list");
     cmd("mcp", None, "MCP server connections", "nika mcp list");
-    println!();
+    sep();
 
     // ── Learning ─────────────────────────────────────────────────────────
     section("LEARNING");
@@ -134,7 +176,7 @@ pub fn print_help() {
         "Browse 115+ showcase workflows",
         "nika showcase list",
     );
-    println!();
+    sep();
 
     // ── Project ──────────────────────────────────────────────────────────
     section("PROJECT");
@@ -142,7 +184,7 @@ pub fn print_help() {
     cmd("config", None, "Manage configuration", "nika config list");
     cmd("pkg", Some("p"), "Package management", "nika pkg list");
     cmd("media", None, "Media store management", "nika media stats");
-    println!();
+    sep();
 
     // ── System ───────────────────────────────────────────────────────────
     section("SYSTEM");
@@ -167,7 +209,7 @@ pub fn print_help() {
         "nika completion zsh",
     );
     cmd("trace", None, "Execution traces", "nika trace list");
-    println!();
+    sep();
 
     // ── Deep Dive ────────────────────────────────────────────────────────
     section("DEEP DIVE");
@@ -175,7 +217,7 @@ pub fn print_help() {
     topic("nika help providers", "All 9 providers with status");
     topic("nika help templates", "Template syntax & 31 transforms");
     topic("nika help examples", "Common workflow patterns");
-    println!();
+    sep();
 
     // ── Flags ────────────────────────────────────────────────────────────
     section("FLAGS");
@@ -227,136 +269,90 @@ fn topic_verbs() {
     section("THE 5 SEMANTIC VERBS");
     println!();
 
-    // infer
-    println!(
-        "  {} {}  LLM text generation",
-        "\u{2727}".magenta().bold(),
-        "infer:".green().bold()
+    verb_topic(
+        "\u{2727}",
+        "magenta",
+        "infer:",
+        "LLM text generation",
+        &[
+            "Sends a prompt to any cloud or local model.",
+            "Supports vision (content: array), structured output, extended thinking.",
+        ],
+        &[
+            ("$", "nika infer \"Explain quantum computing\""),
+            ("$", "cat file.txt | nika infer \"Summarize\" --stdin"),
+            (
+                "$",
+                "nika infer \"Extract\" --from-example '{\"names\":[\"\"]}'",
+            ),
+        ],
     );
-    println!(
-        "  {}",
-        "  Sends a prompt to any cloud or local model.".dimmed()
-    );
-    println!(
-        "  {}",
-        "  Supports vision (content: array), structured output, extended thinking.".dimmed()
-    );
-    println!();
-    println!(
-        "  {}  {}",
-        "$".dimmed(),
-        "nika infer \"Explain quantum computing\"".cyan()
-    );
-    println!(
-        "  {}  {}",
-        "$".dimmed(),
-        "cat file.txt | nika infer \"Summarize\" --stdin".cyan()
-    );
-    println!(
-        "  {}  {}",
-        "$".dimmed(),
-        "nika infer \"Extract names\" --from-example '{\"names\":[\"\"]}' ".cyan()
-    );
-    println!();
 
-    // exec
-    println!(
-        "  {} {}  Shell command execution",
-        "\u{2388}".yellow().bold(),
-        "exec:".green().bold()
+    verb_topic(
+        "\u{2388}",
+        "yellow",
+        "exec:",
+        "Shell command execution",
+        &[
+            "Runs commands in a subprocess. Use shell: true for pipes/redirects.",
+            "Commands validated against security blocklist (NIKA-053).",
+        ],
+        &[
+            ("yaml", "exec: \"npm run build\""),
+            (
+                "yaml",
+                "exec: { command: \"cat data | jq '.items'\", shell: true }",
+            ),
+        ],
     );
-    println!(
-        "  {}",
-        "  Runs commands in a subprocess. Use shell: true for pipes/redirects.".dimmed()
-    );
-    println!(
-        "  {}",
-        "  Commands validated against security blocklist (NIKA-053).".dimmed()
-    );
-    println!();
-    println!(
-        "  {}  {}",
-        "yaml".dimmed(),
-        "exec: \"npm run build\"".cyan()
-    );
-    println!(
-        "  {}  {}",
-        "yaml".dimmed(),
-        "exec: { command: \"cat data | jq '.items'\", shell: true }".cyan()
-    );
-    println!();
 
-    // fetch
-    println!(
-        "  {} {}  HTTP requests with smart extraction",
-        "\u{2604}".cyan().bold(),
-        "fetch:".green().bold()
+    verb_topic(
+        "\u{2604}",
+        "cyan",
+        "fetch:",
+        "HTTP requests with smart extraction",
+        &[
+            "9 extract modes: markdown, article, text, selector, metadata,",
+            "links, jsonpath, feed, llm_txt. Also response: full | binary.",
+        ],
+        &[
+            ("$", "nika fetch https://blog.com --extract article"),
+            (
+                "$",
+                "nika fetch https://api.x.com/data --extract jsonpath --selector \"$.items\"",
+            ),
+        ],
     );
-    println!(
-        "  {}",
-        "  9 extract modes: markdown, article, text, selector, metadata,".dimmed()
-    );
-    println!(
-        "  {}",
-        "  links, jsonpath, feed, llm_txt. Also response: full | binary.".dimmed()
-    );
-    println!();
-    println!(
-        "  {}  {}",
-        "$".dimmed(),
-        "nika fetch https://blog.com --extract article".cyan()
-    );
-    println!(
-        "  {}  {}",
-        "$".dimmed(),
-        "nika fetch https://api.x.com/data --extract jsonpath --selector \"$.items\"".cyan()
-    );
-    println!();
 
-    // invoke
-    println!(
-        "  {} {}  MCP tool calls & 24 builtin tools",
-        "\u{229B}".green().bold(),
-        "invoke:".green().bold()
+    verb_topic(
+        "\u{229B}",
+        "green",
+        "invoke:",
+        "MCP tool calls & 24 builtin tools",
+        &[
+            "24 builtin tools (nika:*) + any MCP server tool.",
+            "Double-colon separator for MCP: server::tool_name",
+        ],
+        &[
+            ("$", "nika invoke nika:dimensions photo.jpg"),
+            ("$", "nika invoke --list"),
+        ],
     );
-    println!(
-        "  {}",
-        "  24 builtin tools (nika:*) + any MCP server tool.".dimmed()
-    );
-    println!(
-        "  {}",
-        "  Double-colon separator for MCP: server::tool_name".dimmed()
-    );
-    println!();
-    println!(
-        "  {}  {}",
-        "$".dimmed(),
-        "nika invoke nika:dimensions photo.jpg".cyan()
-    );
-    println!("  {}  {}", "$".dimmed(), "nika invoke --list".cyan());
-    println!();
 
-    // agent
-    println!(
-        "  {} {}  Multi-turn agentic loops",
-        "\u{274B}".red().bold(),
-        "agent:".green().bold()
+    verb_topic(
+        "\u{274B}",
+        "red",
+        "agent:",
+        "Multi-turn agentic loops",
+        &[
+            "AI agent with tool access. Completion: explicit | natural | pattern.",
+            "Guardrails: length, schema, regex, llm. Cost/time limits.",
+        ],
+        &[(
+            "$",
+            "nika agent \"Research AI workflows\" --tool web_search --turns 5",
+        )],
     );
-    println!(
-        "  {}",
-        "  AI agent with tool access. Completion: explicit | natural | pattern.".dimmed()
-    );
-    println!(
-        "  {}",
-        "  Guardrails: length, schema, regex, llm. Cost/time limits.".dimmed()
-    );
-    println!();
-    println!(
-        "  {}  {}",
-        "$".dimmed(),
-        "nika agent \"Research AI workflows\" --tool web_search --turns 5".cyan()
-    );
-    println!();
 }
 
 fn topic_providers() {
@@ -403,7 +399,7 @@ fn topic_providers() {
             "\u{2717}".red().bold().to_string()
         };
         println!(
-            "    {} {:<12} {:<40} {}",
+            "    {} {:<12} {:<42} {}",
             icon,
             name.cyan(),
             desc,
@@ -417,10 +413,10 @@ fn topic_providers() {
     let native_icon = if has_native {
         "\u{2713}".green().bold().to_string()
     } else {
-        "\u{2298}".dimmed().to_string() // ⊘
+        "\u{2298}".dimmed().to_string()
     };
     println!(
-        "    {} {:<12} {:<40} {}",
+        "    {} {:<12} {:<42} {}",
         native_icon,
         "native".cyan(),
         "GGUF models via mistral.rs",
@@ -435,7 +431,7 @@ fn topic_providers() {
 
     println!("  {}", "TEST".bold());
     println!(
-        "    {} {:<12} {:<40} {}",
+        "    {} {:<12} {:<42} {}",
         "\u{2713}".green().bold(),
         "mock".cyan(),
         "Deterministic, no API calls",
@@ -473,30 +469,21 @@ fn topic_templates() {
     println!();
 
     println!("  {} (31 available)", "PIPE TRANSFORMS".bold());
-    println!(
-        "    {} upper, lower, trim, trim_start, trim_end, length, to_string",
-        "String:".yellow()
+    transform(
+        "String:",
+        "upper, lower, trim, trim_start, trim_end, length, to_string",
     );
-    println!(
-        "    {} first, last, flatten, reverse, sort, unique, compact, keys, values",
-        "Array:".yellow()
+    transform(
+        "Array:",
+        "first, last, flatten, reverse, sort, unique, compact, keys, values",
     );
-    println!(
-        "    {} to_number, round, abs, ceil, floor",
-        "Numeric:".yellow()
+    transform("Numeric:", "to_number, round, abs, ceil, floor");
+    transform("Type:", "to_bool, to_json, parse_json, type_of");
+    transform(
+        "Param:",
+        "join(\", \"), split(\",\"), default(\"fallback\")",
     );
-    println!(
-        "    {} to_bool, to_json, parse_json, type_of",
-        "Type:".yellow()
-    );
-    println!(
-        "    {} join(\", \"), split(\",\"), default(\"fallback\")",
-        "Param:".yellow()
-    );
-    println!(
-        "    {} shell (escape for safe interpolation)",
-        "System:".yellow()
-    );
+    transform("System:", "shell (escape for safe interpolation)");
     println!();
     println!(
         "    {}",
@@ -582,13 +569,21 @@ fn section(title: &str) {
     println!("  {}", title.bold().magenta());
 }
 
+fn sep() {
+    println!("  {}", "\u{2500}".repeat(60).dimmed()); // ─
+}
+
+fn quick(command: &str, desc: &str) {
+    println!("    {} {}  {}", "$".dimmed(), command.cyan(), desc.dimmed());
+}
+
 fn cmd(name: &str, alias: Option<&str>, desc: &str, example: &str) {
     let alias_str = match alias {
         Some(a) => format!("({})", a),
         None => String::new(),
     };
     println!(
-        "    {:<10} {:<8} {:<34} {}",
+        "    {:<10} {:<8} {:<32} {}",
         name.green(),
         alias_str.dimmed(),
         desc,
@@ -610,13 +605,40 @@ fn verb_cmd(name: &str, alias: Option<&str>, icon: &str, color: &str, desc: &str
         _ => icon.white().bold().to_string(),
     };
     println!(
-        "    {:<10} {:<6} {} {:<32} {}",
+        "    {:<10} {:<6} {} {:<30} {}",
         name.green(),
         alias_str.dimmed(),
         colored_icon,
         desc,
         example.dimmed()
     );
+}
+
+fn verb_topic(
+    icon: &str,
+    color: &str,
+    name: &str,
+    title: &str,
+    desc_lines: &[&str],
+    examples: &[(&str, &str)],
+) {
+    let colored_icon = match color {
+        "magenta" => icon.magenta().bold().to_string(),
+        "yellow" => icon.yellow().bold().to_string(),
+        "cyan" => icon.cyan().bold().to_string(),
+        "green" => icon.green().bold().to_string(),
+        "red" => icon.red().bold().to_string(),
+        _ => icon.white().bold().to_string(),
+    };
+    println!("  {} {}  {title}", colored_icon, name.green().bold());
+    for line in desc_lines {
+        println!("     {}", line.dimmed());
+    }
+    println!();
+    for (prefix, cmd) in examples {
+        println!("     {}  {}", prefix.dimmed(), cmd.cyan());
+    }
+    println!();
 }
 
 fn topic(command: &str, desc: &str) {
@@ -629,6 +651,10 @@ fn flag(name: &str, desc: &str) {
 
 fn binding(syntax: &str, desc: &str) {
     println!("    {:<46} {}", syntax.cyan(), desc.dimmed());
+}
+
+fn transform(category: &str, items: &str) {
+    println!("    {} {items}", category.yellow());
 }
 
 fn example(title: &str, commands: &[&str]) {
@@ -645,7 +671,6 @@ mod tests {
 
     #[test]
     fn print_help_doesnt_panic() {
-        // Just verify it doesn't crash
         print_help();
     }
 
