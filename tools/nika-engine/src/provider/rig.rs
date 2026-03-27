@@ -3380,6 +3380,8 @@ mod tests {
                 api_key: "ollama".to_string(),
                 default_model: Some("llama3.2".to_string()),
                 timeout_secs: 300,
+                hourly_rate: None,
+                currency: "USD".to_string(),
             },
         );
 
@@ -3400,6 +3402,8 @@ mod tests {
                 api_key: "test".to_string(),
                 default_model: None,
                 timeout_secs: 300,
+                hourly_rate: None,
+                currency: "USD".to_string(),
             },
         );
 
