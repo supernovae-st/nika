@@ -230,7 +230,12 @@ impl TaskExecutor {
         base_dir: std::path::PathBuf,
     ) -> Self {
         self.skills_map = skills_map;
-        self.workflow_base_dir = base_dir;
+        // Only set workflow_base_dir if not already set via with_base_path()
+        // (with_base_path uses the workflow file directory which is more specific)
+        let working_dir = std::env::current_dir().unwrap_or_default();
+        if self.workflow_base_dir == working_dir {
+            self.workflow_base_dir = base_dir;
+        }
         self
     }
 
