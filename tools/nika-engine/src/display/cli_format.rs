@@ -148,7 +148,7 @@ pub fn key_value(label: &str, value: &str) -> String {
 pub fn key_value_width(label: &str, value: &str, width: usize) -> String {
     format!(
         "    {:<width$} {}",
-        format!("{label}:"),
+        format!("{label}:").dimmed(),
         value,
         width = width
     )
