@@ -84,7 +84,47 @@ pub fn run_machine_setup() -> Vec<SetupResult> {
         }
     }
 
+    // 5. Detect env var API keys and suggest keychain migration
+    detect_env_api_keys();
+
     results
+}
+
+/// Detect API keys in environment variables and hint about keychain migration.
+fn detect_env_api_keys() {
+    let known_keys: &[(&str, &str)] = &[
+        ("ANTHROPIC_API_KEY", "anthropic"),
+        ("OPENAI_API_KEY", "openai"),
+        ("MISTRAL_API_KEY", "mistral"),
+        ("GROQ_API_KEY", "groq"),
+        ("DEEPSEEK_API_KEY", "deepseek"),
+        ("GEMINI_API_KEY", "gemini"),
+        ("XAI_API_KEY", "xai"),
+    ];
+
+    let found: Vec<&str> = known_keys
+        .iter()
+        .filter(|(env_var, _)| {
+            std::env::var(env_var)
+                .map(|v| !v.is_empty())
+                .unwrap_or(false)
+        })
+        .map(|(_, provider)| *provider)
+        .collect();
+
+    if !found.is_empty() {
+        println!();
+        println!(
+            "  {} API keys detected in env: {}",
+            "\u{1f511}".dimmed(),
+            found.join(", ").bold()
+        );
+        println!(
+            "    {} {}",
+            "\u{2192}".dimmed(),
+            "nika init --migrate-keys to move them to the secure keychain".dimmed()
+        );
+    }
 }
 
 fn setup_editors() -> Vec<SetupResult> {
@@ -599,7 +639,7 @@ fn setup_completions() -> SetupResult {
 // ─── Quick Editor Re-Scan ────────────────────────────────────────────────────
 
 /// 24-hour cooldown in seconds for quick_editor_scan.
-const SCAN_COOLDOWN_SECS: u64 = 86_400;
+const SCAN_COOLDOWN_SECS: u64 = 14_400; // 4 hours — devs install editors during the day
 
 /// Lightweight scan for newly installed editors. Called on every nika command
 /// when machine_setup_status() == Ready. If a new editor is detected that
