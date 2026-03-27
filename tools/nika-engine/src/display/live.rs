@@ -981,11 +981,11 @@ impl LiveRenderer {
             EventKind::ArtifactWritten {
                 path, size, format, ..
             } => {
-                if self.detail.show_sub_events() {
-                    self.log(&super::format_event::fmt_artifact_written(
-                        path, *size, format,
-                    ));
-                }
+                // Always show artifact success (matches ArtifactFailed which is unconditional).
+                // Users need to know WHERE their output files landed.
+                self.log(&super::format_event::fmt_artifact_written(
+                    path, *size, format,
+                ));
             }
 
             EventKind::ArtifactFailed { path, reason, .. } => {
