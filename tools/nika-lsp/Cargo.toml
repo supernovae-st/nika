@@ -59,6 +59,10 @@ regex = { workspace = true }
 [dev-dependencies]
 tokio-test = "0.4"
 pretty_assertions = { workspace = true }
+serde_json = { workspace = true }
+
+[target.'cfg(unix)'.dev-dependencies]
+libc = "0.2"
 
 [features]
 default = []
