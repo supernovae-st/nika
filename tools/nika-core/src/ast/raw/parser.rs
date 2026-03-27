@@ -1690,6 +1690,7 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
         description,
         provider,
         model,
+        base_url: None, // Parsed in Task 5
         action,
         with_refs,
         depends_on,
