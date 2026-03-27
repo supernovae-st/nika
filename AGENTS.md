@@ -22,7 +22,7 @@ Nika connects to NovaNet via MCP only (Zero Cypher rule). Use `invoke:` verb.
 
 ## TUI Views
 
-`1/s` Studio | `2/c` Command | `3/x` Control
+`1/s` Studio | `2/r` Runner | `3/c` Chat | `4/,` Settings
 
 ## Commands
 
@@ -34,7 +34,6 @@ nika ui                          # TUI
 nika provider list               # API key status
 nika init                        # Interactive project setup (wizard)
 nika init --course               # Generate 12-level learning course (44 exercises)
-nika init --minimal              # Minimal scaffold (5 workflows, 1 per verb)
 nika course status               # Show constellation progress map
 nika course next                 # Open next exercise
 nika course check [level]        # Validate exercises

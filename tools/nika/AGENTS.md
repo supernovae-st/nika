@@ -54,9 +54,6 @@ src/
 │   ├── detail.rs        #   DetailLevel verbosity control
 │   ├── check.rs         #   Pre-flight validation checklist
 │   └── dag_render.rs    #   Static DAG visualization
-├── init/                # nika init (minimal scaffold + course generator)
-│   ├── course/          #   12-level interactive course (44 exercises)
-│   └── showcase_*.rs    #   Showcase workflow generators
 ├── io/                  # Atomic file I/O
 ├── source/              # Source spans + registry
 ├── store/               # RunContext + TaskResult
@@ -70,7 +67,7 @@ src/
 ```
 src/
 ├── lib.rs               # Public API
-├── core/                # Zero-dep definitions (providers, models, mcp_aliases)
+├── catalogs/            # Zero-dep definitions (providers, models, mcp_aliases)
 ├── ast/                 # AST types (Raw, Analyzed, Analyzer, Schema)
 │   ├── raw/             #   Phase 1: YAML → Raw AST (parser.rs)
 │   ├── analyzed/        #   Phase 2: Validated, resolved AST
@@ -134,7 +131,7 @@ cargo clippy --workspace -- -D warnings  # Zero warnings policy
 - **Dependencies:** `depends_on: [task_id]`
 - **Bindings:** `with: { alias: $task_id }` — `$` prefix required
 - **Timeout:** `timeout:` in seconds (parser converts to ms internally)
-- **Pipe transforms:** `{{with.data | uppercase | trim}}` — available in all template contexts
+- **Pipe transforms:** `{{with.data | upper | trim}}` — available in all template contexts
 - **Logging:** `tracing` macros
 - **Tests:** TDD preferred. `insta` for snapshots. `cargo test --lib` always.
 
