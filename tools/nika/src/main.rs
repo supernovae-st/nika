@@ -485,7 +485,7 @@ enum Commands {
     },
 
     /// Manage workflow files (edit, add-task, graph, check)
-    #[command(hide = true, visible_alias = "w")]
+    #[command(visible_alias = "w")]
     Workflow {
         #[command(subcommand)]
         action: cli::workflow::WorkflowAction,
@@ -514,6 +514,10 @@ enum Commands {
 
     /// Set up API keys interactively (first-run wizard)
     Setup,
+
+    /// The cosmos awaits
+    #[command(hide = true)]
+    Cosmic,
 
     /// Start Language Server Protocol server
     ///
@@ -1057,7 +1061,7 @@ async fn main() {
                         Ok(())
                     }
                     Err(e) => {
-                        eprintln!("Course generation failed: {e}");
+                        eprintln!("{} Course generation failed: {e}", "Error:".red().bold());
                         Err(e.into())
                     }
                 }
@@ -1073,6 +1077,11 @@ async fn main() {
         Some(Commands::Provider { action }) => cli::provider::handle_provider_command(action).await,
 
         Some(Commands::Setup) => cli::onboarding::handle_setup_command().await,
+
+        Some(Commands::Cosmic) => {
+            cli::help::print_cosmic();
+            Ok(())
+        }
 
         Some(Commands::Mcp { action }) => cli::mcp::handle_mcp_command(action).await,
 
@@ -1190,29 +1199,22 @@ fn is_tui_mode(cli: &Cli) -> bool {
 fn should_skip_auto_setup(cmd: &Option<Commands>) -> bool {
     match cmd {
         None => false,
+        // Machine-internal commands: no TTY, spawned by editors/scripts, must be fast.
         #[cfg(feature = "lsp")]
         Some(Commands::Lsp { .. }) => true,
         Some(Commands::Completion { .. }) => true,
         Some(Commands::Features) => true,
         Some(Commands::Schema { .. }) => true,
+        // Background/low-level ops — no interactive setup output.
         #[cfg(unix)]
         Some(Commands::Daemon { .. }) => true,
         #[cfg(unix)]
         Some(Commands::Cache { .. }) => true,
         #[cfg(unix)]
         Some(Commands::Job { .. }) => true,
-        Some(Commands::Doctor { .. }) => true,
-        _ => {
-            // Skip TUI commands if tui feature enabled
-            #[cfg(feature = "tui")]
-            if matches!(
-                cmd,
-                Some(Commands::Ui { .. } | Commands::Chat { .. } | Commands::Studio { .. })
-            ) {
-                return true;
-            }
-            false
-        }
+        // Doctor and TUI are NOT skipped — both are major user entry points.
+        // Auto-setup runs before command dispatch, so output doesn't interfere.
+        _ => false,
     }
 }
 

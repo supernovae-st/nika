@@ -189,6 +189,10 @@ inputs:
 
 tasks:
   - id: research
+    retry:
+      max_attempts: 3
+      delay_ms: 1000
+      backoff: 2.0
     fetch:
       url: "https://blog.rust-lang.org/"
       extract: markdown
@@ -379,6 +383,7 @@ tasks:
     for_each: "$generate_topics.posts"
     as: post
     concurrency: 4
+    fail_fast: false
     infer:
       prompt: |
         Write platform-specific versions of this social media post:
@@ -531,6 +536,10 @@ inputs:
 
 tasks:
   - id: market_research
+    retry:
+      max_attempts: 3
+      delay_ms: 1000
+      backoff: 2.0
     fetch:
       url: "https://news.ycombinator.com/"
       extract: markdown
@@ -862,6 +871,10 @@ model: "{{MODEL}}"
 
 tasks:
   - id: fetch_spec
+    retry:
+      max_attempts: 3
+      delay_ms: 1000
+      backoff: 2.0
     fetch:
       url: "https://petstore3.swagger.io/api/v3/openapi.json"
       timeout: 15
@@ -1017,18 +1030,30 @@ model: "{{MODEL}}"
 
 tasks:
   - id: scrape_vercel
+    retry:
+      max_attempts: 3
+      delay_ms: 1000
+      backoff: 2.0
     fetch:
       url: "https://vercel.com"
       extract: metadata
       timeout: 20
 
   - id: scrape_netlify
+    retry:
+      max_attempts: 3
+      delay_ms: 1000
+      backoff: 2.0
     fetch:
       url: "https://www.netlify.com"
       extract: metadata
       timeout: 20
 
   - id: scrape_cloudflare
+    retry:
+      max_attempts: 3
+      delay_ms: 1000
+      backoff: 2.0
     fetch:
       url: "https://pages.cloudflare.com"
       extract: metadata
@@ -1046,6 +1071,7 @@ tasks:
       - { name: "Cloudflare Pages", data: "{{with.cloudflare}}" }
     as: competitor
     concurrency: 3
+    fail_fast: false
     infer:
       prompt: |
         Analyze this competitor's positioning:
@@ -1095,18 +1121,30 @@ inputs:
 
 tasks:
   - id: fetch_metadata
+    retry:
+      max_attempts: 3
+      delay_ms: 1000
+      backoff: 2.0
     fetch:
       url: "{{inputs.url}}"
       extract: metadata
       timeout: 20
 
   - id: fetch_content
+    retry:
+      max_attempts: 3
+      delay_ms: 1000
+      backoff: 2.0
     fetch:
       url: "{{inputs.url}}"
       extract: markdown
       timeout: 20
 
   - id: fetch_links
+    retry:
+      max_attempts: 3
+      delay_ms: 1000
+      backoff: 2.0
     fetch:
       url: "{{inputs.url}}"
       extract: links
@@ -1362,12 +1400,20 @@ model: "{{MODEL}}"
 
 tasks:
   - id: scrape_docs
+    retry:
+      max_attempts: 3
+      delay_ms: 1000
+      backoff: 2.0
     fetch:
       url: "https://doc.rust-lang.org/book/ch01-01-installation.html"
       extract: markdown
       timeout: 20
 
   - id: scrape_more
+    retry:
+      max_attempts: 3
+      delay_ms: 1000
+      backoff: 2.0
     fetch:
       url: "https://doc.rust-lang.org/book/ch01-02-hello-world.html"
       extract: markdown
@@ -1768,6 +1814,7 @@ tasks:
       - { code: "zh-CN", name: "Chinese", notes: "Mainland conventions. Translate tech terms." }
     as: lang
     concurrency: 5
+    fail_fast: false
     infer:
       system: "You are a professional translator. Adapt culturally, not just linguistically."
       prompt: |

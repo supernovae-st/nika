@@ -526,32 +526,104 @@ fn invoke_block_completions(focus: &InvokeFocus, prefix: &str) -> Vec<Completion
             // Suggest all 24 builtin nika:* tools + generic MCP tool format.
             let items = vec![
                 // Tier 1 — Always-on
-                item_value("nika:import", "Import file into CAS media store.", "00_import"),
-                item_value("nika:dimensions", "Image dimensions (~0.1ms).", "01_dimensions"),
-                item_value("nika:thumbhash", "25-byte image placeholder.", "02_thumbhash"),
-                item_value("nika:dominant_color", "Color palette extraction.", "03_dominant_color"),
-                item_value("nika:pipeline", "Chain ops in-memory (1 read → N ops → 1 write).", "04_pipeline"),
+                item_value(
+                    "nika:import",
+                    "Import file into CAS media store.",
+                    "00_import",
+                ),
+                item_value(
+                    "nika:dimensions",
+                    "Image dimensions (~0.1ms).",
+                    "01_dimensions",
+                ),
+                item_value(
+                    "nika:thumbhash",
+                    "25-byte image placeholder.",
+                    "02_thumbhash",
+                ),
+                item_value(
+                    "nika:dominant_color",
+                    "Color palette extraction.",
+                    "03_dominant_color",
+                ),
+                item_value(
+                    "nika:pipeline",
+                    "Chain ops in-memory (1 read → N ops → 1 write).",
+                    "04_pipeline",
+                ),
                 // Tier 2 — media-core
-                item_value("nika:thumbnail", "SIMD-accelerated resize (Lanczos3).", "10_thumbnail"),
-                item_value("nika:convert", "Format conversion (PNG/JPEG/WebP).", "11_convert"),
+                item_value(
+                    "nika:thumbnail",
+                    "SIMD-accelerated resize (Lanczos3).",
+                    "10_thumbnail",
+                ),
+                item_value(
+                    "nika:convert",
+                    "Format conversion (PNG/JPEG/WebP).",
+                    "11_convert",
+                ),
                 item_value("nika:strip", "Remove metadata (re-encode).", "12_strip"),
                 item_value("nika:metadata", "EXIF/audio/video metadata.", "13_metadata"),
-                item_value("nika:optimize", "Lossless PNG optimization (oxipng).", "14_optimize"),
-                item_value("nika:svg_render", "SVG to PNG rasterization.", "15_svg_render"),
+                item_value(
+                    "nika:optimize",
+                    "Lossless PNG optimization (oxipng).",
+                    "14_optimize",
+                ),
+                item_value(
+                    "nika:svg_render",
+                    "SVG to PNG rasterization.",
+                    "15_svg_render",
+                ),
                 // Tier 3 — Opt-in
                 item_value("nika:phash", "Perceptual image hashing.", "20_phash"),
-                item_value("nika:compare", "Visual comparison via perceptual hash.", "21_compare"),
+                item_value(
+                    "nika:compare",
+                    "Visual comparison via perceptual hash.",
+                    "21_compare",
+                ),
                 item_value("nika:pdf_extract", "PDF text extraction.", "22_pdf_extract"),
-                item_value("nika:chart", "Bar/line/pie charts from JSON data.", "23_chart"),
-                item_value("nika:provenance", "C2PA content credentials (sign).", "24_provenance"),
+                item_value(
+                    "nika:chart",
+                    "Bar/line/pie charts from JSON data.",
+                    "23_chart",
+                ),
+                item_value(
+                    "nika:provenance",
+                    "C2PA content credentials (sign).",
+                    "24_provenance",
+                ),
                 item_value("nika:verify", "C2PA manifest verification.", "25_verify"),
-                item_value("nika:qr_validate", "QR decode + scan score (0-100).", "26_qr_validate"),
+                item_value(
+                    "nika:qr_validate",
+                    "QR decode + scan score (0-100).",
+                    "26_qr_validate",
+                ),
                 item_value("nika:quality", "Image quality (DSSIM/SSIM).", "27_quality"),
-                item_value("nika:html_to_md", "HTML to clean Markdown.", "28_html_to_md"),
-                item_value("nika:css_select", "CSS selector extraction.", "29_css_select"),
-                item_value("nika:extract_metadata", "OG/Twitter/JSON-LD metadata.", "30_extract_metadata"),
-                item_value("nika:extract_links", "Link classification.", "31_extract_links"),
-                item_value("nika:readability", "Article content extraction.", "32_readability"),
+                item_value(
+                    "nika:html_to_md",
+                    "HTML to clean Markdown.",
+                    "28_html_to_md",
+                ),
+                item_value(
+                    "nika:css_select",
+                    "CSS selector extraction.",
+                    "29_css_select",
+                ),
+                item_value(
+                    "nika:extract_metadata",
+                    "OG/Twitter/JSON-LD metadata.",
+                    "30_extract_metadata",
+                ),
+                item_value(
+                    "nika:extract_links",
+                    "Link classification.",
+                    "31_extract_links",
+                ),
+                item_value(
+                    "nika:readability",
+                    "Article content extraction.",
+                    "32_readability",
+                ),
             ];
             filter_by_prefix(items, prefix)
         }
