@@ -96,6 +96,11 @@
           "default": "nika",
           "description": "Path to the nika binary. Uses PATH by default."
         },
+        "nika.server.autoDownload": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically download the nika binary from GitHub releases if not found in PATH."
+        },
         "nika.server.extraArgs": {
           "type": "array",
           "items": {

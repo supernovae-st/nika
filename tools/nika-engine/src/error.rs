@@ -208,7 +208,9 @@ pub enum NikaError {
     #[error("[NIKA-032] Missing API key for provider '{provider}'")]
     #[diagnostic(
         code(nika::missing_api_key),
-        help("Run: nika provider list — to see required env vars for each provider")
+        help(
+            "Set it now:   nika provider set {provider} <your-key>\n  Or run:       nika setup   (interactive wizard)\n\n  Run:          nika provider list   to see required env vars for each provider"
+        )
     )]
     MissingApiKey { provider: String },
 
@@ -1068,7 +1070,7 @@ impl FixSuggestion for NikaError {
             }
             NikaError::ProviderApiError { .. } => Some("Check API key and provider availability"),
             NikaError::MissingApiKey { .. } => {
-                Some("Set the API key env var (ANTHROPIC_API_KEY or OPENAI_API_KEY)")
+                Some("Run `nika setup` to configure a provider, or set the env var (e.g. ANTHROPIC_API_KEY)")
             }
             NikaError::InvalidConfig { .. } => Some("Check configuration value is valid"),
             NikaError::Execution(_) => Some("Check command/URL is valid"),
