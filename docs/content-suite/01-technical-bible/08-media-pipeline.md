@@ -578,3 +578,14 @@ nika media clean --force     # Override lockfile protection
 ```
 
 The `clean` command removes CAS entries that are not referenced by any recent workflow trace. The lockfile prevents GC during active workflow execution.
+
+---
+
+## Daemon Secret Errors (SECRET-001 to SECRET-004)
+
+| Code | Description |
+|------|-------------|
+| SECRET-001 | Keychain disabled |
+| SECRET-002 | Keyring store error |
+| SECRET-003 | Keyring delete error |
+| SECRET-004 | Unknown provider |

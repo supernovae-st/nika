@@ -19,8 +19,8 @@ The current and only supported schema version is `0.12`. Files must use the `.ni
 | `schema` | string | **Yes** | Schema version: `"nika/workflow@0.12"` |
 | `workflow` | string | No | Workflow name (defaults to filename) |
 | `description` | string | No | Human-readable description |
-| `provider` | string | No | Default LLM provider (e.g., `"claude"`, `"openai"`) |
-| `model` | string | No | Default model (e.g., `"claude-sonnet-4-6"`) |
+| `provider` | string | No | Default LLM provider (e.g., `"anthropic"`, `"openai"`) |
+| `model` | string | No | Default model (e.g., `"claude-sonnet-4-20250514"`) |
 | `mcp` | object | No | MCP server configuration |
 | `context` | object | No | Context files loaded at workflow start |
 | `imports` | array | No | External workflow/module imports |
@@ -49,8 +49,8 @@ tasks:
 schema: "nika/workflow@0.12"
 workflow: research-pipeline
 description: "Multi-step research pipeline with LLM analysis"
-provider: claude
-model: claude-sonnet-4-6
+provider: anthropic
+model: claude-sonnet-4-20250514
 
 mcp:
   novanet:
@@ -377,7 +377,8 @@ MCP tool calls and builtin tools.
 
 ```yaml
 # Simple form
-invoke: nika:sleep
+invoke:
+  tool: nika:sleep
   params:
     duration_ms: 1000
 
@@ -387,7 +388,7 @@ invoke:
   params:
     key: value
   mcp: server_name               # Alternative server specification
-  timeout: <integer>             # Timeout in seconds
+  timeout: 60                    # Timeout in seconds
 
 # Resource form
 invoke:
@@ -494,15 +495,16 @@ with:
 
 ### Transform Pipes
 
-27 built-in transforms, chained with `|`:
+31 built-in transforms, chained with `|`:
 
 | Category | Transforms |
 |----------|-----------|
-| String | `upper`, `lower`, `trim`, `trim_start`, `trim_end` |
-| Collection | `length`, `first`, `last`, `first(N)`, `last(N)`, `keys`, `values`, `flatten`, `reverse`, `sort`, `unique`, `compact` |
-| Type conversion | `to_string`, `to_number`, `to_bool`, `to_json`, `parse_json` |
-| Numeric | `round(N)`, `abs`, `ceil`, `floor` |
-| Utility | `default(V)`, `type_of`, `join(S)`, `split(S)`, `shell` |
+| String | `upper`, `lower`, `trim`, `trim_start`, `trim_end`, `length`, `to_string` |
+| Array | `first`, `last`, `flatten`, `reverse`, `sort`, `unique`, `compact`, `keys`, `values` |
+| Type conversion | `to_number`, `to_bool`, `to_json`, `parse_json`, `type_of` |
+| Numeric | `round`, `abs`, `ceil`, `floor` |
+| Parametric | `default(V)`, `join(S)`, `split(S)` |
+| System | `shell` |
 
 ---
 
@@ -545,10 +547,12 @@ Iterate over arrays:
 
 ```yaml
 - id: process
-  for_each: $data_task              # Task output (must be array)
-  as: item                         # Loop variable name (default: "item")
-  concurrency: 5                   # Max parallel iterations
-  fail_fast: true                  # Stop on first error (default: true)
+  for_each:
+    items: "{{with.data}}"
+    as: item
+    concurrency: 5
+  with:
+    data: $data_task
   infer:
     prompt: "Process: {{with.item}}"
 ```
