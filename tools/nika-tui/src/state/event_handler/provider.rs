@@ -242,8 +242,10 @@ impl TuiState {
             ));
         }
 
-        // Return to orbital phase
-        self.workflow.phase = MissionPhase::Orbital;
+        // Return to orbital phase only from Rendezvous (preserve Pause/Abort/MissionSuccess)
+        if self.workflow.phase == MissionPhase::Rendezvous {
+            self.workflow.phase = MissionPhase::Orbital;
+        }
         // TIER 4.1: Mark novanet panel dirty
         self.dirty.novanet = true;
         // TIER 4.4: Invalidate MCP call cache on response

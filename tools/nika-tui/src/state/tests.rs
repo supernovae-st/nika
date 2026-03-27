@@ -2994,6 +2994,49 @@ fn test_mcp_lifecycle_phase_transitions() {
 }
 
 #[test]
+fn test_mcp_response_does_not_overwrite_pause_phase() {
+    let mut state = TuiState::new("test.nika.yaml");
+    state.workflow.phase = MissionPhase::Pause;
+    state.workflow.paused = true;
+
+    // Push a pending MCP call so the handler can find it
+    state.mcp.add_call(crate::state::types::McpCall {
+        call_id: "c1".to_string(),
+        seq: 0,
+        server: "s".to_string(),
+        tool: Some("t".to_string()),
+        resource: None,
+        task_id: "tid".to_string(),
+        completed: false,
+        output_len: None,
+        timestamp_ms: 0,
+        params: None,
+        response: None,
+        is_error: false,
+        duration_ms: None,
+    });
+
+    state.handle_event(
+        &EventKind::McpResponse {
+            task_id: "tid".into(),
+            call_id: "c1".to_string(),
+            output_len: 42,
+            duration_ms: 100,
+            cached: false,
+            is_error: false,
+            response: None,
+        },
+        1,
+    );
+
+    assert_eq!(
+        state.workflow.phase,
+        MissionPhase::Pause,
+        "Pause phase must not be overwritten by a late MCP response"
+    );
+}
+
+#[test]
 fn test_mcp_cached_response_tracks_hit() {
     let mut state = TuiState::new("test.nika.yaml");
 
