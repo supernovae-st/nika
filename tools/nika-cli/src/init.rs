@@ -1,15 +1,33 @@
-//! Init subcommand handler — creates .nika/config.toml + AGENTS.md
+//! Init subcommand handler — creates .nika/config.toml + AGENTS.md + starter workflow
 
 use std::fs;
 
 use colored::Colorize;
 
+use nika_engine::display::StatusIcon;
 use nika_engine::error::NikaError;
 use nika_engine::tools::PermissionMode;
 
 /// Nika workflow syntax reference — embedded at compile time.
 /// Used for project-level AGENTS.md so teams work without running `nika setup`.
 const AGENTS_MD_CONTENT: &str = include_str!("../rules/claude.md");
+
+/// Starter workflow created by `nika init` so the LSP activates immediately.
+const STARTER_WORKFLOW: &str = r#"schema: "nika/workflow@0.12"
+workflow: hello-nika
+description: "Your first Nika workflow — edit me!"
+
+tasks:
+  - id: hello
+    exec: "echo 'Hello from Nika! 🦋'"
+
+  # Uncomment to try an LLM task (requires: nika provider set <name>)
+  # - id: greet
+  #   depends_on: [hello]
+  #   provider: anthropic
+  #   model: claude-sonnet-4-20250514
+  #   infer: "Write a haiku about workflow automation"
+"#;
 
 /// Initialize a Nika project config in the current directory.
 ///
@@ -81,16 +99,40 @@ default = "claude"
         true
     };
 
+    // Create starter workflow so the LSP activates immediately in editors
+    let starter_path = cwd.join("hello.nika.yaml");
+    let created_starter = if starter_path.exists() {
+        false
+    } else {
+        fs::write(&starter_path, STARTER_WORKFLOW)?;
+        true
+    };
+
     println!();
-    println!("  {} {}", "\u{2713}".green(), config_path.display());
+    println!("  {} {}", StatusIcon::Ok, config_path.display());
     if created_agents_md {
-        println!("  {} {}", "\u{2713}".green(), agents_md_path.display());
+        println!("  {} {}", StatusIcon::Ok, agents_md_path.display());
+    }
+    if created_starter {
+        println!("  {} {}", StatusIcon::Ok, starter_path.display());
     }
     println!();
     println!("  Permission: {}", permission_mode.display_name().cyan());
     println!("  Provider:   {}", "claude (auto-detect)".cyan());
     println!();
-    println!("  Edit {} to change settings.", ".nika/config.toml".bold());
+    println!("  {}", "Next steps:".bold());
+    println!(
+        "    nika run hello.nika.yaml       {}",
+        "# Run your first workflow".dimmed()
+    );
+    println!(
+        "    nika provider set anthropic     {}",
+        "# Configure an LLM provider".dimmed()
+    );
+    println!(
+        "    nika showcase list              {}",
+        "# Browse 115 example workflows".dimmed()
+    );
     println!();
 
     // Migrate API keys if requested
