@@ -904,15 +904,10 @@ pub fn resolve<'a>(
                         // handles both output and media resolution.
                         let resolved_value;
                         let segments_to_traverse: SmallVec<[&str; 8]>;
-                        if remaining_parts
-                            .first()
-                            .is_some_and(|s| *s == "media")
-                        {
-                            if let Some(source_task_id) = bindings.source_task_id(alias)
-                            {
+                        if remaining_parts.first().is_some_and(|s| *s == "media") {
+                            if let Some(source_task_id) = bindings.source_task_id(alias) {
                                 let remaining_path = remaining_parts.join(".");
-                                let full_path =
-                                    format!("{}.{}", source_task_id, remaining_path);
+                                let full_path = format!("{}.{}", source_task_id, remaining_path);
                                 if let Some(v) = datastore.resolve_path(&full_path) {
                                     resolved_value = v;
                                     segments_to_traverse = SmallVec::new();
@@ -1273,14 +1268,10 @@ pub fn resolve_for_shell<'a>(
                 // Media interception: {{with.alias.media[0].hash}}
                 let resolved_value;
                 let segments_to_traverse: SmallVec<[&str; 8]>;
-                if remaining_parts
-                    .first()
-                    .is_some_and(|s| *s == "media")
-                {
+                if remaining_parts.first().is_some_and(|s| *s == "media") {
                     if let Some(source_task_id) = bindings.source_task_id(alias) {
                         let remaining_path = remaining_parts.join(".");
-                        let full_path =
-                            format!("{}.{}", source_task_id, remaining_path);
+                        let full_path = format!("{}.{}", source_task_id, remaining_path);
                         if let Some(v) = datastore.resolve_path(&full_path) {
                             resolved_value = v;
                             segments_to_traverse = SmallVec::new();
@@ -3869,12 +3860,7 @@ mod v028_template_tests {
     fn media_template_full_task_binding_media_hash() {
         let (store, bindings) = media_template_fixtures();
 
-        let result = resolve(
-            "hash: {{with.img.media[0].hash}}",
-            &bindings,
-            &store,
-        )
-        .unwrap();
+        let result = resolve("hash: {{with.img.media[0].hash}}", &bindings, &store).unwrap();
 
         assert_eq!(result.as_ref(), "hash: blake3:abc123");
     }
@@ -3883,12 +3869,7 @@ mod v028_template_tests {
     fn media_template_full_task_binding_media_mime() {
         let (store, bindings) = media_template_fixtures();
 
-        let result = resolve(
-            "{{with.img.media[0].mime_type}}",
-            &bindings,
-            &store,
-        )
-        .unwrap();
+        let result = resolve("{{with.img.media[0].mime_type}}", &bindings, &store).unwrap();
 
         assert_eq!(result.as_ref(), "image/png");
     }
@@ -3897,12 +3878,7 @@ mod v028_template_tests {
     fn media_template_full_task_binding_media_metadata_width() {
         let (store, bindings) = media_template_fixtures();
 
-        let result = resolve(
-            "w={{with.img.media[0].metadata.width}}",
-            &bindings,
-            &store,
-        )
-        .unwrap();
+        let result = resolve("w={{with.img.media[0].metadata.width}}", &bindings, &store).unwrap();
 
         assert_eq!(result.as_ref(), "w=1024");
     }
@@ -3911,12 +3887,7 @@ mod v028_template_tests {
     fn media_template_full_task_binding_media_array() {
         let (store, bindings) = media_template_fixtures();
 
-        let result = resolve(
-            "{{with.img.media}}",
-            &bindings,
-            &store,
-        )
-        .unwrap();
+        let result = resolve("{{with.img.media}}", &bindings, &store).unwrap();
 
         // Should be a JSON array with one media ref
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
@@ -3928,12 +3899,7 @@ mod v028_template_tests {
     fn media_template_full_task_binding_with_transform() {
         let (store, bindings) = media_template_fixtures();
 
-        let result = resolve(
-            "{{with.img.media[0].hash | upper}}",
-            &bindings,
-            &store,
-        )
-        .unwrap();
+        let result = resolve("{{with.img.media[0].hash | upper}}", &bindings, &store).unwrap();
 
         assert_eq!(result.as_ref(), "BLAKE3:ABC123");
     }
@@ -3995,11 +3961,7 @@ mod v028_template_tests {
         let (store, bindings) = media_template_fixtures();
 
         // Accessing media[5] when only 1 item exists should give helpful error
-        let result = resolve(
-            "{{with.img.media[5].hash}}",
-            &bindings,
-            &store,
-        );
+        let result = resolve("{{with.img.media[5].hash}}", &bindings, &store);
 
         assert!(result.is_err(), "Out-of-bounds media access should error");
         let err = result.unwrap_err().to_string();

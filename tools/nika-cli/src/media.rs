@@ -430,11 +430,17 @@ fn handle_tools() {
     println!("  {}", "Tier 1 — Always On".cyan().bold());
 
     let tools_tier1 = [
-        ("nika:import", "Import any file into CAS (image, audio, video, PDF)"),
+        (
+            "nika:import",
+            "Import any file into CAS (image, audio, video, PDF)",
+        ),
         ("nika:dimensions", "Image dimensions from headers (~0.1ms)"),
         ("nika:thumbhash", "25-byte compact image placeholder"),
         ("nika:dominant_color", "Color palette extraction"),
-        ("nika:pipeline", "Chain operations in-memory (1 read → N ops → 1 write)"),
+        (
+            "nika:pipeline",
+            "Chain operations in-memory (1 read → N ops → 1 write)",
+        ),
     ];
 
     for (name, desc) in &tools_tier1 {

@@ -747,8 +747,7 @@ impl Runner {
                             output: Arc::new(json_value.clone()),
                             duration_ms: duration.as_millis() as u64,
                         });
-                        return TaskResult::success(json_value, duration)
-                            .with_media(media);
+                        return TaskResult::success(json_value, duration).with_media(media);
                     }
 
                     // Validation failed
