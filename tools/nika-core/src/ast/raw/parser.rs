@@ -1278,6 +1278,7 @@ pub fn parse(source: &str, file_id: FileId) -> Result<RawWorkflow, ParseError> {
     workflow.description = get_string_field(file_id, map, "description")?;
     workflow.provider = get_string_field(file_id, map, "provider")?;
     workflow.model = get_string_field(file_id, map, "model")?;
+    workflow.base_url = get_string_field(file_id, map, "base_url")?;
 
     // Parse MCP server configurations
     workflow.mcp = parse_mcp_config(file_id, map)?;
@@ -1641,6 +1642,7 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
     let description = get_string_field(file_id, map, "description")?;
     let provider = get_string_field(file_id, map, "provider")?;
     let model = get_string_field(file_id, map, "model")?;
+    let base_url = get_string_field(file_id, map, "base_url")?;
 
     // Parse all task fields
     let action = parse_action(file_id, map)?;
@@ -1690,7 +1692,7 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
         description,
         provider,
         model,
-        base_url: None, // Parsed in Task 5
+        base_url,
         action,
         with_refs,
         depends_on,
