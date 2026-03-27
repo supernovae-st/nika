@@ -48,11 +48,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Media** — blocking file I/O in `write_fail_if_exists` wrapped in `spawn_blocking` (was blocking async runtime thread)
 - **Daemon** — `Shutdown` IPC gated behind auth token; API key values redacted from `Debug` output
 
-### CI
-- **Credential guards** — `update-homebrew` and `update-scoop` skip entire job when `HOMEBREW_TAP_TOKEN` is absent; VS Code marketplace publish step skips when `VSCE_PAT` is absent (VSIX packaging + GitHub Release upload still run)
+### Changed
+- **CI credential guards** — `update-homebrew` and `update-scoop` skip entire job when `HOMEBREW_TAP_TOKEN` is absent; VS Code marketplace publish step skips when `VSCE_PAT` is absent (VSIX packaging + GitHub Release upload still run)
 
 ### Stats
-- 8,346 tests pass (was 8,331 in v0.48.0), 0 clippy warnings
+- 8,346 tests pass (8,331 in v0.48.0, +15 from cron scheduler), 0 clippy warnings
 
 ---
 
@@ -92,11 +92,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Error** — 11 missing codes added to `fix_suggestion_for_code` lookup
 
 ### Performance
-- `with_key` + `AtomicU64` for zero-alloc token tracking in live renderer
-- `fetch_retries` in summary, dedup `task_id`, O(n) cost aggregation
-- `thiserror` 2.0, `is_failed` no-clone, schema `mtime` caching
-- Remove unused `tracing-subscriber` from `nika-engine`
-- `pub(crate)` on 72 items, dead code gate
+- **Zero-alloc token tracking** — `with_key` + `AtomicU64` in live renderer
+- **Summary aggregation** — `fetch_retries` in summary, dedup `task_id`, O(n) cost aggregation
+- **Compile-time** — `thiserror` 2.0, `is_failed` no-clone, schema `mtime` caching
+- **Unused dep removed** — `tracing-subscriber` stripped from `nika-engine`
+- **Visibility audit** — `pub(crate)` on 72 items, dead code gate
+
+### Stats
+- 8,331 tests pass, 0 clippy warnings
 
 ---
 
@@ -112,7 +115,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **git2 removed** — replaced with git CLI (saves ~100s compile)
 
 ### Stats
-- 12 crates published on crates.io
+- 12 crates published on crates.io, 0 clippy warnings
 
 ---
 
@@ -123,17 +126,15 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **`nika daemon`** subcommand — `start/stop/restart/status/logs/install/uninstall` (launchd + systemd)
 - **`nika job`** subcommand — `submit/list/status/cancel/retry/history`
 - **`nika cache`** subcommand — `stats/clear`
-- SQLite job storage, file watcher, LLM response cache, event bus (12 event types)
-- **Doctor** daemon health checks; boot secrets via daemon IPC
+- **Services** — SQLite job storage, file watcher, LLM response cache, event bus (12 event types)
+- **Doctor** — daemon health checks; boot secrets via daemon IPC
 
 ### Changed
-- **ARCH-3** — Domain error sub-enums: `ProviderError`, `DagError`, `ExecutionError`, `BindingError`
+- **ARCH-3 Phase 1** — domain error sub-enum foundation (`ProviderError` in v0.47.1, `DagError`/`BindingError`/`ExecutionError` in v0.48.0)
 - **EventLog cap** — 10,000 entries max with half-eviction
 
 ### Performance
-- reqwest 0.13 deduplication (~30s compile saved)
-- git2 replaced with git CLI (~100s build saved)
-- TUI: cached JSON in `InvokeBox`, zero-alloc token estimator
+- **TUI** — cached JSON in `InvokeBox`, zero-alloc token estimator
 
 ---
 
@@ -167,17 +168,18 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Direct verbs** — `nika infer`, `nika fetch`, `nika invoke`, `nika agent` run without YAML
 - **`nika models`** — list all cloud models with pricing; `--provider`, `--info`, `--recommend` flags
 - **stdin support** — `cat file.txt | nika infer "Summarize" --stdin`
-- **`--from-example`** flag on `nika infer` for structured output
+- **`--from-example`** — flag on `nika infer` for structured output (no YAML required)
+- **`--no-live`** — flag on `nika run` to force classic append-only output
 
 ---
 
 ## [0.45.0](https://github.com/supernovae-st/nika/releases/tag/v0.45.0) - 2026-03-25
 
 ### Added
-- **`--task`** flag — run a single task + its transitive dependencies (BFS resolution)
-- **`--from`** flag — run from a task onwards (same layer and deeper)
-- **Cost estimation** — prompts for confirmation when estimated cost exceeds $0.10
-- **`--dry-run`** — shows execution plan with task layers and LLM call count (no execution)
+- **`--task`** — run a single task + its transitive dependencies (BFS resolution)
+- **`--from`** — run from a task onwards (same layer and deeper)
+- **Cost estimation** — prompts for confirmation when estimated cost exceeds $0.10; bypass with `-y / --yes`
+- **`--dry-run`** — validates DAG, shows execution plan with task layers and LLM call count (no execution)
 
 ---
 
@@ -185,10 +187,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 - **Auto-discover** — `nika run` with no file finds `.nika.yaml` automatically; interactive picker for multiple files
-- **`-o / --output`** flag — captures final task results to JSON file
-- **`-i / --input`** flag — overrides workflow `inputs:` from CLI
-- **`--quiet`** flag — single-line summary output
-- **`--detail`** flag — verbosity control (`min`, `normal`, `max`)
+- **`-o / --output`** — captures final task results to JSON file
+- **`-i / --input`** — overrides workflow `inputs:` from CLI (`key=value` syntax)
+- **`--input-file`** — load inputs from JSON/YAML file (or `-` for stdin)
+- **`--quiet`** — single-line summary output
+- **`--detail`** — verbosity control (`min`, `normal`, `max`, `json`)
+- **`--no-interactive`** — skip interactive prompts; fail on missing inputs
 
 ---
 
@@ -218,8 +222,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **~3,000 LOC removed** — HomeView, MatrixRain, sparkline, progress widgets
 
 ### Fixed
-- 50+ bugs from deep audit (6 CRITICAL, 17 HIGH, 20 MEDIUM)
-- SSRF/token safety, template injection hardening
+- **50+ bugs** — 6 CRITICAL, 17 HIGH, 20 MEDIUM from deep parallel audit
+- **Security hardening** — SSRF blocklist, token safety, template injection prevention
 
 ---
 
@@ -246,7 +250,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Gemini** — `stopSequences` correctly nested inside `generationConfig`
 - **UTF-8** — panic in `redact_for_event` truncation prevented
 - **`extract_actual_type`** — was returning literal string `"actual"`; now correctly extracts type name
-- **Error codes** — NIKA-102/103 deduplication; `McpToolCallFailed` reassigned to NIKA-110
+- **Error codes** — NIKA-102/103 deduplication (NIKA-110 reassignment completed in v0.41.5)
 
 ---
 
@@ -284,10 +288,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Code Actions** — quick fixes for NIKA-140/141/142/145/034 diagnostics (fuzzy rename, schema update, missing field)
 - **CodeLens** — `▶ Run Workflow`, `✓ Validate`, task count badge
 - **InlayHints** — `timeout: 30 → 30 seconds`, `data: $step1 → ← step1 output`, cost annotations
-- `nika.showTasks` VS Code command
+- **`nika.showTasks`** — VS Code command for task overview panel
 
 ### Stats
-- 23 new e2e tests + 331 lib tests, 0 clippy warnings
+- 23 new e2e tests, 331 lib tests added; 0 clippy warnings
 
 ---
 
@@ -351,7 +355,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Fixed
 - **`exec`** — output capture via `Stdio::piped`
 - **SSRF** — IPv6 loopback + `allowed_hosts` override
-- 27 test failures resolved; 7,870 tests passing, 0 warnings
+
+### Stats
+- 27 test failures resolved; 7,870 tests passing, 0 clippy warnings
 
 ---
 
@@ -368,13 +374,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **NIKA-210 collision** — `FileAlreadyExists` renumbered from NIKA-210 to NIKA-215 (collided with `BuiltinToolError`)
 - **NIKA-090 stale message** — removed "v0.1" reference, now says "unsupported syntax"
 - **13 critical + high TUI audit fixes** from mega-audit agents
-- `constellation_star` test updated after icon refactor
-- CI: version-lock now reads workspace Cargo.toml
-- CI: removed stale `jobs` feature flag
-
-### Stats
-- 14 commits, 41 files changed
-- +2,804 / -147 lines
+- **Test** — `constellation_star` updated for icon refactor
+- **CI** — version-lock reads workspace `Cargo.toml`; stale `jobs` feature flag removed
 
 ---
 
@@ -423,13 +424,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `partials.rs` template system (469 lines)
 
 ### Fixed
-- DAG render panic in tree widget
-- Empty prompt validation for `infer:` verb
-- 10 failing solution workflows fixed (22/22 now pass `nika check`)
-- Exercise path resolution from embedded data (not hardcoded patterns)
-- Go template conflict in docker-dashboard showcase
-- `nika:run` tool parameter (`workflow:` not `path:`)
-- `??` operator placement (must be in `with:` block, not templates)
+- **DAG renderer** — panic on empty node list in tree widget
+- **`infer:` validation** — empty prompt now rejected with clear error
+- **Solution workflows** — 10 fixed; 22/22 now pass `nika check`
+- **Exercise paths** — resolved from embedded data (not hardcoded patterns)
+- **Showcase** — Go template syntax conflict in docker-dashboard example
+- **`nika:run` tool** — parameter name corrected (`workflow:` not `path:`)
+- **`??` operator** — must be in `with:` block, not template expressions
 
 ### Stats
 - 42 commits, 133 files changed
@@ -470,7 +471,6 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   - `nika-lsp` (2k) — LSP binary (now depends on nika-engine, not full nika)
 - **AST deduplication** — 31 files synced between nika-core and nika, ~15k lines deduplicated
 - **nika-lsp dependency trimmed** — no longer pulls ratatui/git2/tree-sitter (was full nika)
-- All crates bumped to 0.38.0
 
 ### Added
 - **`invoke:` resource field** — `invoke:` now accepts both `tool:` and `resource:` (MCP resource operations)
@@ -481,8 +481,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **first(N) transform** — now handles objects and strings (was arrays-only)
 - **parse_json transform** — idempotent + auto-strips markdown ` ```json ` fences from LLM output
 - **Shorthand infer merge** — task-level `max_tokens`/`temperature` now merged into `infer: "prompt"` syntax
-- 3 critical workspace audit issues (TUI feature forwarding, LSP bloat, artifact paths)
-- 2 CAS compression test assertions in media
+- **Workspace audit** — TUI feature forwarding, LSP bloat, and artifact paths resolved
+- **CAS tests** — 2 compression test assertion failures in media crate fixed
 
 ### Stats
 - 37 commits, 570 files changed
@@ -512,31 +512,31 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `SchemaVersion` enum reduced to single `V12` variant
 
 ### Removed
-- 13 `supports_*()` methods — all features always available in @0.12
-- `validate_feature_gates()` + `validate_task_feature_gates()` — no version gating
-- 11 `migration_hint()` entries
-- 11 dead feature gate tests
+- **`supports_*()`** — 13 version-gating methods removed (all features always available in @0.12)
+- **Feature gates** — `validate_feature_gates()` + `validate_task_feature_gates()` deleted
+- **Migration hints** — 11 entries removed (no migration path for pre-@0.12)
+- **Dead tests** — 11 feature gate tests deleted
 
 ### Added
-- **LSP symbols handler** enriched — 5 new task children + 3 root sections
-- `validate_task_semantics()` — retry-on-non-fetch warning preserved
+- **LSP symbols** — handler enriched with 5 new task children + 3 root sections
+- **`validate_task_semantics()`** — retry-on-non-fetch warning preserved
 
 ### Changed
-- **nika-lsp license**: MIT → AGPL-3.0-or-later
-- All crates bumped to 0.37.0
+- **nika-lsp license** — MIT → AGPL-3.0-or-later
 
 ---
 
 ## [0.36.4](https://github.com/supernovae-st/nika/releases/tag/v0.36.4) - 2026-03-21
 
 ### Added
-- **stop_sequences via additional_params** — provider-specific key mapping (Anthropic: stop_sequences, OpenAI: stop, Gemini: stopSequences). Resolves 4 TODO(stop_sequences).
-- **ARCHITECTURE.md** rewritten for v0.36.0
+- **`stop_sequences`** — via `additional_params`; provider-specific key mapping (Anthropic: `stop_sequences`, OpenAI: `stop`, Gemini: `stopSequences`); resolves 4 TODO(stop_sequences)
 
 ### Fixed
-- Inlay hints + code lens hardened from code review
-- Workflow model wired into agent path (remove hardcoded defaults)
-- Remaining 3 contract test spn→nika edits
+- **Inlay hints + CodeLens** — hardened against edge cases from code review
+- **Agent model** — workflow-level `model:` field wired into agent execution path (removes hardcoded defaults)
+
+### Changed
+- **ARCHITECTURE.md** — rewritten for v0.36.0
 
 ### Removed
 - **5 zombie widgets stripped** (-2,810 lines): agent_steps, provider_selector, sparkline, infer_stream_box, verb_input — rendering code removed, data types preserved
@@ -552,11 +552,15 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **migration/ scripts** (14 files) — completed crate migration
 - **LSP dead code** (-380 LOC)
 
+### Added
+- **LSP E2E tests** — 23 new tests (bridge recovery, completions, definitions)
+
 ### Changed
-- **Contract tests nuclear** — 42x spn→nika, MCP_ALIAS_COUNT 48→113, +xAI, delete run_spn()
-- **Internal README** deduplicated — dev reference only
-- Test badges: 8,000+ → 7,400+ (accurate count: 7,382 with LSP)
-- 23 new LSP E2E tests (bridge recovery, completions, definitions)
+- **Contract tests** — 42x spn→nika rename, MCP_ALIAS_COUNT 48→113, +xAI, `run_spn()` deleted
+- **Internal README** — deduplicated; developer reference only
+
+### Stats
+- 7,382 tests passing (with LSP), 0 clippy warnings
 
 ---
 
@@ -572,7 +576,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Error recovery** wired into LSP context detection
 
 ### Fixed
-- LSP completion placement: guardrails to verb level, resource field added
+- **LSP completions** — guardrails moved to verb level; `resource:` field added to invoke completions
 
 ---
 
@@ -582,10 +586,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **MCP aliases → rich structs** with pricing tiers (Free/Freemium/Paid) and 17 categories
 - **113 MCP aliases** (expanded from 100: lifestyle + marketing categories)
 - **`nika features`** CLI command — show compiled feature flags
-- **LSP references + document links** handlers wired
+- **LSP references + document links** — handlers wired in nika-lsp-core
 
 ### Changed
-- MCP alias data model: string → struct with command, args, env, pricing, category
+- **MCP alias model** — migrated from plain string to struct with `command`, `args`, `env`, `pricing`, `category`
 
 ---
 
@@ -610,7 +614,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **LSP document links** — clickable references to tasks and files in editors
 - **LSP folding ranges** — collapse tasks, `with:` blocks, and MCP configs
 - **100 MCP aliases** — expanded from 48, covering all common MCP servers
-- **Init templates** updated with guardrails, completion, and extract modes
+- **Init templates** — updated with guardrails, completion, and extract mode examples
 
 ### Fixed
 - **TextBuffer UTF-8 safety** — character index instead of byte offset prevents TUI cursor drift on multibyte chars
@@ -721,10 +725,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Preview box size label** — uses `chars().count()` not byte length.
 
 ### Changed
-- `stripped_len()` and `floor_char_boundary()` unified in `colors.rs` (single source of truth).
-- `pub use legacy::*` replaced with explicit re-exports (6 symbols).
-- `task_starts` stores `(timestamp, verb)` tuple for verb lookup on completion.
-- Tests: 6846 passing (up from 6841).
+- **`stripped_len`** — `stripped_len()` and `floor_char_boundary()` unified in `colors.rs`
+- **Re-exports** — `pub use legacy::*` replaced with explicit re-exports (6 symbols)
+- **`task_starts`** — stores `(timestamp, verb)` tuple for verb lookup on completion
+
+### Stats
+- 6,846 tests passing (up from 6,841), 0 clippy warnings
 
 ---
 
@@ -733,16 +739,16 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Added
 - **Verb misspelling detection** with Levenshtein distance suggestions
 - **Cycle detection path display** — shows actual cycle path in error messages
-- Gate tests for all 101 production workflows
+- **Gate tests** — all 101 production workflows verified with `nika check`
 
 ### Fixed
-- **`native-keychain` removed from default features** — eliminates macOS Keychain popup fatigue
+- **`native-keychain`** — removed from default features; eliminates macOS Keychain popup fatigue
 - **Layer 0 system prompt** — structured output now passes system prompt to LLM (was silently dropped)
-- **`for_each` items binding** — failure now explicit instead of silent skip
-- NIKA-160/161 → 165/166 error code collision resolved
+- **`for_each` binding** — failure now explicit instead of silent skip
+- **Error codes** — NIKA-160/161 collision resolved (renumbered to NIKA-165/166)
 
-### Changed
-- Tests: 6,810 passing, zero clippy warnings
+### Stats
+- 6,810 tests passing, 0 clippy warnings
 
 ---
 
@@ -759,23 +765,15 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Runtime**: `infer.system` template-resolved; feature-gated extract modes give clear "requires feature" error; binary response post-read size check; 0-byte binary returns `{hash: null}`; `MAX_VISION_IMAGE_PARTS` counts ImageUrl; response+extract conflict rejected; unsupported image format gives clear error
 
 ### Changed
-- **Template engine**: `resolve()` now uses `TEMPLATE_RE` + `parse_template_expr()` — all pipe transforms (`|sort`, `|upper`, `|length`, etc.) work in exec/infer/fetch templates (previously only `|shell` worked)
-- **JSON Schema**: `provider`/`model` removed from `InferParams` (they are task-level fields)
-- Tests: 6735 passing (up from 6670)
+- **Template engine** — `resolve()` now uses `TEMPLATE_RE` + `parse_template_expr()`; all pipe transforms (`|sort`, `|upper`, `|length`, etc.) work in exec/infer/fetch templates (previously only `|shell` worked)
+- **JSON Schema** — `provider`/`model` removed from `InferParams` (they are task-level fields)
+
+### Stats
+- 6,735 tests passing (up from 6,670), 0 clippy warnings
 
 ---
 
 ## [0.35.1](https://github.com/supernovae-st/nika/releases/tag/v0.35.1) - 2026-03-20
-
-```
-+=============================================================================+
-|                                                                             |
-|     🦋 NIKA 0.35.1 — LSP INTELLIGENCE + NATIVE VISION                      |
-|                                                                             |
-|     nika-lsp-core crate | 16 CursorContext variants | GPU vision           |
-|                                                                             |
-+=============================================================================+
-```
 
 ### Added
 
@@ -794,13 +792,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `extract_partial()` for broken YAML, and 10 adversarial fixtures
 - **Native vision inference** — `mistral.rs` `VisionModelBuilder` + ISQ quantization
   for running multimodal models locally on GPU
-- **tower-lsp-server 0.23** upgrade — async RPITIT, `Url` to `Uri` migration
+- **tower-lsp-server 0.23** — async RPITIT, `Url` to `Uri` migration
 - **389 LSP E2E tests** across all handler types
 
 ### Fixed
 
-- Parse timeout + `saturating_sub` in PositionIndex sort
-- 3 critical bugs from LSP review gate + cargo fmt
+- **PositionIndex** — parse timeout + `saturating_sub` overflow in sort
+- **LSP review gate** — 3 critical bugs fixed; formatting corrected
 
 ---
 
