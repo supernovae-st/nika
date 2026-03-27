@@ -177,6 +177,15 @@ pub enum RigProvider {
     Gemini(gemini::Client),
     /// xAI (Grok) provider - XAI_API_KEY
     XAi(xai::Client),
+    /// OpenAI-compatible endpoint (vLLM, TGI, Ollama, LiteLLM, SGLang).
+    /// Uses openai::Client pointed at a custom base URL.
+    OpenAiCompat {
+        client: openai::Client,
+        /// Display name for events/errors (e.g., "h100", "ollama")
+        endpoint_name: String,
+        /// Default model for this endpoint
+        default_model: Option<String>,
+    },
     /// Native local provider - GGUF models via mistral.rs
     /// Requires `native-inference` feature and explicit model loading.
     /// Now uses NativeRuntime directly with full streaming support.
@@ -264,6 +273,36 @@ impl RigProvider {
     pub fn xai() -> Self {
         let client = xai::Client::from_env();
         RigProvider::XAi(client)
+    }
+
+    /// Create an OpenAI-compatible provider pointed at a custom base URL.
+    ///
+    /// Used for vLLM, TGI, Ollama, LiteLLM, SGLang, and any OpenAI-compatible server.
+    pub fn openai_compat(
+        endpoint_name: &str,
+        base_url: &str,
+        api_key: &str,
+        default_model: Option<&str>,
+    ) -> Result<Self, crate::error::NikaError> {
+        use crate::provider::endpoints::validate_endpoint_url;
+        validate_endpoint_url(base_url).map_err(|e| {
+            crate::error_domains::ProviderError::InvalidConfig { message: e }
+        })?;
+
+        let client = openai::Client::builder()
+            .api_key(api_key)
+            .base_url(base_url)
+            .build()
+            .map_err(|e| {
+                crate::error_domains::ProviderError::InvalidConfig {
+                    message: format!("failed to build OpenAI-compatible client: {e}"),
+                }
+            })?;
+        Ok(RigProvider::OpenAiCompat {
+            client,
+            endpoint_name: endpoint_name.to_string(),
+            default_model: default_model.map(|s| s.to_string()),
+        })
     }
 
     /// Create a Native provider for local GGUF inference
@@ -370,6 +409,9 @@ impl RigProvider {
             RigProvider::DeepSeek(_) => "deepseek",
             RigProvider::Gemini(_) => "gemini",
             RigProvider::XAi(_) => "xai",
+            RigProvider::OpenAiCompat { endpoint_name, .. } => {
+                Box::leak(format!("openai-compat:{}", endpoint_name).into_boxed_str())
+            }
             #[cfg(feature = "native-inference")]
             RigProvider::Native(_) => "native",
         }
@@ -397,6 +439,10 @@ impl RigProvider {
             RigProvider::DeepSeek(_) => "deepseek-chat",
             RigProvider::Gemini(_) => "gemini-2.0-flash",
             RigProvider::XAi(_) => "grok-3-fast",
+            RigProvider::OpenAiCompat { default_model, .. } => match default_model {
+                Some(m) => Box::leak(m.clone().into_boxed_str()),
+                None => "gpt-3.5-turbo",
+            },
             // Native uses whatever model is loaded, no default
             #[cfg(feature = "native-inference")]
             RigProvider::Native(_) => "native-model",
@@ -475,6 +521,15 @@ impl RigProvider {
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
             RigProvider::XAi(client) => {
+                let agent = client.agent(model_id).max_tokens(8192).build();
+                timeout(INFER_TIMEOUT, agent.prompt(prompt))
+                    .await
+                    .map_err(|_| RigInferError::Timeout {
+                        duration_ms: INFER_TIMEOUT.as_millis() as u64,
+                    })?
+                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
+            }
+            RigProvider::OpenAiCompat { client, .. } => {
                 let agent = client.agent(model_id).max_tokens(8192).build();
                 timeout(INFER_TIMEOUT, agent.prompt(prompt))
                     .await
@@ -587,6 +642,7 @@ impl RigProvider {
             RigProvider::Groq(client) => vision_prompt!(client),
             RigProvider::Gemini(client) => vision_prompt!(client),
             RigProvider::XAi(client) => vision_prompt!(client),
+            RigProvider::OpenAiCompat { client, .. } => vision_prompt!(client),
             // DeepSeek and Native handled above via early returns
             RigProvider::DeepSeek(_) => unreachable!("DeepSeek handled above"),
             #[cfg(feature = "native-inference")]
@@ -694,6 +750,7 @@ impl RigProvider {
             RigProvider::Groq(client) => vision_stream!(client, false),
             RigProvider::Gemini(client) => vision_stream!(client, false),
             RigProvider::XAi(client) => vision_stream!(client, false),
+            RigProvider::OpenAiCompat { client, .. } => vision_stream!(client, false),
             // DeepSeek and Native handled above via early returns
             RigProvider::DeepSeek(_) => unreachable!("DeepSeek handled above"),
             #[cfg(feature = "native-inference")]
@@ -757,6 +814,7 @@ impl RigProvider {
             RigProvider::DeepSeek(client) => build_agent_with_tools!(client),
             RigProvider::Gemini(client) => build_agent_with_tools!(client),
             RigProvider::XAi(client) => build_agent_with_tools!(client),
+            RigProvider::OpenAiCompat { client, .. } => build_agent_with_tools!(client),
             #[cfg(feature = "native-inference")]
             RigProvider::Native(_) => {
                 // Native inference doesn't support tool calling
@@ -899,6 +957,20 @@ impl RigProvider {
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
             RigProvider::XAi(client) => {
+                let mut builder = client.agent(model_id).max_tokens(max_tokens as u64);
+                if let Some(system) = &options.system {
+                    builder = builder.preamble(system);
+                }
+                if let Some(temp) = effective_temperature {
+                    builder = builder.temperature(temp);
+                }
+                let agent = builder.build();
+                agent
+                    .prompt(&user_prompt)
+                    .await
+                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
+            }
+            RigProvider::OpenAiCompat { client, .. } => {
                 let mut builder = client.agent(model_id).max_tokens(max_tokens as u64);
                 if let Some(system) = &options.system {
                     builder = builder.preamble(system);
@@ -1057,6 +1129,7 @@ impl RigProvider {
             RigProvider::DeepSeek(_) => has_key("DEEPSEEK_API_KEY"),
             RigProvider::Gemini(_) => has_key("GEMINI_API_KEY"),
             RigProvider::XAi(_) => has_key("XAI_API_KEY"),
+            RigProvider::OpenAiCompat { .. } => true,
             #[cfg(feature = "native-inference")]
             RigProvider::Native(_) => {
                 // Native doesn't need API key, but requires model to be loaded
@@ -1503,6 +1576,24 @@ impl RigProvider {
                 )
                 .await?;
             }
+            RigProvider::OpenAiCompat { client, .. } => {
+                let model = client.completion_model(model_id);
+                let request = model.completion_request(prompt).max_tokens(8192).build();
+                let stream_start = Instant::now();
+                let mut stream = model
+                    .stream(request)
+                    .await
+                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
+                consume_rig_stream(
+                    &mut stream,
+                    &tx,
+                    &mut response_parts,
+                    &mut result,
+                    false,
+                    stream_start,
+                )
+                .await?;
+            }
             // Native provider - uses infer_stream() for true token-by-token streaming
             #[cfg(feature = "native-inference")]
             RigProvider::Native(runtime) => {
@@ -1693,6 +1784,19 @@ impl RigProvider {
                 .await?;
             }
             RigProvider::XAi(client) => {
+                let stream_start = Instant::now();
+                let mut stream = build_request_with_options!(client);
+                consume_rig_stream(
+                    &mut stream,
+                    &tx,
+                    &mut response_parts,
+                    &mut result,
+                    false,
+                    stream_start,
+                )
+                .await?;
+            }
+            RigProvider::OpenAiCompat { client, .. } => {
                 let stream_start = Instant::now();
                 let mut stream = build_request_with_options!(client);
                 consume_rig_stream(
