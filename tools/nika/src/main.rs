@@ -9,7 +9,9 @@ use std::path::{Path, PathBuf};
 
 use nika::ast::output::SchemaRef;
 use nika::ast::schema_validator::WorkflowSchemaValidator;
-use nika::ast::{expand_includes, parse_analyzed, parse_workflow, TaskAction};
+use nika::ast::{
+    parse_analyzed, parse_analyzed_with_imports, parse_workflow_with_imports, TaskAction,
+};
 use nika::dag::{validate_bindings, Dag};
 use nika::error::NikaError;
 use nika::mcp::validation::{McpValidator, ValidationConfig};
@@ -1492,16 +1494,14 @@ async fn run_workflow(
     let validator = WorkflowSchemaValidator::new()?;
     validator.validate_yaml(&yaml)?;
 
-    let workflow = parse_workflow(&yaml)?;
-
     let base_path = resolved_path
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
-    let workflow = expand_includes(workflow, base_path)?;
 
-    // Bridge: convert old Workflow back to AnalyzedWorkflow for Runner
-    let mut workflow = nika::ast::unlower(workflow)?;
+    // Parse with import expansion: raw → expand_imports → analyze
+    // This merges partial workflows BEFORE validation so cross-file references work.
+    let mut workflow = parse_analyzed_with_imports(&yaml, base_path)?;
 
     // Auto-onboarding: if workflow needs an LLM and no API keys are set, run the wizard.
     let needs_llm = workflow.tasks.iter().any(|t| {
@@ -1744,18 +1744,13 @@ async fn validate_workflow(file: &str, quiet: bool) -> Result<(), NikaError> {
 
     // Phase 2: Parse
     let t = Instant::now();
-    let workflow = parse_workflow(&yaml)?;
-    let parse_elapsed = t.elapsed();
-
     let base_path = resolved_path
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
-
-    // Phase 3: Includes
-    let t = Instant::now();
-    let workflow = expand_includes(workflow, base_path)?;
-    let includes_elapsed = t.elapsed();
+    let workflow = parse_workflow_with_imports(&yaml, base_path)?;
+    let parse_elapsed = t.elapsed();
+    let includes_elapsed = std::time::Duration::ZERO;
 
     // Phase 4: DAG
     let t = Instant::now();
@@ -2096,18 +2091,13 @@ async fn validate_workflow_strict(file: &str) -> Result<(), NikaError> {
 
     // Phase 2: Parse
     let t = Instant::now();
-    let workflow = parse_workflow(&yaml)?;
-    let parse_elapsed = t.elapsed();
-
     let base_path = resolved_path
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
-
-    // Phase 3: Includes
-    let t = Instant::now();
-    let workflow = expand_includes(workflow, base_path)?;
-    let includes_elapsed = t.elapsed();
+    let workflow = parse_workflow_with_imports(&yaml, base_path)?;
+    let parse_elapsed = t.elapsed();
+    let includes_elapsed = std::time::Duration::ZERO;
 
     // Phase 4: DAG
     let t = Instant::now();
@@ -2739,13 +2729,11 @@ async fn dry_run_workflow(
     let yaml = tokio::fs::read_to_string(&resolved_path).await?;
     let validator = WorkflowSchemaValidator::new()?;
     validator.validate_yaml(&yaml)?;
-    let workflow = parse_workflow(&yaml)?;
     let base_path = resolved_path
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
-    let workflow = expand_includes(workflow, base_path)?;
-    let mut workflow = nika::ast::unlower(workflow)?;
+    let mut workflow = parse_analyzed_with_imports(&yaml, base_path)?;
 
     // Apply overrides
     if let Some(p) = provider_override {

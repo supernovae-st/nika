@@ -184,6 +184,35 @@ pub fn parse_workflow(yaml: &str) -> Result<Workflow, NikaError> {
     lower(analyzed)
 }
 
+/// Parse a YAML workflow with import expansion through the full pipeline.
+///
+/// Pipeline: `YAML → raw::parse → expand_imports → analyzer::analyze → lower → Workflow`
+///
+/// Expands `imports:` partials into the raw AST before analysis so cross-file
+/// references work. Returns the lowered `Workflow` for DAG validation.
+pub fn parse_workflow_with_imports(
+    yaml: &str,
+    base_path: &std::path::Path,
+) -> Result<Workflow, NikaError> {
+    let raw = raw::parse(yaml, FileId(0)).map_err(|e| NikaError::ParseError {
+        details: format!("[{}] {}", e.kind.code(), e.message),
+    })?;
+
+    let raw = expand_imports(raw, base_path)?;
+
+    let analyzed = analyzer::analyze(raw).into_result().map_err(|errors| {
+        let messages: Vec<String> = errors
+            .iter()
+            .map(|e| format!("[{}] {}", e.kind.code(), e))
+            .collect();
+        NikaError::ValidationError {
+            reason: messages.join("; "),
+        }
+    })?;
+
+    lower(analyzed)
+}
+
 /// Parse a YAML workflow and return the AnalyzedWorkflow directly.
 ///
 /// Pipeline: `YAML → raw::parse → analyzer::analyze → AnalyzedWorkflow`
@@ -203,6 +232,43 @@ pub fn parse_analyzed(yaml: &str) -> Result<AnalyzedWorkflow, NikaError> {
     })?;
 
     // Phase 2: Raw → Analyzed (validation, reference resolution)
+    analyzer::analyze(raw).into_result().map_err(|errors| {
+        let messages: Vec<String> = errors
+            .iter()
+            .map(|e| format!("[{}] {}", e.kind.code(), e))
+            .collect();
+        NikaError::ValidationError {
+            reason: messages.join("; "),
+        }
+    })
+}
+
+/// Parse a YAML workflow with import expansion, returning AnalyzedWorkflow.
+///
+/// Pipeline: `YAML → raw::parse → expand_imports → analyzer::analyze → AnalyzedWorkflow`
+///
+/// Unlike `parse_analyzed`, this expands `imports:` partials into the raw AST
+/// BEFORE analysis, so imported tasks can reference each other and the main
+/// workflow's tasks. This is the correct pipeline for workflows with `imports:`.
+///
+/// # Errors
+///
+/// - `NikaError::ParseError` — YAML syntax or structural errors (Phase 1)
+/// - `NikaError::ValidationError` — Semantic validation errors (Phase 2)
+/// - `NikaError::WorkflowNotFound` — Import file not found
+pub fn parse_analyzed_with_imports(
+    yaml: &str,
+    base_path: &std::path::Path,
+) -> Result<AnalyzedWorkflow, NikaError> {
+    // Phase 1: YAML → Raw AST (with span tracking)
+    let raw = raw::parse(yaml, FileId(0)).map_err(|e| NikaError::ParseError {
+        details: format!("[{}] {}", e.kind.code(), e.message),
+    })?;
+
+    // Phase 1.5: Expand imports (merge partial workflows into raw AST)
+    let raw = expand_imports(raw, base_path)?;
+
+    // Phase 2: Raw → Analyzed (validation on the merged AST)
     analyzer::analyze(raw).into_result().map_err(|errors| {
         let messages: Vec<String> = errors
             .iter()
