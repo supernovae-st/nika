@@ -123,7 +123,11 @@ pub enum DaemonRequest {
 
     // ── Lifecycle ─────────────────────────────────────────────────────────
     /// Request graceful daemon shutdown.
-    Shutdown,
+    /// Requires auth token to prevent any local process from killing the daemon.
+    Shutdown {
+        /// Auth token for shutdown (read from `~/.nika/daemon/.token`).
+        auth_token: Option<String>,
+    },
 }
 
 impl std::fmt::Debug for DaemonRequest {
@@ -145,7 +149,9 @@ impl std::fmt::Debug for DaemonRequest {
                 write!(f, "DaemonRequest::HasSecret {{ provider: {provider:?} }}")
             }
             Self::ListSecrets => write!(f, "DaemonRequest::ListSecrets"),
-            Self::Shutdown => write!(f, "DaemonRequest::Shutdown"),
+            Self::Shutdown { .. } => {
+                write!(f, "DaemonRequest::Shutdown {{ auth_token: <redacted> }}")
+            }
             // All other variants use type-tag only to keep debug output manageable
             Self::JobSubmit { workflow, .. } => write!(
                 f,
@@ -451,9 +457,20 @@ mod tests {
 
     #[test]
     fn request_serialize_shutdown() {
-        let req = DaemonRequest::Shutdown;
+        let req = DaemonRequest::Shutdown {
+            auth_token: Some("tok-abc".into()),
+        };
         let json = serde_json::to_string(&req).unwrap();
-        assert_eq!(json, r#"{"type":"Shutdown"}"#);
+        assert!(json.contains(r#""type":"Shutdown""#));
+        assert!(json.contains(r#""auth_token":"tok-abc""#));
+    }
+
+    #[test]
+    fn request_serialize_shutdown_no_token() {
+        let req = DaemonRequest::Shutdown { auth_token: None };
+        let json = serde_json::to_string(&req).unwrap();
+        assert!(json.contains(r#""type":"Shutdown""#));
+        assert!(json.contains(r#""auth_token":null"#));
     }
 
     #[test]
@@ -623,7 +640,9 @@ mod tests {
                 provider: "mistral".into(),
                 auth_token: None,
             },
-            DaemonRequest::Shutdown,
+            DaemonRequest::Shutdown {
+                auth_token: Some("tok-shutdown".into()),
+            },
         ];
         for req in requests {
             let json = serde_json::to_string(&req).unwrap();

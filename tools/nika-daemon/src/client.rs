@@ -201,9 +201,16 @@ impl DaemonClient {
     }
 
     /// Request the daemon to shut down gracefully.
+    /// Requires auth token (same as secret write operations).
     pub async fn shutdown(&self) -> DaemonResult<()> {
-        match self.send(DaemonRequest::Shutdown).await? {
+        let auth_token = read_auth_token().ok();
+        match self.send(DaemonRequest::Shutdown { auth_token }).await? {
             DaemonResponse::ShuttingDown => Ok(()),
+            DaemonResponse::AuthRequired => Err(DaemonError::RemoteError {
+                code: "AUTH-001".into(),
+                message: "auth token required — restart daemon or check ~/.nika/daemon/.token"
+                    .into(),
+            }),
             DaemonResponse::Error { code, message } => {
                 Err(DaemonError::RemoteError { code, message })
             }
