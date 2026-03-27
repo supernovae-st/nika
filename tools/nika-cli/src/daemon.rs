@@ -329,6 +329,21 @@ mod tests {
     }
 
     #[test]
+    fn format_uptime_zero() {
+        assert_eq!(format_uptime(0), "0s");
+    }
+
+    #[test]
+    fn format_uptime_exact_hour() {
+        assert_eq!(format_uptime(3600), "1h 0m 0s");
+    }
+
+    #[test]
+    fn format_uptime_24h() {
+        assert_eq!(format_uptime(86400), "24h 0m 0s");
+    }
+
+    #[test]
     fn daemon_action_variants_exist() {
         // Ensure all variants compile
         let _ = DaemonAction::Start { foreground: false };
