@@ -2941,18 +2941,37 @@ async fn dry_run_workflow(
     }
     println!();
 
-    // LLM task count
-    let infer_count = workflow
+    // LLM task count + cost estimate
+    let llm_tasks: Vec<_> = workflow
         .tasks
         .iter()
         .filter(|t| matches!(t.action.verb_name(), "infer" | "agent"))
-        .count();
+        .collect();
+    let infer_count = llm_tasks.len();
     if infer_count > 0 {
+        use nika::provider::cost::{calculate_cost, ProviderKind};
+        // Estimate: ~500 input tokens, ~1000 output tokens per LLM task
+        let mut total_cost = 0.0;
+        for task in &llm_tasks {
+            let prov_str = task
+                .provider
+                .as_deref()
+                .or(workflow.provider.as_deref())
+                .unwrap_or("anthropic");
+            let model_str = task
+                .model
+                .as_deref()
+                .or(workflow.model.as_deref())
+                .unwrap_or("claude-sonnet-4-6");
+            let provider_kind = ProviderKind::parse(prov_str).unwrap_or(ProviderKind::Claude);
+            total_cost += calculate_cost(provider_kind, model_str, 500, 1000);
+        }
         println!(
-            "  {} {} LLM tasks, {} total",
+            "  {} {} LLM tasks, {} total — estimated cost: ${:.4}",
             "Summary:".bold(),
             infer_count,
-            workflow.tasks.len()
+            workflow.tasks.len(),
+            total_cost
         );
     } else {
         println!(
