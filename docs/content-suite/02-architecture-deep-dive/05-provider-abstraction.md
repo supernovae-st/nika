@@ -4,7 +4,7 @@
 
 ## Provider Strategy
 
-Nika delegates all LLM interactions to [rig-core](https://github.com/0xPlaygrounds/rig), an open-source Rust LLM agent framework. This gives Nika access to 8 providers without maintaining individual API clients.
+Nika delegates all LLM interactions to [rig-core](https://github.com/0xPlaygrounds/rig), an open-source Rust LLM agent framework. This gives Nika access to 9 providers (8 cloud + 1 local native) without maintaining individual API clients.
 
 ```mermaid
 flowchart LR
@@ -51,13 +51,13 @@ Each variant wraps the corresponding rig-core client. Construction uses `from_en
 
 | Provider | Env Variable | Default Model |
 |----------|-------------|---------------|
-| Claude | `ANTHROPIC_API_KEY` | `claude-sonnet-4-6` |
+| Claude | `ANTHROPIC_API_KEY` | `claude-sonnet-4-20250514` |
 | OpenAI | `OPENAI_API_KEY` | `gpt-4o` |
 | Mistral | `MISTRAL_API_KEY` | `mistral-large-latest` |
-| Groq | `GROQ_API_KEY` | `llama-3.3-70b-versatile` |
+| Groq | `GROQ_API_KEY` | `llama-4-maverick` |
 | DeepSeek | `DEEPSEEK_API_KEY` | `deepseek-chat` |
-| Gemini | `GEMINI_API_KEY` | `gemini-2.0-flash` |
-| xAI | `XAI_API_KEY` | `grok-3-fast` |
+| Gemini | `GEMINI_API_KEY` | `gemini-2.5-flash` |
+| xAI | `XAI_API_KEY` | `grok-3` |
 | Native | (none) | (loaded GGUF model) |
 
 ### Provider Resolution
@@ -195,6 +195,6 @@ The provider resolution follows this precedence:
 1. **Task-level**: `provider:` / `model:` in the task YAML
 2. **Agent-level**: `provider:` / `model:` inside `agent:` block
 3. **Workflow-level**: Top-level `provider:` / `model:`
-4. **Default**: `claude` / `claude-sonnet-4-6`
+4. **Default**: `claude` / `claude-sonnet-4-20250514`
 
 At each level, the model can be overridden independently of the provider. For example, a workflow using `provider: openai` can have a task with `model: gpt-4-turbo` without specifying the provider again.

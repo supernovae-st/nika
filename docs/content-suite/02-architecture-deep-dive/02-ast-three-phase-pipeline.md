@@ -359,7 +359,7 @@ This workflow is fully validated and ready for execution. It has:
 
 ## Phase 3: Analyzed to Lowered (Runtime Types)
 
-**Location**: `nika-engine/src/ast/lower.rs`
+**Location**: `nika-engine/src/ast/lower.rs` (on-demand lowering at TaskExecutor boundary)
 
 Phase 3 converts the `AnalyzedWorkflow` into the runtime `Workflow` type. This is the bridge between the zero-I/O core and the execution engine. The lowering step denormalizes interned `TaskId` values back to string names (the runtime uses `Arc<str>` for efficient sharing), converts analyzed action types to runtime action types, and maps MCP server configs to their inline representation.
 
@@ -456,7 +456,7 @@ pub fn parse_analyzed(yaml: &str) -> Result<AnalyzedWorkflow, CoreError> {
 }
 ```
 
-The runtime never calls Phase 3 directly -- the `Runner` accepts an `AnalyzedWorkflow` and calls `lower_action()` at the `TaskExecutor` boundary, converting tasks on-demand rather than pre-lowering the entire workflow.
+The runtime never calls Phase 3 directly -- the `Runner` accepts an `AnalyzedWorkflow` and the `TaskExecutor` calls `lower_action()` at the task execution boundary, converting actions on-demand rather than pre-lowering the entire workflow.
 
 ## Data Flow Diagram
 

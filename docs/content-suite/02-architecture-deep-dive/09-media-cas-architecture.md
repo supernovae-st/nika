@@ -131,7 +131,7 @@ This ensures paths never leak to LLM APIs -- only base64-encoded data is transmi
 
 **Location**: `nika-engine/src/runtime/builtin/media/`
 
-24 builtin media tools operate on CAS blobs via `invoke: nika:*`:
+24 builtin media tools (5 always-on + 6 core + 13 opt-in) operate on CAS blobs via `invoke: nika:*`:
 
 ### Pipeline Tool
 
