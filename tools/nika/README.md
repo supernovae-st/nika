@@ -14,11 +14,13 @@ Source code for the `nika` binary and all workspace crates. For user-facing docu
 tools/
 ├── nika/               Binary entry point            (cargo install nika)
 ├── nika-engine/        Embeddable runtime (135k LOC) (cargo add nika-engine)
-├── nika-core/          AST, types, catalogs (30k)    zero I/O
+├── nika-core/          AST, types, catalogs (23k)    zero I/O
 ├── nika-event/         EventLog, TraceWriter (4k)
 ├── nika-mcp/           MCP client + rmcp (9k)
 ├── nika-media/         CAS store + processor (13k)
 ├── nika-cli/           CLI subcommands (8k)
+├── nika-daemon/        Background daemon (5k)
+├── nika-init/          Project scaffolding (21k)
 ├── nika-tui/           Terminal UI — ratatui (86k)
 ├── nika-lsp-core/      LSP intelligence (9k)
 └── nika-lsp/           Standalone LSP binary (2.5k)
@@ -110,8 +112,6 @@ src/
 │   ├── dag_render.rs    #   Static DAG visualization
 │   └── ...              #   icons, colors, detail, check, header, spinner
 ├── tools/               # File tools: read, write, edit, glob, grep
-├── init/                # nika init (wizard + course generator)
-│   └── course/          #   12-level interactive course (44 exercises)
 ├── io/                  # Atomic file I/O
 ├── store/               # RunContext + TaskResult
 └── util/                # Constants, fs helpers, string interner
@@ -164,12 +164,11 @@ src/
 | `media-iqa` | yes | Image quality assessment (DSSIM/SSIM) |
 | `media-provenance` | no | C2PA signing + EU AI Act compliance |
 | `media-compression` | yes | zstd CAS compression |
-| `fetch-extract` | yes | HTML extraction (text, selector, metadata, links) |
+| `fetch-html` | yes | HTML extraction (text, selector, metadata, links) |
 | `fetch-markdown` | yes | HTML → Markdown (htmd) |
 | `fetch-article` | yes | Article extraction (dom_smoothie/Readability) |
 | `fetch-feed` | yes | RSS/Atom/JSON Feed parsing |
 | `lsp` | no | Standalone LSP server binary |
-| `nika-daemon` | yes | Background daemon for keychain management |
 
 ---
 
