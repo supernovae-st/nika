@@ -840,6 +840,25 @@ fn test_sync_all_verification_statuses() {
     );
 }
 
+#[test]
+fn test_sync_all_verification_statuses_covers_xai() {
+    use super::super::components::ConnectionCheckStatus;
+
+    let mut state = ProviderModalState::default();
+
+    // Set all 7 providers to Connected
+    state.provider_statuses = vec![ConnectionStatus::Connected { latency_ms: 10 }; 7];
+
+    state.sync_all_verification_statuses();
+
+    // Index 6 (xAI) must be synced — was previously skipped by 0..6
+    assert_eq!(
+        state.verification_state.entries[6].status,
+        ConnectionCheckStatus::Connected,
+        "xAI (index 6) must be synced by sync_all_verification_statuses"
+    );
+}
+
 // ═══ TESTS: Session Token Tracking ═══
 
 #[test]

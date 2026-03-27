@@ -177,7 +177,7 @@ impl ProviderModalState {
 
     /// Sync all verification statuses from provider_statuses
     pub fn sync_all_verification_statuses(&mut self) {
-        for i in 0..6 {
+        for i in 0..7 {
             self.sync_verification_status(i);
         }
     }
