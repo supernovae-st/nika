@@ -2,8 +2,8 @@
 //!
 //! Resolution order for each provider:
 //! 1. Environment variable (always checked first, zero overhead)
-//! 2. Daemon IPC (if daemon socket exists — keychain access via daemon)
-//! 3. Direct keyring (if NIKA_KEYCHAIN_BOOT=1 and daemon not available)
+//! 2. Daemon IPC (if daemon socket exists — keychain access via daemon, Unix only)
+//! 3. Direct keyring (if native-keychain feature enabled and NIKA_SKIP_KEYCHAIN is not set)
 
 use crate::core::{ProviderCategory, KNOWN_PROVIDERS};
 use crate::secrets::keyring::{should_skip_keychain, NikaKeyring};
@@ -71,10 +71,7 @@ pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
 }
 
 fn try_load_from_keyring(provider: &str, env_var: &str) -> bool {
-    let keychain_boot = std::env::var("NIKA_KEYCHAIN_BOOT")
-        .map(|v| matches!(v.as_str(), "1" | "true" | "yes"))
-        .unwrap_or(false);
-    if cfg!(test) || should_skip_keychain() || !keychain_boot {
+    if cfg!(test) || should_skip_keychain() {
         trace!("{}: keychain skipped", provider);
         return false;
     }
@@ -112,10 +109,7 @@ pub async fn get_secret(provider: &str) -> Option<SecretString> {
     }
 
     // 3. Try direct keyring
-    let keychain_allowed = std::env::var("NIKA_KEYCHAIN_BOOT")
-        .map(|v| matches!(v.as_str(), "1" | "true" | "yes"))
-        .unwrap_or(false);
-    if cfg!(test) || should_skip_keychain() || !keychain_allowed {
+    if cfg!(test) || should_skip_keychain() {
         return None;
     }
     NikaKeyring::get_secret(provider).ok()
@@ -142,10 +136,7 @@ pub async fn has_secret(provider: &str) -> bool {
     }
 
     // 3. Try direct keyring
-    let keychain_allowed = std::env::var("NIKA_KEYCHAIN_BOOT")
-        .map(|v| matches!(v.as_str(), "1" | "true" | "yes"))
-        .unwrap_or(false);
-    if cfg!(test) || should_skip_keychain() || !keychain_allowed {
+    if cfg!(test) || should_skip_keychain() {
         return false;
     }
     NikaKeyring::exists(provider)
