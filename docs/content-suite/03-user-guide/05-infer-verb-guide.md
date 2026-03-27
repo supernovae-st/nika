@@ -204,7 +204,7 @@ structured:
   schema: ./schemas/output.json
   max_retries: 3                  # Retry with feedback on validation failure
   enable_repair: true             # Use LLM to fix complex violations
-  repair_model: claude-sonnet-4-6 # Model for repair (default: same as task)
+  repair_model: claude-sonnet-4-20250514 # Model for repair (default: same as task)
   enable_extractor: true          # Rust-level type extraction
   enable_tool_injection: true     # Inject schema as a tool for provider-side enforcement
   enable_retry: true              # Enable retry with validation errors
@@ -445,17 +445,17 @@ Override the default provider or model for specific tasks:
 ```yaml
 schema: nika/workflow@0.12
 provider: anthropic                     # Default for all tasks
-model: claude-sonnet-4-6             # Default model
+model: claude-sonnet-4-20250514        # Default model
 
 tasks:
   - id: fast_task
     provider: groq                      # Override provider
-    model: llama-3.3-70b-versatile      # Override model
+    model: llama-4-maverick             # Override model
     infer:
       prompt: "Quick classification task"
 
   - id: smart_task
-    model: claude-opus-4               # Same provider, different model
+    model: claude-opus-4-20250514       # Same provider, different model
     infer:
       prompt: "Complex reasoning task"
 ```
@@ -491,7 +491,7 @@ nika run workflow.nika.yaml --provider openai --model gpt-4o
   # Premium for complex analysis
   - id: deep_analysis
     provider: anthropic
-    model: claude-opus-4
+    model: claude-opus-4-20250514
     infer:
       prompt: "Provide detailed security analysis of: {{with.code}}"
 ```
@@ -640,7 +640,7 @@ tasks:
     depends_on: [prompt]
     with: { p: $prompt | trim }
     provider: anthropic
-    model: claude-sonnet-4-6
+    model: claude-sonnet-4-20250514
     infer: { prompt: "{{with.p}}", temperature: 0.0 }
 
   - id: gpt_response
@@ -656,7 +656,7 @@ tasks:
       claude: $claude_response | trim
       gpt: $gpt_response | trim
     provider: anthropic
-    model: claude-opus-4
+    model: claude-opus-4-20250514
     infer:
       prompt: |
         Compare these two responses for accuracy, clarity, and completeness.

@@ -378,10 +378,7 @@ nika --detail json run workflow.nika.yaml
 ### How do I set up shell completions?
 
 ```bash
-# Automatic setup
-nika setup completions
-
-# Manual
+# Manual setup
 nika completion bash > ~/.local/share/bash-completion/completions/nika
 nika completion zsh > ~/.zfunc/_nika
 nika completion fish > ~/.config/fish/completions/nika.fish
@@ -407,7 +404,6 @@ nika config path                   # Show file path
 
 ```bash
 nika init              # Interactive wizard
-nika init --minimal    # Minimal (config only)
 nika init --course     # With learning course
 ```
 

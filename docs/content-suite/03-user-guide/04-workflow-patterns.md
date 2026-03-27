@@ -16,7 +16,7 @@ Every Nika workflow is a Directed Acyclic Graph (DAG). Tasks are nodes, and depe
 The simplest pattern: tasks run one after another, each consuming the previous task's output.
 
 ```yaml
-schema: nika/workflow@0.12
+schema: "nika/workflow@0.12"
 workflow: sequential-chain
 provider: anthropic
 
@@ -48,7 +48,7 @@ DAG: `raw_data → process → report`
 Multiple tasks process the same data in parallel, then a merge task combines their results.
 
 ```yaml
-schema: nika/workflow@0.12
+schema: "nika/workflow@0.12"
 workflow: diamond-pattern
 provider: anthropic
 
@@ -109,7 +109,7 @@ source ───┼── keywords  ──┼── merge
 Process a dynamic list of items in parallel.
 
 ```yaml
-schema: nika/workflow@0.12
+schema: "nika/workflow@0.12"
 workflow: fan-out
 provider: anthropic
 
@@ -122,10 +122,11 @@ tasks:
 
   - id: fetch_all
     depends_on: [get_urls]
-    for_each: $get_urls
-    as: url
-    concurrency: 3
-    fail_fast: false
+    for_each:
+      items: $get_urls
+      as: url
+      concurrency: 3
+      fail_fast: false
     fetch:
       url: "{{with.url}}"
       timeout: 10
@@ -146,6 +147,8 @@ The `for_each:` configuration:
 | `as` | Variable name for current item | `item` |
 | `concurrency` | Max parallel iterations | Unlimited |
 | `fail_fast` | Stop all on first error | `true` |
+| `maxAttempts` | For backward compat (use in block) | — |
+| `maxConcurrency` | For backward compat (use in block) | — |
 
 Inside the task, reference the current item with `{{with.item}}` or `{{with.item.field}}` for objects.
 
@@ -251,7 +254,7 @@ with:
 Tasks without dependencies on each other run in parallel automatically:
 
 ```yaml
-schema: nika/workflow@0.12
+schema: "nika/workflow@0.12"
 workflow: parallel
 provider: anthropic
 
@@ -364,7 +367,7 @@ The structured output engine uses multiple layers to achieve near-perfect compli
 Save task results to files:
 
 ```yaml
-schema: nika/workflow@0.12
+schema: "nika/workflow@0.12"
 workflow: artifact-example
 provider: anthropic
 
@@ -410,7 +413,7 @@ Artifacts are written to the `artifacts.dir` directory (or `.nika/artifacts/` by
 Load external files as context for your workflow:
 
 ```yaml
-schema: nika/workflow@0.12
+schema: "nika/workflow@0.12"
 workflow: with-context
 provider: anthropic
 
@@ -439,7 +442,7 @@ Context files are loaded once at workflow boot and available in templates via `{
 Accept parameters at runtime:
 
 ```yaml
-schema: nika/workflow@0.12
+schema: "nika/workflow@0.12"
 workflow: parameterized
 provider: anthropic
 
@@ -467,7 +470,7 @@ nika run parameterized.nika.yaml -i topic="quantum computing" -i max_words=500
 Compare outputs from different LLM providers on the same prompt:
 
 ```yaml
-schema: nika/workflow@0.12
+schema: "nika/workflow@0.12"
 workflow: provider-comparison
 
 tasks:
@@ -478,7 +481,7 @@ tasks:
     depends_on: [prompt_source]
     with: { p: $prompt_source | trim }
     provider: anthropic
-    model: claude-sonnet-4-6
+    model: claude-sonnet-4-20250514
     infer:
       prompt: "{{with.p}}"
 
@@ -494,7 +497,7 @@ tasks:
     depends_on: [prompt_source]
     with: { p: $prompt_source | trim }
     provider: groq
-    model: llama-3.3-70b-versatile
+    model: llama-4-maverick
     infer:
       prompt: "{{with.p}}"
 
@@ -512,7 +515,7 @@ tasks:
         echo "=== GPT-4o ==="
         echo "{{with.g}}"
         echo ""
-        echo "=== Llama 3.3 (Groq) ==="
+        echo "=== Llama 4 (Groq) ==="
         echo "{{with.q}}"
       shell: true
 ```
@@ -524,7 +527,7 @@ All three LLM calls run in parallel since they only depend on `prompt_source`.
 A common pattern: fetch web data, then process with an LLM.
 
 ```yaml
-schema: nika/workflow@0.12
+schema: "nika/workflow@0.12"
 workflow: fetch-and-analyze
 provider: anthropic
 
@@ -563,7 +566,7 @@ tasks:
 Use the `agent:` verb for complex tasks that require multiple rounds of tool use:
 
 ```yaml
-schema: nika/workflow@0.12
+schema: "nika/workflow@0.12"
 workflow: agent-research
 provider: anthropic
 
@@ -596,7 +599,7 @@ Split large workflows into reusable modules:
 
 ```yaml
 # main.nika.yaml
-schema: nika/workflow@0.12
+schema: "nika/workflow@0.12"
 workflow: main-pipeline
 
 imports:

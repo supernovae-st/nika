@@ -1,6 +1,6 @@
 # Showcase Workflows
 
-Nika ships with a library of 100+ showcase workflows covering a wide range of use cases. These are ready-to-run examples that demonstrate patterns, techniques, and real-world applications. You can browse them, extract individual workflows to your project, or extract the entire collection at once.
+Nika ships with a library of 115 showcase workflows covering a wide range of use cases. These are ready-to-run examples that demonstrate patterns, techniques, and real-world applications. You can browse them, extract individual workflows to your project, or extract the entire collection at once.
 
 ## Browsing Showcases
 
@@ -131,7 +131,7 @@ Showcases come from multiple sources within Nika:
 | init/infra | ~15 | Infrastructure workflows |
 | init/fetch | ~15 | HTTP and web scraping |
 
-Total: 100+ workflows.
+**Total: 115 workflows.**
 
 ## Using Showcase Workflows
 

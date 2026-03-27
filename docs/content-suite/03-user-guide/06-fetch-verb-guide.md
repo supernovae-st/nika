@@ -567,11 +567,12 @@ tasks:
 
   - id: fetch_all
     depends_on: [urls]
-    for_each: $urls
-    as: url
-    concurrency: 3
+    for_each:
+      items: $urls
+      as: item
+      concurrency: 3
     fetch:
-      url: "{{with.url}}"
+      url: "{{with.item}}"
       extract: jsonpath
       selector: "$.length()"
 ```
@@ -592,8 +593,10 @@ tasks:
 
   - id: fetch_feeds
     depends_on: [feeds]
-    for_each: $feeds
-    concurrency: 3
+    for_each:
+      items: $feeds
+      as: item
+      concurrency: 3
     fetch:
       url: "{{with.item}}"
       extract: feed
@@ -649,8 +652,8 @@ Network requests can fail. Use retry for resilience:
       timeout: 10
     retry:
       max_attempts: 3
-      delay_ms: 2000
-      backoff: 2.0  # 2s, 4s, 8s
+      delay: 2
+      backoff: 2.0
 ```
 
 ### Checking Status Codes
