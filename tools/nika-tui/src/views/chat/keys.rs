@@ -239,12 +239,12 @@ impl ChatView {
                 ModalAction::SaveAndTestApiKey { provider, key } => {
                     use nika_engine::secrets::{validate_key_format, NikaKeyring};
                     // Validate format first
-                    if let Err(e) = validate_key_format(provider, key) {
+                    if let Err(e) = validate_key_format(provider, key.as_str()) {
                         self.add_system_message(format!("❌ Invalid key format: {}", e));
                         return ViewAction::None;
                     }
                     // Save to keyring
-                    match NikaKeyring::set(provider, key) {
+                    match NikaKeyring::set(provider, key.as_str()) {
                         Ok(()) => {
                             self.add_system_message(format!(
                                 "✅ Saved {} API key to keychain",
@@ -261,12 +261,12 @@ impl ChatView {
                 ModalAction::SaveApiKey { provider, key } => {
                     use nika_engine::secrets::{validate_key_format, NikaKeyring};
                     // Validate format first
-                    if let Err(e) = validate_key_format(provider, key) {
+                    if let Err(e) = validate_key_format(provider, key.as_str()) {
                         self.add_system_message(format!("❌ Invalid key format: {}", e));
                         return ViewAction::None;
                     }
                     // Save silently (no verification trigger)
-                    match NikaKeyring::set(provider, key) {
+                    match NikaKeyring::set(provider, key.as_str()) {
                         Ok(()) => {
                             self.add_system_message(format!(
                                 "✅ Saved {} API key to keychain",

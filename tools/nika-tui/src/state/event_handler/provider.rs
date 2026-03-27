@@ -191,18 +191,18 @@ impl TuiState {
         }
 
         // Find and update the matching call by call_id (single pass)
-        let tool_name =
-            if let Some(call) = self.mcp.calls.iter_mut().find(|c| c.call_id == call_id) {
-                let name = call.tool.clone();
-                call.completed = true;
-                call.output_len = Some(output_len);
-                call.response = response.clone();
-                call.is_error = is_error;
-                call.duration_ms = Some(duration_ms);
-                name
-            } else {
-                None
-            };
+        let tool_name = if let Some(call) = self.mcp.calls.iter_mut().find(|c| c.call_id == call_id)
+        {
+            let name = call.tool.clone();
+            call.completed = true;
+            call.output_len = Some(output_len);
+            call.response = response.clone();
+            call.is_error = is_error;
+            call.duration_ms = Some(duration_ms);
+            name
+        } else {
+            None
+        };
 
         // Track MCP latency for sparkline
         if self.metrics.latency_history.len() >= MAX_HISTORY_ENTRIES {

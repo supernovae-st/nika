@@ -440,7 +440,10 @@ mod tests {
 
         // Down past upper bound should cap at max_scroll
         for _ in 0..20 {
-            panel.handle_key(KeyEvent::new(KeyCode::Down, crossterm::event::KeyModifiers::NONE));
+            panel.handle_key(KeyEvent::new(
+                KeyCode::Down,
+                crossterm::event::KeyModifiers::NONE,
+            ));
         }
         assert_eq!(panel.scroll_offset, 5, "scroll must not exceed max_scroll");
     }
@@ -452,11 +455,17 @@ mod tests {
         // max_scroll = 20 - 5 = 15
 
         // End/G jumps to bottom
-        panel.handle_key(KeyEvent::new(KeyCode::End, crossterm::event::KeyModifiers::NONE));
+        panel.handle_key(KeyEvent::new(
+            KeyCode::End,
+            crossterm::event::KeyModifiers::NONE,
+        ));
         assert_eq!(panel.scroll_offset, 15);
 
         // Home/g jumps to top
-        panel.handle_key(KeyEvent::new(KeyCode::Home, crossterm::event::KeyModifiers::NONE));
+        panel.handle_key(KeyEvent::new(
+            KeyCode::Home,
+            crossterm::event::KeyModifiers::NONE,
+        ));
         assert_eq!(panel.scroll_offset, 0);
 
         // 'G' also jumps to bottom
