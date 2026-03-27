@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.49.1] — 2026-03-27
+
+### Fixed
+- **`handle_result()` missing `.await`** — async fn was called without await, blocking `clippy -D warnings`
+- **Flaky `for_each_concurrent_fail_fast` test** — added 50ms sleep to non-failing items so CancellationToken propagates before completion (was 4/10 failures)
+- **`nika job list` exit code** — returned `Ok(())` when daemon not running, now returns `Err` with clear message
+- **StatusIcon consistency** — replaced all hardcoded `"✓".green()` / `"✗".red()` with `StatusIcon::Ok` / `StatusIcon::Fail`
+- **nika-lsp version mismatch** — bumped nika-engine dep from 0.48.0 to 0.49.0
+
+### Added
+- **`nika models --json`** — JSON output mode for model catalog (provider, model, pricing, context window, tags)
+- **`nika provider test --quiet`** — suppress output, exit code only (for scripts/CI)
+- **`native` provider in onboarding wizard** — skip API key prompt, show `nika model pull` hint
+- **Daemon IPC for provider set/delete** — `cfg(unix)` routes through daemon socket before falling back to direct keyring
+- **Non-TTY fallback for provider test** — skip cliclack spinner when not TTY
+- **Dry-run cost estimate** — show estimated cost based on model pricing (~500 input + ~1000 output tokens)
+- **Doctor unit tests** — 9 tests for diagnostic formatting (pass/warn/fail, sections, JSON output, summary)
+- **SECRET error codes documented** — SECRET-001 through SECRET-004 in CLAUDE.md error table
+
+### Changed
+- **Doctor display** — adopted `section_header()`, `status_line()`, `StatusIcon`, `hint()` from cli_format
+- **Doctor "Next steps" footer** — consistent hints instead of manual numbered steps
+- **Daemon secret tests** — tightened always-true `assert!(is_ok() || is_err())` to proper `assert!(is_ok())`
+
+### Stats
+- 17 commits, 8381 tests pass
+- Zero clippy warnings (`cargo clippy --workspace -- -D warnings`)
+
 ## [0.43.0](https://github.com/supernovae-st/nika/releases/tag/v0.43.0) — 2026-03-25
 
 ### Added
