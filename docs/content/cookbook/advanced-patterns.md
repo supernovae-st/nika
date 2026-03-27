@@ -502,7 +502,7 @@ tasks:
     exec: |
       echo '{"category": "technical", "complexity": "high", "language": "en"}'
 
-  # All branches depend on classify; the LLM uses classification to adapt
+  # Technical analysis path
   - id: technical_path
     depends_on: [classify]
     with:

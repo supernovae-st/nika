@@ -232,15 +232,14 @@ tasks:
     depends_on: [parse_csv]
     with:
       data: $parse_csv
-    exec:
-      command: |
-        echo '{
-          "revenue": {"min": 45000, "max": 67000, "avg": 55166, "trend": "growing"},
-          "users": {"min": 1200, "max": 1820, "avg": 1513, "growth": "51.7%"},
-          "churn": {"min": 0.03, "max": 0.06, "avg": 0.042, "trend": "improving"},
-          "months_analyzed": 6
-        }'
-      shell: true
+    exec: |
+      echo '{
+        "revenue": {"min": 45000, "max": 67000, "avg": 55166, "trend": "growing"},
+        "users": {"min": 1200, "max": 1820, "avg": 1513, "growth": "51.7%"},
+        "churn": {"min": 0.03, "max": 0.06, "avg": 0.042, "trend": "improving"},
+        "months_analyzed": 6
+      }'
+    shell: true
     artifact:
       path: statistics.json
       format: json
@@ -508,11 +507,12 @@ tasks:
   - id: fetch_user_posts
     depends_on: [fetch_users]
     for_each:
-      - { id: 1, name: "Leanne Graham" }
-      - { id: 2, name: "Ervin Howell" }
-      - { id: 3, name: "Clementine Bauch" }
-    as: user
-    concurrency: 3
+      items:
+        - { id: 1, name: "Leanne Graham" }
+        - { id: 2, name: "Ervin Howell" }
+        - { id: 3, name: "Clementine Bauch" }
+      as: user
+      concurrency: 3
     fetch:
       url: "https://jsonplaceholder.typicode.com/posts?userId={{with.user.id}}"
       timeout: 15
@@ -521,11 +521,12 @@ tasks:
   - id: fetch_user_albums
     depends_on: [fetch_users]
     for_each:
-      - { id: 1 }
-      - { id: 2 }
-      - { id: 3 }
-    as: user
-    concurrency: 3
+      items:
+        - { id: 1 }
+        - { id: 2 }
+        - { id: 3 }
+      as: user
+      concurrency: 3
     fetch:
       url: "https://jsonplaceholder.typicode.com/albums?userId={{with.user.id}}"
       timeout: 15
@@ -536,10 +537,9 @@ tasks:
     with:
       posts: $fetch_user_posts
       albums: $fetch_user_albums
-    exec:
-      command: |
-        echo '{"merged": true, "post_data_available": true, "album_data_available": true, "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}'
-      shell: true
+    exec: |
+      echo '{"merged": true, "post_data_available": true, "album_data_available": true, "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}'
+    shell: true
     artifact:
       path: merged-data.json
       format: json
@@ -603,34 +603,32 @@ artifacts:
 tasks:
   # Generate sample data
   - id: raw_data
-    exec:
-      command: |
-        echo '{
-          "products": [
-            {"name": "Nika Pro", "price": 49.99, "category": "software", "tags": ["ai", "workflow", "automation"]},
-            {"name": "Nika Enterprise", "price": 199.99, "category": "software", "tags": ["enterprise", "sso", "audit"]},
-            {"name": null, "price": 0, "category": "free", "tags": ["starter", "community"]},
-            {"name": "Nika Cloud", "price": 99.99, "category": "saas", "tags": ["cloud", "hosted", "managed"]}
-          ],
-          "metadata": {
-            "currency": "USD",
-            "last_updated": "2026-03-23",
-            "version": "3.2.1"
-          }
-        }'
-      shell: true
+    exec: |
+      echo '{
+        "products": [
+          {"name": "Nika Pro", "price": 49.99, "category": "software", "tags": ["ai", "workflow", "automation"]},
+          {"name": "Nika Enterprise", "price": 199.99, "category": "software", "tags": ["enterprise", "sso", "audit"]},
+          {"name": null, "price": 0, "category": "free", "tags": ["starter", "community"]},
+          {"name": "Nika Cloud", "price": 99.99, "category": "saas", "tags": ["cloud", "hosted", "managed"]}
+        ],
+        "metadata": {
+          "currency": "USD",
+          "last_updated": "2026-03-23",
+          "version": "3.2.1"
+        }
+      }'
+    shell: true
 
   # Demonstrate transforms on the data
   - id: transform_strings
     depends_on: [raw_data]
     with:
       data: $raw_data
-    exec:
-      command: |
-        echo "Data type: {{with.data | type_of}}"
-        echo "Data length: {{with.data | length}}"
-        echo "First 200 chars: {{with.data | first(200)}}"
-      shell: true
+    exec: |
+      echo "Data type: {{with.data | type_of}}"
+      echo "Data length: {{with.data | length}}"
+      echo "First 200 chars: {{with.data | first(200)}}"
+    shell: true
 
   # Process with LLM using transformed data
   - id: analyze_with_transforms
@@ -753,10 +751,9 @@ tasks:
 
   - id: stage_5_verify
     depends_on: [stage_4_load]
-    exec:
-      command: |
-        echo "[VERIFY] Pipeline complete at $(date -u +%Y-%m-%dT%H:%M:%SZ). Status: SUCCESS."
-      shell: true
+    exec: |
+      echo "[VERIFY] Pipeline complete at $(date -u +%Y-%m-%dT%H:%M:%SZ). Status: SUCCESS."
+    shell: true
     artifact:
       path: pipeline.log
       mode: append

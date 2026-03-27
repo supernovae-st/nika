@@ -526,16 +526,16 @@ A grouping of exercises in the course system. Each level has a theme, a slug, a 
 | # | Slug | Name | Exercises |
 |---|------|------|-----------|
 | 1 | jailbreak | Jailbreak | 5 |
-| 2 | hot-wire | Hot Wire | 4 |
-| 3 | fork-bomb | Fork Bomb | 4 |
-| 4 | root-access | Root Access | 3 |
+| 2 | hot_wire | Hot Wire | 4 |
+| 3 | fork_bomb | Fork Bomb | 4 |
+| 4 | root_access | Root Access | 3 |
 | 5 | shapeshifter | Shapeshifter | 3 |
-| 6 | pay-per-dream | Pay-Per-Dream | 3 |
-| 7 | swiss-knife | Swiss Knife | 3 |
-| 8 | gone-rogue | Gone Rogue | 3 |
-| 9 | data-heist | Data Heist | 4 |
-| 10 | open-protocol | Open Protocol | 3 |
-| 11 | pixel-pirate | Pixel Pirate | 4 |
+| 6 | pay_per_dream | Pay-Per-Dream | 3 |
+| 7 | swiss_knife | Swiss Knife | 3 |
+| 8 | gone_rogue | Gone Rogue | 3 |
+| 9 | data_heist | Data Heist | 4 |
+| 10 | open_protocol | Open Protocol | 3 |
+| 11 | pixel_pirate | Pixel Pirate | 4 |
 | 12 | supernovae | SuperNovae | 5 |
 
 **Related**: Course, Exercise, Boss Level
@@ -611,11 +611,11 @@ The specific LLM model to use for `infer:` and `agent:` tasks. Specified in `pro
 
 ```yaml
 # Workflow-level default
-model: "claude/claude-sonnet-4-6"
+model: "anthropic/claude-sonnet-4-20250514"
 
 tasks:
   - id: fast_task
-    model: "groq/llama-3.3-70b-versatile"
+    model: "groq/llama-4-maverick"
     infer: "Quick response needed"
 ```
 
@@ -720,7 +720,7 @@ Inline data transformation applied within template expressions using the `|` (pi
 exec: echo "{{with.name | trim | uppercase}}"
 ```
 
-Full catalog: `upper`, `lower`, `trim`, `trim_start`, `trim_end`, `length`, `first`, `last`, `keys`, `values`, `flatten`, `reverse`, `sort`, `unique`, `compact`, `to_string`, `to_number`, `to_bool`, `to_json`, `parse_json`, `round`, `abs`, `ceil`, `floor`, `type_of`, `shell`, `join(sep)`, `split(sep)`, `default(val)`
+Full catalog: `upper`, `lower`, `trim`, `trim_start`, `trim_end`, `length`, `first`, `last`, `keys`, `values`, `flatten`, `reverse`, `sort`, `unique`, `compact`, `to_string`, `to_number`, `to_bool`, `to_json`, `parse_json`, `round`, `abs`, `ceil`, `floor`, `type_of`, `shell`, `join`, `split`, `default`
 
 **Related**: Template, Binding, With Block
 
@@ -822,7 +822,7 @@ exec:
 
 ### Showcase
 
-A collection of 55+ production-ready, runnable workflows bundled with Nika. Organized by category: system, devops, network, API, data, core tools, file tools, media, content, engineering, analysis, automation. Browse with `nika showcase list`, extract with `nika showcase extract <name>`.
+A collection of 115+ production-ready, runnable workflows bundled with Nika. Organized by category: system, devops, network, API, data, core tools, file tools, media, content, engineering, analysis, automation. Browse with `nika showcase list`, extract with `nika showcase extract <name>`.
 
 **Related**: Course, Template
 

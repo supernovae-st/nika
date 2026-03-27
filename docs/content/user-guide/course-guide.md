@@ -103,8 +103,8 @@ Validate that your solution is correct:
 # Check a specific exercise
 nika course check 2     # Check all exercises in level 2
 
-# Check a specific exercise by ID
-nika course run 02-03   # Run exercise 3 of level 2
+# Run a specific exercise
+nika course run 2-3     # Run exercise 3 of level 2
 ```
 
 The checker validates:
@@ -120,7 +120,7 @@ The checker validates:
 Stuck? Get progressive hints (3 tiers):
 
 ```bash
-nika course hint 02-03
+nika course hint 2-3
 ```
 
 Hints are progressive:
@@ -135,7 +135,7 @@ Each time you run `hint`, it reveals the next tier.
 Execute your solution to see the output:
 
 ```bash
-nika course run 02-03
+nika course run 2-3
 ```
 
 This runs the exercise workflow and shows the output, helping you verify that your implementation works correctly.
@@ -263,7 +263,7 @@ nika course check 1
 ### 5. Run it to verify
 
 ```bash
-nika course run 01-03
+nika course run 1-3
 ```
 
 ```

@@ -51,9 +51,7 @@ model: claude-sonnet-4-20250514
 mcp:
   filesystem:
     command: "npx"
-    args:
-      - "-y"
-      - "@anthropic/mcp-filesystem"
+    args: ["-y", "@anthropic/mcp-filesystem"]
 
 artifacts:
   dir: ./output/mcp-filesystem
@@ -253,6 +251,8 @@ mcp:
   novanet:
     command: "cargo"
     args: ["run", "--manifest-path", "../novanet/Cargo.toml", "--", "mcp"]
+    env:
+      RUST_BACKTRACE: "1"
 
 artifacts:
   dir: ./output/multi-mcp
