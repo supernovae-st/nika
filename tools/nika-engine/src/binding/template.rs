@@ -3914,6 +3914,58 @@ mod v028_template_tests {
         assert_eq!(parsed[0]["hash"], "blake3:abc123");
     }
 
+    #[test]
+    fn media_template_full_task_binding_with_transform() {
+        let (store, bindings) = media_template_fixtures();
+
+        let result = resolve(
+            "{{with.img.media[0].hash | upper}}",
+            &bindings,
+            &store,
+        )
+        .unwrap();
+
+        assert_eq!(result.as_ref(), "BLAKE3:ABC123");
+    }
+
+    #[test]
+    fn media_template_full_task_binding_empty_media() {
+        use crate::binding::BindingEntry;
+
+        let store = RunContext::new();
+        // Task with empty media array
+        store.insert(
+            std::sync::Arc::from("empty"),
+            crate::store::TaskResult::success(
+                json!({"status": "ok"}),
+                std::time::Duration::from_secs(1),
+            )
+            .with_media(vec![]),
+        );
+
+        let mut spec = crate::binding::BindingSpec::default();
+        spec.insert("src".to_string(), BindingEntry::new("empty"));
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
+
+        // Accessing media on task with no media should return empty array
+        let result = resolve("{{with.src.media}}", &bindings, &store).unwrap();
+        assert_eq!(result.as_ref(), "[]");
+    }
+
+    #[test]
+    fn media_template_full_task_binding_out_of_bounds() {
+        let (store, bindings) = media_template_fixtures();
+
+        // Accessing media[5] when only 1 item exists should fail
+        let result = resolve(
+            "{{with.img.media[5].hash}}",
+            &bindings,
+            &store,
+        );
+
+        assert!(result.is_err(), "Out-of-bounds media access should error");
+    }
+
     // ═════════════════════════════════════════════════════════════════════════
     // Regression tests for binding/template bugs
     // ═════════════════════════════════════════════════════════════════════════
