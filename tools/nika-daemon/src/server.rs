@@ -747,6 +747,107 @@ async fn route_request(request: DaemonRequest, state: &Arc<ServerState>) -> Daem
             DaemonResponse::Ok
         }
 
+        // ── LSP Queries ────────────────────────────────────────────────
+        DaemonRequest::ListProviderStatus => {
+            use nika_core::catalogs::{
+                providers::KNOWN_PROVIDERS, KeySource, ProviderStatusInfo,
+            };
+            let mut providers = Vec::new();
+            for p in KNOWN_PROVIDERS {
+                let has_key = state.secret_service.has_secret(p.id).await;
+                let source = if has_key {
+                    // Check env first, then keychain
+                    if std::env::var(p.env_var).map(|v| !v.is_empty()).unwrap_or(false) {
+                        KeySource::Env
+                    } else {
+                        KeySource::Keychain
+                    }
+                } else {
+                    KeySource::NotFound
+                };
+                providers.push(ProviderStatusInfo {
+                    id: p.id.to_string(),
+                    name: p.name.to_string(),
+                    has_key,
+                    source,
+                    category: p.category,
+                    env_var: p.env_var.to_string(),
+                });
+            }
+            DaemonResponse::ProviderStatusList { providers }
+        }
+
+        DaemonRequest::EstimateCost {
+            provider: _, // Redundant — cost catalog matches by model pattern. Reserved for custom endpoint routing.
+            model,
+            input_tokens,
+            output_tokens,
+        } => {
+            match nika_core::catalogs::estimate_cost(&model, input_tokens, output_tokens) {
+                Some(estimate) => DaemonResponse::CostEstimateResult { estimate },
+                None => DaemonResponse::Error {
+                    code: "COST-001".into(),
+                    message: format!("Unknown model for cost estimation: {}", model),
+                },
+            }
+        }
+
+        DaemonRequest::GetWorkflowHistory { workflow } => {
+            if let Some(ref job_service) = state.job_service {
+                match job_service.list_jobs_for_workflow(&workflow).await {
+                    Ok(jobs) => {
+                        let runs = jobs
+                            .into_iter()
+                            .map(|j| nika_core::catalogs::WorkflowRunInfo {
+                                job_id: j.id,
+                                state: j.state.as_str().to_string(),
+                                workflow: j.workflow,
+                                created_at: j.created_at,
+                                started_at: j.started_at,
+                                completed_at: j.completed_at,
+                                exit_code: j.exit_code,
+                            })
+                            .collect();
+                        DaemonResponse::WorkflowHistoryResult { runs }
+                    }
+                    Err(e) => DaemonResponse::Error {
+                        code: "JOB-007".into(),
+                        message: format!("Failed to query workflow history: {}", e),
+                    },
+                }
+            } else {
+                DaemonResponse::WorkflowHistoryResult { runs: vec![] }
+            }
+        }
+
+        DaemonRequest::GetDaemonCapabilities => {
+            let uptime_secs = state.started_at.elapsed().as_secs();
+            let cache_stats = state.cache_service.stats();
+            let total_requests = cache_stats.hits + cache_stats.misses;
+            let cache_hit_rate = if total_requests > 0 {
+                cache_stats.hits as f64 / total_requests as f64
+            } else {
+                0.0
+            };
+            let active_jobs = if let Some(ref js) = state.job_service {
+                js.running_count().await
+            } else {
+                0
+            };
+            let watch_active = state.active_watch.lock().await.is_some();
+            DaemonResponse::DaemonCapabilitiesResult {
+                capabilities: nika_core::catalogs::DaemonCapabilities {
+                    version: env!("CARGO_PKG_VERSION").to_string(),
+                    uptime_secs,
+                    cache_entries: cache_stats.entries,
+                    cache_hit_rate,
+                    active_jobs,
+                    watch_active,
+                    total_cost_saved: cache_stats.total_cost_saved,
+                },
+            }
+        }
+
         // ── Lifecycle ────────────────────────────────────────────────────
         DaemonRequest::Shutdown { auth_token } => {
             if !validate_auth_token(&auth_token, &state.auth_token) {
