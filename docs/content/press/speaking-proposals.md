@@ -113,12 +113,12 @@ This is infrastructure-as-code for AI. Five verbs. One file. One binary.
 6. **Architecture** (3 min)
    - Single binary: how Rust eliminates dependencies
    - DAG validation: cycle detection, typed bindings
-   - 22 providers: cloud + local GGUF in one binary
+   - 9 providers: cloud + local GGUF in one binary
 7. **Q&A** (2 min)
 
 ### Speaker Bio
 
-Thibaut Melen is the founder of SuperNovae Studio and creator of Nika, the first YAML-native AI workflow engine that ships as a single binary. He believes AI orchestration does not need Python, Docker, or Kubernetes --- just five verbs and a good compiler. His tool supports 22 LLM providers, 24 media tools, and the MCP protocol, all in 482,000 lines of Rust. He chose AGPL because commons need protection.
+Thibaut Melen is the founder of SuperNovae Studio and creator of Nika, the first YAML-native AI workflow engine that ships as a single binary. He believes AI orchestration does not need Python, Docker, or Kubernetes --- just five verbs and a good compiler. His tool supports 9 LLM providers, 24 media tools, and the MCP protocol, all in 482,000 lines of Rust. He chose AGPL because commons need protection.
 
 ### Technical Requirements
 
@@ -198,7 +198,7 @@ Thibaut Melen is the founder of SuperNovae Studio and creator of Nika, a semanti
 
 This is a deliberately provocative talk, and I want to be upfront about that.
 
-I built Nika, a 482,000-line Rust workflow engine for AI tasks. It ships as a single binary, supports 22 LLM providers, and executes YAML-defined workflows as DAGs. It does not use Python anywhere.
+I built Nika, a 482,000-line Rust workflow engine for AI tasks. It ships as a single binary, supports 9 LLM providers, and executes YAML-defined workflows as DAGs. It does not use Python anywhere.
 
 This talk is not an attack on Python. Python is extraordinary for data science, machine learning research, and prototyping. But I will argue that the orchestration layer --- the plumbing that connects LLMs to each other, to tools, and to the outside world --- is better served by a different kind of tool.
 
@@ -316,7 +316,7 @@ The thesis: frameworks add complexity. Verbs add clarity. Five is enough.
 
 ### Speaker Bio
 
-Thibaut Melen is the founder of SuperNovae Studio and creator of Nika, the first declarative AI workflow engine that ships as a single binary. His 482,000-line Rust project supports 22 LLM providers, 24 media tools, and the MCP protocol --- all defined in YAML with five verbs. He believes AI engineering has a framework problem, and the solution is not another framework --- it is a simpler abstraction.
+Thibaut Melen is the founder of SuperNovae Studio and creator of Nika, the first declarative AI workflow engine that ships as a single binary. His 482,000-line Rust project supports 9 LLM providers, 24 media tools, and the MCP protocol --- all defined in YAML with five verbs. He believes AI engineering has a framework problem, and the solution is not another framework --- it is a simpler abstraction.
 
 ### Technical Requirements
 

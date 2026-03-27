@@ -441,7 +441,7 @@ Based on these three case studies, teams considering Nika adoption should:
 
 **Use the interactive course.** The `nika init --course` command generates a 12-level learning path with 44 exercises. Teams that completed levels 1-5 (covering all five verbs and basic DAG composition) before writing production workflows reported faster iteration and fewer errors.
 
-**Leverage the showcase library.** The 200+ included workflow templates cover most common patterns. `nika showcase list` to browse, `nika showcase extract <name>` to copy locally. Starting from a template is faster than starting from scratch.
+**Leverage the showcase library.** The 115 included showcase workflows cover most common patterns. `nika showcase list` to browse, `nika showcase extract <name>` to copy locally. Starting from a template is faster than starting from scratch.
 
 **Install the LSP.** The Language Server Protocol implementation provides real-time validation and completions in VS Code, Neovim, and Zed. This catches YAML structure errors, missing dependencies, and invalid references before execution --- significantly reducing the debug cycle.
 

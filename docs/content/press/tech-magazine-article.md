@@ -10,7 +10,7 @@ Somewhere in the gap between what AI can do and what most people can make it do,
 
 Thibaut Melen looked at that chasm and decided to build a bridge. Not with Python. Not with JavaScript. With Rust --- the language designed for systems programmers who believe software should be fast, safe, and correct. And he did it alone.
 
-The result is Nika: a semantic YAML workflow engine for AI tasks that compiles to a single binary, requires zero runtime dependencies, and lets users orchestrate everything from LLM inference to media processing with five intuitive verbs. As of March 2026, the project spans approximately 482,000 lines of code across 10 workspace crates, with over 7,700 tests and zero compiler warnings. It supports 22 LLM providers, ships with 24 built-in media processing tools, includes a terminal UI, a language server, and a 12-level interactive learning course.
+The result is Nika: a semantic YAML workflow engine for AI tasks that compiles to a single binary, requires zero runtime dependencies, and lets users orchestrate everything from LLM inference to media processing with five intuitive verbs. As of March 2026, the project spans approximately 482,000 lines of code across 10 workspace crates, with over 8,300 tests and zero compiler warnings. It supports 9 LLM providers, ships with 24 built-in media processing tools, includes a terminal UI, a language server, and a 12-level interactive learning course with 115 workflow templates.
 
 And it is licensed AGPL-3.0 --- deliberately, philosophically, as a statement about what open source means in the age of AI.
 
@@ -157,7 +157,7 @@ According to research conducted across 80+ sources and 11 dedicated queries, Nik
 2. Single Rust binary with zero runtime dependencies
 3. DAG-based execution with cycle detection
 4. MCP client protocol implementation
-5. Multi-provider cloud LLMs (22 providers)
+5. Multi-provider cloud LLMs (9 providers)
 6. Local GGUF inference compiled into the binary
 7. Built-in terminal UI
 8. Content-addressable media storage
@@ -178,7 +178,7 @@ Melen's response was to build a comprehensive onboarding system directly into th
 
 The `nika course` subcommand provides a complete course management system: `nika course status` shows a constellation-style progress map, `nika course next` opens the next exercise, `nika course check` validates solutions, `nika course hint` provides progressive hints (three tiers), and `nika course watch` auto-checks exercises on file save.
 
-Separately, the `nika showcase` system provides access to 200+ ready-to-use workflow templates that users can browse (`nika showcase list`) and extract to their local directory (`nika showcase extract <name>`). These cover everything from content pipelines to competitive intelligence to media processing to multi-agent research.
+Separately, the `nika showcase` system provides access to 115 ready-to-use workflow templates that users can browse (`nika showcase list`) and extract to their local directory (`nika showcase extract <name>`). These cover everything from content pipelines to competitive intelligence to media processing to multi-agent research.
 
 The LSP (Language Server Protocol) implementation adds another layer of developer experience: real-time validation, completions, and diagnostics directly in editors like VS Code, Neovim, and Zed. The LSP is split across two crates (nika-lsp-core for intelligence, nika-lsp for the binary) and shares analysis infrastructure with the engine.
 

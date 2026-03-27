@@ -404,7 +404,7 @@ These five operations compose into DAG-scheduled workflows where independent tas
 
 [PAUSE]
 
-Next episode, we are going deep into the Rust architecture. The 10-crate workspace design. The three-phase AST and why it matters. The IndexedDag with Kahn's algorithm. The zero-I/O core principle. How Nika abstracts 22 LLM providers into a single interface. And why 8,100 tests is just the beginning.
+Next episode, we are going deep into the Rust architecture. The 12-crate workspace design. The three-phase AST and why it matters. The IndexedDag with Kahn's algorithm. The zero-I/O core principle. How Nika abstracts 9 LLM providers into a single interface. And why 8,300+ tests is just the beginning.
 
 [MUSIC: Outro theme]
 
@@ -437,7 +437,7 @@ Next episode, we are going deep into the Rust architecture. The 10-crate workspa
 - **Sub-Agent Spawning:** SpawnAgentTool, depth_limit (default 3, max 10)
 
 ### Key Metrics
-- 22 LLM providers supported (7 cloud + 1 native via rig-core, plus 14 via MCP aliases)
+- 9 LLM providers supported (8 cloud + 1 native via rig-core)
 - 24 built-in media/file tools in 3 tiers
 - 100+ MCP server aliases pre-configured
 - 9 fetch extraction modes

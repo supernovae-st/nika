@@ -71,9 +71,9 @@
 
 "Fragmented across five categories. Python developer libraries like LangChain and LlamaIndex. Multi-agent frameworks like CrewAI and AutoGen. Visual builders like Dify and n8n. Data pipeline orchestrators like Prefect and Airflow. And workflow automation engines like Windmill and Argo. Nika does not fit neatly into any of these categories. It is a 'Declarative CLI AI Workflow Engine' --- a category of one. Every tool in those five categories requires either Python, a server, Docker, or Kubernetes. Nika requires none of them."
 
-### 15. The project includes 200+ showcase workflows and a 12-level course. Why invest so much in onboarding?
+### 15. The project includes 115 showcase workflows and a 12-level course. Why invest so much in onboarding?
 
-"Because onboarding is the product. The best workflow engine in the world is useless if people cannot learn it. The 12-level course with 44 exercises is designed so that someone with zero Nika experience can be productive in an afternoon. The 200+ showcase workflows serve as a reference library --- instead of starting from scratch, you extract a template that is close to what you need and modify it. The LSP provides real-time validation in your editor. These are not extras. They are the difference between a tool that sits in a GitHub star list and a tool that people actually use."
+"Because onboarding is the product. The best workflow engine in the world is useless if people cannot learn it. The 12-level course with 44 exercises is designed so that someone with zero Nika experience can be productive in an afternoon. The 115 showcase workflows serve as a reference library --- instead of starting from scratch, you extract a template that is close to what you need and modify it. The LSP provides real-time validation in your editor. These are not extras. They are the difference between a tool that sits in a GitHub star list and a tool that people actually use."
 
 ### 16. Are you worried about big tech building something similar?
 

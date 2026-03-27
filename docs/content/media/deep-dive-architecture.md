@@ -40,7 +40,7 @@ nika-mcp  nika-media  nika-event
 [ANIMATION] Each crate node pulses as it is mentioned. Dependency arrows draw themselves.
 
 **Voice-over:**
-Nika is a Cargo workspace with ten crates. Not because we like splitting things -- because each boundary enforces an architectural invariant.
+Nika is a Cargo workspace with twelve crates. Not because we like splitting things -- because each boundary enforces an architectural invariant.
 
 `nika-core` at the bottom: zero I/O. Pure types, AST definitions, transform catalogs. It compiles without touching a file system or network. This is the foundation everything else builds on.
 
@@ -578,7 +578,7 @@ AGPL, not MIT. Not because we are anti-business -- because we are pro-commons. M
 [ANIMATION] The full architecture diagram from the opening, but now with data particles flowing through every connection. The diagram pulses with activity.
 
 **Voice-over:**
-Ten crates. One point five six million lines. Seven thousand eight hundred tests. Three AST phases. An immutable DAG. Five semantic verbs. Forty-one event types. Three hundred twenty error codes. Eight LLM providers. Twenty-four media tools. One terminal UI with forty-plus widgets.
+Twelve crates. One point five six million lines. Eight thousand three hundred plus tests. Three AST phases. An immutable DAG. Five semantic verbs. Forty-one event types. Three hundred twenty error codes. Nine LLM providers. Twenty-four media tools. One terminal UI with forty-plus widgets.
 
 This is not a prototype. This is a production workflow engine built with compiler-grade engineering for the AI era. This is Nika.
 

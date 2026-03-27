@@ -69,7 +69,7 @@ See you there!
 [SLIDE] "Master Nika: From Zero to Agent Orchestration" with butterfly logo.
 
 **Speaker Script:**
-Welcome everyone. Today we are going from zero to building a multi-step AI workflow with agents, media processing, and structured output. By the end of this workshop, you will have built six workflows of increasing complexity, and you will understand the architecture well enough to build your own.
+Welcome everyone. Today we are going from zero to building a multi-step AI workflow with agents, media processing, and structured output. By the end of this workshop, you will have built six exercises of increasing complexity, and you will understand the architecture well enough to build your own.
 
 ### Setup Check
 

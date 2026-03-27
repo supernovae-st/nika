@@ -91,7 +91,7 @@ The core insight: what if we treated workflow definitions like source code? What
 [SLIDE] Nika butterfly logo, full screen. "Semantic YAML Workflow Engine for AI Tasks."
 
 **Speaker Notes:**
-Nika. Named after the Sun God Nika from One Piece -- a figure whose power is limited only by imagination. A semantic YAML workflow engine for AI tasks, written in Rust. Ten Cargo workspace crates. Schema nika/workflow@0.12. AGPL-3.0-or-later.
+Nika. Named after the Sun God Nika from One Piece -- a figure whose power is limited only by imagination. A semantic YAML workflow engine for AI tasks, written in Rust. Twelve Cargo workspace crates. Schema nika/workflow@0.12. AGPL-3.0-or-later.
 
 ---
 
@@ -112,7 +112,7 @@ Nika. Named after the Sun God Nika from One Piece -- a figure whose power is lim
 **Speaker Notes:**
 The entire Nika vocabulary is five verbs. Not five hundred API methods. Five verbs that compose. Let me walk through each one.
 
-`infer:` calls an LLM. Any of eight providers. Vision, extended thinking, structured output with a five-layer defense, guardrails -- all configured in YAML.
+`infer:` calls an LLM. Any of nine providers. Vision, extended thinking, structured output with a five-layer defense, guardrails -- all configured in YAML.
 
 `exec:` runs a shell command. With a security blocklist, NFKC Unicode normalization to prevent homoglyph attacks, and configurable timeouts.
 
@@ -287,7 +287,7 @@ Security deserves its own slide because most AI frameworks treat it as an aftert
 
 ---
 
-### SLIDE 15 -- Eight Providers
+### SLIDE 15 -- Nine Providers
 
 [SLIDE] Provider grid:
 
@@ -300,10 +300,11 @@ Cloud (via rig-core 0.32):          Local:
   DeepSeek
   Gemini
   xAI
+  (8 cloud providers)
 ```
 
 **Speaker Notes:**
-Eight providers. Seven cloud through rig-core, which gives us a unified completion API. One native through mistral.rs for local GGUF models -- completely offline. Vision support across all providers that support it. The native provider even supports vision through HuggingFace models with in-situ quantization. Switch providers by changing one YAML line. No code changes.
+Nine providers total. Eight cloud through rig-core, which gives us a unified completion API. One native through mistral.rs for local GGUF models -- completely offline. Vision support across all providers that support it. The native provider even supports vision through HuggingFace models with in-situ quantization. Switch providers by changing one YAML line. No code changes.
 
 ---
 
@@ -804,7 +805,7 @@ nika course next
 ```
 
 **Speaker Notes:**
-Three commands to start. Install, initialize the course, open your first exercise. Or `nika init --minimal` for five workflows, one per verb. Or `nika showcase list` for two hundred examples.
+Three commands to start. Install, initialize the course, open your first exercise. Or `nika showcase list` for two hundred examples.
 
 ---
 
@@ -843,7 +844,7 @@ Thank you.
 
 ### Q: What is the testing strategy?
 
-**A:** 8,100+ tests. Unit tests with `cargo test --lib`. Snapshot tests with insta. Property tests with proptest. We use `--lib` exclusively because regular `cargo test` triggers macOS Keychain popups from integration tests. Zero clippy warnings enforced. Opt-level 1 for test builds to balance speed and compile time.
+**A:** 8,300+ tests. Unit tests with `cargo test --lib`. Snapshot tests with insta. Property tests with proptest. We use `--lib` exclusively because regular `cargo test` triggers macOS Keychain popups from integration tests. Zero clippy warnings enforced. Opt-level 1 for test builds to balance speed and compile time.
 
 ### Q: Why not use anyhow for errors?
 
@@ -851,7 +852,7 @@ Thank you.
 
 ### Q: Is Nika production-ready?
 
-**A:** Nika is at v0.42.0 with 8,100+ tests. It powers QR Code AI's content pipelines. The codebase has been through multiple deep audits. That said, the schema is still @0.12 and we intentionally stay at 0.x.x -- there are no users yet to break backward compatibility for, and we want the freedom to evolve rapidly.
+**A:** Nika is at v0.49.0 with 8,300+ tests. It powers QR Code AI's content pipelines. The codebase has been through multiple deep audits. That said, the schema is still @0.12 and we intentionally stay at 0.x.x -- there are no users yet to break backward compatibility for, and we want the freedom to evolve rapidly.
 
 ### Q: How does the AGPL license affect commercial use?
 

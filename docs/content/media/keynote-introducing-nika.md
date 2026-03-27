@@ -69,10 +69,10 @@ What if there were a workflow engine that did not assume you needed training whe
 
 [ANIMATION] The butterfly logo unfolds from the center. Title appears letter by letter: "Nika"
 
-**Visual:** Full-screen Nika logo with the tagline "Semantic YAML Workflow Engine for AI Tasks." Below: "10 crates. 1.56M lines. 8,100 tests. Zero compromises."
+**Visual:** Full-screen Nika logo with the tagline "Semantic YAML Workflow Engine for AI Tasks." Below: "12 crates. 451K lines. 8,300+ tests. Zero compromises."
 
 **Speaker Notes:**
-This is Nika. A semantic YAML workflow engine for AI tasks, written entirely in Rust. Ten workspace crates. Over one and a half million lines of production code. Nearly eight thousand tests. And a zero-warnings policy enforced by CI on every commit. Nika is not a prototype. It is not a wrapper around somebody else's library. It is a ground-up engineering effort to build the workflow engine that AI development deserves.
+This is Nika. A semantic YAML workflow engine for AI tasks, written entirely in Rust. Twelve workspace crates. Four hundred and fifty-one thousand lines of production code. Over eight thousand three hundred tests. And a zero-warnings policy enforced by CI on every commit. Nika is not a prototype. It is not a wrapper around somebody else's library. It is a ground-up engineering effort to build the workflow engine that AI development deserves.
 
 ---
 
@@ -192,7 +192,7 @@ Under the hood, Nika runs a compiler-grade pipeline. Your YAML goes through a th
 
 ---
 
-## SLIDE 11 -- Ten Crates
+## SLIDE 11 -- Twelve Crates
 
 [SLIDE] Visual of the workspace structure as interconnected nodes:
 
@@ -202,14 +202,15 @@ nika (2k)  ->  nika-engine (134k)  ->  nika-core (23k)
                     v                        v
               nika-tui (92k)          nika-event (4k)
               nika-mcp (9k)           nika-media (3.5k)
-              nika-cli (8k)
+              nika-cli (8k)           nika-daemon (5k)
+              nika-init (21k)
               nika-lsp-core (9k)  ->  nika-lsp (2.5k)
 ```
 
 **Visual:** Each crate is a circle with its name and line count. Lines show dependencies. The whole structure pulses gently to suggest a living system.
 
 **Speaker Notes:**
-Nika is not one monolithic binary. It is ten workspace crates with clear boundaries. `nika-core` is zero-I/O -- pure types and AST definitions. `nika-engine` is the embeddable runtime -- you can integrate it into any Rust application. `nika-tui` is a full terminal UI with three views and forty-plus widgets. `nika-mcp` wraps the rmcp client for MCP protocol communication. `nika-media` provides content-addressable storage with blake3 hashing and zstd compression. And the LSP crates give you editor intelligence without running the full engine. Every boundary is intentional. Every dependency arrow has a reason.
+Nika is not one monolithic binary. It is twelve workspace crates with clear boundaries. `nika-core` is zero-I/O -- pure types and AST definitions. `nika-engine` is the embeddable runtime -- you can integrate it into any Rust application. `nika-tui` is a full terminal UI with three views and forty-plus widgets. `nika-mcp` wraps the rmcp client for MCP protocol communication. `nika-media` provides content-addressable storage with blake3 hashing and zstd compression. `nika-daemon` handles background services. `nika-init` handles project scaffolding. And the LSP crates give you editor intelligence without running the full engine. Every boundary is intentional. Every dependency arrow has a reason.
 
 ---
 
@@ -293,7 +294,7 @@ This is the Nika TUI. Three views for three workflows. Home for browsing and sel
 
 ---
 
-## SLIDE 16 -- Eight Providers
+## SLIDE 16 -- Nine Providers
 
 [SLIDE] Grid of provider logos with connection lines to Nika:
 
@@ -305,7 +306,7 @@ DeepSeek  Gemini    xAI        Native (local GGUF)
 **Visual:** Each logo animates in. The "Native" entry has a special glow -- it represents local execution.
 
 **Speaker Notes:**
-Nika supports eight LLM providers out of the box. Seven cloud providers through rig-core -- Claude, OpenAI, Mistral, Groq, DeepSeek, Gemini, and xAI. And a native provider through mistral.rs for running GGUF models locally, completely offline. Vision support across all providers that support it. Extended thinking for Claude. Streaming for all of them. Structured output with a five-layer defense system. One workflow, any provider. Switch models by changing one line.
+Nika supports nine LLM providers out of the box. Eight cloud providers through rig-core -- Claude, OpenAI, Mistral, Groq, DeepSeek, Gemini, and xAI. And a native provider through mistral.rs for running GGUF models locally, completely offline. Vision support across all providers that support it. Extended thinking for Claude. Streaming for all of them. Structured output with a five-layer defense system. One workflow, any provider. Switch models by changing one line.
 
 ---
 
@@ -438,12 +439,12 @@ When something goes wrong, Nika tells you exactly what. Three hundred and twenty
 
 ## SLIDE 24 -- The Showcase
 
-[SLIDE] A scrolling gallery of 200+ showcase workflows:
+[SLIDE] A scrolling gallery of 115 showcase workflows:
 
 **Visual:** Tile grid showing workflow categories: fetch patterns, LLM workflows, media pipelines, infrastructure automation, advanced patterns. Each tile has a preview snippet.
 
 **Speaker Notes:**
-Not sure where to start? Nika ships with over two hundred showcase workflows. `nika showcase list` to browse. `nika showcase extract` to pull one into your project. Fetch patterns, LLM workflows, media pipelines, infrastructure automation -- curated examples for every use case. They are not documentation examples -- they are working, tested workflows you can run today.
+Not sure where to start? Nika ships with one hundred and fifteen showcase workflows. `nika showcase list` to browse. `nika showcase extract` to pull one into your project. Fetch patterns, LLM workflows, media pipelines, infrastructure automation -- curated examples for every use case. They are not documentation examples -- they are working, tested workflows you can run today.
 
 ---
 

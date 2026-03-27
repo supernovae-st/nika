@@ -22,7 +22,7 @@
 
 [PAUSE]
 
-That is Nika. And today, we are going to tell you why it exists, what it does differently, and why a semantic YAML workflow engine written in 451 thousand lines of Rust might be exactly what the AI world has been missing.
+That is Nika. And today, we are going to tell you why it exists, what it does differently, and why a semantic YAML workflow engine written in 1.56 million lines of Rust might be exactly what the AI world has been missing.
 
 [MUSIC FADES]
 
@@ -271,7 +271,7 @@ Three reasons.
 
 **Three: Distribution.** Nika ships as a single binary. No runtime dependencies. No virtual environment. No `pip install` dance. You download the binary, you run it. This matters enormously for developer experience and for deployment.
 
-The codebase today is 10 workspace crates totaling 451K+ lines of Rust:
+The codebase today is 12 workspace crates totaling 1.56M lines of Rust:
 
 [CODE EXAMPLE]
 ```
@@ -287,13 +287,13 @@ nika-lsp-core  (9K)    LSP intelligence
 nika-lsp       (2.5K)  LSP binary
 ```
 
-[EMPHASIS] The TUI alone is 92 thousand lines. That is not a typo. The terminal interface has three views -- Studio, Command, and Control -- with 40+ widgets, a DAG visualizer, and real-time task status. Developer experience is not an afterthought in Nika. It is 44% of the codebase.
+[EMPHASIS] The TUI alone is 92 thousand lines. That is not a typo. The terminal interface has three views -- Studio, Command, and Control -- with 40+ widgets, a DAG visualizer, and real-time task status. Developer experience is a major component of the Nika codebase.
 
-And the test suite has 8,100+ tests. With zero clippy warnings. Zero.
+And the test suite has 8,300+ tests. With zero clippy warnings. Zero.
 
 **Host:** Now, I want to be transparent about something. As of today, Nika has zero users. This is a pre-launch project. The creator, Thibaut Melen, has deliberately chosen to focus on engineering quality over marketing. The philosophy is: build something genuinely excellent, then release it to the world. Not the other way around.
 
-But that also means something important: there is zero backward compatibility baggage. Only schema @0.12 matters. There is no legacy code, no deprecated APIs you cannot remove, no users who will complain if you rename a struct. This is a rare luxury in software development, and Nika uses it aggressively. Things get renamed, restructured, and improved constantly. The codebase is what you get when you optimize for correctness without the constraint of not breaking existing users.
+But that also means something important: there is zero backward compatibility baggage. Only schema @0.12 matters. The version stays 0.x.x intentionally -- there is no "1.0" milestone. This is a rare luxury in software development, and Nika uses it to prioritize correctness and evolution over stability. The codebase is what you get when you optimize for quality without the constraint of not breaking existing users.
 
 ---
 
