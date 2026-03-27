@@ -38,7 +38,7 @@
       "$ref": "#/$defs/ContextSpec",
       "description": "File loading at workflow start (v0.9+)"
     },
-    "include": {
+    "imports": {
       "type": "array",
       "description": "External workflows to merge into DAG (v0.9+)",
       "items": {
