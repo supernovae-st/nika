@@ -28,6 +28,12 @@ pub mod spinner;
 mod summary;
 
 // Re-export check API
+pub use bench::{
+    format_bench_header, format_bench_summary, format_cost_section, format_profile_section,
+    format_quality_section, format_speed_section, print_bench_header, print_bench_summary,
+    print_cost_section, print_profile_section, print_quality_section, print_speed_section,
+    BenchProviderResult, BenchTaskTiming, Percentiles, QualityScore,
+};
 pub use check::{
     print_check_header, print_check_summary, print_mcp_validation, print_phase,
     print_phase_skipped, McpCallValidation, McpCheckResult, McpParamError, PhaseResult,
@@ -42,12 +48,6 @@ pub use detail::DetailLevel;
 pub use live::LiveRenderer;
 pub use renderer::{CliRenderer, Renderer};
 pub use run_renderer::{auto_renderer, classic_renderer, live_renderer};
-pub use bench::{
-    format_bench_header, format_bench_summary, format_cost_section, format_profile_section,
-    format_quality_section, format_speed_section, print_bench_header, print_bench_summary,
-    print_cost_section, print_profile_section, print_quality_section, print_speed_section,
-    BenchProviderResult, BenchTaskTiming, Percentiles, QualityScore,
-};
 pub use summary::{
     format_doctor_header, format_doctor_summary, format_done_summary, format_run_summary,
     print_doctor_header, print_doctor_summary, print_done_summary, print_run_summary,

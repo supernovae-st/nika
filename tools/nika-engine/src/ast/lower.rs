@@ -105,7 +105,13 @@ pub fn lower(analyzed: AnalyzedWorkflow) -> Result<Workflow, NikaError> {
 fn lower_task(task: AnalyzedTask, table: &TaskTable) -> Result<Task, NikaError> {
     let depends_on = task_dep_names(&task.depends_on, &task.implicit_deps, table)?;
     let (for_each, for_each_as, fe_concurrency, fe_fail_fast) = lower_for_each(task.for_each);
-    let action = lower_action(&task.action, &task.provider, &task.model, &task.retry, &task.base_url);
+    let action = lower_action(
+        &task.action,
+        &task.provider,
+        &task.model,
+        &task.retry,
+        &task.base_url,
+    );
     let output = task.output.map(lower_output);
     let with_spec = if task.with_spec.is_empty() {
         None
@@ -159,7 +165,12 @@ pub(crate) fn lower_action(
             invoke: lower_invoke(a.clone()),
         },
         AnalyzedTaskAction::Agent(a) => TaskAction::Agent {
-            agent: lower_agent(a.as_ref().clone(), provider.clone(), model.clone(), base_url.clone()),
+            agent: lower_agent(
+                a.as_ref().clone(),
+                provider.clone(),
+                model.clone(),
+                base_url.clone(),
+            ),
         },
     }
 }

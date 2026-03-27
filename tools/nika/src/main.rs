@@ -115,6 +115,7 @@ struct Cli {
 enum Commands {
     /// Launch interactive TUI (terminal UI)
     #[cfg(feature = "tui")]
+    #[command(next_help_heading = "INTERACTIVE")]
     Ui {
         /// Initial view: explorer, chat, editor, runner, scheduler, settings
         #[arg(long, value_name = "VIEW")]
@@ -127,7 +128,7 @@ enum Commands {
 
     /// Start interactive chat mode (shortcut for `nika ui --view chat`)
     #[cfg(feature = "tui")]
-    #[command(visible_alias = "c")]
+    #[command(next_help_heading = "INTERACTIVE", visible_alias = "c")]
     Chat {
         /// LLM provider: claude, openai, mistral, groq, deepseek, native
         #[arg(short, long, value_name = "NAME")]
@@ -140,14 +141,14 @@ enum Commands {
 
     /// Open Studio editor (shortcut for `nika ui --view editor`)
     #[cfg(feature = "tui")]
-    #[command(visible_alias = "s")]
+    #[command(next_help_heading = "INTERACTIVE", visible_alias = "s")]
     Studio {
         /// Workflow file to edit (optional)
         workflow: Option<PathBuf>,
     },
 
     /// Run a workflow file (headless, no TUI)
-    #[command(visible_alias = "r")]
+    #[command(next_help_heading = "WORKFLOWS", visible_alias = "r")]
     Run {
         /// Path to .nika.yaml file (auto-discovered if omitted)
         file: Option<String>,
@@ -203,7 +204,7 @@ enum Commands {
     ///   nika infer "Explain quantum computing"
     ///   cat file.txt | nika infer "Summarize" --stdin
     ///   nika infer "Extract names" --from-example '{"names":[""]}'
-    #[command(visible_alias = "i")]
+    #[command(next_help_heading = "5 VERBS", visible_alias = "i")]
     Infer {
         /// Prompt (use "-" for stdin)
         prompt: String,
@@ -238,7 +239,7 @@ enum Commands {
     /// Examples:
     ///   nika fetch https://blog.com --extract article
     ///   nika fetch https://api.x.com/data --extract jsonpath --selector ".items"
-    #[command(visible_alias = "f")]
+    #[command(next_help_heading = "5 VERBS", visible_alias = "f")]
     Fetch {
         /// URL to fetch
         url: String,
@@ -275,6 +276,7 @@ enum Commands {
     ///   nika invoke nika:dimensions photo.jpg
     ///   nika invoke nika:thumbnail photo.jpg --params '{"width":200}'
     ///   nika invoke --list
+    #[command(next_help_heading = "5 VERBS")]
     Invoke {
         /// Tool: nika:thumbnail, server::tool_name
         tool: Option<String>,
@@ -299,7 +301,7 @@ enum Commands {
     ///
     /// Examples:
     ///   nika agent "Research AI workflows" --tool web_search --turns 5
-    #[command(visible_alias = "a")]
+    #[command(next_help_heading = "5 VERBS", visible_alias = "a")]
     Agent {
         /// Agent objective
         prompt: String,
@@ -333,7 +335,11 @@ enum Commands {
     },
 
     /// Validate workflow syntax, DAG structure, and bindings
-    #[command(alias = "validate", visible_alias = "v")]
+    #[command(
+        next_help_heading = "WORKFLOWS",
+        alias = "validate",
+        visible_alias = "v"
+    )]
     Check {
         /// Path to .nika.yaml file
         file: String,
@@ -344,6 +350,7 @@ enum Commands {
     },
 
     /// Create .nika/config.toml (provider + permissions)
+    #[command(next_help_heading = "PROJECT")]
     Init {
         /// Permission mode: deny, plan, accept-edits, accept-all
         #[arg(short, long, default_value = "plan")]
@@ -359,25 +366,28 @@ enum Commands {
     },
 
     /// Interactive learning course
-    #[command(visible_alias = "learn")]
+    #[command(next_help_heading = "LEARNING", visible_alias = "learn")]
     Course {
         #[command(subcommand)]
         action: cli::course::CourseAction,
     },
 
     /// Manage execution traces
+    #[command(next_help_heading = "SYSTEM")]
     Trace {
         #[command(subcommand)]
         action: cli::trace::TraceAction,
     },
 
     /// Manage LLM provider API keys
+    #[command(next_help_heading = "MODELS & PROVIDERS")]
     Provider {
         #[command(subcommand)]
         action: cli::provider::ProviderAction,
     },
 
     /// Manage MCP server connections
+    #[command(next_help_heading = "MODELS & PROVIDERS")]
     Mcp {
         #[command(subcommand)]
         action: cli::mcp::McpAction,
@@ -388,7 +398,7 @@ enum Commands {
     /// `nika model` (no subcommand) lists all cloud models with pricing.
     /// Use `nika model list`, `nika model info <name>`, `nika model recommend`.
     /// Local model management (pull, delete, vision) requires native-inference.
-    #[command(visible_alias = "m")]
+    #[command(next_help_heading = "MODELS & PROVIDERS", visible_alias = "m")]
     Model {
         #[command(subcommand)]
         action: Option<cli::model_cmd::ModelAction>,
@@ -397,6 +407,7 @@ enum Commands {
     /// Show the full command reference or deep-dive into a topic
     ///
     /// Topics: verbs, providers, templates, examples
+    #[command(next_help_heading = "HELP")]
     Help {
         /// Topic to explore (verbs, providers, templates, examples)
         topic: Option<String>,
@@ -406,7 +417,7 @@ enum Commands {
     ///
     /// List, add, remove, and install packages from the SuperNovae registry.
     /// Packages are stored in ~/.nika/packages/
-    #[command(visible_alias = "p")]
+    #[command(next_help_heading = "PROJECT", visible_alias = "p")]
     Pkg {
         #[command(subcommand)]
         action: cli::pkg::PkgAction,
@@ -416,12 +427,14 @@ enum Commands {
     ///
     /// List, inspect, and garbage-collect binary files stored in the
     /// Content-Addressable Store (CAS) at .nika/media/store/
+    #[command(next_help_heading = "PROJECT")]
     Media {
         #[command(subcommand)]
         action: cli::media::MediaAction,
     },
 
     /// Generate shell completions (bash, zsh, fish, powershell)
+    #[command(next_help_heading = "SYSTEM")]
     Completion {
         /// Shell to generate completions for
         #[arg(value_enum)]
@@ -429,28 +442,32 @@ enum Commands {
     },
 
     /// Manage Nika configuration
+    #[command(next_help_heading = "PROJECT")]
     Config {
         #[command(subcommand)]
         action: cli::config::ConfigAction,
     },
 
     /// Manage schema versions and migrations
+    #[command(next_help_heading = "SYSTEM")]
     Schema {
         #[command(subcommand)]
         action: cli::schema::SchemaAction,
     },
 
     /// Show compiled feature flags and capabilities
+    #[command(next_help_heading = "SYSTEM")]
     Features,
 
     /// Browse and extract showcase workflows
+    #[command(next_help_heading = "LEARNING")]
     Showcase {
         #[command(subcommand)]
         action: cli::showcase::ShowcaseAction,
     },
 
     /// Check system health and diagnose issues
-    #[command(visible_alias = "d")]
+    #[command(next_help_heading = "SYSTEM", visible_alias = "d")]
     Doctor {
         /// Run all checks including slow ones (MCP connectivity)
         #[arg(long)]
@@ -466,7 +483,7 @@ enum Commands {
     },
 
     /// Create a new workflow file
-    #[command(visible_alias = "n")]
+    #[command(next_help_heading = "WORKFLOWS", visible_alias = "n")]
     New {
         /// Workflow name (used for filename)
         name: Option<String>,
@@ -485,7 +502,7 @@ enum Commands {
     },
 
     /// Manage workflow files (edit, add-task, graph, check)
-    #[command(visible_alias = "w")]
+    #[command(next_help_heading = "WORKFLOWS", visible_alias = "w")]
     Workflow {
         #[command(subcommand)]
         action: cli::workflow::WorkflowAction,
@@ -493,6 +510,7 @@ enum Commands {
 
     /// Manage LLM response cache
     #[cfg(unix)]
+    #[command(next_help_heading = "SYSTEM")]
     Cache {
         #[command(subcommand)]
         action: cli::cache_cmd::CacheAction,
@@ -500,6 +518,7 @@ enum Commands {
 
     /// Manage background jobs via daemon
     #[cfg(unix)]
+    #[command(next_help_heading = "SYSTEM")]
     Job {
         #[command(subcommand)]
         action: cli::jobs::JobAction,
@@ -507,12 +526,14 @@ enum Commands {
 
     /// Manage background daemon (secrets, jobs, cache)
     #[cfg(unix)]
+    #[command(next_help_heading = "SYSTEM")]
     Daemon {
         #[command(subcommand)]
         action: cli::daemon::DaemonAction,
     },
 
     /// Configure API keys and providers (interactive first-run wizard)
+    #[command(next_help_heading = "SYSTEM")]
     Setup,
 
     /// The cosmos awaits
@@ -846,7 +867,7 @@ async fn main() {
                         run_demo(quiet, detail).await
                     } else {
                         // Project exists: show beautiful custom help
-                        cli::help::print_help();
+                        cli::help::print_help(&Cli::command());
                         Ok(())
                     }
                 }
@@ -1072,7 +1093,7 @@ async fn main() {
                         std::process::exit(1);
                     }
                 }
-                None => cli::help::print_help(),
+                None => cli::help::print_help(&Cli::command()),
             }
             Ok(())
         }

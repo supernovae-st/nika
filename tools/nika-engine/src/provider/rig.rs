@@ -308,18 +308,15 @@ impl RigProvider {
         default_model: Option<&str>,
     ) -> Result<Self, crate::error::NikaError> {
         use crate::provider::endpoints::validate_endpoint_url;
-        validate_endpoint_url(base_url).map_err(|e| {
-            crate::error_domains::ProviderError::InvalidConfig { message: e }
-        })?;
+        validate_endpoint_url(base_url)
+            .map_err(|e| crate::error_domains::ProviderError::InvalidConfig { message: e })?;
 
         let client = openai::Client::builder()
             .api_key(api_key)
             .base_url(base_url)
             .build()
-            .map_err(|e| {
-                crate::error_domains::ProviderError::InvalidConfig {
-                    message: format!("failed to build OpenAI-compatible client: {e}"),
-                }
+            .map_err(|e| crate::error_domains::ProviderError::InvalidConfig {
+                message: format!("failed to build OpenAI-compatible client: {e}"),
             })?;
         Ok(RigProvider::OpenAiCompat {
             client,
