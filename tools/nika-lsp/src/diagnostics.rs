@@ -127,6 +127,71 @@ pub fn validate_document(content: &str, uri: &Uri) -> Vec<Diagnostic> {
                 let template_diagnostics = validate_templates(&raw_workflow, analyzed, &doc);
                 diagnostics.extend(template_diagnostics);
             }
+
+            // Phase 4: Empty tasks warning
+            if let Some(ref analyzed) = analyze_result.value {
+                if analyzed.tasks.is_empty() {
+                    diagnostics.push(Diagnostic {
+                        range: Range {
+                            start: tower_lsp_server::ls_types::Position {
+                                line: 0,
+                                character: 0,
+                            },
+                            end: tower_lsp_server::ls_types::Position {
+                                line: 0,
+                                character: 1,
+                            },
+                        },
+                        severity: Some(DiagnosticSeverity::WARNING),
+                        code: Some(tower_lsp_server::ls_types::NumberOrString::String(
+                            "NIKA-145".to_string(),
+                        )),
+                        code_description: None,
+                        source: Some("nika".to_string()),
+                        message: "workflow has no tasks. Add at least one task under 'tasks:'"
+                            .to_string(),
+                        related_information: None,
+                        tags: None,
+                        data: None,
+                    });
+                }
+            }
+
+            // Phase 5: Provider API key availability
+            if let Some(ref provider_spanned) = raw_workflow.provider {
+                let provider_str = provider_spanned.value.as_str();
+                let env_var = match provider_str {
+                    "anthropic" => Some("ANTHROPIC_API_KEY"),
+                    "openai" => Some("OPENAI_API_KEY"),
+                    "mistral" => Some("MISTRAL_API_KEY"),
+                    "groq" => Some("GROQ_API_KEY"),
+                    "deepseek" => Some("DEEPSEEK_API_KEY"),
+                    "gemini" => Some("GEMINI_API_KEY"),
+                    "xai" => Some("XAI_API_KEY"),
+                    _ => None, // mock, native, unknown — no key needed
+                };
+                if let Some(var) = env_var {
+                    if std::env::var(var).map(|v| v.is_empty()).unwrap_or(true) {
+                        let range = span_to_range(&provider_spanned.span, &doc);
+                        diagnostics.push(Diagnostic {
+                            range,
+                            severity: Some(DiagnosticSeverity::WARNING),
+                            code: Some(tower_lsp_server::ls_types::NumberOrString::String(
+                                "NIKA-031".to_string(),
+                            )),
+                            code_description: None,
+                            source: Some("nika".to_string()),
+                            message: format!(
+                                "no API key found for provider '{}'. Set {} or run `nika setup`",
+                                provider_str, var
+                            ),
+                            related_information: None,
+                            tags: None,
+                            data: None,
+                        });
+                    }
+                }
+            }
         }
         Err(parse_error) => {
             // Parse error - convert to diagnostic
@@ -212,5 +277,82 @@ tasks:
 
         // Should have error for invalid schema
         assert!(!diagnostics.is_empty());
+    }
+
+    #[test]
+    fn test_validate_empty_tasks_warning() {
+        let content = r#"schema: "nika/workflow@0.12"
+workflow: test
+provider: mock
+tasks: []
+"#;
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
+        let diagnostics = validate_document(content, &uri);
+        // The analyzer catches empty tasks as NIKA-144 error.
+        // Our Phase 4 NIKA-145 warning is a defensive fallback for edge cases
+        // where the analyzer returns a value with 0 tasks.
+        // Either NIKA-144 or NIKA-145 should appear.
+        let has_empty_tasks_diagnostic = diagnostics.iter().any(|d| {
+            d.message.contains("must not be empty") || d.message.contains("no tasks")
+        });
+        assert!(
+            has_empty_tasks_diagnostic,
+            "Expected empty tasks diagnostic, got: {:?}",
+            diagnostics
+        );
+    }
+
+    #[test]
+    fn test_validate_missing_provider_key_warning() {
+        // Use xai provider which is unlikely to have a key in test env
+        let content = r#"schema: "nika/workflow@0.12"
+workflow: test
+provider: xai
+tasks:
+  - id: step1
+    infer: "test"
+"#;
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
+        let diagnostics = validate_document(content, &uri);
+        // Should not crash regardless of env state
+        let _ = diagnostics;
+    }
+
+    #[test]
+    fn test_validate_mock_provider_no_key_warning() {
+        let content = r#"schema: "nika/workflow@0.12"
+workflow: test
+provider: mock
+tasks:
+  - id: step1
+    infer: "test"
+"#;
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
+        let diagnostics = validate_document(content, &uri);
+        // mock provider should NOT trigger a key warning
+        assert!(
+            !diagnostics.iter().any(|d| d.message.contains("API key")),
+            "mock provider should not trigger API key warning, got: {:?}",
+            diagnostics
+        );
+    }
+
+    #[test]
+    fn test_validate_native_provider_no_key_warning() {
+        let content = r#"schema: "nika/workflow@0.12"
+workflow: test
+provider: native
+tasks:
+  - id: step1
+    infer: "test"
+"#;
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
+        let diagnostics = validate_document(content, &uri);
+        // native provider should NOT trigger a key warning
+        assert!(
+            !diagnostics.iter().any(|d| d.message.contains("API key")),
+            "native provider should not trigger API key warning, got: {:?}",
+            diagnostics
+        );
     }
 }
