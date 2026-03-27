@@ -787,9 +787,9 @@ All cloud providers use **rig-core v0.32**, a Rust LLM framework that provides a
 | Anthropic Claude | `anthropic` / `claude` | `claude-sonnet-4-6` | `ANTHROPIC_API_KEY` | `sk-ant-` |
 | OpenAI | `openai` / `gpt` | `gpt-4o` | `OPENAI_API_KEY` | `sk-` |
 | Mistral AI | `mistral` | `mistral-large-latest` | `MISTRAL_API_KEY` | — |
-| Groq | `groq` | `llama-3.3-70b-versatile` | `GROQ_API_KEY` | `gsk_` |
+| Groq | `groq` | `llama-4-maverick` | `GROQ_API_KEY` | `gsk_` |
 | DeepSeek | `deepseek` / `deep-seek` | `deepseek-chat` | `DEEPSEEK_API_KEY` | `sk-` |
-| Google Gemini | `gemini` / `google` | `gemini-2.0-flash` | `GEMINI_API_KEY` | — |
+| Google Gemini | `gemini` / `google` | `gemini-2.5-flash` | `GEMINI_API_KEY` | — |
 | Native (local) | `native` | GGUF model loaded | `NIKA_NATIVE_MODEL_PATH` | — |
 
 ### Native Inference (Local GGUF Models)

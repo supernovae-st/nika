@@ -92,12 +92,11 @@ nika ui [options] [workflow]
 | Key | View | Description |
 |-----|------|-------------|
 | `1/s` | Studio | File browser + YAML editor + DAG preview |
-| `2/r` | Runner | Real-time execution monitoring |
-| `3/c` | Chat | AI agent conversation |
-| `4/,` | Settings | Provider config, theme, preferences |
+| `2/c` | Command | Execution monitoring + chat conversation |
+| `3/x` | Control | Provider config, theme, preferences |
 
 **Navigation:**
-- `1-4` to switch views (normal mode)
+- `1-3` to switch views (normal mode)
 - `?` for help overlay
 - `Ctrl+C` (2x) to quit
 
@@ -146,7 +145,6 @@ nika init [options]
 | `--no-example` | -- | Skip creating example workflow |
 | `--migrate-keys` | -- | Migrate API keys from env to keychain |
 | `--course` | -- | Generate interactive course (12 levels, 44 exercises) |
-| `--minimal` | -- | Minimal scaffold (config only) |
 
 **What it creates:**
 - `.nika/` directory with `config.toml`
@@ -367,10 +365,10 @@ nika showcase <action>
 
 | Command | Description |
 |---------|-------------|
-| `nika showcase list` | Browse 200+ showcase workflows |
+| `nika showcase list` | Browse 115 showcase workflows |
 | `nika showcase extract <name>` | Extract a showcase to current dir |
 
-The showcase contains 65 workflows organized in 5 categories:
+The showcase contains 115 workflows organized in 5 categories:
 - **Minimal** (5): One per verb
 - **Patterns** (15): DAG patterns, dependencies, for_each
 - **Advanced** (15): Vision, agents, structured output
@@ -422,25 +420,6 @@ nika workflow <action>
 | `nika workflow add-task <file>` | Add a task interactively |
 | `nika workflow graph <file>` | Show DAG visualization |
 | `nika workflow check <file>` | Validate (same as nika check) |
-
----
-
-## nika setup
-
-Configure machine for Nika development.
-
-```bash
-nika setup [action]
-```
-
-### Subcommands
-
-| Command | Description |
-|---------|-------------|
-| `nika setup` | Run all setup steps |
-| `nika setup editors` | Configure editor plugins |
-| `nika setup completions` | Install shell completions |
-| `nika setup ai-tools` | Configure AI tool integration |
 
 ---
 

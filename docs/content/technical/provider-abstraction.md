@@ -54,9 +54,9 @@ Each variant wraps the corresponding rig-core client. Construction uses `from_en
 | Claude | `ANTHROPIC_API_KEY` | `claude-sonnet-4-6` |
 | OpenAI | `OPENAI_API_KEY` | `gpt-4o` |
 | Mistral | `MISTRAL_API_KEY` | `mistral-large-latest` |
-| Groq | `GROQ_API_KEY` | `llama-3.3-70b-versatile` |
+| Groq | `GROQ_API_KEY` | `llama-4-maverick` |
 | DeepSeek | `DEEPSEEK_API_KEY` | `deepseek-chat` |
-| Gemini | `GEMINI_API_KEY` | `gemini-2.0-flash` |
+| Gemini | `GEMINI_API_KEY` | `gemini-2.5-flash` |
 | xAI | `XAI_API_KEY` | `grok-3-fast` |
 | Native | (none) | (loaded GGUF model) |
 

@@ -2,11 +2,11 @@
 
 ## Executive Summary
 
-Nika is a semantic YAML workflow engine purpose-built for AI tasks. Written in Rust (~451K lines across 10 crates), it orchestrates LLM inference, shell commands, HTTP requests, MCP tool calls, and autonomous agent loops through declarative YAML files. Nika follows the schema `nika/workflow@0.12` and enforces a strict five-verb paradigm: `infer:`, `exec:`, `fetch:`, `invoke:`, and `agent:`.
+Nika is a semantic YAML workflow engine purpose-built for AI tasks. Written in Rust (~451K lines across 12 crates), it orchestrates LLM inference, shell commands, HTTP requests, MCP tool calls, and autonomous agent loops through declarative YAML files. Nika follows the schema `nika/workflow@0.12` and enforces a strict five-verb paradigm: `infer:`, `exec:`, `fetch:`, `invoke:`, and `agent:`.
 
 At its core, Nika is the **body** in a brain/body architecture. Its counterpart, **NovaNet**, is the brain -- a knowledge graph with NodeClasses and ArcClasses. The two communicate exclusively via the Model Context Protocol (MCP). Nika never touches Neo4j or Cypher directly; all knowledge graph operations go through `invoke:` verbs that call MCP tools exposed by NovaNet.
 
-Nika is licensed under AGPL-3.0-or-later and maintained by SuperNovae Studio. The current version is **v0.42.0**.
+Nika is licensed under AGPL-3.0-or-later and maintained by SuperNovae Studio. The current version is **v0.49.0**.
 
 ---
 
@@ -14,7 +14,7 @@ Nika is licensed under AGPL-3.0-or-later and maintained by SuperNovae Studio. Th
 
 ### Terminal-First, Human-Optional
 
-Nika is designed as a terminal-first tool. Simple workflows run headlessly via `nika run workflow.nika.yaml`. Complex interactions happen in a ratatui-based TUI with four views: Studio (editor + DAG preview), Runner (execution monitoring), Chat (AI conversation), and Settings (configuration). There is no web UI, no Electron wrapper. The terminal is the interface.
+Nika is designed as a terminal-first tool. Simple workflows run headlessly via `nika run workflow.nika.yaml`. Complex interactions happen in a ratatui-based TUI with three views: Studio (file browser + YAML editor + DAG preview), Command (execution monitoring + chat), and Control (provider config, theme, preferences). There is no web UI, no Electron wrapper. The terminal is the interface.
 
 ### Declarative Over Imperative
 
@@ -113,24 +113,24 @@ The interactive course (12 levels, 44 exercises) onboards users from basic `exec
 
 ## What Nika Is NOT
 
-- **Not a chatbot framework.** Nika's `agent:` verb enables agent loops, but Nika itself is not a chat application. The TUI's Chat view is one of four views.
+- **Not a chatbot framework.** Nika's `agent:` verb enables agent loops, but Nika itself is not a chat application. The TUI's Command view includes a chat mode but Nika itself is not a chat application.
 - **Not a LangChain alternative.** Nika is declarative YAML, not imperative Python. There are no chain abstractions, memory modules, or retrieval pipelines built in.
 - **Not a CI/CD tool.** While `exec:` can run shell commands, Nika is not designed for build pipelines. It is designed for AI task orchestration.
 - **Not a cloud service.** Nika runs locally as a CLI binary. There is no SaaS offering, no cloud dashboard, no managed service.
 
 ---
 
-## Key Numbers (v0.42.0)
+## Key Numbers (v0.49.0)
 
 | Metric | Value |
 |--------|-------|
 | Total Rust code | ~451K lines |
-| Workspace crates | 10 |
+| Workspace crates | 12 |
 | Tests | 8,100+ (lib only, safe) |
 | LLM providers | 7 cloud + 1 native |
 | MCP aliases | 100 |
 | Builtin tools | 12 core + 24 media |
-| Showcase workflows | 200+ |
+| Showcase workflows | 115 |
 | Course exercises | 44 across 12 levels |
 | Error codes | NIKA-000 through NIKA-314 |
 | Features (Cargo) | 30+ (most default) |
