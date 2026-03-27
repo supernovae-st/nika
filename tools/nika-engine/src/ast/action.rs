@@ -189,20 +189,17 @@ impl InferParams {
             }
         }
 
-        // Graceful degradation: extended_thinking with non-Claude provider
-        // Instead of crashing, emit a warning so users can write provider-agnostic workflows.
+        // extended_thinking is only implemented for the agent: verb.
+        // For infer:, the field is parsed but never forwarded to the provider.
+        // Warn the user so they know to use agent: instead.
         if self.extended_thinking == Some(true) {
-            if let Some(ref provider) = self.provider {
-                if provider != "claude" {
-                    tracing::warn!(
-                        provider = %provider,
-                        "extended_thinking: true ignored — only supported by Claude provider"
-                    );
-                }
-            }
+            tracing::warn!(
+                "extended_thinking: true on infer: verb is not yet supported — use agent: verb for extended thinking. The flag will be ignored."
+            );
         }
 
-        // Validate thinking_budget range
+        // thinking_budget validation: still useful for catching typos even though
+        // the infer: verb doesn't forward it yet.
         if let Some(budget) = self.thinking_budget {
             if !(1024..=65536).contains(&budget) {
                 return Err(NikaError::ValidationError {
