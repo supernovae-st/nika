@@ -33,6 +33,11 @@ pub struct ValidationRequest {
     pub version: i32,
 }
 
+/// Notification that a document parsed successfully (for AST cache).
+struct ParseSuccessNotification {
+    uri: Uri,
+}
+
 /// The Nika LSP backend.
 pub struct NikaBackend {
     /// LSP client for sending notifications
@@ -45,12 +50,16 @@ pub struct NikaBackend {
     handler: DefaultHandler,
     /// Optional daemon connection (graceful degradation if not running)
     daemon: Arc<RwLock<Option<DaemonBridge>>>,
+    /// Channel for parse success notifications (AST cache)
+    #[allow(dead_code)] // Held to keep the channel alive; receiver in AST cache updater
+    parse_success_tx: mpsc::Sender<ParseSuccessNotification>,
 }
 
 impl NikaBackend {
     /// Create a new backend instance.
     pub fn new(client: Client) -> Self {
         let (tx, rx) = mpsc::channel(100);
+        let (parse_tx, parse_rx) = mpsc::channel::<ParseSuccessNotification>(32);
 
         let daemon = Arc::new(RwLock::new(None));
         let daemon_clone = daemon.clone();
@@ -66,16 +75,31 @@ impl NikaBackend {
         // Spawn reconnect loop
         DaemonBridge::spawn_reconnect_loop(daemon.clone());
 
+        let documents: DashMap<Uri, DocumentState> = DashMap::new();
+        let documents_clone = documents.clone();
+        let worker_parse_tx = parse_tx.clone();
+
         let backend = Self {
             client: client.clone(),
-            documents: DashMap::new(),
+            documents,
             validation_tx: tx,
             handler: DefaultHandler::new(),
             daemon,
+            parse_success_tx: parse_tx,
         };
 
-        // Spawn validation worker
-        tokio::spawn(validation_worker(rx, client));
+        // Spawn validation worker (sends parse success for AST cache)
+        tokio::spawn(validation_worker(rx, client, worker_parse_tx));
+
+        // Spawn AST cache updater — marks documents valid on successful parse
+        tokio::spawn(async move {
+            let mut rx = parse_rx;
+            while let Some(notif) = rx.recv().await {
+                if let Some(mut doc) = documents_clone.get_mut(&notif.uri) {
+                    doc.mark_valid();
+                }
+            }
+        });
 
         backend
     }
@@ -104,7 +128,11 @@ impl NikaBackend {
 }
 
 /// Background worker that processes validation requests.
-async fn validation_worker(mut rx: mpsc::Receiver<ValidationRequest>, client: Client) {
+async fn validation_worker(
+    mut rx: mpsc::Receiver<ValidationRequest>,
+    client: Client,
+    parse_success_tx: mpsc::Sender<ParseSuccessNotification>,
+) {
     // Debounce: collect requests and process after a delay
     let mut pending: Option<ValidationRequest> = None;
 
@@ -122,9 +150,17 @@ async fn validation_worker(mut rx: mpsc::Receiver<ValidationRequest>, client: Cl
             // Process after debounce delay
             _ = tokio::time::sleep(tokio::time::Duration::from_millis(150)), if pending.is_some() => {
                 if let Some(req) = pending.take() {
-                    // Validate document
-                    // TODO: pass daemon provider status for enriched diagnostics
                     let diagnostics = validate_document(&req.content, &req.uri, None);
+
+                    // If no parse errors, mark document as valid for AST cache fallback
+                    let has_parse_errors = diagnostics.iter().any(|d| {
+                        d.severity == Some(tower_lsp_server::ls_types::DiagnosticSeverity::ERROR)
+                    });
+                    if !has_parse_errors {
+                        let _ = parse_success_tx
+                            .send(ParseSuccessNotification { uri: req.uri.clone() })
+                            .await;
+                    }
 
                     // Publish diagnostics
                     client

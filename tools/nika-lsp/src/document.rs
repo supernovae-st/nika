@@ -13,7 +13,6 @@ pub struct DocumentState {
     pub version: i32,
     /// Last successfully parsed raw content (fallback when current parse fails).
     /// Kept as a String snapshot for simplicity — the AST can be re-parsed from this.
-    #[allow(dead_code)] // Wired up incrementally in Phase 6
     last_valid_content: Option<String>,
 }
 
@@ -28,13 +27,12 @@ impl DocumentState {
     }
 
     /// Record a successful parse — saves the current content as fallback.
-    #[allow(dead_code)] // Wired up incrementally in Phase 6
     pub fn mark_valid(&mut self) {
         self.last_valid_content = Some(self.rope.to_string());
     }
 
     /// Get the last successfully parsed content (for fallback when current parse fails).
-    #[allow(dead_code)] // Wired up incrementally in Phase 6
+    #[allow(dead_code)] // Used by hover/completion fallback when current parse fails
     pub fn last_valid_content(&self) -> Option<&str> {
         self.last_valid_content.as_deref()
     }
