@@ -4311,3 +4311,29 @@ fn test_dag_version_matches_timeline_version() {
     state.invalidate_timeline_cache();
     assert_eq!(state.dag_version(), 1);
 }
+
+#[test]
+fn test_mcp_calls_cap_enforced_on_invoke() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    // Push more MCP invoke events than MAX_CALLS (200)
+    for i in 0..201usize {
+        state.handle_event(
+            &EventKind::McpInvoke {
+                task_id: "t".into(),
+                mcp_server: "novanet".to_string(),
+                tool: Some(format!("tool_{}", i)),
+                resource: None,
+                call_id: format!("call_{}", i),
+                params: None,
+            },
+            i as u64,
+        );
+    }
+
+    assert!(
+        state.mcp.calls.len() <= 200,
+        "mcp.calls len {} must be <= 200 (MAX_CALLS)",
+        state.mcp.calls.len()
+    );
+}
