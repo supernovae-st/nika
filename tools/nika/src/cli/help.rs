@@ -11,8 +11,19 @@ use colored::Colorize;
 
 fn print_banner() {
     let version = env!("CARGO_PKG_VERSION");
-    let w = 60;
-    let bar = "\u{2500}".repeat(w); // ─
+    let inner = 56;
+    let bar = "\u{2500}".repeat(inner + 2);
+
+    let l1_left = "\u{2727} N I K A";
+    let l1_right = format!("v{version}");
+    let l1_pad = inner - l1_left.len() - l1_right.len();
+
+    let l2 = "Semantic YAML workflow engine for AI tasks";
+    let l2_pad = inner - l2.len();
+
+    let l3 = "5 verbs \u{00B7} 9 providers \u{00B7} 24 builtin tools";
+    let l3_pad = inner - l3.len();
+
     println!();
     println!(
         "  {}{}{}",
@@ -20,30 +31,23 @@ fn print_banner() {
         bar.dimmed(),
         "\u{256E}".dimmed()
     );
+
+    print!("  {} ", "\u{2502}".dimmed());
+    print!("{} {}", "\u{2727}".magenta().bold(), "N I K A".bold());
     println!(
-        "  {}  {} {}{}{}  {}",
-        "\u{2502}".dimmed(),
-        "\u{2727}".magenta().bold(),
-        "N I K A".bold(),
-        " ".repeat(w - 34),
-        format!("v{version}").dimmed(),
-        "\u{2502}".dimmed(),
+        "{}{} {}",
+        " ".repeat(l1_pad),
+        l1_right.dimmed(),
+        "\u{2502}".dimmed()
     );
-    let tagline = "Semantic YAML workflow engine for AI tasks";
-    println!(
-        "  {}  {}{pad}  {}",
-        "\u{2502}".dimmed(),
-        tagline,
-        "\u{2502}".dimmed(),
-        pad = " ".repeat(w - 44),
-    );
-    println!(
-        "  {}  {}{}  {}",
-        "\u{2502}".dimmed(),
-        "5 verbs \u{00B7} 9 providers \u{00B7} 24 builtin tools".dimmed(),
-        " ".repeat(w - 42),
-        "\u{2502}".dimmed(),
-    );
+
+    print!("  {} ", "\u{2502}".dimmed());
+    println!("{l2}{} {}", " ".repeat(l2_pad), "\u{2502}".dimmed());
+
+    print!("  {} ", "\u{2502}".dimmed());
+    print!("{}", l3.dimmed());
+    println!("{} {}", " ".repeat(l3_pad), "\u{2502}".dimmed());
+
     println!(
         "  {}{}{}",
         "\u{2570}".dimmed(),

@@ -14,7 +14,7 @@
 //! - `llm_txt` — AI-era content discovery (/.well-known/llm.txt, /llms.txt)
 //!
 //! **Response modes (3):**
-//! - `full` — JSON envelope: { status, headers, body, final_url }
+//! - `full` — JSON envelope: { status, headers, body, url }
 //! - `binary` — Store in CAS, return hash for media pipeline
 //! - (default) — Raw body text
 //!
@@ -587,7 +587,7 @@ tasks:
 
 // =============================================================================
 // 10 — Full Response Envelope
-// fetch: URL -> response:full -> status + headers + body + final_url
+// fetch: URL -> response:full -> status + headers + body + url
 // =============================================================================
 
 const FETCH_10_RESPONSE_FULL: &str = r##"# =============================================================================
@@ -600,7 +600,7 @@ const FETCH_10_RESPONSE_FULL: &str = r##"# =====================================
 # - status: HTTP status code
 # - headers: all response headers
 # - body: response body text
-# - final_url: after redirect resolution
+# - url: after redirect resolution
 #
 # Perfect for debugging redirects, checking security headers, API monitoring.
 #
@@ -645,7 +645,7 @@ tasks:
       tool: "nika:log"
       params:
         level: "info"
-        message: "Full response envelopes captured — status, headers, body, and final_url available"
+        message: "Full response envelopes captured — status, headers, body, and url available"
 "##;
 
 // =============================================================================
@@ -871,7 +871,7 @@ tasks:
       template: |
         # Multi-Extract Comparison Report
 
-        {{task.output}}
+        {{output}}
 "##;
 
 // =============================================================================
@@ -941,7 +941,7 @@ tasks:
     artifact:
       path: rust-newsletter-digest.md
       template: |
-        {{task.output}}
+        {{output}}
 
   - id: log_done
     depends_on: [create_digest]
@@ -1118,7 +1118,7 @@ tasks:
       template: |
         # SEO Analysis Report — github.com
 
-        {{task.output}}
+        {{output}}
 "##;
 
 // =============================================================================

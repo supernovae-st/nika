@@ -1088,7 +1088,7 @@ const DATA_HEIST_04_TEMPLATE: &str = r##"# =====================================
 #
 # response: binary — Download raw bytes into CAS, returns the hash
 #                    Perfect for images, PDFs, binary files
-# response: full   — JSON with { status, headers, body, final_url }
+# response: full   — JSON with { status, headers, body, url }
 #                    Perfect for debugging redirects, checking security headers
 #
 # No feature flags needed — both are always available.

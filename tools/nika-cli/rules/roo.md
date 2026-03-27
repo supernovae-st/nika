@@ -298,8 +298,8 @@ Use `content:` array instead of `prompt:` for images:
 
     # Cost / time limits
     limits:
-      cost_usd: 2.0
-      duration_seconds: 120
+      max_cost_usd: 2.0
+      max_duration_secs: 120
 
     # Advanced
     from: researcher                   # Reuse a named agent preset from agents: header section
