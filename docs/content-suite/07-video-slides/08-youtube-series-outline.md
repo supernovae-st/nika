@@ -324,39 +324,40 @@
 
 ### Metadata
 
-**Title:** "Learn Nika #7: Swiss Knife -- 43 Builtin Tools"
-**SEO Description:** Explore Nika's builtin tool ecosystem. Use invoke: with nika:log, nika:emit, nika:assert, and discover 43 tools for logging, validation, media, and more. 3 exercises.
-**Tags:** nika, invoke, builtin tools, nika:log, nika:assert, mcp, tool calling
+**Title:** "Learn Nika #7: Swiss Knife -- 24 Media + Builtin Tools"
+**SEO Description:** Explore Nika's tool ecosystem. Use invoke: with nika:log, nika:emit, nika:assert, and discover 24 media tools for logging, validation, image processing, and more. 3 exercises.
+**Tags:** nika, invoke, builtin tools, nika:log, nika:assert, media tools, mcp, tool calling
 **Thumbnail Concept:** A multi-tool (Swiss Army knife style) with code symbols on each tool. "SWISS KNIFE" in red. Episode "07".
 
 ### Content Outline
 
 ```
 0:00  Cold open: "Five verbs compose. But tools multiply."
-0:30  The invoke: verb for nika: builtin tools
+0:30  The invoke: verb for nika: builtin and media tools
 1:30  nika:log -- structured logging within workflows
 2:30  nika:emit -- emit custom events
 3:30  nika:assert -- runtime assertions
 4:30  Exercise 1: Logging and assertions
-6:00  Overview of 43 builtin tools
+6:00  Overview of media and builtin tools
 7:00  File tools: nika:read, nika:write, nika:edit
 8:30  Exercise 2: File operations workflow
 10:00  Utility tools overview
 11:00  Combining tools with other verbs
 12:00  Exercise 3: Multi-tool pipeline
 14:00  Tool error handling (NIKA-200 to NIKA-214)
-15:00  Preview: media tools (covered in Episode 11)
-16:00  Recap: invoke, nika: prefix, 43 tools
+15:00  Preview: deep media tools dive (covered in Episode 11)
+16:00  Recap: invoke, nika: prefix, 24 media tools
 17:00  Next preview: "Gone Rogue -- autonomous agents"
 18:00  Outro
 ```
 
 ### Key Teaching Points
 
-- `invoke: { tool: nika:*, input: {...} }` calls builtin tools
+- `invoke: { tool: nika:*, input: {...} }` calls tools
 - nika:log for structured workflow logging
 - nika:assert for runtime validation
 - File tools for reading, writing, editing files
+- 24 media tools for image processing and content pipelines
 - Error codes NIKA-200 to NIKA-214 for tool-specific issues
 
 ---
@@ -511,9 +512,9 @@
 
 ### Metadata
 
-**Title:** "Learn Nika #11: Pixel Pirate -- The Media Pipeline"
+**Title:** "Learn Nika #11: Pixel Pirate -- 24 Media Tools"
 **SEO Description:** Master Nika's 24 media tools. Import images into CAS, generate thumbnails, extract metadata, create charts, sign with C2PA provenance, and chain operations with nika:pipeline. 4 exercises.
-**Tags:** nika, media pipeline, image processing, cas, content addressable, thumbnail, c2pa, provenance
+**Tags:** nika, media pipeline, image processing, cas, content addressable, thumbnail, c2pa, provenance, vision
 **Thumbnail Concept:** A pirate flag with a pixel art butterfly. "PIXEL PIRATE" in teal/cyan. Episode "11".
 
 ### Content Outline

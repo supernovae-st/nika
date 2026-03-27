@@ -1,4 +1,4 @@
-# Episode 3: 451K Lines of Rust -- The Architecture That Makes It Work
+# Episode 3: 330K Lines of Rust -- The Architecture That Makes It Work
 
 ## Metadata
 
@@ -18,7 +18,7 @@
 
 [MUSIC: Technical, precise, building layers]
 
-**Host:** Most AI tools are Python scripts with a nice API. Nika is 451 thousand lines of Rust organized into 10 crates with a three-phase compiler pipeline, a cache-friendly DAG executor using Kahn's topological sort, a zero-I/O core library, and 8,100 tests.
+**Host:** Most AI tools are Python scripts with a nice API. Nika is 330 thousand lines of Rust organized into 12 crates with a three-phase compiler pipeline, a cache-friendly DAG executor using Kahn's topological sort, a zero-I/O core library, and 2,150+ tests.
 
 [PAUSE]
 
@@ -32,7 +32,7 @@ This is not over-engineering. This is what happens when you apply compiler desig
 
 **Host:** Welcome to Episode 3 of "Building Nika." If you have been following along, you know what Nika does -- five verbs, YAML workflows, AI orchestration. Today we are talking about how it does it. The Rust architecture underneath.
 
-This episode is for anyone who has ever wondered: what does a production-grade Rust application actually look like at scale? How do you organize 451K lines across 10 crates? How do you make a workflow engine that is both correct and fast?
+This episode is for anyone who has ever wondered: what does a production-grade Rust application actually look like at scale? How do you organize 330K lines across 12 crates? How do you make a workflow engine that is both correct and fast?
 
 Let us start with the big picture.
 
@@ -40,21 +40,23 @@ Let us start with the big picture.
 
 ## Segment 1: The 10-Crate Workspace Design (8 minutes)
 
-**Host:** Nika is a Cargo workspace with 10 crates. And the split is not arbitrary -- each crate has a specific role, specific dependency rules, and a specific reason for existing.
+**Host:** Nika is a Cargo workspace with 12 crates. And the split is not arbitrary -- each crate has a specific role, specific dependency rules, and a specific reason for existing.
 
 [CODE EXAMPLE]
 ```
 tools/
-  nika/           (2K lines)    CLI binary -- the entry point
-  nika-engine/    (134K lines)  Execution engine -- the heart
-  nika-core/      (23K lines)   AST, types, catalogs -- zero I/O
-  nika-event/     (4K lines)    EventLog, TraceWriter
-  nika-mcp/       (9K lines)    MCP client, connection pool
-  nika-media/     (3.5K lines)  CAS store, media processor
-  nika-cli/       (8K lines)    CLI subcommands
-  nika-tui/       (92K lines)   Terminal UI
-  nika-lsp-core/  (9K lines)    LSP intelligence
-  nika-lsp/       (2.5K lines)  LSP binary
+  nika/           (4K lines)    CLI binary -- the entry point
+  nika-engine/    (137K lines)  Execution engine -- the heart
+  nika-core/      (24K lines)   AST, types, catalogs -- zero I/O
+  nika-event/     (5K lines)    EventLog, TraceWriter
+  nika-mcp/       (9.5K lines)  MCP client, connection pool
+  nika-media/     (13K lines)   CAS store, media processor
+  nika-cli/       (11K lines)   CLI subcommands
+  nika-tui/       (88K lines)   Terminal UI
+  nika-lsp-core/  (11K lines)   LSP intelligence
+  nika-lsp/       (2.8K lines)  LSP binary
+  nika-init/      (21K lines)   Project setup + course system
+  nika-daemon/    (6.4K lines)  Background daemon for secrets/cache
 ```
 
 Let me explain why this split exists.
@@ -104,7 +106,7 @@ This crate is designed to be embeddable. You can depend on nika-engine in your o
 
 **nika-tui: The Developer Experience Layer**
 
-92K lines for a terminal UI. Let that sink in.
+88K lines for a terminal UI. Let that sink in.
 
 The TUI is built on ratatui and provides three views:
 
@@ -308,7 +310,7 @@ This processes up to 5 URLs concurrently, queuing the rest. The concurrency limi
 
 ## Segment 4: The Provider Abstraction (4 minutes)
 
-**Host:** Nika supports 22 LLM providers through a layered abstraction.
+**Host:** Nika supports 9 LLM providers (7 cloud + native local + mock) through a layered abstraction.
 
 The foundation is rig-core v0.32 -- a Rust LLM framework that provides a unified interface for cloud providers. On top of that, Nika adds:
 
@@ -352,7 +354,7 @@ The three-phase AST -- Raw, Analyzed, Lowered -- catches all errors before execu
 
 The IndexedDag with Kahn's algorithm provides automatic parallelism with cache-friendly data structures and zero-overhead dependency resolution.
 
-And the provider abstraction makes workflows portable across 22 LLM providers.
+And the provider abstraction makes workflows portable across 9 LLM providers.
 
 [PAUSE]
 
@@ -375,16 +377,18 @@ Next episode, we are diving into the media pipeline. 24 tools, content-addressab
 ### Crate Sizes
 | Crate | Lines | Role |
 |-------|------:|------|
-| nika-engine | 134K | Execution engine |
-| nika-tui | 92K | Terminal UI |
-| nika-core | 23K | AST types (zero I/O) |
-| nika-mcp | 9K | MCP client |
-| nika-lsp-core | 9K | LSP intelligence |
-| nika-cli | 8K | CLI subcommands |
-| nika-event | 4K | Event system |
-| nika-media | 3.5K | CAS store |
-| nika-lsp | 2.5K | LSP binary |
-| nika | 2K | CLI entry point |
+| nika-engine | 137K | Execution engine |
+| nika-tui | 88K | Terminal UI |
+| nika-init | 21K | Project setup + course system |
+| nika-core | 24K | AST types (zero I/O) |
+| nika-lsp-core | 11K | LSP intelligence |
+| nika-cli | 11K | CLI subcommands |
+| nika-media | 13K | CAS store, media processor |
+| nika-daemon | 6.4K | Background daemon |
+| nika-mcp | 9.5K | MCP client |
+| nika-event | 5K | Event system |
+| nika-lsp | 2.8K | LSP binary |
+| nika | 4K | CLI entry point |
 
 ### Key Dependencies
 - **tokio** -- Async runtime

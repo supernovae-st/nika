@@ -86,9 +86,9 @@ The `invoke:` verb calls an MCP (Model Context Protocol) tool. This is Nika's ex
 
 The invoke verb is how Nika connects to NovaNet (the knowledge graph), external databases, code execution sandboxes, web search services, and any other capability exposed via MCP. The MCP client uses rmcp v0.16 with stdio transport, retry logic, and connection pooling.
 
-But invoke is also the gateway to Nika's 43 built-in tools. When you write `invoke: nika:thumbnail`, the executor first checks if there is a builtin tool with that name. If there is, it runs it locally. If not, it routes to the configured MCP server. This means builtin tools and external tools share the same interface — from the workflow's perspective, they are indistinguishable.
+But invoke is also the gateway to Nika's 24 built-in media tools. When you write `invoke: nika:thumbnail`, the executor first checks if there is a builtin tool with that name. If there is, it runs it locally. If not, it routes to the configured MCP server. This means builtin tools and external tools share the same interface — from the workflow's perspective, they are indistinguishable.
 
-The 43 built-in tools include 6 core tools (sleep, log, emit, assert, prompt, run), 5 file tools (read, write, edit, glob, grep), and up to 32 media tools (import, dimensions, thumbhash, dominant_color, thumbnail, convert, strip, metadata, optimize, svg_render, phash, compare, pdf_extract, chart, provenance, verify, qr_validate, quality, pipeline, html_to_md, css_select, extract_metadata, extract_links, readability, and more).
+The 24 built-in media tools are organized in three tiers: Tier 1 (always-on, 5 tools): import, dimensions, thumbhash, dominant_color, pipeline. Tier 2 (default, 6 tools): thumbnail, convert, strip, metadata, optimize, svg_render. Tier 3 (opt-in, 13 tools): phash, compare, pdf_extract, chart, provenance, verify, qr_validate, quality, html_to_md, css_select, extract_metadata, extract_links, readability.
 
 ### agent: — The Autonomy Verb
 

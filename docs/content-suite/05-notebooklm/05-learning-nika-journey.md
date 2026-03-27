@@ -72,9 +72,9 @@ The `nika course run <exercise>` command executes an exercise workflow. This is 
 
 ---
 
-## The Showcase: 200+ Ready-to-Use Workflows
+## The Showcase: 115 Ready-to-Use Workflows
 
-Beyond the structured course, Nika includes a showcase system with over 200 example workflows. These are not exercises — they are complete, production-ready workflows that demonstrate real-world use cases.
+Beyond the structured course, Nika includes a showcase system with 115 example workflows. These are not exercises — they are complete, production-ready workflows that demonstrate real-world use cases.
 
 The showcase is organized by category:
 

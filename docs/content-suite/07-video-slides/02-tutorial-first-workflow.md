@@ -45,10 +45,10 @@ Nika compiles from source. This takes about two minutes on a modern machine. If 
 
 [TYPE] `nika --version`
 
-[SCREEN] Output: `nika 0.42.0`
+[SCREEN] Output: `nika 0.49.0`
 
 **Voice-over:**
-Version 0.42.0. Ten crates compiled into a single static binary. Let's verify everything is working.
+Version 0.49.0. Twelve crates compiled into a single static binary. Let's verify everything is working.
 
 ### Scene 1.3 -- Verify Setup (0:50 - 1:30)
 
@@ -266,13 +266,13 @@ The fetch ran first. The result flowed into the report task through the binding.
 
 [TYPE] Change to:
 ```yaml
-      command: echo "WEATHER UPDATE - {{with.weather | uppercase | trim}}"
+      command: echo "WEATHER UPDATE - {{with.weather | upper | trim}}"
 ```
 
-[ZOOM] On `| uppercase | trim`
+[ZOOM] On `| upper | trim`
 
 **Voice-over:**
-Pipe transforms let you process data inline. `uppercase` converts to uppercase, `trim` removes whitespace. There are twenty-seven transforms available -- `lowercase`, `reverse`, `word_count`, `truncate`, `base64_encode`, and more. Chain as many as you need with the pipe operator.
+Pipe transforms let you process data inline. `upper` converts to uppercase, `trim` removes whitespace. There are 31 transforms available -- `lower`, `reverse`, `sort`, `unique`, `compact`, `join()`, and more. Chain as many as you need with the pipe operator.
 
 [TYPE] `nika run weather.nika.yaml`
 
@@ -406,7 +406,7 @@ The infer verb supports all the parameters you would expect. `system:` for syste
 ```
 
 **Voice-over:**
-Different tasks, different models. Fast summary on Groq. Deep analysis on Claude Sonnet. Local fact-checking on a native GGUF model running entirely on your machine. No code changes between providers. Just change the model line. Nika abstracts the provider differences through rig-core, giving you a unified interface across eight providers and hundreds of models.
+Different tasks, different models. Fast summary on Groq. Deep analysis on Claude Sonnet. Local fact-checking on a native GGUF model running entirely on your machine. No code changes between providers. Just change the model line. Nika abstracts the provider differences through rig-core, giving you a unified interface across nine providers and hundreds of models.
 
 ---
 
@@ -488,10 +488,10 @@ Want to go deeper? Nika has a built-in interactive course. Twelve levels, forty-
 
 [TYPE] `nika showcase list`
 
-[SCREEN] Show the scrolling list of 200+ showcase workflows.
+[SCREEN] Show the scrolling list of 115 showcase workflows.
 
 **Voice-over:**
-If you learn by example, the showcase has over two hundred working workflows. `nika showcase list` shows them all, organized by category. `nika showcase extract weather-report` pulls a specific workflow into your project, ready to run.
+If you learn by example, the showcase has 115 working workflows. `nika showcase list` shows them all, organized by category. `nika showcase extract weather-report` pulls a specific workflow into your project, ready to run.
 
 [TYPE] `nika showcase extract weather-report`
 
@@ -535,7 +535,7 @@ nika showcase list                 -- 200+ examples
 **Voice-over:**
 That is your first Nika workflow. We went from installation to a three-task AI pipeline in under five minutes. We used three of the five verbs. We saw data flow through typed bindings. We explored the TUI. And we barely scratched the surface -- structured output, media tools, MCP integration, agent loops, and the full course are waiting.
 
-The source code is on GitHub. The course is built in. The showcase has hundreds of examples. Go build something.
+The source code is on GitHub. The course is built in. The showcase has 115 examples. Go build something.
 
 [SCREEN] Title card: "Nika -- AI Workflows, Liberated" with GitHub URL.
 

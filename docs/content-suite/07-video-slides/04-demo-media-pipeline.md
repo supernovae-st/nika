@@ -25,7 +25,7 @@
 [SUBTITLE] "Content-Addressable Storage, SIMD Processing, and Zero Intermediate Files"
 
 **Voice-over:**
-Most media processing in AI workflows is an afterthought. Download an image, shell out to ImageMagick, hope the path is right. Nika takes a different approach: twenty-four builtin media tools, a content-addressable storage system, and in-memory pipeline chaining. Today I will show you how to build a complete media processing pipeline -- from import to provenance signing -- in a single workflow.
+Most media processing in AI workflows is an afterthought. Download an image, shell out to ImageMagick, hope the path is right. Nika takes a different approach: 24 builtin media tools, a content-addressable storage system, and in-memory pipeline chaining. Today I will show you how to build a complete media processing pipeline -- from import to provenance signing -- in a single workflow.
 
 ### Scene 1.2 -- The Three Tiers (0:30 - 1:30)
 
@@ -45,11 +45,11 @@ TIER 3 -- Opt-in (13 tools)
 ```
 
 **Voice-over:**
-Twenty-four tools organized in three tiers. Tier 1 is always available -- five tools that work without any feature flags. Import files, read dimensions, generate thumbhash placeholders, extract dominant colors, and chain operations with the pipeline tool.
+24 tools organized in three tiers. Tier 1 (5 tools) is always available without feature flags: import, dimensions, thumbhash, dominant_color, pipeline.
 
-Tier 2 ships with the default `media-core` feature -- six tools for everyday image processing. SIMD-accelerated thumbnails, format conversion, metadata stripping, lossless PNG optimization, and SVG rasterization.
+Tier 2 (6 tools) ships with the default `media-core` feature: thumbnail, convert, strip, metadata, optimize, svg_render.
 
-Tier 3 is opt-in for specialized use cases. Perceptual hashing for deduplication. C2PA provenance for content authenticity. QR code validation. Image quality assessment. PDF text extraction. And web content extraction tools.
+Tier 3 (13 tools) is opt-in for specialized use cases: phash, compare, pdf_extract, chart, provenance, verify, qr_validate, quality, html_to_md, css_select, extract_metadata, extract_links, readability.
 
 All of them are accessible through the `invoke:` verb with the `nika:` prefix. No external binaries. No shell commands. Pure Rust.
 
@@ -431,7 +431,7 @@ SIMD processing |  C2PA provenance  |  Parallel DAG execution
 ```
 
 **Voice-over:**
-Twenty-four tools. Three tiers. Content-addressable storage. SIMD-accelerated processing. C2PA provenance for content authenticity. And the DAG gives you automatic parallelism without writing a single line of orchestration code. This is media processing for the AI era.
+24 tools across 3 tiers. Content-addressable storage with blake3 hashing. SIMD-accelerated processing. C2PA provenance for content authenticity. And the DAG gives you automatic parallelism without writing a single line of orchestration code. This is media processing for the AI era.
 
 [TITLE CARD] "Nika -- 24 Media Tools. One Workflow."
 

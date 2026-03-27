@@ -80,7 +80,7 @@ Let's verify everyone's setup. Open your terminal and run these two commands.
 
 ```bash
 nika --version
-# Expected: nika 0.42.0
+# Expected: nika 0.49.0
 
 nika provider list
 # Expected: at least one provider with a green checkmark
@@ -117,7 +117,7 @@ Before we write any YAML, let me give you the thirty-second pitch. Every AI work
 [SLIDE] Five-verb table:
 
 ```
-infer:    LLM generation (8 providers, vision, structured output)
+infer:    LLM generation (9 providers, vision, structured output)
 exec:     Shell commands (blocklist, timeout)
 fetch:    HTTP requests (9 extraction modes)
 invoke:   MCP tool calls (schema validation, retry)

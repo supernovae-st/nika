@@ -69,10 +69,10 @@ What if there were a workflow engine that did not assume you needed training whe
 
 [ANIMATION] The butterfly logo unfolds from the center. Title appears letter by letter: "Nika"
 
-**Visual:** Full-screen Nika logo with the tagline "Semantic YAML Workflow Engine for AI Tasks." Below: "10 crates. 1.56M lines. 8,100 tests. Zero compromises."
+**Visual:** Full-screen Nika logo with the tagline "Semantic YAML Workflow Engine for AI Tasks." Below: "12 crates. 1.56M lines. 8,300+ tests. Zero compromises."
 
 **Speaker Notes:**
-This is Nika. A semantic YAML workflow engine for AI tasks, written entirely in Rust. Ten workspace crates. Over one and a half million lines of production code. Nearly eight thousand tests. And a zero-warnings policy enforced by CI on every commit. Nika is not a prototype. It is not a wrapper around somebody else's library. It is a ground-up engineering effort to build the workflow engine that AI development deserves.
+This is Nika. A semantic YAML workflow engine for AI tasks, written entirely in Rust. Twelve workspace crates. Over one and a half million lines of production code. Eight thousand three hundred plus tests. And a zero-warnings policy enforced by CI on every commit. Nika is not a prototype. It is not a wrapper around somebody else's library. It is a ground-up engineering effort to build the workflow engine that AI development deserves.
 
 ---
 
@@ -293,19 +293,19 @@ This is the Nika TUI. Three views for three workflows. Home for browsing and sel
 
 ---
 
-## SLIDE 16 -- Eight Providers
+## SLIDE 16 -- Nine Providers
 
 [SLIDE] Grid of provider logos with connection lines to Nika:
 
 ```
 Claude    OpenAI    Mistral    Groq
-DeepSeek  Gemini    xAI        Native (local GGUF)
+DeepSeek  Gemini    xAI        Native (local GGUF)    Perplexity
 ```
 
 **Visual:** Each logo animates in. The "Native" entry has a special glow -- it represents local execution.
 
 **Speaker Notes:**
-Nika supports eight LLM providers out of the box. Seven cloud providers through rig-core -- Claude, OpenAI, Mistral, Groq, DeepSeek, Gemini, and xAI. And a native provider through mistral.rs for running GGUF models locally, completely offline. Vision support across all providers that support it. Extended thinking for Claude. Streaming for all of them. Structured output with a five-layer defense system. One workflow, any provider. Switch models by changing one line.
+Nika supports nine LLM providers out of the box. Eight cloud providers through rig-core -- Claude, OpenAI, Mistral, Groq, DeepSeek, Gemini, xAI, and Perplexity. And a native provider through mistral.rs for running GGUF models locally, completely offline. Vision support across all providers that support it. Extended thinking for Claude. Streaming for all of them. Structured output with a five-layer defense system. One workflow, any provider. Switch models by changing one line.
 
 ---
 
@@ -438,12 +438,12 @@ When something goes wrong, Nika tells you exactly what. Three hundred and twenty
 
 ## SLIDE 24 -- The Showcase
 
-[SLIDE] A scrolling gallery of 200+ showcase workflows:
+[SLIDE] A scrolling gallery of 115 showcase workflows:
 
 **Visual:** Tile grid showing workflow categories: fetch patterns, LLM workflows, media pipelines, infrastructure automation, advanced patterns. Each tile has a preview snippet.
 
 **Speaker Notes:**
-Not sure where to start? Nika ships with over two hundred showcase workflows. `nika showcase list` to browse. `nika showcase extract` to pull one into your project. Fetch patterns, LLM workflows, media pipelines, infrastructure automation -- curated examples for every use case. They are not documentation examples -- they are working, tested workflows you can run today.
+Not sure where to start? Nika ships with 115 showcase workflows. `nika showcase list` to browse. `nika showcase extract` to pull one into your project. Fetch patterns, LLM workflows, media pipelines, infrastructure automation -- curated examples for every use case. They are not documentation examples -- they are working, tested workflows you can run today.
 
 ---
 
@@ -525,7 +525,7 @@ nika course next
 **Visual:** Each command appears one at a time with a brief animation. Below each: what it does.
 
 **Speaker Notes:**
-Getting started takes three commands. Install from crates.io. Initialize the course. Open your first exercise. Or if you already know what you are doing: `nika init --minimal` gives you five workflows, one per verb, ready to customize. `nika showcase list` gives you two hundred working examples. The documentation is built into the tool.
+Getting started takes three commands. Install from crates.io. Initialize the course. Open your first exercise. Or if you already know what you are doing: `nika init` gives you starter workflows. `nika showcase list` gives you 115 working examples. The documentation is built into the tool.
 
 ---
 
@@ -590,11 +590,11 @@ supernovae.studio
 
 ## Backup Slides
 
-### BACKUP A -- Fetch Extraction Modes
+### BACKUP A -- Fetch Extraction Modes (9 modes)
 
 ```
 markdown   article   text       selector
-metadata   links     jsonpath   feed     llm_txt
+metadata   links     jsonpath   feed       llm_txt
 ```
 
 Nine modes. One field. Show code example for each.
@@ -612,7 +612,7 @@ Nine modes. One field. Show code example for each.
 ### BACKUP C -- Testing Strategy
 
 ```
-8,100+ tests
+8,300+ tests
 - Unit tests: cargo test --lib
 - Snapshot tests: insta
 - Property tests: proptest

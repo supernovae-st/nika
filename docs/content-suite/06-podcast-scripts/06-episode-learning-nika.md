@@ -244,7 +244,7 @@ This four-phase structure means you can learn 30% of Nika without spending a sin
 
 ## Segment 3: Showcase Workflows and Learning Philosophy (6 minutes)
 
-**Host:** Beyond the structured course, Nika ships with 200+ showcase workflows. These are complete, runnable examples that demonstrate specific features:
+**Host:** Beyond the structured course, Nika ships with 115 showcase workflows. These are complete, runnable examples that demonstrate specific features:
 
 [CODE EXAMPLE]
 ```bash
@@ -315,7 +315,7 @@ The course, the showcases, the hints, the progress tracking -- they are all buil
 
 ## Wrap-up & Preview (2 minutes)
 
-**Host:** Nika's learning system is 44 exercises across 12 levels with a Liberation theme, plus 200+ showcase workflows and three scaffolding modes (course, minimal, wizard).
+**Host:** Nika's learning system is 44 exercises across 12 levels with a Liberation theme, plus 115 showcase workflows and three scaffolding modes (course, minimal, wizard).
 
 The pedagogical arc goes from free local commands to paid LLM calls to autonomous agents to full production orchestration. Progress is tracked in TOML, hints are progressive, and every exercise is runnable.
 

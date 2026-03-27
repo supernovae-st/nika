@@ -2,7 +2,7 @@
 
 ## A Podcast-Ready Exploration of the Engineering Behind a 317K-Line Workflow Engine
 
-If you told most developers that someone built a YAML workflow engine in 317,000 lines of Rust, their first question would be: why does a YAML parser need that much code? The answer reveals something fascinating about what Nika actually is under the hood. It is not a YAML parser with some API calls bolted on. It is a compiler, a DAG scheduler, a concurrent runtime, an MCP client, a media processing pipeline, a terminal user interface, a language server, and an interactive learning platform — all compiled into a single binary with zero external runtime dependencies.
+If you told most developers that someone built a YAML workflow engine in 317,000 lines of Rust, their first question would be: why does a YAML parser need that much code? The answer reveals something fascinating about what Nika actually is under the hood. It is not a YAML parser with some API calls bolted on. It is a compiler, a DAG scheduler, a concurrent runtime, an MCP client, a media processing pipeline, a terminal user interface, a language server, and an interactive learning platform — all compiled into a single binary with zero external runtime dependencies. This is the architecture of Nika as of version 0.49.0.
 
 Let us open the hood and look at every moving part.
 
@@ -46,9 +46,9 @@ One of the more sophisticated features is the decompose modifier. A task with `d
 
 ---
 
-## The Provider Abstraction: 22 LLMs, One Interface
+## The Provider Abstraction: 9 LLMs, One Interface
 
-Nika supports 22 LLM providers through a unified abstraction layer built on rig-core v0.32. The provider abstraction is designed so that switching from Claude to GPT-4 to a local Llama model requires changing exactly one line in the workflow YAML.
+Nika supports 9 LLM providers (7 cloud + native + mock) through a unified abstraction layer built on rig-core. The provider abstraction is designed so that switching from Claude to GPT-4 to a local Llama model requires changing exactly one line in the workflow YAML.
 
 Seven cloud providers are supported through rig-core: Anthropic (Claude), OpenAI (GPT-4, o1), Mistral, Groq, DeepSeek, Gemini (Google), and xAI (Grok). Each provider has a constructor (e.g., `RigProvider::claude()`) and a default model. The auto-detection system checks for API keys in environment variables in priority order: ANTHROPIC_API_KEY, OPENAI_API_KEY, MISTRAL_API_KEY, and so on. The first key found determines the default provider.
 
@@ -166,9 +166,9 @@ This level of error systematization is more common in compilers and databases th
 
 ---
 
-## The Crate Architecture: 10 Workspace Members
+## The Crate Architecture: 12 Workspace Members
 
-The 10-crate workspace structure is deliberately designed around dependency isolation:
+The 12-crate workspace structure is deliberately designed around dependency isolation:
 
 **nika-core** (23K lines) is the zero-I/O core. It contains the AST types, the parser, the analyzer, provider/model catalogs, MCP alias definitions, and the transform catalog. It has no runtime dependencies — no tokio, no reqwest, no file system access. This means it can be used as a library for building tools that need to understand Nika workflows without executing them.
 
@@ -190,7 +190,7 @@ The 10-crate workspace structure is deliberately designed around dependency isol
 
 **nika** (2.2K lines) is the CLI binary entry point that ties everything together.
 
-This architecture enables several important use cases. An embedded Rust application could depend on just nika-engine to execute workflows programmatically. A code analysis tool could depend on just nika-core to parse and validate workflows. The LSP server depends on nika-lsp-core without needing the full engine. Each crate has its own test suite, and the workspace-level `cargo test --workspace --lib` runs all 8,100+ tests across all crates.
+This architecture enables several important use cases. An embedded Rust application could depend on just nika-engine to execute workflows programmatically. A code analysis tool could depend on just nika-core to parse and validate workflows. The LSP server depends on nika-lsp-core without needing the full engine. Each crate has its own test suite, and the workspace-level `cargo test --workspace --lib` runs all 8,300+ tests across all crates.
 
 ---
 
@@ -240,9 +240,9 @@ These extraction modes compose with the binding system. A fetch task with `extra
 
 ## The Init and Showcase Systems: Content as Code
 
-Nika's `init` system generates project scaffolding and learning materials programmatically. The `nika init` command offers three modes: a guided wizard that asks questions and generates tailored workflows, `--minimal` for a five-workflow scaffold (one per verb), and `--course` for the full 12-level Liberation course with 44 exercises.
+Nika's `init` system generates project scaffolding and learning materials programmatically. The `nika init` command offers multiple modes: a guided wizard that asks questions and generates tailored workflows, and `--course` for the full 12-level Liberation course with 44 exercises.
 
-The showcase system is equally programmatic. Over 200 example workflows are generated from Rust source code — each showcase is a function that returns a YAML string. The showcases are organized by category: LLM workflows, exec workflows, fetch workflows, builtin tool workflows, pattern workflows (ETL, fan-out/fan-in, retry), advanced workflows (multi-provider, agent orchestration), and infrastructure workflows (monitoring, deployment).
+The showcase system is equally programmatic. 115 example workflows are generated from Rust source code — each showcase is a function that returns a YAML string. The showcases are organized by category: LLM workflows, exec workflows, fetch workflows, builtin tool workflows, pattern workflows (ETL, fan-out/fan-in, retry), advanced workflows (multi-provider, agent orchestration), and infrastructure workflows (monitoring, deployment).
 
 This "content as code" approach means the showcases are always consistent with the current schema version, always validated by the compiler, and always correct. A showcase that references a feature only available in schema @0.12 will produce a YAML file that declares schema @0.12. The Rust compiler guarantees that the generated YAML is syntactically valid. This is dramatically more reliable than maintaining hundreds of separate example YAML files manually.
 
@@ -250,7 +250,7 @@ This "content as code" approach means the showcases are always consistent with t
 
 ## The Numbers
 
-To close with hard facts: Nika v0.42.0 is a single Rust binary built from 1,739 source files containing 317,616 lines of Rust code. It uses Rust 1.86 with the 2021 edition. The workspace contains 10 crates with independent compilation. The feature flag system uses 20+ Cargo features to enable/disable media processing tools. The dependency tree includes tokio for async, rig-core for LLM abstraction, rmcp for MCP protocol, petgraph for DAG algorithms, marked-yaml for span-preserving YAML parsing, serde for serialization, reqwest for HTTP, dashmap for concurrent storage, blake3 for content hashing, and ratatui for the TUI — among many others.
+To close with hard facts: Nika v0.49.0 is a single Rust binary built from 1,739 source files containing 317,616 lines of Rust code. It uses Rust 1.86 with the 2021 edition. The workspace contains 12 crates with independent compilation. The feature flag system uses 20+ Cargo features to enable/disable media processing tools. The dependency tree includes tokio for async, rig-core for LLM abstraction, rmcp for MCP protocol, petgraph for DAG algorithms, marked-yaml for span-preserving YAML parsing, serde for serialization, reqwest for HTTP, dashmap for concurrent storage, blake3 for content hashing, and ratatui for the TUI — among many others.
 
 It compiles to a single binary. It has no runtime dependencies. It runs on macOS, Linux, and Windows. It replaces Python scripts, Docker containers, and cloud platforms with a YAML file and a command line.
 

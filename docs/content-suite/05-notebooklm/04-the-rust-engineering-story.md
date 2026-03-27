@@ -36,7 +36,7 @@ SVG processing uses the usvg crate, which parses SVG into a simplified, sanitize
 
 ## The 10-Crate Architecture
 
-Nika's workspace contains 10 crates, and the boundaries between them encode important architectural invariants.
+Nika's workspace contains 12 crates, and the boundaries between them encode important architectural invariants.
 
 **nika-core** (23,114 lines) is the zero-I/O foundation. It contains the AST types (Raw and Analyzed), the parser, the analyzer, provider and model catalogs, MCP alias definitions, and the transform catalog. Crucially, nika-core has no dependency on tokio, reqwest, or any I/O crate. It performs no network requests, no file system access, and no process spawning. This is enforced by the Cargo.toml — the dependency list simply does not include I/O crates.
 
@@ -118,7 +118,7 @@ It buys a DAG scheduler with three graph representations, Kahn's topological sor
 
 It buys 22 LLM providers through a unified abstraction, with auto-detection, streaming, vision support, extended thinking, structured output with four-layer defense, and local inference via mistral.rs with Metal/CUDA acceleration.
 
-It buys 43 built-in tools including 24 media tools with SIMD-accelerated processing, CAS storage, C2PA provenance, QR code validation, and lossless optimization.
+It buys 24 built-in media tools with SIMD-accelerated processing, CAS storage, C2PA provenance, QR code validation, and lossless optimization, organized in three tiers (5 always-on, 6 default, 13 opt-in).
 
 It buys a 92,959-line TUI with three views, 40+ widgets, real-time DAG visualization, and streaming output display.
 
@@ -128,7 +128,7 @@ It buys an MCP client that manages server connections, retries, and tool routing
 
 It buys an event system with 41 event types and NDJSON trace output.
 
-It buys a 12-level interactive course with 44 exercises and 200+ showcase workflows.
+It buys a 12-level interactive course with 44 exercises and 115 showcase workflows.
 
 It buys an error code system with 20+ ranges, structured error messages, and fuzzy-matching suggestions.
 
