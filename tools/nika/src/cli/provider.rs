@@ -263,6 +263,36 @@ pub async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaE
             if let Err(e) = validate_key_format(&provider, &api_key) {
                 return Err(NikaError::ValidationError { reason: e });
             }
+            // Try daemon IPC first (faster, avoids keychain popup)
+            #[cfg(unix)]
+            {
+                let sock = nika_daemon::daemon_socket_path();
+                if sock.exists() {
+                    let client = nika_daemon::DaemonClient::new(&sock);
+                    if client.set_secret(&provider, &api_key).await.is_ok() {
+                        let env_var_name =
+                            provider_to_env_var(&provider).unwrap_or("UNKNOWN_API_KEY");
+                        // SAFETY: single-threaded CLI context
+                        unsafe { std::env::set_var(env_var_name, &api_key) };
+                        println!(
+                            "  {} API key for {} stored via daemon",
+                            StatusIcon::Ok,
+                            provider.bold()
+                        );
+                        if !no_test
+                            && is_tty
+                            && cliclack::confirm("Test connection now?")
+                                .initial_value(true)
+                                .interact()
+                                .unwrap_or(false)
+                        {
+                            test_provider_connection(&provider).await;
+                        }
+                        return Ok(());
+                    }
+                    // Fall through to direct keyring
+                }
+            }
             NikaKeyring::set(&provider, &api_key).map_err(|e| NikaError::ConfigError {
                 reason: format!("Failed to store key: {e}"),
             })?;
@@ -316,6 +346,23 @@ pub async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaE
         }
 
         ProviderAction::Delete { provider } => {
+            // Try daemon IPC first
+            #[cfg(unix)]
+            {
+                let sock = nika_daemon::daemon_socket_path();
+                if sock.exists() {
+                    let client = nika_daemon::DaemonClient::new(&sock);
+                    if client.delete_secret(&provider).await.is_ok() {
+                        println!(
+                            "  {} API key for {} deleted via daemon",
+                            StatusIcon::Ok,
+                            provider.bold()
+                        );
+                        return Ok(());
+                    }
+                    // Fall through to direct keyring
+                }
+            }
             match NikaKeyring::delete(&provider) {
                 Ok(()) => println!(
                     "  {} API key for {} deleted from keychain",
