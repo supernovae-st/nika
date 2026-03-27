@@ -40,15 +40,13 @@ tasks:
     with:
       pages: $scrape_sites
     for_each:
-      - { idx: 0, name: "Rust Blog" }
-      - { idx: 1, name: "GitHub Blog" }
-      - { idx: 2, name: "Hacker News" }
-    as: page
-    concurrency: 3
+      items: "{{with.pages}}"
+      as: page
+      concurrency: 5
     infer:
       prompt: |
-        Summarize "{{with.page.name}}" in 100 words:
-        {{with.pages | first(3000)}}
+        Summarize this web page in 100 words:
+        {{with.page | first(3000)}}
       temperature: 0.3
       max_tokens: 300
 
