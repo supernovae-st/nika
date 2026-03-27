@@ -7,6 +7,36 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.49.0] - 2026-03-27
+
+### Added
+- **`nika setup`** — interactive onboarding wizard using `cliclack` for first-run API key setup
+- **`nika provider set` interactive mode** — masked password prompt when key is not provided as argument
+- **Daemon L3 auth** — CSPRNG session token (uuid v4, 64 hex chars) gates `SetSecret`/`DeleteSecret` IPC; token written to `~/.nika/daemon/.token` with `0o600` permissions
+
+### Fixed
+- **Keychain → runner bridge** — `nika run` now calls `load_from_daemon_or_fallback()` at startup; keys stored via `nika provider set` are available without restarting the shell or setting `NIKA_KEYCHAIN_BOOT`
+- **`native-keychain` enabled by default** — `nika provider set` now stores keys reliably on all platforms (macOS Keychain, Linux Secret Service, Windows Credential Manager)
+- **TUI** — agent state fully reset on workflow re-run; `spawned_agents` no longer leak across runs
+- **TUI** — stuck Running tasks marked as Failed when `WorkflowFailed` fires without a preceding `TaskFailed`
+- **TUI** — interrupted Running tasks marked as Skipped on `WorkflowAborted`
+- **TUI** — chat history no longer corrupted on inference error; streaming always finishes cleanly
+- **TUI** — `partial_response` was incorrectly shown in PROMPT section during streaming
+- **TUI** — `Escape` in chat always returns focus to Input; overlays receive key events before global `Escape`/`q` handler
+- **TUI** — `scroll_offset` clamped in task flow render (prevented blank view on terminal shrink)
+- **TUI** — Gregorian date arithmetic fixed in history timestamp display
+- **TUI** — provider modal: key input cleared on tab switch, xAI supported, index clamped on reload
+- **TUI** — `highlight_incremental` no longer discards incremental parse tree (performance regression)
+- **TUI** — `Running`/`Skipped` tasks included in workflow retry
+- **TUI** — notification dedup prevents duplicate entries on fast event replay
+- **Display** — `StreamingDelta` event enables live token counter during LLM streaming inference
+- **CLI** — `#[cfg(unix)]` gates on `cache_cmd`, `daemon`, `jobs` re-exports (Windows build correctness)
+- **Secrets** — daemon IPC block gated with `#[cfg(unix)]` in `load_from_daemon_or_fallback`; `set_var` wrapped in `unsafe {}` with `SAFETY` comment (Rust 1.81+)
+- **Media** — blocking file I/O in `write_fail_if_exists` wrapped in `spawn_blocking` (was blocking async runtime thread)
+- **Daemon** — API key values redacted from `Debug` output; `SetSecret`/`DeleteSecret` require valid session auth token
+
+---
+
 ## [0.48.0](https://github.com/supernovae-st/nika/releases/tag/v0.48.0) - 2026-03-26
 
 ### Added
