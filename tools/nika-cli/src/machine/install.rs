@@ -6,6 +6,8 @@ use std::process::Command;
 
 use colored::Colorize;
 
+use nika_engine::display::StatusIcon;
+
 use super::status::{machine_toml_path, write_marker, SetupResult};
 
 // ─── Editor Detection ────────────────────────────────────────────────────────
@@ -80,7 +82,7 @@ pub fn run_machine_setup() -> Vec<SetupResult> {
     } else {
         println!("  {}", "AI Editors configured:".bold());
         for r in &ok_results {
-            println!("    {} {}", "\u{2713}".green(), r.name);
+            println!("    {} {}", StatusIcon::Ok, r.name);
         }
     }
 
@@ -168,7 +170,7 @@ fn setup_editors() -> Vec<SetupResult> {
             .unwrap_or(false);
 
         if has_ext {
-            println!("  {} {} + nika-lang extension", "\u{2713}".green(), name);
+            println!("  {} {} + nika-lang extension", StatusIcon::Ok, name);
             results.push(SetupResult {
                 name: name.to_string(),
                 success: true,
@@ -187,7 +189,7 @@ fn setup_editors() -> Vec<SetupResult> {
             Ok(output) if output.status.success() => {
                 println!(
                     "\r  {} {} — nika-lang installed       ",
-                    "\u{2713}".green(),
+                    StatusIcon::Ok,
                     name
                 );
                 results.push(SetupResult {
@@ -419,7 +421,7 @@ fn setup_ai_rules() -> Vec<SetupResult> {
         if std::fs::write(skill_dir.join("SKILL.md"), skill_content).is_ok() {
             println!(
                 "  {} Agent Skills installed [~/.agents/skills/]",
-                "\u{2713}".green()
+                StatusIcon::Ok
             );
             results.push(SetupResult {
                 name: "Agent Skills".into(),
@@ -428,7 +430,7 @@ fn setup_ai_rules() -> Vec<SetupResult> {
             });
         }
     } else {
-        println!("  {} Agent Skills [~/.agents/skills/]", "\u{2713}".green());
+        println!("  {} Agent Skills [~/.agents/skills/]", StatusIcon::Ok);
         results.push(SetupResult {
             name: "Agent Skills".into(),
             success: true,
@@ -467,7 +469,7 @@ fn install_rule(
             // Content already matches — nothing to do
             if disk_hash == expected_hash {
                 if !silent {
-                    println!("  {} {} — up to date", "\u{2713}".green(), name);
+                    println!("  {} {} — up to date", StatusIcon::Ok, name);
                     results.push(SetupResult {
                         name: name.into(),
                         success: true,
@@ -505,7 +507,7 @@ fn install_rule(
         Ok(()) => {
             update_rule_hash(editor_key, &expected_hash);
             if !silent {
-                println!("  {} {} — Nika rules installed", "\u{2713}".green(), name);
+                println!("  {} {} — Nika rules installed", StatusIcon::Ok, name);
                 results.push(SetupResult {
                     name: name.into(),
                     success: true,
@@ -619,7 +621,7 @@ fn setup_completions() -> SetupResult {
                 if std::fs::write(&target, &o.stdout).is_ok() {
                     println!(
                         "  {} {} completions installed",
-                        "\u{2713}".green(),
+                        StatusIcon::Ok,
                         shell_name
                     );
                     return SetupResult {
