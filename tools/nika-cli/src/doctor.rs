@@ -4,6 +4,7 @@ use std::fs;
 
 use colored::Colorize;
 
+use nika_engine::display::{hint, section_header, status_line, StatusIcon};
 use nika_engine::error::NikaError;
 
 use crate::config::find_nika_dir;
@@ -58,14 +59,6 @@ impl DiagnosticCheck {
     fn in_section(mut self, section: &'static str) -> Self {
         self.section = section;
         self
-    }
-
-    fn icon(&self) -> &'static str {
-        match self.status {
-            DiagnosticStatus::Pass => "✓",
-            DiagnosticStatus::Warn => "⚠",
-            DiagnosticStatus::Fail => "✗",
-        }
     }
 }
 
@@ -980,20 +973,22 @@ fn output_doctor_text(checks: &[DiagnosticCheck], quiet: bool) {
         // Print section header when section changes
         if !check.section.is_empty() && check.section != current_section {
             current_section = check.section;
-            println!();
-            println!("  {} {}", "---".dimmed(), current_section.bold().cyan());
+            println!("{}", section_header(current_section));
         }
 
         let icon = match check.status {
-            DiagnosticStatus::Pass => check.icon().green(),
-            DiagnosticStatus::Warn => check.icon().yellow(),
-            DiagnosticStatus::Fail => check.icon().red(),
+            DiagnosticStatus::Pass => StatusIcon::Ok,
+            DiagnosticStatus::Warn => StatusIcon::Warn,
+            DiagnosticStatus::Fail => StatusIcon::Fail,
         };
 
-        println!("  {} {} {}", icon, check.name.bold(), check.message);
+        println!(
+            "{}",
+            status_line(icon, &format!("{} {}", check.name.bold(), check.message))
+        );
 
         if let Some(ref suggestion) = check.suggestion {
-            println!("    {} {}", "->".cyan(), suggestion.dimmed());
+            println!("{}", hint(suggestion));
         }
 
         match check.status {
