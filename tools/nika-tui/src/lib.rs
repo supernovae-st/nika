@@ -34,6 +34,9 @@
 //! The TUI installs a panic hook to restore terminal state on crashes.
 //! Crash logs are written to `~/.nika/crash.log`.
 
+#[cfg(test)]
+mod test_helpers;
+
 mod app;
 mod cache;
 pub mod chat_agent;
