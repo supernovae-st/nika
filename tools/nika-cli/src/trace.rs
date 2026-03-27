@@ -1,9 +1,11 @@
 //! Trace subcommand handler
 
 use clap::Subcommand;
+use colored::Colorize;
 use std::fs;
 use std::path::PathBuf;
 
+use nika_engine::display::{key_value, section_header, separator, StatusIcon};
 use nika_engine::error::NikaError;
 use nika_engine::Event;
 
@@ -51,9 +53,14 @@ pub fn handle_trace_command(action: TraceAction) -> Result<(), NikaError> {
                 None => traces,
             };
 
-            println!("Found {} traces:\n", traces.len());
-            println!("{:<30} {:>10} {:>20}", "GENERATION ID", "SIZE", "CREATED");
-            println!("{}", "-".repeat(62));
+            println!("{}", section_header(&format!("Traces ({})", traces.len())));
+            println!(
+                "  {:<30} {:>10} {:>20}",
+                "GENERATION ID".bold(),
+                "SIZE".bold(),
+                "CREATED".bold()
+            );
+            println!("{}", separator(62));
 
             for trace in traces {
                 let size = if trace.size_bytes > 1024 * 1024 {
@@ -75,7 +82,7 @@ pub fn handle_trace_command(action: TraceAction) -> Result<(), NikaError> {
                     })
                     .unwrap_or_else(|| "unknown".to_string());
 
-                println!("{:<30} {:>10} {:>20}", trace.generation_id, size, created);
+                println!("  {:<30} {:>10} {:>20}", trace.generation_id, size, created);
             }
             Ok(())
         }
@@ -95,9 +102,14 @@ pub fn handle_trace_command(action: TraceAction) -> Result<(), NikaError> {
                 .filter_map(|line| serde_json::from_str(line).ok())
                 .collect();
 
-            println!("Trace: {}", trace.generation_id);
-            println!("Events: {}", events.len());
-            println!("Size: {} bytes\n", trace.size_bytes);
+            println!("{}", section_header("Trace Details"));
+            println!("{}", key_value("ID", &trace.generation_id));
+            println!("{}", key_value("Events", &events.len().to_string()));
+            println!(
+                "{}",
+                key_value("Size", &format!("{} bytes", trace.size_bytes))
+            );
+            println!();
 
             for event in events {
                 println!("[{:>6}ms] {:?}", event.timestamp_ms, event.kind);
@@ -137,7 +149,12 @@ pub fn handle_trace_command(action: TraceAction) -> Result<(), NikaError> {
             match output {
                 Some(path) => {
                     fs::write(&path, &exported)?;
-                    println!("Exported {} events to {}", events.len(), path.display());
+                    println!(
+                        "{} exported {} events to {}",
+                        StatusIcon::Ok,
+                        events.len(),
+                        path.display()
+                    );
                 }
                 None => println!("{exported}"),
             }
@@ -153,8 +170,47 @@ pub fn handle_trace_command(action: TraceAction) -> Result<(), NikaError> {
                 fs::remove_file(&trace.path)?;
             }
 
-            println!("Deleted {count} old traces, kept {keep}");
+            println!("{} deleted {count} old traces, kept {keep}", StatusIcon::Ok);
             Ok(())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn trace_action_list_variants_exist() {
+        let _ = TraceAction::List { limit: Some(10) };
+        let _ = TraceAction::Show {
+            id: "abc".to_string(),
+        };
+        let _ = TraceAction::Export {
+            id: "abc".to_string(),
+            format: "json".to_string(),
+            output: None,
+        };
+        let _ = TraceAction::Clean { keep: 5 };
+    }
+
+    #[test]
+    fn section_header_used_in_list() {
+        let header = section_header("Traces (3)");
+        assert!(header.contains("Traces (3)"));
+        assert!(header.contains("─"));
+    }
+
+    #[test]
+    fn key_value_used_in_show() {
+        let kv = key_value("ID", "abc123");
+        assert!(kv.contains("ID:"));
+        assert!(kv.contains("abc123"));
+    }
+
+    #[test]
+    fn separator_used_in_list() {
+        let sep = separator(62);
+        assert!(sep.contains("─"));
     }
 }
