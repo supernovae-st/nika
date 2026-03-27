@@ -2828,6 +2828,93 @@ fn test_error_path_full_sequence() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// EVENT HANDLER: WorkflowFailed kills orphaned Running tasks
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_workflow_failed_kills_orphaned_running_tasks() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    // Start workflow with two tasks
+    state.handle_event(
+        &EventKind::WorkflowStarted {
+            task_count: 2,
+            generation_id: "gen-orphan".to_string(),
+            workflow_hash: "hash-orphan".to_string(),
+            nika_version: TEST_VERSION.to_string(),
+        },
+        0,
+    );
+
+    // Schedule and start "task-a" (this one will fail explicitly)
+    state.handle_event(
+        &EventKind::TaskScheduled {
+            task_id: Arc::from("task-a"),
+            dependencies: vec![],
+        },
+        10,
+    );
+    state.handle_event(
+        &EventKind::TaskStarted {
+            task_id: Arc::from("task-a"),
+            verb: "infer".into(),
+            inputs: serde_json::json!({}),
+        },
+        20,
+    );
+
+    // Schedule and start "orphan-task" — it never receives TaskFailed
+    state.handle_event(
+        &EventKind::TaskScheduled {
+            task_id: Arc::from("orphan-task"),
+            dependencies: vec![],
+        },
+        30,
+    );
+    state.handle_event(
+        &EventKind::TaskStarted {
+            task_id: Arc::from("orphan-task"),
+            verb: "exec".into(),
+            inputs: serde_json::json!({}),
+        },
+        40,
+    );
+    assert_eq!(state.tasks["orphan-task"].status, TaskStatus::Running);
+
+    // Fail task-a
+    state.handle_event(
+        &EventKind::TaskFailed {
+            task_id: Arc::from("task-a"),
+            error: "connection reset".to_string(),
+            duration_ms: 1000,
+            error_code: None,
+        },
+        1000,
+    );
+    // orphan-task is still Running at this point
+    assert_eq!(state.tasks["orphan-task"].status, TaskStatus::Running);
+
+    // WorkflowFailed — should kill orphan-task without it ever receiving TaskFailed
+    let workflow_error = "Task 'task-a' failed: connection reset";
+    state.handle_event(
+        &EventKind::WorkflowFailed {
+            error: workflow_error.to_string(),
+            failed_task: Some(Arc::from("task-a")),
+        },
+        1100,
+    );
+
+    // orphan-task must transition to Failed, not remain Running
+    assert_eq!(state.tasks["orphan-task"].status, TaskStatus::Failed);
+    assert_eq!(
+        state.tasks["orphan-task"].error,
+        Some(workflow_error.to_string())
+    );
+    // Overall workflow state
+    assert_eq!(state.workflow.phase, MissionPhase::Abort);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // EVENT HANDLER: MCP Lifecycle with Phase Transitions
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -2955,7 +3042,24 @@ fn test_workflow_aborted_event() {
         },
         0,
     );
-    state.current_task = Some("running-task".to_string());
+
+    // Put "running-task" into Running state so the abort loop has something to mark
+    state.handle_event(
+        &EventKind::TaskScheduled {
+            task_id: Arc::from("running-task"),
+            dependencies: vec![],
+        },
+        50,
+    );
+    state.handle_event(
+        &EventKind::TaskStarted {
+            task_id: Arc::from("running-task"),
+            verb: "infer".into(),
+            inputs: serde_json::json!({}),
+        },
+        100,
+    );
+    assert_eq!(state.tasks["running-task"].status, TaskStatus::Running);
 
     state.dirty.clear();
     state.handle_event(
@@ -2987,6 +3091,8 @@ fn test_workflow_aborted_event() {
         .unwrap()
         .message
         .contains("1 tasks interrupted"));
+    // Running task must be marked Skipped so it stops spinning in the TUI
+    assert_eq!(state.tasks["running-task"].status, TaskStatus::Skipped);
 }
 
 #[test]
