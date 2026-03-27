@@ -154,8 +154,7 @@ impl TuiState {
             is_error: false,
             duration_ms: None,
         };
-        self.mcp.calls.push_back(call);
-        self.mcp.seq += 1;
+        self.mcp.add_call(call);
 
         // Update phase
         self.workflow.phase = MissionPhase::Rendezvous;
@@ -187,21 +186,19 @@ impl TuiState {
             self.metrics.mcp_cache_misses += 1;
         }
 
-        // Find and update the matching call by call_id
-        let tool_name = self
-            .mcp
-            .calls
-            .iter()
-            .find(|c| c.call_id == call_id)
-            .and_then(|c| c.tool.clone());
-
-        if let Some(call) = self.mcp.calls.iter_mut().find(|c| c.call_id == call_id) {
-            call.completed = true;
-            call.output_len = Some(output_len);
-            call.response = response.clone();
-            call.is_error = is_error;
-            call.duration_ms = Some(duration_ms);
-        }
+        // Find and update the matching call by call_id (single pass)
+        let tool_name =
+            if let Some(call) = self.mcp.calls.iter_mut().find(|c| c.call_id == call_id) {
+                let name = call.tool.clone();
+                call.completed = true;
+                call.output_len = Some(output_len);
+                call.response = response.clone();
+                call.is_error = is_error;
+                call.duration_ms = Some(duration_ms);
+                name
+            } else {
+                None
+            };
 
         // Track MCP latency for sparkline
         if self.metrics.latency_history.len() >= MAX_HISTORY_ENTRIES {
