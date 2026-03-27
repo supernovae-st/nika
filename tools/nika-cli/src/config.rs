@@ -1,10 +1,10 @@
 //! Configuration management subcommand handler
 
 use clap::Subcommand;
-use colored::Colorize;
 use std::fs;
 use std::path::PathBuf;
 
+use nika_engine::display::{section_header, separator, StatusIcon};
 use nika_engine::error::NikaError;
 
 /// Configuration management actions
@@ -63,7 +63,7 @@ pub fn handle_config_command(action: ConfigAction, quiet: bool) -> Result<(), Ni
                 } else {
                     println!(
                         "{} No config file found at {}",
-                        "ℹ".cyan(),
+                        StatusIcon::Info,
                         config_path.display()
                     );
                     println!("  Run 'nika init' to create one.");
@@ -86,8 +86,8 @@ pub fn handle_config_command(action: ConfigAction, quiet: bool) -> Result<(), Ni
                 })?;
                 println!("{json}");
             } else {
-                println!("{}", "Nika Configuration".bold());
-                println!("{}", "─".repeat(40));
+                println!("{}", section_header("Nika Configuration"));
+                println!("{}", separator(40));
                 println!();
                 println!("{content}");
             }
@@ -183,7 +183,7 @@ pub fn handle_config_command(action: ConfigAction, quiet: bool) -> Result<(), Ni
             fs::write(&config_path, new_content)?;
 
             if !quiet {
-                println!("{} {} = {}", "✓".green(), key, value);
+                println!("{} {} = {}", StatusIcon::Ok, key, value);
             }
             Ok(())
         }
@@ -219,7 +219,7 @@ pub fn handle_config_command(action: ConfigAction, quiet: bool) -> Result<(), Ni
             if !force {
                 println!(
                     "{} This will reset config to defaults. Use --force to confirm.",
-                    "⚠".yellow()
+                    StatusIcon::Warn
                 );
                 return Ok(());
             }
@@ -233,7 +233,7 @@ pub fn handle_config_command(action: ConfigAction, quiet: bool) -> Result<(), Ni
             fs::write(&config_path, default_config)?;
 
             if !quiet {
-                println!("{} Config reset to defaults", "✓".green());
+                println!("{} Config reset to defaults", StatusIcon::Ok);
             }
             Ok(())
         }
