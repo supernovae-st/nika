@@ -106,6 +106,10 @@ src/
 | 290-297 | Media tools (tool error, format, dependency, timeout, args, pipeline, security) |
 | 300-309 | Structured output |
 | 310-319 | Course errors |
+| SECRET-001 | Daemon: keychain disabled |
+| SECRET-002 | Daemon: keyring store error |
+| SECRET-003 | Daemon: keyring delete error |
+| SECRET-004 | Daemon: unknown provider |
 
 ## Testing
 
