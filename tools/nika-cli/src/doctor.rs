@@ -771,9 +771,41 @@ fn check_ai_rules() -> Vec<DiagnosticCheck> {
     let mut checks = vec![];
     let home = dirs::home_dir().unwrap_or_default();
 
-    // ─── Project-level rules [project] ─────────────────────────────────────
+    // ─── User-level rules [user] — installed by `nika setup` ─────────────
+    let user_rules: &[(&str, &str)] = &[
+        ("Claude Code", ".claude/rules/nika.md"),
+        ("Cursor", ".cursor/rules/nika.mdc"),
+        ("Copilot", ".github/copilot/nika.instructions.md"),
+        ("Windsurf", ".windsurf/rules/nika.md"),
+        ("Roo Code", ".roo/rules/nika.md"),
+    ];
+
+    let has_claude_binary = which::which("claude").is_ok();
+    let mut has_user_rules = false;
+
+    for (tool, rel_path) in user_rules {
+        let path = home.join(rel_path);
+        if path.exists() {
+            checks.push(DiagnosticCheck::pass(
+                "AI Rules",
+                format!("[user] {tool} rules present ({})", path.display()),
+            ));
+            has_user_rules = true;
+        } else if *tool == "Claude Code" && has_claude_binary {
+            checks.push(DiagnosticCheck::warn(
+                "AI Rules",
+                format!(
+                    "[user] Claude Code detected but no rules at {}",
+                    path.display()
+                ),
+                "Run: nika setup ai",
+            ));
+        }
+    }
+
+    // ─── Project-level rules [project] — manually placed or committed ─────
     let project_rules: &[(&str, &str)] = &[
-        ("Cursor", ".cursor/rules/nika-syntax.mdc"),
+        ("Cursor", ".cursor/rules/nika.mdc"),
         ("Copilot", ".github/copilot/nika.instructions.md"),
         ("Windsurf", ".windsurf/rules/nika.md"),
         ("Roo Code", ".roo/rules/nika.md"),
@@ -788,40 +820,13 @@ fn check_ai_rules() -> Vec<DiagnosticCheck> {
             ));
             has_project_rules = true;
         }
-        // Only warn if the tool is detected (don't warn for tools not installed)
     }
 
-    // ─── User-level rules [user] ───────────────────────────────────────────
-
-    // Claude Code: rules live at user-level ~/.claude/rules/
-    let claude_user_path = home.join(".claude/rules/nika.md");
-    let has_claude_binary = which::which("claude").is_ok();
-
-    if claude_user_path.exists() {
-        checks.push(DiagnosticCheck::pass(
-            "AI Rules",
-            format!(
-                "[user] Claude Code rules present ({})",
-                claude_user_path.display()
-            ),
-        ));
-    } else if has_claude_binary {
-        // Claude Code is installed but no nika rules
-        checks.push(DiagnosticCheck::warn(
-            "AI Rules",
-            format!(
-                "[user] Claude Code detected but no rules at {}",
-                claude_user_path.display()
-            ),
-            "Run: nika doctor --fix to generate Claude Code rules",
-        ));
-    }
-
-    if checks.is_empty() && !has_project_rules {
+    if checks.is_empty() && !has_user_rules && !has_project_rules {
         checks.push(DiagnosticCheck::warn(
             "AI Rules",
             "No AI coding tool rules found (user or project)",
-            "Run: nika init (select AI rules) or: nika setup ai",
+            "Run: nika setup ai",
         ));
     }
 
