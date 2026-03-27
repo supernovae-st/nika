@@ -12,13 +12,13 @@
 | **Primary Language** | Rust | Python | Python/TS | TypeScript | Go | Python |
 | **Paradigm** | Declarative YAML | Imperative SDK | Visual + Code | Visual + Code | Code SDK | Code SDK |
 | **AI-Specific** | Purpose-built | Purpose-built | Purpose-built | General + AI | General | General |
-| **LLM Providers** | 22 | 50+ | 15+ | 10+ | N/A | N/A |
+| **LLM Providers** | 9 | 50+ | 15+ | 10+ | N/A | N/A |
 | **Self-Hosted** | Yes (single binary) | Yes (pip) | Yes (Docker) | Yes (Docker) | Yes (cluster) | Yes (pip/Docker) |
 | **Cloud Offering** | No | LangSmith | Dify Cloud | n8n Cloud | Temporal Cloud | Prefect Cloud |
 | **License** | AGPL-3.0 | MIT | Apache-2.0/Enterprise | Sustainable Use | MIT | Apache-2.0 |
 | **Deployment** | `cargo install` | `pip install` | Docker Compose | Docker/npm | Binary + deps | `pip install` |
 | **Learning Curve** | 5 verbs + YAML | Python + SDK | Low (visual) | Low (visual) | High (Go/SDK) | Medium (Python) |
-| **Version** | v0.42.0 | v0.3.x | v0.11.x | v1.x | v1.x | v3.x |
+| **Version** | v0.49.0 | v0.3.x | v0.11.x | v1.x | v1.x | v3.x |
 | **Stars (approx)** | New | 100K+ | 60K+ | 50K+ | 12K+ | 18K+ |
 
 ---
@@ -42,7 +42,7 @@
 
 | Feature | Nika | LangChain | Dify | n8n | Temporal | Prefect |
 |---------|:----:|:---------:|:----:|:---:|:--------:|:-------:|
-| **Provider Count** | 22 | 50+ | 15+ | 10+ | N/A | N/A |
+| **Provider Count** | 9 | 50+ | 15+ | 10+ | N/A | N/A |
 | **Multi-Model per Workflow** | Yes (native) | Yes (code) | Limited | Limited | N/A | N/A |
 | **Structured Output** | JSON Schema | Pydantic | JSON Schema | Manual | N/A | N/A |
 | **Vision/Multimodal** | Yes (6 providers) | Yes | Yes | Limited | N/A | N/A |
@@ -92,11 +92,11 @@
 | Feature | Nika | LangChain | Dify | n8n | Temporal | Prefect |
 |---------|:----:|:---------:|:----:|:---:|:--------:|:-------:|
 | **Interactive Course** | 44 exercises, 12 levels | No | No | No | No | No |
-| **Showcase/Templates** | 200+ workflows | Hub (community) | Templates | Templates | Samples | Recipes |
-| **TUI** | Full TUI (92K lines) | No | Web UI | Web UI | Web UI | Web UI |
+| **Showcase/Templates** | 115 workflows | Hub (community) | Templates | Templates | Samples | Recipes |
+| **TUI** | Full TUI (3 views) | No | Web UI | Web UI | Web UI | Web UI |
 | **LSP** | Yes (VS Code, Neovim) | No | No | No | No | No |
 | **CLI** | Comprehensive | Yes | Yes | Yes | Yes | Yes |
-| **Error Codes** | 319 structured codes | Stack traces | Generic errors | Generic errors | Stack traces | Stack traces |
+| **Error Codes** | 300+ structured codes | Stack traces | Generic errors | Generic errors | Stack traces | Stack traces |
 | **Install Complexity** | 1 command | pip + deps | Docker Compose | Docker/npm | Cluster setup | pip + deps |
 | **Startup Time** | Milliseconds | Seconds | Minutes (Docker) | Seconds | Minutes | Seconds |
 
@@ -125,13 +125,13 @@
 - Single binary deployment with zero runtime dependencies
 - Interactive course system (44 exercises) -- best-in-class onboarding
 - MCP-native architecture for extensible tool calling
-- 319 structured error codes with source spans
+- 300+ structured error codes with source spans
 - Multi-model routing within single workflows
 - AGPL-3.0 protects the commons
 
 **Weaknesses:**
 - Smallest community (new project)
-- Fewer LLM providers than LangChain (22 vs 50+)
+- Fewer LLM providers than LangChain (9 vs 50+)
 - No cloud-hosted offering
 - No built-in workflow durability (vs Temporal)
 - YAML has inherent limitations for complex logic
@@ -298,7 +298,7 @@ The combination of YAML-first + multi-model routing + media pipeline + MCP + int
 
 **For developers** who build AI pipelines and value readability, reproducibility, and cost control, **Nika** is a semantic YAML workflow engine that replaces SDK boilerplate with 5 declarative verbs.
 
-**Unlike** LangChain (imperative Python), Dify (visual builder), or Temporal (general-purpose orchestrator), **Nika** provides a unique combination of declarative YAML workflows, multi-model cost optimization, 24 built-in media tools, MCP-native architecture, and a 44-exercise interactive course -- all in a single Rust binary with AGPL-3.0 protection.
+**Unlike** LangChain (imperative Python), Dify (visual builder), or Temporal (general-purpose orchestrator), **Nika** provides a unique combination of declarative YAML workflows, multi-model cost optimization, 24 built-in media tools, MCP-native architecture, and a 44-exercise interactive course -- all in a 12-crate Rust binary with AGPL-3.0 protection.
 
 **The result:** AI workflows that are readable by non-engineers, reviewable in pull requests, and 60% cheaper through multi-model routing -- without sacrificing the power to build agents, process media, or connect to any service via MCP.
 

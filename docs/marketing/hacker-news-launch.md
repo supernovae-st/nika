@@ -9,7 +9,7 @@
 
 ### Option A (Recommended)
 ```
-Show HN: Nika -- A 451K-line Rust engine for declarative AI workflows (YAML, 5 verbs, 22 providers)
+Show HN: Nika -- A 451K-line Rust engine for declarative AI workflows (YAML, 5 verbs, 9 providers)
 ```
 
 ### Option B (Concise)
@@ -19,7 +19,7 @@ Show HN: Nika -- Orchestrate AI workflows with 5 YAML verbs (Rust, AGPL-3.0)
 
 ### Option C (Technical hook)
 ```
-Show HN: I wrote 451K lines of Rust to replace AI workflow SDKs with 5 YAML verbs
+Show HN: I wrote 451K lines of Rust to replace AI workflow SDKs with 5 YAML verbs (9 providers, AGPL)
 ```
 
 ---
@@ -33,7 +33,7 @@ multi-provider routing, and structured output validation.
 
 The 5 verbs:
 
-  - infer: LLM generation (22 providers, structured output, vision)
+  - infer: LLM generation (9 providers, structured output, vision)
   - exec: shell commands (28-pattern security blocklist)
   - fetch: HTTP requests (9 extract modes including article, markdown, RSS)
   - invoke: MCP tool calls (24 built-in media tools + any MCP server)
@@ -71,7 +71,7 @@ Tasks without dependencies run in parallel automatically.
 Technical details:
 
   - 451K lines of Rust across 10 workspace crates
-  - 8,100+ tests, zero clippy warnings, zero unsafe
+  - 8,300+ tests, zero clippy warnings, zero unsafe
   - Single binary (cargo install nika), no runtime deps
   - 2-phase AST: YAML -> Raw AST (with source spans) -> Analyzed AST (validated, interned)
   - DAG scheduler with cycle detection, topological sort, parallel execution via tokio
@@ -109,7 +109,6 @@ relationships, knowledge atoms), Nika does things (workflows, LLM calls, pipelin
 
 Source: https://github.com/supernovae-st/nika
 Install: cargo install nika
-Quick start: nika init --minimal
 Learn: nika init --course
 ```
 
@@ -232,7 +231,7 @@ no Python/Node.js runtime dependency is the simplest deployment story.
 
 **Response:**
 ```
-Nika has 319 error codes (NIKA-000 through NIKA-319) covering every failure
+Nika has comprehensive error codes (NIKA-XXX format) covering every failure
 mode: schema validation, DAG cycles, provider errors, template resolution,
 security violations, media pipeline failures, MCP connection issues, etc.
 
@@ -247,7 +246,7 @@ for observability. The TUI shows errors in real-time with stack context.
 
 **Response:**
 ```
-v0.42.0 is the current version. It's used in production by SuperNovae
+v0.49.0 is the current version. It's used in production by SuperNovae
 Studio for QR Code AI (https://qrcode-ai.com).
 
 That said, Nika stays at 0.x.x permanently -- not because it's unstable,
@@ -287,7 +286,7 @@ is made.
 
 6. **319 structured error codes.** Not just "something went wrong." Every error has a code (NIKA-000 through NIKA-319), a category, and source span information. Debugging a Nika workflow should never require reading the engine source.
 
-7. **The course system.** `nika init --course` generates 44 exercises across 12 levels. Each exercise is a partially-complete `.nika.yaml` file with `# TODO` markers. Validation checks that the completed workflow produces the expected output. This isn't documentation -- it's executable teaching.
+7. **The course system.** `nika init --course` generates 44 exercises across 12 levels (Liberation constellation). Each exercise is a partially-complete `.nika.yaml` file with `# TODO` markers. Validation checks that the completed workflow produces the expected output. This isn't documentation -- it's executable teaching.
 
 ---
 

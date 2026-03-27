@@ -55,10 +55,10 @@ Two steps. Zero lines of code. Runs on a Raspberry Pi.
 
 | Verb | Does |
 |------|------|
-| `infer:` | Call any LLM (22 providers, vision, structured output) |
+| `infer:` | Call any LLM (9 providers, vision, structured output) |
 | `exec:` | Run shell commands (28-pattern security blocklist) |
 | `fetch:` | HTTP + 9 extract modes (markdown, article, RSS, JSONPath...) |
-| `invoke:` | MCP tool calls (43 built-in + any MCP server) |
+| `invoke:` | MCP tool calls (24 built-in + any MCP server) |
 | `agent:` | Multi-turn autonomous loops (guardrails, cost limits) |
 
 Five words to describe any AI workflow. From a 3-step summary to a 50-task parallel pipeline.
@@ -69,8 +69,8 @@ Five words to describe any AI workflow. From a 3-step summary to a 50-task paral
 
 | | |
 |---|---|
-| **451K lines** of Rust across 10 crates | **7,800+ tests**, zero clippy warnings |
-| **22 LLM providers** (cloud + local) | **43 built-in tools** (12 core + 24 media + 5 file) |
+| **451K lines** of Rust across 10 crates | **8,300+ tests**, zero clippy warnings |
+| **9 LLM providers** (cloud + local) | **24 built-in tools** (always-on + core + opt-in) |
 | **200+ showcase workflows** | **44 exercises** across 12 interactive levels |
 | **AGPL-3.0** — stays open forever | **4ms cold start** — runs in CI, on Pi, in serverless |
 

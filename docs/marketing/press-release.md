@@ -113,7 +113,7 @@ that previously required a dedicated data engineering team.
 
 ### What Ships in the Box
 
-**22 LLM Providers:** Claude, GPT-4o, Gemini, Mistral, Groq, DeepSeek, xAI, and 15 more.
+**9 LLM Providers:** Claude, GPT-4o, Gemini, Mistral, Groq, DeepSeek, xAI, native GGUF, OpenAI-compatible.
 Mix providers in a single workflow -- route cheap tasks to fast models, complex tasks to
 powerful ones.
 
@@ -161,7 +161,7 @@ nika showcase list
 | **Homebrew** | `brew install supernovae-st/tap/nika` |
 | **Docs** | https://github.com/supernovae-st/nika/wiki |
 | **License** | AGPL-3.0-or-later |
-| **Codebase** | 451K lines of Rust, 10 workspace crates, 8,100+ tests |
+| **Codebase** | 451K lines of Rust, 10 workspace crates, 8,300+ tests |
 | **Platforms** | macOS (arm64, x86_64), Linux (x86_64) |
 
 ---

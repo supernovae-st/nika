@@ -6,7 +6,7 @@ Three formats, one message: **Automate AI. No code required.**
 
 ## 1. 30-Second Teaser (Twitter/X — Silent, Subtitled)
 
-**Format:** 1080x1080 or 9:16 vertical, no audio, large subtitles, dark terminal aesthetic.
+**Format:** 1080x1080 or 9:16 vertical, no audio, large subtitles, dark terminal aesthetic. Duration: ~30 seconds.
 
 | Time | Frame | Visual | Subtitle |
 |------|-------|--------|----------|
@@ -38,9 +38,9 @@ Three formats, one message: **Automate AI. No code required.**
 
 ### 0:15-0:30 — The Install
 
-[SCREEN] Clean terminal. Type: `brew install supernovae/tap/nika`. Installation completes in 3 seconds. Type: `nika --version`. Shows version.
+[SCREEN] Clean terminal. Type: `brew install supernovae-st/tap/nika`. Installation completes in 3 seconds. Type: `nika --version`. Shows version.
 
-[NARRATION] "Nika is a single binary. One command to install. No Python, no Node, no Docker. It's written in Rust and it's about 15 megabytes."
+[NARRATION] "Nika is a single binary. One command to install. No Python, no Node, no Docker. It's written in Rust."
 
 ### 0:30-1:00 — Write a Workflow
 
@@ -49,21 +49,20 @@ Three formats, one message: **Automate AI. No code required.**
 [NARRATION] "Here's what a Nika workflow looks like. Three tasks. Fetch a webpage — that's the `fetch:` verb. Summarize it — that's `infer:` with Claude. Translate to French — another `infer:`, this time with GPT. Each task says what it needs from the previous one. That's it. No imports, no classes, no boilerplate."
 
 ```yaml
-nika: workflow@0.12
+schema: "nika/workflow@0.12"
 name: demo
 tasks:
-  scrape:
-    fetch: https://example.com/article
-    extract: article
+  - id: scrape
+    fetch:
+      url: https://example.com/article
+      extract: article
 
-  summarize:
-    model: claude/claude-sonnet-4-20250514
+  - id: summarize
     infer: "Summarize this article in 3 bullet points: {{with.page}}"
     with:
       page: $scrape
 
-  translate:
-    model: openai/gpt-4o
+  - id: translate
     infer: "Translate to French: {{with.summary}}"
     with:
       summary: $summarize
@@ -85,7 +84,7 @@ tasks:
 
 [SCREEN] Type `nika init --course`. Show the constellation map with `nika course status`. Open one exercise. Run it.
 
-[NARRATION] "And if you're new to this, there's a built-in interactive course. Twelve levels, forty-four exercises. It teaches you everything from basic inference to building autonomous agents. All inside your terminal."
+[NARRATION] "And if you're new to this, there's a built-in interactive course. Twelve levels, forty-four exercises, progressive hints. It teaches you everything from basic inference to building autonomous agents. All inside your terminal."
 
 ### 1:50-2:00 — The Close
 
@@ -137,7 +136,7 @@ Provider Router (Claude, GPT, Gemini, Mistral, local GGUF...)
 **Key points:**
 - Three-phase AST: Raw, Analyzed, Lowered — catches errors before execution
 - DAG scheduler: automatic parallelism, cycle detection, dependency resolution
-- Provider router: single interface to 22+ providers
+- Provider router: single interface to 9 providers
 - Single Rust binary: no garbage collector, no runtime overhead
 
 ### Section 2: Live Coding a 3-Task Recipe (0:30-2:00)
@@ -160,39 +159,37 @@ Provider Router (Claude, GPT, Gemini, Mistral, local GGUF...)
 [SCREEN] Modify the workflow to process 5 URLs in parallel using `for_each:`.
 
 ```yaml
-  analyze_all:
-    for_each: $urls
-    model: claude/claude-sonnet-4-20250514
-    infer: "Analyze sentiment: {{item}}"
+  - id: analyze_all
+    for_each:
+      items: "{{with.urls}}"
+      as: url
+    infer: "Analyze sentiment: {{with.url}}"
 ```
 
 [NARRATION] Explain:
 - `for_each:` fans out automatically — each item runs as a parallel sub-task
 - Show the TUI execution view with 5 tasks running simultaneously
 - Compare wall-clock time: sequential (25s) vs parallel (6s)
-- Mention: `max_parallel:` for rate-limit-aware throttling
+- Mention: `concurrency:` for rate-limit-aware throttling
 
 ### Section 4: Agent with Guardrails (3:00-4:00)
 
 [SCREEN] Show an agent workflow with tools and guardrails.
 
 ```yaml
-  research:
-    model: claude/claude-sonnet-4-20250514
-    agent: "Research this topic and write a report"
-    tools:
-      - nika:read_file
-      - nika:write_file
-      - nika:glob
-    guardrails:
-      max_iterations: 10
-      max_tool_calls: 25
-      forbidden_patterns: ["rm -rf", "sudo"]
+  - id: research
+    agent:
+      prompt: "Research this topic and write a report"
+      tools: [nika:read, nika:write, nika:glob]
+      max_turns: 10
+      guardrails:
+        - type: length
+          max: 50000
 ```
 
 [NARRATION] Explain:
 - `agent:` verb gives the LLM a tool loop — it can call tools, observe results, iterate
-- Guardrails: iteration limits, tool call caps, forbidden command patterns
+- Guardrails: max turn limits, output length caps, security validation
 - Show the agent executing: tool calls logged in real-time, reasoning visible
 - Point out: this is NOT autonomous — it's bounded, auditable, reproducible
 
@@ -214,7 +211,7 @@ Provider Router (Claude, GPT, Gemini, Mistral, local GGUF...)
 
 [SCREEN] Show the manifesto excerpt. Show the GitHub contributors page. Show the course constellation map.
 
-[NARRATION] "Nika is named after Nika, the Sun God from One Piece — the one who liberates. We believe AI should be like electricity: a utility, not a luxury. That's why Nika is AGPL licensed — not MIT. If you build on it, you contribute back. That's the deal. Star us on GitHub, try the course, build something. The age of accessible AI starts with tools that anyone can use."
+[NARRATION] "We believe AI should be like electricity: a utility, not a luxury. That's why Nika is AGPL licensed — not MIT. Your workflows are yours. If you modify Nika and offer it as a service, you contribute back. Star us on GitHub, try the course, build something. The age of accessible AI starts with tools that work for everyone."
 
 [SCREEN] Final card with GitHub link, install command, and butterfly logo.
 

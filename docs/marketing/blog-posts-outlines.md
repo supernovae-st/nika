@@ -210,7 +210,7 @@ Five posts, each targeting a different audience and platform. Publish in order â
 - Open formats: YAML workflows that you own, version, and share
 - Local-first: run models on your own hardware when you want (GGUF support)
 - Community-driven: shared workflow libraries, not proprietary app stores
-- Real example: Nika lets you swap `model: openai/gpt-4o` to `model: claude/claude-sonnet-4-20250514` â€” one line, same workflow
+- Real example: Nika lets you swap `provider: openai` to `provider: anthropic` â€” one line, same workflow
 
 **6. This Isn't Just About Developers**
 - The real impact of electrification wasn't factories â€” it was households
@@ -231,7 +231,7 @@ Five posts, each targeting a different audience and platform. Publish in order â
 
 ---
 
-## Post 5: "Building an AI Workflow Engine in Rust: 270k Lines Later"
+## Post 5: "Building an AI Workflow Engine in Rust: 451K Lines Later"
 
 **Target platform:** r/rust, Rustacean Station blog, This Week in Rust, personal blog
 **Audience:** Rust developers, systems programmers, people considering Rust for AI tooling
@@ -246,11 +246,10 @@ Five posts, each targeting a different audience and platform. Publish in order â
 - The decision factors: single-binary distribution, memory safety for concurrent execution, performance for CI/CD use cases
 - The honest risk: ecosystem immaturity, hiring difficulty, slower iteration speed
 
-**2. Architecture: The Three-Phase AST**
-- Phase 1 (Raw): YAML parsing into unvalidated types â€” serde_yaml + custom error recovery
-- Phase 2 (Analyzed): Validation, resolution, type checking â€” catches 90% of errors before any API call
-- Phase 3 (Lower): Transform into runtime-optimized types â€” zero-copy where possible
-- Why three phases instead of one: early error detection, better error messages, separation of concerns
+**2. Architecture: The Two-Phase AST**
+- Phase 1 (Raw): YAML parsing into unvalidated types with source spans â€” marked_yaml + custom error recovery
+- Phase 2 (Analyzed): Semantic validation, resolution, type checking â€” catches 90% of errors before any API call
+- Why two phases instead of one: early error detection, better error messages, source span tracking
 - Lesson learned: invest in your AST early â€” it pays dividends in every feature you add later
 
 **3. The DAG Scheduler**
@@ -262,7 +261,7 @@ Five posts, each targeting a different audience and platform. Publish in order â
 
 **4. Provider Abstraction with rig-core**
 - rig-core as the foundation: trait-based provider abstraction
-- 22 providers through a single interface: Claude, GPT, Gemini, Mistral, Groq, xAI, DeepSeek, local GGUF
+- 9 providers through a single interface: 7 cloud (Claude, GPT, Gemini, Mistral, Groq, xAI, DeepSeek) + native GGUF + mock
 - The `RigProvider::auto()` pattern: detect provider from model string
 - Challenge: every provider has slightly different parameter semantics (temperature ranges, stop sequences, tool formats)
 - Workaround: `additional_params` for provider-specific features that rig-core doesn't abstract
@@ -276,7 +275,7 @@ Five posts, each targeting a different audience and platform. Publish in order â
 
 **6. Error Handling: NIKA-XXX Codes**
 - Why structured error codes instead of anyhow: debuggability, documentation, user experience
-- 100+ error codes organized by subsystem (000-009 workflow, 010-019 schema, etc.)
+- 300+ error codes organized by subsystem (000-009 workflow, 010-019 schema, etc.)
 - Every error includes: code, message, span (source location), and suggestion
 - The `NikaError` type: custom Display with colored terminal output
 - Lesson learned: good errors are a feature, not an afterthought â€” users quote error codes in bug reports
@@ -284,8 +283,8 @@ Five posts, each targeting a different audience and platform. Publish in order â
 **7. Performance Numbers**
 - Cold start: 50ms (vs 3s for Python frameworks)
 - Idle memory: 8 MB (vs 180 MB)
-- Binary size: 15 MB (with all features)
-- Test suite: 8,100 tests, runs in under 60 seconds
+- Binary size: ~25 MB (with all features)
+- Test suite: 8,300+ tests, runs in under 60 seconds
 - Compile time: ~3 minutes clean build (the Rust tax â€” worth it)
 
 **8. Mistakes and Regrets**
@@ -325,7 +324,7 @@ Five posts, each targeting a different audience and platform. Publish in order â
 | 2 | 200 Lines to 10 | Dev.to + Medium | Reddit r/Python + r/MachineLearning |
 | 3 | AGPL Decision | HN + personal blog | Twitter thread, tag open source accounts |
 | 4 | AI as Electricity | Medium + LinkedIn | Broader audience, tag AI thought leaders |
-| 5 | 270k Lines of Rust | r/rust + personal blog | This Week in Rust submission |
+| 5 | 451K Lines of Rust | r/rust + personal blog | This Week in Rust submission |
 
 ## Cross-Post Strategy
 

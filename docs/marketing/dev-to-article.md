@@ -12,7 +12,7 @@
 **Tags:** `#rust` `#ai` `#opensource` `#workflow`
 **Canonical URL:** https://supernovae.studio/blog/why-we-built-nika
 **Reading time:** ~15 minutes
-**SEO description:** Nika is a semantic YAML workflow engine for AI tasks, written in 451K lines of Rust. Learn why 5 declarative verbs replace SDK boilerplate, how multi-model routing cuts costs by 60%, and what makes this approach different from LangChain, Dify, and Temporal.
+**SEO description:** Nika is a semantic YAML workflow engine for AI tasks (v0.49.0), written in 451K lines of Rust. Learn why 5 declarative verbs replace SDK boilerplate, how multi-model routing cuts costs by 60%, and what makes this approach different from LangChain, Dify, and Temporal.
 
 ---
 
@@ -65,7 +65,7 @@ Save this as `monitor.nika.yaml` and run it:
 nika run monitor.nika.yaml
 ```
 
-This is **Nika** -- a semantic YAML workflow engine for AI tasks, written in 451K lines of Rust. Today, we're open-sourcing it under AGPL-3.0.
+This is **Nika** (v0.49.0) -- a semantic YAML workflow engine for AI tasks, written in 451K lines of Rust across 12 crates. Today, we're open-sourcing it under AGPL-3.0.
 
 ---
 
@@ -397,18 +397,18 @@ Web scraping without a headless browser. Data extraction without Beautiful Soup.
 | Metric | Value |
 |--------|-------|
 | Lines of Rust | 451K |
-| Workspace crates | 10 |
-| Tests passing | 8,100+ |
+| Workspace crates | 12 |
+| Tests passing | 8,300+ |
 | Clippy warnings | 0 |
 | Unsafe blocks | 0 |
-| LLM providers | 22 |
+| LLM providers | 9 |
 | Built-in media tools | 24 |
-| Error codes | 319 |
+| Error codes | 300+ |
 | Event types | 39 |
 | Fetch extract modes | 9 |
 | Course exercises | 44 |
-| Showcase workflows | 200+ |
-| TUI widgets | 42 |
+| Showcase workflows | 115 |
+| TUI views | 3 |
 | MCP aliases | 100+ |
 
 ---
@@ -417,13 +417,13 @@ Web scraping without a headless browser. Data extraction without Beautiful Soup.
 
 We invested 92K lines of Rust (using `ratatui`) into a full terminal UI. This might seem excessive for a workflow engine, but watching your AI pipeline execute in real-time changes how you debug and optimize.
 
-The TUI has three views:
+The TUI has three views (accessible via `1/s`, `2/c`, `3/x`):
 
-**Studio View:** A live DAG visualization showing all tasks, their states (pending, running, completed, failed), data flow connections, and parallel execution. You can see which tasks are running simultaneously and which are waiting for dependencies.
+**Studio View (1/s):** A live DAG visualization showing all tasks, their states (pending, running, completed, failed), data flow connections, and parallel execution. You can see which tasks are running simultaneously and which are waiting for dependencies.
 
-**Command View:** Streaming LLM output, token by token, for all active tasks. Real-time cost tracking per task and per provider. When you're debugging why a prompt isn't producing good output, watching the tokens flow is invaluable.
+**Command View (2/c):** Streaming LLM output, token by token, for all active tasks. Real-time cost tracking per task and per provider. When you're debugging why a prompt isn't producing good output, watching the tokens flow is invaluable.
 
-**Control View:** System overview -- provider status, event log, overall progress, total cost, and timing information. This is your dashboard for understanding the health of a workflow run.
+**Control View (3/x):** System overview -- provider status, event log, overall progress, total cost, and timing information. This is your dashboard for understanding the health of a workflow run.
 
 The TUI isn't just nice to have. It's a core part of the development workflow: write YAML, run with `nika ui`, watch the DAG execute, identify bottlenecks, adjust, repeat.
 
@@ -543,10 +543,9 @@ nika run hello.nika.yaml
 ### Explore further
 
 ```bash
-nika init --minimal       # 5 example workflows (one per verb)
 nika init --course        # 44-exercise interactive course
-nika showcase list        # 200+ ready-made workflows
-nika ui                   # Terminal UI
+nika showcase list        # 115 ready-made workflows
+nika ui                   # Terminal UI (3 views)
 ```
 
 ---
@@ -566,9 +565,9 @@ We built Nika because we believe:
 
 ## What's Next
 
-Nika v0.42 is the current release. The roadmap includes:
+Nika v0.49.0 is the current release. The roadmap includes:
 
-- **Model routing** -- Named model slots (4 presets) for per-task provider selection
+- **Model routing presets** -- Named model slots (default, lite, think, search) for per-task provider selection
 - **Record compression** -- Compressed task results for bounded context growth
 - **Orchestration mode** -- Dynamic workflow generation from a goal description
 - **Context budgeting** -- Per-task token budget management

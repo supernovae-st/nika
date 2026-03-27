@@ -95,7 +95,7 @@
 > provider: groq
 > provider: gemini
 >
-> 19 providers. No code changes. No vendor lock-in.
+> 9 providers. No code changes. No vendor lock-in.
 > Your choice.
 
 **Chars:** 209
@@ -170,9 +170,7 @@
 
 > Every AI coding tool already understands Nika.
 >
-> Claude Code, Cursor, Copilot, Windsurf — 43 tool configs generated in one command:
->
-> nika setup
+> Claude Code, Cursor, Copilot, Windsurf — tool configs ready out of the box:
 >
 > Your AI assistant writes Nika workflows for you.
 > Recursive AI. We're here.
@@ -305,7 +303,7 @@ Detailed prompts for DALL-E 3 or Midjourney. Brand colors: dark navy `#0f172a`, 
 **Style:** Connection diagram, node graph aesthetic
 
 **Prompt:**
-> Square image on dark navy (#0f172a) background. Center: a small YAML file icon with a butterfly silhouette watermark, glowing faintly in electric blue (#3b82f6). Around it in a circular arrangement: 8 rounded square tiles representing AI providers. Each tile is a slightly lighter dark (#1e293b) with the provider name in white text inside: "Claude", "OpenAI", "Mistral", "Groq", "Gemini", "xAI", "DeepSeek", "Native". Thin electric blue lines connect each tile to the center YAML icon, like spokes of a wheel. Below the circle: the text "19 providers. One line change." in white sans-serif. The lines have a subtle glow effect. Minimal, flat design. Aspect ratio 1:1.
+> Square image on dark navy (#0f172a) background. Center: a small YAML file icon with a butterfly silhouette watermark, glowing faintly in electric blue (#3b82f6). Around it in a circular arrangement: 9 rounded square tiles representing AI providers. Each tile is a slightly lighter dark (#1e293b) with the provider name in white text inside: "Claude", "OpenAI", "Mistral", "Groq", "Gemini", "xAI", "DeepSeek", "Native", "Anthropic". Thin electric blue lines connect each tile to the center YAML icon, like spokes of a wheel. Below the circle: the text "9 providers. One line change." in white sans-serif. The lines have a subtle glow effect. Minimal, flat design. Aspect ratio 1:1.
 
 ## IMAGE 7 — Five Verbs Typography (Tweet 7)
 
@@ -392,21 +390,18 @@ nika course info 1
 
 **Screenshot tips:** Resize terminal to ~100 columns wide. Make sure at least 3-4 levels are visible in the constellation map. If possible, mark 1-2 exercises as completed first so the progress feels real. Use a terminal with dark background.
 
-## IMAGE 11 — Setup Output (Tweet 11)
+## IMAGE 11 — Course Status (Tweet 11)
 
-Real `nika setup` output showing detected AI tools is the strongest proof.
+Real `nika course status` output showing the constellation map is the strongest proof.
 
 ```bash
-# Run in a directory where Claude Code / Cursor configs exist:
-cd ~/dev/supernovae/nika
-nika setup
-
-# Or for a clean demo:
-mkdir -p /tmp/nika-setup-demo && cd /tmp/nika-setup-demo
-nika setup
+# Run from a project with an initialized course:
+mkdir -p /tmp/nika-demo && cd /tmp/nika-demo
+nika init --course
+nika course status
 ```
 
-**Screenshot tips:** Make sure the output shows multiple detected tools (Claude Code, Cursor, etc.). Crop to show just the tool detection and config generation lines. Terminal width ~100 columns, dark background.
+**Screenshot tips:** Make sure the output shows the constellation progress map with multiple levels visible. Crop to show the full map. Terminal width ~100 columns, dark background.
 
 ## IMAGE 5 — Benchmark Chart (Tweet 5)
 
@@ -435,5 +430,5 @@ Or use any charting tool (Datawrapper, Observable Plot) with the exact numbers f
 - [ ] Course screenshot (tweet 8) — actual `nika course status` output, 1:1, real screenshot
 - [ ] Manifesto quote (tweet 9) — text on dark background with butterfly, 1:1, generated
 - [ ] Pipeline diagram (tweet 10) — image processing flow, fan-out, 16:9, generated
-- [ ] Setup terminal (tweet 11) — `nika setup` output showing detected tools, 1:1, real screenshot
+- [ ] Course status (tweet 11) — `nika course status` constellation map, 1:1, real screenshot
 - [ ] GitHub card (tweet 12) — repo card + brew install command, 16:9, generated

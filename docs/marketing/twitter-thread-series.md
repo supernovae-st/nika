@@ -9,9 +9,9 @@
 
 ### Tweet 1
 ```
-Today we're open-sourcing Nika -- a 451K-line Rust engine that turns YAML into AI workflows.
+Today we're open-sourcing Nika -- a Rust engine that turns YAML into AI workflows.
 
-5 verbs. 22 providers. 24 media tools. One binary.
+5 verbs. 9 providers. 24 media tools. One binary.
 
 No Python. No Docker. No SDK.
 
@@ -75,9 +75,9 @@ Write the what. Nika figures out the when.
 
 ### Tweet 6
 ```
-22 LLM providers, one syntax:
+9 LLM providers, one syntax:
 
-Claude, GPT-4o, Gemini, Mistral, Groq, DeepSeek, xAI, Perplexity + local GGUF models.
+Claude, GPT-4o, Gemini, Mistral, Groq, DeepSeek, xAI, Anthropic + local GGUF models.
 
 Switch models by changing one line. Mix providers in the same workflow. Route cheap tasks to fast models, complex tasks to powerful ones.
 ```
@@ -139,8 +139,8 @@ Brain + Body architecture. No Cypher in Nika. Pure MCP.
 Why Rust?
 
 - Single binary. cargo install nika. Done.
-- 8,100+ tests run in seconds
-- Zero clippy warnings across 451K lines
+- 8,300+ tests run in seconds
+- Zero clippy warnings across codebase
 - SIMD-accelerated media processing
 - tokio async for parallel DAG execution
 - No GC pauses during LLM streaming
@@ -148,7 +148,7 @@ Why Rust?
 
 ### Tweet 12
 ```
-The TUI is its own project: 92K lines of ratatui.
+The TUI is its own project: ratatui-based.
 
 3 views:
 - Studio: live DAG visualization
@@ -176,7 +176,7 @@ AGPL-3.0 licensed.
 
 Use Nika freely for anything. The AGPL only matters if you modify the source and offer it as a service.
 
-Open source means open source. No "community edition" tricks. No features locked behind a paywall. All 451K lines are yours.
+Open source means open source. No "community edition" tricks. No features locked behind a paywall. All code is yours.
 ```
 
 ### Tweet 15
@@ -184,9 +184,8 @@ Open source means open source. No "community edition" tricks. No features locked
 Get started:
 
 cargo install nika
-nika init --minimal   # 5 example workflows
 nika init --course    # 44 exercises
-nika showcase list    # 200+ ready workflows
+nika showcase list    # 115+ ready workflows
 
 GitHub: https://github.com/supernovae-st/nika
 
@@ -201,7 +200,7 @@ What would you build with 5 verbs?
 
 ### Tweet 1
 ```
-We wrote 451K lines of Rust for an AI workflow engine.
+We wrote a Rust-based AI workflow engine.
 
 Not Python. Not TypeScript. Not Go.
 
@@ -248,7 +247,7 @@ DAG scheduling means parallel task execution. tokio JoinSet + CancellationToken 
 In Python: GIL + threading hacks + asyncio.
 In Rust: the compiler proves your concurrent code is correct.
 
-8,100 tests. Zero data races. Not by discipline -- by type system.
+8,300+ tests. Zero data races. Not by discipline -- by type system.
 ```
 
 ### Tweet 6
@@ -302,7 +301,7 @@ Would we choose Rust again?
 
 Absolutely. For a developer tool that ships as a binary, processes media, streams LLM responses, and runs concurrent DAG pipelines -- Rust is the right language.
 
-The 20% tax on development speed pays back 10x in reliability and performance.
+Single binary deployment beats everything else. The learning curve pays back 10x in reliability.
 
 https://github.com/supernovae-st/nika
 ```
@@ -340,7 +339,7 @@ Verb 1: infer: -- Call any LLM
         properties:
           summary: { type: string }
 
-22 providers. Structured output. Vision. Extended thinking.
+9 providers. Structured output. Vision. Extended thinking.
 ```
 
 ### Tweet 3
@@ -448,15 +447,13 @@ Constraints breed clarity.
 ```
 Try the 5 verbs:
 
-cargo install nika
-nika init --minimal
-
-You get 5 example workflows -- one per verb.
-
-Or start the interactive course:
+Start the interactive course:
 nika init --course
 
 44 exercises teaching every verb in depth.
+
+Or explore the showcase:
+nika showcase list
 
 https://github.com/supernovae-st/nika
 
@@ -511,16 +508,16 @@ If you use Nika as a tool: no restrictions. Use it for anything -- personal, com
 
 If you modify Nika and offer it as a service: share your modifications. That's it.
 
-You benefit from 451K lines of community code. The community benefits from your improvements.
+You benefit from thousands of lines of community code. The community benefits from your improvements.
 ```
 
 ### Tweet 5
 ```
-"But AGPL scares companies away!"
+"But AGPL is restrictive!"
 
-Good. It scares away companies that want to take without giving back.
+Not for what matters: your workflows are YOURS. If you run Nika as a tool, zero restrictions. If you modify Nika AND offer it as a service, share back.
 
-It welcomes companies that want to build ON Nika (no AGPL obligations -- your workflows are yours) and companies that want to build WITH Nika (contribute back, everyone wins).
+It welcomes companies that want to build ON Nika and companies that build WITH Nika (contribute back, everyone wins).
 ```
 
 ### Tweet 6
@@ -563,7 +560,7 @@ We could have chosen MIT for more GitHub stars.
 
 We could have chosen "open core" for venture funding.
 
-We chose AGPL because we want Nika to exist in 10 years, still open, still community-owned, still free.
+We chose AGPL because we want Nika to stay open, community-owned, and free forever.
 
 The license IS the long-term strategy.
 ```
@@ -575,9 +572,9 @@ If you believe open source should stay open:
 Star: https://github.com/supernovae-st/nika
 Try: cargo install nika
 Learn: nika init --course
-Build: nika init --minimal
+Build: nika showcase extract
 
-451K lines of Rust. AGPL-3.0. Zero compromises.
+Pure Rust. AGPL-3.0. Zero compromises.
 
 Victory belongs to everyone.
 ```
@@ -702,12 +699,12 @@ The course system itself is a Nika feature -- meta!
 ```
 All of these are in the showcase:
 
-nika showcase list              # Browse 200+ workflows
+nika showcase list              # Browse 115+ workflows
 nika showcase extract <name>    # Extract to your project
 
 Start building:
 cargo install nika
-nika init --minimal
+nika init --course
 
 What would YOU build with 5 verbs?
 
