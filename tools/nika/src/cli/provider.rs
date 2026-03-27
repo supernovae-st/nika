@@ -312,7 +312,8 @@ pub async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaE
                     .unwrap_or(false)
             {
                 let env_var = provider_to_env_var(&provider).unwrap_or("UNKNOWN_API_KEY");
-                std::env::set_var(env_var, &api_key);
+                // SAFETY: single-threaded CLI context, no concurrent env access
+                unsafe { std::env::set_var(env_var, &api_key) };
                 test_provider_connection(&provider).await;
             }
             Ok(())
