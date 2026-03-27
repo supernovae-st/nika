@@ -669,6 +669,53 @@ fn example(title: &str, commands: &[&str]) {
     println!();
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// COSMIC EASTER EGG
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Hidden easter egg: `nika cosmic`
+pub fn print_cosmic() {
+    println!();
+    println!("  {}", "\u{2500}".repeat(50).dimmed());
+    println!();
+    println!("         {}", "T H E   N I K A   E N G I N E".bold());
+    println!();
+    println!(
+        "    {}  {}",
+        "\u{2727}".magenta().bold(),
+        "infer    \u{2014}  speak to the stars".magenta()
+    );
+    println!(
+        "    {}  {}",
+        "\u{2388}".yellow().bold(),
+        "exec     \u{2014}  command the void".yellow()
+    );
+    println!(
+        "    {}  {}",
+        "\u{2604}".cyan().bold(),
+        "fetch    \u{2014}  catch falling light".cyan()
+    );
+    println!(
+        "    {}  {}",
+        "\u{229B}".green().bold(),
+        "invoke   \u{2014}  summon the tools".green()
+    );
+    println!(
+        "    {}  {}",
+        "\u{274B}".red().bold(),
+        "agent    \u{2014}  free will unbound".red()
+    );
+    println!();
+    println!("    {}", "In YAML, we write our destiny.".dimmed());
+    println!("    {}", "In DAGs, we find our truth.".dimmed());
+    println!("    {}", "In workflows, we build tomorrow.".dimmed());
+    println!();
+    println!("    {}", "Now go forth, captain. The cosmos awaits.".bold());
+    println!();
+    println!("  {}", "\u{2500}".repeat(50).dimmed());
+    println!();
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
