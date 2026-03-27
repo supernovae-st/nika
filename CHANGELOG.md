@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.49.2] — 2026-03-27
+
+### Security
+- **Constant-time auth token comparison** — replace early-return length check with blake3 hashing to fixed 32 bytes before XOR comparison, eliminating timing-based token length leak
+- **API key CLI arg warning** — hide key positional arg from help, warn about `ps aux` visibility, recommend interactive mode
+
+### Added
+- **config.rs tests** — 7 unit tests for `parse_config_value` and `find_nika_dir`
+- **daemon.rs tests** — 3 edge case tests for `format_uptime` (zero, hour boundary, 24h)
+- **model.rs tests** — 5 unit tests for `format_size` and `ModelAction` variants
+
+### Changed
+- **cli_format adoption** — config.rs, daemon.rs, model.rs now use `StatusIcon`, `separator()`, `section_header()` instead of raw `Colorize` icons
+- **config.rs** — removed `colored::Colorize` import entirely (no longer needed)
+- **daemon.rs** — removed `colored::Colorize` import, 13 icons replaced with `StatusIcon`
+- **model.rs** — 12 icons + 4 separators replaced with cli_format utilities
+
+### Stats
+- 9 commits, 8398 tests pass
+- Zero clippy warnings (`cargo clippy --workspace -- -D warnings`)
+
 ## [0.49.1] — 2026-03-27
 
 ### Fixed
