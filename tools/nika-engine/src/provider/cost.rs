@@ -1034,4 +1034,70 @@ mod tests {
             );
         }
     }
+
+    // ───────────────────────────────────────────────────────────────────────
+    // Model metadata tests
+    // ───────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn model_meta_claude_opus() {
+        let meta = get_model_meta("claude-opus-4-20250514").unwrap();
+        assert!(meta.tags.contains(&ModelTag::Reasoning));
+        assert_eq!(meta.context_window, 200_000);
+    }
+
+    #[test]
+    fn model_meta_claude_sonnet() {
+        let meta = get_model_meta("claude-sonnet-4-6").unwrap();
+        assert!(meta.tags.contains(&ModelTag::Balanced));
+        assert!(meta.tags.contains(&ModelTag::Code));
+    }
+
+    #[test]
+    fn model_meta_gpt4o() {
+        let meta = get_model_meta("gpt-4o").unwrap();
+        assert!(meta.tags.contains(&ModelTag::Vision));
+    }
+
+    #[test]
+    fn model_meta_o3() {
+        let meta = get_model_meta("o3").unwrap();
+        assert!(meta.tags.contains(&ModelTag::Reasoning));
+    }
+
+    #[test]
+    fn model_meta_gemini_pro() {
+        let meta = get_model_meta("gemini-2.5-pro-preview").unwrap();
+        assert_eq!(meta.context_window, 1_000_000);
+    }
+
+    #[test]
+    fn model_meta_unknown_returns_none() {
+        assert!(get_model_meta("nonexistent-model-xyz").is_none());
+    }
+
+    #[test]
+    fn format_context_window_million() {
+        assert_eq!(format_context_window(1_000_000), "1M");
+    }
+
+    #[test]
+    fn format_context_window_thousand() {
+        assert_eq!(format_context_window(200_000), "200K");
+        assert_eq!(format_context_window(128_000), "128K");
+    }
+
+    #[test]
+    fn format_context_window_small() {
+        assert_eq!(format_context_window(512), "512");
+    }
+
+    #[test]
+    fn model_tag_labels() {
+        assert_eq!(ModelTag::Reasoning.label(), "reasoning");
+        assert_eq!(ModelTag::Code.label(), "code");
+        assert_eq!(ModelTag::Fast.label(), "fast");
+        assert_eq!(ModelTag::Vision.label(), "vision");
+        assert_eq!(ModelTag::Balanced.label(), "balanced");
+    }
 }
