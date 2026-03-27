@@ -211,29 +211,26 @@ fn test_set_provider_claude() {
 #[test]
 #[serial]
 fn test_set_provider_missing_key() {
-    std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
+    temp_env::with_vars(
+        [
+            ("OPENAI_API_KEY", Some("test-key-for-unit-test")),
+            ("ANTHROPIC_API_KEY", None::<&str>),
+        ],
+        || {
+            let mut agent = ChatAgent::new().expect("Should create agent");
 
-    let mut agent = ChatAgent::new().expect("Should create agent");
-
-    // Temporarily remove ANTHROPIC_API_KEY to force MissingApiKey error
-    let saved = std::env::var("ANTHROPIC_API_KEY").ok();
-    std::env::remove_var("ANTHROPIC_API_KEY");
-
-    let result = agent.set_provider(ModelProvider::Claude);
-    assert!(
-        result.is_err(),
-        "set_provider must fail when ANTHROPIC_API_KEY is not set"
+            let result = agent.set_provider(ModelProvider::Claude);
+            assert!(
+                result.is_err(),
+                "set_provider must fail when ANTHROPIC_API_KEY is not set"
+            );
+            if let Err(NikaError::MissingApiKey { provider }) = result {
+                assert_eq!(provider, "anthropic");
+            } else {
+                panic!("Expected MissingApiKey error, got: {:?}", result);
+            }
+        },
     );
-    if let Err(NikaError::MissingApiKey { provider }) = result {
-        assert_eq!(provider, "anthropic");
-    } else {
-        panic!("Expected MissingApiKey error, got: {:?}", result);
-    }
-
-    // Restore env var if it was set
-    if let Some(val) = saved {
-        std::env::set_var("ANTHROPIC_API_KEY", val);
-    }
 }
 
 #[test]
