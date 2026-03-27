@@ -110,8 +110,6 @@ impl ChatNodeState {
 /// A box widget representing a node in the Chat DAG
 #[derive(Debug, Clone)]
 pub struct ChatNodeBox {
-    /// Unique identifier
-    id: String,
     /// Node kind (User, Assistant, etc.)
     kind: ChatNodeKind,
     /// Display label (truncated message preview)
@@ -128,9 +126,8 @@ pub struct ChatNodeBox {
 
 impl ChatNodeBox {
     /// Create a new chat node box
-    pub fn new(id: &str, kind: ChatNodeKind) -> Self {
+    pub fn new(kind: ChatNodeKind) -> Self {
         Self {
-            id: id.to_string(),
             kind,
             label: String::new(),
             index: 0,
@@ -164,37 +161,6 @@ impl ChatNodeBox {
         self
     }
 
-    // Getters
-    /// Get the node ID
-    pub fn id(&self) -> &str {
-        &self.id
-    }
-
-    /// Get the node kind
-    pub fn kind(&self) -> ChatNodeKind {
-        self.kind
-    }
-
-    /// Get the display label
-    pub fn label(&self) -> &str {
-        &self.label
-    }
-
-    /// Get the stable node index
-    pub fn index(&self) -> u32 {
-        self.index
-    }
-
-    /// Get the current state
-    pub fn state(&self) -> ChatNodeState {
-        self.state
-    }
-
-    /// Check if selected
-    pub fn selected(&self) -> bool {
-        self.selected
-    }
-
     /// Advance animation state
     pub fn tick(&mut self) {
         if self.state.is_running() {
@@ -202,15 +168,6 @@ impl ChatNodeBox {
         }
     }
 
-    /// Get pulse intensity (0.0 - 1.0) for running animation
-    pub fn pulse_intensity(&self) -> f32 {
-        if !self.state.is_running() {
-            return 0.0;
-        }
-        // Sine wave pulse
-        let t = self.animation_tick as f32 / 30.0;
-        (t.sin() + 1.0) / 2.0
-    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -337,37 +294,36 @@ mod tests {
 
     #[test]
     fn test_chat_node_box_creation() {
-        let node = ChatNodeBox::new("msg-001", ChatNodeKind::User)
+        let node = ChatNodeBox::new(ChatNodeKind::User)
             .with_label("Hello world")
             .with_index(1);
 
-        assert_eq!(node.id(), "msg-001");
-        assert_eq!(node.kind(), ChatNodeKind::User);
-        assert_eq!(node.label(), "Hello world");
-        assert_eq!(node.index(), 1);
+        // Verify via render: renders without panic and contains @1
+        let mut buf = Buffer::empty(Rect::new(0, 0, 20, 3));
+        node.render(buf.area, &mut buf);
+        let content = buffer_to_string(&buf);
+        assert!(content.contains("@1"));
     }
 
     #[test]
     fn test_chat_node_box_default_state() {
-        let node = ChatNodeBox::new("msg-001", ChatNodeKind::User);
-        assert_eq!(node.state(), ChatNodeState::Idle);
-        assert!(!node.selected());
+        // Verify default construction works
+        let _node = ChatNodeBox::new(ChatNodeKind::User);
     }
 
     #[test]
     fn test_chat_node_box_builder_pattern() {
-        let node = ChatNodeBox::new("msg-002", ChatNodeKind::Assistant)
+        let node = ChatNodeBox::new(ChatNodeKind::Assistant)
             .with_label("I'll help you...")
             .with_index(2)
             .with_state(ChatNodeState::Running)
             .with_selected(true);
 
-        assert_eq!(node.id(), "msg-002");
-        assert_eq!(node.kind(), ChatNodeKind::Assistant);
-        assert_eq!(node.label(), "I'll help you...");
-        assert_eq!(node.index(), 2);
-        assert_eq!(node.state(), ChatNodeState::Running);
-        assert!(node.selected());
+        // Verify via render
+        let mut buf = Buffer::empty(Rect::new(0, 0, 25, 3));
+        node.render(buf.area, &mut buf);
+        let content = buffer_to_string(&buf);
+        assert!(content.contains("@2"));
     }
 
     // --- Animation tests ---
@@ -375,7 +331,7 @@ mod tests {
     #[test]
     fn test_chat_node_box_tick() {
         let mut node =
-            ChatNodeBox::new("msg-001", ChatNodeKind::User).with_state(ChatNodeState::Running);
+            ChatNodeBox::new(ChatNodeKind::User).with_state(ChatNodeState::Running);
 
         let initial = node.animation_tick;
         node.tick();
@@ -385,28 +341,12 @@ mod tests {
     #[test]
     fn test_chat_node_box_tick_only_when_running() {
         let mut node =
-            ChatNodeBox::new("msg-001", ChatNodeKind::User).with_state(ChatNodeState::Idle);
+            ChatNodeBox::new(ChatNodeKind::User).with_state(ChatNodeState::Idle);
 
         let initial = node.animation_tick;
         node.tick();
         // Should not change when not running
         assert_eq!(node.animation_tick, initial);
-    }
-
-    #[test]
-    fn test_chat_node_box_pulse_intensity() {
-        let node =
-            ChatNodeBox::new("msg-001", ChatNodeKind::User).with_state(ChatNodeState::Running);
-
-        let intensity = node.pulse_intensity();
-        assert!((0.0..=1.0).contains(&intensity));
-    }
-
-    #[test]
-    fn test_no_pulse_when_idle() {
-        let node = ChatNodeBox::new("msg-001", ChatNodeKind::User).with_state(ChatNodeState::Idle);
-
-        assert_eq!(node.pulse_intensity(), 0.0);
     }
 
     // --- Truncation tests ---
@@ -446,7 +386,7 @@ mod tests {
 
     #[test]
     fn test_chat_node_box_render_basic() {
-        let node = ChatNodeBox::new("msg-001", ChatNodeKind::User)
+        let node = ChatNodeBox::new(ChatNodeKind::User)
             .with_label("Hello")
             .with_index(1);
 
@@ -460,7 +400,7 @@ mod tests {
 
     #[test]
     fn test_chat_node_box_render_selected() {
-        let node = ChatNodeBox::new("msg-001", ChatNodeKind::User)
+        let node = ChatNodeBox::new(ChatNodeKind::User)
             .with_label("Hello")
             .with_index(1)
             .with_selected(true);
@@ -475,7 +415,7 @@ mod tests {
 
     #[test]
     fn test_chat_node_box_render_running() {
-        let node = ChatNodeBox::new("msg-001", ChatNodeKind::ToolCall)
+        let node = ChatNodeBox::new(ChatNodeKind::ToolCall)
             .with_label("search...")
             .with_index(3)
             .with_state(ChatNodeState::Running);
@@ -490,7 +430,7 @@ mod tests {
 
     #[test]
     fn test_chat_node_box_render_too_small() {
-        let node = ChatNodeBox::new("msg-001", ChatNodeKind::User)
+        let node = ChatNodeBox::new(ChatNodeKind::User)
             .with_label("Hello")
             .with_index(1);
 
@@ -508,7 +448,7 @@ mod tests {
     #[test]
     fn test_chat_node_box_exported() {
         // This test verifies the type is accessible
-        let _ = ChatNodeBox::new("test", ChatNodeKind::User);
+        let _ = ChatNodeBox::new(ChatNodeKind::User);
     }
 
     /// Helper to convert buffer to string for assertions

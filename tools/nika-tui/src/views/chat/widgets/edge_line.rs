@@ -83,26 +83,6 @@ impl ChatEdgeLine {
         self
     }
 
-    /// Get the binding label
-    pub fn label(&self) -> Option<&str> {
-        self.label.as_deref()
-    }
-
-    /// Get the source position
-    pub fn from(&self) -> ChatPosition {
-        self.from
-    }
-
-    /// Get the target position
-    pub fn to(&self) -> ChatPosition {
-        self.to
-    }
-
-    /// Check if data is actively flowing
-    pub fn active(&self) -> bool {
-        self.active
-    }
-
     /// Check if edge is vertical
     pub fn is_vertical(&self) -> bool {
         self.from.x == self.to.x
@@ -122,13 +102,6 @@ impl ChatEdgeLine {
         } else {
             // Diagonal - use manhattan distance
             self.to.y.abs_diff(self.from.y) + self.to.x.abs_diff(self.from.x)
-        }
-    }
-
-    /// Advance animation state
-    pub fn tick(&mut self) {
-        if self.active {
-            self.animation_tick = self.animation_tick.wrapping_add(1);
         }
     }
 
@@ -351,8 +324,8 @@ mod tests {
     fn test_chat_edge_line_creation() {
         let edge = ChatEdgeLine::new(ChatPosition::new(10, 5), ChatPosition::new(10, 10));
 
-        assert_eq!(edge.from().x, 10);
-        assert_eq!(edge.to().y, 10);
+        assert_eq!(edge.from.x, 10);
+        assert_eq!(edge.to.y, 10);
         assert!(edge.is_vertical());
     }
 
@@ -369,7 +342,7 @@ mod tests {
         let edge = ChatEdgeLine::new(ChatPosition::new(10, 5), ChatPosition::new(10, 10))
             .with_label("with.ctx");
 
-        assert_eq!(edge.label(), Some("with.ctx"));
+        assert_eq!(edge.label.as_deref(), Some("with.ctx"));
     }
 
     // --- Properties tests ---
@@ -411,7 +384,7 @@ mod tests {
 
         // After some ticks, position should still be valid
         for _ in 0..5 {
-            edge.tick();
+            edge.animation_tick = edge.animation_tick.wrapping_add(1);
         }
         let pos1 = edge.flow_position().unwrap();
         assert!(pos1.y <= 10);
@@ -426,23 +399,13 @@ mod tests {
     }
 
     #[test]
-    fn test_chat_edge_line_tick() {
+    fn test_chat_edge_line_animation_tick_wraps() {
         let mut edge = ChatEdgeLine::new(ChatPosition::new(10, 0), ChatPosition::new(10, 10))
             .with_active(true);
 
         let initial = edge.animation_tick;
-        edge.tick();
+        edge.animation_tick = edge.animation_tick.wrapping_add(1);
         assert_eq!(edge.animation_tick, initial.wrapping_add(1));
-    }
-
-    #[test]
-    fn test_chat_edge_line_tick_only_when_active() {
-        let mut edge = ChatEdgeLine::new(ChatPosition::new(10, 0), ChatPosition::new(10, 10));
-
-        let initial = edge.animation_tick;
-        edge.tick();
-        // Should not change when inactive
-        assert_eq!(edge.animation_tick, initial);
     }
 
     // --- Render tests ---
