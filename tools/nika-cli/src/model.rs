@@ -306,7 +306,11 @@ pub async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<()
             }
 
             if !quiet {
-                println!("{} Model downloaded: {}", StatusIcon::Ok, model_path.display());
+                println!(
+                    "{} Model downloaded: {}",
+                    StatusIcon::Ok,
+                    model_path.display()
+                );
             }
             Ok(())
         }
@@ -454,7 +458,11 @@ pub async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<()
             use nika_engine::provider::native::InferenceBackend;
 
             if !quiet {
-                println!("{} Loading vision model: {}", StatusIcon::Download, model_id.bold());
+                println!(
+                    "{} Loading vision model: {}",
+                    StatusIcon::Download,
+                    model_id.bold()
+                );
                 if let Some(ref isq_level) = isq {
                     println!("  ISQ quantization: {}", isq_level.cyan());
                 }
@@ -564,6 +572,7 @@ mod tests {
             repo: None,
             file: None,
             quant: None,
+            force: false,
         };
         let _ = ModelAction::Delete {
             name: "test".into(),
