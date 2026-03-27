@@ -54,16 +54,7 @@ tasks:
       comments: $fetch_comments
       todos: $fetch_todos
     exec:
-      command: |
-        echo '{
-          "total_users": 10,
-          "total_posts": 100,
-          "total_comments": 5,
-          "total_todos": 20,
-          "avg_posts_per_user": 10,
-          "completion_rate": 0.55,
-          "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
-        }'
+      command: echo '{"total_users": 10, "total_posts": 100, "total_comments": 5, "total_todos": 20, "avg_posts_per_user": 10, "completion_rate": 0.55, "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}'
       shell: true
     artifact:
       path: transformed/summary.json
@@ -174,7 +165,9 @@ tasks:
     depends_on: [validate_output]
     with:
       validation: $validate_output
-    exec: "echo 'Pipeline complete. Validation: {{with.validation}}'"
+    exec:
+      command: echo 'Pipeline complete. Validation:' {{with.validation}}
+      shell: true
 ```
 
 **Explanation:**
@@ -283,7 +276,7 @@ tasks:
     with:
       stats: $compute_stats
     invoke:
-      tool: "nika:chart"
+      tool: 'nika:chart'
       params:
         type: "line"
         title: "Revenue & User Growth Trend"
@@ -626,10 +619,7 @@ tasks:
     with:
       data: $raw_data
     exec:
-      command: |
-        echo "Data type: {{with.data | type_of}}"
-        echo "Data length: {{with.data | length}}"
-        echo "First 200 chars: {{with.data | first(200)}}"
+      command: 'echo "Data type: {{with.data | type_of}}" && echo "Data length: {{with.data | length}}" && echo "First 200 chars: {{with.data | first(200)}}"'
       shell: true
 
   # Process with LLM using transformed data
@@ -656,7 +646,7 @@ tasks:
   - id: price_chart
     depends_on: [raw_data]
     invoke:
-      tool: "nika:chart"
+      tool: 'nika:chart'
       params:
         type: "bar"
         title: "Product Pricing Comparison"
@@ -725,28 +715,36 @@ artifacts:
 
 tasks:
   - id: stage_1_extract
-    exec: "echo '[EXTRACT] Fetching data from 3 API endpoints...'"
+    exec:
+      command: echo '[EXTRACT] Fetching data from 3 API endpoints...'
+      shell: true
     artifact:
       path: pipeline.log
       mode: append
 
   - id: stage_2_validate
     depends_on: [stage_1_extract]
-    exec: "echo '[VALIDATE] Schema validation passed. 150 records valid, 3 rejected.'"
+    exec:
+      command: echo '[VALIDATE] Schema validation passed. 150 records valid, 3 rejected.'
+      shell: true
     artifact:
       path: pipeline.log
       mode: append
 
   - id: stage_3_transform
     depends_on: [stage_2_validate]
-    exec: "echo '[TRANSFORM] Applied 5 transformations. Output: 150 enriched records.'"
+    exec:
+      command: echo '[TRANSFORM] Applied 5 transformations. Output: 150 enriched records.'
+      shell: true
     artifact:
       path: pipeline.log
       mode: append
 
   - id: stage_4_load
     depends_on: [stage_3_transform]
-    exec: "echo '[LOAD] Inserted 150 records into target database.'"
+    exec:
+      command: echo '[LOAD] Inserted 150 records into target database.'
+      shell: true
     artifact:
       path: pipeline.log
       mode: append

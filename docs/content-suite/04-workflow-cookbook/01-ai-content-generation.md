@@ -39,6 +39,9 @@ tasks:
       url: "{{with.source.url}}"
       extract: article
       timeout: 20
+    retry:
+      max_attempts: 2
+      delay_ms: 1000
 
   # Step 2: Generate an outline based on research
   - id: outline
@@ -296,7 +299,7 @@ tasks:
         Create a 5-email drip campaign strategy for {{inputs.product_name}}.
         Target: {{inputs.target_persona}}
         Goal: {{inputs.campaign_goal}}
-        Brand guidelines: {{context.files.brand | first(1000)}}
+        Brand guidelines: {{context.brand | first(1000)}}
 
         For each email, define: subject line, purpose, CTA, timing (days after signup).
       response_format: json
@@ -343,7 +346,7 @@ tasks:
     infer:
       system: |
         You are an email copywriter for developer tools.
-        Brand voice: {{context.files.brand | first(500)}}
+        Brand voice: {{context.brand | first(500)}}
       prompt: |
         Write email #{{with.brief.email_num}} of the campaign.
         Campaign plan: {{with.plan | first(1000)}}
@@ -698,21 +701,23 @@ artifacts:
 tasks:
   # Source content
   - id: source_content
-    exec: |
-      echo '# Getting Started with Nika
+    exec:
+      command: |
+        echo '# Getting Started with Nika
 
-      Nika is a semantic YAML workflow engine for AI tasks.
-      Use the `infer:` verb for LLM generation and `fetch:` for HTTP requests.
+        Nika is a semantic YAML workflow engine for AI tasks.
+        Use the `infer:` verb for LLM generation and `fetch:` for HTTP requests.
 
-      ## Installation
+        ## Installation
 
-      ```bash
-      cargo install nika
-      ```
+        ```bash
+        cargo install nika
+        ```
 
-      ## Your First Workflow
+        ## Your First Workflow
 
-      Create a file called `hello.nika.yaml` and run it with `nika run hello.nika.yaml`.'
+        Create a file called `hello.nika.yaml` and run it with `nika run hello.nika.yaml`.'
+      shell: true
 
   # Translate to all target languages in parallel
   - id: translate
@@ -730,7 +735,7 @@ tasks:
     infer:
       system: |
         You are a professional technical translator specializing in developer documentation.
-        Technical glossary: {{context.files.glossary | first(1000)}}
+        Technical glossary: {{context.glossary | first(1000)}}
       prompt: |
         Translate this content from {{inputs.source_language}} to {{with.lang.name}}.
 

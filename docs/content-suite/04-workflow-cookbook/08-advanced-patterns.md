@@ -23,7 +23,9 @@ artifacts:
 tasks:
   # Top of the diamond: single setup task
   - id: setup
-    exec: "echo '{\"project\": \"demo\", \"timestamp\": \"2026-03-23\"}'"
+    exec:
+      command: "echo '{\"project\": \"demo\", \"timestamp\": \"2026-03-23\"}'"
+      shell: true
 
   # Left branch: web scraping
   - id: branch_web
@@ -115,6 +117,7 @@ tasks:
           {"id": 5, "url": "https://httpbin.org/user-agent", "name": "API 5"}
         ]'
       shell: true
+      timeout: 5
 
   # Fan-out: process each item in parallel
   - id: process_items
@@ -130,6 +133,7 @@ tasks:
     retry:
       max_attempts: 2
       delay_ms: 1000
+      backoff: 1.5
 
   # Fan-in: aggregate all results
   - id: aggregate
@@ -270,6 +274,7 @@ tasks:
   - id: quick_check
     exec:
       command: "echo 'System check: OK'"
+      shell: true
       timeout: 5
 
   # Network call: moderate timeout
@@ -284,6 +289,7 @@ tasks:
     depends_on: [quick_check]
     exec:
       command: "echo 'Processing complete after heavy computation'"
+      shell: true
       timeout: 120
 
   # External API with retry + timeout combo
@@ -316,7 +322,10 @@ tasks:
 
   - id: done
     depends_on: [heavy_processing, external_api, agent_with_limits]
-    exec: "echo 'All tasks completed within their timeout windows'"
+    exec:
+      command: "echo 'All tasks completed within their timeout windows'"
+      shell: true
+      timeout: 5
 ```
 
 **Explanation:**
@@ -378,7 +387,10 @@ tasks:
       - "item-5"
     as: item
     concurrency: 5
-    exec: "echo 'Processing {{with.item}}'"
+    exec:
+      command: "echo 'Processing {{with.item}}'"
+      shell: true
+      timeout: 5
 
   # LLM calls: moderate concurrency to respect rate limits
   - id: llm_batch
@@ -458,15 +470,21 @@ tasks:
 
   # Reference array from previous task
   - id: data_source
-    exec: |
-      echo '[{"city": "Paris", "country": "FR"}, {"city": "Berlin", "country": "DE"}, {"city": "Tokyo", "country": "JP"}]'
+    exec:
+      command: |
+        echo '[{"city": "Paris", "country": "FR"}, {"city": "Berlin", "country": "DE"}, {"city": "Tokyo", "country": "JP"}]'
+      shell: true
+      timeout: 5
 
   - id: process_dynamic
     depends_on: [data_source]
     for_each: "$data_source"
     as: location
     concurrency: 3
-    exec: "echo 'Processing {{with.location.city}}, {{with.location.country}}'"
+    exec:
+      command: "echo 'Processing {{with.location.city}}, {{with.location.country}}'"
+      shell: true
+      timeout: 5
 ```
 
 **Explanation:**
@@ -499,8 +517,10 @@ artifacts:
 tasks:
   # Determine the path
   - id: classify
-    exec: |
-      echo '{"category": "technical", "complexity": "high", "language": "en"}'
+    exec:
+      command: "echo '{\"category\": \"technical\", \"complexity\": \"high\", \"language\": \"en\"}'"
+      shell: true
+      timeout: 5
 
   # All branches depend on classify; the LLM uses classification to adapt
   - id: technical_path
@@ -764,6 +784,7 @@ tasks:
     exec:
       command: "echo '{\"platform\": \"'$(uname -s)'\", \"arch\": \"'$(uname -m)'\"}'"
       shell: true
+      timeout: 5
 
   # VERB 2: fetch — scrape web content
   - id: web_content
@@ -876,7 +897,10 @@ tasks:
   # Completion log
   - id: done
     depends_on: [deep_dive]
-    exec: "echo '{{inputs.project_name}} — all 5 verbs completed successfully'"
+    exec:
+      command: "echo '{{inputs.project_name}} — all 5 verbs completed successfully'"
+      shell: true
+      timeout: 5
 ```
 
 **Explanation:**

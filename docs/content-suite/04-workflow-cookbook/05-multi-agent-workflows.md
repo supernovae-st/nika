@@ -83,6 +83,7 @@ tasks:
       url: "https://blog.rust-lang.org/"
       extract: markdown
       timeout: 20
+      response: full
 
   - id: source_feed
     fetch:

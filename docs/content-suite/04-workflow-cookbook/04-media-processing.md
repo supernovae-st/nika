@@ -77,9 +77,9 @@ tasks:
     with:
       img: $download_original
     invoke:
-      tool: "nika:dimensions"
+      tool: 'nika:dimensions'
       params:
-        hash: "{{with.img.media[0].hash}}"
+        hash: '{{with.img.media[0].hash}}'
 
   # Extract color palette
   - id: color_palette
@@ -87,9 +87,9 @@ tasks:
     with:
       img: $download_original
     invoke:
-      tool: "nika:dominant_color"
+      tool: 'nika:dominant_color'
       params:
-        hash: "{{with.img.media[0].hash}}"
+        hash: '{{with.img.media[0].hash}}'
         count: 6
     artifact:
       path: colors.json
@@ -101,9 +101,9 @@ tasks:
     with:
       img: $download_original
     invoke:
-      tool: "nika:thumbnail"
+      tool: 'nika:thumbnail'
       params:
-        hash: "{{with.img.media[0].hash}}"
+        hash: '{{with.img.media[0].hash}}'
         width: 400
     artifact:
       path: thumbnail.jpg
@@ -115,9 +115,9 @@ tasks:
     with:
       img: $download_original
     invoke:
-      tool: "nika:pipeline"
+      tool: 'nika:pipeline'
       params:
-        hash: "{{with.img.media[0].hash}}"
+        hash: '{{with.img.media[0].hash}}'
         steps:
           - op: thumbnail
             width: 800
@@ -134,9 +134,9 @@ tasks:
     with:
       thumb: $make_thumbnail
     invoke:
-      tool: "nika:optimize"
+      tool: 'nika:optimize'
       params:
-        hash: "{{with.thumb.media[0].hash}}"
+        hash: '{{with.thumb.media[0].hash}}'
     artifact:
       path: optimized-thumb.png
       format: binary
@@ -147,9 +147,9 @@ tasks:
     with:
       img: $download_original
     invoke:
-      tool: "nika:thumbhash"
+      tool: 'nika:thumbhash'
       params:
-        hash: "{{with.img.media[0].hash}}"
+        hash: '{{with.img.media[0].hash}}'
     artifact:
       path: thumbhash.json
       format: json
@@ -166,7 +166,7 @@ tasks:
     infer:
       content:
         - type: image
-          source: "{{with.optimized.media[0].hash}}"
+          source: '{{with.optimized.media[0].hash}}'
           detail: high
         - type: text
           text: |
@@ -249,9 +249,9 @@ tasks:
     with:
       qr: $fetch_qr
     invoke:
-      tool: "nika:qr_validate"
+      tool: 'nika:qr_validate'
       params:
-        hash: "{{with.qr.media[0].hash}}"
+        hash: '{{with.qr.media[0].hash}}'
     artifact:
       path: validation-results.json
       format: json
@@ -262,9 +262,9 @@ tasks:
     with:
       qr: $fetch_qr
     invoke:
-      tool: "nika:dimensions"
+      tool: 'nika:dimensions'
       params:
-        hash: "{{with.qr.media[0].hash}}"
+        hash: '{{with.qr.media[0].hash}}'
 
   # Generate thumbhash for the QR code
   - id: qr_thumbhash
@@ -272,9 +272,9 @@ tasks:
     with:
       qr: $fetch_qr
     invoke:
-      tool: "nika:thumbhash"
+      tool: 'nika:thumbhash'
       params:
-        hash: "{{with.qr.media[0].hash}}"
+        hash: '{{with.qr.media[0].hash}}'
 
   # Get color analysis
   - id: qr_colors
@@ -282,9 +282,9 @@ tasks:
     with:
       qr: $fetch_qr
     invoke:
-      tool: "nika:dominant_color"
+      tool: 'nika:dominant_color'
       params:
-        hash: "{{with.qr.media[0].hash}}"
+        hash: '{{with.qr.media[0].hash}}'
         count: 4
 
   # Comprehensive quality report
@@ -370,13 +370,14 @@ artifacts:
 tasks:
   # Gather data
   - id: gather_metrics
-    exec: |
-      echo '{"cpu": [65, 72, 58, 81, 45, 90, 73], "memory": [45, 52, 48, 55, 42, 61, 50], "disk": [67, 67, 68, 69, 70, 71, 72], "days": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]}'
+    exec:
+      command: echo '{"cpu": [65, 72, 58, 81, 45, 90, 73], "memory": [45, 52, 48, 55, 42, 61, 50], "disk": [67, 67, 68, 69, 70, 71, 72], "days": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]}'
+      shell: true
 
   # Generate resource usage bar chart
   - id: resource_chart
     invoke:
-      tool: "nika:chart"
+      tool: 'nika:chart'
       params:
         type: "bar"
         title: "System Resource Usage (%)"
@@ -397,7 +398,7 @@ tasks:
   # Generate trend line chart
   - id: trend_chart
     invoke:
-      tool: "nika:chart"
+      tool: 'nika:chart'
       params:
         type: "line"
         title: "Response Time Trend (ms)"
@@ -418,7 +419,7 @@ tasks:
   # Generate pie chart for traffic distribution
   - id: distribution_chart
     invoke:
-      tool: "nika:chart"
+      tool: 'nika:chart'
       params:
         type: "pie"
         title: "Traffic Distribution by Region"
@@ -443,13 +444,13 @@ tasks:
     infer:
       content:
         - type: image
-          source: "{{with.resources.media[0].hash}}"
+          source: '{{with.resources.media[0].hash}}'
           detail: high
         - type: image
-          source: "{{with.trends.media[0].hash}}"
+          source: '{{with.trends.media[0].hash}}'
           detail: high
         - type: image
-          source: "{{with.distribution.media[0].hash}}"
+          source: '{{with.distribution.media[0].hash}}'
           detail: high
         - type: text
           text: |
@@ -506,9 +507,9 @@ tasks:
     with:
       pdf: $fetch_pdf
     invoke:
-      tool: "nika:pdf_extract"
+      tool: 'nika:pdf_extract'
       params:
-        hash: "{{with.pdf.media[0].hash}}"
+        hash: '{{with.pdf.media[0].hash}}'
     artifact:
       path: extracted-text.txt
 
@@ -518,9 +519,9 @@ tasks:
     with:
       pdf: $fetch_pdf
     invoke:
-      tool: "nika:dimensions"
+      tool: 'nika:dimensions'
       params:
-        hash: "{{with.pdf.media[0].hash}}"
+        hash: '{{with.pdf.media[0].hash}}'
 
   # Summarize the document
   - id: summarize
@@ -626,9 +627,9 @@ tasks:
   # Import a local file into CAS
   - id: import_local
     invoke:
-      tool: "nika:import"
+      tool: 'nika:import'
       params:
-        path: "./assets/logo.png"
+        path: './assets/logo.png'
 
   # Sign the fetched image with C2PA provenance
   - id: sign_image
@@ -636,9 +637,9 @@ tasks:
     with:
       img: $fetch_image
     invoke:
-      tool: "nika:provenance"
+      tool: 'nika:provenance'
       params:
-        hash: "{{with.img.media[0].hash}}"
+        hash: '{{with.img.media[0].hash}}'
     artifact:
       path: signed-image.jpg
       format: binary
@@ -649,9 +650,9 @@ tasks:
     with:
       signed: $sign_image
     invoke:
-      tool: "nika:verify"
+      tool: 'nika:verify'
       params:
-        hash: "{{with.signed.media[0].hash}}"
+        hash: '{{with.signed.media[0].hash}}'
     artifact:
       path: verification-report.json
       format: json
@@ -662,9 +663,9 @@ tasks:
     with:
       img: $fetch_image
     invoke:
-      tool: "nika:metadata"
+      tool: 'nika:metadata'
       params:
-        hash: "{{with.img.media[0].hash}}"
+        hash: '{{with.img.media[0].hash}}'
     artifact:
       path: image-metadata.json
       format: json
@@ -675,9 +676,9 @@ tasks:
     with:
       img: $fetch_image
     invoke:
-      tool: "nika:phash"
+      tool: 'nika:phash'
       params:
-        hash: "{{with.img.media[0].hash}}"
+        hash: '{{with.img.media[0].hash}}'
 
   # Provenance report
   - id: provenance_report
@@ -759,17 +760,17 @@ tasks:
     as: config
     concurrency: 3
     invoke:
-      tool: "nika:pipeline"
+      tool: 'nika:pipeline'
       params:
-        hash: "{{with.images.media[0].hash}}"
+        hash: '{{with.images.media[0].hash}}'
         steps:
           - op: thumbnail
-            width: "{{with.config.width}}"
+            width: '{{with.config.width}}'
           - op: strip
           - op: convert
             format: webp
     artifact:
-      path: "optimized/{{with.config.name}}.webp"
+      path: 'optimized/{{with.config.name}}.webp'
       format: binary
 
   # Generate batch report
@@ -779,13 +780,7 @@ tasks:
       originals: $download_images
       optimized: $optimize_all
     exec:
-      command: |
-        echo '{
-          "processed": 3,
-          "formats": ["landscape", "portrait", "square"],
-          "output_format": "webp",
-          "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
-        }'
+      command: echo '{"processed": 3, "formats": ["landscape", "portrait", "square"], "output_format": "webp", "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}'
       shell: true
     artifact:
       path: batch-report.json
