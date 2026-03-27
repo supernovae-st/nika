@@ -573,8 +573,8 @@ fn test_keys_tab_label_with_verified() {
         ConnectionStatus::Connected { latency_ms: 150 },
         ConnectionStatus::NotConfigured,
     ];
-    // 2 verified out of 6 max
-    assert!(state.keys_tab_label().contains("2/6"));
+    // 2 verified out of 7 cloud providers
+    assert!(state.keys_tab_label().contains("2/7"));
 }
 
 // Latency history tests
