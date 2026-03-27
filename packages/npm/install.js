@@ -109,6 +109,18 @@ async function install() {
   cleanup(tarballPath);
 
   console.log(`nika v${VERSION} installed successfully.`);
+
+  // Post-install: trigger first-run setup + start daemon in background.
+  // Detects editors, installs AI rules, shell completions, and starts daemon.
+  // Non-fatal — setup retries on first `nika` command if this fails.
+  try {
+    execFileSync(binaryPath, ['--quiet', 'daemon', 'start'], {
+      stdio: 'ignore',
+      timeout: 30000,
+    });
+  } catch (_) {
+    // Silently ignore — setup will run on first nika command
+  }
 }
 
 function cleanup(tarballPath) {
