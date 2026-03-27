@@ -19,7 +19,7 @@ context:                           # File bindings loaded at boot
   files:
     readme: ./README.md
 
-imports:                           # External workflow/module imports
+include:                           # Include partial workflows (tasks merged into DAG)
   - path: ./partials/setup.nika.yaml
     prefix: setup_
 
