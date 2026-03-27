@@ -1536,6 +1536,10 @@ async fn run_workflow(
     no_live: bool,
     permission: &str,
 ) -> Result<(), NikaError> {
+    // Bootstrap secrets: env vars → daemon IPC → OS keychain.
+    // Ensures keys stored via `nika provider set` are available without restarting the shell.
+    let _ = nika::secrets::load_from_daemon_or_fallback().await;
+
     let resolved_path = resolve_workflow_path(file).await?;
 
     let yaml = tokio::fs::read_to_string(&resolved_path).await?;
