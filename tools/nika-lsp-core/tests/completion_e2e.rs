@@ -18,7 +18,7 @@ use nika_lsp_core::handlers::completion::completions;
 fn complete_at(text: &str, line: usize, character: usize) -> Vec<CompletionItem> {
     let offset = text_offset(text, line, character);
     let ctx = detect_context(text, offset, None);
-    completions(text, offset, &ctx)
+    completions(text, offset, &ctx, None)
 }
 
 /// Convert (line, character) to byte offset.

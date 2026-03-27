@@ -10,6 +10,7 @@
 use ls_types::{CompletionItem, CompletionItemKind, Documentation, InsertTextFormat};
 use nika_core::catalogs::models::{ModelType, KNOWN_MODELS};
 use nika_core::catalogs::providers::{ProviderCategory, KNOWN_PROVIDERS};
+use nika_core::catalogs::ProviderStatusInfo;
 
 use crate::analysis::context::{extract_task_ids, ContentFocus, CursorContext, InvokeFocus};
 
@@ -20,7 +21,13 @@ use crate::analysis::context::{extract_task_ids, ContentFocus, CursorContext, In
 /// Compute completions for the given cursor context.
 ///
 /// Pure function -- no async, no state beyond the arguments.
-pub fn completions(text: &str, _offset: u32, context: &CursorContext) -> Vec<CompletionItem> {
+/// `daemon_providers` is optionally passed from the daemon bridge for live key status.
+pub fn completions(
+    text: &str,
+    _offset: u32,
+    context: &CursorContext,
+    daemon_providers: Option<&[ProviderStatusInfo]>,
+) -> Vec<CompletionItem> {
     match context {
         CursorContext::WorkflowRoot { prefix } => workflow_root_completions(prefix),
         CursorContext::TaskField {
@@ -41,7 +48,7 @@ pub fn completions(text: &str, _offset: u32, context: &CursorContext) -> Vec<Com
             prefix,
             current_provider,
             ..
-        } => provider_completions(prefix, current_provider.as_deref()),
+        } => provider_completions(prefix, current_provider.as_deref(), daemon_providers),
         CursorContext::ContentPart { focus, prefix, .. } => content_part_completions(focus, prefix),
         CursorContext::ForEach { prefix, .. } => for_each_completions(prefix),
         CursorContext::SchemaBlock { prefix, .. } => schema_block_completions(prefix),
@@ -660,7 +667,11 @@ fn mcp_config_completions(prefix: &str) -> Vec<CompletionItem> {
 }
 
 /// Provider and model completions from nika-core catalogs.
-fn provider_completions(prefix: &str, current_provider: Option<&str>) -> Vec<CompletionItem> {
+fn provider_completions(
+    prefix: &str,
+    current_provider: Option<&str>,
+    daemon_providers: Option<&[ProviderStatusInfo]>,
+) -> Vec<CompletionItem> {
     let mut items = Vec::new();
 
     // LLM providers from the catalog.
@@ -668,13 +679,39 @@ fn provider_completions(prefix: &str, current_provider: Option<&str>) -> Vec<Com
         .iter()
         .filter(|p| p.category == ProviderCategory::Llm)
     {
+        // Enrich detail with daemon key status if available.
+        let detail = if let Some(dp) = daemon_providers {
+            if let Some(status) = dp.iter().find(|s| s.id == provider.id) {
+                if status.has_key {
+                    format!("{} \u{2713}", provider.name) // ✓
+                } else {
+                    format!("{} \u{2014} no API key", provider.name) // —
+                }
+            } else {
+                provider.name.to_string()
+            }
+        } else {
+            provider.name.to_string()
+        };
+
+        // Sort configured providers first when daemon data is available.
+        let sort_prefix = if let Some(dp) = daemon_providers {
+            if dp.iter().any(|s| s.id == provider.id && s.has_key) {
+                "0a" // configured first
+            } else {
+                "0z" // unconfigured after
+            }
+        } else {
+            "0"
+        };
+
         items.push(CompletionItem {
             label: provider.id.to_string(),
             kind: Some(CompletionItemKind::ENUM_MEMBER),
             insert_text: Some(provider.id.to_string()),
-            detail: Some(provider.name.to_string()),
+            detail: Some(detail),
             documentation: Some(Documentation::String(provider.description.to_string())),
-            sort_text: Some(format!("0_{}", provider.id)),
+            sort_text: Some(format!("{}_{}", sort_prefix, provider.id)),
             ..Default::default()
         });
 
@@ -1051,7 +1088,7 @@ mod tests {
     fn complete_at(text: &str, line: usize, character: usize) -> Vec<CompletionItem> {
         let offset = text_offset(text, line, character);
         let ctx = detect_context(text, offset, None);
-        completions(text, offset, &ctx)
+        completions(text, offset, &ctx, None)
     }
 
     /// Convert line/character to byte offset.
@@ -1286,7 +1323,7 @@ tasks:
 
     #[test]
     fn provider_completions_include_llm_providers() {
-        let items = provider_completions("", None);
+        let items = provider_completions("", None, None);
         assert!(
             items.iter().any(|i| i.label == "anthropic"),
             "Missing anthropic"
@@ -1307,7 +1344,7 @@ tasks:
 
     #[test]
     fn provider_completions_include_aliases() {
-        let items = provider_completions("", None);
+        let items = provider_completions("", None, None);
         assert!(
             items.iter().any(|i| i.label == "claude"),
             "Missing claude alias"
@@ -1317,7 +1354,7 @@ tasks:
 
     #[test]
     fn provider_completions_include_local_models() {
-        let items = provider_completions("", None);
+        let items = provider_completions("", None, None);
         // Should include known local models from catalog.
         assert!(
             items.iter().any(|i| i.label == "qwen3:8b"),
@@ -1327,9 +1364,51 @@ tasks:
 
     #[test]
     fn provider_completions_filter_by_prefix() {
-        let items = provider_completions("an", None);
+        let items = provider_completions("an", None, None);
         assert!(items.iter().any(|i| i.label == "anthropic"));
         assert!(!items.iter().any(|i| i.label == "openai"));
+    }
+
+    #[test]
+    fn provider_completion_with_daemon_shows_key_status() {
+        use nika_core::catalogs::{KeySource, ProviderCategory, ProviderStatusInfo};
+        let providers = vec![
+            ProviderStatusInfo {
+                id: "anthropic".into(),
+                name: "Anthropic Claude".into(),
+                has_key: true,
+                source: KeySource::Env,
+                category: ProviderCategory::Llm,
+                env_var: "ANTHROPIC_API_KEY".into(),
+            },
+            ProviderStatusInfo {
+                id: "openai".into(),
+                name: "OpenAI".into(),
+                has_key: false,
+                source: KeySource::NotFound,
+                category: ProviderCategory::Llm,
+                env_var: "OPENAI_API_KEY".into(),
+            },
+        ];
+        let items = provider_completions("", None, Some(&providers));
+        let anthropic = items.iter().find(|i| i.label == "anthropic").unwrap();
+        assert!(
+            anthropic.detail.as_ref().unwrap().contains("✓"),
+            "Expected checkmark for configured provider: {:?}",
+            anthropic.detail
+        );
+        let openai = items.iter().find(|i| i.label == "openai").unwrap();
+        assert!(
+            openai.detail.as_ref().unwrap().contains("no API key"),
+            "Expected 'no API key' for unconfigured provider: {:?}",
+            openai.detail
+        );
+    }
+
+    #[test]
+    fn provider_completion_without_daemon_shows_all() {
+        let items = provider_completions("", None, None);
+        assert!(items.len() >= 8, "Should list all providers without status");
     }
 
     // -----------------------------------------------------------------------
@@ -1453,7 +1532,7 @@ tasks:
         let ctx = CursorContext::Unknown {
             prefix: String::new(),
         };
-        let items = completions("", 0, &ctx);
+        let items = completions("", 0, &ctx, None);
         assert!(items.is_empty());
     }
 

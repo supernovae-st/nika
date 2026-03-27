@@ -5506,6 +5506,8 @@ version = "0.49.0"
 dependencies = [
  "dashmap",
  "libc",
+ "nika-core",
+ "nika-daemon",
  "nika-engine",
  "nika-lsp-core",
  "parking_lot",

@@ -150,56 +150,10 @@ pub fn inlay_hints(text: &str, start_offset: u32, end_offset: u32) -> Vec<InlayH
 
 /// Get a cost label for a known model.
 ///
-/// Returns None for unknown models. Format: " (Provider . $in/$out per 1M)"
+/// Delegates to `nika_core::catalogs::cost::model_cost_label()` — the single
+/// source of truth for pricing data shared with the daemon.
 fn model_cost_label(model: &str) -> Option<String> {
-    // Static table -- keep in sync with nika-engine/src/provider/cost.rs
-    let (provider, input, output) = match model {
-        // Anthropic
-        m if m.contains("opus-4") => ("Anthropic", 15.0, 75.0),
-        m if m.contains("sonnet-4") => ("Anthropic", 3.0, 15.0),
-        m if m.contains("haiku-3.5") => ("Anthropic", 0.8, 4.0),
-        // OpenAI
-        m if m.starts_with("gpt-4o") && !m.contains("mini") => ("OpenAI", 2.5, 10.0),
-        "gpt-4o-mini" => ("OpenAI", 0.15, 0.6),
-        m if m.starts_with("gpt-4.1") && !m.contains("mini") && !m.contains("nano") => {
-            ("OpenAI", 2.0, 8.0)
-        }
-        m if m.starts_with("gpt-4.1-mini") => ("OpenAI", 0.4, 1.6),
-        m if m.starts_with("gpt-4.1-nano") => ("OpenAI", 0.1, 0.4),
-        "o1" => ("OpenAI", 15.0, 60.0),
-        "o3-mini" => ("OpenAI", 1.1, 4.4),
-        // Mistral
-        "mistral-large-latest" | "mistral-large" => ("Mistral", 2.0, 6.0),
-        "mistral-small-latest" | "mistral-small" => ("Mistral", 0.2, 0.6),
-        // Groq
-        m if m.contains("llama") && m.contains("70b") => ("Groq", 0.59, 0.79),
-        m if m.contains("llama") && m.contains("8b") => ("Groq", 0.05, 0.08),
-        // DeepSeek
-        "deepseek-chat" => ("DeepSeek", 0.14, 0.28),
-        "deepseek-reasoner" => ("DeepSeek", 0.55, 2.19),
-        // Gemini
-        m if m.contains("gemini") && m.contains("flash") => ("Gemini", 0.1, 0.4),
-        m if m.contains("gemini") && m.contains("pro") => ("Gemini", 1.25, 5.0),
-        // xAI
-        "grok-3" => ("xAI", 3.0, 15.0),
-        "grok-3-mini" => ("xAI", 0.3, 0.5),
-        _ => return None,
-    };
-
-    Some(format!(
-        " ({} \u{00b7} ${}/{})",
-        provider,
-        format_price(input),
-        format_price(output)
-    ))
-}
-
-fn format_price(price: f64) -> String {
-    if price >= 1.0 {
-        format!("{}", price)
-    } else {
-        format!("{:.2}", price)
-    }
+    nika_core::catalogs::model_cost_label(model)
 }
 
 #[cfg(test)]
