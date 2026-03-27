@@ -997,6 +997,10 @@ workflow: image-info-extractor
 
 tasks:
   - id: download
+    retry:
+      max_attempts: 3
+      delay_ms: 1000
+      backoff: 2.0
     fetch:
       url: "https://httpbin.org/image/png"
       response: binary
@@ -1125,12 +1129,20 @@ workflow: image-comparison
 
 tasks:
   - id: download_a
+    retry:
+      max_attempts: 3
+      delay_ms: 1000
+      backoff: 2.0
     fetch:
       url: "https://httpbin.org/image/png"
       response: binary
       timeout: 15
 
   - id: download_b
+    retry:
+      max_attempts: 3
+      delay_ms: 1000
+      backoff: 2.0
     fetch:
       url: "https://httpbin.org/image/jpeg"
       response: binary
@@ -1340,18 +1352,30 @@ tasks:
       shell: true
 
   - id: download_png
+    retry:
+      max_attempts: 3
+      delay_ms: 1000
+      backoff: 2.0
     fetch:
       url: "https://httpbin.org/image/png"
       response: binary
       timeout: 15
 
   - id: download_jpeg
+    retry:
+      max_attempts: 3
+      delay_ms: 1000
+      backoff: 2.0
     fetch:
       url: "https://httpbin.org/image/jpeg"
       response: binary
       timeout: 15
 
   - id: download_webp
+    retry:
+      max_attempts: 3
+      delay_ms: 1000
+      backoff: 2.0
     fetch:
       url: "https://httpbin.org/image/webp"
       response: binary
