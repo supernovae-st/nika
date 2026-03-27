@@ -48,6 +48,25 @@ impl TaskExecutor {
             None => None,
         };
 
+        // Apply response_format instruction to system prompt
+        let resolved_system = match infer.response_format {
+            Some(crate::ast::ResponseFormat::Json) => {
+                let instruction = "IMPORTANT: You MUST respond with valid JSON only. No explanatory text, no markdown code fences — only raw JSON.";
+                Some(match resolved_system {
+                    Some(sys) => format!("{sys}\n\n{instruction}"),
+                    None => instruction.to_string(),
+                })
+            }
+            Some(crate::ast::ResponseFormat::Markdown) => {
+                let instruction = "IMPORTANT: You MUST respond in Markdown format.";
+                Some(match resolved_system {
+                    Some(sys) => format!("{sys}\n\n{instruction}"),
+                    None => instruction.to_string(),
+                })
+            }
+            Some(crate::ast::ResponseFormat::Text) | None => resolved_system,
+        };
+
         // Validate resolved prompt is not empty (could happen if template resolves to empty)
         // Skip this check when content is present (vision mode — prompt is optional)
         let has_content = infer.content.as_ref().is_some_and(|c| !c.is_empty());
@@ -224,8 +243,14 @@ impl TaskExecutor {
             return Ok(mock_response_str);
         }
 
+        // Resolve templates in base_url (e.g. {{inputs.api_endpoint}})
+        let resolved_base_url = match &infer.base_url {
+            Some(url) => Some(template_resolve(url, bindings, datastore)?.into_owned()),
+            None => None,
+        };
+
         // Resolve provider: inline base_url -> cached endpoint -> catalog
-        let provider = if let Some(ref base_url) = infer.base_url {
+        let provider = if let Some(ref base_url) = resolved_base_url {
             // Transient provider — not cached (inline URLs are one-off overrides)
             let api_key = std::env::var("OPENAI_API_KEY").unwrap_or_else(|_| "ollama".to_string());
             RigProvider::openai_compat(

@@ -70,20 +70,35 @@ impl TaskExecutor {
             None
         };
 
+        // Resolve templates in tool name, resource, and mcp server name
+        let resolved_tool = match &invoke.tool {
+            Some(t) => Some(template_resolve(t, bindings, datastore)?.into_owned()),
+            None => None,
+        };
+        let resolved_resource = match &invoke.resource {
+            Some(r) => Some(template_resolve(r, bindings, datastore)?.into_owned()),
+            None => None,
+        };
+        let resolved_mcp = match &invoke.mcp {
+            Some(m) => Some(template_resolve(m, bindings, datastore)?.into_owned()),
+            None => None,
+        };
+
         // EMIT: McpInvoke event (with RESOLVED params for TUI display)
-        // For builtin tools, mcp is None - use "builtin" as server name
-        let mcp_server = invoke.mcp.clone().unwrap_or_else(|| "builtin".to_string());
+        let mcp_server = resolved_mcp
+            .clone()
+            .unwrap_or_else(|| "builtin".to_string());
         self.event_log.emit(EventKind::McpInvoke {
             task_id: Arc::clone(task_id),
             call_id: call_id.clone(),
             mcp_server,
-            tool: invoke.tool.clone(),
-            resource: invoke.resource.clone(),
+            tool: resolved_tool.clone(),
+            resource: resolved_resource.clone(),
             params: resolved_params.clone(),
         });
 
         // Check for builtin nika_* tools
-        if let Some(tool) = &invoke.tool {
+        if let Some(tool) = &resolved_tool {
             if BuiltinToolRouter::is_builtin(tool) {
                 // Use already-resolved params
                 let params = resolved_params
@@ -183,7 +198,7 @@ impl TaskExecutor {
         let mcp_work = async {
             let client = self.get_mcp_client(mcp_name).await?;
 
-            let result = if let Some(tool) = &invoke.tool {
+            let result = if let Some(tool) = &resolved_tool {
                 // Tool call path - use already-resolved params
                 let params = resolved_params.clone().unwrap_or(serde_json::Value::Null);
                 // Use call_tool_with_retry_events for McpRetry event emission
@@ -306,7 +321,7 @@ impl TaskExecutor {
                     tracing::trace!(task = %task_id, "MCP tool returned non-JSON text, wrapping as string");
                     serde_json::Value::String(text)
                 })
-            } else if let Some(resource) = &invoke.resource {
+            } else if let Some(resource) = &resolved_resource {
                 // Resource read path -- now handles blob data via media pipeline
                 let content = client.read_resource(resource).await?;
 
