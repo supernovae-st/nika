@@ -29,7 +29,17 @@ v0.49 UX mega session + follow-up auto-commits by hook applied most planned feat
 | 7.1 | Jobs exit code bug | **NOT DONE** | Still `return Ok(())` on daemon missing |
 | 7.2 | Dry-run cost estimate | **PARTIAL** | 1 cost reference in dry-run section (unclear if shown) |
 
-**Score: 10/17 done, 6 not done, 1 partial**
+**Score: 12/17 done, 4 not done, 1 partial**
+
+> Phase 3.1 (onboarding hook) is DONE — confirmed at main.rs:1583-1599.
+> Phase 2.5 (Shutdown auth) is DONE — confirmed with auth_token field + validate.
+
+### NEW CRITICAL FINDINGS (from deep audit agent)
+
+| # | Severity | Issue | File | Line |
+|---|----------|-------|------|------|
+| NEW-1 | **CRITICAL** | `handle_result()` not awaited — blocks `-D warnings` compile | main.rs | ~1250 |
+| NEW-2 | **HIGH** | `for_each_concurrent_fail_fast` test flaky (race condition) | runner.rs | 5705 |
 
 ---
 
@@ -206,7 +216,26 @@ QW8 (StatusIcon consistency) ──→ anytime
 R5 (CLI polish, large) ────────→ last, incremental
 ```
 
-**Recommended session order:** R4 → R2 → QW1 → QW9 → R1 → QW6 → R3 → QW3 → R6 → QW7 → QW8 → R5
+**Recommended session order:** NEW-1 → NEW-2 → R4 → R2 → QW1 → QW9 → R1 → QW6 → R3 → QW3 → R6 → QW7 → QW8 → R5
+
+---
+
+## NEW CRITICAL FIXES (do before anything else)
+
+### NEW-1. handle_result() missing .await (CRITICAL)
+
+**File:** `tools/nika/src/main.rs` ~line 1250
+**Issue:** `handle_result(result);` — async fn not awaited. Blocks compilation with `-D warnings`.
+**Fix:** `handle_result(result).await;`
+**Verify:** `cargo clippy -p nika -- -D warnings`
+
+### NEW-2. for_each fail_fast test flaky (HIGH)
+
+**File:** `tools/nika-engine/src/runtime/runner.rs` ~line 5705
+**Test:** `for_each_concurrent_fail_fast_cancels_remaining_iterations`
+**Issue:** Race condition — iterations succeed after fail_fast cancellation.
+**Fix:** Add `tokio::time::sleep(Duration::from_millis(10)).await` before assertion, or use `tokio::sync::Notify` to ensure cancellation propagates.
+**Verify:** Run 10x: `for i in $(seq 10); do cargo test -p nika-engine --lib -- for_each_concurrent_fail_fast 2>&1 | tail -1; done`
 
 ---
 
