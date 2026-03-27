@@ -39,10 +39,9 @@ tasks:
     depends_on: [scrape_sites]
     with:
       pages: $scrape_sites
-    for_each:
-      items: "{{with.pages}}"
-      as: page
-      concurrency: 5
+    for_each: "{{with.pages}}"
+    as: page
+    concurrency: 5
     infer:
       prompt: |
         Summarize this web page in 100 words:
