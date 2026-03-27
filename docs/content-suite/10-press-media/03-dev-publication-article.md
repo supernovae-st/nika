@@ -202,10 +202,10 @@ The RunContext (internally called "Egghead" in the One Piece naming convention) 
 
 ## Provider Architecture: 22 LLMs, One Interface
 
-Nika's provider layer is built on rig-core, a Rust crate for LLM abstraction. The engine supports:
+Nika's provider layer is built on rig-core, a Rust crate for LLM abstraction. The engine supports 22 LLM providers:
 
-**Cloud Providers:**
-OpenAI, Anthropic (Claude), Google Gemini, Mistral, Groq, xAI (Grok), DeepSeek, Cohere, and more.
+**Cloud Providers (9):**
+OpenAI, Anthropic (Claude), Google Gemini, Mistral, Groq, xAI (Grok), DeepSeek, and 2 others.
 
 **Local Inference:**
 mistral.rs native backend for GGUF models --- compiled directly into the binary. No Ollama. No separate server process. The same binary that calls GPT-4o can load a local Mistral 7B GGUF file and run inference on CPU.
@@ -301,6 +301,7 @@ Nika uses a structured error system with namespaced error codes (NIKA-000 throug
 | 100--109 | MCP protocol |
 | 110--119 | Agent and guardrails |
 | 200--214 | File and builtin tools |
+| 215--219 | File I/O errors |
 | 250--259 | Media pipeline |
 | 300--319 | Structured output and course |
 
@@ -427,9 +428,9 @@ This positions AGPL as the strongest available defense against the specific busi
 
 Recognizing that a new paradigm requires onboarding investment, Nika includes two built-in learning systems:
 
-**Interactive Course:** `nika init --course` generates a 12-level course with 44 exercises that progressively teach every aspect of the engine. The course management system (`nika course status`, `nika course next`, `nika course check`, `nika course hint`, `nika course watch`) provides a self-paced learning experience.
+**Interactive Course:** The `nika course` system generates a 12-level course with 44 exercises that progressively teach every aspect of the engine through levels named Jailbreak, Hot Wire, Fork Bomb, Root Access, Shapeshifter, Pay-Per-Dream, Swiss Knife, Gone Rogue, Data Heist, Open Protocol, Pixel Pirate, and SuperNovae. The course management system (`nika course status`, `nika course next`, `nika course check`, `nika course hint`, `nika course watch`) provides a self-paced learning experience.
 
-**Showcase Library:** `nika showcase list` provides access to 200+ ready-to-use workflow templates covering content pipelines, competitive intelligence, media processing, multi-agent research, and more. `nika showcase extract <name>` copies any workflow to the current directory.
+**Showcase Library:** `nika showcase list` provides access to 115 ready-to-use workflow templates covering content pipelines, competitive intelligence, media processing, multi-agent research, and more. `nika showcase extract <name>` copies any workflow to the current directory.
 
 ---
 
@@ -437,7 +438,7 @@ Recognizing that a new paradigm requires onboarding investment, Nika includes tw
 
 Nika makes a bet that is both technical and philosophical: that the orchestration layer for AI does not need to be written in the same language as the models, and that declarative YAML files executed by a single binary can replace the Python scripts, Docker containers, and server infrastructure that currently dominate the space.
 
-Whether this bet pays off depends on adoption, which depends on the classic open source challenge of building community around a novel paradigm. The technical foundation is substantial: 482,000 lines of Rust, 10 workspace crates, 7,700+ tests, and a feature set that no single competitor matches.
+Whether this bet pays off depends on adoption, which depends on the classic open source challenge of building community around a novel paradigm. The technical foundation is substantial: 482,000 lines of Rust, 12 workspace crates, 8,300+ tests, and a feature set that no single competitor matches.
 
 For developers who have felt the weight of Python dependency trees and Docker compose files --- who want to define an AI pipeline in a YAML file and run it with a single command --- Nika offers an alternative that is worth evaluating. The five verbs are easy to learn. The single binary is easy to deploy. And the YAML files are easy to version-control, review, and reproduce.
 

@@ -10,7 +10,7 @@ Somewhere in the gap between what AI can do and what most people can make it do,
 
 Thibaut Melen looked at that chasm and decided to build a bridge. Not with Python. Not with JavaScript. With Rust --- the language designed for systems programmers who believe software should be fast, safe, and correct. And he did it alone.
 
-The result is Nika: a semantic YAML workflow engine for AI tasks that compiles to a single binary, requires zero runtime dependencies, and lets users orchestrate everything from LLM inference to media processing with five intuitive verbs. As of March 2026, the project spans approximately 482,000 lines of code across 10 workspace crates, with over 7,700 tests and zero compiler warnings. It supports 22 LLM providers, ships with 24 built-in media processing tools, includes a terminal UI, a language server, and a 12-level interactive learning course.
+The result is Nika: a semantic YAML workflow engine for AI tasks that compiles to a single binary, requires zero runtime dependencies, and lets users orchestrate everything from LLM inference to media processing with five intuitive verbs. As of March 2026, the project spans approximately 482,000 lines of code across 12 workspace crates, with over 8,300 tests and zero compiler warnings. It supports 22 LLM providers, ships with 24 built-in media processing tools, includes a terminal UI, a language server, and a 12-level interactive learning course with 44 exercises across 12 course levels: Jailbreak, Hot Wire, Fork Bomb, Root Access, Shapeshifter, Pay-Per-Dream, Swiss Knife, Gone Rogue, Data Heist, Open Protocol, Pixel Pirate, and SuperNovae.
 
 And it is licensed AGPL-3.0 --- deliberately, philosophically, as a statement about what open source means in the age of AI.
 
@@ -82,20 +82,22 @@ Rust compiles to native machine code with no garbage collector, no runtime, and 
 
 But performance is almost secondary. The real advantage is what Rust's type system does for the internal architecture. Nika's YAML parser produces a "Raw AST" with all fields optional --- faithfully representing the ambiguity of user-authored YAML. The analyzer then transforms this into an "Analyzed AST" where every field is validated, every type is checked, every dependency is resolved. The lowering phase transforms it into runtime types. This three-phase pipeline (Raw, Analyzed, Lower) is enforced by Rust's type system at compile time. You cannot accidentally execute an unvalidated workflow because the types will not let you.
 
-The codebase is organized into 10 workspace crates with clear dependency boundaries:
+The codebase is organized into 12 workspace crates with clear dependency boundaries:
 
 - **nika-core** (23K lines): AST types, transform catalog, zero I/O
-- **nika-engine** (134K lines): Execution engine, DAG validation, provider integration, media pipeline
-- **nika-tui** (92K lines): Terminal UI with 42 widgets, built on ratatui
+- **nika-engine** (135K lines): Execution engine, DAG validation, provider integration, media pipeline
+- **nika-tui** (86K lines): Terminal UI with 42 widgets, built on ratatui
 - **nika-cli** (8K lines): CLI subcommands
 - **nika-mcp** (9K lines): MCP client via rmcp
+- **nika-daemon** (5K lines): Background daemon (secrets, jobs, watch, cache)
 - **nika-event** (4K lines): Event sourcing and trace writing
-- **nika-media** (3.5K lines): Content-addressable storage
+- **nika-media** (13K lines): Content-addressable storage and processor
+- **nika-init** (21K lines): Project scaffolding and course system
 - **nika-lsp-core** (9K lines): Language server intelligence
 - **nika-lsp** (2.5K lines): LSP binary
 - **nika** (2K lines): CLI entry point
 
-The engine crate alone contains 4,060 unit tests. The TUI has 2,117. The workspace total exceeds 7,700. Every test runs without triggering macOS Keychain popups --- a detail that speaks to the project's attention to developer experience.
+The engine crate alone contains 3,870+ unit tests. The TUI has 2,120+. The workspace total exceeds 8,300. Every test runs without triggering macOS Keychain popups --- a detail that speaks to the project's attention to developer experience.
 
 ---
 
@@ -103,11 +105,11 @@ The engine crate alone contains 4,060 unit tests. The TUI has 2,117. The workspa
 
 One of the most surprising aspects of Nika is its media processing capabilities. For a tool marketed as a "workflow engine," it ships with an unusually sophisticated set of 24 built-in media tools organized in three tiers.
 
-The always-on tier includes file import into content-addressable storage (CAS), image dimension reading, thumbhash generation, dominant color extraction, and an in-memory pipeline that chains operations with zero intermediate files.
+**Tier 1 (always-on):** file import into content-addressable storage (CAS), image dimensions, thumbhash generation, dominant color extraction, and pipeline operator.
 
-The default tier adds SIMD-accelerated image resizing (Lanczos3), format conversion between PNG/JPEG/WebP, metadata stripping, universal EXIF/audio/video metadata extraction, lossless PNG optimization via oxipng, and SVG rasterization via resvg.
+**Tier 2 (media-core default):** SIMD-accelerated image resizing (Lanczos3), format conversion between PNG/JPEG/WebP, metadata stripping, universal EXIF/audio/video metadata extraction, lossless PNG optimization via oxipng, and SVG rasterization via resvg.
 
-The opt-in tier goes further: perceptual image hashing, visual comparison, PDF text extraction, chart generation from JSON data, C2PA content provenance (both signing and EU AI Act compliance verification), QR code validation and scan scoring, image quality assessment via DSSIM/SSIM, and a suite of web content extraction tools.
+**Tier 3 (opt-in):** perceptual image hashing, visual comparison, PDF text extraction, chart generation from JSON data, C2PA content provenance (both signing and EU AI Act compliance verification), QR code validation and scan scoring, image quality assessment via DSSIM/SSIM, and web content extraction tools (HTML to Markdown, CSS selector, metadata, link classification, readability).
 
 All of these are accessible via Nika's `invoke:` verb with the `nika:` prefix --- for example, `invoke: nika:thumbnail` or `invoke: nika:metadata`. They run natively in the binary. No external services. No API calls. No credit-based pricing.
 
@@ -178,7 +180,7 @@ Melen's response was to build a comprehensive onboarding system directly into th
 
 The `nika course` subcommand provides a complete course management system: `nika course status` shows a constellation-style progress map, `nika course next` opens the next exercise, `nika course check` validates solutions, `nika course hint` provides progressive hints (three tiers), and `nika course watch` auto-checks exercises on file save.
 
-Separately, the `nika showcase` system provides access to 200+ ready-to-use workflow templates that users can browse (`nika showcase list`) and extract to their local directory (`nika showcase extract <name>`). These cover everything from content pipelines to competitive intelligence to media processing to multi-agent research.
+Separately, the `nika showcase` system provides access to 115 ready-to-use workflow templates that users can browse (`nika showcase list`) and extract to their local directory (`nika showcase extract <name>`). These cover everything from content pipelines to competitive intelligence to media processing to multi-agent research.
 
 The LSP (Language Server Protocol) implementation adds another layer of developer experience: real-time validation, completions, and diagnostics directly in editors like VS Code, Neovim, and Zed. The LSP is split across two crates (nika-lsp-core for intelligence, nika-lsp for the binary) and shares analysis infrastructure with the engine.
 
@@ -204,7 +206,7 @@ There is something quixotic about a solo developer building a 482,000-line Rust 
 
 And here is one person, writing Rust, choosing AGPL, naming the project after a manga character, and insisting that AI workflows should be five verbs and a YAML file.
 
-It is easy to dismiss this as idealism. It is harder to dismiss when you look at the code. 337,000 lines of Rust. 7,700+ tests. Zero clippy warnings. 10 crates with clean dependency boundaries. A three-phase AST pipeline enforced by the type system. A media pipeline with C2PA provenance verification. A terminal UI with 42 widgets.
+It is easy to dismiss this as idealism. It is harder to dismiss when you look at the code. 337,000 lines of Rust. 8,300+ tests. Zero clippy warnings. 12 crates with clean dependency boundaries. A three-phase AST pipeline enforced by the type system. A media pipeline with C2PA provenance verification. A terminal UI with 42 widgets.
 
 This is not a prototype. This is not a proof of concept. This is a production-grade workflow engine that happens to be built by one person who believes that open source AI tools should be free, fast, and beautiful.
 

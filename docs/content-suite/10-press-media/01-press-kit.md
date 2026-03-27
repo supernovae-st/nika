@@ -78,15 +78,15 @@ Every major AI orchestration tool in 2025--2026 requires either Python, a server
 | Total codebase | ~482,000 lines across 10 workspace crates |
 | Rust source code | ~337,000 lines in 659 files |
 | YAML workflows | 570 files (showcase + course + examples) |
-| Test suite | 8,100+ unit tests, zero clippy warnings |
+| Test suite | 8,300+ unit tests, zero clippy warnings |
 | Binary size | Single static binary, no runtime dependencies |
-| LLM providers | 22 (8 cloud + local GGUF + vision) |
+| LLM providers | 22 (9 cloud + local GGUF + vision) |
 | Media tools | 24 built-in (3 tiers: always-on, default, opt-in) |
 | MCP aliases | 100+ pre-configured tool aliases |
-| Showcase workflows | 200+ ready-to-use workflow templates |
+| Showcase workflows | 115 ready-to-use workflow templates |
 | Learning course | 12 levels, 44 exercises, interactive progression |
 | Schema version | nika/workflow@0.12 |
-| Current version | v0.42.0 |
+| Current version | v0.49.0 |
 | License | AGPL-3.0-or-later |
 
 ---
