@@ -184,6 +184,48 @@ pub async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaE
                 "{}",
                 hint("nika provider test <name> Test provider connection")
             );
+
+            // Show custom endpoints from config
+            let config = nika_engine::config::NikaConfig::load()
+                .unwrap_or_default()
+                .with_env();
+            if !config.endpoints.is_empty() {
+                println!();
+                println!(
+                    "  {} ({})",
+                    "Custom Endpoints".bold(),
+                    format!("{} configured", config.endpoints.len()).cyan()
+                );
+                println!("{}", nika::display::separator(50));
+                println!();
+                for (name, ep) in &config.endpoints {
+                    let model_info = ep
+                        .model
+                        .as_deref()
+                        .map(|m| format!(" model={}", m))
+                        .unwrap_or_default();
+                    let key_info = if ep.api_key.is_some() {
+                        "[key set]"
+                    } else {
+                        "[no auth]"
+                    };
+                    println!(
+                        "  {} {} {:12} {} {}{}",
+                        tree_connector(false).dimmed(),
+                        StatusIcon::Ok,
+                        name,
+                        ep.base_url.dimmed(),
+                        key_info.dimmed(),
+                        model_info.dimmed(),
+                    );
+                }
+                println!();
+                println!(
+                    "{}",
+                    hint("Add endpoints in ~/.config/nika/config.toml under [endpoints.<name>]")
+                );
+            }
+
             Ok(())
         }
 
