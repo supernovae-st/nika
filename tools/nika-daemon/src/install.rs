@@ -105,7 +105,7 @@ fn install_launchd(exe: &std::path::Path) -> DaemonResult<()> {
         <string>--foreground</string>
     </array>
     <key>RunAtLoad</key>
-    <false/>
+    <true/>
     <key>KeepAlive</key>
     <dict>
         <key>SuccessfulExit</key>

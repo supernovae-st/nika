@@ -64,6 +64,12 @@ pub fn run_machine_setup() -> Vec<SetupResult> {
     // 3. Shell completions
     results.push(setup_completions());
 
+    // 4. Daemon service: install + start (Unix only, opt-out via NIKA_NO_DAEMON=1)
+    #[cfg(unix)]
+    if std::env::var("NIKA_NO_DAEMON").is_err() {
+        results.push(setup_daemon());
+    }
+
     // Write marker file
     write_marker(&results);
 
@@ -462,6 +468,40 @@ fn install_rule(
                 });
             }
         }
+    }
+}
+
+/// Install daemon as system service and start it.
+/// LaunchAgent on macOS, systemd user service on Linux.
+/// Daemon provides: keychain secrets, LLM cache, job scheduling, file watch.
+#[cfg(unix)]
+fn setup_daemon() -> SetupResult {
+    // Install the service file (plist or systemd unit)
+    if let Err(e) = nika_daemon::install::install() {
+        return SetupResult {
+            name: "Daemon service".into(),
+            success: false,
+            message: format!("install failed: {e}"),
+        };
+    }
+
+    // Start daemon in background (non-blocking)
+    let nika_exe = std::env::current_exe().unwrap_or_else(|_| "nika".into());
+    let started = Command::new(&nika_exe)
+        .args(["daemon", "start"])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .is_ok();
+
+    SetupResult {
+        name: "Daemon service".into(),
+        success: true,
+        message: if started {
+            "installed + started (keychain, cache, jobs)".into()
+        } else {
+            "installed (start manually: nika daemon start)".into()
+        },
     }
 }
 
