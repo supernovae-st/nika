@@ -189,19 +189,17 @@ impl InferParams {
             }
         }
 
-        // Validate extended_thinking requires Claude provider
+        // Graceful degradation: extended_thinking with non-Claude provider
+        // Instead of crashing, emit a warning so users can write provider-agnostic workflows.
         if self.extended_thinking == Some(true) {
             if let Some(ref provider) = self.provider {
                 if provider != "claude" {
-                    return Err(NikaError::ValidationError {
-                        reason: format!(
-                            "extended_thinking only supported for claude provider, got '{}'",
-                            provider
-                        ),
-                    });
+                    tracing::warn!(
+                        provider = %provider,
+                        "extended_thinking: true ignored — only supported by Claude provider"
+                    );
                 }
             }
-            // If provider is None, will inherit workflow default (validation deferred to runtime)
         }
 
         // Validate thinking_budget range
