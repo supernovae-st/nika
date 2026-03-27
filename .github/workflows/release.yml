@@ -579,14 +579,17 @@ jobs:
   update-homebrew:
     name: Update Homebrew Formula
     needs: release
-    if: ${{ !inputs.dry_run && secrets.HOMEBREW_TAP_TOKEN != '' }}
+    if: ${{ !inputs.dry_run }}
     runs-on: ubuntu-latest
+    env:
+      HAS_HOMEBREW_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
     steps:
       - name: Extract version
         id: version
         run: echo "version=${RELEASE_TAG#v}" >> $GITHUB_OUTPUT
 
       - name: Update Homebrew formula
+        if: env.HAS_HOMEBREW_TOKEN == 'true'
         uses: mislav/bump-homebrew-formula-action@v3
         with:
           formula-name: nika
@@ -606,6 +609,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       HAS_OVSX_PAT: ${{ secrets.OVSX_PAT != '' }}
+      HAS_VSCE_PAT: ${{ secrets.VSCE_PAT != '' }}
     defaults:
       run:
         working-directory: editors/vscode
@@ -655,7 +659,7 @@ jobs:
             --clobber
 
       - name: Publish to VS Code Marketplace
-        if: ${{ secrets.VSCE_PAT != '' }}
+        if: env.HAS_VSCE_PAT == 'true'
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
         run: npx vsce publish --no-git-tag-version -p "$VSCE_PAT"
@@ -818,8 +822,10 @@ jobs:
   update-scoop:
     name: Update Scoop Bucket
     needs: release
-    if: ${{ !inputs.dry_run && secrets.HOMEBREW_TAP_TOKEN != '' }}
+    if: ${{ !inputs.dry_run }}
     runs-on: ubuntu-latest
+    env:
+      HAS_HOMEBREW_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
 
     steps:
       - name: Checkout
@@ -843,6 +849,7 @@ jobs:
           echo "hash=${HASH}" >> $GITHUB_OUTPUT
 
       - name: Update Scoop manifest
+        if: env.HAS_HOMEBREW_TOKEN == 'true'
         env:
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           VERSION: ${{ steps.info.outputs.version }}
