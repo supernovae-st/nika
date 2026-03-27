@@ -160,8 +160,13 @@ impl TuiState {
         };
         self.mcp.add_call(call);
 
-        // Update phase
-        self.workflow.phase = MissionPhase::Rendezvous;
+        // Update phase — only from active execution phases (preserve Pause/Abort/MissionSuccess)
+        if matches!(
+            self.workflow.phase,
+            MissionPhase::Countdown | MissionPhase::Launch | MissionPhase::Orbital
+        ) {
+            self.workflow.phase = MissionPhase::Rendezvous;
+        }
 
         // Track in metrics
         if let Some(ref tool_name) = tool {
