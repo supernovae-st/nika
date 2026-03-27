@@ -2299,9 +2299,6 @@ fn audit_blocklist_newline_still_caught() {
 // ═══════════════════════════════════════════════════════════════
 
 /// AUDIT: Verify cwd parameter is actually wired to Command.
-///
-/// BUG POTENTIAL: The `cwd` field exists in ExecParams but run_exec()
-/// may not call `cmd.current_dir(cwd)`.
 #[tokio::test]
 async fn audit_exec_cwd_is_wired() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
@@ -2329,6 +2326,80 @@ async fn audit_exec_cwd_is_wired() {
     assert!(
         result.contains(expected.file_name().unwrap().to_str().unwrap()),
         "GAP: cwd not wired. Expected current dir, got: '{}'",
+        result
+    );
+}
+
+/// BUG-002: cwd must resolve {{inputs.*}} and {{with.*}} templates.
+#[tokio::test]
+async fn test_exec_cwd_resolves_templates_shell_mode() {
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
+    let bindings = ResolvedBindings::new();
+    let datastore = RunContext::new();
+
+    // Use "src" subdirectory — within workflow_base_dir (current dir)
+    let cwd = std::env::current_dir().unwrap();
+    let src_dir = cwd.join("src");
+    let mut inputs = rustc_hash::FxHashMap::default();
+    inputs.insert(
+        "output_dir".to_string(),
+        json!(src_dir.to_string_lossy().to_string()),
+    );
+    datastore.set_inputs(inputs);
+
+    let action = TaskAction::Exec {
+        exec: ExecParams {
+            command: "pwd".to_string(),
+            shell: Some(true),
+            timeout: None,
+            cwd: Some("{{inputs.output_dir}}".to_string()),
+            env: None,
+        },
+    };
+
+    let task_id: Arc<str> = Arc::from("test_cwd_template");
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await
+        .unwrap();
+
+    // After template resolution, cwd should contain /src
+    assert!(
+        result.contains("src"),
+        "cwd template not resolved. Expected path containing 'src', got: '{}'",
+        result
+    );
+}
+
+/// BUG-002: cwd template resolution in shell-free mode.
+#[tokio::test]
+async fn test_exec_cwd_resolves_templates_shellfree_mode() {
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
+    let mut bindings = ResolvedBindings::new();
+    let cwd = std::env::current_dir().unwrap();
+    let src_dir = cwd.join("src");
+    bindings.set("work_dir", json!(src_dir.to_string_lossy().to_string()));
+    let datastore = RunContext::new();
+
+    let action = TaskAction::Exec {
+        exec: ExecParams {
+            command: "pwd".to_string(),
+            shell: None,
+            timeout: None,
+            cwd: Some("{{with.work_dir}}".to_string()),
+            env: None,
+        },
+    };
+
+    let task_id: Arc<str> = Arc::from("test_cwd_template_shellfree");
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await
+        .unwrap();
+
+    assert!(
+        result.contains("src"),
+        "cwd template not resolved in shell-free mode. Got: '{}'",
         result
     );
 }

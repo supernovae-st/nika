@@ -93,12 +93,15 @@ impl TaskExecutor {
                 crate::runtime::security::strip_sensitive_env_vars(&mut cmd);
 
                 // Set working directory if specified (with path traversal protection)
+                // Resolve templates in cwd (e.g. {{inputs.output_dir}}, {{with.dir}})
                 if let Some(ref cwd) = params.cwd {
-                    let resolved = std::path::Path::new(cwd).canonicalize().map_err(|e| {
-                        NikaError::ExecError {
-                            reason: format!("Invalid cwd '{}': {}", cwd, e),
-                        }
-                    })?;
+                    let resolved_cwd = template_resolve(cwd, bindings, datastore)?;
+                    let resolved =
+                        std::path::Path::new(resolved_cwd.as_ref())
+                            .canonicalize()
+                            .map_err(|e| NikaError::ExecError {
+                                reason: format!("Invalid cwd '{}': {}", resolved_cwd, e),
+                            })?;
                     let working_dir = self
                         .workflow_base_dir
                         .canonicalize()
@@ -107,7 +110,7 @@ impl TaskExecutor {
                         return Err(ExecutionError::ExecFailed {
                             reason: format!(
                                 "Security: exec cwd '{}' escapes working directory '{}'",
-                                cwd,
+                                resolved_cwd,
                                 working_dir.display()
                             ),
                         }
@@ -178,12 +181,15 @@ impl TaskExecutor {
                 crate::runtime::security::strip_sensitive_env_vars(&mut cmd);
 
                 // Set working directory if specified (with path traversal protection)
+                // Resolve templates in cwd (e.g. {{inputs.output_dir}}, {{with.dir}})
                 if let Some(ref cwd) = params.cwd {
-                    let resolved = std::path::Path::new(cwd).canonicalize().map_err(|e| {
-                        NikaError::ExecError {
-                            reason: format!("Invalid cwd '{}': {}", cwd, e),
-                        }
-                    })?;
+                    let resolved_cwd = template_resolve(cwd, bindings, datastore)?;
+                    let resolved =
+                        std::path::Path::new(resolved_cwd.as_ref())
+                            .canonicalize()
+                            .map_err(|e| NikaError::ExecError {
+                                reason: format!("Invalid cwd '{}': {}", resolved_cwd, e),
+                            })?;
                     let working_dir = self
                         .workflow_base_dir
                         .canonicalize()
@@ -192,7 +198,7 @@ impl TaskExecutor {
                         return Err(ExecutionError::ExecFailed {
                             reason: format!(
                                 "Security: exec cwd '{}' escapes working directory '{}'",
-                                cwd,
+                                resolved_cwd,
                                 working_dir.display()
                             ),
                         }
