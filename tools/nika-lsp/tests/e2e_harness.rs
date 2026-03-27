@@ -926,3 +926,96 @@ fn test_multiple_documents() {
 
     client.shutdown();
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Daemon-powered features (v0.50.0)
+// ═══════════════════════════════════════════════════════════════════════════
+
+#[test]
+#[ignore = "e2e: requires `cargo build -p nika-lsp`"]
+fn test_completion_provider_shows_items() {
+    let mut client = LspClient::new();
+    client.initialize();
+
+    let doc = "schema: \"nika/workflow@0.12\"\nprovider: ";
+    client.open_document("file:///tmp/provider-comp.nika.yaml", doc);
+    std::thread::sleep(Duration::from_millis(300));
+
+    let resp = client.send_request(
+        "textDocument/completion",
+        json!({
+            "textDocument": { "uri": "file:///tmp/provider-comp.nika.yaml" },
+            "position": { "line": 1, "character": 10 },
+        }),
+    );
+
+    assert!(resp.get("error").is_none(), "completion error: {:?}", resp);
+
+    client.shutdown();
+}
+
+#[test]
+#[ignore = "e2e: requires `cargo build -p nika-lsp`"]
+fn test_rename_task_id() {
+    let mut client = LspClient::new();
+    client.initialize();
+
+    let text = "schema: \"nika/workflow@0.12\"\nprovider: mock\nmodel: m\ntasks:\n  - id: old_name\n    infer: \"test\"\n  - id: step2\n    depends_on: [old_name]\n    infer: \"test2\"\n";
+    client.open_document("file:///tmp/rename.nika.yaml", text);
+    std::thread::sleep(Duration::from_millis(300));
+
+    let resp = client.send_request(
+        "textDocument/rename",
+        json!({
+            "textDocument": { "uri": "file:///tmp/rename.nika.yaml" },
+            "position": { "line": 4, "character": 10 },
+            "newName": "new_name",
+        }),
+    );
+
+    assert!(resp.get("error").is_none(), "rename error: {:?}", resp);
+
+    client.shutdown();
+}
+
+#[test]
+#[ignore = "e2e: requires `cargo build -p nika-lsp`"]
+fn test_inlay_hints_no_error() {
+    let mut client = LspClient::new();
+    client.initialize();
+
+    let text = "schema: \"nika/workflow@0.12\"\nprovider: mock\nmodel: mock-model\ntasks:\n  - id: gen\n    infer:\n      prompt: \"test\"\n      model: claude-sonnet-4-20250514\n";
+    client.open_document("file:///tmp/inlay.nika.yaml", text);
+    std::thread::sleep(Duration::from_millis(300));
+
+    let resp = client.send_request(
+        "textDocument/inlayHint",
+        json!({
+            "textDocument": { "uri": "file:///tmp/inlay.nika.yaml" },
+            "range": {
+                "start": { "line": 0, "character": 0 },
+                "end": { "line": 8, "character": 0 },
+            },
+        }),
+    );
+
+    assert!(resp.get("error").is_none(), "inlayHint error: {:?}", resp);
+
+    client.shutdown();
+}
+
+#[test]
+#[ignore = "e2e: requires `cargo build -p nika-lsp`"]
+fn test_daemon_status_custom_request() {
+    let mut client = LspClient::new();
+    client.initialize();
+
+    let resp = client.send_request("nika/daemonStatus", json!({}));
+
+    // Should return { connected: false } when daemon not running
+    assert!(resp.get("error").is_none(), "daemon status error: {:?}", resp);
+    let connected = resp["result"]["connected"].as_bool();
+    assert!(connected.is_some(), "Should have 'connected' field: {:?}", resp);
+
+    client.shutdown();
+}
