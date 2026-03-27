@@ -100,6 +100,12 @@ impl App {
                     self.command_view.chat.append_streaming(&token);
                 }
                 StreamChunk::Done(_) => {
+                    if self.command_view.chat.is_streaming {
+                        let response = self.command_view.chat.finish_streaming();
+                        if !response.is_empty() {
+                            self.command_view.chat.add_nika_message(response, None);
+                        }
+                    }
                     self.command_view.chat.finalize_thinking();
                 }
                 StreamChunk::Error(err) => {
