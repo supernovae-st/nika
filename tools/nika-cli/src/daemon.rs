@@ -8,6 +8,7 @@
 //! - `nika daemon logs` — tail the daemon log file
 
 use clap::Subcommand;
+use std::io::IsTerminal;
 use std::time::Duration;
 
 use nika_engine::display::StatusIcon;
@@ -212,36 +213,69 @@ async fn show_status() -> Result<(), NikaError> {
             return Ok(());
         }
         Some(pid) => {
-            // Try to ping
+            // Try to ping (may take up to 2s)
             let client = DaemonClient::new(&socket_path).with_timeout(Duration::from_secs(2));
+            let use_spinner = std::io::stderr().is_terminal();
 
-            match client.send(nika_daemon::DaemonRequest::Status).await {
-                Ok(DaemonResponse::StatusInfo {
-                    pid,
-                    uptime_secs,
-                    services,
-                }) => {
-                    println!("{} daemon is running", StatusIcon::Ok);
-                    println!("  pid:      {}", pid);
-                    println!("  uptime:   {}", format_uptime(uptime_secs));
-                    println!("  socket:   {}", socket_path.display());
-                    println!("  services: {}", services.join(", "));
+            if use_spinner {
+                let spinner = cliclack::spinner();
+                spinner.start("Pinging daemon...");
+                match client.send(nika_daemon::DaemonRequest::Status).await {
+                    Ok(DaemonResponse::StatusInfo {
+                        pid,
+                        uptime_secs,
+                        services,
+                    }) => {
+                        spinner.stop(format!("{} daemon is running (pid {pid})", StatusIcon::Ok));
+                        println!("  uptime:   {}", format_uptime(uptime_secs));
+                        println!("  socket:   {}", socket_path.display());
+                        println!("  services: {}", services.join(", "));
+                    }
+                    Ok(other) => {
+                        spinner.stop(format!(
+                            "{} daemon responded unexpectedly: {other:?}",
+                            StatusIcon::Warn
+                        ));
+                    }
+                    Err(_) => {
+                        spinner.stop(format!(
+                            "{} daemon PID {pid} exists but not responding",
+                            StatusIcon::Warn
+                        ));
+                        println!("  socket: {}", socket_path.display());
+                        println!("  try:    nika daemon restart");
+                    }
                 }
-                Ok(other) => {
-                    println!(
-                        "{} daemon responded unexpectedly: {:?}",
-                        StatusIcon::Warn,
-                        other
-                    );
-                }
-                Err(_) => {
-                    println!(
-                        "{} daemon PID {} exists but not responding",
-                        StatusIcon::Warn,
-                        pid
-                    );
-                    println!("  socket: {}", socket_path.display());
-                    println!("  try:    nika daemon restart");
+            } else {
+                eprintln!("Pinging daemon...");
+                match client.send(nika_daemon::DaemonRequest::Status).await {
+                    Ok(DaemonResponse::StatusInfo {
+                        pid,
+                        uptime_secs,
+                        services,
+                    }) => {
+                        println!("{} daemon is running", StatusIcon::Ok);
+                        println!("  pid:      {}", pid);
+                        println!("  uptime:   {}", format_uptime(uptime_secs));
+                        println!("  socket:   {}", socket_path.display());
+                        println!("  services: {}", services.join(", "));
+                    }
+                    Ok(other) => {
+                        println!(
+                            "{} daemon responded unexpectedly: {:?}",
+                            StatusIcon::Warn,
+                            other
+                        );
+                    }
+                    Err(_) => {
+                        println!(
+                            "{} daemon PID {} exists but not responding",
+                            StatusIcon::Warn,
+                            pid
+                        );
+                        println!("  socket: {}", socket_path.display());
+                        println!("  try:    nika daemon restart");
+                    }
                 }
             }
         }
@@ -355,5 +389,11 @@ mod tests {
             follow: false,
             lines: 20,
         };
+    }
+
+    #[test]
+    fn is_terminal_check_compiles() {
+        // Verify the TTY check pattern used in show_status compiles
+        let _tty = std::io::stderr().is_terminal();
     }
 }
