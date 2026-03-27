@@ -7,11 +7,15 @@
 //! - [`models`] -- 15+ curated models for native inference (mistral.rs)
 //! - [`mcp_aliases`] -- 100 MCP server short-name aliases
 
+pub mod cost;
+pub mod lsp_types;
 pub mod mcp_aliases;
 pub mod models;
 pub mod providers;
 
 // Re-export main types for convenient access
+pub use cost::{estimate_cost, find_pricing, model_cost_label, CostEstimate, ModelPricing, KNOWN_PRICING};
+pub use lsp_types::{DaemonCapabilities, KeySource, ProviderStatusInfo, WorkflowRunInfo};
 pub use mcp_aliases::{
     aliases_by_category, is_alias, list_aliases, pricing_label, resolve_alias, resolve_name,
     McpAlias, McpPricing, CATEGORIES, MCP_ALIASES,

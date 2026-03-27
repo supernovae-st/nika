@@ -6,10 +6,11 @@
 //! - **Local providers** (1): Native inference (mistral.rs)
 //!
 
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// Category of provider service.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ProviderCategory {
     /// LLM API providers (Anthropic, OpenAI, etc.)
     Llm,
