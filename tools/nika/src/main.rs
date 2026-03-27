@@ -130,12 +130,30 @@ pub enum ColorChoice {
     Never,
 }
 
+/// Styled help text for the CLI (cosmic theme).
+fn cli_styles() -> clap::builder::Styles {
+    use clap::builder::styling::{AnsiColor, Style};
+    clap::builder::Styles::styled()
+        .header(
+            Style::new()
+                .bold()
+                .fg_color(Some(AnsiColor::Magenta.into())),
+        )
+        .usage(Style::new().bold().fg_color(Some(AnsiColor::Cyan.into())))
+        .literal(Style::new().fg_color(Some(AnsiColor::Green.into())))
+        .placeholder(Style::new().fg_color(Some(AnsiColor::Cyan.into())))
+        .valid(Style::new().fg_color(Some(AnsiColor::Green.into())))
+        .invalid(Style::new().fg_color(Some(AnsiColor::Red.into())))
+        .error(Style::new().bold().fg_color(Some(AnsiColor::Red.into())))
+}
+
 #[derive(Parser)]
 #[command(name = "nika")]
 #[command(version)]
 #[command(about = "Nika - DAG workflow runner for AI tasks")]
 #[command(long_about = LONG_ABOUT)]
 #[command(after_help = AFTER_HELP)]
+#[command(styles = cli_styles())]
 struct Cli {
     /// Workflow file to run directly (e.g., workflow.nika.yaml)
     #[arg(value_name = "WORKFLOW")]
