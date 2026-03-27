@@ -3041,6 +3041,79 @@ fn test_mcp_response_does_not_overwrite_pause_phase() {
 }
 
 #[test]
+fn test_mcp_invoke_does_not_overwrite_pause_phase() {
+    let mut state = TuiState::new("test.nika.yaml");
+    state.workflow.phase = MissionPhase::Pause;
+    state.workflow.paused = true;
+
+    state.handle_event(
+        &EventKind::McpInvoke {
+            task_id: "tid".into(),
+            mcp_server: "novanet".to_string(),
+            tool: Some("tool".to_string()),
+            resource: None,
+            call_id: "c1".to_string(),
+            params: None,
+        },
+        1,
+    );
+
+    assert_eq!(
+        state.workflow.phase,
+        MissionPhase::Pause,
+        "Pause phase must not be overwritten by MCP invoke"
+    );
+}
+
+#[test]
+fn test_mcp_invoke_does_not_overwrite_abort_phase() {
+    let mut state = TuiState::new("test.nika.yaml");
+    state.workflow.phase = MissionPhase::Abort;
+
+    state.handle_event(
+        &EventKind::McpInvoke {
+            task_id: "tid".into(),
+            mcp_server: "novanet".to_string(),
+            tool: Some("tool".to_string()),
+            resource: None,
+            call_id: "c2".to_string(),
+            params: None,
+        },
+        1,
+    );
+
+    assert_eq!(
+        state.workflow.phase,
+        MissionPhase::Abort,
+        "Abort phase must not be overwritten by MCP invoke"
+    );
+}
+
+#[test]
+fn test_mcp_invoke_does_not_overwrite_mission_success_phase() {
+    let mut state = TuiState::new("test.nika.yaml");
+    state.workflow.phase = MissionPhase::MissionSuccess;
+
+    state.handle_event(
+        &EventKind::McpInvoke {
+            task_id: "tid".into(),
+            mcp_server: "novanet".to_string(),
+            tool: Some("tool".to_string()),
+            resource: None,
+            call_id: "c3".to_string(),
+            params: None,
+        },
+        1,
+    );
+
+    assert_eq!(
+        state.workflow.phase,
+        MissionPhase::MissionSuccess,
+        "MissionSuccess phase must not be overwritten by MCP invoke"
+    );
+}
+
+#[test]
 fn test_mcp_cached_response_tracks_hit() {
     let mut state = TuiState::new("test.nika.yaml");
 
