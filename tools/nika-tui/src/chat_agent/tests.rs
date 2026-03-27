@@ -215,21 +215,24 @@ fn test_set_provider_missing_key() {
 
     let mut agent = ChatAgent::new().expect("Should create agent");
 
-    // Test behavior when key is missing
-    // We can't safely remove env vars due to parallel tests, but we can test
-    // the error type when we know the key is missing
-    if std::env::var("ANTHROPIC_API_KEY").is_err() {
-        let result = agent.set_provider(ModelProvider::Claude);
-        assert!(result.is_err());
-        if let Err(NikaError::MissingApiKey { provider }) = result {
-            assert_eq!(provider, "Claude");
-        } else {
-            panic!("Expected MissingApiKey error");
-        }
+    // Temporarily remove ANTHROPIC_API_KEY to force MissingApiKey error
+    let saved = std::env::var("ANTHROPIC_API_KEY").ok();
+    std::env::remove_var("ANTHROPIC_API_KEY");
+
+    let result = agent.set_provider(ModelProvider::Claude);
+    assert!(
+        result.is_err(),
+        "set_provider must fail when ANTHROPIC_API_KEY is not set"
+    );
+    if let Err(NikaError::MissingApiKey { provider }) = result {
+        assert_eq!(provider, "anthropic");
     } else {
-        // If ANTHROPIC_API_KEY is set (by parallel test), just verify we can switch
-        let result = agent.set_provider(ModelProvider::Claude);
-        assert!(result.is_ok());
+        panic!("Expected MissingApiKey error, got: {:?}", result);
+    }
+
+    // Restore env var if it was set
+    if let Some(val) = saved {
+        std::env::set_var("ANTHROPIC_API_KEY", val);
     }
 }
 
