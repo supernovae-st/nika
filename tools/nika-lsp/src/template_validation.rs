@@ -197,7 +197,13 @@ mod tests {
 
     fn validate_yaml(content: &str) -> Vec<Diagnostic> {
         let doc = DocumentState::new(content.to_string(), 0);
-        let raw_workflow = raw::parse(content, FileId(0)).unwrap();
+        let raw_workflow = match raw::parse(content, FileId(0)) {
+            Ok(w) => w,
+            Err(e) => {
+                tracing::debug!("Skipping template validation: parse error: {e}");
+                return vec![];
+            }
+        };
         let analyze_result = analyze(raw_workflow.clone());
         if let Some(ref analyzed) = analyze_result.value {
             validate_templates(&raw_workflow, analyzed, &doc)

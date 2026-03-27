@@ -1328,6 +1328,48 @@ pub fn parse(source: &str, file_id: FileId) -> Result<RawWorkflow, ParseError> {
     // Parse tasks
     workflow.tasks = parse_tasks(file_id, map)?;
 
+    // ── Validate no unknown workflow keys (NIKA-163) ─────────────────
+    let known_workflow_keys: &[&str] = &[
+        "schema",
+        "workflow",
+        "description",
+        "provider",
+        "model",
+        "base_url",
+        "mcp",
+        "pkg",
+        "context",
+        "imports",
+        "inputs",
+        "artifacts",
+        "log",
+        "agents",
+        "skills",
+        "tasks",
+    ];
+    for (key, _) in map.iter() {
+        let key_str = key.as_str();
+        if !known_workflow_keys.contains(&key_str) {
+            let span = marked_span_to_span(file_id, key.span());
+            let suggestion = known_workflow_keys
+                .iter()
+                .find(|k| is_likely_misspelling(key_str, k))
+                .map(|k| format!("did you mean '{}'?", k));
+            return Err(ParseError {
+                kind: ParseErrorKind::UnknownField,
+                span,
+                message: match suggestion {
+                    Some(ref s) => format!("unknown workflow field '{}'. {}", key_str, s),
+                    None => format!(
+                        "unknown workflow field '{}'. Known fields: {}",
+                        key_str,
+                        known_workflow_keys.join(", ")
+                    ),
+                },
+            });
+        }
+    }
+
     Ok(workflow)
 }
 
@@ -2903,5 +2945,54 @@ tasks:
             }
             _ => panic!("Expected Infer action"),
         }
+    }
+
+    #[test]
+    fn test_unknown_workflow_key_detected() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tsks:
+  - id: a
+    exec: "echo hi"
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.kind, ParseErrorKind::UnknownField);
+        assert!(err.message.contains("tsks"));
+        assert!(err.message.contains("did you mean 'tasks'"));
+    }
+
+    #[test]
+    fn test_unknown_workflow_key_no_suggestion() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+foobar: xyz
+tasks:
+  - id: a
+    exec: "echo hi"
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.kind, ParseErrorKind::UnknownField);
+        assert!(err.message.contains("foobar"));
+        assert!(err.message.contains("Known fields"));
+    }
+
+    #[test]
+    fn test_valid_workflow_all_known_keys() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+workflow: test
+description: "Test"
+provider: mock
+model: test
+tasks:
+  - id: a
+    exec: "echo hi"
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_ok());
     }
 }
