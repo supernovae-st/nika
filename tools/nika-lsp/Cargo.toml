@@ -37,6 +37,9 @@ parking_lot = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 
+# Nika core (catalogs, AST types)
+nika-core = { workspace = true }
+
 # Nika engine (only needs AST + source types — no default features to minimize deps)
 nika-engine = { path = "../nika-engine", version = "0.49.0", default-features = false }
 
@@ -55,6 +58,10 @@ thiserror = { workspace = true }
 
 # Template validation
 regex = { workspace = true }
+
+# Daemon client (unix only — daemon uses Unix sockets)
+[target.'cfg(unix)'.dependencies]
+nika-daemon = { path = "../nika-daemon", version = "0.49.0", default-features = false }
 
 [dev-dependencies]
 tokio-test = "0.4"

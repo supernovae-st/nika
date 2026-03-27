@@ -22,6 +22,7 @@
 mod ast_integration;
 mod backend;
 mod completion;
+mod daemon_bridge;
 mod diagnostics;
 mod document;
 mod mcp_discovery;
@@ -44,7 +45,9 @@ async fn main() {
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
 
-    let (service, socket) = LspService::build(backend::NikaBackend::new).finish();
+    let (service, socket) = LspService::build(backend::NikaBackend::new)
+        .custom_method("nika/daemonStatus", backend::NikaBackend::daemon_status)
+        .finish();
 
     Server::new(stdin, stdout, socket).serve(service).await;
 }

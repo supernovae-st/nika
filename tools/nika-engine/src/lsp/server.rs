@@ -351,7 +351,7 @@ impl LanguageServer for NikaLanguageServer {
         // Use nika-lsp-core for unified completions
         let offset = super::conversion::position_to_offset(position, &text) as u32;
         let context = nika_lsp_core::analysis::context::detect_context_with_recovery(&text, offset);
-        let items = nika_lsp_core::handlers::completion::completions(&text, offset, &context);
+        let items = nika_lsp_core::handlers::completion::completions(&text, offset, &context, None);
 
         if !items.is_empty() {
             return Ok(Some(CompletionResponse::Array(items)));

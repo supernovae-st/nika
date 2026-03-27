@@ -115,7 +115,7 @@ impl LspHandler for DefaultHandler {
         offset: u32,
         context: &CursorContext,
     ) -> Vec<ls_types::CompletionItem> {
-        completion::completions(text, offset, context)
+        completion::completions(text, offset, context, None)
     }
 
     fn hover(&self, text: &str, offset: u32, context: &CursorContext) -> Option<HoverResult> {
@@ -154,7 +154,7 @@ impl LspHandler for DefaultHandler {
     }
 
     fn code_lenses(&self, text: &str) -> Vec<crate::handlers::code_lens::CodeLensEntry> {
-        crate::handlers::code_lens::code_lenses(text)
+        crate::handlers::code_lens::code_lenses(text, None)
     }
 
     fn inlay_hints(

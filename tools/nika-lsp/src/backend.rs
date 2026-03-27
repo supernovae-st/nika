@@ -10,14 +10,17 @@
 //! - Go-to-definition via `ast_integration::find_task_by_id()`
 //! - Context detection via `node_context::find_context_at_position()`
 
+use std::sync::Arc;
+
 use dashmap::DashMap;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, RwLock};
 use tower_lsp_server::jsonrpc::Result;
 use tower_lsp_server::ls_types::*;
 use tower_lsp_server::{Client, LanguageServer};
 
 use crate::ast_integration;
 use crate::completion::{get_completion_context, CompletionContext};
+use crate::daemon_bridge::DaemonBridge;
 use crate::diagnostics::validate_document;
 use crate::document::DocumentState;
 use nika_lsp_core::handler::{DefaultHandler, LspHandler};
@@ -40,6 +43,8 @@ pub struct NikaBackend {
     validation_tx: mpsc::Sender<ValidationRequest>,
     /// Delegated handler from nika-lsp-core
     handler: DefaultHandler,
+    /// Optional daemon connection (graceful degradation if not running)
+    daemon: Arc<RwLock<Option<DaemonBridge>>>,
 }
 
 impl NikaBackend {
@@ -47,17 +52,54 @@ impl NikaBackend {
     pub fn new(client: Client) -> Self {
         let (tx, rx) = mpsc::channel(100);
 
+        let daemon = Arc::new(RwLock::new(None));
+        let daemon_clone = daemon.clone();
+
+        // Spawn daemon connection attempt in background
+        tokio::spawn(async move {
+            #[cfg(unix)]
+            if let Some(bridge) = DaemonBridge::try_connect().await {
+                *daemon_clone.write().await = Some(bridge);
+            }
+        });
+
+        // Spawn reconnect loop
+        DaemonBridge::spawn_reconnect_loop(daemon.clone());
+
         let backend = Self {
             client: client.clone(),
             documents: DashMap::new(),
             validation_tx: tx,
             handler: DefaultHandler::new(),
+            daemon,
         };
 
         // Spawn validation worker
         tokio::spawn(validation_worker(rx, client));
 
         backend
+    }
+
+    /// Custom request handler: nika/daemonStatus
+    ///
+    /// Called by the VS Code extension to display daemon status in the status bar.
+    pub async fn daemon_status(&self) -> Result<serde_json::Value> {
+        let guard = self.daemon.read().await;
+        match guard.as_ref() {
+            Some(bridge) if bridge.is_connected() => {
+                let caps = bridge.capabilities().await;
+                Ok(serde_json::json!({
+                    "connected": true,
+                    "version": caps.as_ref().map(|c| c.version.as_str()),
+                    "uptime_secs": caps.as_ref().map(|c| c.uptime_secs),
+                    "cache_entries": caps.as_ref().map(|c| c.cache_entries),
+                    "cache_hit_rate": caps.as_ref().map(|c| c.cache_hit_rate),
+                    "active_jobs": caps.as_ref().map(|c| c.active_jobs),
+                    "watch_active": caps.as_ref().map(|c| c.watch_active),
+                }))
+            }
+            _ => Ok(serde_json::json!({ "connected": false })),
+        }
     }
 }
 
@@ -158,6 +200,11 @@ impl LanguageServer for NikaBackend {
                 inlay_hint_provider: Some(OneOf::Left(true)),
                 // References (Find All References)
                 references_provider: Some(OneOf::Left(true)),
+                // Rename (task ID refactoring)
+                rename_provider: Some(OneOf::Right(RenameOptions {
+                    prepare_provider: Some(true),
+                    work_done_progress_options: Default::default(),
+                })),
                 // Document links (clickable paths)
                 document_link_provider: Some(DocumentLinkOptions {
                     resolve_provider: Some(false),
@@ -274,7 +321,20 @@ impl LanguageServer for NikaBackend {
 
         // Use nika-lsp-core for unified context detection + completions
         let context = nika_lsp_core::analysis::context::detect_context(&text, offset, None);
-        let items = nika_lsp_core::handlers::completion::completions(&text, offset, &context);
+        // Get daemon provider status for enriched completions
+        let daemon_providers = {
+            let guard = self.daemon.read().await;
+            match guard.as_ref() {
+                Some(bridge) if bridge.is_connected() => Some(bridge.provider_status().await),
+                _ => None,
+            }
+        };
+        let items = nika_lsp_core::handlers::completion::completions(
+            &text,
+            offset,
+            &context,
+            daemon_providers.as_deref(),
+        );
 
         if items.is_empty() {
             // Fallback to legacy completion for contexts nika-lsp-core returns empty
@@ -754,6 +814,81 @@ impl LanguageServer for NikaBackend {
         } else {
             Ok(Some(ranges))
         }
+    }
+
+    // ===== Rename =====
+
+    async fn prepare_rename(
+        &self,
+        params: TextDocumentPositionParams,
+    ) -> Result<Option<PrepareRenameResponse>> {
+        let uri = &params.text_document.uri;
+        let text = match self.documents.get(uri) {
+            Some(d) => d.content(),
+            None => return Ok(None),
+        };
+
+        let position = params.position;
+        let offset =
+            crate::position::position_to_offset(&text, position.line, position.character)
+                .map(|o| o.0)
+                .unwrap_or(0);
+
+        let range = nika_lsp_core::handlers::rename::prepare_rename(&text, offset);
+        match range {
+            Some(r) => {
+                let start =
+                    crate::position::offset_to_position(&text, crate::position::ByteOffset(r.start));
+                let end =
+                    crate::position::offset_to_position(&text, crate::position::ByteOffset(r.end));
+                Ok(Some(PrepareRenameResponse::Range(Range { start, end })))
+            }
+            None => Ok(None),
+        }
+    }
+
+    async fn rename(&self, params: RenameParams) -> Result<Option<WorkspaceEdit>> {
+        let uri = &params.text_document_position.text_document.uri;
+        let text = match self.documents.get(uri) {
+            Some(d) => d.content(),
+            None => return Ok(None),
+        };
+
+        let position = params.text_document_position.position;
+        let offset =
+            crate::position::position_to_offset(&text, position.line, position.character)
+                .map(|o| o.0)
+                .unwrap_or(0);
+
+        let edits =
+            nika_lsp_core::handlers::rename::rename(&text, offset, &params.new_name);
+
+        if edits.is_empty() {
+            return Ok(None);
+        }
+
+        let text_edits: Vec<TextEdit> = edits
+            .into_iter()
+            .map(|e| {
+                let start =
+                    crate::position::offset_to_position(&text, crate::position::ByteOffset(e.start));
+                let end =
+                    crate::position::offset_to_position(&text, crate::position::ByteOffset(e.end));
+                TextEdit {
+                    range: Range { start, end },
+                    new_text: e.new_text,
+                }
+            })
+            .collect();
+
+        let mut changes = std::collections::HashMap::new();
+        changes.insert(uri.clone(), text_edits);
+
+        Ok(Some(WorkspaceEdit {
+            changes: Some(changes),
+            document_changes: None,
+            change_annotations: None,
+        }))
     }
 }
 
