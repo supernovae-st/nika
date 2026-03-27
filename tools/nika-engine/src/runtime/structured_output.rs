@@ -117,10 +117,15 @@ pub struct StructuredOutputEngine {
     /// Set during `load_schema()` so that `build_json_schema_instruction` can
     /// inject the file-based example into the LLM prompt without async I/O.
     cached_example: Option<Value>,
-    /// Callback for LLM inference in Layer 3 & 4
+    /// Callback for LLM inference in Layer 3 (retry) and Layer 4 (repair fallback)
     ///
     /// When set, enables actual LLM retries and repairs instead of just re-validation.
     infer_fn: Option<InferCallback>,
+    /// Optional separate callback for Layer 4 repair with a different model.
+    ///
+    /// When set via `with_repair_callback()`, Layer 4 uses this instead of `infer_fn`.
+    /// This supports `repair_model:` which allows a cheaper model for JSON repair.
+    repair_fn: Option<InferCallback>,
     /// Original prompt for retry context
     ///
     /// Used by Layer 3 to construct the retry prompt with full context.
@@ -140,6 +145,7 @@ impl StructuredOutputEngine {
             compiled_schema: None,
             cached_example: None,
             infer_fn: None,
+            repair_fn: None,
             original_prompt: None,
             provider_name: None,
             model_name: None,
@@ -165,6 +171,15 @@ impl StructuredOutputEngine {
     /// ```
     pub fn with_infer_callback(mut self, callback: InferCallback) -> Self {
         self.infer_fn = Some(callback);
+        self
+    }
+
+    /// Set a separate repair callback for Layer 4 (LLM repair).
+    ///
+    /// When set, Layer 4 uses this callback (with `repair_model`) instead
+    /// of the main `infer_fn`. Supports `structured: { repair_model: ... }`.
+    pub fn with_repair_callback(mut self, callback: InferCallback) -> Self {
+        self.repair_fn = Some(callback);
         self
     }
 
@@ -605,8 +620,8 @@ impl StructuredOutputEngine {
         schema: &Value,
         attempt: u32,
     ) -> Result<Value, NikaError> {
-        // Check if we have an inference callback
-        let infer_fn = match &self.infer_fn {
+        // Use repair_fn (repair_model) if set, otherwise fall back to infer_fn
+        let infer_fn = match self.repair_fn.as_ref().or(self.infer_fn.as_ref()) {
             Some(f) => f,
             None => {
                 // No callback - Layer 4 is disabled
