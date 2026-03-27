@@ -978,6 +978,7 @@ async fn test_execute_exec_blocked_by_policy() {
         EventLog::new(),
         Some(policy_config),
         None,
+        None,
     )
     .unwrap();
     let bindings = ResolvedBindings::new();
@@ -1024,6 +1025,7 @@ async fn test_execute_exec_allowed_by_policy() {
         EventLog::new(),
         Some(policy_config),
         None,
+        None,
     )
     .unwrap();
     let bindings = ResolvedBindings::new();
@@ -1061,6 +1063,7 @@ async fn test_execute_exec_disabled_by_policy() {
         None,
         EventLog::new(),
         Some(policy_config),
+        None,
         None,
     )
     .unwrap();
@@ -1108,6 +1111,7 @@ async fn test_execute_fetch_blocked_by_policy() {
         None,
         EventLog::new(),
         Some(policy_config),
+        None,
         None,
     )
     .unwrap();
@@ -1157,6 +1161,7 @@ async fn test_execute_fetch_disabled_by_policy() {
         None,
         EventLog::new(),
         Some(policy_config),
+        None,
         None,
     )
     .unwrap();
@@ -1214,6 +1219,7 @@ async fn test_executor_with_policy_config() {
         None,
         EventLog::new(),
         Some(policy_config),
+        None,
         None,
     )
     .unwrap();
