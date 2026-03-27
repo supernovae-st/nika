@@ -4393,6 +4393,39 @@ fn test_dag_version_matches_timeline_version() {
 }
 
 #[test]
+fn test_threshold_notifications_all_fire_on_large_jump() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    // One huge provider response that crosses ALL thresholds at once
+    // 96k tokens = 96% of 100k context window
+    state.handle_event(
+        &EventKind::ProviderResponded {
+            task_id: "t".into(),
+            request_id: None,
+            input_tokens: 90_000,
+            output_tokens: 6_000,
+            cache_read_tokens: 0,
+            cost_usd: 0.01,
+            ttft_ms: None,
+            finish_reason: "stop".to_string(),
+        },
+        1,
+    );
+
+    // All 4 thresholds must have their guards set
+    assert!(state.metrics.notified_50pct, "50% guard must be set");
+    assert!(state.metrics.notified_70pct, "70% guard must be set");
+    assert!(state.metrics.notified_85pct, "85% guard must be set");
+    assert!(state.metrics.notified_95pct, "95% guard must be set");
+    // And 4 notifications in the queue (one per threshold)
+    assert_eq!(
+        state.notifs.items.len(),
+        4,
+        "all 4 threshold notifications must have fired"
+    );
+}
+
+#[test]
 fn test_mcp_calls_cap_enforced_on_invoke() {
     let mut state = TuiState::new("test.nika.yaml");
 
