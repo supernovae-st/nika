@@ -68,7 +68,7 @@ pub enum JobAction {
     },
 }
 
-pub async fn handle_job_command(action: JobAction) -> Result<(), NikaError> {
+pub async fn handle_job_command(action: JobAction, quiet: bool) -> Result<(), NikaError> {
     let client = DaemonClient::new(daemon_socket_path()).with_timeout(Duration::from_secs(10));
 
     if !client.socket_exists() {
@@ -97,14 +97,16 @@ pub async fn handle_job_command(action: JobAction) -> Result<(), NikaError> {
 
             match resp {
                 DaemonResponse::JobCreated { id } => {
-                    println!("{} job submitted", "✓".green().bold());
-                    println!("  id:       {}", id);
-                    println!("  workflow: {}", workflow);
-                    if let Some(name) = name {
-                        println!("  name:     {}", name);
-                    }
-                    if let Some(cron) = cron {
-                        println!("  cron:     {}", cron);
+                    if !quiet {
+                        println!("{} job submitted", "✓".green().bold());
+                        println!("  id:       {}", id);
+                        println!("  workflow: {}", workflow);
+                        if let Some(name) = name {
+                            println!("  name:     {}", name);
+                        }
+                        if let Some(cron) = cron {
+                            println!("  cron:     {}", cron);
+                        }
                     }
                 }
                 DaemonResponse::Error { code, message } => {
@@ -209,7 +211,9 @@ pub async fn handle_job_command(action: JobAction) -> Result<(), NikaError> {
 
             match resp {
                 DaemonResponse::Ok => {
-                    println!("{} job {} cancelled", "✓".green().bold(), id);
+                    if !quiet {
+                        println!("{} job {} cancelled", "✓".green().bold(), id);
+                    }
                 }
                 DaemonResponse::Error { code, message } => {
                     eprintln!("{} [{code}] {message}", "✗".red().bold());
@@ -226,7 +230,9 @@ pub async fn handle_job_command(action: JobAction) -> Result<(), NikaError> {
 
             match resp {
                 DaemonResponse::JobCreated { id: new_id } => {
-                    println!("{} job {} retried → {}", "✓".green().bold(), id, new_id);
+                    if !quiet {
+                        println!("{} job {} retried → {}", "✓".green().bold(), id, new_id);
+                    }
                 }
                 DaemonResponse::Error { code, message } => {
                     eprintln!("{} [{code}] {message}", "✗".red().bold());
@@ -299,7 +305,7 @@ mod tests {
     #[tokio::test]
     async fn job_list_no_daemon_returns_error() {
         // When daemon is not running, job commands should return Err, not Ok(())
-        let result = handle_job_command(JobAction::List { state: None }).await;
+        let result = handle_job_command(JobAction::List { state: None }, true).await;
         assert!(
             result.is_err(),
             "job list should return Err when daemon is not running"

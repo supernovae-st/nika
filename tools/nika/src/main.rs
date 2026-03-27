@@ -987,21 +987,7 @@ async fn main() {
             mcp,
             timeout,
             list,
-        }) => {
-            if list {
-                cli::verbs::handle_invoke(String::new(), file, params, mcp, timeout, true, quiet)
-                    .await
-            } else {
-                match tool {
-                    Some(t) => {
-                        cli::verbs::handle_invoke(t, file, params, mcp, timeout, false, quiet).await
-                    }
-                    None => Err(NikaError::ValidationError {
-                        reason: "Tool name required. Use: nika invoke nika:dimensions file.jpg\nOr: nika invoke --list".to_string(),
-                    }),
-                }
-            }
-        }
+        }) => cli::verbs::handle_invoke(tool, file, params, mcp, timeout, list, quiet).await,
 
         Some(Commands::Agent {
             prompt,
@@ -1045,48 +1031,28 @@ async fn main() {
             course,
         }) => {
             if course {
-                use nika_engine::init::course::generator::{generate_course, CourseConfig};
-                let config = CourseConfig {
-                    dest: std::path::PathBuf::from("nika-course"),
-                    ..CourseConfig::default()
-                };
-                match generate_course(&config) {
-                    Ok(result) => {
-                        println!(
-                            "\n  {} Course generated! {} levels, {} exercises\n  Provider: {} (auto-detected)\n  Location: {}\n  Run: cd {} && nika course status\n",
-                            nika::display::StatusIcon::Ok,
-                            result.levels,
-                            result.exercises,
-                            result.provider,
-                            result.root.display(),
-                            result.root.display(),
-                        );
-                        Ok(())
-                    }
-                    Err(e) => {
-                        eprintln!("{} Course generation failed: {e}", "Error:".red().bold());
-                        Err(e.into())
-                    }
-                }
+                cli::init::init_course()
             } else {
                 cli::init::init_project(&permission, migrate_keys).await
             }
         }
 
-        Some(Commands::Course { action }) => cli::course::handle_course_command(action),
+        Some(Commands::Course { action }) => cli::course::handle_course_command(action, quiet),
 
-        Some(Commands::Trace { action }) => cli::trace::handle_trace_command(action),
+        Some(Commands::Trace { action }) => cli::trace::handle_trace_command(action, quiet),
 
-        Some(Commands::Provider { action }) => cli::provider::handle_provider_command(action).await,
+        Some(Commands::Provider { action }) => {
+            cli::provider::handle_provider_command(action, quiet).await
+        }
 
-        Some(Commands::Setup) => cli::onboarding::handle_setup_command().await,
+        Some(Commands::Setup) => cli::onboarding::handle_setup_command(quiet).await,
 
         Some(Commands::Cosmic) => {
             cli::help::print_cosmic();
             Ok(())
         }
 
-        Some(Commands::Mcp { action }) => cli::mcp::handle_mcp_command(action).await,
+        Some(Commands::Mcp { action }) => cli::mcp::handle_mcp_command(action, quiet).await,
 
         Some(Commands::Media { action }) => cli::media::handle_media_command(action, quiet).await,
 
@@ -1111,7 +1077,7 @@ async fn main() {
             Ok(())
         }
 
-        Some(Commands::Pkg { action }) => cli::pkg::handle_pkg_command(action).await,
+        Some(Commands::Pkg { action }) => cli::pkg::handle_pkg_command(action, quiet).await,
 
         Some(Commands::Completion { shell }) => {
             clap_complete::generate(shell, &mut Cli::command(), "nika", &mut std::io::stdout());
@@ -1136,13 +1102,17 @@ async fn main() {
         }
 
         #[cfg(unix)]
-        Some(Commands::Daemon { action }) => cli::daemon::handle_daemon_command(action).await,
+        Some(Commands::Daemon { action }) => {
+            cli::daemon::handle_daemon_command(action, quiet).await
+        }
 
         #[cfg(unix)]
-        Some(Commands::Job { action }) => cli::jobs::handle_job_command(action).await,
+        Some(Commands::Job { action }) => cli::jobs::handle_job_command(action, quiet).await,
 
         #[cfg(unix)]
-        Some(Commands::Cache { action }) => cli::cache_cmd::handle_cache_command(action).await,
+        Some(Commands::Cache { action }) => {
+            cli::cache_cmd::handle_cache_command(action, quiet).await
+        }
 
         Some(Commands::New {
             name,
@@ -1209,8 +1179,8 @@ fn should_skip_auto_setup(cmd: &Option<Commands>) -> bool {
         Some(Commands::Features) => true,
         Some(Commands::Schema { .. }) => true,
         // Background/low-level ops — no interactive setup output.
-        #[cfg(unix)]
-        Some(Commands::Daemon { .. }) => true,
+        // NOTE: Daemon is NOT skipped — `nika daemon start` is the post-install
+        // entry point from install.sh and must trigger first-run setup silently.
         #[cfg(unix)]
         Some(Commands::Cache { .. }) => true,
         #[cfg(unix)]
