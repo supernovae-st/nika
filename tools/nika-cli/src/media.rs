@@ -11,6 +11,7 @@ use std::time::Duration;
 use clap::Subcommand;
 use colored::Colorize;
 
+use nika_engine::display::{section_header, separator, StatusIcon};
 use nika_engine::error::NikaError;
 use nika_engine::media::CasStore;
 
@@ -215,11 +216,12 @@ async fn handle_import(
     if quiet {
         println!("{}", result.hash);
     } else {
-        println!("{} {}", "Hash:".bold(), result.hash);
-        println!("{} {}", "MIME:".bold(), mime_type);
-        println!("{} {}", "Size:".bold(), format_bytes(size));
+        println!("{} imported {}", StatusIcon::Ok, file.display());
+        println!("    {:<8} {}", "Hash:".dimmed(), result.hash);
+        println!("    {:<8} {}", "MIME:".dimmed(), mime_type);
+        println!("    {:<8} {}", "Size:".dimmed(), format_bytes(size));
         if result.deduplicated {
-            println!("{}", "Deduplicated (file already in store)".yellow());
+            println!("    {} deduplicated (already in store)", StatusIcon::Info);
         }
     }
 
@@ -231,23 +233,24 @@ fn handle_list(store: &CasStore, quiet: bool) -> Result<(), NikaError> {
 
     if entries.is_empty() {
         if !quiet {
-            println!("{}", "Media store is empty.".dimmed());
+            println!("{} media store is empty", StatusIcon::Info);
         }
         return Ok(());
     }
 
     if !quiet {
         println!(
-            "{:<68}  {:>10}  {}",
+            "  {:<68}  {:>10}  {}",
             "HASH".bold(),
             "SIZE".bold(),
             "PATH".bold()
         );
+        println!("{}", separator(92));
     }
 
     for entry in &entries {
         println!(
-            "{:<68}  {:>10}  {}",
+            "  {:<68}  {:>10}  {}",
             entry.hash.dimmed(),
             format_bytes(entry.size),
             entry.path.display(),
@@ -290,16 +293,20 @@ fn handle_stats(store: &CasStore, quiet: bool) -> Result<(), NikaError> {
         return Ok(());
     }
 
-    println!("{}", "Media Store Statistics".bold());
-    println!("  Files:      {count}");
-    println!("  Total size: {}", format_bytes(total_size));
-    println!("  Shards:     {}", shards.len());
+    println!("{}", section_header("Media Store Statistics"));
+    println!("    {:<12} {count}", "Files:".dimmed());
+    println!(
+        "    {:<12} {}",
+        "Total size:".dimmed(),
+        format_bytes(total_size)
+    );
+    println!("    {:<12} {}", "Shards:".dimmed(), shards.len());
 
     if !shards.is_empty() {
-        println!("\n{}", "Shard Distribution:".bold());
+        println!("{}", section_header("Shard Distribution"));
         for (shard, (shard_count, shard_size)) in &shards {
             println!(
-                "  {}/  {:>4} files  {:>10}",
+                "    {}/  {:>4} files  {:>10}",
                 shard,
                 shard_count,
                 format_bytes(*shard_size)
@@ -327,8 +334,8 @@ fn handle_clean(
     let duration = if duration.as_secs() < MIN_GC_AGE_SECS {
         if !quiet {
             println!(
-                "{} Minimum GC age is 5 minutes, using 5m instead of '{}'",
-                "⚠".yellow(),
+                "{} minimum GC age is 5 minutes, using 5m instead of '{}'",
+                StatusIcon::Warn,
                 older_than
             );
         }
@@ -368,7 +375,7 @@ fn handle_clean(
                             if !quiet {
                                 println!(
                                     "  {} {} ({})",
-                                    "would delete:".yellow(),
+                                    StatusIcon::Warn,
                                     entry.hash.dimmed(),
                                     format_bytes(entry.size)
                                 );
@@ -381,8 +388,8 @@ fn handle_clean(
 
         if !quiet {
             println!(
-                "\n{} Would delete {} file(s), freeing {}",
-                "dry-run:".cyan().bold(),
+                "\n  {} would delete {} file(s), freeing {}",
+                StatusIcon::Info,
                 would_delete,
                 format_bytes(would_free)
             );
@@ -391,8 +398,8 @@ fn handle_clean(
         let result = store.clean_older_than(duration);
         if !quiet {
             println!(
-                "{} Removed {} file(s), freed {}",
-                "✓".green(),
+                "{} removed {} file(s), freed {}",
+                StatusIcon::Ok,
                 result.removed,
                 format_bytes(result.bytes_freed)
             );
@@ -421,12 +428,10 @@ pub(crate) fn format_bytes(bytes: u64) -> String {
 
 /// Display available media tools and their feature flags.
 fn handle_tools() {
-    println!("{}", "Available Media Tools".bold());
-    println!("{}", "─".repeat(60));
-    println!();
+    println!("{}", section_header("Available Media Tools"));
 
     // Always-on tools (Tier 1)
-    println!("{}", "Tier 1 — Always On".cyan().bold());
+    println!("  {}", "Tier 1 — Always On".cyan().bold());
     println!(
         "  {} — Import any file into CAS (image, audio, video, PDF)",
         "nika:import".green()
@@ -450,7 +455,10 @@ fn handle_tools() {
     println!();
 
     // Feature-gated tools (Tier 2)
-    println!("{}", "Tier 2 — Default Features (media-core)".cyan().bold());
+    println!(
+        "  {}",
+        "Tier 2 — Default Features (media-core)".cyan().bold()
+    );
 
     let tools_tier2 = [
         (
@@ -492,18 +500,17 @@ fn handle_tools() {
     ];
 
     for (name, feature, desc, enabled) in &tools_tier2 {
-        let status = if *enabled { "✓" } else { "✗" };
-        let status_colored = if *enabled {
-            status.green()
+        let icon = if *enabled {
+            StatusIcon::Ok
         } else {
-            status.red()
+            StatusIcon::Fail
         };
-        println!("  {status_colored} {name} — {desc} [{feature}]");
+        println!("  {icon} {name} — {desc} [{feature}]");
     }
     println!();
 
     // Tier 3 — Opt-in
-    println!("{}", "Tier 3 — Opt-In Features".cyan().bold());
+    println!("  {}", "Tier 3 — Opt-In Features".cyan().bold());
 
     let tools_tier3 = [
         (
@@ -587,13 +594,12 @@ fn handle_tools() {
     ];
 
     for (name, feature, desc, enabled) in &tools_tier3 {
-        let status = if *enabled { "✓" } else { "✗" };
-        let status_colored = if *enabled {
-            status.green()
+        let icon = if *enabled {
+            StatusIcon::Ok
         } else {
-            status.red()
+            StatusIcon::Fail
         };
-        println!("  {status_colored} {name} — {desc} [{feature}]");
+        println!("  {icon} {name} — {desc} [{feature}]");
     }
     println!();
 
@@ -603,10 +609,8 @@ fn handle_tools() {
         + 5; // always-on (import, dimensions, thumbhash, dominant_color, pipeline)
     let total = 5 + tools_tier2.len() + tools_tier3.len();
     println!(
-        "{} {} / {} tools enabled",
-        "Total:".bold(),
-        enabled_count,
-        total
+        "  {} {enabled_count} / {total} tools enabled",
+        StatusIcon::Info,
     );
 }
 
@@ -962,5 +966,39 @@ mod tests {
     fn test_cli_import_allows_normal_paths() {
         let tmp = tempfile::NamedTempFile::new().unwrap();
         assert!(validate_cli_import_path(tmp.path()).is_ok());
+    }
+
+    // ── cli_format adoption tests ──────────────────────────────────────
+
+    #[test]
+    fn section_header_used_in_stats() {
+        let header = section_header("Media Store Statistics");
+        assert!(header.contains("Media Store Statistics"));
+        assert!(header.contains("─"));
+    }
+
+    #[test]
+    fn separator_used_in_list() {
+        let sep = separator(92);
+        assert!(sep.contains("─"));
+    }
+
+    #[test]
+    fn status_icon_ok_for_clean() {
+        let rendered = format!("{} removed 3 file(s)", StatusIcon::Ok);
+        assert!(rendered.contains('✓'));
+        assert!(rendered.contains("removed 3 file(s)"));
+    }
+
+    #[test]
+    fn status_icon_warn_for_gc_floor() {
+        let rendered = format!("{} minimum GC age is 5 minutes", StatusIcon::Warn);
+        assert!(rendered.contains('⚠'));
+    }
+
+    #[test]
+    fn status_icon_info_for_empty_store() {
+        let rendered = format!("{} media store is empty", StatusIcon::Info);
+        assert!(rendered.contains('ℹ'));
     }
 }
