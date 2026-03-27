@@ -39,7 +39,11 @@
 //! ```
 
 pub mod cost;
+pub mod endpoints;
 pub mod rig;
+
+// Re-export endpoint types
+pub use endpoints::{CustomEndpointConfig, CustomEndpointMap, ResolvedEndpoint};
 
 // Native inference via mistral.rs (requires native-inference feature)
 #[cfg(feature = "native-inference")]
