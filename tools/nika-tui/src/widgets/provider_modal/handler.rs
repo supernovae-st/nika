@@ -153,15 +153,20 @@ impl ModalEventHandler {
 
             // Tab-specific actions
             KeyCode::Char('p') if state.active_tab == ProviderModalTab::Native => {
-                // Would get actual model from selection
-                HandleResult::consumed_with_action(ModalAction::PullModel {
-                    model: "llama3.2".to_string(),
-                })
+                let model = state
+                    .native_models
+                    .get(state.selected_idx)
+                    .map(|m| m.name.clone())
+                    .unwrap_or_else(|| "llama3.2".to_string());
+                HandleResult::consumed_with_action(ModalAction::PullModel { model })
             }
             KeyCode::Char('d') if state.active_tab == ProviderModalTab::Native => {
-                HandleResult::consumed_with_action(ModalAction::DeleteModel {
-                    model: "selected".to_string(),
-                })
+                if let Some(m) = state.native_models.get(state.selected_idx) {
+                    let model = m.name.clone();
+                    HandleResult::consumed_with_action(ModalAction::DeleteModel { model })
+                } else {
+                    HandleResult::consumed()
+                }
             }
             KeyCode::Char('t') if state.active_tab == ProviderModalTab::Keys => {
                 HandleResult::consumed_with_action(ModalAction::TestApiKey {
@@ -370,6 +375,7 @@ impl ModalEventHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::state::NativeModelInfo;
 
     fn key_event(code: KeyCode) -> KeyEvent {
         KeyEvent::new(code, KeyModifiers::NONE)
@@ -720,30 +726,66 @@ mod tests {
     }
 
     #[test]
-    fn test_handle_p_in_native_tab_pulls_model() {
+    fn test_handle_p_in_native_tab_pulls_selected_model() {
         let mut state = ProviderModalState::default();
         state.visible = true;
         state.active_tab = ProviderModalTab::Native;
+        state.native_models = vec![NativeModelInfo {
+            name: "phi3:mini".to_string(),
+            size: 1_000_000,
+            digest: "abc123".to_string(),
+            modified_at: "2024-01-01".to_string(),
+            details: Default::default(),
+        }];
+        state.selected_idx = 0;
 
         let result = ModalEventHandler::handle(&mut state, key_event(KeyCode::Char('p')));
 
         assert!(result.consumed);
-        assert!(matches!(result.action, Some(ModalAction::PullModel { .. })));
+        match result.action {
+            Some(ModalAction::PullModel { ref model }) => {
+                assert_eq!(model, "phi3:mini", "PullModel must use the selected model name");
+            }
+            _ => panic!("Expected PullModel action"),
+        }
     }
 
     #[test]
-    fn test_handle_d_in_native_tab_deletes_model() {
+    fn test_handle_d_in_native_tab_deletes_selected_model() {
         let mut state = ProviderModalState::default();
         state.visible = true;
         state.active_tab = ProviderModalTab::Native;
+        state.native_models = vec![NativeModelInfo {
+            name: "llama3.2:latest".to_string(),
+            size: 2_000_000,
+            digest: "def456".to_string(),
+            modified_at: "2024-01-01".to_string(),
+            details: Default::default(),
+        }];
+        state.selected_idx = 0;
 
         let result = ModalEventHandler::handle(&mut state, key_event(KeyCode::Char('d')));
 
         assert!(result.consumed);
-        assert!(matches!(
-            result.action,
-            Some(ModalAction::DeleteModel { .. })
-        ));
+        match result.action {
+            Some(ModalAction::DeleteModel { ref model }) => {
+                assert_eq!(model, "llama3.2:latest");
+            }
+            _ => panic!("Expected DeleteModel action"),
+        }
+    }
+
+    #[test]
+    fn test_handle_d_in_native_tab_no_models_no_action() {
+        let mut state = ProviderModalState::default();
+        state.visible = true;
+        state.active_tab = ProviderModalTab::Native;
+        state.native_models.clear();
+
+        let result = ModalEventHandler::handle(&mut state, key_event(KeyCode::Char('d')));
+
+        assert!(result.consumed);
+        assert!(result.action.is_none(), "DeleteModel with no models must produce no action");
     }
 
     #[test]
