@@ -28,6 +28,8 @@ impl RecoveryParser {
             .set_language(&tree_sitter_yaml::LANGUAGE.into())
             .expect("tree-sitter-yaml language should load");
         // 5 second timeout to prevent DoS from pathological YAML inputs
+        // TODO: migrate to parse_with_options when tree-sitter stabilizes the new API
+        #[allow(deprecated)]
         parser.set_timeout_micros(5_000_000);
         Self {
             parser,
