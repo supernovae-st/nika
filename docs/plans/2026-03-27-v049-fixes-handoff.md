@@ -167,6 +167,26 @@ After inference, show token count + cost:
 ```
 This info is already computed but only shown in workflow `nika run`, not direct `nika infer`.
 
+### QW8. StatusIcon consistency across codebase
+
+Replace ALL remaining hardcoded `"✓".green()` / `"✗".red()` with `StatusIcon::Ok` / `StatusIcon::Fail`:
+- `provider.rs:396,398` — test_provider_connection spinner.stop
+- `onboarding.rs:109,141,147,154` — 5 instances in wizard
+- `main.rs:743,747,1137` — 3 instances in run handler
+
+### QW9. Tighten daemon secrets tests
+
+`services/secrets.rs:269-284` has `assert!(result.is_ok() || result.is_err())` which is always true.
+Fix: `assert!(result.is_ok())` (set/delete succeed even without keychain — returns Ok(false)).
+
+### QW10. `--json` mode for `nika models`
+
+`print_cloud_models()` in model_cloud.rs has no JSON output. Add `json: bool` param, serialize Vec of model objects when true.
+
+### QW11. `--quiet` flag for `nika provider test`
+
+Currently Test { provider } has no quiet flag. Add `#[arg(long)] quiet: bool` to suppress spinner output in scripts/CI.
+
 ---
 
 ## DEPENDENCY ORDER
@@ -174,14 +194,19 @@ This info is already computed but only shown in workflow `nika run`, not direct 
 ```
 R4 (jobs bug, 2 lines) ────────→ standalone, do first
 R2 (help text, 1 line) ────────→ standalone
-R1 (onboarding hook, 30 lines) → needs main.rs error path understanding
-R3 (daemon IPC, 40 lines) ─────→ needs R1 done first (same file)
+QW1 (error codes doc) ─────────→ standalone
+QW9 (tighten tests) ───────────→ standalone
+R1 (onboarding hook, 30 lines) → needs main.rs error path
+QW6 (native in wizard) ────────→ after R1
+R3 (daemon IPC, 40 lines) ─────→ after R1 (same file)
+QW3 (non-TTY fallback) ────────→ after R3
 R6 (dry-run cost, 20 lines) ───→ standalone
-R5 (CLI polish, large) ────────→ do last, can be incremental
-QW1-QW7 ───────────────────────→ sprinkle between phases
+QW7 (infer cost display) ──────→ after R6
+QW8 (StatusIcon consistency) ──→ anytime
+R5 (CLI polish, large) ────────→ last, incremental
 ```
 
-**Recommended session order:** R4 → R2 → QW1 → R1 → QW6 → R3 → QW3 → R6 → QW7 → R5
+**Recommended session order:** R4 → R2 → QW1 → QW9 → R1 → QW6 → R3 → QW3 → R6 → QW7 → QW8 → R5
 
 ---
 
