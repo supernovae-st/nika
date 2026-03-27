@@ -40,6 +40,9 @@ blake3 = { workspace = true }
 # Time
 chrono = { workspace = true }
 
+# Cron expression parsing (scheduler)
+croner = "2"
+
 # IDs
 uuid = { workspace = true }
 
