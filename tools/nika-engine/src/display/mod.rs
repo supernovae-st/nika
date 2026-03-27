@@ -1,6 +1,7 @@
 //! CLI display — header, event stream, summary renderers.
 //!
 //! ## Module structure
+//! - `bench` — Benchmark comparison display (`nika bench`)
 //! - `summary` — Workflow completion and doctor diagnostic summaries
 //! - `dag_render` — DAG visualization with double-line borders and status badges
 //! - `icons` — Cosmic icon palette (verb, status, subsystem)
@@ -10,6 +11,7 @@
 //! - `run_renderer` — Factory functions: auto/classic/live renderer selection
 //! - `spinner` — Spinner constants and progress bar templates
 
+pub mod bench;
 pub mod check;
 pub mod cli_format;
 pub mod colors;
@@ -40,6 +42,12 @@ pub use detail::DetailLevel;
 pub use live::LiveRenderer;
 pub use renderer::{CliRenderer, Renderer};
 pub use run_renderer::{auto_renderer, classic_renderer, live_renderer};
+pub use bench::{
+    format_bench_header, format_bench_summary, format_cost_section, format_profile_section,
+    format_quality_section, format_speed_section, print_bench_header, print_bench_summary,
+    print_cost_section, print_profile_section, print_quality_section, print_speed_section,
+    BenchProviderResult, BenchTaskTiming, Percentiles, QualityScore,
+};
 pub use summary::{
     format_doctor_header, format_doctor_summary, format_done_summary, format_run_summary,
     print_doctor_header, print_doctor_summary, print_done_summary, print_run_summary,
