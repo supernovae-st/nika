@@ -45,7 +45,7 @@ impl ProviderModalState {
                     self.selected_idx = target;
                 } else {
                     // Partial last row doesn't have this column — go to previous row
-                    self.selected_idx = (last_row - 1) * 3 + col;
+                    self.selected_idx = last_row.saturating_sub(1) * 3 + col;
                 }
             }
         } else {

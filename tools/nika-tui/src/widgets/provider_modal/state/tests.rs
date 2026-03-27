@@ -1011,3 +1011,15 @@ fn test_set_native_models_no_clamp_when_not_native_tab() {
         "selected_idx unchanged when not on Native tab"
     );
 }
+
+#[test]
+fn test_navigate_up_does_not_panic_with_single_item() {
+    let mut state = ProviderModalState::default();
+    state.active_tab = ProviderModalTab::Cloud;
+    state.item_count = 1;
+    state.selected_idx = 0;
+
+    // Must not panic (was usize underflow: (0 - 1) * 3)
+    state.navigate_up();
+    assert_eq!(state.selected_idx, 0);
+}
