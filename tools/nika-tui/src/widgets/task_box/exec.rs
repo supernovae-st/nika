@@ -420,14 +420,10 @@ impl Widget for &ExecBox {
             buf.set_string(area.x + 2, y, "STDOUT", dim_style);
             y += 1;
 
-            // Stdout content
-            let stdout_lines: Vec<&str> = if self.expanded_stdout {
-                self.stdout.lines().take(10).collect()
-            } else {
-                self.stdout.lines().take(3).collect()
-            };
+            // Stdout content (iterate directly, no Vec alloc)
+            let max_stdout_lines = if self.expanded_stdout { 10 } else { 3 };
 
-            for line in stdout_lines {
+            for line in self.stdout.lines().take(max_stdout_lines) {
                 if y >= area.y + area.height - 2 {
                     break;
                 }
@@ -454,14 +450,10 @@ impl Widget for &ExecBox {
             buf.set_string(area.x + 2, y, "STDERR ⚠️", stderr_style);
             y += 1;
 
-            // Stderr content
-            let stderr_lines: Vec<&str> = if self.expanded_stderr {
-                self.stderr.lines().take(5).collect()
-            } else {
-                self.stderr.lines().take(2).collect()
-            };
+            // Stderr content (iterate directly, no Vec alloc)
+            let max_stderr_lines = if self.expanded_stderr { 5 } else { 2 };
 
-            for line in stderr_lines {
+            for line in self.stderr.lines().take(max_stderr_lines) {
                 if y >= area.y + area.height - 2 {
                     break;
                 }
