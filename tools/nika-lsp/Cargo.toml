@@ -38,7 +38,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 
 # Nika engine (only needs AST + source types — no default features to minimize deps)
-nika-engine = { path = "../nika-engine", version = "0.48.0", default-features = false }
+nika-engine = { path = "../nika-engine", version = "0.49.0", default-features = false }
 
 # Protocol-agnostic LSP intelligence
 nika-lsp-core = { workspace = true }
