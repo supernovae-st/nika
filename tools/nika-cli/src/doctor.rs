@@ -798,7 +798,7 @@ fn check_ai_rules() -> Vec<DiagnosticCheck> {
                     "[user] Claude Code detected but no rules at {}",
                     path.display()
                 ),
-                "Run: nika setup ai",
+                "Run: nika init (auto-installs editor rules on first run)",
             ));
         }
     }
@@ -826,7 +826,7 @@ fn check_ai_rules() -> Vec<DiagnosticCheck> {
         checks.push(DiagnosticCheck::warn(
             "AI Rules",
             "No AI coding tool rules found (user or project)",
-            "Run: nika setup ai",
+            "Run: nika init (auto-installs editor rules on first run)",
         ));
     }
 
