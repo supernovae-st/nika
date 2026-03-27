@@ -36,10 +36,13 @@ impl TuiState {
         }
         self.current_task = Some(task_id.to_string());
 
-        // Update phase
+        // Update phase — only from active execution phases (preserve Pause/Abort/MissionSuccess)
         if self.workflow.phase == MissionPhase::Countdown {
             self.workflow.phase = MissionPhase::Launch;
-        } else {
+        } else if matches!(
+            self.workflow.phase,
+            MissionPhase::Launch | MissionPhase::Orbital | MissionPhase::Rendezvous
+        ) {
             self.workflow.phase = MissionPhase::Orbital;
         }
         // TIER 4.1: Mark progress and dag dirty

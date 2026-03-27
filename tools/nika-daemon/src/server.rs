@@ -258,17 +258,22 @@ async fn write_auth_token(token: &str) -> std::io::Result<()> {
 
 /// Validate a client auth token against the server's session token.
 /// Read operations don't require auth (token=None is fine for reads).
+///
+/// Uses blake3 hashing to normalize both tokens to fixed 32 bytes
+/// before XOR comparison, preventing length-based timing leaks.
 fn validate_auth_token(client_token: &Option<String>, server_token: &str) -> bool {
     match client_token {
         Some(token) => {
-            // Constant-time comparison to prevent timing attacks
-            if token.len() != server_token.len() {
-                return false;
-            }
-            token
+            // Hash both to fixed-size output to prevent length-based timing leaks.
+            // Without hashing, an early return on length mismatch would let an
+            // attacker determine the server token length via timing.
+            let client_hash = blake3::hash(token.as_bytes());
+            let server_hash = blake3::hash(server_token.as_bytes());
+            // Constant-time XOR comparison on fixed 32-byte hashes
+            client_hash
                 .as_bytes()
                 .iter()
-                .zip(server_token.as_bytes())
+                .zip(server_hash.as_bytes())
                 .fold(0u8, |acc, (a, b)| acc | (a ^ b))
                 == 0
         }
@@ -1101,6 +1106,20 @@ mod tests {
         assert!(!validate_auth_token(
             &Some("short".into()),
             "much-longer-token"
+        ));
+    }
+
+    #[test]
+    fn validate_auth_token_empty_vs_nonempty() {
+        assert!(!validate_auth_token(&Some(String::new()), "nonempty"));
+        assert!(!validate_auth_token(&Some("nonempty".into()), ""));
+    }
+
+    #[test]
+    fn validate_auth_token_same_prefix_different_suffix() {
+        assert!(!validate_auth_token(
+            &Some("abc123xxxxx".into()),
+            "abc123yyyyy"
         ));
     }
 
