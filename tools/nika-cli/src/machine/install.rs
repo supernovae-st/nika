@@ -354,11 +354,7 @@ fn setup_ai_rules() -> Vec<SetupResult> {
     if !has_skills {
         let skill_dir = skills_dir.join("nika-workflow-syntax");
         std::fs::create_dir_all(&skill_dir).ok();
-        let skill_content = concat!(
-            "# Nika Workflow Syntax\n\n",
-            "Refer to AGENTS.md in any Nika project ",
-            "for the complete workflow syntax reference.\n"
-        );
+        let skill_content = CLAUDE_RULES_CONTENT;
         if std::fs::write(skill_dir.join("SKILL.md"), skill_content).is_ok() {
             println!(
                 "  {} Agent Skills installed [~/.agents/skills/]",
