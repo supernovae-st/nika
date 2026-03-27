@@ -8,7 +8,7 @@
 
 mod modal;
 mod navigation;
-mod providers;
+pub(crate) mod providers;
 mod types;
 
 #[cfg(test)]

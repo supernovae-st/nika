@@ -502,8 +502,8 @@ mod tests {
     fn test_verification_state_all_complete() {
         let mut state = VerificationState::new_providers();
 
-        // Set all 7 to connected
-        for i in 0..7 {
+        // Set all cloud providers to connected
+        for i in 0..crate::widgets::provider_modal::state::providers::CLOUD_PROVIDER_COUNT {
             state.set_status(i, ConnectionCheckStatus::Connected);
         }
 

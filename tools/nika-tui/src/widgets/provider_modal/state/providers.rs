@@ -11,7 +11,7 @@ use super::ProviderModalState;
 const LATENCY_HISTORY_MAX: usize = 10;
 
 /// Number of cloud providers (anthropic, openai, mistral, groq, deepseek, gemini, xai)
-const CLOUD_PROVIDER_COUNT: usize = 7;
+pub(crate) const CLOUD_PROVIDER_COUNT: usize = 7;
 
 impl ProviderModalState {
     /// Set the active provider (the one currently used for inference)

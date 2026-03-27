@@ -2,6 +2,7 @@
 
 use std::collections::VecDeque;
 
+use super::providers::CLOUD_PROVIDER_COUNT;
 use super::types::{ConnectionStatus, DownloadState, NativeModelInfo, ProviderModalTab};
 
 /// Main provider modal state
@@ -58,7 +59,7 @@ impl Default for ProviderModalState {
             visible: false,
             active_tab: ProviderModalTab::Cloud,
             selected_idx: 0,
-            item_count: 7, // Cloud tab has 7 providers
+            item_count: CLOUD_PROVIDER_COUNT, // Cloud tab
             download_state: DownloadState::default(),
             key_input_mode: false,
             key_input_buffer: String::new(),
@@ -69,7 +70,7 @@ impl Default for ProviderModalState {
             active_model: None,
             animation_frame: 0,
             cached_cloud_label: None,
-            latency_history: vec![VecDeque::new(); 7], // Pre-allocate for 7 providers
+            latency_history: vec![VecDeque::new(); CLOUD_PROVIDER_COUNT],
             verification_state: super::super::components::VerificationState::new_providers(),
             verification_active: false,
             expanded_provider_idx: None,
@@ -177,7 +178,7 @@ impl ProviderModalState {
 
     /// Sync all verification statuses from provider_statuses
     pub fn sync_all_verification_statuses(&mut self) {
-        for i in 0..7 {
+        for i in 0..CLOUD_PROVIDER_COUNT {
             self.sync_verification_status(i);
         }
     }
@@ -244,7 +245,7 @@ impl ProviderModalState {
                 .iter()
                 .filter(|s| matches!(s, ConnectionStatus::Connected { .. }))
                 .count();
-            format!("🔐 KEYS {}/{}", verified, configured.max(7))
+            format!("🔐 KEYS {}/{}", verified, configured.max(CLOUD_PROVIDER_COUNT))
         } else {
             "🔐 KEYS".to_string()
         }

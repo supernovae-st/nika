@@ -778,8 +778,8 @@ fn test_verification_auto_deactivates_when_complete() {
     state.start_verification();
     assert!(state.verification_active);
 
-    // Set all 7 cloud providers to connected
-    for i in 0..7 {
+    // Set all cloud providers to connected
+    for i in 0..super::providers::CLOUD_PROVIDER_COUNT {
         state
             .verification_state
             .set_status(i, ConnectionCheckStatus::Connected);
