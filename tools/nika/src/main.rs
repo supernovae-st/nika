@@ -51,6 +51,7 @@ INTERACTIVE MODES:
     nika studio [file]            TUI Studio (shortcut)
 
 CONFIGURATION:
+    nika setup                    Interactive API key setup wizard
     nika config list              Show all config values
     nika config get editor.theme  Get specific value
     nika config set editor.theme dark
@@ -877,7 +878,7 @@ async fn main() {
                 "accept-edits",
             )
             .await;
-            handle_result(result);
+            handle_result(result).await;
             return;
         } else {
             eprintln!(
@@ -981,7 +982,7 @@ async fn main() {
                 Some(f) => f,
                 None => match resolve_or_discover_workflow(quiet).await {
                     Ok(f) => f,
-                    Err(e) => return handle_result(Err(e)),
+                    Err(e) => return handle_result(Err(e)).await,
                 },
             };
 
@@ -1246,7 +1247,7 @@ async fn main() {
         }
     };
 
-    handle_result(result);
+    handle_result(result).await;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1328,8 +1329,20 @@ fn is_nika_workflow(file: &Path) -> bool {
 }
 
 /// Handle result from any command
-fn handle_result(result: Result<(), NikaError>) {
+async fn handle_result(result: Result<(), NikaError>) {
     if let Err(e) = result {
+        // If MissingApiKey and TTY, offer onboarding wizard
+        if matches!(e, NikaError::MissingApiKey { .. })
+            && std::io::stdin().is_terminal()
+            && !cli::onboarding::has_any_provider_key()
+        {
+            if let Ok(true) = cli::onboarding::run_onboarding_wizard().await {
+                // Key was configured — user should re-run their command
+                eprintln!();
+                eprintln!("  Re-run your command to use the new API key.");
+                std::process::exit(0);
+            }
+        }
         let report = miette::Report::new(e);
         eprintln!("{report:?}");
         std::process::exit(1);
