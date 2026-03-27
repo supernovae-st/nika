@@ -44,7 +44,6 @@ tasks:
     retry:
       max_attempts: 3
       delay_ms: 2000
-      backoff: 2.0
 
   # Check response times with a latency endpoint
   - id: latency_check

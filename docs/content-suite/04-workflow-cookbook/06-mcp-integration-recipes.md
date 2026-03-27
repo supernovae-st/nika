@@ -77,6 +77,10 @@ tasks:
       token_budget: 15000
       completion:
         mode: explicit
+      max_tokens: 1500
+      token_budget: 15000
+      completion:
+        mode: explicit
       guardrails:
         - type: length
           min_words: 100
@@ -211,6 +215,10 @@ tasks:
       mcp: [novanet]
       tools: [builtin]
       max_turns: 6
+      max_tokens: 2000
+      token_budget: 20000
+      completion:
+        mode: explicit
       max_tokens: 2000
       token_budget: 20000
       completion:

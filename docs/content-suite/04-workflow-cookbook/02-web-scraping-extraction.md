@@ -60,8 +60,8 @@ tasks:
       extract: feed
       timeout: 20
     retry:
-      max_attempts: 2
-      delay_ms: 2000
+      max_attempts: 3
+      delay_ms: 1000
       backoff: 2.0
 
   # Fetch full articles for top stories
