@@ -1576,6 +1576,23 @@ async fn run_workflow(
     // Bridge: convert old Workflow back to AnalyzedWorkflow for Runner
     let mut workflow = nika::ast::unlower(workflow)?;
 
+    // Auto-onboarding: if workflow needs an LLM and no API keys are set, run the wizard.
+    let needs_llm = workflow.tasks.iter().any(|t| {
+        matches!(
+            t.action,
+            nika::ast::analyzed::AnalyzedTaskAction::Infer(_)
+                | nika::ast::analyzed::AnalyzedTaskAction::Agent(_)
+        )
+    });
+    if needs_llm && !cli::onboarding::has_any_provider_key() {
+        let configured = cli::onboarding::run_onboarding_wizard().await?;
+        if !configured {
+            return Err(NikaError::ConfigError {
+                reason: "No API key configured. Run `nika provider set <provider> <key>` or `nika setup`.".to_string(),
+            });
+        }
+    }
+
     if let Some(p) = provider_override {
         workflow.provider = Some(p);
     }

@@ -18,7 +18,6 @@ const ONBOARDING_PROVIDERS: &[(&str, &str)] = &[
     ("xai", "Grok 3 — real-time knowledge"),
 ];
 
-#[allow(dead_code)]
 pub fn has_any_provider_key() -> bool {
     use nika::core::{ProviderCategory, KNOWN_PROVIDERS};
     KNOWN_PROVIDERS
