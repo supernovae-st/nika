@@ -12,6 +12,9 @@ workflow: multi-step-agent
 provider: "{{PROVIDER}}"
 model: "{{MODEL}}"
 
+artifacts:
+  dir: .
+
 tasks:
   - id: gather_context
     exec: "echo '{\"project\": \"nika\", \"language\": \"rust\", \"task\": \"generate test plan\"}'"

@@ -12,6 +12,9 @@ workflow: data-etl-pipeline
 provider: "{{PROVIDER}}"
 model: "{{MODEL}}"
 
+artifacts:
+  dir: .
+
 tasks:
   - id: extract_users
     fetch:

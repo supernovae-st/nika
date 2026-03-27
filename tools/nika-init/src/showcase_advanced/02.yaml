@@ -13,6 +13,9 @@ workflow: qr-code-validator
 provider: "{{PROVIDER}}"
 model: "{{MODEL}}"
 
+artifacts:
+  dir: .
+
 tasks:
   - id: fetch_qr
     fetch:

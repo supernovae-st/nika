@@ -12,6 +12,9 @@ workflow: agent-code-reviewer
 provider: "{{PROVIDER}}"
 model: "{{MODEL}}"
 
+artifacts:
+  dir: .
+
 tasks:
   - id: code_review
     agent:

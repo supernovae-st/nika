@@ -12,6 +12,9 @@ workflow: chart-generator
 provider: "{{PROVIDER}}"
 model: "{{MODEL}}"
 
+artifacts:
+  dir: .
+
 tasks:
   - id: gather_data
     exec: "echo '{\"cpu_cores\": 8, \"memory_gb\": 16, \"disk_usage_pct\": 67}'"

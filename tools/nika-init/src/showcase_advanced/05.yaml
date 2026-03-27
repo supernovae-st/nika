@@ -12,6 +12,9 @@ workflow: website-screenshot-analyzer
 provider: "{{PROVIDER}}"
 model: "{{MODEL}}"
 
+artifacts:
+  dir: .
+
 tasks:
   - id: page_content
     fetch:
