@@ -216,6 +216,10 @@ pub struct AgentParams {
     /// is taken (complete_partial, fail, or escalate).
     #[serde(default)]
     pub limits: Option<crate::ast::limits::LimitsConfig>,
+
+    /// Base URL for OpenAI-compatible endpoint override.
+    #[serde(default)]
+    pub base_url: Option<String>,
 }
 
 impl AgentParams {

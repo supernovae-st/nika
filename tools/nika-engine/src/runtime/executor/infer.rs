@@ -9,6 +9,8 @@ use serde_json::Value;
 use tokio::sync::mpsc;
 use tracing::{debug, instrument, warn};
 
+use crate::provider::rig::RigProvider;
+
 use crate::ast::output::{OutputPolicy, SchemaRef};
 use crate::ast::InferParams;
 use crate::binding::{template_resolve, ResolvedBindings};
@@ -209,8 +211,20 @@ impl TaskExecutor {
             return Ok(mock_response_str);
         }
 
-        // Get cached rig provider
-        let provider = self.get_rig_provider(provider_name)?;
+        // Resolve provider: inline base_url -> cached endpoint -> catalog
+        let provider = if let Some(ref base_url) = infer.base_url {
+            // Transient provider — not cached (inline URLs are one-off overrides)
+            let api_key =
+                std::env::var("OPENAI_API_KEY").unwrap_or_else(|_| "ollama".to_string());
+            RigProvider::openai_compat(
+                &format!("{}@inline", provider_name),
+                base_url,
+                &api_key,
+                infer.model.as_deref(),
+            )?
+        } else {
+            self.get_rig_provider(provider_name)?
+        };
 
         // Resolve model: task override -> workflow default -> provider default
         let model = infer.model.as_deref().or(self.default_model.as_deref());
