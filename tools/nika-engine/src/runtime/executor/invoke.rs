@@ -185,9 +185,8 @@ impl TaskExecutor {
 
         // Get or create MCP client (real or mock depending on config)
         // Mcp is Option<String>, validate() guarantees Some for non-builtin tools
-        let mcp_name = invoke
-            .mcp
-            .as_ref()
+        let mcp_name = resolved_mcp
+            .as_deref()
             .ok_or_else(|| NikaError::ValidationError {
                 reason: "MCP server name required for non-builtin tools".to_string(),
             })?;
@@ -425,7 +424,7 @@ impl TaskExecutor {
         let mcp_result = tokio::select! {
             result = tokio::time::timeout(deadline, mcp_work) => {
                 result.map_err(|_| NikaError::McpTimeout {
-                    name: mcp_name.clone(),
+                    name: mcp_name.to_string(),
                     operation: format!("invoke task (deadline {}s)", deadline.as_secs()),
                     timeout_secs: deadline.as_secs(),
                 })?

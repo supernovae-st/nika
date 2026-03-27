@@ -49,22 +49,24 @@ impl TaskExecutor {
         };
 
         // Apply response_format instruction to system prompt
+        // Skip when structured: is present (it has its own schema-based prompt injection)
+        let has_structured = output_policy.is_some_and(|p| p.is_structured());
         let resolved_system = match infer.response_format {
-            Some(crate::ast::ResponseFormat::Json) => {
+            Some(crate::ast::ResponseFormat::Json) if !has_structured => {
                 let instruction = "IMPORTANT: You MUST respond with valid JSON only. No explanatory text, no markdown code fences — only raw JSON.";
                 Some(match resolved_system {
                     Some(sys) => format!("{sys}\n\n{instruction}"),
                     None => instruction.to_string(),
                 })
             }
-            Some(crate::ast::ResponseFormat::Markdown) => {
+            Some(crate::ast::ResponseFormat::Markdown) if !has_structured => {
                 let instruction = "IMPORTANT: You MUST respond in Markdown format.";
                 Some(match resolved_system {
                     Some(sys) => format!("{sys}\n\n{instruction}"),
                     None => instruction.to_string(),
                 })
             }
-            Some(crate::ast::ResponseFormat::Text) | None => resolved_system,
+            _ => resolved_system, // Text, None, or structured: handles its own format
         };
 
         // Validate resolved prompt is not empty (could happen if template resolves to empty)
@@ -609,6 +611,7 @@ impl TaskExecutor {
                 temperature: infer.temperature,
                 max_tokens: infer.max_tokens,
                 system: resolved_system.clone(),
+                additional_params: None,
             };
             provider
                 .infer_stream_with_options(&prompt, tx, &options)
@@ -693,7 +696,12 @@ impl TaskExecutor {
                             );
 
                     // Wire repair_model: use a different (cheaper) model for Layer 4 repair
-                    if let Some(ref repair_model_name) = spec.repair_model {
+                    // Resolve templates (e.g. "{{inputs.fast_model}}")
+                    let resolved_repair_model = match &spec.repair_model {
+                        Some(m) => Some(template_resolve(m, bindings, datastore)?.into_owned()),
+                        None => None,
+                    };
+                    if let Some(ref repair_model_name) = resolved_repair_model {
                         let repair_model_name = repair_model_name.clone();
                         let repair_provider = provider.clone();
                         let repair_callback: crate::runtime::structured_output::InferCallback =
