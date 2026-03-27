@@ -234,6 +234,14 @@ impl TaskExecutor {
         self
     }
 
+    /// Set the workflow base directory for exec `cwd:` security checks.
+    ///
+    /// Exec tasks with `cwd:` can only access paths under this directory.
+    pub fn with_base_path(mut self, path: std::path::PathBuf) -> Self {
+        self.workflow_base_dir = path;
+        self
+    }
+
     /// Inject a mock MCP client for testing
     ///
     /// This allows tests to use mock clients without relying on automatic fallback.

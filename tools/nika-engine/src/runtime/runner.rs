@@ -317,6 +317,16 @@ impl Runner {
     /// The TUI can hold a clone of the token and call `cancel()` on it.
     /// Also propagated to TaskExecutor so MCP invoke operations
     /// abort promptly instead of waiting for INVOKE_TASK_DEADLINE.
+    /// Set the workflow base directory for exec `cwd:` security checks.
+    ///
+    /// By default, the runner uses `std::env::current_dir()`. When set,
+    /// exec tasks with `cwd:` can only access paths under this directory.
+    /// This should be the directory containing the workflow file.
+    pub fn with_base_path(mut self, path: std::path::PathBuf) -> Self {
+        self.executor = self.executor.with_base_path(path);
+        self
+    }
+
     pub fn with_cancel_token(mut self, token: CancellationToken) -> Self {
         self.executor = self.executor.with_cancel_token(token.clone());
         self.cancel_token = token;

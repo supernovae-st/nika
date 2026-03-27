@@ -585,7 +585,7 @@ impl App {
 
         // 6. Create Runner with quiet mode (no console output)
         let mut runner = match Runner::with_event_log(workflow, event_log) {
-            Ok(r) => r.quiet(),
+            Ok(r) => r.with_base_path(base_path.to_path_buf()).quiet(),
             Err(e) => {
                 self.set_status(&format!("DAG error: {}", e));
                 tracing::error!("Failed to construct Runner DAG: {}", e);

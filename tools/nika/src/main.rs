@@ -1677,7 +1677,9 @@ async fn run_workflow(
         "yolo" | "accept-all" => nika_engine::tools::PermissionMode::YoloMode,
         _ => nika_engine::tools::PermissionMode::AcceptEdits,
     };
-    let mut runner = Runner::new(workflow)?.with_permission_mode(perm_mode);
+    let mut runner = Runner::new(workflow)?
+        .with_base_path(base_path.to_path_buf())
+        .with_permission_mode(perm_mode);
     if quiet {
         runner = runner.quiet();
     }
