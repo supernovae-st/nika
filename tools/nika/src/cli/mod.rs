@@ -17,7 +17,7 @@ pub use nika_cli::jobs;
 pub use nika_cli::machine;
 pub use nika_cli::mcp;
 pub use nika_cli::media;
-pub use nika_cli::model_cloud;
+pub use nika_cli::model_cmd;
 pub use nika_cli::new_cmd;
 pub use nika_cli::pkg;
 pub use nika_cli::schema;
@@ -26,11 +26,11 @@ pub use nika_cli::trace;
 pub use nika_cli::verbs;
 pub use nika_cli::workflow;
 
-#[cfg(feature = "native-inference")]
-pub use nika_cli::model;
-
 // Provider command has no TUI dependency — always available
 pub mod provider;
 
 // Onboarding wizard — first-run API key setup
 pub mod onboarding;
+
+// Custom help system — beautiful grouped CLI help
+pub mod help;
