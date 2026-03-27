@@ -9,7 +9,7 @@ Schema: `nika/workflow@0.12` | Extension: `.nika.yaml`
 | `infer:` | LLM generation | `infer: "prompt"` | `prompt`, `system`, `model`, `temperature`, `max_tokens`, `content` |
 | `exec:` | Shell command | `exec: "command"` | `command`, `shell`, `cwd`, `timeout`, `env` |
 | `fetch:` | HTTP request | `fetch: "url"` | `url`, `method`, `headers`, `body`, `extract`, `selector`, `response` |
-| `invoke:` | MCP / builtin tool | `invoke: "nika:tool"` | `tool`, `params`, `timeout`, `retry` |
+| `invoke:` | MCP / builtin tool | `invoke: "nika:tool"` | `tool`, `params`, `timeout`, `mcp`, `resource` |
 | `agent:` | Multi-turn loop | *(no short form)* | `prompt`, `tools`, `max_turns`, `completion`, `guardrails` |
 
 ## Complete Workflow Example
@@ -65,6 +65,10 @@ skills:                            # Prompt augmentation files
 artifacts:                         # Persist outputs to files (see Artifacts section)
   dir: ./output
   format: markdown
+
+imports:                           # Import partial workflows (tasks merged into DAG)
+  - path: ./partials/setup.nika.yaml
+    prefix: setup_                 # Optional prefix for imported task IDs
 ```
 
 ## Data Flow
@@ -89,7 +93,7 @@ artifacts:                         # Persist outputs to files (see Artifacts sec
 
 Usage: `{{with.items | flatten | unique | join(", ")}}`
 
-**Null safety**: 19 transforms fail on null input (NIKA-153). Always guard with `default()`:
+**Null safety**: 19 transforms fail on null input. Always guard with `default()`:
 `{{with.result | default("none") | upper}}`
 
 ## Providers (7 Cloud + 1 Local + 1 Mock)
@@ -189,11 +193,17 @@ Use `content:` array instead of `prompt:` for images:
     method: GET
     headers:
       Authorization: "Bearer {{inputs.token}}"
+    body: "raw string body"            # String body (for POST/PUT)
+    json:                              # Structured JSON body — auto-serialized (alternative to body:)
+      key: value
+    follow_redirects: true             # Follow HTTP redirects (default: true)
     extract: markdown                  # Post-processing mode
     selector: "main article"           # CSS selector (for text/selector modes) or JSONPath (for jsonpath mode)
     response: full                     # full | binary | omit for raw body
     timeout: 30
 ```
+
+**`response: full` returns**: `{ "status": 200, "headers": {...}, "body": "...", "url": "https://..." }`
 
 ### 9 Extract Modes
 
@@ -216,22 +226,28 @@ Use `content:` array instead of `prompt:` for images:
 
 ```yaml
 - id: search
+  retry:                               # Task-level retry — NOT inside invoke block
+    max_attempts: 3
+    delay_ms: 1000
+    backoff: 2.0                       # Exponential backoff multiplier (optional)
   invoke:
     tool: "novanet::novanet_search"    # server::tool_name — ALWAYS double colon
     params:
       query: "{{with.topic}}"
       limit: 10
     timeout: 30
-    retry:
-      max_attempts: 3
-      delay_ms: 1000
+    mcp: novanet                       # Explicit server (alternative to server:: prefix)
+    resource: "novanet://entity/123"   # Resource URI (alternative to tool:)
 ```
 
 **Tool naming rules:**
 - `nika:tool_name` — 24 builtin tools (always available, no server needed)
 - `server::tool_name` — MCP server tools (double colon `::`, server must be running)
+- `mcp: server` + `tool: name` — split form (equivalent to `server::name`)
 - Short form for builtins: `invoke: "nika:thumbnail"`
 - Single colon or slash separator are **wrong** and will fail
+
+**`retry:` is task-level** — place it alongside `invoke:`, not inside it. Applies to all verbs.
 
 ## Agent Verb (Full Reference)
 
@@ -279,6 +295,12 @@ Use `content:` array instead of `prompt:` for images:
     limits:
       cost_usd: 2.0
       duration_seconds: 120
+
+    # Advanced
+    from: researcher                   # Reuse a named agent preset from agents: header section
+    skills: [writing, code-review]     # Inject skill files into system prompt
+    stop_sequences: ["DONE", "---"]    # Custom generation stop tokens
+    mcp: [novanet, filesystem]         # Explicit MCP server list for this agent
 ```
 
 **Max turns**: exceeding `max_turns` causes a **graceful stop with partial result** — NOT an error.
@@ -422,6 +444,8 @@ Run: `nika run workflow.nika.yaml --provider mock` or `nika run workflow.nika.ya
 | Passing file path to vision `source:` | Pass CAS hash from `nika:import` output |
 | `provider: native` for vision | GGUF is text-only — use cloud provider |
 | `provider: deepseek` for vision | DeepSeek doesn't support vision |
+| `retry:` inside `invoke:` block | `retry:` is task-level — place it alongside `invoke:`, not inside |
+| `body: {...}` for JSON payloads | Use `json: {...}` — auto-serializes objects (body: is strings only) |
 
 ## Key Error Codes
 
@@ -429,13 +453,19 @@ Run: `nika run workflow.nika.yaml --provider mock` or `nika run workflow.nika.ya
 |------|---------|
 | NIKA-010 | Schema validation error |
 | NIKA-020 | DAG cycle detected |
-| NIKA-034 | Provider/model mismatch |
-| NIKA-040 | Template resolution error |
+| NIKA-026 | Dependency chain failed — upstream task failed, downstream blocked |
+| NIKA-041 | Template resolution error |
+| NIKA-045 | Fetch error (SSRF blocked, timeout, invalid URL) |
+| NIKA-046 | Extract error (CSS selector failed, unsupported extract mode) |
 | NIKA-053 | Blocked command (security) |
+| NIKA-071 | Unknown alias — `{{with.alias}}` not declared in `with:` block |
+| NIKA-072 | Null value at path (strict mode) — guard with `default()` |
 | NIKA-100 | MCP connection error |
+| NIKA-101 | MCP server failed to start |
+| NIKA-107 | MCP parameter validation failed — missing or invalid tool params |
 | NIKA-112 | Agent guardrail violation |
 | NIKA-140 | AST analysis failure |
-| NIKA-153 | Null value in transform — use `default()` |
+| NIKA-281 | Artifact write failed (path, permissions, disk space) |
 | NIKA-300 | Structured output validation failed |
 
 ## Architecture
