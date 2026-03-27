@@ -55,26 +55,9 @@ const ARROW_DOWN: &str = "▼";
 const ARROW_RIGHT: &str = "▶";
 const ARROW_LEFT: &str = "◀";
 
-/// Smooth corner characters (for curved edges)
-const CORNER_TL_SMOOTH: &str = "╭";
-const CORNER_TR_SMOOTH: &str = "╮";
-const CORNER_BL_SMOOTH: &str = "╰";
-const CORNER_BR_SMOOTH: &str = "╯";
-
 // ===============================================================================
 // DAG EDGE
 // ===============================================================================
-
-/// Edge style for rendering
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum EdgeStyle {
-    /// Sharp corners (default)
-    #[default]
-    Sharp,
-    /// Smooth/rounded corners using ╭╮╰╯ (reserved for future use)
-    #[allow(dead_code)]
-    Smooth,
-}
 
 /// Edge between two DAG nodes
 #[derive(Debug, Clone)]
@@ -91,8 +74,6 @@ pub struct DagEdge<'a> {
     pub active: bool,
     /// Animation frame (0-255) for flow effects
     pub frame: u8,
-    /// Edge style (sharp or smooth corners)
-    pub style: EdgeStyle,
     /// Optional theme for colors
     theme: Option<&'a Theme>,
 }
@@ -107,7 +88,6 @@ impl<'a> DagEdge<'a> {
             preview: None,
             active: false,
             frame: 0,
-            style: EdgeStyle::default(),
             theme: None,
         }
     }
@@ -326,18 +306,12 @@ impl<'a> DagEdge<'a> {
             }
         }
 
-        // Draw corner - use smooth or sharp based on style
-        let corner_char = match (self.style, going_down, going_right) {
-            // Smooth corners
-            (EdgeStyle::Smooth, true, true) => CORNER_BL_SMOOTH, // ╰ Down then right
-            (EdgeStyle::Smooth, true, false) => CORNER_BR_SMOOTH, // ╯ Down then left
-            (EdgeStyle::Smooth, false, true) => CORNER_TL_SMOOTH, // ╭ Up then right
-            (EdgeStyle::Smooth, false, false) => CORNER_TR_SMOOTH, // ╮ Up then left
-            // Sharp corners (default)
-            (EdgeStyle::Sharp, true, true) => "└", // Down then right
-            (EdgeStyle::Sharp, true, false) => "┘", // Down then left
-            (EdgeStyle::Sharp, false, true) => "┌", // Up then right
-            (EdgeStyle::Sharp, false, false) => "┐", // Up then left
+        // Draw corner (sharp box-drawing characters)
+        let corner_char = match (going_down, going_right) {
+            (true, true) => "└",   // Down then right
+            (true, false) => "┘",  // Down then left
+            (false, true) => "┌",  // Up then right
+            (false, false) => "┐", // Up then left
         };
 
         if self.is_in_bounds(corner_x, corner_y, &area) {
