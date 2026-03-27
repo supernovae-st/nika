@@ -143,8 +143,8 @@ Generates completion items based on `CursorContext`:
 | `WorkflowRoot` | schema, workflow, provider, model, mcp, tasks, imports, inputs, agents, skills |
 | `TaskField` | id, infer, exec, fetch, invoke, agent, with, depends_on, output, for_each, retry, decompose |
 | `VerbBlock(infer)` | prompt, system, temperature, max_tokens, extended_thinking, content, response_format |
-| `ProviderValue` | claude, openai, mistral, groq, deepseek, gemini, xai, native |
-| `ModelValue(claude)` | claude-sonnet-4-6, claude-opus-4-6, claude-haiku-3-5, ... |
+| `ProviderValue` | claude, openai, mistral, groq, deepseek, gemini, xai, native, mock |
+| `ModelValue(claude)` | claude-sonnet-4-20250514, claude-opus-4-20250514, claude-haiku-3.5, ... |
 | `WithBlock` | Task IDs from the same workflow |
 | `SchemaValue` | nika/workflow@0.12, nika/workflow@0.11, ... |
 
