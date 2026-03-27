@@ -233,6 +233,29 @@ impl RigProvider {
         }
     }
 
+    /// Resolve a provider name, checking custom endpoints first, then falling back to catalog.
+    ///
+    /// Resolution order:
+    /// 1. Named custom endpoint from config (e.g., "h100" -> endpoints["h100"])
+    /// 2. Catalog provider (e.g., "openai" -> standard OpenAI API)
+    pub fn from_name_with_endpoints(
+        name: &str,
+        endpoints: &crate::provider::endpoints::CustomEndpointMap,
+    ) -> Result<Self, crate::error::NikaError> {
+        // 1. Check custom endpoints first
+        if let Some(ep) = endpoints.get(name) {
+            return Self::openai_compat(
+                name,
+                &ep.base_url,
+                &ep.api_key,
+                ep.default_model.as_deref(),
+            );
+        }
+
+        // 2. Fall back to catalog provider
+        Self::from_name(name)
+    }
+
     /// Create a Claude provider from environment variable ANTHROPIC_API_KEY
     pub fn claude() -> Self {
         let client = anthropic::Client::from_env();
@@ -3284,5 +3307,68 @@ mod tests {
         assert!(!is_reasoning_model("deepseek-chat"));
         assert!(!is_reasoning_model("gemini-2.0-flash"));
         assert!(!is_reasoning_model("grok-3"));
+    }
+
+    // =========================================================================
+    // Endpoint resolution tests
+    // =========================================================================
+
+    #[test]
+    fn test_from_name_with_endpoints_custom() {
+        use crate::provider::endpoints::{CustomEndpointMap, ResolvedEndpoint};
+
+        let mut endpoints = CustomEndpointMap::new();
+        endpoints.insert(
+            "local".to_string(),
+            ResolvedEndpoint {
+                base_url: "http://localhost:11434/v1".to_string(),
+                api_key: "ollama".to_string(),
+                default_model: Some("llama3.2".to_string()),
+                timeout_secs: 300,
+            },
+        );
+
+        let provider = RigProvider::from_name_with_endpoints("local", &endpoints).unwrap();
+        assert!(matches!(provider, RigProvider::OpenAiCompat { .. }));
+    }
+
+    #[test]
+    fn test_from_name_with_endpoints_fallback_to_catalog() {
+        use crate::provider::endpoints::{CustomEndpointMap, ResolvedEndpoint};
+
+        // Add endpoint "myserver" but look up "openai" -> should fall through to catalog
+        let mut endpoints = CustomEndpointMap::new();
+        endpoints.insert(
+            "myserver".to_string(),
+            ResolvedEndpoint {
+                base_url: "http://localhost:8000/v1".to_string(),
+                api_key: "test".to_string(),
+                default_model: None,
+                timeout_secs: 300,
+            },
+        );
+
+        // "openai" is not in custom endpoints -> falls through to catalog
+        // The catalog lookup should not match "myserver"
+        let result = RigProvider::from_name_with_endpoints("myserver", &endpoints);
+        assert!(
+            matches!(result.as_ref().unwrap(), RigProvider::OpenAiCompat { .. }),
+            "Custom endpoint should resolve to OpenAiCompat"
+        );
+    }
+
+    #[test]
+    fn test_from_name_with_endpoints_unknown() {
+        use crate::provider::endpoints::CustomEndpointMap;
+
+        let endpoints = CustomEndpointMap::new();
+        let result = RigProvider::from_name_with_endpoints("nonexistent", &endpoints);
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("NIKA-030"),
+            "Expected NIKA-030 not configured, got: {}",
+            err_msg
+        );
     }
 }
