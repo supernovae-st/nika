@@ -117,7 +117,7 @@ pub async fn run_onboarding_wizard() -> Result<bool, NikaError> {
 
     use nika::secrets::validate_key_format;
     if let Err(e) = validate_key_format(&provider, &api_key) {
-        cliclack::outro(format!("{} Invalid key format: {e}", "✗".red())).ok();
+        cliclack::outro(format!("{} Invalid key format: {e}", StatusIcon::Fail)).ok();
         return Ok(false);
     }
 
@@ -149,20 +149,20 @@ pub async fn run_onboarding_wizard() -> Result<bool, NikaError> {
             "gemini" => RigProvider::gemini(),
             "xai" => RigProvider::xai(),
             _ => {
-                spinner.stop(format!("{} Unknown provider", "✗".red()));
+                spinner.stop(format!("{} Unknown provider", StatusIcon::Fail));
                 cliclack::outro("Key stored. Run your command again.").ok();
                 return Ok(true);
             }
         };
         match prov.infer("Say 'OK' if you can hear me.", None).await {
-            Ok(_) => spinner.stop(format!("{} Connection successful!", "✓".green())),
-            Err(e) => spinner.stop(format!("{} Connection failed: {e}", "✗".red())),
+            Ok(_) => spinner.stop(format!("{} Connection successful!", StatusIcon::Ok)),
+            Err(e) => spinner.stop(format!("{} Connection failed: {e}", StatusIcon::Fail)),
         }
     }
 
     cliclack::outro(format!(
         "{} {} configured! You're ready to go.",
-        "✓".green(),
+        StatusIcon::Ok,
         provider.bold()
     ))
     .ok();

@@ -740,12 +740,13 @@ fn print_features() {
 
 fn print_feature(name: &str, enabled: bool, desc: &str) {
     use colored::Colorize;
+    use nika::display::StatusIcon;
     if enabled {
-        println!("  {} {:20} {}", "✓".green(), name, desc);
+        println!("  {} {:20} {}", StatusIcon::Ok, name, desc);
     } else {
         println!(
             "  {} {:20} {} {}",
-            "✗".red(),
+            StatusIcon::Fail,
             name,
             desc.dimmed(),
             "(cargo install nika --features ...)".dimmed()
@@ -1135,7 +1136,7 @@ async fn main() {
                     Ok(result) => {
                         println!(
                             "\n  {} Course generated! {} levels, {} exercises\n  Provider: {} (auto-detected)\n  Location: {}\n  Run: cd {} && nika course status\n",
-                            "✓".green(),
+                            nika::display::StatusIcon::Ok,
                             result.levels,
                             result.exercises,
                             result.provider,
