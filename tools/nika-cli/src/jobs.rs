@@ -72,11 +72,9 @@ pub async fn handle_job_command(action: JobAction) -> Result<(), NikaError> {
     let client = DaemonClient::new(daemon_socket_path()).with_timeout(Duration::from_secs(10));
 
     if !client.socket_exists() {
-        eprintln!(
-            "{} daemon not running — start with: nika daemon start",
-            "✗".red().bold()
-        );
-        return Ok(());
+        return Err(NikaError::Execution(
+            "Daemon not running. Start with: nika daemon start".into(),
+        ));
     }
 
     match action {
@@ -288,4 +286,19 @@ pub async fn handle_job_command(action: JobAction) -> Result<(), NikaError> {
 
 fn job_err(e: nika_daemon::DaemonError) -> NikaError {
     NikaError::Execution(format!("job: {e}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn job_list_no_daemon_returns_error() {
+        // When daemon is not running, job commands should return Err, not Ok(())
+        let result = handle_job_command(JobAction::List { state: None }).await;
+        assert!(
+            result.is_err(),
+            "job list should return Err when daemon is not running"
+        );
+    }
 }
