@@ -87,7 +87,7 @@ rgb = { version = "0.8", optional = true }
 zstd = { version = "0.13", optional = true, default-features = false }
 
 # Web extraction tools
-scraper = { version = "0.22", optional = true, features = ["atomic"] }
+scraper = { version = "0.26", optional = true, features = ["atomic"] }
 htmd = { version = "0.5", optional = true }
 dom_smoothie = { version = "0.16", optional = true }
 feed-rs = { version = "2.3", optional = true }
