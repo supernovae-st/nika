@@ -265,20 +265,33 @@ pub async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<()
                 force,
             };
 
-            // Download with simple progress output
-            let quiet_clone = quiet;
+            // Download with indicatif progress bar
+            let pb = if !quiet {
+                use indicatif::{ProgressBar, ProgressStyle};
+                let pb = ProgressBar::new(0);
+                pb.set_style(
+                    ProgressStyle::default_bar()
+                        .template(
+                            "  {spinner:.cyan} {bar:40.cyan/dim} {percent}% ({bytes}/{total_bytes}) {bytes_per_sec} ETA {eta}",
+                        )
+                        .unwrap()
+                        .progress_chars("━╸─"),
+                );
+                Some(pb)
+            } else {
+                None
+            };
+
+            let pb_clone = pb.clone();
             storage
                 .download(
                     &request,
                     Box::new(move |progress: PullProgress| {
-                        if !quiet_clone && progress.total > 0 {
-                            let pct = (progress.completed * 100) / progress.total;
-                            eprint!(
-                                "\r  Progress: {}% ({} / {} MB)  ",
-                                pct,
-                                progress.completed / (1024 * 1024),
-                                progress.total / (1024 * 1024)
-                            );
+                        if let Some(ref pb) = pb_clone {
+                            if progress.total > 0 {
+                                pb.set_length(progress.total);
+                                pb.set_position(progress.completed);
+                            }
                         }
                     }),
                 )
@@ -287,8 +300,8 @@ pub async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<()
                     reason: format!("Download failed: {e}"),
                 })?;
 
-            if !quiet {
-                eprintln!(); // New line after progress
+            if let Some(pb) = pb {
+                pb.finish_and_clear();
             }
 
             if !quiet {
@@ -317,6 +330,14 @@ pub async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<()
                         "not downloaded".dimmed().to_string()
                     };
                     println!("    • {quant:?}: {filename} ({status})");
+                }
+                if let Some(meta) = nika_engine::provider::cost::get_model_meta(&name) {
+                    let tags: Vec<&str> = meta.tags.iter().map(|t| t.label()).collect();
+                    println!("  Tags:         {}", tags.join(", "));
+                    println!(
+                        "  Context:      {} tokens",
+                        nika_engine::provider::cost::format_context_window(meta.context_window)
+                    );
                 }
             } else {
                 // Try as local file path

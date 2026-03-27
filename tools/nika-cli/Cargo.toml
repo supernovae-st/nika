@@ -46,6 +46,9 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 toml = { workspace = true }
 
+# Progress
+indicatif = { workspace = true }
+
 # Utilities
 colored = { workspace = true }
 chrono = { workspace = true }
