@@ -109,17 +109,18 @@ pub async fn process_task_artifacts(
     // Create artifact writer
     let writer = ArtifactWriter::new(&artifact_dir, task_id).with_max_size(max_size);
 
-    // Process each output
-    for output_spec in outputs {
+    // Process each output (index used for positional media matching)
+    for (artifact_index, output_spec) in outputs.iter().enumerate() {
         match write_single_artifact(
             task_id,
             output,
-            &output_spec,
+            output_spec,
             workflow_config,
             &writer,
             bindings,
             datastore,
             media_refs,
+            artifact_index,
         )
         .await
         {
@@ -134,7 +135,7 @@ pub async fn process_task_artifacts(
                 // Emit ArtifactWritten event if event_log provided
                 if let Some(log) = event_log {
                     let checksum = if write_result.format == OutputFormat::Binary {
-                        resolve_binary_checksum(&output_spec, media_refs)
+                        resolve_binary_checksum(output_spec, media_refs)
                     } else {
                         None
                     };
@@ -189,6 +190,7 @@ async fn write_single_artifact(
     bindings: &ResolvedBindings,
     datastore: &RunContext,
     media_refs: &[MediaRef],
+    artifact_index: usize,
 ) -> Result<WriteResult, NikaError> {
     // Determine format (task spec > workflow default)
     let format = output_spec
@@ -259,6 +261,7 @@ async fn write_single_artifact(
             bindings,
             datastore,
             effective_media_refs,
+            artifact_index,
         )
         .await;
     }
@@ -410,6 +413,7 @@ async fn write_single_artifact(
 /// Binary artifacts only support `Overwrite` (default) and `Fail` modes.
 /// `Append` and `Unique` are rejected with NIKA-281 because binary data
 /// cannot be meaningfully appended or deduplicated by filename suffix.
+#[allow(clippy::too_many_arguments)]
 async fn write_binary_artifact(
     task_id: &str,
     output_spec: &ArtifactOutput,
@@ -418,6 +422,7 @@ async fn write_binary_artifact(
     bindings: &ResolvedBindings,
     datastore: &RunContext,
     media_refs: &[MediaRef],
+    artifact_index: usize,
 ) -> Result<WriteResult, NikaError> {
     // Reject unsupported modes for binary artifacts
     match mode {
@@ -505,9 +510,12 @@ async fn write_binary_artifact(
             }
         }
     } else {
-        // No explicit source — use first media ref
+        // No explicit source — use positional matching: artifact[i] → media[i].
+        // Falls back to first media ref when index is out of bounds (e.g., single
+        // media with multiple artifacts, or more artifacts than media refs).
         media_refs
-            .first()
+            .get(artifact_index)
+            .or_else(|| media_refs.first())
             .cloned()
             .ok_or_else(|| NikaError::ArtifactWriteError {
                 path: output_spec.path.clone(),
