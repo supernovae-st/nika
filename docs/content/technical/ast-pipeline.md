@@ -22,7 +22,7 @@ YAML Source (.nika.yaml)
 
 ## Phase 1: Raw Parsing
 
-**Module:** `nika-core/src/ast/raw/`
+**Module:** `nika-core/src/ast/raw/parser.rs`
 
 **Input:** YAML text
 
@@ -117,7 +117,7 @@ Phase 1 errors are rare since most validation happens in Phase 2. They occur whe
 
 ## Phase 2: Analysis
 
-**Module:** `nika-core/src/ast/analyzer/`
+**Module:** `nika-core/src/ast/analyzer/analyze.rs`
 
 **Input:** `RawWorkflow`
 
@@ -268,6 +268,8 @@ The result can contain both a partial workflow AND errors (for IDE diagnostics t
 
 **Module:** `nika-engine/src/ast/lower.rs`
 
+**Location**: `nika-engine/src/ast/lower.rs`
+
 **Input:** `AnalyzedWorkflow`
 
 **Output:** Runtime `Workflow`
@@ -341,7 +343,7 @@ The `unlower()` function converts back from runtime types to analyzed types. Thi
 
 ## Direct Analyzed Path
 
-Since v0.42.0, the `Runner` directly consumes `AnalyzedWorkflow` and performs bridge conversions at the `TaskExecutor` boundary. This eliminates the full `lower()` step during execution:
+Since v0.49.0, the `Runner` directly consumes `AnalyzedWorkflow` and performs bridge conversions at the `TaskExecutor` boundary. This eliminates the full `lower()` step during execution:
 
 ```
 YAML -> raw::parse -> analyzer::analyze -> AnalyzedWorkflow -> Runner

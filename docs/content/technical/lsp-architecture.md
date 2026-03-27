@@ -47,7 +47,7 @@ flowchart TB
 
 ### nika-lsp
 
-The standalone binary (`nika-lsp`) uses `tower-lsp-server` for JSON-RPC transport. It imports `nika-engine` with `default-features = false` to minimize the dependency tree.
+The standalone binary (`nika-lsp`) uses `tower-lsp` for JSON-RPC transport. It imports `nika-engine` with `default-features = false` to minimize the dependency tree.
 
 ## CursorContext (16 Variants)
 
