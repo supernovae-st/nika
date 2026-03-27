@@ -228,6 +228,7 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
     workflow.description = raw.description.map(|s| s.value);
     workflow.provider = raw.provider.map(|s| s.value);
     workflow.model = raw.model.map(|s| s.value);
+    workflow.base_url = raw.base_url.map(|s| s.value);
 
     // 3b. Validate model is specified when LLM verbs are used
     let has_workflow_model = workflow.model.is_some();
@@ -651,6 +652,7 @@ fn analyze_task(
         action: AnalyzedTaskAction::default(),
         provider: raw.provider.as_ref().map(|s| s.value.clone()),
         model: raw.model.as_ref().map(|s| s.value.clone()),
+        base_url: raw.base_url.as_ref().map(|s| s.value.clone()),
         with_spec: WithSpec::default(),
         depends_on: Vec::new(),
         implicit_deps: Vec::new(),

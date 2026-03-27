@@ -38,6 +38,9 @@ pub struct AnalyzedWorkflow {
     /// Default model for the workflow
     pub model: Option<String>,
 
+    /// Base URL for OpenAI-compatible endpoint override
+    pub base_url: Option<String>,
+
     /// Task lookup table (TaskId → name)
     pub task_table: TaskTable,
 
@@ -83,6 +86,7 @@ impl Default for AnalyzedWorkflow {
             description: None,
             provider: None,
             model: None,
+            base_url: None,
             task_table: TaskTable::new(),
             tasks: Vec::new(),
             mcp_servers: IndexMap::new(),
@@ -253,6 +257,7 @@ mod tests {
             action: super::super::task::AnalyzedTaskAction::default(),
             provider: None,
             model: None,
+            base_url: None,
             with_spec: WithSpec::default(),
             depends_on: Vec::new(),
             implicit_deps: Vec::new(),
@@ -275,6 +280,7 @@ mod tests {
             action: super::super::task::AnalyzedTaskAction::default(),
             provider: None,
             model: None,
+            base_url: None,
             with_spec: WithSpec::default(),
             depends_on: Vec::new(),
             implicit_deps: Vec::new(),
