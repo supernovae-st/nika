@@ -59,7 +59,7 @@ jobs:
         run: cargo clippy --all-targets --all-features --manifest-path tools/nika/Cargo.toml -- -D warnings
 
       - name: Run tests
-        run: cargo test --all-features --manifest-path tools/nika/Cargo.toml
+        run: cargo nextest run --workspace --lib --manifest-path tools/nika/Cargo.toml
 
       - name: Install cargo-semver-checks
         run: cargo install cargo-semver-checks --locked
