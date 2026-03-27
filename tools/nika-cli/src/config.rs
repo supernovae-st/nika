@@ -282,3 +282,51 @@ pub fn find_nika_dir() -> Result<PathBuf, NikaError> {
     // Default to current directory
     Ok(current.join(".nika"))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_bool_true() {
+        assert_eq!(parse_config_value("true"), toml::Value::Boolean(true));
+    }
+
+    #[test]
+    fn parse_bool_false() {
+        assert_eq!(parse_config_value("false"), toml::Value::Boolean(false));
+    }
+
+    #[test]
+    fn parse_integer() {
+        assert_eq!(parse_config_value("42"), toml::Value::Integer(42));
+    }
+
+    #[test]
+    fn parse_float() {
+        assert_eq!(parse_config_value("3.14"), toml::Value::Float(3.14));
+    }
+
+    #[test]
+    fn parse_string() {
+        assert_eq!(
+            parse_config_value("hello"),
+            toml::Value::String("hello".into())
+        );
+    }
+
+    #[test]
+    fn parse_string_with_spaces() {
+        assert_eq!(
+            parse_config_value("hello world"),
+            toml::Value::String("hello world".into())
+        );
+    }
+
+    #[test]
+    fn find_nika_dir_returns_path() {
+        let result = find_nika_dir();
+        assert!(result.is_ok());
+        assert!(result.unwrap().ends_with(".nika"));
+    }
+}
