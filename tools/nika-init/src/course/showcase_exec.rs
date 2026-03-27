@@ -654,7 +654,7 @@ tasks:
       command: |
         echo "=== HTTP HEADER ANALYSIS: github.com ==="
         echo "Status: {{with.resp.status}}"
-        echo "Final URL: {{with.resp.final_url}}"
+        echo "Final URL: {{with.resp.url}}"
         echo "--- Response Headers ---"
         echo "{{with.resp.headers}}"
       shell: true

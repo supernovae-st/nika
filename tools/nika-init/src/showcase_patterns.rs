@@ -726,7 +726,7 @@ tasks:
     concurrency: 3
     invoke:
       tool: "nika:dimensions"
-      input:
+      params:
         hash: "{{with.img_hash}}"
 
   - id: summarize

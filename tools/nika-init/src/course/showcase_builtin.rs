@@ -1066,14 +1066,14 @@ workflow: thumbnail-generator
 
 tasks:
   - id: download
+    retry:
+      max_attempts: 2
+      delay_ms: 1000
+      backoff: 2.0
     fetch:
       url: "https://picsum.photos/800/600.jpg"
       response: binary
       timeout: 20
-      retry:
-        max_attempts: 2
-        delay_ms: 1000
-        backoff: 2.0
 
   - id: make_thumbnail
     depends_on: [download]

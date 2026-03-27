@@ -81,6 +81,7 @@ fn cli_styles() -> clap::builder::Styles {
 #[command(long_about = LONG_ABOUT)]
 #[command(after_help = AFTER_HELP)]
 #[command(styles = cli_styles())]
+#[command(disable_help_subcommand = true)]
 struct Cli {
     /// Workflow file to run directly (e.g., workflow.nika.yaml)
     #[arg(value_name = "WORKFLOW")]
@@ -434,7 +435,6 @@ enum Commands {
     },
 
     /// Manage schema versions and migrations
-    #[command(hide = true)]
     Schema {
         #[command(subcommand)]
         action: cli::schema::SchemaAction,
