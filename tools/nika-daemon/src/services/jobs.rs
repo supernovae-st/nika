@@ -449,7 +449,7 @@ async fn fire_due_cron_jobs(service: &JobService) -> DaemonResult<()> {
         }
 
         // Parse and check if due in the past minute.
-        let cron = match croner::Cron::new(cron_expr).parse() {
+        let cron: croner::Cron = match cron_expr.parse() {
             Ok(c) => c,
             Err(e) => {
                 warn!(expr = %cron_expr, error = %e, "invalid cron expression — skipping");
