@@ -579,7 +579,7 @@ jobs:
   update-homebrew:
     name: Update Homebrew Formula
     needs: release
-    if: ${{ !inputs.dry_run }}
+    if: ${{ !inputs.dry_run && secrets.HOMEBREW_TAP_TOKEN != '' }}
     runs-on: ubuntu-latest
     steps:
       - name: Extract version
@@ -655,6 +655,7 @@ jobs:
             --clobber
 
       - name: Publish to VS Code Marketplace
+        if: ${{ secrets.VSCE_PAT != '' }}
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
         run: npx vsce publish --no-git-tag-version -p "$VSCE_PAT"
@@ -817,7 +818,7 @@ jobs:
   update-scoop:
     name: Update Scoop Bucket
     needs: release
-    if: ${{ !inputs.dry_run }}
+    if: ${{ !inputs.dry_run && secrets.HOMEBREW_TAP_TOKEN != '' }}
     runs-on: ubuntu-latest
 
     steps:
