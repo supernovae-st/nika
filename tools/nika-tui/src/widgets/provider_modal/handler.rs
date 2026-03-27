@@ -3,6 +3,7 @@
 //! Processes keyboard input and returns actions for the modal.
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use zeroize::Zeroizing;
 
 use super::state::{ProviderModalState, ProviderModalTab};
 use super::tabs::ProviderInfo;
@@ -55,9 +56,17 @@ pub enum ModalAction {
     /// Test API key for a provider
     TestApiKey { provider: &'static str },
     /// Save API key for a provider (without testing)
-    SaveApiKey { provider: &'static str, key: String },
+    /// SEC: key wrapped in Zeroizing to scrub from heap on drop
+    SaveApiKey {
+        provider: &'static str,
+        key: Zeroizing<String>,
+    },
     /// Save API key and then test it (recommended flow)
-    SaveAndTestApiKey { provider: &'static str, key: String },
+    /// SEC: key wrapped in Zeroizing to scrub from heap on drop
+    SaveAndTestApiKey {
+        provider: &'static str,
+        key: Zeroizing<String>,
+    },
     /// Pull native model
     PullModel { model: String },
     /// Delete native model
@@ -269,10 +278,9 @@ impl ModalEventHandler {
 
             // Submit key - saves AND tests (full flow)
             KeyCode::Enter => {
-                let key_value = state.key_input_buffer.clone();
+                // SEC: move key out of buffer (no clone) into Zeroizing wrapper
+                let key_value = Zeroizing::new(std::mem::take(&mut state.key_input_buffer));
                 state.key_input_mode = false;
-                // SEC: Zeroize buffer to scrub API key material from memory
-                state.key_input_buffer.zeroize();
 
                 if !key_value.is_empty() {
                     HandleResult::consumed_with_action(ModalAction::SaveAndTestApiKey {
@@ -374,8 +382,8 @@ impl ModalEventHandler {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::state::NativeModelInfo;
+    use super::*;
 
     fn key_event(code: KeyCode) -> KeyEvent {
         KeyEvent::new(code, KeyModifiers::NONE)
@@ -744,7 +752,10 @@ mod tests {
         assert!(result.consumed);
         match result.action {
             Some(ModalAction::PullModel { ref model }) => {
-                assert_eq!(model, "phi3:mini", "PullModel must use the selected model name");
+                assert_eq!(
+                    model, "phi3:mini",
+                    "PullModel must use the selected model name"
+                );
             }
             _ => panic!("Expected PullModel action"),
         }
@@ -785,7 +796,10 @@ mod tests {
         let result = ModalEventHandler::handle(&mut state, key_event(KeyCode::Char('d')));
 
         assert!(result.consumed);
-        assert!(result.action.is_none(), "DeleteModel with no models must produce no action");
+        assert!(
+            result.action.is_none(),
+            "DeleteModel with no models must produce no action"
+        );
     }
 
     #[test]
@@ -858,7 +872,7 @@ mod tests {
             result.action,
             Some(ModalAction::SaveAndTestApiKey {
                 provider: "anthropic",
-                key: "sk-ant-test123".to_string(),
+                key: "sk-ant-test123".to_string().into(),
             })
         );
     }

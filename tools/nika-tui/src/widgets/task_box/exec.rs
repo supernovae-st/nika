@@ -646,12 +646,18 @@ mod tests {
     #[test]
     fn test_with_stdout_populates_line_count() {
         let box_ = ExecBox::new("test").with_stdout("line 1\nline 2\nline 3\n");
-        assert_eq!(box_.stdout_line_count, 3, "with_stdout must populate stdout_line_count");
+        assert_eq!(
+            box_.stdout_line_count, 3,
+            "with_stdout must populate stdout_line_count"
+        );
     }
 
     #[test]
     fn test_with_stderr_populates_line_count() {
         let box_ = ExecBox::new("test").with_stderr("err 1\nerr 2\n");
-        assert_eq!(box_.stderr_line_count, 2, "with_stderr must populate stderr_line_count");
+        assert_eq!(
+            box_.stderr_line_count, 2,
+            "with_stderr must populate stderr_line_count"
+        );
     }
 }

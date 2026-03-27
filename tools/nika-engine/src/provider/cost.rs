@@ -389,7 +389,6 @@ pub fn list_provider_models(provider: ProviderKind) -> Vec<(&'static str, ModelP
     result
 }
 
-
 // ═══════════════════════════════════════════════════════════════════════════
 // MODEL METADATA — capability tags and context windows
 // ═══════════════════════════════════════════════════════════════════════════
@@ -424,39 +423,172 @@ pub struct ModelMeta {
 }
 
 const MODEL_META: &[(&str, ModelMeta)] = &[
-    ("claude-opus", ModelMeta { tags: &[ModelTag::Reasoning, ModelTag::Vision], context_window: 200_000 }),
-    ("claude-sonnet", ModelMeta { tags: &[ModelTag::Balanced, ModelTag::Code, ModelTag::Vision], context_window: 200_000 }),
-    ("claude-haiku", ModelMeta { tags: &[ModelTag::Fast, ModelTag::Vision], context_window: 200_000 }),
-    ("gpt-4o-mini", ModelMeta { tags: &[ModelTag::Fast, ModelTag::Vision], context_window: 128_000 }),
-    ("gpt-4o", ModelMeta { tags: &[ModelTag::Balanced, ModelTag::Vision], context_window: 128_000 }),
-    ("gpt-4.1-mini", ModelMeta { tags: &[ModelTag::Fast, ModelTag::Code], context_window: 1_000_000 }),
-    ("gpt-4.1-nano", ModelMeta { tags: &[ModelTag::Fast], context_window: 1_000_000 }),
-    ("gpt-4.1", ModelMeta { tags: &[ModelTag::Code, ModelTag::Balanced], context_window: 1_000_000 }),
-    ("o3", ModelMeta { tags: &[ModelTag::Reasoning], context_window: 200_000 }),
-    ("o4-mini", ModelMeta { tags: &[ModelTag::Reasoning, ModelTag::Fast], context_window: 200_000 }),
-    ("o1", ModelMeta { tags: &[ModelTag::Reasoning], context_window: 200_000 }),
-    ("mistral-large", ModelMeta { tags: &[ModelTag::Balanced], context_window: 128_000 }),
-    ("mistral-small", ModelMeta { tags: &[ModelTag::Fast], context_window: 128_000 }),
-    ("codestral", ModelMeta { tags: &[ModelTag::Code], context_window: 256_000 }),
-    ("llama", ModelMeta { tags: &[ModelTag::Fast], context_window: 131_072 }),
-    ("deepseek-chat", ModelMeta { tags: &[ModelTag::Balanced], context_window: 128_000 }),
-    ("deepseek-reasoner", ModelMeta { tags: &[ModelTag::Reasoning], context_window: 128_000 }),
-    ("gemini-2.5-pro", ModelMeta { tags: &[ModelTag::Reasoning, ModelTag::Vision], context_window: 1_000_000 }),
-    ("gemini-2.5-flash", ModelMeta { tags: &[ModelTag::Fast, ModelTag::Vision], context_window: 1_000_000 }),
-    ("grok-3-mini", ModelMeta { tags: &[ModelTag::Fast], context_window: 131_072 }),
-    ("grok-3", ModelMeta { tags: &[ModelTag::Reasoning], context_window: 131_072 }),
+    (
+        "claude-opus",
+        ModelMeta {
+            tags: &[ModelTag::Reasoning, ModelTag::Vision],
+            context_window: 200_000,
+        },
+    ),
+    (
+        "claude-sonnet",
+        ModelMeta {
+            tags: &[ModelTag::Balanced, ModelTag::Code, ModelTag::Vision],
+            context_window: 200_000,
+        },
+    ),
+    (
+        "claude-haiku",
+        ModelMeta {
+            tags: &[ModelTag::Fast, ModelTag::Vision],
+            context_window: 200_000,
+        },
+    ),
+    (
+        "gpt-4o-mini",
+        ModelMeta {
+            tags: &[ModelTag::Fast, ModelTag::Vision],
+            context_window: 128_000,
+        },
+    ),
+    (
+        "gpt-4o",
+        ModelMeta {
+            tags: &[ModelTag::Balanced, ModelTag::Vision],
+            context_window: 128_000,
+        },
+    ),
+    (
+        "gpt-4.1-mini",
+        ModelMeta {
+            tags: &[ModelTag::Fast, ModelTag::Code],
+            context_window: 1_000_000,
+        },
+    ),
+    (
+        "gpt-4.1-nano",
+        ModelMeta {
+            tags: &[ModelTag::Fast],
+            context_window: 1_000_000,
+        },
+    ),
+    (
+        "gpt-4.1",
+        ModelMeta {
+            tags: &[ModelTag::Code, ModelTag::Balanced],
+            context_window: 1_000_000,
+        },
+    ),
+    (
+        "o3",
+        ModelMeta {
+            tags: &[ModelTag::Reasoning],
+            context_window: 200_000,
+        },
+    ),
+    (
+        "o4-mini",
+        ModelMeta {
+            tags: &[ModelTag::Reasoning, ModelTag::Fast],
+            context_window: 200_000,
+        },
+    ),
+    (
+        "o1",
+        ModelMeta {
+            tags: &[ModelTag::Reasoning],
+            context_window: 200_000,
+        },
+    ),
+    (
+        "mistral-large",
+        ModelMeta {
+            tags: &[ModelTag::Balanced],
+            context_window: 128_000,
+        },
+    ),
+    (
+        "mistral-small",
+        ModelMeta {
+            tags: &[ModelTag::Fast],
+            context_window: 128_000,
+        },
+    ),
+    (
+        "codestral",
+        ModelMeta {
+            tags: &[ModelTag::Code],
+            context_window: 256_000,
+        },
+    ),
+    (
+        "llama",
+        ModelMeta {
+            tags: &[ModelTag::Fast],
+            context_window: 131_072,
+        },
+    ),
+    (
+        "deepseek-chat",
+        ModelMeta {
+            tags: &[ModelTag::Balanced],
+            context_window: 128_000,
+        },
+    ),
+    (
+        "deepseek-reasoner",
+        ModelMeta {
+            tags: &[ModelTag::Reasoning],
+            context_window: 128_000,
+        },
+    ),
+    (
+        "gemini-2.5-pro",
+        ModelMeta {
+            tags: &[ModelTag::Reasoning, ModelTag::Vision],
+            context_window: 1_000_000,
+        },
+    ),
+    (
+        "gemini-2.5-flash",
+        ModelMeta {
+            tags: &[ModelTag::Fast, ModelTag::Vision],
+            context_window: 1_000_000,
+        },
+    ),
+    (
+        "grok-3-mini",
+        ModelMeta {
+            tags: &[ModelTag::Fast],
+            context_window: 131_072,
+        },
+    ),
+    (
+        "grok-3",
+        ModelMeta {
+            tags: &[ModelTag::Reasoning],
+            context_window: 131_072,
+        },
+    ),
 ];
 
 /// Look up metadata for a model by name (prefix match).
 pub fn get_model_meta(model_name: &str) -> Option<&'static ModelMeta> {
-    MODEL_META.iter().find(|(prefix, _)| model_name.starts_with(prefix)).map(|(_, meta)| meta)
+    MODEL_META
+        .iter()
+        .find(|(prefix, _)| model_name.starts_with(prefix))
+        .map(|(_, meta)| meta)
 }
 
 /// Format context window as human-readable.
 pub fn format_context_window(tokens: u32) -> String {
-    if tokens >= 1_000_000 { format!("{}M", tokens / 1_000_000) }
-    else if tokens >= 1_000 { format!("{}K", tokens / 1_000) }
-    else { format!("{tokens}") }
+    if tokens >= 1_000_000 {
+        format!("{}M", tokens / 1_000_000)
+    } else if tokens >= 1_000 {
+        format!("{}K", tokens / 1_000)
+    } else {
+        format!("{tokens}")
+    }
 }
 
 /// Get pricing for a specific model
