@@ -304,7 +304,7 @@ mod tests {
 
     #[test]
     fn parse_float() {
-        assert_eq!(parse_config_value("3.14"), toml::Value::Float(3.14));
+        assert_eq!(parse_config_value("1.5"), toml::Value::Float(1.5));
     }
 
     #[test]

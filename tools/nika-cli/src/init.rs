@@ -1,4 +1,4 @@
-//! Init subcommand handler — creates .nika/config.toml
+//! Init subcommand handler — creates .nika/config.toml + AGENTS.md
 
 use std::fs;
 
@@ -6,6 +6,10 @@ use colored::Colorize;
 
 use nika_engine::error::NikaError;
 use nika_engine::tools::PermissionMode;
+
+/// Nika workflow syntax reference — embedded at compile time.
+/// Used for project-level AGENTS.md so teams work without running `nika setup`.
+const AGENTS_MD_CONTENT: &str = include_str!("../rules/claude.md");
 
 /// Initialize a Nika project config in the current directory.
 ///
@@ -61,8 +65,27 @@ default = "claude"
     );
     fs::write(&config_path, config_content)?;
 
+    // Create AGENTS.md with embedded Nika workflow syntax reference.
+    // This enables project-level AI context without requiring `nika setup`.
+    let agents_md_path = cwd.join("AGENTS.md");
+    let created_agents_md = if agents_md_path.exists() {
+        false
+    } else {
+        fs::write(&agents_md_path, AGENTS_MD_CONTENT)?;
+        // Create CLAUDE.md symlink pointing to AGENTS.md (20+ tools support both names)
+        let claude_md_path = cwd.join("CLAUDE.md");
+        if !claude_md_path.exists() {
+            #[cfg(unix)]
+            std::os::unix::fs::symlink("AGENTS.md", &claude_md_path).ok();
+        }
+        true
+    };
+
     println!();
     println!("  {} {}", "\u{2713}".green(), config_path.display());
+    if created_agents_md {
+        println!("  {} {}", "\u{2713}".green(), agents_md_path.display());
+    }
     println!();
     println!("  Permission: {}", permission_mode.display_name().cyan());
     println!("  Provider:   {}", "claude (auto-detect)".cyan());

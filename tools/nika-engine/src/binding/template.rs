@@ -893,12 +893,48 @@ pub fn resolve<'a>(
                         let effective_base =
                             crate::binding::jsonpath::try_parse_json_str(&base_value)
                                 .unwrap_or(base_value);
-                        let mut value_ref: &Value = &effective_base;
+
+                        // Collect remaining segments for media interception
+                        let remaining_parts: SmallVec<[&str; 8]> = parts.collect();
+
+                        // Media interception: {{with.alias.media[0].hash}}
+                        // Media refs live in TaskResult.media (side-channel),
+                        // not in TaskResult.output. When the first remaining
+                        // segment is "media", delegate to resolve_path() which
+                        // handles both output and media resolution.
+                        let resolved_value;
+                        let segments_to_traverse: SmallVec<[&str; 8]>;
+                        if remaining_parts
+                            .first()
+                            .is_some_and(|s| *s == "media")
+                        {
+                            if let Some(source_task_id) = bindings.source_task_id(alias)
+                            {
+                                let remaining_path = remaining_parts.join(".");
+                                let full_path =
+                                    format!("{}.{}", source_task_id, remaining_path);
+                                if let Some(v) = datastore.resolve_path(&full_path) {
+                                    resolved_value = v;
+                                    segments_to_traverse = SmallVec::new();
+                                } else {
+                                    resolved_value = effective_base;
+                                    segments_to_traverse = remaining_parts;
+                                }
+                            } else {
+                                resolved_value = effective_base;
+                                segments_to_traverse = remaining_parts;
+                            }
+                        } else {
+                            resolved_value = effective_base;
+                            segments_to_traverse = remaining_parts;
+                        }
+
+                        let mut value_ref: &Value = &resolved_value;
                         let mut traversed_segments: SmallVec<[&str; 8]> = SmallVec::new();
                         traversed_segments.push(alias);
 
-                        // Traverse nested path if present (all by reference)
-                        for segment in parts {
+                        // Traverse remaining path (empty if media resolved above)
+                        for &segment in &segments_to_traverse {
                             let next = if let Ok(idx) = segment.parse::<usize>() {
                                 value_ref.get(idx)
                             } else {
@@ -3607,6 +3643,8 @@ mod v028_template_tests {
             "thumb_width".to_string(),
             BindingEntry::new("thumb.metadata.width"),
         );
+        // Full-task binding: simulates `with: { img: $gen }` (showcase pattern)
+        spec.insert("img".to_string(), BindingEntry::new("gen"));
 
         let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
         (store, bindings)
@@ -3777,6 +3815,72 @@ mod v028_template_tests {
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert_eq!(parsed["source"], "blake3:abc123");
         assert_eq!(parsed["thumb"], "blake3:def456");
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // Media side-channel interception in templates (showcase pattern)
+    // ═════════════════════════════════════════════════════════════════════════
+
+    /// Showcase pattern: `img: $gen` + `{{with.img.media[0].hash}}`
+    /// Media refs live in TaskResult.media (side-channel), not in output.
+    /// Template engine must intercept "media" segment and resolve via RunContext.
+    #[test]
+    fn media_template_full_task_binding_media_hash() {
+        let (store, bindings) = media_template_fixtures();
+
+        let result = resolve(
+            "hash: {{with.img.media[0].hash}}",
+            &bindings,
+            &store,
+        )
+        .unwrap();
+
+        assert_eq!(result.as_ref(), "hash: blake3:abc123");
+    }
+
+    #[test]
+    fn media_template_full_task_binding_media_mime() {
+        let (store, bindings) = media_template_fixtures();
+
+        let result = resolve(
+            "{{with.img.media[0].mime_type}}",
+            &bindings,
+            &store,
+        )
+        .unwrap();
+
+        assert_eq!(result.as_ref(), "image/png");
+    }
+
+    #[test]
+    fn media_template_full_task_binding_media_metadata_width() {
+        let (store, bindings) = media_template_fixtures();
+
+        let result = resolve(
+            "w={{with.img.media[0].metadata.width}}",
+            &bindings,
+            &store,
+        )
+        .unwrap();
+
+        assert_eq!(result.as_ref(), "w=1024");
+    }
+
+    #[test]
+    fn media_template_full_task_binding_media_array() {
+        let (store, bindings) = media_template_fixtures();
+
+        let result = resolve(
+            "{{with.img.media}}",
+            &bindings,
+            &store,
+        )
+        .unwrap();
+
+        // Should be a JSON array with one media ref
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert!(parsed.is_array());
+        assert_eq!(parsed[0]["hash"], "blake3:abc123");
     }
 
     // ═════════════════════════════════════════════════════════════════════════

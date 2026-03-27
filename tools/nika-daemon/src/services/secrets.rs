@@ -275,9 +275,8 @@ mod tests {
             result.is_ok(),
             "set_secret should return Ok(false) without keychain, got: {result:?}"
         );
-        assert_eq!(
-            result.unwrap(),
-            false,
+        assert!(
+            !result.unwrap(),
             "should return false without keychain feature"
         );
     }
@@ -290,9 +289,8 @@ mod tests {
             result.is_ok(),
             "delete_secret should return Ok(false) without keychain, got: {result:?}"
         );
-        assert_eq!(
-            result.unwrap(),
-            false,
+        assert!(
+            !result.unwrap(),
             "should return false without keychain feature"
         );
     }
