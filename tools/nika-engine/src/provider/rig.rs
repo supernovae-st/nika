@@ -130,6 +130,35 @@ pub struct InferOptions {
     pub max_tokens: Option<u32>,
     /// System prompt to prepend
     pub system: Option<String>,
+    /// Additional parameters to pass to the provider API (e.g. response_format for OpenAI)
+    pub additional_params: Option<serde_json::Value>,
+}
+
+/// Check if a provider supports native structured output via `response_format: json_schema`.
+///
+/// Providers that support this can enforce JSON schema compliance server-side
+/// without relying on tool injection (DynamicSubmitTool + tool_choice: Required).
+pub fn supports_native_structured_output(provider_name: &str) -> bool {
+    matches!(
+        provider_name,
+        "openai" | "groq" | "deepseek" | "xai"
+    )
+}
+
+/// Build the `response_format: json_schema` payload for OpenAI-compatible providers.
+///
+/// Returns a `serde_json::Value` suitable for `InferOptions::additional_params`.
+pub fn build_response_format_params(schema: &serde_json::Value) -> serde_json::Value {
+    serde_json::json!({
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "structured_output",
+                "strict": true,
+                "schema": schema
+            }
+        }
+    })
 }
 
 /// Check if a model ID is a reasoning model that does not support `temperature`.
@@ -891,119 +920,35 @@ impl RigProvider {
         // Use system prompt as preamble (not concatenated into user prompt)
         let user_prompt = prompt.to_string();
 
+        macro_rules! build_and_prompt {
+            ($client:expr) => {{
+                let mut builder = $client.agent(model_id).max_tokens(max_tokens as u64);
+                if let Some(system) = &options.system {
+                    builder = builder.preamble(system);
+                }
+                if let Some(temp) = effective_temperature {
+                    builder = builder.temperature(temp);
+                }
+                if let Some(ref params) = options.additional_params {
+                    builder = builder.additional_params(params.clone());
+                }
+                let agent = builder.build();
+                agent
+                    .prompt(&user_prompt)
+                    .await
+                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
+            }};
+        }
+
         match self {
-            RigProvider::Claude(client) => {
-                let mut builder = client.agent(model_id).max_tokens(max_tokens as u64);
-                if let Some(system) = &options.system {
-                    builder = builder.preamble(system);
-                }
-                if let Some(temp) = effective_temperature {
-                    builder = builder.temperature(temp);
-                }
-                let agent = builder.build();
-                agent
-                    .prompt(&user_prompt)
-                    .await
-                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
-            }
-            RigProvider::OpenAI(client) => {
-                let mut builder = client.agent(model_id).max_tokens(max_tokens as u64);
-                if let Some(system) = &options.system {
-                    builder = builder.preamble(system);
-                }
-                if let Some(temp) = effective_temperature {
-                    builder = builder.temperature(temp);
-                }
-                let agent = builder.build();
-                agent
-                    .prompt(&user_prompt)
-                    .await
-                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
-            }
-            RigProvider::Mistral(client) => {
-                let mut builder = client.agent(model_id).max_tokens(max_tokens as u64);
-                if let Some(system) = &options.system {
-                    builder = builder.preamble(system);
-                }
-                if let Some(temp) = effective_temperature {
-                    builder = builder.temperature(temp);
-                }
-                let agent = builder.build();
-                agent
-                    .prompt(&user_prompt)
-                    .await
-                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
-            }
-            RigProvider::Groq(client) => {
-                let mut builder = client.agent(model_id).max_tokens(max_tokens as u64);
-                if let Some(system) = &options.system {
-                    builder = builder.preamble(system);
-                }
-                if let Some(temp) = effective_temperature {
-                    builder = builder.temperature(temp);
-                }
-                let agent = builder.build();
-                agent
-                    .prompt(&user_prompt)
-                    .await
-                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
-            }
-            RigProvider::DeepSeek(client) => {
-                let mut builder = client.agent(model_id).max_tokens(max_tokens as u64);
-                if let Some(system) = &options.system {
-                    builder = builder.preamble(system);
-                }
-                if let Some(temp) = effective_temperature {
-                    builder = builder.temperature(temp);
-                }
-                let agent = builder.build();
-                agent
-                    .prompt(&user_prompt)
-                    .await
-                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
-            }
-            RigProvider::Gemini(client) => {
-                let mut builder = client.agent(model_id).max_tokens(max_tokens as u64);
-                if let Some(system) = &options.system {
-                    builder = builder.preamble(system);
-                }
-                if let Some(temp) = effective_temperature {
-                    builder = builder.temperature(temp);
-                }
-                let agent = builder.build();
-                agent
-                    .prompt(&user_prompt)
-                    .await
-                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
-            }
-            RigProvider::XAi(client) => {
-                let mut builder = client.agent(model_id).max_tokens(max_tokens as u64);
-                if let Some(system) = &options.system {
-                    builder = builder.preamble(system);
-                }
-                if let Some(temp) = effective_temperature {
-                    builder = builder.temperature(temp);
-                }
-                let agent = builder.build();
-                agent
-                    .prompt(&user_prompt)
-                    .await
-                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
-            }
-            RigProvider::OpenAiCompat { client, .. } => {
-                let mut builder = client.agent(model_id).max_tokens(max_tokens as u64);
-                if let Some(system) = &options.system {
-                    builder = builder.preamble(system);
-                }
-                if let Some(temp) = effective_temperature {
-                    builder = builder.temperature(temp);
-                }
-                let agent = builder.build();
-                agent
-                    .prompt(&user_prompt)
-                    .await
-                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
-            }
+            RigProvider::Claude(client) => build_and_prompt!(client),
+            RigProvider::OpenAI(client) => build_and_prompt!(client),
+            RigProvider::Mistral(client) => build_and_prompt!(client),
+            RigProvider::Groq(client) => build_and_prompt!(client),
+            RigProvider::DeepSeek(client) => build_and_prompt!(client),
+            RigProvider::Gemini(client) => build_and_prompt!(client),
+            RigProvider::XAi(client) => build_and_prompt!(client),
+            RigProvider::OpenAiCompat { client, .. } => build_and_prompt!(client),
             #[cfg(feature = "native-inference")]
             RigProvider::Native(runtime) => {
                 // Native inference uses ChatOptions from native module
@@ -1716,6 +1661,9 @@ impl RigProvider {
                 }
                 if let Some(temp) = effective_temperature {
                     rb = rb.temperature(temp);
+                }
+                if let Some(ref params) = options.additional_params {
+                    rb = rb.additional_params(params.clone());
                 }
                 model
                     .stream(rb.build())
@@ -3118,6 +3066,7 @@ mod tests {
         assert!(opts.temperature.is_none());
         assert!(opts.max_tokens.is_none());
         assert!(opts.system.is_none());
+        assert!(opts.additional_params.is_none());
     }
 
     #[test]
@@ -3127,6 +3076,7 @@ mod tests {
             temperature: Some(0.7),
             max_tokens: Some(2000),
             system: Some("You are a helpful assistant.".to_string()),
+            additional_params: None,
         };
         assert_eq!(opts.model.as_deref(), Some("gpt-4o"));
         assert_eq!(opts.temperature, Some(0.7));
@@ -3144,6 +3094,7 @@ mod tests {
         assert_eq!(opts.temperature, Some(0.5));
         assert!(opts.max_tokens.is_none());
         assert!(opts.system.is_none());
+        assert!(opts.additional_params.is_none());
     }
 
     #[test]
@@ -3180,12 +3131,88 @@ mod tests {
             temperature: Some(0.8),
             max_tokens: Some(1000),
             system: Some("Test system".to_string()),
+            additional_params: Some(serde_json::json!({"foo": "bar"})),
         };
         let cloned = opts.clone();
         assert_eq!(opts.model, cloned.model);
         assert_eq!(opts.temperature, cloned.temperature);
         assert_eq!(opts.max_tokens, cloned.max_tokens);
         assert_eq!(opts.system, cloned.system);
+        assert_eq!(opts.additional_params, cloned.additional_params);
+    }
+
+    #[test]
+    fn test_infer_options_with_additional_params() {
+        let params = serde_json::json!({
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "structured_output",
+                    "strict": true,
+                    "schema": { "type": "object" }
+                }
+            }
+        });
+        let opts = InferOptions {
+            additional_params: Some(params.clone()),
+            ..Default::default()
+        };
+        assert_eq!(opts.additional_params, Some(params));
+    }
+
+    // =========================================================================
+    // Structured Output Helper Tests
+    // =========================================================================
+
+    #[test]
+    fn test_supports_native_structured_output() {
+        assert!(supports_native_structured_output("openai"));
+        assert!(supports_native_structured_output("groq"));
+        assert!(supports_native_structured_output("deepseek"));
+        assert!(supports_native_structured_output("xai"));
+
+        assert!(!supports_native_structured_output("claude"));
+        assert!(!supports_native_structured_output("anthropic"));
+        assert!(!supports_native_structured_output("gemini"));
+        assert!(!supports_native_structured_output("mistral"));
+        assert!(!supports_native_structured_output("native"));
+        assert!(!supports_native_structured_output("mock"));
+    }
+
+    #[test]
+    fn test_build_response_format_params() {
+        let schema = serde_json::json!({
+            "type": "object",
+            "properties": {
+                "name": { "type": "string" },
+                "score": { "type": "number" }
+            },
+            "required": ["name", "score"]
+        });
+        let params = build_response_format_params(&schema);
+        assert_eq!(params["response_format"]["type"], "json_schema");
+        assert_eq!(params["response_format"]["json_schema"]["name"], "structured_output");
+        assert_eq!(params["response_format"]["json_schema"]["strict"], true);
+        assert_eq!(
+            params["response_format"]["json_schema"]["schema"]["properties"]["name"]["type"],
+            "string"
+        );
+    }
+
+    #[test]
+    fn test_build_response_format_preserves_full_schema() {
+        let schema = serde_json::json!({
+            "type": "object",
+            "properties": {
+                "items": { "type": "array", "items": { "type": "string" } }
+            },
+            "required": ["items"],
+            "additionalProperties": false
+        });
+        let params = build_response_format_params(&schema);
+        let embedded = &params["response_format"]["json_schema"]["schema"];
+        assert_eq!(embedded["additionalProperties"], false);
+        assert_eq!(embedded["properties"]["items"]["type"], "array");
     }
 
     // =========================================================================

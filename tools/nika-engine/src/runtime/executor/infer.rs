@@ -16,7 +16,9 @@ use crate::ast::InferParams;
 use crate::binding::{template_resolve, ResolvedBindings};
 use crate::error::NikaError;
 use crate::event::{ContextSource, EventKind};
-use crate::provider::rig::{InferOptions, StreamChunk};
+use crate::provider::rig::{
+    build_response_format_params, supports_native_structured_output, InferOptions, StreamChunk,
+};
 use crate::runtime::{InferCallback, StructuredOutputEngine};
 use crate::store::RunContext;
 
@@ -406,6 +408,164 @@ impl TaskExecutor {
                         });
                     }
 
+                    // ───────────────────────────────────────────────────────
+                    // LAYER 0a: Native response_format (OpenAI-compatible)
+                    // ───────────────────────────────────────────────────────
+                    // For providers that support response_format: json_schema
+                    // (OpenAI, Groq, DeepSeek, xAI), use the provider's native
+                    // structured output instead of tool injection. This avoids
+                    // the MaxTurnError that tool_choice: Required causes.
+                    if let Ok(ref sv) = schema_value {
+                        if supports_native_structured_output(provider_name) {
+                            debug!(
+                                task_id = %task_id,
+                                provider = %provider_name,
+                                "Layer 0a: using native response_format for structured output"
+                            );
+
+                            self.event_log.emit(EventKind::StructuredOutputAttempt {
+                                task_id: Arc::clone(task_id),
+                                layer: 0,
+                                layer_name: "response_format".to_string(),
+                                attempt: 1,
+                                success: false,
+                                error: None,
+                            });
+
+                            let rf_params = build_response_format_params(sv);
+                            let (tx_rf, _rx_rf) = mpsc::channel::<StreamChunk>(64);
+                            let rf_options = InferOptions {
+                                model: model.map(|s| s.to_string()),
+                                temperature: infer.temperature,
+                                max_tokens: infer.max_tokens,
+                                system: resolved_system.clone(),
+                                additional_params: Some(rf_params),
+                            };
+
+                            match provider
+                                .infer_stream_with_options(&prompt, tx_rf, &rf_options)
+                                .await
+                            {
+                                Ok(stream_result) => {
+                                    // Validate through StructuredOutputEngine as safety net
+                                    if let Some(spec) = policy.to_structured_spec() {
+                                        let mut engine = StructuredOutputEngine::new(
+                                            spec,
+                                            Arc::new(self.event_log.clone()),
+                                        );
+
+                                        match engine
+                                            .validate(task_id.as_ref(), &stream_result.text)
+                                            .await
+                                        {
+                                            Ok(result) => {
+                                                self.event_log.emit(
+                                                    EventKind::StructuredOutputAttempt {
+                                                        task_id: Arc::clone(task_id),
+                                                        layer: 0,
+                                                        layer_name: "response_format".to_string(),
+                                                        attempt: 1,
+                                                        success: true,
+                                                        error: None,
+                                                    },
+                                                );
+                                                let result_str = result.value.to_string();
+                                                let cost =
+                                                    crate::provider::cost::ProviderKind::parse(
+                                                        provider_name,
+                                                    )
+                                                    .map(|pk| {
+                                                        crate::provider::cost::calculate_cost(
+                                                            pk,
+                                                            model.unwrap_or("default"),
+                                                            stream_result.input_tokens,
+                                                            stream_result.output_tokens,
+                                                        )
+                                                    })
+                                                    .unwrap_or(0.0);
+                                                self.event_log.emit(
+                                                    EventKind::ProviderResponded {
+                                                        task_id: Arc::clone(task_id),
+                                                        request_id: stream_result
+                                                            .request_id
+                                                            .clone(),
+                                                        input_tokens: stream_result.input_tokens,
+                                                        output_tokens: stream_result.output_tokens,
+                                                        cache_read_tokens: stream_result
+                                                            .cached_input_tokens,
+                                                        ttft_ms: stream_result.ttft_ms,
+                                                        finish_reason: "stop".to_string(),
+                                                        cost_usd: if cost.is_finite() {
+                                                            cost
+                                                        } else {
+                                                            0.0
+                                                        },
+                                                    },
+                                                );
+                                                self.policy_enforcer.write().adjust_reservation(
+                                                    estimated_tokens,
+                                                    stream_result.input_tokens
+                                                        + stream_result.output_tokens,
+                                                );
+                                                return Ok(result_str);
+                                            }
+                                            Err(e) => {
+                                                debug!(
+                                                    task_id = %task_id,
+                                                    error = %e,
+                                                    "Layer 0a: response_format result failed validation, falling through"
+                                                );
+                                                self.event_log.emit(
+                                                    EventKind::StructuredOutputAttempt {
+                                                        task_id: Arc::clone(task_id),
+                                                        layer: 0,
+                                                        layer_name: "response_format".to_string(),
+                                                        attempt: 1,
+                                                        success: false,
+                                                        error: Some(e.to_string()),
+                                                    },
+                                                );
+                                            }
+                                        }
+                                    } else {
+                                        // No spec — use the raw text
+                                        self.event_log.emit(
+                                            EventKind::StructuredOutputAttempt {
+                                                task_id: Arc::clone(task_id),
+                                                layer: 0,
+                                                layer_name: "response_format".to_string(),
+                                                attempt: 1,
+                                                success: true,
+                                                error: None,
+                                            },
+                                        );
+                                        self.policy_enforcer.write().adjust_reservation(
+                                            estimated_tokens,
+                                            stream_result.input_tokens
+                                                + stream_result.output_tokens,
+                                        );
+                                        return Ok(stream_result.text);
+                                    }
+                                }
+                                Err(e) => {
+                                    debug!(
+                                        task_id = %task_id,
+                                        error = %e,
+                                        "Layer 0a: response_format failed, falling through to tool injection"
+                                    );
+                                    self.event_log.emit(EventKind::StructuredOutputAttempt {
+                                        task_id: Arc::clone(task_id),
+                                        layer: 0,
+                                        layer_name: "response_format".to_string(),
+                                        attempt: 1,
+                                        success: false,
+                                        error: Some(e.to_string()),
+                                    });
+                                }
+                            }
+                        }
+                    }
+
                     if let Ok(schema_value) = schema_value {
                         let submit_tool =
                             crate::runtime::submit_tool::DynamicSubmitTool::new(schema_value);
@@ -611,6 +771,7 @@ impl TaskExecutor {
                 temperature: infer.temperature,
                 max_tokens: infer.max_tokens,
                 system: resolved_system.clone(),
+                additional_params: None,
             };
             provider
                 .infer_stream_with_options(&prompt, tx, &options)
