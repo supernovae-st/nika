@@ -1,187 +1,80 @@
 # v0.49 Fixes & Polish — Complete Handoff Plan
 
+> **Last updated:** 2026-03-27 (post-audit, real status verified against code)
+
 ## Context
 
-v0.49 UX mega session added 7 features (daemon auth, cli_format, provider rewrite, onboarding, model metadata, model catalog, clap styling). A pre-commit hook reverted some test modules and partially reverted security fixes. Three E2E audit agents verified the full system and found additional gaps.
-
-**Artifacts:**
-- Plan: `docs/plans/2026-03-27-v049-fixes-handoff.md` (this file)
-- Memory: `~/.claude/projects/-Users-thibaut-dev-supernovae-nika/memory/project_v049_session.md`
-- Security review: `~/.claude/plans/moonlit-spinning-ritchie.md`
+v0.49 UX mega session + follow-up auto-commits by hook applied most planned features. This plan is the **ground truth** — verified item by item against actual code.
 
 ---
 
-## Phase 1: Missing Tests (CRITICAL — do first)
+## STATUS MATRIX
 
-### 1.1 — cost.rs model metadata tests (10 tests)
+| # | Item | Status | Evidence |
+|---|------|--------|----------|
+| 1.1 | cost.rs model metadata tests (10) | **DONE** | `grep -c model_meta_ cost.rs` = 10 |
+| 1.2 | model_cloud.rs tests | **DONE** | `#[cfg(test)] mod tests` exists |
+| 2.1 | write_auth_token atomic 0o600 | **DONE** | `OpenOptionsExt` + `.mode(0o600)` found |
+| 2.2 | CSPRNG token (uuid v4) | **DONE** | `Uuid::new_v4()` x2 found |
+| 2.3 | DaemonRequest custom Debug | **DONE** | No `Debug` derive, custom impl redacts key+auth |
+| 2.4 | GetSecret accepted risk comment | **DONE** | "Accepted risk for single-user dev machines" found |
+| 2.5 | Shutdown gated behind auth | **DONE** | `Shutdown { auth_token }` + `validate_auth_token` |
+| 3.1 | Onboarding auto-trigger on MissingApiKey | **NOT DONE** | No `run_onboarding_wizard` in main.rs error path |
+| 3.2 | `nika setup` in AFTER_HELP | **NOT DONE** | Not in QUICK START or CONFIGURATION sections |
+| 4.1 | nika-daemon dep in nika binary | **NOT DONE** | Not in Cargo.toml |
+| 4.2 | Provider set/delete via daemon IPC | **NOT DONE** | provider.rs has zero daemon references |
+| 5.1 | indicatif ProgressBar for model pull | **DONE** | `ProgressBar::new(0)` found in model.rs |
+| 5.2 | ModelMeta in model info | **DONE** | `get_model_meta` + `format_context_window` found |
+| 6 | CLI commands cli_format adoption | **NOT DONE** | doctor/config/trace/daemon/media = 0 cli_format imports |
+| 7.1 | Jobs exit code bug | **NOT DONE** | Still `return Ok(())` on daemon missing |
+| 7.2 | Dry-run cost estimate | **PARTIAL** | 1 cost reference in dry-run section (unclear if shown) |
 
-**File:** `tools/nika-engine/src/provider/cost.rs`
-**What:** `ModelTag`, `ModelMeta`, `get_model_meta()`, `format_context_window()` exist but test module was lost by hook.
+**Score: 10/17 done, 6 not done, 1 partial**
 
-**Tests to append** inside existing `#[cfg(test)] mod tests`:
-```rust
-#[test]
-fn model_meta_claude_opus() {
-    let meta = get_model_meta("claude-opus-4-20250514").unwrap();
-    assert!(meta.tags.contains(&ModelTag::Reasoning));
-    assert_eq!(meta.context_window, 200_000);
-}
-#[test]
-fn model_meta_claude_sonnet() {
-    let meta = get_model_meta("claude-sonnet-4-6").unwrap();
-    assert!(meta.tags.contains(&ModelTag::Balanced));
-    assert!(meta.tags.contains(&ModelTag::Code));
-}
-#[test]
-fn model_meta_gpt4o() {
-    let meta = get_model_meta("gpt-4o").unwrap();
-    assert!(meta.tags.contains(&ModelTag::Vision));
-}
-#[test]
-fn model_meta_o3() {
-    let meta = get_model_meta("o3").unwrap();
-    assert!(meta.tags.contains(&ModelTag::Reasoning));
-}
-#[test]
-fn model_meta_gemini_pro() {
-    let meta = get_model_meta("gemini-2.5-pro-preview").unwrap();
-    assert_eq!(meta.context_window, 1_000_000);
-}
-#[test]
-fn model_meta_unknown_returns_none() {
-    assert!(get_model_meta("nonexistent-model-xyz").is_none());
-}
-#[test]
-fn format_context_window_million() { assert_eq!(format_context_window(1_000_000), "1M"); }
-#[test]
-fn format_context_window_thousand() {
-    assert_eq!(format_context_window(200_000), "200K");
-    assert_eq!(format_context_window(128_000), "128K");
-}
-#[test]
-fn format_context_window_small() { assert_eq!(format_context_window(512), "512"); }
-#[test]
-fn model_tag_labels() {
-    assert_eq!(ModelTag::Reasoning.label(), "reasoning");
-    assert_eq!(ModelTag::Code.label(), "code");
-    assert_eq!(ModelTag::Fast.label(), "fast");
-    assert_eq!(ModelTag::Vision.label(), "vision");
-    assert_eq!(ModelTag::Balanced.label(), "balanced");
-}
-```
-**Verify:** `cargo test -p nika-engine --lib -- provider::cost::tests::model`
+---
 
-### 1.2 — model_cloud.rs tests (6 tests)
+## REMAINING WORK (6.5 items)
 
-**File:** `tools/nika-cli/src/model_cloud.rs`
-**What:** Rewritten file has zero `#[cfg(test)]` module.
+### R1. Onboarding auto-trigger (MEDIUM — ~30 lines)
+
+**File:** `tools/nika/src/main.rs`
+**What:** When `nika run` or `nika infer` fails with `ProviderError::MissingApiKey`, offer the onboarding wizard if TTY.
+**Where:** Find the error handler after `Runner::run()` or `handle_infer()`. The error message already says "Run `nika setup`" but doesn't call the wizard.
 
 ```rust
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn cloud_providers_has_seven() { assert_eq!(CLOUD_PROVIDERS.len(), 7); }
-    #[test]
-    fn cloud_providers_all_have_best_for() {
-        for p in CLOUD_PROVIDERS { assert!(!p.best_for.is_empty(), "{} missing best_for", p.name); }
+// In the error handling section of run/infer commands:
+if let NikaError::Provider(ref e) = err {
+    if matches!(e, ProviderError::MissingApiKey { .. }) && std::io::stdin().is_terminal() {
+        if cli::onboarding::run_onboarding_wizard().await.unwrap_or(false) {
+            // Key configured — retry would go here, or just tell user to re-run
+            println!("  Run your command again.");
+            return Ok(());
+        }
     }
-    #[test]
-    fn format_tags_known_model() {
-        let tags = format_tags("claude-sonnet-4-6");
-        assert!(tags.contains("balanced") || tags.contains("code"));
-    }
-    #[test]
-    fn format_tags_unknown_model() { assert!(format_tags("nonexistent-model").is_empty()); }
-    #[test]
-    fn print_cloud_models_doesnt_panic() { let _ = print_cloud_models(Some("nonexistent")); }
-    #[test]
-    fn print_model_info_not_found() { assert!(print_model_info("nonexistent-model-xyz").is_err()); }
 }
 ```
-**Verify:** `cargo test -p nika-cli --lib -- model_cloud`
 
----
+**Verify:** `ANTHROPIC_API_KEY="" nika infer "test"` in TTY should trigger wizard
 
-## Phase 2: Security Verification (HIGH)
+### R2. `nika setup` in AFTER_HELP (LOW — 1 line)
 
-### 2.1 — Verify write_auth_token uses atomic 0o600
-
-**Check:** `grep "OpenOptionsExt\|\.mode(0o600)" tools/nika-daemon/src/server.rs`
-Must find `OpenOptionsExt` + `.mode(0o600)`. If only `tokio::fs::write` + `set_permissions` → TOCTOU vulnerability, replace with:
-```rust
-use std::os::unix::fs::OpenOptionsExt;
-std::fs::OpenOptions::new().write(true).create(true).truncate(true).mode(0o600).open(&path)?;
-```
-
-### 2.2 — Verify CSPRNG token generation
-
-**Check:** `grep "Uuid::new_v4" tools/nika-daemon/src/server.rs`
-Must match. If `blake3::hash(seed)` found instead → predictable token, replace with UUID v4.
-
-### 2.3 — Verify DaemonRequest custom Debug
-
-**Check:** `grep -B1 "pub enum DaemonRequest" tools/nika-daemon/src/protocol.rs`
-Must show `#[derive(Clone, Serialize, Deserialize, PartialEq)]` WITHOUT `Debug`. Custom `impl Debug` must exist that redacts `SetSecret.key` and `auth_token`.
-
-### 2.4 — Document accepted risk: GetSecret without auth
-
-Add comment above `DaemonRequest::GetSecret` handler in server.rs:
-```rust
-// SECURITY NOTE: GetSecret does not require auth token.
-// Unix socket 0o600 is the access boundary (same-user only).
-// Accepted risk for single-user dev machines.
-```
-
-### 2.5 — Gate Shutdown behind auth (MEDIUM)
-
-Currently any local same-user process can `Shutdown` the daemon (DoS). Consider gating behind auth_token same as SetSecret/DeleteSecret.
-
----
-
-## Phase 3: Onboarding Auto-Trigger (MEDIUM)
-
-### 3.1 — Hook into MissingApiKey error path
-
-**Files:**
-- `tools/nika/src/main.rs` — `Commands::Run` error handler (~line 1559+)
-- `tools/nika/src/main.rs` — `Commands::Infer` error handler
-- `tools/nika/src/cli/onboarding.rs` — `run_onboarding_wizard()` exists
-- `tools/nika-engine/src/error_domains.rs` — `ProviderError::MissingApiKey`
-
-**Logic:**
-```
-when error matches ProviderError::MissingApiKey:
-  if stdin.is_terminal() && !has_any_provider_key():
-    run_onboarding_wizard().await
-    if Ok(true) → retry the command
-    else → show original error
-```
-
-### 3.2 — Add `nika setup` to AFTER_HELP
-
-**File:** `tools/nika/src/main.rs` — AFTER_HELP constant (~line 35-115)
-Under CONFIGURATION section add:
+**File:** `tools/nika/src/main.rs` — AFTER_HELP constant
+**Add** under CONFIGURATION:
 ```
     nika setup                    Interactive API key setup wizard
 ```
 
----
+### R3. Daemon IPC for provider set/delete (MEDIUM — ~40 lines)
 
-## Phase 4: Daemon IPC for Provider Commands (MEDIUM)
+**File:** `tools/nika/Cargo.toml` + `tools/nika/src/cli/provider.rs`
 
-### 4.1 — Add nika-daemon dep to nika binary
-
-**File:** `tools/nika/Cargo.toml`
+Step 1 — Add dep:
 ```toml
 [target.'cfg(unix)'.dependencies]
 nika-daemon = { workspace = true }
 ```
 
-### 4.2 — Route provider set/delete through daemon
-
-**File:** `tools/nika/src/cli/provider.rs`
-In `ProviderAction::Set`, before `NikaKeyring::set()`:
+Step 2 — In `ProviderAction::Set`, before `NikaKeyring::set()`:
 ```rust
 #[cfg(unix)]
 {
@@ -190,178 +83,128 @@ In `ProviderAction::Set`, before `NikaKeyring::set()`:
         let client = nika_daemon::DaemonClient::new(&sock);
         if client.set_secret(&provider, &api_key).await.is_ok() {
             println!("  {} stored via daemon", StatusIcon::Ok);
+            // Also set env var for current process
+            std::env::set_var(env_var, &api_key);
             return Ok(());
         }
+        // Fall through to direct keyring
     }
 }
-// Fallback: direct keyring
-NikaKeyring::set(&provider, &api_key)?;
 ```
+Same pattern for `Delete`.
 
-Same pattern for `ProviderAction::Delete`.
+### R4. Jobs exit code bug (HIGH — 2 lines)
 
----
+**File:** `tools/nika-cli/src/jobs.rs` ~line 79
+**Current:** `return Ok(());` when daemon not running
+**Fix:** `return Err(NikaError::ConfigError { reason: "Daemon not running. Start with: nika daemon start".into() });`
 
-## Phase 5: Model Download Progress (MEDIUM)
+### R5. CLI commands cli_format adoption (LOW — large, defer?)
 
-### 5.1 — Replace eprint with indicatif ProgressBar
+**8 commands** still use raw `Colorize` instead of `cli_format`:
+- `doctor.rs` (1148 LOC, 18 raw Colorize, 0 cli_format) — P1
+- `model.rs` (511 LOC, 35 raw) — P2
+- `config.rs` (284 LOC, 5 raw) — P2
+- `trace.rs` (160 LOC, 0 raw, plain text) — P3
+- `daemon.rs` (343 LOC, 15 raw) — P3
+- `media.rs` (966 LOC, 30 raw) — P3
+- `course.rs` (48KB, complex) — DEFER
+- `check.rs` (custom cosmic icons) — DEFER
 
-**File:** `tools/nika-cli/src/model.rs` — `ModelAction::Pull` (~line 270)
+Refactor pattern for each: replace `"✓".green()` → `StatusIcon::Ok`, `"─".repeat()` → `separator()`, section headers → `section_header()`.
+
+### R6. Dry-run cost estimate (MEDIUM — ~20 lines)
+
+**File:** `tools/nika/src/main.rs` — dry-run section (~line 2785+)
+**What:** Use `get_model_pricing()` per LLM task to show estimated cost.
 ```rust
-// Replace eprint!("\r Progress: {}%...") with:
-use indicatif::{ProgressBar, ProgressStyle};
-let pb = ProgressBar::new(total_bytes);
-pb.set_style(ProgressStyle::default_bar()
-    .template("  {spinner:.cyan} {bar:40.cyan/dim} {percent}% ({bytes}/{total_bytes}) {bytes_per_sec} ETA {eta}")
-    .unwrap()
-    .progress_chars("━╸─"));
-// In callback: pb.set_position(progress.completed);
-// After: pb.finish_with_message("Downloaded");
+let pricing = get_model_pricing(provider_kind, model);
+let est = pricing.calculate(est_input_tokens, est_output_tokens);
+println!("  Estimated cost: ${:.4}", est);
 ```
 
-### 5.2 — Show ModelMeta in model info
+---
 
-**File:** `tools/nika-cli/src/model.rs` — `ModelAction::Info` (~line 300)
-After showing quantizations, add:
+## QUICK WINS (new findings, <10 lines each)
+
+### QW1. Document SECRET error codes in CLAUDE.md
+
+SECRET-001 (keychain disabled), SECRET-002 (store error), SECRET-003 (delete error), SECRET-004 (unknown provider) are not in the error code table. Add to the `300-309` or create a new range.
+
+### QW2. Add `nika setup` visible_alias
+
+In `Commands::Setup` in main.rs, add `#[command(visible_alias = "s")]` so `nika s` works as shortcut (but check collision with `Studio` alias).
+
+### QW3. Provider test non-TTY fallback
+
+`test_provider_connection()` uses `cliclack::spinner()` which needs TTY. Add:
 ```rust
-if let Some(meta) = nika_engine::provider::cost::get_model_meta(&name) {
-    let tags: Vec<&str> = meta.tags.iter().map(|t| t.label()).collect();
-    println!("  Tags:         {}", tags.join(", "));
-    println!("  Context:      {} tokens", format_context_window(meta.context_window));
-}
+let use_spinner = std::io::stderr().is_terminal();
+if use_spinner { spinner.start(...); } else { println!("Testing..."); }
 ```
 
----
+### QW4. Consistent tree separators
 
-## Phase 6: CLI Commands Polish (8 commands need cli_format adoption)
+`nika check` uses `╭─╮╰─╯` box chars. `nika provider list` uses `├── └──`. `nika doctor` uses `--- section`. Standardize: panel for headers, tree for lists, separator for dividers.
 
-### Audit findings (from 3-agent E2E sweep):
+### QW5. `nika models --recommend` hint in provider list
 
-| Command | File | LOC | cli_format? | Tests | Priority |
-|---------|------|-----|-------------|-------|----------|
-| doctor | nika-cli/doctor.rs | 1148 | No (18 raw Colorize) | 0 | **P1** |
-| model | nika-cli/model.rs | 511 | No (35 raw Colorize) | 0 | **P1** |
-| config | nika-cli/config.rs | 284 | No (5 raw Colorize) | 0 | **P1** |
-| trace | nika-cli/trace.rs | 160 | No (0, plain text) | 0 | **P1** |
-| daemon | nika-cli/daemon.rs | 343 | No (15 raw Colorize) | 4 | P2 |
-| media | nika-cli/media.rs | 966 | No (30 raw Colorize) | 6 | P2 |
-| provider | nika/cli/provider.rs | 453 | Yes (16 usages) | 9 | Done |
-| model_cloud | nika-cli/model_cloud.rs | 266 | Yes (10 usages) | 0 | Done (needs tests) |
+When `nika provider list` shows configured providers, add hint: `nika models --recommend` for best model pick.
 
-### 6.1 — Doctor refactor
+### QW6. Onboarding wizard: add `native` option
 
-**File:** `tools/nika-cli/src/doctor.rs`
-Replace:
-- Line 984: `"---".dimmed() + section.bold().cyan()` → `section_header(section)`
-- Line 987-991: Manual icon coloring → `StatusIcon::Ok/Warn/Fail`
-- Line 993: `check.name.bold()` → `status_line(icon, &format!("{} {}", name, message))`
-- Line 996: `"->".cyan()` → `StatusIcon::Hint`
-
-Add 8-10 tests: section grouping, pass/warn/fail counts, JSON output mode.
-
-### 6.2 — Config, trace, model, daemon, media
-
-Same pattern: replace raw `Colorize` calls with `cli_format` utilities.
-Each needs 3-5 tests minimum.
-
----
-
-## Phase 7: Workflow & Jobs Gaps (from audit)
-
-### 7.1 — Job missing daemon returns Ok(()) (BUG)
-
-**File:** `tools/nika-cli/src/jobs.rs` line 74-79
-Returns `Ok(())` with error message when daemon not running → exit code 0 masks failure.
-**Fix:** Return `Err(NikaError::ConfigError { reason: "daemon not running" })`
-
-### 7.2 — Dry-run missing cost estimate
-
-**File:** `tools/nika/src/main.rs` lines 2785-2932
-Shows DAG layers and task details but NO cost projection.
-**Fix:** Use `get_model_pricing()` to estimate per-task cost and show total.
-
-### 7.3 — Spinners for network commands
-
-- `nika check --strict` — MCP connection tests
-- `nika daemon status` — daemon ping
-- `nika provider test` — already done (cliclack spinner)
-
-Use `cliclack::spinner()` (already a dep).
-
-### 7.4 — Provider test non-interactive fallback
-
-`test_provider_connection()` uses `cliclack::spinner()` which requires TTY. Add:
-```rust
-if !std::io::stderr().is_terminal() {
-    println!("Testing {provider}...");
-    // use plain println instead of spinner
-}
+The wizard shows 7 cloud providers but not `native` (local GGUF, no API key). Add:
 ```
-
----
-
-## Verification Checklist
-
-```bash
-# Phase 1: Tests
-cargo test -p nika-engine --lib -- provider::cost::tests::model
-cargo test -p nika-cli --lib -- model_cloud
-
-# Phase 2: Security
-grep "OpenOptionsExt" tools/nika-daemon/src/server.rs          # Must match
-grep "Uuid::new_v4" tools/nika-daemon/src/server.rs             # Must match
-grep -B1 "pub enum DaemonRequest" tools/nika-daemon/src/protocol.rs  # No Debug derive
-
-# Phase 3: Onboarding
-ANTHROPIC_API_KEY="" nika infer "test"   # Should offer wizard in TTY
-
-# Phase 5: Progress
-nika model pull qwen3:8b  # Should show indicatif bar
-
-# Full suite
-cargo test --workspace --lib   # 8300+ tests
-cargo clippy --workspace -- -D warnings
+("native", "Local GGUF models — no API key needed")
 ```
+When selected, skip password prompt and show `nika model pull` instead.
+
+### QW7. Cost estimate in `nika infer` output
+
+After inference, show token count + cost:
+```
+  ✓ 1.2k tokens ($0.003) in 1.4s
+```
+This info is already computed but only shown in workflow `nika run`, not direct `nika infer`.
 
 ---
 
-## Dependencies
+## DEPENDENCY ORDER
 
 ```
-Phase 1 (tests) ──────────────→ Phase 3 (onboarding hook)
-Phase 2 (security verify) ────→ Phase 4 (daemon IPC)
-Phase 5 (progress) ───────────→ independent
-Phase 6 (CLI polish) ─────────→ after all others
-Phase 7 (workflow gaps) ──────→ independent
+R4 (jobs bug, 2 lines) ────────→ standalone, do first
+R2 (help text, 1 line) ────────→ standalone
+R1 (onboarding hook, 30 lines) → needs main.rs error path understanding
+R3 (daemon IPC, 40 lines) ─────→ needs R1 done first (same file)
+R6 (dry-run cost, 20 lines) ───→ standalone
+R5 (CLI polish, large) ────────→ do last, can be incremental
+QW1-QW7 ───────────────────────→ sprinkle between phases
 ```
 
-**Recommended order:** 1 → 2 → 5 → 3 → 7.1 → 4 → 6 → 7.2+
+**Recommended session order:** R4 → R2 → QW1 → R1 → QW6 → R3 → QW3 → R6 → QW7 → R5
 
 ---
 
-## Key File Reference
+## KEY FILES
 
-| File | What | LOC |
-|------|------|-----|
-| `nika-daemon/src/protocol.rs` | SetSecret/DeleteSecret + custom Debug | ~170 |
-| `nika-daemon/src/server.rs` | Auth token gen/write/validate + routing | ~1150 |
-| `nika-daemon/src/client.rs` | set_secret/delete_secret + read_auth_token | ~550 |
-| `nika-daemon/src/services/secrets.rs` | SecretService set/delete | ~280 |
-| `nika-engine/src/display/cli_format.rs` | StatusIcon, panel, tree, key_value | ~360 |
-| `nika-engine/src/provider/cost.rs` | ModelTag, ModelMeta, get_model_meta | ~900 |
-| `nika-cli/src/model_cloud.rs` | Enhanced model catalog display | ~160 |
-| `nika-cli/src/doctor.rs` | Doctor diagnostic (needs refactor) | ~1148 |
-| `nika-cli/src/model.rs` | Local model commands (needs indicatif) | ~511 |
-| `nika-cli/src/jobs.rs` | Job commands (exit code bug) | ~290 |
-| `nika/src/cli/provider.rs` | Provider set with cliclack | ~300 |
-| `nika/src/cli/onboarding.rs` | First-run wizard | ~135 |
-| `nika/src/main.rs` | Setup command + clap styling + run handler | ~3200 |
+| File | What | Status |
+|------|------|--------|
+| `nika-daemon/src/protocol.rs` | SetSecret/DeleteSecret + custom Debug | DONE |
+| `nika-daemon/src/server.rs` | Auth token (CSPRNG, atomic, validated) + Shutdown auth | DONE |
+| `nika-daemon/src/client.rs` | set/delete_secret + read_auth_token + shutdown auth | DONE |
+| `nika-daemon/src/services/secrets.rs` | SecretService set/delete | DONE |
+| `nika-engine/src/display/cli_format.rs` | StatusIcon, panel, tree, key_value | DONE |
+| `nika-engine/src/provider/cost.rs` | ModelTag, ModelMeta, 10 tests | DONE |
+| `nika-cli/src/model_cloud.rs` | Enhanced catalog + tests | DONE |
+| `nika-cli/src/model.rs` | indicatif progress + ModelMeta info | DONE |
+| `nika/src/cli/provider.rs` | cliclack set + detect | DONE (no daemon IPC) |
+| `nika/src/cli/onboarding.rs` | Wizard exists | DONE (not hooked) |
+| `nika/src/main.rs` | Setup cmd + clap styling | DONE (help text gap) |
+| `nika-cli/src/doctor.rs` | 1148 LOC, needs cli_format | NOT DONE |
+| `nika-cli/src/jobs.rs` | Exit code bug | NOT DONE |
 
----
+## HOOK WORKAROUND
 
-## Gotcha: Pre-commit Hook
-
-A pre-commit hook runs `cargo fmt` + `clippy` and has a file-restore mechanism. **Workaround:**
 ```bash
 cat > file.rs << 'RUSTEOF'
 ...code...
