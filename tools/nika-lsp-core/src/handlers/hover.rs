@@ -3,6 +3,8 @@
 //! Protocol-agnostic: returns `HoverResult` with markdown content.
 //! The tower-lsp shim in each binary converts to `ls_types::Hover`.
 
+use nika_core::catalogs::WorkflowRunInfo;
+
 use crate::analysis::context::CursorContext;
 
 /// Protocol-agnostic hover result.
@@ -14,11 +16,23 @@ pub struct HoverResult {
     pub range: Option<(u32, u32)>,
 }
 
+/// Optional daemon data for enriched hover.
+pub struct DaemonHoverData<'a> {
+    /// Recent workflow runs (from GetWorkflowHistory).
+    pub workflow_history: &'a [WorkflowRunInfo],
+}
+
 /// Compute hover documentation for the given cursor context.
 ///
 /// Returns rich markdown documentation for verbs, fields, bindings,
 /// templates, root keys, and content parts.
-pub fn hover(_text: &str, _offset: u32, context: &CursorContext) -> Option<HoverResult> {
+/// `daemon_data` optionally enriches hover with live run history.
+pub fn hover(
+    _text: &str,
+    _offset: u32,
+    context: &CursorContext,
+    daemon_data: Option<&DaemonHoverData<'_>>,
+) -> Option<HoverResult> {
     match context {
         CursorContext::VerbBlock {
             ref verb,
@@ -35,7 +49,29 @@ pub fn hover(_text: &str, _offset: u32, context: &CursorContext) -> Option<Hover
             verb_hover(verb)
         }
         CursorContext::TaskField { prefix, .. } => field_hover(prefix),
-        CursorContext::WorkflowRoot { prefix } => root_key_hover(prefix),
+        CursorContext::WorkflowRoot { prefix } => {
+            let mut result = root_key_hover(prefix)?;
+            // Enrich with workflow run history if available
+            if prefix.trim().trim_end_matches(':') == "workflow" {
+                if let Some(data) = daemon_data {
+                    if !data.workflow_history.is_empty() {
+                        result.contents.push_str("\n\n---\n\n**Recent runs:**\n");
+                        for run in data.workflow_history.iter().take(3) {
+                            let icon = match run.exit_code {
+                                Some(0) => "\u{2713}", // ✓
+                                Some(_) => "\u{2717}", // ✗
+                                None => "\u{23F3}",    // ⏳
+                            };
+                            result.contents.push_str(&format!(
+                                "\n- {} {} \u{2014} {}",
+                                icon, run.state, run.created_at
+                            ));
+                        }
+                    }
+                }
+            }
+            Some(result)
+        }
         CursorContext::ContentPart { focus, .. } => content_hover(focus),
         CursorContext::WithBlock { alias, .. } => {
             if let Some(alias) = alias {
@@ -584,7 +620,7 @@ mod tests {
             existing_subfields: vec![],
             prefix: String::new(),
         };
-        let r = hover("", 0, &ctx);
+        let r = hover("", 0, &ctx, None);
         assert!(r.is_some());
         assert!(r.unwrap().contents.contains("LLM Generation"));
     }
@@ -594,7 +630,7 @@ mod tests {
         let ctx = CursorContext::Unknown {
             prefix: String::new(),
         };
-        assert!(hover("", 0, &ctx).is_none());
+        assert!(hover("", 0, &ctx, None).is_none());
     }
 
     #[test]
@@ -604,7 +640,7 @@ mod tests {
             existing_deps: vec![],
             prefix: String::new(),
         };
-        let r = hover("", 0, &ctx).unwrap();
+        let r = hover("", 0, &ctx, None).unwrap();
         assert!(r.contents.contains("Execution Dependencies"));
     }
 
@@ -614,7 +650,7 @@ mod tests {
             task_id: None,
             prefix: String::new(),
         };
-        let r = hover("", 0, &ctx).unwrap();
+        let r = hover("", 0, &ctx, None).unwrap();
         assert!(r.contents.contains("Retry Policy"));
     }
 
@@ -625,7 +661,50 @@ mod tests {
             guardrail_type: None,
             prefix: String::new(),
         };
-        let r = hover("", 0, &ctx).unwrap();
+        let r = hover("", 0, &ctx, None).unwrap();
         assert!(r.contents.contains("Guardrails"));
+    }
+
+    #[test]
+    fn hover_workflow_root_with_history() {
+        let ctx = CursorContext::WorkflowRoot {
+            prefix: "workflow:".into(),
+        };
+        let history = vec![
+            WorkflowRunInfo {
+                job_id: "j1".into(),
+                state: "completed".into(),
+                workflow: "test.nika.yaml".into(),
+                created_at: "2026-03-27T12:00:00Z".into(),
+                started_at: Some("2026-03-27T12:00:01Z".into()),
+                completed_at: Some("2026-03-27T12:00:03Z".into()),
+                exit_code: Some(0),
+            },
+            WorkflowRunInfo {
+                job_id: "j2".into(),
+                state: "failed".into(),
+                workflow: "test.nika.yaml".into(),
+                created_at: "2026-03-27T11:00:00Z".into(),
+                started_at: Some("2026-03-27T11:00:01Z".into()),
+                completed_at: Some("2026-03-27T11:00:05Z".into()),
+                exit_code: Some(1),
+            },
+        ];
+        let data = DaemonHoverData {
+            workflow_history: &history,
+        };
+        let r = hover("", 0, &ctx, Some(&data)).unwrap();
+        assert!(r.contents.contains("Recent runs"), "Should show run history: {}", r.contents);
+        assert!(r.contents.contains("\u{2713}"), "Should show checkmark for success");
+        assert!(r.contents.contains("\u{2717}"), "Should show cross for failure");
+    }
+
+    #[test]
+    fn hover_workflow_root_without_history() {
+        let ctx = CursorContext::WorkflowRoot {
+            prefix: "workflow:".into(),
+        };
+        let r = hover("", 0, &ctx, None).unwrap();
+        assert!(!r.contents.contains("Recent runs"), "No history = no runs section");
     }
 }

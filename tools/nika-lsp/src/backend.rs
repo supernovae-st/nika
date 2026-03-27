@@ -123,7 +123,8 @@ async fn validation_worker(mut rx: mpsc::Receiver<ValidationRequest>, client: Cl
             _ = tokio::time::sleep(tokio::time::Duration::from_millis(150)), if pending.is_some() => {
                 if let Some(req) = pending.take() {
                     // Validate document
-                    let diagnostics = validate_document(&req.content, &req.uri);
+                    // TODO: pass daemon provider status for enriched diagnostics
+                    let diagnostics = validate_document(&req.content, &req.uri, None);
 
                     // Publish diagnostics
                     client
@@ -388,7 +389,28 @@ impl LanguageServer for NikaBackend {
                 .map(|o| o.0)
                 .unwrap_or(0);
         let ctx = nika_lsp_core::analysis::context::detect_context(&content, offset, None);
-        match nika_lsp_core::handlers::hover::hover(&content, offset, &ctx) {
+
+        // Get workflow history from daemon for enriched hover
+        let workflow_history = {
+            let guard = self.daemon.read().await;
+            match guard.as_ref() {
+                Some(bridge) if bridge.is_connected() => {
+                    let uri_str = uri.as_str();
+                    let filename = uri_str.rsplit('/').next().unwrap_or(uri_str);
+                    bridge.workflow_history(filename).await
+                }
+                _ => Vec::new(),
+            }
+        };
+        let daemon_hover = if !workflow_history.is_empty() {
+            Some(nika_lsp_core::handlers::hover::DaemonHoverData {
+                workflow_history: &workflow_history,
+            })
+        } else {
+            None
+        };
+
+        match nika_lsp_core::handlers::hover::hover(&content, offset, &ctx, daemon_hover.as_ref()) {
             Some(result) => Ok(Some(Hover {
                 contents: HoverContents::Markup(MarkupContent {
                     kind: MarkupKind::Markdown,
