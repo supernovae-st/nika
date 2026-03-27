@@ -182,4 +182,40 @@ mod tests {
         assert_eq!(ns.items.len(), 1);
         assert_eq!(ns.items[0].message, "c");
     }
+
+    #[test]
+    fn test_notification_dedup_consecutive_only() {
+        let mut ns = NotificationState::new();
+        ns.push(Notification::info("dup", 0));
+        ns.push(Notification::warning("other", 1)); // breaks the sequence
+        ns.push(Notification::info("dup", 2)); // same as first, but not consecutive
+
+        assert_eq!(ns.items.len(), 3, "non-consecutive duplicate must be accepted");
+    }
+
+    #[test]
+    fn test_notification_dedup_requires_both_level_and_message() {
+        let mut ns = NotificationState::new();
+        ns.push(Notification::info("same message", 0));
+
+        // Same message, different level -> NOT deduped
+        ns.push(Notification::warning("same message", 1));
+        assert_eq!(
+            ns.items.len(),
+            2,
+            "same message with different level must not be deduped"
+        );
+
+        // Same level, different message -> NOT deduped
+        ns.push(Notification::warning("different message", 2));
+        assert_eq!(
+            ns.items.len(),
+            3,
+            "same level with different message must not be deduped"
+        );
+
+        // Both same -> deduped
+        ns.push(Notification::warning("different message", 3));
+        assert_eq!(ns.items.len(), 3, "exact consecutive duplicate must be deduped");
+    }
 }
