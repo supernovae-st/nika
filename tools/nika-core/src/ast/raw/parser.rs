@@ -11,7 +11,7 @@ use super::action::{
 };
 use super::mcp::{RawMcpConfig, RawMcpServer};
 use super::task::{RawForEach, RawOutputConfig, RawRetryConfig, RawTask};
-use super::workflow::{RawContextConfig, RawImportSpec, RawPkgConfig, RawWorkflow};
+use super::workflow::{RawContextConfig, RawIncludeSpec, RawPkgConfig, RawWorkflow};
 use crate::ast::decompose::{DecomposeSpec, DecomposeStrategy};
 use crate::ast::structured::StructuredOutputSpec;
 use crate::source::{ByteOffset, FileId, Span, Spanned};
@@ -1292,8 +1292,8 @@ pub fn parse(source: &str, file_id: FileId) -> Result<RawWorkflow, ParseError> {
     // Parse context configuration
     workflow.context = parse_context_config(file_id, map)?;
 
-    // Parse imports
-    workflow.imports = parse_imports(file_id, map)?;
+    // Parse include
+    workflow.include = parse_include(file_id, map)?;
 
     // Parse inputs
     workflow.inputs = parse_inputs(file_id, map)?;
@@ -1342,7 +1342,7 @@ pub fn parse(source: &str, file_id: FileId) -> Result<RawWorkflow, ParseError> {
         "mcp",
         "pkg",
         "context",
-        "imports",
+        "include",
         "inputs",
         "artifacts",
         "log",
@@ -1528,30 +1528,30 @@ fn parse_context_config(
     Ok(Some(Spanned::new(RawContextConfig { files }, span)))
 }
 
-/// Parse imports: specification.
+/// Parse include: specification.
 ///
 /// ```yaml
-/// imports:
+/// include:
 ///   - path: ./partials/setup.nika.yaml
 ///     prefix: setup_
 ///   - path: pkg:@nika/core@1.0/seo.nika.yaml
 /// ```
-fn parse_imports(
+fn parse_include(
     file_id: FileId,
     map: &marked_yaml::types::MarkedMappingNode,
-) -> Result<Option<Spanned<Vec<Spanned<RawImportSpec>>>>, ParseError> {
-    let imports_node = match map.get_node("imports") {
+) -> Result<Option<Spanned<Vec<Spanned<RawIncludeSpec>>>>, ParseError> {
+    let include_node = match map.get_node("include") {
         Some(node) => node,
         None => return Ok(None),
     };
 
-    let seq = match imports_node {
+    let seq = match include_node {
         Node::Sequence(s) => s,
         _ => {
             return Err(ParseError {
                 kind: ParseErrorKind::InvalidType,
-                span: node_to_span(file_id, imports_node),
-                message: "imports must be a sequence".to_string(),
+                span: node_to_span(file_id, include_node),
+                message: "include must be a sequence".to_string(),
             });
         }
     };
@@ -1568,7 +1568,7 @@ fn parse_imports(
                 return Err(ParseError {
                     kind: ParseErrorKind::InvalidType,
                     span: item_span,
-                    message: "import entry must be a mapping with 'path' field".to_string(),
+                    message: "include entry must be a mapping with 'path' field".to_string(),
                 });
             }
         };
@@ -1576,13 +1576,13 @@ fn parse_imports(
         let path = get_string_field(file_id, item_map, "path")?.ok_or_else(|| ParseError {
             kind: ParseErrorKind::MissingField,
             span: item_span,
-            message: "import entry requires 'path' field".to_string(),
+            message: "include entry requires 'path' field".to_string(),
         })?;
 
         let prefix = get_string_field(file_id, item_map, "prefix")?;
 
         specs.push(Spanned::new(
-            RawImportSpec {
+            RawIncludeSpec {
                 path,
                 prefix,
                 span: item_span,
@@ -2352,10 +2352,10 @@ tasks:
     }
 
     #[test]
-    fn test_parse_imports() {
+    fn test_parse_include() {
         let yaml = r#"
 schema: "nika/workflow@0.12"
-imports:
+include:
   - path: ./partials/setup.nika.yaml
     prefix: setup_
   - path: "pkg:@nika/core@1.0/seo.nika.yaml"
@@ -2365,23 +2365,23 @@ tasks:
 "#;
         let workflow = parse(yaml, FileId(0)).unwrap();
 
-        let imports = workflow.imports.as_ref().unwrap();
-        assert_eq!(imports.value.len(), 2);
+        let include = workflow.include.as_ref().unwrap();
+        assert_eq!(include.value.len(), 2);
 
         assert_eq!(
-            imports.value[0].value.path.value,
+            include.value[0].value.path.value,
             "./partials/setup.nika.yaml"
         );
         assert_eq!(
-            imports.value[0].value.prefix.as_ref().unwrap().value,
+            include.value[0].value.prefix.as_ref().unwrap().value,
             "setup_"
         );
 
         assert_eq!(
-            imports.value[1].value.path.value,
+            include.value[1].value.path.value,
             "pkg:@nika/core@1.0/seo.nika.yaml"
         );
-        assert!(imports.value[1].value.prefix.is_none());
+        assert!(include.value[1].value.prefix.is_none());
     }
 
     #[test]

@@ -7287,7 +7287,7 @@ fn x03_include_path_spec() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
 model: test-model
-imports:
+include:
   - path: ./lib/seo-tasks.nika.yaml
     prefix: seo_
 tasks:
@@ -7305,7 +7305,7 @@ fn x04_include_multiple_specs() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
 model: test-model
-imports:
+include:
   - path: ./lib/common.nika.yaml
     prefix: common_
   - path: ./lib/media.nika.yaml

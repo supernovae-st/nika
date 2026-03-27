@@ -131,7 +131,7 @@ pub use decompose::{DecomposeSpec, DecomposeStrategy};
 // Loader is defined in loader.rs
 pub use loader::{discover_definitions, load_definition, DefinitionKind, LoadedDefinition};
 // Import loader is defined in import_loader.rs
-pub use import_loader::expand_imports;
+pub use import_loader::expand_raw_include;
 // Include loader is defined in include_loader.rs
 pub use include_loader::expand_includes;
 // StructuredOutputSpec is defined in structured.rs
@@ -184,13 +184,13 @@ pub fn parse_workflow(yaml: &str) -> Result<Workflow, NikaError> {
     lower(analyzed)
 }
 
-/// Parse a YAML workflow with import expansion through the full pipeline.
+/// Parse a YAML workflow with include expansion through the full pipeline.
 ///
-/// Pipeline: `YAML → raw::parse → expand_imports → analyzer::analyze → lower → Workflow`
+/// Pipeline: `YAML → raw::parse → expand_raw_include → analyzer::analyze → lower → Workflow`
 ///
-/// Expands `imports:` partials into the raw AST before analysis so cross-file
+/// Expands `include:` partials into the raw AST before analysis so cross-file
 /// references work. Returns the lowered `Workflow` for DAG validation.
-pub fn parse_workflow_with_imports(
+pub fn parse_workflow_with_includes(
     yaml: &str,
     base_path: &std::path::Path,
 ) -> Result<Workflow, NikaError> {
@@ -198,7 +198,7 @@ pub fn parse_workflow_with_imports(
         details: format!("[{}] {}", e.kind.code(), e.message),
     })?;
 
-    let raw = expand_imports(raw, base_path)?;
+    let raw = expand_raw_include(raw, base_path)?;
 
     let analyzed = analyzer::analyze(raw).into_result().map_err(|errors| {
         let messages: Vec<String> = errors
@@ -243,20 +243,20 @@ pub fn parse_analyzed(yaml: &str) -> Result<AnalyzedWorkflow, NikaError> {
     })
 }
 
-/// Parse a YAML workflow with import expansion, returning AnalyzedWorkflow.
+/// Parse a YAML workflow with include expansion, returning AnalyzedWorkflow.
 ///
-/// Pipeline: `YAML → raw::parse → expand_imports → analyzer::analyze → AnalyzedWorkflow`
+/// Pipeline: `YAML → raw::parse → expand_raw_include → analyzer::analyze → AnalyzedWorkflow`
 ///
-/// Unlike `parse_analyzed`, this expands `imports:` partials into the raw AST
-/// BEFORE analysis, so imported tasks can reference each other and the main
-/// workflow's tasks. This is the correct pipeline for workflows with `imports:`.
+/// Unlike `parse_analyzed`, this expands `include:` partials into the raw AST
+/// BEFORE analysis, so included tasks can reference each other and the main
+/// workflow's tasks. This is the correct pipeline for workflows with `include:`.
 ///
 /// # Errors
 ///
 /// - `NikaError::ParseError` — YAML syntax or structural errors (Phase 1)
 /// - `NikaError::ValidationError` — Semantic validation errors (Phase 2)
-/// - `NikaError::WorkflowNotFound` — Import file not found
-pub fn parse_analyzed_with_imports(
+/// - `NikaError::WorkflowNotFound` — Include file not found
+pub fn parse_analyzed_with_includes(
     yaml: &str,
     base_path: &std::path::Path,
 ) -> Result<AnalyzedWorkflow, NikaError> {
@@ -265,8 +265,8 @@ pub fn parse_analyzed_with_imports(
         details: format!("[{}] {}", e.kind.code(), e.message),
     })?;
 
-    // Phase 1.5: Expand imports (merge partial workflows into raw AST)
-    let raw = expand_imports(raw, base_path)?;
+    // Phase 1.5: Expand includes (merge partial workflows into raw AST)
+    let raw = expand_raw_include(raw, base_path)?;
 
     // Phase 2: Raw → Analyzed (validation on the merged AST)
     analyzer::analyze(raw).into_result().map_err(|errors| {

@@ -59,7 +59,7 @@ pub fn completions(text: &str, _offset: u32, context: &CursorContext) -> Vec<Com
 // Completion providers
 // ---------------------------------------------------------------------------
 
-/// Top-level workflow keys: schema, workflow, tasks, mcp, context, inputs, imports, edges.
+/// Top-level workflow keys: schema, workflow, tasks, mcp, context, inputs, include, edges.
 fn workflow_root_completions(prefix: &str) -> Vec<CompletionItem> {
     let items = vec![
         item_snippet(

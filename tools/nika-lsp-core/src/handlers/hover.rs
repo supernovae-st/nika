@@ -282,7 +282,6 @@ fn root_key_hover(prefix: &str) -> Option<HoverResult> {
         "edges" => "## `edges:` — Explicit DAG Edges\n\nDeclare edges between tasks explicitly.\n\n```yaml\nedges:\n  - from: step1\n    to: step2\n```",
         "skills" => "## `skills:` — Skill Definitions\n\nMap skill aliases to file paths for prompt augmentation.\n\n```yaml\nskills:\n  research: ./skills/research.md\n  summarize: pkg:@supernovae/summarize\n```\n\nReferenced by agent `skills:` arrays.",
         "agents" => "## `agents:` — Reusable Agent Definitions\n\nDefine agent configs reusable across tasks.\n\n```yaml\nagents:\n  researcher:\n    system: \"You are a researcher\"\n    tools: [nika:read, perplexity/search]\n```\n\nReference via `from: researcher` in agent tasks.",
-        "imports" => "## `imports:` — External Imports\n\nImport tasks or skills from external sources.\n\n```yaml\nimports:\n  - path: ./shared/common.nika.yaml\n    prefix: common_\n```\n\nAlias for `include:`.",
         "pkg" => "## `pkg:` — Package Includes\n\nInclude packages from the Nika registry.\n\n```yaml\npkg:\n  include:\n    - pkg:@supernovae/seo@1.0\n```",
         "artifacts" => "## `artifacts:` — Workflow Artifact Defaults\n\nDefault artifact output configuration.",
         "log" => "## `log:` — Logging Configuration\n\nWorkflow-level logging settings.\n\n```yaml\nlog:\n  level: info\n  format: json\n```",
@@ -513,7 +512,7 @@ mod tests {
     fn all_root_keys_have_hover() {
         for k in [
             "schema", "workflow", "tasks", "mcp", "context", "include", "provider", "inputs",
-            "edges", "imports", "pkg",
+            "edges", "pkg",
         ] {
             let result = root_key_hover(k);
             assert!(result.is_some(), "Missing hover for root key: {}", k);

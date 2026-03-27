@@ -191,10 +191,10 @@ fn top_level_include_keyword() {
 }
 
 #[test]
-fn top_level_imports_keyword() {
-    let src = "imports:\n  - ./utils.nika.yaml\n";
+fn top_level_include_keyword_from_yaml() {
+    let src = "include:\n  - ./utils.nika.yaml\n";
     let toks = semantic_tokens(src);
-    assert_token_on_line(&toks, src, 0, TokenType::Keyword, "imports");
+    assert_token_on_line(&toks, src, 0, TokenType::Keyword, "include");
 }
 
 #[test]
@@ -214,14 +214,13 @@ mcp:
 context:
 inputs:
 include:
-imports:
 edges:
 ";
     let toks = semantic_tokens(src);
     let kw = tokens_of(&toks, TokenType::Keyword);
     let kw_texts: Vec<&str> = kw.iter().map(|t| token_text(src, t)).collect();
     for expected in &[
-        "schema", "workflow", "tasks", "mcp", "context", "inputs", "include", "imports", "edges",
+        "schema", "workflow", "tasks", "mcp", "context", "inputs", "include", "edges",
     ] {
         assert!(
             kw_texts.contains(expected),

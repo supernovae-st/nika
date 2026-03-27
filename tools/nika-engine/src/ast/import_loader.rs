@@ -1,21 +1,21 @@
-//! Import Loader — Raw-level workflow import expansion
+//! Include Loader — Raw-level workflow include expansion
 //!
 //! Operates on the **raw AST** (before analysis), so the analyzer sees
-//! all tasks (main + imported) as one unified `RawWorkflow`.
+//! all tasks (main + included) as one unified `RawWorkflow`.
 //!
 //! # Architecture Decision
 //!
-//! Import expansion at the RAW level means:
-//! - The analyzer validates everything together (no cross-import issues)
+//! Include expansion at the RAW level means:
+//! - The analyzer validates everything together (no cross-include issues)
 //! - String-based prefix manipulation is simple at raw level
 //! - No TaskId re-interning needed (analyzer creates all TaskIds from scratch)
 //!
 //! # Pipeline
 //!
 //! ```text
-//! RawWorkflow (with imports:)
-//!   → expand_imports()
-//!     → for each import: read file → raw::parse() → recurse → prefix → merge
+//! RawWorkflow (with include:)
+//!   → expand_raw_include()
+//!     → for each include: read file → raw::parse() → recurse → prefix → merge
 //!   → RawWorkflow (flat, all tasks inlined)
 //!     → analyze() → AnalyzedWorkflow
 //! ```
@@ -29,8 +29,8 @@ use super::raw::{parse, RawTask, RawWorkflow};
 use crate::error::NikaError;
 use crate::source::{FileId, Spanned};
 
-/// Maximum depth for recursive imports (prevent infinite loops).
-const MAX_IMPORT_DEPTH: usize = 10;
+/// Maximum depth for recursive includes (prevent infinite loops).
+const MAX_INCLUDE_DEPTH: usize = 10;
 
 /// Reserved binding namespaces that must NOT be prefixed.
 ///
@@ -40,63 +40,63 @@ const MAX_IMPORT_DEPTH: usize = 10;
 /// - `env`     → `BindingSource::Env`
 const RESERVED_NAMESPACES: &[&str] = &["context", "inputs", "env"];
 
-/// Expand all imports in a raw workflow.
+/// Expand all includes in a raw workflow.
 ///
-/// Recursively loads imported workflow files and merges their tasks
+/// Recursively loads included workflow files and merges their tasks
 /// into the main workflow. Task IDs and binding references are prefixed
-/// according to each import spec's `prefix:` field.
+/// according to each include spec's `prefix:` field.
 ///
 /// # Arguments
 ///
 /// * `workflow` - The raw workflow to expand
-/// * `base_path` - Base directory for resolving relative import paths
+/// * `base_path` - Base directory for resolving relative include paths
 ///
 /// # Returns
 ///
-/// The workflow with all imports expanded and tasks inlined.
+/// The workflow with all includes expanded and tasks inlined.
 ///
 /// # Errors
 ///
 /// Returns `NikaError` if:
-/// - Import file not found or unreadable
-/// - Import file has parse errors
-/// - Circular import detected (same canonical path)
-/// - Maximum import depth exceeded (> 10 levels)
+/// - Include file not found or unreadable
+/// - Include file has parse errors
+/// - Circular include detected (same canonical path)
+/// - Maximum include depth exceeded (> 10 levels)
 /// - Path traversal detected (escaping base directory)
-pub fn expand_imports(workflow: RawWorkflow, base_path: &Path) -> Result<RawWorkflow, NikaError> {
-    expand_imports_recursive(workflow, base_path, 0, &mut HashSet::new())
+pub fn expand_raw_include(workflow: RawWorkflow, base_path: &Path) -> Result<RawWorkflow, NikaError> {
+    expand_raw_include_recursive(workflow, base_path, 0, &mut HashSet::new())
 }
 
-/// Recursive import expansion with depth tracking and circular detection.
-fn expand_imports_recursive(
+/// Recursive include expansion with depth tracking and circular detection.
+fn expand_raw_include_recursive(
     mut workflow: RawWorkflow,
     base_path: &Path,
     depth: usize,
     visited: &mut HashSet<String>,
 ) -> Result<RawWorkflow, NikaError> {
     // Check depth limit
-    if depth > MAX_IMPORT_DEPTH {
+    if depth > MAX_INCLUDE_DEPTH {
         return Err(NikaError::ValidationError {
             reason: format!(
-                "Maximum import depth ({}) exceeded. Check for circular imports.",
-                MAX_IMPORT_DEPTH
+                "Maximum include depth ({}) exceeded. Check for circular includes.",
+                MAX_INCLUDE_DEPTH
             ),
         });
     }
 
-    // No imports to process
-    let imports = match workflow.imports.take() {
-        Some(imports) if !imports.value.is_empty() => imports.value,
+    // No includes to process
+    let includes = match workflow.include.take() {
+        Some(includes) if !includes.value.is_empty() => includes.value,
         _ => return Ok(workflow),
     };
 
-    // Process each import
-    for spanned_import in imports {
-        let import_spec = &spanned_import.value;
-        let import_path_str = &import_spec.path.value;
+    // Process each include
+    for spanned_include in includes {
+        let include_spec = &spanned_include.value;
+        let include_path_str = &include_spec.path.value;
 
         // Resolve the filesystem path
-        let resolved_path = base_path.join(import_path_str);
+        let resolved_path = base_path.join(include_path_str);
 
         // Security: Validate path stays within project boundary
         validate_path_boundary(base_path, &resolved_path)?;
@@ -110,24 +110,24 @@ fn expand_imports_recursive(
                 })?;
         let canonical_str = canonical_path.to_string_lossy().to_string();
 
-        // Circular import detection
+        // Circular include detection
         if visited.contains(&canonical_str) {
             return Err(NikaError::ValidationError {
-                reason: format!("Circular import detected: {}", import_path_str),
+                reason: format!("Circular include detected: {}", include_path_str),
             });
         }
         visited.insert(canonical_str.clone());
 
-        // Load and parse the imported workflow
-        let imported_workflow = load_imported_workflow(&canonical_path)?;
+        // Load and parse the included workflow
+        let included_workflow = load_included_workflow(&canonical_path)?;
 
-        // Recursively expand imports in the imported workflow
-        let import_base = canonical_path.parent().unwrap_or(Path::new("."));
+        // Recursively expand includes in the included workflow
+        let include_base = canonical_path.parent().unwrap_or(Path::new("."));
         let expanded =
-            expand_imports_recursive(imported_workflow, import_base, depth + 1, visited)?;
+            expand_raw_include_recursive(included_workflow, include_base, depth + 1, visited)?;
 
         // Get prefix (if any)
-        let prefix = import_spec.prefix.as_ref().map(|s| s.value.as_str());
+        let prefix = include_spec.prefix.as_ref().map(|s| s.value.as_str());
 
         // Merge into main workflow
         merge_raw_workflow(&mut workflow, expanded, prefix)?;
@@ -152,20 +152,20 @@ fn validate_path_boundary(base_path: &Path, target_path: &Path) -> Result<(), Ni
     })
 }
 
-/// Load and parse an imported workflow file using the raw parser.
-fn load_imported_workflow(path: &Path) -> Result<RawWorkflow, NikaError> {
+/// Load and parse an included workflow file using the raw parser.
+fn load_included_workflow(path: &Path) -> Result<RawWorkflow, NikaError> {
     let content = std::fs::read_to_string(path).map_err(|e| NikaError::WorkflowNotFound {
         path: format!("{}: {}", path.display(), e),
     })?;
 
-    // Use a unique FileId for each imported file.
+    // Use a unique FileId for each included file.
     // We use a hash of the path to get a deterministic but unique ID.
     // The FileId is only used for span tracking within the raw AST.
     let file_id = FileId(path_hash(path));
 
     parse(&content, file_id).map_err(|e| NikaError::ParseError {
         details: format!(
-            "Failed to parse imported workflow '{}': {}",
+            "Failed to parse included workflow '{}': {}",
             path.display(),
             e.message
         ),
@@ -181,12 +181,12 @@ fn path_hash(path: &Path) -> u32 {
     (hasher.finish() as u32) & 0x7FFF_FFFF
 }
 
-/// Merge an imported (expanded) workflow into the main workflow.
+/// Merge an included (expanded) workflow into the main workflow.
 ///
 /// - Tasks are prefixed and appended
 /// - MCP servers are merged (main takes precedence on conflicts)
 /// - Context files are NOT merged (top-level only, matching old behavior)
-/// - Imports field is already consumed (was `take()`n in recursive step)
+/// - Include field is already consumed (was `take()`n in recursive step)
 fn merge_raw_workflow(
     main: &mut RawWorkflow,
     imported: RawWorkflow,
@@ -331,7 +331,7 @@ fn is_reserved_namespace(ident: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::raw::{RawImportSpec, RawMcpConfig, RawMcpServer};
+    use crate::ast::raw::{RawIncludeSpec, RawMcpConfig, RawMcpServer};
     use crate::source::{FileId, Span};
     use tempfile::TempDir;
 
@@ -662,24 +662,24 @@ mod tests {
     // ─── File-based integration tests (tempfile) ─────────────────
 
     #[test]
-    fn test_expand_imports_no_imports() {
+    fn test_expand_include_no_imports() {
         let workflow = RawWorkflow {
             schema: Spanned::dummy("nika/workflow@0.12".to_string()),
             tasks: Spanned::dummy(vec![Spanned::dummy(RawTask::new("step1"))]),
             ..Default::default()
         };
 
-        let result = expand_imports(workflow, Path::new(".")).unwrap();
+        let result = expand_raw_include(workflow, Path::new(".")).unwrap();
         assert_eq!(result.tasks.value.len(), 1);
         assert_eq!(result.tasks.value[0].value.id.value, "step1");
     }
 
     #[test]
-    fn test_expand_imports_simple() {
+    fn test_expand_include_simple() {
         let dir = TempDir::new().unwrap();
 
-        // Create imported workflow
-        let imported_yaml = r#"
+        // Create included workflow
+        let included_yaml = r#"
 schema: "nika/workflow@0.12"
 tasks:
   - id: init
@@ -688,13 +688,13 @@ tasks:
     depends_on: [init]
     infer: "Setup"
 "#;
-        let import_path = dir.path().join("setup.nika.yaml");
-        std::fs::write(&import_path, imported_yaml).unwrap();
+        let include_path = dir.path().join("setup.nika.yaml");
+        std::fs::write(&include_path, included_yaml).unwrap();
 
-        // Create main workflow with import
+        // Create main workflow with include
         let main = RawWorkflow {
             schema: Spanned::dummy("nika/workflow@0.12".to_string()),
-            imports: Some(Spanned::dummy(vec![Spanned::dummy(RawImportSpec {
+            include: Some(Spanned::dummy(vec![Spanned::dummy(RawIncludeSpec {
                 path: Spanned::dummy("setup.nika.yaml".to_string()),
                 prefix: Some(Spanned::dummy("setup_".to_string())),
                 span: Span::dummy(),
@@ -703,7 +703,7 @@ tasks:
             ..Default::default()
         };
 
-        let result = expand_imports(main, dir.path()).unwrap();
+        let result = expand_raw_include(main, dir.path()).unwrap();
 
         // Should have 3 tasks: main_task + setup_init + setup_setup
         assert_eq!(result.tasks.value.len(), 3);
@@ -737,20 +737,20 @@ tasks:
     }
 
     #[test]
-    fn test_expand_imports_no_prefix() {
+    fn test_expand_include_no_prefix() {
         let dir = TempDir::new().unwrap();
 
-        let imported_yaml = r#"
+        let included_yaml = r#"
 schema: "nika/workflow@0.12"
 tasks:
   - id: helper
     infer: "Help"
 "#;
-        std::fs::write(dir.path().join("helper.nika.yaml"), imported_yaml).unwrap();
+        std::fs::write(dir.path().join("helper.nika.yaml"), included_yaml).unwrap();
 
         let main = RawWorkflow {
             schema: Spanned::dummy("nika/workflow@0.12".to_string()),
-            imports: Some(Spanned::dummy(vec![Spanned::dummy(RawImportSpec {
+            include: Some(Spanned::dummy(vec![Spanned::dummy(RawIncludeSpec {
                 path: Spanned::dummy("helper.nika.yaml".to_string()),
                 prefix: None,
                 span: Span::dummy(),
@@ -759,16 +759,16 @@ tasks:
             ..Default::default()
         };
 
-        let result = expand_imports(main, dir.path()).unwrap();
+        let result = expand_raw_include(main, dir.path()).unwrap();
         assert_eq!(result.tasks.value.len(), 1);
         assert_eq!(result.tasks.value[0].value.id.value, "helper");
     }
 
     #[test]
-    fn test_expand_imports_recursive() {
+    fn test_expand_include_recursive() {
         let dir = TempDir::new().unwrap();
 
-        // Level 2: deepest import
+        // Level 2: deepest include
         let deep_yaml = r#"
 schema: "nika/workflow@0.12"
 tasks:
@@ -777,10 +777,10 @@ tasks:
 "#;
         std::fs::write(dir.path().join("deep.nika.yaml"), deep_yaml).unwrap();
 
-        // Level 1: mid-level import that imports deep
+        // Level 1: mid-level include that includes deep
         let mid_yaml = r#"
 schema: "nika/workflow@0.12"
-imports:
+include:
   - path: deep.nika.yaml
     prefix: deep_
 tasks:
@@ -792,7 +792,7 @@ tasks:
         // Level 0: main workflow
         let main = RawWorkflow {
             schema: Spanned::dummy("nika/workflow@0.12".to_string()),
-            imports: Some(Spanned::dummy(vec![Spanned::dummy(RawImportSpec {
+            include: Some(Spanned::dummy(vec![Spanned::dummy(RawIncludeSpec {
                 path: Spanned::dummy("mid.nika.yaml".to_string()),
                 prefix: Some(Spanned::dummy("m_".to_string())),
                 span: Span::dummy(),
@@ -801,7 +801,7 @@ tasks:
             ..Default::default()
         };
 
-        let result = expand_imports(main, dir.path()).unwrap();
+        let result = expand_raw_include(main, dir.path()).unwrap();
 
         let ids: Vec<&str> = result
             .tasks
@@ -818,13 +818,13 @@ tasks:
     }
 
     #[test]
-    fn test_expand_imports_circular_detection() {
+    fn test_expand_include_circular_detection() {
         let dir = TempDir::new().unwrap();
 
-        // A imports B
+        // A includes B
         let a_yaml = r#"
 schema: "nika/workflow@0.12"
-imports:
+include:
   - path: b.nika.yaml
 tasks:
   - id: a_task
@@ -832,10 +832,10 @@ tasks:
 "#;
         std::fs::write(dir.path().join("a.nika.yaml"), a_yaml).unwrap();
 
-        // B imports A (circular!)
+        // B includes A (circular!)
         let b_yaml = r#"
 schema: "nika/workflow@0.12"
-imports:
+include:
   - path: a.nika.yaml
 tasks:
   - id: b_task
@@ -847,29 +847,29 @@ tasks:
         let a_content = std::fs::read_to_string(dir.path().join("a.nika.yaml")).unwrap();
         let a_workflow = parse(&a_content, FileId(0)).unwrap();
 
-        let result = expand_imports(a_workflow, dir.path());
+        let result = expand_raw_include(a_workflow, dir.path());
         assert!(result.is_err());
         let err = result.unwrap_err();
         let msg = err.to_string();
         assert!(
-            msg.contains("Circular import"),
-            "Expected circular import error, got: {}",
+            msg.contains("Circular include"),
+            "Expected circular include error, got: {}",
             msg
         );
     }
 
     #[test]
-    fn test_expand_imports_depth_limit() {
+    fn test_expand_include_depth_limit() {
         let dir = TempDir::new().unwrap();
 
-        // Create a chain of 12 imports (exceeds MAX_IMPORT_DEPTH = 10)
+        // Create a chain of 12 includes (exceeds MAX_INCLUDE_DEPTH = 10)
         for i in 0..12 {
             let next = i + 1;
             let yaml = if next <= 11 {
                 format!(
                     r#"
 schema: "nika/workflow@0.12"
-imports:
+include:
   - path: level{}.nika.yaml
 tasks:
   - id: task{}
@@ -894,24 +894,24 @@ tasks:
         let content = std::fs::read_to_string(dir.path().join("level0.nika.yaml")).unwrap();
         let workflow = parse(&content, FileId(0)).unwrap();
 
-        let result = expand_imports(workflow, dir.path());
+        let result = expand_raw_include(workflow, dir.path());
         assert!(result.is_err());
         let err = result.unwrap_err();
         let msg = err.to_string();
         assert!(
-            msg.contains("Maximum import depth"),
+            msg.contains("Maximum include depth"),
             "Expected depth limit error, got: {}",
             msg
         );
     }
 
     #[test]
-    fn test_expand_imports_file_not_found() {
+    fn test_expand_include_file_not_found() {
         let dir = TempDir::new().unwrap();
 
         let main = RawWorkflow {
             schema: Spanned::dummy("nika/workflow@0.12".to_string()),
-            imports: Some(Spanned::dummy(vec![Spanned::dummy(RawImportSpec {
+            include: Some(Spanned::dummy(vec![Spanned::dummy(RawIncludeSpec {
                 path: Spanned::dummy("nonexistent.nika.yaml".to_string()),
                 prefix: None,
                 span: Span::dummy(),
@@ -920,18 +920,18 @@ tasks:
             ..Default::default()
         };
 
-        let result = expand_imports(main, dir.path());
+        let result = expand_raw_include(main, dir.path());
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_expand_imports_path_traversal() {
+    fn test_expand_include_path_traversal() {
         let dir = TempDir::new().unwrap();
 
         // Attempt to escape the base directory
         let main = RawWorkflow {
             schema: Spanned::dummy("nika/workflow@0.12".to_string()),
-            imports: Some(Spanned::dummy(vec![Spanned::dummy(RawImportSpec {
+            include: Some(Spanned::dummy(vec![Spanned::dummy(RawIncludeSpec {
                 path: Spanned::dummy("../../../etc/passwd".to_string()),
                 prefix: None,
                 span: Span::dummy(),
@@ -940,15 +940,15 @@ tasks:
             ..Default::default()
         };
 
-        let result = expand_imports(main, dir.path());
+        let result = expand_raw_include(main, dir.path());
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_expand_imports_with_refs_prefixing() {
+    fn test_expand_include_with_refs_prefixing() {
         let dir = TempDir::new().unwrap();
 
-        let imported_yaml = r#"
+        let included_yaml = r#"
 schema: "nika/workflow@0.12"
 tasks:
   - id: producer
@@ -961,11 +961,11 @@ tasks:
     depends_on: [producer]
     infer: "Consume: {{with.data}}"
 "#;
-        std::fs::write(dir.path().join("lib.nika.yaml"), imported_yaml).unwrap();
+        std::fs::write(dir.path().join("lib.nika.yaml"), included_yaml).unwrap();
 
         let main = RawWorkflow {
             schema: Spanned::dummy("nika/workflow@0.12".to_string()),
-            imports: Some(Spanned::dummy(vec![Spanned::dummy(RawImportSpec {
+            include: Some(Spanned::dummy(vec![Spanned::dummy(RawIncludeSpec {
                 path: Spanned::dummy("lib.nika.yaml".to_string()),
                 prefix: Some(Spanned::dummy("lib_".to_string())),
                 span: Span::dummy(),
@@ -974,7 +974,7 @@ tasks:
             ..Default::default()
         };
 
-        let result = expand_imports(main, dir.path()).unwrap();
+        let result = expand_raw_include(main, dir.path()).unwrap();
 
         // Find lib_consumer
         let consumer = result
@@ -1017,10 +1017,10 @@ tasks:
     }
 
     #[test]
-    fn test_expand_imports_mcp_merge() {
+    fn test_expand_include_mcp_merge() {
         let dir = TempDir::new().unwrap();
 
-        let imported_yaml = r#"
+        let included_yaml = r#"
 schema: "nika/workflow@0.12"
 mcp:
   servers:
@@ -1031,7 +1031,7 @@ tasks:
   - id: search
     infer: "Search"
 "#;
-        std::fs::write(dir.path().join("search.nika.yaml"), imported_yaml).unwrap();
+        std::fs::write(dir.path().join("search.nika.yaml"), included_yaml).unwrap();
 
         let mut main_mcp = RawMcpConfig::new();
         main_mcp.servers.insert(
@@ -1042,7 +1042,7 @@ tasks:
         let main = RawWorkflow {
             schema: Spanned::dummy("nika/workflow@0.12".to_string()),
             mcp: Some(Spanned::dummy(main_mcp)),
-            imports: Some(Spanned::dummy(vec![Spanned::dummy(RawImportSpec {
+            include: Some(Spanned::dummy(vec![Spanned::dummy(RawIncludeSpec {
                 path: Spanned::dummy("search.nika.yaml".to_string()),
                 prefix: Some(Spanned::dummy("s_".to_string())),
                 span: Span::dummy(),
@@ -1051,7 +1051,7 @@ tasks:
             ..Default::default()
         };
 
-        let result = expand_imports(main, dir.path()).unwrap();
+        let result = expand_raw_include(main, dir.path()).unwrap();
 
         let mcp = result.mcp.as_ref().unwrap();
         assert_eq!(mcp.value.server_count(), 2);
@@ -1060,7 +1060,7 @@ tasks:
     }
 
     #[test]
-    fn test_expand_imports_same_file_different_branches() {
+    fn test_expand_include_same_file_different_branches() {
         let dir = TempDir::new().unwrap();
 
         // Shared utility
@@ -1072,10 +1072,10 @@ tasks:
 "#;
         std::fs::write(dir.path().join("util.nika.yaml"), util_yaml).unwrap();
 
-        // Branch A imports util
+        // Branch A includes util
         let a_yaml = r#"
 schema: "nika/workflow@0.12"
-imports:
+include:
   - path: util.nika.yaml
     prefix: u_
 tasks:
@@ -1084,10 +1084,10 @@ tasks:
 "#;
         std::fs::write(dir.path().join("a.nika.yaml"), a_yaml).unwrap();
 
-        // Branch B also imports util (should work — same file in different branches)
+        // Branch B also includes util (should work — same file in different branches)
         let b_yaml = r#"
 schema: "nika/workflow@0.12"
-imports:
+include:
   - path: util.nika.yaml
     prefix: v_
 tasks:
@@ -1096,16 +1096,16 @@ tasks:
 "#;
         std::fs::write(dir.path().join("b.nika.yaml"), b_yaml).unwrap();
 
-        // Main imports both A and B
+        // Main includes both A and B
         let main = RawWorkflow {
             schema: Spanned::dummy("nika/workflow@0.12".to_string()),
-            imports: Some(Spanned::dummy(vec![
-                Spanned::dummy(RawImportSpec {
+            include: Some(Spanned::dummy(vec![
+                Spanned::dummy(RawIncludeSpec {
                     path: Spanned::dummy("a.nika.yaml".to_string()),
                     prefix: Some(Spanned::dummy("a_".to_string())),
                     span: Span::dummy(),
                 }),
-                Spanned::dummy(RawImportSpec {
+                Spanned::dummy(RawIncludeSpec {
                     path: Spanned::dummy("b.nika.yaml".to_string()),
                     prefix: Some(Spanned::dummy("b_".to_string())),
                     span: Span::dummy(),
@@ -1115,7 +1115,7 @@ tasks:
             ..Default::default()
         };
 
-        let result = expand_imports(main, dir.path()).unwrap();
+        let result = expand_raw_include(main, dir.path()).unwrap();
 
         let ids: Vec<&str> = result
             .tasks

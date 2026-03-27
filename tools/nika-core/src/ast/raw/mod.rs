@@ -61,7 +61,7 @@ pub use action::{
 pub use mcp::{RawMcpConfig, RawMcpServer};
 pub use parser::{parse, ParseError, ParseErrorKind};
 pub use task::{RawForEach, RawOutputConfig, RawRetryConfig, RawTask};
-pub use workflow::{RawContextConfig, RawImportSpec, RawPkgConfig, RawWorkflow};
+pub use workflow::{RawContextConfig, RawIncludeSpec, RawPkgConfig, RawWorkflow};
 
 #[cfg(test)]
 mod tests {

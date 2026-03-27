@@ -132,10 +132,10 @@ impl SchemaVersion {
             Self::V05 => Some("@0.6 adds agents: definitions and skills:"),
             Self::V06 => Some("@0.7 adds log: config and catch: error handling"),
             Self::V07 => Some("@0.8 adds fetch: verb improvements"),
-            Self::V08 => Some("@0.9 adds context: files and imports:"),
+            Self::V08 => Some("@0.9 adds context: files and include:"),
             Self::V09 => Some("@0.10 adds inputs: with defaults and artifacts:"),
             Self::V10 => Some("@0.11 adds with: bindings replacing include:"),
-            Self::V11 => Some("@0.12 adds depends_on:, imports:, and ?? fallback operator"),
+            Self::V11 => Some("@0.12 adds depends_on:, include:, and ?? fallback operator"),
             Self::V12 => None,
         }
     }
@@ -195,8 +195,8 @@ impl SchemaVersion {
         self.supports(Self::V12)
     }
 
-    /// Check if imports: syntax is supported.
-    pub fn supports_imports(&self) -> bool {
+    /// Check if include: syntax is supported.
+    pub fn supports_includes(&self) -> bool {
         self.supports(Self::V12)
     }
 
@@ -281,11 +281,11 @@ mod tests {
         assert!(!SchemaVersion::V09.supports_inputs());
         assert!(SchemaVersion::V10.supports_inputs());
 
-        // with:/imports:/depends_on: require v0.12+
+        // with:/include:/depends_on: require v0.12+
         assert!(!SchemaVersion::V11.supports_with());
         assert!(SchemaVersion::V12.supports_with());
-        assert!(!SchemaVersion::V11.supports_imports());
-        assert!(SchemaVersion::V12.supports_imports());
+        assert!(!SchemaVersion::V11.supports_includes());
+        assert!(SchemaVersion::V12.supports_includes());
         assert!(!SchemaVersion::V11.supports_depends_on());
         assert!(SchemaVersion::V12.supports_depends_on());
     }

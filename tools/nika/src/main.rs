@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use nika::ast::output::SchemaRef;
 use nika::ast::schema_validator::WorkflowSchemaValidator;
 use nika::ast::{
-    parse_analyzed, parse_analyzed_with_imports, parse_workflow_with_imports, TaskAction,
+    parse_analyzed, parse_analyzed_with_includes, parse_workflow_with_includes, TaskAction,
 };
 use nika::dag::{validate_bindings, Dag};
 use nika::error::NikaError;
@@ -1499,9 +1499,9 @@ async fn run_workflow(
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
 
-    // Parse with import expansion: raw → expand_imports → analyze
+    // Parse with include expansion: raw → expand_raw_include → analyze
     // This merges partial workflows BEFORE validation so cross-file references work.
-    let mut workflow = parse_analyzed_with_imports(&yaml, base_path)?;
+    let mut workflow = parse_analyzed_with_includes(&yaml, base_path)?;
 
     // Auto-onboarding: if workflow needs an LLM and no API keys are set, run the wizard.
     let needs_llm = workflow.tasks.iter().any(|t| {
@@ -1750,7 +1750,7 @@ async fn validate_workflow(file: &str, quiet: bool) -> Result<(), NikaError> {
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
-    let workflow = parse_workflow_with_imports(&yaml, base_path)?;
+    let workflow = parse_workflow_with_includes(&yaml, base_path)?;
     let parse_elapsed = t.elapsed();
     let includes_elapsed = std::time::Duration::ZERO;
 
@@ -2097,7 +2097,7 @@ async fn validate_workflow_strict(file: &str) -> Result<(), NikaError> {
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
-    let workflow = parse_workflow_with_imports(&yaml, base_path)?;
+    let workflow = parse_workflow_with_includes(&yaml, base_path)?;
     let parse_elapsed = t.elapsed();
     let includes_elapsed = std::time::Duration::ZERO;
 
@@ -2735,7 +2735,7 @@ async fn dry_run_workflow(
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
-    let mut workflow = parse_analyzed_with_imports(&yaml, base_path)?;
+    let mut workflow = parse_analyzed_with_includes(&yaml, base_path)?;
 
     // Apply overrides
     if let Some(p) = provider_override {
