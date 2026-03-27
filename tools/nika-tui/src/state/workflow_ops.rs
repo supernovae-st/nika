@@ -15,14 +15,21 @@ impl TuiState {
     ///
     /// P0 Fix: Uses workflow.paused as single source of truth
     pub fn toggle_pause(&mut self) {
-        self.workflow.paused = !self.workflow.paused;
-        // Update phase to match pause state
-        if self.workflow.paused {
+        if !self.workflow.paused {
+            // Pausing: save current phase before overwriting
+            self.workflow.phase_before_pause = Some(self.workflow.phase);
+            self.workflow.paused = true;
             self.workflow.phase = MissionPhase::Pause;
-        } else if self.current_task.is_some() {
-            self.workflow.phase = MissionPhase::Orbital;
         } else {
-            self.workflow.phase = MissionPhase::Countdown;
+            // Resuming: restore saved phase or fall back to heuristic
+            self.workflow.paused = false;
+            if let Some(phase) = self.workflow.phase_before_pause.take() {
+                self.workflow.phase = phase;
+            } else if self.current_task.is_some() {
+                self.workflow.phase = MissionPhase::Orbital;
+            } else {
+                self.workflow.phase = MissionPhase::Countdown;
+            }
         }
         self.dirty.progress = true;
         self.dirty.status = true;

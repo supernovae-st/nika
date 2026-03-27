@@ -4048,7 +4048,7 @@ fn test_toggle_pause_twice_restores() {
 }
 
 #[test]
-fn test_toggle_pause_resume_no_current_task_goes_countdown() {
+fn test_toggle_pause_resume_restores_saved_phase() {
     let mut state = TuiState::new("test.nika.yaml");
     state.workflow.phase = MissionPhase::Orbital;
     state.current_task = None;
@@ -4056,6 +4056,22 @@ fn test_toggle_pause_resume_no_current_task_goes_countdown() {
     state.toggle_pause();
     assert!(state.is_paused());
 
+    // Resume restores saved phase (Orbital), regardless of current_task
+    state.toggle_pause();
+    assert!(!state.is_paused());
+    assert_eq!(state.workflow.phase, MissionPhase::Orbital);
+}
+
+#[test]
+fn test_toggle_pause_resume_fallback_no_saved_phase() {
+    let mut state = TuiState::new("test.nika.yaml");
+    // Manually force paused without saving phase_before_pause
+    state.workflow.paused = true;
+    state.workflow.phase = MissionPhase::Pause;
+    state.workflow.phase_before_pause = None;
+    state.current_task = None;
+
+    // Resume should fall back to Countdown heuristic
     state.toggle_pause();
     assert!(!state.is_paused());
     assert_eq!(state.workflow.phase, MissionPhase::Countdown);
@@ -4071,6 +4087,27 @@ fn test_is_paused_reflects_workflow_state() {
 
     state.workflow.paused = false;
     assert!(!state.is_paused());
+}
+
+#[test]
+fn test_toggle_pause_saves_and_restores_phase_before_pause() {
+    let mut state = TuiState::new("test.nika.yaml");
+    // Simulate a workflow in Rendezvous phase (active MCP call)
+    state.workflow.phase = MissionPhase::Rendezvous;
+
+    // First toggle: pause
+    state.toggle_pause();
+    assert_eq!(state.workflow.phase, MissionPhase::Pause);
+    assert!(state.workflow.paused);
+
+    // Second toggle: resume — must restore Rendezvous, not guess Orbital/Countdown
+    state.toggle_pause();
+    assert!(!state.workflow.paused);
+    assert_eq!(
+        state.workflow.phase,
+        MissionPhase::Rendezvous,
+        "resume must restore saved phase, not heuristic guess"
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
