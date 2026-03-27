@@ -27,21 +27,54 @@ Nika connects to NovaNet via MCP only (Zero Cypher rule). Use `invoke:` verb.
 ## Commands
 
 ```bash
-nika check workflow.nika.yaml    # Validate
-nika run workflow.nika.yaml            # Execute workflow (auto-detect live/classic)
+# Workflows
+nika run workflow.nika.yaml            # Execute workflow
 nika run workflow.nika.yaml --no-live  # Force classic append-only output
-nika ui                          # TUI
-nika provider list               # API key status
-nika init                        # Interactive project setup (wizard)
-nika init --course               # Generate 12-level learning course (44 exercises)
-nika course status               # Show constellation progress map
-nika course next                 # Open next exercise
-nika course check [level]        # Validate exercises
-nika course hint [exercise]      # Progressive hints (3 tiers)
-nika course run <exercise>       # Run a course exercise
-nika course info [level]         # Show course/level details
-nika course reset <level>        # Reset a level
-nika course watch                # Auto-check on file save
-nika showcase list               # Browse 115 showcase workflows
-nika showcase extract <name>     # Extract a showcase to current dir
+nika check workflow.nika.yaml          # Validate syntax + DAG
+nika check workflow.nika.yaml --strict # + test MCP connections
+nika new my-flow --verb infer          # Create new workflow
+nika workflow graph flow.nika.yaml     # Visualize DAG
+
+# Direct verbs
+nika infer "Explain AI"                # Quick LLM call
+nika fetch https://blog.com --extract article  # HTTP + extraction
+nika invoke nika:dimensions photo.jpg  # Builtin tool
+nika agent "Research AI" --turns 5     # Multi-turn agent
+
+# Interactive
+nika ui                                # TUI
+nika chat                              # Chat mode
+nika studio                            # Studio editor
+
+# Models & providers
+nika model list                        # Cloud models + pricing
+nika model info claude-sonnet-4-6      # Model details
+nika model recommend                   # Smart recommendation
+nika provider list                     # API key status
+nika provider set anthropic            # Store key in keychain
+nika mcp list                          # MCP server connections
+
+# Learning
+nika init --course                     # 12-level course (44 exercises)
+nika course status                     # Constellation progress map
+nika course next                       # Open next exercise
+nika showcase list                     # Browse 115 showcase workflows
+nika showcase extract <name>           # Extract showcase to current dir
+
+# Project
+nika init                              # Interactive project setup
+nika config list                       # Show configuration
+nika pkg list                          # Package management
+nika media stats                       # Media store stats
+
+# System
+nika doctor --fix                      # System health + auto-repair
+nika daemon status                     # Background daemon (Unix)
+nika cache stats                       # LLM response cache (Unix)
+nika setup                             # API key setup wizard
+nika features                          # Compiled feature flags
+nika completion zsh                    # Shell completions
+nika trace list                        # Execution traces
+nika help                              # Full command reference
+nika help verbs                        # Deep-dive: 5 semantic verbs
 ```
