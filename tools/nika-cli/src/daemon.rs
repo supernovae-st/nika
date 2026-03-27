@@ -8,8 +8,9 @@
 //! - `nika daemon logs` — tail the daemon log file
 
 use clap::Subcommand;
-use colored::Colorize;
 use std::time::Duration;
+
+use nika_engine::display::StatusIcon;
 
 use nika_daemon::lifecycle::{
     check_pid_file, cleanup_stale_socket, daemonize, is_process_alive, remove_pid_file,
@@ -74,12 +75,12 @@ pub async fn handle_daemon_command(action: DaemonAction) -> Result<(), NikaError
         DaemonAction::Status => show_status().await,
         DaemonAction::Install => {
             nika_daemon::install::install().map_err(daemon_err)?;
-            eprintln!("{} daemon service installed", "✓".green().bold());
+            eprintln!("{} daemon service installed", StatusIcon::Ok);
             Ok(())
         }
         DaemonAction::Uninstall => {
             nika_daemon::install::uninstall().map_err(daemon_err)?;
-            eprintln!("{} daemon service removed", "✓".green().bold());
+            eprintln!("{} daemon service removed", StatusIcon::Ok);
             Ok(())
         }
         DaemonAction::Logs { follow, lines } => show_logs(follow, lines).await,
@@ -92,7 +93,7 @@ async fn start_daemon(foreground: bool) -> Result<(), NikaError> {
 
     // Check for existing daemon
     if let Some(pid) = check_pid_file(&pid_path).map_err(daemon_err)? {
-        eprintln!("{} daemon already running (pid {})", "✗".red().bold(), pid);
+        eprintln!("{} daemon already running (pid {})", StatusIcon::Fail, pid);
         return Ok(());
     }
 
@@ -113,14 +114,14 @@ async fn start_daemon(foreground: bool) -> Result<(), NikaError> {
         let client = DaemonClient::new(&socket_path).with_timeout(Duration::from_secs(3));
         match client.ping().await {
             Ok((version, _)) => {
-                eprintln!("{} daemon started (v{version})", "✓".green().bold());
+                eprintln!("{} daemon started (v{version})", StatusIcon::Ok);
                 eprintln!("  socket: {}", socket_path.display());
                 eprintln!("  logs:   {}", daemon_log_path().display());
             }
             Err(_) => {
                 eprintln!(
                     "{} daemon spawned but not responding yet — check logs",
-                    "⚠".yellow().bold()
+                    StatusIcon::Warn
                 );
                 eprintln!("  logs: {}", daemon_log_path().display());
             }
@@ -133,7 +134,7 @@ async fn start_daemon(foreground: bool) -> Result<(), NikaError> {
 
     eprintln!(
         "{} daemon starting in foreground (pid {})",
-        "▸".cyan().bold(),
+        StatusIcon::Info,
         std::process::id()
     );
     eprintln!("  socket: {}", socket_path.display());
@@ -160,7 +161,7 @@ async fn start_daemon(foreground: bool) -> Result<(), NikaError> {
     remove_pid_file(&pid_path);
 
     if foreground {
-        eprintln!("{} daemon stopped", "✓".green().bold());
+        eprintln!("{} daemon stopped", StatusIcon::Ok);
     }
 
     Ok(())
@@ -171,7 +172,7 @@ async fn stop_daemon() -> Result<(), NikaError> {
 
     match check_pid_file(&pid_path).map_err(daemon_err)? {
         Some(pid) => {
-            eprintln!("{} stopping daemon (pid {})", "▸".cyan().bold(), pid);
+            eprintln!("{} stopping daemon (pid {})", StatusIcon::Info, pid);
 
             // Send SIGTERM
             send_sigterm(pid).map_err(daemon_err)?;
@@ -188,11 +189,11 @@ async fn stop_daemon() -> Result<(), NikaError> {
             remove_pid_file(&pid_path);
             let _ = std::fs::remove_file(daemon_socket_path());
 
-            eprintln!("{} daemon stopped", "✓".green().bold());
+            eprintln!("{} daemon stopped", StatusIcon::Ok);
             Ok(())
         }
         None => {
-            eprintln!("{} daemon is not running", "⚠".yellow().bold());
+            eprintln!("{} daemon is not running", StatusIcon::Warn);
             Ok(())
         }
     }
@@ -205,7 +206,7 @@ async fn show_status() -> Result<(), NikaError> {
     // Check PID file
     match check_pid_file(&pid_path).map_err(daemon_err)? {
         None => {
-            println!("{} daemon is not running", "●".red().bold());
+            println!("{} daemon is not running", StatusIcon::Fail);
             println!("  socket: {}", socket_path.display());
             println!("  start:  nika daemon start");
             return Ok(());
@@ -220,7 +221,7 @@ async fn show_status() -> Result<(), NikaError> {
                     uptime_secs,
                     services,
                 }) => {
-                    println!("{} daemon is running", "●".green().bold());
+                    println!("{} daemon is running", StatusIcon::Ok);
                     println!("  pid:      {}", pid);
                     println!("  uptime:   {}", format_uptime(uptime_secs));
                     println!("  socket:   {}", socket_path.display());
@@ -229,14 +230,14 @@ async fn show_status() -> Result<(), NikaError> {
                 Ok(other) => {
                     println!(
                         "{} daemon responded unexpectedly: {:?}",
-                        "●".yellow().bold(),
+                        StatusIcon::Warn,
                         other
                     );
                 }
                 Err(_) => {
                     println!(
                         "{} daemon PID {} exists but not responding",
-                        "●".yellow().bold(),
+                        StatusIcon::Warn,
                         pid
                     );
                     println!("  socket: {}", socket_path.display());
@@ -255,7 +256,7 @@ async fn show_logs(follow: bool, lines: usize) -> Result<(), NikaError> {
     if !log_path.exists() {
         eprintln!(
             "{} no daemon log file found at {}",
-            "⚠".yellow().bold(),
+            StatusIcon::Warn,
             log_path.display()
         );
         return Ok(());
