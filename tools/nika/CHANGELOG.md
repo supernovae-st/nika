@@ -166,7 +166,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 - **Direct verbs** — `nika infer`, `nika fetch`, `nika invoke`, `nika agent` run without YAML
-- **`nika models`** — list all cloud models with pricing; `--provider`, `--info`, `--recommend` flags
+- **`nika model list`** — list all cloud models with pricing; `nika model info <name>`, `nika model recommend`
 - **stdin support** — `cat file.txt | nika infer "Summarize" --stdin`
 - **`--from-example`** — flag on `nika infer` for structured output (no YAML required)
 - **`--no-live`** — flag on `nika run` to force classic append-only output

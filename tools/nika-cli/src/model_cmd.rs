@@ -129,6 +129,9 @@ pub async fn handle_model_command(
         ModelAction::Info { name } => handle_model_info(&name, quiet).await,
         ModelAction::Recommend => super::model_cloud::print_model_recommend(),
 
+        // INVARIANT: all cloud variants (List, Info, Recommend) are matched above.
+        // This catch-all only receives native-inference variants (Local, Pull, Status,
+        // Delete, Vision). If you add a new cloud variant, match it explicitly above.
         #[cfg(feature = "native-inference")]
         local_action => {
             let converted = to_local_model_action(local_action);
@@ -138,8 +141,8 @@ pub async fn handle_model_command(
 }
 
 /// Unified model info: tries cloud first, falls back to local.
-#[allow(clippy::needless_return)]
-async fn handle_model_info(name: &str, _quiet: bool) -> Result<(), NikaError> {
+#[allow(clippy::needless_return, unused_variables)]
+async fn handle_model_info(name: &str, quiet: bool) -> Result<(), NikaError> {
     if super::model_cloud::print_model_info(name).is_ok() {
         return Ok(());
     }
@@ -149,7 +152,7 @@ async fn handle_model_info(name: &str, _quiet: bool) -> Result<(), NikaError> {
         let action = super::model::ModelAction::Info {
             name: name.to_string(),
         };
-        return super::model::handle_model_command(action, _quiet).await;
+        return super::model::handle_model_command(action, quiet).await;
     }
 
     #[cfg(not(feature = "native-inference"))]

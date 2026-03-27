@@ -9,14 +9,17 @@ use colored::Colorize;
 // BANNER
 // ═══════════════════════════════════════════════════════════════════════════
 
+/// Box width constant — shared between banner and separators.
+const HELP_WIDTH: usize = 58;
+
 fn print_banner() {
     let version = env!("CARGO_PKG_VERSION");
-    let inner = 56;
+    let inner = HELP_WIDTH - 4; // 4 = 2 border + 2 padding
     let bar = "\u{2500}".repeat(inner + 2);
 
-    let l1_left = "\u{2727} N I K A";
     let l1_right = format!("v{version}");
-    let l1_pad = inner - l1_left.len() - l1_right.len();
+    // "✧ N I K A" = 9 display columns (✧ is 1 col but 3 UTF-8 bytes)
+    let l1_pad = inner - 9 - l1_right.len();
 
     let l2 = "Semantic YAML workflow engine for AI tasks";
     let l2_pad = inner - l2.len();
@@ -115,8 +118,8 @@ pub fn print_help() {
         None,
         "\u{2388}",
         "yellow",
-        "Shell command (workflows)",
-        "exec: \"npm build\"",
+        "Shell command (workflow only)",
+        "exec: { command: \"...\", shell: true }",
     );
     verb_cmd(
         "fetch",
@@ -574,7 +577,7 @@ fn section(title: &str) {
 }
 
 fn sep() {
-    println!("  {}", "\u{2500}".repeat(60).dimmed()); // ─
+    println!("  {}", "\u{2500}".repeat(HELP_WIDTH - 2).dimmed()); // ─
 }
 
 fn quick(command: &str, desc: &str) {
