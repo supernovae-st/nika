@@ -13,11 +13,11 @@ Source code for the `nika` binary and all workspace crates. For user-facing docu
 ```
 tools/
 ├── nika/               Binary entry point            (cargo install nika)
-├── nika-engine/        Embeddable runtime (162k LOC) (cargo add nika-engine)
+├── nika-engine/        Embeddable runtime (135k LOC) (cargo add nika-engine)
 ├── nika-core/          AST, types, catalogs (30k)    zero I/O
 ├── nika-event/         EventLog, TraceWriter (4k)
 ├── nika-mcp/           MCP client + rmcp (9k)
-├── nika-media/         CAS store + processor (3.5k)
+├── nika-media/         CAS store + processor (13k)
 ├── nika-cli/           CLI subcommands (8k)
 ├── nika-tui/           Terminal UI — ratatui (86k)
 ├── nika-lsp-core/      LSP intelligence (9k)
