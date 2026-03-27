@@ -8702,3 +8702,392 @@ fn ad02_all_gate_workflows_parse() {
         );
     }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AB. ENGINE FIXES E2E TESTS (v0.50 session)
+// Tests for: structured output, include:, model template, extended_thinking,
+// agent system template, response_format
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn ab01_structured_output_with_openai_provider_parses() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: openai
+model: gpt-4o
+
+tasks:
+  - id: extract
+    infer:
+      prompt: "Extract product data from this text"
+    structured:
+      schema:
+        type: object
+        properties:
+          name: { type: string }
+          price: { type: number }
+          in_stock: { type: boolean }
+        required: [name, price]
+      enable_repair: true
+      max_retries: 3
+"#;
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 1);
+    let task = &w.tasks[0];
+    assert!(task.structured.is_some());
+    let spec = task.structured.as_ref().unwrap();
+    assert_eq!(spec.max_retries, Some(3));
+    assert_eq!(spec.enable_repair, Some(true));
+}
+
+#[test]
+fn ab02_structured_output_with_schema_and_for_each() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: test-model
+
+tasks:
+  - id: urls
+    infer: "List 5 URLs"
+    structured:
+      schema:
+        type: object
+        properties:
+          urls: { type: array, items: { type: string } }
+        required: [urls]
+
+  - id: scrape
+    with:
+      data: $urls
+    for_each: "{{with.data}}"
+    as: url
+    concurrency: 3
+    fetch:
+      url: "{{with.url}}"
+      extract: article
+
+  - id: synthesize
+    depends_on: [scrape]
+    with:
+      articles: $scrape
+    infer: "Synthesize: {{with.articles | join('\n')}}"
+"#;
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 3);
+    assert!(w.tasks[0].structured.is_some());
+    assert!(w.tasks[1].for_each.is_some());
+}
+
+#[test]
+fn ab03_include_key_parses() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+model: test-model
+include:
+  - path: ./lib/seo.nika.yaml
+    prefix: seo_
+  - path: ./lib/media.nika.yaml
+    prefix: media_
+tasks:
+  - id: main
+    infer: "Main task"
+"#;
+    let w = ok(yaml);
+    assert!(w.include.is_some());
+    let includes = w.include.as_ref().unwrap();
+    assert_eq!(includes.len(), 2);
+    assert_eq!(includes[0].prefix.as_deref(), Some("seo_"));
+    assert_eq!(includes[1].prefix.as_deref(), Some("media_"));
+}
+
+#[test]
+fn ab04_imports_key_rejected() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+model: test-model
+imports:
+  - path: ./lib/seo.nika.yaml
+tasks:
+  - id: main
+    infer: "Main task"
+"#;
+    // 'imports:' is no longer a known key — should fail or be ignored
+    let e = err(yaml);
+    let msg = e.to_string();
+    assert!(
+        msg.contains("Unknown") || msg.contains("unknown") || msg.contains("NIKA-010"),
+        "Expected unknown key error, got: {msg}"
+    );
+}
+
+#[test]
+fn ab05_model_template_in_infer() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+
+tasks:
+  - id: t1
+    model: "{{inputs.fast_model | default('gpt-4o-mini')}}"
+    infer:
+      prompt: "Test"
+"#;
+    let w = ok(yaml);
+    let task = &w.tasks[0];
+    match &task.action {
+        crate::ast::TaskAction::Infer { infer } => {
+            assert_eq!(
+                infer.model.as_deref(),
+                Some("{{inputs.fast_model | default('gpt-4o-mini')}}")
+            );
+        }
+        _ => panic!("Expected Infer"),
+    }
+}
+
+#[test]
+fn ab06_model_template_in_agent() {
+    let yaml =
+        wrap("agent:\n  prompt: \"Test\"\n  model: \"{{inputs.agent_model}}\"");
+    let w = ok(&yaml);
+    let task = &w.tasks[0];
+    match &task.action {
+        crate::ast::TaskAction::Agent { agent } => {
+            assert_eq!(agent.model.as_deref(), Some("{{inputs.agent_model}}"));
+        }
+        _ => panic!("Expected Agent"),
+    }
+}
+
+#[test]
+fn ab07_extended_thinking_with_openai_parses_ok() {
+    // Previously crashed with ValidationError, now degrades gracefully
+    let yaml = wrap(
+        "infer:\n  prompt: \"Deep reasoning\"\n  provider: openai\n  extended_thinking: true\n  thinking_budget: 4096",
+    );
+    let w = ok(&yaml);
+    let task = &w.tasks[0];
+    match &task.action {
+        crate::ast::TaskAction::Infer { infer } => {
+            assert_eq!(infer.extended_thinking, Some(true));
+            assert_eq!(infer.thinking_budget, Some(4096));
+        }
+        _ => panic!("Expected Infer"),
+    }
+}
+
+#[test]
+fn ab08_extended_thinking_with_groq_parses_ok() {
+    let yaml = wrap(
+        "agent:\n  prompt: \"Test\"\n  provider: groq\n  extended_thinking: true\n  thinking_budget: 8192",
+    );
+    let w = ok(&yaml);
+    let task = &w.tasks[0];
+    match &task.action {
+        crate::ast::TaskAction::Agent { agent } => {
+            assert_eq!(agent.extended_thinking, Some(true));
+            assert_eq!(agent.provider, Some("groq".to_string()));
+        }
+        _ => panic!("Expected Agent"),
+    }
+}
+
+#[test]
+fn ab09_extended_thinking_with_claude_still_ok() {
+    let yaml = wrap(
+        "infer:\n  prompt: \"Think deeply\"\n  provider: claude\n  extended_thinking: true\n  thinking_budget: 16384",
+    );
+    let w = ok(&yaml);
+    let task = &w.tasks[0];
+    match &task.action {
+        crate::ast::TaskAction::Infer { infer } => {
+            assert_eq!(infer.extended_thinking, Some(true));
+            assert_eq!(infer.thinking_budget, Some(16384));
+        }
+        _ => panic!("Expected Infer"),
+    }
+}
+
+#[test]
+fn ab10_agent_system_with_template() {
+    let yaml = wrap(
+        "agent:\n  prompt: \"Research {{inputs.topic}}\"\n  system: \"You are an expert in {{inputs.domain}}\"",
+    );
+    let w = ok(&yaml);
+    let task = &w.tasks[0];
+    match &task.action {
+        crate::ast::TaskAction::Agent { agent } => {
+            assert_eq!(
+                agent.system.as_deref(),
+                Some("You are an expert in {{inputs.domain}}")
+            );
+        }
+        _ => panic!("Expected Agent"),
+    }
+}
+
+#[test]
+fn ab11_complex_multi_provider_structured_pipeline() {
+    // A realistic workflow that uses structured output across multiple providers
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: test-model
+
+inputs:
+  topic: "AI workflow engines"
+  fast_model: "gpt-4o-mini"
+
+tasks:
+  - id: research
+    infer:
+      prompt: "Research: {{inputs.topic}}"
+      temperature: 0.7
+
+  - id: extract_entities
+    depends_on: [research]
+    with:
+      text: $research
+    infer:
+      prompt: "Extract entities from: {{with.text}}"
+    structured:
+      schema:
+        type: object
+        properties:
+          entities:
+            type: array
+            items:
+              type: object
+              properties:
+                name: { type: string }
+                type: { type: string }
+              required: [name, type]
+        required: [entities]
+
+  - id: summarize
+    depends_on: [extract_entities]
+    with:
+      entities: $extract_entities
+    infer:
+      prompt: |
+        Summarize findings. Entities: {{with.entities}}
+      max_tokens: 500
+"#;
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 3);
+    assert!(w.tasks[1].structured.is_some());
+    assert!(w.tasks[1].depends_on.as_ref().unwrap().contains(&"research".to_string()));
+    assert!(w.tasks[2].depends_on.as_ref().unwrap().contains(&"extract_entities".to_string()));
+}
+
+#[test]
+fn ab12_structured_output_with_repair_model() {
+    let yaml = wrap(
+        "infer:\n  prompt: \"Extract data\"\nstructured:\n  schema:\n    type: object\n    properties:\n      name: { type: string }\n    required: [name]\n  enable_repair: true\n  max_retries: 3\n  repair_model: claude-haiku-4-5",
+    );
+    let w = ok(&yaml);
+    let task = &w.tasks[0];
+    let spec = task.structured.as_ref().unwrap();
+    assert_eq!(spec.max_retries, Some(3));
+    assert_eq!(spec.enable_repair, Some(true));
+    assert_eq!(spec.repair_model.as_deref(), Some("claude-haiku-4-5"));
+}
+
+#[test]
+fn ab13_include_with_structured_and_for_each() {
+    // Complex workflow combining include, structured output, and for_each
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: test-model
+
+include:
+  - path: ./lib/helpers.nika.yaml
+    prefix: h_
+
+tasks:
+  - id: get_items
+    infer: "List items"
+    structured:
+      schema:
+        type: object
+        properties:
+          items: { type: array, items: { type: string } }
+        required: [items]
+
+  - id: process
+    depends_on: [get_items]
+    with:
+      data: $get_items
+    for_each: "{{with.data}}"
+    as: item
+    concurrency: 5
+    infer: "Process: {{with.item}}"
+
+  - id: aggregate
+    depends_on: [process]
+    with:
+      results: $process
+    infer: "Aggregate {{with.results | length}} results"
+"#;
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 3);
+    assert!(w.include.is_some());
+    assert!(w.tasks[0].structured.is_some());
+    assert!(w.tasks[1].for_each.is_some());
+}
+
+#[test]
+fn ab14_provider_agnostic_workflow_with_extended_thinking() {
+    // Workflow designed to work with any provider — extended_thinking degrades
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: test-model
+
+tasks:
+  - id: analyze
+    infer:
+      prompt: "Deep analysis of the system"
+      extended_thinking: true
+      thinking_budget: 8192
+      temperature: 0.3
+
+  - id: structured_result
+    depends_on: [analyze]
+    with:
+      analysis: $analyze
+    infer:
+      prompt: "Structure the analysis: {{with.analysis}}"
+    structured:
+      schema:
+        type: object
+        properties:
+          findings: { type: array, items: { type: string } }
+          severity: { type: string }
+          recommendation: { type: string }
+        required: [findings, severity, recommendation]
+      max_retries: 2
+"#;
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 2);
+    match &w.tasks[0].action {
+        crate::ast::TaskAction::Infer { infer } => {
+            assert_eq!(infer.extended_thinking, Some(true));
+        }
+        _ => panic!("Expected Infer"),
+    }
+    assert!(w.tasks[1].structured.is_some());
+}
+
+#[test]
+fn ab20_response_format_with_structured_doesnt_conflict() {
+    // When structured: is present, response_format should not interfere
+    let yaml = wrap(
+        "infer:\n  prompt: \"Extract\"\n  response_format: json\nstructured:\n  schema:\n    type: object\n    properties:\n      x: { type: number }\n    required: [x]",
+    );
+    let w = ok(&yaml);
+    let task = &w.tasks[0];
+    assert!(task.structured.is_some());
+}
