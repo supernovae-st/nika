@@ -35,7 +35,7 @@ src/
 │   ├── runner.rs        #   Main workflow runner
 │   ├── executor/        #   Task executor (verb dispatch)
 │   ├── rig_agent_loop/  #   Agent loop (per-provider)
-│   ├── builtin/         #   12 core + 24 media/fetch tools (nika:thumbnail, etc.)
+│   ├── builtin/         #   24 builtin tools: 5 always-on + 6 media-core + 13 opt-in
 │   │   └── media/       #   Media tools: import, thumbnail, chart, provenance, etc.
 │   └── security.rs      #   Command blocklist + env validation
 ├── provider/            # LLM providers (rig-core cloud + mistral.rs native + cost.rs)
