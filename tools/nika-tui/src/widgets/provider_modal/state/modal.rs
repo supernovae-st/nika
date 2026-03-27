@@ -245,7 +245,11 @@ impl ProviderModalState {
                 .iter()
                 .filter(|s| matches!(s, ConnectionStatus::Connected { .. }))
                 .count();
-            format!("🔐 KEYS {}/{}", verified, configured.max(CLOUD_PROVIDER_COUNT))
+            format!(
+                "🔐 KEYS {}/{}",
+                verified,
+                configured.max(CLOUD_PROVIDER_COUNT)
+            )
         } else {
             "🔐 KEYS".to_string()
         }

@@ -167,7 +167,6 @@ impl ChatNodeBox {
             self.animation_tick = self.animation_tick.wrapping_add(1);
         }
     }
-
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -330,8 +329,7 @@ mod tests {
 
     #[test]
     fn test_chat_node_box_tick() {
-        let mut node =
-            ChatNodeBox::new(ChatNodeKind::User).with_state(ChatNodeState::Running);
+        let mut node = ChatNodeBox::new(ChatNodeKind::User).with_state(ChatNodeState::Running);
 
         let initial = node.animation_tick;
         node.tick();
@@ -340,8 +338,7 @@ mod tests {
 
     #[test]
     fn test_chat_node_box_tick_only_when_running() {
-        let mut node =
-            ChatNodeBox::new(ChatNodeKind::User).with_state(ChatNodeState::Idle);
+        let mut node = ChatNodeBox::new(ChatNodeKind::User).with_state(ChatNodeState::Idle);
 
         let initial = node.animation_tick;
         node.tick();

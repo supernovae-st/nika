@@ -88,10 +88,25 @@ mod tests {
 
     #[test]
     fn test_helpers_event_builders_produce_correct_variants() {
-        assert!(matches!(task_scheduled("t1"), EventKind::TaskScheduled { .. }));
-        assert!(matches!(task_started("t1", "infer"), EventKind::TaskStarted { .. }));
-        assert!(matches!(workflow_started(3), EventKind::WorkflowStarted { .. }));
-        assert!(matches!(mcp_invoke("t1", "c1", "tool"), EventKind::McpInvoke { .. }));
-        assert!(matches!(provider_responded("t1", 100, 50), EventKind::ProviderResponded { .. }));
+        assert!(matches!(
+            task_scheduled("t1"),
+            EventKind::TaskScheduled { .. }
+        ));
+        assert!(matches!(
+            task_started("t1", "infer"),
+            EventKind::TaskStarted { .. }
+        ));
+        assert!(matches!(
+            workflow_started(3),
+            EventKind::WorkflowStarted { .. }
+        ));
+        assert!(matches!(
+            mcp_invoke("t1", "c1", "tool"),
+            EventKind::McpInvoke { .. }
+        ));
+        assert!(matches!(
+            provider_responded("t1", 100, 50),
+            EventKind::ProviderResponded { .. }
+        ));
     }
 }

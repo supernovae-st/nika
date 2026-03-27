@@ -21,99 +21,25 @@ use nika::runtime::Runner;
 // HELP TEXT
 // ═══════════════════════════════════════════════════════════════════════════
 
-const LONG_ABOUT: &str = r#"Nika - DAG workflow runner for AI tasks with MCP integration
+const LONG_ABOUT: &str = "\
+Nika \u{2014} Semantic YAML workflow engine for AI tasks
 
-Execute YAML-defined workflows using 5 semantic verbs:
-  infer:   LLM text generation (Claude, OpenAI, Mistral, Groq, DeepSeek, Gemini, xAI, Native)
-  exec:    Shell command execution
-  fetch:   HTTP requests
-  invoke:  MCP tool calls
-  agent:   Multi-turn agentic loops
+5 verbs: infer (LLM), exec (shell), fetch (HTTP), invoke (MCP), agent (multi-turn)
+9 providers: anthropic, openai, mistral, groq, deepseek, gemini, xai, native, mock
 
-Terminal-first design: simple commands for simple tasks, TUI for complex interactions."#;
+Run `nika help` for the full command reference with examples.";
 
-const AFTER_HELP: &str = r#"QUICK START:
-    nika workflow.nika.yaml       Run a workflow (streaming output)
-    nika ui                       Open interactive TUI
-    nika init                     Initialize new project (.nika/)
-
-WORKFLOW EXECUTION:
-    nika <file.nika.yaml>         Run workflow directly
-    nika run <file> --provider x  Run with provider override
-    nika check <file>             Validate syntax and DAG
-    nika check <file> --strict    Validate + test MCP connections
-
-INTERACTIVE MODES:
-    nika ui                       TUI (Studio view by default)
-    nika ui --view=chat           TUI Chat view
-    nika ui --view=runner         TUI Runner view
-    nika chat                     TUI Chat (shortcut)
-    nika studio [file]            TUI Studio (shortcut)
-
-CONFIGURATION:
-    nika setup                    Interactive API key setup wizard
-    nika config list              Show all config values
-    nika config get editor.theme  Get specific value
-    nika config set editor.theme dark
-    nika config edit              Open in $EDITOR
-    nika config path              Show config file path
-
-SHELL COMPLETION:
-    nika completion bash > ~/.local/share/bash-completion/completions/nika
-    nika completion zsh > ~/.zfunc/_nika
-    nika completion fish > ~/.config/fish/completions/nika.fish
-
-PROVIDER MANAGEMENT:
-    nika provider list            Show providers and API key status
-    nika provider set anthropic   Store key in system keychain
-    nika provider test openai     Test provider connection
-    nika provider migrate         Move env vars to keychain
-
-MCP SERVER MANAGEMENT:
-    nika mcp list -w workflow.yaml List servers in workflow
-    nika mcp test workflow.yaml s  Test server connection
-    nika mcp tools workflow.yaml s List available tools
-
-CONTENT & TEMPLATES:
-    nika new <name>               Create a new workflow file
-    nika new <name> --verb exec   Create with specific verb
-    nika showcase list            Browse 115 showcase workflows
-    nika showcase extract <name>  Extract showcase to current dir
-
-LEARNING:
-    nika init --course            Generate 12-level interactive course
-    nika course status            Show constellation progress map
-    nika course next              Open next exercise
-
-DIAGNOSTICS:
-    nika doctor                   Check system health
-    nika doctor --fix             Auto-repair machine setup
-    nika trace list               List execution traces
-    nika trace show <id>          Show trace details
-
-GLOBAL FLAGS:
-    -v, --verbose                 Increase verbosity (-v, -vv, -vvv)
-    -q, --quiet                   Suppress non-error output
-    --color <auto|always|never>   Control color output
-
-ENVIRONMENT VARIABLES:
-    ANTHROPIC_API_KEY             Claude (preferred)
-    OPENAI_API_KEY                OpenAI
-    MISTRAL_API_KEY               Mistral
-    GROQ_API_KEY                  Groq
-    DEEPSEEK_API_KEY              DeepSeek
-    GEMINI_API_KEY                Google Gemini
-    XAI_API_KEY                   xAI (Grok)
-    NIKA_NATIVE_MODEL_PATH        Native inference model path
-
-TUI VIEWS (in nika ui):
-    [1/s] Studio     File browser + YAML editor + DAG preview
-    [2/r] Runner     Real-time execution monitoring
-    [3/c] Chat       AI agent conversation
-    [4/,] Settings   Provider config, theme, preferences
+const AFTER_HELP: &str = "\
+QUICK START:
+    nika infer \"Explain AI\"       Quick LLM call
+    nika run workflow.nika.yaml   Run a workflow
+    nika help                     Full command reference
+    nika help verbs               The 5 semantic verbs
+    nika help providers           Provider status
+    nika help examples            Common patterns
 
 DOCUMENTATION:
-    https://github.com/supernovae-st/nika"#;
+    https://github.com/supernovae-st/nika";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CLI STRUCTURE
@@ -225,7 +151,7 @@ enum Commands {
         /// Path to .nika.yaml file (auto-discovered if omitted)
         file: Option<String>,
 
-        /// Override default provider (claude, openai, mock)
+        /// Override default provider (anthropic, openai, mistral, groq, deepseek, gemini, xai, native, mock)
         #[arg(short, long)]
         provider: Option<String>,
 
@@ -456,35 +382,23 @@ enum Commands {
         action: cli::mcp::McpAction,
     },
 
-    /// Manage local LLM models (native inference)
-    #[cfg(feature = "native-inference")]
+    /// Manage LLM models — cloud pricing + local GGUF
+    ///
+    /// `nika model` (no subcommand) lists all cloud models with pricing.
+    /// Use `nika model list`, `nika model info <name>`, `nika model recommend`.
+    /// Local model management (pull, delete, vision) requires native-inference.
     #[command(visible_alias = "m")]
     Model {
         #[command(subcommand)]
-        action: cli::model::ModelAction,
+        action: Option<cli::model_cmd::ModelAction>,
     },
 
-    /// List all available LLM models with pricing
+    /// Show the full command reference or deep-dive into a topic
     ///
-    /// Shows cloud models grouped by provider. Always available.
-    /// Examples:
-    ///   nika models                             All models + pricing
-    ///   nika models --provider anthropic        Filter by provider
-    ///   nika models --info claude-sonnet-4-6    Model details
-    ///   nika models --recommend                 Smart suggestion
-    Models {
-        /// Filter by provider name
-        #[arg(short, long)]
-        provider: Option<String>,
-        /// Show details for a specific model
-        #[arg(long, value_name = "MODEL")]
-        info: Option<String>,
-        /// Show smart model recommendation
-        #[arg(long)]
-        recommend: bool,
-        /// Output as JSON
-        #[arg(long)]
-        json: bool,
+    /// Topics: verbs, providers, templates, examples
+    Help {
+        /// Topic to explore (verbs, providers, templates, examples)
+        topic: Option<String>,
     },
 
     /// Manage installed packages (workflows, skills, schemas)
@@ -506,8 +420,7 @@ enum Commands {
         action: cli::media::MediaAction,
     },
 
-    /// Generate shell completions
-    #[command(hide = true)]
+    /// Generate shell completions (bash, zsh, fish, powershell)
     Completion {
         /// Shell to generate completions for
         #[arg(value_enum)]
@@ -528,7 +441,6 @@ enum Commands {
     },
 
     /// Show compiled feature flags and capabilities
-    #[command(hide = true)]
     Features,
 
     /// Browse and extract showcase workflows
@@ -926,12 +838,8 @@ async fn main() {
                         // No project here: run live demo
                         run_demo(quiet, detail).await
                     } else {
-                        // Project exists: show help
-                        use clap::CommandFactory;
-                        if let Err(e) = Cli::command().print_help() {
-                            eprintln!("Failed to print help: {e}");
-                            std::process::exit(1);
-                        }
+                        // Project exists: show beautiful custom help
+                        cli::help::print_help();
                         Ok(())
                     }
                 }
@@ -1170,22 +1078,25 @@ async fn main() {
 
         Some(Commands::Media { action }) => cli::media::handle_media_command(action, quiet).await,
 
-        #[cfg(feature = "native-inference")]
-        Some(Commands::Model { action }) => cli::model::handle_model_command(action, quiet).await,
+        Some(Commands::Model { action }) => {
+            cli::model_cmd::handle_model_command(action, quiet).await
+        }
 
-        Some(Commands::Models {
-            provider,
-            info,
-            recommend,
-            json,
-        }) => {
-            if recommend {
-                cli::model_cloud::print_model_recommend()
-            } else if let Some(model_name) = info {
-                cli::model_cloud::print_model_info(&model_name)
-            } else {
-                cli::model_cloud::print_cloud_models(provider.as_deref(), json)
+        Some(Commands::Help { topic }) => {
+            match topic {
+                Some(t) => {
+                    if !cli::help::print_topic(&t) {
+                        eprintln!(
+                            "{} Unknown topic '{}'. Available: verbs, providers, templates, examples",
+                            "Error:".red().bold(),
+                            t
+                        );
+                        std::process::exit(1);
+                    }
+                }
+                None => cli::help::print_help(),
             }
+            Ok(())
         }
 
         Some(Commands::Pkg { action }) => cli::pkg::handle_pkg_command(action).await,
