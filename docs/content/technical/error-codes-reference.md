@@ -198,12 +198,6 @@ All Nika errors use the `NikaError` enum with `NIKA-XXX` codes. Errors implement
 | NIKA-165 | `PolicyViolation` | Security policy violated | Check `.nika/config.toml [policy]` |
 | NIKA-166 | `BootFailed` | Boot sequence failed | Run `nika doctor` |
 
-## Startup Errors (150-159)
-
-| Code | Variant | Description | Help |
-|------|---------|-------------|------|
-| NIKA-150 | `StartupError` | Startup verification failed | Check system requirements |
-
 ## Runtime Errors (170-179)
 
 | Code | Variant | Description | Help |

@@ -252,7 +252,7 @@ Complex JSONPath expressions (wildcards, recursive descent, filters) are support
 
 ---
 
-## Transform Reference (27 Transforms)
+## Transform Reference (31 Transforms)
 
 ### String Transforms
 

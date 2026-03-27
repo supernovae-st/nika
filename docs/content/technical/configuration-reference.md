@@ -227,7 +227,7 @@ The TUI supports three themes: dark (default), light, and cosmic (SuperNovae bra
 
 ```toml
 [tui]
-startup_view = "studio"    # studio, chat, runner, settings
+startup_view = "studio"    # studio, command, control
 animation = true
 show_line_numbers = true
 word_wrap = true

@@ -6,14 +6,14 @@
 
 ```mermaid
 flowchart TB
-    subgraph Runner["Runner (runner.rs)"]
+    subgraph Runner["Runner (nika-engine/src/runtime/runner.rs)"]
         direction TB
         RUN["run()"] --> DAGLOOP["DAG Loop"]
         DAGLOOP --> RESOLVE["Resolve Bindings"]
         RESOLVE --> DISPATCH["Dispatch to TaskExecutor"]
     end
 
-    subgraph Executor["TaskExecutor (executor/)"]
+    subgraph Executor["TaskExecutor (nika-engine/src/runtime/executor/)"]
         direction TB
         EXEC_MAIN["execute()"] --> VERB{"Verb?"}
         VERB -->|infer| INFER["run_infer()"]

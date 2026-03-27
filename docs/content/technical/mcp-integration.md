@@ -137,12 +137,11 @@ The server is spawned as a child process. Communication happens over stdin/stdou
 
 ```yaml
 mcp:
-  servers:
-    novanet:
-      command: npx
-      args: ["-y", "@novanet/mcp-server"]
-      env:
-        NOVANET_API_KEY: $NOVANET_API_KEY
+  novanet:
+    command: npx
+    args: ["-y", "@novanet/mcp-server"]
+    env:
+      NOVANET_API_KEY: $NOVANET_API_KEY
 ```
 
 The `RmcpClientAdapter` uses `rmcp::transport::child_process` to manage the process lifecycle.

@@ -34,6 +34,10 @@ This split means the LSP can parse and analyze workflows without importing the f
 
 **Location**: `nika-core/src/ast/raw/parser.rs`
 
+The three phases split across two crates for modularity:
+- **nika-core**: Phase 1 + Phase 2 (zero I/O, LSP-compatible)
+- **nika-engine**: Phase 3 (runtime bridge)
+
 Phase 1 transforms raw YAML text into a structured `RawWorkflow` using `marked_yaml`. Every value is wrapped in `Spanned<T>`, preserving the exact byte offset where it appeared in the source file. No semantic validation occurs -- the parser only checks structural correctness.
 
 ### Source Tracking Foundation
@@ -45,7 +49,7 @@ Before any parsing happens, Nika establishes a source tracking system for precis
 
 /// File identifier -- index into SourceRegistry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct FileId(pub u32);
+pub struct FileId(pub u16);
 
 /// Byte offset in a source file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -404,14 +408,16 @@ pub struct Workflow {
 }
 
 pub struct Task {
-    pub id: String,
+    pub id: Arc<str>,
     pub action: TaskAction,
-    pub with_spec: Option<WithSpec>,
-    pub depends_on: Vec<String>,   // Denormalized back to strings
+    pub binding_spec: BindingSpec,
+    pub depends_on: Vec<Arc<str>>,   // Denormalized back to strings as Arc<str>
     pub output: Option<OutputPolicy>,
+    pub for_each: Option<ForEachConfig>,
     pub decompose: Option<DecomposeSpec>,
-    pub for_each: Option<String>,
     pub structured: Option<StructuredOutputSpec>,
+    pub provider: Option<String>,
+    pub model: Option<String>,
     // ...
 }
 ```
@@ -448,11 +454,11 @@ The three phases are exposed as a single function in `nika-core`:
 ```rust
 // nika-core/src/ast/mod.rs
 
-pub fn parse_analyzed(yaml: &str) -> Result<AnalyzedWorkflow, CoreError> {
+pub fn parse_analyzed(yaml: &str) -> Result<AnalyzedWorkflow, NikaError> {
     // Phase 1: YAML -> Raw AST
     let raw = raw::parse(yaml, FileId(0))?;
     // Phase 2: Raw -> Analyzed
-    analyzer::analyze(raw).into_result()?
+    analyzer::analyze(raw).into_result()
 }
 ```
 

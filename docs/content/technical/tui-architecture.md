@@ -163,7 +163,7 @@ The Studio view is a 3-panel layout:
 
 ### YamlEditorPanel
 
-The YAML editor is the most complex component (part of the 92k lines). It provides:
+The YAML editor is the most complex component (part of the 86k lines). It provides:
 
 - **Tree-sitter syntax highlighting** via `tree-sitter-yaml` (0.7) and `TreeSitterHighlighter`
 - **LSP diagnostics** via `nika-lsp-core` inline (no process spawn)

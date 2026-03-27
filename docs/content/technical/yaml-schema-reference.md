@@ -494,7 +494,7 @@ with:
 
 ### Transform Pipes
 
-27 built-in transforms, chained with `|`:
+31 built-in transforms, chained with `|`:
 
 | Category | Transforms |
 |----------|-----------|
@@ -545,10 +545,10 @@ Iterate over arrays:
 
 ```yaml
 - id: process
-  for_each: $data_task              # Task output (must be array)
-  as: item                         # Loop variable name (default: "item")
-  concurrency: 5                   # Max parallel iterations
-  fail_fast: true                  # Stop on first error (default: true)
+  for_each:
+    items: "{{with.list}}"        # Task output (must be array)
+    as: item                       # Loop variable name (default: "item")
+    concurrency: 5                 # Max parallel iterations
   infer:
     prompt: "Process: {{with.item}}"
 ```
