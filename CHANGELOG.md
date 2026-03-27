@@ -10,17 +10,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.49.3] — 2026-03-27
 
 ### Fixed
-- **CRITICAL: media template resolution** — `{{with.img.media[0].hash}}` now works when `img` is bound to a full task output. Media refs live in `TaskResult.media` (side-channel), not in output JSON. Template engine and `resolve_for_shell` now intercept "media" segments and delegate to `RunContext.resolve_path()`. All 15 showcase workflows depended on this pattern.
-- **Media leak in structured output retry** — `execute_with_retry()` returned `TaskResult::success()` without calling `.with_media()`, orphaning staged media refs. Added media attachment on success and defense-in-depth drains on 3 failure paths.
-- **ArtifactWritten hidden in Min detail** — `ArtifactWritten` events were gated by `show_sub_events()` but `ArtifactFailed` was always shown. Now both are unconditional so users always see output file paths.
-- **Showcase artifact paths** — all 15 advanced showcases wrote to `.nika/artifacts/output/` instead of `./output/`. Added `artifacts: dir: .` to all showcase workflows.
+- **CRITICAL: media template resolution** — `{{with.img.media[0].hash}}` now works in both `resolve()` and `resolve_for_shell()`. Media refs live in `TaskResult.media` (side-channel), not in output JSON. Extracted `intercept_media_path()` shared helper. All 15 showcase workflows depended on this pattern.
+- **Media leak in structured output retry** — `execute_with_retry()` orphaned staged media refs on success path. Added `.with_media()` on success and defense-in-depth drains on 3 failure paths.
+- **Positional media matching** — multiple binary artifacts without explicit `source:` now use positional matching (`artifact[i]` → `media[i]`) instead of all using `media[0]`.
+- **Empty media error messages** — `{{with.img.media[0].hash}}` on empty media now shows "task 'X' produced no matching media" instead of cryptic `PathNotFound`. Fixed `resolve_path()` to return `None` (not `[]`) for indexed access on empty arrays.
+- **ArtifactWritten always visible** — removed `show_sub_events()` gate so users always see output file paths, regardless of detail level.
+- **Showcase artifacts** — all 15 advanced showcases wrote to `.nika/artifacts/` instead of `./output/`. Added `artifacts: dir: .` to all.
+- **Showcase 10** — rewritten from 3/10 hardcoded pages to full 10-page iteration using `items:` binding.
+- **Doctor command** — replaced non-existent `nika setup ai` suggestion with correct `nika init`.
+- **CODESPACES detection** — `CODESPACES=true` now treated as dev environment (not CI), allowing auto-setup in GitHub Codespaces.
+
+### Added
+- **`nika init` starter workflow** — creates `hello.nika.yaml` so LSP activates immediately in editors. "Next steps" section guides new users.
+- **Daemon auto-install** — machine setup now installs + starts daemon as system service (launchd/systemd). `RunAtLoad=true` for persistent background service. Opt-out: `NIKA_NO_DAEMON=1`.
+- **Auto-setup on Doctor + TUI** — removed from skip list so `nika doctor` and `nika ui` trigger first-run setup.
+- **Env var API key detection** — machine setup detects `ANTHROPIC_API_KEY` etc. and hints about keychain migration.
+- **LSP: 29 transform completions** — expanded from 6 to all 29 transforms (string, array, numeric, type, parametric, system).
+- **LSP: 24 nika:* tool completions** — expanded from 3 to all 24 builtin media tools organized by tier.
+- **11 new media interception tests** — hash, mime, metadata, array, transform, empty, out-of-bounds, shell escape.
 
 ### Changed
-- **cli_format adoption in media.rs** — `handle_stats` uses `key_value()`, `handle_import` uses `key_value_width()`, Tier 1 tools unified to data-driven array with `StatusIcon::Ok`
-- **`key_value_width()` consistency** — added missing `.dimmed()` on label to match `key_value()` behavior
+- **cli_format adoption** — `media.rs` uses `key_value()`, `key_value_width()`, data-driven Tier 1 tools. `install.rs` uses `StatusIcon::Ok` (8 raw unicode replaced).
+- **Quick editor scan** — cooldown reduced from 24h to 4h.
+- **Removed stale `tools/nika-vscode/`** — canonical extension is `editors/vscode/` (`supernovae.nika-lang`).
 
 ### Stats
-- 5 commits, 8412 tests pass, 4 new media interception tests
+- ~20 commits, 8457 tests pass (+45 from session start)
 - Zero clippy warnings (`cargo clippy --workspace -- -D warnings`)
 
 ## [0.49.2] — 2026-03-27
