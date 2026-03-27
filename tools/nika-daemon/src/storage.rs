@@ -118,6 +118,10 @@ enum DbCommand {
         id: String,
         reply: oneshot::Sender<DaemonResult<u32>>,
     },
+    ListJobsForWorkflow {
+        workflow: String,
+        reply: oneshot::Sender<DaemonResult<Vec<Job>>>,
+    },
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -260,6 +264,20 @@ impl Storage {
         rx.await
             .map_err(|_| DaemonError::Lifecycle("DB reply dropped".into()))?
     }
+
+    /// List jobs for a specific workflow file, ordered by most recent first.
+    pub async fn list_jobs_for_workflow(&self, workflow: &str) -> DaemonResult<Vec<Job>> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(DbCommand::ListJobsForWorkflow {
+                workflow: workflow.to_string(),
+                reply,
+            })
+            .await
+            .map_err(|_| DaemonError::Lifecycle("DB thread closed".into()))?;
+        rx.await
+            .map_err(|_| DaemonError::Lifecycle("DB reply dropped".into()))?
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -322,6 +340,9 @@ fn run_db_loop(conn: Connection, mut rx: mpsc::Receiver<DbCommand>) {
             }
             DbCommand::IncrementRetry { id, reply } => {
                 let _ = reply.send(do_increment_retry(&conn, &id));
+            }
+            DbCommand::ListJobsForWorkflow { workflow, reply } => {
+                let _ = reply.send(do_list_jobs_for_workflow(&conn, &workflow));
             }
         }
     }
@@ -541,6 +562,26 @@ fn do_increment_retry(conn: &Connection, id: &str) -> DaemonResult<u32> {
         .map_err(|e| DaemonError::Lifecycle(format!("read retry_count: {e}")))?;
 
     Ok(count)
+}
+
+fn do_list_jobs_for_workflow(conn: &Connection, workflow: &str) -> DaemonResult<Vec<Job>> {
+    let mut stmt = conn
+        .prepare_cached(
+            "SELECT id, name, workflow, args, cron, state, created_at, started_at, completed_at,
+                    exit_code, output, retry_count, max_retries
+             FROM jobs WHERE workflow = ?1 ORDER BY created_at DESC LIMIT 10",
+        )
+        .map_err(|e| DaemonError::Lifecycle(format!("prepare list_for_workflow: {e}")))?;
+
+    let rows = stmt
+        .query_map(params![workflow], row_to_job)
+        .map_err(|e| DaemonError::Lifecycle(format!("list jobs for workflow: {e}")))?;
+
+    let mut jobs = Vec::new();
+    for row in rows {
+        jobs.push(row.map_err(|e| DaemonError::Lifecycle(format!("read row: {e}")))?);
+    }
+    Ok(jobs)
 }
 
 fn row_to_job(row: &rusqlite::Row) -> rusqlite::Result<Job> {
@@ -827,5 +868,24 @@ mod tests {
 
         let job = storage.get_job("j1").await.unwrap().unwrap();
         assert_eq!(job.id, "j1");
+    }
+
+    #[tokio::test]
+    async fn list_jobs_for_workflow_returns_matching() {
+        let storage = Storage::open_memory().unwrap();
+        storage.insert_job(make_job("j1", "a.nika.yaml")).await.unwrap();
+        storage.insert_job(make_job("j2", "a.nika.yaml")).await.unwrap();
+        storage.insert_job(make_job("j3", "b.nika.yaml")).await.unwrap();
+
+        let a_jobs = storage.list_jobs_for_workflow("a.nika.yaml").await.unwrap();
+        assert_eq!(a_jobs.len(), 2);
+        assert!(a_jobs.iter().all(|j| j.workflow == "a.nika.yaml"));
+
+        let b_jobs = storage.list_jobs_for_workflow("b.nika.yaml").await.unwrap();
+        assert_eq!(b_jobs.len(), 1);
+        assert_eq!(b_jobs[0].id, "j3");
+
+        let c_jobs = storage.list_jobs_for_workflow("c.nika.yaml").await.unwrap();
+        assert!(c_jobs.is_empty());
     }
 }

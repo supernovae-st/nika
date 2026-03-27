@@ -349,6 +349,11 @@ impl JobService {
     pub async fn running_count(&self) -> usize {
         self.running.lock().await.len()
     }
+
+    /// List recent jobs for a specific workflow file.
+    pub async fn list_jobs_for_workflow(&self, workflow: &str) -> DaemonResult<Vec<Job>> {
+        self.storage.list_jobs_for_workflow(workflow).await
+    }
 }
 
 /// Wait for a child process to complete with timeout, capturing output.

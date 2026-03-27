@@ -121,6 +121,26 @@ pub enum DaemonRequest {
     /// Subscribe to daemon events (streaming).
     EventSubscribe,
 
+    // ── LSP Queries ─────────────────────────────────────────────────────
+    /// List all known providers with API key status (for LSP completions).
+    ListProviderStatus,
+
+    /// Estimate cost for a model invocation (for LSP inlay hints).
+    EstimateCost {
+        provider: String,
+        model: String,
+        input_tokens: u64,
+        output_tokens: u64,
+    },
+
+    /// Get recent runs for a workflow file (for LSP hover/code lens).
+    GetWorkflowHistory {
+        workflow: String,
+    },
+
+    /// Get daemon capabilities and stats (for LSP status bar).
+    GetDaemonCapabilities,
+
     // ── Lifecycle ─────────────────────────────────────────────────────────
     /// Request graceful daemon shutdown.
     /// Requires auth token to prevent any local process from killing the daemon.
@@ -172,6 +192,14 @@ impl std::fmt::Debug for DaemonRequest {
             Self::CacheClear => write!(f, "DaemonRequest::CacheClear"),
             Self::CacheStats => write!(f, "DaemonRequest::CacheStats"),
             Self::EventSubscribe => write!(f, "DaemonRequest::EventSubscribe"),
+            Self::ListProviderStatus => write!(f, "DaemonRequest::ListProviderStatus"),
+            Self::EstimateCost { model, .. } => {
+                write!(f, "DaemonRequest::EstimateCost {{ model: {model:?}, .. }}")
+            }
+            Self::GetWorkflowHistory { workflow } => {
+                write!(f, "DaemonRequest::GetWorkflowHistory {{ workflow: {workflow:?} }}")
+            }
+            Self::GetDaemonCapabilities => write!(f, "DaemonRequest::GetDaemonCapabilities"),
         }
     }
 }
@@ -281,6 +309,27 @@ pub enum DaemonResponse {
         event: serde_json::Value,
     },
 
+    // ── LSP Queries ─────────────────────────────────────────────────────
+    /// List of provider statuses with key availability.
+    ProviderStatusList {
+        providers: Vec<nika_core::catalogs::ProviderStatusInfo>,
+    },
+
+    /// Cost estimate result.
+    CostEstimateResult {
+        estimate: nika_core::catalogs::CostEstimate,
+    },
+
+    /// Workflow run history.
+    WorkflowHistoryResult {
+        runs: Vec<nika_core::catalogs::WorkflowRunInfo>,
+    },
+
+    /// Daemon capabilities and stats.
+    DaemonCapabilitiesResult {
+        capabilities: nika_core::catalogs::DaemonCapabilities,
+    },
+
     // ── Lifecycle ─────────────────────────────────────────────────────────
     /// Acknowledgement that daemon is shutting down.
     ShuttingDown,
@@ -311,6 +360,10 @@ impl std::fmt::Debug for DaemonResponse {
             Self::CacheMiss => "CacheMiss",
             Self::CacheStatsResult { .. } => "CacheStatsResult",
             Self::Event { .. } => "Event",
+            Self::ProviderStatusList { .. } => "ProviderStatusList",
+            Self::CostEstimateResult { .. } => "CostEstimateResult",
+            Self::WorkflowHistoryResult { .. } => "WorkflowHistoryResult",
+            Self::DaemonCapabilitiesResult { .. } => "DaemonCapabilitiesResult",
             Self::ShuttingDown => "ShuttingDown",
         };
         write!(f, "DaemonResponse::{tag}")
@@ -640,6 +693,17 @@ mod tests {
                 provider: "mistral".into(),
                 auth_token: None,
             },
+            DaemonRequest::ListProviderStatus,
+            DaemonRequest::EstimateCost {
+                provider: "anthropic".into(),
+                model: "claude-sonnet-4-20250514".into(),
+                input_tokens: 1000,
+                output_tokens: 500,
+            },
+            DaemonRequest::GetWorkflowHistory {
+                workflow: "test.nika.yaml".into(),
+            },
+            DaemonRequest::GetDaemonCapabilities,
             DaemonRequest::Shutdown {
                 auth_token: Some("tok-shutdown".into()),
             },
@@ -653,6 +717,10 @@ mod tests {
 
     #[test]
     fn roundtrip_response_all_variants() {
+        use nika_core::catalogs::{
+            CostEstimate, DaemonCapabilities, KeySource, ProviderCategory, ProviderStatusInfo,
+            WorkflowRunInfo,
+        };
         let responses = vec![
             DaemonResponse::Ok,
             DaemonResponse::Error {
@@ -677,6 +745,47 @@ mod tests {
             DaemonResponse::SecretStored,
             DaemonResponse::SecretDeleted,
             DaemonResponse::AuthRequired,
+            DaemonResponse::ProviderStatusList {
+                providers: vec![ProviderStatusInfo {
+                    id: "anthropic".into(),
+                    name: "Anthropic Claude".into(),
+                    has_key: true,
+                    source: KeySource::Env,
+                    category: ProviderCategory::Llm,
+                    env_var: "ANTHROPIC_API_KEY".into(),
+                }],
+            },
+            DaemonResponse::CostEstimateResult {
+                estimate: CostEstimate {
+                    usd: 0.01,
+                    input_rate_per_million: 3.0,
+                    output_rate_per_million: 15.0,
+                    model: "test".into(),
+                    provider: "anthropic".into(),
+                },
+            },
+            DaemonResponse::WorkflowHistoryResult {
+                runs: vec![WorkflowRunInfo {
+                    job_id: "j1".into(),
+                    state: "completed".into(),
+                    workflow: "w.nika.yaml".into(),
+                    created_at: "2026-01-01T00:00:00Z".into(),
+                    started_at: None,
+                    completed_at: None,
+                    exit_code: None,
+                }],
+            },
+            DaemonResponse::DaemonCapabilitiesResult {
+                capabilities: DaemonCapabilities {
+                    version: "0.50.0".into(),
+                    uptime_secs: 0,
+                    cache_entries: 0,
+                    cache_hit_rate: 0.0,
+                    active_jobs: 0,
+                    watch_active: false,
+                    total_cost_saved: 0.0,
+                },
+            },
             DaemonResponse::ShuttingDown,
         ];
         for resp in responses {
@@ -827,6 +936,126 @@ mod tests {
         let json = serde_json::to_string(&info).unwrap();
         let decoded: ProviderSecretInfo = serde_json::from_str(&json).unwrap();
         assert_eq!(info, decoded);
+    }
+
+    // ── LSP query tests ────────────────────────────────────────────────
+
+    #[test]
+    fn request_serialize_list_provider_status() {
+        let req = DaemonRequest::ListProviderStatus;
+        let json = serde_json::to_string(&req).unwrap();
+        assert_eq!(json, r#"{"type":"ListProviderStatus"}"#);
+        let back: DaemonRequest = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, req);
+    }
+
+    #[test]
+    fn request_serialize_estimate_cost() {
+        let req = DaemonRequest::EstimateCost {
+            provider: "anthropic".into(),
+            model: "claude-sonnet-4-20250514".into(),
+            input_tokens: 1000,
+            output_tokens: 500,
+        };
+        let json = serde_json::to_string(&req).unwrap();
+        assert!(json.contains(r#""type":"EstimateCost"#));
+        assert!(json.contains(r#""input_tokens":1000"#));
+        let back: DaemonRequest = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, req);
+    }
+
+    #[test]
+    fn request_serialize_get_workflow_history() {
+        let req = DaemonRequest::GetWorkflowHistory {
+            workflow: "test.nika.yaml".into(),
+        };
+        let json = serde_json::to_string(&req).unwrap();
+        assert!(json.contains(r#""workflow":"test.nika.yaml"#));
+        let back: DaemonRequest = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, req);
+    }
+
+    #[test]
+    fn request_serialize_get_daemon_capabilities() {
+        let req = DaemonRequest::GetDaemonCapabilities;
+        let json = serde_json::to_string(&req).unwrap();
+        assert_eq!(json, r#"{"type":"GetDaemonCapabilities"}"#);
+    }
+
+    #[test]
+    fn response_serialize_provider_status_list() {
+        use nika_core::catalogs::{KeySource, ProviderCategory, ProviderStatusInfo};
+        let resp = DaemonResponse::ProviderStatusList {
+            providers: vec![ProviderStatusInfo {
+                id: "anthropic".into(),
+                name: "Anthropic Claude".into(),
+                has_key: true,
+                source: KeySource::Env,
+                category: ProviderCategory::Llm,
+                env_var: "ANTHROPIC_API_KEY".into(),
+            }],
+        };
+        let json = serde_json::to_string(&resp).unwrap();
+        assert!(json.contains(r#""type":"ProviderStatusList"#));
+        let back: DaemonResponse = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, resp);
+    }
+
+    #[test]
+    fn response_serialize_cost_estimate_result() {
+        use nika_core::catalogs::CostEstimate;
+        let resp = DaemonResponse::CostEstimateResult {
+            estimate: CostEstimate {
+                usd: 0.018,
+                input_rate_per_million: 3.0,
+                output_rate_per_million: 15.0,
+                model: "claude-sonnet-4-20250514".into(),
+                provider: "anthropic".into(),
+            },
+        };
+        let json = serde_json::to_string(&resp).unwrap();
+        assert!(json.contains(r#""type":"CostEstimateResult"#));
+        let back: DaemonResponse = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, resp);
+    }
+
+    #[test]
+    fn response_serialize_workflow_history_result() {
+        use nika_core::catalogs::WorkflowRunInfo;
+        let resp = DaemonResponse::WorkflowHistoryResult {
+            runs: vec![WorkflowRunInfo {
+                job_id: "j-1".into(),
+                state: "completed".into(),
+                workflow: "test.nika.yaml".into(),
+                created_at: "2026-03-27T12:00:00Z".into(),
+                started_at: Some("2026-03-27T12:00:01Z".into()),
+                completed_at: Some("2026-03-27T12:00:03Z".into()),
+                exit_code: Some(0),
+            }],
+        };
+        let json = serde_json::to_string(&resp).unwrap();
+        let back: DaemonResponse = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, resp);
+    }
+
+    #[test]
+    fn response_serialize_daemon_capabilities_result() {
+        use nika_core::catalogs::DaemonCapabilities;
+        let resp = DaemonResponse::DaemonCapabilitiesResult {
+            capabilities: DaemonCapabilities {
+                version: "0.50.0".into(),
+                uptime_secs: 3600,
+                cache_entries: 42,
+                cache_hit_rate: 0.87,
+                active_jobs: 2,
+                watch_active: true,
+                total_cost_saved: 1.23,
+            },
+        };
+        let json = serde_json::to_string(&resp).unwrap();
+        assert!(json.contains(r#""type":"DaemonCapabilitiesResult"#));
+        let back: DaemonResponse = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, resp);
     }
 
     #[test]
