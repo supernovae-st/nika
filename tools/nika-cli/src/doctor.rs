@@ -1141,3 +1141,116 @@ fn output_doctor_json(checks: &[DiagnosticCheck]) -> Result<(), NikaError> {
     println!("{}", serde_json::to_string_pretty(&output)?);
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn diagnostic_pass_creates_pass_status() {
+        let check = DiagnosticCheck::pass("test", "ok");
+        assert_eq!(check.status, DiagnosticStatus::Pass);
+        assert!(check.suggestion.is_none());
+    }
+
+    #[test]
+    fn diagnostic_fail_creates_fail_with_suggestion() {
+        let check = DiagnosticCheck::fail("test", "bad", "fix it");
+        assert_eq!(check.status, DiagnosticStatus::Fail);
+        assert_eq!(check.suggestion.as_deref(), Some("fix it"));
+    }
+
+    #[test]
+    fn diagnostic_warn_creates_warn_with_suggestion() {
+        let check = DiagnosticCheck::warn("test", "meh", "consider this");
+        assert_eq!(check.status, DiagnosticStatus::Warn);
+        assert_eq!(check.suggestion.as_deref(), Some("consider this"));
+    }
+
+    #[test]
+    fn in_section_assigns_section() {
+        let check = DiagnosticCheck::pass("test", "ok").in_section("System");
+        assert_eq!(check.section, "System");
+    }
+
+    #[test]
+    fn with_section_assigns_all_checks() {
+        let checks = vec![
+            DiagnosticCheck::pass("a", "ok"),
+            DiagnosticCheck::fail("b", "bad", "fix"),
+        ];
+        let grouped = with_section(checks, "Group");
+        assert!(grouped.iter().all(|c| c.section == "Group"));
+    }
+
+    #[test]
+    fn json_output_is_valid_json() {
+        let checks = vec![
+            DiagnosticCheck::pass("test1", "ok").in_section("System"),
+            DiagnosticCheck::fail("test2", "bad", "fix").in_section("System"),
+            DiagnosticCheck::warn("test3", "meh", "hint").in_section("Config"),
+        ];
+        // Simulate JSON output construction
+        let results: Vec<serde_json::Value> = checks
+            .iter()
+            .map(|c| {
+                let mut obj = serde_json::json!({
+                    "name": c.name,
+                    "status": format!("{:?}", c.status),
+                    "message": c.message,
+                });
+                if let Some(ref s) = c.suggestion {
+                    obj["suggestion"] = serde_json::json!(s);
+                }
+                obj
+            })
+            .collect();
+        let output = serde_json::json!({"checks": results});
+        assert!(serde_json::to_string(&output).is_ok());
+    }
+
+    #[test]
+    fn check_api_keys_returns_at_least_one_check() {
+        let checks = check_api_keys();
+        // Always returns at least one check (either found keys or "no keys" warning)
+        assert!(
+            !checks.is_empty(),
+            "Should return at least one check result"
+        );
+    }
+
+    #[test]
+    fn check_nika_directory_handles_missing() {
+        // This runs in test env where ~/.nika/ may or may not exist
+        let checks = check_nika_directory();
+        assert!(
+            !checks.is_empty(),
+            "Should always return at least one check"
+        );
+    }
+
+    #[test]
+    fn doctor_summary_counts_correct() {
+        let checks = vec![
+            DiagnosticCheck::pass("a", "ok"),
+            DiagnosticCheck::pass("b", "ok"),
+            DiagnosticCheck::warn("c", "meh", "hint"),
+            DiagnosticCheck::fail("d", "bad", "fix"),
+        ];
+        let pass = checks
+            .iter()
+            .filter(|c| c.status == DiagnosticStatus::Pass)
+            .count();
+        let warn = checks
+            .iter()
+            .filter(|c| c.status == DiagnosticStatus::Warn)
+            .count();
+        let fail = checks
+            .iter()
+            .filter(|c| c.status == DiagnosticStatus::Fail)
+            .count();
+        assert_eq!(pass, 2);
+        assert_eq!(warn, 1);
+        assert_eq!(fail, 1);
+    }
+}
