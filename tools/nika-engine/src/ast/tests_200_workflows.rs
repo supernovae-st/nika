@@ -29,10 +29,11 @@
 //! Z. Edge cases (20 tests)
 //! AA. Backward compatibility (15 tests)
 //! AB. All 26 media tools (26 tests)
+//! AD. Extreme complexity (7 tests)
 
 use crate::ast::content::{ContentPart, ImageDetail};
 use crate::ast::output::OutputFormat;
-use crate::ast::{parse_workflow, TaskAction};
+use crate::ast::{parse_workflow, ResponseFormat, TaskAction};
 
 /// Helper: wraps a task YAML snippet in a minimal valid workflow.
 fn wrap(task_yaml: &str) -> String {
@@ -9090,4 +9091,1251 @@ fn ab20_response_format_with_structured_doesnt_conflict() {
     let w = ok(&yaml);
     let task = &w.tasks[0];
     assert!(task.structured.is_some());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AD. EXTREME COMPLEXITY (7 tests)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn ad01_maximum_complexity_pipeline() {
+    // 10-task pipeline exercising: include, inputs, context, with bindings,
+    // pipe transforms, depends_on, implicit flow, for_each with concurrency,
+    // all 5 verbs, structured output, and artifacts.
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: test-model
+
+include:
+  - path: ./lib/seo.nika.yaml
+    prefix: seo_
+  - path: ./lib/media.nika.yaml
+    prefix: media_
+
+inputs:
+  topic:
+    type: string
+    default: "AI workflows"
+  depth:
+    type: integer
+    default: 3
+  verbose:
+    type: boolean
+    default: true
+  format:
+    type: string
+    default: markdown
+  max_results:
+    type: integer
+    default: 10
+
+context:
+  files:
+    brand: ./context/brand.md
+    style: ./context/style.json
+
+skills:
+  writing: ./skills/writing.md
+
+artifacts:
+  dir: ./output
+  format: json
+  mode: overwrite
+
+tasks:
+  - id: fetch_source
+    fetch:
+      url: "https://example.com/api/data"
+      method: GET
+      headers:
+        Accept: application/json
+      extract: jsonpath
+      selector: "$.results[*].title"
+      response: full
+      timeout: 30
+
+  - id: analyze
+    depends_on: [fetch_source]
+    with:
+      raw: $fetch_source
+    infer:
+      prompt: "Analyze {{inputs.topic}} from: {{with.raw | trim | upper}}"
+      system: "You are a senior analyst"
+      temperature: 0.5
+      max_tokens: 2000
+
+  - id: extract_entities
+    depends_on: [analyze]
+    with:
+      analysis: $analyze
+    infer:
+      prompt: "Extract entities from: {{with.analysis | trim}}"
+    structured:
+      schema:
+        type: object
+        properties:
+          entities:
+            type: array
+            items:
+              type: object
+              properties:
+                name:
+                  type: string
+                category:
+                  type: string
+              required:
+                - name
+          count:
+            type: integer
+        required:
+          - entities
+          - count
+      enable_repair: true
+      max_retries: 3
+      repair_model: test-model
+
+  - id: process_entities
+    depends_on: [extract_entities]
+    with:
+      items: $extract_entities
+    for_each: "{{with.items}}"
+    as: entity
+    concurrency: 5
+    fail_fast: false
+    infer: "Generate content for entity: {{with.entity | default('unknown') | trim}}"
+
+  - id: research
+    depends_on: [analyze]
+    with:
+      summary: $analyze
+    agent:
+      prompt: "Deep research on: {{with.summary | trim}}"
+      system: "You are a thorough researcher"
+      max_turns: 8
+      token_budget: 50000
+      tools:
+        - nika:read
+        - nika:write
+      mcp:
+        - novanet
+      temperature: 0.3
+
+  - id: build_report
+    depends_on: [process_entities, research]
+    with:
+      entities: $process_entities
+      research: $research
+    exec:
+      command: "echo report_built"
+      shell: true
+      cwd: "./output"
+      timeout: 60
+      env:
+        OUTPUT_FORMAT: markdown
+        VERBOSE: "true"
+
+  - id: store_graph
+    depends_on: [extract_entities]
+    with:
+      data: $extract_entities
+    invoke:
+      mcp: novanet
+      tool: novanet_write
+      params:
+        content: "{{with.data}}"
+        topic: "{{inputs.topic | lower | trim}}"
+      timeout: 30
+
+  - id: validate
+    depends_on: [build_report, store_graph]
+    with:
+      report: $build_report
+      graph: $store_graph
+    infer:
+      prompt: "Validate: {{with.report | length}} chars, graph: {{with.graph | default('empty')}}"
+      temperature: 0.0
+
+  - id: scrape_references
+    fetch:
+      url: "https://references.example.com"
+      extract: article
+      timeout: 15
+
+  - id: final_summary
+    depends_on: [validate, scrape_references]
+    with:
+      validation: $validate
+      refs: $scrape_references
+    infer:
+      prompt: |
+        Final summary:
+        - Validation: {{with.validation | trim}}
+        - References: {{with.refs | default('none') | trim}}
+        - Topic: {{inputs.topic | upper}}
+      max_tokens: 4000
+    artifact:
+      path: summary.txt
+      format: text
+"#;
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 10);
+    // Verify workflow-level features
+    assert!(w.include.is_some());
+    assert_eq!(w.include.as_ref().unwrap().len(), 2);
+    assert!(w.inputs.is_some());
+    assert_eq!(w.inputs.as_ref().unwrap().len(), 5);
+    assert!(w.context.is_some());
+    assert_eq!(w.context.as_ref().unwrap().files.len(), 2);
+    // skills: dropped during lowering (skills_map: _ in lower.rs)
+    assert!(w.artifacts.is_some());
+    // Verify task verbs
+    assert_eq!(w.tasks[0].action.verb_name(), "fetch");
+    assert_eq!(w.tasks[1].action.verb_name(), "infer");
+    assert_eq!(w.tasks[2].action.verb_name(), "infer");
+    assert_eq!(w.tasks[3].action.verb_name(), "infer"); // for_each infer
+    assert_eq!(w.tasks[4].action.verb_name(), "agent");
+    assert_eq!(w.tasks[5].action.verb_name(), "exec");
+    assert_eq!(w.tasks[6].action.verb_name(), "invoke");
+    assert_eq!(w.tasks[7].action.verb_name(), "infer");
+    assert_eq!(w.tasks[8].action.verb_name(), "fetch");
+    assert_eq!(w.tasks[9].action.verb_name(), "infer");
+    // Verify for_each
+    assert!(w.tasks[3].has_for_each());
+    assert_eq!(w.tasks[3].for_each_var(), "entity");
+    assert_eq!(w.tasks[3].for_each_concurrency(), 5);
+    assert!(!w.tasks[3].for_each_fail_fast());
+    // Verify structured output
+    assert!(w.tasks[2].structured.is_some());
+    let spec = w.tasks[2].structured.as_ref().unwrap();
+    assert_eq!(spec.enable_repair, Some(true));
+    assert_eq!(spec.max_retries, Some(3));
+    assert_eq!(spec.repair_model.as_deref(), Some("test-model"));
+    // Verify artifact
+    assert!(w.tasks[9].artifact.is_some());
+    // Verify DAG edges
+    assert!(w.flow_count() >= 8);
+    let edges = w.edges();
+    assert!(edges.contains(&("fetch_source", "analyze")));
+    assert!(edges.contains(&("analyze", "extract_entities")));
+    assert!(edges.contains(&("extract_entities", "process_entities")));
+    assert!(edges.contains(&("analyze", "research")));
+    assert!(edges.contains(&("process_entities", "build_report")));
+    assert!(edges.contains(&("research", "build_report")));
+    assert!(edges.contains(&("extract_entities", "store_graph")));
+    assert!(edges.contains(&("build_report", "validate")));
+    assert!(edges.contains(&("store_graph", "validate")));
+    assert!(edges.contains(&("validate", "final_summary")));
+    assert!(edges.contains(&("scrape_references", "final_summary")));
+    // Verify fetch params
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.url, "https://example.com/api/data");
+            assert_eq!(fetch.method, "GET");
+            assert_eq!(fetch.extract.as_deref(), Some("jsonpath"));
+            assert_eq!(fetch.selector.as_deref(), Some("$.results[*].title"));
+            assert_eq!(fetch.response.as_deref(), Some("full"));
+            assert_eq!(fetch.timeout, Some(30));
+        }
+        _ => panic!("expected Fetch"),
+    }
+    // Verify agent params
+    match &w.tasks[4].action {
+        TaskAction::Agent { agent } => {
+            assert_eq!(agent.prompt, "Deep research on: {{with.summary | trim}}");
+            assert_eq!(agent.system.as_deref(), Some("You are a thorough researcher"));
+            assert_eq!(agent.effective_max_turns(), 8);
+            assert_eq!(agent.token_budget, Some(50000));
+            assert_eq!(agent.tools.len(), 2);
+            assert_eq!(agent.mcp.len(), 1);
+            assert_eq!(agent.temperature, Some(0.3));
+        }
+        _ => panic!("expected Agent"),
+    }
+    // Verify exec params
+    match &w.tasks[5].action {
+        TaskAction::Exec { exec } => {
+            assert_eq!(exec.command, "echo report_built");
+            assert_eq!(exec.shell, Some(true));
+            assert_eq!(exec.cwd.as_deref(), Some("./output"));
+            assert_eq!(exec.timeout, Some(60));
+            assert!(exec.env.is_some());
+        }
+        _ => panic!("expected Exec"),
+    }
+    // Verify invoke params
+    match &w.tasks[6].action {
+        TaskAction::Invoke { invoke } => {
+            assert_eq!(invoke.mcp.as_deref(), Some("novanet"));
+            assert_eq!(invoke.tool.as_deref(), Some("novanet_write"));
+            assert!(invoke.params.is_some());
+            assert_eq!(invoke.timeout, Some(30));
+        }
+        _ => panic!("expected Invoke"),
+    }
+}
+
+#[test]
+fn ad02_agent_with_everything() {
+    // Agent verb with ALL possible fields: system, prompt, model, provider,
+    // temperature, max_tokens, extended_thinking, thinking_budget, tools,
+    // skills, mcp, max_turns, token_budget, completion, guardrails (4 types),
+    // limits, tool_choice, depth_limit, stop_sequences
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: test-model
+
+skills:
+  research: ./skills/research.md
+  writing: ./skills/writing.md
+
+tasks:
+  - id: mega_agent
+    agent:
+      system: "You are a world-class research assistant with deep expertise."
+      prompt: "Analyze the given topic comprehensively and produce a structured report."
+      provider: anthropic
+      model: claude-sonnet-4-20250514
+      temperature: 0.4
+      max_tokens: 16384
+      extended_thinking: true
+      thinking_budget: 8192
+      tools:
+        - nika:read
+        - nika:write
+        - nika:glob
+        - novanet::novanet_search
+        - novanet::novanet_context
+      skills:
+        - research
+        - writing
+      mcp:
+        - novanet
+        - filesystem
+      max_turns: 25
+      token_budget: 100000
+      depth_limit: 5
+      tool_choice: required
+      stop_sequences:
+        - "DONE"
+        - "---END---"
+      completion:
+        mode: explicit
+      guardrails:
+        - type: length
+          min_words: 100
+          max_words: 5000
+          on_failure: retry
+        - type: schema
+          json_schema:
+            type: object
+            properties:
+              findings:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    title:
+                      type: string
+                    confidence:
+                      type: number
+              recommendation:
+                type: string
+            required:
+              - findings
+              - recommendation
+          on_failure: escalate
+        - type: regex
+          pattern: "^## (Findings|Analysis|Summary)"
+          message: "Response must start with a markdown heading"
+          on_failure: retry
+        - type: llm
+          judge_prompt: |
+            Evaluate if this research report is factually grounded
+            and free of hallucination. Reply PASS or FAIL.
+          pass_pattern: "^PASS"
+          on_failure: fail
+      limits:
+        max_cost_usd: 5.0
+        max_duration_secs: 300
+"#;
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 1);
+    // workflow-level skills: dropped during lowering (skills_map: _ in lower.rs)
+    // but agent-level skills: survive in AgentParams.skills
+    match &w.tasks[0].action {
+        TaskAction::Agent { agent } => {
+            // Core fields
+            assert_eq!(
+                agent.system.as_deref(),
+                Some("You are a world-class research assistant with deep expertise.")
+            );
+            assert!(agent.prompt.contains("comprehensively"));
+            assert_eq!(agent.provider.as_deref(), Some("anthropic"));
+            assert_eq!(agent.model.as_deref(), Some("claude-sonnet-4-20250514"));
+            assert_eq!(agent.temperature, Some(0.4));
+            assert_eq!(agent.max_tokens, Some(16384));
+            // Extended thinking
+            assert_eq!(agent.extended_thinking, Some(true));
+            assert_eq!(agent.thinking_budget, Some(8192));
+            assert_eq!(agent.effective_thinking_budget(), 8192);
+            // Tools + MCP
+            assert_eq!(agent.tools.len(), 5);
+            assert!(agent.tools.contains(&"nika:read".to_string()));
+            assert!(agent.tools.contains(&"novanet::novanet_search".to_string()));
+            assert_eq!(agent.mcp.len(), 2);
+            // Skills
+            let skills = agent.skills.as_ref().unwrap();
+            assert_eq!(skills.len(), 2);
+            assert!(skills.contains(&"research".to_string()));
+            // Control
+            assert_eq!(agent.effective_max_turns(), 25);
+            assert_eq!(agent.token_budget, Some(100000));
+            assert_eq!(agent.effective_depth_limit(), 5);
+            assert_eq!(agent.effective_tool_choice(), crate::ast::ToolChoice::Required);
+            assert_eq!(agent.stop_sequences.len(), 2);
+            // Completion
+            let completion = agent.completion.as_ref().unwrap();
+            assert_eq!(
+                completion.mode,
+                crate::ast::CompletionMode::Explicit
+            );
+            // Guardrails
+            assert_eq!(agent.guardrails.len(), 4);
+            assert_eq!(agent.guardrails[0].guardrail_type(), "length");
+            assert_eq!(agent.guardrails[1].guardrail_type(), "schema");
+            assert_eq!(agent.guardrails[2].guardrail_type(), "regex");
+            assert_eq!(agent.guardrails[3].guardrail_type(), "llm");
+            // On-failure actions
+            assert_eq!(
+                agent.guardrails[0].on_failure(),
+                crate::ast::guardrails::OnFailure::Retry
+            );
+            assert_eq!(
+                agent.guardrails[1].on_failure(),
+                crate::ast::guardrails::OnFailure::Escalate
+            );
+            assert_eq!(
+                agent.guardrails[3].on_failure(),
+                crate::ast::guardrails::OnFailure::Fail
+            );
+            // Limits
+            let limits = agent.limits.as_ref().unwrap();
+            assert!((limits.max_cost_usd - 5.0).abs() < f64::EPSILON);
+            assert_eq!(limits.max_duration_secs, 300);
+        }
+        _ => panic!("expected Agent"),
+    }
+}
+
+#[test]
+fn ad03_fetch_extraction_gauntlet() {
+    // 9 tasks, each using a different extract mode:
+    // markdown, article, text, selector, metadata, links, jsonpath, feed, llm_txt
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: test-model
+tasks:
+  - id: f_markdown
+    fetch:
+      url: "https://blog.example.com/post"
+      extract: markdown
+
+  - id: f_article
+    fetch:
+      url: "https://news.example.com/story"
+      extract: article
+
+  - id: f_text
+    fetch:
+      url: "https://docs.example.com/page"
+      extract: text
+      selector: "main .content"
+
+  - id: f_selector
+    fetch:
+      url: "https://shop.example.com/products"
+      extract: selector
+      selector: ".product-card h2"
+
+  - id: f_metadata
+    fetch:
+      url: "https://social.example.com/post"
+      extract: metadata
+
+  - id: f_links
+    fetch:
+      url: "https://hub.example.com"
+      extract: links
+
+  - id: f_jsonpath
+    fetch:
+      url: "https://api.example.com/v2/data"
+      method: POST
+      headers:
+        Content-Type: application/json
+        Authorization: "Bearer {{inputs.token}}"
+      json:
+        query: "AI workflows"
+        limit: 50
+      extract: jsonpath
+      selector: "$.data[*].name"
+      response: full
+
+  - id: f_feed
+    fetch:
+      url: "https://blog.example.com/rss.xml"
+      extract: feed
+
+  - id: f_llm_txt
+    fetch:
+      url: "https://example.com"
+      extract: llm_txt
+      response: full
+"#;
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 9);
+    // Verify each extract mode
+    let extract_modes: Vec<Option<&str>> = w
+        .tasks
+        .iter()
+        .map(|t| match &t.action {
+            TaskAction::Fetch { fetch } => fetch.extract.as_deref(),
+            _ => panic!("expected Fetch"),
+        })
+        .collect();
+    assert_eq!(
+        extract_modes,
+        vec![
+            Some("markdown"),
+            Some("article"),
+            Some("text"),
+            Some("selector"),
+            Some("metadata"),
+            Some("links"),
+            Some("jsonpath"),
+            Some("feed"),
+            Some("llm_txt"),
+        ]
+    );
+    // Verify text extract with CSS selector
+    match &w.tasks[2].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.selector.as_deref(), Some("main .content"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+    // Verify selector extract with CSS selector
+    match &w.tasks[3].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.selector.as_deref(), Some(".product-card h2"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+    // Verify jsonpath with POST, headers, json body, selector, and response: full
+    match &w.tasks[6].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.method, "POST");
+            assert!(fetch.headers.contains_key("Content-Type"));
+            assert!(fetch.headers.contains_key("Authorization"));
+            assert!(fetch.json.is_some());
+            assert_eq!(fetch.extract.as_deref(), Some("jsonpath"));
+            assert_eq!(fetch.selector.as_deref(), Some("$.data[*].name"));
+            assert_eq!(fetch.response.as_deref(), Some("full"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+    // Verify feed
+    match &w.tasks[7].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.extract.as_deref(), Some("feed"));
+            assert!(fetch.selector.is_none());
+        }
+        _ => panic!("expected Fetch"),
+    }
+    // Verify llm_txt with response: full
+    match &w.tasks[8].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.extract.as_deref(), Some("llm_txt"));
+            assert_eq!(fetch.response.as_deref(), Some("full"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn ad04_structured_output_stress() {
+    // Deeply nested schema (3 levels), from_example, enable_repair,
+    // max_retries: 5, repair_model, combined with for_each iteration.
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: test-model
+tasks:
+  - id: get_docs
+    fetch:
+      url: "https://api.example.com/docs"
+      extract: jsonpath
+      selector: "$.documents"
+
+  - id: extract_per_doc
+    depends_on: [get_docs]
+    with:
+      docs: $get_docs
+    for_each: "{{with.docs}}"
+    as: doc
+    concurrency: 3
+    fail_fast: false
+    infer:
+      prompt: "Extract structured data from: {{with.doc}}"
+      temperature: 0.1
+    structured:
+      schema:
+        type: object
+        properties:
+          metadata:
+            type: object
+            properties:
+              title:
+                type: string
+              author:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  affiliation:
+                    type: object
+                    properties:
+                      org:
+                        type: string
+                      department:
+                        type: string
+                    required:
+                      - org
+                required:
+                  - name
+              tags:
+                type: array
+                items:
+                  type: string
+            required:
+              - title
+              - author
+          sections:
+            type: array
+            items:
+              type: object
+              properties:
+                heading:
+                  type: string
+                content:
+                  type: string
+                subsections:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      heading:
+                        type: string
+                      paragraphs:
+                        type: array
+                        items:
+                          type: string
+          citations:
+            type: array
+            items:
+              type: object
+              properties:
+                ref_id:
+                  type: string
+                text:
+                  type: string
+        required:
+          - metadata
+          - sections
+      enable_repair: true
+      enable_extractor: true
+      enable_tool_injection: true
+      enable_retry: true
+      max_retries: 5
+      repair_model: test-model
+      strict: true
+
+  - id: from_example_task
+    depends_on: [get_docs]
+    with:
+      raw: $get_docs
+    infer:
+      prompt: "Structure this data: {{with.raw | trim}}"
+    structured:
+      from_example:
+        product_name: "Widget Pro"
+        price: 29.99
+        in_stock: true
+        variants:
+          - color: "red"
+            sku: "WP-R"
+          - color: "blue"
+            sku: "WP-B"
+      enable_repair: true
+      max_retries: 3
+
+  - id: aggregate
+    depends_on: [extract_per_doc, from_example_task]
+    with:
+      structured_docs: $extract_per_doc
+      product: $from_example_task
+    infer: "Aggregate docs: {{with.structured_docs | first}} and product: {{with.product | trim}}"
+"#;
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 4);
+    // Verify for_each with structured output
+    let t = &w.tasks[1];
+    assert!(t.has_for_each());
+    assert_eq!(t.for_each_var(), "doc");
+    assert_eq!(t.for_each_concurrency(), 3);
+    assert!(!t.for_each_fail_fast());
+    // Verify deeply nested structured spec
+    let spec = t.structured.as_ref().unwrap();
+    assert_eq!(spec.enable_repair, Some(true));
+    assert_eq!(spec.enable_extractor, Some(true));
+    assert_eq!(spec.enable_tool_injection, Some(true));
+    assert_eq!(spec.enable_retry, Some(true));
+    assert_eq!(spec.max_retries, Some(5));
+    assert_eq!(spec.repair_model.as_deref(), Some("test-model"));
+    assert_eq!(spec.strict, Some(true));
+    assert!(spec.schema.is_some());
+    // Verify from_example task
+    let t_ex = &w.tasks[2];
+    let spec_ex = t_ex.structured.as_ref().unwrap();
+    assert!(spec_ex.from_example.is_some());
+    assert_eq!(spec_ex.enable_repair, Some(true));
+    assert_eq!(spec_ex.max_retries, Some(3));
+}
+
+#[test]
+fn ad05_edge_case_combos() {
+    // Vision content + structured, agent + structured, exec with template env,
+    // invoke with template params + pipe transforms, fetch with json body template.
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: test-model
+
+inputs:
+  api_key:
+    type: string
+    default: "sk-test"
+  node_env:
+    type: string
+    default: "production"
+  search_query:
+    type: string
+    default: "AI safety"
+
+tasks:
+  - id: vision_structured
+    infer:
+      content:
+        - type: image
+          source: "blake3:abcdef1234567890"
+          detail: high
+        - type: text
+          text: "Extract all visible data from this document scan"
+    structured:
+      schema:
+        type: object
+        properties:
+          document_type:
+            type: string
+          fields:
+            type: array
+            items:
+              type: object
+              properties:
+                label:
+                  type: string
+                value:
+                  type: string
+        required:
+          - document_type
+          - fields
+      enable_repair: true
+
+  - id: agent_structured
+    depends_on: [vision_structured]
+    with:
+      doc: $vision_structured
+    agent:
+      prompt: "Validate and enrich document: {{with.doc | trim}}"
+      max_turns: 5
+      tools:
+        - nika:read
+    structured:
+      schema:
+        type: object
+        properties:
+          validated:
+            type: boolean
+          enriched_fields:
+            type: array
+        required:
+          - validated
+
+  - id: exec_with_template_env
+    depends_on: [vision_structured]
+    with:
+      doc_type: $vision_structured
+    exec:
+      command: "process-doc --type {{with.doc_type | default('unknown') | lower}}"
+      shell: true
+      cwd: "./processing"
+      timeout: 120
+      env:
+        NODE_ENV: "{{inputs.node_env}}"
+        API_KEY: "{{inputs.api_key}}"
+        DOC_HASH: "blake3:abcdef1234567890"
+
+  - id: invoke_with_template_transforms
+    depends_on: [agent_structured]
+    with:
+      enriched: $agent_structured
+    invoke:
+      mcp: novanet
+      tool: novanet_write
+      params:
+        content: "{{with.enriched | trim}}"
+        category: "{{inputs.search_query | lower | trim}}"
+      timeout: 45
+
+  - id: fetch_json_body_template
+    depends_on: [invoke_with_template_transforms]
+    with:
+      stored: $invoke_with_template_transforms
+    fetch:
+      url: "https://api.example.com/v2/process"
+      method: POST
+      headers:
+        Authorization: "Bearer {{inputs.api_key}}"
+        X-Request-ID: "{{with.stored | default('none')}}"
+      json:
+        query: "{{inputs.search_query}}"
+        context: "{{with.stored | trim | default('empty')}}"
+        options:
+          depth: 3
+          format: json
+      timeout: 30
+      follow_redirects: false
+"#;
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 5);
+    // Vision + structured
+    let t0 = &w.tasks[0];
+    match &t0.action {
+        TaskAction::Infer { infer } => {
+            assert!(infer.content.is_some());
+            let content = infer.content.as_ref().unwrap();
+            assert_eq!(content.len(), 2);
+            match &content[0] {
+                ContentPart::Image { source, detail, .. } => {
+                    assert!(source.contains("blake3:"));
+                    assert_eq!(*detail, ImageDetail::High);
+                }
+                _ => panic!("expected Image content part"),
+            }
+        }
+        _ => panic!("expected Infer"),
+    }
+    assert!(t0.structured.is_some());
+    // Agent + structured
+    let t1 = &w.tasks[1];
+    assert_eq!(t1.action.verb_name(), "agent");
+    assert!(t1.structured.is_some());
+    // Exec with env templates
+    match &w.tasks[2].action {
+        TaskAction::Exec { exec } => {
+            assert_eq!(exec.shell, Some(true));
+            assert_eq!(exec.cwd.as_deref(), Some("./processing"));
+            assert_eq!(exec.timeout, Some(120));
+            let env = exec.env.as_ref().unwrap();
+            assert_eq!(env.len(), 3);
+            assert_eq!(env.get("NODE_ENV").unwrap(), "{{inputs.node_env}}");
+        }
+        _ => panic!("expected Exec"),
+    }
+    // Invoke with templates + transforms
+    match &w.tasks[3].action {
+        TaskAction::Invoke { invoke } => {
+            assert_eq!(invoke.mcp.as_deref(), Some("novanet"));
+            assert_eq!(invoke.tool.as_deref(), Some("novanet_write"));
+            assert!(invoke.params.is_some());
+            assert_eq!(invoke.timeout, Some(45));
+        }
+        _ => panic!("expected Invoke"),
+    }
+    // Fetch with json body, headers, follow_redirects
+    match &w.tasks[4].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.method, "POST");
+            assert!(fetch.headers.contains_key("Authorization"));
+            assert!(fetch.json.is_some());
+            let json = fetch.json.as_ref().unwrap();
+            assert!(json.get("options").is_some());
+            assert_eq!(fetch.follow_redirects, Some(false));
+            assert_eq!(fetch.timeout, Some(30));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn ad06_provider_agnostic_mega_workflow() {
+    // Different providers per task, task-level model overrides, extended_thinking
+    // on Claude tasks, response_format on OpenAI tasks.
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: test-model
+
+tasks:
+  - id: claude_deep
+    provider: anthropic
+    model: claude-sonnet-4-20250514
+    infer:
+      prompt: "Deep analysis of complex topic"
+      system: "You are a deep reasoner"
+      temperature: 0.2
+      max_tokens: 8192
+      extended_thinking: true
+      thinking_budget: 4096
+
+  - id: openai_json
+    depends_on: [claude_deep]
+    provider: openai
+    model: gpt-4o
+    with:
+      analysis: $claude_deep
+    infer:
+      prompt: "Convert to JSON: {{with.analysis | trim}}"
+      temperature: 0.0
+      response_format: json
+
+  - id: groq_fast
+    depends_on: [claude_deep]
+    provider: groq
+    model: llama-3.3-70b-versatile
+    with:
+      analysis: $claude_deep
+    infer:
+      prompt: "Quick summary: {{with.analysis | trim | upper}}"
+      temperature: 0.5
+      max_tokens: 500
+
+  - id: mistral_translate
+    depends_on: [groq_fast]
+    provider: mistral
+    model: mistral-large-latest
+    with:
+      summary: $groq_fast
+    infer:
+      prompt: "Translate to French: {{with.summary}}"
+      temperature: 0.3
+
+  - id: gemini_creative
+    depends_on: [openai_json, mistral_translate]
+    provider: gemini
+    model: gemini-2.5-pro
+    with:
+      json_data: $openai_json
+      french: $mistral_translate
+    infer:
+      prompt: "Creative synthesis of {{with.json_data | trim}} and {{with.french | trim}}"
+      temperature: 1.5
+      max_tokens: 4000
+
+  - id: xai_verify
+    depends_on: [gemini_creative]
+    with:
+      creative: $gemini_creative
+    agent:
+      prompt: "Verify factual accuracy: {{with.creative | trim}}"
+      provider: xai
+      model: grok-3
+      max_turns: 3
+      tools:
+        - nika:read
+
+  - id: fetch_external
+    fetch:
+      url: "https://api.example.com/validate"
+      method: POST
+      json:
+        data: "placeholder"
+
+  - id: mock_aggregate
+    depends_on: [xai_verify, fetch_external]
+    with:
+      verified: $xai_verify
+      external: $fetch_external
+    infer: "Final report from {{with.verified | length}} chars + {{with.external | default('none')}}"
+"#;
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 8);
+    assert_eq!(w.provider, "mock"); // workflow-level
+    // Verify per-task providers
+    match &w.tasks[0].action {
+        TaskAction::Infer { infer } => {
+            assert_eq!(infer.provider.as_deref(), Some("anthropic"));
+            assert_eq!(infer.model.as_deref(), Some("claude-sonnet-4-20250514"));
+            assert_eq!(infer.extended_thinking, Some(true));
+            assert_eq!(infer.thinking_budget, Some(4096));
+            assert_eq!(infer.effective_thinking_budget(), 4096);
+        }
+        _ => panic!("expected Infer"),
+    }
+    match &w.tasks[1].action {
+        TaskAction::Infer { infer } => {
+            assert_eq!(infer.provider.as_deref(), Some("openai"));
+            assert_eq!(infer.model.as_deref(), Some("gpt-4o"));
+            assert_eq!(infer.response_format, Some(ResponseFormat::Json));
+        }
+        _ => panic!("expected Infer"),
+    }
+    match &w.tasks[2].action {
+        TaskAction::Infer { infer } => {
+            assert_eq!(infer.provider.as_deref(), Some("groq"));
+            assert_eq!(infer.model.as_deref(), Some("llama-3.3-70b-versatile"));
+        }
+        _ => panic!("expected Infer"),
+    }
+    match &w.tasks[3].action {
+        TaskAction::Infer { infer } => {
+            assert_eq!(infer.provider.as_deref(), Some("mistral"));
+            assert_eq!(infer.model.as_deref(), Some("mistral-large-latest"));
+        }
+        _ => panic!("expected Infer"),
+    }
+    match &w.tasks[4].action {
+        TaskAction::Infer { infer } => {
+            assert_eq!(infer.provider.as_deref(), Some("gemini"));
+            assert_eq!(infer.model.as_deref(), Some("gemini-2.5-pro"));
+            assert_eq!(infer.temperature, Some(1.5));
+        }
+        _ => panic!("expected Infer"),
+    }
+    match &w.tasks[5].action {
+        TaskAction::Agent { agent } => {
+            assert_eq!(agent.provider.as_deref(), Some("xai"));
+            assert_eq!(agent.model.as_deref(), Some("grok-3"));
+        }
+        _ => panic!("expected Agent"),
+    }
+    // Verify DAG structure
+    let edges = w.edges();
+    assert!(edges.contains(&("claude_deep", "openai_json")));
+    assert!(edges.contains(&("claude_deep", "groq_fast")));
+    assert!(edges.contains(&("groq_fast", "mistral_translate")));
+    assert!(edges.contains(&("openai_json", "gemini_creative")));
+    assert!(edges.contains(&("mistral_translate", "gemini_creative")));
+    assert!(edges.contains(&("gemini_creative", "xai_verify")));
+}
+
+#[test]
+fn ad07_error_edge_cases() {
+    // Test various parse-time errors.
+
+    // 1. Invalid binding expression ({{...}} in with: block)
+    let yaml1 = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: test-model
+tasks:
+  - id: gen
+    infer: "Generate"
+  - id: use_it
+    depends_on: [gen]
+    with:
+      data: "{{inputs.topic}}"
+    infer: "Use {{with.data}}"
+"#;
+    let e1 = err(yaml1);
+    let msg1 = e1.to_string();
+    assert!(
+        msg1.contains("NIKA-151") || msg1.contains("binding") || msg1.contains("must start with"),
+        "Expected invalid binding error, got: {msg1}"
+    );
+
+    // 2. Circular depends_on (A -> B -> C -> A)
+    let yaml2 = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: test-model
+tasks:
+  - id: alpha
+    depends_on: [gamma]
+    infer: "Alpha"
+  - id: beta
+    depends_on: [alpha]
+    infer: "Beta"
+  - id: gamma
+    depends_on: [beta]
+    infer: "Gamma"
+"#;
+    let e2 = err(yaml2);
+    let msg2 = e2.to_string();
+    assert!(
+        msg2.contains("cycl") || msg2.contains("NIKA-020") || msg2.contains("cycle"),
+        "Expected cycle error, got: {msg2}"
+    );
+
+    // 3. Invalid structured schema (missing type at top level)
+    // Note: structured without schema or from_example should fail
+    let yaml3 = wrap(
+        "structured:\n  enable_repair: true\ninfer: \"Extract data\"",
+    );
+    let e3 = err(&yaml3);
+    let msg3 = e3.to_string();
+    assert!(
+        msg3.contains("schema") || msg3.contains("from_example") || msg3.contains("missing"),
+        "Expected missing schema error, got: {msg3}"
+    );
+
+    // 4. with: binding referencing non-existent task
+    let yaml4 = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: test-model
+tasks:
+  - id: reader
+    with:
+      data: $nonexistent_task
+    infer: "Read {{with.data}}"
+"#;
+    let e4 = err(yaml4);
+    let msg4 = e4.to_string();
+    assert!(
+        msg4.contains("nonexistent") || msg4.contains("unknown") || msg4.contains("NIKA-14"),
+        "Expected unknown task ref error, got: {msg4}"
+    );
+
+    // 5. Invalid schema version
+    let yaml5 = r#"
+schema: "nika/workflow@999.0"
+provider: mock
+model: test-model
+tasks:
+  - id: t
+    infer: "Hello"
+"#;
+    let e5 = err(yaml5);
+    let msg5 = e5.to_string();
+    assert!(
+        msg5.contains("schema") || msg5.contains("version") || msg5.contains("NIKA-01") || msg5.contains("NIKA-142"),
+        "Expected schema version error, got: {msg5}"
+    );
+
+    // 6. Missing model for infer without mock provider
+    let yaml6 = r#"
+schema: "nika/workflow@0.12"
+provider: anthropic
+tasks:
+  - id: oops
+    infer: "No model specified"
+"#;
+    let e6 = err(yaml6);
+    let msg6 = e6.to_string();
+    assert!(
+        msg6.contains("model") || msg6.contains("NIKA-034"),
+        "Expected missing model error, got: {msg6}"
+    );
+
+    // 7. Duplicate task IDs
+    let yaml7 = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: test-model
+tasks:
+  - id: same_id
+    infer: "First"
+  - id: same_id
+    infer: "Second"
+"#;
+    let e7 = err(yaml7);
+    let msg7 = e7.to_string();
+    assert!(
+        msg7.contains("duplicate") || msg7.contains("same_id") || msg7.contains("NIKA-01"),
+        "Expected duplicate ID error, got: {msg7}"
+    );
+
+    // 8. depends_on referencing nonexistent task
+    let yaml8 = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: test-model
+tasks:
+  - id: real_task
+    depends_on: [ghost_task]
+    infer: "I depend on nothing"
+"#;
+    let e8 = err(yaml8);
+    let msg8 = e8.to_string();
+    assert!(
+        msg8.contains("ghost_task")
+            || msg8.contains("unknown")
+            || msg8.contains("not found")
+            || msg8.contains("NIKA-02"),
+        "Expected unknown dependency error, got: {msg8}"
+    );
+
+    // 9. Missing schema: field entirely
+    let yaml9 = r#"
+provider: mock
+model: test-model
+tasks:
+  - id: t1
+    infer: "Hello"
+"#;
+    let e9 = err(yaml9);
+    let msg9 = e9.to_string();
+    assert!(
+        msg9.contains("schema") || msg9.contains("NIKA-01"),
+        "Expected missing schema error, got: {msg9}"
+    );
+
+    // 10. NaN temperature (caught by is_finite check at parse time)
+    let yaml10 = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: test-model
+tasks:
+  - id: t1
+    infer:
+      prompt: "Test"
+      temperature: .nan
+"#;
+    let e10 = err(yaml10);
+    let msg10 = e10.to_string();
+    assert!(
+        msg10.contains("temperature") || msg10.contains("NIKA-01") || msg10.contains("parse"),
+        "Expected NaN temperature error, got: {msg10}"
+    );
+
+    // 11. Self-referencing dependency
+    let yaml11 = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: test-model
+tasks:
+  - id: narcissist
+    depends_on: [narcissist]
+    infer: "I depend on myself"
+"#;
+    let e11 = err(yaml11);
+    let msg11 = e11.to_string();
+    assert!(
+        msg11.contains("cycl") || msg11.contains("narcissist") || msg11.contains("NIKA-020"),
+        "Expected self-cycle error, got: {msg11}"
+    );
 }
