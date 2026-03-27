@@ -4491,3 +4491,46 @@ fn test_mcp_calls_cap_enforced_on_invoke() {
         state.mcp.calls.len()
     );
 }
+
+#[test]
+fn test_workflow_failed_kills_running_tasks() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    // Schedule and start a task
+    state.handle_event(
+        &EventKind::TaskScheduled {
+            task_id: Arc::from("t1"),
+            dependencies: vec![],
+        },
+        1,
+    );
+    state.handle_event(
+        &EventKind::TaskStarted {
+            task_id: Arc::from("t1"),
+            verb: "infer".into(),
+            inputs: serde_json::json!({}),
+        },
+        2,
+    );
+    assert_eq!(state.tasks["t1"].status, TaskStatus::Running);
+
+    // Workflow failure must kill the running task
+    state.handle_event(
+        &EventKind::WorkflowFailed {
+            error: "timeout".to_string(),
+            failed_task: None,
+        },
+        3,
+    );
+
+    assert_eq!(
+        state.tasks["t1"].status,
+        TaskStatus::Failed,
+        "WorkflowFailed must transition Running tasks to Failed"
+    );
+    assert_eq!(
+        state.tasks["t1"].error.as_deref(),
+        Some("timeout"),
+        "failed task must carry the workflow error message"
+    );
+}

@@ -375,6 +375,9 @@ async fn route_request(request: DaemonRequest, state: &Arc<ServerState>) -> Daem
             }
         }
 
+        // SECURITY NOTE: GetSecret does not require auth token.
+        // Unix socket 0o600 is the access boundary (same-user only).
+        // Accepted risk for single-user dev machines.
         DaemonRequest::GetSecret { provider } => {
             match state.secret_service.get_secret(&provider).await {
                 Some(value) => DaemonResponse::Secret { value: Some(value) },
@@ -740,8 +743,11 @@ async fn route_request(request: DaemonRequest, state: &Arc<ServerState>) -> Daem
         }
 
         // ── Lifecycle ────────────────────────────────────────────────────
-        DaemonRequest::Shutdown => {
-            info!("shutdown requested via IPC");
+        DaemonRequest::Shutdown { auth_token } => {
+            if !validate_auth_token(&auth_token, &state.auth_token) {
+                return DaemonResponse::AuthRequired;
+            }
+            info!("shutdown requested via IPC (authenticated)");
             let _ = state.shutdown_tx.send(true);
             DaemonResponse::ShuttingDown
         }
@@ -974,13 +980,15 @@ mod tests {
     async fn server_shutdown_via_ipc() {
         let dir = tempfile::tempdir().unwrap();
         let sock = dir.path().join("test.sock");
-        let config = test_config(sock.clone());
+        let orig = std::env::var("NIKA_HOME").ok();
+        std::env::set_var("NIKA_HOME", dir.path());
 
+        let config = test_config(sock.clone());
         let server = DaemonServer::new(config);
         let server_handle = tokio::spawn(server.run());
         tokio::time::sleep(Duration::from_millis(100)).await;
 
-        // Send Shutdown request via client
+        // Send Shutdown request via client (reads auth token from NIKA_HOME)
         let client = DaemonClient::new(&sock);
         client.shutdown().await.unwrap();
 
@@ -993,6 +1001,57 @@ mod tests {
 
         // Socket should be cleaned up
         assert!(!sock.exists());
+
+        match orig {
+            Some(v) => std::env::set_var("NIKA_HOME", v),
+            None => unsafe { std::env::remove_var("NIKA_HOME") },
+        }
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn server_shutdown_requires_auth() {
+        let dir = tempfile::tempdir().unwrap();
+        let sock = dir.path().join("test.sock");
+        let orig = std::env::var("NIKA_HOME").ok();
+        std::env::set_var("NIKA_HOME", dir.path());
+
+        let config = test_config(sock.clone());
+        let server = DaemonServer::new(config);
+        let shutdown = server.shutdown_handle();
+        let server_handle = tokio::spawn(server.run());
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // Shutdown without auth token -> AuthRequired
+        let client = DaemonClient::new(&sock);
+        let resp = client
+            .send(DaemonRequest::Shutdown { auth_token: None })
+            .await
+            .unwrap();
+        assert!(
+            matches!(resp, DaemonResponse::AuthRequired),
+            "Shutdown without auth must return AuthRequired"
+        );
+
+        // Shutdown with wrong token -> AuthRequired
+        let resp = client
+            .send(DaemonRequest::Shutdown {
+                auth_token: Some("wrong-token".into()),
+            })
+            .await
+            .unwrap();
+        assert!(
+            matches!(resp, DaemonResponse::AuthRequired),
+            "Shutdown with wrong token must return AuthRequired"
+        );
+
+        shutdown.send(true).unwrap();
+        let _ = tokio::time::timeout(Duration::from_secs(2), server_handle).await;
+
+        match orig {
+            Some(v) => std::env::set_var("NIKA_HOME", v),
+            None => unsafe { std::env::remove_var("NIKA_HOME") },
+        }
     }
 
     #[test]
