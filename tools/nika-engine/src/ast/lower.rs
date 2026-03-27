@@ -105,7 +105,7 @@ pub fn lower(analyzed: AnalyzedWorkflow) -> Result<Workflow, NikaError> {
 fn lower_task(task: AnalyzedTask, table: &TaskTable) -> Result<Task, NikaError> {
     let depends_on = task_dep_names(&task.depends_on, &task.implicit_deps, table)?;
     let (for_each, for_each_as, fe_concurrency, fe_fail_fast) = lower_for_each(task.for_each);
-    let action = lower_action(&task.action, &task.provider, &task.model, &task.retry);
+    let action = lower_action(&task.action, &task.provider, &task.model, &task.retry, &task.base_url);
     let output = task.output.map(lower_output);
     let with_spec = if task.with_spec.is_empty() {
         None
@@ -143,10 +143,11 @@ pub(crate) fn lower_action(
     provider: &Option<String>,
     model: &Option<String>,
     retry: &Option<AnalyzedRetry>,
+    base_url: &Option<String>,
 ) -> TaskAction {
     match action {
         AnalyzedTaskAction::Infer(a) => TaskAction::Infer {
-            infer: lower_infer(a.clone(), provider.clone(), model.clone()),
+            infer: lower_infer(a.clone(), provider.clone(), model.clone(), base_url.clone()),
         },
         AnalyzedTaskAction::Exec(a) => TaskAction::Exec {
             exec: lower_exec(a.clone()),
@@ -158,7 +159,7 @@ pub(crate) fn lower_action(
             invoke: lower_invoke(a.clone()),
         },
         AnalyzedTaskAction::Agent(a) => TaskAction::Agent {
-            agent: lower_agent(a.as_ref().clone(), provider.clone(), model.clone()),
+            agent: lower_agent(a.as_ref().clone(), provider.clone(), model.clone(), base_url.clone()),
         },
     }
 }
@@ -167,6 +168,7 @@ fn lower_infer(
     infer: AnalyzedInferAction,
     provider: Option<String>,
     model: Option<String>,
+    base_url: Option<String>,
 ) -> InferParams {
     use crate::ast::action::ResponseFormat;
 
@@ -195,6 +197,7 @@ fn lower_infer(
             .content
             .map(|parts| parts.into_iter().map(Into::into).collect()),
         guardrails: infer.guardrails,
+        base_url,
     }
 }
 
@@ -246,6 +249,7 @@ fn lower_agent(
     agent: AnalyzedAgentAction,
     provider: Option<String>,
     model: Option<String>,
+    base_url: Option<String>,
 ) -> AgentParams {
     // Parse tool_choice string to ToolChoice enum
     let tool_choice = agent
@@ -289,6 +293,7 @@ fn lower_agent(
         completion: agent.completion,
         guardrails: agent.guardrails,
         limits: agent.limits,
+        base_url,
     }
 }
 
@@ -2559,7 +2564,7 @@ mod tests {
                 limits: None,
                 span: Span::dummy(),
             };
-            let params = lower_agent(agent, None, None);
+            let params = lower_agent(agent, None, None, None);
             assert!(
                 params.tool_choice.is_some(),
                 "valid tool_choice '{}' should produce Some({})",
@@ -2595,7 +2600,7 @@ mod tests {
                 limits: None,
                 span: Span::dummy(),
             };
-            let params = lower_agent(agent, None, None);
+            let params = lower_agent(agent, None, None, None);
             assert!(
                 params.tool_choice.is_none(),
                 "invalid tool_choice '{}' should map to None, got {:?}",

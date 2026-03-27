@@ -617,6 +617,7 @@ impl Runner {
                 .as_ref()
                 .map(|parts| parts.iter().cloned().map(Into::into).collect()),
             guardrails: Vec::new(),
+        base_url: None,
         };
 
         Some((schema, max_retries, infer_params))
@@ -911,7 +912,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
         // Bridge AnalyzedTask to lowered types at executor boundary
         // PERF(M4): pass references — lower_action clones only what each verb needs
-        let lowered_action = lower_action(&task.action, &task.provider, &task.model, &task.retry);
+        let lowered_action = lower_action(&task.action, &task.provider, &task.model, &task.retry, &task.base_url);
         let lowered_output = task
             .output
             .as_ref()

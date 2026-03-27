@@ -953,6 +953,7 @@ async fn test_action_type_helper() {
             completion: None,
             guardrails: vec![],
             limits: None,
+            base_url: None,
         },
     };
     assert_eq!(action_type(&agent_action), "agent");
