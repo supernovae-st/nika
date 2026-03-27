@@ -154,14 +154,13 @@ fn setup_editors() -> Vec<SetupResult> {
     ];
 
     for (name, binary, ext_id) in editors {
-        // Check binary in PATH or macOS .app
-        let has_binary = which::which(binary).is_ok() || check_macos_app(name);
-        if !has_binary {
+        // Resolve CLI path (PATH first, then macOS app bundle)
+        let Some(cli) = resolve_editor_cli(binary) else {
             continue;
-        }
+        };
 
         // Check if extension already installed
-        let has_ext = Command::new(binary)
+        let has_ext = Command::new(&cli)
             .args(["--list-extensions"])
             .output()
             .ok()
@@ -181,7 +180,7 @@ fn setup_editors() -> Vec<SetupResult> {
 
         // Install extension
         print!("  {} {} — installing nika-lang...", "\u{25c7}".cyan(), name);
-        let install = Command::new(binary)
+        let install = Command::new(&cli)
             .args(["--install-extension", ext_id])
             .output();
 
@@ -237,6 +236,45 @@ fn check_macos_app(name: &str) -> bool {
                 .map(|h| h.join(format!("Applications/{}.app", app)).exists())
                 .unwrap_or(false)
     })
+}
+
+/// Resolve the actual CLI binary path for a VS Code-family editor.
+///
+/// Tries `which` first (covers editors with shell command installed).
+/// Falls back to the standard macOS app bundle CLI path so that
+/// `--install-extension` works even when the shell command isn't in PATH.
+fn resolve_editor_cli(binary: &str) -> Option<std::path::PathBuf> {
+    // 1. Binary already in PATH
+    if let Ok(p) = which::which(binary) {
+        return Some(p);
+    }
+
+    // 2. macOS app bundle fallback
+    #[cfg(target_os = "macos")]
+    {
+        let (app_name, cli_rel) = match binary {
+            "code" => (
+                "Visual Studio Code",
+                "Contents/Resources/app/bin/code",
+            ),
+            "cursor" => ("Cursor", "Contents/Resources/app/bin/cursor"),
+            "windsurf" => ("Windsurf", "Contents/Resources/app/bin/windsurf"),
+            _ => return None,
+        };
+        let candidates = [
+            std::path::PathBuf::from(format!("/Applications/{}.app/{}", app_name, cli_rel)),
+            dirs::home_dir()
+                .unwrap_or_default()
+                .join(format!("Applications/{}.app/{}", app_name, cli_rel)),
+        ];
+        for p in &candidates {
+            if p.exists() {
+                return Some(p.clone());
+            }
+        }
+    }
+
+    None
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -619,11 +657,7 @@ fn setup_completions() -> SetupResult {
 
             if let Some(target) = target {
                 if std::fs::write(&target, &o.stdout).is_ok() {
-                    println!(
-                        "  {} {} completions installed",
-                        StatusIcon::Ok,
-                        shell_name
-                    );
+                    println!("  {} {} completions installed", StatusIcon::Ok, shell_name);
                     return SetupResult {
                         name: "Completions".into(),
                         success: true,
@@ -760,7 +794,11 @@ pub fn quick_editor_scan() {
 /// Silently install the nika-lang extension for a VS Code-compatible editor.
 /// Used by quick_editor_scan when a new editor is detected.
 fn install_vscode_extension(binary: &str, name: &str, ext_id: &str) {
-    let has_ext = Command::new(binary)
+    let Some(cli) = resolve_editor_cli(binary) else {
+        return;
+    };
+
+    let has_ext = Command::new(&cli)
         .args(["--list-extensions"])
         .output()
         .ok()
@@ -772,7 +810,7 @@ fn install_vscode_extension(binary: &str, name: &str, ext_id: &str) {
         return;
     }
 
-    let _ = Command::new(binary)
+    let _ = Command::new(&cli)
         .args(["--install-extension", ext_id])
         .output();
 
