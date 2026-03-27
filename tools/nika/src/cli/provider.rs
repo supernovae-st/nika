@@ -127,7 +127,7 @@ pub async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaE
                 format!("0/{total} configured").red().to_string()
             };
             println!("\n  {} ({})", "LLM Providers".bold(), count_color);
-            println!("  {}", "─".repeat(50).dimmed());
+            println!("{}", nika::display::separator(50));
             println!();
             for (i, provider) in all_providers.iter().enumerate() {
                 let env_var = provider_to_env_var(provider).unwrap_or("UNKNOWN_API_KEY");
