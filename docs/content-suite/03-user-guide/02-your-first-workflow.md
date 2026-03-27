@@ -15,7 +15,7 @@ By the end, you will have a workflow that fetches data from the web, processes i
 Every Nika workflow starts with the same structure. Create a file called `research.nika.yaml`:
 
 ```yaml
-schema: nika/workflow@0.12
+schema: "nika/workflow@0.12"
 workflow: web-research
 description: "Fetch a webpage, extract its content, and produce an AI summary."
 provider: anthropic
@@ -48,7 +48,7 @@ nika check research.nika.yaml
 The `exec:` verb runs shell commands. It is the simplest verb and requires no API keys. Add your first task:
 
 ```yaml
-schema: nika/workflow@0.12
+schema: "nika/workflow@0.12"
 workflow: web-research
 provider: anthropic
 
@@ -67,7 +67,7 @@ Key points about `exec:`:
 Run it:
 
 ```bash
-nika research.nika.yaml
+nika run research.nika.yaml
 ```
 
 ```
@@ -113,7 +113,7 @@ The `extract: markdown` option converts the raw HTML into clean Markdown, stripp
 Run it:
 
 ```bash
-nika research.nika.yaml
+nika run research.nika.yaml
 ```
 
 Both tasks run. Since `fetch_page` does not depend on `timestamp`, Nika can run them in parallel:
@@ -257,7 +257,7 @@ Key `infer:` options:
 Let's add a final task that combines everything into a report:
 
 ```yaml
-schema: nika/workflow@0.12
+schema: "nika/workflow@0.12"
 workflow: web-research
 description: "Fetch a webpage, extract its content, and produce an AI summary."
 provider: anthropic
@@ -417,7 +417,7 @@ The output is written to `report.json` in the artifacts directory.
 When you need to process a list of items, use `for_each:`:
 
 ```yaml
-schema: nika/workflow@0.12
+schema: "nika/workflow@0.12"
 workflow: multi-page-research
 provider: anthropic
 
@@ -430,10 +430,11 @@ tasks:
 
   - id: fetch_all
     depends_on: [urls]
-    for_each: $urls
-    as: url
-    concurrency: 3
-    fail_fast: true
+    for_each:
+      items: $urls
+      as: url
+      concurrency: 3
+      fail_fast: true
     fetch:
       url: "{{with.url}}"
       extract: markdown
@@ -462,7 +463,7 @@ Inside the task body, use `{{with.item}}` (or `{{with.item.field}}` for objects)
 Here is the final version of our research workflow, incorporating everything learned:
 
 ```yaml
-schema: nika/workflow@0.12
+schema: "nika/workflow@0.12"
 workflow: web-research-complete
 description: "Full research pipeline: fetch, analyze, summarize, report."
 provider: anthropic

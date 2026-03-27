@@ -24,7 +24,7 @@ For full shell capabilities, use the object form with `shell: true`:
     exec:
       command: "uname -a && echo '---' && df -h | head -5"
       shell: true
-      timeout: 10
+      timeout: 30
 ```
 
 ### All exec: Fields
@@ -39,6 +39,9 @@ For full shell capabilities, use the object form with `shell: true`:
       NODE_ENV: production
       BUILD_ID: "{{with.build_id}}"
     timeout: 60                        # Timeout in seconds (default: 30)
+```
+
+Note: `shell: true` is a boolean, NOT a string like `shell: bash`.
 ```
 
 ### When to Use shell: true
@@ -169,7 +172,7 @@ When a tool needs no parameters:
 ```yaml
 - id: my_invoke
   invoke:
-    tool: "server::tool_name"         # Required (unless resource: present)
+    tool: "server:tool_name"          # Required (unless resource: present)
     resource: "resource://uri"        # Alternative to tool: (MCP resource)
     params:                           # Tool parameters
       key: "value"
@@ -179,15 +182,18 @@ When a tool needs no parameters:
     timeout: 30                       # Seconds (default: 30)
 ```
 
+Note: Tool format is `server:tool_name` (single colon), not `server::tool_name` (double colon).
+```
+
 ### Tool Name Format
 
-Tools are addressed as `server::tool_name`:
+Tools are addressed as `server:tool_name`:
 
 ```yaml
-  # Fully qualified (server::tool)
+  # Fully qualified (server:tool)
   - id: search
     invoke:
-      tool: "github::search_repositories"
+      tool: "github:search_repositories"
       params:
         query: "nika lang:rust"
 
@@ -423,7 +429,7 @@ The agent will:
 
     # Provider
     provider: anthropic                       # Override workflow provider
-    model: claude-sonnet-4-6               # Override workflow model
+    model: claude-sonnet-4-20250514          # Override workflow model
     temperature: 0.3                          # LLM temperature
 
     # MCP integration
@@ -654,6 +660,7 @@ tasks:
     agent:
       prompt: "Based on this analysis, investigate further: {{with.analysis}}"
       max_turns: 10
+      tools: []
 ```
 
 ### CI/CD Integration
