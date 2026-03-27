@@ -110,7 +110,7 @@ Docker. No cloud. No subscription. AGPL-licensed so it stays free forever.
 - Single binary distribution: `brew install` and you're done. No Python, no Node, no Docker. The tool should be simpler than your problem.
 - The three-phase AST: catches errors before execution, not during. YAML is validated like a compiled language.
 - DAG-based execution: automatic parallelism. Nika figures out what can run at the same time.
-- 451K lines of Rust. 10 crates. 7,800+ tests. Zero clippy warnings.
+- 451K lines of Rust. 10 crates. 8,300+ tests. Zero clippy warnings.
 
 **Sound bite:** "Performance is not a luxury. Performance is freedom. When your binary is 15 MB, it runs on a $5 VPS in Lagos as easily as a $6M rack in San Francisco."
 

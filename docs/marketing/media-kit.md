@@ -33,7 +33,7 @@ product. It's a movement.
 | **Symbol** | Blue Butterfly — liberation, transformation, the impossible becoming possible |
 | **Primary tagline** | Automate AI. No code required. |
 | **Manifesto tagline** | The Drums of Liberation. In Rust. |
-| **Technical tagline** | 5 verbs. 22 providers. Zero Python. |
+| **Technical tagline** | 5 verbs. 9 providers. Zero Python. |
 | **Mission tagline** | AI shouldn't have a subscription fee. |
 | **License** | AGPL-3.0-or-later |
 | **Website** | https://nika.supernovae.studio |
@@ -176,7 +176,7 @@ All screenshots taken with a clean terminal (JetBrains Mono, navy background, no
 | 0:15-0:45 | Problem | Show Python boilerplate for a simple summarizer (~60 lines). Show the equivalent Nika YAML (~8 lines). |
 | 0:45-1:15 | Live demo | Run the HN scraper workflow. Show output streaming in real time. |
 | 1:15-1:35 | Features | Quick montage: swap providers (1 line change), TUI view, course system, 200+ showcases. |
-| 1:35-1:50 | Technical | Single binary, 28 MB RAM, <50ms startup, 7800+ tests, AGPL. |
+| 1:35-1:50 | Technical | Single binary, 28 MB RAM, <50ms startup, 8,300+ tests, AGPL. |
 | 1:50-2:00 | CTA | "brew install supernovae-st/tap/nika — or nika init --course to learn interactively." |
 
 ### 5-Minute Deep Dive
@@ -249,12 +249,12 @@ All screenshots taken with a clean terminal (JetBrains Mono, navy background, no
 ### Blog Post Pitch (1 paragraph)
 
 > We just open-sourced Nika, a workflow engine that lets anyone automate AI tasks
-> by writing YAML instead of Python. It supports 22+ LLM providers, runs as a
+> by writing YAML instead of Python. It supports 9 LLM providers, runs as a
 > single Rust binary with zero dependencies, and includes a built-in 12-level
 > interactive course to learn the engine. We built it because we believe AI
 > automation shouldn't require a CS degree — if you can edit a text file, you can
 > orchestrate Claude, GPT, and Mistral to do real work. Nika is pre-1.0 but
-> battle-tested with 7,800+ tests, and the AGPL license ensures it stays open.
+> battle-tested with 8,300+ tests, and the AGPL license ensures it stays open.
 > We'd love to share the story of why we chose YAML over Python, Rust over Node,
 > and AGPL over MIT.
 
@@ -283,8 +283,7 @@ so that describing an AI workflow is as simple as writing a recipe."
 
 **Key features:**
 
-- **Provider agnostic**: Works with Claude, GPT, Mistral, Gemini, Groq, xAI,
-  DeepSeek, and local models via Ollama or native GGUF inference
+- **Provider agnostic**: Works with 9 major providers (Claude, GPT, Mistral, Gemini, Groq, DeepSeek, xAI, Gemini, native GGUF, OpenAI-compatible)
 - **Single binary**: Ships as a ~15 MB Rust executable with zero runtime
   dependencies — no Python, no Docker, no Node.js
 - **Resource efficient**: Uses ~28 MB RAM for typical workflows vs ~140 MB for

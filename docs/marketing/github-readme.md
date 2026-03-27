@@ -15,7 +15,7 @@
 
 [![Crates.io](https://img.shields.io/crates/v/nika.svg)](https://crates.io/crates/nika)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-8100%2B-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-8300%2B-brightgreen.svg)]()
 [![Rust](https://img.shields.io/badge/rust-1.86%2B-orange.svg)](https://www.rust-lang.org)
 [![Schema](https://img.shields.io/badge/schema-nika%2Fworkflow%400.12-purple.svg)]()
 
@@ -271,11 +271,11 @@ nika course watch           # Auto-check on file save
 | **OpenAI** | GPT-4o, GPT-4.1, o3, o4-mini | `OPENAI_API_KEY` |
 | **Google** | Gemini 2.5 Pro/Flash | `GEMINI_API_KEY` |
 | **Mistral** | Large, Medium, Small, Codestral | `MISTRAL_API_KEY` |
-| **Groq** | LLaMA 3.3, Mixtral (ultra-fast) | `GROQ_API_KEY` |
-| **DeepSeek** | DeepSeek-V3, R1 | `DEEPSEEK_API_KEY` |
-| **xAI** | Grok 3, Grok 3 Mini | `XAI_API_KEY` |
-| **Perplexity** | Sonar Pro, Sonar | `PERPLEXITY_API_KEY` |
+| **Groq** | Llama 4 Maverick (ultra-fast) | `GROQ_API_KEY` |
+| **DeepSeek** | DeepSeek Chat, DeepSeek Reasoner | `DEEPSEEK_API_KEY` |
+| **xAI** | Grok 3 | `XAI_API_KEY` |
 | **Local** | Any GGUF model via mistral.rs | No key needed |
+| **Mock** | Test provider (no API key) | Optional |
 
 ---
 
@@ -311,19 +311,21 @@ nika course watch           # Auto-check on file save
                 +---------------+
 ```
 
-10 workspace crates. 451K lines of Rust. 8,100+ tests. Zero clippy warnings.
+12 workspace crates. 451K lines of Rust. 8,300+ tests. Zero clippy warnings.
 
 | Crate | Lines | Role |
 |-------|------:|------|
 | `nika` | 2K | CLI entry point |
-| `nika-engine` | 134K | Execution engine (embeddable) |
-| `nika-tui` | 92K | Terminal UI (ratatui) |
+| `nika-engine` | 135K | Execution engine (embeddable) |
+| `nika-tui` | 86K | Terminal UI (ratatui, 3 views) |
+| `nika-init` | 21K | Course + project scaffolding |
 | `nika-core` | 23K | AST, types, catalogs (zero I/O) |
 | `nika-cli` | 8K | CLI subcommands |
 | `nika-mcp` | 9K | MCP client (rmcp) |
 | `nika-lsp-core` | 9K | LSP intelligence |
 | `nika-event` | 4K | Event log, trace writer |
-| `nika-media` | 3.5K | CAS store, media processor |
+| `nika-media` | 13K | CAS store, media pipeline |
+| `nika-daemon` | 5K | Secrets, jobs, watch, cache |
 | `nika-lsp` | 2.5K | LSP binary |
 
 Full architecture docs: [architecture/](docs/architecture/)

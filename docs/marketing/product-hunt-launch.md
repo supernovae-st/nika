@@ -30,7 +30,7 @@
 > dependencies, no Docker. It uses 5x less RAM than equivalent LangChain setups
 > because there's no Python interpreter, no GC, no framework overhead.
 >
-> Honest state: Nika is pre-1.0 (schema @0.12). It has 7,800+ tests and is
+> Honest state: Nika is pre-1.0 (schema @0.12). It has 8,300+ tests and is
 > battle-tested on real workflows, but APIs may still evolve. The license is AGPL
 > because I believe open source AI tools should stay open.
 >
@@ -103,6 +103,6 @@
 
 ### "Will you add provider X?"
 
-> Nika already supports 22+ providers via rig-core. If your provider has an
+> Nika already supports 9 providers via rig-core. If your provider has an
 > OpenAI-compatible API, it works today via the `openai-compatible` provider
 > config. For native integrations, open an issue on GitHub.

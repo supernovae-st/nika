@@ -82,7 +82,7 @@ VOICE
 
 **Tactics:**
 1. **Personal outreach** -- DM 20 developers who have tweeted about YAML/AI/Rust workflow tools. Send them early access with a personal note.
-2. **Rust community** -- Post in r/rust, Rust users forum, and Rust Discord. Lead with the technical story (451K lines, 2-phase AST, tokio DAG scheduler).
+2. **Rust community** -- Post in r/rust, Rust users forum, and Rust Discord. Lead with the technical story (451K lines, two-phase AST, tokio DAG scheduler).
 3. **AI builder community** -- Share in AI Discord servers (Latent Space, MLOps Community, AI Engineers). Lead with the 5-verb paradigm.
 4. **One-on-one pairing** -- Offer to pair-program with the first 10 users over video call. Build their first workflow together. Record (with permission) for future content.
 

@@ -51,7 +51,7 @@ Score 5 = perfect audience match, 1 = tangential relevance.
 | Similar covered | ripgrep, Zed, Helix, Nushell, every notable Rust project |
 | Relevance | **5/5** -- Rust is the core identity |
 
-**Pitch angle**: "Nika: a semantic YAML workflow engine for AI, written in Rust (134k lines engine, 10 workspace crates)"
+**Pitch angle**: "Nika: a semantic YAML workflow engine for AI, written in Rust (12 workspace crates)"
 **Tips**: Emphasize Rust-specific choices (error handling, type safety, async runtime). Post "Crate of the Week" self-nomination.
 
 ---
@@ -109,7 +109,7 @@ Score 5 = perfect audience match, 1 = tangential relevance.
 |-------|--------|
 | URL | https://tldr.tech |
 | Audience | 1.6M flagship subscribers; 1.25M AI edition; ~5M+ total across editions |
-| How to submit | https://tldr.tech/submit (free editorial) or sponsor ($18K/placement) |
+| How to submit | https://tldr.tech/submit (free editorial) or sponsor |
 | Similar covered | Major dev tools, AI frameworks, open source launches |
 | Relevance | **4/5** -- Massive reach but content is brief summaries |
 
@@ -127,7 +127,7 @@ Score 5 = perfect audience match, 1 = tangential relevance.
 | Audience | ~500K+ members (est.), extremely engaged |
 | How to submit | Self-post with "Project" flair |
 | Similar covered | Ollama, llama.cpp, LM Studio, vLLM, every local inference tool |
-| Relevance | **5/5** -- Nika supports native GGUF + local-first AI |
+| Relevance | **4/5** -- Nika supports local workflows but is broader than LLM inference |
 
 **Pitch angle**: "Nika: YAML-based AI workflows with native GGUF model support, no cloud required"
 
@@ -157,7 +157,7 @@ Score 5 = perfect audience match, 1 = tangential relevance.
 | Similar covered | hyper, tokio, every major Rust project and crate |
 | Relevance | **5/5** -- Rust podcast, Rust project |
 
-**Pitch angle**: "Building a 134K-line AI workflow engine in Rust: AST phases, DAG execution, and 10-crate workspace architecture"
+**Pitch angle**: "Building an AI workflow engine in Rust: AST phases, DAG execution, and 12-crate workspace architecture"
 
 ---
 
@@ -506,7 +506,7 @@ Week -1: PRE-LAUNCH
   [ ] Prepare HN Show HN post draft
   [ ] Email Rustacean Station about guest slot
 
-Week 0: LAUNCH (Tuesday-Thursday)
+Week 0: LAUNCH (Tuesday-Thursday, 9 AM PT / 12 PM ET)
   [ ] 08:00 ET -- Show HN post
   [ ] 09:00 ET -- r/rust post
   [ ] 10:00 ET -- r/LocalLLaMA post
@@ -562,10 +562,10 @@ Week 4+: SUSTAIN
 > Nika: an open-source, Rust-native AI workflow engine. 5 verbs (infer, exec, fetch, invoke, agent), semantic YAML, MCP protocol, local GGUF support, 24 builtin media tools. AGPL licensed.
 
 ### Medium (for podcast pitches)
-> Nika is an open-source workflow engine for AI tasks, written in Rust. Instead of chaining Python scripts or wrestling with agent frameworks, developers write declarative YAML workflows using just 5 verbs. It supports every major LLM provider, local GGUF models, MCP protocol integration, and includes 24 builtin media tools for image processing, PDF extraction, and content provenance. The engine features a 3-phase AST compiler, DAG execution, and a terminal UI. Built as a 10-crate Rust workspace (134K lines in the engine alone), it ships with an interactive 12-level learning course. AGPL licensed, independent open source.
+> Nika is an open-source workflow engine for AI tasks, written in Rust. Instead of chaining Python scripts or wrestling with agent frameworks, developers write declarative YAML workflows using just 5 verbs. It supports 9 major LLM providers, local GGUF models, MCP protocol integration, and includes 24 builtin media tools for image processing, PDF extraction, and content provenance. The engine features a 3-phase AST compiler, DAG execution, and a terminal UI. Built as a 12-crate Rust workspace, it ships with an interactive 12-level learning course. AGPL licensed, independent open source.
 
 ### Technical (for Rust community)
-> Nika is a 10-crate Rust workspace implementing a semantic YAML workflow engine for AI tasks. Architecture: 3-phase AST (Raw -> Analyzed -> Lower), DAG-based execution with cycle detection, provider abstraction via rig-core, MCP client via rmcp, and a ratatui TUI. 134K lines in the engine crate, 92K in the TUI. Features: 5 execution verbs, template engine with pipe transforms, 24 builtin media tools with CAS storage, structured output validation, streaming inference, vision support, and an interactive course generator. AGPL-3.0-or-later.
+> Nika is a 12-crate Rust workspace implementing a semantic YAML workflow engine for AI tasks. Architecture: 3-phase AST (Raw -> Analyzed -> Lower), DAG-based execution with cycle detection, provider abstraction via rig-core, MCP client via rmcp, and a ratatui TUI. Features: 5 execution verbs, template engine with pipe transforms, 24 builtin media tools with CAS storage, structured output validation, streaming inference, vision support, and an interactive course generator. 8,300+ tests. AGPL-3.0-or-later.
 
 ---
 

@@ -29,7 +29,7 @@ loops). It ships as a single 15 MB Rust binary with zero runtime dependencies.
 Here's a complete workflow that scrapes Hacker News and summarizes the front page:
 
 ```yaml
-nika: workflow@0.12
+schema: "nika/workflow@0.12"
 name: hn-summary
 
 tasks:
@@ -60,7 +60,7 @@ changes needed.
 | Runtime deps | 0 | Python 3.10+ | Python 3.10+ |
 
 The DAG scheduler runs tasks in parallel automatically when there are no
-dependencies. 451K lines of Rust, 10 crates, 7,800+ tests.
+dependencies. 451K lines of Rust, 10 crates, 8,300+ tests.
 
 Honest limitations: Nika is pre-1.0 (schema @0.12). There's no web GUI — only a
 terminal UI and CLI. YAML has a learning curve if you've never used it. The
@@ -71,7 +71,7 @@ ecosystem is young — no plugin marketplace yet.
 - Quick start: `brew install supernovae-st/tap/nika && nika init --course`
 - License: AGPL-3.0 (the engine stays open; your YAML workflows are yours)
 
-7,800+ tests. Single binary. Zero dependencies. Built with Rust.
+8,300+ tests. Single binary. Zero dependencies. Built with Rust.
 
 ---
 
