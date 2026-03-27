@@ -404,7 +404,7 @@ fn template_completions(
     in_transform_chain: bool,
 ) -> Vec<CompletionItem> {
     if in_transform_chain {
-        // Suggest all 31 transform filters (matching nika-core catalog).
+        // Suggest all 29 transform filters (matching nika-core catalog).
         return vec![
             // String transforms
             item_value("upper", "Convert to UPPERCASE.", "00_upper"),

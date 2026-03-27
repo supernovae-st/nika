@@ -813,6 +813,43 @@ fn normalize_bracket_notation(template: &str) -> Cow<'_, str> {
 /// Example: `{{context.files.brand}}` → loaded file content
 /// Example: `{{context.session.focus}}` → session data
 /// Example: `{{inputs.topic}}` → input parameter default value
+///
+/// Media side-channel interception for template resolution.
+///
+/// When the first remaining segment after an alias is "media", the data lives
+/// in `TaskResult.media` (side-channel), not in the output JSON. This helper
+/// resolves the media path via `RunContext::resolve_path()` and returns the
+/// resolved value + empty remaining segments. Returns `None` if media
+/// interception doesn't apply (no "media" segment, no source_task_id).
+fn intercept_media_path<'a>(
+    alias: &str,
+    remaining_parts: &SmallVec<[&'a str; 8]>,
+    effective_base: Value,
+    bindings: &ResolvedBindings,
+    datastore: &RunContext,
+) -> Result<(Value, SmallVec<[&'a str; 8]>), NikaError> {
+    if remaining_parts.first() != Some(&"media") {
+        return Ok((effective_base, remaining_parts.clone()));
+    }
+
+    if let Some(source_task_id) = bindings.source_task_id(alias) {
+        let remaining_path = remaining_parts.join(".");
+        let full_path = format!("{}.{}", source_task_id, remaining_path);
+        if let Some(v) = datastore.resolve_path(&full_path) {
+            Ok((v, SmallVec::new()))
+        } else {
+            Err(NikaError::PathNotFound {
+                path: format!(
+                    "with.{}.{} (task '{}' produced no matching media)",
+                    alias, remaining_path, source_task_id
+                ),
+            })
+        }
+    } else {
+        Ok((effective_base, remaining_parts.clone()))
+    }
+}
+
 pub fn resolve<'a>(
     template: &'a str,
     bindings: &ResolvedBindings,
@@ -898,37 +935,13 @@ pub fn resolve<'a>(
                         let remaining_parts: SmallVec<[&str; 8]> = parts.collect();
 
                         // Media interception: {{with.alias.media[0].hash}}
-                        // Media refs live in TaskResult.media (side-channel),
-                        // not in TaskResult.output. When the first remaining
-                        // segment is "media", delegate to resolve_path() which
-                        // handles both output and media resolution.
-                        let resolved_value;
-                        let segments_to_traverse: SmallVec<[&str; 8]>;
-                        if remaining_parts.first().is_some_and(|s| *s == "media") {
-                            if let Some(source_task_id) = bindings.source_task_id(alias) {
-                                let remaining_path = remaining_parts.join(".");
-                                let full_path = format!("{}.{}", source_task_id, remaining_path);
-                                if let Some(v) = datastore.resolve_path(&full_path) {
-                                    resolved_value = v;
-                                    segments_to_traverse = SmallVec::new();
-                                } else {
-                                    // Media path not found — give a clear error
-                                    // instead of falling through to cryptic PathNotFound
-                                    return Err(NikaError::PathNotFound {
-                                        path: format!(
-                                            "with.{}.{} (task '{}' produced no matching media)",
-                                            alias, remaining_path, source_task_id
-                                        ),
-                                    });
-                                }
-                            } else {
-                                resolved_value = effective_base;
-                                segments_to_traverse = remaining_parts;
-                            }
-                        } else {
-                            resolved_value = effective_base;
-                            segments_to_traverse = remaining_parts;
-                        }
+                        let (resolved_value, segments_to_traverse) = intercept_media_path(
+                            alias,
+                            &remaining_parts,
+                            effective_base,
+                            bindings,
+                            datastore,
+                        )?;
 
                         let mut value_ref: &Value = &resolved_value;
                         let mut traversed_segments: SmallVec<[&str; 8]> = SmallVec::new();
@@ -1262,35 +1275,17 @@ pub fn resolve_for_shell<'a>(
                 let effective_base =
                     crate::binding::jsonpath::try_parse_json_str(&base_value).unwrap_or(base_value);
 
-                // Collect remaining segments for media interception (same as resolve())
+                // Collect remaining segments for media interception
                 let remaining_parts: SmallVec<[&str; 8]> = parts.collect();
 
                 // Media interception: {{with.alias.media[0].hash}}
-                let resolved_value;
-                let segments_to_traverse: SmallVec<[&str; 8]>;
-                if remaining_parts.first().is_some_and(|s| *s == "media") {
-                    if let Some(source_task_id) = bindings.source_task_id(alias) {
-                        let remaining_path = remaining_parts.join(".");
-                        let full_path = format!("{}.{}", source_task_id, remaining_path);
-                        if let Some(v) = datastore.resolve_path(&full_path) {
-                            resolved_value = v;
-                            segments_to_traverse = SmallVec::new();
-                        } else {
-                            return Err(NikaError::PathNotFound {
-                                path: format!(
-                                    "with.{}.{} (task '{}' produced no matching media)",
-                                    alias, remaining_path, source_task_id
-                                ),
-                            });
-                        }
-                    } else {
-                        resolved_value = effective_base;
-                        segments_to_traverse = remaining_parts;
-                    }
-                } else {
-                    resolved_value = effective_base;
-                    segments_to_traverse = remaining_parts;
-                }
+                let (resolved_value, segments_to_traverse) = intercept_media_path(
+                    alias,
+                    &remaining_parts,
+                    effective_base,
+                    bindings,
+                    datastore,
+                )?;
 
                 let mut value_ref: &Value = &resolved_value;
                 let mut traversed_segments: SmallVec<[&str; 8]> = SmallVec::new();
@@ -3968,6 +3963,21 @@ mod v028_template_tests {
         assert!(
             err.contains("produced no matching media"),
             "Error should explain out-of-bounds, got: {err}"
+        );
+    }
+
+    #[test]
+    fn media_template_resolve_for_shell_with_media_hash() {
+        let (store, bindings) = media_template_fixtures();
+
+        // resolve_for_shell must also intercept media paths (shell-escaped)
+        let result =
+            resolve_for_shell("echo {{with.img.media[0].hash}}", &bindings, &store).unwrap();
+
+        // Shell-escaped hash should be present (blake3:abc123 has no special chars)
+        assert!(
+            result.contains("blake3:abc123"),
+            "resolve_for_shell should resolve media hash, got: {result}"
         );
     }
 

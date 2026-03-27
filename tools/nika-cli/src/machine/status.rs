@@ -59,7 +59,7 @@ pub fn is_ci() -> bool {
     }
     // GitHub Codespaces is a dev environment, not CI — allow setup there.
     // Codespaces sets both CODESPACES=true and CI=true, so check first.
-    if env::var("CODESPACES").is_ok() {
+    if env::var("CODESPACES").map(|v| v == "true").unwrap_or(false) {
         return false;
     }
     if env::var("CI").is_ok() {
