@@ -29,6 +29,10 @@ pub struct RawTask {
     /// Task-specific model override
     pub model: Option<Spanned<String>>,
 
+    /// Task-level base URL override for OpenAI-compatible endpoint.
+    /// Takes precedence over workflow-level base_url.
+    pub base_url: Option<Spanned<String>>,
+
     /// Binding declarations: `with: { alias: "expression" }`
     ///
     /// Values are raw strings that get parsed by `parse_with_entry()` in Phase 2.
