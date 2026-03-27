@@ -190,7 +190,11 @@ mod tests {
         ns.push(Notification::warning("other", 1)); // breaks the sequence
         ns.push(Notification::info("dup", 2)); // same as first, but not consecutive
 
-        assert_eq!(ns.items.len(), 3, "non-consecutive duplicate must be accepted");
+        assert_eq!(
+            ns.items.len(),
+            3,
+            "non-consecutive duplicate must be accepted"
+        );
     }
 
     #[test]
@@ -216,6 +220,10 @@ mod tests {
 
         // Both same -> deduped
         ns.push(Notification::warning("different message", 3));
-        assert_eq!(ns.items.len(), 3, "exact consecutive duplicate must be deduped");
+        assert_eq!(
+            ns.items.len(),
+            3,
+            "exact consecutive duplicate must be deduped"
+        );
     }
 }

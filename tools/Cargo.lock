@@ -5376,6 +5376,7 @@ dependencies = [
  "dirs",
  "humantime",
  "image",
+ "indicatif 0.18.4",
  "infer",
  "nika-daemon",
  "nika-engine",
