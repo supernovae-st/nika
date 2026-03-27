@@ -388,7 +388,7 @@ impl Widget for ChatDagPanel {
                 if y >= inner.y && y < inner.y + inner.height.saturating_sub(2) {
                     let is_selected = self.selected.as_ref() == Some(&node.id);
 
-                    let mut node_box = ChatNodeBox::new(&node.id, node.kind)
+                    let mut node_box = ChatNodeBox::new(node.kind)
                         .with_label(&node.label)
                         .with_index(node.index)
                         .with_state(node.state)
