@@ -55,7 +55,7 @@ chrono = { workspace = true }
 regex = { workspace = true }
 humantime = { workspace = true }
 infer = "0.19"
-which = "7"
+which = "8"
 dirs = { workspace = true }
 xxhash-rust = { workspace = true }
 

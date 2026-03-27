@@ -57,7 +57,7 @@ tui-input = { version = "0.15", features = ["crossterm"] }
 arboard = "3.4"
 
 # Syntax Highlighting
-tree-sitter = "0.24"
+tree-sitter = "0.25"
 tree-sitter-yaml = "0.7"
 streaming-iterator = "0.1"
 
@@ -83,7 +83,7 @@ reqwest = { workspace = true }
 infer = "0.19"
 
 # Signal handling (terminal restore on SIGTERM/SIGHUP)
-signal-hook = { version = "0.3", features = ["iterator"] }
+signal-hook = { version = "0.4", features = ["iterator"] }
 
 # Secret zeroization (API keys)
 zeroize = "1"
