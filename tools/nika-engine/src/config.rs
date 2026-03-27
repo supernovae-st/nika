@@ -27,6 +27,19 @@ pub struct NikaConfig {
     /// Default provider and model settings
     #[serde(default)]
     pub defaults: Defaults,
+
+    /// Named custom endpoints for OpenAI-compatible servers (vLLM, TGI, Ollama, etc.)
+    ///
+    /// Example:
+    /// ```toml
+    /// [endpoints.h100]
+    /// base_url = "http://10.0.1.42:8000/v1"
+    /// api_key = "sk-internal"
+    /// model = "Qwen/Qwen3-8B"
+    /// ```
+    #[serde(default)]
+    pub endpoints:
+        std::collections::HashMap<String, crate::provider::endpoints::CustomEndpointConfig>,
 }
 
 /// API keys configuration
@@ -162,6 +175,14 @@ impl NikaConfig {
     pub fn default_model(&self) -> Option<&str> {
         self.defaults.model.as_deref()
     }
+
+    /// Resolve all configured endpoints into runtime-ready form.
+    ///
+    /// Applies env var overrides (NIKA_ENDPOINT_<NAME>_URL, NIKA_ENDPOINT_<NAME>_KEY).
+    pub fn resolve_endpoints(&self) -> Result<crate::provider::endpoints::CustomEndpointMap> {
+        crate::provider::endpoints::resolve_endpoints(&self.endpoints)
+            .map_err(|e| NikaError::ConfigError { reason: e })
+    }
 }
 
 /// Mask an API key for display
@@ -220,6 +241,7 @@ mod tests {
                 provider: Some("claude".into()),
                 model: Some("claude-sonnet-4-6".into()),
             },
+            ..Default::default()
         };
 
         // Manually save to temp path
@@ -335,6 +357,7 @@ mod tests {
                 provider: Some("openai".into()),
                 model: None,
             },
+            ..Default::default()
         };
         assert_eq!(explicit.default_provider(), Some("openai"));
     }
@@ -351,6 +374,64 @@ mod tests {
     }
 
     #[test]
+    fn test_config_with_endpoints_toml_roundtrip() {
+        let toml_str = r#"
+[api_keys]
+anthropic = "sk-ant-test"
+
+[defaults]
+provider = "anthropic"
+
+[endpoints.h100]
+base_url = "http://10.0.1.42:8000/v1"
+api_key = "sk-internal"
+model = "Qwen/Qwen3-8B"
+timeout_secs = 60
+
+[endpoints.ollama]
+base_url = "http://localhost:11434/v1"
+model = "llama3.2"
+"#;
+        let config: NikaConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.endpoints.len(), 2);
+        assert_eq!(
+            config.endpoints["h100"].base_url,
+            "http://10.0.1.42:8000/v1"
+        );
+        assert_eq!(
+            config.endpoints["h100"].api_key.as_deref(),
+            Some("sk-internal")
+        );
+        assert_eq!(config.endpoints["ollama"].api_key, None);
+    }
+
+    #[test]
+    fn test_config_without_endpoints_backward_compat() {
+        let toml_str = r#"
+[api_keys]
+anthropic = "sk-ant-test"
+"#;
+        let config: NikaConfig = toml::from_str(toml_str).unwrap();
+        assert!(config.endpoints.is_empty()); // #[serde(default)] = empty map
+    }
+
+    #[test]
+    fn test_resolve_endpoints_from_config() {
+        let mut config = NikaConfig::default();
+        config.endpoints.insert(
+            "test".to_string(),
+            crate::provider::endpoints::CustomEndpointConfig {
+                base_url: "http://localhost:8000/v1".to_string(),
+                api_key: Some("sk-test".to_string()),
+                model: None,
+                timeout_secs: None,
+            },
+        );
+        let resolved = config.resolve_endpoints().unwrap();
+        assert_eq!(resolved["test"].base_url, "http://localhost:8000/v1");
+    }
+
+    #[test]
     fn test_toml_format() {
         let config = NikaConfig {
             api_keys: ApiKeys {
@@ -361,6 +442,7 @@ mod tests {
                 provider: Some("claude".into()),
                 model: None,
             },
+            ..Default::default()
         };
 
         let toml_str = toml::to_string_pretty(&config).unwrap();

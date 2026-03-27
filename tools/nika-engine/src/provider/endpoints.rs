@@ -59,7 +59,12 @@ pub fn validate_endpoint_url(url: &str) -> Result<(), String> {
     // Scheme check
     match parsed.scheme() {
         "http" | "https" => {}
-        other => return Err(format!("Unsupported scheme '{}' -- only http/https allowed", other)),
+        other => {
+            return Err(format!(
+                "Unsupported scheme '{}' -- only http/https allowed",
+                other
+            ))
+        }
     }
 
     // Host check — block metadata endpoints only
@@ -68,10 +73,7 @@ pub fn validate_endpoint_url(url: &str) -> Result<(), String> {
         let h = h.trim_start_matches('[').trim_end_matches(']');
 
         // Block cloud metadata endpoints
-        if h == "metadata.google.internal"
-            || h == "metadata.google"
-            || h == "169.254.169.254"
-        {
+        if h == "metadata.google.internal" || h == "metadata.google" || h == "169.254.169.254" {
             return Err(format!(
                 "Blocked metadata endpoint '{}' -- SSRF protection",
                 h
@@ -101,7 +103,7 @@ pub fn validate_endpoint_url(url: &str) -> Result<(), String> {
 /// - `NIKA_ENDPOINT_<NAME>_URL` overrides `base_url`
 /// - `NIKA_ENDPOINT_<NAME>_KEY` overrides `api_key`
 pub fn resolve_endpoints(
-    configs: &indexmap::IndexMap<String, CustomEndpointConfig>,
+    configs: &HashMap<String, CustomEndpointConfig>,
 ) -> Result<CustomEndpointMap, String> {
     let mut map = CustomEndpointMap::new();
 
@@ -115,8 +117,7 @@ pub fn resolve_endpoints(
             .unwrap_or_else(|| cfg.base_url.clone());
 
         // Validate URL
-        validate_endpoint_url(&base_url)
-            .map_err(|e| format!("Endpoint '{}': {}", name, e))?;
+        validate_endpoint_url(&base_url).map_err(|e| format!("Endpoint '{}': {}", name, e))?;
 
         // Key: env override -> config value -> empty string (servers like Ollama need no key)
         let api_key = std::env::var(format!("{}_KEY", env_prefix))
@@ -200,7 +201,7 @@ mod tests {
 
     #[test]
     fn test_resolve_endpoints_basic() {
-        let mut configs = indexmap::IndexMap::new();
+        let mut configs = HashMap::new();
         configs.insert(
             "ollama".to_string(),
             CustomEndpointConfig {
@@ -221,7 +222,7 @@ mod tests {
 
     #[test]
     fn test_resolve_endpoints_with_key() {
-        let mut configs = indexmap::IndexMap::new();
+        let mut configs = HashMap::new();
         configs.insert(
             "h100".to_string(),
             CustomEndpointConfig {
@@ -239,7 +240,7 @@ mod tests {
 
     #[test]
     fn test_resolve_endpoints_rejects_bad_url() {
-        let mut configs = indexmap::IndexMap::new();
+        let mut configs = HashMap::new();
         configs.insert(
             "bad".to_string(),
             CustomEndpointConfig {
