@@ -16,6 +16,7 @@ const ONBOARDING_PROVIDERS: &[(&str, &str)] = &[
     ("deepseek", "DeepSeek — budget-friendly, good reasoning"),
     ("gemini", "Gemini 2.5 — large context, multimodal"),
     ("xai", "Grok 3 — real-time knowledge"),
+    ("native", "Local GGUF models — no API key needed"),
 ];
 
 pub fn has_any_provider_key() -> bool {
@@ -74,6 +75,16 @@ pub async fn run_onboarding_wizard() -> Result<bool, NikaError> {
             ))
         })?
         .to_string();
+
+    // Native provider: no API key needed, just show model pull hint
+    if provider == "native" {
+        cliclack::outro(format!(
+            "{} Native provider selected! Pull a model to get started:\n\n  nika model pull <model-name>\n\n  Example: nika model pull mistral-7b-instruct",
+            StatusIcon::Ok
+        ))
+        .ok();
+        return Ok(true);
+    }
 
     let api_key: String = cliclack::password(format!("Paste your {} API key:", provider))
         .mask('•')
@@ -173,8 +184,8 @@ mod tests {
     }
 
     #[test]
-    fn onboarding_providers_has_seven() {
-        assert_eq!(ONBOARDING_PROVIDERS.len(), 7);
+    fn onboarding_providers_has_eight() {
+        assert_eq!(ONBOARDING_PROVIDERS.len(), 8);
     }
 
     #[test]
