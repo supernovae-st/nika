@@ -250,6 +250,12 @@ impl DaemonBridge {
         }
     }
 
+    // Note: Event subscription (WatchTriggered, JobCompleted) requires raw socket streaming
+    // which ConnectedClient::request() doesn't support. Live refresh is handled by:
+    // - 30s daemon status poll in the VS Code extension (triggers code lens refresh)
+    // - File system watcher in clientOptions.synchronize (triggers revalidation)
+    // True event streaming will be added when ConnectedClient supports it.
+
     /// Spawn a background reconnection task.
     pub fn spawn_reconnect_loop(bridge: Arc<RwLock<Option<DaemonBridge>>>) {
         #[cfg(unix)]
