@@ -12,6 +12,9 @@ workflow: research-agent-with-web
 provider: "{{PROVIDER}}"
 model: "{{MODEL}}"
 
+artifacts:
+  dir: .
+
 mcp:
   filesystem:
     command: "npx"

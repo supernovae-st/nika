@@ -12,6 +12,9 @@ workflow: pdf-text-extractor
 provider: "{{PROVIDER}}"
 model: "{{MODEL}}"
 
+artifacts:
+  dir: .
+
 tasks:
   - id: fetch_pdf
     fetch:

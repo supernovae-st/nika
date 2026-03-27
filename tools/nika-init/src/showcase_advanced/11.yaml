@@ -12,6 +12,9 @@ workflow: content-factory
 provider: "{{PROVIDER}}"
 model: "{{MODEL}}"
 
+artifacts:
+  dir: .
+
 inputs:
   audience:
     type: string

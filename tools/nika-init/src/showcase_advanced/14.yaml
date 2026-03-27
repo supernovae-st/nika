@@ -12,6 +12,9 @@ workflow: guardrailed-agent
 provider: "{{PROVIDER}}"
 model: "{{MODEL}}"
 
+artifacts:
+  dir: .
+
 inputs:
   topic:
     type: string

@@ -12,6 +12,9 @@ workflow: parallel-web-scraper
 provider: "{{PROVIDER}}"
 model: "{{MODEL}}"
 
+artifacts:
+  dir: .
+
 tasks:
   - id: scrape_sites
     for_each:

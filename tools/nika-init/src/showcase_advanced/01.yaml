@@ -13,6 +13,9 @@ workflow: image-optimization-pipeline
 provider: "{{PROVIDER}}"
 model: "{{MODEL}}"
 
+artifacts:
+  dir: .
+
 tasks:
   - id: download_original
     fetch:

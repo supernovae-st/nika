@@ -12,6 +12,9 @@ workflow: agent-file-organizer
 provider: "{{PROVIDER}}"
 model: "{{MODEL}}"
 
+artifacts:
+  dir: .
+
 tasks:
   - id: file_scan
     agent:

@@ -12,6 +12,9 @@ workflow: full-orchestration
 provider: "{{PROVIDER}}"
 model: "{{MODEL}}"
 
+artifacts:
+  dir: .
+
 mcp:
   filesystem:
     command: "npx"

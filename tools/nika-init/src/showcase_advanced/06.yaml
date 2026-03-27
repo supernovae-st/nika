@@ -12,6 +12,9 @@ workflow: multi-provider-debate
 provider: "{{PROVIDER}}"
 model: "{{MODEL}}"
 
+artifacts:
+  dir: .
+
 inputs:
   debate_topic:
     type: string
