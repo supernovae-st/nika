@@ -7,16 +7,24 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-## [0.49.0] - 2026-03-27
+---
+
+## [0.49.0](https://github.com/supernovae-st/nika/releases/tag/v0.49.0) - 2026-03-27
 
 ### Added
 - **`nika setup`** — interactive onboarding wizard using `cliclack` for first-run API key setup
 - **`nika provider set` interactive mode** — masked password prompt when key is not provided as argument
+- **Auto-onboarding on `nika run`** — if a workflow contains `infer:` or `agent:` tasks and no API key is configured, the setup wizard launches automatically (non-interactive: shows `nika provider set` hint)
+- **Cron scheduler** — daemon background loop checks every 60s and fires due scheduled jobs; `nika job submit --cron "* * * * *"` now repeats reliably (was silent no-op after first run)
+- **`nika model pull` progress bar** — indicatif bar with transfer speed, ETA, and bytes progress (replaces raw percentage output)
+- **`nika model info` metadata** — shows capability tags (Reasoning, Vision, Code, Fast) and context window size
 - **Daemon L3 auth** — CSPRNG session token (uuid v4, 64 hex chars) gates `SetSecret`/`DeleteSecret` IPC; token written to `~/.nika/daemon/.token` with `0o600` permissions
 
 ### Fixed
 - **Keychain → runner bridge** — `nika run` now calls `load_from_daemon_or_fallback()` at startup; keys stored via `nika provider set` are available without restarting the shell or setting `NIKA_KEYCHAIN_BOOT`
 - **`native-keychain` enabled by default** — `nika provider set` now stores keys reliably on all platforms (macOS Keychain, Linux Secret Service, Windows Credential Manager)
+- **`exec: shell: true` on Windows** — was hardcoded to `sh -c` (fails with `NotFound`); now uses `cmd.exe /C` on Windows and `sh -c` on Unix
+- **TUI** — `Zeroizing<String>` type fix in provider modal and chat key save/test paths; keys were passed by value instead of `as_str()` reference
 - **TUI** — agent state fully reset on workflow re-run; `spawned_agents` no longer leak across runs
 - **TUI** — stuck Running tasks marked as Failed when `WorkflowFailed` fires without a preceding `TaskFailed`
 - **TUI** — interrupted Running tasks marked as Skipped on `WorkflowAborted`
@@ -29,11 +37,22 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **TUI** — `highlight_incremental` no longer discards incremental parse tree (performance regression)
 - **TUI** — `Running`/`Skipped` tasks included in workflow retry
 - **TUI** — notification dedup prevents duplicate entries on fast event replay
+- **TUI** — `InfoPanel` scroll upper-bound + `End`/`G` key to jump to bottom
+- **TUI** — `navigate_up` uses `saturating_sub` to prevent `usize` underflow on single-item grid
+- **TUI** — `scan_workflows` clamps `browser_index` to prevent OOB after rescan
+- **TUI** — `reset_for_retry` clears `mcp.calls` to prevent stale sequence overlap on retry
+- **TUI** — `keys_tab_label` uses correct 7-provider count (was 6)
 - **Display** — `StreamingDelta` event enables live token counter during LLM streaming inference
 - **CLI** — `#[cfg(unix)]` gates on `cache_cmd`, `daemon`, `jobs` re-exports (Windows build correctness)
 - **Secrets** — daemon IPC block gated with `#[cfg(unix)]` in `load_from_daemon_or_fallback`; `set_var` wrapped in `unsafe {}` with `SAFETY` comment (Rust 1.81+)
 - **Media** — blocking file I/O in `write_fail_if_exists` wrapped in `spawn_blocking` (was blocking async runtime thread)
-- **Daemon** — API key values redacted from `Debug` output; `SetSecret`/`DeleteSecret` require valid session auth token
+- **Daemon** — `Shutdown` IPC gated behind auth token; API key values redacted from `Debug` output
+
+### CI
+- **Credential guards** — `update-homebrew` and `update-scoop` skip entire job when `HOMEBREW_TAP_TOKEN` is absent; VS Code marketplace publish step skips when `VSCE_PAT` is absent (VSIX packaging + GitHub Release upload still run)
+
+### Stats
+- 8,346 tests pass (was 8,331 in v0.48.0), 0 clippy warnings
 
 ---
 
@@ -95,6 +114,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Stats
 - 12 crates published on crates.io
 
+---
+
 ## [0.47.0](https://github.com/supernovae-st/nika/releases/tag/v0.47.0) - 2026-03-26
 
 ### Added
@@ -113,6 +134,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - reqwest 0.13 deduplication (~30s compile saved)
 - git2 replaced with git CLI (~100s build saved)
 - TUI: cached JSON in `InvokeBox`, zero-alloc token estimator
+
+---
 
 ## [0.46.1](https://github.com/supernovae-st/nika/releases/tag/v0.46.1) - 2026-03-26
 
@@ -136,6 +159,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Stats
 - 2,111 TUI tests pass, 0 clippy warnings
 
+---
+
 ## [0.46.0](https://github.com/supernovae-st/nika/releases/tag/v0.46.0) - 2026-03-25
 
 ### Added
@@ -144,6 +169,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **stdin support** — `cat file.txt | nika infer "Summarize" --stdin`
 - **`--from-example`** flag on `nika infer` for structured output
 
+---
+
 ## [0.45.0](https://github.com/supernovae-st/nika/releases/tag/v0.45.0) - 2026-03-25
 
 ### Added
@@ -151,6 +178,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **`--from`** flag — run from a task onwards (same layer and deeper)
 - **Cost estimation** — prompts for confirmation when estimated cost exceeds $0.10
 - **`--dry-run`** — shows execution plan with task layers and LLM call count (no execution)
+
+---
 
 ## [0.44.0](https://github.com/supernovae-st/nika/releases/tag/v0.44.0) - 2026-03-25
 
@@ -161,6 +190,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **`--quiet`** flag — single-line summary output
 - **`--detail`** flag — verbosity control (`min`, `normal`, `max`)
 
+---
+
 ## [0.43.0](https://github.com/supernovae-st/nika/releases/tag/v0.43.0) - 2026-03-25
 
 ### Added
@@ -169,6 +200,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Array union** — multi-item array examples merge all objects' properties into the schema
 - **File-based examples** — `from_example: ./structure.json`
 - **CLI input override** — `-i key=value` syntax for runtime input injection
+
+---
 
 ## [0.42.0](https://github.com/supernovae-st/nika/releases/tag/v0.42.0) - 2026-03-25
 
@@ -188,51 +221,62 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - 50+ bugs from deep audit (6 CRITICAL, 17 HIGH, 20 MEDIUM)
 - SSRF/token safety, template injection hardening
 
+---
+
 ## [0.41.5](https://github.com/supernovae-st/nika/releases/tag/v0.41.5) - 2026-03-25
 
 ### Fixed
-- Timeout seconds-to-milliseconds conversion uses `saturating_mul` (overflow prevention)
-- `McpToolCallFailed` error code reassigned to NIKA-110 (collided with NIKA-103)
+- **Timeout overflow** — seconds-to-milliseconds conversion uses `saturating_mul` (prevents silent wrap-around on large values)
+- **NIKA-110 collision** — `McpToolCallFailed` error code reassigned from NIKA-103 to NIKA-110 (deduplication)
+
+---
 
 ## [0.41.4](https://github.com/supernovae-st/nika/releases/tag/v0.41.4) - 2026-03-25
 
 ### Fixed
-- Duplicate task IDs detected at parse time (not analysis phase)
-- Warning added for `timeout: 0` (causes immediate timeout)
-- Provider prefix stripped from model names before API calls
+- **Duplicate task IDs** — detected at parse time instead of analysis phase (earlier, clearer error)
+- **`timeout: 0` warning** — immediate-timeout misconfiguration now surfaces a diagnostic
+- **Provider prefix** — stripped from model names before API calls (e.g. `anthropic/claude-sonnet` → `claude-sonnet`)
+
+---
 
 ## [0.41.3](https://github.com/supernovae-st/nika/releases/tag/v0.41.3) - 2026-03-25
 
 ### Fixed
 - **Gemini** — `stopSequences` correctly nested inside `generationConfig`
 - **UTF-8** — panic in `redact_for_event` truncation prevented
-- `extract_actual_type` implemented properly (was returning literal string `"actual"`)
-- NIKA-102/103 error code deduplication
+- **`extract_actual_type`** — was returning literal string `"actual"`; now correctly extracts type name
+- **Error codes** — NIKA-102/103 deduplication; `McpToolCallFailed` reassigned to NIKA-110
+
+---
 
 ## [0.41.2](https://github.com/supernovae-st/nika/releases/tag/v0.41.2) - 2026-03-25
 
 ### Added
-- LSP: `references`, `document_links`, `folding_ranges` migrated to `nika-lsp-core`
-- Machine auto-setup module (`~/.nika/machine.toml`)
-- `nika doctor --fix` for auto-remediation
-- 25 tests for `LimitTracker` + concurrent `fail_fast`
+- **LSP** — `references`, `document_links`, `folding_ranges` migrated to `nika-lsp-core`
+- **Machine auto-setup** — `~/.nika/machine.toml` module for machine-level config
+- **`nika doctor --fix`** — auto-remediation for common configuration issues
+- **Tests** — 25 new tests for `LimitTracker` + concurrent `fail_fast`
 
 ### Fixed
-- CIDR-based SSRF blocklist + proper host matching
-- `$env` secret access blocked; `TemplateResolved` events redacted
-- DAG cycle detection at runtime + MCP graceful shutdown
-- HTTP client SSRF-vulnerable fallbacks removed
-- 12 dead dependencies removed, ~2,600 LOC dead code deleted
+- **SSRF** — CIDR-based blocklist + proper host matching; vulnerable HTTP client fallbacks removed
+- **Secrets** — `$env` secret access blocked; `TemplateResolved` events redacted
+- **DAG** — cycle detection at runtime; MCP graceful shutdown
+- **Deps** — 12 dead dependencies removed, ~2,600 LOC dead code deleted
+
+---
 
 ## [0.41.1](https://github.com/supernovae-st/nika/releases/tag/v0.41.1) - 2026-03-25
 
 ### Fixed
-- **6 CRITICAL + 17 HIGH** bugs across runtime, security, and bindings
-- `PermissionMode` wired from CLI to executor
-- Task failures propagated (not silently swallowed)
-- Atomic token budget operations + SSRF redirect protection
-- Shell escape for non-string values in bindings
-- ~3,200 LOC dead code deleted
+- **6 CRITICAL + 17 HIGH** — bugs across runtime, security, and bindings
+- **`PermissionMode`** — wired from CLI to executor
+- **Task failures** — propagated correctly (not silently swallowed)
+- **Token budget** — atomic operations + SSRF redirect protection
+- **Bindings** — shell escape for non-string values
+- **Dead code** — ~3,200 LOC removed
+
+---
 
 ## [0.41.0](https://github.com/supernovae-st/nika/releases/tag/v0.41.0) - 2026-03-23
 
@@ -245,44 +289,53 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Stats
 - 23 new e2e tests + 331 lib tests, 0 clippy warnings
 
+---
+
 ## [0.40.3](https://github.com/supernovae-st/nika/releases/tag/v0.40.3) - 2026-03-25
 
 ### Added
-- **Telemetry v2** — 12 new event types (43 → 55 `EventKind` variants)
-- Full trace replay, cost tracking, and debugging coverage
+- **Telemetry v2** — 12 new event types (43 → 55 `EventKind` variants); full trace replay, cost tracking, debugging coverage
+
+---
 
 ## [0.40.2](https://github.com/supernovae-st/nika/releases/tag/v0.40.2) - 2026-03-23
 
 ### Added
-- **GPT-4.1 family** in cost table (gpt-4.1, gpt-4.1-mini, gpt-4.1-nano)
-- `error_code` field in `TaskFailed` events
-- 3 new events: `ExecCompleted`, `FetchRetry`, `PolicyBlocked`
-- `ttft_ms` (time-to-first-token) in streaming responses
-- `cached_input_tokens` tracking across all provider agent loops
-- Fetch retry deadline (prevents infinite backoff loops)
+- **GPT-4.1 family** — gpt-4.1, gpt-4.1-mini, gpt-4.1-nano added to cost table
+- **`error_code`** — field added to `TaskFailed` events for structured error tracking
+- **3 new events** — `ExecCompleted`, `FetchRetry`, `PolicyBlocked`
+- **`ttft_ms`** — time-to-first-token metric in streaming responses
+- **`cached_input_tokens`** — tracked across all provider agent loops
+- **Fetch deadline** — prevents infinite backoff loops on retries
 
 ### Fixed
-- `{{item}}` → `{{with.item}}` in 17 docs
-- `for_each` nested `items:` → flat siblings in ~30 instances
-- NIKA-XXX codes: range headers vs actual codes corrected in 5 files
-- Version refs 0.39.x → 0.40.2 across README, CI, VS Code, Claude plugin, Docker
+- **`{{with.item}}`** — `{{item}}` corrected to `{{with.item}}` in 17 docs
+- **`for_each` schema** — nested `items:` → flat siblings in ~30 instances
+- **NIKA-XXX codes** — range headers vs actual codes corrected in 5 files
+- **Version refs** — 0.39.x → 0.40.2 across README, CI, VS Code, Claude plugin, Docker
+
+### Stats
 - 7,887 tests passing, 0 clippy warnings
+
+---
 
 ## [0.40.1](https://github.com/supernovae-st/nika/releases/tag/v0.40.1) - 2026-03-23
 
 ### Added
-- `nika mcp serve` — MCP server exposing workflow tools to AI coding assistants
-- AI integration files generated during `nika init` (AGENTS.md, IDE rules, git hook)
-- E2E test workflow with real OpenAI API
+- **`nika mcp serve`** — MCP server exposing workflow tools to AI coding assistants
+- **AI integration files** — AGENTS.md, IDE rules, git hook generated during `nika init`
+- **E2E test workflow** — end-to-end validation with real OpenAI API
 
 ### Fixed
-- MCP server path traversal protection + result cap
-- Split NIKA-096 catch-all into 4 specific error codes
-- 3 critical bugs: NaN trace guard, CLI JSON errors, vision cost
-- 8 tautological test assertions
-- `expect()` panic in `lower.rs` → proper `NikaError`
-- Exponential backoff integer overflow
-- Retry snowball, `for_each` outputs, Layer 0 cost
+- **MCP security** — path traversal protection + result cap
+- **NIKA-096** — catch-all split into 4 specific error codes
+- **3 critical bugs** — NaN trace guard, CLI JSON errors, vision cost
+- **8 tautological tests** — assertions corrected to actually verify behavior
+- **`lower.rs`** — `expect()` panic replaced with proper `NikaError`
+- **Backoff** — exponential backoff integer overflow fixed
+- **Runtime** — retry snowball, `for_each` outputs, Layer 0 cost fixed
+
+---
 
 ## [0.40.0](https://github.com/supernovae-st/nika/releases/tag/v0.40.0) - 2026-03-23
 
@@ -296,9 +349,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Doctor upgrade with AI integration checks
 
 ### Fixed
-- `exec` output capture (`Stdio::piped`)
-- SSRF IPv6 loopback + `allowed_hosts` override
-- 27 test failures, 7,870 tests passing, 0 warnings
+- **`exec`** — output capture via `Stdio::piped`
+- **SSRF** — IPv6 loopback + `allowed_hosts` override
+- 27 test failures resolved; 7,870 tests passing, 0 warnings
+
+---
 
 ## [0.39.1](https://github.com/supernovae-st/nika/releases/tag/v0.39.1) - 2026-03-23
 
@@ -320,6 +375,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Stats
 - 14 commits, 41 files changed
 - +2,804 / -147 lines
+
+---
 
 ## [0.39.0](https://github.com/supernovae-st/nika/releases/tag/v0.39.0) - 2026-03-22
 
@@ -380,6 +437,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - 14 new course module files (~14,000 lines)
 - 7,716 tests passing, zero clippy warnings
 
+---
+
 ## [0.38.0](https://github.com/supernovae-st/nika/releases/tag/v0.38.0) - 2026-03-22
 
 ```
@@ -431,6 +490,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - 7,453 tests across 10 crates (up from 7,102)
 - Zero clippy warnings workspace-wide
 
+---
+
 ## [0.37.0](https://github.com/supernovae-st/nika/releases/tag/v0.37.0) - 2026-03-21
 
 ```
@@ -464,6 +525,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **nika-lsp license**: MIT → AGPL-3.0-or-later
 - All crates bumped to 0.37.0
 
+---
+
 ## [0.36.4](https://github.com/supernovae-st/nika/releases/tag/v0.36.4) - 2026-03-21
 
 ### Added
@@ -477,6 +540,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Removed
 - **5 zombie widgets stripped** (-2,810 lines): agent_steps, provider_selector, sparkline, infer_stream_box, verb_input — rendering code removed, data types preserved
+
+---
 
 ## [0.36.3](https://github.com/supernovae-st/nika/releases/tag/v0.36.3) - 2026-03-21
 
@@ -493,6 +558,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Test badges: 8,000+ → 7,400+ (accurate count: 7,382 with LSP)
 - 23 new LSP E2E tests (bridge recovery, completions, definitions)
 
+---
+
 ## [0.36.2](https://github.com/supernovae-st/nika/releases/tag/v0.36.2) - 2026-03-21
 
 ### Added
@@ -507,6 +574,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Fixed
 - LSP completion placement: guardrails to verb level, resource field added
 
+---
+
 ## [0.36.1](https://github.com/supernovae-st/nika/releases/tag/v0.36.1) - 2026-03-21
 
 ### Added
@@ -517,6 +586,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 - MCP alias data model: string → struct with command, args, env, pricing, category
+
+---
 
 ## [0.36.0](https://github.com/supernovae-st/nika/releases/tag/v0.36.0) - 2026-03-21
 
@@ -551,6 +622,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **README** completely rewritten with comprehensive feature documentation
 - **Vision docs** updated with init partials
 
+---
+
 ## [0.35.8](https://github.com/supernovae-st/nika/releases/tag/v0.35.8) - 2026-03-21
 
 ### Added
@@ -572,6 +645,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Theme system** — expanded to 60 fields, all Color::Rgb migrated to Theme fields
 - **LSP cleanup** — deleted legacy `utils.rs` + standalone `hover.rs` (-540 LOC)
 
+---
+
 ## [0.35.7](https://github.com/supernovae-st/nika/releases/tag/v0.35.7) - 2026-03-21
 
 ### Added
@@ -583,6 +658,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Fixed
 - **9 media E2E tests** updated for NK compression framing header
 - **LSP handler alignment** — grammar and handlers synced with recent AST changes
+
+---
 
 ## [0.35.6](https://github.com/supernovae-st/nika/releases/tag/v0.35.6) - 2026-03-21
 
@@ -597,6 +674,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 - Default features expanded: `fetch-extract`, `fetch-article`, `fetch-feed`, `media-chart` added
+
+---
 
 ## [0.35.5](https://github.com/supernovae-st/nika/releases/tag/v0.35.5) - 2026-03-21
 
@@ -613,6 +692,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **CI** — removed stale `jobs` feature from SAST workflow
 - **TUI** — clear both ratatui buffers after intro animation (fixes ghost pixels)
 - **Test** — `wiring_views` updated for 3-View architecture
+
+---
 
 ## [0.35.4](https://github.com/supernovae-st/nika/releases/tag/v0.35.4) - 2026-03-21
 
@@ -645,6 +726,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `task_starts` stores `(timestamp, verb)` tuple for verb lookup on completion.
 - Tests: 6846 passing (up from 6841).
 
+---
+
 ## [0.35.3](https://github.com/supernovae-st/nika/releases/tag/v0.35.3) - 2026-03-21
 
 ### Added
@@ -660,6 +743,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 - Tests: 6,810 passing, zero clippy warnings
+
+---
 
 ## [0.35.2](https://github.com/supernovae-st/nika/releases/tag/v0.35.2) - 2026-03-20
 
@@ -677,6 +762,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Template engine**: `resolve()` now uses `TEMPLATE_RE` + `parse_template_expr()` — all pipe transforms (`|sort`, `|upper`, `|length`, etc.) work in exec/infer/fetch templates (previously only `|shell` worked)
 - **JSON Schema**: `provider`/`model` removed from `InferParams` (they are task-level fields)
 - Tests: 6735 passing (up from 6670)
+
+---
 
 ## [0.35.1](https://github.com/supernovae-st/nika/releases/tag/v0.35.1) - 2026-03-20
 
@@ -1160,6 +1247,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Run tool: required schema fields reduced from 4 to 1 (`workflow` only)
 - CLAUDE.md: added 5 missing error code ranges (060-069, 120-139, 250-279)
 - README badges updated to 5,212 tests
+
+---
 
 ## [0.30.4](https://github.com/supernovae-st/nika/releases/tag/v0.30.4) - 2026-03-18
 
@@ -2188,6 +2277,8 @@ This release was a massive undertaking. Special thanks to:
 - **Thibaut** — For designing the unified architecture
 - **Nika** — For being a good butterfly 🦋
 
+---
+
 ## [0.26.0](https://github.com/supernovae-st/nika/releases/tag/v0.26.0) - 2026-03-11
 
 ### Added
@@ -2203,6 +2294,8 @@ This release was a massive undertaking. Special thanks to:
 - `NativeClient` deprecated in favor of `NativeRuntime`
 - Ollama tests removed; native inference via mistral.rs replaces Ollama
 
+---
+
 ## [0.25.0](https://github.com/supernovae-st/nika/releases/tag/v0.25.0) - 2026-03-11
 
 ### Added
@@ -2213,6 +2306,8 @@ This release was a massive undertaking. Special thanks to:
 - **BUG-001:** Detect duplicate task IDs in `Dag::from_workflow` (NIKA-022 `DuplicateTaskId`)
 - **BUG-002:** `nika check` now calls `detect_cycles()` on the DAG
 - `Dag::from_workflow` returns `Result` instead of panicking
+
+---
 
 ## [0.24.0](https://github.com/supernovae-st/nika/releases/tag/v0.24.0) - 2026-03-10
 
@@ -2232,10 +2327,14 @@ This release was a massive undertaking. Special thanks to:
 ### Changed
 - Centralized path boundary validation into shared security module
 
+---
+
 ## [0.23.1](https://github.com/supernovae-st/nika/releases/tag/v0.23.1) - 2026-03-10
 
 ### Fixed
 - Add DataForSEO and Ahrefs to fallback `MCP_PROVIDER_IDS` list (6 → 8 providers)
+
+---
 
 ## [0.23.0](https://github.com/supernovae-st/nika/releases/tag/v0.23.0) - 2026-03-10
 
@@ -2247,6 +2346,8 @@ This release was a massive undertaking. Special thanks to:
 - **BUG-003:** `use:` blocks now create implicit `depends_on` dependencies
 - **BUG-004:** Final output selection uses deepest terminal task
 - **BUG-005:** `for_each: $items` works correctly with `use:` bindings
+
+---
 
 ## [0.22.3](https://github.com/supernovae-st/nika/releases/tag/v0.22.3) - 2026-03-09
 
@@ -2261,10 +2362,14 @@ This release was a massive undertaking. Special thanks to:
 - Artifact path doubled normalization
 - Direct keyring fallback removed when `spn-daemon` enabled
 
+---
+
 ## [0.22.2](https://github.com/supernovae-st/nika/releases/tag/v0.22.2) - 2026-03-09
 
 ### Added
 - `fallback_value` in `OutputPolicy` for default values on structured output exhaustion
+
+---
 
 ## [0.22.1](https://github.com/supernovae-st/nika/releases/tag/v0.22.1) - 2026-03-09
 
@@ -2275,6 +2380,8 @@ This release was a massive undertaking. Special thanks to:
 - `StructuredOutputEngine` properly wired in executor (BUG #8)
 - Perplexity MCP tool name corrected
 - Init module reorganized: 30 tiered templates moved to `src/init`
+
+---
 
 ## [0.22.0](https://github.com/supernovae-st/nika/releases/tag/v0.22.0) - 2026-03-08
 
@@ -2288,6 +2395,8 @@ This release was a massive undertaking. Special thanks to:
 
 ### Fixed
 - Vendored OpenSSL for musl static builds
+
+---
 
 ## [0.21.3](https://github.com/supernovae-st/nika/releases/tag/v0.21.3) - 2026-03-08
 
@@ -2307,6 +2416,8 @@ This release was a massive undertaking. Special thanks to:
 
 ### Removed
 - ~85 lines dead code from app module
+
+---
 
 ## [0.21.2](https://github.com/supernovae-st/nika/releases/tag/v0.21.2) - 2026-03-07
 
@@ -2329,6 +2440,8 @@ This release was a massive undertaking. Special thanks to:
 - 7-provider index mapping in ProviderModal
 - Docker cargo-chef pinned for Rust 1.85/1.86 compatibility
 
+---
+
 ## [0.21.1](https://github.com/supernovae-st/nika/releases/tag/v0.21.1) - 2026-03-06
 
 ### Added
@@ -2347,6 +2460,8 @@ This release was a massive undertaking. Special thanks to:
 - Template rendering 2x faster via caching
 - Streaming error handling consistency in agent loop
 
+---
+
 ## [0.21.0](https://github.com/supernovae-st/nika/releases/tag/v0.21.0) - 2026-03-05
 
 ### Added
@@ -2358,6 +2473,8 @@ This release was a massive undertaking. Special thanks to:
 - `structured:` task field with `max_retries` and `enable_repair`
 - Error codes NIKA-300 through NIKA-303
 
+---
+
 ## [0.20.1](https://github.com/supernovae-st/nika/releases/tag/v0.20.1) - 2026-03-05
 
 ### Added
@@ -2367,6 +2484,8 @@ This release was a massive undertaking. Special thanks to:
 
 ### Fixed
 - macOS keychain popup fatigue eliminated
+
+---
 
 ## [0.20.0](https://github.com/supernovae-st/nika/releases/tag/v0.20.0) - 2026-03-04
 
@@ -2704,6 +2823,8 @@ Available in the TUI across all views:
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+---
 
 ## [0.17.0] - 2026-03-01
 
@@ -3764,6 +3885,8 @@ automatically with precedence rules that Just Work.
 **END OF ENHANCED CHANGELOG SECTIONS**
 
 *Note: These sections should be inserted after the existing "### 📊 Statistics" sections in each version block. They complement rather than replace the existing content.*
+
+---
 
 ## [0.14.1] - 2026-02-28
 
@@ -5077,6 +5200,8 @@ nika chat
 | v0.10.5 | 2026-02-25 | ARMADA CI pipeline, wiring checkpoints |
 | v0.10.0 | 2026-02-25 | Chat DAG widgets, animation system, workflow execution |
 
+---
+
 ## [0.9.5] - 2026-02-24
 
 ```
@@ -5403,6 +5528,8 @@ fs::atomic_write("workflow.nika.yaml", content)?;
 - **256 files changed**
 - **+33,494/-1,569 lines**
 
+---
+
 ## [0.7.2] - 2026-02-23
 
 ```
@@ -5624,6 +5751,8 @@ Fancy YAML error display with context:
 - **43 files changed** | +3,962/-506 lines
 - **Zero TODOs** remaining (streaming complete)
 
+---
+
 ## [0.6.0] - 2026-02-19
 
 ```
@@ -5749,6 +5878,8 @@ Complete visual overhaul:
 - **200 files changed** | +49,568/-6,493 lines
 - **6 providers** with 100% API compatibility
 
+---
+
 ## [0.5.2] - 2026-02-21
 
 ```
@@ -5860,6 +5991,8 @@ App::default()
 - **1,747 tests passing** (80 skipped)
 - **59 files changed** | +14,430/-192 lines
 - **4 views** implemented with unified navigation
+
+---
 
 ## [0.5.1] - 2026-02-20
 
@@ -6123,6 +6256,8 @@ Traces stored in `.nika/traces/` directory.
 - **69 files changed** | +5,823/-602 lines
 - **37 tests** across MVP 8 features
 
+---
+
 ## [0.4.1] - 2026-02-18
 
 ```
@@ -6352,6 +6487,8 @@ cargo test --features integration novanet
 - **621 tests passing**
 - **143 files changed** | +25,350/-903 lines
 - **~1,000 lines deleted** (custom provider code)
+
+---
 
 ## [0.3.0] - 2026-02-15
 
