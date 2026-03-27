@@ -102,13 +102,7 @@ Every Nika crate uses AGPL-3.0-or-later. This is not an accident or a default --
 
 **The AI Integration Suite**
 
-Nika recently shipped an integration suite that connects it with 43+ AI coding tools. The centerpiece is `nika setup` -- a command that configures Nika for your specific IDE and AI assistant.
-
-[CODE EXAMPLE]
-```bash
-# Configure Nika for your development environment
-nika setup
-```
+Nika ships with integration support for AI coding tools. The integration includes Agent Skills and conventions for tool integration.
 
 This command detects your installed tools and generates the appropriate configuration files. But the more interesting part is the skill system.
 
@@ -205,7 +199,7 @@ The message is: you do not need permission to build AI systems. You need a workf
 
 ## Segment 4: The Road Ahead (2 minutes)
 
-**Host:** Nika is pre-launch. Zero users. Under active development. Version 0.42.
+**Host:** Nika is pre-launch. Zero users. Under active development. Version 0.49.
 
 So what is coming?
 
@@ -237,11 +231,11 @@ So what is coming?
 
 Nika is a semantic YAML workflow engine for AI tasks. Five verbs -- infer, exec, fetch, invoke, agent -- compose into DAG-scheduled workflows with typed bindings, structured output, and full observability.
 
-It is written in 451K+ lines of Rust across 10 crates, with a three-phase compiler pipeline, SIMD-accelerated media processing, a security model that handles Unicode bypass attacks, and a 92K-line terminal UI.
+It is written in 1.56M lines of Rust across 12 crates, with a three-phase compiler pipeline, SIMD-accelerated media processing, a security model that handles Unicode bypass attacks, and a 92K-line terminal UI.
 
-It ships with a 12-level learning course, 200+ showcase workflows, 24 built-in tools, 100+ MCP aliases, and integration with 43+ AI coding tools.
+It ships with a 12-level learning course, 115 showcase workflows, 24 built-in tools, and integration support for AI coding assistants.
 
-It connects to NovaNet via MCP for persistent knowledge, uses content-addressable storage with blake3, and supports 22 LLM providers including local inference.
+It connects to NovaNet via MCP for persistent knowledge, uses content-addressable storage with blake3, and supports 9 LLM providers including local inference.
 
 And it is AGPL-licensed, because the tools that shape our AI-powered future should belong to everyone.
 

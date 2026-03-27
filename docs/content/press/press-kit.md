@@ -13,7 +13,7 @@ SuperNovae Studio builds open source AI infrastructure. Its flagship product, Ni
 
 ### Medium (100 words)
 
-SuperNovae Studio is an independent software studio building the next generation of open source AI tooling. Its flagship project, Nika, is the first and only Rust-based AI workflow engine --- a single binary that transforms declarative YAML files into fully orchestrated AI pipelines. With five semantic verbs (infer, exec, fetch, invoke, agent), built-in support for 22 LLM providers, 24 media processing tools, native MCP protocol integration, and a terminal UI built on ratatui, Nika occupies a category of one. The project ships under the AGPL-3.0-or-later license, reflecting a deliberate philosophical commitment to keeping AI infrastructure free and unenclosable.
+SuperNovae Studio is an independent software studio building the next generation of open source AI tooling. Its flagship project, Nika, is the first and only Rust-based AI workflow engine --- a single binary that transforms declarative YAML files into fully orchestrated AI pipelines. With five semantic verbs (infer, exec, fetch, invoke, agent), built-in support for 9 LLM providers, 24 media processing tools, native MCP protocol integration, and a terminal UI built on ratatui, Nika occupies a category of one. The project ships under the AGPL-3.0-or-later license, reflecting a deliberate philosophical commitment to keeping AI infrastructure free and unenclosable.
 
 ### Long (250 words)
 
@@ -21,7 +21,7 @@ SuperNovae Studio is an independent software studio founded by Thibaut Melen, de
 
 Nika is the studio's flagship project: approximately 482,000 lines of code across 10 Rust workspace crates, compiled into a single zero-dependency binary. It introduces a paradigm where AI workflows are defined entirely in YAML using five semantic verbs --- infer (LLM generation), exec (shell commands), fetch (HTTP requests), invoke (MCP tool calls), and agent (multi-turn autonomous loops). Tasks compose into directed acyclic graphs (DAGs) with typed bindings, structured output validation, and full event-sourced observability.
 
-The engine supports 22 LLM providers including OpenAI, Anthropic, Google Gemini, Mistral, Groq, xAI, DeepSeek, and local GGUF inference via mistral.rs --- all coexisting in the same binary. Its media pipeline provides 24 built-in tools for image processing, PDF extraction, chart generation, and C2PA content provenance. A ratatui-based terminal UI, a Language Server Protocol implementation, and a 12-level interactive learning course round out the developer experience.
+The engine supports 9 LLM providers: 8 cloud providers (OpenAI, Anthropic, Google Gemini, Mistral, Groq, xAI, DeepSeek) plus mistral.rs for local GGUF inference --- all coexisting in the same binary. Its media pipeline provides 24 built-in tools for image processing, PDF extraction, chart generation, and C2PA content provenance. A ratatui-based terminal UI, a Language Server Protocol implementation, and a 12-level interactive learning course round out the developer experience.
 
 Nika ships under the AGPL-3.0-or-later license --- a deliberate choice to ensure that cloud providers and SaaS platforms cannot enclose the technology behind proprietary walls. The name Nika references the Sun God from One Piece, a symbol of liberation, joy, and freedom. The project's butterfly symbol represents transformation: the idea that open source AI tools can metamorphose entire industries.
 
@@ -78,15 +78,15 @@ Every major AI orchestration tool in 2025--2026 requires either Python, a server
 | Total codebase | ~482,000 lines across 10 workspace crates |
 | Rust source code | ~337,000 lines in 659 files |
 | YAML workflows | 570 files (showcase + course + examples) |
-| Test suite | 8,100+ unit tests, zero clippy warnings |
+| Test suite | 8,300+ unit tests, zero clippy warnings |
 | Binary size | Single static binary, no runtime dependencies |
-| LLM providers | 22 (8 cloud + local GGUF + vision) |
+| LLM providers | 9 (8 cloud + local GGUF + vision) |
 | Media tools | 24 built-in (3 tiers: always-on, default, opt-in) |
 | MCP aliases | 100+ pre-configured tool aliases |
-| Showcase workflows | 200+ ready-to-use workflow templates |
+| Showcase workflows | 115 ready-to-use workflow templates |
 | Learning course | 12 levels, 44 exercises, interactive progression |
 | Schema version | nika/workflow@0.12 |
-| Current version | v0.42.0 |
+| Current version | v0.49.0 |
 | License | AGPL-3.0-or-later |
 
 ---
@@ -101,7 +101,7 @@ Every major AI orchestration tool in 2025--2026 requires either Python, a server
 | 2026-Q1 | v0.35.0 --- Fetch v2 with 9 extraction modes (markdown, article, metadata, links, feeds, etc.) |
 | 2026-Q1 | v0.37.0 --- Cargo workspace unification across 10 crates |
 | 2026-Q1 | v0.38.0 --- Crate split: 10 independent workspace crates for embeddable runtime |
-| 2026-Q1 | v0.42.0 --- `nika init` + 12-level interactive course, 200+ showcase workflows |
+| 2026-Q1 | v0.42.0 --- `nika init` + 12-level interactive course, 115 showcase workflows |
 | 2026-Q1 | v0.42.0 --- Full security audit, LSP improvements, AI coding tool integration suite |
 | Ongoing | Approaching public launch; Homebrew tap, GitHub releases, crates.io, VS Code marketplace |
 
@@ -157,7 +157,7 @@ For interview requests, speaking engagements, or review copies, contact Thibaut 
 4. **Named after a manga character.** The Sun God Nika from One Piece, symbolizing liberation.
 5. **Creates a new category.** "Declarative CLI AI Workflow Engine" --- no other tool occupies this position.
 6. **Zero dependencies for users.** Download one binary, set an API key, run workflows.
-7. **22 LLM providers in one binary.** Cloud and local inference coexist without external processes.
+7. **9 LLM providers in one binary.** Cloud and local inference coexist without external processes.
 8. **MCP protocol pioneer.** First CLI workflow tool to implement Anthropic's Model Context Protocol.
 9. **Built-in terminal UI.** The only AI workflow tool with a ratatui-based TUI.
 10. **Interactive learning course.** 12 levels, 44 exercises, inspired by a constellation/liberation theme.

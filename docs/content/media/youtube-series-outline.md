@@ -324,8 +324,8 @@
 
 ### Metadata
 
-**Title:** "Learn Nika #7: Swiss Knife -- 43 Builtin Tools"
-**SEO Description:** Explore Nika's builtin tool ecosystem. Use invoke: with nika:log, nika:emit, nika:assert, and discover 43 tools for logging, validation, media, and more. 3 exercises.
+**Title:** "Learn Nika #7: Swiss Knife -- 24+ Builtin Tools"
+**SEO Description:** Explore Nika's builtin tool ecosystem. Use invoke: with nika:log, nika:emit, nika:assert, and discover 24+ tools for logging, validation, media, and more. 3 exercises.
 **Tags:** nika, invoke, builtin tools, nika:log, nika:assert, mcp, tool calling
 **Thumbnail Concept:** A multi-tool (Swiss Army knife style) with code symbols on each tool. "SWISS KNIFE" in red. Episode "07".
 
@@ -338,7 +338,7 @@
 2:30  nika:emit -- emit custom events
 3:30  nika:assert -- runtime assertions
 4:30  Exercise 1: Logging and assertions
-6:00  Overview of 43 builtin tools
+6:00  Overview of 24+ builtin tools
 7:00  File tools: nika:read, nika:write, nika:edit
 8:30  Exercise 2: File operations workflow
 10:00  Utility tools overview
@@ -346,7 +346,7 @@
 12:00  Exercise 3: Multi-tool pipeline
 14:00  Tool error handling (NIKA-200 to NIKA-214)
 15:00  Preview: media tools (covered in Episode 11)
-16:00  Recap: invoke, nika: prefix, 43 tools
+16:00  Recap: invoke, nika: prefix, 24+ tools
 17:00  Next preview: "Gone Rogue -- autonomous agents"
 18:00  Outro
 ```
@@ -355,6 +355,7 @@
 
 - `invoke: { tool: nika:*, input: {...} }` calls builtin tools
 - nika:log for structured workflow logging
+- nika:emit for custom event emission
 - nika:assert for runtime validation
 - File tools for reading, writing, editing files
 - Error codes NIKA-200 to NIKA-214 for tool-specific issues
@@ -519,22 +520,22 @@
 ### Content Outline
 
 ```
-0:00  Cold open: "24 tools. Zero ImageMagick."
-0:30  Media architecture: content-addressable storage
-2:00  blake3 hashing, zstd compression
-3:00  nika:import -- bringing files into CAS
+0:00  Cold open: "24 media tools. Zero ImageMagick."
+0:30  Media architecture: content-addressable storage (CAS)
+2:00  blake3 hashing, zstd compression, atomic writes
+3:00  nika:import -- bringing files into CAS with validation
 4:30  Exercise 1: Import and inspect
-6:00  Tier 1 tools: dimensions, thumbhash, dominant_color
-7:30  Tier 2: thumbnail (SIMD Lanczos3), convert, strip, optimize
+6:00  Tier 1 tools: import, dimensions, thumbhash, dominant_color, pipeline
+7:30  Tier 2: thumbnail (SIMD Lanczos3), convert, strip, metadata, optimize, svg_render
 9:00  Exercise 2: Image processing pipeline
-11:00  nika:pipeline -- chaining operations in-memory
-12:30  Tier 3: phash, chart, provenance, qr_validate
+11:00  nika:pipeline -- chaining operations in-memory (zero temp files)
+12:30  Tier 3: phash, compare, chart, provenance, verify, qr_validate, quality, pdf_extract, html_to_md, css_select, extract_metadata, extract_links, readability
 14:00  Exercise 3: Advanced media workflow
-16:00  Vision integration: CAS hash in infer: content blocks
+16:00  Vision integration: CAS hash in infer: content blocks (auto base64)
 17:30  C2PA provenance signing (EU AI Act compliance)
 19:00  Exercise 4: Full pipeline with AI analysis
-21:00  Security: decode_image_safe, SVG sanitization
-22:00  Performance: parallel media tasks in DAG
+21:00  Security: decode_image_safe (no pixel floods), SVG sanitization (no XXE)
+22:00  Performance: parallel media tasks in DAG, MediaBudget (500MB per run)
 23:00  Recap: CAS, 3 tiers, 24 tools, vision, provenance
 24:00  Next preview: "SuperNovae -- the final boss"
 25:00  Outro
@@ -542,11 +543,12 @@
 
 ### Key Teaching Points
 
-- Content-addressable storage: import once, reference by hash
+- Content-addressable storage: import once, reference by hash (immutable + deduplicated)
 - Three tiers of media tools (always-on, default, opt-in)
 - `nika:pipeline` chains operations without intermediate files
-- Vision: CAS hashes flow directly into `infer:` content blocks
-- C2PA provenance for content authenticity
+- Vision: CAS hashes auto-resolve to base64 in `infer:` content blocks
+- C2PA provenance for content authenticity and EU AI Act compliance
+- Security: decode_image_safe limits prevent pixel floods, SVG sanitization prevents XXE
 
 ---
 
@@ -603,15 +605,15 @@
 | 2 | Ep 3-4 (Fork Bomb, Root Access) | Scripting |
 | 3 | Ep 1-2 Recording | Recording |
 | 4 | Ep 5-6 (Shapeshifter, Pay-Per-Dream) | Scripting |
-| 5 | Ep 3-4 Recording, Ep 1-2 Edit | Recording + Post |
+| 5 | Ep 3-4 Recording, Ep 1-2 Editing | Recording + Post |
 | 6 | Ep 7-8 (Swiss Knife, Gone Rogue) | Scripting |
-| 7 | Ep 5-6 Recording, Ep 3-4 Edit | Recording + Post |
+| 7 | Ep 5-6 Recording, Ep 3-4 Editing | Recording + Post |
 | 8 | Ep 9-10 (Data Heist, Open Protocol) | Scripting |
-| 9 | Ep 7-8 Recording, Ep 5-6 Edit | Recording + Post |
+| 9 | Ep 7-8 Recording, Ep 5-6 Editing | Recording + Post |
 | 10 | Ep 11-12 (Pixel Pirate, SuperNovae) | Scripting |
-| 11 | Ep 9-10 Recording, Ep 7-8 Edit | Recording + Post |
-| 12 | Ep 11-12 Recording, Ep 9-10 Edit | Recording + Post |
-| 13 | Final edits, Ep 11-12 Edit | Post |
+| 11 | Ep 9-10 Recording, Ep 7-8 Editing | Recording + Post |
+| 12 | Ep 11-12 Recording, Ep 9-10 Editing | Recording + Post |
+| 13 | Final edits, Ep 11-12 Editing | Post |
 | 14 | Series launch (all 12 published) | Launch |
 
 **Release Cadence:** 2 episodes per week for 6 weeks (after initial batch production).

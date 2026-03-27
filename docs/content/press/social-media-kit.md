@@ -9,7 +9,7 @@
 
 ### Launch Announcements
 
-**1.** Introducing Nika --- a semantic YAML workflow engine for AI tasks. 5 verbs. Single Rust binary. Zero dependencies. 22 LLM providers. AGPL licensed.
+**1.** Introducing Nika --- a semantic YAML workflow engine for AI tasks. 5 verbs. Single Rust binary. Zero dependencies. 9 LLM providers. AGPL licensed.
 
 Write a YAML file. Run a command. Orchestrate AI.
 
@@ -53,7 +53,7 @@ Nika stores media by SHA-256 hash --- like Git for images. No file paths leak to
 
 Nobody else does this.
 
-**8.** 22 LLM providers in one binary.
+**8.** 9 LLM providers in one binary.
 
 OpenAI, Anthropic, Gemini, Mistral, Groq, xAI, DeepSeek, and local GGUF models via mistral.rs.
 
@@ -109,7 +109,7 @@ Learn all five verbs, DAG composition, media pipelines, agent loops, and MCP int
 
 No tutorials to google. It is built in.
 
-**16.** 200+ showcase workflows included.
+**16.** 115 showcase workflows included.
 
 Content pipelines. Competitive intelligence. Media processing. Multi-agent research.
 
@@ -138,7 +138,7 @@ Rust for the plumbing. Python for the science.
 
 **20.** Solo developer. 482K lines. Pure Rust. AGPL.
 
-Named after a manga character. Symbol is a butterfly.
+9 LLM providers. 115 workflows. Named after a manga character. Symbol is a butterfly.
 
 This is either the most ridiculous AI project of 2026 or the most important. Possibly both.
 
@@ -154,7 +154,7 @@ After extensive development, I am sharing Nika publicly: a workflow engine that 
 
 What makes it different:
 - Ships as a single Rust binary (no Python, no Docker, no server)
-- 22 LLM providers including local GGUF inference
+- 9 LLM providers including local GGUF inference
 - Content-addressable storage for media assets
 - Built-in terminal UI, language server, and 12-level learning course
 - First CLI tool to implement Anthropic's MCP protocol
@@ -302,7 +302,7 @@ You build the onboarding into the binary.
 
 nika init --course generates a 12-level interactive learning course with 44 exercises. Each level builds on the previous. The course management system handles progress, hints, and validation.
 
-200+ showcase workflows provide ready-to-use templates for common patterns.
+115 showcase workflows provide ready-to-use templates for common patterns.
 
 A Language Server Protocol implementation provides real-time validation in editors.
 
@@ -345,7 +345,7 @@ Hi r/rust! I have been building Nika, a semantic YAML workflow engine for AI tas
 - 7,700+ unit tests, zero clippy warnings
 - Built on tokio, reqwest, ratatui, rig-core, rmcp
 - Three-phase AST pipeline (Raw -> Analyzed -> Lower)
-- 22 LLM providers including local GGUF via mistral.rs
+- 9 LLM providers including local GGUF via mistral.rs
 - 24 built-in media tools (SIMD resize, CAS, C2PA provenance)
 - Terminal UI with 42 widgets
 - LSP implementation for editor integration
@@ -365,7 +365,7 @@ Link: github.com/supernovae-st/nika
 
 I have been following Nika, an interesting project that asks: what if AI workflows were defined in YAML and run from a single binary, like Terraform for AI?
 
-The core idea is five semantic verbs (infer, exec, fetch, invoke, agent) that compose into DAGs. The engine handles concurrency, type checking, structured output validation, and multi-provider LLM support (22 providers, including local GGUF models).
+The core idea is five semantic verbs (infer, exec, fetch, invoke, agent) that compose into DAGs. The engine handles concurrency, type checking, structured output validation, and multi-provider LLM support (9 providers, including local GGUF models).
 
 What caught my attention:
 - It is the only AI orchestration tool that does not require Python, Docker, or a server
@@ -380,7 +380,7 @@ Curious what the community thinks about the "everything in YAML" approach vs. im
 
 ### r/artificial --- Industry Perspective
 
-**Title:** A solo developer built an AGPL alternative to LangChain/Dify in Rust -- 482K lines, 22 providers, single binary
+**Title:** A solo developer built an AGPL alternative to LangChain/Dify in Rust -- 482K lines, 9 providers, single binary
 
 **Body:**
 
@@ -402,7 +402,7 @@ What do you think: is there room for a non-Python AI workflow tool? Does AGPL he
 
 ### r/selfhosted --- Practical Focus
 
-**Title:** Nika: Self-hosted AI workflow engine -- single binary, no Docker, no server, 22 LLM providers
+**Title:** Nika: Self-hosted AI workflow engine -- single binary, no Docker, no server, 9 LLM providers
 
 **Body:**
 
@@ -419,7 +419,7 @@ For the self-hosting community: Nika is a workflow engine for AI tasks that is g
 - Local LLM inference via GGUF models (no cloud required)
 - Content-addressable storage for media assets
 - Built-in terminal UI
-- 200+ showcase workflow templates
+- 115 showcase workflow templates
 - AGPL-3.0 (stays open)
 
 **Not a server:** Nika is a CLI tool, not a daemon. You run it when you need it. No always-on process.
@@ -454,7 +454,7 @@ Thoughts on AGPL for AI tooling?
 
 **1.** New project: Nika --- a semantic YAML workflow engine for AI tasks.
 
-5 verbs. 1 Rust binary. 0 dependencies. 22 LLM providers. AGPL-3.0.
+5 verbs. 1 Rust binary. 0 dependencies. 9 LLM providers. AGPL-3.0.
 
 The thesis: AI workflows should be declarative files, not Python scripts. Like Terraform for AI.
 

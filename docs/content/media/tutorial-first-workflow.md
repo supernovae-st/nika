@@ -96,7 +96,7 @@ schema: nika/workflow@0.12
 **Voice-over:**
 Every Nika workflow starts with a schema declaration. `nika/workflow@0.12` -- this is the current schema version. It is not decorative. This line activates the full validation pipeline: the three-phase AST parser will use this to check your workflow structure, the DAG validator will verify your dependencies, and the LSP will give you completions and diagnostics.
 
-Watch the editor -- no red squiggles. The schema line is valid.
+Watch the editor -- no red squiggles. The schema line is valid. You can also use `nika check` to validate without executing.
 
 ### Scene 2.3 -- Adding a Task (2:30 - 3:15)
 

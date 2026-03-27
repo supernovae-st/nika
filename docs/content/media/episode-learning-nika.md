@@ -266,22 +266,19 @@ Each showcase is a complete `.nika.yaml` file that you can run immediately. They
 
 The showcase system is powered by four generator modules in the engine: `showcase.rs` for the core framework, `showcase_exec.rs` for shell command patterns, `showcase_builtin.rs` for built-in tool demonstrations, and `showcase_llm.rs` for LLM-powered workflows. Each generator produces valid, runnable YAML with comments explaining every feature used. This means the showcases are not just static examples -- they are generated from Rust code that stays in sync with the engine's capabilities as features are added.
 
-**The Minimal Scaffold**
+**The Showcase Workflows**
 
-For developers who do not want the full course, `nika init --minimal` generates five workflows -- one per verb:
+For developers who want to learn by example, Nika includes 115 showcase workflows:
 
 [CODE EXAMPLE]
 ```bash
-nika init --minimal
-# Creates:
-#   01-exec-hello.nika.yaml
-#   02-fetch-api.nika.yaml
-#   03-infer-prompt.nika.yaml
-#   04-invoke-tools.nika.yaml
-#   05-agent-loop.nika.yaml
+nika showcase list
+# Browse and extract from 115 ready-to-run workflows
+nika showcase extract vision-analysis
+nika showcase extract multi-agent-research
 ```
 
-Five files, five verbs, five minutes to understand the basics.
+Learn by examining and running complete production patterns.
 
 **The Interactive Wizard**
 
@@ -315,7 +312,7 @@ The course, the showcases, the hints, the progress tracking -- they are all buil
 
 ## Wrap-up & Preview (2 minutes)
 
-**Host:** Nika's learning system is 44 exercises across 12 levels with a Liberation theme, plus 200+ showcase workflows and three scaffolding modes (course, minimal, wizard).
+**Host:** Nika's learning system is 44 exercises across 12 levels with a Liberation theme, plus 115 showcase workflows and the course system built into the binary.
 
 The pedagogical arc goes from free local commands to paid LLM calls to autonomous agents to full production orchestration. Progress is tracked in TOML, hints are progressive, and every exercise is runnable.
 

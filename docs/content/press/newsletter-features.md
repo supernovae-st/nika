@@ -32,10 +32,10 @@ tasks:
 
 **Key stats:**
 - ~482,000 lines of Rust across 10 workspace crates
-- 22 LLM providers (cloud + local GGUF inference in one binary)
+- 9 LLM providers (cloud + local GGUF inference in one binary)
 - 24 built-in media tools (image resize, PDF extract, C2PA provenance)
 - Built-in terminal UI, LSP, and 12-level learning course
-- 200+ showcase workflow templates
+- 115 showcase workflow templates
 - First CLI tool to implement Anthropic's MCP protocol
 - AGPL-3.0-or-later license
 
@@ -47,7 +47,7 @@ tasks:
 
 **The license:** AGPL-3.0-or-later --- a deliberate philosophical choice. AGPL prevents cloud providers from taking the code, wrapping it in a managed service, and monetizing it without contributing back. For a CLI tool that users run locally, this has minimal impact on most users but maximum protection against corporate enclosure.
 
-**Getting started:** Install the binary, run `nika init --course` for a guided learning experience, or `nika showcase list` to browse 200+ ready-to-use workflow templates.
+**Getting started:** Install the binary, run `nika init --course` for a guided learning experience, or `nika showcase list` to browse 115 ready-to-use workflow templates.
 
 **Try it:** `github.com/supernovae-st/nika`
 
@@ -63,7 +63,7 @@ Want to chain a few LLM calls together? LangChain has you covered --- if you are
 
 Thibaut Melen, a software engineer and founder of SuperNovae Studio, looked at this landscape and made an observation that seems obvious in retrospect: the orchestration layer for AI does not need to be written in Python. It does not need a server. It does not need Docker. It needs a declarative format and a fast compiler.
 
-The result is Nika, a semantic YAML workflow engine for AI tasks that compiles to a single Rust binary. At approximately 482,000 lines of code across 10 workspace crates, it is one of the largest solo-developed Rust projects in the AI space --- and it occupies a competitive position that, according to research across 80+ sources, no other tool matches.
+The result is Nika, a semantic YAML workflow engine for AI tasks that compiles to a single Rust binary. At approximately 482,000 lines of code across 10 workspace crates, it is one of the largest solo-developed Rust projects in the AI space.
 
 #### The Architecture That Makes It Work
 
@@ -73,7 +73,7 @@ Nika's internal architecture revolves around a three-phase AST (Abstract Syntax 
 
 **Phase 2 (Analyzed):** The analyzer validates, type-checks, and interns task IDs. If data reaches this phase, it is structurally guaranteed to be valid. Required fields become non-optional types.
 
-**Phase 3 (Lower):** Analyzed types are transformed into runtime-optimized representations --- timeout conversions, template pre-compilation, DAG finalization.
+**Phase 3 (Lower):** Analyzed types are transformed into runtime-optimized representations --- timeout conversions (in seconds), template pre-compilation, DAG finalization.
 
 This pipeline is enforced by Rust's type system. Passing a Raw AST node to a function expecting an Analyzed node is a compile error. Skipping the analysis phase is impossible. This structural guarantee --- something that cannot be replicated in dynamically typed languages --- is the foundation on which the rest of the system builds.
 
@@ -87,7 +87,7 @@ Tasks combine into directed acyclic graphs via `depends_on:` declarations and ex
 
 #### The Provider Puzzle
 
-One of Nika's most distinctive features is its multi-provider architecture. Built on rig-core, the engine supports 22 LLM providers: OpenAI, Anthropic (Claude), Google Gemini, Mistral, Groq, xAI (Grok), DeepSeek, Cohere, and others for cloud inference, plus mistral.rs for local GGUF model inference.
+One of Nika's most distinctive features is its multi-provider architecture. Built on rig-core, the engine supports 9 LLM providers: 8 cloud providers (OpenAI, Anthropic, Google Gemini, Mistral, Groq, xAI, DeepSeek) plus mistral.rs for local GGUF model inference.
 
 The remarkable part is that cloud and local inference coexist in the same binary. There is no separate Ollama server. No additional process. The same binary that calls GPT-4o over HTTPS can load a Mistral 7B GGUF file from disk and run inference on CPU. Switching between providers is a single-field change in the YAML file.
 
@@ -131,7 +131,7 @@ Worth noting for enterprise-minded readers: Nika's security model is not bolted 
 
 #### Learning and Adoption
 
-Recognizing that a new paradigm requires onboarding, Nika includes a 12-level interactive learning course (44 exercises) accessible via `nika init --course`, a showcase library of 200+ ready-to-use workflows, and an LSP implementation for real-time editor integration.
+Recognizing that a new paradigm requires onboarding, Nika includes a 12-level interactive learning course (44 exercises) accessible via `nika init --course`, a showcase library of 115 ready-to-use workflows, and an LSP implementation for real-time editor integration.
 
 #### What Is Missing
 
@@ -191,7 +191,7 @@ The name reinforces the philosophy. Nika is the Sun God from One Piece, a manga 
 
 #### The Numbers
 
-The scale of the project is difficult to reconcile with its solo development. 482,000 lines across 10 Rust crates. 7,700+ unit tests. A terminal UI with 42 widgets. A language server protocol implementation. 200+ showcase workflows. A 12-level interactive learning course. Content-addressable storage for media. 24 built-in media processing tools. Support for 22 LLM providers.
+The scale of the project is difficult to reconcile with its solo development. 482,000 lines across 10 Rust crates. 8,300+ unit tests. A terminal UI with 42 widgets. A language server protocol implementation. 115 showcase workflows. A 12-level interactive learning course. Content-addressable storage for media. 24 built-in media processing tools. Support for 9 LLM providers.
 
 When asked how one person builds this, Melen credits three things: Rust's compiler ("my pair programmer and code reviewer"), test-driven development ("not optional when you are the only person catching bugs"), and architectural discipline ("the three-phase AST pipeline means adding features is guided by the types, not by improvisation").
 

@@ -22,7 +22,7 @@ Nika's central abstraction is that all AI workflows can be expressed as composit
 
 ### 1. `infer:` --- LLM Generation
 
-The `infer:` verb dispatches text or multimodal prompts to any of 22 supported LLM providers. It supports:
+The `infer:` verb dispatches text or multimodal prompts to any of 9 supported LLM providers. It supports:
 
 - Simple text prompts with `prompt:` field
 - Multimodal content blocks for vision (images referenced by CAS hash)
@@ -200,12 +200,12 @@ The RunContext (internally called "Egghead" in the One Piece naming convention) 
 
 ---
 
-## Provider Architecture: 22 LLMs, One Interface
+## Provider Architecture: 9 LLMs, One Interface
 
 Nika's provider layer is built on rig-core, a Rust crate for LLM abstraction. The engine supports:
 
-**Cloud Providers:**
-OpenAI, Anthropic (Claude), Google Gemini, Mistral, Groq, xAI (Grok), DeepSeek, Cohere, and more.
+**Cloud Providers (8 total):**
+OpenAI, Anthropic (Claude), Google Gemini, Mistral, Groq, xAI (Grok), DeepSeek.
 
 **Local Inference:**
 mistral.rs native backend for GGUF models --- compiled directly into the binary. No Ollama. No separate server process. The same binary that calls GPT-4o can load a local Mistral 7B GGUF file and run inference on CPU.
@@ -429,7 +429,7 @@ Recognizing that a new paradigm requires onboarding investment, Nika includes tw
 
 **Interactive Course:** `nika init --course` generates a 12-level course with 44 exercises that progressively teach every aspect of the engine. The course management system (`nika course status`, `nika course next`, `nika course check`, `nika course hint`, `nika course watch`) provides a self-paced learning experience.
 
-**Showcase Library:** `nika showcase list` provides access to 200+ ready-to-use workflow templates covering content pipelines, competitive intelligence, media processing, multi-agent research, and more. `nika showcase extract <name>` copies any workflow to the current directory.
+**Showcase Library:** `nika showcase list` provides access to 115 ready-to-use workflow templates covering content pipelines, competitive intelligence, media processing, multi-agent research, and more. `nika showcase extract <name>` copies any workflow to the current directory.
 
 ---
 
