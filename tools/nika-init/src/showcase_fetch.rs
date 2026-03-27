@@ -1017,7 +1017,8 @@ tasks:
     with:
       metadata: $scrape_metadata
       links: $scrape_links
-      headers: $check_headers
+      resp_status: $check_headers.status
+      resp_headers: $check_headers.headers
     infer:
       prompt: |
         You are an SEO expert. Analyze this website's SEO posture from the scraped data.
@@ -1029,7 +1030,8 @@ tasks:
         {{with.links}}
 
         ## HTTP Headers (security, caching, performance)
-        {{with.headers}}
+        Status: {{with.resp_status}}
+        {{with.resp_headers | to_json}}
 
         Produce a structured SEO report with:
         1. Overall SEO Score (0-100)
