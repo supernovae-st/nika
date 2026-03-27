@@ -482,6 +482,9 @@ enum Commands {
         /// Show smart model recommendation
         #[arg(long)]
         recommend: bool,
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
     },
 
     /// Manage installed packages (workflows, skills, schemas)
@@ -1174,13 +1177,14 @@ async fn main() {
             provider,
             info,
             recommend,
+            json,
         }) => {
             if recommend {
                 cli::model_cloud::print_model_recommend()
             } else if let Some(model_name) = info {
                 cli::model_cloud::print_model_info(&model_name)
             } else {
-                cli::model_cloud::print_cloud_models(provider.as_deref())
+                cli::model_cloud::print_cloud_models(provider.as_deref(), json)
             }
         }
 

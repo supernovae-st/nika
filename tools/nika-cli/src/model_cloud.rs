@@ -84,7 +84,10 @@ fn format_tags(model_name: &str) -> String {
     }
 }
 
-pub fn print_cloud_models(filter_provider: Option<&str>) -> Result<(), NikaError> {
+pub fn print_cloud_models(filter_provider: Option<&str>, json: bool) -> Result<(), NikaError> {
+    if json {
+        return print_cloud_models_json(filter_provider);
+    }
     println!();
     println!(
         "  {}{}",
@@ -152,6 +155,38 @@ pub fn print_cloud_models(filter_provider: Option<&str>) -> Result<(), NikaError
         hint("nika config set default_model <model>   Set default")
     );
     println!();
+    Ok(())
+}
+
+fn print_cloud_models_json(filter_provider: Option<&str>) -> Result<(), NikaError> {
+    let mut result: Vec<serde_json::Value> = Vec::new();
+    for p in CLOUD_PROVIDERS {
+        if let Some(filter) = filter_provider {
+            if !p.name.eq_ignore_ascii_case(filter) {
+                continue;
+            }
+        }
+        let models = list_provider_models(p.kind);
+        for (name, pricing) in models {
+            let meta = get_model_meta(name);
+            let mut obj = serde_json::json!({
+                "provider": p.name.to_lowercase(),
+                "model": name,
+                "input_per_million": pricing.input_per_million,
+                "output_per_million": pricing.output_per_million,
+            });
+            if let Some(m) = meta {
+                obj["context_window"] = serde_json::json!(m.context_window);
+                obj["tags"] =
+                    serde_json::json!(m.tags.iter().map(|t| t.label()).collect::<Vec<_>>());
+            }
+            result.push(obj);
+        }
+    }
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&result).unwrap_or_default()
+    );
     Ok(())
 }
 
@@ -294,7 +329,12 @@ mod tests {
 
     #[test]
     fn print_cloud_models_doesnt_panic() {
-        let _ = print_cloud_models(Some("nonexistent"));
+        let _ = print_cloud_models(Some("nonexistent"), false);
+    }
+
+    #[test]
+    fn print_cloud_models_json_doesnt_panic() {
+        let _ = print_cloud_models(None, true);
     }
 
     #[test]
