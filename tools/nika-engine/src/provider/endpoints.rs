@@ -252,4 +252,46 @@ mod tests {
         );
         assert!(resolve_endpoints(&configs).is_err());
     }
+
+    #[test]
+    fn test_full_endpoint_config_to_provider_resolution() {
+        // Simulate config.toml with a custom endpoint
+        let mut configs = HashMap::new();
+        configs.insert(
+            "vllm".to_string(),
+            CustomEndpointConfig {
+                base_url: "http://localhost:8000/v1".to_string(),
+                api_key: Some("sk-test-key".to_string()),
+                model: Some("Qwen/Qwen3-8B".to_string()),
+                timeout_secs: Some(60),
+            },
+        );
+
+        // Resolve endpoints
+        let resolved = resolve_endpoints(&configs).unwrap();
+        assert_eq!(resolved.len(), 1);
+
+        // Create provider from resolved endpoint
+        let provider = crate::provider::rig::RigProvider::from_name_with_endpoints(
+            "vllm",
+            &resolved,
+        )
+        .unwrap();
+
+        // Verify it's an OpenAiCompat variant
+        assert!(matches!(
+            provider,
+            crate::provider::rig::RigProvider::OpenAiCompat { .. }
+        ));
+
+        // Verify unknown name falls back to catalog (and fails due to missing API key)
+        let result = crate::provider::rig::RigProvider::from_name_with_endpoints(
+            "anthropic",
+            &resolved,
+        );
+        // May or may not fail depending on env — just verify it doesn't match as endpoint
+        if let Ok(p) = &result {
+            assert!(!matches!(p, crate::provider::rig::RigProvider::OpenAiCompat { .. }));
+        }
+    }
 }
