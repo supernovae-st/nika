@@ -1,8 +1,7 @@
 //! Unified model command — cloud + local models under `nika model`.
 //!
-//! Merges the old `nika models` (cloud) and `nika model` (local/native)
-//! into a single command. Cloud subcommands are always available;
-//! local subcommands require the `native-inference` feature.
+//! Cloud subcommands are always available; local subcommands require
+//! the `native-inference` feature and delegate to `model.rs`.
 
 use clap::Subcommand;
 
@@ -29,13 +28,16 @@ pub enum ModelAction {
 
     /// Show details for a specific model (cloud or local)
     ///
-    /// Searches cloud models first, then local models if native-inference is enabled.
+    /// Looks up cloud models first. Falls back to local models
+    /// if native-inference is enabled.
     Info {
         /// Model name (e.g., claude-sonnet-4-6, gpt-4o, qwen3:8b)
         name: String,
     },
 
     /// Smart model recommendation based on your configured API keys
+    ///
+    /// Shows budget (cheapest), quality (most capable), and balanced picks.
     Recommend,
 
     // ── Local model management (native-inference only) ──────────────
@@ -111,53 +113,43 @@ pub enum ModelAction {
 }
 
 /// Handle the unified model command.
-///
-/// Cloud subcommands call into `model_cloud.rs` directly.
-/// Native-inference subcommands delegate to the existing `model.rs` handler.
 pub async fn handle_model_command(
     action: Option<ModelAction>,
     quiet: bool,
 ) -> Result<(), NikaError> {
-    // No subcommand → default to cloud model listing
     let action = match action {
         Some(a) => a,
         None => return super::model_cloud::print_cloud_models(None, false),
     };
 
     match action {
-        // ── Cloud (always available) ─────────────────────────────────
         ModelAction::List { provider, json } => {
             super::model_cloud::print_cloud_models(provider.as_deref(), json)
         }
-        ModelAction::Info { name } => handle_model_info(&name, quiet),
+        ModelAction::Info { name } => handle_model_info(&name, quiet).await,
         ModelAction::Recommend => super::model_cloud::print_model_recommend(),
 
-        // ── Local (native-inference only) ────────────────────────────
         #[cfg(feature = "native-inference")]
         local_action => {
-            let old_action = to_old_model_action(local_action);
-            super::model::handle_model_command(old_action, quiet).await
+            let converted = to_local_model_action(local_action);
+            super::model::handle_model_command(converted, quiet).await
         }
     }
 }
 
-/// Unified model info: tries cloud first, then local.
-fn handle_model_info(name: &str, _quiet: bool) -> Result<(), NikaError> {
-    // Try cloud model first
+/// Unified model info: tries cloud first, falls back to local.
+#[allow(clippy::needless_return)]
+async fn handle_model_info(name: &str, _quiet: bool) -> Result<(), NikaError> {
     if super::model_cloud::print_model_info(name).is_ok() {
         return Ok(());
     }
 
-    // Try local model (native-inference only)
     #[cfg(feature = "native-inference")]
     {
-        let old_action = super::model::ModelAction::Info {
+        let action = super::model::ModelAction::Info {
             name: name.to_string(),
         };
-        // Can't call async from sync, but model info is sync in practice.
-        // Use a mini tokio block_on.
-        let rt = tokio::runtime::Handle::current();
-        rt.block_on(super::model::handle_model_command(old_action, _quiet))
+        return super::model::handle_model_command(action, _quiet).await;
     }
 
     #[cfg(not(feature = "native-inference"))]
@@ -166,9 +158,9 @@ fn handle_model_info(name: &str, _quiet: bool) -> Result<(), NikaError> {
     })
 }
 
-/// Convert unified action to old ModelAction for delegation.
+/// Convert unified ModelAction to the local-only ModelAction for delegation.
 #[cfg(feature = "native-inference")]
-fn to_old_model_action(action: ModelAction) -> super::model::ModelAction {
+fn to_local_model_action(action: ModelAction) -> super::model::ModelAction {
     match action {
         ModelAction::Local { json } => super::model::ModelAction::List { json },
         ModelAction::Pull {
@@ -195,7 +187,6 @@ fn to_old_model_action(action: ModelAction) -> super::model::ModelAction {
             isq,
             context_size,
         },
-        // Cloud actions should never reach here
         _ => unreachable!("cloud actions handled before delegation"),
     }
 }

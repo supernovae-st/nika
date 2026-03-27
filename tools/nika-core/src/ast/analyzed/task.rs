@@ -37,6 +37,9 @@ pub struct AnalyzedTask {
     /// Task-specific model override
     pub model: Option<String>,
 
+    /// Task-level base URL override for OpenAI-compatible endpoint
+    pub base_url: Option<String>,
+
     /// Parsed `with:` bindings (alias → WithEntry with source, transforms, defaults)
     ///
     /// Phase 2 parses raw `Spanned<String>` values via `parse_with_entry()`.
