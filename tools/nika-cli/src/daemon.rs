@@ -64,14 +64,14 @@ pub enum DaemonAction {
     },
 }
 
-pub async fn handle_daemon_command(action: DaemonAction, _quiet: bool) -> Result<(), NikaError> {
+pub async fn handle_daemon_command(action: DaemonAction, quiet: bool) -> Result<(), NikaError> {
     match action {
-        DaemonAction::Start { foreground } => start_daemon(foreground).await,
+        DaemonAction::Start { foreground } => start_daemon(foreground, quiet).await,
         DaemonAction::Stop => stop_daemon().await,
         DaemonAction::Restart { foreground } => {
             let _ = stop_daemon().await;
             tokio::time::sleep(Duration::from_millis(500)).await;
-            start_daemon(foreground).await
+            start_daemon(foreground, quiet).await
         }
         DaemonAction::Status => show_status().await,
         DaemonAction::Install => {
@@ -88,13 +88,15 @@ pub async fn handle_daemon_command(action: DaemonAction, _quiet: bool) -> Result
     }
 }
 
-async fn start_daemon(foreground: bool) -> Result<(), NikaError> {
+async fn start_daemon(foreground: bool, quiet: bool) -> Result<(), NikaError> {
     let socket_path = daemon_socket_path();
     let pid_path = daemon_pid_path();
 
     // Check for existing daemon
     if let Some(pid) = check_pid_file(&pid_path).map_err(daemon_err)? {
-        eprintln!("{} daemon already running (pid {})", StatusIcon::Fail, pid);
+        if !quiet {
+            eprintln!("{} daemon already running (pid {})", StatusIcon::Fail, pid);
+        }
         return Ok(());
     }
 
@@ -115,16 +117,20 @@ async fn start_daemon(foreground: bool) -> Result<(), NikaError> {
         let client = DaemonClient::new(&socket_path).with_timeout(Duration::from_secs(3));
         match client.ping().await {
             Ok((version, _)) => {
-                eprintln!("{} daemon started (v{version})", StatusIcon::Ok);
-                eprintln!("  socket: {}", socket_path.display());
-                eprintln!("  logs:   {}", daemon_log_path().display());
+                if !quiet {
+                    eprintln!("{} daemon started (v{version})", StatusIcon::Ok);
+                    eprintln!("  socket: {}", socket_path.display());
+                    eprintln!("  logs:   {}", daemon_log_path().display());
+                }
             }
             Err(_) => {
-                eprintln!(
-                    "{} daemon spawned but not responding yet — check logs",
-                    StatusIcon::Warn
-                );
-                eprintln!("  logs: {}", daemon_log_path().display());
+                if !quiet {
+                    eprintln!(
+                        "{} daemon spawned but not responding yet — check logs",
+                        StatusIcon::Warn
+                    );
+                    eprintln!("  logs: {}", daemon_log_path().display());
+                }
             }
         }
         return Ok(());
@@ -133,13 +139,15 @@ async fn start_daemon(foreground: bool) -> Result<(), NikaError> {
     // Foreground mode: run server directly in this process
     write_pid_file(&pid_path).map_err(daemon_err)?;
 
-    eprintln!(
-        "{} daemon starting in foreground (pid {})",
-        StatusIcon::Info,
-        std::process::id()
-    );
-    eprintln!("  socket: {}", socket_path.display());
-    eprintln!("  press Ctrl-C to stop");
+    if !quiet {
+        eprintln!(
+            "{} daemon starting in foreground (pid {})",
+            StatusIcon::Info,
+            std::process::id()
+        );
+        eprintln!("  socket: {}", socket_path.display());
+        eprintln!("  press Ctrl-C to stop");
+    }
 
     // Create and run server
     let config = DaemonConfig {
@@ -161,7 +169,7 @@ async fn start_daemon(foreground: bool) -> Result<(), NikaError> {
     // Cleanup
     remove_pid_file(&pid_path);
 
-    if foreground {
+    if foreground && !quiet {
         eprintln!("{} daemon stopped", StatusIcon::Ok);
     }
 

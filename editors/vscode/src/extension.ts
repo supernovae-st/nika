@@ -17,6 +17,7 @@ import { execFile } from 'child_process';
 import * as https from 'https';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import * as zlib from 'zlib';
 import { IncomingMessage } from 'http';
 
@@ -232,9 +233,20 @@ function extractBinaryFromTarGz(archivePath: string, destPath: string): Promise<
  * Uses a pure-JS ZIP parser (no dependencies).
  */
 function extractBinaryFromZip(archivePath: string, destPath: string): Promise<void> {
+  const MAX_ZIP_SIZE = 500 * 1024 * 1024; // 500 MB
+
   return new Promise((resolve, reject) => {
-    fs.readFile(archivePath, (readErr, data) => {
-      if (readErr) { reject(readErr); return; }
+    fs.stat(archivePath, (statErr, stats) => {
+      if (statErr) { reject(statErr); return; }
+      if (stats.size > MAX_ZIP_SIZE) {
+        reject(new Error(
+          `ZIP archive too large: ${stats.size} bytes exceeds ${MAX_ZIP_SIZE} byte limit`
+        ));
+        return;
+      }
+
+      fs.readFile(archivePath, (readErr, data) => {
+        if (readErr) { reject(readErr); return; }
 
       // Locate End of Central Directory record (EOCD): signature 0x06054b50
       let eocdOffset = -1;
@@ -310,6 +322,7 @@ function extractBinaryFromZip(archivePath: string, destPath: string): Promise<vo
         reject(new Error('nika.exe not found in ZIP archive'));
       }
     });
+    });
   });
 }
 
@@ -364,6 +377,34 @@ async function downloadNikaBinary(storagePath: string): Promise<string | null> {
 
         const archiveDest = path.join(storagePath, archiveName);
         await downloadToFile(asset.browser_download_url, archiveDest);
+
+        // SHA256 checksum verification
+        progress.report({ message: 'Verifying checksum...' });
+        const checksumName = `${archiveName}.sha256`;
+        const checksumAsset = release.assets.find((a) => a.name === checksumName);
+        if (checksumAsset) {
+          const checksumRes = await httpGet(checksumAsset.browser_download_url);
+          if (checksumRes.statusCode === 200) {
+            const checksumBody = await readBody(checksumRes);
+            // Format: "<hash>  <filename>"
+            const expectedHash = checksumBody.trim().split(/\s+/)[0].toLowerCase();
+
+            const fileBuffer = fs.readFileSync(archiveDest);
+            const actualHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+
+            if (actualHash !== expectedHash) {
+              fs.unlinkSync(archiveDest);
+              throw new Error(
+                `SHA256 mismatch for ${archiveName}: expected ${expectedHash}, got ${actualHash}`
+              );
+            }
+          } else {
+            console.warn(`Nika: checksum file returned HTTP ${checksumRes.statusCode}, skipping verification`);
+            checksumRes.resume();
+          }
+        } else {
+          console.warn('Nika: no .sha256 checksum file in release, skipping verification');
+        }
 
         progress.report({ message: 'Extracting binary...' });
 
