@@ -677,10 +677,10 @@ pub enum NikaError {
         repair_errors: Vec<String>,
     },
 
-    #[error("[NIKA-303] Structured output failed after all {attempts} attempts for task '{task_id}': {}", format_validation_errors_short(.final_errors))]
+    #[error("[NIKA-303] Structured output failed after {attempts} attempts for task '{task_id}': {}", format_validation_errors_short(.final_errors))]
     #[diagnostic(
         code(nika::structured_output_all_layers_failed),
-        help("All validation layers failed. Check your schema is valid and the prompt provides enough context for the LLM to generate conforming output.")
+        help("All layers exhausted (L0: response_format/tool_injection, L2: validate, L3: retry, L4: repair). Suggestions: simplify the schema, add 'required' fields, increase max_retries, or provide clearer prompt context.")
     )]
     StructuredOutputAllLayersFailed {
         task_id: String,

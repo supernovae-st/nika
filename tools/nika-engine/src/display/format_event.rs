@@ -395,8 +395,16 @@ pub(crate) fn fmt_structured_output_attempt(
     } else {
         icons::failed()
     };
+    // Truncate long error messages (e.g. validation lists) to keep CLI readable
     let err_msg = error
-        .map(|e| format!(" {}", e.dimmed()))
+        .map(|e| {
+            let truncated = if e.len() > 200 {
+                format!("{}...", &e[..197])
+            } else {
+                e.to_string()
+            };
+            format!(" ({})", truncated.dimmed())
+        })
         .unwrap_or_default();
     sub(format!(
         "{} L{}: {} {}{}",
