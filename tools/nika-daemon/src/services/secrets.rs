@@ -271,16 +271,30 @@ mod tests {
         // Without keychain feature, set_secret returns Ok(false)
         let svc = SecretService::new();
         let result = svc.set_secret("anthropic", "sk-test").await;
-        // With keychain feature disabled in tests, this should succeed
-        // but may return false (no keychain) or error (depends on feature)
-        assert!(result.is_ok() || result.is_err());
+        assert!(
+            result.is_ok(),
+            "set_secret should return Ok(false) without keychain, got: {result:?}"
+        );
+        assert_eq!(
+            result.unwrap(),
+            false,
+            "should return false without keychain feature"
+        );
     }
 
     #[tokio::test]
     async fn delete_secret_without_keychain_feature_returns_false() {
         let svc = SecretService::new();
         let result = svc.delete_secret("anthropic").await;
-        assert!(result.is_ok() || result.is_err());
+        assert!(
+            result.is_ok(),
+            "delete_secret should return Ok(false) without keychain, got: {result:?}"
+        );
+        assert_eq!(
+            result.unwrap(),
+            false,
+            "should return false without keychain feature"
+        );
     }
 
     #[test]
