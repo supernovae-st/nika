@@ -114,9 +114,21 @@ async function install() {
   // Detects editors, installs AI rules, shell completions, and starts daemon.
   // Non-fatal — setup retries on first `nika` command if this fails.
   try {
+    const versionOutput = execFileSync(binaryPath, ['--version'], {
+      stdio: 'pipe',
+      timeout: 5000,
+    });
+    if (!versionOutput.toString().includes('nika')) {
+      return; // Not a valid nika binary
+    }
+  } catch (_) {
+    return; // Binary doesn't work, skip daemon
+  }
+
+  try {
     execFileSync(binaryPath, ['--quiet', 'daemon', 'start'], {
       stdio: 'ignore',
-      timeout: 30000,
+      timeout: 45000,
     });
   } catch (_) {
     // Silently ignore — setup will run on first nika command

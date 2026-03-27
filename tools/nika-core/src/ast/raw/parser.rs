@@ -524,6 +524,9 @@ fn parse_action(
 /// Check if `input` is a likely misspelling of `target` using edit distance.
 /// Returns true if the strings are within edit distance 2 and share a common prefix.
 fn is_likely_misspelling(input: &str, target: &str) -> bool {
+    if input.len() > 256 || target.len() > 256 {
+        return false;
+    }
     if input == target {
         return false;
     }
@@ -1351,6 +1354,17 @@ pub fn parse(source: &str, file_id: FileId) -> Result<RawWorkflow, ParseError> {
         let key_str = key.as_str();
         if !known_workflow_keys.contains(&key_str) {
             let span = marked_span_to_span(file_id, key.span());
+            // Guard against pathologically long keys before Levenshtein
+            if key_str.len() > 256 {
+                return Err(ParseError {
+                    kind: ParseErrorKind::UnknownField,
+                    span,
+                    message: format!(
+                        "unknown workflow field '{}...' (key too long)",
+                        &key_str[..32]
+                    ),
+                });
+            }
             let suggestion = known_workflow_keys
                 .iter()
                 .find(|k| is_likely_misspelling(key_str, k))
@@ -1658,6 +1672,82 @@ fn parse_tasks(
     }
 }
 
+/// Validate that a task mapping contains only known keys.
+///
+/// Called after `parse_action()` succeeds (verb is present) to catch typos like
+/// `dependson:` that would otherwise be silently ignored.
+fn validate_task_keys(
+    file_id: FileId,
+    map: &marked_yaml::types::MarkedMappingNode,
+) -> Result<(), ParseError> {
+    const KNOWN_TASK_KEYS: &[&str] = &[
+        "id",
+        "description",
+        "provider",
+        "model",
+        "base_url",
+        "with",
+        "depends_on",
+        "output",
+        "for_each",
+        "as",
+        "retry",
+        "decompose",
+        "structured",
+        "artifact",
+        "log",
+        "concurrency",
+        "fail_fast",
+        "timeout",
+        // 5 verb keys
+        "infer",
+        "exec",
+        "fetch",
+        "invoke",
+        "agent",
+        // Infer shorthand siblings
+        "max_tokens",
+        "temperature",
+        "system",
+        "extended_thinking",
+        "thinking_budget",
+        "response_format",
+    ];
+
+    for (key, _) in map.iter() {
+        let key_str = key.as_str();
+        if !KNOWN_TASK_KEYS.contains(&key_str) {
+            let span = marked_span_to_span(file_id, key.span());
+            // Guard against pathologically long keys
+            if key_str.len() > 256 {
+                return Err(ParseError {
+                    kind: ParseErrorKind::UnknownField,
+                    span,
+                    message: format!(
+                        "unknown task field '{}...' (key too long)",
+                        &key_str[..32]
+                    ),
+                });
+            }
+            let suggestion = KNOWN_TASK_KEYS
+                .iter()
+                .find(|k| is_likely_misspelling(key_str, k))
+                .map(|k| format!(" (did you mean '{}'?)", k));
+            return Err(ParseError {
+                kind: ParseErrorKind::UnknownField,
+                span,
+                message: format!(
+                    "unknown task field '{}'{}",
+                    key_str,
+                    suggestion.unwrap_or_default()
+                ),
+            });
+        }
+    }
+
+    Ok(())
+}
+
 /// Parse a single task from a YAML node.
 fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseError> {
     let span = node_to_span(file_id, node);
@@ -1688,6 +1778,12 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
 
     // Parse all task fields
     let action = parse_action(file_id, map)?;
+
+    // ── Validate no unknown task keys (NIKA-163) when a verb IS present ──
+    if action.is_some() {
+        validate_task_keys(file_id, map)?;
+    }
+
     let with_refs = parse_with_refs(file_id, map)?;
     let depends_on = parse_depends_on(file_id, map)?;
     let output = parse_output(file_id, map)?;
@@ -2994,5 +3090,51 @@ tasks:
 "#;
         let result = parse(yaml, FileId(0));
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_unknown_task_key_with_verb_present() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: a
+    exec: "echo hi"
+    dependson:
+      - b
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_err(), "unknown task key should be rejected even when verb is present");
+        let err = result.unwrap_err();
+        assert_eq!(err.kind, ParseErrorKind::UnknownField);
+        assert!(
+            err.message.contains("dependson"),
+            "error should mention the unknown key, got: {}",
+            err.message
+        );
+        assert!(
+            err.message.contains("did you mean 'depends_on'"),
+            "error should suggest depends_on, got: {}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn test_known_task_keys_with_verb_no_error() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: a
+    exec: "echo hi"
+    depends_on: [b]
+    with:
+      data: $b
+    retry:
+      max_attempts: 3
+      delay_ms: 1000
+  - id: b
+    infer: "hello"
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_ok(), "all known task keys should parse fine: {:?}", result.err());
     }
 }

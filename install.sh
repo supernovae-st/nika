@@ -392,10 +392,21 @@ main() {
   # completions, and starts the daemon for keychain/cache/cron.
   # Runs silently — failures are non-fatal (setup retries on first command).
   step 'Configuring editors and starting daemon'
-  if "${INSTALL_DIR}/nika" --quiet daemon start >/dev/null 2>&1; then
-    success 'Daemon started — editors and AI tools configured'
+  if [ "$(id -u)" -eq 0 ]; then
+    warn 'Running as root — skipping daemon start (run as your user instead)'
+  elif [ "${NIKA_NO_DAEMON:-}" = "1" ]; then
+    info 'NIKA_NO_DAEMON=1 — skipping daemon start'
   else
-    warn 'Background setup skipped (will run on first nika command)'
+    if command -v timeout >/dev/null 2>&1; then
+      timeout 15 "${INSTALL_DIR}/nika" --quiet daemon start >/dev/null 2>&1 && _daemon_ok=1 || _daemon_ok=0
+    else
+      "${INSTALL_DIR}/nika" --quiet daemon start >/dev/null 2>&1 && _daemon_ok=1 || _daemon_ok=0
+    fi
+    if [ "$_daemon_ok" = "1" ]; then
+      success 'Daemon started — editors and AI tools configured'
+    else
+      warn 'Background setup skipped (will run on first nika command)'
+    fi
   fi
 
   printf '\n'
