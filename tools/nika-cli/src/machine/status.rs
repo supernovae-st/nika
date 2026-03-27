@@ -53,8 +53,14 @@ pub fn is_machine_setup() -> bool {
 /// Returns true in CI/CD or automated environments where machine setup must not run.
 pub fn is_ci() -> bool {
     use std::env;
+    // Explicit opt-out
     if env::var("NIKA_NO_SETUP").map(|v| v == "1").unwrap_or(false) {
         return true;
+    }
+    // GitHub Codespaces is a dev environment, not CI — allow setup there.
+    // Codespaces sets both CODESPACES=true and CI=true, so check first.
+    if env::var("CODESPACES").is_ok() {
+        return false;
     }
     if env::var("CI").is_ok() {
         return true;

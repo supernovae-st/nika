@@ -816,11 +816,14 @@ async fn main() {
     let detail = cli.detail;
 
     // Auto-setup: run machine setup on first non-skipped command (not CI).
-    maybe_run_auto_setup(&cli.command, quiet);
+    // Returns true if setup just ran (so we skip the redundant quick scan).
+    let setup_just_ran = maybe_run_auto_setup(&cli.command, quiet);
 
     // Quick editor scan: detect newly installed editors and install rules.
     // Only runs when machine is already set up (adds ~5ms).
-    if cli::machine::machine_setup_status() == cli::machine::MachineStatus::Ready {
+    // Skip if auto-setup just ran — it already scanned all editors.
+    if !setup_just_ran && cli::machine::machine_setup_status() == cli::machine::MachineStatus::Ready
+    {
         cli::machine::quick_editor_scan();
     }
 
@@ -1218,15 +1221,16 @@ fn should_skip_auto_setup(cmd: &Option<Commands>) -> bool {
     }
 }
 
-fn maybe_run_auto_setup(cmd: &Option<Commands>, quiet: bool) {
+/// Returns true if auto-setup actually ran (callers can skip redundant work).
+fn maybe_run_auto_setup(cmd: &Option<Commands>, quiet: bool) -> bool {
     if should_skip_auto_setup(cmd) {
-        return;
+        return false;
     }
     if cli::machine::is_ci() {
-        return;
+        return false;
     }
     if cli::machine::is_machine_setup() {
-        return;
+        return false;
     }
     if !quiet {
         println!("  {} Setting up Nika for your editors...\n", "◇".cyan());
@@ -1235,6 +1239,7 @@ fn maybe_run_auto_setup(cmd: &Option<Commands>, quiet: bool) {
     if !quiet {
         println!();
     }
+    true
 }
 
 /// Check if a file is a Nika workflow (.nika.yaml)
