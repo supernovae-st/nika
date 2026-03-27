@@ -40,7 +40,7 @@ Optional zstd compression is available for CAS storage. Media files that benefit
 
 Nika's 24 media tools are organized in three tiers based on dependency weight. This is a practical engineering decision: users who do not need SVG rendering should not pay the compilation cost of the resvg crate and its font database dependency.
 
-Tier 1 contains five always-on tools with zero heavy dependencies. These are the fundamental media operations that every workflow might need.
+Tier 1 contains 5 always-on tools with zero heavy dependencies. These are the fundamental media operations that every workflow might need.
 
 The `nika:import` tool brings any file into CAS. It validates the import path against directory traversal attacks, checks file size before reading (50 MB default limit), computes the BLAKE3 hash, and stores the file. The returned hash is the file's identity for all subsequent operations.
 
@@ -66,7 +66,7 @@ The `nika:optimize` tool performs lossless PNG optimization via oxipng. Lossless
 
 The `nika:svg_render` tool rasterizes SVG files to PNG using resvg. The resvg crate is a high-quality SVG rendering library that handles fonts, gradients, filters, and complex SVG features. Before rendering, the SVG is sanitized via `sanitize_svg()` to prevent XXE attacks and JavaScript injection.
 
-Tier 3 contains thirteen opt-in tools for specialized use cases.
+Tier 3 contains 13 opt-in tools for specialized use cases.
 
 The perceptual hashing tools (`nika:phash` and `nika:compare`) compute and compare perceptual image hashes. Unlike cryptographic hashes, perceptual hashes produce similar values for visually similar images. This enables workflows that detect near-duplicate images, track visual changes across versions, and compare generated images to reference images.
 

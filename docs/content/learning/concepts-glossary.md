@@ -726,13 +726,13 @@ Full catalog: `upper`, `lower`, `trim`, `trim_start`, `trim_end`, `length`, `fir
 
 ### Provider
 
-An LLM service that Nika can connect to for `infer:` and `agent:` tasks. Nika supports 22+ providers. The provider is configured via environment variables (API keys) and selected in the workflow.
+An LLM service that Nika can connect to for `infer:` and `agent:` tasks. Nika supports 9 providers. The provider is configured via environment variables (API keys) and selected in the workflow.
 
-Supported providers include: Anthropic (Claude), OpenAI, Mistral, Groq, DeepSeek, Google (Gemini), xAI (Grok), Cohere, and more. The `native` provider runs GGUF models locally.
+Supported providers: Anthropic (Claude), OpenAI, Mistral, Groq, DeepSeek, Google (Gemini), xAI (Grok), Cohere, and `native` for local GGUF inference.
 
 ```yaml
 provider: anthropic
-model: claude-sonnet-4-6
+model: claude-sonnet-4-20250514
 ```
 
 Auto-detection: `RigProvider::auto()` scans environment variables and selects the first available provider.
@@ -822,7 +822,7 @@ exec:
 
 ### Showcase
 
-A collection of 115+ production-ready, runnable workflows bundled with Nika. Organized by category: system, devops, network, API, data, core tools, file tools, media, content, engineering, analysis, automation. Browse with `nika showcase list`, extract with `nika showcase extract <name>`.
+A collection of 115 production-ready, runnable workflows bundled with Nika. Organized by category: system, devops, network, API, data, core tools, file tools, media, content, engineering, analysis, automation. Browse with `nika showcase list`, extract with `nika showcase extract <name>`.
 
 **Related**: Course, Template
 
@@ -1001,7 +1001,7 @@ The top-level unit of execution in Nika. A workflow is a single `.nika.yaml` fil
 schema: "nika/workflow@0.12"
 workflow: my-automation
 provider: anthropic
-model: claude-sonnet-4-6
+model: claude-sonnet-4-20250514
 inputs:
   target_url: "https://example.com"
 tasks:

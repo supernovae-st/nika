@@ -63,7 +63,7 @@ nika course status
 
 ### VS Code Extensions
 - YAML Language Support (Red Hat)
-- Nika LSP (if available via `nika setup`)
+- Nika LSP (available via marketplace)
 
 ### Common Lab Issues
 | Issue | Solution |
@@ -311,7 +311,7 @@ Nika is a workflow engine, not a framework. Key differences:
 
 ### "Can I use my own LLM provider?"
 
-Yes. Nika supports 22+ providers via environment variables. If your provider has a compatible API, you can use it. The `native` provider runs local GGUF models with zero API cost.
+Yes. Nika supports 9 providers via environment variables: Anthropic (Claude), OpenAI, Mistral, Groq, DeepSeek, Gemini, xAI, native (local GGUF), and others. If your provider has a compatible API, you can use it. The `native` provider runs local GGUF models with zero API cost.
 
 ### "Is it production-ready?"
 

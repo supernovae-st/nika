@@ -12,7 +12,7 @@ NovaNet is the brain. Nika is the body. The Model Context Protocol (MCP) is the 
 
 ## NovaNet: The Knowledge Graph Brain
 
-NovaNet is a knowledge graph engine built on Neo4j. It manages a rich data model with 59 node classes, defining everything from business entities to locales to content pages to SEO keywords. The graph structure means relationships between concepts are first-class citizens, not afterthoughts. An entity like "QR Code AI" is connected to its locales (fr-FR, en-US), its pages (/home, /pricing), its keywords, its competitors, and its content history — all through typed arcs (relationships) that carry their own properties.
+NovaNet is a knowledge graph engine built on Neo4j. It manages a rich data model with 47 nodes and 153 arcs, defining everything from business entities to locales to content pages to SEO keywords. The graph structure means relationships between concepts are first-class citizens, not afterthoughts. An entity like "QR Code AI" is connected to its locales (fr-FR, en-US), its pages (/home, /pricing), its keywords, its competitors, and its content history — all through typed arcs (relationships) that carry their own properties.
 
 For the QR Code AI product — the company behind both Nika and NovaNet — this knowledge graph is the single source of truth. When a Nika workflow generates a French landing page, it does not start by asking the LLM "what do you know about QR codes in France?" It starts by querying NovaNet for the entity's French locale data, including the correct French expression ("code QR" rather than "QR code"), the appropriate register (formal "vous" for B2B audiences), content taboos (never use "gratuit" in headlines because it implies low quality), and market-specific data points.
 
@@ -66,9 +66,9 @@ One of Nika's most recent developments is its AI Integration Suite — a system 
 
 The integration works through four tiers:
 
-The first tier uses AGENTS.md files and Universal Agent Skills. AGENTS.md is an emerging standard (adopted by 60,000+ repositories and 20+ tools) that provides instructions to AI coding agents. Nika generates AGENTS.md files with skill definitions in `.agents/skills/` directories that teach AI tools the Nika workflow syntax, the five verbs, provider configuration, and common patterns. This tier reaches 43+ AI agents: Claude Code, Cursor, GitHub Copilot, Codex, Gemini Code Assist, Windsurf, Roo Code, Cline, and many more.
+The first tier uses AGENTS.md files and Universal Agent Skills. AGENTS.md is an emerging standard (adopted by 60,000+ repositories and 20+ tools) that provides instructions to AI coding agents. Nika generates AGENTS.md files with skill definitions in `.agents/skills/` directories that teach AI tools the Nika workflow syntax, the five verbs, provider configuration, and common patterns. This tier reaches many AI agents including Claude Code, Cursor, GitHub Copilot, Gemini Code Assist, Windsurf, Roo Code, Cline, and others.
 
-The second tier is a dedicated Claude Code plugin with skills, agents, hooks, and MCP connectivity. This provides the deepest integration — Claude Code can run Nika workflows, validate YAML syntax, generate new workflows from natural language descriptions, and use Nika's LSP for intelligent completion.
+The second tier is deep integration with Claude Code with skills, agents, and MCP connectivity. This provides intelligent capabilities — Claude Code can run Nika workflows, validate YAML syntax, generate new workflows from natural language descriptions, and use Nika's LSP for intelligent completion.
 
 The third tier generates native rules in each tool's format. For Cursor, this means `.cursor/rules/*.mdc` files. For VS Code Copilot, this means `.github/copilot-instructions.md`. For Windsurf, this means `.windsurfrules`. Each file is short (around 30 lines) and only generated for tools that are actually detected on the machine.
 

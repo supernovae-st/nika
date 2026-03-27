@@ -130,7 +130,7 @@ tasks:
     exec:
       command: |
         echo "=== Pretty JSON Report ==="
-        echo "Title: {{with.title | trim | uppercase}}"
+        echo "Title: {{with.title | trim | upper}}"
         echo "Raw length: {{with.raw | length}} chars"
       shell: true
 ```

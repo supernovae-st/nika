@@ -19,7 +19,6 @@ nika provider set <provider>                # Set active provider
 ### Course Commands
 ```bash
 nika init --course                          # Generate 12-level course (44 exercises)
-nika init --minimal                         # Minimal scaffold (5 workflows)
 nika course status                          # Show progress constellation map
 nika course next                            # Open next exercise
 nika course check [level]                   # Validate exercises for a level
@@ -32,7 +31,7 @@ nika course watch                           # Auto-check on file save
 
 ### Showcase Commands
 ```bash
-nika showcase list                          # Browse 55+ showcase workflows
+nika showcase list                          # Browse 115+ showcase workflows
 nika showcase extract <name>                # Extract a showcase to current dir
 ```
 
@@ -52,7 +51,7 @@ workflow: my-workflow-name        # Required -- human-readable name
 description: "What it does"      # Optional
 
 provider: anthropic               # Default LLM provider
-model: claude-sonnet-4-6          # Default model
+model: claude-sonnet-4-20250514          # Default model
 
 inputs:                           # CLI-overridable parameters
   key: "default_value"
@@ -141,7 +140,7 @@ tasks:                            # The work to do
     temperature: 0.3                # 0.0 = deterministic, 1.0 = creative
     max_tokens: 500                 # Response length limit
     provider: anthropic             # Override workflow default
-    model: claude-sonnet-4-6        # Override workflow default
+    model: claude-sonnet-4-20250514        # Override workflow default
     output:
       format: json_schema           # json | json_schema | (default: text)
       schema:
@@ -378,8 +377,8 @@ export OPENAI_API_KEY="sk-..."
 export MISTRAL_API_KEY="..."
 export GROQ_API_KEY="gsk_..."
 export DEEPSEEK_API_KEY="..."
-export GOOGLE_API_KEY="..."     # Gemini
-export XAI_API_KEY="..."        # Grok
+export GEMINI_API_KEY="..."     # Google Gemini
+export XAI_API_KEY="..."        # xAI Grok
 
 # Verify configuration
 nika provider list
@@ -391,13 +390,13 @@ provider: auto
 ### Provider/Model Quick Reference
 | Provider | Example Model |
 |----------|--------------|
-| `anthropic` | `claude-sonnet-4-6`, `claude-opus-4`, `claude-haiku-3` |
+| `anthropic` | `claude-sonnet-4-20250514`, `claude-opus-4-20250514`, `claude-haiku-3.5` |
 | `openai` | `gpt-4o`, `gpt-4o-mini`, `o1` |
-| `google` | `gemini-2.0-flash`, `gemini-2.0-pro` |
-| `groq` | `llama-3.3-70b-versatile`, `mixtral-8x7b` |
+| `gemini` | `gemini-2.5-flash`, `gemini-2.5-pro` |
+| `groq` | `llama-4-maverick`, `mixtral-8x7b` |
 | `mistral` | `mistral-small-latest`, `mistral-large-latest` |
 | `deepseek` | `deepseek-chat`, `deepseek-reasoner` |
-| `xai` | `grok-2`, `grok-3` |
+| `xai` | `grok-3` |
 | `native` | Local GGUF file path |
 
 ---
@@ -532,7 +531,7 @@ tasks:
 | Mistral | `MISTRAL_API_KEY` |
 | Groq | `GROQ_API_KEY` |
 | DeepSeek | `DEEPSEEK_API_KEY` |
-| Google | `GOOGLE_API_KEY` |
+| Google Gemini | `GEMINI_API_KEY` |
 | xAI | `XAI_API_KEY` |
 | Cohere | `COHERE_API_KEY` |
 
