@@ -694,6 +694,8 @@ impl Runner {
                                     duration_ms: duration.as_millis() as u64,
                                     error_code: Some("NIKA-060".to_string()),
                                 });
+                                // Drain orphaned media refs (defense-in-depth)
+                                let _ = datastore.take_media(task_id);
                                 return TaskResult::failed(
                                     format!(
                                         "NIKA-060: Invalid JSON output after {} attempts: {}",
@@ -738,13 +740,15 @@ impl Runner {
 
                     let errors: Vec<_> = compiled.iter_errors(&json_value).collect();
                     if errors.is_empty() {
-                        // Validation passed
+                        // Validation passed — attach media from staging side-channel
+                        let media = datastore.take_media(task_id);
                         event_log.emit(EventKind::TaskCompleted {
                             task_id: Arc::clone(task_id),
                             output: Arc::new(json_value.clone()),
                             duration_ms: duration.as_millis() as u64,
                         });
-                        return TaskResult::success(json_value, duration);
+                        return TaskResult::success(json_value, duration)
+                            .with_media(media);
                     }
 
                     // Validation failed
@@ -759,6 +763,8 @@ impl Runner {
                             duration_ms: duration.as_millis() as u64,
                             error_code: Some("NIKA-061".to_string()),
                         });
+                        // Drain orphaned media refs (defense-in-depth)
+                        let _ = datastore.take_media(task_id);
                         return TaskResult::failed(
                             format!(
                                 "NIKA-061: Schema validation failed after {} attempts:\n{}",
@@ -785,6 +791,8 @@ impl Runner {
                 }
                 Err(e) => {
                     // Executor error (not validation error) - don't retry
+                    // Drain orphaned media refs (defense-in-depth)
+                    let _ = datastore.take_media(task_id);
                     event_log.emit(EventKind::TaskFailed {
                         task_id: Arc::clone(task_id),
                         error: e.to_string(),
