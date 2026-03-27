@@ -17,11 +17,11 @@ Nika is an open source workflow engine that lets developers orchestrate AI tasks
 
 | Metric | Value |
 |--------|-------|
-| **Codebase** | 451K lines of Rust, 10 workspace crates |
-| **Tests** | 8,100+ passing, zero clippy warnings, zero unsafe |
-| **LLM Providers** | 22 (Claude, GPT-4o, Gemini, Mistral, Groq, DeepSeek, xAI, Perplexity, local GGUF) |
+| **Codebase** | 451K lines of Rust, 12 workspace crates |
+| **Tests** | 8,300+ passing, zero clippy warnings, zero unsafe |
+| **LLM Providers** | 9 (Claude, GPT-4o, Gemini, Mistral, Groq, DeepSeek, xAI, native, mock) |
 | **Media Tools** | 24 built-in (thumbnail, chart, PDF, C2PA, QR validation) |
-| **Showcase Workflows** | 200+ ready-to-use examples |
+| **Showcase Workflows** | 115 ready-to-use examples |
 | **Course Exercises** | 44 across 12 levels (interactive learning) |
 | **Schema Version** | nika/workflow@0.12 |
 | **License** | AGPL-3.0-or-later |
@@ -43,7 +43,7 @@ Nika is an open source workflow engine that lets developers orchestrate AI tasks
 ## The 5 Verbs
 
 ```
-infer:  --> Call any LLM (22 providers, structured output, vision)
+infer:  --> Call any LLM (9 providers, structured output, vision)
 exec:   --> Run shell commands (28-pattern security blocklist)
 fetch:  --> HTTP requests (9 extract modes: markdown, article, RSS...)
 invoke: --> MCP tool calls (24 built-in + any MCP server)
@@ -125,7 +125,7 @@ nika run hello.nika.yaml
 ```
 
 **Learn more:** `nika init --course` (44 interactive exercises)
-**Browse examples:** `nika showcase list` (200+ workflows)
+**Browse examples:** `nika showcase list` (115 workflows)
 **Full TUI:** `nika ui` (live DAG, streaming, cost tracking)
 
 ---

@@ -213,7 +213,7 @@ tasks:
     with:
       winner: $top_item
     exec:
-      command: "echo 'Most frequent item: {{with.winner | trim | uppercase}}'"
+      command: "echo 'Most frequent item: {{with.winner | trim | upper}}'"
       shell: true
 ```
 </details>
@@ -460,7 +460,7 @@ tasks:
 schema: "nika/workflow@0.12"
 workflow: translation-chain
 provider: anthropic
-model: claude-sonnet-4-6
+model: claude-sonnet-4-20250514
 
 tasks:
   - id: to_french
@@ -507,7 +507,7 @@ tasks:
 schema: "nika/workflow@0.12"
 workflow: entity-extractor
 provider: anthropic
-model: claude-sonnet-4-6
+model: claude-sonnet-4-20250514
 
 tasks:
   - id: extract
@@ -557,7 +557,7 @@ tasks:
 schema: "nika/workflow@0.12"
 workflow: chain-of-thought
 provider: anthropic
-model: claude-sonnet-4-6
+model: claude-sonnet-4-20250514
 
 tasks:
   - id: understand
@@ -597,7 +597,7 @@ tasks:
 schema: "nika/workflow@0.12"
 workflow: parallel-content
 provider: anthropic
-model: claude-sonnet-4-6
+model: claude-sonnet-4-20250514
 
 tasks:
   - id: generate
@@ -636,7 +636,7 @@ tasks:
 schema: "nika/workflow@0.12"
 workflow: self-review
 provider: anthropic
-model: claude-sonnet-4-6
+model: claude-sonnet-4-20250514
 
 tasks:
   - id: draft
@@ -825,7 +825,7 @@ tasks:
 schema: "nika/workflow@0.12"
 workflow: summary-agent
 provider: anthropic
-model: claude-sonnet-4-6
+model: claude-sonnet-4-20250514
 
 tasks:
   - id: summarizer
@@ -862,7 +862,7 @@ tasks:
 schema: "nika/workflow@0.12"
 workflow: schema-guardrailed-agent
 provider: anthropic
-model: claude-sonnet-4-6
+model: claude-sonnet-4-20250514
 
 tasks:
   - id: structured_agent

@@ -139,7 +139,7 @@ Brain + Body architecture. No Cypher in Nika. Pure MCP.
 Why Rust?
 
 - Single binary. cargo install nika. Done.
-- 8,100+ tests run in seconds
+- 8,300+ tests run in seconds
 - Zero clippy warnings across 451K lines
 - SIMD-accelerated media processing
 - tokio async for parallel DAG execution
@@ -184,9 +184,8 @@ Open source means open source. No "community edition" tricks. No features locked
 Get started:
 
 cargo install nika
-nika init --minimal   # 5 example workflows
 nika init --course    # 44 exercises
-nika showcase list    # 200+ ready workflows
+nika showcase list    # 115 ready workflows
 
 GitHub: https://github.com/supernovae-st/nika
 
@@ -449,11 +448,6 @@ Constraints breed clarity.
 Try the 5 verbs:
 
 cargo install nika
-nika init --minimal
-
-You get 5 example workflows -- one per verb.
-
-Or start the interactive course:
 nika init --course
 
 44 exercises teaching every verb in depth.
@@ -702,12 +696,11 @@ The course system itself is a Nika feature -- meta!
 ```
 All of these are in the showcase:
 
-nika showcase list              # Browse 200+ workflows
+nika showcase list              # Browse 115 workflows
 nika showcase extract <name>    # Extract to your project
 
 Start building:
 cargo install nika
-nika init --minimal
 
 What would YOU build with 5 verbs?
 

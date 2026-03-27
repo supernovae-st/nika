@@ -96,7 +96,7 @@ Create a workflow where an `infer:` task must return a JSON object with `title` 
 schema: "nika/workflow@0.12"
 workflow: structured-output
 provider: anthropic
-model: claude-sonnet-4-6
+model: claude-sonnet-4-20250514
 
 tasks:
   - id: extract_info
@@ -138,7 +138,7 @@ tasks:
 schema: "nika/workflow@0.12"
 workflow: artifacts-demo
 provider: anthropic
-model: claude-sonnet-4-6
+model: claude-sonnet-4-20250514
 
 artifacts:
   dir: ./output
@@ -169,7 +169,7 @@ Create a task with a strict schema and `enable_retry: true`. The LLM must produc
 schema: "nika/workflow@0.12"
 workflow: schema-retry
 provider: anthropic
-model: claude-sonnet-4-6
+model: claude-sonnet-4-20250514
 
 tasks:
   - id: classify
@@ -295,12 +295,12 @@ Temperature guide:
 schema: "nika/workflow@0.12"
 workflow: multi-provider
 provider: anthropic
-model: claude-sonnet-4-6
+model: claude-sonnet-4-20250514
 
 tasks:
   - id: brainstorm
     provider: groq
-    model: llama-3.3-70b-versatile
+    model: llama-4-maverick
     infer: "Generate 5 creative project names for a workflow engine."
 
   - id: evaluate
@@ -328,7 +328,7 @@ tasks:
 schema: "nika/workflow@0.12"
 workflow: system-prompts
 provider: anthropic
-model: claude-sonnet-4-6
+model: claude-sonnet-4-20250514
 
 tasks:
   - id: formal
@@ -691,7 +691,7 @@ These limits are independent of guardrails. An agent can pass all guardrails but
 ```yaml
 schema: "nika/workflow@0.12"
 provider: anthropic
-model: claude-sonnet-4-6
+model: claude-sonnet-4-20250514
 
 tasks:
   - id: analyzer
@@ -729,7 +729,7 @@ Agent 1 researches use cases with `completion: mode: explicit`. Agent 2 receives
 ```yaml
 schema: "nika/workflow@0.12"
 provider: anthropic
-model: claude-sonnet-4-6
+model: claude-sonnet-4-20250514
 
 tasks:
   - id: explicit_agent
@@ -784,7 +784,7 @@ tasks:
 ```yaml
 schema: "nika/workflow@0.12"
 provider: anthropic
-model: claude-sonnet-4-6
+model: claude-sonnet-4-20250514
 
 tasks:
   - id: writer_agent
