@@ -2,6 +2,7 @@
 //!
 //! Grid and list navigation, tab switching, model expand/collapse.
 
+use super::providers::CLOUD_PROVIDER_COUNT;
 use super::types::ProviderModalTab;
 use super::ProviderModalState;
 
@@ -19,9 +20,9 @@ impl ProviderModalState {
         self.selected_idx = 0; // Reset selection on tab change
                                // Update item_count based on tab
         self.item_count = match tab {
-            ProviderModalTab::Cloud => 7, // 7 cloud providers
-            ProviderModalTab::Native => self.native_models.len().max(1), // Dynamic
-            ProviderModalTab::Keys => 7,  // 7 API key entries (cloud providers)
+            ProviderModalTab::Cloud => CLOUD_PROVIDER_COUNT,
+            ProviderModalTab::Native => self.native_models.len().max(1),
+            ProviderModalTab::Keys => CLOUD_PROVIDER_COUNT,
             ProviderModalTab::Config => 6, // 6 config entries (matches ConfigTab::new())
         };
     }
