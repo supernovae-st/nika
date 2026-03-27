@@ -3114,6 +3114,49 @@ fn test_mcp_invoke_does_not_overwrite_mission_success_phase() {
 }
 
 #[test]
+fn test_task_started_does_not_overwrite_pause_phase() {
+    let mut state = TuiState::new("test.nika.yaml");
+    state.workflow.phase = MissionPhase::Pause;
+    state.workflow.paused = true;
+
+    state.handle_event(
+        &EventKind::TaskStarted {
+            task_id: "late-task".into(),
+            verb: "infer".into(),
+            inputs: serde_json::json!({}),
+        },
+        1,
+    );
+
+    assert_eq!(
+        state.workflow.phase,
+        MissionPhase::Pause,
+        "Pause phase must not be overwritten by late TaskStarted"
+    );
+}
+
+#[test]
+fn test_task_started_does_not_overwrite_abort_phase() {
+    let mut state = TuiState::new("test.nika.yaml");
+    state.workflow.phase = MissionPhase::Abort;
+
+    state.handle_event(
+        &EventKind::TaskStarted {
+            task_id: "late-task".into(),
+            verb: "infer".into(),
+            inputs: serde_json::json!({}),
+        },
+        1,
+    );
+
+    assert_eq!(
+        state.workflow.phase,
+        MissionPhase::Abort,
+        "Abort phase must not be overwritten by late TaskStarted"
+    );
+}
+
+#[test]
 fn test_mcp_cached_response_tracks_hit() {
     let mut state = TuiState::new("test.nika.yaml");
 
