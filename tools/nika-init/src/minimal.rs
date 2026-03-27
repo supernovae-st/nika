@@ -141,14 +141,14 @@ tasks:
   - id: log_start
     invoke:
       tool: "nika:log"
-      input:
+      params:
         message: "Workflow started"
         level: info
 
   - id: emit_data
     invoke:
       tool: "nika:emit"
-      input:
+      params:
         key: "greeting"
         value: "Hello from invoke!"
 
@@ -156,7 +156,7 @@ tasks:
     depends_on: [emit_data]
     invoke:
       tool: "nika:assert"
-      input:
+      params:
         condition: true
         message: "Emit succeeded"
 "##;

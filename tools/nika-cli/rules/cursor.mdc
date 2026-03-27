@@ -452,6 +452,9 @@ Run: `nika run workflow.nika.yaml --provider mock` or `nika run workflow.nika.ya
 | `provider: deepseek` for vision | DeepSeek doesn't support vision |
 | `retry:` inside `invoke:` block | `retry:` is task-level — place it alongside `invoke:`, not inside |
 | `body: {...}` for JSON payloads | Use `json: {...}` — auto-serializes objects (body: is strings only) |
+| `invoke: { tool: "...", input: {...} }` | `invoke: { tool: "...", params: {...} }` — field is `params:` not `input:` |
+| `retry: { max_retries: N }` | `retry: { max_attempts: N }` — `max_retries` is for `structured:` validation retries |
+| `for_each` without `concurrency:` | Default is **sequential** (concurrency: 1) — set `concurrency: N` for parallel |
 
 ## Key Error Codes
 
