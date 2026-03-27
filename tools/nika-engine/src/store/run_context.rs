@@ -357,7 +357,13 @@ impl RunContext {
         {
             let result = self.results.get(task_id)?.value().clone();
             if result.media.is_empty() {
-                return Some(Value::Array(vec![]));
+                // Full array access → return empty array.
+                // Indexed access (media[0].hash) → return None so callers
+                // can provide helpful "no matching media" errors.
+                if remaining == "media" {
+                    return Some(Value::Array(vec![]));
+                }
+                return None;
             }
             let media_json = serde_json::to_value(&result.media).ok()?;
             if remaining == "media" {

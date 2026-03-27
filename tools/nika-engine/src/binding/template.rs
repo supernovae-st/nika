@@ -917,8 +917,14 @@ pub fn resolve<'a>(
                                     resolved_value = v;
                                     segments_to_traverse = SmallVec::new();
                                 } else {
-                                    resolved_value = effective_base;
-                                    segments_to_traverse = remaining_parts;
+                                    // Media path not found — give a clear error
+                                    // instead of falling through to cryptic PathNotFound
+                                    return Err(NikaError::PathNotFound {
+                                        path: format!(
+                                            "with.{}.{} (task '{}' produced no matching media)",
+                                            alias, remaining_path, source_task_id
+                                        ),
+                                    });
                                 }
                             } else {
                                 resolved_value = effective_base;
@@ -1279,8 +1285,12 @@ pub fn resolve_for_shell<'a>(
                             resolved_value = v;
                             segments_to_traverse = SmallVec::new();
                         } else {
-                            resolved_value = effective_base;
-                            segments_to_traverse = remaining_parts;
+                            return Err(NikaError::PathNotFound {
+                                path: format!(
+                                    "with.{}.{} (task '{}' produced no matching media)",
+                                    alias, remaining_path, source_task_id
+                                ),
+                            });
                         }
                     } else {
                         resolved_value = effective_base;
@@ -3953,10 +3963,38 @@ mod v028_template_tests {
     }
 
     #[test]
+    fn media_template_full_task_binding_empty_media_indexed() {
+        use crate::binding::BindingEntry;
+
+        let store = RunContext::new();
+        store.insert(
+            std::sync::Arc::from("empty"),
+            crate::store::TaskResult::success(
+                json!({"status": "ok"}),
+                std::time::Duration::from_secs(1),
+            )
+            .with_media(vec![]),
+        );
+
+        let mut spec = crate::binding::BindingSpec::default();
+        spec.insert("src".to_string(), BindingEntry::new("empty"));
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
+
+        // Indexed access on empty media should give a helpful error
+        let result = resolve("{{with.src.media[0].hash}}", &bindings, &store);
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("produced no matching media"),
+            "Error should explain empty media, got: {err}"
+        );
+    }
+
+    #[test]
     fn media_template_full_task_binding_out_of_bounds() {
         let (store, bindings) = media_template_fixtures();
 
-        // Accessing media[5] when only 1 item exists should fail
+        // Accessing media[5] when only 1 item exists should give helpful error
         let result = resolve(
             "{{with.img.media[5].hash}}",
             &bindings,
@@ -3964,6 +4002,11 @@ mod v028_template_tests {
         );
 
         assert!(result.is_err(), "Out-of-bounds media access should error");
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("produced no matching media"),
+            "Error should explain out-of-bounds, got: {err}"
+        );
     }
 
     // ═════════════════════════════════════════════════════════════════════════
