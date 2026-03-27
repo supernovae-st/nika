@@ -42,7 +42,7 @@ use std::path::PathBuf;
 
 use crate::chat_agent::ChatAgent;
 use crate::InputMode;
-use nika_engine::ast::expand_includes;
+// expand_includes removed — using parse_analyzed_with_imports instead
 use nika_engine::event::EventLog;
 use nika_engine::provider::rig::StreamChunk;
 use nika_engine::runtime::Runner;
@@ -549,36 +549,20 @@ impl App {
             }
         };
 
-        let workflow = match nika_engine::ast::parse_workflow(&yaml_content) {
-            Ok(w) => w,
-            Err(e) => {
-                self.set_status(&format!("Parse error: {}", e));
-                tracing::error!("Failed to parse workflow: {}", e);
-                return;
-            }
-        };
-
-        // 2. Expand includes (DAG fusion)
+        // 2. Parse with import expansion (raw → expand_imports → analyze)
         let base_path = path
             .parent()
             .filter(|p| !p.as_os_str().is_empty())
             .unwrap_or(std::path::Path::new("."));
 
-        let workflow = match expand_includes(workflow, base_path) {
+        let workflow = match nika_engine::ast::parse_analyzed_with_imports(
+            &yaml_content,
+            base_path,
+        ) {
             Ok(w) => w,
             Err(e) => {
-                self.set_status(&format!("Include error: {}", e));
-                tracing::error!("Failed to expand includes: {}", e);
-                return;
-            }
-        };
-
-        // Bridge: convert old Workflow back to AnalyzedWorkflow for Runner
-        let workflow = match nika_engine::ast::unlower(workflow) {
-            Ok(w) => w,
-            Err(e) => {
-                self.set_status(&format!("Unlower error: {}", e));
-                tracing::error!("Failed to unlower workflow: {}", e);
+                self.set_status(&format!("Parse error: {}", e));
+                tracing::error!("Failed to parse workflow: {}", e);
                 return;
             }
         };
