@@ -3692,6 +3692,90 @@ fn test_is_subagent_and_agent_icon() {
 }
 
 #[test]
+fn test_context_assembled_updates_mcp_state() {
+    use nika_engine::event::{ContextSource, ExcludedItem};
+
+    let mut state = TuiState::new("test.nika.yaml");
+    state.dirty.clear();
+
+    state.handle_event(
+        &EventKind::ContextAssembled {
+            task_id: "t1".into(),
+            sources: vec![
+                ContextSource {
+                    node: "system_prompt".into(),
+                    tokens: 200,
+                },
+                ContextSource {
+                    node: "entity-data".into(),
+                    tokens: 350,
+                },
+            ],
+            excluded: vec![ExcludedItem {
+                node: "large-doc".into(),
+                reason: "over budget".into(),
+            }],
+            total_tokens: 550,
+            budget_used_pct: 55.0,
+            truncated: false,
+        },
+        100,
+    );
+
+    assert_eq!(state.mcp.context_assembly.sources.len(), 2);
+    assert_eq!(state.mcp.context_assembly.excluded.len(), 1);
+    assert_eq!(state.mcp.context_assembly.total_tokens, 550);
+    assert!((state.mcp.context_assembly.budget_used_pct - 55.0).abs() < f32::EPSILON);
+    assert!(!state.mcp.context_assembly.truncated);
+    assert!(state.dirty.novanet, "novanet panel must be marked dirty");
+}
+
+#[test]
+fn test_template_resolved_tracks_resolutions() {
+    let mut state = TuiState::new("test.nika.yaml");
+    state.dirty.clear();
+
+    state.handle_event(
+        &EventKind::TemplateResolved {
+            task_id: "t1".into(),
+            template: "{{with.data}}".into(),
+            result: "hello world".into(),
+        },
+        200,
+    );
+
+    assert_eq!(state.agent.recent_templates.len(), 1);
+    assert_eq!(state.agent.recent_templates[0].template, "{{with.data}}");
+    assert_eq!(state.agent.recent_templates[0].result, "hello world");
+    assert_eq!(state.agent.recent_templates[0].task_id, "t1");
+    assert!(state.dirty.novanet, "novanet panel must be marked dirty");
+}
+
+#[test]
+fn test_template_resolved_caps_at_10() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    for i in 0..15 {
+        state.handle_event(
+            &EventKind::TemplateResolved {
+                task_id: "t1".into(),
+                template: format!("tmpl_{}", i),
+                result: format!("res_{}", i),
+            },
+            i as u64,
+        );
+    }
+
+    assert_eq!(
+        state.agent.recent_templates.len(),
+        10,
+        "recent_templates must cap at 10"
+    );
+    // Oldest should be evicted
+    assert_eq!(state.agent.recent_templates[0].template, "tmpl_5");
+}
+
+#[test]
 fn test_agent_task_completed_clears_agent_state() {
     let mut state = TuiState::new("test.nika.yaml");
 
