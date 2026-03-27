@@ -2,6 +2,7 @@
 
 use clap::Subcommand;
 
+use nika_engine::display::{separator, StatusIcon};
 use nika_engine::error::NikaError;
 
 /// Model management actions
@@ -144,7 +145,7 @@ pub async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<()
                 println!("{}", serde_json::to_string_pretty(&output)?);
             } else if models.is_empty() {
                 if !quiet {
-                    println!("{} No models downloaded yet.", "ℹ".cyan());
+                    println!("{} No models downloaded yet.", StatusIcon::Info);
                     println!(
                         "{}",
                         "Use 'nika model pull <name>' to download a model.".dimmed()
@@ -163,7 +164,7 @@ pub async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<()
                 }
             } else {
                 println!("{}", "Downloaded Models".bold());
-                println!("{}", "─".repeat(70));
+                println!("{}", separator(70));
                 for model in &models {
                     let size_mb = model.size / (1024 * 1024);
                     let quant = model.quantization.as_deref().unwrap_or("?");
@@ -239,7 +240,7 @@ pub async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<()
                 if !quiet {
                     println!(
                         "{} Model already exists: {}",
-                        "ℹ".cyan(),
+                        StatusIcon::Info,
                         model_path.display()
                     );
                     println!("{}", "Use --force to re-download.".dimmed());
@@ -250,7 +251,7 @@ pub async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<()
             if !quiet {
                 println!(
                     "{} Downloading {} from {}...",
-                    "⬇".cyan(),
+                    StatusIcon::Download,
                     hf_file.bold(),
                     hf_repo
                 );
@@ -305,7 +306,7 @@ pub async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<()
             }
 
             if !quiet {
-                println!("{} Model downloaded: {}", "✓".green(), model_path.display());
+                println!("{} Model downloaded: {}", StatusIcon::Ok, model_path.display());
             }
             Ok(())
         }
@@ -314,7 +315,7 @@ pub async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<()
             // Try KNOWN_MODELS first
             if let Some(model) = find_model(&name) {
                 println!("{}", format!("Model: {}", model.name).bold());
-                println!("{}", "─".repeat(50));
+                println!("{}", separator(50));
                 println!("  ID:           {}", model.id);
                 println!("  Description:  {}", model.description);
                 println!("  Repository:   {}", model.hf_repo.cyan());
@@ -356,7 +357,7 @@ pub async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<()
                         .and_then(nika_engine::provider::native::extract_quantization);
 
                     println!("{}", format!("Model: {}", path.display()).bold());
-                    println!("{}", "─".repeat(50));
+                    println!("{}", separator(50));
                     println!("  Size:         {size_mb} MB");
                     println!(
                         "  Quantization: {}",
@@ -375,18 +376,18 @@ pub async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<()
             // For now, just show if NativeRuntime would be available
             // In the future, this could show loaded models in a daemon
             println!("{}", "Model Status".bold());
-            println!("{}", "─".repeat(50));
+            println!("{}", separator(50));
 
             let models = storage.list_models().map_err(|e| NikaError::ConfigError {
                 reason: format!("Failed to list models: {e}"),
             })?;
 
             if models.is_empty() {
-                println!("{} No models available for inference.", "ℹ".cyan());
+                println!("{} No models available for inference.", StatusIcon::Info);
             } else {
                 println!(
                     "{} {} models available for inference:",
-                    "✓".green(),
+                    StatusIcon::Ok,
                     models.len()
                 );
                 for model in models.iter().take(5) {
@@ -420,7 +421,7 @@ pub async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<()
 
             // Confirm deletion
             if !force && !quiet {
-                println!("{} Delete model: {}?", "⚠".yellow(), path.display());
+                println!("{} Delete model: {}?", StatusIcon::Warn, path.display());
                 print!("  Type 'yes' to confirm: ");
                 let _ = std::io::Write::flush(&mut std::io::stdout());
 
@@ -439,7 +440,7 @@ pub async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<()
             std::fs::remove_file(&path)?;
 
             if !quiet {
-                println!("{} Model deleted: {}", "✓".green(), path.display());
+                println!("{} Model deleted: {}", StatusIcon::Ok, path.display());
             }
             Ok(())
         }
@@ -453,7 +454,7 @@ pub async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<()
             use nika_engine::provider::native::InferenceBackend;
 
             if !quiet {
-                println!("{} Loading vision model: {}", "⬇".cyan(), model_id.bold());
+                println!("{} Loading vision model: {}", StatusIcon::Download, model_id.bold());
                 if let Some(ref isq_level) = isq {
                     println!("  ISQ quantization: {}", isq_level.cyan());
                 }
@@ -496,7 +497,7 @@ pub async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<()
                     "text-only (unexpected)".yellow().to_string()
                 };
 
-                println!("{} Vision model loaded successfully!", "✓".green());
+                println!("{} Vision model loaded successfully!", StatusIcon::Ok);
                 println!("  Model:       {}", model_id.cyan());
                 println!("  Capability:  {vision_status}");
                 if let Some(ref isq_level) = isq {
@@ -528,5 +529,45 @@ fn format_size(bytes: u64) -> String {
         format!("{:.1} KB", bytes as f64 / KB as f64)
     } else {
         format!("{bytes} B")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn format_size_bytes() {
+        assert_eq!(format_size(500), "500 B");
+    }
+
+    #[test]
+    fn format_size_kilobytes() {
+        assert_eq!(format_size(1536), "1.5 KB");
+    }
+
+    #[test]
+    fn format_size_megabytes() {
+        assert_eq!(format_size(5 * 1024 * 1024), "5.0 MB");
+    }
+
+    #[test]
+    fn format_size_gigabytes() {
+        assert_eq!(format_size(4 * 1024 * 1024 * 1024), "4.0 GB");
+    }
+
+    #[test]
+    fn model_action_variants_exist() {
+        let _ = ModelAction::List { json: false };
+        let _ = ModelAction::Pull {
+            name: None,
+            repo: None,
+            file: None,
+            quant: None,
+        };
+        let _ = ModelAction::Delete {
+            name: "test".into(),
+            force: false,
+        };
     }
 }

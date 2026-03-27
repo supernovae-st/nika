@@ -557,13 +557,13 @@ Every workflow run produces a trace file in `.nika/traces/`. Inspect traces for 
 
 ```bash
 # List recent traces
-nika log list
+nika trace list
 
 # Show trace details
-nika log show <id>
+nika trace show <trace-id>
 
 # Export to JSON for analysis
-nika log export <id> --format json
+nika trace export <trace-id> --format json
 ```
 
 Traces include:
