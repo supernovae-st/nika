@@ -16,9 +16,7 @@ use crate::ast::InferParams;
 use crate::binding::{template_resolve, ResolvedBindings};
 use crate::error::NikaError;
 use crate::event::{ContextSource, EventKind};
-use crate::provider::rig::{
-    build_response_format_params, supports_native_structured_output, InferOptions, StreamChunk,
-};
+use crate::provider::rig::{build_response_format_params, InferOptions, StreamChunk};
 use crate::runtime::{InferCallback, StructuredOutputEngine};
 use crate::store::RunContext;
 
@@ -412,25 +410,20 @@ impl TaskExecutor {
                     // LAYER 0a: Native response_format (OpenAI-compatible)
                     // ───────────────────────────────────────────────────────
                     // For providers that support response_format: json_schema
-                    // (OpenAI, Groq, DeepSeek, xAI), use the provider's native
-                    // structured output instead of tool injection. This avoids
-                    // the MaxTurnError that tool_choice: Required causes.
+                    // (OpenAI, Groq, DeepSeek, xAI, custom OpenAI-compat endpoints),
+                    // use the provider's native structured output instead of tool
+                    // injection. This avoids the MaxTurnError that tool_choice:
+                    // Required causes. When Layer 0a is attempted, Layer 0b (tool
+                    // injection) is SKIPPED to avoid double API calls.
+                    let mut layer_0a_attempted = false;
                     if let Ok(ref sv) = schema_value {
-                        if supports_native_structured_output(provider_name) {
+                        if provider.supports_native_structured_output() {
+                            layer_0a_attempted = true;
                             debug!(
                                 task_id = %task_id,
                                 provider = %provider_name,
                                 "Layer 0a: using native response_format for structured output"
                             );
-
-                            self.event_log.emit(EventKind::StructuredOutputAttempt {
-                                task_id: Arc::clone(task_id),
-                                layer: 0,
-                                layer_name: "response_format".to_string(),
-                                attempt: 1,
-                                success: false,
-                                error: None,
-                            });
 
                             let rf_params = build_response_format_params(sv);
                             let (tx_rf, _rx_rf) = mpsc::channel::<StreamChunk>(64);
@@ -566,6 +559,9 @@ impl TaskExecutor {
                         }
                     }
 
+                    // Skip Layer 0b when Layer 0a was already attempted to avoid
+                    // double API calls and double billing.
+                    if !layer_0a_attempted {
                     if let Ok(schema_value) = schema_value {
                         let submit_tool =
                             crate::runtime::submit_tool::DynamicSubmitTool::new(schema_value);
@@ -573,7 +569,7 @@ impl TaskExecutor {
 
                         debug!(
                             task_id = %task_id,
-                            "Layer 0: attempting tool injection via DynamicSubmitTool"
+                            "Layer 0b: attempting tool injection via DynamicSubmitTool"
                         );
 
                         self.event_log.emit(EventKind::StructuredOutputAttempt {
@@ -750,6 +746,7 @@ impl TaskExecutor {
                             }
                         }
                     }
+                    } // end !layer_0a_attempted guard
                 }
             }
         }

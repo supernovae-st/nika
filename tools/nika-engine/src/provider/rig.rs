@@ -134,10 +134,8 @@ pub struct InferOptions {
     pub additional_params: Option<serde_json::Value>,
 }
 
-/// Check if a provider supports native structured output via `response_format: json_schema`.
-///
-/// Providers that support this can enforce JSON schema compliance server-side
-/// without relying on tool injection (DynamicSubmitTool + tool_choice: Required).
+/// Check if a provider name supports native structured output (string-based check).
+/// Prefer `RigProvider::supports_native_structured_output()` when you have the resolved provider.
 pub fn supports_native_structured_output(provider_name: &str) -> bool {
     matches!(
         provider_name,
@@ -1393,6 +1391,21 @@ where
 }
 
 impl RigProvider {
+    /// Check if this provider supports native structured output via `response_format: json_schema`.
+    ///
+    /// Uses the resolved provider type rather than a string name, correctly handling
+    /// custom endpoints (OpenAiCompat) which are OpenAI-compatible and support response_format.
+    pub fn supports_native_structured_output(&self) -> bool {
+        matches!(
+            self,
+            RigProvider::OpenAI(_)
+                | RigProvider::OpenAiCompat { .. }
+                | RigProvider::Groq(_)
+                | RigProvider::DeepSeek(_)
+                | RigProvider::XAi(_)
+        )
+    }
+
     /// Stream text completion with real-time token updates
     ///
     /// Sends tokens to the provided channel as they arrive from the model.
@@ -3165,7 +3178,7 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_supports_native_structured_output() {
+    fn test_supports_native_structured_output_by_name() {
         assert!(supports_native_structured_output("openai"));
         assert!(supports_native_structured_output("groq"));
         assert!(supports_native_structured_output("deepseek"));
@@ -3177,6 +3190,24 @@ mod tests {
         assert!(!supports_native_structured_output("mistral"));
         assert!(!supports_native_structured_output("native"));
         assert!(!supports_native_structured_output("mock"));
+        // Custom endpoints like "h100" are NOT detected by the string check
+        assert!(!supports_native_structured_output("h100"));
+    }
+
+    #[test]
+    #[serial]
+    fn test_supports_native_structured_output_by_provider() {
+        // RigProvider method detects OpenAiCompat (custom endpoints)
+        std::env::set_var("OPENAI_API_KEY", "test-key");
+        assert!(RigProvider::openai().supports_native_structured_output());
+        assert!(!RigProvider::claude().supports_native_structured_output());
+
+        let compat = RigProvider::openai_compat("h100", "http://localhost:8000/v1", "test", None)
+            .unwrap();
+        assert!(
+            compat.supports_native_structured_output(),
+            "OpenAiCompat (custom endpoints) should support native structured output"
+        );
     }
 
     #[test]
