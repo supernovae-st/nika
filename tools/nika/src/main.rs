@@ -512,7 +512,7 @@ enum Commands {
         action: cli::daemon::DaemonAction,
     },
 
-    /// Set up API keys interactively (first-run wizard)
+    /// Configure API keys and providers (interactive first-run wizard)
     Setup,
 
     /// The cosmos awaits

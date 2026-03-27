@@ -85,13 +85,25 @@ pub fn run_machine_setup() -> Vec<SetupResult> {
     }
 
     // 5. Detect env var API keys and suggest keychain migration
-    detect_env_api_keys();
+    let has_keys = detect_env_api_keys();
+
+    // If no API key is configured at all, nudge the user toward setup
+    if !has_keys {
+        println!();
+        println!(
+            "  {} Tip: run {} to configure your API provider",
+            "\u{2192}".cyan(),
+            "`nika setup`".bold()
+        );
+    }
 
     results
 }
 
 /// Detect API keys in environment variables and hint about keychain migration.
-fn detect_env_api_keys() {
+///
+/// Returns `true` if at least one provider key was found.
+fn detect_env_api_keys() -> bool {
     let known_keys: &[(&str, &str)] = &[
         ("ANTHROPIC_API_KEY", "anthropic"),
         ("OPENAI_API_KEY", "openai"),
@@ -124,7 +136,10 @@ fn detect_env_api_keys() {
             "\u{2192}".dimmed(),
             "nika init --migrate-keys to move them to the secure keychain".dimmed()
         );
+        return true;
     }
+
+    false
 }
 
 fn setup_editors() -> Vec<SetupResult> {
@@ -645,19 +660,10 @@ const SCAN_COOLDOWN_SECS: u64 = 14_400; // 4 hours — devs install editors duri
 /// when machine_setup_status() == Ready. If a new editor is detected that
 /// wasn't in machine.toml, install rules silently and update the stored list.
 ///
-/// Skips if last scan was < 24h ago (cooldown to avoid repeated filesystem checks).
+/// New editors bypass the cooldown entirely — rules are installed immediately.
+/// Cooldown only applies when no new editors are found, to avoid repeated
+/// filesystem overhead on every command.
 pub fn quick_editor_scan() {
-    // Cooldown: skip if scanned recently
-    if let Some(last) = read_last_scan_at() {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-        if now.saturating_sub(last) < SCAN_COOLDOWN_SECS {
-            return;
-        }
-    }
-
     let current = detect_editors();
     let stored = read_stored_editors();
 
@@ -667,9 +673,20 @@ pub fn quick_editor_scan() {
         .collect();
 
     if new_editors.is_empty() {
+        // Nothing new — apply cooldown to avoid repeated filesystem work
+        if let Some(last) = read_last_scan_at() {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            if now.saturating_sub(last) < SCAN_COOLDOWN_SECS {
+                return;
+            }
+        }
         return;
     }
 
+    // New editors found — install rules immediately (bypass cooldown)
     let home = dirs::home_dir().unwrap_or_default();
     let hashes = load_rule_hashes();
     let mut results = Vec::new();
@@ -684,15 +701,18 @@ pub fn quick_editor_scan() {
                 &mut results,
                 true,
             ),
-            "cursor" => install_rule(
-                &home.join(".cursor/rules/nika.mdc"),
-                CURSOR_NIKA_RULES,
-                "Cursor",
-                "cursor",
-                &hashes,
-                &mut results,
-                true,
-            ),
+            "cursor" => {
+                install_rule(
+                    &home.join(".cursor/rules/nika.mdc"),
+                    CURSOR_NIKA_RULES,
+                    "Cursor",
+                    "cursor",
+                    &hashes,
+                    &mut results,
+                    true,
+                );
+                install_vscode_extension("cursor", "Cursor", "supernovae.nika-lang");
+            }
             "copilot" => install_rule(
                 &home.join(".github/copilot/nika.instructions.md"),
                 COPILOT_RULES,
@@ -702,15 +722,21 @@ pub fn quick_editor_scan() {
                 &mut results,
                 true,
             ),
-            "windsurf" => install_rule(
-                &home.join(".windsurf/rules/nika.md"),
-                WINDSURF_RULES,
-                "Windsurf",
-                "windsurf",
-                &hashes,
-                &mut results,
-                true,
-            ),
+            "vscode" => {
+                install_vscode_extension("code", "VS Code", "supernovae.nika-lang");
+            }
+            "windsurf" => {
+                install_rule(
+                    &home.join(".windsurf/rules/nika.md"),
+                    WINDSURF_RULES,
+                    "Windsurf",
+                    "windsurf",
+                    &hashes,
+                    &mut results,
+                    true,
+                );
+                install_vscode_extension("windsurf", "Windsurf", "supernovae.nika-lang");
+            }
             "roo" => install_rule(
                 &home.join(".roo/rules/nika.md"),
                 ROO_RULES,
@@ -727,6 +753,30 @@ pub fn quick_editor_scan() {
     // Update machine.toml with new editors list + scan timestamp
     update_machine_toml_editors(&current);
     write_last_scan_at();
+}
+
+/// Silently install the nika-lang extension for a VS Code-compatible editor.
+/// Used by quick_editor_scan when a new editor is detected.
+fn install_vscode_extension(binary: &str, name: &str, ext_id: &str) {
+    let has_ext = Command::new(binary)
+        .args(["--list-extensions"])
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|list| list.lines().any(|l| l.eq_ignore_ascii_case(ext_id)))
+        .unwrap_or(false);
+
+    if has_ext {
+        return;
+    }
+
+    let _ = Command::new(binary)
+        .args(["--install-extension", ext_id])
+        .output();
+
+    // Suppress output — quick_editor_scan runs silently in the background.
+    // Failures are non-fatal; user can run `nika setup` for a full report.
+    let _ = (name, ext_id); // suppress unused-variable lint in release builds
 }
 
 /// Read `last_scan_at` timestamp from machine.toml.
