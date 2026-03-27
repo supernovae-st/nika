@@ -72,9 +72,9 @@ artifacts:                         # Persist outputs to files (see Artifacts sec
   dir: ./output
   format: markdown
 
-imports:                           # Import partial workflows (tasks merged into DAG)
+include:                           # Include partial workflows (tasks merged into DAG)
   - path: ./partials/setup.nika.yaml
-    prefix: setup_                 # Optional prefix for imported task IDs
+    prefix: setup_                 # Optional prefix for included task IDs
 ```
 
 ## Data Flow
