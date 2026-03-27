@@ -1003,34 +1003,28 @@ fn output_doctor_text(checks: &[DiagnosticCheck], quiet: bool) {
 
         // "Next steps" footer when warnings/failures exist
         if warn_count > 0 || fail_count > 0 {
-            println!();
-            println!("  {} {}", "Next steps:".bold(), "".dimmed());
+            println!("{}", section_header("Next steps"));
             if fail_count > 0 {
                 println!(
-                    "    {} Fix {} failure(s) above before running workflows",
-                    "1.".bold(),
-                    fail_count
+                    "{}",
+                    hint(&format!(
+                        "Fix {} failure(s) above before running workflows",
+                        fail_count
+                    ))
                 );
             }
             if warn_count > 0 {
-                let step = if fail_count > 0 { "2." } else { "1." };
                 println!(
-                    "    {} Address {} warning(s) for optimal experience",
-                    step.bold(),
-                    warn_count
+                    "{}",
+                    hint(&format!(
+                        "Address {} warning(s) for optimal experience",
+                        warn_count
+                    ))
                 );
             }
             println!(
-                "    {} Run {} for full diagnostics (includes MCP connectivity)",
-                if fail_count > 0 && warn_count > 0 {
-                    "3."
-                } else if fail_count > 0 || warn_count > 0 {
-                    "2."
-                } else {
-                    "1."
-                }
-                .bold(),
-                "nika doctor --full".cyan()
+                "{}",
+                hint("nika doctor --full  Full diagnostics (includes MCP connectivity)")
             );
         }
     }
