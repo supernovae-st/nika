@@ -15,7 +15,7 @@ pub enum CacheAction {
     Clear,
 }
 
-pub async fn handle_cache_command(action: CacheAction) -> Result<(), NikaError> {
+pub async fn handle_cache_command(action: CacheAction, quiet: bool) -> Result<(), NikaError> {
     let client = DaemonClient::new(daemon_socket_path()).with_timeout(Duration::from_secs(5));
 
     if !client.socket_exists() {
@@ -74,7 +74,9 @@ pub async fn handle_cache_command(action: CacheAction) -> Result<(), NikaError> 
 
             match resp {
                 DaemonResponse::Ok => {
-                    println!("{} cache cleared", "✓".green().bold());
+                    if !quiet {
+                        println!("{} cache cleared", "✓".green().bold());
+                    }
                 }
                 DaemonResponse::Error { code, message } => {
                     eprintln!("{} [{code}] {message}", "✗".red().bold());

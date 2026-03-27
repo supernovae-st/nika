@@ -58,7 +58,7 @@ pub enum CourseAction {
 }
 
 /// Entry point for `nika course <action>`
-pub fn handle_course_command(action: CourseAction) -> Result<(), NikaError> {
+pub fn handle_course_command(action: CourseAction, _quiet: bool) -> Result<(), NikaError> {
     match action {
         CourseAction::Status => cmd_status(),
         CourseAction::Next => cmd_next(),

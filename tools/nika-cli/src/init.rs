@@ -156,3 +156,32 @@ default = "claude"
 
     Ok(())
 }
+
+/// Handle `nika init --course` — generate interactive course files.
+pub fn init_course() -> Result<(), NikaError> {
+    use nika_engine::init::course::generator::{generate_course, CourseConfig};
+
+    let config = CourseConfig {
+        dest: std::path::PathBuf::from("nika-course"),
+        ..CourseConfig::default()
+    };
+
+    match generate_course(&config) {
+        Ok(result) => {
+            println!(
+                "\n  {} Course generated! {} levels, {} exercises\n  Provider: {} (auto-detected)\n  Location: {}\n  Run: cd {} && nika course status\n",
+                StatusIcon::Ok,
+                result.levels,
+                result.exercises,
+                result.provider,
+                result.root.display(),
+                result.root.display(),
+            );
+            Ok(())
+        }
+        Err(e) => {
+            eprintln!("{} Course generation failed: {e}", "Error:".red().bold());
+            Err(e.into())
+        }
+    }
+}

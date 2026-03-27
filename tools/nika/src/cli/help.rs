@@ -1,6 +1,8 @@
 //! Custom help system — beautiful grouped CLI help with cosmic theme.
 //!
 //! Replaces clap's flat command list with categorised, colored output.
+//! Sections are derived from `help_heading` attributes on the `Commands` enum,
+//! so new commands appear automatically without editing this file.
 //! Supports deep-dive topics via `nika help <topic>`.
 
 use colored::Colorize;
@@ -61,11 +63,114 @@ fn print_banner() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// STATIC METADATA
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Display order for command sections (matches help_heading values in Commands enum).
+/// Sections not in this list are silently skipped.
+const SECTION_ORDER: &[&str] = &[
+    "WORKFLOWS",
+    "5 VERBS",
+    "INTERACTIVE",
+    "MODELS & PROVIDERS",
+    "LEARNING",
+    "PROJECT",
+    "SYSTEM",
+];
+
+/// Short curated description for each command (fits the 32-char help column).
+/// Falls back to a truncated clap about for unknown commands.
+fn get_short_desc(name: &str) -> Option<&'static str> {
+    match name {
+        "run" => Some("Run a workflow file"),
+        "check" => Some("Validate syntax & DAG"),
+        "new" => Some("Create a new workflow"),
+        "workflow" => Some("Edit, graph, add-task"),
+        "infer" => Some("Call an LLM directly"),
+        "fetch" => Some("Fetch URL with extraction"),
+        "invoke" => Some("Builtin or MCP tool"),
+        "agent" => Some("Multi-turn AI agent"),
+        "ui" => Some("Launch TUI"),
+        "chat" => Some("Chat mode"),
+        "studio" => Some("Studio editor"),
+        "provider" => Some("Manage API keys"),
+        "mcp" => Some("MCP server connections"),
+        "model" => Some("LLM models (cloud + local)"),
+        "course" => Some("Interactive 12-level course"),
+        "showcase" => Some("Browse 115+ showcase workflows"),
+        "init" => Some("Initialize .nika/ project"),
+        "config" => Some("Manage configuration"),
+        "pkg" => Some("Package management"),
+        "media" => Some("Media store management"),
+        "doctor" => Some("System health check"),
+        "cache" => Some("LLM response cache"),
+        "job" => Some("Background jobs"),
+        "daemon" => Some("Background daemon"),
+        "setup" => Some("API key setup wizard"),
+        "features" => Some("Compiled feature flags"),
+        "completion" => Some("Shell completions"),
+        "trace" => Some("Execution traces"),
+        "schema" => Some("Schema versions & migrations"),
+        _ => None,
+    }
+}
+
+/// One-line example for each command (shown in the right column).
+fn get_example(name: &str) -> &'static str {
+    match name {
+        "run" => "nika run flow.nika.yaml",
+        "check" => "nika check flow.nika.yaml",
+        "new" => "nika new my-flow --verb infer",
+        "workflow" => "nika workflow graph f.nika.yaml",
+        "infer" => "nika infer \"hello\"",
+        "fetch" => "nika fetch url --extract article",
+        "invoke" => "nika invoke nika:thumbnail img.jpg",
+        "agent" => "nika agent \"Research AI\"",
+        "ui" => "nika ui",
+        "chat" => "nika chat",
+        "studio" => "nika studio",
+        "provider" => "nika provider list",
+        "mcp" => "nika mcp list",
+        "model" => "nika model list",
+        "course" => "nika course status",
+        "showcase" => "nika showcase list",
+        "init" => "nika init",
+        "config" => "nika config list",
+        "pkg" => "nika pkg list",
+        "media" => "nika media stats",
+        "doctor" => "nika doctor --fix",
+        "cache" => "nika cache stats",
+        "job" => "nika job list",
+        "daemon" => "nika daemon status",
+        "setup" => "nika setup",
+        "features" => "nika features",
+        "completion" => "nika completion zsh",
+        "trace" => "nika trace list",
+        "schema" => "nika schema list",
+        _ => "",
+    }
+}
+
+/// Cosmic icon + color for verb commands. Returns None for regular commands.
+fn get_icon(name: &str) -> Option<(&'static str, &'static str)> {
+    match name {
+        "infer" => Some(("\u{2727}", "magenta")),
+        "fetch" => Some(("\u{2604}", "cyan")),
+        "invoke" => Some(("\u{229B}", "green")),
+        "agent" => Some(("\u{274B}", "red")),
+        _ => None,
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // MAIN HELP
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Print the full custom help (called from `nika` with no args or `nika help`).
-pub fn print_help() {
+///
+/// Sections are derived dynamically from clap's `help_heading` attributes —
+/// new commands added to the `Commands` enum appear automatically.
+pub fn print_help(app: &clap::Command) {
     print_banner();
 
     // ── Quick Start ────────────────────────────────────────────────────
@@ -75,148 +180,21 @@ pub fn print_help() {
     quick("nika help verbs", "Learn the 5 verbs");
     sep();
 
-    // ── Workflows ────────────────────────────────────────────────────────
-    section("WORKFLOWS");
-    cmd(
-        "run",
-        Some("r"),
-        "Run a workflow file",
-        "nika run flow.nika.yaml",
-    );
-    cmd(
-        "check",
-        Some("v"),
-        "Validate syntax & DAG",
-        "nika check flow.nika.yaml",
-    );
-    cmd(
-        "new",
-        Some("n"),
-        "Create a new workflow",
-        "nika new my-flow --verb infer",
-    );
-    cmd(
-        "workflow",
-        Some("w"),
-        "Edit, graph, add-task",
-        "nika workflow graph f.nika.yaml",
-    );
-    sep();
-
-    // ── 5 Verbs ──────────────────────────────────────────────────────────
-    section("5 VERBS \u{2014} Direct Use");
-    verb_cmd(
-        "infer",
-        Some("i"),
-        "\u{2727}",
-        "magenta",
-        "Call an LLM directly",
-        "nika infer \"hello\"",
-    );
-    verb_cmd(
-        "exec",
-        None,
-        "\u{2388}",
-        "yellow",
-        "Shell command (workflow only)",
-        "exec: { command: \"...\", shell: true }",
-    );
-    verb_cmd(
-        "fetch",
-        Some("f"),
-        "\u{2604}",
-        "cyan",
-        "Fetch URL with extraction",
-        "nika fetch url --extract article",
-    );
-    verb_cmd(
-        "invoke",
-        None,
-        "\u{229B}",
-        "green",
-        "Builtin or MCP tool",
-        "nika invoke nika:thumbnail img.jpg",
-    );
-    verb_cmd(
-        "agent",
-        Some("a"),
-        "\u{274B}",
-        "red",
-        "Multi-turn AI agent",
-        "nika agent \"Research AI\"",
-    );
-    sep();
-
-    // ── Interactive ──────────────────────────────────────────────────────
-    #[cfg(feature = "tui")]
-    {
-        section("INTERACTIVE");
-        cmd("ui", None, "Launch TUI", "nika ui");
-        cmd("chat", Some("c"), "Chat mode", "nika chat");
-        cmd("studio", Some("s"), "Studio editor", "nika studio");
+    // ── Command sections (derived from clap headings) ─────────────────
+    for &heading in SECTION_ORDER {
+        let section_cmds: Vec<&clap::Command> = app
+            .get_subcommands()
+            .filter(|s| !s.is_hide_set() && s.get_next_help_heading() == Some(heading))
+            .collect();
+        if section_cmds.is_empty() {
+            continue;
+        }
+        section(heading);
+        for sub in section_cmds {
+            print_cmd_line(sub);
+        }
         sep();
     }
-
-    // ── Models & Providers ───────────────────────────────────────────────
-    section("MODELS & PROVIDERS");
-    cmd(
-        "model",
-        Some("m"),
-        "LLM models (cloud + local)",
-        "nika model list",
-    );
-    cmd("provider", None, "Manage API keys", "nika provider list");
-    cmd("mcp", None, "MCP server connections", "nika mcp list");
-    sep();
-
-    // ── Learning ─────────────────────────────────────────────────────────
-    section("LEARNING");
-    cmd(
-        "course",
-        Some("learn"),
-        "Interactive 12-level course",
-        "nika course status",
-    );
-    cmd(
-        "showcase",
-        None,
-        "Browse 115+ showcase workflows",
-        "nika showcase list",
-    );
-    sep();
-
-    // ── Project ──────────────────────────────────────────────────────────
-    section("PROJECT");
-    cmd("init", None, "Initialize .nika/ project", "nika init");
-    cmd("config", None, "Manage configuration", "nika config list");
-    cmd("pkg", Some("p"), "Package management", "nika pkg list");
-    cmd("media", None, "Media store management", "nika media stats");
-    sep();
-
-    // ── System ───────────────────────────────────────────────────────────
-    section("SYSTEM");
-    cmd(
-        "doctor",
-        Some("d"),
-        "System health check",
-        "nika doctor --fix",
-    );
-    #[cfg(unix)]
-    {
-        cmd("daemon", None, "Background daemon", "nika daemon status");
-        cmd("cache", None, "LLM response cache", "nika cache stats");
-        cmd("job", None, "Background jobs", "nika job list");
-    }
-    cmd("setup", None, "API key setup wizard", "nika setup");
-    cmd("features", None, "Compiled feature flags", "nika features");
-    cmd(
-        "completion",
-        None,
-        "Shell completions",
-        "nika completion zsh",
-    );
-    cmd("trace", None, "Execution traces", "nika trace list");
-    sep();
 
     // ── Deep Dive ────────────────────────────────────────────────────────
     section("DEEP DIVE");
@@ -241,6 +219,38 @@ pub fn print_help() {
         "https://github.com/supernovae-st/nika".cyan().underline()
     );
     println!();
+}
+
+/// Render one command line inside a section.
+fn print_cmd_line(sub: &clap::Command) {
+    let name = sub.get_name();
+    let desc = get_short_desc(name)
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| truncate_about(sub));
+    let alias = sub.get_visible_aliases().next();
+    let example = get_example(name);
+    if let Some((icon, color)) = get_icon(name) {
+        verb_cmd(name, alias, icon, color, &desc, example);
+    } else {
+        cmd(name, alias, &desc, example);
+    }
+}
+
+/// Fallback: extract a short description from clap's about text.
+fn truncate_about(sub: &clap::Command) -> String {
+    let raw = sub.get_about().map(|s| s.to_string()).unwrap_or_default();
+    let first = raw.lines().next().unwrap_or("").to_string();
+    // Strip parenthetical or em-dash suffixes common in clap about strings
+    let trimmed = first
+        .split_once(" (")
+        .map(|(a, _)| a.to_string())
+        .or_else(|| first.split_once(" \u{2014} ").map(|(a, _)| a.to_string()))
+        .unwrap_or(first);
+    if trimmed.len() > 32 {
+        format!("{}…", &trimmed[..31])
+    } else {
+        trimmed
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -725,7 +735,9 @@ mod tests {
 
     #[test]
     fn print_help_doesnt_panic() {
-        print_help();
+        // Minimal app — sections will be empty, but banner/static content renders.
+        let app = clap::Command::new("nika-test");
+        print_help(&app);
     }
 
     #[test]
@@ -759,5 +771,36 @@ mod tests {
     fn print_topic_unknown_returns_false() {
         assert!(!print_topic("nonexistent"));
         assert!(!print_topic(""));
+    }
+
+    #[test]
+    fn section_order_has_expected_sections() {
+        assert!(SECTION_ORDER.contains(&"WORKFLOWS"));
+        assert!(SECTION_ORDER.contains(&"5 VERBS"));
+        assert!(SECTION_ORDER.contains(&"SYSTEM"));
+        assert!(!SECTION_ORDER.contains(&"HELP")); // meta — excluded
+    }
+
+    #[test]
+    fn get_short_desc_known_commands() {
+        assert!(get_short_desc("run").is_some());
+        assert!(get_short_desc("infer").is_some());
+        assert!(get_short_desc("schema").is_some());
+    }
+
+    #[test]
+    fn get_example_known_commands() {
+        assert!(!get_example("run").is_empty());
+        assert!(!get_example("infer").is_empty());
+        assert!(get_example("unknown-cmd").is_empty());
+    }
+
+    #[test]
+    fn get_icon_verb_commands() {
+        assert!(get_icon("infer").is_some());
+        assert!(get_icon("fetch").is_some());
+        assert!(get_icon("invoke").is_some());
+        assert!(get_icon("agent").is_some());
+        assert!(get_icon("run").is_none()); // regular command
     }
 }

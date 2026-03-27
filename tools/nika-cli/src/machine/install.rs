@@ -253,10 +253,7 @@ fn resolve_editor_cli(binary: &str) -> Option<std::path::PathBuf> {
     #[cfg(target_os = "macos")]
     {
         let (app_name, cli_rel) = match binary {
-            "code" => (
-                "Visual Studio Code",
-                "Contents/Resources/app/bin/code",
-            ),
+            "code" => ("Visual Studio Code", "Contents/Resources/app/bin/code"),
             "cursor" => ("Cursor", "Contents/Resources/app/bin/cursor"),
             "windsurf" => ("Windsurf", "Contents/Resources/app/bin/windsurf"),
             _ => return None,

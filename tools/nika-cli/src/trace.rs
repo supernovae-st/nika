@@ -44,7 +44,7 @@ pub enum TraceAction {
     },
 }
 
-pub fn handle_trace_command(action: TraceAction) -> Result<(), NikaError> {
+pub fn handle_trace_command(action: TraceAction, _quiet: bool) -> Result<(), NikaError> {
     match action {
         TraceAction::List { limit } => {
             let traces = nika_engine::list_traces()?;

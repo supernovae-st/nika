@@ -64,7 +64,7 @@ pub enum DaemonAction {
     },
 }
 
-pub async fn handle_daemon_command(action: DaemonAction) -> Result<(), NikaError> {
+pub async fn handle_daemon_command(action: DaemonAction, _quiet: bool) -> Result<(), NikaError> {
     match action {
         DaemonAction::Start { foreground } => start_daemon(foreground).await,
         DaemonAction::Stop => stop_daemon().await,

@@ -4,8 +4,8 @@ use clap::Subcommand;
 use colored::Colorize;
 use std::io::IsTerminal;
 
-use nika::display::{hint, status_line, tree_connector, StatusIcon};
-use nika::error::NikaError;
+use nika_engine::display::{hint, status_line, tree_connector, StatusIcon};
+use nika_engine::error::NikaError;
 
 /// Provider management actions
 #[derive(Subcommand)]
@@ -69,7 +69,7 @@ pub fn detect_provider_from_key(key: &str) -> Option<&'static str> {
 }
 
 fn llm_provider_ids() -> Vec<&'static str> {
-    use nika::core::{ProviderCategory, KNOWN_PROVIDERS};
+    use nika_engine::core::{ProviderCategory, KNOWN_PROVIDERS};
     KNOWN_PROVIDERS
         .iter()
         .filter(|p| p.category == ProviderCategory::Llm)
@@ -95,12 +95,9 @@ fn provider_description(id: &str) -> &'static str {
         .unwrap_or("")
 }
 
-pub async fn handle_provider_command(
-    action: ProviderAction,
-    _quiet: bool,
-) -> Result<(), NikaError> {
-    use nika::core::provider_to_env_var;
-    use nika::secrets::{mask_api_key, migrate_env_to_keyring, validate_key_format, NikaKeyring};
+pub async fn handle_provider_command(action: ProviderAction, _quiet: bool) -> Result<(), NikaError> {
+    use nika_engine::core::provider_to_env_var;
+    use nika_engine::secrets::{mask_api_key, migrate_env_to_keyring, validate_key_format, NikaKeyring};
 
     let all_providers = llm_provider_ids();
 
@@ -130,7 +127,7 @@ pub async fn handle_provider_command(
                 format!("0/{total} configured").red().to_string()
             };
             println!("\n  {} ({})", "LLM Providers".bold(), count_color);
-            println!("{}", nika::display::separator(50));
+            println!("{}", nika_engine::display::separator(50));
             println!();
             for (i, provider) in all_providers.iter().enumerate() {
                 let env_var = provider_to_env_var(provider).unwrap_or("UNKNOWN_API_KEY");
@@ -199,7 +196,7 @@ pub async fn handle_provider_command(
                     "Custom Endpoints".bold(),
                     format!("{} configured", config.endpoints.len()).cyan()
                 );
-                println!("{}", nika::display::separator(50));
+                println!("{}", nika_engine::display::separator(50));
                 println!();
                 for (name, ep) in &config.endpoints {
                     let model_info = ep
@@ -455,8 +452,8 @@ pub async fn handle_provider_command(
         ProviderAction::Test { provider, quiet } => {
             if quiet {
                 // Quiet mode: no output, exit code only
-                use nika::core::provider_to_env_var;
-                use nika::secrets::NikaKeyring;
+                use nika_engine::core::provider_to_env_var;
+                use nika_engine::secrets::NikaKeyring;
                 let env_var = provider_to_env_var(&provider).unwrap_or("UNKNOWN_API_KEY");
                 let has_key = NikaKeyring::exists(&provider)
                     || std::env::var(env_var).is_ok_and(|v| !v.is_empty());
@@ -475,8 +472,8 @@ pub async fn handle_provider_command(
 }
 
 async fn test_provider_connection(provider: &str) {
-    use nika::core::provider_to_env_var;
-    use nika::secrets::NikaKeyring;
+    use nika_engine::core::provider_to_env_var;
+    use nika_engine::secrets::NikaKeyring;
     let env_var = provider_to_env_var(provider).unwrap_or("UNKNOWN_API_KEY");
     let has_key =
         NikaKeyring::exists(provider) || std::env::var(env_var).is_ok_and(|v| !v.is_empty());
@@ -507,7 +504,7 @@ async fn test_provider_connection(provider: &str) {
 }
 
 async fn run_provider_test(provider: &str) -> Result<String, String> {
-    use nika::provider::rig::RigProvider;
+    use nika_engine::provider::rig::RigProvider;
     let prov = match provider {
         "anthropic" => RigProvider::claude(),
         "openai" => RigProvider::openai(),

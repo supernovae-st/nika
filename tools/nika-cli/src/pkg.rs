@@ -89,7 +89,7 @@ pub enum PkgAction {
 
 ///
 /// Manages packages (workflows, skills, schemas) stored in ~/.nika/packages/
-pub async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
+pub async fn handle_pkg_command(action: PkgAction, _quiet: bool) -> Result<(), NikaError> {
     use colored::Colorize;
     use nika_engine::registry::{list_installed, load_manifest, load_registry};
 
