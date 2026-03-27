@@ -1530,7 +1530,11 @@ fn test_dismiss_all_notifications() {
 
     state.dismiss_all_notifications();
 
-    assert!(state.notifs.items.iter().all(|n| n.dismissed));
+    assert_eq!(
+        state.notifs.items.len(),
+        0,
+        "dismiss_all must clear all items from the list"
+    );
     assert_eq!(state.active_notification_count(), 0);
 }
 
