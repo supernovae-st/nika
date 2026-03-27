@@ -79,6 +79,7 @@ impl TuiState {
         const CONTEXT_WINDOW: u64 = 100_000;
         let pct = (self.metrics.total_tokens as f64 / CONTEXT_WINDOW as f64) * 100.0;
 
+        // Independent ifs: all crossed thresholds fire when tokens jump multiple levels
         if pct > 95.0 && !self.metrics.notified_95pct {
             self.metrics.notified_95pct = true;
             self.add_notification(Notification::alert(
@@ -90,7 +91,8 @@ impl TuiState {
                 ),
                 timestamp_ms,
             ));
-        } else if pct > 85.0 && !self.metrics.notified_85pct {
+        }
+        if pct > 85.0 && !self.metrics.notified_85pct {
             self.metrics.notified_85pct = true;
             self.add_notification(Notification::alert(
                 format!(
@@ -101,7 +103,8 @@ impl TuiState {
                 ),
                 timestamp_ms,
             ));
-        } else if pct > 70.0 && !self.metrics.notified_70pct {
+        }
+        if pct > 70.0 && !self.metrics.notified_70pct {
             self.metrics.notified_70pct = true;
             self.add_notification(Notification::warning(
                 format!(
@@ -112,7 +115,8 @@ impl TuiState {
                 ),
                 timestamp_ms,
             ));
-        } else if pct > 50.0 && !self.metrics.notified_50pct {
+        }
+        if pct > 50.0 && !self.metrics.notified_50pct {
             self.metrics.notified_50pct = true;
             self.add_notification(Notification::info(
                 format!(
