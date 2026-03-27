@@ -2758,7 +2758,7 @@ async fn resolve_or_discover_workflow(quiet: bool) -> Result<String, NikaError> 
             if !quiet {
                 eprintln!("  {} {}", "Auto-discovered:".dimmed(), workflows[0]);
             }
-            Ok(workflows.into_iter().next().unwrap())
+            Ok(workflows.into_iter().next().expect("len checked == 1"))
         }
         _ => pick_workflow(&workflows),
     }

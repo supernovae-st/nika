@@ -128,7 +128,7 @@ pub async fn run_onboarding_wizard() -> Result<bool, NikaError> {
 
     use nika::core::provider_to_env_var;
     let env_var = provider_to_env_var(&provider).unwrap_or("UNKNOWN_API_KEY");
-    // SAFETY: single-threaded at this point (before async tasks are spawned)
+    // SAFETY: no concurrent tasks reading env vars at this point in the CLI flow
     unsafe { std::env::set_var(env_var, &api_key) };
 
     let do_test: bool = cliclack::confirm("Test connection?")
