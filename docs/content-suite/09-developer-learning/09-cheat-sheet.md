@@ -19,7 +19,6 @@ nika provider set <provider>                # Set active provider
 ### Course Commands
 ```bash
 nika init --course                          # Generate 12-level course (44 exercises)
-nika init --minimal                         # Minimal scaffold (5 workflows)
 nika course status                          # Show progress constellation map
 nika course next                            # Open next exercise
 nika course check [level]                   # Validate exercises for a level
@@ -32,13 +31,12 @@ nika course watch                           # Auto-check on file save
 
 ### Showcase Commands
 ```bash
-nika showcase list                          # Browse 55+ showcase workflows
+nika showcase list                          # Browse 115 showcase workflows
 nika showcase extract <name>                # Extract a showcase to current dir
 ```
 
-### Setup Commands
+### Init Commands
 ```bash
-nika setup                                  # Machine-level IDE integration
 nika init                                   # Interactive project setup wizard
 ```
 
@@ -63,10 +61,9 @@ artifacts:                        # File output configuration
   manifest: true
 
 mcp:                              # MCP server connections
-  servers:
-    name:
-      command: "npx"
-      args: ["-y", "server-pkg"]
+  name:
+    command: "npx"
+    args: ["-y", "server-pkg"]
 
 tasks:                            # The work to do
   - id: unique_task_id
@@ -224,7 +221,7 @@ with:
 "{{with.alias.field}}"              # Nested object field
 "{{with.alias.items[0].name}}"      # Array index + field
 "{{with.alias | transform}}"        # Pipe transform
-"{{with.alias | trim | uppercase}}" # Chained transforms
+"{{with.alias | trim | upper}}" # Chained transforms
 "{{inputs.key}}"                    # Input parameter
 "{{with.item}}"                     # for_each current item
 ```
@@ -378,7 +375,7 @@ export OPENAI_API_KEY="sk-..."
 export MISTRAL_API_KEY="..."
 export GROQ_API_KEY="gsk_..."
 export DEEPSEEK_API_KEY="..."
-export GOOGLE_API_KEY="..."     # Gemini
+export GEMINI_API_KEY="..."     # Gemini
 export XAI_API_KEY="..."        # Grok
 
 # Verify configuration
@@ -393,8 +390,8 @@ provider: auto
 |----------|--------------|
 | `anthropic` | `claude-sonnet-4-6`, `claude-opus-4`, `claude-haiku-3` |
 | `openai` | `gpt-4o`, `gpt-4o-mini`, `o1` |
-| `google` | `gemini-2.0-flash`, `gemini-2.0-pro` |
-| `groq` | `llama-3.3-70b-versatile`, `mixtral-8x7b` |
+| `gemini` | `gemini-2.5-flash` |
+| `groq` | `llama-4-maverick`, `mixtral-8x7b` |
 | `mistral` | `mistral-small-latest`, `mistral-large-latest` |
 | `deepseek` | `deepseek-chat`, `deepseek-reasoner` |
 | `xai` | `grok-2`, `grok-3` |
@@ -532,7 +529,7 @@ tasks:
 | Mistral | `MISTRAL_API_KEY` |
 | Groq | `GROQ_API_KEY` |
 | DeepSeek | `DEEPSEEK_API_KEY` |
-| Google | `GOOGLE_API_KEY` |
+| Google (Gemini) | `GEMINI_API_KEY` |
 | xAI | `XAI_API_KEY` |
 | Cohere | `COHERE_API_KEY` |
 
@@ -569,7 +566,7 @@ nika course hint
 "{{with.alias.data.users[0].name}}"
 
 # Pipe transforms (chain with |)
-"{{with.alias | trim | uppercase | length}}"
+"{{with.alias | trim | upper | length}}"
 
 # Environment variable
 "{{with.env_alias}}"   # where with: { env_alias: $env.VAR }

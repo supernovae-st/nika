@@ -59,12 +59,6 @@ nika init
 
 This creates a `.nika/` directory with configuration files, and optionally generates example workflows.
 
-For a minimal setup with one workflow per verb:
-
-```bash
-nika init --minimal
-```
-
 ### 2. Create your first workflow
 
 Create a file called `hello.nika.yaml`:
@@ -353,7 +347,6 @@ nika provider test openai              # Test provider connection
 
 ```bash
 nika init                              # Interactive wizard
-nika init --minimal                    # Config only, no examples
 nika init --course                     # Generate learning course
 ```
 
@@ -478,28 +471,6 @@ For full diagnostics including MCP server connectivity:
 ```bash
 nika doctor --full
 ```
-
-## The nika setup Command
-
-Configure your development environment for Nika:
-
-```bash
-# Interactive setup (checks everything, suggests fixes)
-nika setup
-
-# Individual setup actions
-nika setup check           # Detect installed editors and AI tools
-nika setup editors         # Install Nika VS Code extension
-nika setup ai              # Install Agent Skills for AI coding tools
-nika setup completions     # Install shell completions
-nika setup git             # Install git co-author hook
-```
-
-The setup command detects:
-- **Editors:** VS Code, Cursor, Windsurf, Zed, Neovim, Sublime Text
-- **AI Tools:** Claude Code, Cursor AI, GitHub Copilot, Roo Code, Windsurf AI, Aider
-- **Shell:** Bash, Zsh, Fish (for completions)
-- **Git:** Existing hooks, co-author configuration
 
 ## Execution Traces
 

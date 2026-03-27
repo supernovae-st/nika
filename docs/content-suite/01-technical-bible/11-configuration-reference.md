@@ -227,7 +227,7 @@ The TUI supports three themes: dark (default), light, and cosmic (SuperNovae bra
 
 ```toml
 [tui]
-startup_view = "studio"    # studio, chat, runner, settings
+startup_view = "studio"    # studio, command, control
 animation = true
 show_line_numbers = true
 word_wrap = true
@@ -331,21 +331,3 @@ nika schema validate file.yaml # Validate against schema
 
 The current and only supported schema version is `nika/workflow@0.12`.
 
----
-
-## Machine Setup
-
-The `nika setup` command configures the machine for Nika development:
-
-```bash
-nika setup                     # Run all setup steps
-nika setup editors             # Configure editor plugins
-nika setup completions         # Install shell completions
-nika setup ai-tools            # Configure AI tool integration
-```
-
-This installs:
-- Shell completions (bash, zsh, fish)
-- VS Code extension configuration
-- Claude Code plugin and skills
-- AGENTS.md for AI agent discovery

@@ -577,11 +577,10 @@ An open protocol for connecting AI models to external tools and data sources. Ni
 
 ```yaml
 mcp:
-  servers:
-    novanet:
-      command: "cargo"
-      args: ["run", "--", "mcp"]
-      cwd: "../novanet"
+  novanet:
+    command: "cargo"
+    args: ["run", "--", "mcp"]
+    cwd: "../novanet"
 
 tasks:
   - id: query
@@ -615,7 +614,7 @@ model: "claude/claude-sonnet-4-6"
 
 tasks:
   - id: fast_task
-    model: "groq/llama-3.3-70b-versatile"
+    model: "groq/llama-4-maverick"
     infer: "Quick response needed"
 ```
 
@@ -717,7 +716,7 @@ The `nika:pipeline` tool chains multiple media operations in memory without writ
 Inline data transformation applied within template expressions using the `|` (pipe) operator. Transforms chain left to right.
 
 ```yaml
-exec: echo "{{with.name | trim | uppercase}}"
+exec: echo "{{with.name | trim | upper}}"
 ```
 
 Full catalog: `upper`, `lower`, `trim`, `trim_start`, `trim_end`, `length`, `first`, `last`, `keys`, `values`, `flatten`, `reverse`, `sort`, `unique`, `compact`, `to_string`, `to_number`, `to_bool`, `to_json`, `parse_json`, `round`, `abs`, `ceil`, `floor`, `type_of`, `shell`, `join(sep)`, `split(sep)`, `default(val)`
@@ -726,9 +725,9 @@ Full catalog: `upper`, `lower`, `trim`, `trim_start`, `trim_end`, `length`, `fir
 
 ### Provider
 
-An LLM service that Nika can connect to for `infer:` and `agent:` tasks. Nika supports 22+ providers. The provider is configured via environment variables (API keys) and selected in the workflow.
+An LLM service that Nika can connect to for `infer:` and `agent:` tasks. Nika supports 8 providers (7 cloud + 1 native). The provider is configured via environment variables (API keys) and selected in the workflow.
 
-Supported providers include: Anthropic (Claude), OpenAI, Mistral, Groq, DeepSeek, Google (Gemini), xAI (Grok), Cohere, and more. The `native` provider runs GGUF models locally.
+Supported providers: Anthropic (Claude), OpenAI, Mistral, Groq, DeepSeek, Gemini, xAI (Grok). The `native` provider runs GGUF models locally.
 
 ```yaml
 provider: anthropic
@@ -822,7 +821,7 @@ exec:
 
 ### Showcase
 
-A collection of 55+ production-ready, runnable workflows bundled with Nika. Organized by category: system, devops, network, API, data, core tools, file tools, media, content, engineering, analysis, automation. Browse with `nika showcase list`, extract with `nika showcase extract <name>`.
+A collection of 115 production-ready, runnable workflows bundled with Nika. Organized by category: system, devops, network, API, data, core tools, file tools, media, content, engineering, analysis, automation. Browse with `nika showcase list`, extract with `nika showcase extract <name>`.
 
 **Related**: Course, Template
 
@@ -869,7 +868,7 @@ infer:
 A string containing `{{...}}` expressions that are resolved at runtime. Templates can reference `with:` aliases, inputs, and apply pipe transforms. Used in prompts, commands, URLs, headers, and parameters.
 
 ```yaml
-exec: echo "Hello {{with.name | uppercase}}, you have {{with.count}} items"
+exec: echo "Hello {{with.name | upper}}, you have {{with.count}} items"
 ```
 
 Syntax: `{{with.alias}}`, `{{with.alias.field}}`, `{{with.alias | transform}}`, `{{inputs.key}}`

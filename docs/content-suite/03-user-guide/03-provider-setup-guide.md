@@ -11,7 +11,7 @@ When a workflow contains `infer:` or `agent:` tasks, Nika needs to know which LL
 3. **CLI override** -- `nika run file.yaml --provider groq`
 4. **Auto-detection** -- Nika checks which API keys are available
 
-If multiple API keys are set, auto-detection follows this priority: Anthropic, OpenAI, Gemini, Mistral, Groq, DeepSeek, xAI.
+If multiple API keys are set, auto-detection follows this priority: Anthropic, OpenAI, Mistral, Groq, DeepSeek, Gemini, xAI.
 
 ## LLM Providers (7)
 
@@ -125,14 +125,14 @@ export GROQ_API_KEY="gsk_..."
 | Aliases | None |
 | Env Var | `GROQ_API_KEY` |
 | Key Prefix | `gsk_` |
-| Models | Llama 3.3 70B, Mixtral 8x7B, Gemma 2 |
+| Models | Llama 4 Maverick, Mixtral 8x7B |
 | Vision | Yes |
 
 Groq is optimized for extremely fast inference. Ideal for latency-sensitive workflows:
 
 ```yaml
 provider: groq
-model: llama-3.3-70b-versatile
+model: llama-4-maverick
 
 tasks:
   - id: quick_classify
@@ -185,7 +185,7 @@ export GEMINI_API_KEY="your-key-here"
 
 ```yaml
 provider: gemini
-model: gemini-2.0-flash
+model: gemini-2.5-flash
 
 tasks:
   - id: multimodal
@@ -366,7 +366,7 @@ provider: anthropic  # Default
 tasks:
   - id: fast_classify
     provider: groq
-    model: llama-3.3-70b-versatile
+    model: llama-4-maverick
     infer:
       prompt: "Classify: {{with.text}}"
       temperature: 0.0
@@ -451,10 +451,10 @@ When no provider is specified (neither in the workflow nor on the command line),
 
 1. `ANTHROPIC_API_KEY` (Anthropic/Claude)
 2. `OPENAI_API_KEY` (OpenAI)
-3. `GEMINI_API_KEY` (Google Gemini)
-4. `MISTRAL_API_KEY` (Mistral)
-5. `GROQ_API_KEY` (Groq)
-6. `DEEPSEEK_API_KEY` (DeepSeek)
+3. `MISTRAL_API_KEY` (Mistral)
+4. `GROQ_API_KEY` (Groq)
+5. `DEEPSEEK_API_KEY` (DeepSeek)
+6. `GEMINI_API_KEY` (Google Gemini)
 7. `XAI_API_KEY` (xAI/Grok)
 
 The first available provider is used. To make this explicit, always set `provider:` in your workflow file.
@@ -527,13 +527,12 @@ model: gpt-4o
 
 | Model | Best For | Context | Speed |
 |-------|----------|---------|-------|
-| `llama-3.3-70b-versatile` | General purpose, fast inference | 128K | Very fast |
+| `llama-4-maverick` | General purpose, fast inference | 128K | Very fast |
 | `mixtral-8x7b-32768` | Multi-task, long context | 32K | Fast |
-| `gemma2-9b-it` | Instruction following | 8K | Very fast |
 
 ```yaml
 provider: groq
-model: llama-3.3-70b-versatile  # Best speed-to-quality ratio
+model: llama-4-maverick  # Best speed-to-quality ratio
 ```
 
 ### Specifying Models in Workflows
