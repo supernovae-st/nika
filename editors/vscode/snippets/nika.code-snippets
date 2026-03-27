@@ -261,5 +261,104 @@
       "    depends_on: [$3]",
       "$0"
     ]
+  },
+  "Artifact Output": {
+    "prefix": ["artifact", "output"],
+    "description": "Artifact block to persist task output to file",
+    "body": [
+      "artifact:",
+      "  path: ${1:output.md}",
+      "  format: ${2|markdown,json,yaml,text,binary|}",
+      "  mode: ${3|overwrite,append,unique,fail|}",
+      "$0"
+    ]
+  },
+  "Resource Limits": {
+    "prefix": ["limits", "budget"],
+    "description": "Resource limits for agent tasks",
+    "body": [
+      "limits:",
+      "  max_cost_usd: ${1:2.0}",
+      "  max_duration_secs: ${2:120}",
+      "$0"
+    ]
+  },
+  "Context Files": {
+    "prefix": ["context", "files"],
+    "description": "Context block to load files into workflow",
+    "body": [
+      "context:",
+      "  files:",
+      "    ${1:readme}: ${2:./README.md}",
+      "$0"
+    ]
+  },
+  "Include Partial": {
+    "prefix": ["include", "partial", "imports"],
+    "description": "Include partial workflows",
+    "body": [
+      "include:",
+      "  - path: ${1:./partials/setup.nika.yaml}",
+      "    prefix: ${2:setup_}",
+      "$0"
+    ]
+  },
+  "Vision Content": {
+    "prefix": ["contentvision", "multimodal", "imagecontent"],
+    "description": "Multimodal content with image and text",
+    "body": [
+      "infer:",
+      "  content:",
+      "    - type: image",
+      "      source: \"${1:\\{\\{with.photo_hash\\}\\}}\"",
+      "      detail: ${2|high,low,auto|}",
+      "    - type: text",
+      "      text: \"${3:Describe this image in detail}\"",
+      "$0"
+    ]
+  },
+  "For-Each Fetch": {
+    "prefix": ["foreachfetch", "scrapeall", "fetchloop"],
+    "description": "Fan-out: fetch multiple URLs in parallel",
+    "body": [
+      "- id: ${1:scrape_all}",
+      "  with:",
+      "    urls: \\$${2:get_urls}",
+      "  for_each: \"\\{\\{with.urls\\}\\}\"",
+      "  as: url",
+      "  concurrency: ${3:5}",
+      "  fetch:",
+      "    url: \"\\{\\{with.url\\}\\}\"",
+      "    extract: ${4|article,markdown,text,metadata,links|}",
+      "$0"
+    ]
+  },
+  "Fan-Out Fan-In": {
+    "prefix": ["fanout", "parallel", "mapreduce"],
+    "description": "Full fan-out/fan-in pipeline: generate → process → synthesize",
+    "body": [
+      "- id: ${1:generate}",
+      "  infer: \"${2:List 5 items about \\{\\{inputs.topic\\}\\}}\"",
+      "  structured:",
+      "    schema:",
+      "      type: object",
+      "      properties:",
+      "        items: { type: array, items: { type: string } }",
+      "",
+      "- id: ${3:process}",
+      "  with:",
+      "    data: \\$$1",
+      "  for_each: \"\\{\\{with.data.items\\}\\}\"",
+      "  as: item",
+      "  concurrency: ${4:3}",
+      "  infer: \"${5:Process: \\{\\{with.item\\}\\}}\"",
+      "",
+      "- id: ${6:synthesize}",
+      "  depends_on: [$3]",
+      "  with:",
+      "    results: \\$$3",
+      "  infer: \"${7:Synthesize: \\{\\{with.results | join('\\\\n')\\}\\}}\"",
+      "$0"
+    ]
   }
 }

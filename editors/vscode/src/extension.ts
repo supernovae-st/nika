@@ -22,6 +22,8 @@ import * as zlib from 'zlib';
 import { IncomingMessage } from 'http';
 
 let client: LanguageClient | undefined;
+let statusBarItem: import('vscode').StatusBarItem | undefined;
+let outputChannel: import('vscode').OutputChannel | undefined;
 
 const GITHUB_RELEASES_API = 'https://api.github.com/repos/supernovae-st/nika/releases/latest';
 const GITHUB_INSTALL_URL = 'https://github.com/supernovae-st/nika#installation';
@@ -471,7 +473,43 @@ function startClient(context: ExtensionContext, overridePath?: string): void {
     clientOptions,
   );
 
-  client.start().catch((err: Error) => {
+  log('INFO', `Starting LSP: ${serverPath} lsp ${extraArgs.join(' ')}`);
+
+  client.start().then(() => {
+    log('INFO', 'Language server started successfully');
+    if (statusBarItem) {
+      statusBarItem.text = '$(zap) Nika: LSP $(check)';
+      statusBarItem.backgroundColor = undefined;
+    }
+
+    // Poll daemon status every 30s
+    const statusInterval = setInterval(async () => {
+      if (!client || !client.isRunning()) {
+        if (statusBarItem) {
+          statusBarItem.text = '$(zap) Nika: LSP $(x)';
+        }
+        return;
+      }
+      try {
+        const status = await client.sendRequest<{ connected: boolean }>('nika/daemonStatus');
+        if (statusBarItem) {
+          statusBarItem.text = status.connected
+            ? '$(zap) Nika: LSP $(check) | Daemon $(check)'
+            : '$(zap) Nika: LSP $(check) | Daemon $(x)';
+          statusBarItem.backgroundColor = undefined;
+        }
+      } catch {
+        if (statusBarItem) {
+          statusBarItem.text = '$(zap) Nika: LSP $(check)';
+        }
+      }
+    }, 30000);
+    context.subscriptions.push({ dispose: () => clearInterval(statusInterval) });
+  }).catch((err: Error) => {
+    log('ERROR', `LSP failed to start: ${err.message}`);
+    if (statusBarItem) {
+      statusBarItem.text = '$(zap) Nika: LSP $(x)';
+    }
     window.showErrorMessage(
       `Failed to start Nika language server: ${err.message}. ` +
       `Make sure 'nika' is installed and in your PATH, or set nika.server.path.`,
@@ -494,7 +532,39 @@ function runNikaCommand(subcmd: string, filePath: string): void {
   terminal.sendText(`${nika} ${subcmd} "${filePath}"`);
 }
 
+function log(level: string, msg: string): void {
+  if (outputChannel) {
+    outputChannel.appendLine(`[${new Date().toISOString()}] [${level}] ${msg}`);
+  }
+}
+
 export function activate(context: ExtensionContext): void {
+  // Output channel for structured logging
+  outputChannel = window.createOutputChannel('Nika Language Server');
+  context.subscriptions.push(outputChannel);
+
+  // Status bar item
+  statusBarItem = window.createStatusBarItem(
+    // @ts-ignore -- StatusBarAlignment.Left is 1
+    1, // vscode.StatusBarAlignment.Left
+    100,
+  );
+  statusBarItem.command = 'nika.showOutput';
+  statusBarItem.text = '$(zap) Nika: Starting...';
+  statusBarItem.tooltip = 'Nika Language Server';
+  statusBarItem.show();
+  context.subscriptions.push(statusBarItem);
+
+  // Command: Show output channel
+  context.subscriptions.push(
+    commands.registerCommand('nika.showOutput', () => {
+      outputChannel?.show();
+    }),
+  );
+
+  log('INFO', `Nika extension v${context.extension.packageJSON.version} activating`);
+  log('INFO', `Platform: ${process.platform}/${process.arch}`);
+
   const configPath = getNikaPath();
   const autoDownload = workspace.getConfiguration('nika').get<boolean>('server.autoDownload', true);
 
