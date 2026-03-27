@@ -106,7 +106,7 @@ pub enum McpAction {
 }
 
 /// Handle MCP server management commands
-pub async fn handle_mcp_command(action: McpAction) -> Result<(), NikaError> {
+pub async fn handle_mcp_command(action: McpAction, _quiet: bool) -> Result<(), NikaError> {
     use colored::Colorize;
     use nika_engine::core::{
         add_server_to_global, add_server_to_project, aliases_by_category, global_config_path,

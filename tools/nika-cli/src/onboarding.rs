@@ -3,8 +3,8 @@
 use colored::Colorize;
 use std::io::IsTerminal;
 
-use nika::display::{hint, StatusIcon};
-use nika::error::NikaError;
+use nika_engine::display::{hint, StatusIcon};
+use nika_engine::error::NikaError;
 
 use super::provider::detect_provider_from_key;
 
@@ -20,7 +20,7 @@ const ONBOARDING_PROVIDERS: &[(&str, &str)] = &[
 ];
 
 pub fn has_any_provider_key() -> bool {
-    use nika::core::{ProviderCategory, KNOWN_PROVIDERS};
+    use nika_engine::core::{ProviderCategory, KNOWN_PROVIDERS};
     KNOWN_PROVIDERS
         .iter()
         .filter(|p| p.category == ProviderCategory::Llm)
@@ -115,18 +115,18 @@ pub async fn run_onboarding_wizard() -> Result<bool, NikaError> {
         }
     }
 
-    use nika::secrets::validate_key_format;
+    use nika_engine::secrets::validate_key_format;
     if let Err(e) = validate_key_format(&provider, &api_key) {
         cliclack::outro(format!("{} Invalid key format: {e}", StatusIcon::Fail)).ok();
         return Ok(false);
     }
 
-    use nika::secrets::NikaKeyring;
+    use nika_engine::secrets::NikaKeyring;
     NikaKeyring::set(&provider, &api_key).map_err(|e| NikaError::ConfigError {
         reason: format!("Failed to store key: {e}"),
     })?;
 
-    use nika::core::provider_to_env_var;
+    use nika_engine::core::provider_to_env_var;
     let env_var = provider_to_env_var(&provider).unwrap_or("UNKNOWN_API_KEY");
     // SAFETY: no concurrent tasks reading env vars at this point in the CLI flow
     unsafe { std::env::set_var(env_var, &api_key) };
@@ -139,7 +139,7 @@ pub async fn run_onboarding_wizard() -> Result<bool, NikaError> {
     if do_test {
         let spinner = cliclack::spinner();
         spinner.start(format!("Testing {provider}..."));
-        use nika::provider::rig::RigProvider;
+        use nika_engine::provider::rig::RigProvider;
         let prov = match provider.as_str() {
             "anthropic" => RigProvider::claude(),
             "openai" => RigProvider::openai(),
@@ -169,7 +169,7 @@ pub async fn run_onboarding_wizard() -> Result<bool, NikaError> {
     Ok(true)
 }
 
-pub async fn handle_setup_command() -> Result<(), NikaError> {
+pub async fn handle_setup_command(_quiet: bool) -> Result<(), NikaError> {
     run_onboarding_wizard().await?;
     Ok(())
 }

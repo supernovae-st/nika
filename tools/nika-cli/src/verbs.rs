@@ -370,7 +370,7 @@ pub async fn handle_fetch(
 
 /// Handle `nika invoke tool` — call builtin nika:* or MCP tool.
 pub async fn handle_invoke(
-    tool: String,
+    tool: Option<String>,
     file: Option<String>,
     params: Option<String>,
     mcp: Option<String>,
@@ -426,6 +426,12 @@ pub async fn handle_invoke(
         println!("  Full details: nika media tools");
         return Ok(());
     }
+
+    let tool = tool.ok_or_else(|| NikaError::ValidationError {
+        reason:
+            "Tool name required. Use: nika invoke nika:dimensions file.jpg\nOr: nika invoke --list"
+                .to_string(),
+    })?;
 
     let is_tty = std::io::stdout().is_terminal();
 

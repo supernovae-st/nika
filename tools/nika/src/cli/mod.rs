@@ -1,9 +1,9 @@
 //! CLI subcommand handlers
 //!
-//! Re-exports from the `nika-cli` crate, plus TUI-dependent handlers
-//! that stay in the binary crate (provider).
+//! Re-exports from the `nika-cli` crate.
+//! The `help` module remains in the binary crate because it uses `Cli::command()`.
 
-// Re-export all non-TUI handlers from nika-cli
+// Re-export all handlers from nika-cli
 #[cfg(unix)]
 pub use nika_cli::cache_cmd;
 pub use nika_cli::config;
@@ -19,18 +19,14 @@ pub use nika_cli::mcp;
 pub use nika_cli::media;
 pub use nika_cli::model_cmd;
 pub use nika_cli::new_cmd;
+pub use nika_cli::onboarding;
 pub use nika_cli::pkg;
+pub use nika_cli::provider;
 pub use nika_cli::schema;
 pub use nika_cli::showcase;
 pub use nika_cli::trace;
 pub use nika_cli::verbs;
 pub use nika_cli::workflow;
 
-// Provider command has no TUI dependency — always available
-pub mod provider;
-
-// Onboarding wizard — first-run API key setup
-pub mod onboarding;
-
-// Custom help system — beautiful grouped CLI help
+// Custom help system — uses Cli::command(), must stay in the binary crate
 pub mod help;

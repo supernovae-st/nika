@@ -31,4 +31,6 @@ pub mod workflow;
 
 pub mod machine;
 pub mod new_cmd;
+pub mod onboarding;
+pub mod provider;
 pub mod verbs;
