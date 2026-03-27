@@ -119,7 +119,7 @@ impl LspHandler for DefaultHandler {
     }
 
     fn hover(&self, text: &str, offset: u32, context: &CursorContext) -> Option<HoverResult> {
-        crate::handlers::hover::hover(text, offset, context)
+        crate::handlers::hover::hover(text, offset, context, None)
     }
 
     fn definition(

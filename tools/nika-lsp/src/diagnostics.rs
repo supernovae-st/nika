@@ -90,7 +90,11 @@ pub fn span_to_range(span: &Span, doc: &DocumentState) -> Range {
 }
 
 /// Validate a document and return diagnostics.
-pub fn validate_document(content: &str, uri: &Uri) -> Vec<Diagnostic> {
+pub fn validate_document(
+    content: &str,
+    uri: &Uri,
+    daemon_providers: Option<&[nika_core::catalogs::ProviderStatusInfo]>,
+) -> Vec<Diagnostic> {
     use nika_engine::ast::analyzer::analyze;
     use nika_engine::ast::raw;
     use nika_engine::source::FileId;
@@ -157,39 +161,56 @@ pub fn validate_document(content: &str, uri: &Uri) -> Vec<Diagnostic> {
                 }
             }
 
-            // Phase 5: Provider API key availability
+            // Phase 5: Provider API key availability (daemon-aware)
             if let Some(ref provider_spanned) = raw_workflow.provider {
                 let provider_str = provider_spanned.value.as_str();
-                let env_var = match provider_str {
-                    "anthropic" => Some("ANTHROPIC_API_KEY"),
-                    "openai" => Some("OPENAI_API_KEY"),
-                    "mistral" => Some("MISTRAL_API_KEY"),
-                    "groq" => Some("GROQ_API_KEY"),
-                    "deepseek" => Some("DEEPSEEK_API_KEY"),
-                    "gemini" => Some("GEMINI_API_KEY"),
-                    "xai" => Some("XAI_API_KEY"),
-                    _ => None, // mock, native, unknown — no key needed
-                };
-                if let Some(var) = env_var {
-                    if std::env::var(var).map(|v| v.is_empty()).unwrap_or(true) {
-                        let range = span_to_range(&provider_spanned.span, &doc);
-                        diagnostics.push(Diagnostic {
-                            range,
-                            severity: Some(DiagnosticSeverity::WARNING),
-                            code: Some(tower_lsp_server::ls_types::NumberOrString::String(
-                                "NIKA-031".to_string(),
-                            )),
-                            code_description: None,
-                            source: Some("nika".to_string()),
-                            message: format!(
-                                "no API key found for provider '{}'. Set {} or run `nika setup`",
-                                provider_str, var
-                            ),
-                            related_information: None,
-                            tags: None,
-                            data: None,
-                        });
+
+                // Check daemon first (covers keychain + env), fallback to env-only check
+                let has_key = if let Some(dp) = daemon_providers {
+                    if let Some(info) = dp.iter().find(|p| p.id == provider_str) {
+                        info.has_key
+                    } else {
+                        // Unknown provider in daemon data — skip warning
+                        true
                     }
+                } else {
+                    // No daemon — env-only check (original behavior)
+                    let env_var = match provider_str {
+                        "anthropic" => Some("ANTHROPIC_API_KEY"),
+                        "openai" => Some("OPENAI_API_KEY"),
+                        "mistral" => Some("MISTRAL_API_KEY"),
+                        "groq" => Some("GROQ_API_KEY"),
+                        "deepseek" => Some("DEEPSEEK_API_KEY"),
+                        "gemini" => Some("GEMINI_API_KEY"),
+                        "xai" => Some("XAI_API_KEY"),
+                        _ => None,
+                    };
+                    match env_var {
+                        Some(var) => !std::env::var(var).map(|v| v.is_empty()).unwrap_or(true),
+                        None => true, // mock, native — no key needed
+                    }
+                };
+
+                if !has_key {
+                    let env_var = nika_core::catalogs::provider_to_env_var(provider_str)
+                        .unwrap_or("API_KEY");
+                    let range = span_to_range(&provider_spanned.span, &doc);
+                    diagnostics.push(Diagnostic {
+                        range,
+                        severity: Some(DiagnosticSeverity::WARNING),
+                        code: Some(tower_lsp_server::ls_types::NumberOrString::String(
+                            "NIKA-031".to_string(),
+                        )),
+                        code_description: None,
+                        source: Some("nika".to_string()),
+                        message: format!(
+                            "no API key found for provider '{}'. Set {} or run `nika provider set {}`",
+                            provider_str, env_var, provider_str
+                        ),
+                        related_information: None,
+                        tags: None,
+                        data: None,
+                    });
                 }
             }
         }
@@ -231,7 +252,7 @@ tasks:
     infer: "Hello"
 "#;
         let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
-        let diagnostics = validate_document(content, &uri);
+        let diagnostics = validate_document(content, &uri, None);
 
         // Should have no errors for valid workflow
         assert!(
@@ -256,7 +277,7 @@ tasks:
     infer: "World"
 "#;
         let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
-        let diagnostics = validate_document(content, &uri);
+        let diagnostics = validate_document(content, &uri, None);
 
         // Should have error for unknown task reference
         assert!(!diagnostics.is_empty());
@@ -273,7 +294,7 @@ tasks:
     infer: "Hello"
 "#;
         let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
-        let diagnostics = validate_document(content, &uri);
+        let diagnostics = validate_document(content, &uri, None);
 
         // Should have error for invalid schema
         assert!(!diagnostics.is_empty());
@@ -287,7 +308,7 @@ provider: mock
 tasks: []
 "#;
         let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
-        let diagnostics = validate_document(content, &uri);
+        let diagnostics = validate_document(content, &uri, None);
         // The analyzer catches empty tasks as NIKA-144 error.
         // Our Phase 4 NIKA-145 warning is a defensive fallback for edge cases
         // where the analyzer returns a value with 0 tasks.
@@ -313,7 +334,7 @@ tasks:
     infer: "test"
 "#;
         let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
-        let diagnostics = validate_document(content, &uri);
+        let diagnostics = validate_document(content, &uri, None);
         // Should not crash regardless of env state
         let _ = diagnostics;
     }
@@ -328,7 +349,7 @@ tasks:
     infer: "test"
 "#;
         let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
-        let diagnostics = validate_document(content, &uri);
+        let diagnostics = validate_document(content, &uri, None);
         // mock provider should NOT trigger a key warning
         assert!(
             !diagnostics.iter().any(|d| d.message.contains("API key")),
@@ -347,7 +368,7 @@ tasks:
     infer: "test"
 "#;
         let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
-        let diagnostics = validate_document(content, &uri);
+        let diagnostics = validate_document(content, &uri, None);
         // native provider should NOT trigger a key warning
         assert!(
             !diagnostics.iter().any(|d| d.message.contains("API key")),
