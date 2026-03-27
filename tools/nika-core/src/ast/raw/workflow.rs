@@ -40,15 +40,15 @@ pub struct RawWorkflow {
     /// Context files configuration
     pub context: Option<Spanned<RawContextConfig>>,
 
-    /// Import external workflows/modules
+    /// Include external workflows/modules
     ///
     /// ```yaml
-    /// imports:
+    /// include:
     ///   - path: ./partials/setup.nika.yaml
     ///     prefix: setup_
     ///   - path: pkg:@nika/core@1.0/seo.nika.yaml
     /// ```
-    pub imports: Option<Spanned<Vec<Spanned<RawImportSpec>>>>,
+    pub include: Option<Spanned<Vec<Spanned<RawIncludeSpec>>>>,
 
     /// Input parameters with defaults
     pub inputs: Option<Spanned<IndexMap<Spanned<String>, Spanned<serde_json::Value>>>>,
@@ -89,20 +89,20 @@ pub struct RawContextConfig {
     pub files: Option<IndexMap<Spanned<String>, Spanned<String>>>,
 }
 
-/// Raw import specification.
+/// Raw include specification.
 ///
-/// Replaces both `include:` (DAG fusion) and `skills:` (prompt injection).
+/// DAG fusion: merge external workflow tasks into this workflow.
 #[derive(Debug, Clone, Default)]
-pub struct RawImportSpec {
-    /// Path to the imported workflow or skill file.
+pub struct RawIncludeSpec {
+    /// Path to the included workflow or skill file.
     /// Supports local paths and `pkg:` URIs.
     pub path: Spanned<String>,
 
     /// Optional task ID prefix for namespace isolation.
-    /// When set, all imported task IDs get this prefix.
+    /// When set, all included task IDs get this prefix.
     pub prefix: Option<Spanned<String>>,
 
-    /// Span of the entire import spec
+    /// Span of the entire include spec
     pub span: Span,
 }
 
@@ -186,14 +186,14 @@ mod tests {
     }
 
     #[test]
-    fn test_raw_import_spec() {
-        let import = RawImportSpec {
+    fn test_raw_include_spec() {
+        let spec = RawIncludeSpec {
             path: Spanned::new("./partials/setup.nika.yaml".to_string(), make_span(0, 25)),
             prefix: Some(Spanned::new("setup_".to_string(), make_span(30, 36))),
             span: make_span(0, 40),
         };
 
-        assert_eq!(import.path.value, "./partials/setup.nika.yaml");
-        assert_eq!(import.prefix.as_ref().unwrap().value, "setup_");
+        assert_eq!(spec.path.value, "./partials/setup.nika.yaml");
+        assert_eq!(spec.prefix.as_ref().unwrap().value, "setup_");
     }
 }

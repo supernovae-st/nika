@@ -15,7 +15,7 @@ use super::action::{ExecParams, FetchParams, InferParams, RetryConfig, TaskActio
 use super::agent::AgentParams;
 use super::analyzed::{
     AnalyzedAgentAction, AnalyzedContextFile, AnalyzedExecAction, AnalyzedFetchAction,
-    AnalyzedForEach, AnalyzedImportSpec, AnalyzedInferAction, AnalyzedInvokeAction,
+    AnalyzedForEach, AnalyzedIncludeSpec, AnalyzedInferAction, AnalyzedInvokeAction,
     AnalyzedMcpServer, AnalyzedOutput, AnalyzedRetry, AnalyzedTask, AnalyzedTaskAction,
     AnalyzedWorkflow, HttpMethod, McpTransport, OutputFormat as AnalyzedOutputFormat, TaskId,
     TaskTable,
@@ -49,7 +49,7 @@ pub fn lower(analyzed: AnalyzedWorkflow) -> Result<Workflow, NikaError> {
         tasks,
         mcp_servers,
         context_files,
-        imports,
+        include,
         inputs,
         artifacts,
         log,
@@ -88,7 +88,7 @@ pub fn lower(analyzed: AnalyzedWorkflow) -> Result<Workflow, NikaError> {
         model,
         mcp,
         context,
-        include: lower_imports(imports),
+        include: lower_include(include),
         agents: agents.map(|m| m.into_iter().collect()),
         skills: None,
         artifacts,
@@ -460,20 +460,20 @@ fn lower_inputs(
 }
 
 // ---------------------------------------------------------------------------
-// Imports → Include
+// Include
 // ---------------------------------------------------------------------------
 
-fn lower_imports(imports: Vec<AnalyzedImportSpec>) -> Option<Vec<IncludeSpec>> {
-    if imports.is_empty() {
+fn lower_include(specs: Vec<AnalyzedIncludeSpec>) -> Option<Vec<IncludeSpec>> {
+    if specs.is_empty() {
         None
     } else {
         Some(
-            imports
+            specs
                 .into_iter()
-                .map(|imp| IncludeSpec {
-                    path: Some(imp.path),
+                .map(|spec| IncludeSpec {
+                    path: Some(spec.path),
                     pkg: None,
-                    prefix: imp.prefix,
+                    prefix: spec.prefix,
                 })
                 .collect(),
         )
@@ -515,7 +515,7 @@ fn task_dep_names(
 /// for call sites that use `expand_includes` (which operates on the old
 /// `Workflow` type) before passing to `Runner` (which expects `AnalyzedWorkflow`).
 ///
-/// Fields that were dropped during lowering (`context_files`, `imports`,
+/// Fields that were dropped during lowering (`context_files`, `include`,
 /// `agents`, `artifacts`, `log`, `name`, `description`) are set to their
 /// defaults since they have already been consumed/expanded.
 pub fn unlower(workflow: Workflow) -> Result<AnalyzedWorkflow, NikaError> {
@@ -641,7 +641,7 @@ pub fn unlower(workflow: Workflow) -> Result<AnalyzedWorkflow, NikaError> {
         tasks: analyzed_tasks,
         mcp_servers,
         context_files,
-        imports: vec![],
+        include: vec![],
         inputs,
         artifacts: workflow.artifacts,
         log: workflow.log,

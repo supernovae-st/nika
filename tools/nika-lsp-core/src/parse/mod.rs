@@ -124,8 +124,8 @@ pub struct PartialWorkflow {
     pub mcp_servers: Vec<PartialField>,
     /// Context file entries found under `context:`.
     pub context_files: Vec<PartialField>,
-    /// Import specs found under `imports:`.
-    pub imports: Vec<PartialField>,
+    /// Include specs found under `include:`.
+    pub includes: Vec<PartialField>,
     /// Input parameter names found under `inputs:`.
     pub input_names: Vec<PartialField>,
     /// Whether the tree has any errors.
@@ -221,7 +221,7 @@ mod tests {
         assert!(pw.tasks.is_empty());
         assert!(pw.mcp_servers.is_empty());
         assert!(pw.context_files.is_empty());
-        assert!(pw.imports.is_empty());
+        assert!(pw.includes.is_empty());
         assert!(pw.input_names.is_empty());
         assert!(!pw.has_errors);
         assert!(pw.error_ranges.is_empty());

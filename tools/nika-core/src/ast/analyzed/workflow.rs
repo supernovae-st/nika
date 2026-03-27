@@ -53,8 +53,8 @@ pub struct AnalyzedWorkflow {
     /// Context file configurations
     pub context_files: Vec<AnalyzedContextFile>,
 
-    /// Import specifications
-    pub imports: Vec<AnalyzedImportSpec>,
+    /// Include specifications
+    pub include: Vec<AnalyzedIncludeSpec>,
 
     /// Input parameters with defaults
     pub inputs: IndexMap<String, serde_json::Value>,
@@ -91,7 +91,7 @@ impl Default for AnalyzedWorkflow {
             tasks: Vec::new(),
             mcp_servers: IndexMap::new(),
             context_files: Vec::new(),
-            imports: Vec::new(),
+            include: Vec::new(),
             inputs: IndexMap::new(),
             artifacts: None,
             log: None,
@@ -215,16 +215,16 @@ pub struct AnalyzedContextFile {
     pub span: Span,
 }
 
-/// Analyzed import specification.
+/// Analyzed include specification.
 #[derive(Debug, Clone)]
-pub struct AnalyzedImportSpec {
-    /// Path to the imported workflow or skill file.
+pub struct AnalyzedIncludeSpec {
+    /// Path to the included workflow or skill file.
     pub path: String,
 
     /// Optional task ID prefix for namespace isolation.
     pub prefix: Option<String>,
 
-    /// Span of the import spec
+    /// Span of the include spec
     pub span: Span,
 }
 

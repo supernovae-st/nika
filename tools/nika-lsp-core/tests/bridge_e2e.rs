@@ -509,7 +509,7 @@ fn broken_empty_file_returns_empty_partial_workflow() {
     assert!(pw.tasks.is_empty());
     assert!(pw.mcp_servers.is_empty());
     assert!(pw.context_files.is_empty());
-    assert!(pw.imports.is_empty());
+    assert!(pw.includes.is_empty());
     assert!(pw.input_names.is_empty());
     assert!(!pw.has_errors, "empty file is valid YAML");
     assert!(pw.error_ranges.is_empty());
@@ -723,14 +723,14 @@ fn broken_deeply_nested_with_tasks_at_root() {
 }
 
 // ===========================================================================
-// 13. Valid workflow with imports
+// 13. Valid workflow with include
 // ===========================================================================
 
 #[test]
-fn valid_workflow_imports_detected() {
+fn valid_workflow_includes_detected() {
     let yaml = "\
 schema: '@0.12'
-imports:
+include:
   - ./common/base.nika.yaml
   - ./common/utils.nika.yaml
   - ./shared/mcp-config.nika.yaml
@@ -742,38 +742,38 @@ tasks:
     let pw = partial(yaml);
 
     assert!(!pw.has_errors);
-    assert_eq!(pw.imports.len(), 3, "expected 3 imports");
+    assert_eq!(pw.includes.len(), 3, "expected 3 includes");
 
-    let import_values: Vec<&str> = pw.imports.iter().map(|i| i.value.as_str()).collect();
-    assert!(import_values.contains(&"./common/base.nika.yaml"));
-    assert!(import_values.contains(&"./common/utils.nika.yaml"));
-    assert!(import_values.contains(&"./shared/mcp-config.nika.yaml"));
+    let include_values: Vec<&str> = pw.includes.iter().map(|i| i.value.as_str()).collect();
+    assert!(include_values.contains(&"./common/base.nika.yaml"));
+    assert!(include_values.contains(&"./common/utils.nika.yaml"));
+    assert!(include_values.contains(&"./shared/mcp-config.nika.yaml"));
 }
 
 #[test]
-fn valid_workflow_imports_single() {
+fn valid_workflow_includes_single() {
     let yaml = "\
-imports:
+include:
   - ./only-one.nika.yaml
 ";
     let pw = partial(yaml);
-    assert_eq!(pw.imports.len(), 1);
-    assert_eq!(pw.imports[0].value, "./only-one.nika.yaml");
+    assert_eq!(pw.includes.len(), 1);
+    assert_eq!(pw.includes[0].value, "./only-one.nika.yaml");
 }
 
 #[test]
-fn valid_workflow_imports_have_spans() {
+fn valid_workflow_includes_have_spans() {
     let yaml = "\
-imports:
+include:
   - ./a.nika.yaml
   - ./b.nika.yaml
 ";
     let pw = partial(yaml);
 
-    for imp in &pw.imports {
+    for inc in &pw.includes {
         assert!(
-            !imp.key_span.is_empty(),
-            "import key_span should be non-empty"
+            !inc.key_span.is_empty(),
+            "include key_span should be non-empty"
         );
     }
 }
@@ -872,7 +872,7 @@ fn comments_only_file_no_tasks_no_panic() {
     assert!(pw.workflow_name.is_none());
     assert!(pw.tasks.is_empty(), "comments should produce no tasks");
     assert!(pw.mcp_servers.is_empty());
-    assert!(pw.imports.is_empty());
+    assert!(pw.includes.is_empty());
     assert!(!pw.has_errors, "comment-only YAML is valid");
 }
 
@@ -951,7 +951,7 @@ fn top_level_keys_tracked_for_known_keys() {
     let yaml = "\
 schema: '@0.12'
 workflow: test
-imports:
+include:
   - ./a.yaml
 inputs:
   name: string
@@ -978,8 +978,8 @@ tasks:
         "missing 'workflow' in top_level_keys"
     );
     assert!(
-        keys.contains(&"imports"),
-        "missing 'imports' in top_level_keys"
+        keys.contains(&"include"),
+        "missing 'include' in top_level_keys"
     );
     assert!(
         keys.contains(&"inputs"),
@@ -1261,7 +1261,7 @@ fn comprehensive_workflow_all_sections() {
     let yaml = "\
 schema: '@0.12'
 workflow: comprehensive-pipeline
-imports:
+include:
   - ./base.nika.yaml
   - ./mcp-config.nika.yaml
 inputs:
@@ -1310,8 +1310,8 @@ tasks:
         "comprehensive-pipeline"
     );
 
-    // Imports
-    assert_eq!(pw.imports.len(), 2);
+    // Includes
+    assert_eq!(pw.includes.len(), 2);
 
     // Inputs
     assert_eq!(pw.input_names.len(), 2);
@@ -1347,7 +1347,7 @@ tasks:
     // Top-level keys
     let keys: Vec<&str> = pw.top_level_keys.iter().map(|k| k.value.as_str()).collect();
     for expected in &[
-        "schema", "workflow", "imports", "inputs", "mcp", "context", "tasks",
+        "schema", "workflow", "include", "inputs", "mcp", "context", "tasks",
     ] {
         assert!(keys.contains(expected), "missing top-level key: {expected}");
     }
@@ -1550,12 +1550,12 @@ mcp:
 }
 
 #[test]
-fn empty_imports_section() {
+fn empty_include_section() {
     let yaml = "\
-imports:
+include:
 ";
     let pw = partial(yaml);
-    assert!(pw.imports.is_empty());
+    assert!(pw.includes.is_empty());
 }
 
 // ===========================================================================

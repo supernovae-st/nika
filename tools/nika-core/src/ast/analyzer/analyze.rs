@@ -5,7 +5,7 @@
 //! 2. Builds task table (interned IDs)
 //! 3. Resolves all task references (`with:` bindings → WithSpec, `depends_on:` → Vec<TaskId>)
 //! 4. Extracts implicit dependencies from WithEntry task references
-//! 5. Resolves `imports:` specifications
+//! 5. Resolves `include:` specifications
 //! 6. Detects cyclic dependencies
 //! 7. Collects all errors with precise spans
 
@@ -15,7 +15,7 @@ use super::errors::{AnalyzeError, AnalyzeErrorKind, AnalyzeResult};
 use super::suggestions::find_similar;
 use crate::ast::analyzed::{
     AnalyzedAgentAction, AnalyzedContextFile, AnalyzedExecAction, AnalyzedFetchAction,
-    AnalyzedForEach, AnalyzedImportSpec, AnalyzedInferAction, AnalyzedInvokeAction,
+    AnalyzedForEach, AnalyzedIncludeSpec, AnalyzedInferAction, AnalyzedInvokeAction,
     AnalyzedMcpServer, AnalyzedOutput, AnalyzedRetry, AnalyzedTask, AnalyzedTaskAction,
     AnalyzedWorkflow, HttpMethod, McpTransport, OutputFormat, TaskId, TaskTable,
 };
@@ -320,14 +320,14 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
         }
     }
 
-    // 5. Analyze imports
-    if let Some(ref imports) = raw.imports {
-        for import_spanned in &imports.value {
-            let import = &import_spanned.value;
-            workflow.imports.push(AnalyzedImportSpec {
-                path: import.path.value.clone(),
-                prefix: import.prefix.as_ref().map(|s| s.value.clone()),
-                span: import_spanned.span,
+    // 5. Analyze include
+    if let Some(ref include) = raw.include {
+        for include_spanned in &include.value {
+            let spec = &include_spanned.value;
+            workflow.include.push(AnalyzedIncludeSpec {
+                path: spec.path.value.clone(),
+                prefix: spec.prefix.as_ref().map(|s| s.value.clone()),
+                span: include_spanned.span,
             });
         }
     }
@@ -496,12 +496,12 @@ fn validate_feature_gates(raw: &RawWorkflow, version: SchemaVersion, ctx: &mut A
         }
     }
 
-    // Check imports
-    if let Some(ref imports) = raw.imports {
-        if !version.supports_imports() {
+    // Check include
+    if let Some(ref include) = raw.include {
+        if !version.supports_includes() {
             ctx.add_error(AnalyzeError::unsupported_feature(
-                imports.span,
-                "imports",
+                include.span,
+                "include",
                 version_str,
                 "nika/workflow@0.12",
             ));
@@ -1144,15 +1144,15 @@ fn analyze_retry(raw: &crate::ast::raw::RawRetryConfig, span: Span) -> AnalyzedR
 /// during analysis — they'll be resolved after `expand_includes()` merges the
 /// included tasks into the DAG.
 fn collect_include_prefixes(raw: &RawWorkflow, ctx: &mut AnalyzerContext) {
-    if let Some(ref imports) = raw.imports {
+    if let Some(ref include) = raw.include {
         let mut seen = HashSet::new();
-        for import in &imports.value {
-            if let Some(ref prefix) = import.value.prefix {
+        for spec in &include.value {
+            if let Some(ref prefix) = spec.value.prefix {
                 if !seen.insert(prefix.value.clone()) {
                     ctx.add_error(AnalyzeError::new(
                         AnalyzeErrorKind::InvalidValue,
                         prefix.span,
-                        format!("duplicate import prefix '{}'", prefix.value),
+                        format!("duplicate include prefix '{}'", prefix.value),
                     ));
                 }
                 ctx.include_prefixes.push(prefix.value.clone());
@@ -1495,7 +1495,7 @@ fn detect_cycles_dfs(
 mod tests {
     use super::*;
     use crate::ast::raw::{
-        RawContextConfig, RawImportSpec, RawMcpConfig, RawMcpServer, RawTask, RawWorkflow,
+        RawContextConfig, RawIncludeSpec, RawMcpConfig, RawMcpServer, RawTask, RawWorkflow,
     };
     use crate::source::{FileId, Spanned};
     use indexmap::IndexMap;
@@ -1864,18 +1864,18 @@ mod tests {
     }
 
     // ====================================================================
-    // imports: analysis
+    // include: analysis
     // ====================================================================
 
     #[test]
-    fn test_analyze_imports() {
-        use crate::ast::raw::RawImportSpec;
+    fn test_analyze_includes() {
+        use crate::ast::raw::RawIncludeSpec;
 
         let mut raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("task1")]);
-        raw.imports = Some(Spanned::new(
+        raw.include = Some(Spanned::new(
             vec![
                 Spanned::new(
-                    RawImportSpec {
+                    RawIncludeSpec {
                         path: Spanned::new(
                             "./partials/setup.nika.yaml".to_string(),
                             make_span(0, 25),
@@ -1886,7 +1886,7 @@ mod tests {
                     make_span(0, 40),
                 ),
                 Spanned::new(
-                    RawImportSpec {
+                    RawIncludeSpec {
                         path: Spanned::new("./tools.nika.yaml".to_string(), make_span(50, 67)),
                         prefix: None,
                         span: make_span(50, 70),
@@ -1901,11 +1901,11 @@ mod tests {
         assert!(result.is_ok());
 
         let workflow = result.value.unwrap();
-        assert_eq!(workflow.imports.len(), 2);
-        assert_eq!(workflow.imports[0].path, "./partials/setup.nika.yaml");
-        assert_eq!(workflow.imports[0].prefix.as_deref(), Some("setup_"));
-        assert_eq!(workflow.imports[1].path, "./tools.nika.yaml");
-        assert!(workflow.imports[1].prefix.is_none());
+        assert_eq!(workflow.include.len(), 2);
+        assert_eq!(workflow.include[0].path, "./partials/setup.nika.yaml");
+        assert_eq!(workflow.include[0].prefix.as_deref(), Some("setup_"));
+        assert_eq!(workflow.include[1].path, "./tools.nika.yaml");
+        assert!(workflow.include[1].prefix.is_none());
     }
 
     // ====================================================================
@@ -2096,13 +2096,13 @@ mod tests {
     }
 
     #[test]
-    fn test_feature_gate_imports_v11_fails() {
-        use crate::ast::raw::RawImportSpec;
+    fn test_feature_gate_include_v11_fails() {
+        use crate::ast::raw::RawIncludeSpec;
 
         let mut raw = make_raw_workflow("nika/workflow@0.11", vec![make_raw_task("task1")]);
-        raw.imports = Some(Spanned::new(
+        raw.include = Some(Spanned::new(
             vec![Spanned::new(
-                RawImportSpec {
+                RawIncludeSpec {
                     path: Spanned::new("./setup.nika.yaml".to_string(), make_span(0, 17)),
                     prefix: None,
                     span: make_span(0, 20),
@@ -2679,15 +2679,15 @@ mod tests {
     }
 
     // ====================================================================
-    // Duplicate import prefix detection
+    // Duplicate include prefix detection
     // ====================================================================
 
     #[test]
-    fn test_analyze_duplicate_import_prefix() {
+    fn test_analyze_duplicate_include_prefix() {
         let mut raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("main")]);
-        let imports = vec![
+        let includes = vec![
             Spanned::new(
-                RawImportSpec {
+                RawIncludeSpec {
                     path: Spanned::new("./lib1.nika.yaml".to_string(), make_span(0, 20)),
                     prefix: Some(Spanned::new("seo_".to_string(), make_span(0, 4))),
                     span: make_span(0, 30),
@@ -2695,7 +2695,7 @@ mod tests {
                 make_span(0, 30),
             ),
             Spanned::new(
-                RawImportSpec {
+                RawIncludeSpec {
                     path: Spanned::new("./lib2.nika.yaml".to_string(), make_span(0, 20)),
                     prefix: Some(Spanned::new("seo_".to_string(), make_span(0, 4))),
                     span: make_span(0, 30),
@@ -2703,29 +2703,29 @@ mod tests {
                 make_span(0, 30),
             ),
         ];
-        raw.imports = Some(Spanned::new(imports, make_span(0, 100)));
+        raw.include = Some(Spanned::new(includes, make_span(0, 100)));
 
         let result = analyze(raw);
         assert!(
             result.is_err(),
-            "duplicate import prefix should be rejected"
+            "duplicate include prefix should be rejected"
         );
         assert!(
             result
                 .errors
                 .iter()
-                .any(|e| e.message.contains("duplicate import prefix")),
+                .any(|e| e.message.contains("duplicate include prefix")),
             "error should mention duplicate prefix: {:?}",
             result.errors
         );
     }
 
     #[test]
-    fn test_analyze_distinct_import_prefixes_ok() {
+    fn test_analyze_distinct_include_prefixes_ok() {
         let mut raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("main")]);
-        let imports = vec![
+        let includes = vec![
             Spanned::new(
-                RawImportSpec {
+                RawIncludeSpec {
                     path: Spanned::new("./lib1.nika.yaml".to_string(), make_span(0, 20)),
                     prefix: Some(Spanned::new("seo_".to_string(), make_span(0, 4))),
                     span: make_span(0, 30),
@@ -2733,7 +2733,7 @@ mod tests {
                 make_span(0, 30),
             ),
             Spanned::new(
-                RawImportSpec {
+                RawIncludeSpec {
                     path: Spanned::new("./lib2.nika.yaml".to_string(), make_span(0, 20)),
                     prefix: Some(Spanned::new("content_".to_string(), make_span(0, 8))),
                     span: make_span(0, 30),
@@ -2741,7 +2741,7 @@ mod tests {
                 make_span(0, 30),
             ),
         ];
-        raw.imports = Some(Spanned::new(imports, make_span(0, 100)));
+        raw.include = Some(Spanned::new(includes, make_span(0, 100)));
 
         let result = analyze(raw);
         assert!(

@@ -67,7 +67,7 @@ pub use task::{
     AnalyzedTaskAction, HttpMethod, OutputFormat,
 };
 pub use workflow::{
-    AnalyzedContextFile, AnalyzedImportSpec, AnalyzedMcpServer, AnalyzedWorkflow, McpTransport,
+    AnalyzedContextFile, AnalyzedIncludeSpec, AnalyzedMcpServer, AnalyzedWorkflow, McpTransport,
     SchemaVersion,
 };
 

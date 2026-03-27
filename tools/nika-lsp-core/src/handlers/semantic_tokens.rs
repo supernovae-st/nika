@@ -42,7 +42,6 @@ const TOP_KEYS: &[&str] = &[
     "context",
     "inputs",
     "include",
-    "imports",
     "edges",
     "skills",
     "agents",

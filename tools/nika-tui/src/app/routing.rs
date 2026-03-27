@@ -42,7 +42,7 @@ use std::path::PathBuf;
 
 use crate::chat_agent::ChatAgent;
 use crate::InputMode;
-// expand_includes removed — using parse_analyzed_with_imports instead
+// expand_includes removed — using parse_analyzed_with_includes instead
 use nika_engine::event::EventLog;
 use nika_engine::provider::rig::StreamChunk;
 use nika_engine::runtime::Runner;
@@ -549,13 +549,13 @@ impl App {
             }
         };
 
-        // 2. Parse with import expansion (raw → expand_imports → analyze)
+        // 2. Parse with include expansion (raw → expand_raw_include → analyze)
         let base_path = path
             .parent()
             .filter(|p| !p.as_os_str().is_empty())
             .unwrap_or(std::path::Path::new("."));
 
-        let workflow = match nika_engine::ast::parse_analyzed_with_imports(
+        let workflow = match nika_engine::ast::parse_analyzed_with_includes(
             &yaml_content,
             base_path,
         ) {

@@ -21,7 +21,7 @@ const KNOWN_TOP_LEVEL_KEYS: &[&str] = &[
     "tasks",
     "mcp",
     "context",
-    "imports",
+    "include",
     "inputs",
     "edges",
     "skills",
@@ -196,9 +196,9 @@ fn process_top_level_pair(text: &str, pair: &Node, result: &mut PartialWorkflow)
                 extract_context_files(text, value, result);
             }
         }
-        "imports" => {
+        "include" => {
             if let Some(ref value) = value_node {
-                extract_imports(text, value, result);
+                extract_includes(text, value, result);
             }
         }
         "inputs" => {
@@ -440,11 +440,11 @@ fn extract_file_entries(text: &str, node: &Node, result: &mut PartialWorkflow) {
 }
 
 // ---------------------------------------------------------------------------
-// imports:
+// include:
 // ---------------------------------------------------------------------------
 
-fn extract_imports(text: &str, node: &Node, result: &mut PartialWorkflow) {
-    collect_scalar_values_into_fields(text, node, &mut result.imports);
+fn extract_includes(text: &str, node: &Node, result: &mut PartialWorkflow) {
+    collect_scalar_values_into_fields(text, node, &mut result.includes);
 }
 
 // ---------------------------------------------------------------------------
@@ -562,7 +562,7 @@ where
     }
 }
 
-/// Collect scalar values as PartialFields (for imports, etc.).
+/// Collect scalar values as PartialFields (for includes, etc.).
 fn collect_scalar_values_into_fields(text: &str, node: &Node, out: &mut Vec<PartialField>) {
     collect_scalar_values_into_fields_inner(text, node, out, 0);
 }
@@ -1053,10 +1053,10 @@ mod tests {
     }
 
     #[test]
-    fn imports_extracted() {
-        let yaml = "imports:\n  - ./common.nika.yaml\n  - ./utils.nika.yaml\n";
+    fn includes_extracted() {
+        let yaml = "include:\n  - ./common.nika.yaml\n  - ./utils.nika.yaml\n";
         let pw = partial(yaml);
-        assert_eq!(pw.imports.len(), 2);
+        assert_eq!(pw.includes.len(), 2);
     }
 
     #[test]
