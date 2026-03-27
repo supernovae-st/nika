@@ -139,6 +139,65 @@ cargo clippy --workspace -- -D warnings  # Zero warnings policy
 - **Logging:** `tracing` macros
 - **Tests:** TDD preferred. `insta` for snapshots. `cargo test --lib` always.
 
+## Custom Endpoints (OpenAI-Compatible)
+
+Nika supports connecting to any OpenAI-compatible inference server (vLLM, TGI, Ollama, LiteLLM, SGLang).
+
+### Configuration (config.toml)
+
+```toml
+# ~/.config/nika/config.toml
+[endpoints.h100]
+base_url = "http://10.0.1.42:8000/v1"
+api_key = "sk-internal-token"
+model = "Qwen/Qwen3-8B"
+timeout_secs = 60
+
+[endpoints.ollama]
+base_url = "http://localhost:11434/v1"
+model = "llama3.2"
+```
+
+### Usage in workflows
+
+```yaml
+schema: "nika/workflow@0.12"
+provider: h100          # Named endpoint from config.toml
+model: Qwen/Qwen3-8B
+
+tasks:
+  - id: generate
+    infer: "Hello from vLLM"
+```
+
+### Inline base_url (one-off)
+
+```yaml
+- id: local
+  provider: openai
+  base_url: "http://localhost:11434/v1"
+  model: llama3.2
+  infer: "Hello from Ollama"
+```
+
+### Environment variable overrides
+
+```bash
+# Override named endpoint URL/key at runtime
+export NIKA_ENDPOINT_H100_URL="http://new-server:8000/v1"
+export NIKA_ENDPOINT_H100_KEY="sk-new-key"
+
+# rig-core native: all provider: openai tasks hit this URL
+export OPENAI_BASE_URL="http://localhost:8000/v1"
+```
+
+### Error codes
+
+| Code | Meaning |
+|------|---------|
+| NIKA-035 | Custom endpoint not found in config |
+| NIKA-036 | Cannot connect to custom endpoint |
+
 ## Vision Support (since v0.34.0)
 
 The `infer:` verb supports multimodal `content:` for sending images to vision-capable LLMs:
