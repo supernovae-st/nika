@@ -50,6 +50,12 @@ pub enum ProviderError {
 
     #[error("[NIKA-033] Invalid configuration: {message}")]
     InvalidConfig { message: String },
+
+    #[error("[NIKA-035] Custom endpoint '{name}' not found in config -- add it to [endpoints.{name}] in ~/.config/nika/config.toml")]
+    EndpointNotFound { name: String },
+
+    #[error("[NIKA-036] Cannot connect to custom endpoint '{endpoint}': {reason}")]
+    EndpointConnectionFailed { endpoint: String, reason: String },
 }
 
 impl From<ProviderError> for NikaError {
@@ -61,6 +67,14 @@ impl From<ProviderError> for NikaError {
             ProviderError::ApiError { message } => NikaError::ProviderApiError { message },
             ProviderError::MissingApiKey { provider } => NikaError::MissingApiKey { provider },
             ProviderError::InvalidConfig { message } => NikaError::InvalidConfig { message },
+            ProviderError::EndpointNotFound { name } => NikaError::ProviderNotConfigured {
+                provider: format!("custom endpoint '{}'", name),
+            },
+            ProviderError::EndpointConnectionFailed { endpoint, reason } => {
+                NikaError::ProviderApiError {
+                    message: format!("Endpoint '{}': {}", endpoint, reason),
+                }
+            }
         }
     }
 }
