@@ -23,12 +23,15 @@ impl Default for NotificationState {
     fn default() -> Self {
         Self {
             items: VecDeque::new(),
-            max_items: 10,
+            max_items: Self::DEFAULT_MAX_ITEMS,
         }
     }
 }
 
 impl NotificationState {
+    /// Maximum notifications to retain before eviction
+    const DEFAULT_MAX_ITEMS: usize = 10;
+
     pub fn new() -> Self {
         Self::default()
     }
