@@ -659,13 +659,35 @@ impl TaskExecutor {
                     };
 
                     let mut engine =
-                        StructuredOutputEngine::new(spec, Arc::new(self.event_log.clone()))
+                        StructuredOutputEngine::new(spec.clone(), Arc::new(self.event_log.clone()))
                             .with_infer_callback(infer_callback)
                             .with_original_prompt(prompt.to_string())
                             .with_provider_context(
                                 provider_name.to_string(),
                                 model.unwrap_or("unknown").to_string(),
                             );
+
+                    // Wire repair_model: use a different (cheaper) model for Layer 4 repair
+                    if let Some(ref repair_model_name) = spec.repair_model {
+                        let repair_model_name = repair_model_name.clone();
+                        let repair_provider = provider.clone();
+                        let repair_callback: crate::runtime::structured_output::InferCallback =
+                            Arc::new(move |repair_prompt: String| {
+                                let p = repair_provider.clone();
+                                let m = repair_model_name.clone();
+                                Box::pin(async move {
+                                    p.infer(&repair_prompt, Some(&m))
+                                        .await
+                                        .map_err(|e| NikaError::ProviderApiError {
+                                            message: format!(
+                                                "structured repair (repair_model) failed: {}",
+                                                e
+                                            ),
+                                        })
+                                })
+                            });
+                        engine = engine.with_repair_callback(repair_callback);
+                    }
 
                     // Validate through defense system (Layers 1-3)
                     let result = engine
