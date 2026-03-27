@@ -78,9 +78,16 @@ impl TaskExecutor {
             result: redact_for_event(&resolved_prompt),
         });
 
-        // Create agent params with resolved prompt
+        // Resolve {{with.alias}} templates in system prompt
+        let resolved_system = match &agent.system {
+            Some(sys) => Some(template_resolve(sys, bindings, datastore)?.into_owned()),
+            None => None,
+        };
+
+        // Create agent params with resolved prompt and system
         let resolved_agent = AgentParams {
             prompt: resolved_prompt,
+            system: resolved_system,
             ..agent.clone()
         };
 
