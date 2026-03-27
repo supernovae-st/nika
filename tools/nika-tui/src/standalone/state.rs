@@ -88,6 +88,13 @@ impl StandaloneState {
         // Sort by path
         self.browser_entries
             .sort_by(|a, b| a.display_name.cmp(&b.display_name));
+
+        // Clamp browser_index after rescan (entries may have shrunk)
+        if self.browser_entries.is_empty() {
+            self.browser_index = 0;
+        } else {
+            self.browser_index = self.browser_index.min(self.browser_entries.len() - 1);
+        }
     }
 
     /// Maximum browser entries to prevent OOM on large directories
