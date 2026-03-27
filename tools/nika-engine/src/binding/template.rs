@@ -1260,11 +1260,42 @@ pub fn resolve_for_shell<'a>(
                 // Auto-parse JSON strings (NIKA-253 fix, same as resolve()).
                 let effective_base =
                     crate::binding::jsonpath::try_parse_json_str(&base_value).unwrap_or(base_value);
-                let mut value_ref: &Value = &effective_base;
+
+                // Collect remaining segments for media interception (same as resolve())
+                let remaining_parts: SmallVec<[&str; 8]> = parts.collect();
+
+                // Media interception: {{with.alias.media[0].hash}}
+                let resolved_value;
+                let segments_to_traverse: SmallVec<[&str; 8]>;
+                if remaining_parts
+                    .first()
+                    .is_some_and(|s| *s == "media")
+                {
+                    if let Some(source_task_id) = bindings.source_task_id(alias) {
+                        let remaining_path = remaining_parts.join(".");
+                        let full_path =
+                            format!("{}.{}", source_task_id, remaining_path);
+                        if let Some(v) = datastore.resolve_path(&full_path) {
+                            resolved_value = v;
+                            segments_to_traverse = SmallVec::new();
+                        } else {
+                            resolved_value = effective_base;
+                            segments_to_traverse = remaining_parts;
+                        }
+                    } else {
+                        resolved_value = effective_base;
+                        segments_to_traverse = remaining_parts;
+                    }
+                } else {
+                    resolved_value = effective_base;
+                    segments_to_traverse = remaining_parts;
+                }
+
+                let mut value_ref: &Value = &resolved_value;
                 let mut traversed_segments: SmallVec<[&str; 8]> = SmallVec::new();
                 traversed_segments.push(alias);
 
-                for segment in parts {
+                for &segment in &segments_to_traverse {
                     let next = if let Ok(idx) = segment.parse::<usize>() {
                         value_ref.get(idx)
                     } else {
