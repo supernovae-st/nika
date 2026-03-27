@@ -55,7 +55,7 @@ tasks:
       results: $check_urls
     exec:
       command: |
-        echo 'Status check complete. Results: {{with.results}}'
+        echo 'Status check complete. {{with.results | length}} URLs checked.'
       shell: true
 "##;
 
@@ -118,7 +118,7 @@ tasks:
       detections: $detect
     exec:
       command: |
-        echo 'Language detection results: {{with.detections}}'
+        echo 'Language detection complete. {{with.detections | length}} texts processed.'
       shell: true
 "##;
 
@@ -192,7 +192,7 @@ tasks:
       results: $analyze
     exec:
       command: |
-        echo 'Sentiment analysis complete for batch. Results: {{with.results}}'
+        echo 'Sentiment analysis complete. {{with.results | length}} reviews analyzed.'
       shell: true
 "##;
 
@@ -418,7 +418,7 @@ tasks:
       feeds: $fetch_feeds
     exec:
       command: |
-        echo 'Aggregated feeds: {{with.feeds}}'
+        echo 'Aggregated {{with.feeds | length}} feeds.'
       shell: true
     artifact:
       path: output/feeds/aggregated.json
@@ -524,6 +524,10 @@ tasks:
     for_each: ["serde", "tokio", "anyhow", "clap", "tracing"]
     as: crate_name
     concurrency: 3
+    retry:
+      max_attempts: 3
+      delay_ms: 1000
+      backoff: 2.0
     fetch:
       url: "https://crates.io/api/v1/crates/{{with.crate_name}}"
       method: GET
@@ -606,7 +610,7 @@ tasks:
       pages: $scrape
     exec:
       command: |
-        echo 'Scraped pages complete. Total items: {{with.pages}}'
+        echo 'Scraping complete. {{with.pages | length}} pages collected.'
       shell: true
 "##;
 
@@ -962,6 +966,9 @@ tasks:
         All analyses: {{with.analyses}}
       temperature: 0.3
       max_tokens: 500
+    artifact:
+      path: output/analysis/executive-summary.json
+      format: json
 "##;
 
 // ═════════════════════════════════════════════════════════════════════════════
