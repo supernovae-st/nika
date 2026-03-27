@@ -8,6 +8,9 @@ use crate::state::notification::Notification;
 use crate::state::types::McpCall;
 use crate::theme::MissionPhase;
 
+/// Default context window size for token threshold notifications
+const CONTEXT_WINDOW_TOKENS: u64 = 100_000;
+
 impl TuiState {
     pub(super) fn on_provider_called(
         &mut self,
@@ -76,8 +79,7 @@ impl TuiState {
         }
 
         // TIER 3.4: Token usage progression with cosmic pirate emojis (fire-once per threshold)
-        const CONTEXT_WINDOW: u64 = 100_000;
-        let pct = (self.metrics.total_tokens as f64 / CONTEXT_WINDOW as f64) * 100.0;
+        let pct = (self.metrics.total_tokens as f64 / CONTEXT_WINDOW_TOKENS as f64) * 100.0;
 
         // Independent ifs: all crossed thresholds fire when tokens jump multiple levels
         if pct > 95.0 && !self.metrics.notified_95pct {
@@ -87,7 +89,7 @@ impl TuiState {
                     "ABANDON SHIP! {:.0}% fuel ({}/{}k)",
                     pct,
                     self.metrics.total_tokens,
-                    CONTEXT_WINDOW / 1000
+                    CONTEXT_WINDOW_TOKENS / 1000
                 ),
                 timestamp_ms,
             ));
@@ -99,7 +101,7 @@ impl TuiState {
                     "Danger zone! {:.0}% fuel ({}/{}k)",
                     pct,
                     self.metrics.total_tokens,
-                    CONTEXT_WINDOW / 1000
+                    CONTEXT_WINDOW_TOKENS / 1000
                 ),
                 timestamp_ms,
             ));
@@ -111,7 +113,7 @@ impl TuiState {
                     "Getting spicy! {:.0}% fuel ({}/{}k)",
                     pct,
                     self.metrics.total_tokens,
-                    CONTEXT_WINDOW / 1000
+                    CONTEXT_WINDOW_TOKENS / 1000
                 ),
                 timestamp_ms,
             ));
@@ -123,7 +125,7 @@ impl TuiState {
                     "Heating up... {:.0}% fuel ({}/{}k)",
                     pct,
                     self.metrics.total_tokens,
-                    CONTEXT_WINDOW / 1000
+                    CONTEXT_WINDOW_TOKENS / 1000
                 ),
                 timestamp_ms,
             ));
