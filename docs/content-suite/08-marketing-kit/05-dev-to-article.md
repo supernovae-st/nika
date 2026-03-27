@@ -171,7 +171,7 @@ tasks:
   - id: research
     infer:
       provider: groq
-      model: llama-3.3-70b-versatile
+      model: llama-4-maverick
       prompt: "List the top 5 trends in {{with.topic}}"
 
   - id: deep_analysis
@@ -314,10 +314,9 @@ The Model Context Protocol (MCP) is becoming the standard for AI tool calling. N
 
 ```yaml
 mcp:
-  servers:
-    novanet:
-      command: cargo
-      args: ["run", "-p", "novanet-mcp"]
+  novanet:
+    command: cargo
+    args: ["run", "-p", "novanet-mcp"]
 
 tasks:
   - id: context
@@ -397,17 +396,17 @@ Web scraping without a headless browser. Data extraction without Beautiful Soup.
 | Metric | Value |
 |--------|-------|
 | Lines of Rust | 451K |
-| Workspace crates | 10 |
+| Workspace crates | 12 |
 | Tests passing | 8,100+ |
 | Clippy warnings | 0 |
 | Unsafe blocks | 0 |
-| LLM providers | 22 |
+| LLM providers | 8 (7 cloud + 1 native) |
 | Built-in media tools | 24 |
 | Error codes | 319 |
 | Event types | 39 |
 | Fetch extract modes | 9 |
 | Course exercises | 44 |
-| Showcase workflows | 200+ |
+| Showcase workflows | 115 |
 | TUI widgets | 42 |
 | MCP aliases | 100+ |
 
@@ -415,7 +414,7 @@ Web scraping without a headless browser. Data extraction without Beautiful Soup.
 
 ## The Terminal UI
 
-We invested 92K lines of Rust (using `ratatui`) into a full terminal UI. This might seem excessive for a workflow engine, but watching your AI pipeline execute in real-time changes how you debug and optimize.
+We invested 86K lines of Rust (using `ratatui`) into a full terminal UI. This might seem excessive for a workflow engine, but watching your AI pipeline execute in real-time changes how you debug and optimize.
 
 The TUI has three views:
 
@@ -461,18 +460,18 @@ The levels follow a "liberation journey" -- each level frees a new capability:
 
 | Level | Name | What You Learn |
 |------:|------|---------------|
-| 1 | Spark | Your first infer: task |
-| 2 | Kindle | Variables and templates |
-| 3 | Signal | The fetch: verb |
-| 4 | Echo | The exec: verb |
-| 5 | Bridge | Multi-task DAGs |
-| 6 | Prism | Structured output |
-| 7 | Current | MCP and invoke: |
-| 8 | Cascade | Parallel execution |
-| 9 | Horizon | Agent loops |
-| 10 | Storm | Multi-model routing |
-| 11 | Aurora | Media pipeline |
-| 12 | Nova | Everything combined |
+| 1 | Jailbreak | Your first infer: task |
+| 2 | Hot Wire | Variables and templates |
+| 3 | Fork Bomb | The fetch: verb |
+| 4 | Root Access | The exec: verb |
+| 5 | Shapeshifter | Multi-task DAGs |
+| 6 | Pay-Per-Dream | Structured output |
+| 7 | Swiss Knife | MCP and invoke: |
+| 8 | Gone Rogue | Parallel execution |
+| 9 | Data Heist | Agent loops |
+| 10 | Open Protocol | Multi-model routing |
+| 11 | Pixel Pirate | Media pipeline |
+| 12 | SuperNovae | Everything combined |
 
 Each level has:
 - **Progressive hints** (3 tiers: nudge, guide, solution)
@@ -499,7 +498,7 @@ We could have written Nika in Python. It would have been faster to develop. It w
 
 ### What surprised us
 
-The TUI is 92K lines of Rust using `ratatui`. Writing a terminal UI in Rust sounds painful, but `ratatui`'s Elm-style architecture (state -> view -> update) is genuinely pleasant. The result is a 60fps terminal application with live DAG visualization, streaming LLM output, and real-time cost tracking.
+The TUI is 86K lines of Rust using `ratatui`. Writing a terminal UI in Rust sounds painful, but `ratatui`'s Elm-style architecture (state -> view -> update) is genuinely pleasant. The result is a 60fps terminal application with live DAG visualization, streaming LLM output, and real-time cost tracking.
 
 ### What was hard
 
@@ -543,9 +542,8 @@ nika run hello.nika.yaml
 ### Explore further
 
 ```bash
-nika init --minimal       # 5 example workflows (one per verb)
 nika init --course        # 44-exercise interactive course
-nika showcase list        # 200+ ready-made workflows
+nika showcase list        # 115 ready-made workflows
 nika ui                   # Terminal UI
 ```
 

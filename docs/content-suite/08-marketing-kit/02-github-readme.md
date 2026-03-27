@@ -19,7 +19,7 @@
 [![Rust](https://img.shields.io/badge/rust-1.86%2B-orange.svg)](https://www.rust-lang.org)
 [![Schema](https://img.shields.io/badge/schema-nika%2Fworkflow%400.12-purple.svg)]()
 
-5 verbs. 22 providers. 24 media tools. One YAML file.
+5 verbs. 8 providers (7 cloud + 1 native). 24 media tools. One YAML file.
 
 [Quick Start](#quick-start) | [The 5 Verbs](#the-5-verbs) | [Install](#installation) | [Course](#learn-with-the-built-in-course) | [Docs](#documentation)
 
@@ -140,7 +140,7 @@ tasks:
   - id: research
     infer:
       provider: groq
-      model: llama-3.3-70b-versatile
+      model: llama-4-maverick
       prompt: "List the top 5 trends in AI infrastructure in 2026"
 
   - id: deep_analysis
@@ -290,20 +290,22 @@ Agents run multi-turn tool-calling loops with guardrails, cost limits, and confi
                 +---------------+
 ```
 
-### Workspace Crates (10)
+### Workspace Crates (12)
 
 | Crate | Lines | Role |
 |-------|------:|------|
 | `nika` | 2K | CLI entry point |
 | `nika-engine` | 134K | Execution engine (embeddable) |
-| `nika-tui` | 92K | Terminal UI (ratatui) |
+| `nika-tui` | 86K | Terminal UI (ratatui) |
 | `nika-core` | 23K | AST, types, catalogs (zero I/O) |
 | `nika-cli` | 8K | CLI subcommands |
 | `nika-mcp` | 9K | MCP client (rmcp) |
 | `nika-lsp-core` | 9K | LSP intelligence |
 | `nika-event` | 4K | Event log, trace writer |
-| `nika-media` | 3.5K | CAS store, media processor |
+| `nika-media` | 13K | CAS store, media processor |
 | `nika-lsp` | 2.5K | LSP binary |
+| `nika-init` | 21K | Project scaffolding |
+| `nika-daemon` | 5K | Background daemon |
 
 ### Brain + Body: Nika + NovaNet
 
@@ -312,7 +314,7 @@ NovaNet (Brain)              MCP Protocol              Nika (Body)
 +-- Knowledge Graph    <=========================>     +-- YAML Workflows
 +-- NodeClasses                                        +-- 5 Verbs
 +-- ArcClasses                                         +-- DAG Execution
-+-- MCP Tools                                          +-- 22 Providers
++-- MCP Tools                                          +-- 8 Providers (7 cloud + 1 native)
 ```
 
 Nika connects to NovaNet (a Neo4j-backed knowledge graph) exclusively via MCP. Zero Cypher in Nika -- all graph operations go through `invoke:` with NovaNet MCP tools.
@@ -375,18 +377,18 @@ nika init --course
 
 | Level | Name | What You Learn |
 |------:|------|---------------|
-| 1 | Spark | First workflow, basic infer |
-| 2 | Kindle | Variables, bindings, templates |
-| 3 | Signal | Fetch verb, HTTP requests |
-| 4 | Echo | Exec verb, shell commands |
-| 5 | Bridge | Multi-task workflows, DAG basics |
-| 6 | Prism | Structured output, JSON Schema |
-| 7 | Current | MCP and invoke verb |
-| 8 | Cascade | Complex DAG patterns, parallelism |
-| 9 | Horizon | Agent verb, tool calling |
-| 10 | Storm | Multi-model, cost optimization |
-| 11 | Aurora | Media pipeline, vision |
-| 12 | Nova | Full orchestration, everything combined |
+| 1 | Jailbreak | First workflow, basic infer |
+| 2 | Hot Wire | Variables, bindings, templates |
+| 3 | Fork Bomb | Fetch verb, HTTP requests |
+| 4 | Root Access | Exec verb, shell commands |
+| 5 | Shapeshifter | Multi-task workflows, DAG basics |
+| 6 | Pay-Per-Dream | Structured output, JSON Schema |
+| 7 | Swiss Knife | MCP and invoke verb |
+| 8 | Gone Rogue | Complex DAG patterns, parallelism |
+| 9 | Data Heist | Agent verb, tool calling |
+| 10 | Open Protocol | Multi-model, cost optimization |
+| 11 | Pixel Pirate | Media pipeline, vision |
+| 12 | SuperNovae | Full orchestration, everything combined |
 
 ### Course Commands
 
@@ -404,7 +406,7 @@ nika course watch           # Auto-check on file save
 
 ## Showcase Workflows
 
-200+ ready-to-use workflows covering real-world scenarios:
+115 ready-to-use workflows covering real-world scenarios:
 
 ```bash
 nika showcase list                    # Browse all workflows
@@ -456,7 +458,7 @@ nika showcase extract summarizer      # Extract to current dir
 |---------|:----:|:---------:|:----:|:---:|:--------:|
 | Language | Rust | Python | Python/TS | TypeScript | Go |
 | Paradigm | Declarative YAML | Imperative SDK | Visual Builder | Visual + Code | Code SDK |
-| LLM Providers | 22 | 50+ | 15+ | 10+ | N/A |
+| LLM Providers | 8 (7 cloud + 1 native) | 50+ | 15+ | 10+ | N/A |
 | Learning Curve | 5 verbs | SDK + Python | Low (visual) | Low (visual) | High |
 | Performance | Native binary | Python runtime | Docker stack | Node.js | Go binary |
 | AI-Specific | Purpose-built | Purpose-built | Purpose-built | General | General |
@@ -484,7 +486,6 @@ nika provider list                # Show configured providers
 
 # Course system
 nika init --course                # Generate learning course
-nika init --minimal               # Minimal scaffold (5 workflows)
 nika course status                # Progress map
 nika course next                  # Next exercise
 nika course check [level]         # Validate exercises
@@ -492,11 +493,9 @@ nika course hint [exercise]       # Progressive hints
 nika course watch                 # Auto-check on save
 
 # Showcase
-nika showcase list                # Browse 200+ workflows
+nika showcase list                # Browse 115 workflows
 nika showcase extract <name>      # Extract workflow
 
-# Setup
-nika setup                        # IDE integration
 ```
 
 ---
@@ -553,7 +552,7 @@ tasks:
 **Key concepts:**
 - `$task_id` references another task's output
 - `{{with.alias}}` templates are resolved at runtime
-- Pipe transforms: `{{with.data | uppercase | trim}}` for inline processing
+- Pipe transforms: `{{with.data | upper | trim}}` for inline processing
 - `context:` block for static file content: `{{context.files.config}}`
 - `inputs:` for runtime parameters: `{{inputs.locale}}`
 - Dependencies are automatic -- no `depends_on:` needed when using `with:`
