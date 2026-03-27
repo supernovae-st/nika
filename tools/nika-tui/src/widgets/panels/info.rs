@@ -43,6 +43,8 @@ pub struct InfoPanel {
     scroll_offset: u16,
     /// Selected task ID
     selected_task_id: Option<String>,
+    /// Cached line count from last render (for scroll upper bound)
+    rendered_line_count: u16,
 }
 
 impl InfoPanel {
@@ -51,6 +53,7 @@ impl InfoPanel {
         Self {
             scroll_offset: 0,
             selected_task_id: None,
+            rendered_line_count: 0,
         }
     }
 
@@ -122,7 +125,13 @@ impl InfoPanel {
     }
 
     /// Render task details
-    fn render_task_details(&self, frame: &mut Frame, area: Rect, task: &TaskState, theme: &Theme) {
+    fn render_task_details(
+        &mut self,
+        frame: &mut Frame,
+        area: Rect,
+        task: &TaskState,
+        theme: &Theme,
+    ) {
         let mut lines: Vec<Line> = Vec::new();
 
         // Header section
@@ -286,6 +295,7 @@ impl InfoPanel {
         }
 
         let text = Text::from(lines);
+        self.rendered_line_count = text.lines.len() as u16;
         let paragraph = Paragraph::new(text)
             .scroll((self.scroll_offset, 0))
             .wrap(Wrap { trim: true });
@@ -295,13 +305,14 @@ impl InfoPanel {
 
     /// Handle keyboard input
     pub fn handle_key(&mut self, key: KeyEvent) -> bool {
+        let max_scroll = self.rendered_line_count.saturating_sub(5);
         match key.code {
             KeyCode::Up | KeyCode::Char('k') => {
                 self.scroll_offset = self.scroll_offset.saturating_sub(1);
                 true
             }
             KeyCode::Down | KeyCode::Char('j') => {
-                self.scroll_offset = self.scroll_offset.saturating_add(1);
+                self.scroll_offset = (self.scroll_offset + 1).min(max_scroll);
                 true
             }
             KeyCode::PageUp => {
@@ -309,11 +320,15 @@ impl InfoPanel {
                 true
             }
             KeyCode::PageDown => {
-                self.scroll_offset = self.scroll_offset.saturating_add(10);
+                self.scroll_offset = (self.scroll_offset + 10).min(max_scroll);
                 true
             }
             KeyCode::Home | KeyCode::Char('g') => {
                 self.scroll_offset = 0;
+                true
+            }
+            KeyCode::End | KeyCode::Char('G') => {
+                self.scroll_offset = max_scroll;
                 true
             }
             _ => false,
@@ -402,6 +417,7 @@ mod tests {
     #[test]
     fn test_scroll_navigation() {
         let mut panel = InfoPanel::new();
+        panel.rendered_line_count = 50; // simulate having content
 
         let key = KeyEvent::new(KeyCode::Down, crossterm::event::KeyModifiers::NONE);
         panel.handle_key(key);
@@ -414,5 +430,40 @@ mod tests {
         // Can't go negative
         panel.handle_key(key);
         assert_eq!(panel.scroll_offset, 0);
+    }
+
+    #[test]
+    fn test_scroll_upper_bound() {
+        let mut panel = InfoPanel::new();
+        panel.rendered_line_count = 10;
+        // max_scroll = 10 - 5 = 5
+
+        // Down past upper bound should cap at max_scroll
+        for _ in 0..20 {
+            panel.handle_key(KeyEvent::new(KeyCode::Down, crossterm::event::KeyModifiers::NONE));
+        }
+        assert_eq!(panel.scroll_offset, 5, "scroll must not exceed max_scroll");
+    }
+
+    #[test]
+    fn test_scroll_end_and_home() {
+        let mut panel = InfoPanel::new();
+        panel.rendered_line_count = 20;
+        // max_scroll = 20 - 5 = 15
+
+        // End/G jumps to bottom
+        panel.handle_key(KeyEvent::new(KeyCode::End, crossterm::event::KeyModifiers::NONE));
+        assert_eq!(panel.scroll_offset, 15);
+
+        // Home/g jumps to top
+        panel.handle_key(KeyEvent::new(KeyCode::Home, crossterm::event::KeyModifiers::NONE));
+        assert_eq!(panel.scroll_offset, 0);
+
+        // 'G' also jumps to bottom
+        panel.handle_key(KeyEvent::new(
+            KeyCode::Char('G'),
+            crossterm::event::KeyModifiers::NONE,
+        ));
+        assert_eq!(panel.scroll_offset, 15);
     }
 }
