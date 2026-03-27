@@ -261,6 +261,22 @@ impl TaskExecutor {
             .write()
             .adjust_reservation(estimated_tokens, result.total_tokens as u64);
 
+        // Log routing status for observability
+        if result.status.is_flagged() {
+            tracing::warn!(
+                task_id = %task_id,
+                confidence = ?result.status.confidence(),
+                "Agent completed with FlaggedForReview — output accepted but flagged for human review"
+            );
+        }
+        if result.status.is_escalated() {
+            tracing::warn!(
+                task_id = %task_id,
+                confidence = ?result.status.confidence(),
+                "Agent escalated — confidence too low, result may be unreliable"
+            );
+        }
+
         // EMIT: AgentComplete event
         self.event_log.emit(EventKind::AgentComplete {
             task_id: Arc::clone(task_id),

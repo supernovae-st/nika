@@ -296,9 +296,15 @@ impl StructuredOutputEngine {
         // Load schema for validation (Arc clone is cheap)
         let schema = self.load_schema().await?;
 
-        // Layer 1: rig Extractor (skip for now - requires compile-time types)
-        // In future: use rig's Extractor with schemars-derived types
-        // For now, we rely on Layers 2-4 which work with runtime schemas
+        // Layer 1: rig Extractor (not yet implemented — requires compile-time types)
+        // Log a warning if explicitly enabled so users know it's not active
+        if self.spec.enable_extractor == Some(true) {
+            tracing::warn!(
+                task = %task_id,
+                "structured: enable_extractor is not yet implemented (requires compile-time schema types). \
+                 Falling through to Layer 2 (runtime JSON validation)."
+            );
+        }
 
         // Layer 2: Extract + Validate
         // Extract JSON from the raw output and validate against the schema.
