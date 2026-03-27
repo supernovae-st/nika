@@ -410,8 +410,25 @@ async fn test_provider_connection(provider: &str) {
         println!("{}", hint(&format!("nika provider set {provider}")));
         return;
     }
-    let spinner = cliclack::spinner();
-    spinner.start(format!("Testing {provider}..."));
+    let use_spinner = std::io::stderr().is_terminal();
+    if use_spinner {
+        let spinner = cliclack::spinner();
+        spinner.start(format!("Testing {provider}..."));
+        let result = run_provider_test(provider).await;
+        match result {
+            Ok(msg) => spinner.stop(format!("{} {msg}", StatusIcon::Ok)),
+            Err(msg) => spinner.stop(format!("{} {msg}", StatusIcon::Fail)),
+        }
+    } else {
+        eprintln!("Testing {provider}...");
+        match run_provider_test(provider).await {
+            Ok(msg) => eprintln!("  {} {msg}", StatusIcon::Ok),
+            Err(msg) => eprintln!("  {} {msg}", StatusIcon::Fail),
+        }
+    }
+}
+
+async fn run_provider_test(provider: &str) -> Result<String, String> {
     use nika::provider::rig::RigProvider;
     let prov = match provider {
         "anthropic" => RigProvider::claude(),
@@ -428,21 +445,17 @@ async fn test_provider_connection(provider: &str) {
             }
             #[cfg(not(feature = "native-inference"))]
             {
-                spinner.stop("Native inference not available");
-                return;
+                return Err("Native inference not available".into());
             }
         }
-        _ => {
-            spinner.stop(format!("Unknown provider: {provider}"));
-            return;
-        }
+        _ => return Err(format!("Unknown provider: {provider}")),
     };
     match prov.infer("Say 'OK' if you can hear me.", None).await {
         Ok(response) => {
             let truncated: String = response.chars().take(80).collect();
-            spinner.stop(format!("{} Connection OK — {truncated}", "✓".green()));
+            Ok(format!("Connection OK — {truncated}"))
         }
-        Err(e) => spinner.stop(format!("{} Connection failed: {e}", "✗".red())),
+        Err(e) => Err(format!("Connection failed: {e}")),
     }
 }
 
