@@ -2,24 +2,26 @@
 
 ## Workspace Structure
 
-Nika is organized as a Cargo workspace with 10 crates under `tools/`. Each crate has a well-defined responsibility and dependency boundary.
+Nika is organized as a Cargo workspace with 12 crates under `tools/`. Each crate has a well-defined responsibility and dependency boundary.
 
 ```
 tools/
 ├── Cargo.toml          # Workspace root (resolver = "2")
 ├── nika/               # Binary crate -- CLI entry point (2K lines)
-├── nika-engine/        # Execution engine -- embeddable runtime (134K lines)
+├── nika-engine/        # Execution engine -- embeddable runtime (135K lines)
 ├── nika-core/          # AST, types, catalogs -- zero I/O (23K lines)
 ├── nika-event/         # EventLog, TraceWriter (4K lines)
 ├── nika-mcp/           # MCP client, rmcp 0.16 (9K lines)
-├── nika-media/         # CAS store, processor (3.5K lines)
-├── nika-tui/           # Terminal UI -- ratatui (92K lines)
+├── nika-media/         # CAS store, processor (13K lines)
+├── nika-tui/           # Terminal UI -- ratatui (86K lines)
 ├── nika-lsp-core/      # LSP intelligence (9K lines)
 ├── nika-lsp/           # LSP binary (2.5K lines)
-└── nika-cli/           # CLI subcommands (8K lines)
+├── nika-cli/           # CLI subcommands (8K lines)
+├── nika-init/          # Project scaffolding -- init wizard + course (21K lines)
+└── nika-daemon/        # Background daemon -- secrets, jobs, watch, cache (5K lines)
 ```
 
-All crates share version `0.42.0`, edition 2021, AGPL-3.0-or-later license, and minimum Rust version 1.86.
+All crates share version `0.49.0`, edition 2021, AGPL-3.0-or-later license, and minimum Rust version 1.86.
 
 ---
 
@@ -37,6 +39,8 @@ graph TD
     MEDIA[nika-media<br/>CAS Store]
     LSP_CORE[nika-lsp-core<br/>LSP Intelligence]
     LSP[nika-lsp<br/>LSP Binary]
+    INIT[nika-init<br/>Scaffolding]
+    DAEMON[nika-daemon<br/>Background Daemon]
 
     NIKA --> ENGINE
     NIKA --> CLI
@@ -44,6 +48,7 @@ graph TD
     NIKA --> LSP_CORE
 
     CLI --> ENGINE
+    CLI --> INIT
     TUI --> ENGINE
     TUI --> LSP_CORE
 
@@ -55,6 +60,8 @@ graph TD
     LSP --> ENGINE
     LSP --> LSP_CORE
     LSP_CORE --> CORE
+
+    DAEMON --> ENGINE
 ```
 
 ### Key Dependency Rules
@@ -126,7 +133,7 @@ src/
 ├── init/                # nika init
 │   ├── course/          # 12-level course (44 exercises)
 │   ├── minimal.rs       # 5 starter workflows
-│   └── showcase_*.rs    # 200+ showcase workflows
+│   └── showcase_*.rs    # 115 showcase workflows
 ├── tools/               # File tools (read, write, edit, glob, grep)
 ├── media/               # Media pipeline bridge
 ├── mcp/                 # MCP bridge (re-exports from nika-mcp)
@@ -175,7 +182,7 @@ MCP client implementation (9K lines) using rmcp 0.16:
 
 ### nika-media (CAS Store)
 
-Content-addressable storage (3.5K lines):
+Content-addressable storage (13K lines):
 
 - **CasStore**: blake3-hashed storage at `.nika/media/store/`. Files are stored by hash, enabling deduplication and integrity verification.
 - **MediaProcessor**: Extracts and processes media from MCP responses. Handles binary content blocks.
@@ -185,7 +192,7 @@ Content-addressable storage (3.5K lines):
 
 ### nika-tui (Terminal UI)
 
-Ratatui-based TUI (92K lines) with a 3-view architecture:
+Ratatui-based TUI (86K lines) with a 3-view architecture:
 
 ```
 +------------------------------------------------------------------+
@@ -359,7 +366,7 @@ Nika uses Cargo feature flags for modular compilation. The default feature set i
 | `dashmap` | 6.1 | Concurrent hashmap |
 | `serde` | 1.0 | Serialization framework |
 | `blake3` | 1.8 | Content-addressable hashing |
-| `reqwest` | 0.12 | HTTP client (rustls-tls) |
+| `reqwest` | 0.13 | HTTP client (rustls-tls) |
 | `clap` | 4.6 | CLI argument parsing |
 | `miette` | 7.6 | Fancy terminal error display |
 | `tracing` | 0.1 | Structured logging |

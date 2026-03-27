@@ -65,7 +65,7 @@ Keys are resolved in priority order:
 
 1. **Environment variables** (highest priority): `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, etc.
 2. **System keychain** (feature: `native-keychain`): OS-native credential storage (macOS Keychain, Windows Credential Manager, Linux Secret Service)
-3. **Nika daemon** (feature: `nika-daemon`): Unified secret management via IPC
+3. **Nika daemon** (via nika-daemon crate): Unified secret management via IPC
 4. **Config file** (lowest priority): `~/.config/nika/config.toml`
 
 ### Key Validation

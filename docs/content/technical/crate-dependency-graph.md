@@ -1,10 +1,10 @@
 # 01 — Crate Dependency Graph
 
-> How Nika's 10 crates relate to each other, what each one owns, and why the boundaries exist.
+> How Nika's 12 crates relate to each other, what each one owns, and why the boundaries exist.
 
 ## Workspace Overview
 
-Nika is organized as a Cargo workspace containing 10 crates at `tools/`. Every crate shares version `0.42.0`, edition 2021, and the AGPL-3.0-or-later license. The workspace uses the resolver v2 setting for correct feature unification.
+Nika is organized as a Cargo workspace containing 12 crates at `tools/`. Every crate shares version `0.49.0`, edition 2021, and the AGPL-3.0-or-later license. The workspace uses the resolver v2 setting for correct feature unification.
 
 ```
 tools/
@@ -18,7 +18,9 @@ tools/
 ├── nika-cli/           # CLI subcommands — non-TUI command handlers
 ├── nika-tui/           # Terminal UI — ratatui 3-view architecture
 ├── nika-lsp-core/      # LSP intelligence — protocol-agnostic handlers
-└── nika-lsp/           # LSP binary — Language Server Protocol server
+├── nika-lsp/           # LSP binary — Language Server Protocol server
+├── nika-init/          # Project scaffolding — init wizard + course (~21k lines)
+└── nika-daemon/        # Background daemon — secrets, jobs, watch, cache (~5k lines)
 ```
 
 ## Dependency Graph
@@ -26,15 +28,17 @@ tools/
 ```mermaid
 graph TD
     NIKA["nika<br/><i>Binary (2k lines)</i>"]
-    ENGINE["nika-engine<br/><i>Execution Engine (134k)</i>"]
+    ENGINE["nika-engine<br/><i>Execution Engine (135k)</i>"]
     CORE["nika-core<br/><i>AST + Types (23k)</i>"]
     EVENT["nika-event<br/><i>EventLog (4k)</i>"]
     MCP["nika-mcp<br/><i>MCP Client (9k)</i>"]
-    MEDIA["nika-media<br/><i>CAS Store (3.5k)</i>"]
+    MEDIA["nika-media<br/><i>CAS Store (13k)</i>"]
     CLI["nika-cli<br/><i>CLI Commands (8k)</i>"]
-    TUI["nika-tui<br/><i>Terminal UI (92k)</i>"]
+    TUI["nika-tui<br/><i>Terminal UI (86k)</i>"]
     LSP_CORE["nika-lsp-core<br/><i>LSP Intelligence (9k)</i>"]
     LSP["nika-lsp<br/><i>LSP Binary (2.5k)</i>"]
+    INIT["nika-init<br/><i>Project Scaffolding (21k)</i>"]
+    DAEMON["nika-daemon<br/><i>Background Daemon (5k)</i>"]
 
     NIKA --> ENGINE
     NIKA --> CLI
@@ -48,6 +52,7 @@ graph TD
     ENGINE -.->|optional| LSP_CORE
 
     CLI --> ENGINE
+    CLI --> INIT
 
     TUI --> ENGINE
     TUI --> LSP_CORE
@@ -61,6 +66,8 @@ graph TD
 
     MEDIA --> MCP
 
+    DAEMON --> ENGINE
+
     classDef foundation fill:#1a365d,stroke:#2b6cb0,color:#fff
     classDef infra fill:#2d3748,stroke:#4a5568,color:#fff
     classDef app fill:#2c5282,stroke:#3182ce,color:#fff
@@ -68,7 +75,7 @@ graph TD
 
     class CORE foundation
     class EVENT,MCP,MEDIA infra
-    class ENGINE,CLI app
+    class ENGINE,CLI,INIT,DAEMON app
     class NIKA,TUI,LSP,LSP_CORE ui
 ```
 
@@ -149,7 +156,7 @@ The pool design uses `DashMap<String, OnceCell<Arc<McpClient>>>` for per-server 
 
 ### nika-media (Infrastructure Layer)
 
-**Role**: Content-addressable storage (CAS) with blake3 hashing and media type detection.
+**Role**: Content-addressable storage (CAS) with blake3 hashing and media type detection (~13k lines).
 
 **Depends on**: `nika-mcp`, `blake3`, `bytes`, `tokio`, `imagesize`, `thumbhash`.
 
@@ -199,7 +206,7 @@ This crate was split from the main binary to keep TUI-independent commands separ
 
 **Depended on by**: `nika` (binary, feature-gated).
 
-This is the second-largest crate (92k lines). It implements three views:
+This is the second-largest crate (86k lines). It implements three views:
 1. **Studio** — 3-panel layout: File Browser | YAML Editor | DAG Preview
 2. **Command** — Execution monitoring + Chat conversation
 3. **Control** — Provider config, theme, preferences
@@ -231,6 +238,33 @@ This crate is shared by both the embedded LSP (inside `nika lsp`) and the standa
 
 This is a separate binary (`nika-lsp`) that editors can spawn. It uses `tower-lsp-server` for the JSON-RPC transport and delegates all intelligence to `nika-lsp-core`. Notably, it imports `nika-engine` with `default-features = false` to minimize the dependency tree — it only needs AST and source types, not the full runtime.
 
+### nika-init (Application Layer)
+
+**Role**: Project scaffolding — `nika init` wizard and interactive learning course (~21k lines).
+
+**Depends on**: `nika-engine`, `cliclack`, `tokio`.
+
+**Depended on by**: `nika-cli`.
+
+**Key exports**:
+- `InitWizard` — Interactive project setup with `.nika/` directory creation
+- `CourseManager` — 12-level Liberation course (44 exercises) management
+- Minimal, showcase, and course workflow templates
+
+### nika-daemon (Application Layer)
+
+**Role**: Background daemon for secrets management, job scheduling, file watching, and caching (~5k lines).
+
+**Depends on**: `nika-engine`, `tokio`, `zeroize`, `keyring`.
+
+**Depended on by**: `nika-engine` (via IPC), `nika` (binary).
+
+**Key exports**:
+- Unified secret management via IPC (replaces per-process keychain lookups)
+- Job scheduler (`cron:` expressions)
+- File watcher for `nika run --watch` mode
+- Secret codes: `SECRET-001` through `SECRET-004`
+
 ### nika (Binary Crate)
 
 **Role**: CLI entry point. Parses arguments, dispatches to subcommands, sets up logging.
@@ -243,7 +277,7 @@ The binary crate is intentionally thin (~2k lines). It defines the `clap` CLI st
 
 ### Compile-Time Isolation
 
-The crate split ensures that changes to the TUI (92k lines) do not trigger recompilation of the engine (134k lines), and vice versa. The zero-I/O core compiles in seconds because it has no async runtime or network dependencies.
+The crate split ensures that changes to the TUI (86k lines) do not trigger recompilation of the engine (135k lines), and vice versa. The zero-I/O core compiles in seconds because it has no async runtime or network dependencies.
 
 ### Feature Gating
 
