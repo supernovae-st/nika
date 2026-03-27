@@ -611,7 +611,6 @@ impl TaskExecutor {
                 temperature: infer.temperature,
                 max_tokens: infer.max_tokens,
                 system: resolved_system.clone(),
-                additional_params: None,
             };
             provider
                 .infer_stream_with_options(&prompt, tx, &options)
