@@ -43,6 +43,9 @@ pub enum ProviderAction {
     Test {
         /// Provider name
         provider: String,
+        /// Suppress output — exit code only (for scripts/CI)
+        #[arg(short, long)]
+        quiet: bool,
     },
 }
 
@@ -389,8 +392,23 @@ pub async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaE
             Ok(())
         }
 
-        ProviderAction::Test { provider } => {
-            test_provider_connection(&provider).await;
+        ProviderAction::Test { provider, quiet } => {
+            if quiet {
+                // Quiet mode: no output, exit code only
+                use nika::core::provider_to_env_var;
+                use nika::secrets::NikaKeyring;
+                let env_var = provider_to_env_var(&provider).unwrap_or("UNKNOWN_API_KEY");
+                let has_key = NikaKeyring::exists(&provider)
+                    || std::env::var(env_var).is_ok_and(|v| !v.is_empty());
+                if !has_key && provider != "native" {
+                    std::process::exit(1);
+                }
+                if run_provider_test(&provider).await.is_err() {
+                    std::process::exit(1);
+                }
+            } else {
+                test_provider_connection(&provider).await;
+            }
             Ok(())
         }
     }
