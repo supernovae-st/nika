@@ -115,7 +115,7 @@ tasks:
     depends_on: [draft]
 ```
 
-The `competitor_scan` and `trend_analysis` tasks run in parallel. The `translate_fr`, `translate_de`, and `social_snippets` tasks all depend on `draft` but are independent of each other, so they also run in parallel. The DAG engine handles the scheduling automatically.
+The `competitor_scan` and `trend_analysis` tasks run in parallel. The `translate_fr`, `translate_de`, and `social_snippets` tasks all depend on `draft` but are independent of each other, so they also run in parallel. The DAG engine handles scheduling automatically.
 
 ### The Results
 
@@ -441,7 +441,7 @@ Based on these three case studies, teams considering Nika adoption should:
 
 **Use the interactive course.** The `nika init --course` command generates a 12-level learning path with 44 exercises. Teams that completed levels 1-5 (covering all five verbs and basic DAG composition) before writing production workflows reported faster iteration and fewer errors.
 
-**Leverage the showcase library.** The 200+ included workflow templates cover most common patterns. `nika showcase list` to browse, `nika showcase extract <name>` to copy locally. Starting from a template is faster than starting from scratch.
+**Leverage the showcase library.** The 115 included workflow templates cover most common patterns. `nika showcase list` to browse, `nika showcase extract <name>` to copy locally. Starting from a template is faster than starting from scratch.
 
 **Install the LSP.** The Language Server Protocol implementation provides real-time validation and completions in VS Code, Neovim, and Zed. This catches YAML structure errors, missing dependencies, and invalid references before execution --- significantly reducing the debug cycle.
 

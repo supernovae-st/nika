@@ -71,9 +71,9 @@
 
 "Fragmented across five categories. Python developer libraries like LangChain and LlamaIndex. Multi-agent frameworks like CrewAI and AutoGen. Visual builders like Dify and n8n. Data pipeline orchestrators like Prefect and Airflow. And workflow automation engines like Windmill and Argo. Nika does not fit neatly into any of these categories. It is a 'Declarative CLI AI Workflow Engine' --- a category of one. Every tool in those five categories requires either Python, a server, Docker, or Kubernetes. Nika requires none of them."
 
-### 15. The project includes 200+ showcase workflows and a 12-level course. Why invest so much in onboarding?
+### 15. The project includes 115 showcase workflows and a 12-level course. Why invest so much in onboarding?
 
-"Because onboarding is the product. The best workflow engine in the world is useless if people cannot learn it. The 12-level course with 44 exercises is designed so that someone with zero Nika experience can be productive in an afternoon. The 200+ showcase workflows serve as a reference library --- instead of starting from scratch, you extract a template that is close to what you need and modify it. The LSP provides real-time validation in your editor. These are not extras. They are the difference between a tool that sits in a GitHub star list and a tool that people actually use."
+"Because onboarding is the product. The best workflow engine in the world is useless if people cannot learn it. The 12-level course with 44 exercises across Jailbreak, Hot Wire, Fork Bomb, Root Access, Shapeshifter, Pay-Per-Dream, Swiss Knife, Gone Rogue, Data Heist, Open Protocol, Pixel Pirate, and SuperNovae is designed so that someone with zero Nika experience can be productive in an afternoon. The 115 showcase workflows serve as a reference library --- instead of starting from scratch, you extract a template that is close to what you need and modify it. The LSP provides real-time validation in your editor. These are not extras. They are the difference between a tool that sits in a GitHub star list and a tool that people actually use."
 
 ### 16. Are you worried about big tech building something similar?
 
@@ -83,23 +83,23 @@
 
 ## About Open Source Philosophy
 
-### 16. Why AGPL and not MIT or Apache 2.0?
+### 17. Why AGPL and not MIT or Apache 2.0?
 
 "Because MIT and Apache 2.0 are invitations for cloud providers to enclose your work. AGPL says: you can use this, you can modify this, you can deploy this, but if you provide it as a network service, you must share your modifications. This prevents the Elasticsearch scenario, the MongoDB scenario, the Redis scenario --- where a cloud provider takes open source software, wraps it in a managed service, captures the value, and gives nothing back. I would rather have a smaller community that is genuinely free than a larger community that is one AWS announcement away from irrelevance."
 
-### 17. Does AGPL hurt adoption?
+### 18. Does AGPL hurt adoption?
 
 "In theory, yes --- some enterprises have blanket AGPL prohibitions. In practice, Nika is a CLI binary that users run on their own machines. The AGPL's network copyleft provision --- the part that worries enterprises --- only triggers when you provide the software as a network service to third parties. Running nika on your laptop and executing workflow files does not trigger it. Internal use does not trigger it. The restriction is narrow and specific: it prevents cloud exploitation. For 99% of use cases, AGPL has the same practical impact as MIT."
 
-### 18. What is the connection between One Piece and open source?
+### 19. What is the connection between One Piece and open source?
 
 "One Piece is fundamentally about liberation. The World Government hoards knowledge. The Marines enforce unjust hierarchies. The pirates fight to free everyone. Whitebeard's last words --- 'The One Piece is real!' --- are the declaration that truth cannot be suppressed. The Sun God Nika, whose power is limited only by imagination, embodies joy-as-liberation. The parallel to open source AI is direct: a small number of powerful companies control AI models, compute, and distribution. Open source communities fight to keep AI accessible. Nika the software, like Nika the Sun God, is limited only by what you can imagine --- in this case, the YAML you write. The butterfly symbol represents the idea that small, beautiful things can change everything. Freedom spreading, impossible to contain."
 
-### 19. Do you see yourself as an activist?
+### 20. Do you see yourself as an activist?
 
 "I see myself as a builder who makes deliberate choices. Every technical decision is also a political decision. Choosing Rust over Python, YAML over code, AGPL over MIT, a single binary over Docker --- these are not just engineering preferences. They are statements about who should have access to AI tooling, who should benefit from community contributions, and who should control the infrastructure that connects people to AI. If making those choices deliberately and publicly makes me an activist, then yes."
 
-### 20. What do you think of 'open source' model releases that are not truly open?
+### 21. What do you think of 'open source' model releases that are not truly open?
 
 "The term has been stretched to meaninglessness in the AI space. Releasing model weights under a license that restricts commercial use above a revenue threshold is not open source --- it is a marketing strategy. Open source has a definition: the OSI definition. It requires freedom to use, study, modify, and distribute without discrimination against persons, groups, or fields of endeavor. If your license discriminates against companies above a certain revenue, it is not open source. Call it 'source-available' or 'open weight' --- just do not call it open source."
 
@@ -107,23 +107,23 @@
 
 ## About the Future Vision
 
-### 21. What is on the roadmap?
+### 22. What is on the roadmap?
 
 "Three waves. Wave 1 is model routing --- a 4-slot system where different tasks can use different LLM providers based on the cognitive role needed: a fast cheap model for structured tasks, a powerful model for reasoning, a vision model for images. Wave 2 is dynamic orchestration --- where an LLM decides at runtime which tasks to execute next, replacing static DAGs with intelligent dispatch. Wave 3 is a three-tier memory architecture: hot (in-memory during a run), warm (NDJSON on disk between runs), cold (in NovaNet's knowledge graph for long-term persistence). Each wave builds on the previous one."
 
-### 22. What is NovaNet and how does it relate to Nika?
+### 23. What is NovaNet and how does it relate to Nika?
 
 "NovaNet is the brain; Nika is the body. NovaNet is a knowledge graph backed by Neo4j that stores persistent knowledge --- entities, relationships, metadata. Nika is the execution engine that runs workflows, calls LLMs, processes media. They communicate exclusively via the Model Context Protocol. Nika never touches Neo4j directly --- it uses the invoke verb to call NovaNet's MCP tools. This separation is deliberate: the body does not need to know how the brain stores memories. It just needs to ask and receive."
 
-### 23. Where do you want Nika to be in two years?
+### 24. Where do you want Nika to be in two years?
 
 "I want Nika to be the Terraform of AI. When someone needs to define a reproducible AI pipeline, version-control it, review it in a pull request, and deploy it with confidence, I want the default answer to be: write a .nika.yaml file. The same way the default answer for cloud infrastructure is 'write a Terraform file' and the default answer for CI/CD is 'write a GitHub Actions file.' The format matters. Declarative YAML files that describe exactly what happens, reproducibly, are better for most workflows than imperative code."
 
-### 24. What would make you consider the project a success?
+### 25. What would make you consider the project a success?
 
 "If someone who has never written Python can automate an AI workflow in 10 minutes by writing a YAML file and running a single command. If a data team can replace five different tools with one .nika.yaml file. If an enterprise can audit AI workflows by reading version-controlled YAML diffs. If the AGPL license holds and no cloud provider can enclose the software. If the butterfly flies. That is success."
 
-### 25. Any advice for other solo developers building ambitious open source projects?
+### 26. Any advice for other solo developers building ambitious open source projects?
 
 "Three things. First, choose a language with a strong type system. Rust's compiler is your pair programmer, your code reviewer, and your QA team. It catches bugs that would cost you days in a dynamic language. Second, write tests before code. Not because it is virtuous but because it is practical. When you are the only developer, automated tests are the only thing that prevents regressions from eating you alive. Third, choose your license early and do not compromise. The license is the foundation of your project's social contract. Get it right at the beginning, because changing it later is painful and politically charged. I chose AGPL from day one and have never regretted it."
 
@@ -131,23 +131,23 @@
 
 ## Bonus: Rapid-Fire Questions
 
-### 26. Tabs or spaces?
+### 27. Tabs or spaces?
 
 "Spaces. Two of them. Non-negotiable."
 
-### 27. Favorite Rust crate?
+### 28. Favorite Rust crate?
 
-"ratatui, without hesitation. What that team has built for terminal user interfaces is extraordinary. Our TUI has 42 widgets and 92,000 lines, and ratatui handles all of it gracefully. The ecosystem around it --- including the component patterns and the community --- is one of the best in the Rust world."
+"ratatui, without hesitation. What that team has built for terminal user interfaces is extraordinary. Our TUI has 42 widgets and 86,000 lines, and ratatui handles all of it gracefully. The ecosystem around it --- including the component patterns and the community --- is one of the best in the Rust world."
 
-### 28. If Nika were a One Piece character, which one?
+### 29. If Nika were a One Piece character, which one?
 
 "Nika, obviously. But if you mean the project's personality? Franky. Loud, unconventional, builds incredible things from spare parts, cries when something beautiful happens, and says 'SUPER!' a lot. Building a workflow engine in Rust when everyone uses Python is very Franky energy."
 
-### 29. What is the hardest bug you have ever fixed in the codebase?
+### 30. What is the hardest bug you have ever fixed in the codebase?
 
 "The timeout unit bug. The YAML schema says `timeout: 30` and that means 30 seconds. But internally, the runtime worked in milliseconds. At some point, the parser was converting correctly in one code path but not in another. Some timeouts were 30 seconds, some were 30 milliseconds. It took a full day to find because the tests were passing --- they were just passing very quickly. The fix was one line. The debugging was eight hours."
 
-### 30. Coffee or tea while coding?
+### 31. Coffee or tea while coding?
 
 "Coffee. Black. In quantities that would concern a cardiologist."
 

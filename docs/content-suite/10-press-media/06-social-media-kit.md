@@ -9,7 +9,7 @@
 
 ### Launch Announcements
 
-**1.** Introducing Nika --- a semantic YAML workflow engine for AI tasks. 5 verbs. Single Rust binary. Zero dependencies. 22 LLM providers. AGPL licensed.
+**1.** Introducing Nika --- a semantic YAML workflow engine for AI tasks. 5 verbs. Single Rust binary. Zero dependencies. 9 LLM providers. AGPL licensed.
 
 Write a YAML file. Run a command. Orchestrate AI.
 
@@ -19,7 +19,7 @@ github.com/supernovae-st/nika
 
 That is Nika. Five verbs (infer, exec, fetch, invoke, agent) compose into DAGs. One binary. No Python. No Docker. No server. Just YAML.
 
-**3.** 482,000 lines of Rust. 10 workspace crates. 7,700+ tests. Zero clippy warnings. One developer. One binary.
+**3.** 482,000 lines of Rust. 12 workspace crates. 8,300+ tests. Zero clippy warnings. One developer. One binary.
 
 Nika is what happens when you apply systems programming discipline to AI orchestration.
 
@@ -53,9 +53,9 @@ Nika stores media by SHA-256 hash --- like Git for images. No file paths leak to
 
 Nobody else does this.
 
-**8.** 22 LLM providers in one binary.
+**8.** 9 LLM providers in one binary.
 
-OpenAI, Anthropic, Gemini, Mistral, Groq, xAI, DeepSeek, and local GGUF models via mistral.rs.
+OpenAI, Anthropic, Gemini, Mistral, Groq, xAI, DeepSeek, Cohere, and local GGUF models via mistral.rs.
 
 Switch from GPT-4o to a local Mistral 7B by changing one line of YAML.
 
@@ -63,7 +63,7 @@ Switch from GPT-4o to a local Mistral 7B by changing one line of YAML.
 
 No browser. No server. No dashboard.
 
-Just ratatui, 42 widgets, and your terminal.
+Just ratatui, 3-view architecture, and your terminal.
 
 `nika ui`
 
@@ -109,7 +109,7 @@ Learn all five verbs, DAG composition, media pipelines, agent loops, and MCP int
 
 No tutorials to google. It is built in.
 
-**16.** 200+ showcase workflows included.
+**16.** 115 showcase workflows included.
 
 Content pipelines. Competitive intelligence. Media processing. Multi-agent research.
 
@@ -154,15 +154,15 @@ After extensive development, I am sharing Nika publicly: a workflow engine that 
 
 What makes it different:
 - Ships as a single Rust binary (no Python, no Docker, no server)
-- 22 LLM providers including local GGUF inference
+- 9 LLM providers including local GGUF inference
 - Content-addressable storage for media assets
 - Built-in terminal UI, language server, and 12-level learning course
 - First CLI tool to implement Anthropic's MCP protocol
-- Licensed AGPL-3.0 to protect against cloud exploitation
+- Licensed AGPL-3.0-or-later to protect against cloud exploitation
 
 The thesis: AI workflows deserve the same infrastructure-as-code treatment that Terraform brought to cloud resources and Docker Compose brought to containerization.
 
-482,000 lines of Rust. 7,700+ tests. Zero dependencies for users.
+482,000 lines of Rust. 8,300+ tests. Zero dependencies for users.
 
 Link in comments.
 
@@ -178,7 +178,7 @@ When I started building Nika, the assumption was that AI tooling must be Python.
 
 2. Type system as architecture enforcement. Nika has a three-phase AST pipeline (Raw, Analyzed, Lower) where the compiler ensures you cannot execute an unvalidated workflow. This is impossible to enforce in dynamically typed languages.
 
-3. Performance without effort. Tokio's work-stealing scheduler distributes concurrent tasks automatically. SIMD text processing runs at GB/s. Content hashing at 30+ GB/s makes CAS lookups free.
+3. Performance without effort. Tokio's work-stealing scheduler distributes concurrent tasks automatically. SIMD text processing runs at GB/s. Content hashing makes CAS lookups free.
 
 4. Zero-cost abstractions. The media pipeline processes images natively: SIMD-accelerated resizing, format conversion, metadata extraction. No external binaries, no system dependencies.
 
@@ -268,7 +268,7 @@ People ask how this is possible. Three answers:
 
 1. Rust's compiler is your team. It catches null pointers, data races, and type mismatches at compile time. I spend time designing types, not debugging crashes.
 
-2. TDD is not optional when you are the only reviewer. 7,700+ tests. Every commit: status, diff, test, lint, type-check, commit. No exceptions.
+2. TDD is not optional when you are the only reviewer. 8,300+ tests. Every commit: status, diff, test, lint, type-check, commit. No exceptions.
 
 3. Architecture matters more than effort. The three-phase AST pipeline, the five-verb paradigm, the crate separation --- these decisions made the codebase grow in a structured way. Adding a new feature is guided by the types.
 
@@ -302,7 +302,7 @@ You build the onboarding into the binary.
 
 nika init --course generates a 12-level interactive learning course with 44 exercises. Each level builds on the previous. The course management system handles progress, hints, and validation.
 
-200+ showcase workflows provide ready-to-use templates for common patterns.
+115 showcase workflows provide ready-to-use templates for common patterns.
 
 A Language Server Protocol implementation provides real-time validation in editors.
 
@@ -341,13 +341,13 @@ And the YAML file is the treasure map.
 Hi r/rust! I have been building Nika, a semantic YAML workflow engine for AI tasks. It compiles to a single binary and orchestrates LLM inference, HTTP fetching, shell commands, MCP tool calls, and autonomous agent loops using five declarative verbs.
 
 **Quick stats:**
-- ~337K lines of Rust across 10 workspace crates
-- 7,700+ unit tests, zero clippy warnings
+- ~482K lines of Rust across 12 workspace crates
+- 8,300+ unit tests, zero clippy warnings
 - Built on tokio, reqwest, ratatui, rig-core, rmcp
 - Three-phase AST pipeline (Raw -> Analyzed -> Lower)
-- 22 LLM providers including local GGUF via mistral.rs
+- 9 LLM providers including local GGUF via mistral.rs
 - 24 built-in media tools (SIMD resize, CAS, C2PA provenance)
-- Terminal UI with 42 widgets
+- Terminal UI with 3-view architecture
 - LSP implementation for editor integration
 - AGPL-3.0-or-later
 
@@ -365,14 +365,14 @@ Link: github.com/supernovae-st/nika
 
 I have been following Nika, an interesting project that asks: what if AI workflows were defined in YAML and run from a single binary, like Terraform for AI?
 
-The core idea is five semantic verbs (infer, exec, fetch, invoke, agent) that compose into DAGs. The engine handles concurrency, type checking, structured output validation, and multi-provider LLM support (22 providers, including local GGUF models).
+The core idea is five semantic verbs (infer, exec, fetch, invoke, agent) that compose into DAGs. The engine handles concurrency, type checking, structured output validation, and multi-provider LLM support (9 providers, including local GGUF models).
 
 What caught my attention:
 - It is the only AI orchestration tool that does not require Python, Docker, or a server
 - First CLI tool to implement Anthropic's MCP protocol
 - Built-in content-addressable storage for media assets
 - Ships with a terminal UI and an LSP
-- Licensed AGPL-3.0
+- Licensed AGPL-3.0-or-later
 
 The competitive landscape research is worth reading: the project found that no tool in 2025-2026 combines even three of its eight distinctive properties.
 
@@ -391,7 +391,7 @@ Instead of Python libraries (LangChain), visual builders (Dify), or server-based
 - infer: LLM generation (text, vision, structured output)
 - exec: Shell commands
 - fetch: HTTP requests with 9 extraction modes
-- invoke: MCP tool calls (100+ aliases, 24 built-in media tools)
+- invoke: MCP tool calls (24 built-in media tools + external)
 - agent: Multi-turn autonomous loops
 
 The AGPL license is a deliberate choice -- the creator's position is that AI orchestration tools are infrastructure, and infrastructure commons need copyleft protection against cloud exploitation.
@@ -402,7 +402,7 @@ What do you think: is there room for a non-Python AI workflow tool? Does AGPL he
 
 ### r/selfhosted --- Practical Focus
 
-**Title:** Nika: Self-hosted AI workflow engine -- single binary, no Docker, no server, 22 LLM providers
+**Title:** Nika: Self-hosted AI workflow engine -- single binary, no Docker, no server, 9 LLM providers
 
 **Body:**
 
@@ -419,8 +419,8 @@ For the self-hosting community: Nika is a workflow engine for AI tasks that is g
 - Local LLM inference via GGUF models (no cloud required)
 - Content-addressable storage for media assets
 - Built-in terminal UI
-- 200+ showcase workflow templates
-- AGPL-3.0 (stays open)
+- 115 showcase workflow templates
+- AGPL-3.0-or-later (stays open)
 
 **Not a server:** Nika is a CLI tool, not a daemon. You run it when you need it. No always-on process.
 
@@ -454,7 +454,7 @@ Thoughts on AGPL for AI tooling?
 
 **1.** New project: Nika --- a semantic YAML workflow engine for AI tasks.
 
-5 verbs. 1 Rust binary. 0 dependencies. 22 LLM providers. AGPL-3.0.
+5 verbs. 1 Rust binary. 0 dependencies. 9 LLM providers. AGPL-3.0-or-later.
 
 The thesis: AI workflows should be declarative files, not Python scripts. Like Terraform for AI.
 

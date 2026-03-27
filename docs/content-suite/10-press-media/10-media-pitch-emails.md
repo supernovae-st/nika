@@ -22,11 +22,11 @@ I am reaching out about a project that sits at an unusual intersection: a solo d
 **Why it matters:**
 - Occupies a competitive position that research across 80+ sources confirms is unique --- no other tool combines YAML-native definitions with single-binary deployment
 - First CLI tool to implement Anthropic's MCP protocol (all other MCP clients are AI assistants or IDEs)
-- Supports 22 LLM providers including local GGUF inference in the same binary
-- Licensed AGPL-3.0 as a deliberate choice to prevent cloud exploitation
+- Supports 9 LLM providers including local GGUF inference in the same binary
+- Licensed AGPL-3.0-or-later as a deliberate choice to prevent cloud exploitation
 - Named after the Sun God from One Piece (yes, the manga)
 
-**The human story:** Thibaut Melen built the entire codebase himself. 337,000 lines of Rust. 7,700+ tests. 10 workspace crates. A terminal UI, a language server, a 12-level learning course, a media pipeline with content-addressable storage. Zero clippy warnings. The project approaches the scale of a small company's output, built by one person with a strong opinion about what AI tooling should look like.
+**The human story:** Thibaut Melen built the entire codebase himself. 482,000 lines of Rust across 12 crates. 8,300+ tests. A terminal UI, a language server, a 12-level learning course, a media pipeline with content-addressable storage. Zero clippy warnings. The project approaches the scale of a small company's output, built by one person with a strong opinion about what AI tooling should look like.
 
 **The market angle:** The AI orchestration market is growing at 20%+ annually. Every major player is Python-based. Nika is the only Rust-based entry, arguing that the orchestration layer should be a compiled binary, not an interpreted script.
 
@@ -79,20 +79,19 @@ tasks:
 That is a complete workflow. `nika run research.nika.yaml` executes it.
 
 **Five verbs, that is it:**
-- `infer:` -- LLM generation (22 providers including local GGUF)
+- `infer:` -- LLM generation (9 providers including local GGUF)
 - `exec:` -- Shell commands
 - `fetch:` -- HTTP + 9 extraction modes (markdown, RSS, metadata, etc.)
-- `invoke:` -- MCP tool calls (24 built-in media tools + external)
+- `invoke:` -- MCP tool calls (24 built-in media tools)
 - `agent:` -- Multi-turn autonomous loops
 
 **Technical stats:**
-- ~482K total lines (337K Rust, 570 YAML workflow files, docs)
-- 10 workspace crates (engine 134K, TUI 92K, core 23K, etc.)
-- 7,700+ tests, zero clippy warnings
+- ~482K total lines across 12 workspace crates
+- 8,300+ tests, zero clippy warnings
 - Three-phase AST pipeline (Raw -> Analyzed -> Lower)
 - DAG execution with cycle detection and parallel scheduling
 - Content-addressable storage for media (SHA-256, like Git)
-- Built-in terminal UI (ratatui, 42 widgets)
+- Built-in terminal UI with 3-view architecture
 - LSP for editor integration
 - 12-level interactive learning course
 
@@ -132,7 +131,7 @@ Hi [Editor],
 
 I would like to propose a project spotlight for [Publication] about Nika, a semantic YAML workflow engine for AI tasks that I believe showcases several Rust patterns that the community would find interesting.
 
-**The project:** Nika compiles declarative YAML files into DAG-scheduled AI workflows. It supports 22 LLM providers, 24 built-in media tools, the MCP protocol, a ratatui TUI, and an LSP implementation. 482,000 total lines across 10 workspace crates.
+**The project:** Nika compiles declarative YAML files into DAG-scheduled AI workflows. It supports 9 LLM providers, 24 built-in media tools, the MCP protocol, a ratatui TUI, and an LSP implementation. 482,000 total lines across 12 workspace crates.
 
 **Rust patterns worth discussing:**
 
@@ -188,7 +187,7 @@ Quick pitch for your next issue: a project that creates a new category in AI too
 The AI orchestration market has a blind spot. Every tool --- LangChain, Dify, CrewAI, Prefect --- requires Python. Research across 80+ sources confirmed that no tool combines YAML-native workflow definitions with single-binary deployment. Nika occupies this gap.
 
 **Key differentiators for an AI audience:**
-- **22 LLM providers in one binary** --- cloud (OpenAI, Anthropic, Gemini, Mistral, Groq, xAI, DeepSeek) + local GGUF via mistral.rs. Switch providers by changing one YAML field.
+- **9 LLM providers in one binary** --- cloud (OpenAI, Anthropic, Gemini, Mistral, Groq, xAI, DeepSeek, Cohere) + local GGUF via mistral.rs. Switch providers by changing one YAML field.
 - **First CLI tool with MCP support** --- connects YAML workflows to any MCP server. Not just chatbots --- workflow orchestration via the protocol.
 - **Structured output validation** --- JSON Schema on infer: tasks catches malformed LLM responses before they propagate.
 - **9 fetch extraction modes** --- markdown, article, metadata, links, feeds, jsonpath, llm_txt, and more. Web scraping + API calling built into the workflow engine.
@@ -197,7 +196,7 @@ The AI orchestration market has a blind spot. Every tool --- LangChain, Dify, Cr
 
 **For a "Tool of the Week" or "New Launch" section:**
 
-Nika / supernovae-st/nika / AGPL-3.0 / Rust / 482K lines / 22 providers / single binary / zero dependencies
+Nika / supernovae-st/nika / AGPL-3.0-or-later / Rust / 482K lines / 9 providers / single binary / zero dependencies
 
 **For a longer feature:** I can provide a technical deep dive, competitive analysis, or interview with the creator.
 
@@ -234,13 +233,13 @@ I am writing to introduce Nika, an AGPL-3.0-or-later licensed AI workflow engine
 
 Nika is a semantic YAML workflow engine for AI tasks, written in Rust and distributed as a single binary. It allows users to define AI pipelines (LLM inference, web fetching, shell commands, MCP tool calls, autonomous agent loops) in declarative YAML files and execute them without Python, Docker, or server infrastructure.
 
-The project spans approximately 482,000 lines of code across 10 workspace crates, includes 7,700+ unit tests, and supports 22 LLM providers.
+The project spans approximately 482,000 lines of code across 12 workspace crates, includes 8,300+ unit tests, and supports 9 LLM providers.
 
 **Why AGPL:**
 
-The license choice is deliberate and philosophical. AI orchestration tools are infrastructure --- they connect users to AI capabilities. Like databases, web servers, and container runtimes, this infrastructure should be commons. AGPL-3.0 provides copyleft protection that prevents cloud providers from enclosing the software as a proprietary service without contributing modifications back to the community.
+The license choice is deliberate and philosophical. AI orchestration tools are infrastructure --- they connect users to AI capabilities. Like databases, web servers, and container runtimes, this infrastructure should be commons. AGPL-3.0-or-later provides copyleft protection that prevents cloud providers from enclosing the software as a proprietary service without contributing modifications back to the community.
 
-We chose AGPL specifically because:
+We chose AGPL-3.0-or-later specifically because:
 - The SaaS delivery model means permissive licenses provide no protection at the service layer
 - The AI industry's current trajectory favors value concentration in cloud platforms
 - AGPL's network copyleft provision directly addresses this dynamic
@@ -319,7 +318,7 @@ AGPL AI infrastructure is rare. This positions Nika as a case study for the foun
 
 **If asked about users:** "The project is approaching its public launch. It has been developed privately and has no external users yet. The 200+ showcase workflows and 12-level course were built to ensure a strong onboarding experience from day one."
 
-**If asked about sustainability:** "The AGPL license enables dual licensing: enterprises that need a non-AGPL option can purchase a commercial license. This is the model used by Grafana Labs, Qt, and many other successful AGPL projects."
+**If asked about sustainability:** "The AGPL-3.0-or-later license enables dual licensing: enterprises that need a non-AGPL option can purchase a commercial license. This is the model used by Grafana Labs, Qt, and many other successful AGPL projects."
 
 ---
 

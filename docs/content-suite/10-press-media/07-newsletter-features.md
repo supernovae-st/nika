@@ -31,11 +31,11 @@ tasks:
 ```
 
 **Key stats:**
-- ~482,000 lines of Rust across 10 workspace crates
-- 22 LLM providers (cloud + local GGUF inference in one binary)
+- ~482,000 lines of Rust across 12 workspace crates
+- 9 LLM providers (cloud + local GGUF inference in one binary)
 - 24 built-in media tools (image resize, PDF extract, C2PA provenance)
 - Built-in terminal UI, LSP, and 12-level learning course
-- 200+ showcase workflow templates
+- 115 showcase workflow templates
 - First CLI tool to implement Anthropic's MCP protocol
 - AGPL-3.0-or-later license
 
@@ -47,7 +47,7 @@ tasks:
 
 **The license:** AGPL-3.0-or-later --- a deliberate philosophical choice. AGPL prevents cloud providers from taking the code, wrapping it in a managed service, and monetizing it without contributing back. For a CLI tool that users run locally, this has minimal impact on most users but maximum protection against corporate enclosure.
 
-**Getting started:** Install the binary, run `nika init --course` for a guided learning experience, or `nika showcase list` to browse 200+ ready-to-use workflow templates.
+**Getting started:** Install the binary, run `nika init --course` for a guided learning experience, or `nika showcase list` to browse 115 ready-to-use workflow templates.
 
 **Try it:** `github.com/supernovae-st/nika`
 
@@ -63,7 +63,7 @@ Want to chain a few LLM calls together? LangChain has you covered --- if you are
 
 Thibaut Melen, a software engineer and founder of SuperNovae Studio, looked at this landscape and made an observation that seems obvious in retrospect: the orchestration layer for AI does not need to be written in Python. It does not need a server. It does not need Docker. It needs a declarative format and a fast compiler.
 
-The result is Nika, a semantic YAML workflow engine for AI tasks that compiles to a single Rust binary. At approximately 482,000 lines of code across 10 workspace crates, it is one of the largest solo-developed Rust projects in the AI space --- and it occupies a competitive position that, according to research across 80+ sources, no other tool matches.
+The result is Nika, a semantic YAML workflow engine for AI tasks that compiles to a single Rust binary. At approximately 482,000 lines of code across 12 workspace crates, it is one of the largest solo-developed Rust projects in the AI space --- and it occupies a competitive position that, according to research across 80+ sources, no other tool matches.
 
 #### The Architecture That Makes It Work
 
@@ -87,7 +87,7 @@ Tasks combine into directed acyclic graphs via `depends_on:` declarations and ex
 
 #### The Provider Puzzle
 
-One of Nika's most distinctive features is its multi-provider architecture. Built on rig-core, the engine supports 22 LLM providers: OpenAI, Anthropic (Claude), Google Gemini, Mistral, Groq, xAI (Grok), DeepSeek, Cohere, and others for cloud inference, plus mistral.rs for local GGUF model inference.
+One of Nika's most distinctive features is its multi-provider architecture. Built on rig-core, the engine supports 9 LLM providers: OpenAI, Anthropic (Claude), Google Gemini, Mistral, Groq, xAI (Grok), DeepSeek, Cohere, and local GGUF models via mistral.rs for inference.
 
 The remarkable part is that cloud and local inference coexist in the same binary. There is no separate Ollama server. No additional process. The same binary that calls GPT-4o over HTTPS can load a Mistral 7B GGUF file from disk and run inference on CPU. Switching between providers is a single-field change in the YAML file.
 
@@ -131,7 +131,7 @@ Worth noting for enterprise-minded readers: Nika's security model is not bolted 
 
 #### Learning and Adoption
 
-Recognizing that a new paradigm requires onboarding, Nika includes a 12-level interactive learning course (44 exercises) accessible via `nika init --course`, a showcase library of 200+ ready-to-use workflows, and an LSP implementation for real-time editor integration.
+Recognizing that a new paradigm requires onboarding, Nika includes a 12-level interactive learning course (44 exercises) accessible via `nika init --course`, a showcase library of 115 ready-to-use workflows, and an LSP implementation for real-time editor integration.
 
 #### What Is Missing
 
@@ -141,7 +141,7 @@ Nika is approaching public launch but is not there yet. Distribution via Homebre
 
 Nika's fundamental bet is that declarative YAML files executed by a single binary can replace the Python scripts, Docker containers, and server infrastructure that dominate AI orchestration. Whether this bet pays off depends on whether the developer community is willing to adopt a new paradigm for a tangible improvement in deployment simplicity and workflow reproducibility.
 
-The technical foundation --- 482,000 lines, 7,700+ tests, 10 crates, zero clippy warnings --- suggests that the software works. What remains is the harder question: does the market want it?
+The technical foundation --- 482,000 lines, 8,300+ tests, 12 crates, zero clippy warnings --- suggests that the software works. What remains is the harder question: does the market want it?
 
 ---
 
@@ -153,7 +153,7 @@ Thibaut Melen has a problem with the way the AI industry builds tools. Not with 
 
 "The gap is not in the models," he says. "It is in the space between the model and the user. The plumbing. The 'how do I actually make this work without hiring a DevOps team' part."
 
-His answer, developed over the past year, is Nika: a semantic YAML workflow engine for AI tasks, written entirely in Rust, that ships as a single binary with zero runtime dependencies. The project spans approximately 482,000 lines of code across 10 workspace crates. He wrote every line himself.
+His answer, developed over the past year, is Nika: a semantic YAML workflow engine for AI tasks, written entirely in Rust, that ships as a single binary with zero runtime dependencies. The project spans approximately 482,000 lines of code across 12 workspace crates. He wrote every line himself.
 
 #### The Origin Story
 
@@ -169,7 +169,7 @@ Choosing Rust was not the obvious move. Python dominates the AI ecosystem. The l
 
 Melen was undeterred. "The orchestration layer does not need to be in the same language as the models. The models run on CUDA. The orchestration runs on your laptop. These are different problems, and they deserve different tools."
 
-Rust gave him three things he could not get from Python: a single binary with zero dependencies, a type system that enforces architectural correctness at compile time, and performance characteristics (SIMD text processing, concurrent HTTP handling, native media processing) that simply are not available in interpreted languages.
+Rust gave him three things he could not get from Python: a single binary with zero dependencies, a type system that enforces architectural correctness at compile time, and performance characteristics (SIMD text processing, concurrent HTTP handling, native media processing) that are not available in interpreted languages.
 
 #### The Five-Verb Paradigm
 
@@ -191,7 +191,7 @@ The name reinforces the philosophy. Nika is the Sun God from One Piece, a manga 
 
 #### The Numbers
 
-The scale of the project is difficult to reconcile with its solo development. 482,000 lines across 10 Rust crates. 7,700+ unit tests. A terminal UI with 42 widgets. A language server protocol implementation. 200+ showcase workflows. A 12-level interactive learning course. Content-addressable storage for media. 24 built-in media processing tools. Support for 22 LLM providers.
+The scale of the project is difficult to reconcile with its solo development. 482,000 lines across 12 Rust crates. 8,300+ unit tests. A terminal UI with 3-view architecture. A language server protocol implementation. 115 showcase workflows. A 12-level interactive learning course. Content-addressable storage for media. 24 built-in media processing tools. Support for 9 LLM providers.
 
 When asked how one person builds this, Melen credits three things: Rust's compiler ("my pair programmer and code reviewer"), test-driven development ("not optional when you are the only person catching bugs"), and architectural discipline ("the three-phase AST pipeline means adding features is guided by the types, not by improvisation").
 
@@ -211,7 +211,7 @@ Tasks compose into directed acyclic graphs via `depends_on:` declarations. The e
 
 The media pipeline deserves special mention. Twenty-four built-in tools --- from SIMD-accelerated image resizing to C2PA content provenance verification --- run natively in the binary. Content-addressable storage (SHA-256 hashing, inspired by Git) ensures reproducibility: every media asset is identified by hash, not by mutable file path.
 
-The terminal UI, implemented in a separate 92,000-line crate using ratatui, provides three views: Studio (workflow visualization), Command (interaction), and Control (configuration). It ships with 42 widgets and 2,117 of its own tests.
+The terminal UI, implemented in a separate crate using ratatui, provides three views: Studio (workflow visualization), Command (interaction), and Control (configuration).
 
 And the LSP --- a Language Server Protocol implementation split across two crates --- provides real-time YAML validation, completions, and diagnostics in any supporting editor: VS Code, Neovim, Zed, and others.
 

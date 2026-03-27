@@ -22,7 +22,7 @@ The enclosure is not hypothetical. It is the business model.
 
 ## The License Is the Architecture
 
-When I chose the license for Nika --- a semantic YAML workflow engine for AI tasks that I have been building as a solo project, now spanning approximately 482,000 lines of Rust --- I chose AGPL-3.0-or-later. Not MIT. Not Apache 2.0. AGPL.
+When I chose the license for Nika --- a semantic YAML workflow engine for AI tasks that I have been building as a solo project, spanning approximately 482,000 lines of Rust across 12 crates with 8,300+ tests --- I chose AGPL-3.0-or-later. Not MIT. Not Apache 2.0. AGPL.
 
 This was not a casual decision. In the startup playbook, AGPL is considered anti-growth. Corporations have policies against it. Package managers flag it. Developers on Hacker News debate whether it is even truly "open source" (it is --- the OSI approved it). The conventional wisdom is that permissive licenses maximize adoption, and adoption is everything.
 

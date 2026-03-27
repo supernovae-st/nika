@@ -13,13 +13,13 @@
 
 ### Abstract
 
-Nika is a semantic YAML workflow engine for AI tasks: 482,000 lines of Rust across 10 workspace crates, compiled into a single binary that orchestrates LLM inference, HTTP fetching, shell execution, MCP protocol calls, and autonomous agent loops. The entire codebase was written by one developer.
+Nika is a semantic YAML workflow engine for AI tasks: 482,000 lines of Rust across 12 workspace crates, compiled into a single binary that orchestrates LLM inference, HTTP fetching, shell execution, MCP protocol calls, and autonomous agent loops. The entire codebase was written by one developer.
 
 This talk is not about AI. It is about Rust.
 
-I will cover the architecture decisions that made this scale of solo development possible: a three-phase AST pipeline (Raw, Analyzed, Lower) enforced by the type system, DAG validation using Kahn's algorithm in a concurrent Tokio runtime, content-addressable storage inspired by Git, a media processing pipeline using SIMD-accelerated image operations, structured error types with namespaced error codes (NIKA-000 through NIKA-319), and the crate boundary decisions that split 10 independent workspace members with clean dependency graphs.
+I will cover the architecture decisions that made this scale of solo development possible: a three-phase AST pipeline (Raw, Analyzed, Lower) enforced by the type system, DAG validation using Kahn's algorithm in a concurrent Tokio runtime, content-addressable storage inspired by Git, a media processing pipeline using SIMD-accelerated image operations, structured error types with namespaced error codes (NIKA-000 through NIKA-319), and the crate boundary decisions that split 12 independent workspace members with clean dependency graphs.
 
-I will also cover what went wrong: the patterns that did not scale, the trait designs I had to refactor, the moment I realized 92,000 lines of TUI code needed its own crate, and why I abandoned anyhow in favor of a custom error type that now has 65 variants.
+I will also cover what went wrong: the patterns that did not scale, the trait designs I had to refactor, when crates needed to split, and why I abandoned anyhow in favor of a custom error type that now has 65 variants.
 
 No AI knowledge required. This is a Rust architecture talk.
 
@@ -47,8 +47,8 @@ No AI knowledge required. This is a Rust architecture talk.
    - Source span attachment for YAML-line-level diagnostics
    - How structured errors improved the LSP implementation
 6. **Crate Boundaries** (5 min)
-   - The 10-crate workspace and dependency graph
-   - When to split: the 92K-line TUI crate decision
+   - The 12-crate workspace and dependency graph
+   - When to split: the TUI and daemon crate decisions
    - nika-core's zero-I/O constraint
    - Feature flags for opt-in media tools
 7. **Mistakes and Refactors** (5 min)
@@ -60,7 +60,7 @@ No AI knowledge required. This is a Rust architecture talk.
 
 ### Speaker Bio
 
-Thibaut Melen is the founder of SuperNovae Studio and the sole developer of Nika, a 482,000-line Rust project that compiles a YAML workflow language into DAG-scheduled AI task execution. He is an advocate for typed error handling, test-driven development, and the AGPL license. He has written more Rust than he has read manga, but not by much.
+Thibaut Melen is the founder of SuperNovae Studio and the sole developer of Nika, a 482,000-line Rust project across 12 crates that compiles a YAML workflow language into DAG-scheduled AI task execution. He is an advocate for typed error handling, test-driven development, and the AGPL license. He has written more Rust than he has read manga, but not by much.
 
 ### Technical Requirements
 
@@ -85,7 +85,7 @@ Nika takes the opposite approach: five semantic verbs (infer, exec, fetch, invok
 I will show live demos of:
 - A competitive intelligence pipeline (fetch + infer + structured output)
 - A multimodal image analysis workflow (CAS + vision + agent)
-- An MCP-connected knowledge graph pipeline (invoke + NovaNet)
+- MCP protocol integration for tool orchestration
 
 This is infrastructure-as-code for AI. Five verbs. One file. One binary.
 
@@ -99,7 +99,7 @@ This is infrastructure-as-code for AI. Five verbs. One file. One binary.
    - infer: LLM generation (text, vision, structured output)
    - exec: Shell commands with security controls
    - fetch: HTTP requests with 9 extraction modes
-   - invoke: MCP tool calls (24 built-in + external services)
+   - invoke: MCP tool calls (24 built-in tools)
    - agent: Multi-turn autonomous loops
 3. **Live Demo 1: Content Pipeline** (5 min)
    - Fetch a news page, extract as markdown, analyze with Claude, generate report
@@ -118,7 +118,7 @@ This is infrastructure-as-code for AI. Five verbs. One file. One binary.
 
 ### Speaker Bio
 
-Thibaut Melen is the founder of SuperNovae Studio and creator of Nika, the first YAML-native AI workflow engine that ships as a single binary. He believes AI orchestration does not need Python, Docker, or Kubernetes --- just five verbs and a good compiler. His tool supports 22 LLM providers, 24 media tools, and the MCP protocol, all in 482,000 lines of Rust. He chose AGPL because commons need protection.
+Thibaut Melen is the founder of SuperNovae Studio and creator of Nika, the first YAML-native AI workflow engine that ships as a single binary. He believes AI orchestration does not need Python, Docker, or Kubernetes --- just five verbs and a good compiler. His tool supports 9 LLM providers, 24 media tools, and the MCP protocol, all in 482,000 lines of Rust across 12 crates. He chose AGPL because commons need protection.
 
 ### Technical Requirements
 
@@ -138,7 +138,7 @@ Thibaut Melen is the founder of SuperNovae Studio and creator of Nika, the first
 
 The open source AI ecosystem has a licensing problem. Most AI tools use MIT or Apache 2.0 --- permissive licenses that allow cloud providers to take community-built software, deploy it as a proprietary service, and capture value without contributing back. This pattern has already forced Elasticsearch, MongoDB, and Redis to change their licenses.
 
-This talk argues that AGPL-3.0 is the right license for AI infrastructure tools. I will present the case through the lens of Nika, a 482,000-line Rust workflow engine licensed AGPL, drawing parallels to the themes of liberation and freedom in Eiichiro Oda's One Piece manga --- where the fight between pirates (open source) and the World Government (big tech) mirrors the dynamics of the AI industry.
+This talk argues that AGPL-3.0-or-later is the right license for AI infrastructure tools. I will present the case through the lens of Nika, a 482,000-line Rust workflow engine licensed AGPL-3.0-or-later, drawing parallels to the themes of liberation and freedom in Eiichiro Oda's One Piece manga --- where the fight between pirates (open source) and the World Government (big tech) mirrors the dynamics of the AI industry.
 
 I will cover:
 - Why permissive licenses fail for cloud-era infrastructure
@@ -198,7 +198,7 @@ Thibaut Melen is the founder of SuperNovae Studio and creator of Nika, a semanti
 
 This is a deliberately provocative talk, and I want to be upfront about that.
 
-I built Nika, a 482,000-line Rust workflow engine for AI tasks. It ships as a single binary, supports 22 LLM providers, and executes YAML-defined workflows as DAGs. It does not use Python anywhere.
+I built Nika, a 482,000-line Rust workflow engine for AI tasks. It ships as a single binary, supports 9 LLM providers, and executes YAML-defined workflows as DAGs. It does not use Python anywhere.
 
 This talk is not an attack on Python. Python is extraordinary for data science, machine learning research, and prototyping. But I will argue that the orchestration layer --- the plumbing that connects LLMs to each other, to tools, and to the outside world --- is better served by a different kind of tool.
 
@@ -247,7 +247,7 @@ I expect this talk to generate spirited discussion. That is the point.
 
 ### Speaker Bio
 
-Thibaut Melen is the founder of SuperNovae Studio and creator of Nika, the only Rust-based AI workflow engine. He chose to submit this talk to PyCon specifically because the most productive conversations happen between communities, not within them. He has deep respect for Python's role in democratizing programming and machine learning, and he thinks the orchestration layer deserves its own tool. He expects to be challenged. He looks forward to it.
+Thibaut Melen is the founder of SuperNovae Studio and creator of Nika, a Rust-based AI workflow engine. He chose to submit this talk to PyCon specifically because the most productive conversations happen between communities, not within them. He has deep respect for Python's role in democratizing programming and machine learning, and he thinks the orchestration layer deserves its own tool. He expects to be challenged. He looks forward to it.
 
 ### Technical Requirements
 
@@ -274,7 +274,7 @@ Nika is a workflow engine where AI pipelines are YAML files with five operations
 
 This talk demonstrates:
 - How any AI pipeline decomposes into five verbs
-- Live coding: build a complete agent workflow in under 5 minutes
+- Live coding: build a complete agent workflow
 - Structured output: JSON Schema validation on LLM responses
 - MCP integration: connecting to external tool ecosystems
 - The case for YAML over Python for production AI pipelines
@@ -292,7 +292,7 @@ The thesis: frameworks add complexity. Verbs add clarity. Five is enough.
    - infer: prompt → LLM → response (text, vision, structured output)
    - exec: command → shell → result
    - fetch: URL → HTTP → content (9 extraction modes)
-   - invoke: tool → MCP → result (24 built-in + any MCP server)
+   - invoke: tool → MCP → result (24 built-in tools)
    - agent: goal → LLM loop → outcome
 3. **Live Coding: Build a Workflow** (6 min)
    - Start from empty YAML file
@@ -316,7 +316,7 @@ The thesis: frameworks add complexity. Verbs add clarity. Five is enough.
 
 ### Speaker Bio
 
-Thibaut Melen is the founder of SuperNovae Studio and creator of Nika, the first declarative AI workflow engine that ships as a single binary. His 482,000-line Rust project supports 22 LLM providers, 24 media tools, and the MCP protocol --- all defined in YAML with five verbs. He believes AI engineering has a framework problem, and the solution is not another framework --- it is a simpler abstraction.
+Thibaut Melen is the founder of SuperNovae Studio and creator of Nika, the first declarative AI workflow engine that ships as a single binary. His 482,000-line Rust project across 12 crates supports 9 LLM providers, 24 media tools, and the MCP protocol --- all defined in YAML with five verbs. He believes AI engineering has a framework problem, and the solution is not another framework --- it is a simpler abstraction.
 
 ### Technical Requirements
 
