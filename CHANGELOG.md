@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.49.3] — 2026-03-27
+
+### Fixed
+- **CRITICAL: media template resolution** — `{{with.img.media[0].hash}}` now works when `img` is bound to a full task output. Media refs live in `TaskResult.media` (side-channel), not in output JSON. Template engine and `resolve_for_shell` now intercept "media" segments and delegate to `RunContext.resolve_path()`. All 15 showcase workflows depended on this pattern.
+- **Media leak in structured output retry** — `execute_with_retry()` returned `TaskResult::success()` without calling `.with_media()`, orphaning staged media refs. Added media attachment on success and defense-in-depth drains on 3 failure paths.
+- **ArtifactWritten hidden in Min detail** — `ArtifactWritten` events were gated by `show_sub_events()` but `ArtifactFailed` was always shown. Now both are unconditional so users always see output file paths.
+- **Showcase artifact paths** — all 15 advanced showcases wrote to `.nika/artifacts/output/` instead of `./output/`. Added `artifacts: dir: .` to all showcase workflows.
+
+### Changed
+- **cli_format adoption in media.rs** — `handle_stats` uses `key_value()`, `handle_import` uses `key_value_width()`, Tier 1 tools unified to data-driven array with `StatusIcon::Ok`
+- **`key_value_width()` consistency** — added missing `.dimmed()` on label to match `key_value()` behavior
+
+### Stats
+- 5 commits, 8412 tests pass, 4 new media interception tests
+- Zero clippy warnings (`cargo clippy --workspace -- -D warnings`)
+
 ## [0.49.2] — 2026-03-27
 
 ### Security
