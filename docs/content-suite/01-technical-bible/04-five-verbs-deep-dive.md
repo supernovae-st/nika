@@ -151,7 +151,7 @@ Execute shell commands with security validation, output capture, and environment
 | `shell` | boolean | No | false | Execute via `sh -c` |
 | `cwd` | string | No | workflow dir | Working directory |
 | `env` | object | No | -- | Environment variables |
-| `timeout` | integer | No | 120s | Timeout in seconds |
+| `timeout` | integer | No | 120 | Timeout in seconds |
 
 ### Runtime Flow
 
@@ -226,7 +226,7 @@ Make HTTP requests with optional response extraction. Supports 9 extraction mode
 | `headers` | object | No | -- | HTTP headers |
 | `body` | string | No | -- | Request body |
 | `json` | object | No | -- | JSON request body |
-| `timeout` | integer | No | 60s | Timeout in seconds |
+| `timeout` | integer | No | 60 | Timeout in seconds |
 | `follow_redirects` | boolean | No | true | Follow redirects |
 | `response` | string | No | -- | Response mode: full, binary |
 | `extract` | string | No | -- | Extraction mode |

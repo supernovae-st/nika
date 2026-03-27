@@ -54,7 +54,7 @@ with:
   csv_line: $task_id.values | join(",")
 ```
 
-Transforms are chained with `|` and applied left-to-right. See the Transform Reference section below for all 27 transforms.
+Transforms are chained with `|` and applied left-to-right. See the Transform Reference section below for all 31 transforms.
 
 ### Lazy Bindings
 
@@ -252,7 +252,7 @@ Complex JSONPath expressions (wildcards, recursive descent, filters) are support
 
 ---
 
-## Transform Reference (27 Transforms)
+## Transform Reference (31 Transforms)
 
 ### String Transforms
 

@@ -84,51 +84,20 @@ nika ui [options] [workflow]
 
 | Option | Description |
 |--------|-------------|
-| `--view <name>` | Initial view: explorer, chat, editor, runner, scheduler, settings |
 | `[workflow]` | Optional workflow file to load |
 
-**Views:**
+**Views (3 total):**
 
 | Key | View | Description |
 |-----|------|-------------|
 | `1/s` | Studio | File browser + YAML editor + DAG preview |
-| `2/r` | Runner | Real-time execution monitoring |
-| `3/c` | Chat | AI agent conversation |
-| `4/,` | Settings | Provider config, theme, preferences |
+| `2/c` | Command | Real-time execution monitoring + chat |
+| `3/x` | Control | Provider config, theme, preferences |
 
 **Navigation:**
-- `1-4` to switch views (normal mode)
+- `1-3` to switch views (normal mode)
 - `?` for help overlay
 - `Ctrl+C` (2x) to quit
-
----
-
-## nika chat
-
-Start interactive chat mode (shortcut for `nika ui --view chat`).
-
-```bash
-nika chat [options]
-```
-
-| Option | Short | Description |
-|--------|-------|-------------|
-| `--provider <name>` | `-p` | LLM provider |
-| `--model <name>` | `-m` | Model name |
-
-**Aliases:** `c`
-
----
-
-## nika studio
-
-Open Studio editor (shortcut for `nika ui --view editor`).
-
-```bash
-nika studio [workflow]
-```
-
-**Aliases:** `s`
 
 ---
 
@@ -146,7 +115,6 @@ nika init [options]
 | `--no-example` | -- | Skip creating example workflow |
 | `--migrate-keys` | -- | Migrate API keys from env to keychain |
 | `--course` | -- | Generate interactive course (12 levels, 44 exercises) |
-| `--minimal` | -- | Minimal scaffold (config only) |
 
 **What it creates:**
 - `.nika/` directory with `config.toml`
@@ -367,80 +335,10 @@ nika showcase <action>
 
 | Command | Description |
 |---------|-------------|
-| `nika showcase list` | Browse 200+ showcase workflows |
+| `nika showcase list` | Browse 115 showcase workflows |
 | `nika showcase extract <name>` | Extract a showcase to current dir |
 
-The showcase contains 65 workflows organized in 5 categories:
-- **Minimal** (5): One per verb
-- **Patterns** (15): DAG patterns, dependencies, for_each
-- **Advanced** (15): Vision, agents, structured output
-- **Infrastructure** (15): MCP, media, deployment
-- **Fetch** (15): Extraction modes, API integration
-
----
-
-## nika new
-
-Create a new workflow from template or wizard.
-
-```bash
-nika new [name] [options]
-```
-
-**Aliases:** `n`
-
-| Option | Short | Description |
-|--------|-------|-------------|
-| `--wizard` | -- | Launch interactive wizard |
-| `--template <name>` | `-t` | Use template (simple-infer, blog-generator, etc.) |
-| `--verb <verb>` | -- | Primary verb |
-| `--provider <name>` | `-p` | LLM provider |
-| `--output <format>` | `-o` | Output format (text, json, yaml) |
-| `--with-mcp` | -- | Include MCP server configuration |
-| `--with-include` | -- | Include subworkflow example |
-| `--with-artifacts` | -- | Include artifact output |
-| `--output-dir <dir>` | `-d` | Output directory |
-| `--list` | -- | List available templates |
-
----
-
-## nika workflow
-
-Manage workflow files.
-
-```bash
-nika workflow <action>
-```
-
-**Aliases:** `w`
-
-### Subcommands
-
-| Command | Description |
-|---------|-------------|
-| `nika workflow edit <file>` | Edit workflow in $EDITOR |
-| `nika workflow add-task <file>` | Add a task interactively |
-| `nika workflow graph <file>` | Show DAG visualization |
-| `nika workflow check <file>` | Validate (same as nika check) |
-
----
-
-## nika setup
-
-Configure machine for Nika development.
-
-```bash
-nika setup [action]
-```
-
-### Subcommands
-
-| Command | Description |
-|---------|-------------|
-| `nika setup` | Run all setup steps |
-| `nika setup editors` | Configure editor plugins |
-| `nika setup completions` | Install shell completions |
-| `nika setup ai-tools` | Configure AI tool integration |
+The showcase contains 115 workflows organized in multiple categories.
 
 ---
 

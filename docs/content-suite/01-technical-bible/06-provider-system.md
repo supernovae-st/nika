@@ -2,7 +2,7 @@
 
 ## Overview
 
-Nika's provider system abstracts 7 cloud LLM providers and 1 local inference backend behind a unified interface. The implementation uses [rig-core](https://github.com/0xPlaygrounds/rig) v0.32 as the provider abstraction layer.
+Nika's provider system abstracts 8 usable providers (7 cloud + 1 local) behind a unified interface, plus mock for testing. The implementation uses [rig-core](https://github.com/0xPlaygrounds/rig) v0.32 as the provider abstraction layer.
 
 ---
 
@@ -41,13 +41,13 @@ The `TaskExecutor` caches `RigProvider` instances in a `DashMap<String, RigProvi
 
 | ID | Name | Aliases | Env Var | Key Prefix | Models |
 |----|------|---------|---------|------------|--------|
-| `anthropic` | Anthropic Claude | `claude` | `ANTHROPIC_API_KEY` | `sk-ant-` | Opus, Sonnet, Haiku |
-| `openai` | OpenAI | `gpt` | `OPENAI_API_KEY` | `sk-` | GPT-4, GPT-4o |
-| `mistral` | Mistral AI | -- | `MISTRAL_API_KEY` | -- | Large, Medium, Small |
-| `groq` | Groq | -- | `GROQ_API_KEY` | `gsk_` | Llama, Mixtral |
-| `deepseek` | DeepSeek | `deep-seek` | `DEEPSEEK_API_KEY` | `sk-` | Chat, Coder |
-| `gemini` | Google Gemini | `google` | `GEMINI_API_KEY` | -- | Pro, Flash, Ultra |
-| `xai` | xAI Grok | `grok` | `XAI_API_KEY` | -- | Grok-3, Grok-4 |
+| `anthropic` | Anthropic Claude | `claude` | `ANTHROPIC_API_KEY` | `sk-ant-` | claude-sonnet-4-20250514 |
+| `openai` | OpenAI | `gpt` | `OPENAI_API_KEY` | `sk-` | gpt-4o |
+| `mistral` | Mistral AI | -- | `MISTRAL_API_KEY` | -- | mistral-large-latest |
+| `groq` | Groq | -- | `GROQ_API_KEY` | `gsk_` | llama-4-maverick |
+| `deepseek` | DeepSeek | `deep-seek` | `DEEPSEEK_API_KEY` | `sk-` | deepseek-chat |
+| `gemini` | Google Gemini | `google` | `GEMINI_API_KEY` | -- | gemini-2.5-flash |
+| `xai` | xAI Grok | `grok` | `XAI_API_KEY` | -- | grok-3 |
 
 ### Provider Resolution
 

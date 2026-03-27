@@ -15,8 +15,7 @@ All Nika errors use the `NikaError` enum with `NIKA-XXX` codes. Errors implement
 | 040-049 | Template/binding errors | `error.rs` |
 | 050-059 | Path/task/security errors | `error.rs` |
 | 060-069 | Output errors | `error.rs` |
-| 070-079 | With block validation errors | `error.rs` |
-| 080-089 | DAG validation errors | `error.rs` |
+| 070-089 | With block + DAG validation errors | `error.rs` |
 | 090-099 | JSONPath/IO/Execution errors | `error.rs` |
 | 100-109 | MCP errors | `error.rs` |
 | 110-119 | Agent errors | `error.rs` |
@@ -24,10 +23,10 @@ All Nika errors use the `NikaError` enum with `NIKA-XXX` codes. Errors implement
 | 130-139 | TUI/Config errors | `error.rs` |
 | 140-151 | AST analysis errors (Phase 2) | `analyzer/errors.rs` |
 | 160-164 | Parse errors (Phase 1) | `raw/parser.rs` |
-| 165-166 | Policy/Boot errors | `error.rs` |
+| 164-166 | Policy/Boot errors | `error.rs` |
 | 170-179 | Runtime errors | `error.rs` |
-| 200-209 | File tool errors | `tools/mod.rs` |
-| 210-219 | Builtin tool errors | `error.rs` |
+| 200-214 | File tool errors | `tools/mod.rs` |
+| 215-219 | File I/O errors | `error.rs` |
 | 250 | Context error | `error.rs` |
 | 251-259 | Media pipeline errors | `media/error.rs` |
 | 260-269 | Package URI errors | `error.rs` |
@@ -210,7 +209,7 @@ All Nika errors use the `NikaError` enum with `NIKA-XXX` codes. Errors implement
 |------|---------|-------------|------|
 | NIKA-171 | `DecomposeTimeout` | Decompose expansion timed out | Reduce max_depth/max_items |
 
-## File Tool Errors (200-209)
+## File Tool Errors (200-214)
 
 Defined in `src/tools/mod.rs` via `ToolErrorCode`:
 
@@ -226,15 +225,20 @@ Defined in `src/tools/mod.rs` via `ToolErrorCode`:
 | NIKA-207 | Invalid regex pattern |
 | NIKA-208 | File not found |
 | NIKA-209 | old_string not unique in file |
+| NIKA-210 | Builtin tool execution error |
+| NIKA-212 | Invalid parameters |
+| NIKA-213 | Assertion failed |
+| NIKA-214 | (reserved) |
 
-## Builtin Tool Errors (210-219)
+## File I/O Errors (215-219)
 
 | Code | Variant | Description | Help |
 |------|---------|-------------|------|
-| NIKA-210 | `BuiltinToolError` | Builtin tool execution error | Check tool params |
-| NIKA-212 | `BuiltinInvalidParams` | Invalid parameters | Check JSON schema |
-| NIKA-213 | `AssertionFailed` | nika:assert condition false | Fix assertion condition |
 | NIKA-215 | `FileAlreadyExists` | nika:write target exists | Use nika:edit instead |
+| NIKA-216 | (reserved) | | |
+| NIKA-217 | (reserved) | | |
+| NIKA-218 | (reserved) | | |
+| NIKA-219 | (reserved) | | |
 
 ## Context Error (250)
 
