@@ -371,16 +371,14 @@ impl AgentParams {
             }
         }
 
-        // Extended thinking is only supported for Claude
+        // Graceful degradation: extended_thinking with non-Claude provider
         if self.extended_thinking == Some(true) {
             if let Some(ref provider) = self.provider {
                 if provider != "claude" {
-                    return Err(NikaError::ValidationError {
-                        reason: format!(
-                            "extended_thinking only supported for claude provider, got '{}'",
-                            provider
-                        ),
-                    });
+                    tracing::warn!(
+                        provider = %provider,
+                        "extended_thinking: true ignored — only supported by Claude provider"
+                    );
                 }
             }
         }
@@ -616,17 +614,15 @@ extended_thinking: false
     }
 
     #[test]
-    fn validate_extended_thinking_with_openai_fails() {
+    fn validate_extended_thinking_with_openai_degrades_gracefully() {
+        // Previously returned Err; now it just warns and succeeds
         let params = AgentParams {
             prompt: "test".to_string(),
             extended_thinking: Some(true),
             provider: Some("openai".to_string()),
             ..Default::default()
         };
-        let err = params.validate().unwrap_err();
-        assert!(err
-            .to_string()
-            .contains("extended_thinking only supported for claude"));
+        assert!(params.validate().is_ok(), "should degrade gracefully, not crash");
     }
 
     #[test]
