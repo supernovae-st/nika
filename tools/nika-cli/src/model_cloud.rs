@@ -264,3 +264,41 @@ pub fn print_model_recommend() -> Result<(), NikaError> {
     println!();
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cloud_providers_has_seven() {
+        assert_eq!(CLOUD_PROVIDERS.len(), 7);
+    }
+
+    #[test]
+    fn cloud_providers_all_have_best_for() {
+        for p in CLOUD_PROVIDERS {
+            assert!(!p.best_for.is_empty(), "{} missing best_for", p.name);
+        }
+    }
+
+    #[test]
+    fn format_tags_known_model() {
+        let tags = format_tags("claude-sonnet-4-6");
+        assert!(tags.contains("balanced") || tags.contains("code"));
+    }
+
+    #[test]
+    fn format_tags_unknown_model() {
+        assert!(format_tags("nonexistent-model").is_empty());
+    }
+
+    #[test]
+    fn print_cloud_models_doesnt_panic() {
+        let _ = print_cloud_models(Some("nonexistent"));
+    }
+
+    #[test]
+    fn print_model_info_not_found() {
+        assert!(print_model_info("nonexistent-model-xyz").is_err());
+    }
+}
