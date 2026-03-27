@@ -240,7 +240,7 @@ These extraction modes compose with the binding system. A fetch task with `extra
 
 ## The Init and Showcase Systems: Content as Code
 
-Nika's `init` system generates project scaffolding and learning materials programmatically. The `nika init` command offers three modes: a guided wizard that asks questions and generates tailored workflows, `--minimal` for a five-workflow scaffold (one per verb), and `--course` for the full 12-level Liberation course with 44 exercises.
+Nika's `init` system generates project scaffolding and learning materials programmatically. The `nika init` command offers a guided wizard that asks questions and generates tailored workflows, and `--course` for the full 12-level Liberation course with 44 exercises.
 
 The showcase system is equally programmatic. Over 200 example workflows are generated from Rust source code — each showcase is a function that returns a YAML string. The showcases are organized by category: LLM workflows, exec workflows, fetch workflows, builtin tool workflows, pattern workflows (ETL, fan-out/fan-in, retry), advanced workflows (multi-provider, agent orchestration), and infrastructure workflows (monitoring, deployment).
 

@@ -92,11 +92,11 @@ You will learn:
 - Validating workflows with `nika check`
 
 **Exercises** (5):
-1. Hello World -- your first workflow with `infer:` shorthand and full form
+1. Schema Basics -- your first workflow with schema declaration
 2. Shell Commands -- `exec:` shorthand, full form, `timeout:`, `env:`, `cwd:`
 3. HTTP Requests -- `fetch:` with GET, POST, headers, `extract: jsonpath`
-4. Provider Selection -- workflow-level vs. task-level provider/model overrides
-5. Validation -- combining everything into a validated workflow
+4. Task Sequencing -- combining exec and fetch in one workflow
+5. Validation -- validating workflows with `nika check`
 
 **Skills acquired**: You can write a workflow from scratch, run shell commands, fetch data from URLs, and validate syntax before execution.
 

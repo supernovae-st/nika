@@ -86,9 +86,9 @@ The `invoke:` verb calls an MCP (Model Context Protocol) tool. This is Nika's ex
 
 The invoke verb is how Nika connects to NovaNet (the knowledge graph), external databases, code execution sandboxes, web search services, and any other capability exposed via MCP. The MCP client uses rmcp v0.16 with stdio transport, retry logic, and connection pooling.
 
-But invoke is also the gateway to Nika's 43 built-in tools. When you write `invoke: nika:thumbnail`, the executor first checks if there is a builtin tool with that name. If there is, it runs it locally. If not, it routes to the configured MCP server. This means builtin tools and external tools share the same interface — from the workflow's perspective, they are indistinguishable.
+But invoke is also the gateway to Nika's 24 built-in tools. When you write `invoke: nika:thumbnail`, the executor first checks if there is a builtin tool with that name. If there is, it runs it locally. If not, it routes to the configured MCP server. This means builtin tools and external tools share the same interface — from the workflow's perspective, they are indistinguishable.
 
-The 43 built-in tools include 6 core tools (sleep, log, emit, assert, prompt, run), 5 file tools (read, write, edit, glob, grep), and up to 32 media tools (import, dimensions, thumbhash, dominant_color, thumbnail, convert, strip, metadata, optimize, svg_render, phash, compare, pdf_extract, chart, provenance, verify, qr_validate, quality, pipeline, html_to_md, css_select, extract_metadata, extract_links, readability, and more).
+The 24 built-in tools include 5 core tools (import, dimensions, thumbhash, dominant_color, pipeline), 6 media-core tools (thumbnail, convert, strip, metadata, optimize, svg_render), and 13 opt-in media tools (phash, compare, pdf_extract, chart, provenance, verify, qr_validate, quality, html_to_md, css_select, extract_metadata, extract_links, readability) plus utility tools (log, emit, assert, sleep, complete, run) and file tools (read, write, edit, glob, grep).
 
 ### agent: — The Autonomy Verb
 
@@ -210,7 +210,7 @@ The exec verb gained its security model progressively. Early versions had no blo
 
 The fetch verb underwent the most dramatic evolution. In early versions, it was a thin wrapper around HTTP GET. The nine extraction modes (markdown, article, text, selector, metadata, links, jsonpath, feed, llm_txt) were added across schemas @0.11 and @0.12, transforming it from a simple HTTP client into a comprehensive web content extraction system. The binary response mode with CAS integration was added to support image downloading for the media pipeline.
 
-The invoke verb gained its builtin routing system when the media pipeline was introduced. Before media tools, invoke only called MCP servers. With the addition of 24 builtin tools, the executor needed to check for builtins before routing to MCP — a transparent optimization that made built-in tools indistinguishable from external tools at the YAML level.
+The invoke verb gained its builtin routing system when the media pipeline was introduced. Before media tools, invoke only called MCP servers. With the addition of builtin tools, the executor needed to check for builtins before routing to MCP — a transparent optimization that made built-in tools indistinguishable from external tools at the YAML level.
 
 The agent verb was the last to be added (schema @0.3) and has been the most architecturally complex to evolve. Guardrails, completion conditions, cost limits, sub-agent spawning, and extended thinking support were all added in subsequent versions. The agent verb represents the most active area of development, as autonomous agent patterns continue to evolve rapidly in the broader AI landscape.
 

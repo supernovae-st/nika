@@ -96,7 +96,7 @@ Create a workflow where an `infer:` task must return a JSON object with `title` 
 schema: "nika/workflow@0.12"
 workflow: structured-output
 provider: anthropic
-model: claude-sonnet-4-6
+model: claude-sonnet-4-20250514
 
 tasks:
   - id: extract_info
@@ -138,7 +138,7 @@ tasks:
 schema: "nika/workflow@0.12"
 workflow: artifacts-demo
 provider: anthropic
-model: claude-sonnet-4-6
+model: claude-sonnet-4-20250514
 
 artifacts:
   dir: ./output
@@ -169,7 +169,7 @@ Create a task with a strict schema and `enable_retry: true`. The LLM must produc
 schema: "nika/workflow@0.12"
 workflow: schema-retry
 provider: anthropic
-model: claude-sonnet-4-6
+model: claude-sonnet-4-20250514
 
 tasks:
   - id: classify
@@ -224,7 +224,7 @@ tasks:
   - id: deep_analysis
     depends_on: [quick_draft]
     provider: anthropic
-    model: claude-sonnet-4-6
+    model: claude-sonnet-4-20250514
     with:
       ideas: $quick_draft
     infer:
@@ -236,14 +236,14 @@ The workflow-level `provider:` and `model:` serve as defaults. Task-level settin
 
 ### Concept: Provider Landscape
 
-Nika supports 22+ providers. Here are the most common:
+Nika supports 9 providers. Here are the most common:
 
 | Provider | Models | Best For |
 |----------|--------|----------|
 | Anthropic | Claude Sonnet/Opus/Haiku | Reasoning, analysis, coding |
 | OpenAI | GPT-4o, GPT-4o-mini | General purpose |
-| Google | Gemini 2.0 Flash/Pro | Fast, multimodal |
-| Groq | Llama 3.3, Mixtral | Speed (inference) |
+| Google (Gemini) | Gemini 2.5 Flash | Fast, multimodal |
+| Groq | Llama 4 Maverick | Speed (inference) |
 | Mistral | Small/Large/Codestral | European, multilingual |
 | DeepSeek | DeepSeek-V3, R1 | Cost-efficient reasoning |
 | xAI | Grok | Real-time knowledge |
@@ -295,7 +295,7 @@ Temperature guide:
 schema: "nika/workflow@0.12"
 workflow: multi-provider
 provider: anthropic
-model: claude-sonnet-4-6
+model: claude-sonnet-4-20250514
 
 tasks:
   - id: brainstorm
@@ -328,7 +328,7 @@ tasks:
 schema: "nika/workflow@0.12"
 workflow: system-prompts
 provider: anthropic
-model: claude-sonnet-4-6
+model: claude-sonnet-4-20250514
 
 tasks:
   - id: formal
@@ -691,7 +691,7 @@ These limits are independent of guardrails. An agent can pass all guardrails but
 ```yaml
 schema: "nika/workflow@0.12"
 provider: anthropic
-model: claude-sonnet-4-6
+model: claude-sonnet-4-20250514
 
 tasks:
   - id: analyzer
@@ -729,7 +729,7 @@ Agent 1 researches use cases with `completion: mode: explicit`. Agent 2 receives
 ```yaml
 schema: "nika/workflow@0.12"
 provider: anthropic
-model: claude-sonnet-4-6
+model: claude-sonnet-4-20250514
 
 tasks:
   - id: explicit_agent
@@ -784,7 +784,7 @@ tasks:
 ```yaml
 schema: "nika/workflow@0.12"
 provider: anthropic
-model: claude-sonnet-4-6
+model: claude-sonnet-4-20250514
 
 tasks:
   - id: writer_agent

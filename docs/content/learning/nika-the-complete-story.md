@@ -49,7 +49,7 @@ But Nika scales from that trivial example to workflows with dozens of tasks, mul
 
 The design philosophy of Nika crystallizes in what the project calls "the five verbs." Every task in a Nika workflow does exactly one of five things:
 
-**infer:** calls a language model. This is the AI verb — you give it a prompt, optionally a system message, temperature, max tokens, and other parameters, and it returns the LLM's response. It supports 22 LLM providers through rig-core, including Claude, GPT-4, Mistral, Groq, DeepSeek, Gemini, xAI, and local models via mistral.rs. It handles vision (multimodal content with images), extended thinking (Claude's chain-of-thought), streaming, and structured output with JSON schema validation.
+**infer:** calls a language model. This is the AI verb — you give it a prompt, optionally a system message, temperature, max tokens, and other parameters, and it returns the LLM's response. It supports 9 LLM providers through rig-core, including Claude, GPT-4, Mistral, Groq, DeepSeek, Gemini, xAI, and local models via mistral.rs. It handles vision (multimodal content with images), extended thinking (Claude's chain-of-thought), streaming, and structured output with JSON schema validation.
 
 **exec:** runs a shell command. This is the system verb — you give it a command string, and Nika runs it via tokio process spawn, captures the output, and makes it available to downstream tasks. It includes a 28-pattern security blocklist that prevents dangerous commands like `rm -rf /` or `curl | bash`, and it uses NFKC Unicode normalization to prevent homoglyph attacks.
 
@@ -133,7 +133,7 @@ This distinction matters because it demonstrates that MCP is not just a protocol
 
 The MCP client implementation uses rmcp v0.16 with stdio transport, which means MCP servers are spawned as child processes and communication happens through standard input and output. This is the same transport used by Claude Code and most other MCP clients. The client manages connection pooling, retry logic, tool discovery, and argument serialization.
 
-Nika also defines over 100 MCP aliases — short names that map to full MCP tool paths. For example, `novanet` maps to the NovaNet MCP server's tools, and the various provider aliases map to their respective MCP tool paths. These aliases make workflow YAML more readable and reduce the boilerplate of specifying full server and tool name combinations.
+Nika also defines MCP aliases — short names that map to full MCP tool paths. For example, `novanet` maps to the NovaNet MCP server's tools, and the various provider aliases map to their respective MCP tool paths. These aliases make workflow YAML more readable and reduce the boilerplate of specifying full server and tool name combinations.
 
 ---
 
@@ -147,11 +147,11 @@ This philosophy extends to the project's visual identity. The project's symbol i
 
 ---
 
-## The Solo Developer Story: 317K Lines of Rust
+## The Solo Developer Story: 450K+ Lines of Rust
 
-One of the most remarkable aspects of Nika is its scale. As of version 0.42.0, the project contains over 317,000 lines of Rust source code across 1,739 files, organized into 10 workspace crates. The largest crate, nika-engine, accounts for 162,547 lines. The TUI (terminal user interface) alone is 92,959 lines. The core AST library is 23,114 lines.
+One of the most remarkable aspects of Nika is its scale. As of version 0.49.0, the project contains over 450,000 lines of Rust source code organized into 12 workspace crates. The largest crate, nika-engine, contains the execution runtime. The TUI (terminal user interface) is a major subsystem. Multiple specialized crates handle media processing, MCP integration, CLI, and LSP.
 
-This is the work of a solo developer, Thibaut Melen, working with AI assistance. The project maintains a zero clippy warnings policy, uses structured error codes (NIKA-001 through NIKA-319), and has a comprehensive test suite. The codebase includes snapshot testing via insta, property-based testing via proptest, and a strict pre-commit workflow that requires all tests, linting, and type-checking to pass before any commit.
+This is the work of a solo developer, Thibaut Melen, working with AI assistance. The project maintains a zero clippy warnings policy, uses structured error codes (NIKA-001 through NIKA-319+), and has a comprehensive test suite exceeding 8,300 tests. The codebase includes snapshot testing via insta, property-based testing via proptest, and a strict pre-commit workflow that requires all tests, linting, and type-checking to pass before any commit.
 
 The choice of Rust was not accidental. Rust provides memory safety without garbage collection, which means Nika can process images, manage concurrent network connections, and run multiple LLM calls simultaneously without the overhead of a runtime garbage collector. The release profile uses thin LTO (link-time optimization) and single codegen unit for maximum binary optimization, with debug symbols stripped. The result is a single, self-contained binary that runs anywhere Rust compiles.
 
@@ -165,7 +165,7 @@ The levels are named with a hacker-liberation theme: Jailbreak (basic shell comm
 
 The course design was informed by deep research into Rustlings, Ziglings, Exercism, Codecrafters, and other interactive learning tools. The golden rule: the exercise file IS the lesson. Each exercise is a `.nika.yaml` file with inline comments explaining the concept, a broken or incomplete workflow to fix, and progressive hints accessible via `nika course hint`. The watch mode (`nika course watch`) automatically re-validates exercises on file save, creating a tight edit-save-feedback loop.
 
-In addition to the course, Nika includes a showcase system with over 200 example workflows covering everything from content generation to data analysis to media processing, all extractable via `nika showcase extract`.
+In addition to the course, Nika includes a showcase system with 115 example workflows covering everything from content generation to data analysis to media processing, all extractable via `nika showcase extract`.
 
 ---
 
@@ -175,7 +175,7 @@ The project's roadmap extends through several waves of planned features. The vis
 
 Perhaps the most ambitious planned feature is the orchestrate mode. When given a `goal:` instead of explicit tasks, Nika's orchestrator would plan in YAML — dynamically generating, executing, evaluating, and improving `.nika.yaml` workflows to achieve the goal. No other framework has an orchestrator that plans in its own workflow language. LangGraph's plans are opaque Python, CrewAI's plans are non-deterministic natural language, AutoGen's plans are implicit conversations. Nika's plans would be deterministic, auditable, reusable YAML files that can be saved, version-controlled, and reviewed alongside hand-written workflows.
 
-The integration story is equally ambitious. As of version 0.42.0, Nika includes a setup system that integrates with 43+ AI coding tools — Claude Code, Cursor, Copilot, Codex, Gemini, Windsurf, and more — through universal Agent Skills that teach these tools how to write `.nika.yaml` workflows. A Claude Code plugin provides full power integration with skills, agents, hooks, and MCP connectivity. The vision is simple: when someone installs Nika, every AI coding tool on their machine should instantly understand how to work with it.
+The integration story is equally ambitious. As of version 0.49.0, Nika integrates with multiple AI coding tools — Claude Code, Cursor, Copilot, and others — through universal Agent Skills that teach these tools how to write `.nika.yaml` workflows. A Claude Code plugin provides full integration with skills, agents, hooks, and MCP connectivity. The vision is simple: when someone installs Nika, AI coding tools should instantly understand how to work with it.
 
 ---
 

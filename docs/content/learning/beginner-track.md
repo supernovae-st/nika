@@ -93,7 +93,7 @@ The `fetch:` verb makes HTTP requests. GET by default. No headers, no auth cerem
     method: POST
     json:
       name: "Nika"
-      version: "0.42"
+      version: "0.49"
     headers:
       Accept: "application/json"
     response: full     # Get status + headers + body
@@ -107,7 +107,7 @@ For tasks that use LLMs (`infer:` and `agent:`), you set a provider and model at
 schema: "nika/workflow@0.12"
 workflow: with-llm
 provider: anthropic
-model: claude-sonnet-4-6
+model: claude-sonnet-4-20250514
 tasks:
   - id: think
     infer: "Explain recursion in one sentence."
@@ -142,7 +142,7 @@ You can override per task:
 schema: "nika/workflow@0.12"
 workflow: hello-world
 provider: anthropic
-model: claude-sonnet-4-6
+model: claude-sonnet-4-20250514
 
 tasks:
   - id: hello
@@ -226,7 +226,7 @@ tasks:
       method: POST
       json:
         name: "Nika"
-        version: "0.38"
+        version: "0.49"
 
   - id: with_headers
     fetch:
@@ -735,7 +735,7 @@ nika run configurable-report.nika.yaml --input target_url=https://other.com
 schema: "nika/workflow@0.12"
 workflow: context-files
 provider: anthropic
-model: claude-sonnet-4-6
+model: claude-sonnet-4-20250514
 
 tasks:
   - id: load_context

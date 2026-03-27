@@ -34,9 +34,9 @@ SVG processing uses the usvg crate, which parses SVG into a simplified, sanitize
 
 ---
 
-## The 10-Crate Architecture
+## The 12-Crate Architecture
 
-Nika's workspace contains 10 crates, and the boundaries between them encode important architectural invariants.
+Nika's workspace contains 12 crates, and the boundaries between them encode important architectural invariants.
 
 **nika-core** (23,114 lines) is the zero-I/O foundation. It contains the AST types (Raw and Analyzed), the parser, the analyzer, provider and model catalogs, MCP alias definitions, and the transform catalog. Crucially, nika-core has no dependency on tokio, reqwest, or any I/O crate. It performs no network requests, no file system access, and no process spawning. This is enforced by the Cargo.toml — the dependency list simply does not include I/O crates.
 

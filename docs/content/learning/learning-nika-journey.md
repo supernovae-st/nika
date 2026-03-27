@@ -58,7 +58,7 @@ This level arrives relatively late (exercise 17 of 44) because the course wants 
 
 The course is not just a set of YAML files — it is a full learning platform built into the Nika binary. Several infrastructure features make the learning experience smooth and productive.
 
-The `nika course status` command shows a constellation progress map — a visual representation of the learner's progress across all 12 levels. Completed levels glow, in-progress levels pulse, and future levels are dimmed. The constellation metaphor (stars, connections, nebulae) reinforces the SuperNovae branding.
+The `nika course status` command shows progress across all 12 levels. Completed levels glow, in-progress levels pulse, and future levels are dimmed. The constellation metaphor (stars, connections, nebulae) reinforces the SuperNovae branding.
 
 The `nika course next` command opens the next exercise the learner should work on. It tracks progress automatically — when an exercise passes validation, the learner advances.
 
@@ -72,9 +72,9 @@ The `nika course run <exercise>` command executes an exercise workflow. This is 
 
 ---
 
-## The Showcase: 200+ Ready-to-Use Workflows
+## The Showcase: 115 Ready-to-Use Workflows
 
-Beyond the structured course, Nika includes a showcase system with over 200 example workflows. These are not exercises — they are complete, production-ready workflows that demonstrate real-world use cases.
+Beyond the structured course, Nika includes a showcase system with 115 example workflows. These are not exercises — they are complete, production-ready workflows that demonstrate real-world use cases.
 
 The showcase is organized by category:
 
