@@ -275,7 +275,7 @@ pub async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaE
                     if client.set_secret(&provider, &api_key).await.is_ok() {
                         let env_var_name =
                             provider_to_env_var(&provider).unwrap_or("UNKNOWN_API_KEY");
-                        // SAFETY: single-threaded CLI context
+                        // SAFETY: no concurrent tasks reading env vars at this point
                         unsafe { std::env::set_var(env_var_name, &api_key) };
                         println!(
                             "  {} API key for {} stored via daemon",
@@ -312,7 +312,7 @@ pub async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaE
                     .unwrap_or(false)
             {
                 let env_var = provider_to_env_var(&provider).unwrap_or("UNKNOWN_API_KEY");
-                // SAFETY: single-threaded CLI context, no concurrent env access
+                // SAFETY: no concurrent tasks reading env vars at this point
                 unsafe { std::env::set_var(env_var, &api_key) };
                 test_provider_connection(&provider).await;
             }

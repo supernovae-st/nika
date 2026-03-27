@@ -188,7 +188,11 @@ pub async fn handle_job_command(action: JobAction) -> Result<(), NikaError> {
 
             match resp {
                 DaemonResponse::JobDetail { job } => {
-                    println!("{}", serde_json::to_string_pretty(&job).unwrap_or_default());
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&job)
+                            .unwrap_or_else(|e| format!("(serialization error: {e})"))
+                    );
                 }
                 DaemonResponse::Error { code, message } => {
                     eprintln!("{} [{code}] {message}", "✗".red().bold());
