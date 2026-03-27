@@ -909,7 +909,7 @@ fn check_agents_md() -> DiagnosticCheck {
         DiagnosticCheck::warn(
             "AGENTS.md",
             "No AGENTS.md or CLAUDE.md found",
-            "Create with: nika init (or manually)",
+            "Create with: nika init (generates AGENTS.md + CLAUDE.md symlink)",
         )
     }
 }
@@ -1179,7 +1179,7 @@ mod tests {
 
     #[test]
     fn json_output_is_valid_json() {
-        let checks = vec![
+        let checks = [
             DiagnosticCheck::pass("test1", "ok").in_section("System"),
             DiagnosticCheck::fail("test2", "bad", "fix").in_section("System"),
             DiagnosticCheck::warn("test3", "meh", "hint").in_section("Config"),
@@ -1225,7 +1225,7 @@ mod tests {
 
     #[test]
     fn doctor_summary_counts_correct() {
-        let checks = vec![
+        let checks = [
             DiagnosticCheck::pass("a", "ok"),
             DiagnosticCheck::pass("b", "ok"),
             DiagnosticCheck::warn("c", "meh", "hint"),
