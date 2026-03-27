@@ -75,10 +75,15 @@ impl TaskExecutor {
         let exec_start = Instant::now();
         let output =
             if params.shell == Some(true) {
-                // Shell mode: use sh -c (preserves shell metacharacters like ;, |, &&)
-                tracing::debug!(task_id = %task_id, "exec: using shell mode (sh -c)");
-                let mut cmd = tokio::process::Command::new("sh");
-                cmd.arg("-c").arg(resolved_cmd.as_ref());
+                // Shell mode: sh -c on Unix, cmd.exe /C on Windows
+                let (shell, flag) = if cfg!(windows) {
+                    ("cmd", "/C")
+                } else {
+                    ("sh", "-c")
+                };
+                tracing::debug!(task_id = %task_id, "exec: using shell mode ({shell})");
+                let mut cmd = tokio::process::Command::new(shell);
+                cmd.arg(flag).arg(resolved_cmd.as_ref());
 
                 // Pipe stdout/stderr for capture (required by spawn + wait_with_output)
                 cmd.stdout(std::process::Stdio::piped());
