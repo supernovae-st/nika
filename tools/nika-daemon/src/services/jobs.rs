@@ -24,6 +24,7 @@ const MAX_CONCURRENT_JOBS: usize = 4;
 const MAX_PENDING_JOBS: usize = 1000;
 
 /// The job service manages job lifecycle.
+#[derive(Clone)]
 pub struct JobService {
     storage: Storage,
     /// Running job PIDs: job_id → child PID
@@ -393,6 +394,99 @@ async fn wait_for_child(child: tokio::process::Child, job_id: &str) -> DaemonRes
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// CRON SCHEDULER
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Background task: fires cron-scheduled jobs every minute.
+///
+/// Checks all stored cron expressions each minute and submits a new job
+/// execution if the expression matches the current minute and no job for
+/// that workflow is already pending or running.
+pub async fn run_cron_scheduler(service: JobService) {
+    let mut interval = tokio::time::interval(Duration::from_secs(60));
+    // Skip the first immediate tick so we don't double-fire jobs that were
+    // just submitted at startup.
+    interval.tick().await;
+
+    loop {
+        interval.tick().await;
+        if let Err(e) = fire_due_cron_jobs(&service).await {
+            warn!(error = %e, "cron scheduler tick failed");
+        }
+    }
+}
+
+async fn fire_due_cron_jobs(service: &JobService) -> DaemonResult<()> {
+    let all_jobs = service.storage.list_jobs(None).await?;
+
+    // Deduplicate cron schedules: one entry per (workflow, cron_expr) pair.
+    // Keep the most recently submitted job as the template.
+    let mut seen = std::collections::HashSet::new();
+    let templates: Vec<_> = all_jobs
+        .iter()
+        .filter(|j| j.cron.is_some())
+        .filter(|j| seen.insert((j.workflow.clone(), j.cron.clone().unwrap_or_default())))
+        .collect();
+
+    if templates.is_empty() {
+        return Ok(());
+    }
+
+    let now = chrono::Utc::now();
+    // Window: did this cron expression fire at any second in the past minute?
+    let window_start = now - chrono::Duration::seconds(60);
+
+    for job in templates {
+        let cron_expr = job.cron.as_deref().unwrap_or_default();
+
+        // Skip if a job for this workflow is already pending or running.
+        let already_active = all_jobs.iter().any(|j| {
+            j.workflow == job.workflow
+                && (j.state == JobState::Pending || j.state == JobState::Running)
+        });
+        if already_active {
+            continue;
+        }
+
+        // Parse and check if due in the past minute.
+        let cron = match croner::Cron::new(cron_expr).parse() {
+            Ok(c) => c,
+            Err(e) => {
+                warn!(expr = %cron_expr, error = %e, "invalid cron expression — skipping");
+                continue;
+            }
+        };
+
+        let due = cron
+            .find_next_occurrence(&window_start, false)
+            .map(|next| next <= now)
+            .unwrap_or(false);
+
+        if due {
+            match service
+                .submit(
+                    &job.workflow,
+                    job.name.as_deref(),
+                    job.args.as_deref(),
+                    Some(cron_expr),
+                    job.max_retries,
+                )
+                .await
+            {
+                Ok(id) => {
+                    info!(job_id = %id, workflow = %job.workflow, cron = %cron_expr, "cron job fired")
+                }
+                Err(e) => {
+                    warn!(workflow = %job.workflow, cron = %cron_expr, error = %e, "failed to fire cron job")
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // TESTS
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -487,5 +581,59 @@ mod tests {
     async fn running_count_tracks_jobs() {
         let svc = setup().await;
         assert_eq!(svc.running_count().await, 0);
+    }
+
+    #[tokio::test]
+    async fn cron_fire_due_jobs_fires_due_job() {
+        let svc = setup().await;
+
+        // Submit a cron job with "every minute" expression.
+        svc.submit("cron.nika.yaml", Some("ticker"), None, Some("* * * * *"), 0)
+            .await
+            .unwrap();
+
+        // Mark the initial job as completed so it is no longer pending/running.
+        let jobs = svc.list_jobs(None).await.unwrap();
+        let initial_id = &jobs[0].id;
+        svc.storage
+            .update_state(initial_id, JobState::Completed, Some(0), None)
+            .await
+            .unwrap();
+
+        let before = svc.list_jobs(None).await.unwrap().len();
+        fire_due_cron_jobs(&svc).await.unwrap();
+        let after = svc.list_jobs(None).await.unwrap().len();
+
+        // A new job should have been submitted (cron * * * * * fires every minute).
+        assert_eq!(
+            after,
+            before + 1,
+            "cron scheduler should have submitted a new job"
+        );
+    }
+
+    #[tokio::test]
+    async fn cron_fire_skips_when_already_active() {
+        let svc = setup().await;
+
+        // Submit a cron job that stays in Running state.
+        let id = svc
+            .submit("cron.nika.yaml", None, None, Some("* * * * *"), 0)
+            .await
+            .unwrap();
+
+        // Force it to Running state (simulates an actively running job).
+        svc.storage
+            .update_state(&id, JobState::Running, None, None)
+            .await
+            .unwrap();
+        svc.running.lock().await.insert(id.clone(), 0);
+
+        let before = svc.list_jobs(None).await.unwrap().len();
+        fire_due_cron_jobs(&svc).await.unwrap();
+        let after = svc.list_jobs(None).await.unwrap().len();
+
+        // Should NOT fire a new job — the existing one is still running.
+        assert_eq!(after, before, "should not double-fire while job is running");
     }
 }

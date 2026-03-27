@@ -125,7 +125,10 @@ impl DaemonServer {
         let job_service = match Storage::open(&db_path) {
             Ok(storage) => {
                 info!(path = %db_path.display(), "job storage opened");
-                Some(JobService::new(storage))
+                let svc = JobService::new(storage);
+                // Spawn cron scheduler — fires due cron jobs every minute.
+                tokio::spawn(crate::services::jobs::run_cron_scheduler(svc.clone()));
+                Some(svc)
             }
             Err(e) => {
                 warn!(error = %e, "failed to open job storage — jobs disabled");
