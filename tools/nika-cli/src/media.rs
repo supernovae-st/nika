@@ -11,7 +11,7 @@ use std::time::Duration;
 use clap::Subcommand;
 use colored::Colorize;
 
-use nika_engine::display::{section_header, separator, StatusIcon};
+use nika_engine::display::{key_value, key_value_width, section_header, separator, StatusIcon};
 use nika_engine::error::NikaError;
 use nika_engine::media::CasStore;
 
@@ -217,9 +217,9 @@ async fn handle_import(
         println!("{}", result.hash);
     } else {
         println!("{} imported {}", StatusIcon::Ok, file.display());
-        println!("    {:<8} {}", "Hash:".dimmed(), result.hash);
-        println!("    {:<8} {}", "MIME:".dimmed(), mime_type);
-        println!("    {:<8} {}", "Size:".dimmed(), format_bytes(size));
+        println!("{}", key_value_width("Hash", &result.hash, 8));
+        println!("{}", key_value_width("MIME", &mime_type, 8));
+        println!("{}", key_value_width("Size", &format_bytes(size), 8));
         if result.deduplicated {
             println!("    {} deduplicated (already in store)", StatusIcon::Info);
         }
@@ -294,13 +294,9 @@ fn handle_stats(store: &CasStore, quiet: bool) -> Result<(), NikaError> {
     }
 
     println!("{}", section_header("Media Store Statistics"));
-    println!("    {:<12} {count}", "Files:".dimmed());
-    println!(
-        "    {:<12} {}",
-        "Total size:".dimmed(),
-        format_bytes(total_size)
-    );
-    println!("    {:<12} {}", "Shards:".dimmed(), shards.len());
+    println!("{}", key_value("Files", &count.to_string()));
+    println!("{}", key_value("Total size", &format_bytes(total_size)));
+    println!("{}", key_value("Shards", &shards.len().to_string()));
 
     if !shards.is_empty() {
         println!("{}", section_header("Shard Distribution"));
@@ -432,26 +428,18 @@ fn handle_tools() {
 
     // Always-on tools (Tier 1)
     println!("  {}", "Tier 1 — Always On".cyan().bold());
-    println!(
-        "  {} — Import any file into CAS (image, audio, video, PDF)",
-        "nika:import".green()
-    );
-    println!(
-        "  {} — Image dimensions from headers (~0.1ms)",
-        "nika:dimensions".green()
-    );
-    println!(
-        "  {} — 25-byte compact image placeholder",
-        "nika:thumbhash".green()
-    );
-    println!(
-        "  {} — Color palette extraction",
-        "nika:dominant_color".green()
-    );
-    println!(
-        "  {} — Chain operations in-memory (1 read → N ops → 1 write)",
-        "nika:pipeline".green()
-    );
+
+    let tools_tier1 = [
+        ("nika:import", "Import any file into CAS (image, audio, video, PDF)"),
+        ("nika:dimensions", "Image dimensions from headers (~0.1ms)"),
+        ("nika:thumbhash", "25-byte compact image placeholder"),
+        ("nika:dominant_color", "Color palette extraction"),
+        ("nika:pipeline", "Chain operations in-memory (1 read → N ops → 1 write)"),
+    ];
+
+    for (name, desc) in &tools_tier1 {
+        println!("  {} {name} — {desc}", StatusIcon::Ok);
+    }
     println!();
 
     // Feature-gated tools (Tier 2)
@@ -604,10 +592,10 @@ fn handle_tools() {
     println!();
 
     // Count
-    let enabled_count = tools_tier2.iter().filter(|(_, _, _, e)| *e).count()
-        + tools_tier3.iter().filter(|(_, _, _, e)| *e).count()
-        + 5; // always-on (import, dimensions, thumbhash, dominant_color, pipeline)
-    let total = 5 + tools_tier2.len() + tools_tier3.len();
+    let enabled_count = tools_tier1.len()
+        + tools_tier2.iter().filter(|(_, _, _, e)| *e).count()
+        + tools_tier3.iter().filter(|(_, _, _, e)| *e).count();
+    let total = tools_tier1.len() + tools_tier2.len() + tools_tier3.len();
     println!(
         "  {} {enabled_count} / {total} tools enabled",
         StatusIcon::Info,
