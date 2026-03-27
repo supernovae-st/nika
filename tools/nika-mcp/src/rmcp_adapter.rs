@@ -240,6 +240,17 @@ impl RmcpClientAdapter {
             cmd.env(key, value);
         }
 
+        // Set working directory if specified
+        if let Some(ref cwd) = self.config.cwd {
+            let cwd_path = std::path::Path::new(cwd);
+            if cwd_path.exists() {
+                cmd.current_dir(cwd_path);
+                tracing::debug!(name = %self.name, cwd = %cwd, "MCP server cwd set");
+            } else {
+                tracing::warn!(name = %self.name, cwd = %cwd, "MCP server cwd does not exist, ignoring");
+            }
+        }
+
         // Create transport
         let transport = TokioChildProcess::new(cmd).map_err(|e| McpError::McpStartError {
             name: self.name.clone(),
