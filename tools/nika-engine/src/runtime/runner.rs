@@ -617,7 +617,7 @@ impl Runner {
                 .as_ref()
                 .map(|parts| parts.iter().cloned().map(Into::into).collect()),
             guardrails: Vec::new(),
-        base_url: None,
+            base_url: None,
         };
 
         Some((schema, max_retries, infer_params))
@@ -862,6 +862,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         for_each_binding: Option<(String, Value, usize)>,
         workflow_artifacts: Option<ArtifactsConfig>,
         base_path: PathBuf,
+        workflow_base_url: Option<String>,
     ) -> IterationResult {
         let start = Instant::now();
 
@@ -912,7 +913,15 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
         // Bridge AnalyzedTask to lowered types at executor boundary
         // PERF(M4): pass references — lower_action clones only what each verb needs
-        let lowered_action = lower_action(&task.action, &task.provider, &task.model, &task.retry, &task.base_url);
+        // Resolve base_url: task-level override takes precedence over workflow default
+        let resolved_base_url = task.base_url.clone().or(workflow_base_url);
+        let lowered_action = lower_action(
+            &task.action,
+            &task.provider,
+            &task.model,
+            &task.retry,
+            &resolved_base_url,
+        );
         let lowered_output = task
             .output
             .as_ref()
@@ -1476,6 +1485,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             // Prepare artifact config for all tasks in this batch
             let workflow_artifacts = self.workflow.artifacts.clone();
             let artifact_base_path = base_path.clone();
+            let workflow_base_url = self.workflow.base_url.clone();
 
             for task in ready {
                 let task_id = intern(&task.name);
@@ -1982,6 +1992,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             let cancel = cancel.clone();
                             let workflow_artifacts = workflow_artifacts.clone();
                             let artifact_base_path = artifact_base_path.clone();
+                            let workflow_base_url = workflow_base_url.clone();
 
                             join_set.spawn(async move {
                                 // Check cancellation BEFORE acquiring semaphore
@@ -2052,6 +2063,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                     Some((var_name, item, idx)),
                                     workflow_artifacts,
                                     artifact_base_path,
+                                    workflow_base_url,
                                 )
                                 .await;
 
@@ -2098,6 +2110,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     let event_log = self.event_log.clone();
                     let workflow_artifacts = workflow_artifacts.clone();
                     let artifact_base_path = artifact_base_path.clone();
+                    let workflow_base_url = workflow_base_url.clone();
 
                     join_set.spawn(async move {
                         Self::execute_task_iteration(
@@ -2110,6 +2123,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             None,
                             workflow_artifacts,
                             artifact_base_path,
+                            workflow_base_url,
                         )
                         .await
                     });

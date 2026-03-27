@@ -174,8 +174,9 @@ pub fn print_bench_header(
 ) {
     let version = env!("CARGO_PKG_VERSION");
     let term_width = cli_format::terminal_width() as u16;
-    for line in format_bench_header(workflow, task_count, iterations, providers, version, term_width)
-    {
+    for line in format_bench_header(
+        workflow, task_count, iterations, providers, version, term_width,
+    ) {
         println!("{}", line);
     }
 }
@@ -222,7 +223,11 @@ pub fn format_speed_section(results: &[BenchProviderResult], term_width: u16) ->
     let fastest_idx = results
         .iter()
         .enumerate()
-        .min_by(|(_, a), (_, b)| a.total_secs.partial_cmp(&b.total_secs).unwrap_or(std::cmp::Ordering::Equal))
+        .min_by(|(_, a), (_, b)| {
+            a.total_secs
+                .partial_cmp(&b.total_secs)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
         .map(|(i, _)| i);
 
     for (i, r) in results.iter().enumerate() {
@@ -264,15 +269,16 @@ pub fn format_speed_section(results: &[BenchProviderResult], term_width: u16) ->
         if let Some(fi) = fastest_idx {
             let fastest = &results[fi];
             // Find slowest among the rest
-            let slowest = results
-                .iter()
-                .enumerate()
-                .filter(|(i, _)| *i != fi)
-                .max_by(|(_, a), (_, b)| {
-                    a.total_secs
-                        .partial_cmp(&b.total_secs)
-                        .unwrap_or(std::cmp::Ordering::Equal)
-                });
+            let slowest =
+                results
+                    .iter()
+                    .enumerate()
+                    .filter(|(i, _)| *i != fi)
+                    .max_by(|(_, a), (_, b)| {
+                        a.total_secs
+                            .partial_cmp(&b.total_secs)
+                            .unwrap_or(std::cmp::Ordering::Equal)
+                    });
             if let Some((_, slow)) = slowest {
                 let ratio = slow.total_secs / fastest.total_secs;
                 if ratio > 1.05 {
@@ -437,7 +443,12 @@ pub fn format_profile_section(results: &[BenchProviderResult], term_width: u16) 
         lines.push(format!("  {} {}", icons::provider(), r.provider.bold()));
 
         // Find total duration for this provider
-        let total_ms = r.task_timeline.iter().map(|t| t.start_ms + t.duration_ms).max().unwrap_or(1);
+        let total_ms = r
+            .task_timeline
+            .iter()
+            .map(|t| t.start_ms + t.duration_ms)
+            .max()
+            .unwrap_or(1);
 
         for task in &r.task_timeline {
             let start_pct = task.start_ms as f64 / total_ms as f64;
@@ -555,11 +566,7 @@ pub fn format_quality_section(results: &[BenchProviderResult], term_width: u16) 
         };
 
         let provider_cell = format!("{} {}", icons::provider(), r.provider);
-        let mut row = format!(
-            "  {:<16}{:<10}",
-            provider_cell,
-            overall_colored,
-        );
+        let mut row = format!("  {:<16}{:<10}", provider_cell, overall_colored,);
 
         for criterion in &criteria {
             let score = r
@@ -637,21 +644,16 @@ pub fn format_bench_summary(
 
     if !results.is_empty() {
         // Speed winner (lowest total_secs)
-        if let Some(speed_winner) = results
-            .iter()
-            .min_by(|a, b| {
+        if let Some(speed_winner) = results.iter().min_by(|a, b| {
+            a.total_secs
+                .partial_cmp(&b.total_secs)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        }) {
+            let slowest = results.iter().max_by(|a, b| {
                 a.total_secs
                     .partial_cmp(&b.total_secs)
                     .unwrap_or(std::cmp::Ordering::Equal)
-            })
-        {
-            let slowest = results
-                .iter()
-                .max_by(|a, b| {
-                    a.total_secs
-                        .partial_cmp(&b.total_secs)
-                        .unwrap_or(std::cmp::Ordering::Equal)
-                });
+            });
             let ratio_str = if let Some(slow) = slowest {
                 let ratio = slow.total_secs / speed_winner.total_secs;
                 if ratio > 1.05 && results.len() > 1 {
@@ -671,28 +673,20 @@ pub fn format_bench_summary(
                 colors::duration(speed_winner.total_secs as f32),
                 ratio_str,
             );
-            lines.push(format!(
-                "\u{2502}{}\u{2502}",
-                pad_right(&speed_line, inner)
-            ));
+            lines.push(format!("\u{2502}{}\u{2502}", pad_right(&speed_line, inner)));
         }
 
         // Cost winner (lowest cost_per_run)
-        if let Some(cost_winner) = results
-            .iter()
-            .min_by(|a, b| {
+        if let Some(cost_winner) = results.iter().min_by(|a, b| {
+            a.cost_per_run
+                .partial_cmp(&b.cost_per_run)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        }) {
+            let most_expensive = results.iter().max_by(|a, b| {
                 a.cost_per_run
                     .partial_cmp(&b.cost_per_run)
                     .unwrap_or(std::cmp::Ordering::Equal)
-            })
-        {
-            let most_expensive = results
-                .iter()
-                .max_by(|a, b| {
-                    a.cost_per_run
-                        .partial_cmp(&b.cost_per_run)
-                        .unwrap_or(std::cmp::Ordering::Equal)
-                });
+            });
             let savings_str = if let Some(expensive) = most_expensive {
                 if expensive.cost_per_run > 0.0 && results.len() > 1 {
                     let pct = ((expensive.cost_per_run - cost_winner.cost_per_run)
@@ -719,10 +713,7 @@ pub fn format_bench_summary(
                 colors::cost(cost_winner.cost_per_run),
                 savings_str,
             );
-            lines.push(format!(
-                "\u{2502}{}\u{2502}",
-                pad_right(&cost_line, inner)
-            ));
+            lines.push(format!("\u{2502}{}\u{2502}", pad_right(&cost_line, inner)));
         }
 
         // Quality winner (highest quality_overall)
@@ -1049,10 +1040,7 @@ mod tests {
         let results = sample_results();
         let lines = format_speed_section(&results, 80);
         let joined = lines.join("\n");
-        assert!(
-            joined.contains("fastest"),
-            "must mark fastest provider"
-        );
+        assert!(joined.contains("fastest"), "must mark fastest provider");
         // openai (7.1s) is fastest
         assert!(
             joined.contains("faster than"),
@@ -1084,10 +1072,7 @@ mod tests {
         let results = sample_results();
         let lines = format_profile_section(&results, 80);
         let joined = lines.join("\n");
-        assert!(
-            joined.contains("bottleneck"),
-            "must mark bottleneck tasks"
-        );
+        assert!(joined.contains("bottleneck"), "must mark bottleneck tasks");
     }
 
     #[test]
@@ -1099,10 +1084,7 @@ mod tests {
             joined.contains('\u{2588}'),
             "must contain filled blocks (█)"
         );
-        assert!(
-            joined.contains('\u{2591}'),
-            "must contain empty blocks (░)"
-        );
+        assert!(joined.contains('\u{2591}'), "must contain empty blocks (░)");
     }
 
     #[test]
@@ -1140,8 +1122,7 @@ mod tests {
     #[test]
     fn summary_has_rounded_box() {
         let results = sample_results();
-        let lines =
-            format_bench_summary(&results, Duration::from_secs(42), 5, 3, 72);
+        let lines = format_bench_summary(&results, Duration::from_secs(42), 5, 3, 72);
         let joined = lines.join("\n");
         assert!(joined.contains('\u{256D}'), "must have ╭");
         assert!(joined.contains('\u{256F}'), "must have ╯");
@@ -1151,8 +1132,7 @@ mod tests {
     #[test]
     fn summary_shows_winners() {
         let results = sample_results();
-        let lines =
-            format_bench_summary(&results, Duration::from_secs(42), 5, 3, 72);
+        let lines = format_bench_summary(&results, Duration::from_secs(42), 5, 3, 72);
         let joined = lines.join("\n");
         assert!(joined.contains("Speed"), "must show speed winner");
         assert!(joined.contains("Cost"), "must show cost winner");
@@ -1162,12 +1142,14 @@ mod tests {
     #[test]
     fn summary_shows_run_stats() {
         let results = sample_results();
-        let lines =
-            format_bench_summary(&results, Duration::from_secs(42), 5, 3, 72);
+        let lines = format_bench_summary(&results, Duration::from_secs(42), 5, 3, 72);
         let joined = lines.join("\n");
         assert!(joined.contains("3 providers"), "must show provider count");
         assert!(joined.contains("5 tasks"), "must show task count");
-        assert!(joined.contains("9 runs total"), "3 providers * 3 iterations = 9 runs");
+        assert!(
+            joined.contains("9 runs total"),
+            "3 providers * 3 iterations = 9 runs"
+        );
     }
 
     #[test]

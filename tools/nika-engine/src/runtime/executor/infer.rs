@@ -214,8 +214,7 @@ impl TaskExecutor {
         // Resolve provider: inline base_url -> cached endpoint -> catalog
         let provider = if let Some(ref base_url) = infer.base_url {
             // Transient provider — not cached (inline URLs are one-off overrides)
-            let api_key =
-                std::env::var("OPENAI_API_KEY").unwrap_or_else(|_| "ollama".to_string());
+            let api_key = std::env::var("OPENAI_API_KEY").unwrap_or_else(|_| "ollama".to_string());
             RigProvider::openai_compat(
                 &format!("{}@inline", provider_name),
                 base_url,

@@ -272,11 +272,8 @@ mod tests {
         assert_eq!(resolved.len(), 1);
 
         // Create provider from resolved endpoint
-        let provider = crate::provider::rig::RigProvider::from_name_with_endpoints(
-            "vllm",
-            &resolved,
-        )
-        .unwrap();
+        let provider =
+            crate::provider::rig::RigProvider::from_name_with_endpoints("vllm", &resolved).unwrap();
 
         // Verify it's an OpenAiCompat variant
         assert!(matches!(
@@ -285,13 +282,14 @@ mod tests {
         ));
 
         // Verify unknown name falls back to catalog (and fails due to missing API key)
-        let result = crate::provider::rig::RigProvider::from_name_with_endpoints(
-            "anthropic",
-            &resolved,
-        );
+        let result =
+            crate::provider::rig::RigProvider::from_name_with_endpoints("anthropic", &resolved);
         // May or may not fail depending on env — just verify it doesn't match as endpoint
         if let Ok(p) = &result {
-            assert!(!matches!(p, crate::provider::rig::RigProvider::OpenAiCompat { .. }));
+            assert!(!matches!(
+                p,
+                crate::provider::rig::RigProvider::OpenAiCompat { .. }
+            ));
         }
     }
 }
