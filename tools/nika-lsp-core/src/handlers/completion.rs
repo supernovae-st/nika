@@ -404,14 +404,43 @@ fn template_completions(
     in_transform_chain: bool,
 ) -> Vec<CompletionItem> {
     if in_transform_chain {
-        // Suggest transform filters.
+        // Suggest all 31 transform filters (matching nika-core catalog).
         return vec![
-            item_value("upper", "Convert to uppercase.", "0_upper"),
-            item_value("lower", "Convert to lowercase.", "1_lower"),
-            item_value("trim", "Trim whitespace.", "2_trim"),
-            item_value("json", "Parse as JSON.", "3_json"),
-            item_value("length", "Get length.", "4_length"),
-            item_value("default(\"\")", "Default if empty.", "5_default"),
+            // String transforms
+            item_value("upper", "Convert to UPPERCASE.", "00_upper"),
+            item_value("lower", "Convert to lowercase.", "01_lower"),
+            item_value("trim", "Trim whitespace (both ends).", "02_trim"),
+            item_value("trim_start", "Trim leading whitespace.", "03_trim_start"),
+            item_value("trim_end", "Trim trailing whitespace.", "04_trim_end"),
+            item_value("length", "Get length (string/array).", "05_length"),
+            item_value("to_string", "Convert to string.", "06_to_string"),
+            // Array transforms
+            item_value("first", "First element of array.", "10_first"),
+            item_value("last", "Last element of array.", "11_last"),
+            item_value("flatten", "Flatten nested arrays.", "12_flatten"),
+            item_value("reverse", "Reverse array/string.", "13_reverse"),
+            item_value("sort", "Sort array elements.", "14_sort"),
+            item_value("unique", "Remove duplicates.", "15_unique"),
+            item_value("compact", "Remove null/empty values.", "16_compact"),
+            item_value("keys", "Object keys as array.", "17_keys"),
+            item_value("values", "Object values as array.", "18_values"),
+            // Numeric transforms
+            item_value("to_number", "Parse as number.", "20_to_number"),
+            item_value("round", "Round to integer.", "21_round"),
+            item_value("abs", "Absolute value.", "22_abs"),
+            item_value("ceil", "Round up.", "23_ceil"),
+            item_value("floor", "Round down.", "24_floor"),
+            // Type transforms
+            item_value("to_bool", "Convert to boolean.", "30_to_bool"),
+            item_value("to_json", "Serialize to JSON string.", "31_to_json"),
+            item_value("parse_json", "Parse JSON string to value.", "32_parse_json"),
+            item_value("type_of", "Get value type name.", "33_type_of"),
+            // Parametric transforms
+            item_value("join(\", \")", "Join array with separator.", "40_join"),
+            item_value("split(\",\")", "Split string by delimiter.", "41_split"),
+            item_value("default(\"\")", "Default if null/empty.", "42_default"),
+            // System
+            item_value("shell", "Shell-escape for safe interpolation.", "50_shell"),
         ];
     }
 
@@ -490,6 +519,39 @@ fn invoke_block_completions(focus: &InvokeFocus, prefix: &str) -> Vec<Completion
                     "MCP resource URI.",
                     "3_resource",
                 ),
+            ];
+            filter_by_prefix(items, prefix)
+        }
+        InvokeFocus::Tool => {
+            // Suggest all 24 builtin nika:* tools + generic MCP tool format.
+            let items = vec![
+                // Tier 1 — Always-on
+                item_value("nika:import", "Import file into CAS media store.", "00_import"),
+                item_value("nika:dimensions", "Image dimensions (~0.1ms).", "01_dimensions"),
+                item_value("nika:thumbhash", "25-byte image placeholder.", "02_thumbhash"),
+                item_value("nika:dominant_color", "Color palette extraction.", "03_dominant_color"),
+                item_value("nika:pipeline", "Chain ops in-memory (1 read → N ops → 1 write).", "04_pipeline"),
+                // Tier 2 — media-core
+                item_value("nika:thumbnail", "SIMD-accelerated resize (Lanczos3).", "10_thumbnail"),
+                item_value("nika:convert", "Format conversion (PNG/JPEG/WebP).", "11_convert"),
+                item_value("nika:strip", "Remove metadata (re-encode).", "12_strip"),
+                item_value("nika:metadata", "EXIF/audio/video metadata.", "13_metadata"),
+                item_value("nika:optimize", "Lossless PNG optimization (oxipng).", "14_optimize"),
+                item_value("nika:svg_render", "SVG to PNG rasterization.", "15_svg_render"),
+                // Tier 3 — Opt-in
+                item_value("nika:phash", "Perceptual image hashing.", "20_phash"),
+                item_value("nika:compare", "Visual comparison via perceptual hash.", "21_compare"),
+                item_value("nika:pdf_extract", "PDF text extraction.", "22_pdf_extract"),
+                item_value("nika:chart", "Bar/line/pie charts from JSON data.", "23_chart"),
+                item_value("nika:provenance", "C2PA content credentials (sign).", "24_provenance"),
+                item_value("nika:verify", "C2PA manifest verification.", "25_verify"),
+                item_value("nika:qr_validate", "QR decode + scan score (0-100).", "26_qr_validate"),
+                item_value("nika:quality", "Image quality (DSSIM/SSIM).", "27_quality"),
+                item_value("nika:html_to_md", "HTML to clean Markdown.", "28_html_to_md"),
+                item_value("nika:css_select", "CSS selector extraction.", "29_css_select"),
+                item_value("nika:extract_metadata", "OG/Twitter/JSON-LD metadata.", "30_extract_metadata"),
+                item_value("nika:extract_links", "Link classification.", "31_extract_links"),
+                item_value("nika:readability", "Article content extraction.", "32_readability"),
             ];
             filter_by_prefix(items, prefix)
         }
@@ -1267,7 +1329,10 @@ tasks:
         assert!(items.iter().any(|i| i.label == "upper"));
         assert!(items.iter().any(|i| i.label == "lower"));
         assert!(items.iter().any(|i| i.label == "trim"));
-        assert!(items.iter().any(|i| i.label == "json"));
+        assert!(items.iter().any(|i| i.label == "to_json"));
+        assert!(items.iter().any(|i| i.label == "first"));
+        assert!(items.iter().any(|i| i.label == "shell"));
+        assert_eq!(items.len(), 29, "should offer all transforms");
     }
 
     #[test]
