@@ -387,6 +387,17 @@ main() {
 
   install_binary
 
+  # Post-install: trigger first-run setup + start daemon in background.
+  # Detects editors (VS Code, Cursor, etc.), installs AI rules, shell
+  # completions, and starts the daemon for keychain/cache/cron.
+  # Runs silently — failures are non-fatal (setup retries on first command).
+  step 'Configuring editors and starting daemon'
+  if "${INSTALL_DIR}/nika" --quiet daemon start >/dev/null 2>&1; then
+    success 'Daemon started — editors and AI tools configured'
+  else
+    warn 'Background setup skipped (will run on first nika command)'
+  fi
+
   printf '\n'
   print_path_instructions
   print_summary "${INSTALL_DIR}"
