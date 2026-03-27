@@ -42,7 +42,7 @@ nika --version
 You should see output like:
 
 ```
-nika 0.42.0
+nika 0.49.0
 ```
 
 ## Your First 60 Seconds
@@ -57,13 +57,7 @@ cd my-nika-project
 nika init
 ```
 
-This creates a `.nika/` directory with configuration files, and optionally generates example workflows.
-
-For a minimal setup with one workflow per verb:
-
-```bash
-nika init --minimal
-```
+This creates a `.nika/` directory with configuration files and generates example workflows.
 
 ### 2. Create your first workflow
 
@@ -269,7 +263,7 @@ Output:
     Length: 13
 ```
 
-Nika includes 30+ transforms for strings, arrays, objects, numbers, and type conversions. See [Workflow Patterns](04-workflow-patterns.md) for the complete catalog.
+Nika includes 31+ transforms for strings, arrays, objects, numbers, and type conversions. See [Workflow Patterns](workflow-patterns.md) for the complete catalog.
 
 ## Fetching Data from the Web
 
@@ -311,7 +305,7 @@ my-project/
 Key conventions:
 - Workflow files use the `.nika.yaml` extension
 - The `.nika/` directory stores project configuration and runtime data
-- Traces are saved after each run for debugging and auditing
+- Trace files are saved after each run for debugging and auditing
 
 ## Essential CLI Commands
 
@@ -353,7 +347,6 @@ nika provider test openai              # Test provider connection
 
 ```bash
 nika init                              # Interactive wizard
-nika init --minimal                    # Config only, no examples
 nika init --course                     # Generate learning course
 ```
 
@@ -397,15 +390,15 @@ nika --detail json run file.yaml   # JSON output
 
 Now that you can create and run workflows, here is the recommended learning path:
 
-1. **[Your First Workflow](02-your-first-workflow.md)** -- Build a real multi-task workflow step by step
-2. **[Provider Setup Guide](03-provider-setup-guide.md)** -- Configure all 7 LLM providers
-3. **[Workflow Patterns](04-workflow-patterns.md)** -- Master chaining, parallelism, and data flow
-4. **[The Course](10-course-guide.md)** -- Run `nika init --course` for 44 hands-on exercises
+1. **[Your First Workflow](your-first-workflow.md)** -- Build a real multi-task workflow step by step
+2. **[Provider Setup Guide](provider-setup-guide.md)** -- Configure all 9 LLM providers
+3. **[Workflow Patterns](workflow-patterns.md)** -- Master chaining, parallelism, and data flow
+4. **[The Course](../../10-course-guide.md)** -- Run `nika init --course` for 38 hands-on exercises
 
 Or jump directly to the verb you need:
-- **[infer: Guide](05-infer-verb-guide.md)** -- LLM generation, vision, structured output
-- **[fetch: Guide](06-fetch-verb-guide.md)** -- HTTP requests and content extraction
-- **[exec/invoke/agent Guide](07-exec-invoke-agent-guide.md)** -- Shell, tools, and agents
+- **[infer: Guide](infer-verb-guide.md)** -- LLM generation, vision, structured output
+- **[fetch: Guide](fetch-verb-guide.md)** -- HTTP requests and content extraction
+- **[exec/invoke/agent Guide](../../07-exec-invoke-agent-guide.md)** -- Shell, tools, and agents
 
 If something goes wrong, check the **[Troubleshooting Guide](12-troubleshooting.md)** or run `nika doctor` for automated diagnostics.
 
@@ -467,7 +460,7 @@ nika doctor
   ✓ Anthropic     ANTHROPIC_API_KEY set (sk-ant-...)
   ✓ OpenAI        OPENAI_API_KEY set (sk-...)
   ⚠ Mistral       MISTRAL_API_KEY not set
-  ✓ Version       Nika v0.42.0
+  ✓ Version       Nika v0.49.0
   ✓ Traces        4 traces, 1.2 MB
 
   3 checks passed, 1 warning
@@ -479,27 +472,6 @@ For full diagnostics including MCP server connectivity:
 nika doctor --full
 ```
 
-## The nika setup Command
-
-Configure your development environment for Nika:
-
-```bash
-# Interactive setup (checks everything, suggests fixes)
-nika setup
-
-# Individual setup actions
-nika setup check           # Detect installed editors and AI tools
-nika setup editors         # Install Nika VS Code extension
-nika setup ai              # Install Agent Skills for AI coding tools
-nika setup completions     # Install shell completions
-nika setup git             # Install git co-author hook
-```
-
-The setup command detects:
-- **Editors:** VS Code, Cursor, Windsurf, Zed, Neovim, Sublime Text
-- **AI Tools:** Claude Code, Cursor AI, GitHub Copilot, Roo Code, Windsurf AI, Aider
-- **Shell:** Bash, Zsh, Fish (for completions)
-- **Git:** Existing hooks, co-author configuration
 
 ## Execution Traces
 
@@ -517,7 +489,7 @@ nika trace export <trace-id> --format json
 nika trace export <trace-id> --format yaml
 ```
 
-Traces include:
+Trace files include:
 - Task execution order and timing
 - Input/output values for each task
 - LLM token usage and cost estimates

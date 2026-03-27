@@ -628,7 +628,7 @@ nika features
 This shows all compiled feature flags grouped by tier:
 
 ```
-Nika v0.42.0 -- Compiled Features
+Nika v0.49.0 -- Compiled Features
 
 Core
   ✓ tui                Terminal UI (ratatui)

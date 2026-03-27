@@ -216,8 +216,8 @@ Nika's structured output engine uses multiple layers for near-perfect compliance
 
 1. **Layer 0: Tool Injection** -- Sends the schema as a synthetic tool parameter, leveraging the provider's built-in function calling for schema enforcement
 2. **Layer 1: Extraction** -- Parses the response and extracts JSON from the output
-3. **Layer 3: Retry** -- Re-prompts with specific validation error messages
-4. **Layer 4: Repair** -- Uses an LLM to intelligently fix complex schema violations
+3. **Layer 2: Retry** -- Re-prompts with specific validation error messages
+4. **Layer 3: Repair** -- Uses an LLM to intelligently fix complex schema violations
 
 ### Using Structured Output with Transforms
 
@@ -640,7 +640,7 @@ tasks:
     depends_on: [prompt]
     with: { p: $prompt | trim }
     provider: anthropic
-    model: claude-sonnet-4-6
+    model: claude-sonnet-4-20250514
     infer: { prompt: "{{with.p}}", temperature: 0.0 }
 
   - id: gpt_response
@@ -656,7 +656,7 @@ tasks:
       claude: $claude_response | trim
       gpt: $gpt_response | trim
     provider: anthropic
-    model: claude-opus-4
+    model: claude-opus-4-20250514
     infer:
       prompt: |
         Compare these two responses for accuracy, clarity, and completeness.

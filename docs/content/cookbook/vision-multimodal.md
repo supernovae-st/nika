@@ -27,15 +27,15 @@ infer:
 
 ### Supported Providers
 
-| Provider | Vision Support |
-|----------|---------------|
-| Claude (Anthropic) | Full support |
-| GPT-4o (OpenAI) | Full support |
-| Mistral | Full support |
-| Groq | Full support |
-| Gemini (Google) | Full support |
-| xAI (Grok) | Full support |
-| DeepSeek | Not supported (returns VisionNotSupported error) |
+| Provider | Vision Support | API Key |
+|----------|---|---|
+| Claude (Anthropic) | Full support | ANTHROPIC_API_KEY |
+| GPT-4o (OpenAI) | Full support | OPENAI_API_KEY |
+| Mistral | Full support | MISTRAL_API_KEY |
+| Groq | Full support | GROQ_API_KEY |
+| Gemini (Google) | Full support | GEMINI_API_KEY |
+| xAI (Grok) | Full support | XAI_API_KEY |
+| DeepSeek | Not supported | DEEPSEEK_API_KEY |
 
 ---
 

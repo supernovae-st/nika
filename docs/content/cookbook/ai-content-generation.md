@@ -30,11 +30,12 @@ tasks:
   - id: research_sources
     description: "Fetch current articles on the topic"
     for_each:
-      - { url: "https://blog.rust-lang.org/", name: "Rust Blog" }
-      - { url: "https://news.ycombinator.com/", name: "Hacker News" }
-      - { url: "https://www.reddit.com/r/rust/.json", name: "Reddit Rust" }
-    as: source
-    concurrency: 3
+      items:
+        - { url: "https://blog.rust-lang.org/", name: "Rust Blog" }
+        - { url: "https://news.ycombinator.com/", name: "Hacker News" }
+        - { url: "https://www.reddit.com/r/rust/.json", name: "Reddit Rust" }
+      as: source
+      concurrency: 3
     fetch:
       url: "{{with.source.url}}"
       extract: article
@@ -202,23 +203,24 @@ tasks:
     with:
       content: $source_content
     for_each:
-      - platform: "Twitter/X"
-        constraints: "280 characters max. Use thread format (1/N). Include 2-3 hashtags."
-        count: 5
-      - platform: "LinkedIn"
-        constraints: "600-1200 characters. Professional tone. Include a hook question. Use line breaks for readability."
-        count: 1
-      - platform: "Mastodon"
-        constraints: "500 characters max. No tracking links. Use CamelCase hashtags."
-        count: 3
-      - platform: "Dev.to"
-        constraints: "Full article teaser, 200-400 words. Include cover image suggestion and tags."
-        count: 1
-      - platform: "Hacker News"
-        constraints: "Submission title only. Factual, no clickbait, under 80 characters."
-        count: 1
-    as: platform
-    concurrency: 5
+      items:
+        - platform: "Twitter/X"
+          constraints: "280 characters max. Use thread format (1/N). Include 2-3 hashtags."
+          count: 5
+        - platform: "LinkedIn"
+          constraints: "600-1200 characters. Professional tone. Include a hook question. Use line breaks for readability."
+          count: 1
+        - platform: "Mastodon"
+          constraints: "500 characters max. No tracking links. Use CamelCase hashtags."
+          count: 3
+        - platform: "Dev.to"
+          constraints: "Full article teaser, 200-400 words. Include cover image suggestion and tags."
+          count: 1
+        - platform: "Hacker News"
+          constraints: "Submission title only. Factual, no clickbait, under 80 characters."
+          count: 1
+      as: platform
+      concurrency: 5
     infer:
       system: |
         You are a social media content specialist.
@@ -333,13 +335,14 @@ tasks:
     with:
       plan: $strategy
     for_each:
-      - { email_num: 1, tone: "welcoming and curious" }
-      - { email_num: 2, tone: "educational and helpful" }
-      - { email_num: 3, tone: "social proof and urgency" }
-      - { email_num: 4, tone: "technical deep-dive" }
-      - { email_num: 5, tone: "final push with offer" }
-    as: brief
-    concurrency: 3
+      items:
+        - { email_num: 1, tone: "welcoming and curious" }
+        - { email_num: 2, tone: "educational and helpful" }
+        - { email_num: 3, tone: "social proof and urgency" }
+        - { email_num: 4, tone: "technical deep-dive" }
+        - { email_num: 5, tone: "final push with offer" }
+      as: brief
+      concurrency: 3
     infer:
       system: |
         You are an email copywriter for developer tools.
@@ -423,11 +426,12 @@ tasks:
     with:
       products: $product_data
     for_each:
-      - { channel: "website", max_length: 500, format: "markdown with bullet points" }
-      - { channel: "mobile_app", max_length: 200, format: "short paragraphs, no markdown" }
-      - { channel: "marketplace", max_length: 300, format: "plain text with key specs" }
-    as: channel
-    concurrency: 3
+      items:
+        - { channel: "website", max_length: 500, format: "markdown with bullet points" }
+        - { channel: "mobile_app", max_length: 200, format: "short paragraphs, no markdown" }
+        - { channel: "marketplace", max_length: 300, format: "plain text with key specs" }
+      as: channel
+      concurrency: 3
     infer:
       system: "You are a product copywriter specializing in developer tools."
       prompt: |
@@ -523,11 +527,12 @@ tasks:
   # Research competitor content and keywords
   - id: competitor_research
     for_each:
-      - "https://zapier.com/blog/"
-      - "https://n8n.io/blog/"
-      - "https://www.make.com/en/blog"
-    as: competitor_url
-    concurrency: 3
+      items:
+        - "https://zapier.com/blog/"
+        - "https://n8n.io/blog/"
+        - "https://www.make.com/en/blog"
+      as: competitor_url
+      concurrency: 3
     fetch:
       url: "{{with.competitor_url}}"
       extract: metadata
@@ -613,13 +618,14 @@ tasks:
     with:
       strategy: $cluster_strategy
     for_each:
-      - { index: 0 }
-      - { index: 1 }
-      - { index: 2 }
-      - { index: 3 }
-      - { index: 4 }
-    as: article
-    concurrency: 3
+      items:
+        - { index: 0 }
+        - { index: 1 }
+        - { index: 2 }
+        - { index: 3 }
+        - { index: 4 }
+      as: article
+      concurrency: 3
     infer:
       system: |
         You are a content writer for {{inputs.target_domain}}.
@@ -720,13 +726,14 @@ tasks:
     with:
       source: $source_content
     for_each:
-      - { code: "fr", name: "French", notes: "Use vous (formal). Keep CLI commands in English." }
-      - { code: "es", name: "Spanish", notes: "Use Latin American Spanish. Keep CLI commands in English." }
-      - { code: "de", name: "German", notes: "Use Sie (formal). Keep CLI commands in English." }
-      - { code: "ja", name: "Japanese", notes: "Use desu/masu form. Keep CLI commands in English." }
-      - { code: "zh", name: "Chinese (Simplified)", notes: "Use simplified characters. Keep CLI commands in English." }
-    as: lang
-    concurrency: 5
+      items:
+        - { code: "fr", name: "French", notes: "Use vous (formal). Keep CLI commands in English." }
+        - { code: "es", name: "Spanish", notes: "Use Latin American Spanish. Keep CLI commands in English." }
+        - { code: "de", name: "German", notes: "Use Sie (formal). Keep CLI commands in English." }
+        - { code: "ja", name: "Japanese", notes: "Use desu/masu form. Keep CLI commands in English." }
+        - { code: "zh", name: "Chinese (Simplified)", notes: "Use simplified characters. Keep CLI commands in English." }
+      as: lang
+      concurrency: 5
     infer:
       system: |
         You are a professional technical translator specializing in developer documentation.

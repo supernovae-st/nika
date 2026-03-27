@@ -9,28 +9,26 @@ Nika includes a full-featured terminal user interface (TUI) built with ratatui. 
 nika ui
 
 # With a specific view
-nika ui --view=runner
-nika ui --view=chat
+nika ui --view=command
+nika ui --view=control
 
 # With a workflow preloaded
 nika ui workflow.nika.yaml
 
 # Shortcuts
-nika chat                              # Opens Chat view directly
 nika studio                            # Opens Studio view
 nika studio workflow.nika.yaml         # Studio with file loaded
 ```
 
-## The Four Views
+## The Three Views
 
-The TUI has four primary views, each accessible by pressing the corresponding key:
+The TUI has three primary views, each accessible by pressing the corresponding key:
 
 | Key | View | Purpose |
 |-----|------|---------|
 | `1` or `s` | Studio | File browser + YAML editor + DAG preview |
-| `2` or `r` | Runner | Real-time execution monitoring |
-| `3` or `c` | Chat | AI agent conversation |
-| `4` or `,` | Settings | Provider config, theme, preferences |
+| `2` or `c` | Command | Real-time execution monitoring |
+| `3` or `x` | Control | Provider config, theme, preferences |
 
 ### Studio View (1/s)
 
@@ -57,9 +55,9 @@ The Studio is your primary workspace for browsing, editing, and understanding wo
 | `Tab` | Switch focus between panels |
 | `q` | Quit |
 
-### Runner View (2/r)
+### Command View (2/c)
 
-The Runner view shows real-time workflow execution with live progress.
+The Command view shows real-time workflow execution with live progress.
 
 **Layout:**
 - **Top** -- Workflow header (name, schema, provider)
@@ -79,40 +77,24 @@ The Runner view shows real-time workflow execution with live progress.
 - Token count and cost tracking
 - Error details with NIKA-XXX codes
 
-### Chat View (3/c)
+### Control View (3/x)
 
-The Chat view provides an interactive AI conversation interface, similar to using Claude or ChatGPT in your terminal.
-
-**Launching directly:**
-```bash
-nika chat
-nika chat --provider openai --model gpt-4o
-```
+The Control view provides configuration management and provider status.
 
 **Key features:**
-- Conversational AI with any configured provider
-- Tool use (the agent can call tools during conversation)
-- Conversation history within the session
-- Streaming responses in real-time
-
-**Keyboard shortcuts in Chat:**
-
-| Key | Action |
-|-----|--------|
-| `Enter` | Send message |
-| `Shift+Enter` | New line in message |
-| `Up/Down` | Scroll through history |
-| `Esc` | Cancel current response |
-
-### Settings View (4/,)
-
-Configure Nika preferences without leaving the TUI.
-
-**Sections:**
-- Provider status and API key management
+- Provider status display
+- API key management
 - Theme selection (dark/light)
 - Editor preferences
 - Trace configuration
+
+**Keyboard shortcuts in Control:**
+
+| Key | Action |
+|-----|--------|
+| `Up/Down` | Navigate settings |
+| `Enter` | Toggle/select option |
+| `Esc` | Close view |
 
 ## Global Keyboard Shortcuts
 
@@ -121,9 +103,8 @@ These shortcuts work in any view:
 | Key | Action |
 |-----|--------|
 | `1` or `s` | Switch to Studio |
-| `2` or `r` | Switch to Runner |
-| `3` or `c` | Switch to Chat |
-| `4` or `,` | Switch to Settings |
+| `2` or `c` | Switch to Command |
+| `3` or `x` | Switch to Control |
 | `?` | Show help overlay |
 | `q` | Quit (with confirmation if running) |
 | `Ctrl+C` | Force quit |
@@ -134,7 +115,7 @@ These shortcuts work in any view:
 2. Navigate to a `.nika.yaml` file in the Studio file browser
 3. Press `Enter` to load it
 4. Press `r` to run
-5. The view switches to Runner automatically
+5. The view switches to Command automatically
 
 Or run directly:
 
@@ -147,7 +128,6 @@ nika ui workflow.nika.yaml
 | Feature | TUI (`nika ui`) | Headless (`nika run`) |
 |---------|:---------------:|:---------------------:|
 | Real-time progress | Yes | Basic (text output) |
-| Interactive chat | Yes | No |
 | File browser | Yes | No |
 | DAG visualization | Yes | No |
 | Multiple workflows | Yes (switch files) | One per invocation |
@@ -186,24 +166,9 @@ The most common TUI workflow is the edit-check-run cycle:
 2. Browse and review the DAG visualization (right panel)
 3. Press `c` to validate the workflow
 4. Press `r` to execute
-5. View results in the Runner view
+5. View results in the Command view
 6. Press `1` or `s` to return to Studio for edits
 7. Repeat
-
-### Interactive AI Chat Session
-
-Use Chat view for exploratory conversations with AI:
-
-1. Launch: `nika chat --provider anthropic`
-2. Type your prompt and press Enter
-3. The AI responds with streaming output
-4. Continue the conversation with follow-up messages
-5. The full conversation context is maintained within the session
-
-This is useful for:
-- Testing prompts before putting them in workflows
-- Exploring ideas interactively
-- Quick one-off AI tasks
 
 ### Monitoring Long-Running Workflows
 
@@ -211,14 +176,14 @@ For workflows with many tasks or long-running agent loops:
 
 1. Launch: `nika ui workflow.nika.yaml`
 2. Press `r` to start execution
-3. The Runner view shows live progress
+3. The Command view shows live progress
 4. Scroll through completed tasks to review output
 5. Watch token counts and timing in real-time
 6. If a task fails, error details appear immediately
 
 ### Provider Configuration
 
-From the Settings view (`4` or `,`):
+From the Control view (`3` or `x`):
 
 1. View all configured providers and their status
 2. See which API keys are detected

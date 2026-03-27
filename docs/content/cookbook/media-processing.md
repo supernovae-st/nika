@@ -737,11 +737,12 @@ tasks:
   # Download multiple images
   - id: download_images
     for_each:
-      - { url: "https://picsum.photos/1200/800.jpg", name: "landscape" }
-      - { url: "https://picsum.photos/800/1200.jpg", name: "portrait" }
-      - { url: "https://picsum.photos/800/800.jpg", name: "square" }
-    as: img
-    concurrency: 3
+      items:
+        - { url: "https://picsum.photos/1200/800.jpg", name: "landscape" }
+        - { url: "https://picsum.photos/800/1200.jpg", name: "portrait" }
+        - { url: "https://picsum.photos/800/800.jpg", name: "square" }
+      as: img
+      concurrency: 3
     fetch:
       url: "{{with.img.url}}"
       response: binary
@@ -753,11 +754,12 @@ tasks:
     with:
       images: $download_images
     for_each:
-      - { index: 0, name: "landscape", width: 600 }
-      - { index: 1, name: "portrait", width: 400 }
-      - { index: 2, name: "square", width: 500 }
-    as: config
-    concurrency: 3
+      items:
+        - { index: 0, name: "landscape", width: 600 }
+        - { index: 1, name: "portrait", width: 400 }
+        - { index: 2, name: "square", width: 500 }
+      as: config
+      concurrency: 3
     invoke:
       tool: "nika:pipeline"
       params:
@@ -778,15 +780,14 @@ tasks:
     with:
       originals: $download_images
       optimized: $optimize_all
-    exec:
-      command: |
-        echo '{
-          "processed": 3,
-          "formats": ["landscape", "portrait", "square"],
-          "output_format": "webp",
-          "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
-        }'
-      shell: true
+    exec: |
+      echo '{
+        "processed": 3,
+        "formats": ["landscape", "portrait", "square"],
+        "output_format": "webp",
+        "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
+      }'
+    shell: true
     artifact:
       path: batch-report.json
       format: json

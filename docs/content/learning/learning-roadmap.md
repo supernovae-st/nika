@@ -168,8 +168,8 @@ You will learn:
 **Theme**: Transform data with pipe transforms.
 
 You will learn:
-- Pipe transforms: `{{with.data | uppercase | trim}}`
-- The full transform catalog: `uppercase`, `lowercase`, `trim`, `length`, `reverse`, `first`, `last`, `keys`, `values`, `flatten`, `sort`, `unique`, `compact`, `to_string`, `to_number`, `to_bool`, `to_json`, `parse_json`, `round`, `abs`, `ceil`, `floor`, `type_of`, `shell`, `join`, `split`, `default`
+- Pipe transforms: `{{with.data | upper | trim}}`
+- The full transform catalog: `upper`, `lower`, `trim`, `length`, `reverse`, `first`, `last`, `keys`, `values`, `flatten`, `sort`, `unique`, `compact`, `to_string`, `to_number`, `to_bool`, `to_json`, `parse_json`, `round`, `abs`, `ceil`, `floor`, `type_of`, `shell`, `join`, `split`, `default`
 - Transform chaining for multi-step data reshaping
 - Using transforms in prompts, commands, and headers
 
@@ -385,7 +385,7 @@ nika course check 1
 # Get progressive hints (3 tiers: conceptual, specific, solution)
 nika course hint
 
-# Browse 55+ showcase workflows for inspiration
+# Browse 115+ showcase workflows for inspiration
 nika showcase list
 nika showcase extract blog-post-generator
 ```

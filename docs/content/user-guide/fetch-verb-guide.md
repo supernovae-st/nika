@@ -131,7 +131,7 @@ This makes a GET request and returns the raw response body as the task output.
       headers:
         Accept: application/json
         X-Request-ID: "{{with.request_id}}"
-        User-Agent: "Nika/0.42"
+        User-Agent: "Nika/0.49"
 ```
 
 ## Request Body

@@ -1,6 +1,6 @@
 # Provider Setup Guide
 
-Nika supports 7 cloud LLM providers, 1 local inference engine, and 11 MCP service providers. This guide covers how to configure each one, manage API keys securely, test connections, and choose the right provider for your workflows.
+Nika supports 9 cloud LLM providers, 1 local inference engine, and 11 MCP service providers. This guide covers how to configure each one, manage API keys securely, test connections, and choose the right provider for your workflows.
 
 ## How Providers Work
 
@@ -13,7 +13,7 @@ When a workflow contains `infer:` or `agent:` tasks, Nika needs to know which LL
 
 If multiple API keys are set, auto-detection follows this priority: Anthropic, OpenAI, Gemini, Mistral, Groq, DeepSeek, xAI.
 
-## LLM Providers (7)
+## LLM Providers (9)
 
 ### Anthropic (Claude)
 
@@ -27,7 +27,7 @@ export ANTHROPIC_API_KEY="sk-ant-api03-..."
 | Aliases | `claude` |
 | Env Var | `ANTHROPIC_API_KEY` |
 | Key Prefix | `sk-ant-` |
-| Models | Claude Opus 4, Claude Sonnet 4, Claude Haiku 3.5 |
+| Models | Claude Opus 4, Claude Sonnet 4.6, Claude Haiku 3.5 |
 | Vision | Yes |
 | Extended Thinking | Yes |
 
@@ -125,7 +125,7 @@ export GROQ_API_KEY="gsk_..."
 | Aliases | None |
 | Env Var | `GROQ_API_KEY` |
 | Key Prefix | `gsk_` |
-| Models | Llama 3.3 70B, Mixtral 8x7B, Gemma 2 |
+| Models | Llama 4 Maverick, Mixtral 8x7B, Gemma 2 |
 | Vision | Yes |
 
 Groq is optimized for extremely fast inference. Ideal for latency-sensitive workflows:
@@ -178,14 +178,14 @@ export GEMINI_API_KEY="your-key-here"
 |--------|-------|
 | Provider ID | `gemini` |
 | Aliases | `google` |
-| Env Var | `GEMINI_API_KEY` |
+| Env Var | `GEMINI_API_KEY` (required - different from Google Cloud API keys) |
 | Key Prefix | None |
-| Models | Gemini Pro, Gemini Flash, Gemini Ultra |
+| Models | Gemini 2.5-Flash, Gemini 2.5-Pro, Gemini 2.0-Flash |
 | Vision | Yes |
 
 ```yaml
 provider: gemini
-model: gemini-2.0-flash
+model: gemini-2.5-flash
 
 tasks:
   - id: multimodal
@@ -209,7 +209,7 @@ export XAI_API_KEY="your-key-here"
 | Aliases | `grok` |
 | Env Var | `XAI_API_KEY` |
 | Key Prefix | None |
-| Models | Grok-3, Grok-4 |
+| Models | Grok-3, Grok-3-Vision |
 | Vision | Yes |
 
 ```yaml
@@ -500,13 +500,13 @@ Each provider offers multiple models with different capabilities and cost profil
 
 | Model | Best For | Context | Cost |
 |-------|----------|---------|------|
-| `claude-opus-4` | Complex reasoning, research, analysis | 200K | $$$ |
-| `claude-sonnet-4-6` | General purpose, coding, balanced | 200K | $$ |
-| `claude-haiku-3-5` | Fast responses, simple tasks, classification | 200K | $ |
+| `claude-opus-4-20250514` | Complex reasoning, research, analysis | 200K | $$$ |
+| `claude-sonnet-4-20250514` | General purpose, coding, balanced | 200K | $$ |
+| `claude-haiku-3.5-20241022` | Fast responses, simple tasks, classification | 200K | $ |
 
 ```yaml
 provider: anthropic
-model: claude-sonnet-4-6  # Good balance of quality and cost
+model: claude-sonnet-4-20250514  # Good balance of quality and cost
 ```
 
 ### OpenAI Models
@@ -516,7 +516,7 @@ model: claude-sonnet-4-6  # Good balance of quality and cost
 | `o3` | Complex reasoning with chain-of-thought | 200K | $$$$ |
 | `gpt-4o` | General purpose, multimodal, coding | 128K | $$ |
 | `gpt-4o-mini` | Fast, cheap, simple tasks | 128K | $ |
-| `gpt-4.1` | Latest GPT-4 variant | 128K | $$ |
+| `gpt-4.1-preview` | Latest GPT-4 variant | 128K | $$ |
 
 ```yaml
 provider: openai
@@ -527,13 +527,13 @@ model: gpt-4o
 
 | Model | Best For | Context | Speed |
 |-------|----------|---------|-------|
-| `llama-3.3-70b-versatile` | General purpose, fast inference | 128K | Very fast |
+| `llama-4-maverick` | General purpose, fast inference | 128K | Very fast |
 | `mixtral-8x7b-32768` | Multi-task, long context | 32K | Fast |
 | `gemma2-9b-it` | Instruction following | 8K | Very fast |
 
 ```yaml
 provider: groq
-model: llama-3.3-70b-versatile  # Best speed-to-quality ratio
+model: llama-4-maverick  # Best speed-to-quality ratio
 ```
 
 ### Specifying Models in Workflows

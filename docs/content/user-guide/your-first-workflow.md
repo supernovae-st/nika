@@ -203,7 +203,7 @@ You can transform bound values using pipe operators:
     exec: "echo 'Words: {{with.count}}'"
 ```
 
-Available transforms include `trim`, `upper`, `lower`, `length`, `first`, `last`, `sort`, `unique`, `flatten`, `reverse`, `compact`, `to_json`, `parse_json`, `join(",")`, `split(",")`, `default("fallback")`, `type_of`, and more. See [Workflow Patterns](04-workflow-patterns.md) for the complete catalog.
+Available transforms include `trim`, `upper`, `lower`, `length`, `first`, `last`, `sort`, `unique`, `flatten`, `reverse`, `compact`, `to_json`, `parse_json`, `join(",")`, `split(",")`, `default("fallback")`, `type_of`, and more. See [Workflow Patterns](workflow-patterns.md) for the complete catalog.
 
 ## Step 5: infer -- Adding AI
 
@@ -433,7 +433,6 @@ tasks:
     for_each: $urls
     as: url
     concurrency: 3
-    fail_fast: true
     fetch:
       url: "{{with.url}}"
       extract: markdown
@@ -552,7 +551,7 @@ In this guide you:
 
 ## Next Steps
 
-- **[Workflow Patterns](04-workflow-patterns.md)** -- Diamond patterns, fan-out, error handling, retries
-- **[infer: Deep Dive](05-infer-verb-guide.md)** -- Vision, system prompts, structured output
-- **[fetch: Deep Dive](06-fetch-verb-guide.md)** -- All 9 extract modes, response modes
-- **[exec/invoke/agent Guide](07-exec-invoke-agent-guide.md)** -- Shell tricks, 24 builtin tools, agent loops
+- **[Workflow Patterns](workflow-patterns.md)** -- Diamond patterns, fan-out, error handling, retries
+- **[infer: Deep Dive](infer-verb-guide.md)** -- Vision, system prompts, structured output
+- **[fetch: Deep Dive](fetch-verb-guide.md)** -- All 9 extract modes, response modes
+- **[exec/invoke/agent Guide](../../07-exec-invoke-agent-guide.md)** -- Shell tricks, 24 builtin tools, agent loops

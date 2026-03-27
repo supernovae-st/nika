@@ -258,10 +258,10 @@ model: "sonnet"           # Not a valid model ID
 ```yaml
 # Correct
 provider: anthropic
-model: claude-sonnet-4-6
+model: claude-sonnet-4-20250514
 
 # Or the combined format:
-model: anthropic/claude-sonnet-4-6
+model: anthropic/claude-sonnet-4-20250514
 ```
 
 **Error**: `NIKA-030` Provider not configured / `NIKA-033` Invalid configuration
@@ -401,10 +401,10 @@ exec:
 
 **Why it happens**: `cargo test` runs all tests including integration tests by default.
 
-**The fix**: Always use `cargo test --lib` for safe testing.
+**The fix**: Always use `cargo test --lib` for safe testing (8,300+ tests safe).
 
 ```bash
-cargo test --workspace --lib    # Safe -- no keychain
+cargo test --workspace --lib    # Safe -- no keychain (8,300+ tests)
 cargo test --lib                # nika binary tests only
 ```
 

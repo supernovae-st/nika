@@ -48,12 +48,13 @@ tasks:
   # Parse multiple RSS feeds in parallel
   - id: fetch_feeds
     for_each:
-      - { url: "https://blog.rust-lang.org/feed.xml", name: "Rust Blog" }
-      - { url: "https://github.blog/feed/", name: "GitHub Blog" }
-      - { url: "https://www.infoq.com/feed/", name: "InfoQ" }
-      - { url: "https://feeds.feedburner.com/TheHackersNews", name: "Hacker News Feed" }
-    as: feed
-    concurrency: 4
+      items:
+        - { url: "https://blog.rust-lang.org/feed.xml", name: "Rust Blog" }
+        - { url: "https://github.blog/feed/", name: "GitHub Blog" }
+        - { url: "https://www.infoq.com/feed/", name: "InfoQ" }
+        - { url: "https://feeds.feedburner.com/TheHackersNews", name: "Hacker News Feed" }
+      as: feed
+      concurrency: 4
     fail_fast: false
     fetch:
       url: "{{with.feed.url}}"
@@ -68,10 +69,11 @@ tasks:
   - id: fetch_top_articles
     depends_on: [fetch_feeds]
     for_each:
-      - "https://blog.rust-lang.org/"
-      - "https://github.blog/"
-    as: article_url
-    concurrency: 2
+      items:
+        - "https://blog.rust-lang.org/"
+        - "https://github.blog/"
+      as: article_url
+      concurrency: 2
     fetch:
       url: "{{with.article_url}}"
       extract: article
@@ -173,12 +175,13 @@ tasks:
   # Scrape competitor homepages for content and metadata
   - id: scrape_competitors
     for_each:
-      - { name: "Zapier", url: "https://zapier.com" }
-      - { name: "n8n", url: "https://n8n.io" }
-      - { name: "Make", url: "https://www.make.com/en" }
-      - { name: "Pipedream", url: "https://pipedream.com" }
-    as: competitor
-    concurrency: 4
+      items:
+        - { name: "Zapier", url: "https://zapier.com" }
+        - { name: "n8n", url: "https://n8n.io" }
+        - { name: "Make", url: "https://www.make.com/en" }
+        - { name: "Pipedream", url: "https://pipedream.com" }
+      as: competitor
+      concurrency: 4
     fetch:
       url: "{{with.competitor.url}}"
       extract: markdown
@@ -187,12 +190,13 @@ tasks:
   # Extract metadata (OG tags, descriptions)
   - id: scrape_metadata
     for_each:
-      - "https://zapier.com"
-      - "https://n8n.io"
-      - "https://www.make.com/en"
-      - "https://pipedream.com"
-    as: url
-    concurrency: 4
+      items:
+        - "https://zapier.com"
+        - "https://n8n.io"
+        - "https://www.make.com/en"
+        - "https://pipedream.com"
+      as: url
+      concurrency: 4
     fetch:
       url: "{{with.url}}"
       extract: metadata
@@ -201,10 +205,11 @@ tasks:
   # Extract link structures for site architecture analysis
   - id: scrape_links
     for_each:
-      - "https://zapier.com"
-      - "https://n8n.io"
-    as: url
-    concurrency: 2
+      items:
+        - "https://zapier.com"
+        - "https://n8n.io"
+      as: url
+      concurrency: 2
     fetch:
       url: "{{with.url}}"
       extract: links
@@ -213,11 +218,12 @@ tasks:
   # Check for AI content files
   - id: check_llm_txt
     for_each:
-      - "https://zapier.com"
-      - "https://n8n.io"
-      - "https://www.make.com/en"
-    as: url
-    concurrency: 3
+      items:
+        - "https://zapier.com"
+        - "https://n8n.io"
+        - "https://www.make.com/en"
+      as: url
+      concurrency: 3
     fail_fast: false
     fetch:
       url: "{{with.url}}"
@@ -342,17 +348,18 @@ tasks:
   # Fetch price data from JSON APIs
   - id: api_prices
     for_each:
-      - url: "https://jsonplaceholder.typicode.com/posts/1"
-        name: "Product API 1"
-        jsonpath: "$.title"
-      - url: "https://jsonplaceholder.typicode.com/posts/2"
-        name: "Product API 2"
-        jsonpath: "$.title"
-      - url: "https://jsonplaceholder.typicode.com/posts/3"
-        name: "Product API 3"
-        jsonpath: "$.title"
-    as: source
-    concurrency: 3
+      items:
+        - url: "https://jsonplaceholder.typicode.com/posts/1"
+          name: "Product API 1"
+          jsonpath: "$.title"
+        - url: "https://jsonplaceholder.typicode.com/posts/2"
+          name: "Product API 2"
+          jsonpath: "$.title"
+        - url: "https://jsonplaceholder.typicode.com/posts/3"
+          name: "Product API 3"
+          jsonpath: "$.title"
+      as: source
+      concurrency: 3
     fetch:
       url: "{{with.source.url}}"
       extract: jsonpath
@@ -366,11 +373,12 @@ tasks:
   # Fetch prices from HTML pages using CSS selectors
   - id: html_prices
     for_each:
-      - url: "https://httpbin.org/html"
-        name: "HTML Store"
-        selector: "p"
-    as: store
-    concurrency: 3
+      items:
+        - url: "https://httpbin.org/html"
+          name: "HTML Store"
+          selector: "p"
+      as: store
+      concurrency: 3
     fail_fast: false
     fetch:
       url: "{{with.store.url}}"
@@ -498,10 +506,11 @@ tasks:
   - id: fetch_articles
     depends_on: [parse_feed]
     for_each:
-      - "https://blog.rust-lang.org/"
-      - "https://blog.rust-lang.org/inside-rust/"
-    as: article_url
-    concurrency: 2
+      items:
+        - "https://blog.rust-lang.org/"
+        - "https://blog.rust-lang.org/inside-rust/"
+      as: article_url
+      concurrency: 2
     fail_fast: false
     fetch:
       url: "{{with.article_url}}"
@@ -512,10 +521,11 @@ tasks:
   - id: article_metadata
     depends_on: [parse_feed]
     for_each:
-      - "https://blog.rust-lang.org/"
-      - "https://blog.rust-lang.org/inside-rust/"
-    as: url
-    concurrency: 2
+      items:
+        - "https://blog.rust-lang.org/"
+        - "https://blog.rust-lang.org/inside-rust/"
+      as: url
+      concurrency: 2
     fetch:
       url: "{{with.url}}"
       extract: metadata
@@ -620,13 +630,14 @@ tasks:
   # Check uptime and response details with full envelope
   - id: uptime_checks
     for_each:
-      - { url: "https://httpbin.org/get", name: "API Health" }
-      - { url: "https://httpbin.org/status/200", name: "Status Check" }
-      - { url: "https://httpbin.org/headers", name: "Header Check" }
-      - { url: "https://httpbin.org/delay/1", name: "Latency Check" }
-      - { url: "https://httpbin.org/redirect/1", name: "Redirect Check" }
-    as: endpoint
-    concurrency: 5
+      items:
+        - { url: "https://httpbin.org/get", name: "API Health" }
+        - { url: "https://httpbin.org/status/200", name: "Status Check" }
+        - { url: "https://httpbin.org/headers", name: "Header Check" }
+        - { url: "https://httpbin.org/delay/1", name: "Latency Check" }
+        - { url: "https://httpbin.org/redirect/1", name: "Redirect Check" }
+      as: endpoint
+      concurrency: 5
     fail_fast: false
     fetch:
       url: "{{with.endpoint.url}}"
@@ -639,10 +650,11 @@ tasks:
   # Check security-relevant metadata
   - id: security_scan
     for_each:
-      - "https://httpbin.org"
-      - "https://github.com"
-    as: url
-    concurrency: 2
+      items:
+        - "https://httpbin.org"
+        - "https://github.com"
+      as: url
+      concurrency: 2
     fetch:
       url: "{{with.url}}"
       extract: metadata

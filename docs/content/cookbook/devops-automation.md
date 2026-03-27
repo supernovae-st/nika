@@ -78,6 +78,8 @@ tasks:
       latency: $latency_check
       redirects: $redirect_check
       security: $security_headers
+      version: $inputs.version
+      environment: $inputs.environment
     infer:
       system: "You are a site reliability engineer validating a deployment."
       prompt: |

@@ -125,7 +125,6 @@ tasks:
     for_each: $get_urls
     as: url
     concurrency: 3
-    fail_fast: false
     fetch:
       url: "{{with.url}}"
       timeout: 10
@@ -142,7 +141,7 @@ The `for_each:` configuration:
 
 | Field | Purpose | Default |
 |-------|---------|---------|
-| `items` | Task reference producing an array | Required |
+| `items` | Task reference producing an array (use for_each: $task_id, not items:) | Required |
 | `as` | Variable name for current item | `item` |
 | `concurrency` | Max parallel iterations | Unlimited |
 | `fail_fast` | Stop all on first error | `true` |
@@ -478,7 +477,7 @@ tasks:
     depends_on: [prompt_source]
     with: { p: $prompt_source | trim }
     provider: anthropic
-    model: claude-sonnet-4-6
+    model: claude-sonnet-4-20250514
     infer:
       prompt: "{{with.p}}"
 
@@ -494,7 +493,7 @@ tasks:
     depends_on: [prompt_source]
     with: { p: $prompt_source | trim }
     provider: groq
-    model: llama-3.3-70b-versatile
+    model: llama-4-maverick
     infer:
       prompt: "{{with.p}}"
 
@@ -512,7 +511,7 @@ tasks:
         echo "=== GPT-4o ==="
         echo "{{with.g}}"
         echo ""
-        echo "=== Llama 3.3 (Groq) ==="
+        echo "=== Llama 4 (Groq) ==="
         echo "{{with.q}}"
       shell: true
 ```
