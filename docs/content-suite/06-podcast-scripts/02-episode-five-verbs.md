@@ -394,7 +394,7 @@ And if you added a sixth -- say, a `transform:` verb for data manipulation -- yo
 
 **Host:** Let us recap. Five verbs, each with surprising depth:
 
-- `infer:` -- LLM generation with 22 providers, structured output, vision, extended thinking
+- `infer:` -- LLM generation with 9 LLM providers, structured output, vision, extended thinking
 - `exec:` -- Shell commands with Unicode-aware security blocklist
 - `fetch:` -- HTTP with nine extraction modes for web intelligence
 - `invoke:` -- MCP tools with 24 builtins and 100+ external aliases
@@ -404,7 +404,7 @@ These five operations compose into DAG-scheduled workflows where independent tas
 
 [PAUSE]
 
-Next episode, we are going deep into the Rust architecture. The 10-crate workspace design. The three-phase AST and why it matters. The IndexedDag with Kahn's algorithm. The zero-I/O core principle. How Nika abstracts 22 LLM providers into a single interface. And why 8,100 tests is just the beginning.
+Next episode, we are going deep into the Rust architecture. The 12-crate workspace design. The three-phase AST and why it matters. The IndexedDag with Kahn's algorithm. The zero-I/O core principle. How Nika abstracts 9 LLM providers into a single interface. And why 2,150+ tests ensure correctness.
 
 [MUSIC: Outro theme]
 
@@ -437,7 +437,7 @@ Next episode, we are going deep into the Rust architecture. The 10-crate workspa
 - **Sub-Agent Spawning:** SpawnAgentTool, depth_limit (default 3, max 10)
 
 ### Key Metrics
-- 22 LLM providers supported (7 cloud + 1 native via rig-core, plus 14 via MCP aliases)
+- 9 LLM providers supported (7 cloud + native local inference + mock)
 - 24 built-in media/file tools in 3 tiers
 - 100+ MCP server aliases pre-configured
 - 9 fetch extraction modes

@@ -1,4 +1,4 @@
-# Deep Dive: Inside Nika -- 10 Crates, 1.56M Lines, Zero Compromises
+# Deep Dive: Inside Nika -- 12 Crates, 1.56M Lines, Zero Compromises
 
 > 20-minute technical deep dive
 > Target audience: Rust developers, systems engineers, compiler/runtime enthusiasts
@@ -12,9 +12,9 @@
 [ANIMATION] A single `.nika.yaml` file icon appears at the top of the screen. Below it, the full architecture diagram builds itself in real time -- AST phases, DAG, executor branches, all animated with flowing data particles.
 
 **Voice-over:**
-A YAML file goes in. Structured, validated, parallel AI execution comes out. In between: a compiler-grade pipeline, an immutable DAG, a concurrent runtime, and ten carefully bounded crates. This is the inside of Nika -- a semantic workflow engine that takes ideas from rustc, Tokio, and content-addressable storage systems and applies them to AI workflow execution. Let's trace every step.
+A YAML file goes in. Structured, validated, parallel AI execution comes out. In between: a compiler-grade pipeline, an immutable DAG, a concurrent runtime, and twelve carefully bounded crates. This is the inside of Nika -- a semantic workflow engine that takes ideas from rustc, Tokio, and content-addressable storage systems and applies them to AI workflow execution. Let's trace every step.
 
-[TITLE CARD] "Inside Nika -- 10 Crates, 1.56M Lines, Zero Compromises"
+[TITLE CARD] "Inside Nika -- 12 Crates, 1.56M Lines, Zero Compromises"
 
 ---
 
@@ -40,15 +40,15 @@ nika-mcp  nika-media  nika-event
 [ANIMATION] Each crate node pulses as it is mentioned. Dependency arrows draw themselves.
 
 **Voice-over:**
-Nika is a Cargo workspace with ten crates. Not because we like splitting things -- because each boundary enforces an architectural invariant.
+Nika is a Cargo workspace with twelve crates. Not because we like splitting things -- because each boundary enforces an architectural invariant.
 
 `nika-core` at the bottom: zero I/O. Pure types, AST definitions, transform catalogs. It compiles without touching a file system or network. This is the foundation everything else builds on.
 
-`nika-engine` in the middle: the embeddable runtime. One hundred thirty-four thousand lines. This is where YAML becomes execution. You can embed this in any Rust application -- it is not tied to the CLI.
+`nika-engine` in the middle: the embeddable runtime. One hundred thirty-five thousand lines. This is where YAML becomes execution. You can embed this in any Rust application -- it is not tied to the CLI.
 
-`nika-tui` on the side: ninety-two thousand lines of ratatui terminal UI. It is the largest crate by feature count, but it is completely optional. The engine does not know the TUI exists.
+`nika-tui` on the side: eighty-six thousand lines of ratatui terminal UI. It is the largest crate by feature count, but it is completely optional. The engine does not know the TUI exists.
 
-`nika-mcp`: MCP client wrapping rmcp 0.16. `nika-media`: content-addressable storage. `nika-event`: event log and NDJSON tracing. Each one: a clear responsibility, a clean API, a testable boundary.
+`nika-daemon`: background daemon for secrets, jobs, watch, cache. `nika-init`: project scaffolding and course generation. `nika-mcp`: MCP client wrapping rmcp 0.16. `nika-media`: content-addressable storage and media processing. `nika-event`: event log and NDJSON tracing. Each one: a clear responsibility, a clean API, a testable boundary.
 
 ### Scene 1.2 -- Cargo.toml Walkthrough (2:00 - 2:45)
 
@@ -68,7 +68,7 @@ serde-saphyr = "0.0.20"
 ```
 
 **Voice-over:**
-The dependency choices are deliberate. Tokio for async -- multi-threaded runtime, not single-threaded. rig-core 0.32 for LLM provider abstraction -- it gives us eight providers through one API. rmcp 0.16 for MCP client communication. petgraph for the TUI's StableGraph DAG visualization. blake3 for content-addressable hashing -- with mmap support for large files. And serde-saphyr for YAML parsing with YAML bomb protection built in. Not serde-yaml. serde-saphyr. Because YAML billion-laugh attacks are real.
+The dependency choices are deliberate. Tokio for async -- multi-threaded runtime, not single-threaded. rig-core 0.32 for LLM provider abstraction -- it gives us nine providers through one API. rmcp 0.16 for MCP client communication. petgraph for the TUI's StableGraph DAG visualization. blake3 for content-addressable hashing -- with mmap support for large files. And serde-saphyr for YAML parsing with YAML bomb protection built in. Not serde-yaml. serde-saphyr. Because YAML billion-laugh attacks are real.
 
 ### Scene 1.3 -- The Build Profile (2:45 - 3:30)
 
@@ -85,9 +85,9 @@ opt-level = 1
 ```
 
 **Voice-over:**
-The release profile: thin LTO for link-time optimization, single codegen unit for maximum optimization, symbols stripped for binary size. The test profile runs at opt-level 1 -- not zero. Why? Because seven thousand eight hundred tests at zero optimization is painfully slow, but full optimization makes compile times unbearable. Opt-level 1 is the sweet spot.
+The release profile: thin LTO for link-time optimization, single codegen unit for maximum optimization, symbols stripped for binary size. The test profile runs at opt-level 1 -- not zero. Why? Because eight thousand three hundred plus tests at zero optimization is painfully slow, but full optimization makes compile times unbearable. Opt-level 1 is the sweet spot.
 
-The result: a release binary under 30 megabytes that starts in under 10 milliseconds. Rust edition 2021. Minimum supported Rust version: 1.86. License: AGPL-3.0-or-later.
+The result: a release binary under 30 megabytes that starts in under 10 milliseconds. Rust edition 2021. Minimum supported Rust version: 1.73. License: AGPL-3.0-or-later.
 
 ---
 
@@ -465,14 +465,14 @@ pub enum EventKind {
     FetchComplete { task_id: Arc<str>, status: u16 },
     AgentTurn { task_id: Arc<str>, turn: u32 },
     GuardrailEvaluated { task_id: Arc<str>, passed: bool },
-    // ... 41 total variants
+    // ... 41+ event variants
 }
 ```
 
 [ANIMATION] Events flowing into an append-only log. A NDJSON file growing line by line. A replay arrow pointing backward from the log to a workflow visualization.
 
 **Voice-over:**
-Every significant action emits an event. Forty-one event kinds covering the entire lifecycle: workflow start, task start, task completion, inference streaming, fetch results, agent turns, guardrail evaluations, errors, cancellations. The event log is append-only -- events are never modified or deleted.
+Every significant action emits an event. Forty-one+ event kinds covering the entire lifecycle: workflow start, task start, task completion, inference streaming, fetch results, agent turns, guardrail evaluations, errors, cancellations. The event log is append-only -- events are never modified or deleted.
 
 NDJSON trace files capture everything for offline analysis. The TraceWriter handles concurrent writes safely. The TUI subscribes to the event stream for real-time updates. And because events are structured -- not log strings -- you can filter, query, and replay them programmatically.
 
@@ -578,7 +578,7 @@ AGPL, not MIT. Not because we are anti-business -- because we are pro-commons. M
 [ANIMATION] The full architecture diagram from the opening, but now with data particles flowing through every connection. The diagram pulses with activity.
 
 **Voice-over:**
-Ten crates. One point five six million lines. Seven thousand eight hundred tests. Three AST phases. An immutable DAG. Five semantic verbs. Forty-one event types. Three hundred twenty error codes. Eight LLM providers. Twenty-four media tools. One terminal UI with forty-plus widgets.
+Twelve crates. One point five six million lines. Eight thousand three hundred plus tests. Three AST phases. An immutable DAG. Five semantic verbs. Forty-one+ event types. Three hundred twenty error codes. Nine LLM providers. Twenty-four media tools. One terminal UI with forty-plus widgets.
 
 This is not a prototype. This is a production workflow engine built with compiler-grade engineering for the AI era. This is Nika.
 

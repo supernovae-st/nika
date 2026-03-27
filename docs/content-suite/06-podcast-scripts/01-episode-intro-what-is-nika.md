@@ -133,7 +133,7 @@ But here is where it gets interesting. Nika has exactly five verbs. Not three. N
 
 Let me walk through them.
 
-**Verb 1: `infer:`** -- LLM generation. This is your text generation, your reasoning, your structured output. It supports 22 LLM providers, multimodal vision with images, extended thinking for Claude, temperature control, and structured JSON output with a five-layer validation defense. We will go deep on this in Episode 2.
+**Verb 1: `infer:`** -- LLM generation. This is your text generation, your reasoning, your structured output. It supports 9 LLM providers (7 cloud: Anthropic, OpenAI, Mistral, Groq, DeepSeek, Gemini, xAI + native local + mock), multimodal vision with images, extended thinking for Claude, temperature control, and structured JSON output with a five-layer validation defense. We will go deep on this in Episode 2.
 
 **Verb 2: `exec:`** -- Shell commands. Run any command on the host machine. But -- and this is critical -- with a security blocklist that prevents command injection, fork bombs, privilege escalation, and reverse shells. It even normalizes Unicode to prevent confusable character bypass attacks. More on security in Episode 5.
 
@@ -271,25 +271,27 @@ Three reasons.
 
 **Three: Distribution.** Nika ships as a single binary. No runtime dependencies. No virtual environment. No `pip install` dance. You download the binary, you run it. This matters enormously for developer experience and for deployment.
 
-The codebase today is 10 workspace crates totaling 451K+ lines of Rust:
+The codebase today is 12 workspace crates totaling 330K+ lines of Rust:
 
 [CODE EXAMPLE]
 ```
-nika           (2K)    CLI entry point
-nika-engine    (134K)  Execution engine -- embeddable runtime
-nika-core      (23K)   AST, types, catalogs -- zero I/O
-nika-event     (4K)    EventLog, TraceWriter
-nika-mcp       (9K)    MCP client, rmcp
-nika-media     (3.5K)  CAS store, media processor
-nika-cli       (8K)    CLI subcommands
-nika-tui       (92K)   Terminal UI -- ratatui
-nika-lsp-core  (9K)    LSP intelligence
-nika-lsp       (2.5K)  LSP binary
+nika           (4K)    CLI entry point
+nika-engine    (137K)  Execution engine -- embeddable runtime
+nika-core      (24K)   AST, types, catalogs -- zero I/O
+nika-event     (5K)    EventLog, TraceWriter
+nika-mcp       (9.5K)  MCP client, rmcp
+nika-media     (13K)   CAS store, media processor
+nika-cli       (11K)   CLI subcommands
+nika-tui       (88K)   Terminal UI -- ratatui
+nika-lsp-core  (11K)   LSP intelligence
+nika-lsp       (2.8K)  LSP binary
+nika-init      (21K)   Project setup + course system
+nika-daemon    (6.4K)  Background daemon for secrets/cache
 ```
 
-[EMPHASIS] The TUI alone is 92 thousand lines. That is not a typo. The terminal interface has three views -- Studio, Command, and Control -- with 40+ widgets, a DAG visualizer, and real-time task status. Developer experience is not an afterthought in Nika. It is 44% of the codebase.
+[EMPHASIS] The TUI is 88 thousand lines. The terminal interface has three views -- Studio, Command, and Control -- with 40+ widgets, a DAG visualizer, and real-time task status. Developer experience is not an afterthought in Nika. It is a core investment.
 
-And the test suite has 8,100+ tests. With zero clippy warnings. Zero.
+And the test suite has 2,150+ tests. With zero clippy warnings. Zero.
 
 **Host:** Now, I want to be transparent about something. As of today, Nika has zero users. This is a pre-launch project. The creator, Thibaut Melen, has deliberately chosen to focus on engineering quality over marketing. The philosophy is: build something genuinely excellent, then release it to the world. Not the other way around.
 

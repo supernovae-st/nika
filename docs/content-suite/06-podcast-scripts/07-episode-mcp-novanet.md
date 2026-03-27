@@ -64,7 +64,7 @@ MCP Client (Nika)                    MCP Server (NovaNet)
      |<-- result (confirmation) ------------|
 ```
 
-Nika's MCP client is the nika-mcp crate -- 9,000 lines of Rust covering:
+Nika's MCP client is the nika-mcp crate -- 9K lines of Rust covering:
 
 **Connection Management.** MCP servers can be spawned as child processes (stdio transport) or connected to via SSE (Server-Sent Events). Nika manages a connection pool so multiple tasks can share a single server connection.
 
@@ -186,7 +186,7 @@ This is the same principle as using an ORM instead of raw SQL -- except enforced
 
 ## Segment 3: 100+ MCP Aliases and the Tool Ecosystem (6 minutes)
 
-**Host:** Beyond NovaNet, Nika comes pre-configured with 100+ MCP server aliases. These are shortcuts for popular services and tools.
+**Host:** Beyond NovaNet, Nika comes pre-configured with 100 MCP server aliases. These are shortcuts for popular services and tools.
 
 [CODE EXAMPLE]
 ```yaml

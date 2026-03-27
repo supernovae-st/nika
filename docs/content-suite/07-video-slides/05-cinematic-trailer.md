@@ -164,10 +164,10 @@ Panel 4: An agent loop iterating with tool calls
 
 [TEXT OVERLAY] Quick statistics appearing and fading:
 ```
-10 crates
+12 crates
 1.56M lines
-8,100 tests
-8 providers
+8,300+ tests
+9 providers
 24 media tools
 41 event types
 ```
@@ -175,7 +175,7 @@ Panel 4: An agent loop iterating with tool calls
 [SOUND] Musical climax. A sustained chord.
 
 **Narration:**
-"Ten crates. One and a half million lines of Rust. Zero compromises."
+"Twelve crates. One and a half million lines of Rust. Zero compromises."
 
 ---
 

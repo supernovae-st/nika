@@ -91,7 +91,7 @@ The core insight: what if we treated workflow definitions like source code? What
 [SLIDE] Nika butterfly logo, full screen. "Semantic YAML Workflow Engine for AI Tasks."
 
 **Speaker Notes:**
-Nika. Named after the Sun God Nika from One Piece -- a figure whose power is limited only by imagination. A semantic YAML workflow engine for AI tasks, written in Rust. Ten Cargo workspace crates. Schema nika/workflow@0.12. AGPL-3.0-or-later.
+Nika. Named after the Sun God Nika from One Piece -- a figure whose power is limited only by imagination. A semantic YAML workflow engine for AI tasks, written in Rust. Twelve Cargo workspace crates. Schema nika/workflow@0.12. AGPL-3.0-or-later.
 
 ---
 
@@ -112,7 +112,7 @@ Nika. Named after the Sun God Nika from One Piece -- a figure whose power is lim
 **Speaker Notes:**
 The entire Nika vocabulary is five verbs. Not five hundred API methods. Five verbs that compose. Let me walk through each one.
 
-`infer:` calls an LLM. Any of eight providers. Vision, extended thinking, structured output with a five-layer defense, guardrails -- all configured in YAML.
+`infer:` calls an LLM. Any of nine providers. Vision, extended thinking, structured output with a five-layer defense, guardrails -- all configured in YAML.
 
 `exec:` runs a shell command. With a security blocklist, NFKC Unicode normalization to prevent homoglyph attacks, and configurable timeouts.
 
@@ -287,23 +287,23 @@ Security deserves its own slide because most AI frameworks treat it as an aftert
 
 ---
 
-### SLIDE 15 -- Eight Providers
+### SLIDE 15 -- Nine Providers
 
 [SLIDE] Provider grid:
 
 ```
-Cloud (via rig-core 0.32):          Local:
-  Claude (Anthropic)                  Native (mistral.rs 0.7)
-  OpenAI                              - GGUF models (text)
-  Mistral                             - VisionHf (HuggingFace + ISQ)
-  Groq
+Cloud (via rig-core):          Local:
+  Claude (Anthropic)             Native (mistral.rs 0.7)
+  OpenAI                          - GGUF models (text)
+  Mistral                         - VisionHf (HuggingFace + ISQ)
+  Groq (llama-4-maverick)
   DeepSeek
-  Gemini
+  Gemini (gemini-2.5-flash)
   xAI
 ```
 
 **Speaker Notes:**
-Eight providers. Seven cloud through rig-core, which gives us a unified completion API. One native through mistral.rs for local GGUF models -- completely offline. Vision support across all providers that support it. The native provider even supports vision through HuggingFace models with in-situ quantization. Switch providers by changing one YAML line. No code changes.
+Nine providers. Seven cloud through rig-core, which gives us a unified completion API. One native through mistral.rs for local GGUF models -- completely offline. Vision support across all providers that support it. The native provider even supports vision through HuggingFace models with in-situ quantization. Switch providers by changing one YAML line. No code changes.
 
 ---
 
@@ -425,19 +425,21 @@ And here is the TUI. Home view for browsing, Studio for editing with syntax high
 
 ```
 nika-core (23k)    -- Zero I/O, pure types + AST
-nika-engine (134k) -- Embeddable runtime
-nika-tui (92k)     -- Terminal UI (ratatui)
+nika-engine (135k) -- Embeddable runtime
+nika-tui (86k)     -- Terminal UI (ratatui)
 nika-mcp (9k)      -- MCP client (rmcp 0.16)
-nika-media (3.5k)  -- CAS store
+nika-media (13k)   -- Media processor (CAS, tools)
 nika-event (4k)    -- Event log + NDJSON traces
 nika-cli (8k)      -- CLI subcommands
 nika-lsp-core (9k) -- LSP intelligence
 nika-lsp (2.5k)    -- LSP server
+nika-daemon (5k)   -- Background daemon
+nika-init (21k)    -- Project scaffolding
 nika (2k)          -- Binary entry point
 ```
 
 **Speaker Notes:**
-Ten crates. Each boundary is an architectural invariant. nika-core has zero I/O -- it compiles without touching a file system. You can use it for analysis without the runtime. nika-engine is embeddable -- you can integrate it into any Rust application. nika-tui is optional -- the engine does not know it exists. The engine has 134,000 lines. The TUI has 92,000. They are independent.
+Twelve crates. Each boundary is an architectural invariant. nika-core has zero I/O -- it compiles without touching a file system. You can use it for analysis without the runtime. nika-engine is embeddable -- you can integrate it into any Rust application. nika-tui is optional -- the engine does not know it exists. The engine has 135,000 lines. The TUI has 86,000. They are independent.
 
 ---
 
@@ -524,7 +526,7 @@ The fetch verb ships with nine extraction modes. Not as plugins -- as built-in p
 
 ---
 
-### SLIDE 22 -- Media Pipeline
+### SLIDE 22 -- 24 Media Tools
 
 [SLIDE] 24 tools in three tiers:
 
@@ -532,7 +534,8 @@ The fetch verb ships with nine extraction modes. Not as plugins -- as built-in p
 Tier 1 (always): import, dimensions, thumbhash, dominant_color, pipeline
 Tier 2 (default): thumbnail (SIMD), convert, strip, metadata, optimize, svg_render
 Tier 3 (opt-in): phash, compare, pdf_extract, chart, provenance, verify,
-                  qr_validate, quality, html_to_md, css_select, ...
+                  qr_validate, quality, html_to_md, css_select, extract_metadata,
+                  extract_links, readability, (and more)
 ```
 
 **Speaker Notes:**
@@ -729,7 +732,7 @@ Twelve levels, forty-four exercises. Liberation-themed names because Nika is abo
 
 ### SLIDE 29 -- Showcase
 
-[SLIDE] "200+ showcase workflows" with category examples:
+[SLIDE] "115+ showcase workflows" with category examples:
 
 ```
 nika showcase list           -- Browse all
@@ -740,7 +743,7 @@ Categories: fetch patterns, LLM workflows, media pipelines,
 ```
 
 **Speaker Notes:**
-Over two hundred showcase workflows. Working, tested examples for every use case. `nika showcase extract` pulls one into your project, ready to run. They are not documentation -- they are production patterns.
+Over one hundred fifteen showcase workflows. Working, tested examples for every use case. `nika showcase extract` pulls one into your project, ready to run. They are not documentation -- they are production patterns.
 
 ---
 
@@ -804,7 +807,7 @@ nika course next
 ```
 
 **Speaker Notes:**
-Three commands to start. Install, initialize the course, open your first exercise. Or `nika init --minimal` for five workflows, one per verb. Or `nika showcase list` for two hundred examples.
+Three commands to start. Install, initialize the course, open your first exercise. Or `nika showcase list` for 115+ examples.
 
 ---
 
@@ -843,7 +846,7 @@ Thank you.
 
 ### Q: What is the testing strategy?
 
-**A:** 8,100+ tests. Unit tests with `cargo test --lib`. Snapshot tests with insta. Property tests with proptest. We use `--lib` exclusively because regular `cargo test` triggers macOS Keychain popups from integration tests. Zero clippy warnings enforced. Opt-level 1 for test builds to balance speed and compile time.
+**A:** 8,300+ tests. Unit tests with `cargo test --lib`. Snapshot tests with insta. Property tests with proptest. We use `--lib` exclusively because regular `cargo test` triggers macOS Keychain popups from integration tests. Zero clippy warnings enforced. Opt-level 1 for test builds to balance speed and compile time.
 
 ### Q: Why not use anyhow for errors?
 
@@ -851,7 +854,7 @@ Thank you.
 
 ### Q: Is Nika production-ready?
 
-**A:** Nika is at v0.42.0 with 8,100+ tests. It powers QR Code AI's content pipelines. The codebase has been through multiple deep audits. That said, the schema is still @0.12 and we intentionally stay at 0.x.x -- there are no users yet to break backward compatibility for, and we want the freedom to evolve rapidly.
+**A:** Nika is at v0.49.0 with 8,300+ tests. It powers QR Code AI's content pipelines. The codebase has been through multiple deep audits. That said, the schema is still @0.12 and we intentionally stay at 0.x.x -- there are no users yet to break backward compatibility for, and we want the freedom to evolve rapidly.
 
 ### Q: How does the AGPL license affect commercial use?
 

@@ -98,7 +98,7 @@ Knowledge graph integration via NovaNet. No other workflow engine has a companio
 
 A 12-level interactive learning course built into the binary.
 
-22 LLM provider support with auto-detection, including local inference via mistral.rs.
+9 LLM provider support (7 cloud + native + mock) with auto-detection, including local inference via mistral.rs.
 
 AGPL licensing that prevents cloud exploitation.
 

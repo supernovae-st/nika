@@ -147,7 +147,7 @@ This philosophy extends to the project's visual identity. The project's symbol i
 
 ## The Solo Developer Story: 317K Lines of Rust
 
-One of the most remarkable aspects of Nika is its scale. As of version 0.42.0, the project contains over 317,000 lines of Rust source code across 1,739 files, organized into 10 workspace crates. The largest crate, nika-engine, accounts for 162,547 lines. The TUI (terminal user interface) alone is 92,959 lines. The core AST library is 23,114 lines.
+One of the most remarkable aspects of Nika is its scale. As of version 0.49.0, the project contains over 317,000 lines of Rust source code across 1,739 files, organized into 12 workspace crates. The largest crate, nika-engine, accounts for 162,547 lines. The TUI (terminal user interface) alone is 92,959 lines. The core AST library is 23,114 lines.
 
 This is the work of a solo developer, Thibaut Melen, working with AI assistance. The project maintains a zero clippy warnings policy, uses structured error codes (NIKA-001 through NIKA-319), and has a comprehensive test suite. The codebase includes snapshot testing via insta, property-based testing via proptest, and a strict pre-commit workflow that requires all tests, linting, and type-checking to pass before any commit.
 
@@ -163,7 +163,7 @@ The levels are named with a hacker-liberation theme: Jailbreak (basic shell comm
 
 The course design was informed by deep research into Rustlings, Ziglings, Exercism, Codecrafters, and other interactive learning tools. The golden rule: the exercise file IS the lesson. Each exercise is a `.nika.yaml` file with inline comments explaining the concept, a broken or incomplete workflow to fix, and progressive hints accessible via `nika course hint`. The watch mode (`nika course watch`) automatically re-validates exercises on file save, creating a tight edit-save-feedback loop.
 
-In addition to the course, Nika includes a showcase system with over 200 example workflows covering everything from content generation to data analysis to media processing, all extractable via `nika showcase extract`.
+In addition to the course, Nika includes a showcase system with 115 example workflows covering everything from content generation to data analysis to media processing, all extractable via `nika showcase extract`.
 
 ---
 
