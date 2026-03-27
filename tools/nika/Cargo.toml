@@ -89,6 +89,10 @@ tracing-subscriber = { workspace = true }
 # LSP Server (feature-gated)
 tower-lsp-server = { version = "0.23", optional = true }
 
+# Daemon IPC (Unix only — UDS sockets)
+[target.'cfg(unix)'.dependencies]
+nika-daemon = { workspace = true }
+
 [dev-dependencies]
 tempfile = { workspace = true }
 proptest = { workspace = true }
