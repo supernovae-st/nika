@@ -117,7 +117,7 @@ You can override per task:
 ```yaml
 - id: fast_task
   provider: groq
-  model: llama-3.3-70b-versatile
+  model: llama-4-maverick
   infer: "Quick answer: what is 2+2?"
 ```
 
@@ -142,7 +142,7 @@ You can override per task:
 schema: "nika/workflow@0.12"
 workflow: hello-world
 provider: anthropic
-model: claude-sonnet-4-6
+model: claude-sonnet-4-20250514
 
 tasks:
   - id: hello
@@ -226,7 +226,7 @@ tasks:
       method: POST
       json:
         name: "Nika"
-        version: "0.38"
+        version: "0.49"
 
   - id: with_headers
     fetch:
@@ -392,7 +392,7 @@ tasks:
 
 **Objective**: Apply pipe transforms to clean and reshape data.
 
-Use `| trim` to strip whitespace, `| uppercase` to convert case, and `| length` to count characters.
+Use `| trim` to strip whitespace, `| upper` to convert case, and `| length` to count characters.
 
 <details>
 <summary>Solution</summary>
@@ -412,7 +412,7 @@ tasks:
     exec:
       command: |
         echo "Trimmed: {{with.raw | trim}}"
-        echo "Upper: {{with.raw | trim | uppercase}}"
+        echo "Upper: {{with.raw | trim | upper}}"
         echo "Length: {{with.raw | trim | length}}"
       shell: true
 ```

@@ -12,13 +12,13 @@
 | **Primary Language** | Rust | Python | Python/TS | TypeScript | Go | Python |
 | **Paradigm** | Declarative YAML | Imperative SDK | Visual + Code | Visual + Code | Code SDK | Code SDK |
 | **AI-Specific** | Purpose-built | Purpose-built | Purpose-built | General + AI | General | General |
-| **LLM Providers** | 22 | 50+ | 15+ | 10+ | N/A | N/A |
+| **LLM Providers** | 9 | 50+ | 15+ | 10+ | N/A | N/A |
 | **Self-Hosted** | Yes (single binary) | Yes (pip) | Yes (Docker) | Yes (Docker) | Yes (cluster) | Yes (pip/Docker) |
 | **Cloud Offering** | No | LangSmith | Dify Cloud | n8n Cloud | Temporal Cloud | Prefect Cloud |
 | **License** | AGPL-3.0 | MIT | Apache-2.0/Enterprise | Sustainable Use | MIT | Apache-2.0 |
 | **Deployment** | `cargo install` | `pip install` | Docker Compose | Docker/npm | Binary + deps | `pip install` |
 | **Learning Curve** | 5 verbs + YAML | Python + SDK | Low (visual) | Low (visual) | High (Go/SDK) | Medium (Python) |
-| **Version** | v0.42.0 | v0.3.x | v0.11.x | v1.x | v1.x | v3.x |
+| **Version** | v0.49.0 | v0.3.x | v0.11.x | v1.x | v1.x | v3.x |
 | **Stars (approx)** | New | 100K+ | 60K+ | 50K+ | 12K+ | 18K+ |
 
 ---
@@ -42,10 +42,10 @@
 
 | Feature | Nika | LangChain | Dify | n8n | Temporal | Prefect |
 |---------|:----:|:---------:|:----:|:---:|:--------:|:-------:|
-| **Provider Count** | 22 | 50+ | 15+ | 10+ | N/A | N/A |
+| **Provider Count** | 9 | 50+ | 15+ | 10+ | N/A | N/A |
 | **Multi-Model per Workflow** | Yes (native) | Yes (code) | Limited | Limited | N/A | N/A |
 | **Structured Output** | JSON Schema | Pydantic | JSON Schema | Manual | N/A | N/A |
-| **Vision/Multimodal** | Yes (6 providers) | Yes | Yes | Limited | N/A | N/A |
+| **Vision/Multimodal** | Yes (all providers) | Yes | Yes | Limited | N/A | N/A |
 | **Extended Thinking** | Yes (Claude) | Manual | No | No | N/A | N/A |
 | **Streaming** | All providers | All providers | Some | No | N/A | N/A |
 | **Local Models** | Yes (mistral.rs) | Yes (Ollama) | Yes (Ollama) | No | N/A | N/A |
@@ -54,7 +54,7 @@
 | **Cost Tracking** | Built-in | LangSmith | Built-in | No | No | No |
 | **Provider Switching** | Change 1 line | Rewrite chain | Reconfig node | Reconfig node | N/A | N/A |
 
-**Analysis:** LangChain has the widest provider ecosystem (50+), but switching providers often requires code changes. Nika's 22 providers are fewer but switching is a one-line change. Nika's built-in agent guardrails (length, regex, cost limits) are a differentiator vs. both LangChain (custom code required) and Dify (limited controls).
+**Analysis:** LangChain has the widest provider ecosystem (50+), but switching providers often requires code changes. Nika's 9 providers are fewer but switching is a one-line change. Nika's built-in agent guardrails (length, regex, cost limits) are a differentiator vs. both LangChain (custom code required) and Dify (limited controls).
 
 ### Execution Engine
 
@@ -131,12 +131,11 @@
 
 **Weaknesses:**
 - Smallest community (new project)
-- Fewer LLM providers than LangChain (22 vs 50+)
+- Fewer LLM providers than LangChain (9 vs 50+)
 - No cloud-hosted offering
 - No built-in workflow durability (vs Temporal)
 - YAML has inherent limitations for complex logic
 - Rust means higher contribution barrier than Python
-- No Windows support yet
 - 0.x.x versioning may signal instability to some
 
 **Best for:** Developers who want readable, reviewable AI workflows with built-in media processing and multi-model cost optimization.
@@ -273,7 +272,7 @@ Nika occupies the **AI-Specific + Code/Config** quadrant but with a declarative 
 - **Temporal** is code-based but general-purpose
 - **Nika** is AI-specific AND declarative AND code-friendly
 
-The combination of YAML-first + multi-model routing + media pipeline + MCP + interactive course is unique in the market. No competitor has all six.
+The combination of YAML-first + 9 provider coverage + media pipeline + MCP + interactive course is unique in the market. No competitor has all six.
 
 ---
 

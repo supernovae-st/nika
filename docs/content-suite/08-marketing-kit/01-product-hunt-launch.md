@@ -1,6 +1,6 @@
 # Product Hunt Launch Kit -- Nika
 
-> Complete Product Hunt launch preparation for Nika v0.42.
+> Complete Product Hunt launch preparation for Nika v0.49.0.
 > Every asset, copy variant, and timing detail needed for a successful launch day.
 
 ---
@@ -77,7 +77,7 @@ Three tasks. Three verbs. A complete pipeline from data collection through AI an
 - Event sourcing: 39 event types with NDJSON trace output
 - Terminal UI with 3 views (Studio, Command, Control) -- 92K lines of ratatui
 - LSP for IDE integration (VS Code, Neovim, etc.)
-- 8,100+ tests, zero clippy warnings
+- 8,300+ tests, zero clippy warnings
 
 ---
 
@@ -205,11 +205,11 @@ Three tasks. Three verbs. A complete pipeline from data collection through AI an
 
 ### Metrics to Highlight
 - 451K lines of Rust
-- 10 workspace crates
-- 8,100+ tests passing
+- 12 workspace crates
+- 8,300+ tests passing
 - 22 LLM providers supported
 - 24 built-in media tools
-- 200+ showcase workflows
+- 115 showcase workflows
 - 44 interactive course exercises
 - Zero clippy warnings
 - Zero unsafe code

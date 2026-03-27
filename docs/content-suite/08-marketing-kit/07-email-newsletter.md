@@ -44,11 +44,11 @@ That's it. Write your workflow in YAML using these 5 verbs. Nika handles DAG sch
 
 A few numbers:
 
-- **22 LLM providers** -- Claude, GPT-4o, Gemini, Groq, DeepSeek, and more
+- **9 LLM providers** -- Claude, GPT-4o, Gemini, Groq, DeepSeek, and local models
 - **24 media tools** -- thumbnails, charts, PDF extraction, C2PA signing
 - **44-exercise course** -- built-in interactive learning (nika init --course)
-- **200+ showcase workflows** -- ready to extract and use
-- **8,100+ tests** -- zero clippy warnings, zero unsafe code
+- **115 showcase workflows** -- ready to extract and use
+- **8,300+ tests** -- zero clippy warnings, zero unsafe code
 - **AGPL-3.0** -- open source that stays open source
 
 We're launching on **[Launch Date]** on Product Hunt and GitHub.
@@ -123,21 +123,20 @@ That's it. Two tasks, two verbs (`fetch:` + `infer:`), automatic dependency reso
 
 **5 verbs, not 50 abstractions.** `infer:`, `exec:`, `fetch:`, `invoke:`, `agent:`. Every AI task maps to one verb. Your workflow IS the documentation.
 
-**22 providers, one syntax.** Mix Claude and Groq in the same workflow. Route cheap tasks to fast models. Cut costs by 60%.
+**9 providers, one syntax.** Mix Claude and Groq in the same workflow. Route cheap tasks to fast models. Cut costs by 60%.
 
 **24 media tools, zero services.** Thumbnails, charts, PDF extraction, QR validation, C2PA signing -- all built into the binary.
 
 **A course, not a README.** `nika init --course` generates 12 levels of interactive exercises. Learn by doing, not by reading.
 
-**Rust, not Python.** Single binary. 8,100 tests. Starts in milliseconds. The TUI renders at 60fps.
+**Rust, not Python.** Single binary. 8,300+ tests. Starts in milliseconds. The TUI renders at 60fps.
 
 **AGPL, not MIT.** Open source that stays open. No cloud provider can take your work and close the door.
 
-### Three ways to start
+### Two ways to start
 
-1. **Quick start:** `nika init --minimal` -- 5 example workflows, one per verb
-2. **Learn step by step:** `nika init --course` -- 44 exercises across 12 levels
-3. **Browse examples:** `nika showcase list` -- 200+ ready-made workflows
+1. **Learn step by step:** `nika init --course` -- 44 exercises across 12 levels
+2. **Browse examples:** `nika showcase list` -- 115 ready-made workflows
 
 ### Support the launch
 
@@ -150,7 +149,7 @@ If Nika resonates with you, here's how you can help:
 
 ### What's next
 
-Nika v0.42 is just the beginning. The roadmap includes multi-model routing presets, record compression for bounded context, orchestration mode (dynamic workflow generation from goals), and persistent memory via our NovaNet knowledge graph.
+Nika v0.49.0 is just the beginning. The roadmap includes multi-model routing presets, record compression for bounded context, orchestration mode (dynamic workflow generation from goals), and persistent memory via our NovaNet knowledge graph.
 
 The 5 verbs are the foundation. Everything else builds on top.
 
@@ -287,11 +286,11 @@ These are reusable content blocks that can be mixed into any email:
 **Block: The 5-Verb Pitch**
 ```
 Every AI workflow is 5 operations:
-infer: -- call an LLM
-exec: -- run a command
-fetch: -- make an HTTP request
+infer:  -- call an LLM
+exec:   -- run a command
+fetch:  -- make an HTTP request
 invoke: -- call a tool
-agent: -- run a multi-turn loop
+agent:  -- run a multi-turn loop
 Write YAML. Nika does the rest.
 ```
 

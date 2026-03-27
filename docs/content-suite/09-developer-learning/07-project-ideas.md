@@ -59,6 +59,9 @@ tasks:
 
 **Solution outline**:
 ```yaml
+schema: "nika/workflow@0.12"
+workflow: dependency-checker
+
 tasks:
   - id: check_git
     exec: "which git"
@@ -130,7 +133,7 @@ tasks:
     exec:
       command: |
         echo "=== Pretty JSON Report ==="
-        echo "Title: {{with.title | trim | uppercase}}"
+        echo "Title: {{with.title | trim | upper}}"
         echo "Raw length: {{with.raw | length}} chars"
       shell: true
 ```
@@ -233,6 +236,11 @@ tasks:
 
 **Solution outline**:
 ```yaml
+schema: "nika/workflow@0.12"
+workflow: git-pr-summary
+provider: anthropic
+model: claude-sonnet-4-20250514
+
 tasks:
   - id: git_diff
     exec:
@@ -286,6 +294,11 @@ tasks:
 
 **Solution outline**:
 ```yaml
+schema: "nika/workflow@0.12"
+workflow: multi-language-translator
+provider: anthropic
+model: claude-sonnet-4-20250514
+
 inputs:
   text: "Hello, world! Welcome to Nika."
 
@@ -362,6 +375,11 @@ tasks:
 
 **Solution outline**:
 ```yaml
+schema: "nika/workflow@0.12"
+workflow: content-pipeline
+provider: anthropic
+model: claude-sonnet-4-20250514
+
 inputs:
   topic: "The future of declarative AI workflows"
   urls:

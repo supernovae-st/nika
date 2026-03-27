@@ -63,22 +63,22 @@ nika course status
 
 ### VS Code Extensions
 - YAML Language Support (Red Hat)
-- Nika LSP (if available via `nika setup`)
+- Nika LSP (available via marketplace or self-compiled)
 
 ### Common Lab Issues
 | Issue | Solution |
 |-------|---------|
-| "command not found: nika" | Ensure Homebrew bin is in PATH |
-| "NIKA-032 Missing API key" | Export the provider's API key |
-| "NIKA-001 Failed to parse" | Check YAML indentation (2 spaces) |
-| Keychain popup on macOS | Use `cargo test --lib`, never `cargo test` |
-| Slow fetches | Check internet; httpbin.org may be slow |
+| "command not found: nika" | Ensure Homebrew bin is in PATH. Verify with `which nika` |
+| "NIKA-032 Missing API key" | Export the provider's API key. Verify with `nika provider list` |
+| "NIKA-001 Failed to parse" | Check YAML indentation (2 spaces). Use `.nika.yaml` extension |
+| Keychain popup on macOS | Only happens in dev testing. Not an issue for students |
+| Slow fetches | Check internet; httpbin.org may be slow. Use `timeout: 10` for robustness |
 
 ### Budget Considerations
 - Levels 1-3, 7, 9: Zero LLM cost (exec, fetch, invoke only)
-- Levels 4-6, 8: Moderate LLM cost (~$0.10-0.50 per student)
-- Levels 10-12: Higher cost (~$0.50-2.00 per student)
-- **Tip**: Use Groq (free tier) or local models for budget-constrained workshops
+- Levels 4-6, 8: Moderate LLM cost (~$0.05-0.25 per student with Sonnet)
+- Levels 10-12: Higher cost (~$0.25-1.00 per student with Opus)
+- **Tip**: Use Groq (llama-4-maverick, free tier) or native local models for budget-constrained workshops
 
 ---
 
@@ -311,11 +311,11 @@ Nika is a workflow engine, not a framework. Key differences:
 
 ### "Can I use my own LLM provider?"
 
-Yes. Nika supports 22+ providers via environment variables. If your provider has a compatible API, you can use it. The `native` provider runs local GGUF models with zero API cost.
+Yes. Nika supports 7 cloud providers (Anthropic, OpenAI, Mistral, Groq, DeepSeek, Gemini, xAI) via environment variables. The `native` provider runs local GGUF models with zero API cost, or HuggingFace models for vision tasks.
 
 ### "Is it production-ready?"
 
-Nika is pre-release (0.x.x versioning). The engine is functional and tested (8,100+ tests), but the API may change. It is suitable for internal automation, prototyping, and learning. Production deployment should account for the evolving schema.
+Nika is pre-release (0.x.x versioning). The engine is functional and tested (8,300+ tests), but the schema may evolve. It is suitable for internal automation, prototyping, and learning. Production deployment should plan for schema updates with each 0.x release.
 
 ### "What happens if a task fails?"
 
@@ -326,10 +326,10 @@ By default, a failed task stops the workflow. You can change this:
 
 ### "How much does it cost to run?"
 
-- `exec:`, `fetch:`, `invoke:` (builtin): Zero cost
-- `infer:`, `agent:`: Provider API costs apply (varies by model)
-- `native` provider: Zero cost (runs locally)
-- Cost control: `max_cost_usd`, `token_budget`, and `max_turns` prevent budget overruns
+- `exec:`, `fetch:`, `invoke:` (builtin tools): Zero cost
+- `infer:`, `agent:`: Provider API costs apply (varies by model, e.g., Claude Sonnet: $3/$15 per 1M tokens)
+- `native` provider: Zero cost (runs locally, no API calls)
+- Cost control: `max_cost_usd`, `token_budget`, and `max_turns` enforce safety limits
 
 ### "Can students work in pairs?"
 
@@ -342,20 +342,20 @@ Yes, pair programming works well. One student drives (writes YAML), the other na
 ### For Students
 - Run `nika showcase list` and extract 5 showcases to study
 - Complete remaining course levels (the course persists between sessions)
-- Try 10 exercises from the Exercise Bank (Chapter 6)
-- Build one project from the Project Ideas (Chapter 7)
-- Review Common Mistakes (Chapter 8) to avoid pitfalls
-- Keep the Cheat Sheet (Chapter 9) as a daily reference
+- Try 10 exercises from the Exercise Bank (06-exercises-bank.md)
+- Build one project from the Project Ideas (07-project-ideas.md)
+- Review Common Mistakes (08-common-mistakes.md) to avoid pitfalls
+- Reference the quick syntax guide in the course materials
 
 ### For Instructors
 - Collect feedback on which exercises were too easy/hard
 - Track which error codes students hit most (NIKA-XXX)
 - Note which concepts needed the most explanation
 - Share student capstone projects as inspiration for future cohorts
-- Report bugs or unclear behavior to the Nika repository
+- Report bugs or unclear behavior via GitHub issues
 
 ### Community
-- GitHub: supernovae-st/nika
+- GitHub: [supernovae-studio/nika](https://github.com/supernovae-studio/nika)
 - Issues: Bug reports and feature requests
 - Discussions: Questions and showcase sharing
 
@@ -367,7 +367,7 @@ Yes, pair programming works well. One student drives (writes YAML), the other na
 
 2. **Start without LLMs**: Levels 1-3 use `exec:` and `fetch:` only. This avoids API key setup issues and lets students focus on workflow mechanics.
 
-3. **Use the hint system**: Encourage students to use `nika course hint` before asking the instructor. The 3-tier system (conceptual, specific, solution) teaches self-sufficiency.
+3. **Use the hint system**: Encourage students to use `nika course hint [exercise]` before asking the instructor. The 3-tier system (conceptual, specific, solution) teaches self-sufficiency.
 
 4. **Celebrate bonus achievements**: The course tracks "no hints" and "first try" bonuses. Make these visible to motivate clean solutions.
 

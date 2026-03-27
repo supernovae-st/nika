@@ -126,28 +126,32 @@ with:
 
 ---
 
-### 7. Using `with:` without `depends_on:`
+### 7. Using `with:` without ordering
 
-**The mistake**: Binding a task's output without declaring it as a dependency.
+**The mistake**: Binding a task's output without declaring ordering when the dependency is not obvious from the binding.
 
 ```yaml
-# Wrong -- no depends_on
+# Wrong -- no depends_on (works but unclear if fetch_data is guaranteed before process)
 - id: process
   with:
     result: $fetch_data
   exec: echo "{{with.result}}"
 ```
 
-**Why it happens**: It seems like `with:` should imply a dependency. But Nika requires explicit ordering because the DAG scheduler needs to know the execution order.
+**Why it happens**: Using `$task_id` bindings creates implicit ordering, so `depends_on:` is not always required. However, Nika validates that the referenced task is upstream (defined before or as a dependency).
 
-**The fix**: Always pair `with:` with `depends_on:`:
+**The fix**: Use `$fetch_data` in `with:` to create implicit ordering. Only add explicit `depends_on:` if you need ordering WITHOUT data flow:
 ```yaml
-# Correct
+# Correct -- implicit ordering via binding
 - id: process
-  depends_on: [fetch_data]
   with:
     result: $fetch_data
   exec: echo "{{with.result}}"
+
+# Also correct -- explicit ordering for tasks without bindings
+- id: final
+  depends_on: [process]
+  exec: echo "Done"
 ```
 
 **Error**: `NIKA-081` with.alias is not upstream of task

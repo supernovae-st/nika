@@ -72,8 +72,8 @@ Tasks declare dependencies through data bindings, and Nika automatically constru
 | Specification | Detail |
 |--------------|--------|
 | Language | Rust 1.86+ |
-| Codebase | 451K lines across 10 workspace crates |
-| Tests | 8,100+ passing, zero clippy warnings |
+| Codebase | 451K lines across 12 workspace crates |
+| Tests | 8,300+ passing, zero clippy warnings |
 | Schema | nika/workflow@0.12 |
 | Deployment | Single binary, zero runtime dependencies |
 | License | AGPL-3.0-or-later |
@@ -114,13 +114,13 @@ Early adopters have used Nika for:
 
 ### Availability
 
-Nika v0.42.0 is available immediately:
+Nika v0.49.0 is available immediately:
 
 - **GitHub:** https://github.com/supernovae-st/nika
 - **crates.io:** `cargo install nika`
 - **Homebrew:** `brew install supernovae-st/tap/nika`
 - **Documentation:** https://github.com/supernovae-st/nika/wiki
-- **Showcase:** 200+ ready-to-use workflows included
+- **Showcase:** 115 ready-to-use workflows included
 
 ---
 
