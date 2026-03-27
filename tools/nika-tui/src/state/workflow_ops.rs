@@ -144,9 +144,10 @@ impl TuiState {
         // Reset metrics
         self.metrics = Metrics::default();
 
-        // Clear MCP calls (keep for reference? or clear?)
-        // For now, keep them as history but mark workflow as ready for retry
+        // Clear MCP calls from previous run — new run starts fresh
+        self.mcp.calls.clear();
         self.mcp.seq = 0;
+        self.mcp.selected_idx = None;
 
         self.dirty.mark_all();
 
