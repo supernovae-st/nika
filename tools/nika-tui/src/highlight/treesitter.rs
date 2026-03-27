@@ -130,6 +130,7 @@ impl TreeSitterHighlighter {
     }
 
     /// Convert byte offset to (line, column) position
+    /// Column is a byte offset within the line (required by tree-sitter Point).
     fn byte_to_line_col(source: &str, byte_offset: usize) -> (usize, usize) {
         let mut line = 0;
         let mut col = 0;
@@ -141,7 +142,7 @@ impl TreeSitterHighlighter {
                 line += 1;
                 col = 0;
             } else {
-                col += 1;
+                col += ch.len_utf8();
             }
         }
         (line, col)
@@ -424,5 +425,33 @@ tasks:
 
         // Should still produce output (with error nodes highlighted)
         assert!(!lines.is_empty());
+    }
+
+    #[test]
+    fn test_byte_to_line_col_ascii() {
+        // "abc\ndef" — 'e' is at byte 5 (line 1, col 1)
+        let (line, col) = TreeSitterHighlighter::byte_to_line_col("abc\ndef", 5);
+        assert_eq!(line, 1);
+        assert_eq!(col, 1);
+    }
+
+    #[test]
+    fn test_byte_to_line_col_multibyte_char() {
+        // "🦋\nfoo" — emoji is 4 bytes
+        let source = "🦋\nfoo";
+        // Byte 4 = right after emoji, still on line 0
+        let (line, col) = TreeSitterHighlighter::byte_to_line_col(source, 4);
+        assert_eq!(line, 0);
+        assert_eq!(col, 4, "column must be byte offset (4), not char count (1)");
+
+        // Byte 5 = newline, starts line 1
+        let (line, col) = TreeSitterHighlighter::byte_to_line_col(source, 5);
+        assert_eq!(line, 1);
+        assert_eq!(col, 0);
+
+        // Byte 6 = 'f' on line 1, col 1
+        let (line, col) = TreeSitterHighlighter::byte_to_line_col(source, 6);
+        assert_eq!(line, 1);
+        assert_eq!(col, 1);
     }
 }
