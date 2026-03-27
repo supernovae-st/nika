@@ -144,13 +144,18 @@ pub struct RunStats {
     pub root_failure: Option<String>,
     /// Per-task timing: (task_id, verb, start_offset_ms, duration_ms)
     pub task_timeline: Vec<(String, String, u64, u64)>,
-    /// Per-provider call: (task_id, in, out, cache, ttft_ms, cost)
+    /// Per-provider call stats (populated from ProviderCalled + ProviderResponded events).
     pub provider_calls: Vec<ProviderCallStat>,
+    /// Tracks the last ProviderCalled per task_id so ProviderResponded can join provider/model.
+    #[doc(hidden)]
+    pub pending_providers: HashMap<String, (String, String)>,
 }
 
 #[derive(Debug)]
 pub struct ProviderCallStat {
     pub task_id: String,
+    pub provider: String,
+    pub model: String,
     pub input_tokens: u64,
     pub output_tokens: u64,
     pub cache_tokens: u64,
@@ -184,6 +189,16 @@ impl RunStats {
     /// display-specific logic (printing, progress bars, etc.) in their match arms.
     pub fn apply_event(&mut self, event: &crate::event::Event) {
         match &event.kind {
+            EventKind::ProviderCalled {
+                task_id,
+                provider,
+                model,
+                ..
+            } => {
+                self.pending_providers
+                    .insert(task_id.to_string(), (provider.clone(), model.clone()));
+            }
+
             EventKind::ProviderResponded {
                 input_tokens,
                 output_tokens,
@@ -199,8 +214,15 @@ impl RunStats {
                 if let Some(t) = ttft_ms {
                     self.ttft_values.push(*t);
                 }
+                let task_id_str = event.kind.task_id().unwrap_or("?").to_string();
+                let (provider, model) = self
+                    .pending_providers
+                    .remove(&task_id_str)
+                    .unwrap_or_else(|| ("unknown".to_string(), "unknown".to_string()));
                 self.provider_calls.push(ProviderCallStat {
-                    task_id: event.kind.task_id().unwrap_or("?").to_string(),
+                    task_id: task_id_str,
+                    provider,
+                    model,
                     input_tokens: *input_tokens,
                     output_tokens: *output_tokens,
                     cache_tokens: *cache_read_tokens,

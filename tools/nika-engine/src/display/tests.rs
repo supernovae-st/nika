@@ -994,6 +994,76 @@ fn run_stats_apply_multiple_provider_calls_accumulate() {
 }
 
 #[test]
+fn run_stats_tracks_provider_from_provider_called() {
+    use super::renderer::RunStats;
+    use crate::event::{Event, EventKind};
+    use std::sync::Arc;
+
+    let mut stats = RunStats::default();
+
+    // ProviderCalled sets the pending provider for task_id
+    stats.apply_event(&Event {
+        id: 1,
+        timestamp_ms: 0,
+        kind: EventKind::ProviderCalled {
+            task_id: Arc::from("t1"),
+            provider: "anthropic".to_string(),
+            model: "claude-sonnet-4".to_string(),
+            prompt_len: 100,
+        },
+    });
+
+    // ProviderResponded joins the provider info
+    stats.apply_event(&Event {
+        id: 2,
+        timestamp_ms: 10,
+        kind: EventKind::ProviderResponded {
+            task_id: Arc::from("t1"),
+            request_id: None,
+            input_tokens: 100,
+            output_tokens: 50,
+            cache_read_tokens: 0,
+            ttft_ms: Some(45),
+            finish_reason: "stop".to_string(),
+            cost_usd: 0.005,
+        },
+    });
+
+    assert_eq!(stats.provider_calls.len(), 1);
+    assert_eq!(stats.provider_calls[0].provider, "anthropic");
+    assert_eq!(stats.provider_calls[0].model, "claude-sonnet-4");
+    assert!(stats.pending_providers.is_empty(), "pending should be drained");
+}
+
+#[test]
+fn run_stats_provider_defaults_to_unknown_without_provider_called() {
+    use super::renderer::RunStats;
+    use crate::event::{Event, EventKind};
+    use std::sync::Arc;
+
+    let mut stats = RunStats::default();
+
+    // ProviderResponded without a preceding ProviderCalled
+    stats.apply_event(&Event {
+        id: 1,
+        timestamp_ms: 0,
+        kind: EventKind::ProviderResponded {
+            task_id: Arc::from("t1"),
+            request_id: None,
+            input_tokens: 100,
+            output_tokens: 50,
+            cache_read_tokens: 0,
+            ttft_ms: None,
+            finish_reason: "stop".to_string(),
+            cost_usd: 0.001,
+        },
+    });
+
+    assert_eq!(stats.provider_calls[0].provider, "unknown");
+    assert_eq!(stats.provider_calls[0].model, "unknown");
+}
+
+#[test]
 fn run_stats_apply_mcp_events() {
     use super::renderer::RunStats;
     use crate::event::{Event, EventKind};
@@ -2044,12 +2114,15 @@ fn make_stats() -> RunStats {
         ],
         provider_calls: vec![ProviderCallStat {
             task_id: "summarize".to_string(),
+            provider: "anthropic".to_string(),
+            model: "claude-sonnet-4".to_string(),
             input_tokens: 5000,
             output_tokens: 1200,
             cache_tokens: 800,
             ttft_ms: Some(150),
             cost: 0.0042,
         }],
+        pending_providers: std::collections::HashMap::new(),
     }
 }
 

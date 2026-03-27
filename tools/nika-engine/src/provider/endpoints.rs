@@ -31,6 +31,16 @@ pub struct CustomEndpointConfig {
     /// Request timeout in seconds (optional, default: 300s).
     #[serde(default)]
     pub timeout_secs: Option<u64>,
+
+    /// Hourly rate for this endpoint in the specified currency (for `nika bench` cost estimation).
+    /// Local/self-hosted endpoints don't have per-token pricing, so cost is estimated as:
+    /// `estimated_cost = (workflow_duration_secs / 3600) × hourly_rate`
+    #[serde(default)]
+    pub hourly_rate: Option<f64>,
+
+    /// Currency for `hourly_rate` (default: "USD"). Display only — not converted.
+    #[serde(default)]
+    pub currency: Option<String>,
 }
 
 /// A resolved endpoint ready for use at runtime.
@@ -41,6 +51,10 @@ pub struct ResolvedEndpoint {
     pub api_key: String,
     pub default_model: Option<String>,
     pub timeout_secs: u64,
+    /// Hourly rate for cost estimation (None = no cost tracking).
+    pub hourly_rate: Option<f64>,
+    /// Currency label (e.g. "USD", "EUR").
+    pub currency: String,
 }
 
 /// Map of named endpoints (name -> resolved config).
@@ -131,6 +145,8 @@ pub fn resolve_endpoints(
             api_key,
             default_model: cfg.model.clone(),
             timeout_secs: cfg.timeout_secs.unwrap_or(300),
+            hourly_rate: cfg.hourly_rate,
+            currency: cfg.currency.clone().unwrap_or_else(|| "USD".to_string()),
         };
 
         map.insert(name.clone(), resolved);
@@ -193,6 +209,8 @@ mod tests {
             api_key: None,
             model: Some("llama3.2".to_string()),
             timeout_secs: Some(60),
+            hourly_rate: None,
+            currency: None,
         };
         let toml_str = toml::to_string_pretty(&cfg).unwrap();
         let parsed: CustomEndpointConfig = toml::from_str(&toml_str).unwrap();
@@ -209,6 +227,8 @@ mod tests {
                 api_key: None,
                 model: Some("llama3.2".to_string()),
                 timeout_secs: None,
+                hourly_rate: None,
+                currency: None,
             },
         );
         let resolved = resolve_endpoints(&configs).unwrap();
@@ -218,6 +238,43 @@ mod tests {
         assert_eq!(ep.api_key, "ollama"); // default for no-auth servers
         assert_eq!(ep.default_model.as_deref(), Some("llama3.2"));
         assert_eq!(ep.timeout_secs, 300); // default
+        assert!(ep.hourly_rate.is_none());
+        assert_eq!(ep.currency, "USD"); // default
+    }
+
+    #[test]
+    fn test_resolve_endpoints_with_hourly_rate() {
+        let mut configs = HashMap::new();
+        configs.insert(
+            "h100".to_string(),
+            CustomEndpointConfig {
+                base_url: "http://10.0.1.42:8000/v1".to_string(),
+                api_key: Some("sk-internal".to_string()),
+                model: None,
+                timeout_secs: None,
+                hourly_rate: Some(3.0),
+                currency: Some("EUR".to_string()),
+            },
+        );
+        let resolved = resolve_endpoints(&configs).unwrap();
+        let ep = &resolved["h100"];
+        assert_eq!(ep.hourly_rate, Some(3.0));
+        assert_eq!(ep.currency, "EUR");
+    }
+
+    #[test]
+    fn test_hourly_rate_serde_roundtrip() {
+        let cfg = CustomEndpointConfig {
+            base_url: "http://10.0.1.42:8000/v1".to_string(),
+            api_key: Some("sk-internal".to_string()),
+            model: Some("Qwen/Qwen3-8B".to_string()),
+            timeout_secs: Some(60),
+            hourly_rate: Some(3.0),
+            currency: Some("EUR".to_string()),
+        };
+        let toml_str = toml::to_string_pretty(&cfg).unwrap();
+        let parsed: CustomEndpointConfig = toml::from_str(&toml_str).unwrap();
+        assert_eq!(cfg, parsed);
     }
 
     #[test]
@@ -230,6 +287,8 @@ mod tests {
                 api_key: Some("sk-internal".to_string()),
                 model: None,
                 timeout_secs: Some(60),
+                hourly_rate: None,
+                currency: None,
             },
         );
         let resolved = resolve_endpoints(&configs).unwrap();
@@ -248,6 +307,8 @@ mod tests {
                 api_key: None,
                 model: None,
                 timeout_secs: None,
+                hourly_rate: None,
+                currency: None,
             },
         );
         assert!(resolve_endpoints(&configs).is_err());
@@ -264,6 +325,8 @@ mod tests {
                 api_key: Some("sk-test-key".to_string()),
                 model: Some("Qwen/Qwen3-8B".to_string()),
                 timeout_secs: Some(60),
+                hourly_rate: None,
+                currency: None,
             },
         );
 

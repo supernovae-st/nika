@@ -425,6 +425,8 @@ anthropic = "sk-ant-test"
                 api_key: Some("sk-test".to_string()),
                 model: None,
                 timeout_secs: None,
+                hourly_rate: None,
+                currency: None,
             },
         );
         let resolved = config.resolve_endpoints().unwrap();
