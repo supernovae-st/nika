@@ -5644,7 +5644,10 @@ mod tests {
             "cancel_test",
             r#"["FAIL", "ok1", "wait2", "wait3", "wait4", "wait5"]"#,
             "item",
-            "if [ '{{with.item}}' = 'FAIL' ]; then exit 1; else echo {{with.item}}; fi",
+            // Non-failing items sleep briefly so cancellation propagates before they complete.
+            // Without the sleep, items 2-5 can finish instantly after acquiring the permit
+            // released by the failing item, racing the CancellationToken.
+            "if [ '{{with.item}}' = 'FAIL' ]; then exit 1; else sleep 0.05 && echo {{with.item}}; fi",
             Some(2), // concurrency = 2
             true,    // fail_fast = true
             true,    // shell = true
