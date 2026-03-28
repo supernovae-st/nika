@@ -464,9 +464,7 @@ impl TaskExecutor {
                                                 );
                                                 let result_str = result.value.to_string();
                                                 let cost =
-                                                    crate::provider::cost::ProviderKind::parse(
-                                                        provider_name,
-                                                    )
+                                                    provider.cost_provider_kind()
                                                     .map(|pk| {
                                                         crate::provider::cost::calculate_cost(
                                                             pk,
@@ -621,9 +619,7 @@ impl TaskExecutor {
                                             let result_str = result.value.to_string();
                                             let est_in = estimate_tokens(prompt.len());
                                             let est_out = estimate_tokens(result_str.len());
-                                            let cost = crate::provider::cost::ProviderKind::parse(
-                                                provider_name,
-                                            )
+                                            let cost = provider.cost_provider_kind()
                                             .map(|pk| {
                                                 crate::provider::cost::calculate_cost(
                                                     pk,
@@ -687,7 +683,7 @@ impl TaskExecutor {
                                     let est_in = estimate_tokens(prompt.len());
                                     let est_out = estimate_tokens(tool_result.len());
                                     let cost =
-                                        crate::provider::cost::ProviderKind::parse(provider_name)
+                                        provider.cost_provider_kind()
                                             .map(|pk| {
                                                 crate::provider::cost::calculate_cost(
                                                     pk,
@@ -793,7 +789,7 @@ impl TaskExecutor {
             .adjust_reservation(estimated_tokens, actual_tokens);
 
         // EMIT: ProviderResponded with accurate token counts and cost from streaming response
-        let cost = crate::provider::cost::ProviderKind::parse(provider_name)
+        let cost = provider.cost_provider_kind()
             .map(|pk| {
                 crate::provider::cost::calculate_cost(
                     pk,
@@ -919,7 +915,7 @@ impl TaskExecutor {
         bindings: &ResolvedBindings,
         datastore: &RunContext,
         provider: &crate::provider::rig::RigProvider,
-        provider_name: &str,
+        _provider_name: &str,
         model: Option<&str>,
         resolved_system: Option<&str>,
         reserved_tokens: u64,
@@ -1094,7 +1090,7 @@ impl TaskExecutor {
             .write()
             .adjust_reservation(reserved_tokens, est_in + est_out);
 
-        let cost = crate::provider::cost::ProviderKind::parse(provider_name)
+        let cost = provider.cost_provider_kind()
             .map(|pk| {
                 crate::provider::cost::calculate_cost(
                     pk,

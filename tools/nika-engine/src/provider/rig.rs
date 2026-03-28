@@ -451,6 +451,26 @@ impl RigProvider {
         }
     }
 
+    /// Get the `ProviderKind` for cost calculation.
+    ///
+    /// Custom endpoints (OpenAiCompat) return `ProviderKind::OpenAI` since they
+    /// use the OpenAI-compatible API and can look up known model pricing.
+    pub fn cost_provider_kind(&self) -> Option<crate::provider::cost::ProviderKind> {
+        use crate::provider::cost::ProviderKind;
+        match self {
+            RigProvider::Claude(_) => Some(ProviderKind::Claude),
+            RigProvider::OpenAI(_) => Some(ProviderKind::OpenAI),
+            RigProvider::Mistral(_) => Some(ProviderKind::Mistral),
+            RigProvider::Groq(_) => Some(ProviderKind::Groq),
+            RigProvider::DeepSeek(_) => Some(ProviderKind::DeepSeek),
+            RigProvider::Gemini(_) => Some(ProviderKind::Gemini),
+            RigProvider::XAi(_) => Some(ProviderKind::XAi),
+            RigProvider::OpenAiCompat { .. } => Some(ProviderKind::OpenAI),
+            #[cfg(feature = "native-inference")]
+            RigProvider::Native(_) => Some(ProviderKind::Native),
+        }
+    }
+
     /// Get the provider name
     pub fn name(&self) -> &str {
         match self {
@@ -3474,5 +3494,50 @@ mod tests {
         )
         .unwrap();
         assert_eq!(provider2.default_model(), "gpt-3.5-turbo");
+    }
+
+    // =========================================================================
+    // Fix 1.2: cost_provider_kind() for custom endpoints
+    // =========================================================================
+
+    #[test]
+    fn test_cost_provider_kind_standard_providers() {
+        use crate::provider::cost::ProviderKind;
+
+        std::env::set_var("ANTHROPIC_API_KEY", "test-key");
+        std::env::set_var("OPENAI_API_KEY", "test-key");
+        assert_eq!(RigProvider::claude().cost_provider_kind(), Some(ProviderKind::Claude));
+        assert_eq!(RigProvider::openai().cost_provider_kind(), Some(ProviderKind::OpenAI));
+    }
+
+    #[test]
+    fn test_cost_provider_kind_openai_compat() {
+        use crate::provider::cost::ProviderKind;
+
+        let provider = RigProvider::openai_compat(
+            "h100",
+            "http://localhost:8000/v1",
+            "test-key",
+            Some("Qwen/Qwen3-8B"),
+        )
+        .unwrap();
+        // Custom endpoints use OpenAI-compatible API → treat as OpenAI for cost
+        assert_eq!(provider.cost_provider_kind(), Some(ProviderKind::OpenAI));
+    }
+
+    #[test]
+    fn test_openai_compat_cost_not_zero() {
+        use crate::provider::cost::calculate_cost;
+
+        let provider = RigProvider::openai_compat(
+            "h100",
+            "http://localhost:8000/v1",
+            "test-key",
+            Some("gpt-4o"),
+        )
+        .unwrap();
+        let pk = provider.cost_provider_kind().unwrap();
+        let cost = calculate_cost(pk, "gpt-4o", 10_000, 5_000);
+        assert!(cost > 0.0, "Cost should be non-zero for known model via OpenAiCompat");
     }
 }
