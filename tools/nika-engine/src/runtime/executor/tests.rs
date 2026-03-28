@@ -1732,7 +1732,7 @@ async fn test_run_exec_with_env_vars() {
 
     let action = TaskAction::Exec {
         exec: ExecParams {
-            command: "sh -c 'echo $MY_VAR'".to_string(),
+            command: "echo $MY_VAR".to_string(),
             shell: Some(true),
             timeout: None,
             cwd: None,
@@ -1760,7 +1760,7 @@ async fn test_run_exec_with_env_template_resolution() {
 
     let action = TaskAction::Exec {
         exec: ExecParams {
-            command: "sh -c 'echo $DYNAMIC'".to_string(),
+            command: "echo $DYNAMIC".to_string(),
             shell: Some(true),
             timeout: None,
             cwd: None,
@@ -1788,7 +1788,7 @@ async fn test_run_exec_with_multiple_env_vars() {
 
     let action = TaskAction::Exec {
         exec: ExecParams {
-            command: "sh -c 'echo ${A}_${B}'".to_string(),
+            command: "echo ${A}_${B}".to_string(),
             shell: Some(true),
             timeout: None,
             cwd: None,
