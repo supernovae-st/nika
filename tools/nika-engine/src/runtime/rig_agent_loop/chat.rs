@@ -62,6 +62,7 @@ impl RigAgentLoop {
     ///
     /// Useful for resuming conversations or injecting context.
     pub fn with_history(mut self, history: Vec<Message>) -> Self {
+        self.turn_count = (history.len() / 2) as u32;
         self.history = history;
         self
     }
