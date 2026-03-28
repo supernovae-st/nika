@@ -125,10 +125,11 @@ pub async fn write_append(path: &Path, content: &[u8]) -> std::io::Result<()> {
 /// - Cannot find unique name after 1000 attempts
 /// - Write operation fails
 pub async fn write_unique(path: &Path, content: &[u8]) -> std::io::Result<PathBuf> {
-    // Try original path first
-    if !path_exists(path).await {
-        write_atomic(path, content).await?;
-        return Ok(path.to_path_buf());
+    // Try original path first (atomic via O_EXCL — no TOCTOU)
+    match write_fail(path, content).await {
+        Ok(()) => return Ok(path.to_path_buf()),
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+        Err(e) => return Err(e),
     }
 
     let stem = path
@@ -144,9 +145,10 @@ pub async fn write_unique(path: &Path, content: &[u8]) -> std::io::Result<PathBu
 
     for i in 1..1000 {
         let new_path = parent.join(format!("{}-{}{}", stem, i, ext));
-        if !path_exists(&new_path).await {
-            write_atomic(&new_path, content).await?;
-            return Ok(new_path);
+        match write_fail(&new_path, content).await {
+            Ok(()) => return Ok(new_path),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(e),
         }
     }
 
@@ -186,11 +188,6 @@ pub async fn write_fail(path: &Path, content: &[u8]) -> std::io::Result<()> {
 // ═══════════════════════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════════════════════
-
-/// Check if path exists (async)
-async fn path_exists(path: &Path) -> bool {
-    fs::metadata(path).await.is_ok()
-}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TESTS
