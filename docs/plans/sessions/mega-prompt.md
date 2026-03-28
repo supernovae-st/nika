@@ -1,4 +1,4 @@
-Tu es l'orchestrateur autonome du projet Nika. Tu vas travailler pendant 30-40 heures sans intervention humaine. Commit et push en permanence pour que Thibaut puisse suivre via `git log`.
+Tu es l'orchestrateur autonome du projet Nika. Tu vas travailler pendant 60-70 heures sans intervention humaine. Commit et push en permanence pour que Thibaut puisse suivre via `git log`. Tu as un BUDGET ILLIMITÉ pour les vrais appels LLM (Anthropic, OpenAI) — utilise autant d'argent que nécessaire pour les tests E2E réels.
 
 ## CONTEXTE
 - Nika = semantic YAML workflow engine pour AI. Schema: nika/workflow@0.12
@@ -26,19 +26,49 @@ Tu es l'orchestrateur autonome du projet Nika. Tu vas travailler pendant 30-40 h
 - `tools/nika/CLAUDE.md` — Dev reference
 
 ## RÈGLES ABSOLUES
-1. `cargo test --workspace --lib` TOUJOURS (--lib pour keychain macOS)
-2. 1 fix = 1 commit. Format: `type(scope): description` + co-authors Claude + Nika 🦋
-3. `git push` après chaque 3-4 commits
-4. Si un fix casse tests → REVERT immédiatement, passe au suivant
-5. TDD: test FAIL d'abord → fix → test PASS → commit
-6. JAMAIS marquer un bug "done" sans code + test
-7. JAMAIS `unwrap_or(0)`, `_ => {}`, `.ok()` sans logging
-8. Clippy ZERO: `cargo clippy --workspace -- -D warnings`
-9. Si bloqué → skip, note dans progress.md, continue
-10. Utilise les skills: /spn-powers:test-driven-development, /spn-powers:systematic-debugging
-11. Après chaque session: lance des vrais workflows avec `nika run` (provider: mock ET anthropic)
 
-## 15 SESSIONS (dans l'ordre)
+### Tests
+1. `cargo test --workspace --lib` TOUJOURS (--lib pour keychain macOS)
+2. TDD STRICT: écrire test qui FAIL → implémenter fix → test PASS → run full suite → commit
+3. Utilise le skill `/spn-powers:test-driven-development` pour CHAQUE fix
+4. APRÈS chaque session: lance des VRAIS workflows E2E avec `nika run`:
+   - `nika run tests/e2e-mega-test.nika.yaml` (provider: mock — gratuit, rapide)
+   - `nika run tests/e2e-mega-test.nika.yaml --provider anthropic` (VRAIS appels LLM — budget illimité)
+   - `nika run tests/e2e-mega-test.nika.yaml --provider openai` (test cross-provider)
+   - `nika run tests/e2e-mega-test.nika.yaml --provider gemini` (test Gemini)
+   - `nika run tests/e2e-mega-test.nika.yaml --provider xai` (test Grok/xAI)
+   - Crée des workflows de test spécifiques à chaque session
+5. Si un test E2E fail → c'est un BUG, fixe-le avant de passer à la suite
+
+### Commits & Releases
+6. 1 fix = 1 commit. Format: `type(scope): description` + co-authors Claude + Nika 🦋
+7. `git push` après chaque 2-3 commits
+8. Après chaque BLOC (A-F, G-I, J-K, L-N, O): bump version, update CHANGELOG, `git tag`
+9. À la fin de chaque bloc: `cargo clippy --workspace -- -D warnings` — ZERO warnings
+
+### Qualité
+10. JAMAIS marquer un bug "done" sans code + test qui prouve le fix
+11. JAMAIS `unwrap_or(0)`, `_ => {}`, `.ok()` sans logging explicite
+12. Si bloqué sur un bug (3 tentatives max) → skip, note dans progress.md, continue
+13. Si un fix casse tests → REVERT immédiatement (`git checkout -- file`), passe au suivant
+14. Utilise `/spn-powers:systematic-debugging` pour les bugs complexes
+15. Utilise `/spn-powers:verification-before-completion` avant de déclarer une session finie
+16. Utilise `/spn-powers:brainstorming` avant les gros changements d'architecture
+
+### Recherche & DX
+17. Utilise Context7 (`ctx7 library` + `ctx7 docs`) pour les docs de crates
+18. Utilise Perplexity pour les patterns Rust avancés
+19. Utilise `/find-docs` pour les docs Claude Code / API
+20. Améliore le CLI, l'UX, la cohérence visuelle au fur et à mesure
+21. Push les designs à fond — chaque output doit être beau et cohérent
+
+### Infrastructure
+22. Setup Scaleway: VPS (51.15.136.200), H100 (51.159.167.12), L40S (51.159.159.245)
+23. Setup bot Telegram webhook pour notifications de workflow
+24. Vérifie que les custom endpoints fonctionnent avec les GPU Scaleway
+25. Lance des vrais workflows sur les GPU distants pour vérifier
+
+## 22 SESSIONS, 7 BLOCS (dans l'ordre)
 
 ### BLOC 1: QUALITY (Sessions A-F, ~20h)
 
@@ -105,13 +135,71 @@ Compressed bindings. Context growth = logarithmic.
 Lis `2026-03-28-phase1-context-memory.md`. Token budgets. Introspection.
 Local NDJSON memory. Self-improvement hooks.
 
-### BLOC 5: POLISH (Session O, ~2h)
+### BLOC 5: INFRASTRUCTURE (Sessions O-R, ~8h)
 
-**Session O: Daemon + Media + Release**
+**Session O: Daemon + Media Pipeline** (~2h)
 - Daemon LSP bridge (`2026-03-27-daemon-lsp-bridge-design.md`)
 - Media pipeline findings (`2026-03-28-media-handoff.md`)
-- Version bump, CHANGELOG, release prep
-- Final E2E mega-test: ALL verbes, ALL providers, ALL features
+- Fix tous les bugs media trouvés par l'audit
+- Test: import → thumbnail → convert → export avec vrais fichiers
+
+**Session P: Scaleway + Custom Endpoints + GPU** (~2h)
+- Setup/vérifie VPS 51.15.136.200
+- Setup/vérifie H100 51.159.167.12 (vLLM Qwen3.5-27B)
+- Setup/vérifie L40S 51.159.159.245
+- Configure `~/.config/nika/config.toml` avec endpoints GPU
+- Lance un vrai workflow sur le H100: `nika run` avec `provider: h100`
+- Vérifie inference routing entre cloud et self-hosted
+- Lis `docs/plans/2026-03-27-inference-routing-roadmap.md`
+
+**Session Q: Telegram Bot + Webhooks** (~2h)
+- Lis la recherche Hermes: `docs/research/2026-03-27-hermes-agent-deep-dive.md`
+- Implémente Telegram webhook trigger pour lancer des workflows à distance
+- `nika trigger telegram --workflow research.nika.yaml`
+- Setup le bot avec BotFather, webhook URL sur le VPS
+- Lis `docs/plans/2026-03-28-phase2-ecosystem.md` pour le contexte
+
+**Session R: CI Pipeline + Release** (~2h)
+- Vérifie `.github/workflows/release.yml`
+- Lance un cycle CI complet: build → test → clippy → publish
+- Build les 7 targets (macOS arm64/x64, Linux arm64/x64, Windows, musl, docker)
+- Test Homebrew tap update
+- Version bump dans workspace Cargo.toml
+- CHANGELOG.md complet
+- Git tag + release
+- Vérifie que `cargo install nika` fonctionne
+
+### BLOC 6: FEATURES AVANCÉES (Sessions S-U, ~6h)
+
+**Session S: Hermes-Inspired Self-Improvement** (~2h)
+- Lis `docs/research/2026-03-27-hermes-agent-deep-dive.md`
+- Implémente le loop de self-improvement: memory locale NDJSON
+- Agent qui review ses propres outputs et s'améliore
+- Background nudges pour quality assessment
+
+**Session T: MCP Server Mode** (~2h)
+- Lis `docs/research/2026-03-23-mcp-universal-bridge-research.md`
+- Nika = MCP server exposant les workflows à Claude Code, Cursor, etc.
+- `nika mcp serve` — expose les workflows comme tools MCP
+- Test: depuis Claude Code, `invoke: "nika::run_workflow"` avec un workflow réel
+
+**Session U: Registry + Packages** (~2h)
+- Lis `docs/plans/2026-03-28-phase2-ecosystem.md`
+- Deploy registry.supernovae.studio (GitHub Pages static)
+- `nika pkg publish` pour publier des workflows
+- `nika pkg install` pour installer depuis le registry
+- Seed avec 10 workflows de showcase
+
+### BLOC 7: FINAL (Session V, ~4h)
+
+**Session V: E2E Mega-Test + Polish Final**
+- Lance TOUS les tests E2E avec TOUS les providers (mock, anthropic, openai, h100)
+- Vérifie CHAQUE feature documentée dans CLAUDE.md fonctionne réellement
+- Fix tout ce qui ne marche pas
+- CI en boucle: relance jusqu'à 100% green
+- Update CLAUDE.md, README.md, CHANGELOG.md
+- Release finale
+- Commit de status final dans progress.md
 
 ## ENTRE CHAQUE SESSION
 1. `cargo test --workspace --lib` → 0 failures
