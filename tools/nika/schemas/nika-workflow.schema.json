@@ -337,7 +337,7 @@
     "DecomposeSpec": {
       "type": "object",
       "description": "Runtime DAG expansion via MCP traversal (v0.5+)",
-      "required": ["strategy"],
+      "required": ["traverse", "source"],
       "additionalProperties": false,
       "properties": {
         "strategy": {
