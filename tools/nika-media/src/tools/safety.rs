@@ -106,6 +106,9 @@ pub fn sanitize_svg(input: &str) -> Result<&str, MediaToolError> {
         "javascript:",
         "file://",
         "data:text/html",
+        "data:image/svg",
+        "data:application/xml",
+        "data:text/xml",
     ] {
         if lower.contains(pattern) {
             return Err(security_violation(
@@ -229,6 +232,33 @@ mod tests {
         let err = sanitize_svg(svg).unwrap_err();
         assert!(err.to_string().contains("NIKA-297"));
         assert!(err.to_string().contains("xlink:href"));
+    }
+
+    #[test]
+    fn sanitize_svg_rejects_data_image_svg_xml() {
+        // Nested SVG via data:image/svg+xml — no <script> so it tests the data URI rule
+        let svg = r#"<svg xmlns="http://www.w3.org/2000/svg">
+          <image href="data:image/svg+xml,<svg><rect width='9999' height='9999'/></svg>"/>
+        </svg>"#;
+        let err = sanitize_svg(svg).unwrap_err();
+        assert!(err.to_string().contains("NIKA-297"));
+        assert!(err.to_string().contains("data:image/svg"));
+    }
+
+    #[test]
+    fn sanitize_svg_rejects_data_application_xml() {
+        let svg = r#"<svg><image href="data:application/xml,<x/>"/></svg>"#;
+        let err = sanitize_svg(svg).unwrap_err();
+        assert!(err.to_string().contains("NIKA-297"));
+        assert!(err.to_string().contains("data:application/xml"));
+    }
+
+    #[test]
+    fn sanitize_svg_rejects_data_text_xml() {
+        let svg = r#"<svg><image href="data:text/xml,<x/>"/></svg>"#;
+        let err = sanitize_svg(svg).unwrap_err();
+        assert!(err.to_string().contains("NIKA-297"));
+        assert!(err.to_string().contains("data:text/xml"));
     }
 
     // ═══════════════════════════════════════════
