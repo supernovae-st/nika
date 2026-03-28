@@ -58,7 +58,7 @@ tasks:
   - id: get_entity_context
     depends_on: [discover_entities]
     with:
-      entities: discover_entities
+      entities: $discover_entities
     invoke:
       mcp: novanet
       tool: novanet_describe
@@ -72,8 +72,8 @@ tasks:
   - id: generate_keywords
     depends_on: [get_entity_context, get_schema_context]
     with:
-      entity: get_entity_context
-      schema: get_schema_context
+      entity: $get_entity_context
+      schema: $get_schema_context
     infer:
       prompt: |
         # SEO Keyword Generation Task
@@ -144,8 +144,8 @@ tasks:
   - id: analyze_keywords
     depends_on: [get_entity_context, generate_keywords]
     with:
-      entity: get_entity_context
-      keywords: generate_keywords
+      entity: $get_entity_context
+      keywords: $generate_keywords
     infer:
       prompt: |
         # Keyword Analysis Task

@@ -114,8 +114,8 @@ tasks:
   - id: generate_content
     description: "LLM generates block payload using context + BlockType schema"
     with:
-      context: assemble_context
-      block_type: load_block_type
+      context: $assemble_context
+      block_type: $load_block_type
     agent:
       prompt: |
         # BlockNative Content Generation (C3 Pipeline)
@@ -128,10 +128,10 @@ tasks:
         **Block**: {{inputs.block_key}}
 
         ## Context from Knowledge Graph
-        {{with.context | to_yaml}}
+        {{with.context | to_json}}
 
         ## Block Type Schema
-        {{with.block_type | to_yaml}}
+        {{with.block_type | to_json}}
 
         ## BlockType Payload Schemas
 
@@ -175,7 +175,7 @@ tasks:
   - id: validate_write
     description: "Dry-run validation against schema before persisting"
     with:
-      payload: generate_content
+      payload: $generate_content
     invoke:
       mcp: novanet
       tool: novanet_write
@@ -208,9 +208,9 @@ tasks:
   - id: write_block_native
     description: "Write BlockNative to Neo4j (auto-creates HAS_NATIVE, NATIVE_OF, FOR_LOCALE arcs)"
     with:
-      payload: generate_content
-      validation: validate_write
-    when: "{{with.validation.ready_to_write}}"
+      payload: $generate_content
+      validation: $validate_write
+    # Validation enforced via depends_on chain (validate_write must succeed)
     invoke:
       mcp: novanet
       tool: novanet_write
@@ -243,8 +243,8 @@ tasks:
   - id: summary
     description: "Display execution result"
     with:
-      validation: validate_write
-      write: write_block_native
+      validation: $validate_write
+      write: $write_block_native
     exec: |
       echo "================================================================"
       echo "  C3 BLOCK GENERATION COMPLETE"

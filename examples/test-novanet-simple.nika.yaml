@@ -8,7 +8,8 @@
 schema: "nika/workflow@0.12"
 workflow: test-novanet-simple
 description: Test NovaNet MCP integration with binding
-provider: claude
+provider: anthropic
+model: claude-sonnet-4-20250514
 
 mcp:
   novanet:
@@ -41,8 +42,8 @@ tasks:
   - id: analyze
     depends_on: [get_schema, search_entities]
     with:
-      stats: get_schema
-      entities: search_entities
+      stats: $get_schema
+      entities: $search_entities
     infer: |
       Given these graph stats: {{with.stats}}
       And these entities: {{with.entities}}
@@ -53,7 +54,7 @@ tasks:
   - id: show_result
     depends_on: [analyze]
     with:
-      analysis: analyze
+      analysis: $analyze
     exec:
       command: "echo 'Analysis complete. Result length:' && echo '{{with.analysis}}' | wc -c"
       shell: true

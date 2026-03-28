@@ -68,7 +68,7 @@ tasks:
   - id: describe_entity
     depends_on: [discover_entities]
     with:
-      entities: discover_entities
+      entities: $discover_entities
     invoke:
       mcp: novanet
       tool: novanet_describe
@@ -80,7 +80,7 @@ tasks:
   - id: get_terms
     depends_on: [discover_locales]
     with:
-      locales: discover_locales
+      locales: $discover_locales
     invoke:
       mcp: novanet
       tool: novanet_context
@@ -94,8 +94,8 @@ tasks:
   - id: get_generation_context
     depends_on: [discover_entities, discover_locales]
     with:
-      entities: discover_entities
-      locales: discover_locales
+      entities: $discover_entities
+      locales: $discover_locales
     invoke:
       mcp: novanet
       tool: novanet_context
@@ -114,10 +114,10 @@ tasks:
   - id: generate_native_content
     depends_on: [describe_entity, get_terms, get_generation_context, discover_locales]
     with:
-      entity: describe_entity
-      terms: get_terms
-      context: get_generation_context
-      locales: discover_locales
+      entity: $describe_entity
+      terms: $get_terms
+      context: $get_generation_context
+      locales: $discover_locales
     infer:
       prompt: |
         # Task: Generate EntityNative Content
@@ -204,9 +204,9 @@ tasks:
   - id: validate_content
     depends_on: [generate_native_content, describe_entity, discover_locales]
     with:
-      native: generate_native_content
-      entity: describe_entity
-      locales: discover_locales
+      native: $generate_native_content
+      entity: $describe_entity
+      locales: $discover_locales
     infer:
       prompt: |
         # Validation Task

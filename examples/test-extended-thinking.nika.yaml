@@ -87,10 +87,10 @@ tasks:
   - id: competitive_analysis
     depends_on: [discover_entity, discover_category, discover_relations, get_seo_schema]
     with:
-      entity: discover_entity
-      category: discover_category
-      relations: discover_relations
-      seo_schema: get_seo_schema
+      entity: $discover_entity
+      category: $discover_category
+      relations: $discover_relations
+      seo_schema: $get_seo_schema
     infer:
       prompt: |
         # SEO Competitive Analysis Task
@@ -223,9 +223,9 @@ tasks:
   - id: content_strategy
     depends_on: [competitive_analysis, discover_entity, discover_category]
     with:
-      analysis: competitive_analysis
-      entity: discover_entity
-      category: discover_category
+      analysis: $competitive_analysis
+      entity: $discover_entity
+      category: $discover_category
     infer:
       prompt: |
         # Content Strategy Development

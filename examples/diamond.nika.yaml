@@ -15,7 +15,7 @@ tasks:
   - id: security
     depends_on: [read_code]
     with:
-      code: read_code
+      code: $read_code
     infer:
       prompt: |
         Analyze this code for security issues:
@@ -27,7 +27,7 @@ tasks:
   - id: quality
     depends_on: [read_code]
     with:
-      code: read_code
+      code: $read_code
     infer:
       prompt: |
         Analyze this code for quality issues:
@@ -39,8 +39,8 @@ tasks:
   - id: report
     depends_on: [security, quality]
     with:
-      security_review: security
-      quality_review: quality
+      security_review: $security
+      quality_review: $quality
     infer:
       prompt: |
         Create a brief code review summary:

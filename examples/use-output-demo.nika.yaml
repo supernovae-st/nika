@@ -39,18 +39,18 @@ tasks:
     depends_on: [weather, flights]
     with:
       # Simple path
-      forecast: weather.summary
-      city: weather.city
-      temp: weather.temp
+      forecast: $weather.summary
+      city: $weather.city
+      temp: $weather.temp
 
       # Nested paths
-      price: flights.cheapest.price
-      airline: flights.cheapest.airline
+      price: $flights.cheapest.price
+      airline: $flights.cheapest.airline
 
       # With default values
-      rating: weather.rating ?? 5
-      notes: 'weather.notes ?? "No notes available"'
-      config: 'weather.config ?? {"debug": false}'
+      rating: $weather.rating ?? 5
+      notes: '$weather.notes ?? "No notes available"'
+      config: '$weather.config ?? {"debug": false}'
 
     infer:
       prompt: |

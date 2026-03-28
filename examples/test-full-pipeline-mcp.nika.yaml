@@ -12,7 +12,8 @@
 schema: "nika/workflow@0.12"
 workflow: test-full-pipeline-mcp
 description: Test MCP integration with binding and file output
-provider: claude
+provider: anthropic
+model: claude-sonnet-4-20250514
 
 # MCP servers
 mcp:
@@ -43,7 +44,7 @@ tasks:
   - id: extract_points
     depends_on: [search_topic]
     with:
-      search_results: search_topic
+      search_results: $search_topic
     infer: |
       Based on these search results about knowledge graphs for AI:
 
@@ -55,7 +56,7 @@ tasks:
   - id: save_search
     depends_on: [search_topic]
     with:
-      results: search_topic
+      results: $search_topic
     exec:
       command: "echo {{with.results|shell}} > /tmp/nika-test-output/01-search-results.txt && echo 'Saved search results'"
       shell: true
@@ -64,7 +65,7 @@ tasks:
   - id: save_points
     depends_on: [extract_points]
     with:
-      points: extract_points
+      points: $extract_points
     exec:
       command: "echo {{with.points|shell}} > /tmp/nika-test-output/02-key-points.txt && echo 'Saved key points'"
       shell: true
@@ -73,7 +74,7 @@ tasks:
   - id: generate_summary
     depends_on: [extract_points]
     with:
-      points: extract_points
+      points: $extract_points
     infer: |
       Create a 2-sentence executive summary based on:
 
@@ -83,7 +84,7 @@ tasks:
   - id: save_summary
     depends_on: [generate_summary]
     with:
-      summary: generate_summary
+      summary: $generate_summary
     exec:
       command: "echo {{with.summary|shell}} > /tmp/nika-test-output/03-summary.txt && echo 'Saved summary'"
       shell: true

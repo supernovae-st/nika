@@ -66,8 +66,8 @@ tasks:
   - id: process_locales
     depends_on: [discover_locales, discover_entity]
     with:
-      locales: discover_locales
-      entity: discover_entity
+      locales: $discover_locales
+      entity: $discover_entity
     for_each: "$locales.rows"
     as: locale
     infer:
@@ -128,9 +128,9 @@ tasks:
   - id: aggregate_taglines
     depends_on: [process_locales, discover_entity, discover_locales]
     with:
-      all_taglines: process_locales
-      entity: discover_entity
-      original_locales: discover_locales
+      all_taglines: $process_locales
+      entity: $discover_entity
+      original_locales: $discover_locales
     infer:
       prompt: |
         # Tagline Aggregation Task

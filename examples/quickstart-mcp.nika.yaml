@@ -10,7 +10,8 @@
 # Expected output: Schema overview from NovaNet knowledge graph
 
 schema: "nika/workflow@0.12"
-provider: claude
+provider: anthropic
+model: claude-sonnet-4-20250514
 
 mcp:
   novanet:
@@ -34,7 +35,7 @@ tasks:
   - id: summarize
     depends_on: [get_schema]
     with:
-      schema: get_schema
+      schema: $get_schema
     infer: |
       Summarize this NovaNet knowledge graph schema in 2-3 sentences:
       {{with.schema}}

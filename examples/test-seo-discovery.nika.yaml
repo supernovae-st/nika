@@ -11,7 +11,8 @@
 schema: "nika/workflow@0.12"
 workflow: test-seo-discovery
 description: Test NovaNet + DataForSEO integration for keyword discovery
-provider: claude
+provider: anthropic
+model: claude-sonnet-4-20250514
 
 mcp:
   novanet:
@@ -52,7 +53,7 @@ tasks:
   - id: keyword_data
     depends_on: [load_entity]
     with:
-      entity: load_entity
+      entity: $load_entity
     infer: |
       Basé sur l'entity: {{with.entity}}
 
@@ -73,9 +74,9 @@ tasks:
   - id: generate_native
     depends_on: [load_entity, get_slugification, keyword_data]
     with:
-      entity: load_entity
-      slug_rules: get_slugification
-      keywords: keyword_data
+      entity: $load_entity
+      slug_rules: $get_slugification
+      keywords: $keyword_data
     infer: |
       Entity: {{with.entity}}
       Slugification rules: {{with.slug_rules}}

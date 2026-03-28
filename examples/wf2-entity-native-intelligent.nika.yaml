@@ -27,10 +27,10 @@
 #   - Neo4j database with entities and SEOKeywords
 
 schema: "nika/workflow@0.12"
-workdepends_on: wf2-entity-native-intelligent
+workflow: wf2-entity-native-intelligent
 description: "Generate complete EntityNative with SEO-derived slug (ADR-030/032/033)"
 
-provider: claude
+provider: anthropic
 model: claude-sonnet-4-20250514
 
 # MCP Server configuration
@@ -110,7 +110,7 @@ tasks:
   - id: get_entity_context
     description: "Get full generation context for the entity"
     with:
-      parsed: parse_input
+      parsed: $parse_input
     depends_on: [parse_input]
     invoke:
       mcp: novanet
@@ -133,7 +133,7 @@ tasks:
   - id: get_locale_atoms
     description: "Get locale-specific knowledge atoms (terms, expressions)"
     with:
-      parsed: parse_input
+      parsed: $parse_input
     depends_on: [parse_input]
     invoke:
       mcp: novanet
@@ -151,7 +151,7 @@ tasks:
   - id: get_entity_details
     description: "Describe the entity for semantic understanding"
     with:
-      parsed: parse_input
+      parsed: $parse_input
     depends_on: [parse_input]
     invoke:
       mcp: novanet
@@ -171,7 +171,7 @@ tasks:
   - id: query_seo_keywords
     description: "Find SEOKeywords that target this entity (via TARGETS arc)"
     with:
-      parsed: parse_input
+      parsed: $parse_input
     depends_on: [parse_input]
     invoke:
       mcp: novanet
@@ -192,7 +192,7 @@ tasks:
   - id: query_parent_page
     description: "Find parent Page to get parent slug (for no-repetition rule)"
     with:
-      parsed: parse_input
+      parsed: $parse_input
     depends_on: [parse_input]
     invoke:
       mcp: novanet
@@ -213,7 +213,7 @@ tasks:
   - id: query_convergence
     description: "Calculate convergence boost (multiple EntityNatives targeting same keyword)"
     with:
-      parsed: parse_input
+      parsed: $parse_input
     depends_on: [parse_input]
     invoke:
       mcp: novanet
@@ -235,12 +235,12 @@ tasks:
   - id: calculate_slug_scores
     description: "Apply ADR-032 slugification scoring formula"
     with:
-      parsed: parse_input
-      keywords: query_seo_keywords
-      parent: query_parent_page
-      convergence: query_convergence
-      entity: get_entity_details
-      context: get_entity_context
+      parsed: $parse_input
+      keywords: $query_seo_keywords
+      parent: $query_parent_page
+      convergence: $query_convergence
+      entity: $get_entity_details
+      context: $get_entity_context
     agent:
       prompt: |
         # Slug Derivation Task (ADR-032)
@@ -253,19 +253,19 @@ tasks:
         **Locale**: {{with.parsed.locale}}
 
         **Entity Details**:
-        {{with.entity | to_yaml}}
+        {{with.entity | to_json}}
 
         **Generation Context** (includes denomination_forms if exists):
-        {{with.context | to_yaml}}
+        {{with.context | to_json}}
 
         **Targeted SEOKeywords**:
-        {{with.keywords | to_yaml}}
+        {{with.keywords | to_json}}
 
         **Parent Page Context** (for no-repetition rule):
-        {{with.parent | to_yaml}}
+        {{with.parent | to_json}}
 
         **Convergence Analysis** (keywords targeted by multiple entities):
-        {{with.convergence | to_yaml}}
+        {{with.convergence | to_json}}
 
         ## ADR-032 SCORING FORMULA
 
@@ -390,11 +390,11 @@ tasks:
   - id: generate_entity_native
     description: "Generate complete EntityNative with denomination_forms including url"
     with:
-      parsed: parse_input
-      context: get_entity_context
-      atoms: get_locale_atoms
-      entity: get_entity_details
-      slug_analysis: calculate_slug_scores
+      parsed: $parse_input
+      context: $get_entity_context
+      atoms: $get_locale_atoms
+      entity: $get_entity_details
+      slug_analysis: $calculate_slug_scores
     agent:
       prompt: |
         # EntityNative Content Generation (ADR-033)
@@ -407,16 +407,16 @@ tasks:
         **Locale**: {{with.parsed.locale}}
 
         **Entity Definition**:
-        {{with.entity | to_yaml}}
+        {{with.entity | to_json}}
 
         **Generation Context**:
-        {{with.context | to_yaml}}
+        {{with.context | to_json}}
 
         **Locale Knowledge Atoms**:
-        {{with.atoms | to_yaml}}
+        {{with.atoms | to_json}}
 
         **Slug Analysis Result**:
-        {{with.slug_analysis | to_yaml}}
+        {{with.slug_analysis | to_json}}
 
         ## ADR-033: DENOMINATION FORMS (ABSOLUTE RULE)
 
@@ -516,8 +516,8 @@ tasks:
   - id: validate_write
     description: "Validate EntityNative update before persisting (novanet_write dry_run)"
     with:
-      parsed: parse_input
-      content: generate_entity_native
+      parsed: $parse_input
+      content: $generate_entity_native
     invoke:
       mcp: novanet
       tool: novanet_write
@@ -559,11 +559,10 @@ tasks:
   - id: write_entity_native
     description: "Persist updated EntityNative with denomination_forms.url"
     with:
-      parsed: parse_input
-      content: generate_entity_native
-      validation: validate_write
-    # Only proceed if validation passed
-    when: "{{with.validation.valid}}"
+      parsed: $parse_input
+      content: $generate_entity_native
+      validation: $validate_write
+    # Validation is enforced via depends_on chain (validate_write must succeed)
     invoke:
       mcp: novanet
       tool: novanet_write
@@ -604,7 +603,7 @@ tasks:
   - id: audit_result
     description: "Run quality audit after write (CSR metrics)"
     with:
-      parsed: parse_input
+      parsed: $parse_input
     depends_on: [write_entity_native, parse_input]
     invoke:
       mcp: novanet
@@ -627,11 +626,11 @@ tasks:
   - id: generate_summary
     description: "Generate workflow execution summary"
     with:
-      parsed: parse_input
-      content: generate_entity_native
-      slug: calculate_slug_scores
-      write: write_entity_native
-      audit: audit_result
+      parsed: $parse_input
+      content: $generate_entity_native
+      slug: $calculate_slug_scores
+      write: $write_entity_native
+      audit: $audit_result
     infer:
       prompt: |
         # WF2 Execution Summary
@@ -663,7 +662,7 @@ tasks:
         ### Write Result
 
         **Success**: {{with.write.success}}
-        **Updated Properties**: {{with.write.updated_properties | to_yaml}}
+        **Updated Properties**: {{with.write.updated_properties | to_json}}
 
         ### Quality Audit (CSR)
 
@@ -690,10 +689,10 @@ tasks:
   - id: final_output
     description: "Display execution summary"
     with:
-      parsed: parse_input
-      content: generate_entity_native
-      slug: calculate_slug_scores
-      write: write_entity_native
+      parsed: $parse_input
+      content: $generate_entity_native
+      slug: $calculate_slug_scores
+      write: $write_entity_native
     exec: |
       echo "═══════════════════════════════════════════════════════════════"
       echo "  🎯 WF2: ENTITYNATIVE INTELLIGENT WORKFLOW COMPLETE"

@@ -35,6 +35,6 @@ tasks:
   - id: display
     depends_on: [generate_content]
     with:
-      content: generate_content
+      content: $generate_content
     exec:
       command: "echo 'Generated content:' && echo '{{with.content}}'"

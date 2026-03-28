@@ -229,7 +229,7 @@ tasks:
       prompt: |
         Analyze these blog posts and provide a summary:
 
-        {{{{with.posts | to_yaml}}}}
+        {{{{with.posts | to_json}}}}
 
         Return JSON with:
         - total_posts: number of posts
@@ -261,7 +261,7 @@ tasks:
       prompt: |
         Create a brief markdown report based on this analysis:
 
-        {{{{with.analysis | to_yaml}}}}
+        {{{{with.analysis | to_json}}}}
 
         Include:
         - Summary statistics
@@ -356,7 +356,7 @@ tasks:
       prompt: |
         Based on this research, create a detailed blog post outline:
 
-        {{{{with.research | to_yaml}}}}
+        {{{{with.research | to_json}}}}
 
         Create an outline with:
         - Compelling title
@@ -384,7 +384,7 @@ tasks:
         {{{{with.outline}}}}
 
         Research context:
-        {{{{with.research | to_yaml}}}}
+        {{{{with.research | to_json}}}}
 
         Requirements:
         - Engaging, professional tone
@@ -542,7 +542,7 @@ tasks:
         Create a markdown code review report based on:
 
         Analysis:
-        {{{{with.analysis | to_yaml}}}}
+        {{{{with.analysis | to_json}}}}
 
         Include:
         - Overall summary
@@ -647,7 +647,7 @@ tasks:
       prompt: |
         Create a summary from this research:
 
-        {{{{with.research | to_yaml}}}}
+        {{{{with.research | to_json}}}}
 
         Format as a professional brief with:
         - Summary (3-5 sentences)
@@ -946,7 +946,7 @@ tasks:
         Create the best possible answer by synthesizing insights from both AI responses:
 
         Comparison analysis:
-        {{{{with.comparison | to_yaml}}}}
+        {{{{with.comparison | to_json}}}}
 
         Original question: {{{{inputs.question}}}}
 
@@ -1017,7 +1017,7 @@ tasks:
         Transform this raw data into a clean, enriched format:
 
         Raw Data:
-        {{{{with.raw_data | to_yaml}}}}
+        {{{{with.raw_data | to_json}}}}
 
         Requirements:
         1. Clean any malformed entries
@@ -1151,7 +1151,7 @@ tasks:
         Generate 5 plausible tech/AI news headlines for today.
         These should be realistic examples of current industry news.
 
-        Topics of interest: {{{{inputs.interests | to_yaml}}}}
+        Topics of interest: {{{{inputs.interests | to_json}}}}
 
         Return as JSON array of objects with title and summary.
     output:
@@ -1184,10 +1184,10 @@ tasks:
         Date: {{{{with.datetime}}}}
 
         Weather:
-        {{{{with.weather | to_yaml}}}}
+        {{{{with.weather | to_json}}}}
 
         News Headlines:
-        {{{{with.news | to_yaml}}}}
+        {{{{with.news | to_json}}}}
 
         Format as a professional but warm morning email.
         Include:
@@ -1331,7 +1331,7 @@ tasks:
       prompt: |
         Generate a professional changelog from this analysis:
 
-        {{{{with.analysis | to_yaml}}}}
+        {{{{with.analysis | to_json}}}}
 
         Format: {{{{inputs.output_format}}}}
 
@@ -1440,7 +1440,7 @@ tasks:
       prompt: |
         Create a translation summary report from:
 
-        {{{{with.translations | to_yaml}}}}
+        {{{{with.translations | to_json}}}}
 
         Include:
         - Source text and language
@@ -1542,9 +1542,9 @@ tasks:
         You are a QA Engineer. Generate test cases for this feature:
 
         Feature Analysis:
-        {{{{with.analysis | to_yaml}}}}
+        {{{{with.analysis | to_json}}}}
 
-        Test Types Required: {{{{inputs.test_types | to_yaml}}}}
+        Test Types Required: {{{{inputs.test_types | to_json}}}}
 
         For each test type, generate:
         1. Test name and description
@@ -1601,10 +1601,10 @@ tasks:
         Create a professional QA test plan document:
 
         Feature Analysis:
-        {{{{with.analysis | to_yaml}}}}
+        {{{{with.analysis | to_json}}}}
 
         Generated Test Cases:
-        {{{{with.tests | to_yaml}}}}
+        {{{{with.tests | to_json}}}}
 
         Include:
         1. Executive Summary

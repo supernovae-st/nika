@@ -12,7 +12,8 @@
 schema: "nika/workflow@0.12"
 workflow: test-novanet-pipeline
 description: Test NovaNet MCP integration with binding and file output
-provider: claude
+provider: anthropic
+model: claude-sonnet-4-20250514
 
 # MCP servers (using pre-built binary for fast startup)
 mcp:
@@ -54,8 +55,8 @@ tasks:
   - id: analyze_graph
     depends_on: [get_schema, search_entities]
     with:
-      schema: get_schema
-      entities: search_entities
+      schema: $get_schema
+      entities: $search_entities
     infer: |
       Analyze this knowledge graph:
 
@@ -69,7 +70,7 @@ tasks:
   - id: save_schema
     depends_on: [get_schema]
     with:
-      data: get_schema
+      data: $get_schema
     exec:
       command: "echo {{with.data|shell}} > /tmp/nika-novanet-output/01-schema.txt && echo 'Saved schema'"
       shell: true
@@ -78,7 +79,7 @@ tasks:
   - id: save_search
     depends_on: [search_entities]
     with:
-      data: search_entities
+      data: $search_entities
     exec:
       command: "echo {{with.data|shell}} > /tmp/nika-novanet-output/02-search.txt && echo 'Saved search'"
       shell: true
@@ -87,7 +88,7 @@ tasks:
   - id: save_analysis
     depends_on: [analyze_graph]
     with:
-      analysis: analyze_graph
+      analysis: $analyze_graph
     exec:
       command: "echo {{with.analysis|shell}} > /tmp/nika-novanet-output/03-analysis.txt && echo 'Saved analysis'"
       shell: true

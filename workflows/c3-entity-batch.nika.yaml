@@ -46,7 +46,7 @@ mcp:
 
 # Workflow artifacts
 artifacts:
-  dir: ./generated/{{date}}/c3-entity-batch
+  dir: ./generated/c3-entity-batch
   format: json
   manifest: true
 
@@ -108,8 +108,8 @@ tasks:
   - id: generate_all
     description: "For each locale, generate all BlockNatives for all entity pages"
     with:
-      pages: find_pages
-      coverage: check_coverage
+      pages: $find_pages
+      coverage: $check_coverage
     for_each: "{{inputs.locales}}"
     as: locale
     concurrency: 2
@@ -122,10 +122,10 @@ tasks:
         in locale "{{with.locale}}".
 
         ## Entity Pages (from graph walk)
-        {{with.pages | to_yaml}}
+        {{with.pages | to_json}}
 
         ## Existing Coverage
-        {{with.coverage | to_yaml}}
+        {{with.coverage | to_json}}
 
         ## Instructions
 
@@ -228,8 +228,8 @@ tasks:
   - id: generate_report
     description: "Generate batch execution report"
     with:
-      results: generate_all
-      audit_result: final_audit
+      results: $generate_all
+      audit_result: $final_audit
     infer:
       prompt: |
         # C3 Entity Batch Report
@@ -241,10 +241,10 @@ tasks:
         **Locales**: {{inputs.locales}}
 
         ## Per-Locale Results
-        {{with.results | to_yaml}}
+        {{with.results | to_json}}
 
         ## Coverage Audit
-        {{with.audit_result | to_yaml}}
+        {{with.audit_result | to_json}}
 
         ## Report Format
 
@@ -272,8 +272,8 @@ tasks:
   - id: summary
     description: "Display batch execution summary"
     with:
-      results: generate_all
-      audit_result: final_audit
+      results: $generate_all
+      audit_result: $final_audit
     exec: |
       echo "================================================================"
       echo "  C3 ENTITY BATCH COMPLETE"
@@ -283,11 +283,11 @@ tasks:
       echo "Locales:   {{inputs.locales}}"
       echo ""
       echo "Results per locale:"
-      echo "{{with.results | to_yaml}}"
+      echo "{{with.results | to_json}}"
       echo ""
       echo "Audit CSR: {{with.audit_result.csr.rate}}"
       echo ""
-      echo "Artifacts: ./generated/{{date}}/c3-entity-batch/"
+      echo "Artifacts: ./generated/c3-entity-batch/"
       echo ""
       echo "================================================================"
 

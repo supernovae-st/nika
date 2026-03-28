@@ -6,7 +6,8 @@
 # Usage: nika run examples/code-review.nika.yaml
 
 schema: "nika/workflow@0.12"
-provider: claude
+provider: anthropic
+model: claude-sonnet-4-20250514
 
 tasks:
   - id: get_diff
@@ -16,7 +17,7 @@ tasks:
   - id: review
     depends_on: [get_diff]
     with:
-      diff: get_diff
+      diff: $get_diff
     infer:
       prompt: |
         Review this code diff. List:
