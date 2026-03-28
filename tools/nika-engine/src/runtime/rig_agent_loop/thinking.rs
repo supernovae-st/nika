@@ -484,6 +484,15 @@ impl RigAgentLoop {
         let guardrail_result = self.check_guardrails(&response);
         let guardrails_passed = guardrail_result.is_passed();
 
+        // Override status based on guardrail outcome
+        let status = if guardrail_result.should_fail() {
+            RigAgentStatus::Failed
+        } else if guardrail_result.should_escalate() {
+            RigAgentStatus::Escalated(status.confidence().unwrap_or(0.0))
+        } else {
+            status
+        };
+
         Ok(RigAgentLoopResult {
             status: status.clone(),
             turns: 1,
