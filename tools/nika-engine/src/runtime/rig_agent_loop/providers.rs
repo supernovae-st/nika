@@ -64,6 +64,15 @@ impl RigAgentLoop {
         let guardrail_result = self.check_guardrails(&response_text);
         let guardrails_passed = guardrail_result.is_passed();
 
+        // Override status based on guardrail outcome
+        let status = if guardrail_result.should_fail() {
+            RigAgentStatus::Failed
+        } else if guardrail_result.should_escalate() {
+            RigAgentStatus::Escalated(status.confidence().unwrap_or(0.0))
+        } else {
+            status
+        };
+
         Ok(RigAgentLoopResult {
             status: status.clone(),
             turns: 1,
@@ -814,7 +823,8 @@ impl RigAgentLoop {
 
         let total_retries = retry_count + guardrail_retry_count;
 
-        // Emit ProviderResponded so runner cost summary includes agent work
+        // Emit ProviderResponded — use final status (post-guardrail override)
+        let final_reason = status.as_canonical_str();
         let total_cost = crate::provider::cost::calculate_cost_with_cache(
             crate::provider::cost::ProviderKind::OpenAI,
             &model_name,
@@ -829,7 +839,7 @@ impl RigAgentLoop {
             output_tokens: total_output_tokens,
             cache_read_tokens: total_cached_input_tokens,
             ttft_ms: None,
-            finish_reason: stop_reason.to_string(),
+            finish_reason: final_reason.to_string(),
             cost_usd: if total_cost.is_finite() {
                 total_cost
             } else {
