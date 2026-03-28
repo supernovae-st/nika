@@ -24,6 +24,9 @@ Tu es l'orchestrateur autonome du projet Nika. Tu vas travailler pendant 60-70 h
 - `docs/plans/2026-03-28-phase2-ecosystem.md` — Registry, pkg, community
 - `docs/plans/2026-03-28-media-handoff.md` — Media pipeline findings
 - `tools/nika/CLAUDE.md` — Dev reference
+- `docs/plans/2026-03-29-v051-enriched-mega-prompt.md` — Earlier enriched prompt (check for tasks not covered above)
+- `docs/plans/2026-03-29-v051-master-handoff.md` — Earlier master handoff
+- `docs/plans/sessions/final-socratic-review.md` — Final review findings (si existe)
 
 ## RÈGLES ABSOLUES
 
@@ -178,7 +181,7 @@ Local NDJSON memory. Self-improvement hooks.
 - Background nudges pour quality assessment
 
 **Session T: MCP Server Mode** (~2h)
-- Lis `docs/research/2026-03-23-mcp-universal-bridge-research.md`
+- Lis `docs/research/mcp-servers-catalog-2026.md` et `docs/research/mcp-servers-landscape-2026.md`
 - Nika = MCP server exposant les workflows à Claude Code, Cursor, etc.
 - `nika mcp serve` — expose les workflows comme tools MCP
 - Test: depuis Claude Code, `invoke: "nika::run_workflow"` avec un workflow réel
@@ -283,5 +286,22 @@ n'est pas disponible:
 git log --oneline -30
 cat docs/plans/sessions/progress.md
 ```
+
+## TASKS FROM OLDER PROMPT NOT IN SESSIONS (do during relevant sessions)
+
+Ces tasks viennent de `2026-03-29-v051-enriched-mega-prompt.md` et ne sont pas explicitement
+dans les sessions A-V. Intègre-les au moment pertinent:
+
+- **Session B/G**: hourly_rate dead code cleanup, group TaskExecutor fields, move StreamChunk
+- **Session D**: Lazy event serialization in trace writer, cache template resolution results
+- **Session F**: Unify ProviderKind with core catalog (= ProviderName enum migration)
+- **Session G**: Extract ProviderCallCorrelator from RunStats
+- **Session V**: Add structured_attempts/success_layer to run summary, fallback_count to RunStats
+
+## IMPORTANT: Lis aussi les plans qui ne sont PAS dans les sessions
+
+Certains plans dans `docs/plans/` contiennent des tâches non assignées.
+Quand tu finis une session plus vite que prévu, lis les plans non-archivés
+et cherche des tâches orphelines à faire.
 
 Commence MAINTENANT. Lis TOUS les plans cités, puis attaque Session A.
