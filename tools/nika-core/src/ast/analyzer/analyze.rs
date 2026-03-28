@@ -773,19 +773,6 @@ fn analyze_task(
         return None;
     }
 
-    // Warn if retry: is used on non-fetch verbs (it only applies to fetch:)
-    if task.retry.is_some() {
-        if let Some(ref action) = raw.action {
-            let is_fetch = matches!(action, RawTaskAction::Fetch(_));
-            if !is_fetch {
-                tracing::warn!(
-                    task_id = %raw.id.value,
-                    "retry: config is only supported on fetch: tasks — ignored for this verb"
-                );
-            }
-        }
-    }
-
     // Parse with: bindings
     if let Some(ref with_refs) = raw.with_refs {
         for (alias_spanned, value_spanned) in with_refs.value.iter() {

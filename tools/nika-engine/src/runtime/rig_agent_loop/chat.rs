@@ -15,7 +15,7 @@ use serde_json;
 use crate::error::NikaError;
 use crate::event::{AgentTurnMetadata, EventKind};
 
-use super::types::RigAgentLoopResult;
+use super::types::{RigAgentLoopResult, RigAgentStatus};
 use super::RigAgentLoop;
 
 impl RigAgentLoop {
@@ -314,9 +314,16 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
-        // Check guardrails
+        // Check guardrails and override status on terminal actions
         let guardrail_result = self.check_guardrails(&response);
         let guardrails_passed = guardrail_result.is_passed();
+        let status = if guardrail_result.should_fail() {
+            RigAgentStatus::Failed
+        } else if guardrail_result.should_escalate() {
+            RigAgentStatus::Escalated(status.confidence().unwrap_or(0.0))
+        } else {
+            status
+        };
 
         // Estimate tokens for cost tracking (Chat trait returns only String, no metadata)
         let est_input = prompt.chars().count().div_ceil(4) as u64;
