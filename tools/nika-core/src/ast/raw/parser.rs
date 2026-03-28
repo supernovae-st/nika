@@ -3177,6 +3177,11 @@ tasks:
     fn test_known_task_keys_with_verb_no_error() {
         let yaml = r#"
 schema: "nika/workflow@0.12"
+agents:
+  helper:
+    system: "You are helpful"
+    provider: mock
+    model: mock-fast
 tasks:
   - id: a
     exec: "echo hi"
@@ -3186,6 +3191,7 @@ tasks:
     retry:
       max_attempts: 3
       delay_ms: 1000
+    preset: helper
   - id: b
     infer: "hello"
 "#;
@@ -3194,6 +3200,52 @@ tasks:
             result.is_ok(),
             "all known task keys should parse fine: {:?}",
             result.err()
+        );
+    }
+
+    #[test]
+    fn test_parse_task_with_preset() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+agents:
+  assistant:
+    system: "You are helpful"
+    provider: mock
+    model: mock-fast
+tasks:
+  - id: a
+    preset: assistant
+    infer: "hello"
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(
+            result.is_ok(),
+            "preset: field should parse correctly: {:?}",
+            result.err()
+        );
+        let wf = result.unwrap();
+        let task = &wf.tasks.value[0].value;
+        assert_eq!(
+            task.preset.as_ref().map(|s| s.value.as_str()),
+            Some("assistant")
+        );
+    }
+
+    #[test]
+    fn test_parse_task_without_preset_is_none() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: a
+    infer: "hello"
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_ok(), "parse failed: {:?}", result.err());
+        let wf = result.unwrap();
+        let task = &wf.tasks.value[0].value;
+        assert!(
+            task.preset.is_none(),
+            "task without preset: should have None"
         );
     }
 }
