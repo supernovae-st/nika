@@ -810,6 +810,24 @@ impl McpClient {
 
         adapter.reconnect().await?;
         self.connected.store(true, Ordering::SeqCst);
+
+        // Re-populate validator schema cache (disconnect() cleared it)
+        if let Some(ref validator) = self.validator {
+            let tools = adapter.list_tools().await?;
+            validator
+                .cache()
+                .populate(&self.name, &tools)
+                .map_err(|e| McpError::McpSchemaError {
+                    tool: "*".to_string(),
+                    reason: format!("Failed to cache tool schemas after reconnect: {}", e),
+                })?;
+            tracing::debug!(
+                mcp_server = %self.name,
+                tools_cached = tools.len(),
+                "Re-populated tool schemas after reconnect"
+            );
+        }
+
         Ok(())
     }
 
