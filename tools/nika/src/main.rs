@@ -381,6 +381,14 @@ enum Commands {
         #[arg(long)]
         json: bool,
 
+        /// Evaluate output quality using LLM-as-judge (requires API key)
+        #[arg(long)]
+        eval: bool,
+
+        /// Judge model for quality evaluation (default: claude-haiku-4-5)
+        #[arg(long, default_value = "claude-haiku-4-5")]
+        eval_model: String,
+
         /// Skip cost confirmation
         #[arg(short = 'y', long)]
         yes: bool,
@@ -1089,8 +1097,23 @@ async fn main() {
             iterations,
             profile,
             json,
+            eval,
+            eval_model,
             yes,
-        }) => run_bench(&file, &providers, iterations, profile, json, yes, quiet).await,
+        }) => {
+            run_bench(
+                &file,
+                &providers,
+                iterations,
+                profile,
+                json,
+                eval,
+                &eval_model,
+                yes,
+                quiet,
+            )
+            .await
+        }
 
         Some(Commands::Init {
             permission,
@@ -1521,6 +1544,8 @@ async fn run_bench(
     iterations: usize,
     show_profile: bool,
     json_output: bool,
+    eval: bool,
+    eval_model: &str,
     _skip_confirm: bool,
     quiet: bool,
 ) -> Result<(), NikaError> {
@@ -1576,6 +1601,7 @@ async fn run_bench(
 
     for provider_name in providers {
         let mut iteration_stats: Vec<RunStats> = Vec::new();
+        let mut final_output: Option<String> = None;
 
         for i in 0..iterations {
             if !quiet && !json_output {
@@ -1598,7 +1624,7 @@ async fn run_bench(
 
             let iter_start = Instant::now();
             match runner.run().await {
-                Ok(_) => {
+                Ok(output) => {
                     let duration_ms = iter_start.elapsed().as_millis() as u64;
                     let mut stats = RunStats::default();
                     event_log.with_events(|events| {
@@ -1615,6 +1641,9 @@ async fn run_bench(
                         );
                     }
 
+                    if !output.is_empty() {
+                        final_output = Some(output);
+                    }
                     iteration_stats.push(stats);
                 }
                 Err(e) => {
@@ -1638,7 +1667,33 @@ async fn run_bench(
         }
 
         // Aggregate across iterations
-        let result = aggregate_bench_stats(provider_name, &iteration_stats, task_count);
+        let mut result = aggregate_bench_stats(provider_name, &iteration_stats, task_count);
+
+        // Quality evaluation via LLM-as-judge
+        if eval {
+            if let Some(ref output_text) = final_output {
+                if !quiet && !json_output {
+                    eprint!("  {} evaluating quality...", "\u{2727}".cyan());
+                }
+                match evaluate_quality(output_text, eval_model).await {
+                    Ok(scores) => {
+                        let overall = scores.iter().map(|s| s.score).sum::<f64>()
+                            / scores.len().max(1) as f64;
+                        result.quality_scores = scores;
+                        result.quality_overall = Some(overall);
+                        if !quiet && !json_output {
+                            eprintln!(" {} {:.0}%", "\u{2713}".green(), overall * 100.0);
+                        }
+                    }
+                    Err(e) => {
+                        if !quiet && !json_output {
+                            eprintln!(" {} {}", "\u{26A0}".yellow(), e);
+                        }
+                    }
+                }
+            }
+        }
+
         all_results.push(result);
     }
 
@@ -1661,6 +1716,10 @@ async fn run_bench(
                     "input_tokens": r.input_tokens,
                     "output_tokens": r.output_tokens,
                     "cache_tokens": r.cache_tokens,
+                    "quality_overall": r.quality_overall,
+                    "quality_scores": r.quality_scores.iter().map(|s| {
+                        serde_json::json!({"criterion": s.criterion, "score": s.score})
+                    }).collect::<Vec<_>>(),
                 })
             })
             .collect();
@@ -1729,6 +1788,79 @@ async fn run_bench(
 }
 
 /// Aggregate RunStats from multiple iterations into a single BenchProviderResult.
+/// Evaluate output quality using an LLM-as-judge.
+///
+/// Sends the workflow output to a judge model with a scoring prompt.
+/// Returns quality scores on 3 criteria: accuracy, relevance, completeness.
+async fn evaluate_quality(
+    output: &str,
+    eval_model: &str,
+) -> Result<Vec<nika::display::QualityScore>, NikaError> {
+    use nika::ast::{InferParams, ResponseFormat, TaskAction};
+    use nika::binding::ResolvedBindings;
+    use nika::event::EventLog;
+    use nika::runtime::TaskExecutor;
+    use nika::store::RunContext;
+    use std::sync::Arc;
+
+    let detected = cli::verbs::detect_provider();
+    let eval_provider = if eval_model.contains("claude") || eval_model.contains("haiku") {
+        "anthropic"
+    } else if eval_model.starts_with("gpt") || eval_model.starts_with("o1") {
+        "openai"
+    } else {
+        detected.as_deref().unwrap_or("anthropic")
+    };
+
+    let truncated = &output[..output.len().min(4000)];
+    let judge_prompt = format!(
+        "You are a quality evaluator. Score the following AI-generated output on 3 criteria.\n\
+         Each score is 0.0 to 1.0 (1.0 = perfect).\n\n\
+         OUTPUT TO EVALUATE:\n---\n{truncated}\n---\n\n\
+         Respond with ONLY valid JSON (no markdown, no explanation):\n\
+         {{\"accuracy\": 0.0, \"relevance\": 0.0, \"completeness\": 0.0}}"
+    );
+
+    let infer = InferParams {
+        prompt: judge_prompt,
+        response_format: Some(ResponseFormat::Json),
+        max_tokens: Some(200),
+        temperature: Some(0.0),
+        ..Default::default()
+    };
+    let action = TaskAction::Infer { infer };
+    let task_id: Arc<str> = Arc::from("bench_eval");
+
+    let event_log = EventLog::new();
+    let executor = TaskExecutor::new(eval_provider, Some(eval_model), None, event_log)?;
+    let bindings = ResolvedBindings::new();
+    let datastore = RunContext::new();
+
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await?;
+
+    let parsed: serde_json::Value =
+        serde_json::from_str(result.trim()).map_err(|e| NikaError::ParseError {
+            details: format!("Judge response is not valid JSON: {e} — raw: {result}"),
+        })?;
+
+    let mut scores = Vec::new();
+    for criterion in &["accuracy", "relevance", "completeness"] {
+        let score = parsed
+            .get(criterion)
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.5)
+            .clamp(0.0, 1.0);
+        scores.push(nika::display::QualityScore {
+            criterion: criterion[..1].to_uppercase() + &criterion[1..],
+            score,
+        });
+    }
+
+    Ok(scores)
+}
+
 fn aggregate_bench_stats(
     provider_name: &str,
     iteration_stats: &[nika::display::renderer::RunStats],
