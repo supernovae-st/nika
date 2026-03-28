@@ -1176,7 +1176,8 @@ Nika uses structured error codes (`NIKA-XXX`) for every failure mode:
 | `110-119` | Agent + Guardrails |
 | `120-129` | Resilience |
 | `140-151` | AST analysis (Phase 2) |
-| `160-164` | Policy/Boot |
+| `160-164` | Parse errors (Phase 1 parser, nika-core) |
+| `165-169` | Policy/Boot/Startup |
 | `170-179` | Runtime (decompose) |
 | `200-219` | File tools + Builtin tools |
 | `251-259` | Media pipeline |
