@@ -103,12 +103,12 @@ pub(crate) async fn resolve_and_check_ssrf(host: &str) -> bool {
             false
         }
         Ok(Err(e)) => {
-            tracing::debug!(host = %host, error = %e, "DNS resolution failed for SSRF check");
-            false
+            tracing::warn!(host = %host, error = %e, "DNS resolution failed for SSRF check — blocking (fail-closed)");
+            true
         }
         Err(_) => {
-            tracing::debug!(host = %host, "DNS resolution timed out (3s) for SSRF check");
-            false
+            tracing::warn!(host = %host, "DNS resolution timed out (3s) for SSRF check — blocking (fail-closed)");
+            true
         }
     }
 }
@@ -787,10 +787,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_dns_rebinding_allows_unresolvable() {
+    async fn test_dns_rebinding_blocks_unresolvable() {
+        // Fail-closed: DNS failure must BLOCK (not allow) the request
         assert!(
-            !super::resolve_and_check_ssrf("this-host-does-not-exist-nika-test.invalid").await,
-            "Non-resolving hostname should not be blocked"
+            super::resolve_and_check_ssrf("this-host-does-not-exist-nika-test.invalid").await,
+            "Non-resolving hostname must be blocked (fail-closed)"
         );
     }
 }
