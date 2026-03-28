@@ -104,6 +104,19 @@ pub fn validate_endpoint_url(url: &str) -> Result<(), String> {
                 ));
             }
         }
+
+        // Block IPv4-mapped IPv6 addresses (::ffff:169.254.x.x)
+        if let Ok(ip6) = h.parse::<std::net::Ipv6Addr>() {
+            if let Some(ip4) = ip6.to_ipv4_mapped() {
+                let octets = ip4.octets();
+                if octets[0] == 169 && octets[1] == 254 {
+                    return Err(format!(
+                        "Blocked IPv4-mapped link-local address '{}' -- metadata SSRF protection",
+                        h
+                    ));
+                }
+            }
+        }
     } else {
         return Err(format!("URL '{}' has no host", url));
     }
@@ -185,6 +198,19 @@ mod tests {
     #[test]
     fn test_validate_endpoint_url_blocks_link_local() {
         assert!(validate_endpoint_url("http://169.254.0.1:8000").is_err());
+    }
+
+    #[test]
+    fn test_validate_endpoint_url_blocks_ipv4_mapped_ipv6_link_local() {
+        assert!(validate_endpoint_url("http://[::ffff:169.254.169.254]/v1").is_err());
+        assert!(validate_endpoint_url("http://[::ffff:169.254.0.1]:8000").is_err());
+    }
+
+    #[test]
+    fn test_validate_endpoint_url_allows_ipv4_mapped_ipv6_private() {
+        // Private IPs are allowed for local inference servers
+        assert!(validate_endpoint_url("http://[::ffff:10.0.1.42]:8000/v1").is_ok());
+        assert!(validate_endpoint_url("http://[::ffff:192.168.1.1]:8000/v1").is_ok());
     }
 
     #[test]
