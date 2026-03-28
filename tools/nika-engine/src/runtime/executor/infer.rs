@@ -471,11 +471,12 @@ impl TaskExecutor {
                                                 let cost = provider
                                                     .cost_provider_kind()
                                                     .map(|pk| {
-                                                        crate::provider::cost::calculate_cost(
+                                                        crate::provider::cost::calculate_cost_with_cache(
                                                             pk,
                                                             model.unwrap_or("default"),
                                                             stream_result.input_tokens,
                                                             stream_result.output_tokens,
+                                                            stream_result.cached_input_tokens,
                                                         )
                                                     })
                                                     .unwrap_or(0.0);
@@ -625,11 +626,12 @@ impl TaskExecutor {
                                                 let cost = provider
                                                     .cost_provider_kind()
                                                     .map(|pk| {
-                                                        crate::provider::cost::calculate_cost(
+                                                        crate::provider::cost::calculate_cost_with_cache(
                                                             pk,
                                                             model.unwrap_or("default"),
                                                             est_in,
                                                             est_out,
+                                                            0, // No cache info for non-streaming
                                                         )
                                                     })
                                                     .unwrap_or(0.0);
@@ -693,11 +695,12 @@ impl TaskExecutor {
                                         let cost = provider
                                             .cost_provider_kind()
                                             .map(|pk| {
-                                                crate::provider::cost::calculate_cost(
+                                                crate::provider::cost::calculate_cost_with_cache(
                                                     pk,
                                                     model.unwrap_or("default"),
                                                     est_in,
                                                     est_out,
+                                                    0, // No cache info for non-streaming
                                                 )
                                             })
                                             .unwrap_or(0.0);
@@ -839,11 +842,12 @@ impl TaskExecutor {
         let cost = provider
             .cost_provider_kind()
             .map(|pk| {
-                crate::provider::cost::calculate_cost(
+                crate::provider::cost::calculate_cost_with_cache(
                     pk,
                     model.unwrap_or("default"),
                     stream_result.input_tokens,
                     stream_result.output_tokens,
+                    stream_result.cached_input_tokens,
                 )
             })
             .unwrap_or(0.0);
@@ -1182,11 +1186,12 @@ impl TaskExecutor {
         let cost = provider
             .cost_provider_kind()
             .map(|pk| {
-                crate::provider::cost::calculate_cost(
+                crate::provider::cost::calculate_cost_with_cache(
                     pk,
                     model.unwrap_or("default"),
                     est_in,
                     est_out,
+                    0, // Vision: no cache info available yet
                 )
             })
             .unwrap_or(0.0);
