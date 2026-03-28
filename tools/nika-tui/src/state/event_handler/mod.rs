@@ -172,6 +172,7 @@ impl TuiState {
                 provider,
                 model,
                 prompt_len,
+                ..
             } => {
                 self.on_provider_called(task_id, provider, model, *prompt_len);
             }

@@ -1010,6 +1010,7 @@ fn run_stats_tracks_provider_from_provider_called() {
             provider: "anthropic".to_string(),
             model: "claude-sonnet-4".to_string(),
             prompt_len: 100,
+            endpoint_url: None,
         },
     });
 
@@ -1032,7 +1033,10 @@ fn run_stats_tracks_provider_from_provider_called() {
     assert_eq!(stats.provider_calls.len(), 1);
     assert_eq!(stats.provider_calls[0].provider, "anthropic");
     assert_eq!(stats.provider_calls[0].model, "claude-sonnet-4");
-    assert!(stats.pending_providers.is_empty(), "pending should be drained");
+    assert!(
+        stats.pending_providers.is_empty(),
+        "pending should be drained"
+    );
 }
 
 #[test]

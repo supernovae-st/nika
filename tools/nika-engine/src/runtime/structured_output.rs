@@ -511,6 +511,7 @@ impl StructuredOutputEngine {
                 .clone()
                 .unwrap_or_else(|| "unknown".to_string()),
             prompt_len,
+            endpoint_url: None,
         });
 
         // Actually call the LLM with the retry prompt
@@ -674,6 +675,7 @@ impl StructuredOutputEngine {
                 .clone()
                 .unwrap_or_else(|| "unknown".to_string()),
             prompt_len,
+            endpoint_url: None,
         });
 
         // Call the LLM to repair the JSON
