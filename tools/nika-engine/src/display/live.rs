@@ -2232,7 +2232,8 @@ mod tests {
     #[test]
     fn format_failed_strips_ansi_escape_codes() {
         // \x1b[31m = red, \x1b[0m = reset
-        let result = LiveRenderer::format_failed("task1", "infer", 1.5, "\x1b[31mError\x1b[0m message");
+        let result =
+            LiveRenderer::format_failed("task1", "infer", 1.5, "\x1b[31mError\x1b[0m message");
         // The formatted output should contain the stripped text, not ANSI parameter bytes
         assert!(
             result.contains("Error message"),

@@ -2416,10 +2416,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 results.sort_by_key(|(idx, _)| *idx);
 
                 // Collect outputs into JSON array (direct clone preserves types)
-                let outputs: Vec<Value> = results
-                    .iter()
-                    .map(|(_, r)| (*r.output).clone())
-                    .collect();
+                let outputs: Vec<Value> =
+                    results.iter().map(|(_, r)| (*r.output).clone()).collect();
 
                 // Calculate aggregate duration and success
                 let total_duration: std::time::Duration =

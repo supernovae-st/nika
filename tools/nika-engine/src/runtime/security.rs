@@ -1118,7 +1118,10 @@ mod tests {
 
         // Non-shell mode: newline is harmless (not passed to sh -c)
         let result = validate_exec_command_with_shell("echo harmless\necho world", false);
-        assert!(result.is_ok(), "newline should be allowed in non-shell mode");
+        assert!(
+            result.is_ok(),
+            "newline should be allowed in non-shell mode"
+        );
     }
 
     // =========================================================================

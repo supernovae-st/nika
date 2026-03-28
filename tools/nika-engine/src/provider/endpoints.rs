@@ -419,7 +419,10 @@ mod tests {
             currency: None,
         };
         let debug = format!("{:?}", cfg);
-        assert!(!debug.contains("sk-secret-key-12345678"), "Debug must not leak api_key");
+        assert!(
+            !debug.contains("sk-secret-key-12345678"),
+            "Debug must not leak api_key"
+        );
         assert!(debug.contains("***"), "Debug should show masked key");
     }
 
@@ -434,7 +437,10 @@ mod tests {
             currency: "USD".to_string(),
         };
         let debug = format!("{:?}", ep);
-        assert!(!debug.contains("sk-secret-key-12345678"), "Debug must not leak api_key");
+        assert!(
+            !debug.contains("sk-secret-key-12345678"),
+            "Debug must not leak api_key"
+        );
         assert!(debug.contains("***"), "Debug should show masked key");
     }
 }
