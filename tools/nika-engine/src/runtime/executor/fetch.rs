@@ -20,6 +20,12 @@ use super::verbs::redact_for_event;
 use super::TaskExecutor;
 use crate::error_domains::ExecutionError;
 
+/// Maximum response size for text responses (50 MB).
+const MAX_TEXT_RESPONSE_SIZE: u64 = 50 * 1024 * 1024;
+
+/// Maximum response size for binary CAS storage (100 MB).
+const MAX_BINARY_RESPONSE_SIZE: u64 = 100 * 1024 * 1024;
+
 /// Read an HTTP response body with a streaming size limit.
 ///
 /// Replaces `response.text().await` which buffers the entire body in memory.
@@ -50,6 +56,35 @@ async fn read_body_with_limit(
     String::from_utf8(buffer).map_err(|e| NikaError::FetchError {
         reason: format!("Response body is not valid UTF-8: {e}"),
     })
+}
+
+/// Read binary response body with a streaming size limit.
+///
+/// Same as `read_body_with_limit` but returns raw bytes instead of String.
+/// Used for `response: binary` path where content is stored in CAS.
+async fn read_bytes_with_limit(
+    response: reqwest::Response,
+    max_bytes: u64,
+) -> Result<Vec<u8>, NikaError> {
+    let mut stream = response.bytes_stream();
+    let capacity = max_bytes.min(1_048_576) as usize;
+    let mut buffer = Vec::with_capacity(capacity);
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| NikaError::FetchError {
+            reason: format!("Failed to read binary response stream: {e}"),
+        })?;
+        if buffer.len() as u64 + chunk.len() as u64 > max_bytes {
+            return Err(ExecutionError::FetchFailed {
+                reason: format!(
+                    "Binary response exceeded {} byte limit during streaming",
+                    max_bytes
+                ),
+            }
+            .into());
+        }
+        buffer.extend_from_slice(&chunk);
+    }
+    Ok(buffer)
 }
 
 impl TaskExecutor {
@@ -387,20 +422,18 @@ impl TaskExecutor {
                             })
                             .collect();
                         let final_url = response.url().to_string();
-                        // Size limit for full response too
-                        const FULL_MAX_RESPONSE_SIZE: u64 = 50 * 1024 * 1024;
                         if let Some(len) = response.content_length() {
-                            if len > FULL_MAX_RESPONSE_SIZE {
+                            if len > MAX_TEXT_RESPONSE_SIZE {
                                 return Err(ExecutionError::FetchFailed {
                                     reason: format!(
                                         "Response too large ({} bytes, max {} bytes)",
-                                        len, FULL_MAX_RESPONSE_SIZE
+                                        len, MAX_TEXT_RESPONSE_SIZE
                                     ),
                                 }
                                 .into());
                             }
                         }
-                        let body = read_body_with_limit(response, FULL_MAX_RESPONSE_SIZE).await?;
+                        let body = read_body_with_limit(response, MAX_TEXT_RESPONSE_SIZE).await?;
                         return Ok(serde_json::json!({
                             "status": status,
                             "headers": headers,
@@ -436,32 +469,19 @@ impl TaskExecutor {
                             .unwrap_or(content_type)
                             .trim()
                             .to_string();
-                        const BINARY_MAX_RESPONSE_SIZE: u64 = 100 * 1024 * 1024; // 100 MB (CAS limit)
                         if let Some(len) = response.content_length() {
-                            if len > BINARY_MAX_RESPONSE_SIZE {
+                            if len > MAX_BINARY_RESPONSE_SIZE {
                                 return Err(ExecutionError::FetchFailed {
                                     reason: format!(
                                         "Binary response too large ({} bytes, max {} bytes)",
-                                        len, BINARY_MAX_RESPONSE_SIZE
+                                        len, MAX_BINARY_RESPONSE_SIZE
                                     ),
                                 }
                                 .into());
                             }
                         }
-                        let bytes = response.bytes().await.map_err(|e| NikaError::FetchError {
-                            reason: format!("Failed to read binary response: {}", e),
-                        })?;
-                        // Bug 3: Post-read size check (catches chunked encoding bypass)
-                        if bytes.len() as u64 > BINARY_MAX_RESPONSE_SIZE {
-                            return Err(ExecutionError::FetchFailed {
-                                reason: format!(
-                                    "Binary response too large ({} bytes, max {} bytes)",
-                                    bytes.len(),
-                                    BINARY_MAX_RESPONSE_SIZE
-                                ),
-                            }
-                            .into());
-                        }
+                        let bytes =
+                            read_bytes_with_limit(response, MAX_BINARY_RESPONSE_SIZE).await?;
                         // Bug 11: Handle 0-byte responses gracefully
                         if bytes.is_empty() {
                             return Ok(serde_json::json!({
@@ -502,13 +522,12 @@ impl TaskExecutor {
                         .to_string());
                     }
 
-                    const MAX_RESPONSE_SIZE: u64 = 50 * 1024 * 1024;
                     if let Some(len) = response.content_length() {
-                        if len > MAX_RESPONSE_SIZE {
+                        if len > MAX_TEXT_RESPONSE_SIZE {
                             return Err(ExecutionError::FetchFailed {
                                 reason: format!(
                                     "Response too large ({} bytes, max {} bytes)",
-                                    len, MAX_RESPONSE_SIZE
+                                    len, MAX_TEXT_RESPONSE_SIZE
                                 ),
                             }
                             .into());
@@ -570,7 +589,7 @@ impl TaskExecutor {
                         return Ok(serde_json::json!({ "found": false }).to_string());
                     }
 
-                    let raw_body = read_body_with_limit(response, MAX_RESPONSE_SIZE).await?;
+                    let raw_body = read_body_with_limit(response, MAX_TEXT_RESPONSE_SIZE).await?;
                     // Resolve templates in selector (e.g. {{with.css_query}})
                     let resolved_selector = match &fetch.selector {
                         Some(s) => Some(template_resolve(s, bindings, datastore)?.into_owned()),
