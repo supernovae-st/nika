@@ -1,0 +1,17 @@
+schema: nika/workflow@0.12
+workflow: feat-preset-override
+description: "Task-level provider/model override preset values"
+
+agents:
+  writer:
+    system: "You are a technical writer. Be precise."
+    provider: anthropic
+    model: claude-sonnet-4-20250514
+    temperature: 0.5
+
+tasks:
+  - id: write
+    preset: writer
+    provider: mock
+    model: mock-fast
+    infer: "Write a one-line definition of YAML."
