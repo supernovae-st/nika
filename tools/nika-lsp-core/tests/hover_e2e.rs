@@ -28,7 +28,7 @@ fn byte_offset(text: &str, line: usize, character: usize) -> u32 {
 fn hover_at(text: &str, line: usize, character: usize) -> Option<HoverResult> {
     let off = byte_offset(text, line, character);
     let ctx = detect_context(text, off, None);
-    hover(text, off, &ctx)
+    hover(text, off, &ctx, None)
 }
 
 /// Assert `hover_at` returns `Some` with non-empty markdown content.
@@ -119,7 +119,7 @@ tasks:
         existing_subfields: vec![],
         prefix: String::new(),
     };
-    let result = hover(yaml, 0, &verb_ctx);
+    let result = hover(yaml, 0, &verb_ctx, None);
     assert!(result.is_some(), "invoke verb hover must return Some");
     assert!(
         result.unwrap().contents.contains("MCP"),
@@ -162,7 +162,7 @@ tasks:
         existing_fields: vec![],
         prefix: "id:".into(),
     };
-    let r = hover(yaml, 0, &field_ctx);
+    let r = hover(yaml, 0, &field_ctx, None);
     assert!(r.is_some(), "hover on 'id' field should return doc");
     assert!(r.unwrap().contents.contains("Task Identifier"));
 }
@@ -174,7 +174,7 @@ fn hover_task_field_with() {
         existing_fields: vec![],
         prefix: "with:".into(),
     };
-    let r = hover("", 0, &ctx);
+    let r = hover("", 0, &ctx, None);
     assert!(r.is_some(), "hover on 'with' task field");
     assert!(r.unwrap().contents.contains("Bindings"));
 }
@@ -186,7 +186,7 @@ fn hover_task_field_depends_on() {
         existing_fields: vec![],
         prefix: "depends_on:".into(),
     };
-    let r = hover("", 0, &ctx);
+    let r = hover("", 0, &ctx, None);
     assert!(r.is_some(), "hover on 'depends_on' task field");
     assert!(r.unwrap().contents.contains("Dependencies"));
 }
@@ -198,7 +198,7 @@ fn hover_task_field_content() {
         existing_fields: vec![],
         prefix: "content:".into(),
     };
-    let r = hover("", 0, &ctx);
+    let r = hover("", 0, &ctx, None);
     assert!(r.is_some(), "hover on 'content' task field");
     assert!(r.unwrap().contents.contains("Vision"));
 }
@@ -210,7 +210,7 @@ fn hover_task_field_for_each() {
         existing_fields: vec![],
         prefix: "for_each:".into(),
     };
-    let r = hover("", 0, &ctx);
+    let r = hover("", 0, &ctx, None);
     assert!(r.is_some(), "hover on 'for_each' task field");
     assert!(r.unwrap().contents.contains("Parallel Iteration"));
 }
@@ -222,7 +222,7 @@ fn hover_task_field_retry() {
         existing_fields: vec![],
         prefix: "retry:".into(),
     };
-    let r = hover("", 0, &ctx);
+    let r = hover("", 0, &ctx, None);
     assert!(r.is_some(), "hover on 'retry' task field");
     assert!(r.unwrap().contents.contains("Retry"));
 }
@@ -234,7 +234,7 @@ fn hover_task_field_timeout() {
         existing_fields: vec![],
         prefix: "timeout:".into(),
     };
-    let r = hover("", 0, &ctx);
+    let r = hover("", 0, &ctx, None);
     assert!(r.is_some(), "hover on 'timeout' task field");
     assert!(r.unwrap().contents.contains("Timeout"));
 }
@@ -276,7 +276,7 @@ fn hover_content_part_type() {
         part_type: None,
         prefix: "- type:".into(),
     };
-    let r = hover("", 0, &ctx);
+    let r = hover("", 0, &ctx, None);
     assert!(r.is_some(), "hover on content PartType");
     assert!(r.unwrap().contents.contains("Content Type"));
 }
@@ -289,7 +289,7 @@ fn hover_content_image_detail() {
         part_type: Some("image".into()),
         prefix: "detail:".into(),
     };
-    let r = hover("", 0, &ctx);
+    let r = hover("", 0, &ctx, None);
     assert!(r.is_some(), "hover on content ImageDetail");
     assert!(r.unwrap().contents.contains("Detail"));
 }
@@ -302,7 +302,7 @@ fn hover_content_image_url() {
         part_type: Some("image_url".into()),
         prefix: "url:".into(),
     };
-    let r = hover("", 0, &ctx);
+    let r = hover("", 0, &ctx, None);
     assert!(r.is_some(), "ImageUrl focus should return hover doc");
     assert!(r.unwrap().contents.contains("Image URL"));
 }
@@ -315,7 +315,7 @@ fn hover_content_part_field() {
         part_type: None,
         prefix: "text:".into(),
     };
-    let r = hover("", 0, &ctx);
+    let r = hover("", 0, &ctx, None);
     assert!(r.is_some(), "PartField focus should return hover doc");
     assert!(r.unwrap().contents.contains("Content Part"));
 }
@@ -348,7 +348,7 @@ fn hover_transform_upper() {
         partial_expr: "with.data | upper".into(),
         in_transform_chain: true,
     };
-    let r = hover("", 0, &ctx);
+    let r = hover("", 0, &ctx, None);
     assert!(r.is_some(), "hover on 'upper' transform");
     let contents = r.unwrap().contents;
     assert!(contents.contains("upper"), "should mention 'upper'");
@@ -363,7 +363,7 @@ fn hover_transform_lower() {
         partial_expr: "with.x | lower".into(),
         in_transform_chain: true,
     };
-    let r = hover("", 0, &ctx);
+    let r = hover("", 0, &ctx, None);
     assert!(r.is_some(), "hover on 'lower' transform");
     assert!(r.unwrap().contents.contains("lowercase"));
 }
@@ -376,7 +376,7 @@ fn hover_transform_trim() {
         partial_expr: "with.x | trim".into(),
         in_transform_chain: true,
     };
-    let r = hover("", 0, &ctx);
+    let r = hover("", 0, &ctx, None);
     assert!(r.is_some(), "hover on 'trim' transform");
     assert!(r.unwrap().contents.contains("whitespace"));
 }
@@ -389,7 +389,7 @@ fn hover_transform_unknown_returns_none() {
         partial_expr: "with.x | nonexistent".into(),
         in_transform_chain: true,
     };
-    let r = hover("", 0, &ctx);
+    let r = hover("", 0, &ctx, None);
     assert!(r.is_none(), "unknown transform should return None");
 }
 
@@ -402,7 +402,7 @@ fn hover_transform_chained() {
         partial_expr: "with.x | upper | trim".into(),
         in_transform_chain: true,
     };
-    let r = hover("", 0, &ctx);
+    let r = hover("", 0, &ctx, None);
     assert!(r.is_some(), "chained transform hover");
     assert!(
         r.unwrap().contents.contains("trim"),
@@ -433,7 +433,7 @@ tasks:
         ),
         "Should detect transform chain, got {ctx:?}"
     );
-    let r = hover(yaml, off, &ctx);
+    let r = hover(yaml, off, &ctx, None);
     assert!(r.is_some(), "upper transform e2e hover");
     assert!(r.unwrap().contents.contains("UPPERCASE"));
 }
@@ -449,7 +449,7 @@ fn hover_with_block() {
         alias: Some("data".into()),
         partial_ref: "$step1".into(),
     };
-    let r = hover("", 0, &ctx);
+    let r = hover("", 0, &ctx, None);
     assert!(r.is_some(), "with block hover");
     assert!(r.unwrap().contents.contains("Binding"));
 }
@@ -482,7 +482,7 @@ fn hover_template_expression() {
         partial_expr: "with.da".into(),
         in_transform_chain: false,
     };
-    let r = hover("", 0, &ctx);
+    let r = hover("", 0, &ctx, None);
     assert!(r.is_some(), "template expression hover");
     assert!(r.unwrap().contents.contains("Binding Reference"));
 }
@@ -513,7 +513,7 @@ tasks:
         ),
         "Should be Template without transform chain, got {ctx:?}"
     );
-    let r = hover(yaml, off, &ctx);
+    let r = hover(yaml, off, &ctx, None);
     assert!(r.is_some(), "template expression e2e hover");
 }
 
@@ -526,7 +526,7 @@ fn hover_unknown_context_returns_none() {
     let ctx = CursorContext::Unknown {
         prefix: "random".into(),
     };
-    let r = hover("", 0, &ctx);
+    let r = hover("", 0, &ctx, None);
     assert!(r.is_none(), "Unknown context should produce no hover");
 }
 
@@ -552,7 +552,7 @@ fn hover_unknown_task_field_returns_none() {
         existing_fields: vec![],
         prefix: "unknown_field:".into(),
     };
-    let r = hover("", 0, &ctx);
+    let r = hover("", 0, &ctx, None);
     assert!(r.is_none(), "unknown task field should return None");
 }
 
@@ -573,7 +573,7 @@ fn hover_depends_on_context() {
         existing_deps: vec!["step1".into()],
         prefix: "- ste".into(),
     };
-    let r = hover("", 0, &ctx);
+    let r = hover("", 0, &ctx, None);
     assert!(r.is_some(), "DependsOn context should return hover doc");
     assert!(r.unwrap().contents.contains("Execution Dependencies"));
 }
@@ -585,7 +585,7 @@ fn hover_for_each_context() {
         loop_var: Some("item".into()),
         prefix: "items:".into(),
     };
-    let r = hover("", 0, &ctx);
+    let r = hover("", 0, &ctx, None);
     assert!(r.is_some(), "ForEach context should return hover doc");
     assert!(r.unwrap().contents.contains("Parallel Iteration"));
 }
@@ -596,7 +596,7 @@ fn hover_mcp_config() {
         server_name: Some("novanet".into()),
         prefix: "command:".into(),
     };
-    let r = hover("", 0, &ctx);
+    let r = hover("", 0, &ctx, None);
     assert!(r.is_some(), "McpConfig should return MCP hover doc");
     assert!(r.unwrap().contents.contains("MCP"));
 }
@@ -611,7 +611,7 @@ fn hover_invoke_block() {
         focus: InvokeFocus::General,
         prefix: String::new(),
     };
-    let r = hover("", 0, &ctx);
+    let r = hover("", 0, &ctx, None);
     assert!(r.is_some(), "InvokeBlock should return invoke verb hover");
     assert!(r.unwrap().contents.contains("MCP"));
 }
@@ -691,7 +691,7 @@ fn hover_verb_subfield_prompt_in_infer() {
         existing_subfields: vec![],
         prefix: "prompt:".into(),
     };
-    let r = hover("", 0, &ctx);
+    let r = hover("", 0, &ctx, None);
     assert!(r.is_some(), "prompt sub-field should have hover");
     let contents = r.unwrap().contents;
     assert!(
@@ -708,7 +708,7 @@ fn hover_verb_subfield_extract_in_fetch() {
         existing_subfields: vec![],
         prefix: "extract:".into(),
     };
-    let r = hover("", 0, &ctx);
+    let r = hover("", 0, &ctx, None);
     assert!(r.is_some(), "extract sub-field should have hover");
     let contents = r.unwrap().contents;
     assert!(
@@ -725,7 +725,7 @@ fn hover_verb_subfield_model_in_agent() {
         existing_subfields: vec![],
         prefix: "model:".into(),
     };
-    let r = hover("", 0, &ctx);
+    let r = hover("", 0, &ctx, None);
     assert!(r.is_some(), "model sub-field should have hover");
     let contents = r.unwrap().contents;
     assert!(
@@ -742,7 +742,7 @@ fn hover_verb_subfield_tool_in_invoke() {
         existing_subfields: vec![],
         prefix: "tool:".into(),
     };
-    let r = hover("", 0, &ctx);
+    let r = hover("", 0, &ctx, None);
     assert!(r.is_some(), "tool sub-field should have hover");
     let contents = r.unwrap().contents;
     assert!(
@@ -759,7 +759,7 @@ fn hover_verb_subfield_max_turns_in_agent() {
         existing_subfields: vec![],
         prefix: "max_turns:".into(),
     };
-    let r = hover("", 0, &ctx);
+    let r = hover("", 0, &ctx, None);
     assert!(r.is_some(), "max_turns sub-field should have hover");
     let contents = r.unwrap().contents;
     assert!(
@@ -776,7 +776,7 @@ fn hover_verb_subfield_extended_thinking_in_infer() {
         existing_subfields: vec![],
         prefix: "extended_thinking:".into(),
     };
-    let r = hover("", 0, &ctx);
+    let r = hover("", 0, &ctx, None);
     assert!(r.is_some(), "extended_thinking sub-field should have hover");
     let contents = r.unwrap().contents;
     assert!(
@@ -793,7 +793,7 @@ fn hover_verb_subfield_command_in_exec() {
         existing_subfields: vec![],
         prefix: "command:".into(),
     };
-    let r = hover("", 0, &ctx);
+    let r = hover("", 0, &ctx, None);
     assert!(r.is_some(), "command sub-field should have hover");
     let contents = r.unwrap().contents;
     assert!(
@@ -810,7 +810,7 @@ fn hover_verb_subfield_unknown_falls_back_to_verb() {
         existing_subfields: vec![],
         prefix: "unknown_field:".into(),
     };
-    let r = hover("", 0, &ctx);
+    let r = hover("", 0, &ctx, None);
     assert!(
         r.is_some(),
         "unknown sub-field should fall back to verb-level hover"
