@@ -303,9 +303,9 @@
       "$0"
     ]
   },
-  "Vision Content": {
+  "Vision Content (Inline)": {
     "prefix": ["contentvision", "multimodal", "imagecontent"],
-    "description": "Multimodal content with image and text",
+    "description": "Multimodal content with image and text (inline in existing task)",
     "body": [
       "infer:",
       "  content:",
