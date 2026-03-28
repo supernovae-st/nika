@@ -570,6 +570,7 @@ tasks:
         yaml,
         offset as u32,
         &detect_context(yaml, offset as u32, None),
+        None,
     );
     // Template context should return with., context.files., inputs., and task shorthands
     assert!(!items.is_empty(), "Template should produce completions");
@@ -618,6 +619,7 @@ tasks:
         yaml,
         offset as u32,
         &detect_context(yaml, offset as u32, None),
+        None,
     );
     assert!(
         !items.is_empty(),
@@ -643,6 +645,7 @@ tasks:
         yaml,
         offset as u32,
         &detect_context(yaml, offset as u32, None),
+        None,
     );
     assert_has_label(&items, "$generate");
     assert_has_label(&items, "$process");
@@ -662,7 +665,7 @@ tasks:
 ";
     let offset = yaml.find("| ").unwrap() + 2;
     let ctx = detect_context(yaml, offset as u32, None);
-    let items = completions(yaml, offset as u32, &ctx);
+    let items = completions(yaml, offset as u32, &ctx, None);
     assert!(
         !items.is_empty(),
         "Transform chain should produce completions"
@@ -709,6 +712,7 @@ tasks:
         yaml,
         offset as u32,
         &detect_context(yaml, offset as u32, None),
+        None,
     );
     for item in &items {
         assert_label_kind(&items, &item.label, CompletionItemKind::VALUE);
@@ -881,7 +885,7 @@ fn provider_completions_via_direct_context() {
         current_model: None,
         prefix: String::new(),
     };
-    let items = completions("", 0, &ctx);
+    let items = completions("", 0, &ctx, None);
     assert!(
         !items.is_empty(),
         "Provider completions should include catalog entries"
@@ -905,7 +909,7 @@ fn provider_completions_include_aliases() {
         current_model: None,
         prefix: String::new(),
     };
-    let items = completions("", 0, &ctx);
+    let items = completions("", 0, &ctx, None);
     assert_has_label(&items, "claude");
     assert_has_label(&items, "gpt");
 }
@@ -919,7 +923,7 @@ fn provider_completions_providers_are_enum_member_kind() {
         current_model: None,
         prefix: String::new(),
     };
-    let items = completions("", 0, &ctx);
+    let items = completions("", 0, &ctx, None);
     assert_label_kind(&items, "anthropic", CompletionItemKind::ENUM_MEMBER);
     assert_label_kind(&items, "openai", CompletionItemKind::ENUM_MEMBER);
     assert_label_kind(&items, "claude", CompletionItemKind::ENUM_MEMBER);
@@ -1252,6 +1256,7 @@ tasks:
         yaml,
         offset as u32,
         &detect_context(yaml, offset as u32, None),
+        None,
     );
     assert!(!items.is_empty(), "Template should work in large workflow");
     // Should have shorthands for all 10 tasks
@@ -1296,7 +1301,7 @@ fn vision_workflow_content_via_direct_context() {
         part_type: None,
         prefix: String::new(),
     };
-    let items = completions("", 0, &ctx);
+    let items = completions("", 0, &ctx, None);
     assert!(
         !items.is_empty(),
         "PartType completions should include type variants"
@@ -1559,6 +1564,7 @@ tasks:
         yaml,
         offset as u32,
         &detect_context(yaml, offset as u32, None),
+        None,
     );
 }
 
@@ -1566,7 +1572,7 @@ tasks:
 fn no_panic_on_offset_past_end() {
     let ctx = detect_context("short text", 9999, None);
     assert!(matches!(ctx, CursorContext::Unknown { .. }));
-    let items = completions("short text", 9999, &ctx);
+    let items = completions("short text", 9999, &ctx, None);
     assert!(items.is_empty());
 }
 
@@ -1806,6 +1812,7 @@ tasks:
         yaml,
         offset as u32,
         &detect_context(yaml, offset as u32, None),
+        None,
     );
     assert!(
         !items.is_empty(),
@@ -1826,7 +1833,7 @@ fn unknown_context_returns_empty_completions() {
     let ctx = CursorContext::Unknown {
         prefix: String::new(),
     };
-    let items = completions("", 0, &ctx);
+    let items = completions("", 0, &ctx, None);
     assert!(
         items.is_empty(),
         "Unknown context should return empty completions"
@@ -1844,7 +1851,7 @@ schema: nika/workflow@0.12
         matches!(ctx, CursorContext::Unknown { .. }),
         "Orphan indented line should be Unknown, got {ctx:?}"
     );
-    let items = completions(yaml, text_offset(yaml, 1, 10), &ctx);
+    let items = completions(yaml, text_offset(yaml, 1, 10), &ctx, None);
     assert!(items.is_empty());
 }
 
