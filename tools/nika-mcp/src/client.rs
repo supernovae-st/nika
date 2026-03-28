@@ -443,6 +443,8 @@ pub struct McpClient {
     /// Response cache (None if caching disabled)
     cache: Option<ResponseCache>,
 
+    /// Guard to prevent concurrent reconnect storms from for_each tasks
+    reconnecting: AtomicBool,
 }
 
 impl std::fmt::Debug for McpClient {
@@ -502,6 +504,7 @@ impl McpClient {
             adapter: Some(adapter),
             validator: None,
             cache: None,
+            reconnecting: AtomicBool::new(false),
         })
     }
 
@@ -575,6 +578,7 @@ impl McpClient {
             adapter: None,
             validator: None,
             cache: None,
+            reconnecting: AtomicBool::new(false),
         }
     }
 
@@ -797,6 +801,27 @@ impl McpClient {
             return Ok(());
         }
 
+        // Guard: only one task reconnects, others skip to avoid reconnect storm
+        if self
+            .reconnecting
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_err()
+        {
+            tracing::debug!(
+                mcp_server = %self.name,
+                "Reconnect already in progress, skipping"
+            );
+            return Ok(());
+        }
+
+        // Reconnect — release the guard on completion (success or failure)
+        let result = self.reconnect_inner().await;
+        self.reconnecting.store(false, Ordering::SeqCst);
+        result
+    }
+
+    /// Inner reconnect logic, separated so the guard can be released reliably.
+    async fn reconnect_inner(&self) -> Result<()> {
         // Disconnect clears validator cache + response cache
         self.disconnect().await?;
 
