@@ -1033,10 +1033,72 @@ fn run_stats_tracks_provider_from_provider_called() {
     assert_eq!(stats.provider_calls.len(), 1);
     assert_eq!(stats.provider_calls[0].provider, "anthropic");
     assert_eq!(stats.provider_calls[0].model, "claude-sonnet-4");
+    // pending_providers retains entries so multi-turn agent events resolve correctly
     assert!(
-        stats.pending_providers.is_empty(),
-        "pending should be drained"
+        stats.pending_providers.contains_key("t1"),
+        "pending should retain entry for multi-turn"
     );
+}
+
+#[test]
+fn run_stats_multi_turn_agent_retains_provider() {
+    use super::renderer::RunStats;
+    use crate::event::{Event, EventKind};
+    use std::sync::Arc;
+
+    let mut stats = RunStats::default();
+
+    // ProviderCalled once for the agent task
+    stats.apply_event(&Event {
+        id: 1,
+        timestamp_ms: 0,
+        kind: EventKind::ProviderCalled {
+            task_id: Arc::from("agent1"),
+            provider: "anthropic".to_string(),
+            model: "claude-sonnet-4".to_string(),
+            prompt_len: 100,
+            endpoint_url: None,
+        },
+    });
+
+    // First turn ProviderResponded
+    stats.apply_event(&Event {
+        id: 2,
+        timestamp_ms: 10,
+        kind: EventKind::ProviderResponded {
+            task_id: Arc::from("agent1"),
+            request_id: None,
+            input_tokens: 100,
+            output_tokens: 50,
+            cache_read_tokens: 0,
+            ttft_ms: Some(45),
+            finish_reason: "tool_use".to_string(),
+            cost_usd: 0.003,
+        },
+    });
+
+    // Second turn ProviderResponded (multi-turn)
+    stats.apply_event(&Event {
+        id: 3,
+        timestamp_ms: 20,
+        kind: EventKind::ProviderResponded {
+            task_id: Arc::from("agent1"),
+            request_id: None,
+            input_tokens: 200,
+            output_tokens: 80,
+            cache_read_tokens: 50,
+            ttft_ms: Some(30),
+            finish_reason: "stop".to_string(),
+            cost_usd: 0.005,
+        },
+    });
+
+    // Both turns must be attributed to the correct provider, not "unknown"
+    assert_eq!(stats.provider_calls.len(), 2);
+    assert_eq!(stats.provider_calls[0].provider, "anthropic");
+    assert_eq!(stats.provider_calls[0].model, "claude-sonnet-4");
+    assert_eq!(stats.provider_calls[1].provider, "anthropic");
+    assert_eq!(stats.provider_calls[1].model, "claude-sonnet-4");
 }
 
 #[test]

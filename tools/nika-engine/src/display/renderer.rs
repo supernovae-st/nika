@@ -217,7 +217,8 @@ impl RunStats {
                 let task_id_str = event.kind.task_id().unwrap_or("?").to_string();
                 let (provider, model) = self
                     .pending_providers
-                    .remove(&task_id_str)
+                    .get(&task_id_str)
+                    .cloned()
                     .unwrap_or_else(|| ("unknown".to_string(), "unknown".to_string()));
                 self.provider_calls.push(ProviderCallStat {
                     task_id: task_id_str,
