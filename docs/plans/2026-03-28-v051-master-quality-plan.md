@@ -451,6 +451,100 @@ Each needs at minimum one test verifying:
 
 ---
 
-*This plan incorporates findings from: 1 silent-failure agent (16 bugs), 1 security agent (10 bugs),
-1 test-quality agent (24 findings), 1 telemetry agent (40+ findings), 3 research agents (30+ crate recommendations),
-plus 20 bugs from original v0.51 plan. Architecture agent findings pending.*
+---
+
+## PART 7: ROOT CAUSE ANALYSIS (Architecture Agent — 7 systemic issues)
+
+**Why bugs keep coming back**: It's not individual bugs. It's 7 structural defects
+that GENERATE bugs at a predictable rate. Fix these = stop the cycle.
+
+### RC1: CRITICAL — Agent loop 3x duplication (1505 LOC)
+
+`run_claude` (405 LOC) + `run_openai` (412 LOC) + `run_generic` (425 LOC) = near-identical.
+Every fix must be applied 3 times. `calculate_cost_with_cache` appears **12 times**.
+
+**Fix**: Extract `run_agent_loop<C: CompletionClient>()` generic. 1505 → ~600 LOC.
+**Effort**: 2-3 days. **Impact**: Eliminates #1 source of asymmetric fixes.
+
+### RC2: CRITICAL — Stringly-typed APIs (333+ string literals)
+
+9 domain concepts use `String` where they should be enums:
+- Provider name: `"anthropic"` vs `"Anthropic"` vs `"claude"` (333 occurrences in nika-engine)
+- Extract mode: `"markdown"` checked at runtime, not compile time
+- Agent turn kind, stop reason, finish reason, guardrail type...
+
+**Fix**: Create enums in nika-core: `ProviderName`, `ExtractMode`, `AgentTurnKind`, etc.
+**Effort**: 3-5 days incremental. **Impact**: Compile-time catch for every string mismatch.
+
+### RC3: HIGH — Dual-maintenance error system
+
+96 `NikaError` variants + domain sub-enums in `error_domains.rs` + manual `From` impls.
+`NikaError::ValidationError` = catch-all with **184 call sites** across 42 files.
+
+**Fix**: Domain enums = source of truth, NikaError delegates. Split ValidationError.
+**Effort**: 3-4 days. **Impact**: Halves error-related maintenance.
+
+### RC4: HIGH — Dual pricing tables
+
+`nika-core/catalogs/cost.rs` (23 patterns) vs `nika-engine/provider/cost.rs` (per-provider HashMaps).
+Both must be updated for every model change. Already caused sync bugs.
+
+**Fix**: Delete engine cost tables, delegate to nika-core. **ONE table, ONE truth.**
+**Effort**: 1 day. **Impact**: No more pricing drift.
+
+### RC5: MEDIUM — Missing AST validation (Lower phase = zero checks)
+
+`extract`, `provider`, `response`, `model` pass through Raw→Analyzed→Lower→Runtime
+as raw strings. Invalid values only caught at runtime (after expensive upstream tasks).
+
+**Fix**: Validate enum-like fields in Analyzer (Phase 2). Better: make them enums.
+**Effort**: 1-2 days. **Impact**: Catch invalid workflows at `nika check` not `nika run`.
+
+### RC6: MEDIUM — Non-workspace dependencies (6 crates duplicated)
+
+`image`, `scraper`, `htmd`, `dom_smoothie`, `keyring`, `crossterm` declared locally
+instead of `[workspace.dependencies]`. `keyring` has DIFFERENT features in 2 crates.
+
+**Fix**: Move to workspace deps. **Effort**: 30 minutes.
+
+### RC7: MEDIUM — Flat EventKind (55 variants, no grouping)
+
+Single flat enum with 55 variants. 5+ consumers must exhaustive-match ALL of them.
+Several use `_ => {}` catch-all = new events silently ignored.
+
+**Fix**: Group into nested enums: `EventKind::Task(TaskEvent)`, `EventKind::Agent(AgentEvent)`.
+**Effort**: 2-3 days. **Impact**: New events in one group don't break unrelated consumers.
+
+### Root Cause Priority Matrix
+
+| # | Root Cause | Bug Rate | Fix Days | ROI |
+|---|-----------|----------|----------|-----|
+| RC6 | Non-workspace deps | Rare | 0.1 | DO NOW |
+| RC4 | Dual pricing | Monthly | 1 | DO NOW |
+| RC1 | Agent loop 3x | Weekly | 2-3 | DO NEXT |
+| RC5 | Missing validation | Weekly | 1-2 | DO NEXT |
+| RC2 | Stringly-typed | Daily | 3-5 | PLAN |
+| RC3 | Error dual-maint | Monthly | 3-4 | PLAN |
+| RC7 | Flat EventKind | Monthly | 2-3 | PLAN |
+
+**Total: ~15-20 days to eliminate ALL 7 root causes.**
+**Quick wins (RC6 + RC4 + RC5): 2.5 days, eliminates ~40% of recurring bugs.**
+
+---
+
+## FINAL STATISTICS
+
+| Source | Issues Found |
+|--------|-------------|
+| Silent Failure Agent | 16 bugs (6 HIGH) |
+| Security Agent | 10 bugs (3 HIGH) |
+| Test Quality Agent | 24 findings (3 CRITICAL) |
+| Telemetry Agent | 40+ findings (5 HIGH, 30 untested events) |
+| Architecture Agent | 7 root causes (2 CRITICAL, 2 HIGH) |
+| Research Agents (x3) | 30+ crates, 6 patterns |
+| Original v0.51 Plan | 20 bugs still open |
+| **GRAND TOTAL** | **~130+ issues** |
+
+---
+
+*Complete findings from all 7 audit agents + 3 research agents incorporated.*
