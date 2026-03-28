@@ -493,34 +493,117 @@ async fn write_binary_artifact(
             if let Some(mr) = from_binding_source {
                 mr
             } else {
-                // Try resolving from bindings — the value might contain a media hash
-                let hash_value = if let Some(value) = bindings.get(source_alias) {
+                // Try resolving from bindings — the value might contain a media hash.
+                // Handles:
+                //   - String value starting with "blake3:" → directly used as hash
+                //   - String value containing JSON with .hash field → extract it
+                //   - Object value → extract .hash field (e.g., nika:import output)
+                fn extract_hash_from_value(value: &serde_json::Value) -> Option<String> {
                     match value {
-                        serde_json::Value::String(s) => Some(s.clone()),
+                        serde_json::Value::String(s) => {
+                            if s.starts_with("blake3:") || s.starts_with("sha256:") {
+                                Some(s.clone())
+                            } else if let Ok(parsed) =
+                                serde_json::from_str::<serde_json::Value>(s)
+                            {
+                                parsed
+                                    .get("hash")
+                                    .and_then(|v| v.as_str())
+                                    .map(String::from)
+                            } else {
+                                Some(s.clone())
+                            }
+                        }
+                        serde_json::Value::Object(obj) => obj
+                            .get("hash")
+                            .and_then(|v| v.as_str())
+                            .map(String::from),
                         _ => None,
                     }
+                }
+
+                let hash_value = if let Some(value) = bindings.get(source_alias) {
+                    extract_hash_from_value(value)
                 } else {
                     datastore
                         .get_output(source_alias)
-                        .and_then(|v| match v.as_ref() {
-                            serde_json::Value::String(s) => Some(s.clone()),
-                            _ => None,
-                        })
+                        .and_then(|v| extract_hash_from_value(v.as_ref()))
                 };
 
                 if let Some(hash) = hash_value {
-                    // Find media ref by hash
-                    media_refs
-                        .iter()
-                        .find(|m| m.hash == hash)
-                        .cloned()
-                        .ok_or_else(|| NikaError::ArtifactWriteError {
-                            path: output_spec.path.clone(),
-                            reason: format!(
-                                "Binary artifact source '{}' resolved to hash '{}' but no media ref matches",
-                                source_alias, hash
-                            ),
-                        })?
+                    // Find media ref by hash in current task's media_refs
+                    if let Some(mr) = media_refs.iter().find(|m| m.hash == hash).cloned() {
+                        mr
+                    } else {
+                        // Hash not in current task's media — construct MediaRef from
+                        // the source binding JSON (e.g., upstream nika:import output).
+                        // This is the common case for `source: alias` where alias
+                        // points to a different task's media output.
+                        //
+                        // The binding value may be:
+                        //   - Value::Object with hash/path fields
+                        //   - Value::String containing JSON with hash/path fields
+                        let binding_value = bindings
+                            .get(source_alias)
+                            .cloned()
+                            .or_else(|| {
+                                datastore
+                                    .get_output(source_alias)
+                                    .map(|v| v.as_ref().clone())
+                            });
+                        // Normalize: if binding is a JSON string, parse it to Object
+                        let binding_obj = match &binding_value {
+                            Some(serde_json::Value::Object(_)) => binding_value.clone(),
+                            Some(serde_json::Value::String(s)) => {
+                                serde_json::from_str::<serde_json::Value>(s)
+                                    .ok()
+                                    .filter(|v| v.is_object())
+                            }
+                            _ => None,
+                        };
+                        if let Some(serde_json::Value::Object(obj)) = binding_obj {
+                            if let Some(path_str) =
+                                obj.get("path").and_then(|v| v.as_str())
+                            {
+                                MediaRef {
+                                    hash: hash.clone(),
+                                    mime_type: obj
+                                        .get("mime_type")
+                                        .and_then(|v| v.as_str())
+                                        .unwrap_or("application/octet-stream")
+                                        .to_string(),
+                                    size_bytes: obj
+                                        .get("size_bytes")
+                                        .and_then(|v| v.as_u64())
+                                        .unwrap_or(0),
+                                    path: std::path::PathBuf::from(path_str),
+                                    extension: obj
+                                        .get("extension")
+                                        .and_then(|v| v.as_str())
+                                        .map(String::from)
+                                        .unwrap_or_default(),
+                                    created_by: source_alias.to_string(),
+                                    metadata: serde_json::Map::new(),
+                                }
+                            } else {
+                                return Err(NikaError::ArtifactWriteError {
+                                    path: output_spec.path.clone(),
+                                    reason: format!(
+                                        "Binary artifact source '{}' resolved to hash '{}' but no media ref matches and binding has no 'path' field",
+                                        source_alias, hash
+                                    ),
+                                });
+                            }
+                        } else {
+                            return Err(NikaError::ArtifactWriteError {
+                                path: output_spec.path.clone(),
+                                reason: format!(
+                                    "Binary artifact source '{}' resolved to hash '{}' but no media ref matches",
+                                    source_alias, hash
+                                ),
+                            });
+                        }
+                    }
                 } else {
                     return Err(NikaError::ArtifactWriteError {
                         path: output_spec.path.clone(),
