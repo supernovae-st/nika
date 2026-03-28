@@ -17,6 +17,10 @@ use crate::error::NikaError;
 use crate::event::EventKind;
 use crate::util::STREAM_CHUNK_TIMEOUT;
 
+/// Maximum total time for an agent streaming call (10 minutes).
+/// Prevents slow-drip streams (one chunk every 59s) from running forever.
+const AGENT_STREAM_TOTAL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(600);
+
 use super::types::StreamingResult;
 use super::RigAgentLoop;
 
@@ -94,6 +98,13 @@ impl RigAgentLoop {
 
         // Stream chunks with timeout protection to prevent infinite hangs
         loop {
+            // Overall timeout: prevent slow-drip streams from running forever
+            if stream_start.elapsed() > AGENT_STREAM_TOTAL_TIMEOUT {
+                return Err(NikaError::Timeout {
+                    operation: "agent stream total".to_string(),
+                    duration_ms: AGENT_STREAM_TOTAL_TIMEOUT.as_millis() as u64,
+                });
+            }
             let chunk_result = match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
                 Ok(Some(result)) => result,
                 Ok(None) => break, // Stream ended normally
@@ -293,7 +304,16 @@ impl RigAgentLoop {
             let mut cli_ttft_ms: Option<u64> = None;
 
             // Consume stream, extracting text and token usage
-            while let Some(chunk) = stream.next().await {
+            while let Some(chunk) = {
+                // Overall timeout: prevent slow-drip streams from running forever
+                if cli_stream_start.elapsed() > AGENT_STREAM_TOTAL_TIMEOUT {
+                    return Err(NikaError::Timeout {
+                        operation: "agent stream total".to_string(),
+                        duration_ms: AGENT_STREAM_TOTAL_TIMEOUT.as_millis() as u64,
+                    });
+                }
+                stream.next().await
+            } {
                 match chunk {
                     Ok(item) => match item {
                         // Accumulate text chunks
@@ -440,6 +460,13 @@ impl RigAgentLoop {
 
         // Per-chunk timeout to prevent hanging streams
         loop {
+            // Overall timeout: prevent slow-drip streams from running forever
+            if tui_stream_start.elapsed() > AGENT_STREAM_TOTAL_TIMEOUT {
+                return Err(NikaError::Timeout {
+                    operation: "agent stream total".to_string(),
+                    duration_ms: AGENT_STREAM_TOTAL_TIMEOUT.as_millis() as u64,
+                });
+            }
             let chunk = match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
                 Ok(Some(chunk)) => chunk,
                 Ok(None) => break, // Stream ended normally
