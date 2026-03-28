@@ -393,7 +393,8 @@ impl RigAgentLoop {
 
         let total_retries = retry_count + guardrail_retry_count;
 
-        // Emit ProviderResponded so runner cost summary includes agent work
+        // Emit ProviderResponded — use final status (post-guardrail override)
+        let final_reason = status.as_canonical_str();
         let total_cost = crate::provider::cost::calculate_cost_with_cache(
             crate::provider::cost::ProviderKind::Claude,
             &model_name,
@@ -408,7 +409,7 @@ impl RigAgentLoop {
             output_tokens: total_output_tokens,
             cache_read_tokens: total_cached_input_tokens,
             ttft_ms: None,
-            finish_reason: stop_reason.to_string(),
+            finish_reason: final_reason.to_string(),
             cost_usd: if total_cost.is_finite() {
                 total_cost
             } else {
@@ -1226,7 +1227,8 @@ impl RigAgentLoop {
 
         let total_retries = retry_count + guardrail_retry_count;
 
-        // Emit ProviderResponded so runner cost summary includes agent work
+        // Emit ProviderResponded — use final status (post-guardrail override)
+        let final_reason = status.as_canonical_str();
         let total_cost = provider_kind
             .map(|pk| {
                 crate::provider::cost::calculate_cost_with_cache(
@@ -1245,7 +1247,7 @@ impl RigAgentLoop {
             output_tokens: total_output_tokens,
             cache_read_tokens: total_cached_input_tokens,
             ttft_ms: None,
-            finish_reason: stop_reason.to_string(),
+            finish_reason: final_reason.to_string(),
             cost_usd: if total_cost.is_finite() {
                 total_cost
             } else {
