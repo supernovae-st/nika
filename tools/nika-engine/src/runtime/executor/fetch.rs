@@ -5,6 +5,7 @@
 use std::sync::Arc;
 use std::time::Instant;
 
+use futures::StreamExt;
 use tracing::instrument;
 
 use crate::ast::FetchParams;
@@ -18,6 +19,38 @@ use crate::store::RunContext;
 use super::verbs::redact_for_event;
 use super::TaskExecutor;
 use crate::error_domains::ExecutionError;
+
+/// Read an HTTP response body with a streaming size limit.
+///
+/// Replaces `response.text().await` which buffers the entire body in memory.
+/// Aborts early when accumulated size exceeds `max_bytes`, preventing OOM
+/// from chunked transfer responses that bypass Content-Length pre-checks.
+async fn read_body_with_limit(
+    response: reqwest::Response,
+    max_bytes: u64,
+) -> Result<String, NikaError> {
+    let mut stream = response.bytes_stream();
+    let capacity = max_bytes.min(1_048_576) as usize;
+    let mut buffer = Vec::with_capacity(capacity);
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| NikaError::FetchError {
+            reason: format!("Failed to read response stream: {e}"),
+        })?;
+        if buffer.len() as u64 + chunk.len() as u64 > max_bytes {
+            return Err(ExecutionError::FetchFailed {
+                reason: format!(
+                    "Response body exceeded {} byte limit during streaming",
+                    max_bytes
+                ),
+            }
+            .into());
+        }
+        buffer.extend_from_slice(&chunk);
+    }
+    String::from_utf8(buffer).map_err(|e| NikaError::FetchError {
+        reason: format!("Response body is not valid UTF-8: {e}"),
+    })
+}
 
 impl TaskExecutor {
     #[instrument(skip(self, bindings, datastore), fields(url = %fetch.url))]
@@ -340,19 +373,7 @@ impl TaskExecutor {
                                 .into());
                             }
                         }
-                        let body = response.text().await.map_err(|e| NikaError::FetchError {
-                            reason: format!("Failed to read response: {}", e),
-                        })?;
-                        if body.len() as u64 > FULL_MAX_RESPONSE_SIZE {
-                            return Err(ExecutionError::FetchFailed {
-                                reason: format!(
-                                    "Response body too large ({} bytes, max {} bytes)",
-                                    body.len(),
-                                    FULL_MAX_RESPONSE_SIZE
-                                ),
-                            }
-                            .into());
-                        }
+                        let body = read_body_with_limit(response, FULL_MAX_RESPONSE_SIZE).await?;
                         return Ok(serde_json::json!({
                             "status": status,
                             "headers": headers,
@@ -502,11 +523,7 @@ impl TaskExecutor {
                                     continue;
                                 }
                                 if resp.status().is_success() {
-                                    if let Ok(body) = resp.text().await {
-                                        // Bug 10: Post-read size check (chunked bypass)
-                                        if body.len() > 1_048_576 {
-                                            continue;
-                                        }
+                                    if let Ok(body) = read_body_with_limit(resp, 1_048_576).await {
                                         if !body.trim().is_empty() {
                                             return Ok(serde_json::json!({
                                                 "found": true,
@@ -526,19 +543,7 @@ impl TaskExecutor {
                         return Ok(serde_json::json!({ "found": false }).to_string());
                     }
 
-                    let raw_body = response.text().await.map_err(|e| NikaError::FetchError {
-                        reason: format!("Failed to read response: {}", e),
-                    })?;
-                    if raw_body.len() as u64 > MAX_RESPONSE_SIZE {
-                        return Err(ExecutionError::FetchFailed {
-                            reason: format!(
-                                "Response body too large ({} bytes, max {} bytes)",
-                                raw_body.len(),
-                                MAX_RESPONSE_SIZE
-                            ),
-                        }
-                        .into());
-                    }
+                    let raw_body = read_body_with_limit(response, MAX_RESPONSE_SIZE).await?;
                     // Resolve templates in selector (e.g. {{with.css_query}})
                     let resolved_selector = match &fetch.selector {
                         Some(s) => Some(template_resolve(s, bindings, datastore)?.into_owned()),
