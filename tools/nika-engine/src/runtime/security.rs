@@ -52,9 +52,18 @@ const BLOCKLIST: &[&str] = &[
     "| rm ",
     // Fork bombs
     ":(){ :|:& };:",
-    // Python reverse shell
-    "python -c \"import socket",
-    "python3 -c \"import socket",
+    // Unix shell -c (arbitrary command execution)
+    "bash -c",
+    "sh -c",
+    "zsh -c",
+    "dash -c",
+    "ksh -c",
+    "csh -c",
+    "tcsh -c",
+    // Python/interpreter -c (arbitrary code execution — generic, not import-specific)
+    "python -c",
+    "python2 -c",
+    "python3 -c",
     // Privilege escalation
     "sudo ",
     "doas ",
@@ -674,6 +683,38 @@ mod tests {
         assert!(check_blocklist("dir C:\\Users").is_ok());
         assert!(check_blocklist("type file.txt").is_ok());
         assert!(check_blocklist("copy file1.txt file2.txt").is_ok());
+    }
+
+    // =========================================================================
+    // Unix shell -c and generic interpreter -c tests
+    // =========================================================================
+
+    #[test]
+    fn test_blocklist_rejects_unix_shell_c_variants() {
+        // All Unix shell -c variants must be blocked
+        assert!(check_blocklist("bash -c 'echo pwned'").is_err());
+        assert!(check_blocklist("sh -c 'cat /etc/passwd'").is_err());
+        assert!(check_blocklist("zsh -c 'whoami'").is_err());
+        assert!(check_blocklist("dash -c 'id'").is_err());
+        assert!(check_blocklist("ksh -c 'ls'").is_err());
+        assert!(check_blocklist("csh -c 'echo test'").is_err());
+        assert!(check_blocklist("tcsh -c 'echo test'").is_err());
+    }
+
+    #[test]
+    fn test_blocklist_rejects_generic_python_c() {
+        // Generic python -c must be blocked (not just import socket)
+        assert!(check_blocklist("python -c 'import os'").is_err());
+        assert!(check_blocklist("python2 -c 'print(1)'").is_err());
+        assert!(check_blocklist("python3 -c 'print(1)'").is_err());
+        assert!(check_blocklist("python3 -c '__import__(\"os\").system(\"id\")'").is_err());
+    }
+
+    #[test]
+    fn test_blocklist_allows_python_script_without_c_flag() {
+        // python3 script.py (no -c) must NOT be blocked
+        assert!(check_blocklist("python3 script.py").is_ok());
+        assert!(check_blocklist("python3 ./my_script.py --arg").is_ok());
     }
 
     // =========================================================================
