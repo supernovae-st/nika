@@ -1,0 +1,9 @@
+schema: nika/workflow@0.12
+workflow: err-preset-no-agents
+description: "preset: used but workflow has no agents: block"
+provider: mock
+
+tasks:
+  - id: generate
+    preset: summarizer
+    infer: "This should fail — no agents: block defined."

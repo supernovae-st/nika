@@ -1,0 +1,13 @@
+schema: nika/workflow@0.12
+workflow: err-preset-unknown
+description: "preset: references agent that does not exist in agents: block"
+
+agents:
+  researcher:
+    system: "You are a researcher."
+    provider: mock
+
+tasks:
+  - id: generate
+    preset: ghost_agent
+    infer: "This should fail at analysis time."
