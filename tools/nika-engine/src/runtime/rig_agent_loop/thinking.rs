@@ -15,7 +15,9 @@ use rig::streaming::StreamedAssistantContent;
 use serde_json;
 use tokio::time::timeout;
 
-use crate::ast::guardrails::{escalation_required, immediate_failures, run_sync_guardrails};
+use crate::ast::guardrails::{
+    escalation_required, has_llm_guardrails, immediate_failures, run_sync_guardrails,
+};
 use crate::error::NikaError;
 use crate::event::{AgentTurnMetadata, EventKind};
 use crate::util::STREAM_CHUNK_TIMEOUT;
@@ -50,6 +52,20 @@ impl RigAgentLoop {
     pub fn check_guardrails(&self, output: &str) -> GuardrailCheckResult {
         if self.params.guardrails.is_empty() {
             return GuardrailCheckResult::AllPassed;
+        }
+
+        // Reject LLM guardrails — async judge not yet implemented
+        if has_llm_guardrails(&self.params.guardrails) {
+            let task_id: Arc<str> = Arc::from(self.task_id.as_str());
+            self.event_log.emit(EventKind::GuardrailFailed {
+                task_id,
+                guardrail_type: "llm".to_string(),
+                description: "LLM judge guardrail".to_string(),
+                message: "type: llm guardrails are not yet implemented — \
+                          use type: regex, type: length, or type: schema instead"
+                    .to_string(),
+            });
+            return GuardrailCheckResult::FailedImmediate;
         }
 
         let results = run_sync_guardrails(&self.params.guardrails, output);

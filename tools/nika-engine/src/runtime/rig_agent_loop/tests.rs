@@ -1279,6 +1279,37 @@ fn test_check_guardrails_emits_escalation_event() {
     assert!(has_escalation, "Should have GuardrailEscalation event");
 }
 
+#[test]
+fn test_check_guardrails_llm_type_returns_immediate_failure() {
+    use crate::ast::guardrails::{GuardrailConfig, LlmGuardrail};
+
+    let params = AgentParams {
+        prompt: "Test".to_string(),
+        guardrails: vec![GuardrailConfig::Llm(LlmGuardrail::default())],
+        ..Default::default()
+    };
+    let event_log = EventLog::new();
+    let mcp_clients = FxHashMap::default();
+
+    let agent =
+        RigAgentLoop::new("test".to_string(), params, event_log.clone(), mcp_clients).unwrap();
+
+    // LLM guardrails should fail immediately (not silently skip)
+    let result = agent.check_guardrails("Any output");
+    assert_eq!(
+        result,
+        GuardrailCheckResult::FailedImmediate,
+        "LLM guardrails should fail immediately (not yet implemented)"
+    );
+
+    // Verify a GuardrailFailed event was emitted
+    let events = event_log.events();
+    let has_failed = events
+        .iter()
+        .any(|e| matches!(&e.kind, EventKind::GuardrailFailed { guardrail_type, .. } if guardrail_type == "llm"));
+    assert!(has_failed, "Should emit GuardrailFailed event for llm type");
+}
+
 // ========================================================================
 // Wave 2: Deep Audit - Bug-Proving Tests
 // ========================================================================
