@@ -157,6 +157,9 @@ impl RigAgentLoop {
             .stream_with_tools(model.clone(), &current_prompt, tools, max_turns)
             .await?;
 
+        // Capture TTFT from first streaming call (most meaningful for latency tracking)
+        let first_ttft_ms = result.ttft_ms;
+
         total_input_tokens += result.input_tokens;
         total_output_tokens += result.output_tokens;
         total_cached_input_tokens += result.cached_input_tokens;
@@ -196,7 +199,7 @@ impl RigAgentLoop {
                         input_tokens: total_input_tokens,
                         output_tokens: total_output_tokens,
                         cache_read_tokens: total_cached_input_tokens,
-                        ttft_ms: None,
+                        ttft_ms: first_ttft_ms,
                         finish_reason: format!("limit_exceeded:{}", exceeded.limit_type),
                         cost_usd: self.limit_tracker.cost_usd(),
                     });
@@ -253,7 +256,7 @@ impl RigAgentLoop {
                             input_tokens: total_input_tokens,
                             output_tokens: total_output_tokens,
                             cache_read_tokens: total_cached_input_tokens,
-                            ttft_ms: None,
+                            ttft_ms: first_ttft_ms,
                             finish_reason: format!("limit_exceeded:{}", exceeded.limit_type),
                             cost_usd: self.limit_tracker.cost_usd(),
                         });
@@ -371,7 +374,7 @@ impl RigAgentLoop {
                             input_tokens: total_input_tokens,
                             output_tokens: total_output_tokens,
                             cache_read_tokens: total_cached_input_tokens,
-                            ttft_ms: None,
+                            ttft_ms: first_ttft_ms,
                             finish_reason: format!("limit_exceeded:{}", exceeded.limit_type),
                             cost_usd: self.limit_tracker.cost_usd(),
                         });
@@ -489,7 +492,7 @@ impl RigAgentLoop {
             input_tokens: total_input_tokens,
             output_tokens: total_output_tokens,
             cache_read_tokens: total_cached_input_tokens,
-            ttft_ms: None,
+            ttft_ms: first_ttft_ms,
             finish_reason: final_reason.to_string(),
             cost_usd: if total_cost.is_finite() {
                 total_cost
@@ -567,6 +570,9 @@ impl RigAgentLoop {
             .stream_with_tools(model.clone(), &current_prompt, tools, max_turns)
             .await?;
 
+        // Capture TTFT from first streaming call (most meaningful for latency tracking)
+        let first_ttft_ms = result.ttft_ms;
+
         total_input_tokens += result.input_tokens;
         total_output_tokens += result.output_tokens;
         total_cached_input_tokens += result.cached_input_tokens;
@@ -606,7 +612,7 @@ impl RigAgentLoop {
                         input_tokens: total_input_tokens,
                         output_tokens: total_output_tokens,
                         cache_read_tokens: total_cached_input_tokens,
-                        ttft_ms: None,
+                        ttft_ms: first_ttft_ms,
                         finish_reason: format!("limit_exceeded:{}", exceeded.limit_type),
                         cost_usd: self.limit_tracker.cost_usd(),
                     });
@@ -663,7 +669,7 @@ impl RigAgentLoop {
                             input_tokens: total_input_tokens,
                             output_tokens: total_output_tokens,
                             cache_read_tokens: total_cached_input_tokens,
-                            ttft_ms: None,
+                            ttft_ms: first_ttft_ms,
                             finish_reason: format!("limit_exceeded:{}", exceeded.limit_type),
                             cost_usd: self.limit_tracker.cost_usd(),
                         });
@@ -780,7 +786,7 @@ impl RigAgentLoop {
                             input_tokens: total_input_tokens,
                             output_tokens: total_output_tokens,
                             cache_read_tokens: total_cached_input_tokens,
-                            ttft_ms: None,
+                            ttft_ms: first_ttft_ms,
                             finish_reason: format!("limit_exceeded:{}", exceeded.limit_type),
                             cost_usd: self.limit_tracker.cost_usd(),
                         });
@@ -898,7 +904,7 @@ impl RigAgentLoop {
             input_tokens: total_input_tokens,
             output_tokens: total_output_tokens,
             cache_read_tokens: total_cached_input_tokens,
-            ttft_ms: None,
+            ttft_ms: first_ttft_ms,
             finish_reason: final_reason.to_string(),
             cost_usd: if total_cost.is_finite() {
                 total_cost
@@ -1123,6 +1129,9 @@ impl RigAgentLoop {
             .stream_with_tools(model.clone(), &current_prompt, tools, max_turns)
             .await?;
 
+        // Capture TTFT from first streaming call (most meaningful for latency tracking)
+        let first_ttft_ms = result.ttft_ms;
+
         total_input_tokens += result.input_tokens;
         total_output_tokens += result.output_tokens;
         total_cached_input_tokens += result.cached_input_tokens;
@@ -1166,7 +1175,7 @@ impl RigAgentLoop {
                         input_tokens: total_input_tokens,
                         output_tokens: total_output_tokens,
                         cache_read_tokens: total_cached_input_tokens,
-                        ttft_ms: None,
+                        ttft_ms: first_ttft_ms,
                         finish_reason: format!("limit_exceeded:{}", exceeded.limit_type),
                         cost_usd: self.limit_tracker.cost_usd(),
                     });
@@ -1223,7 +1232,7 @@ impl RigAgentLoop {
                             input_tokens: total_input_tokens,
                             output_tokens: total_output_tokens,
                             cache_read_tokens: total_cached_input_tokens,
-                            ttft_ms: None,
+                            ttft_ms: first_ttft_ms,
                             finish_reason: format!("limit_exceeded:{}", exceeded.limit_type),
                             cost_usd: self.limit_tracker.cost_usd(),
                         });
@@ -1345,7 +1354,7 @@ impl RigAgentLoop {
                             input_tokens: total_input_tokens,
                             output_tokens: total_output_tokens,
                             cache_read_tokens: total_cached_input_tokens,
-                            ttft_ms: None,
+                            ttft_ms: first_ttft_ms,
                             finish_reason: format!("limit_exceeded:{}", exceeded.limit_type),
                             cost_usd: self.limit_tracker.cost_usd(),
                         });
@@ -1472,7 +1481,7 @@ impl RigAgentLoop {
             input_tokens: total_input_tokens,
             output_tokens: total_output_tokens,
             cache_read_tokens: total_cached_input_tokens,
-            ttft_ms: None,
+            ttft_ms: first_ttft_ms,
             finish_reason: final_reason.to_string(),
             cost_usd: if total_cost.is_finite() {
                 total_cost
