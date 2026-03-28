@@ -25,14 +25,20 @@
     },
     "provider": {
       "type": "string",
-      "enum": ["claude", "openai", "mistral", "groq", "deepseek", "gemini", "xai", "grok", "native", "mock"],
       "default": "claude",
-      "description": "Default LLM provider for infer and agent tasks (native = local GGUF inference via mistral.rs)"
+      "description": "Default LLM provider or custom endpoint name from config.toml (e.g., claude, openai, qwen, vllm, ollama)",
+      "examples": ["claude", "openai", "qwen", "native", "mock"]
     },
     "model": {
       "type": "string",
       "description": "Required for LLM tasks. Model to use for infer/agent verbs (e.g., gpt-4o-mini, claude-sonnet-4-6)",
-      "examples": ["claude-sonnet-4-6", "gpt-4o-mini", "gemini-2.0-flash"]
+      "examples": ["claude-sonnet-4-6", "gpt-4o-mini", "gemini-2.0-flash", "Qwen/Qwen3.5-27B-GPTQ-Int4"]
+    },
+    "base_url": {
+      "type": "string",
+      "format": "uri",
+      "description": "Base URL for OpenAI-compatible endpoint (e.g., vLLM, Ollama). Overrides provider's default URL.",
+      "examples": ["http://localhost:8000/v1", "http://10.0.1.42:8000/v1"]
     },
     "context": {
       "$ref": "#/$defs/ContextSpec",
@@ -138,13 +144,12 @@
     },
     "McpServerConfig": {
       "type": "object",
-      "description": "Inline MCP server configuration",
-      "required": ["command"],
+      "description": "Inline MCP server configuration (stdio or SSE/streamable-http)",
       "additionalProperties": false,
       "properties": {
         "command": {
           "type": "string",
-          "description": "Command to spawn the MCP server",
+          "description": "Command to spawn the MCP server (stdio transport)",
           "examples": ["cargo", "node", "python", "npx"]
         },
         "args": {
@@ -161,8 +166,24 @@
         "cwd": {
           "type": "string",
           "description": "Working directory for the server process"
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL for SSE or streamable-http transport",
+          "examples": ["http://localhost:3000/mcp", "https://mcp.example.com/sse"]
+        },
+        "transport": {
+          "type": "string",
+          "enum": ["stdio", "sse", "streamable-http"],
+          "default": "stdio",
+          "description": "MCP transport protocol"
         }
-      }
+      },
+      "oneOf": [
+        { "required": ["command"] },
+        { "required": ["url"] }
+      ]
     },
     "Task": {
       "type": "object",
@@ -258,12 +279,17 @@
         },
         "provider": {
           "type": "string",
-          "enum": ["claude", "openai", "mistral", "groq", "deepseek", "gemini", "xai", "grok", "native", "mock"],
-          "description": "Provider override for this task"
+          "description": "Provider override or custom endpoint name for this task"
         },
         "model": {
           "type": "string",
           "description": "Model override for this task"
+        },
+        "base_url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Inline base URL for OpenAI-compatible endpoint (one-off override)",
+          "examples": ["http://localhost:11434/v1"]
         },
         "retry": {
           "$ref": "#/$defs/RetryConfig",
@@ -287,7 +313,9 @@
         { "required": ["id", "exec"] },
         { "required": ["id", "fetch"] },
         { "required": ["id", "invoke"] },
-        { "required": ["id", "agent"] }
+        { "required": ["id", "agent"] },
+        { "required": ["id", "decompose"] },
+        { "required": ["id", "depends_on"] }
       ]
     },
     "DecomposeSpec": {
@@ -624,12 +652,16 @@
               "pattern": "^nika:"
             }
           },
-          "not": {
-            "anyOf": [
-              { "required": ["mcp"] },
-              { "required": ["server"] }
-            ]
-          }
+          "description": "Builtin tools: nika:import, nika:thumbnail, etc."
+        },
+        {
+          "required": ["tool"],
+          "properties": {
+            "tool": {
+              "pattern": "^[a-z][a-z0-9_-]*::[a-z]"
+            }
+          },
+          "description": "MCP tools with server::tool_name syntax (e.g., novanet::search)"
         },
         { "required": ["mcp", "resource"] },
         { "required": ["server", "resource"] }
@@ -650,8 +682,7 @@
         },
         "provider": {
           "type": "string",
-          "enum": ["claude", "openai", "mistral", "groq", "deepseek", "gemini", "xai", "grok", "native", "mock"],
-          "description": "Provider override (native = local GGUF inference)"
+          "description": "Provider override or custom endpoint name (native = local GGUF inference)"
         },
         "model": {
           "type": "string",
@@ -1139,8 +1170,7 @@
         },
         "provider": {
           "type": "string",
-          "enum": ["claude", "openai", "mistral", "groq", "deepseek", "gemini", "xai", "grok", "native", "mock"],
-          "description": "Provider override (native = local GGUF inference)"
+          "description": "Provider override or custom endpoint name (native = local GGUF inference)"
         },
         "model": {
           "type": "string",
