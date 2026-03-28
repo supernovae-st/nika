@@ -697,7 +697,9 @@ impl TaskExecutor {
                                             .map(|pk| {
                                                 crate::provider::cost::calculate_cost_with_cache(
                                                     pk,
-                                                    model.unwrap_or_else(|| provider.default_model()),
+                                                    model.unwrap_or_else(|| {
+                                                        provider.default_model()
+                                                    }),
                                                     est_in,
                                                     est_out,
                                                     0, // No cache info for non-streaming
@@ -843,10 +845,7 @@ impl TaskExecutor {
         let infer_duration = infer_start.elapsed();
         let cost = if let Some(hourly_rate) = self.endpoint_hourly_rate(provider_name) {
             // Custom endpoint with hourly_rate: use time-based cost
-            crate::provider::cost::calculate_hourly_cost(
-                infer_duration.as_secs_f64(),
-                hourly_rate,
-            )
+            crate::provider::cost::calculate_hourly_cost(infer_duration.as_secs_f64(), hourly_rate)
         } else {
             // Cloud provider: use token-based cost
             provider
