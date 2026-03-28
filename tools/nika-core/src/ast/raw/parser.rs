@@ -1686,6 +1686,7 @@ fn validate_task_keys(
         "provider",
         "model",
         "base_url",
+        "preset",
         "with",
         "depends_on",
         "output",
@@ -1772,6 +1773,7 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
     let provider = get_string_field(file_id, map, "provider")?;
     let model = get_string_field(file_id, map, "model")?;
     let base_url = get_string_field(file_id, map, "base_url")?;
+    let preset = get_string_field(file_id, map, "preset")?;
 
     // Parse all task fields
     let action = parse_action(file_id, map)?;
@@ -1828,6 +1830,7 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
         provider,
         model,
         base_url,
+        preset,
         action,
         with_refs,
         depends_on,

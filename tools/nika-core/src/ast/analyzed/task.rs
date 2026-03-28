@@ -40,6 +40,9 @@ pub struct AnalyzedTask {
     /// Task-level base URL override for OpenAI-compatible endpoint
     pub base_url: Option<String>,
 
+    /// Agent preset reference from the workflow's `agents:` block
+    pub preset: Option<String>,
+
     /// Parsed `with:` bindings (alias → WithEntry with source, transforms, defaults)
     ///
     /// Phase 2 parses raw `Spanned<String>` values via `parse_with_entry()`.

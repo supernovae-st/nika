@@ -279,6 +279,9 @@ pub struct Task {
     /// ```
     #[serde(default)]
     pub structured: Option<super::structured::StructuredOutputSpec>,
+    /// Agent preset reference from the workflow's `agents:` block
+    #[serde(default)]
+    pub preset: Option<String>,
 }
 
 impl Task {
