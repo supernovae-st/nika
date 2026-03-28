@@ -59,6 +59,45 @@ pub(crate) fn is_ssrf_blocked(host: &str) -> bool {
     }
 }
 
+/// Resolve a hostname to IP addresses and check each against SSRF blocklist.
+///
+/// Defends against DNS rebinding: a hostname passes the string-level check
+/// but resolves to a private/link-local IP at connect time.
+///
+/// Returns `true` if ANY resolved IP is blocked.
+pub(crate) async fn resolve_and_check_ssrf(host: &str) -> bool {
+    // Skip resolution for raw IPs — already checked by is_ssrf_blocked()
+    if host.parse::<IpAddr>().is_ok() {
+        return is_ssrf_blocked(host);
+    }
+
+    // Attempt DNS resolution with timeout
+    let lookup = tokio::time::timeout(
+        std::time::Duration::from_secs(3),
+        tokio::net::lookup_host(format!("{host}:0")),
+    )
+    .await;
+
+    match lookup {
+        Ok(Ok(addrs)) => {
+            for addr in addrs {
+                let ip_str = addr.ip().to_string();
+                if is_ssrf_blocked(&ip_str) {
+                    tracing::warn!(
+                        host = %host,
+                        resolved_ip = %ip_str,
+                        "DNS rebinding SSRF blocked: hostname resolved to private IP"
+                    );
+                    return true;
+                }
+            }
+            false
+        }
+        // DNS resolution failed or timed out — don't block (request will fail on its own)
+        Ok(Err(_)) | Err(_) => false,
+    }
+}
+
 /// Check an IPv4 address against blocked private/reserved ranges.
 fn is_blocked_v4(v4: Ipv4Addr) -> bool {
     let octets = v4.octets();
@@ -260,6 +299,34 @@ impl PolicyEnforcer {
                     "Host '{}' is not in allowed hosts list",
                     host
                 ));
+            }
+        }
+
+        PolicyDecision::Allow
+    }
+
+    /// Async version of check_fetch that also performs DNS resolution checks.
+    ///
+    /// Call this instead of check_fetch() for the main fetch: verb request.
+    /// Adds DNS rebinding protection on top of string-level SSRF checks.
+    pub async fn check_fetch_async(&self, url: &str) -> PolicyDecision {
+        // Run all string-level checks first
+        let string_decision = self.check_fetch(url);
+        if !string_decision.is_allowed() {
+            return string_decision;
+        }
+
+        // Resolve hostname and check resolved IPs against SSRF blocklist
+        if let Ok(parsed) = Url::parse(url) {
+            if let Some(host) = parsed.host_str() {
+                let h = host.to_lowercase();
+                let h = h.trim_start_matches('[').trim_end_matches(']');
+                if resolve_and_check_ssrf(h).await {
+                    return PolicyDecision::Block(format!(
+                        "DNS rebinding SSRF: '{}' resolved to blocked IP",
+                        host
+                    ));
+                }
             }
         }
 
