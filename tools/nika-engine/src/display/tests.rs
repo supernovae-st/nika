@@ -2737,3 +2737,18 @@ fn output_preview_size_label() {
         "should show character count in size label"
     );
 }
+
+// ── Routing display tests ───────────────────────────────────────────
+
+#[test]
+fn fmt_fallback_triggered_output() {
+    let output = super::format_event::fmt_fallback_triggered("h100", "anthropic", "timeout", 0);
+    let stripped = strip_ansi(&output);
+    assert!(stripped.contains("fallback"), "should contain 'fallback'");
+    assert!(stripped.contains("h100"), "should contain from_provider");
+    assert!(
+        stripped.contains("anthropic"),
+        "should contain to_provider"
+    );
+    assert!(stripped.contains("timeout"), "should contain reason");
+}

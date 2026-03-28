@@ -239,6 +239,24 @@ pub(crate) fn fmt_exec_completed(exit_code: i32, duration_ms: u64) -> String {
     ))
 }
 
+// ── Routing ─────────────────────────────────────────────────────────────
+
+pub(crate) fn fmt_fallback_triggered(
+    from_provider: &str,
+    to_provider: &str,
+    reason: &str,
+    attempt: u32,
+) -> String {
+    sub(format!(
+        "{} \u{21AF} fallback #{} {} \u{2192} {} ({})",
+        icons::provider(),
+        attempt,
+        from_provider.dimmed(),
+        to_provider.cyan(),
+        reason.dimmed(),
+    ))
+}
+
 // ── Policy ──────────────────────────────────────────────────────────────
 
 pub(crate) fn fmt_policy_blocked(ts: &str, policy_type: &str, reason: &str) -> String {
