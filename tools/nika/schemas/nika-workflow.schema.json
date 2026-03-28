@@ -541,10 +541,6 @@
           "minimum": 1,
           "description": "Request timeout in seconds"
         },
-        "retry": {
-          "$ref": "#/$defs/RetryConfig",
-          "description": "Retry configuration for failed requests (v0.19+)"
-        },
         "follow_redirects": {
           "type": "boolean",
           "description": "Whether to follow HTTP redirects (defaults to true)"
