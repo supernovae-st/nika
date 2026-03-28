@@ -417,6 +417,83 @@ impl TaskExecutor {
         }
     }
 
+    /// Execute a task action with routing (fallback chain support).
+    ///
+    /// If routing has a non-empty fallback chain, tries each provider in order.
+    /// On provider error, emits `FallbackTriggered` and tries the next provider.
+    /// If all providers fail, returns `FallbackChainExhausted` (NIKA-037).
+    ///
+    /// For tasks without routing, delegates directly to `execute()`.
+    pub async fn execute_with_routing(
+        &self,
+        task_id: &Arc<str>,
+        action: &TaskAction,
+        bindings: &ResolvedBindings,
+        datastore: &RunContext,
+        output_policy: Option<&OutputPolicy>,
+        routing: Option<&nika_core::ast::routing::RoutingConfig>,
+    ) -> Result<String, NikaError> {
+        let chain = routing
+            .map(|r| &r.fallback)
+            .filter(|f| !f.is_empty());
+
+        let Some(fallback_chain) = chain else {
+            // No routing — standard execution
+            return self.execute(task_id, action, bindings, datastore, output_policy).await;
+        };
+
+        // Only infer and agent verbs support fallback routing
+        let is_llm_verb = matches!(action, TaskAction::Infer { .. } | TaskAction::Agent { .. });
+        if !is_llm_verb {
+            return self.execute(task_id, action, bindings, datastore, output_policy).await;
+        }
+
+        let mut last_error: Option<NikaError> = None;
+
+        for (attempt, provider_name) in fallback_chain.iter().enumerate() {
+            // Override the provider for this attempt
+            let mut action_clone = action.clone();
+            match &mut action_clone {
+                TaskAction::Infer { infer } => {
+                    infer.provider = Some(provider_name.clone());
+                }
+                TaskAction::Agent { agent } => {
+                    agent.provider = Some(provider_name.clone());
+                }
+                _ => {}
+            }
+
+            match self
+                .execute(task_id, &action_clone, bindings, datastore, output_policy)
+                .await
+            {
+                Ok(output) => return Ok(output),
+                Err(e) => {
+                    let is_last = attempt == fallback_chain.len() - 1;
+                    if !is_last {
+                        // Emit fallback event and try next
+                        let next_provider = &fallback_chain[attempt + 1];
+                        self.event_log.emit(crate::event::EventKind::FallbackTriggered {
+                            task_id: Arc::clone(task_id),
+                            from_provider: provider_name.clone(),
+                            to_provider: next_provider.clone(),
+                            reason: classify_fallback_reason(&e),
+                            attempt: attempt as u32,
+                        });
+                    }
+                    last_error = Some(e);
+                }
+            }
+        }
+
+        Err(NikaError::FallbackChainExhausted {
+            providers: fallback_chain.join(", "),
+            last_error: last_error
+                .map(|e| e.to_string())
+                .unwrap_or_else(|| "unknown".to_string()),
+        })
+    }
+
     /// Get or create a cached rig-core provider.
     ///
     /// Resolves provider names and aliases via [`RigProvider::from_name()`],
@@ -495,5 +572,16 @@ pub(super) fn action_type(action: &TaskAction) -> &'static str {
         TaskAction::Fetch { .. } => "fetch",
         TaskAction::Invoke { .. } => "invoke",
         TaskAction::Agent { .. } => "agent",
+    }
+}
+
+/// Classify error into a fallback reason string for the FallbackTriggered event.
+fn classify_fallback_reason(err: &NikaError) -> String {
+    match err {
+        NikaError::Timeout { .. } | NikaError::McpTimeout { .. } => "timeout".to_string(),
+        NikaError::StructuredOutputAllLayersFailed { .. } => "structured_failure".to_string(),
+        NikaError::EndpointConnectionFailed { .. } => "connection_failed".to_string(),
+        NikaError::EndpointNotFound { .. } => "endpoint_not_found".to_string(),
+        _ => "error".to_string(),
     }
 }

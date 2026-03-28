@@ -1056,14 +1056,15 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             let max_attempts = task_retry.map_or(1u32, |r| r.max_attempts.max(1));
 
             let result = if max_attempts <= 1 {
-                // No retry — single execution
+                // No retry — single execution (with routing fallback if configured)
                 executor
-                    .execute(
+                    .execute_with_routing(
                         &task_id,
                         &lowered_action,
                         &bindings,
                         &datastore,
                         effective_output.as_ref(),
+                        task.routing.as_ref(),
                     )
                     .await
             } else {
@@ -1088,12 +1089,13 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     }
 
                     match executor
-                        .execute(
+                        .execute_with_routing(
                             &task_id,
                             &lowered_action,
                             &bindings,
                             &datastore,
                             effective_output.as_ref(),
+                            task.routing.as_ref(),
                         )
                         .await
                     {
