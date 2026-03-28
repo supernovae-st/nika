@@ -1000,6 +1000,9 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         if params.temperature.is_none() {
                             params.temperature = agent.temperature;
                         }
+                        if params.max_turns.is_none() {
+                            params.max_turns = agent.max_turns;
+                        }
                     }
                     _ => {}
                 }
