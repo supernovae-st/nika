@@ -212,6 +212,8 @@ pub enum RigProvider {
         endpoint_name: String,
         /// Default model for this endpoint
         default_model: Option<String>,
+        /// Pre-computed name for `name()` — avoids Box::leak on every call
+        cached_name: String,
     },
     /// Native local provider - GGUF models via mistral.rs
     /// Requires `native-inference` feature and explicit model loading.
@@ -345,10 +347,13 @@ impl RigProvider {
             .map_err(|e| crate::error_domains::ProviderError::InvalidConfig {
                 message: format!("failed to build OpenAI-compatible client: {e}"),
             })?;
+        let name_str = endpoint_name.to_string();
+        let cached_name = format!("openai-compat:{}", name_str);
         Ok(RigProvider::OpenAiCompat {
             client,
-            endpoint_name: endpoint_name.to_string(),
+            endpoint_name: name_str,
             default_model: default_model.map(|s| s.to_string()),
+            cached_name,
         })
     }
 
@@ -447,7 +452,7 @@ impl RigProvider {
     }
 
     /// Get the provider name
-    pub fn name(&self) -> &'static str {
+    pub fn name(&self) -> &str {
         match self {
             RigProvider::Claude(_) => "claude",
             RigProvider::OpenAI(_) => "openai",
@@ -456,9 +461,7 @@ impl RigProvider {
             RigProvider::DeepSeek(_) => "deepseek",
             RigProvider::Gemini(_) => "gemini",
             RigProvider::XAi(_) => "xai",
-            RigProvider::OpenAiCompat { endpoint_name, .. } => {
-                Box::leak(format!("openai-compat:{}", endpoint_name).into_boxed_str())
-            }
+            RigProvider::OpenAiCompat { cached_name, .. } => cached_name,
             #[cfg(feature = "native-inference")]
             RigProvider::Native(_) => "native",
         }
@@ -475,7 +478,7 @@ impl RigProvider {
     /// | DeepSeek | deepseek-chat | Cost-effective |
     /// | Gemini | gemini-2.0-flash | Latest stable |
     /// | Native | (loaded model) | Uses pre-loaded GGUF model |
-    pub fn default_model(&self) -> &'static str {
+    pub fn default_model(&self) -> &str {
         match self {
             // Note: rig-core's CLAUDE_3_5_SONNET constant is outdated
             // Using explicit model name for stability
@@ -486,10 +489,9 @@ impl RigProvider {
             RigProvider::DeepSeek(_) => "deepseek-chat",
             RigProvider::Gemini(_) => "gemini-2.0-flash",
             RigProvider::XAi(_) => "grok-3-fast",
-            RigProvider::OpenAiCompat { default_model, .. } => match default_model {
-                Some(m) => Box::leak(m.clone().into_boxed_str()),
-                None => "gpt-3.5-turbo",
-            },
+            RigProvider::OpenAiCompat { default_model, .. } => {
+                default_model.as_deref().unwrap_or("gpt-3.5-turbo")
+            }
             // Native uses whatever model is loaded, no default
             #[cfg(feature = "native-inference")]
             RigProvider::Native(_) => "native-model",
@@ -3429,5 +3431,48 @@ mod tests {
             "Expected NIKA-030 not configured, got: {}",
             err_msg
         );
+    }
+
+    // =========================================================================
+    // Fix 1.1: No Box::leak in name() and default_model()
+    // =========================================================================
+
+    #[test]
+    fn test_openai_compat_name_no_leak() {
+        // Creating many OpenAiCompat providers should NOT permanently leak memory.
+        // Before fix: Box::leak allocated a new &'static str every call.
+        // After fix: cached_name field returned by reference.
+        for i in 0..100 {
+            let provider = RigProvider::openai_compat(
+                &format!("endpoint-{}", i),
+                "http://localhost:8000/v1",
+                "test-key",
+                Some("test-model"),
+            )
+            .unwrap();
+            assert_eq!(provider.name(), format!("openai-compat:endpoint-{}", i));
+        }
+    }
+
+    #[test]
+    fn test_openai_compat_default_model_cached() {
+        let provider = RigProvider::openai_compat(
+            "h100",
+            "http://localhost:8000/v1",
+            "test-key",
+            Some("Qwen/Qwen3-8B"),
+        )
+        .unwrap();
+        assert_eq!(provider.default_model(), "Qwen/Qwen3-8B");
+
+        // Without default model → fallback
+        let provider2 = RigProvider::openai_compat(
+            "h100",
+            "http://localhost:8000/v1",
+            "test-key",
+            None,
+        )
+        .unwrap();
+        assert_eq!(provider2.default_model(), "gpt-3.5-turbo");
     }
 }
