@@ -425,14 +425,6 @@
               "description": "Multimodal vision content parts (v0.34+).",
               "items": { "$ref": "#/$defs/ContentPart" }
             },
-            "provider": {
-              "type": "string",
-              "description": "Provider override for this task"
-            },
-            "model": {
-              "type": "string",
-              "description": "Model override for this task"
-            },
             "guardrails": {
               "type": "array",
               "description": "Guardrails for validating infer output (v0.12+)",
