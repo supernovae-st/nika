@@ -1,0 +1,33 @@
+schema: nika/workflow@0.12
+workflow: agents-preset-demo
+description: "Demonstrates agent presets for model routing"
+provider: mock
+
+agents:
+  think:
+    system: "You are a deep reasoning assistant. Think step by step."
+    provider: mock
+    model: mock-think
+    temperature: 0.3
+  lite:
+    system: "You are a fast, concise assistant."
+    provider: mock
+    model: mock-lite
+    temperature: 0.8
+
+tasks:
+  - id: plan
+    preset: think
+    infer: "Create a 3-step plan for building a REST API"
+
+  - id: implement
+    preset: lite
+    depends_on: [plan]
+    with: { plan: $plan }
+    infer: "Implement step 1 from: {{with.plan}}"
+
+  - id: review
+    preset: think
+    depends_on: [implement]
+    with: { code: $implement }
+    infer: "Review this code for issues: {{with.code}}"
