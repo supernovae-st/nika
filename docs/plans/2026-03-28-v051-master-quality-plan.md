@@ -399,6 +399,58 @@ Before declaring v0.51 quality-complete:
 
 ---
 
+---
+
+## PART 6: TELEMETRY AUDIT FINDINGS (Agent 6)
+
+55 EventKind variants found. Only ~25 tested. 30 emitted in production with ZERO tests.
+
+### HIGH — Wrong/Missing Event Data
+
+| ID | Bug | File | Fix |
+|----|-----|------|-----|
+| EV1 | `ContextAssembled` always reports `budget_used_pct: 0.0`, `truncated: false`, `excluded: []` — all hardcoded | `infer.rs:142-149` | Populate fields or remove them |
+| EV2 | Chat path (`chat.rs`) NEVER emits `ProviderResponded` — tokens/cost invisible | `chat.rs` (entire file) | Add ProviderResponded after each chat turn |
+| EV3 | `PolicyBlocked` event = ZERO tests (security-critical) | `fetch.rs:146`, `exec.rs:45` | Add test that blocked commands emit PolicyBlocked |
+| EV4 | `FallbackTriggered` event = ZERO tests (routing feature) | `executor/mod.rs:479` | Add test for provider fallback |
+| EV5 | MCP disconnect/reconnect = NO events at all | `client.rs:758,798` | Add McpDisconnected, McpReconnected events |
+
+### MEDIUM — Missing Event Tests (28 variants)
+
+`ArtifactWritten`, `ArtifactFailed`, `MediaExtracted`, `MediaProcessed`, `MediaStored`,
+`MediaStoreFailed`, `VisionContentResolved`, `ExecCompleted`, `FetchRetry`,
+`BindingDefaultApplied`, `BindingTransformApplied`, `BindingEnvResolved`,
+`ForEachStarted`, `ForEachCompleted`, `ExtractApplied`, `DecomposeStarted`,
+`DecomposeCompleted`, `ProviderInitialized`, `StreamingDelta`, `AgentStart`,
+`AgentTurn`, `AgentComplete`, `BootPhaseCompleted`, `NativeModelLoaded`,
+`TaskScheduled`, `GuardrailPassed`, `MediaIntegrityCheck`, `ContextAssembled`
+
+Each needs at minimum one test verifying:
+1. The event IS emitted at the right time
+2. The event data (task_id, tokens, cost, duration) is CORRECT
+
+### MEDIUM — Estimated Tokens in Events
+
+| ID | Bug | File |
+|----|-----|------|
+| EV6 | Structured output retry reports chars/4 estimate, not actual | `structured_output.rs:526` |
+| EV7 | Structured output repair reports chars/4 estimate, not actual | `structured_output.rs:690` |
+| EV8 | Non-streaming fallback reports estimated tokens | `infer.rs:638,707` |
+
+### Missing EventKind Variants (should be added)
+
+| Event | Where it should fire | Why |
+|-------|---------------------|-----|
+| `McpDisconnected` | `client.rs:758` disconnect() | Pool/TUI need to know server died |
+| `McpReconnected` | `client.rs:798` reconnect() | Track server recovery |
+| `ProviderRateLimited` | `provider/rig.rs:1102` on 429 | Separate from TaskFailed for observability |
+
+### Doc Staleness
+
+`log.rs:5` says "44 variants across 15 categories" — actual: **55 variants across 18 categories**.
+
+---
+
 *This plan incorporates findings from: 1 silent-failure agent (16 bugs), 1 security agent (10 bugs),
-1 test-quality agent (24 findings), 2 research agents (15 crate recommendations),
-plus 20 bugs from original v0.51 plan. Architecture + telemetry agent findings pending.*
+1 test-quality agent (24 findings), 1 telemetry agent (40+ findings), 3 research agents (30+ crate recommendations),
+plus 20 bugs from original v0.51 plan. Architecture agent findings pending.*
