@@ -87,6 +87,25 @@ impl SkillInjector {
             return Ok(Arc::clone(&cached));
         }
 
+        // SECURITY: Pre-read size check to prevent DoS via huge skill files
+        const MAX_SKILL_BYTES: u64 = 1_048_576; // 1 MiB
+        let metadata = fs::metadata(&resolved_path)
+            .await
+            .map_err(|e| NikaError::SkillLoadError {
+                skill: skill_path.to_string(),
+                reason: format!("Cannot stat file '{}': {}", resolved_path.display(), e),
+            })?;
+        if metadata.len() > MAX_SKILL_BYTES {
+            return Err(NikaError::SkillLoadError {
+                skill: skill_path.to_string(),
+                reason: format!(
+                    "Skill file too large: {} bytes (max {} bytes)",
+                    metadata.len(),
+                    MAX_SKILL_BYTES
+                ),
+            });
+        }
+
         // Load file content
         let content =
             fs::read_to_string(&resolved_path)
