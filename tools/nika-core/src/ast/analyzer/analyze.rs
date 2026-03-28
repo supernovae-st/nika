@@ -2995,4 +2995,129 @@ mod tests {
             "context_files should be empty when no context: block"
         );
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // PRESET VALIDATION TESTS
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_analyze_valid_preset_reference() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+agents:
+  assistant:
+    system: "You are helpful"
+    provider: mock
+    model: mock-fast
+tasks:
+  - id: gen
+    preset: assistant
+    infer: "hello"
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = analyze(raw);
+        assert!(
+            result.errors.is_empty(),
+            "Valid preset reference should pass: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_analyze_preset_unknown_emits_error() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: gen
+    preset: ghost
+    infer: "hello"
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = analyze(raw);
+        assert!(
+            !result.errors.is_empty(),
+            "Unknown preset should produce error"
+        );
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| e.kind == AnalyzeErrorKind::InvalidValue),
+            "Error should be InvalidValue (NIKA-144), got: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_analyze_preset_missing_agents_block() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: gen
+    preset: summarizer
+    infer: "hello"
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = analyze(raw);
+        assert!(
+            !result.errors.is_empty(),
+            "Preset without agents: block should produce error"
+        );
+    }
+
+    #[test]
+    fn test_analyze_preset_exempts_missing_model() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+agents:
+  writer:
+    system: "You write well"
+    provider: mock
+    model: mock-fast
+tasks:
+  - id: gen
+    preset: writer
+    infer: "hello"
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = analyze(raw);
+        assert!(
+            result.errors.is_empty(),
+            "Preset with model in agents: block should exempt missing model: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_analyze_multiple_tasks_with_presets() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+agents:
+  summarizer:
+    system: "Summarize"
+    provider: mock
+    model: mock-fast
+  writer:
+    system: "Write"
+    provider: mock
+    model: mock-fast
+tasks:
+  - id: summary
+    preset: summarizer
+    infer: "summarize"
+  - id: article
+    preset: writer
+    depends_on: [summary]
+    with:
+      data: $summary
+    infer: "write about {{with.data}}"
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = analyze(raw);
+        assert!(
+            result.errors.is_empty(),
+            "Multiple presets should work: {:?}",
+            result.errors
+        );
+    }
 }
