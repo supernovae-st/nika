@@ -1013,11 +1013,58 @@ fn parse_for_each(
                 span,
             )))
         }
-        Some(node) => Err(ParseError {
-            kind: ParseErrorKind::InvalidType,
-            span: node_to_span(file, node),
-            message: "for_each must be array or string".to_string(),
-        }),
+        Some(Node::Mapping(m)) => {
+            // Object form: for_each: { items: ..., as: ..., concurrency: ..., fail_fast: ... }
+            let span = marked_span_to_span(file, m.span());
+            let items = match m.get_node("items") {
+                Some(Node::Sequence(seq)) => {
+                    let arr: Vec<serde_json::Value> = seq.iter().map(node_to_json).collect();
+                    let items_str =
+                        serde_json::to_string(&arr).map_err(|e| ParseError {
+                            kind: ParseErrorKind::InvalidType,
+                            span,
+                            message: format!(
+                                "failed to serialize for_each items: {}",
+                                e
+                            ),
+                        })?;
+                    Spanned::new(items_str, marked_span_to_span(file, seq.span()))
+                }
+                Some(Node::Scalar(s)) => {
+                    Spanned::new(
+                        s.as_str().to_string(),
+                        marked_span_to_span(file, s.span()),
+                    )
+                }
+                _ => {
+                    return Err(ParseError {
+                        kind: ParseErrorKind::MissingField,
+                        span,
+                        message: "for_each object form requires 'items' field"
+                            .to_string(),
+                    });
+                }
+            };
+            // Inner mapping fields take precedence, fall back to task-level
+            let as_var = get_string_field(file, m, "as")?
+                .or(get_string_field(file, map, "as")?);
+            let concurrency = get_u32_field(file, m, "concurrency")?
+                .or(get_u32_field(file, map, "concurrency")?);
+            let fail_fast = get_bool_field(file, m, "fail_fast")?
+                .or(get_bool_field(file, map, "fail_fast")?);
+
+            Ok(Some(Spanned::new(
+                RawForEach {
+                    items,
+                    as_var,
+                    concurrency,
+                    fail_fast,
+                },
+                span,
+            )))
+        }
+        // All Node variants (Sequence, Scalar, Mapping) are covered above.
+        // This branch is kept for forward-compatibility if Node gains new variants.
         None => Ok(None),
     }
 }
@@ -2554,6 +2601,66 @@ tasks:
 
         let for_each = task.value.for_each.as_ref().unwrap();
         assert_eq!(for_each.value.items.value, "{{with.items}}");
+    }
+
+    #[test]
+    fn test_parse_for_each_object_form_with_template() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: batch
+    for_each:
+      items: "{{with.data}}"
+      as: item
+      concurrency: 5
+      fail_fast: false
+    infer: "Process {{with.item}}"
+"#;
+        let workflow = parse(yaml, FileId(0)).unwrap();
+        let task = workflow.get_task("batch").unwrap();
+
+        let for_each = task.value.for_each.as_ref().unwrap();
+        assert_eq!(for_each.value.items.value, "{{with.data}}");
+        assert_eq!(for_each.value.as_var.as_ref().unwrap().value, "item");
+        assert_eq!(for_each.value.concurrency.as_ref().unwrap().value, 5);
+        assert_eq!(for_each.value.fail_fast.as_ref().unwrap().value, false);
+    }
+
+    #[test]
+    fn test_parse_for_each_object_form_with_array() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: batch
+    for_each:
+      items: ["a", "b", "c"]
+      as: x
+      concurrency: 3
+    infer: "Process {{with.x}}"
+"#;
+        let workflow = parse(yaml, FileId(0)).unwrap();
+        let task = workflow.get_task("batch").unwrap();
+
+        let for_each = task.value.for_each.as_ref().unwrap();
+        assert!(for_each.value.items.value.contains("["));
+        assert_eq!(for_each.value.as_var.as_ref().unwrap().value, "x");
+        assert_eq!(for_each.value.concurrency.as_ref().unwrap().value, 3);
+    }
+
+    #[test]
+    fn test_parse_for_each_object_form_missing_items() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: batch
+    for_each:
+      as: item
+    infer: "No items"
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.message.contains("items"), "error should mention 'items': {}", err.message);
     }
 
     #[test]
