@@ -8,10 +8,10 @@ use std::time::Instant;
 use futures::StreamExt;
 use tracing::instrument;
 
+use super::verbs::coerce_json_types;
 use crate::ast::FetchParams;
 use crate::binding::{template_resolve, ResolvedBindings};
 use crate::error::NikaError;
-use super::verbs::coerce_json_types;
 use crate::event::EventKind;
 use crate::runtime::policy::PolicyDecision;
 use crate::store::RunContext;
@@ -92,7 +92,8 @@ impl TaskExecutor {
                         let h = h.trim_start_matches('[').trim_end_matches(']');
                         if resolve_and_check_ssrf(h).await {
                             PolicyDecision::Block(format!(
-                                "DNS rebinding SSRF: '{}' resolved to blocked IP", host
+                                "DNS rebinding SSRF: '{}' resolved to blocked IP",
+                                host
                             ))
                         } else {
                             PolicyDecision::Allow

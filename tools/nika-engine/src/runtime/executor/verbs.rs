@@ -214,10 +214,7 @@ mod tests {
 
     #[test]
     fn strip_think_tags_case_insensitive() {
-        assert_eq!(
-            strip_think_tags("<Think>reasoning</Think>Answer"),
-            "Answer"
-        );
+        assert_eq!(strip_think_tags("<Think>reasoning</Think>Answer"), "Answer");
         assert_eq!(
             strip_think_tags("<THINK>loud thinking</THINK>Result"),
             "Result"
@@ -232,10 +229,7 @@ mod tests {
 
     #[test]
     fn strip_thinking_tags_case_insensitive() {
-        assert_eq!(
-            strip_think_tags("<Thinking>mixed case</Thinking>OK"),
-            "OK"
-        );
+        assert_eq!(strip_think_tags("<Thinking>mixed case</Thinking>OK"), "OK");
     }
 
     #[test]

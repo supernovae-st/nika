@@ -536,10 +536,7 @@ fn format_section_infrastructure(stats: &RunStats, w: usize) -> Vec<String> {
         lines.push(format!(
             "│{}│",
             pad_right(
-                &format!(
-                    "  Retry    {} attempts",
-                    stats.retries.to_string().yellow(),
-                ),
+                &format!("  Retry    {} attempts", stats.retries.to_string().yellow(),),
                 w
             )
         ));
