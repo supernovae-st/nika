@@ -399,6 +399,17 @@ pub fn validate_exec_command(cmd: &str) -> Result<(), NikaError> {
 /// Returns `BlockedCommand` if any security check fails.
 pub fn validate_exec_command_with_shell(cmd: &str, shell_mode: bool) -> Result<(), NikaError> {
     validate_command_string(cmd)?;
+    if shell_mode {
+        // Reject newlines in shell mode — sh -c treats \n as command separator,
+        // which can bypass the blocklist (normalization collapses \n to space).
+        if cmd.contains('\n') {
+            return Err(NikaError::BlockedCommand {
+                command: cmd.to_string(),
+                reason: "Newlines are not allowed in shell mode commands (use && or ; explicitly)"
+                    .to_string(),
+            });
+        }
+    }
     check_blocklist(cmd)?;
     if shell_mode {
         check_shell_mode_blocklist(cmd)?;
@@ -1097,6 +1108,17 @@ mod tests {
             result.is_ok(),
             "backtick should be allowed in non-shell mode"
         );
+    }
+
+    #[test]
+    fn test_shell_mode_rejects_newline_injection() {
+        // Shell mode: newline acts as command separator in sh -c
+        let result = validate_exec_command_with_shell("echo harmless\nrm -rf /", true);
+        assert!(result.is_err(), "newline should be blocked in shell mode");
+
+        // Non-shell mode: newline is harmless (not passed to sh -c)
+        let result = validate_exec_command_with_shell("echo harmless\necho world", false);
+        assert!(result.is_ok(), "newline should be allowed in non-shell mode");
     }
 
     // =========================================================================
