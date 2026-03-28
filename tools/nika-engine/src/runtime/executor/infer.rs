@@ -465,7 +465,7 @@ impl TaskExecutor {
                                                         error: None,
                                                     },
                                                 );
-                                                let result_str = result.value.to_string();
+                                                let result_str = super::verbs::strip_think_tags(&result.value.to_string());
                                                 let cost = provider
                                                     .cost_provider_kind()
                                                     .map(|pk| {
@@ -615,7 +615,7 @@ impl TaskExecutor {
                                                         error: None,
                                                     },
                                                 );
-                                                let result_str = result.value.to_string();
+                                                let result_str = super::verbs::strip_think_tags(&result.value.to_string());
                                                 let est_in = estimate_tokens(prompt.len());
                                                 let est_out = estimate_tokens(result_str.len());
                                                 let cost = provider
@@ -877,6 +877,7 @@ impl TaskExecutor {
                                 provider
                                     .infer(&retry_prompt, model.as_deref())
                                     .await
+                                    .map(|s| super::verbs::strip_think_tags(&s))
                                     .map_err(|e| NikaError::ProviderApiError {
                                         message: format!("structured output retry failed: {}", e),
                                     })

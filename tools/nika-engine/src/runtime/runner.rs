@@ -555,15 +555,19 @@ impl Runner {
                     warnings += 1;
                     continue;
                 }
+                // Size check: CAS files may have compression framing (4-byte NK
+                // header + optional zstd), so on-disk size != original size.
+                // Only warn when on-disk is SMALLER than expected (truncation),
+                // since framing/compression always increases or changes size.
                 match std::fs::metadata(&media_ref.path) {
                     Ok(meta) => {
-                        if meta.len() != media_ref.size_bytes {
+                        if meta.len() < media_ref.size_bytes {
                             tracing::warn!(
                                 task_id = %task_id,
                                 hash = %media_ref.hash,
                                 expected = media_ref.size_bytes,
                                 actual = meta.len(),
-                                "Media integrity: size mismatch"
+                                "Media integrity: CAS file smaller than expected (possible truncation)"
                             );
                             warnings += 1;
                         }
@@ -871,6 +875,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 | NikaError::McpNotConnected { .. }
                 | NikaError::McpToolCallFailed { .. }
                 | NikaError::McpTimeout { .. }
+                | NikaError::Timeout { .. }
                 | NikaError::EndpointConnectionFailed { .. }
         )
     }
@@ -6129,6 +6134,15 @@ mod tests {
             timeout_secs: 30,
         };
         assert!(Runner::is_retryable(&err), "McpTimeout should be retryable");
+    }
+
+    #[test]
+    fn test_is_retryable_timeout() {
+        let err = NikaError::Timeout {
+            operation: "infer".to_string(),
+            duration_ms: 300_000,
+        };
+        assert!(Runner::is_retryable(&err), "Timeout should be retryable");
     }
 
     #[test]

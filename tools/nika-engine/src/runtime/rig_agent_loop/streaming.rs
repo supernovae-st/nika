@@ -338,7 +338,7 @@ impl RigAgentLoop {
             }
 
             Ok(StreamingResult {
-                response: response_text,
+                response: crate::runtime::executor::verbs::strip_think_tags(&response_text),
                 input_tokens, // Now tracked via FinalResponse
                 output_tokens,
                 cached_input_tokens,
@@ -575,7 +575,7 @@ impl RigAgentLoop {
         }
 
         Ok(StreamingResult {
-            response: response_text,
+            response: crate::runtime::executor::verbs::strip_think_tags(&response_text),
             input_tokens,
             output_tokens,
             cached_input_tokens,
