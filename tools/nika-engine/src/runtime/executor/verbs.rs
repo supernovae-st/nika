@@ -90,18 +90,36 @@ pub(crate) fn coerce_json_types(value: &mut serde_json::Value) {
     }
 }
 
-/// Truncate resolved template for event logging (avoids leaking secrets from $env).
-#[inline]
+/// Redact secrets and truncate resolved template for event logging.
+///
+/// 1. Pattern-matches known API key formats and replaces with `[REDACTED]`.
+/// 2. Truncates to 200 bytes with UTF-8-safe boundary.
 pub(crate) fn redact_for_event(s: &str) -> String {
-    if s.len() <= 200 {
-        s.to_string()
+    use std::sync::LazyLock;
+
+    /// Matches common API key / token patterns:
+    /// - `sk-ant-api03-...` (Anthropic)
+    /// - `sk-proj-...` (OpenAI)
+    /// - `sk-...` (generic)
+    /// - `Bearer <token>` (Authorization headers)
+    /// - `ghp_...` / `gho_...` (GitHub)
+    /// - `xoxb-...` / `xoxp-...` (Slack)
+    /// - `AKIA...` (AWS access key)
+    static SECRET_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
+        regex::Regex::new(
+            r"(?i)(sk-[a-zA-Z0-9_-]{10,}|Bearer\s+[a-zA-Z0-9_.\-]{10,}|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|xox[bp]-[a-zA-Z0-9\-]+|AKIA[A-Z0-9]{16})"
+        ).expect("SECRET_RE is a valid regex")
+    });
+
+    let redacted = SECRET_RE.replace_all(s, "[REDACTED]");
+    if redacted.len() <= 200 {
+        redacted.into_owned()
     } else {
-        // Find the last valid char boundary at or before byte 200
         let mut boundary = 200;
-        while boundary > 0 && !s.is_char_boundary(boundary) {
+        while boundary > 0 && !redacted.is_char_boundary(boundary) {
             boundary -= 1;
         }
-        format!("{}... ({} bytes)", &s[..boundary], s.len())
+        format!("{}... ({} bytes)", &redacted[..boundary], redacted.len())
     }
 }
 
@@ -603,5 +621,58 @@ mod tests {
         let data = [0x89, 0x50];
         let result = super::detect_image_media_type(&data);
         assert_eq!(result, None);
+    }
+
+    // ========================================================================
+    // redact_for_event tests
+    // ========================================================================
+
+    use super::redact_for_event;
+
+    #[test]
+    fn redact_for_event_redacts_anthropic_key() {
+        let input = "Authorization: sk-ant-api03-abcdef1234567890abcdef";
+        let result = redact_for_event(input);
+        assert!(
+            result.contains("[REDACTED]"),
+            "Anthropic key not redacted: {result}"
+        );
+        assert!(!result.contains("sk-ant-api03"));
+    }
+
+    #[test]
+    fn redact_for_event_redacts_openai_key() {
+        let input = "key=sk-proj-abc123def456ghi789";
+        let result = redact_for_event(input);
+        assert!(result.contains("[REDACTED]"), "OpenAI key not redacted: {result}");
+        assert!(!result.contains("sk-proj-abc"));
+    }
+
+    #[test]
+    fn redact_for_event_redacts_bearer_token() {
+        let input = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9";
+        let result = redact_for_event(input);
+        assert!(result.contains("[REDACTED]"), "Bearer token not redacted: {result}");
+        assert!(!result.contains("eyJhbGci"));
+    }
+
+    #[test]
+    fn redact_for_event_redacts_github_token() {
+        let input = "token: ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij";
+        let result = redact_for_event(input);
+        assert!(result.contains("[REDACTED]"), "GitHub PAT not redacted: {result}");
+    }
+
+    #[test]
+    fn redact_for_event_preserves_safe_strings() {
+        let input = "Hello world, this is a normal prompt";
+        assert_eq!(redact_for_event(input), input);
+    }
+
+    #[test]
+    fn redact_for_event_truncates_long_strings() {
+        let input = "a".repeat(300);
+        let result = redact_for_event(&input);
+        assert!(result.contains("... (300 bytes)"));
     }
 }
