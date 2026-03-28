@@ -208,6 +208,8 @@ pub(super) struct StreamingResult {
     pub(super) cached_input_tokens: u64,
     /// Optional thinking/reasoning content (Claude extended thinking)
     pub(super) thinking: Option<String>,
+    /// Time to first token in milliseconds (None if not captured)
+    pub(super) ttft_ms: Option<u64>,
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

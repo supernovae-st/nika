@@ -11,7 +11,7 @@ use rig::completion::GetTokenUsage;
 use rig::message::ReasoningContent;
 use rig::streaming::{StreamedAssistantContent, StreamingPrompt};
 use serde_json::Value;
-use tokio::time::timeout;
+use tokio::time::{timeout, Instant};
 
 use crate::error::NikaError;
 use crate::event::EventKind;
@@ -88,6 +88,9 @@ impl RigAgentLoop {
         let mut cached_input_tokens: u64 = 0;
         // Streaming token counter for live progress display
         let mut streaming_tokens: u64 = 0;
+        // TTFT: capture time before first token arrives
+        let stream_start = Instant::now();
+        let mut ttft_ms: Option<u64> = None;
 
         // Stream chunks with timeout protection to prevent infinite hangs
         loop {
@@ -105,6 +108,10 @@ impl RigAgentLoop {
             match chunk_result {
                 Ok(content) => match content {
                     StreamedAssistantContent::Text(text) => {
+                        // Capture time to first token
+                        if ttft_ms.is_none() {
+                            ttft_ms = Some(stream_start.elapsed().as_millis() as u64);
+                        }
                         // Send token to TUI for real-time display
                         if let Some(ref tx) = self.stream_tx {
                             let _ = tx.try_send(crate::provider::rig::StreamChunk::Token(
@@ -185,6 +192,7 @@ impl RigAgentLoop {
             } else {
                 Some(thinking_parts.concat())
             },
+            ttft_ms,
         })
     }
 
@@ -281,6 +289,8 @@ impl RigAgentLoop {
             let mut input_tokens = 0u64;
             let mut output_tokens = 0u64;
             let mut cached_input_tokens = 0u64;
+            let cli_stream_start = Instant::now();
+            let mut cli_ttft_ms: Option<u64> = None;
 
             // Consume stream, extracting text and token usage
             while let Some(chunk) = stream.next().await {
@@ -290,6 +300,9 @@ impl RigAgentLoop {
                         MultiTurnStreamItem::StreamAssistantItem(
                             StreamedAssistantContent::Text(text),
                         ) => {
+                            if cli_ttft_ms.is_none() {
+                                cli_ttft_ms = Some(cli_stream_start.elapsed().as_millis() as u64);
+                            }
                             response_text.push_str(&text.text);
                         }
                         // Capture reasoning (Claude extended thinking)
@@ -343,6 +356,7 @@ impl RigAgentLoop {
                 output_tokens,
                 cached_input_tokens,
                 thinking: thinking_text,
+                ttft_ms: cli_ttft_ms,
             })
         }
     }
@@ -421,6 +435,8 @@ impl RigAgentLoop {
         let mut cached_input_tokens = 0u64;
         let mut tool_count = 0u32;
         let mut streaming_tokens: u64 = 0;
+        let tui_stream_start = Instant::now();
+        let mut tui_ttft_ms: Option<u64> = None;
 
         // Per-chunk timeout to prevent hanging streams
         loop {
@@ -453,6 +469,10 @@ impl RigAgentLoop {
                     MultiTurnStreamItem::StreamAssistantItem(StreamedAssistantContent::Text(
                         text,
                     )) => {
+                        // Capture time to first token
+                        if tui_ttft_ms.is_none() {
+                            tui_ttft_ms = Some(tui_stream_start.elapsed().as_millis() as u64);
+                        }
                         if let Some(ref tx) = self.stream_tx {
                             let _ = tx.try_send(crate::provider::rig::StreamChunk::Token(
                                 text.text.clone(),
@@ -580,6 +600,7 @@ impl RigAgentLoop {
             output_tokens,
             cached_input_tokens,
             thinking: thinking_text,
+            ttft_ms: tui_ttft_ms,
         })
     }
 }
