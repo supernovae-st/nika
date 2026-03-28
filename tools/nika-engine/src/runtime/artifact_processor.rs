@@ -503,8 +503,7 @@ async fn write_binary_artifact(
                         serde_json::Value::String(s) => {
                             if s.starts_with("blake3:") || s.starts_with("sha256:") {
                                 Some(s.clone())
-                            } else if let Ok(parsed) =
-                                serde_json::from_str::<serde_json::Value>(s)
+                            } else if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(s)
                             {
                                 parsed
                                     .get("hash")
@@ -514,10 +513,9 @@ async fn write_binary_artifact(
                                 Some(s.clone())
                             }
                         }
-                        serde_json::Value::Object(obj) => obj
-                            .get("hash")
-                            .and_then(|v| v.as_str())
-                            .map(String::from),
+                        serde_json::Value::Object(obj) => {
+                            obj.get("hash").and_then(|v| v.as_str()).map(String::from)
+                        }
                         _ => None,
                     }
                 }
@@ -543,14 +541,11 @@ async fn write_binary_artifact(
                         // The binding value may be:
                         //   - Value::Object with hash/path fields
                         //   - Value::String containing JSON with hash/path fields
-                        let binding_value = bindings
-                            .get(source_alias)
-                            .cloned()
-                            .or_else(|| {
-                                datastore
-                                    .get_output(source_alias)
-                                    .map(|v| v.as_ref().clone())
-                            });
+                        let binding_value = bindings.get(source_alias).cloned().or_else(|| {
+                            datastore
+                                .get_output(source_alias)
+                                .map(|v| v.as_ref().clone())
+                        });
                         // Normalize: if binding is a JSON string, parse it to Object
                         let binding_obj = match &binding_value {
                             Some(serde_json::Value::Object(_)) => binding_value.clone(),
@@ -562,9 +557,7 @@ async fn write_binary_artifact(
                             _ => None,
                         };
                         if let Some(serde_json::Value::Object(obj)) = binding_obj {
-                            if let Some(path_str) =
-                                obj.get("path").and_then(|v| v.as_str())
-                            {
+                            if let Some(path_str) = obj.get("path").and_then(|v| v.as_str()) {
                                 MediaRef {
                                     hash: hash.clone(),
                                     mime_type: obj

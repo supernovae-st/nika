@@ -119,8 +119,15 @@ async fn one_shot_executor(
         .ok()
         .and_then(|cfg| cfg.resolve_endpoints().ok())
         .filter(|m| !m.is_empty());
-    let executor =
-        TaskExecutor::with_policy(provider, model, None, event_log.clone(), None, None, custom_endpoints)?;
+    let executor = TaskExecutor::with_policy(
+        provider,
+        model,
+        None,
+        event_log.clone(),
+        None,
+        None,
+        custom_endpoints,
+    )?;
     Ok((executor, event_log))
 }
 
