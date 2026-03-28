@@ -14,6 +14,7 @@ use tracing::info;
 use crate::error::{DaemonError, DaemonResult};
 
 /// Service label for launchd.
+#[cfg(target_os = "macos")]
 const LAUNCHD_LABEL: &str = "studio.supernovae.nika.daemon";
 
 /// Service name for systemd.
