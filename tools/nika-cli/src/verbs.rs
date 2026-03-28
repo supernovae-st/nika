@@ -108,13 +108,19 @@ pub(crate) fn resolve_provider_model(
     Ok((provider, None))
 }
 
-/// Create a one-shot TaskExecutor.
+/// Create a one-shot TaskExecutor with custom endpoint support.
 async fn one_shot_executor(
     provider: &str,
     model: Option<&str>,
 ) -> Result<(TaskExecutor, EventLog), NikaError> {
     let event_log = EventLog::new();
-    let executor = TaskExecutor::new(provider, model, None, event_log.clone())?;
+    // Load config to resolve custom endpoints (e.g., h100, ollama)
+    let custom_endpoints = nika_engine::config::NikaConfig::load()
+        .ok()
+        .and_then(|cfg| cfg.resolve_endpoints().ok())
+        .filter(|m| !m.is_empty());
+    let executor =
+        TaskExecutor::with_policy(provider, model, None, event_log.clone(), None, None, custom_endpoints)?;
     Ok((executor, event_log))
 }
 
