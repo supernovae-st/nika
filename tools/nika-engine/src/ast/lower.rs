@@ -252,7 +252,7 @@ fn lower_invoke(invoke: AnalyzedInvokeAction) -> InvokeParams {
         mcp: invoke.server,
         tool: Some(invoke.tool),
         params: invoke.params,
-        resource: None,
+        resource: invoke.resource,
         // Convert milliseconds (YAML) to seconds (runtime), ceiling division
         timeout: invoke.timeout_ms.map(|ms| ms.div_ceil(1000)),
     }
