@@ -502,7 +502,20 @@ pub fn resolve_with<'a>(
         return Ok(Cow::Owned(result));
     }
 
+    // SECURITY: Collect trusted context paths from ORIGINAL template (same as resolve())
     if has_context && result.contains("{{") {
+        let trusted_context: std::collections::HashSet<String> = TEMPLATE_RE
+            .captures_iter(template)
+            .filter_map(|cap| {
+                let inner = cap[1].trim();
+                if let Ok(TemplateExpr::Context { path, .. }) = parse_template_expr(inner) {
+                    Some(format!("context.{}", path))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
         let intermediate = std::mem::take(&mut result);
         result = String::with_capacity(intermediate.len() + 64);
         let mut last_end = 0;
@@ -515,8 +528,16 @@ pub fn resolve_with<'a>(
                 Ok(TemplateExpr::Context { path, transforms }) => (path, transforms),
                 _ => continue,
             };
-            result.push_str(&intermediate[last_end..m.start()]);
             let full_path = format!("context.{}", path);
+            // Skip injected context refs that weren't in the original template
+            if !trusted_context.contains(&full_path) {
+                tracing::warn!(
+                    path = %full_path,
+                    "Blocked injected context reference in resolve_with (template injection attempt)"
+                );
+                continue;
+            }
+            result.push_str(&intermediate[last_end..m.start()]);
             match datastore.resolve_context_path(&full_path) {
                 Some(value) => {
                     let replacement = if !transforms.is_empty() {
@@ -4326,5 +4347,30 @@ mod v028_template_tests {
             "Secret leaked via template injection in resolve_with: {result}"
         );
         assert!(result.contains("AI workflows"), "Legitimate input not resolved: {result}");
+    }
+
+    /// Verify that injected {{context.files.secret}} via with: binding is NOT resolved.
+    #[test]
+    fn template_injection_context_blocked_in_resolve_with() {
+        use crate::store::LoadedContext;
+
+        let with = make_with(&[("user_input", json!("{{context.files.secret}}"))]);
+        let ds = RunContext::new();
+        let mut ctx = LoadedContext::new();
+        ctx.files.insert("brand".to_string(), json!("SuperNovae"));
+        ctx.files.insert("secret".to_string(), json!("TOP-SECRET-DATA"));
+        ds.set_context(ctx);
+
+        let result = resolve_with(
+            "{{user_input}} for brand {{context.files.brand}}",
+            &with,
+            &ds,
+        )
+        .unwrap();
+        assert!(
+            !result.contains("TOP-SECRET-DATA"),
+            "Secret context leaked via template injection: {result}"
+        );
+        assert!(result.contains("SuperNovae"), "Legitimate context not resolved: {result}");
     }
 }
