@@ -124,8 +124,73 @@ pub(crate) fn detect_image_media_type(
     }
 }
 
+/// Strip `<think>...</think>` blocks from LLM responses.
+///
+/// Reasoning models (Qwen, DeepSeek-R1) emit thinking blocks that should
+/// not appear in the final task output. This is applied to ALL providers
+/// since any model might emit thinking blocks.
+pub(crate) fn strip_think_tags(text: &str) -> String {
+    // Fast path: no think tags at all
+    if !text.contains("<think>") {
+        return text.to_string();
+    }
+
+    let mut result = String::with_capacity(text.len());
+    let mut remaining = text;
+
+    while let Some(start) = remaining.find("<think>") {
+        // Add everything before the <think> tag
+        result.push_str(&remaining[..start]);
+
+        // Find the matching </think>
+        if let Some(end) = remaining[start..].find("</think>") {
+            // Skip past </think> (8 chars)
+            remaining = &remaining[start + end + 8..];
+        } else {
+            // Unclosed <think> — strip everything after it
+            remaining = "";
+            break;
+        }
+    }
+
+    // Add any remaining text after the last </think>
+    result.push_str(remaining);
+    result.trim().to_string()
+}
+
 #[cfg(test)]
 mod tests {
+    use super::strip_think_tags;
+
+    #[test]
+    fn strip_think_tags_no_tags() {
+        assert_eq!(strip_think_tags("Hello world"), "Hello world");
+    }
+
+    #[test]
+    fn strip_think_tags_simple() {
+        let input = "<think>Let me reason about this...</think>The answer is 42.";
+        assert_eq!(strip_think_tags(input), "The answer is 42.");
+    }
+
+    #[test]
+    fn strip_think_tags_multiple() {
+        let input = "<think>first</think>A<think>second</think>B";
+        assert_eq!(strip_think_tags(input), "AB");
+    }
+
+    #[test]
+    fn strip_think_tags_with_newlines() {
+        let input = "<think>\nLet me think step by step:\n1. First\n2. Second\n</think>\nThe result is correct.";
+        assert_eq!(strip_think_tags(input), "The result is correct.");
+    }
+
+    #[test]
+    fn strip_think_tags_unclosed() {
+        let input = "<think>thinking forever...";
+        assert_eq!(strip_think_tags(input), "");
+    }
+
     #[test]
     fn resource_text_non_json_returns_string() {
         let text = "Hello, this is plain text from a resource";
