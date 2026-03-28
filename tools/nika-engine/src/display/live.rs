@@ -395,7 +395,7 @@ impl LiveRenderer {
                 if ch == '\x1b' {
                     while let Some(&c) = chars.peek() {
                         chars.next();
-                        if c.is_ascii_alphabetic() || ('@'..='~').contains(&c) {
+                        if c.is_ascii_alphabetic() {
                             break;
                         }
                     }
@@ -2226,6 +2226,35 @@ mod tests {
         assert!(
             msg.contains("in:100 out:50"),
             "message must contain token info"
+        );
+    }
+
+    #[test]
+    fn format_failed_strips_ansi_escape_codes() {
+        // \x1b[31m = red, \x1b[0m = reset
+        let result = LiveRenderer::format_failed("task1", "infer", 1.5, "\x1b[31mError\x1b[0m message");
+        // The formatted output should contain the stripped text, not ANSI parameter bytes
+        assert!(
+            result.contains("Error message"),
+            "ANSI escapes must be fully stripped, got: {result}"
+        );
+        assert!(
+            !result.contains("[31m"),
+            "ANSI parameter bytes must not leak as plaintext, got: {result}"
+        );
+    }
+
+    #[test]
+    fn format_failed_strips_nested_ansi_sequences() {
+        // Bold + color: \x1b[1;33m = bold yellow
+        let result = LiveRenderer::format_failed("task2", "exec", 0.3, "\x1b[1;33mWarn\x1b[0m ok");
+        assert!(
+            result.contains("Warn ok"),
+            "nested ANSI must be stripped, got: {result}"
+        );
+        assert!(
+            !result.contains("[1;33m"),
+            "nested ANSI params must not leak, got: {result}"
         );
     }
 }
