@@ -557,6 +557,13 @@ impl TaskExecutor {
         &self.default_provider
     }
 
+    /// Get hourly_rate for a custom endpoint (None for catalog providers).
+    pub(super) fn endpoint_hourly_rate(&self, provider_name: &str) -> Option<f64> {
+        self.custom_endpoints
+            .get(provider_name)
+            .and_then(|ep| ep.hourly_rate)
+    }
+
     /// Get or create an MCP client for a named server
     ///
     /// Uses OnceCell per server to ensure thread-safe initialization.

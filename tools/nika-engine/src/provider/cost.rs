@@ -682,6 +682,17 @@ pub fn calculate_cost_with_cache(
     pricing.calculate_with_cache(input_tokens, output_tokens, cached_tokens, discount)
 }
 
+/// Calculate cost for self-hosted endpoints using hourly rate.
+///
+/// Custom endpoints (vLLM, Ollama, etc.) don't have per-token pricing.
+/// Cost is estimated as: `(duration_secs / 3600) × hourly_rate`.
+pub fn calculate_hourly_cost(duration_secs: f64, hourly_rate: f64) -> f64 {
+    if duration_secs <= 0.0 || hourly_rate <= 0.0 {
+        return 0.0;
+    }
+    (duration_secs / 3600.0) * hourly_rate
+}
+
 /// Estimate cost before execution based on estimated tokens
 ///
 /// # Arguments
@@ -1234,5 +1245,37 @@ mod tests {
                 model,
             );
         }
+    }
+
+    // ───────────────────────────────────────────────────────────────────────
+    // Hourly cost tests (custom endpoints)
+    // ───────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn hourly_cost_60s_at_3_per_hour() {
+        // 60s / 3600 * 3.0 = 0.05
+        let cost = calculate_hourly_cost(60.0, 3.0);
+        assert!((cost - 0.05).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn hourly_cost_3600s_at_3_per_hour() {
+        let cost = calculate_hourly_cost(3600.0, 3.0);
+        assert!((cost - 3.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn hourly_cost_zero_duration() {
+        assert!((calculate_hourly_cost(0.0, 3.0)).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn hourly_cost_negative_duration() {
+        assert!((calculate_hourly_cost(-1.0, 3.0)).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn hourly_cost_zero_rate() {
+        assert!((calculate_hourly_cost(60.0, 0.0)).abs() < f64::EPSILON);
     }
 }
