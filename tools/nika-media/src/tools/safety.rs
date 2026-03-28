@@ -120,6 +120,8 @@ pub fn sanitize_svg(input: &str) -> Result<&str, MediaToolError> {
 
     // Block xlink:href with external URLs (SSRF via SVG rendering).
     // Allow internal fragment references like xlink:href="#icon".
+    // Optional quote handles both xlink:href="http://..." and xlink:href=http://...
+    // After optional quote, first char must NOT be # or quote (closing).
     static XLINK_EXTERNAL_RE: std::sync::LazyLock<regex::Regex> =
         std::sync::LazyLock::new(|| regex::Regex::new(r#"xlink:href\s*=\s*["']?[^#\s"']"#).unwrap());
     if XLINK_EXTERNAL_RE.is_match(&lower) {

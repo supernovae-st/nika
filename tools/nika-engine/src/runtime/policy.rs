@@ -94,8 +94,14 @@ pub(crate) async fn resolve_and_check_ssrf(host: &str) -> bool {
             }
             false
         }
-        // DNS resolution failed or timed out — don't block (request will fail on its own)
-        Ok(Err(_)) | Err(_) => false,
+        Ok(Err(e)) => {
+            tracing::debug!(host = %host, error = %e, "DNS resolution failed for SSRF check");
+            false
+        }
+        Err(_) => {
+            tracing::debug!(host = %host, "DNS resolution timed out (3s) for SSRF check");
+            false
+        }
     }
 }
 
@@ -737,5 +743,33 @@ mod tests {
             .is_blocked());
         // Unrelated domain must be blocked
         assert!(enforcer2.check_fetch("https://other.com/api").is_blocked());
+    }
+
+    // =========================================================================
+    // DNS rebinding: resolve_and_check_ssrf
+    // =========================================================================
+
+    #[tokio::test]
+    async fn test_dns_rebinding_blocks_localhost() {
+        assert!(
+            super::resolve_and_check_ssrf("localhost").await,
+            "localhost should be blocked after DNS resolution"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_dns_rebinding_skips_raw_ips() {
+        assert!(
+            !super::resolve_and_check_ssrf("127.0.0.1").await,
+            "Raw IP should be skipped (already handled by check_fetch)"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_dns_rebinding_allows_unresolvable() {
+        assert!(
+            !super::resolve_and_check_ssrf("this-host-does-not-exist-nika-test.invalid").await,
+            "Non-resolving hostname should not be blocked"
+        );
     }
 }

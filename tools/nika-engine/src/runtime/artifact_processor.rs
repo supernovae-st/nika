@@ -80,10 +80,18 @@ pub async fn process_task_artifacts(
             return result;
         }
         ArtifactSpec::Enabled(true) => {
-            // Use defaults - generate single output with task_id as filename
-            let format = workflow_config
-                .map(|c| &c.format)
-                .unwrap_or(&ArtifactFormat::Text);
+            // Use defaults - generate single output with task_id as filename.
+            // Auto-promote to Binary when the task produced media but no explicit
+            // workflow-level format is set, so `artifact: true` just works for media tasks.
+            let format = if !media_refs.is_empty()
+                && workflow_config.is_none_or(|c| c.format == ArtifactFormat::Text)
+            {
+                &ArtifactFormat::Binary
+            } else {
+                workflow_config
+                    .map(|c| &c.format)
+                    .unwrap_or(&ArtifactFormat::Text)
+            };
             vec![ArtifactOutput {
                 path: format!("{}.{}", task_id, format.extension()),
                 source: None,
