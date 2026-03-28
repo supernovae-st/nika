@@ -1,10 +1,20 @@
 # 12 -- Naming & Design Decisions
 
+> **Note (v0.49):** The One Piece naming (edison/atlas/york/pythagoras) was the original design
+> inspiration but has been **replaced with functional names** (default/lite/think/search/vision/
+> judge/coder/summary) in all user-facing contexts. The Vegapunk mapping below is preserved as
+> INTERNAL architectural reference -- it remains brilliant as a mental model for the satellite
+> system, but users never see these names.
+>
+> Additionally, `model_slots:` was never implemented as a separate top-level key. It has been
+> superseded by the existing `agents:` system, which unifies model routing with agent behavior
+> configuration in a single block.
+
 > Part 1: Naming evolution -- One Piece origins, Vegapunk-to-descriptive presets, DataStore->RunContext, full renaming table.
 > Part 2: Model routing & agents design -- Gen1->Gen3, industry survey, 8 presets, unified agents: block, devil's advocate.
 > v0 philosophy: no backward compatibility, no legacy, just rename.
 
-**Status:** APPROVED | **Date:** 2026-03-14 | **Updated:** 2026-03-20
+**Status:** APPROVED | **Date:** 2026-03-14 | **Updated:** 2026-03-27 (v0.49)
 **Dependencies:** Doc 05 (Evolution Roadmap), Doc 17 (Smart Router)
 **Research Sources:** Perplexity (5 queries), arXiv (4 papers), framework docs (6 frameworks)
 
@@ -77,11 +87,12 @@ The rest of the SuperNovae architecture maps deeply onto Dr. Vegapunk's satellit
 
 ---
 
-## Naming Evolution: Vegapunk -> Descriptive Presets
+## Naming Evolution: Vegapunk -> Descriptive Presets (COMPLETED)
 
 The original Vegapunk naming (edison/atlas/york/pythagoras) was cohesive with lore but created
 onboarding friction. The evolved naming uses **descriptive agent presets** that are instantly
-understandable without learning One Piece lore:
+understandable without learning One Piece lore. As of v0.49, all user-facing code, docs, and
+YAML use the functional names exclusively:
 
 | Vegapunk Name | Descriptive Preset | Cognitive Role |
 |---------------|-------------------|----------------|
@@ -145,14 +156,14 @@ that workflows actually dispatch to. See Part 2 for the full research validation
 ### Agent Presets (unified agents: block)
 
 ```yaml
-# AVANT (Vegapunk naming, separate model_slots:)
-model_slots:
-  edison: claude-sonnet-4-20250514          # PUNK-03
-  atlas: claude-haiku-35             # PUNK-05
-  pythagoras: claude-sonnet-4-20250514      # PUNK-04
-  york: perplexity/sonar-pro         # PUNK-06
+# DESIGN DOCUMENT (Vegapunk naming, separate model_slots: -- NEVER SHIPPED)
+# model_slots:
+#   edison: claude-sonnet-4-20250514          # PUNK-03
+#   atlas: claude-haiku-35                    # PUNK-05
+#   pythagoras: claude-sonnet-4-20250514      # PUNK-04
+#   york: perplexity/sonar-pro               # PUNK-06
 
-# APRES (descriptive presets, unified agents: block)
+# IMPLEMENTED (descriptive presets, unified agents: block -- shipped v0.35+)
 agents:
   default:
     provider: anthropic
@@ -301,18 +312,18 @@ pub struct Record {
 Files: `src/runtime/episode.rs` -> `src/runtime/record.rs`
 `src/runtime/episode_compress.rs` -> `src/runtime/record_compress.rs`
 
-### Agent Presets (ex-ModelSlots)
+### Agent Presets (model_slots: never shipped -- agents: is the implementation)
 
 ```rust
-// AVANT (Vegapunk naming)
-pub struct ModelSlots {
-    pub edison: ModelConfig,      // PUNK-03
-    pub atlas: ModelConfig,       // PUNK-05
-    pub pythagoras: ModelConfig,  // PUNK-04
-    pub york: ModelConfig,        // PUNK-06
-}
+// DESIGN DOCUMENT ONLY (Vegapunk naming -- never implemented)
+// pub struct ModelSlots {
+//     pub edison: ModelConfig,      // PUNK-03
+//     pub atlas: ModelConfig,       // PUNK-05
+//     pub pythagoras: ModelConfig,  // PUNK-04
+//     pub york: ModelConfig,        // PUNK-06
+// }
 
-// APRES (descriptive presets)
+// IMPLEMENTED (descriptive presets via agents: block)
 pub enum AgentPreset {
     Default,    // Primary creative work
     Lite,       // Fast tactical execution
@@ -349,27 +360,30 @@ pub struct OrchestrateRunner { ... }
 
 ## Codebase Impact Analysis
 
-### Existing code (v0.27 -- needs rename NOW)
+### Historical: code at v0.27 (renames completed)
 
-| Rename | Occurrences | Files | Criticite |
-|--------|-------------|-------|-----------|
-| `DataStore` -> `RunContext` | **668** | 29 (19 src + 10 tests) | **CRITIQUE** |
-| `strategy` (DecomposeStrategy) | 51 | 13 | MOYEN (attention: `BackoffStrategy` n'est PAS a renommer) |
-| `episode` | 17 | 1 (tier6.rs exemples) | FAIBLE |
-| `tactics` | 0 | 0 | Pas encore implemente |
-| `model slots` | 0 | 0 | Pas encore implemente |
+> **Note (v0.49):** The `DataStore` -> `RunContext` rename was completed. The `model_slots:`
+> top-level key was **never implemented** -- agent presets are configured via the `agents:`
+> block in the workflow header. Records/orchestration/introspection remain future work.
 
-### Planned code (v0.28-v0.30 -- use new names directly)
+| Rename | Occurrences | Files | Status |
+|--------|-------------|-------|--------|
+| `DataStore` -> `RunContext` | **668** | 29 (19 src + 10 tests) | DONE |
+| `strategy` (DecomposeStrategy) | 51 | 13 | DONE |
+| `episode` | 17 | 1 (tier6.rs exemples) | DONE |
+| `tactics` | 0 | 0 | Never implemented |
+| `model_slots:` | 0 | 0 | Never implemented -- superseded by `agents:` |
+
+### Future code (use new names directly)
 
 | Feature | Fichiers a creer | Naming |
 |---------|------------------|--------|
-| Agent presets (v0.28) | `src/runtime/agent_presets.rs` | `AgentPreset { Default, Lite, Think, Search, Vision, Judge, Coder, Summary }` |
-| Record compression (v0.28) | `src/runtime/record.rs`, `src/runtime/record_compress.rs` | `Record`, `RecordCompressor` |
-| Orchestration (v0.29) | `src/runtime/orchestrate.rs`, `src/runtime/orchestrate_runner.rs`, `src/ast/orchestrate.rs` | `OrchestrateRunner`, `OrchestrateConfig`, `Satellite` |
-| Context budgets (v0.29) | `src/runtime/budget.rs` | Pas de rename (technique) |
-| Punk Records (v0.28) | `src/runtime/record_log.rs` | `RecordLog` (NDJSON on disk, .nika/records/) |
-| NovaNet memory (v0.30) | `src/runtime/promote.rs` | `Record` node class + `RecordLog::promote()` |
-| Introspection (v0.30) | 6 builtin tools | `nika:records`, `nika:orchestrate`, rest technique |
+| Record compression | `src/runtime/record.rs`, `src/runtime/record_compress.rs` | `Record`, `RecordCompressor` |
+| Orchestration | `src/runtime/orchestrate.rs`, `src/runtime/orchestrate_runner.rs`, `src/ast/orchestrate.rs` | `OrchestrateRunner`, `OrchestrateConfig`, `Satellite` |
+| Context budgets | `src/runtime/budget.rs` | Pas de rename (technique) |
+| Punk Records | `src/runtime/record_log.rs` | `RecordLog` (NDJSON on disk, .nika/records/) |
+| NovaNet memory | `src/runtime/promote.rs` | `Record` node class + `RecordLog::promote()` |
+| Introspection | 6 builtin tools | `nika:records`, `nika:orchestrate`, rest technique |
 
 ### Detailed file impact: DataStore -> RunContext
 
@@ -435,9 +449,9 @@ pub struct OrchestrateRunner { ... }
 +===============================================================================+
 ```
 
-### Phase 1 -- DataStore -> RunContext (v0.28)
+### Phase 1 -- DataStore -> RunContext (DONE)
 
-The biggest rename. 668 occurrences, 29 files. Pure mechanical refactor.
+The biggest rename. 668 occurrences, 29 files. Pure mechanical refactor. Completed pre-v0.34.
 
 ```bash
 # 1. Rename the file
@@ -463,13 +477,13 @@ sed -i 's/datastore/run_context/g' tests/**/*.rs
 #     vector_index: Option<VectorIndex>,
 # }
 
-# 6. cargo test (6,157 tests must pass)
+# 6. cargo test (8457 tests pass as of v0.49.3)
 # 7. cargo clippy -- -D warnings
 ```
 
 **Risk**: LOW -- pure rename, no logic change. All tests validate the same behavior.
 
-### Phase 2 -- Record infrastructure (v0.28)
+### Phase 2 -- Record infrastructure (FUTURE)
 
 Create new files with correct naming from day 1:
 
@@ -480,7 +494,7 @@ src/runtime/record_compress.rs  # RecordCompressor (tactical LLM summarization)
 
 Add `record:` field to task AST in `src/ast/action.rs`.
 
-### Phase 2b -- Punk Records tier WARM (v0.28)
+### Phase 2b -- Punk Records tier WARM (FUTURE)
 
 Create the local disk persistence layer:
 
@@ -492,16 +506,13 @@ src/runtime/record_config.rs    # RecordConfig -- TTL, max_size, promotion setti
 Add `[records]` section to `.nika/config.toml` parser.
 Add `nika records` CLI subcommand (list, show, search, promote, prune, stats).
 
-### Phase 3 -- Agent Presets (v0.28)
+### Phase 3 -- Agent Presets (DONE via agents: block)
 
-Create new files with correct naming:
+The `agents:` block is implemented in the workflow header. The 8 functional preset names
+(default/lite/think/search/vision/judge/coder/summary) are the canonical user-facing names.
+The separate `model_slots:` top-level key was never created -- `agents:` subsumes it entirely.
 
-```
-src/runtime/agent_presets.rs    # AgentPreset { Default, Lite, Think, Search, Vision, Judge, Coder, Summary }
-src/ast/agents.rs               # YAML parsing for agents: block
-```
-
-### Phase 4 -- Orchestration (v0.29)
+### Phase 4 -- Orchestration (FUTURE)
 
 Create new files:
 
@@ -513,7 +524,7 @@ src/ast/orchestrate.rs                # OrchestrateConfig, Satellite AST parsing
 
 Add `orchestration:` field to workflow AST. Parser accepts both `orchestrate` and `strategy`.
 
-### Phase 5 -- NovaNet promotion + Introspection (v0.30)
+### Phase 5 -- NovaNet promotion + Introspection (FUTURE)
 
 Add promotion logic:
 
@@ -606,7 +617,7 @@ Other introspection tools keep technical names (dag_state, budget, task_status, 
 - **Extension naturelle (Doc 17)** -- `vector_index` field added pour `nika:search` native RAG
 - **Clear semantics** -- Context de runtime qui persiste pendant le run, disparu apres
 
-**Status :** RESOLU -- implemente en v0.28
+**Status :** RESOLU -- implemente (pre-v0.34)
 
 ### Q2: Punk Records = tier WARM -- VALIDE
 
@@ -969,7 +980,7 @@ WorkingMemory         +          --            -            -               --
 
 ## Why This Research Matters
 
-Nika v0.28 introduces P-MODEL: a unified `agents:` block where workflows declare WHAT capability
+Nika's `agents:` block (shipped since v0.35) lets workflows declare WHAT capability
 they need (default, lite, think, search, vision, judge, coder, summary) rather than WHICH specific
 model to use. This section validates the design against the 2025-2026 landscape.
 
@@ -1599,7 +1610,7 @@ The research validates Nika's 8-preset unified `agents:` design on every dimensi
 | **YAML-first** | Only declarative system with named presets (unique differentiator) | High |
 | **Descriptive names** | Self-documenting, zero onboarding friction, no lore required | High |
 | **Per-task assignment** | Standard pattern across all frameworks | High |
-| **Fallback chains** | Industry standard, must ship in v0.28 or v0.29 | High |
+| **Fallback chains** | Industry standard, planned for v1 roadmap | High |
 | **Confidence escalation** | Academically validated (FrugalGPT, RouteLLM) | High |
 
 ### Design Decisions: Confirmed
@@ -1613,7 +1624,7 @@ The research validates Nika's 8-preset unified `agents:` design on every dimensi
 | Orchestrator can dynamically assign presets | CONFIRMED | Dynamic dispatch is validated by every orchestration framework. |
 | Extended thinking as preset property, not separate preset | CONFIRMED | Thinking is a model capability, not a cognitive mode. |
 
-### Gap: Fallback Chains (Ship in v0.28)
+### Gap: Fallback Chains (Future)
 
 The one gap in the current P-MODEL design is **explicit fallback configuration**.
 Every production routing system supports this. Proposed addition:
@@ -1632,7 +1643,7 @@ agents:
 
 This enables resilience (provider outages) and flexibility (dev vs production configs).
 
-### Gap: Preset Aliases (Consider for v0.29)
+### Gap: Preset Aliases (Deprioritized)
 
 For migration from Vegapunk naming, consider accepting both old and new names:
 
@@ -1648,7 +1659,7 @@ agents:
 This would lower the migration curve while maintaining the descriptive canonical names.
 The parser would normalize aliases to canonical names at parse time.
 
-### Future: Auto-Routing (v0.30+)
+### Future: Auto-Routing (Post-v1)
 
 Long-term, Nika could offer an `auto` mode inspired by RouteLLM and R2-Router:
 
@@ -1658,7 +1669,7 @@ agents:
   lite: auto           # Router picks best model for fast tasks
 ```
 
-This is explicitly out of scope for v0.28-v0.30 (transparent manual routing first),
+This is explicitly post-v1 scope (transparent manual routing first),
 but the preset abstraction makes it a natural future extension.
 
 ---

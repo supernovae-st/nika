@@ -873,9 +873,18 @@ mod tests {
     #[tokio::test]
     async fn list_jobs_for_workflow_returns_matching() {
         let storage = Storage::open_memory().unwrap();
-        storage.insert_job(make_job("j1", "a.nika.yaml")).await.unwrap();
-        storage.insert_job(make_job("j2", "a.nika.yaml")).await.unwrap();
-        storage.insert_job(make_job("j3", "b.nika.yaml")).await.unwrap();
+        storage
+            .insert_job(make_job("j1", "a.nika.yaml"))
+            .await
+            .unwrap();
+        storage
+            .insert_job(make_job("j2", "a.nika.yaml"))
+            .await
+            .unwrap();
+        storage
+            .insert_job(make_job("j3", "b.nika.yaml"))
+            .await
+            .unwrap();
 
         let a_jobs = storage.list_jobs_for_workflow("a.nika.yaml").await.unwrap();
         assert_eq!(a_jobs.len(), 2);

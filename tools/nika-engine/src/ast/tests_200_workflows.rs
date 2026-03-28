@@ -8849,8 +8849,7 @@ tasks:
 
 #[test]
 fn ab06_model_template_in_agent() {
-    let yaml =
-        wrap("agent:\n  prompt: \"Test\"\n  model: \"{{inputs.agent_model}}\"");
+    let yaml = wrap("agent:\n  prompt: \"Test\"\n  model: \"{{inputs.agent_model}}\"");
     let w = ok(&yaml);
     let task = &w.tasks[0];
     match &task.action {
@@ -8978,8 +8977,16 @@ tasks:
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 3);
     assert!(w.tasks[1].structured.is_some());
-    assert!(w.tasks[1].depends_on.as_ref().unwrap().contains(&"research".to_string()));
-    assert!(w.tasks[2].depends_on.as_ref().unwrap().contains(&"extract_entities".to_string()));
+    assert!(w.tasks[1]
+        .depends_on
+        .as_ref()
+        .unwrap()
+        .contains(&"research".to_string()));
+    assert!(w.tasks[2]
+        .depends_on
+        .as_ref()
+        .unwrap()
+        .contains(&"extract_entities".to_string()));
 }
 
 #[test]
@@ -9343,7 +9350,10 @@ tasks:
     match &w.tasks[4].action {
         TaskAction::Agent { agent } => {
             assert_eq!(agent.prompt, "Deep research on: {{with.summary | trim}}");
-            assert_eq!(agent.system.as_deref(), Some("You are a thorough researcher"));
+            assert_eq!(
+                agent.system.as_deref(),
+                Some("You are a thorough researcher")
+            );
             assert_eq!(agent.effective_max_turns(), 8);
             assert_eq!(agent.token_budget, Some(50000));
             assert_eq!(agent.tools.len(), 2);
@@ -9493,14 +9503,14 @@ tasks:
             assert_eq!(agent.effective_max_turns(), 25);
             assert_eq!(agent.token_budget, Some(100000));
             assert_eq!(agent.effective_depth_limit(), 5);
-            assert_eq!(agent.effective_tool_choice(), crate::ast::ToolChoice::Required);
+            assert_eq!(
+                agent.effective_tool_choice(),
+                crate::ast::ToolChoice::Required
+            );
             assert_eq!(agent.stop_sequences.len(), 2);
             // Completion
             let completion = agent.completion.as_ref().unwrap();
-            assert_eq!(
-                completion.mode,
-                crate::ast::CompletionMode::Explicit
-            );
+            assert_eq!(completion.mode, crate::ast::CompletionMode::Explicit);
             // Guardrails
             assert_eq!(agent.guardrails.len(), 4);
             assert_eq!(agent.guardrails[0].guardrail_type(), "length");
@@ -10084,7 +10094,7 @@ tasks:
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 8);
     assert_eq!(w.provider, "mock"); // workflow-level
-    // Verify per-task providers
+                                    // Verify per-task providers
     match &w.tasks[0].action {
         TaskAction::Infer { infer } => {
             assert_eq!(infer.provider.as_deref(), Some("anthropic"));
@@ -10192,9 +10202,7 @@ tasks:
 
     // 3. Invalid structured schema (missing type at top level)
     // Note: structured without schema or from_example should fail
-    let yaml3 = wrap(
-        "structured:\n  enable_repair: true\ninfer: \"Extract data\"",
-    );
+    let yaml3 = wrap("structured:\n  enable_repair: true\ninfer: \"Extract data\"");
     let e3 = err(&yaml3);
     let msg3 = e3.to_string();
     assert!(
@@ -10232,7 +10240,10 @@ tasks:
     let e5 = err(yaml5);
     let msg5 = e5.to_string();
     assert!(
-        msg5.contains("schema") || msg5.contains("version") || msg5.contains("NIKA-01") || msg5.contains("NIKA-142"),
+        msg5.contains("schema")
+            || msg5.contains("version")
+            || msg5.contains("NIKA-01")
+            || msg5.contains("NIKA-142"),
         "Expected schema version error, got: {msg5}"
     );
 

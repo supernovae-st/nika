@@ -94,7 +94,8 @@ src/
 | 120-129 | Resilience |
 | 130-139 | TUI/Config |
 | 140-151 | AST analysis (Phase 2) |
-| 160-164 | Policy/Boot errors |
+| 160-164 | Parse errors (Phase 1 parser, nika-core) |
+| 165-169 | Policy/Boot/Startup errors |
 | 170-179 | Runtime (decompose) |
 | 200-214 | File tools + Builtin tools |
 | 215-219 | File I/O errors (215 = FileAlreadyExists) |

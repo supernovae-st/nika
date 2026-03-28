@@ -192,8 +192,8 @@ pub fn validate_document(
                 };
 
                 if !has_key {
-                    let env_var = nika_core::catalogs::provider_to_env_var(provider_str)
-                        .unwrap_or("API_KEY");
+                    let env_var =
+                        nika_core::catalogs::provider_to_env_var(provider_str).unwrap_or("API_KEY");
                     let range = span_to_range(&provider_spanned.span, &doc);
                     diagnostics.push(Diagnostic {
                         range,
@@ -313,9 +313,9 @@ tasks: []
         // Our Phase 4 NIKA-145 warning is a defensive fallback for edge cases
         // where the analyzer returns a value with 0 tasks.
         // Either NIKA-144 or NIKA-145 should appear.
-        let has_empty_tasks_diagnostic = diagnostics.iter().any(|d| {
-            d.message.contains("must not be empty") || d.message.contains("no tasks")
-        });
+        let has_empty_tasks_diagnostic = diagnostics
+            .iter()
+            .any(|d| d.message.contains("must not be empty") || d.message.contains("no tasks"));
         assert!(
             has_empty_tasks_diagnostic,
             "Expected empty tasks diagnostic, got: {:?}",

@@ -130,7 +130,37 @@ Builtins: `nika:import`, `nika:thumbnail`, `nika:chart`, `nika:metadata`, etc.
   output: { format: json }           # text | json | yaml
   artifact: { path: out.json }       # Persist output to file
   structured: ./schema.json          # JSON schema enforcement
+  preset: think                      # Agent preset (from agents: block)
   log: debug                         # Log level override
+```
+
+## Agent Presets
+
+Define named agent configurations in the `agents:` block, reference them via `preset:` on tasks.
+Task-level overrides take precedence over preset values.
+
+```yaml
+schema: nika/workflow@0.12
+workflow: preset-demo
+agents:
+  think:
+    system: "You are a deep reasoning assistant"
+    provider: anthropic
+    model: claude-sonnet-4-20250514
+    temperature: 0.3
+  lite:
+    provider: groq
+    model: llama-3.3-70b-versatile
+    temperature: 0.8
+tasks:
+  - id: plan
+    preset: think
+    infer: "Plan the architecture for a REST API"
+  - id: implement
+    preset: lite
+    depends_on: [plan]
+    with: { plan: $plan }
+    infer: "Implement step 1 from: {{with.plan}}"
 ```
 
 ## Example: Diamond DAG

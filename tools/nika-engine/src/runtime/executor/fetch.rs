@@ -125,8 +125,7 @@ impl TaskExecutor {
                 serde_json::to_string(json_value).map_err(|e| NikaError::InvalidJson {
                     details: format!("Failed to serialize json body: {e}"),
                 })?;
-            let resolved_json_str =
-                template_resolve(&json_str, bindings, datastore)?.into_owned();
+            let resolved_json_str = template_resolve(&json_str, bindings, datastore)?.into_owned();
             let json_body = if resolved_json_str != json_str {
                 // Re-parse to validate the resolved JSON is still valid
                 serde_json::from_str::<serde_json::Value>(&resolved_json_str)

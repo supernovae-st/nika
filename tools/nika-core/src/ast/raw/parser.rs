@@ -1686,6 +1686,7 @@ fn validate_task_keys(
         "provider",
         "model",
         "base_url",
+        "preset",
         "with",
         "depends_on",
         "output",
@@ -1723,10 +1724,7 @@ fn validate_task_keys(
                 return Err(ParseError {
                     kind: ParseErrorKind::UnknownField,
                     span,
-                    message: format!(
-                        "unknown task field '{}...' (key too long)",
-                        &key_str[..32]
-                    ),
+                    message: format!("unknown task field '{}...' (key too long)", &key_str[..32]),
                 });
             }
             let suggestion = KNOWN_TASK_KEYS
@@ -1775,6 +1773,7 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
     let provider = get_string_field(file_id, map, "provider")?;
     let model = get_string_field(file_id, map, "model")?;
     let base_url = get_string_field(file_id, map, "base_url")?;
+    let preset = get_string_field(file_id, map, "preset")?;
 
     // Parse all task fields
     let action = parse_action(file_id, map)?;
@@ -1831,6 +1830,7 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
         provider,
         model,
         base_url,
+        preset,
         action,
         with_refs,
         depends_on,
@@ -3103,7 +3103,10 @@ tasks:
       - b
 "#;
         let result = parse(yaml, FileId(0));
-        assert!(result.is_err(), "unknown task key should be rejected even when verb is present");
+        assert!(
+            result.is_err(),
+            "unknown task key should be rejected even when verb is present"
+        );
         let err = result.unwrap_err();
         assert_eq!(err.kind, ParseErrorKind::UnknownField);
         assert!(
@@ -3135,6 +3138,10 @@ tasks:
     infer: "hello"
 "#;
         let result = parse(yaml, FileId(0));
-        assert!(result.is_ok(), "all known task keys should parse fine: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "all known task keys should parse fine: {:?}",
+            result.err()
+        );
     }
 }

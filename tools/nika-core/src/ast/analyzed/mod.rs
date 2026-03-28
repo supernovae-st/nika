@@ -103,6 +103,7 @@ mod tests {
             artifact: None,
             log: None,
             structured: None,
+            preset: None,
             span: crate::source::Span::dummy(),
         };
     }

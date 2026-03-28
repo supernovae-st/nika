@@ -622,7 +622,10 @@ extended_thinking: false
             provider: Some("openai".to_string()),
             ..Default::default()
         };
-        assert!(params.validate().is_ok(), "should degrade gracefully, not crash");
+        assert!(
+            params.validate().is_ok(),
+            "should degrade gracefully, not crash"
+        );
     }
 
     #[test]

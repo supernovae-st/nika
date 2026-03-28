@@ -1,9 +1,11 @@
-# 10 — Nika v0.30 TUI: The Jarvis Vision
+# 10 — Nika TUI: The Jarvis Vision
+
+> Design north star — functional names replace One Piece naming.
 
 > The complete visual design specification for Nika's orchestrate-mode TUI.
 > Every panel, every data point, every color — designed to feel like piloting an AI.
 
-**Nika** v0.30 · **NovaNet** v0.20.0 · Updated 2026-03-14
+**Nika** v1.0 target · **NovaNet** v0.20.0 · Updated 2026-03-28
 
 ---
 
@@ -13,7 +15,7 @@
 
 ```
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ 🦋 NIKA v0.30                generate-multilingual.nika.yaml                                                ┃
+┃ 🦋 NIKA v1.0                generate-multilingual.nika.yaml                                                ┃
 ┃ ┈ Orchestrate Mode ┈              Goal: Landing pages × 5 locales        Round 4/8  ◉ 0.91  $0.037  ⏱ 47.2s    ┃
 ┣━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
 ┃ 🎯 ORCHESTRATOR         ┃  📊 LIVE DAG                                                ┃  🧠 NOVANET              ┃
@@ -32,10 +34,10 @@
 ┃  └────────────┘  ┃  └────────┘             │                │ (queued) │       ┃  📚 Knowledge Atoms:     ┃
 ┃                  ┃  ┌────────┐             │                └─────┬────┘       ┃  ┌─ expressions ────────┐┃
 ┃  Models:         ┃  │🧠 mem  │─────────────┘                      │            ┃  │ "code QR" (not "QR   ┃
-┃  ◉ pythagoras    ┃  │recall  │        ┌──────────┐          ┌─────▼────┐       ┃  │  code" in French)    ┃
-┃  ◉ edison        ┃  │✅ 0.3s │        │🔍research│          │✍️ price  │       ┃  │ "flash code" (alt)   ┃
-┃  ◉ york          ┃  │2 found │───────▶│ Groq     │          │ (queued) │       ┃  │ "générer" > "créer"  ┃
-┃  ○ atlas         ┃  └────────┘        │⏳ 2.3s   │          └─────┬────┘       ┃  └──────────────────────┘┃
+┃  ◉ think    ┃  │recall  │        ┌──────────┐          ┌─────▼────┐       ┃  │  code" in French)    ┃
+┃  ◉ default        ┃  │✅ 0.3s │        │🔍research│          │✍️ price  │       ┃  │ "flash code" (alt)   ┃
+┃  ◉ search          ┃  │2 found │───────▶│ Groq     │          │ (queued) │       ┃  │ "générer" > "créer"  ┃
+┃  ○ lite         ┃  └────────┘        │⏳ 2.3s   │          └─────┬────┘       ┃  └──────────────────────┘┃
 ┃                  ┃                     │████░░░░░ │          ┌─────▼────┐       ┃  ┌─ taboos ─────────────┐┃
 ┃  ── Decisions ── ┃                     └──────────┘          │🔬review  │       ┃  │ ⚠ "gratuit" in heads ┃
 ┃  R1 ✅ get ctx   ┃                           │               │ Claude   │       ┃  │   (implies low qual) ┃
@@ -47,8 +49,8 @@
 ┃  R7 ○ faq        ┃  research ← { locale: "fr-FR", past: EP-recall<2> }         ┃  │ data-driven args     ┃
 ┃  R8 ○ review     ┃                                                              ┃  │ metric > anecdote    ┃
 ┃                  ┃  ── Parallel execution ──                                    ┃  └──────────────────────┘┃
-┃  Thinking:       ┃  🔍 research [Groq/york]      ████░░░░░ 43%                 ┃                          ┃
-┃  "I should run   ┃  ✍️  hero [Claude/edison+🧠]    █████░░░░ 55%                 ┃  🔗 Graph Neighbors:    ┃
+┃  Thinking:       ┃  🔍 research [Groq/search]      ████░░░░░ 43%                 ┃                          ┃
+┃  "I should run   ┃  ✍️  hero [Claude/default+🧠]    █████░░░░ 55%                 ┃  🔗 Graph Neighbors:    ┃
 ┃   hero & research┃                                                              ┃  qr-code-ai             ┃
 ┃   in parallel    ┃  ── Structured Output ──                                     ┃  ├──HAS_NATIVE──▶ fr-FR ┃
 ┃   since they     ┃  hero → schema: { headline: str, subheadline: str,           ┃  ├──HAS_NATIVE──▶ en-US ┃
@@ -61,10 +63,10 @@
 ┃                  ┃                                                              ┃                          ┃
 ┃ ┌─ EP-1 ────────┐┃  Task: hero (write_section template)                        ┃  💰 Cost Breakdown:     ┃
 ┃ │ entity_context ┃  Verb: infer ⚡                                              ┃  ┌──────────────────────┐┃
-┃ │ 500 tok ✅     ┃  Model: Claude claude-sonnet-4-6 (edison slot)                ┃  │ pythagoras $0.018    ┃
-┃ │ src: novanet   ┃  Extended Thinking: ON (budget: 16384)                      ┃  │ edison     $0.012    ┃
-┃ │ fields: ctx    ┃                                                              ┃  │ york       $0.004    ┃
-┃ └────────────────┘┃  ── with: Bindings (resolved) ──────────────────────       ┃  │ atlas      $0.003    ┃
+┃ │ 500 tok ✅     ┃  Model: Claude claude-sonnet-4-6 (default agent)                ┃  │ think $0.018    ┃
+┃ │ src: novanet   ┃  Extended Thinking: ON (budget: 16384)                      ┃  │ default     $0.012    ┃
+┃ │ fields: ctx    ┃                                                              ┃  │ search       $0.004    ┃
+┃ └────────────────┘┃  ── with: Bindings (resolved) ──────────────────────       ┃  │ lite      $0.003    ┃
 ┃ ┌─ EP-2 ────────┐┃  │ alias          │ source          │ value preview  │       ┃  │────────────────────│┃
 ┃ │ knowledge      ┃  │────────────────│─────────────────│────────────────│       ┃  │ TOTAL      $0.037   ┃
 ┃ │ 400 tok ✅     ┃  │ entity         │ "$get_ctx"      │ {name: "QR..  │       ┃  └──────────────────────┘┃
@@ -81,7 +83,7 @@
 ┃ │ RECALLED       ┃    "body": { "type": "string" }           ← required       ┃                          ┃
 ┃ │ past research  ┃  }                                                          ┃  🧠 NovaNet Memory:     ┃
 ┃ │ 280 tok        ┃  Validation: Layer 1 ⏳ │ Layer 2 ○ │ Layer 3 ○ │ L4 ○     ┃  ┌──────────────────────┐┃
-┃ │ 2025-03-12     ┃  Max retries: 3  │  Repair model: atlas                  ┃  │ Recalled: 2 records  ┃
+┃ │ 2025-03-12     ┃  Max retries: 3  │  Repair model: lite                  ┃  │ Recalled: 2 records  ┃
 ┃ │ entity: qr-code┃                                                              ┃  │ Stored:   1 record   ┃
 ┃ └────────────────┘┃  ── record: Config ────────────────────────────────        ┃  │ Entity: qr-code-ai   ┃
 ┃ ┌─ EP-R2 ←🧠 ──┐┃  compress: true │ max_tokens: 800 │ retain: [content]       ┃  │ Locales: fr-FR (1/5) ┃
@@ -94,18 +96,18 @@
 ┃                  ┃  │ 5,200 / 8,000 tokens                     65%   │       ┃  threshold ─ ─ ─ 0.85   ┃
 ┃ Total working    ┃  └──────────────────────────────────────────────────┘       ┃                          ┃
 ┃ memory: 2,270tok ┃                                                              ┃  ⏱ Model Utilization:   ┃
-┃ (raw: 8,900tok)  ┃  ── Extended Thinking (live) ───────────────────────        ┃  pythagoras████████ 72% ┃
-┃ Savings: 74%     ┃  │ Let me think about how to write this hero section.       ┃  edison    █████░░░ 55% ┃
-┃                  ┃  │ The entity is QR Code AI, a SaaS for dynamic QR codes.   ┃  york      ████░░░░ 43% ┃
-┃                  ┃  │ For French B2B audience, I should:                        ┃  atlas     ██░░░░░░ 18% ┃
+┃ (raw: 8,900tok)  ┃  ── Extended Thinking (live) ───────────────────────        ┃  think████████ 72% ┃
+┃ Savings: 74%     ┃  │ Let me think about how to write this hero section.       ┃  default    █████░░░ 55% ┃
+┃                  ┃  │ The entity is QR Code AI, a SaaS for dynamic QR codes.   ┃  search      ████░░░░ 43% ┃
+┃                  ┃  │ For French B2B audience, I should:                        ┃  lite     ██░░░░░░ 18% ┃
 ┃                  ┃  │ 1. Use "code QR" not "QR code" (knowledge atom)          ┃                          ┃
 ┃                  ┃  │ 2. Avoid "gratuit" in headline (taboo)                   ┃  🐔 Agents: 0 active    ┃
 ┃                  ┃  │ 3. Use formal "vous" (audience: B2B formal)              ┃  🐤 Subagents: 0        ┃
 ┃                  ┃  │ 4. Lead with data-driven argument...                      ┃  📟 exec: 0 running     ┃
 ┃                  ┃  │ █████████████░░░░░░░ 8,200/16,384 thinking tokens        ┃  🛰️ fetch: 0 pending    ┃
 ┣━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
-┃ ⚡ LIVE │ hero [Claude/edison+🧠] "Créez des codes QR intelligents qui..." │ 5.2K in │ 890 out │ struct: ⏳  ┃
-┃ 💰 $0.037 │ 🧠 pythagoras ◉ edison ◉ york ◉ atlas ○ │ 🔗 NovaNet: qr-code-ai/fr-FR │ EP: 4+2R    ┃
+┃ ⚡ LIVE │ hero [Claude/default+🧠] "Créez des codes QR intelligents qui..." │ 5.2K in │ 890 out │ struct: ⏳  ┃
+┃ 💰 $0.037 │ 🧠 think ◉ default ◉ search ◉ lite ○ │ 🔗 NovaNet: qr-code-ai/fr-FR │ EP: 4+2R    ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 ```
 
@@ -123,7 +125,7 @@ The "brain" of Jarvis. Shows WHAT the AI is thinking and deciding.
 | State | PLAN → EXEC → EVAL → DECIDE | Real-time |
 | Quality score | 0.0–1.0 with color (red < 0.85, green ≥ 0.85) | Per review task |
 | Token budget | Bar + numbers (spent/total) | Per task completion |
-| Model roster | 4 dots: ◉ active, ○ idle, per slot name + color | Real-time |
+| Model roster | 4 dots: ◉ active, ○ idle, per agent name + color | Real-time |
 | Decision log | Chronological: R1 ✅, R2 ⏳, R3 ○ with task names | Per round |
 | Orchestrator thinking | Live preview of strategist's reasoning (truncated) | Streaming |
 | Next actions | Queue of planned tasks (from orchestrator) | Per decision |
@@ -132,7 +134,7 @@ The "brain" of Jarvis. Shows WHAT the AI is thinking and deciding.
 - Round ring: teal gradient filling
 - Quality: green ≥ 0.85, orange 0.70–0.84, red < 0.70
 - Budget: teal → orange at 80% → red at 95%
-- Model dots: purple (pythagoras), blue (edison), orange (york), gray (atlas)
+- Model dots: purple (think), blue (default), orange (search), gray (lite)
 
 ---
 
@@ -159,7 +161,7 @@ The "holographic display". Shows the EXECUTION graph in real-time.
 - 🛰️ fetch (satellite)
 - 🔌 invoke (plug — for MCP calls)
 - 🐔 agent (chicken)
-- 🔍 search model slot indicator
+- 🔍 search agent indicator
 - 🧠 extended thinking indicator
 
 **Below the DAG:**
@@ -223,7 +225,7 @@ The "x-ray view". Deep detail on the currently selected/active task.
 
 | Section | Content |
 |---------|---------|
-| **Task header** | ID, verb icon, template name, model slot + model name |
+| **Task header** | ID, verb icon, template name, agent + model name |
 | **with: bindings** | Table: alias → source path → resolved value preview |
 | **Transforms** | Active pipe chain: `knowledge | extract(expressions) | first(5)` |
 | **structured: schema** | JSON schema with required fields highlighted |
@@ -240,13 +242,13 @@ The "flight instruments". Performance and cost tracking.
 
 | Metric | Visualization |
 |--------|--------------|
-| Cost breakdown | Per model slot: name + dollar amount |
+| Cost breakdown | Per agent: name + dollar amount |
 | Token usage | Total in/out/thinking/record tokens |
 | Record efficiency | Savings percentage (compression ratio) |
 | NovaNet memory | Recalled count, stored count, entity link, locale progress |
 | CSR score | NovaNet audit quality (constraint satisfaction rate) |
 | Quality trend | Mini sparkline showing score across rounds |
-| Model utilization | Horizontal bars per slot (% time active) |
+| Model utilization | Horizontal bars per agent (% time active) |
 | Active counts | Agents 🐔, subagents 🐤, exec 📟, fetch 🛰️ running |
 
 ---
@@ -256,7 +258,7 @@ The "flight instruments". Performance and cost tracking.
 The "heads-up display" — always visible, always current.
 
 ```
-⚡ LIVE │ task [Model/slot] "streaming output..." │ tokens in/out │ struct status
+⚡ LIVE │ task [Model/agent] "streaming output..." │ tokens in/out │ struct status
 💰 cost │ model dots │ 🔗 NovaNet entity/locale │ EP: N+NR (recalled)
 ```
 
@@ -299,20 +301,20 @@ The "heads-up display" — always visible, always current.
 ║  ── Semantic Colors ──                                                     ║
 ║                                                                            ║
 ║  #0d9488  Teal     NovaNet, knowledge, entity links, brain                 ║
-║  #7c3aed  Purple   Pythagoras model, orchestrator decisions, thinking              ║
-║  #2563eb  Blue     Edison model, primary execution, MCP protocol           ║
-║  #d97706  Orange   York model, warnings, alerts, atlas                     ║
+║  #7c3aed  Purple   Think model, orchestrator decisions, thinking              ║
+║  #2563eb  Blue     Default model, primary execution, MCP protocol           ║
+║  #d97706  Orange   Search model, warnings, alerts, lite                     ║
 ║  #b58900  Gold     Records, compressed data, memory packets                ║
 ║  #16a34a  Green    Success, completed, validated, healthy                  ║
 ║  #dc2626  Red      Error, failed, invalid, critical                        ║
 ║  #06b6d4  Cyan     Active/streaming, live data, current focus              ║
 ║                                                                            ║
-║  ── Model Slot Colors ──                                                   ║
+║  ── Agent Colors ──                                                        ║
 ║                                                                            ║
-║  pythagoras #7c3aed  Purple  (deep thought, extended thinking)             ║
-║  edison     #2563eb  Blue    (primary execution, quality output)           ║
-║  york       #d97706  Orange  (fast, cheap, information gathering)          ║
-║  atlas      #586e75  Gray    (utility, formatting, simple tasks)           ║
+║  think #7c3aed  Purple  (deep thought, extended thinking)             ║
+║  default     #2563eb  Blue    (primary execution, quality output)           ║
+║  search       #d97706  Orange  (fast, cheap, information gathering)          ║
+║  lite      #586e75  Gray    (utility, formatting, simple tasks)           ║
 ║                                                                            ║
 ║  ── Record Colors ──                                                       ║
 ║                                                                            ║
@@ -333,7 +335,7 @@ The "heads-up display" — always visible, always current.
 
 ```
 Create a hyper-detailed UI mockup of a futuristic terminal-based AI workflow
-orchestrator called "Nika v0.30 — Orchestrate Runner". This is the user's view
+orchestrator called "Nika v1.0 — Orchestrate Runner". This is the user's view
 when piloting an AI — it should feel like JARVIS from Iron Man, but as a
 real terminal application. Dark, information-dense, every pixel meaningful.
 
@@ -348,7 +350,7 @@ OVERALL AESTHETIC:
 - Aspect ratio: 21:9 ultrawide (cinematic cockpit feeling)
 
 HEADER BAR (full width, ~3% height):
-- Left: Butterfly emoji + "NIKA v0.30" in bright white (#fdf6e3)
+- Left: Butterfly emoji + "NIKA v1.0" in bright white (#fdf6e3)
 - Center: Workflow filename "generate-multilingual.nika.yaml" in dimmed text
 - Right side cluster: "Round 4/8" (cyan), quality dot "◉ 0.91" (green),
   cost "$0.037" (gold), timer "⏱ 47.2s" (dimmed)
@@ -367,7 +369,7 @@ PANEL 1 — ORCHESTRATOR (top-left, 15% width):
   showing "12.1K / 15K" below
 - Model roster: 4 rows, each with:
   - Colored dot (◉ or ○): purple/blue/orange/gray
-  - Slot name: "pythagoras", "edison", "york", "atlas"
+  - Agent name: "think", "default", "search", "lite"
   - Status: active model name when in use
 - Decision log: Scrollable list
   R1 ✅ get_entity_context (invoke)
@@ -444,7 +446,7 @@ PANEL 4 — RECORDS TIMELINE (bottom-left, 15% width):
 
 PANEL 5 — TASK INSPECTOR (bottom-center, 50% width):
 - Header: "🔬 TASK INSPECTOR — hero (write_section)"
-- Task info: verb ⚡ infer, model Claude (edison slot + 🧠 thinking)
+- Task info: verb ⚡ infer, model Claude (default agent + 🧠 thinking)
 - with: bindings table (3 columns: alias | source | preview):
   entity → "$get_ctx" → {name: "QR Code AI", ...}
   knowledge → "$get_know" → {expressions: 12, taboos: 3}
@@ -462,7 +464,7 @@ PANEL 5 — TASK INSPECTOR (bottom-center, 50% width):
 
 PANEL 6 — METRICS DASHBOARD (bottom-right, 35% width):
 - Header: "📈 METRICS"
-- Cost table: pythagoras $0.018, edison $0.012, york $0.004, atlas $0.003
+- Cost table: think $0.018, default $0.012, search $0.004, lite $0.003
   TOTAL: $0.037 (in gold)
 - Token table: In 18,420 | Out 4,890 | Thinking 8,200 | Records 2,200
   "Saved by records: 74%"
@@ -470,15 +472,15 @@ PANEL 6 — METRICS DASHBOARD (bottom-right, 35% width):
   Locales: fr-FR (1/5) | CSR: 0.96"
 - Quality trend sparkline: dots at 0.88, 0.91, 0.91 with 0.85 threshold line
 - Model utilization bars:
-  pythagoras████████░░ 72%
-  edison    █████░░░░░ 55%
-  york      ████░░░░░░ 43%
-  atlas     ██░░░░░░░░ 18%
+  think████████░░ 72%
+  default    █████░░░░░ 55%
+  search      ████░░░░░░ 43%
+  lite     ██░░░░░░░░ 18%
 
 FOOTER BAR (full width, ~5% height):
-- Line 1: "⚡ LIVE │ hero [Claude/edison+🧠] 'Créez des codes QR
+- Line 1: "⚡ LIVE │ hero [Claude/default+🧠] 'Créez des codes QR
   intelligents qui...' │ 5.2K in │ 890 out │ struct: ⏳"
-- Line 2: "💰 $0.037 │ 🧠 ◉ pythagoras ◉ edison ◉ york ○ atlas │
+- Line 2: "💰 $0.037 │ 🧠 ◉ think ◉ default ◉ search ○ lite │
   🔗 NovaNet: qr-code-ai/fr-FR │ EP: 4 + 2 recalled"
 
 CRITICAL DETAILS FOR REALISM:
@@ -504,7 +506,7 @@ RENDER AS:
 ### Prompt 2: Architecture Blueprint (The Brain/Body Diagram)
 
 ```
-Create a technical engineering blueprint diagram of the "Nika v0.30" AI
+Create a technical engineering blueprint diagram of the "Nika v1.0" AI
 orchestrator architecture. The style is a hybrid between a vintage aerospace
 schematic and a cyberpunk neural network visualization. Dark blueprint
 background (#002b36).
@@ -523,7 +525,7 @@ Around it, 5 smaller icons representing the 5 semantic verbs:
 - 🔌 invoke (plug, teal)
 - 🐔 agent (stylized bird, purple)
 
-ORBITAL RING 1 — "v0.30 Features" (6 modules orbiting the core):
+ORBITAL RING 1 — "v1.0 Features" (6 modules orbiting the core):
 Arranged in a circle around the kernel, connected by circuit traces:
 
 1. TOP: ORCHESTRATOR
@@ -533,7 +535,7 @@ Arranged in a circle around the kernel, connected by circuit traces:
 
 2. TOP-RIGHT: MODEL_ROUTER
    Icon: 4 colored dots in a diamond. Color: multi
-   Label: "4-slot routing: pythagoras/edison/york/atlas"
+   Label: "4-agent routing: think/default/search/lite"
    Sub-elements: 4 provider logos, model names
 
 3. RIGHT: STRUCTURED_OUTPUT
@@ -631,9 +633,9 @@ COLOR PALETTE:
 - Background: #002b36 (dark blue-gray, like blueprint paper)
 - Circuit traces: #586e75 (gray, thin lines)
 - Teal (#0d9488): NovaNet elements, roots, knowledge
-- Purple (#7c3aed): Orchestrator, pythagoras, thinking
-- Blue (#2563eb): Edison execution, context management
-- Orange (#d97706): York, atlas, warnings
+- Purple (#7c3aed): Orchestrator, think, thinking
+- Blue (#2563eb): Default execution, context management
+- Orange (#d97706): Search, lite, warnings
 - Gold (#b58900): Records, data packets, memory
 - Green (#16a34a): Validation, success, health
 - Cyan (#06b6d4): Active elements, MCP protocol, introspection
@@ -657,7 +659,7 @@ Render style: technical illustration with subtle sci-fi elements.
 ### Prompt 3: The Poster (Marketing/Keynote Quality)
 
 ```
-Create a cinematic hero image for "Nika v0.30 — Your AI Orchestrator" that
+Create a cinematic hero image for "Nika v1.0 — Your AI Orchestrator" that
 could be used in a keynote presentation or product launch. The image should
 evoke the feeling of JARVIS from Iron Man — an AI copilot that sees
 everything, knows everything, and orchestrates everything.
@@ -673,7 +675,7 @@ COMPOSITION:
     - 5 verb icons floating in the wing pattern
     - YAML code fragments visible in the wing texture
     - Record data packets (golden hexagons) flowing through
-    - Model slot indicators (4 colored dots)
+    - Agent indicators (4 colored dots)
   RIGHT WING — "The Brain" (Knowledge):
     - Knowledge graph nodes and arcs
     - Entity cards with denomination forms
@@ -685,10 +687,10 @@ COMPOSITION:
     - Glowing blue spine with data flowing in both directions
 
 SURROUNDING ELEMENTS:
-- Top: "NIKA v0.30" in large, clean, white monospace text
+- Top: "NIKA v1.0" in large, clean, white monospace text
 - Below butterfly: "The AI Orchestrator" in smaller teal text
 - Bottom: 6 feature badges in a horizontal row:
-  "Model Slots" | "Records" | "Orchestrate" | "Context Budget" | "Memory" | "Introspect"
+  "Agents" | "Records" | "Orchestrate" | "Context Budget" | "Memory" | "Introspect"
   Each with its icon and accent color
 
 FLOATING DATA ELEMENTS around the butterfly:
@@ -708,12 +710,12 @@ TEXT OVERLAYS (small, positioned around the butterfly):
 - "KNOWING × DOING × CONNECTING" (the golden rule)
 - "5 Verbs. 4 Models. 1 DAG."
 - "NovaNet remembers. Nika executes."
-- Version: "v0.30 • YAML-first • Knowledge-aware • Orchestrate-driven"
+- Version: "v1.0 • YAML-first • Knowledge-aware • Orchestrate-driven"
 
 COLOR TREATMENT:
 - Predominantly dark with selective color accents
 - Teal (#0d9488) for NovaNet/knowledge elements (right wing)
-- Purple (#7c3aed) for orchestrator/pythagoras (top of butterfly)
+- Purple (#7c3aed) for orchestrator/think (top of butterfly)
 - Blue (#2563eb) for execution paths (left wing)
 - Gold (#b58900) for records (scattered throughout)
 - The butterfly should have a subtle bioluminescent glow
@@ -734,7 +736,7 @@ MCP connection point.
 ```
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                            ║
-║  JARVIS (Iron Man)              NIKA v0.30 (SuperNovae)                    ║
+║  JARVIS (Iron Man)              NIKA v1.0 (SuperNovae)                    ║
 ║  ─────────────────              ────────────────────────                    ║
 ║                                                                            ║
 ║  "Sir, I've analyzed the        Orchestrator: "I should run hero                ║

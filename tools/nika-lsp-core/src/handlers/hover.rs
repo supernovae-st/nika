@@ -694,9 +694,19 @@ mod tests {
             workflow_history: &history,
         };
         let r = hover("", 0, &ctx, Some(&data)).unwrap();
-        assert!(r.contents.contains("Recent runs"), "Should show run history: {}", r.contents);
-        assert!(r.contents.contains("\u{2713}"), "Should show checkmark for success");
-        assert!(r.contents.contains("\u{2717}"), "Should show cross for failure");
+        assert!(
+            r.contents.contains("Recent runs"),
+            "Should show run history: {}",
+            r.contents
+        );
+        assert!(
+            r.contents.contains("\u{2713}"),
+            "Should show checkmark for success"
+        );
+        assert!(
+            r.contents.contains("\u{2717}"),
+            "Should show cross for failure"
+        );
     }
 
     #[test]
@@ -705,6 +715,9 @@ mod tests {
             prefix: "workflow:".into(),
         };
         let r = hover("", 0, &ctx, None).unwrap();
-        assert!(!r.contents.contains("Recent runs"), "No history = no runs section");
+        assert!(
+            !r.contents.contains("Recent runs"),
+            "No history = no runs section"
+        );
     }
 }

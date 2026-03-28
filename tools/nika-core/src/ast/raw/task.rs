@@ -33,6 +33,9 @@ pub struct RawTask {
     /// Takes precedence over workflow-level base_url.
     pub base_url: Option<Spanned<String>>,
 
+    /// Agent preset reference from the workflow's `agents:` block.
+    pub preset: Option<Spanned<String>>,
+
     /// Binding declarations: `with: { alias: "expression" }`
     ///
     /// Values are raw strings that get parsed by `parse_with_entry()` in Phase 2.

@@ -63,7 +63,10 @@ const RESERVED_NAMESPACES: &[&str] = &["context", "inputs", "env"];
 /// - Circular include detected (same canonical path)
 /// - Maximum include depth exceeded (> 10 levels)
 /// - Path traversal detected (escaping base directory)
-pub fn expand_raw_include(workflow: RawWorkflow, base_path: &Path) -> Result<RawWorkflow, NikaError> {
+pub fn expand_raw_include(
+    workflow: RawWorkflow,
+    base_path: &Path,
+) -> Result<RawWorkflow, NikaError> {
     expand_raw_include_recursive(workflow, base_path, 0, &mut HashSet::new())
 }
 

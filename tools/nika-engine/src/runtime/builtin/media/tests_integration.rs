@@ -7,7 +7,9 @@ mod tests {
     use crate::runtime::builtin::media::dimensions::DimensionsOp;
     use crate::runtime::builtin::media::safety::sanitize_svg;
     use crate::runtime::builtin::media::thumbhash_tool::ThumbhashOp;
-    use crate::runtime::builtin::media::{MediaOp, MediaOpResult};
+    use crate::runtime::builtin::media::MediaOp;
+    #[cfg(feature = "media-thumbnail")]
+    use crate::runtime::builtin::media::MediaOpResult;
     use std::sync::Arc;
 
     async fn setup() -> (tempfile::TempDir, Arc<MediaToolContext>) {
