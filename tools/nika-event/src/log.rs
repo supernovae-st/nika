@@ -2,7 +2,7 @@
 //!
 //! Provides full audit trail with replay capability.
 //! - Event: envelope with id + timestamp + kind
-//! - EventKind: 43 variants across 14 categories (workflow/task/fine-grained/MCP/context/agent/guardrails/builtin/artifact/media/structured-output/media-cleanup/vision/boot)
+//! - EventKind: 44 variants across 15 categories (workflow/task/fine-grained/MCP/context/agent/guardrails/builtin/artifact/media/structured-output/media-cleanup/vision/boot)
 //! - EventLog: thread-safe, append-only log
 //!
 //! `AgentTurnMetadata` provides reasoning capture (thinking, tokens, stop_reason).
@@ -663,6 +663,22 @@ pub enum EventKind {
     },
 
     // ═══════════════════════════════════════════
+    // ROUTING EVENTS
+    // ═══════════════════════════════════════════
+    /// A fallback was triggered — switching from one provider to another.
+    FallbackTriggered {
+        task_id: Arc<str>,
+        /// Provider that failed.
+        from_provider: String,
+        /// Provider being tried next.
+        to_provider: String,
+        /// Reason for the fallback (e.g. "error", "timeout", "structured_failure").
+        reason: String,
+        /// Which attempt in the fallback chain (0-indexed).
+        attempt: u32,
+    },
+
+    // ═══════════════════════════════════════════
     // POLICY EVENTS
     // ═══════════════════════════════════════════
     /// Security policy blocked an operation
@@ -880,6 +896,7 @@ impl EventKind {
             | Self::ExecCompleted { task_id, .. }
             | Self::FetchRetry { task_id, .. }
             | Self::TaskRetry { task_id, .. }
+            | Self::FallbackTriggered { task_id, .. }
             | Self::PolicyBlocked { task_id, .. }
             | Self::BindingDefaultApplied { task_id, .. }
             | Self::BindingTransformApplied { task_id, .. }

@@ -231,6 +231,17 @@ pub enum NikaError {
     )]
     EndpointConnectionFailed { endpoint: String, reason: String },
 
+    /// All providers in the fallback chain failed.
+    #[error("[NIKA-037] Fallback chain exhausted: tried {providers} — all failed. Last error: {last_error}")]
+    #[diagnostic(
+        code(nika::fallback_chain_exhausted),
+        help("Check that at least one provider in the fallback chain is available and working")
+    )]
+    FallbackChainExhausted {
+        providers: String,
+        last_error: String,
+    },
+
     // ═══════════════════════════════════════════
     // TEMPLATE/BINDING ERRORS (040-049)
     // ═══════════════════════════════════════════
@@ -929,6 +940,7 @@ impl NikaError {
             Self::InvalidConfig { .. } => "NIKA-033",
             Self::EndpointNotFound { .. } => "NIKA-035",
             Self::EndpointConnectionFailed { .. } => "NIKA-036",
+            Self::FallbackChainExhausted { .. } => "NIKA-037",
             // Binding/Template errors
             Self::Execution(_) => "NIKA-096",
             Self::TemplateError { .. } => "NIKA-041",
@@ -1325,6 +1337,9 @@ impl FixSuggestion for NikaError {
             NikaError::CourseWatchError { .. } => {
                 Some("Check file permissions and that the course directory exists")
             }
+            NikaError::FallbackChainExhausted { .. } => {
+                Some("Add more providers to routing.fallback or check provider health")
+            }
         }
     }
 }
@@ -1365,6 +1380,9 @@ pub fn fix_suggestion_for_code(code: &str) -> Option<&'static str> {
         "NIKA-026" => Some("Fix the root task failure, then re-run"),
         "NIKA-027" => Some("Task was cancelled due to upstream failure"),
         "NIKA-033" => Some("Check configuration value is valid"),
+        "NIKA-035" => Some("Check endpoint name matches a [endpoints.NAME] in config.toml"),
+        "NIKA-036" => Some("Check the endpoint URL is reachable and the API key is correct"),
+        "NIKA-037" => Some("Add more providers to routing.fallback or check provider health"),
         "NIKA-043" => Some("Check binding value type matches expected type"),
         "NIKA-047" => Some("Check invoke params are valid JSON"),
         "NIKA-096" => Some("Check command/URL is valid"),

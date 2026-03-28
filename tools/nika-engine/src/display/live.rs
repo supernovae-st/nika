@@ -1203,6 +1203,24 @@ impl LiveRenderer {
                 ));
             }
 
+            // ── Routing (always show) ────────────────────────────
+            EventKind::FallbackTriggered {
+                task_id,
+                from_provider,
+                to_provider,
+                reason,
+                attempt,
+            } => {
+                self.log(&format!(
+                    "  {} {} \u{21AF} fallback {} \u{2192} {} ({})",
+                    task_id,
+                    from_provider.dimmed(),
+                    attempt,
+                    to_provider.cyan(),
+                    reason.dimmed(),
+                ));
+            }
+
             // ── Boot (always show) ───────────────────────────────
             EventKind::BootPhaseCompleted {
                 phase,
