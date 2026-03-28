@@ -267,6 +267,7 @@ fn uninstall_systemd() -> DaemonResult<()> {
 #[cfg(test)]
 mod tests {
     #[test]
+    #[cfg(target_os = "macos")]
     fn launchd_label_is_valid() {
         assert!(super::LAUNCHD_LABEL.contains("nika"));
         assert!(super::LAUNCHD_LABEL.starts_with("studio.supernovae"));
