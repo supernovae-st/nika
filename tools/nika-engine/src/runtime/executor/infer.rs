@@ -473,7 +473,7 @@ impl TaskExecutor {
                                                     .map(|pk| {
                                                         crate::provider::cost::calculate_cost_with_cache(
                                                             pk,
-                                                            model.unwrap_or("default"),
+                                                            model.unwrap_or_else(|| provider.default_model()),
                                                             stream_result.input_tokens,
                                                             stream_result.output_tokens,
                                                             stream_result.cached_input_tokens,
@@ -628,7 +628,7 @@ impl TaskExecutor {
                                                     .map(|pk| {
                                                         crate::provider::cost::calculate_cost_with_cache(
                                                             pk,
-                                                            model.unwrap_or("default"),
+                                                            model.unwrap_or_else(|| provider.default_model()),
                                                             est_in,
                                                             est_out,
                                                             0, // No cache info for non-streaming
@@ -697,7 +697,7 @@ impl TaskExecutor {
                                             .map(|pk| {
                                                 crate::provider::cost::calculate_cost_with_cache(
                                                     pk,
-                                                    model.unwrap_or("default"),
+                                                    model.unwrap_or_else(|| provider.default_model()),
                                                     est_in,
                                                     est_out,
                                                     0, // No cache info for non-streaming
@@ -844,7 +844,7 @@ impl TaskExecutor {
             .map(|pk| {
                 crate::provider::cost::calculate_cost_with_cache(
                     pk,
-                    model.unwrap_or("default"),
+                    model.unwrap_or_else(|| provider.default_model()),
                     stream_result.input_tokens,
                     stream_result.output_tokens,
                     stream_result.cached_input_tokens,
@@ -1188,7 +1188,7 @@ impl TaskExecutor {
             .map(|pk| {
                 crate::provider::cost::calculate_cost_with_cache(
                     pk,
-                    model.unwrap_or("default"),
+                    model.unwrap_or_else(|| provider.default_model()),
                     est_in,
                     est_out,
                     0, // Vision: no cache info available yet

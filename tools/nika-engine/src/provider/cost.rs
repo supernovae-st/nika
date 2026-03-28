@@ -1184,4 +1184,55 @@ mod tests {
         assert_eq!(ModelTag::Vision.label(), "vision");
         assert_eq!(ModelTag::Balanced.label(), "balanced");
     }
+
+    // ───────────────────────────────────────────────────────────────────────
+    // Bug regression: model.unwrap_or("default") gives wrong cost
+    // ───────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn default_string_is_not_a_valid_model_name() {
+        // Regression: infer.rs used model.unwrap_or("default") for cost calculation,
+        // which hits fallback pricing ($5/$15) instead of the actual model's pricing.
+        // The fix uses provider.default_model() which returns a real model name.
+        let fallback_cost =
+            calculate_cost(ProviderKind::Claude, "default", 100_000, 50_000);
+        let real_cost =
+            calculate_cost(ProviderKind::Claude, "claude-sonnet-4-6", 100_000, 50_000);
+        // "default" MUST NOT match any real pricing — proves the bug was real
+        assert!(
+            (fallback_cost - real_cost).abs() > 0.001,
+            "Expected 'default' to use fallback pricing (different from real model), \
+             but got same cost: ${:.6}",
+            fallback_cost,
+        );
+    }
+
+    #[test]
+    fn all_provider_default_models_have_real_pricing() {
+        // Regression: ensure provider.default_model() returns a model with real pricing
+        // (not the $5/$15 fallback). This is what infer.rs now uses for cost calculation.
+        let default_pricing = ModelPricing::new(5.0, 15.0); // fallback
+
+        let provider_defaults: &[(ProviderKind, &str)] = &[
+            (ProviderKind::Claude, "claude-sonnet-4-6"),
+            (ProviderKind::OpenAI, "gpt-4o"),
+            (ProviderKind::Mistral, "mistral-large-latest"),
+            (ProviderKind::Groq, "llama-3.3-70b-versatile"),
+            (ProviderKind::DeepSeek, "deepseek-chat"),
+            (ProviderKind::Gemini, "gemini-2.0-flash"),
+            (ProviderKind::XAi, "grok-3-fast"),
+        ];
+
+        for (provider, model) in provider_defaults {
+            let pricing = get_model_pricing(*provider, model);
+            assert!(
+                (pricing.input_per_million - default_pricing.input_per_million).abs() > f64::EPSILON
+                    || (pricing.output_per_million - default_pricing.output_per_million).abs()
+                        > f64::EPSILON,
+                "{}/{} uses fallback pricing — add it to the pricing table!",
+                provider.name(),
+                model,
+            );
+        }
+    }
 }
