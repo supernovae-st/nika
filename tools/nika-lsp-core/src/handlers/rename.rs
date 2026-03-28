@@ -63,7 +63,10 @@ pub fn prepare_rename(text: &str, offset: u32) -> Option<RenameRange> {
         // Cursor might be on a $ref or in depends_on — try to find the task_id nearby
         // by searching the current line
         let line_start = text[..offset].rfind('\n').map(|p| p + 1).unwrap_or(0);
-        let line_end = text[offset..].find('\n').map(|p| offset + p).unwrap_or(text.len());
+        let line_end = text[offset..]
+            .find('\n')
+            .map(|p| offset + p)
+            .unwrap_or(text.len());
         let line = &text[line_start..line_end];
 
         if let Some(pos) = line.find(&task_id) {
@@ -85,7 +88,11 @@ fn is_valid_task_id(name: &str) -> bool {
         && name
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
-        && name.chars().next().map(|c| c.is_ascii_alphabetic() || c == '_').unwrap_or(false)
+        && name
+            .chars()
+            .next()
+            .map(|c| c.is_ascii_alphabetic() || c == '_')
+            .unwrap_or(false)
 }
 
 /// Rename a task ID at the cursor position.

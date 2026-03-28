@@ -131,14 +131,13 @@ impl TaskExecutor {
         };
 
         // Get provider name (task override or workflow default)
-        let provider_name: String = resolved_provider
-            .unwrap_or_else(|| self.default_provider.to_string());
+        let provider_name: String =
+            resolved_provider.unwrap_or_else(|| self.default_provider.to_string());
 
         // Ensure resolved_agent has provider + model set for run_auto() dispatch
         let resolved_agent = AgentParams {
             provider: Some(provider_name.clone()),
-            model: resolved_model
-                .or_else(|| self.default_model.as_ref().map(|m| m.to_string())),
+            model: resolved_model.or_else(|| self.default_model.as_ref().map(|m| m.to_string())),
             ..resolved_agent
         };
 

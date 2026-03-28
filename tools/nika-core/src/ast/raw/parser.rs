@@ -1723,10 +1723,7 @@ fn validate_task_keys(
                 return Err(ParseError {
                     kind: ParseErrorKind::UnknownField,
                     span,
-                    message: format!(
-                        "unknown task field '{}...' (key too long)",
-                        &key_str[..32]
-                    ),
+                    message: format!("unknown task field '{}...' (key too long)", &key_str[..32]),
                 });
             }
             let suggestion = KNOWN_TASK_KEYS
@@ -3103,7 +3100,10 @@ tasks:
       - b
 "#;
         let result = parse(yaml, FileId(0));
-        assert!(result.is_err(), "unknown task key should be rejected even when verb is present");
+        assert!(
+            result.is_err(),
+            "unknown task key should be rejected even when verb is present"
+        );
         let err = result.unwrap_err();
         assert_eq!(err.kind, ParseErrorKind::UnknownField);
         assert!(
@@ -3135,6 +3135,10 @@ tasks:
     infer: "hello"
 "#;
         let result = parse(yaml, FileId(0));
-        assert!(result.is_ok(), "all known task keys should parse fine: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "all known task keys should parse fine: {:?}",
+            result.err()
+        );
     }
 }

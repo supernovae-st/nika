@@ -14,7 +14,9 @@ pub mod models;
 pub mod providers;
 
 // Re-export main types for convenient access
-pub use cost::{estimate_cost, find_pricing, model_cost_label, CostEstimate, ModelPricing, KNOWN_PRICING};
+pub use cost::{
+    estimate_cost, find_pricing, model_cost_label, CostEstimate, ModelPricing, KNOWN_PRICING,
+};
 pub use lsp_types::{DaemonCapabilities, KeySource, ProviderStatusInfo, WorkflowRunInfo};
 pub use mcp_aliases::{
     aliases_by_category, is_alias, list_aliases, pricing_label, resolve_alias, resolve_name,

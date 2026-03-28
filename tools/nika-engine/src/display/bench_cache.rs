@@ -66,10 +66,7 @@ pub fn read_cache(base_path: &Path, hash: &str) -> Option<BenchCacheEntry> {
 /// Write bench results to the cache file.
 ///
 /// Creates the `.nika/bench-cache/` directory if it doesn't exist.
-pub fn write_cache(
-    base_path: &Path,
-    entry: &BenchCacheEntry,
-) -> Result<PathBuf, std::io::Error> {
+pub fn write_cache(base_path: &Path, entry: &BenchCacheEntry) -> Result<PathBuf, std::io::Error> {
     let dir = cache_dir(base_path);
     std::fs::create_dir_all(&dir)?;
 
