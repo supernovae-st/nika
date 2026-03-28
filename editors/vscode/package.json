@@ -86,6 +86,11 @@
         "command": "nika.showTasks",
         "title": "Nika: Show Tasks (Outline)",
         "icon": "$(list-tree)"
+      },
+      {
+        "command": "nika.showOutput",
+        "title": "Nika: Show Output",
+        "icon": "$(output)"
       }
     ],
     "configuration": {
@@ -121,11 +126,7 @@
         }
       }
     },
-    "configurationDefaults": {
-      "yaml.schemas": {
-        "https://nika.sh/schemas/workflow.json": "*.nika.yaml"
-      }
-    },
+    "configurationDefaults": {},
     "menus": {
       "editor/title": [
         {
