@@ -1067,7 +1067,7 @@ impl TaskExecutor {
                 }
                 crate::ast::content::ContentPart::ImageUrl { url, detail } => {
                     let resolved_url = template_resolve(url, bindings, datastore)?.into_owned();
-                    // SECURITY: SSRF protection
+                    // SECURITY: scheme check
                     if !resolved_url.starts_with("https://") && !resolved_url.starts_with("http://")
                     {
                         return Err(NikaError::ValidationError {
@@ -1076,6 +1076,21 @@ impl TaskExecutor {
                                 &resolved_url.chars().take(50).collect::<String>()
                             ),
                         });
+                    }
+                    // SECURITY: SSRF protection — block internal/metadata endpoints
+                    if let Ok(parsed) = url::Url::parse(&resolved_url) {
+                        if let Some(host) = parsed.host_str() {
+                            let h = host.to_lowercase();
+                            let h_normalized = h.trim_start_matches('[').trim_end_matches(']');
+                            if crate::runtime::policy::is_ssrf_blocked(h_normalized) {
+                                return Err(NikaError::FetchError {
+                                    reason: format!(
+                                        "SSRF protection: image_url host '{}' is blocked",
+                                        h_normalized
+                                    ),
+                                });
+                            }
+                        }
                     }
                     let rig_detail = Some(match detail {
                         crate::ast::content::ImageDetail::Low => {
