@@ -58,6 +58,9 @@ impl ProviderKind {
             Some(Self::XAi)
         } else if s.eq_ignore_ascii_case("native") {
             Some(Self::Native)
+        } else if s.starts_with("openai-compat:") {
+            // Custom endpoints use OpenAI-compatible API
+            Some(Self::OpenAI)
         } else {
             None
         }
