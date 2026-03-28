@@ -302,6 +302,28 @@ impl Runner {
         self
     }
 
+    /// Set custom endpoints for OpenAI-compatible servers (vLLM, TGI, Ollama).
+    ///
+    /// Endpoints configured in `~/.config/nika/config.toml` are passed here
+    /// so the executor can resolve `provider: h100` to a custom endpoint.
+    pub fn with_custom_endpoints(
+        &mut self,
+        endpoints: crate::provider::endpoints::CustomEndpointMap,
+    ) -> Result<(), NikaError> {
+        let mcp_configs = lower_mcp_servers(self.workflow.mcp_servers.clone());
+        let provider = self.workflow.provider.as_deref().unwrap_or("claude");
+        self.executor = TaskExecutor::with_policy(
+            provider,
+            self.workflow.model.as_deref(),
+            mcp_configs,
+            self.event_log.clone(),
+            None,
+            None,
+            Some(endpoints),
+        )?;
+        Ok(())
+    }
+
     /// Set the permission mode for file tools (nika:write, nika:edit, etc.)
     ///
     /// By default, `PermissionMode::Plan` is used (deny writes, emit permission request).

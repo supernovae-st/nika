@@ -267,6 +267,17 @@ pub async fn run_tui(workflow_path: &std::path::Path) -> nika_engine::error::Res
     // quiet() suppresses console output that would interfere with the TUI
     let mut runner = Runner::with_event_log(workflow, event_log)?.quiet();
 
+    // 3b. Wire custom endpoints from config.toml
+    let config = nika_engine::config::NikaConfig::load()
+        .unwrap_or_default()
+        .with_env();
+    if !config.endpoints.is_empty() {
+        if let Ok(resolved) = nika_engine::provider::endpoints::resolve_endpoints(&config.endpoints)
+        {
+            let _ = runner.with_custom_endpoints(resolved);
+        }
+    }
+
     // 4. Spawn Runner in background task
     let runner_handle = tokio::spawn(async move {
         match runner.run().await {

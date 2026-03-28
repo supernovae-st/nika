@@ -555,17 +555,15 @@ impl App {
             .filter(|p| !p.as_os_str().is_empty())
             .unwrap_or(std::path::Path::new("."));
 
-        let workflow = match nika_engine::ast::parse_analyzed_with_includes(
-            &yaml_content,
-            base_path,
-        ) {
-            Ok(w) => w,
-            Err(e) => {
-                self.set_status(&format!("Parse error: {}", e));
-                tracing::error!("Failed to parse workflow: {}", e);
-                return;
-            }
-        };
+        let workflow =
+            match nika_engine::ast::parse_analyzed_with_includes(&yaml_content, base_path) {
+                Ok(w) => w,
+                Err(e) => {
+                    self.set_status(&format!("Parse error: {}", e));
+                    tracing::error!("Failed to parse workflow: {}", e);
+                    return;
+                }
+            };
 
         // 3. Create EventLog with broadcast channel for TUI
         let (event_log, event_rx) = EventLog::new_with_broadcast();
@@ -592,6 +590,20 @@ impl App {
                 return;
             }
         };
+
+        // 6b. Wire custom endpoints from config.toml
+        let config = nika_engine::config::NikaConfig::load()
+            .unwrap_or_default()
+            .with_env();
+        if !config.endpoints.is_empty() {
+            if let Ok(resolved) =
+                nika_engine::provider::endpoints::resolve_endpoints(&config.endpoints)
+            {
+                if let Err(e) = runner.with_custom_endpoints(resolved) {
+                    tracing::warn!("Failed to resolve custom endpoints: {}", e);
+                }
+            }
+        }
 
         // 7. Spawn Runner in background task
         self.spawn_tracked(async move {

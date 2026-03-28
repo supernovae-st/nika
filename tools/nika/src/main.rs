@@ -2077,9 +2077,18 @@ async fn run_workflow(
         "yolo" | "accept-all" => nika_engine::tools::PermissionMode::YoloMode,
         _ => nika_engine::tools::PermissionMode::AcceptEdits,
     };
+    // Load custom endpoints from config.toml for OpenAI-compatible servers
+    let config = nika::config::NikaConfig::load()
+        .unwrap_or_default()
+        .with_env();
     let mut runner = Runner::new(workflow)?
         .with_base_path(base_path.to_path_buf())
         .with_permission_mode(perm_mode);
+    if !config.endpoints.is_empty() {
+        if let Ok(resolved) = nika::provider::endpoints::resolve_endpoints(&config.endpoints) {
+            runner.with_custom_endpoints(resolved)?;
+        }
+    }
     if quiet {
         runner = runner.quiet();
     }
