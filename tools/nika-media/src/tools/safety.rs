@@ -115,6 +115,19 @@ pub fn sanitize_svg(input: &str) -> Result<&str, MediaToolError> {
         }
     }
 
+    // Block xlink:href with external URLs (SSRF via SVG rendering).
+    // Allow internal fragment references like xlink:href="#icon".
+    static XLINK_EXTERNAL_RE: std::sync::LazyLock<regex::Regex> =
+        std::sync::LazyLock::new(|| {
+            regex::Regex::new(r#"xlink:href\s*=\s*["'][^#]"#).unwrap()
+        });
+    if XLINK_EXTERNAL_RE.is_match(&lower) {
+        return Err(security_violation(
+            "svg_render",
+            "SVG contains xlink:href with external URL (only #fragment refs allowed)",
+        ));
+    }
+
     // Event handlers: onload=, onclick=, onerror=, etc.
     static EVENT_HANDLER_RE: std::sync::LazyLock<regex::Regex> =
         std::sync::LazyLock::new(|| regex::Regex::new(r"\bon\w+\s*=").unwrap());
