@@ -1651,8 +1651,14 @@ impl RigProvider {
                     }
                 }
 
-                // Note: Token counts not available in streaming mode
-                // They would require post-hoc tokenization
+                // Post-hoc token estimation (chars/4 heuristic — native
+                // streaming doesn't return usage metadata).
+                result.input_tokens = (prompt.len() as u64).div_ceil(4);
+                result.output_tokens = response_parts
+                    .iter()
+                    .map(|s| s.len() as u64)
+                    .sum::<u64>()
+                    .div_ceil(4);
             }
         }
 
