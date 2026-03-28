@@ -970,7 +970,9 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         let (effective_provider, effective_model) = if let Some(ref preset_name) = task.preset {
             if let Some(agent) = executor.get_preset(preset_name) {
                 (
-                    task.provider.clone().or_else(|| Some(agent.provider.clone())),
+                    task.provider
+                        .clone()
+                        .or_else(|| Some(agent.provider.clone())),
                     task.model.clone().or_else(|| agent.model.clone()),
                 )
             } else {
@@ -6085,7 +6087,10 @@ mod tests {
         let err = NikaError::ProviderApiError {
             message: "429 Too Many Requests".to_string(),
         };
-        assert!(Runner::is_retryable(&err), "ProviderApiError should be retryable");
+        assert!(
+            Runner::is_retryable(&err),
+            "ProviderApiError should be retryable"
+        );
     }
 
     #[test]
@@ -6109,7 +6114,10 @@ mod tests {
         let err = NikaError::McpNotConnected {
             name: "novanet".to_string(),
         };
-        assert!(Runner::is_retryable(&err), "McpNotConnected should be retryable");
+        assert!(
+            Runner::is_retryable(&err),
+            "McpNotConnected should be retryable"
+        );
     }
 
     #[test]
@@ -6117,6 +6125,7 @@ mod tests {
         let err = NikaError::McpTimeout {
             name: "search".to_string(),
             operation: "tool_call".to_string(),
+            timeout_secs: 30,
         };
         assert!(Runner::is_retryable(&err), "McpTimeout should be retryable");
     }
@@ -6138,7 +6147,10 @@ mod tests {
         let err = NikaError::ValidationError {
             reason: "invalid schema".to_string(),
         };
-        assert!(!Runner::is_retryable(&err), "ValidationError should NOT be retryable");
+        assert!(
+            !Runner::is_retryable(&err),
+            "ValidationError should NOT be retryable"
+        );
     }
 
     #[test]
@@ -6147,7 +6159,10 @@ mod tests {
             template: "{{with.x}}".to_string(),
             reason: "not found".to_string(),
         };
-        assert!(!Runner::is_retryable(&err), "TemplateError should NOT be retryable");
+        assert!(
+            !Runner::is_retryable(&err),
+            "TemplateError should NOT be retryable"
+        );
     }
 
     #[test]
@@ -6155,7 +6170,10 @@ mod tests {
         let err = NikaError::CycleDetected {
             cycle: "a -> b -> a".to_string(),
         };
-        assert!(!Runner::is_retryable(&err), "CycleDetected should NOT be retryable");
+        assert!(
+            !Runner::is_retryable(&err),
+            "CycleDetected should NOT be retryable"
+        );
     }
 
     #[test]
@@ -6163,7 +6181,10 @@ mod tests {
         let err = NikaError::MissingApiKey {
             provider: "openai".to_string(),
         };
-        assert!(!Runner::is_retryable(&err), "MissingApiKey should NOT be retryable");
+        assert!(
+            !Runner::is_retryable(&err),
+            "MissingApiKey should NOT be retryable"
+        );
     }
 
     #[tokio::test]
@@ -6239,9 +6260,17 @@ mod tests {
             .quiet();
         let result = runner.run().await;
 
-        assert!(result.is_ok(), "Workflow with retry should succeed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Workflow with retry should succeed: {:?}",
+            result.err()
+        );
         let output = result.unwrap();
-        assert!(output.contains("hello"), "Output should contain 'hello', got: {}", output);
+        assert!(
+            output.contains("hello"),
+            "Output should contain 'hello', got: {}",
+            output
+        );
 
         // Verify no TaskRetry events (first attempt succeeded)
         let events = event_log.events();
