@@ -28,7 +28,7 @@ mod tests_extract_e2e;
 mod tests_extraction_e2e;
 #[cfg(test)]
 mod tests_wiremock;
-mod verbs;
+pub(crate) mod verbs;
 
 use parking_lot::RwLock;
 use rustc_hash::FxHashMap;

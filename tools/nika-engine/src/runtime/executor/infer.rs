@@ -1095,6 +1095,9 @@ impl TaskExecutor {
             }
         };
 
+        // Strip <think> blocks from reasoning models (Qwen, DeepSeek-R1)
+        let vision_result = super::verbs::strip_think_tags(&vision_result);
+
         let est_in = estimate_tokens(prompt.len());
         let est_out = estimate_tokens(vision_result.len());
         self.policy_enforcer
