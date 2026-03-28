@@ -35,8 +35,8 @@ use crate::io::atomic::write_atomic;
 use crate::io::security::validate_artifact_path;
 use crate::io::template::TemplateResolver;
 
-/// Default maximum artifact size (10 MB)
-pub const DEFAULT_MAX_SIZE: u64 = 10 * 1024 * 1024;
+/// Default maximum artifact size (100 MB) — matches nika-core DEFAULT_MAX_ARTIFACT_SIZE
+pub const DEFAULT_MAX_SIZE: u64 = 100 * 1024 * 1024;
 
 /// Source for binary artifact data
 #[derive(Debug, Clone)]

@@ -811,12 +811,23 @@ impl StructuredOutputEngine {
     /// Generate a retry prompt with validation feedback
     ///
     /// Used by Layer 3 to construct the re-prompt with error context.
+    /// Includes the schema so the LLM knows what to produce (especially
+    /// important when Layer 0 tool injection was used and the schema
+    /// was not in the original prompt text).
     pub fn generate_retry_prompt(
         &self,
         original_prompt: &str,
         invalid_output: &str,
         validation_errors: &str,
     ) -> String {
+        let schema_value = self.spec.schema.as_ref().and_then(|s| match s {
+            nika_core::ast::SchemaRef::Inline(v) => Some(v),
+            nika_core::ast::SchemaRef::File(_) => None,
+        });
+        let schema_str = schema_value
+            .and_then(|v| serde_json::to_string_pretty(v).ok())
+            .unwrap_or_default();
+
         format!(
             r#"{original_prompt}
 
@@ -828,7 +839,12 @@ Your previous response was invalid:
 Validation errors:
 {validation_errors}
 
-Please provide a corrected response that matches the required JSON schema."#
+Required JSON schema:
+```json
+{schema_str}
+```
+
+Please provide a corrected JSON response that strictly matches the schema above."#
         )
     }
 
