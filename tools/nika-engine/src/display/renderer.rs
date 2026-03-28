@@ -138,7 +138,7 @@ pub struct RunStats {
     pub guardrails_passed: u32,
     pub guardrails_failed: u32,
     pub guardrails_escalations: u32,
-    pub fetch_retries: u32,
+    pub retries: u32,
     pub structured_attempts: u32,
     pub structured_success_layer: Option<u8>,
     pub root_failure: Option<String>,
@@ -281,7 +281,7 @@ impl RunStats {
             }
 
             EventKind::FetchRetry { .. } | EventKind::TaskRetry { .. } => {
-                self.fetch_retries += 1;
+                self.retries += 1;
             }
 
             EventKind::TaskCompleted { .. } => {

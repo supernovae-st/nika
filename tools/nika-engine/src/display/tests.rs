@@ -2107,7 +2107,7 @@ fn make_stats() -> RunStats {
         guardrails_passed: 2,
         guardrails_failed: 0,
         guardrails_escalations: 0,
-        fetch_retries: 0,
+        retries: 0,
         structured_attempts: 0,
         structured_success_layer: None,
         root_failure: None,
