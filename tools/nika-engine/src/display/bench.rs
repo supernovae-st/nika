@@ -280,15 +280,17 @@ pub fn format_speed_section(results: &[BenchProviderResult], term_width: u16) ->
                             .unwrap_or(std::cmp::Ordering::Equal)
                     });
             if let Some((_, slow)) = slowest {
-                let ratio = slow.total_secs / fastest.total_secs;
-                if ratio > 1.05 {
-                    lines.push(String::new());
-                    lines.push(format!(
-                        "  {} ran {}\u{00D7} faster than {}",
-                        fastest.provider.green().bold(),
-                        format!("{:.1}", ratio).white().bold(),
-                        slow.provider.dimmed(),
-                    ));
+                if fastest.total_secs > 0.0 {
+                    let ratio = slow.total_secs / fastest.total_secs;
+                    if ratio > 1.05 {
+                        lines.push(String::new());
+                        lines.push(format!(
+                            "  {} ran {}\u{00D7} faster than {}",
+                            fastest.provider.green().bold(),
+                            format!("{:.1}", ratio).white().bold(),
+                            slow.provider.dimmed(),
+                        ));
+                    }
                 }
             }
         }
@@ -655,9 +657,13 @@ pub fn format_bench_summary(
                     .unwrap_or(std::cmp::Ordering::Equal)
             });
             let ratio_str = if let Some(slow) = slowest {
-                let ratio = slow.total_secs / speed_winner.total_secs;
-                if ratio > 1.05 && results.len() > 1 {
-                    format!("{:.1}\u{00D7} faster", ratio).green().to_string()
+                if speed_winner.total_secs > 0.0 {
+                    let ratio = slow.total_secs / speed_winner.total_secs;
+                    if ratio > 1.05 && results.len() > 1 {
+                        format!("{:.1}\u{00D7} faster", ratio).green().to_string()
+                    } else {
+                        String::new()
+                    }
                 } else {
                     String::new()
                 }
