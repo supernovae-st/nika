@@ -387,3 +387,143 @@ tools/nika-event/src/log.rs                     # EventKind (44+ variants)
 7. After Phase 2 → launch audit agents
 8. Continue through phases
 ```
+
+---
+
+## Appendix A: Deep Agent Findings (Wave 2 — 6 agents)
+
+### A1. Paranoid Bug Hunt (confirmed silent bugs)
+
+| # | Severity | File:Line | Bug |
+|---|----------|-----------|-----|
+| P1 | **Important** | runner.rs:2253-2262 | Empty `for_each` emits zero events — TUI spinners stuck |
+| P2 | Suggestion | cost.rs:600 | HuggingFace model names with `/` fall to DEFAULT_PRICING silently |
+| P3 | Suggestion | executor/mod.rs:466 | Non-retryable errors (MissingApiKey) still try all fallback providers |
+| P4 | Suggestion | template.rs:3454 | Stale `"BUG:"` comment in a passing test (bug was fixed) |
+
+**Fix P1:** In the empty for_each branch (runner.rs:2253), emit `ForEachStarted` + `ForEachCompleted` events with `total_items: 0` before inserting the empty result.
+
+### A2. Test Coverage Gaps (17 specific tests needed)
+
+**CRITICAL gaps (no tests at all):**
+1. `execute_with_routing()` — zero tests for the entire fallback chain
+2. `FallbackTriggered` missing from event serde roundtrip test (38 of 60 variants covered)
+3. `classify_fallback_reason()` — all branches untested
+
+**Tests to write (priority order):**
+
+```
+# Routing (executor/tests.rs)
+test_execute_with_routing_fallback_success
+test_execute_with_routing_chain_exhausted
+test_execute_with_routing_non_llm_verb_skips
+test_classify_fallback_reason_all_branches
+
+# Events (nika-event/log.rs)
+Update all_38_variants() → all_60_variants() (+22 missing)
+
+# Security (executor/tests_wiremock.rs)
+test_fetch_rejects_crlf_in_header_key
+test_fetch_rejects_crlf_in_header_value
+
+# Structured output (structured_output tests)
+test_layer4_uses_repair_callback_over_infer
+test_layer4_falls_back_to_infer_when_no_repair
+
+# Bench
+test_bench_zero_duration_no_panic
+test_bench_rejects_zero_iterations
+
+# Agent
+test_agent_max_turns_1_stops_gracefully
+```
+
+### A3. Rust Architecture Improvements
+
+**rig.rs (3,598 lines → target ~2,800):**
+- Extract `infer_generic<C: ProviderClient>()` — eliminates 8-arm match duplication (-800 LOC)
+- Split into: `provider/infer.rs`, `provider/stream.rs`, `provider/vision.rs`, `provider/mcp_tool.rs`
+- Move `StreamChunk` (23 variants) to `nika-event` — split into `StreamDelta` + `ActivityEvent`
+
+**TaskExecutor (15 fields → 5 composable structs):**
+```rust
+struct ExecutorInfra { http_client, cas, builtin_router, policy_enforcer, cancel_token }
+struct WorkflowConfig { default_provider, default_model, skills_map, endpoints, agents }
+```
+
+**Error system:**
+- Finish domain error migration (error_domains.rs exists but unused)
+- Delete unused `FixSuggestion` trait (line 78) — miette `Diagnostic` already serves this purpose
+- Fix NIKA-096 placement (in wrong section)
+
+**Cost system:**
+- Move pricing tables to TOML data file (contributor-friendly updates)
+- Unify `ProviderKind` with `core::find_provider()` catalog
+
+### A4. Performance Optimizations (8 findings, priority-ranked)
+
+| # | Finding | Severity | Save | Fix |
+|---|---------|----------|------|-----|
+| F1 | `bindings.to_value()` deep clone | HIGH | ~1MB/loop | Use `bindings.iter()` |
+| F2 | `action.clone()` in routing fallback | HIGH | ~2MB (vision) | Pass provider override separately |
+| F3 | `strip_think_tags()` 2x string copy | MEDIUM | 2×response_len | `Cow<str>` + ASCII check |
+| F4 | `try_parse_json_str()` speculative parse | MEDIUM | failed parse/ref | Conditional guard |
+| F5 | `EventLog::emit()` write lock contention | MEDIUM | lock contention | `parking_lot::Mutex` |
+| F6 | `lower_action()` per for_each iteration | MEDIUM | action_size×iters | Hoist + Arc |
+| F7 | `classify_fallback_reason()` .to_string() | LOW | ~10 bytes/error | Return `&'static str` |
+| F8 | `redact_for_event()` always allocates | LOW | ~200 bytes/task | `Cow<str>` |
+
+### A5. Telemetry Stack (recommended crates)
+
+```toml
+# In-process percentiles (no network, CLI-friendly)
+hdrhistogram = "7.5"
+
+# Structured JSON logging (feature already in tracing-subscriber)
+tracing-subscriber = { features = ["json"] }
+
+# Optional: OpenTelemetry export (feature-gated)
+[features]
+telemetry-otlp = ["opentelemetry/0.31", "tracing-opentelemetry/0.32"]
+```
+
+**Priority 1:** `hdrhistogram` for end-of-run p50/p90/p99 in bench + run summary
+**Priority 2:** `tracing-subscriber` JSON mode for structured log files
+**Priority 3:** `WorkflowCostSummary` aggregation (pure logic, no deps)
+**Priority 4:** OpenTelemetry spans (feature-gated behind `telemetry-otlp`)
+
+### A6. Mock OpenAI Server for Integration Tests
+
+**Recommended:** `llmposter` v0.4.0 (Rust-native, in-process, fixture-driven):
+```toml
+[dev-dependencies]
+llmposter = "0.4"
+```
+- Speaks real OpenAI/Anthropic wire protocol
+- Supports streaming SSE, tool calls, failure simulation (429, truncation)
+- In-process axum server, drops when test ends
+- Use for: custom endpoint wiring, streaming SSE, retry on 429
+
+**Alternative Layer:** Serde snapshot fixtures from real providers in `tests/fixtures/`.
+
+---
+
+## Appendix B: Consolidated Priority Matrix
+
+| Priority | Task | Phase | Impact | Effort |
+|----------|------|-------|--------|--------|
+| P0 | execute_with_routing() tests | 2 | Critical — untested feature | 30 min |
+| P0 | Update event serde roundtrip (38→60) | 2 | Critical — serde regression | 20 min |
+| P1 | model.unwrap_or("default") fix | 1 | Wrong cost for all no-model tasks | 10 min |
+| P1 | Empty for_each zero events fix | 1 | TUI stuck spinners | 15 min |
+| P1 | bindings.to_value() deep clone | 4 | 1MB/loop for for_each | 15 min |
+| P2 | hourly_rate dead code fix | 1 | Wrong cost for self-hosted GPUs | 30 min |
+| P2 | Template validation sync | 1 | Silent validation gap | 20 min |
+| P2 | CRLF injection tests | 2 | Security regression risk | 15 min |
+| P2 | strip_think_tags Cow | 4 | 2×alloc per LLM response | 15 min |
+| P3 | rig.rs generic helper | 3 | -800 LOC, maintainability | 2h |
+| P3 | rig.rs module split | 3 | Navigability | 1h |
+| P3 | Agent cost ProviderKind fix | 1 | Wrong cost in agent loop | 30 min |
+| P4 | hdrhistogram for percentiles | 5 | Better bench/run stats | 1h |
+| P4 | action.clone() routing fix | 4 | 2MB save for vision | 1h |
+| P5 | Level 4 Smart Routing | 6 | Major feature | 3h |
