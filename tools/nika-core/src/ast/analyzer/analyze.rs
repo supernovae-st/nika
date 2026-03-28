@@ -589,29 +589,9 @@ fn validate_task_feature_gates(
             ));
         }
 
-        // retry: is only effective on fetch: tasks — warn on other verbs
-        if let Some(ref action) = task.action {
-            let verb_name = match action {
-                RawTaskAction::Fetch(_) => None,
-                RawTaskAction::Infer(_) => Some("infer"),
-                RawTaskAction::Exec(_) => Some("exec"),
-                RawTaskAction::Invoke(_) => Some("invoke"),
-                RawTaskAction::Agent(_) => Some("agent"),
-            };
-            if let Some(verb_name) = verb_name {
-                ctx.add_warning(
-                    AnalyzeError::new(
-                        AnalyzeErrorKind::InvalidValue,
-                        retry.span,
-                        format!(
-                            "'retry' has no effect on '{}' tasks (only 'fetch' supports retry)",
-                            verb_name
-                        ),
-                    )
-                    .with_suggestion("move retry to a fetch task, or remove it"),
-                );
-            }
-        }
+        // retry: is valid on ALL verbs (fetch, infer, exec, invoke, agent).
+        // Fetch handles retry internally in its executor; other verbs use
+        // runner-level retry wrapper.
     }
 
     // Check with: bindings
@@ -2576,7 +2556,7 @@ mod tests {
     }
 
     #[test]
-    fn test_retry_on_infer_emits_warning() {
+    fn test_retry_on_infer_no_warning() {
         use crate::ast::raw::RawRetryConfig;
 
         let mut task = make_raw_task("my_task");
@@ -2600,21 +2580,93 @@ mod tests {
         raw.model = Some(Spanned::new("test-model".to_string(), make_span(0, 10)));
         let result = analyze(raw);
 
-        // Should succeed (retry on infer is not an error)
+        // Should succeed with no warnings — retry is valid on all verbs
         assert!(
             result.is_ok(),
             "retry on infer should not be an error: {:?}",
             result.errors
         );
-        // But should emit a warning
+        let retry_warnings: Vec<_> = result
+            .warnings
+            .iter()
+            .filter(|w| w.message.contains("retry"))
+            .collect();
         assert!(
-            !result.warnings.is_empty(),
-            "retry on non-fetch verb should emit a warning"
+            retry_warnings.is_empty(),
+            "retry on infer should NOT emit a warning, got: {:?}",
+            retry_warnings
         );
+    }
+
+    #[test]
+    fn test_retry_on_exec_no_warning() {
+        use crate::ast::raw::RawRetryConfig;
+
+        let mut task = make_raw_task("my_exec");
+        task.action = Some(RawTaskAction::Exec(Spanned::new(
+            RawExecAction {
+                command: Spanned::new("echo hello".to_string(), make_span(0, 10)),
+                ..Default::default()
+            },
+            make_span(0, 50),
+        )));
+        task.retry = Some(Spanned::new(
+            RawRetryConfig {
+                max_attempts: Some(Spanned::new(3, make_span(0, 1))),
+                ..Default::default()
+            },
+            make_span(0, 30),
+        ));
+
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![task]);
+        let result = analyze(raw);
+
+        assert!(result.is_ok(), "retry on exec should succeed: {:?}", result.errors);
+        let retry_warnings: Vec<_> = result
+            .warnings
+            .iter()
+            .filter(|w| w.message.contains("retry"))
+            .collect();
         assert!(
-            result.warnings[0].message.contains("retry"),
-            "Warning should mention retry, got: {}",
-            result.warnings[0].message
+            retry_warnings.is_empty(),
+            "retry on exec should NOT emit a warning, got: {:?}",
+            retry_warnings
+        );
+    }
+
+    #[test]
+    fn test_retry_on_invoke_no_warning() {
+        use crate::ast::raw::RawRetryConfig;
+
+        let mut task = make_raw_task("my_invoke");
+        task.action = Some(RawTaskAction::Invoke(Spanned::new(
+            RawInvokeAction {
+                tool: Some(Spanned::new("nika:dimensions".to_string(), make_span(0, 15))),
+                ..Default::default()
+            },
+            make_span(0, 50),
+        )));
+        task.retry = Some(Spanned::new(
+            RawRetryConfig {
+                max_attempts: Some(Spanned::new(3, make_span(0, 1))),
+                ..Default::default()
+            },
+            make_span(0, 30),
+        ));
+
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![task]);
+        let result = analyze(raw);
+
+        assert!(result.is_ok(), "retry on invoke should succeed: {:?}", result.errors);
+        let retry_warnings: Vec<_> = result
+            .warnings
+            .iter()
+            .filter(|w| w.message.contains("retry"))
+            .collect();
+        assert!(
+            retry_warnings.is_empty(),
+            "retry on invoke should NOT emit a warning, got: {:?}",
+            retry_warnings
         );
     }
 
