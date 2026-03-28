@@ -648,6 +648,20 @@ pub enum EventKind {
         backoff_ms: u64,
     },
 
+    /// Task-level retry attempt (all verbs except fetch, which has FetchRetry)
+    TaskRetry {
+        task_id: Arc<str>,
+        /// Current attempt number (1-based)
+        attempt: u32,
+        /// Max attempts configured
+        max_attempts: u32,
+        /// Backoff delay before this attempt in ms
+        backoff_ms: u64,
+        /// Error that triggered the retry
+        #[serde(skip_serializing_if = "Option::is_none")]
+        error: Option<String>,
+    },
+
     // ═══════════════════════════════════════════
     // POLICY EVENTS
     // ═══════════════════════════════════════════
@@ -865,6 +879,7 @@ impl EventKind {
             | Self::GuardrailEscalation { task_id, .. }
             | Self::ExecCompleted { task_id, .. }
             | Self::FetchRetry { task_id, .. }
+            | Self::TaskRetry { task_id, .. }
             | Self::PolicyBlocked { task_id, .. }
             | Self::BindingDefaultApplied { task_id, .. }
             | Self::BindingTransformApplied { task_id, .. }
