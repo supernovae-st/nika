@@ -358,6 +358,27 @@ impl TaskExecutor {
 
             match req.send().await {
                 Ok(response) => {
+                    // SECURITY: Post-redirect SSRF check.
+                    // The redirect policy only does string-level IP checks. A redirect
+                    // to a hostname that DNS-resolves to a private IP bypasses it.
+                    // Check the final URL's hostname after all redirects.
+                    {
+                        use crate::runtime::policy::resolve_and_check_ssrf;
+                        let final_url = response.url();
+                        if let Some(host) = final_url.host_str() {
+                            let h = host.to_lowercase();
+                            let h = h.trim_start_matches('[').trim_end_matches(']');
+                            if resolve_and_check_ssrf(h).await {
+                                return Err(NikaError::PolicyViolation {
+                                    reason: format!(
+                                        "SSRF protection: final URL '{}' resolved to blocked IP after redirect",
+                                        final_url
+                                    ),
+                                });
+                            }
+                        }
+                    }
+
                     // EMIT: HttpResponse
                     let elapsed_ms = fetch_start.elapsed().as_millis() as u64;
                     let status_code = response.status().as_u16();
