@@ -1,9 +1,17 @@
 # 09 — Use Cases Cookbook
 
-> 3 concrete use cases with complete YAML workflows.
-> Copy-paste ready. Each one demonstrates different v0.30 features.
+> Updated 2026-03-28 · Nika v0.49 · Schema @0.12
 
-**Nika** v0.30 · **NovaNet** v0.20.0 · Updated 2026-03-14
+> 3 concrete use cases with complete YAML workflows.
+> Copy-paste ready. Each one demonstrates different Nika features.
+
+**Nika** v0.49 · **NovaNet** v0.20.0 · Updated 2026-03-28
+
+> **Note on future features:** Some fields in these workflows (`record:`, `context_budget:`,
+> `goal:` orchestrate mode, `persist: novanet`) are planned features shown here for
+> illustrative purposes. They are not yet implemented in v0.49 and will be ignored at runtime.
+> All other syntax (`infer:`, `fetch:`, `exec:`, `invoke:`, `agent:`, `with:`, `structured:`,
+> `for_each:`, `depends_on:`, `artifacts:`) is fully functional.
 
 ---
 
@@ -20,24 +28,15 @@
 
 **Scenario:** You have a data processing pipeline — scrape web data, analyze it with an LLM, generate a report, send it via API.
 
-**v0.30 features used:** Agents, Records, Context Budget
+**Features used:** Multi-provider routing, structured output, data flow
 
 ### The Workflow
 
 ```yaml
 # pipeline-report.nika.yaml — Automated data analysis pipeline
-schema: nika/workflow@0.13
-
-# models: layer defines reusable model references
-models:
-  sonnet: { provider: claude, model: claude-sonnet-4-20250514 }
-  deepseek: { provider: deepseek, model: deepseek-chat }
-  groq-llama: { provider: groq, model: llama-3.3-70b-versatile }
-
-agents:
-  default: { model: sonnet }
-  lite:    { model: deepseek }
-  search:  { model: groq-llama }
+schema: "nika/workflow@0.12"
+provider: anthropic
+model: claude-sonnet-4-20250514
 
 tasks:
   # ──────────────────────────────────────────────────────────
@@ -66,11 +65,11 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: analyze_trends
-    agent: search                       # ← Groq: fast, cheap
-    context_budget: 6000
+    provider: groq                        # ← Groq: fast, cheap
+    model: llama-3.3-70b-versatile
     with:
-      hn: "$scrape_hackernews"
-      reddit: "$scrape_reddit"
+      hn: $scrape_hackernews
+      reddit: $scrape_reddit
     infer: |
       Analyze these data sources for AI trends this week:
       HackerNews: {{with.hn}}
@@ -84,16 +83,12 @@ tasks:
           sentiment: { type: string }
           themes: { type: array, items: { type: string } }
         required: [topics, sentiment, themes]
-    record:
-      compress: true
-      max_tokens: 400                      # ← Compressed to 400 tokens
-      retain: [topics, sentiment, themes]
 
   - id: analyze_metrics
-    agent: lite                      # ← DeepSeek: very cheap
-    context_budget: 4000
+    provider: deepseek                    # ← DeepSeek: very cheap
+    model: deepseek-chat
     with:
-      data: "$get_internal_data"
+      data: $get_internal_data
     infer: |
       Analyze these internal metrics:
       {{with.data}}
@@ -105,21 +100,16 @@ tasks:
           changes: { type: array, items: { type: string } }
           anomalies: { type: array, items: { type: string } }
         required: [changes]
-    record:
-      compress: true
-      max_tokens: 300
-      retain: [changes, anomalies]
 
   # ──────────────────────────────────────────────────────────
   # STAGE 3: Report Generation (quality model — content matters)
   # ──────────────────────────────────────────────────────────
 
   - id: generate_report
-    agent: default                     # ← Claude: quality writing
-    context_budget: 8000
+    # Uses workflow defaults: provider: anthropic, model: claude-sonnet-4-20250514
     with:
-      trends: "$analyze_trends"            # ← Gets 400-token record, not raw data
-      metrics: "$analyze_metrics"          # ← Gets 300-token record, not raw data
+      trends: $analyze_trends
+      metrics: $analyze_metrics
     infer: |
       Generate a weekly AI intelligence report.
 
@@ -137,19 +127,21 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: format_html
-    agent: lite                      # ← DeepSeek: simple formatting
+    provider: deepseek                    # ← DeepSeek: simple formatting
+    model: deepseek-chat
     with:
-      report: "$generate_report"
+      report: $generate_report
     infer: "Convert this report to clean HTML with inline CSS: {{with.report}}"
 
   - id: send_email
+    depends_on: [format_html]
     with:
-      html: "$format_html"
+      html: $format_html
     fetch:
       url: https://api.sendgrid.com/v3/mail/send
       method: POST
       headers:
-        Authorization: "Bearer ${SENDGRID_API_KEY}"
+        Authorization: "Bearer $env.SENDGRID_API_KEY"
       json:
         personalizations:
           - to: [{ email: "team@company.com" }]
@@ -160,14 +152,14 @@ tasks:
             value: "{{with.html}}"
 
   - id: save_to_db
+    depends_on: [generate_report]
     with:
-      report: "$generate_report"
+      report: $generate_report
     exec:
       command: "psql -c \"INSERT INTO reports (content, created_at) VALUES ('{{with.report}}', NOW())\""
       shell: true
 
-# Note: flows: was removed in @0.12. Dependencies are now
-# implicit via with: bindings and depends_on: on tasks.
+# Dependencies are implicit via with: bindings and explicit via depends_on: on tasks.
 ```
 
 ### What happens at execution
@@ -175,24 +167,24 @@ tasks:
 ```mermaid
 flowchart TB
     subgraph COLLECT["Stage 1: Collect (parallel, no LLM)"]
-        HN["🛰️ fetch HN"]
-        RED["🛰️ fetch Reddit"]
-        DB["📟 exec psql"]
+        HN["fetch HN"]
+        RED["fetch Reddit"]
+        DB["exec psql"]
     end
 
     subgraph ANALYZE["Stage 2: Analyze (cheap models)"]
-        AT["⚡ analyze_trends\n🔍 Groq → Record 400 tok"]
-        AM["⚡ analyze_metrics\n⚡ DeepSeek → Record 300 tok"]
+        AT["analyze_trends\nGroq llama-3.3-70b"]
+        AM["analyze_metrics\nDeepSeek"]
     end
 
     subgraph GENERATE["Stage 3: Generate (quality model)"]
-        GR["⚡ generate_report\n🧠 Claude\nReceives: 700 tokens\n(not 15,000+ raw)"]
+        GR["generate_report\nClaude Sonnet"]
     end
 
     subgraph DELIVER["Stage 4: Deliver (parallel, minimal LLM)"]
-        FH["⚡ format_html\n⚡ DeepSeek"]
-        SE["🛰️ send_email"]
-        SD["📟 save_to_db"]
+        FH["format_html\nDeepSeek"]
+        SE["send_email"]
+        SD["save_to_db"]
     end
 
     HN --> AT
@@ -213,29 +205,29 @@ flowchart TB
 ### Cost Analysis
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│  💰 COST BREAKDOWN                                                              │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                 │
-│  Task               Agent         Tokens    Cost                                │
-│  ─────────────────────────────────────────────────                              │
-│  scrape_hackernews   (none)        0         $0                                 │
-│  scrape_reddit       (none)        0         $0                                 │
-│  get_internal_data   (none)        0         $0                                 │
-│  analyze_trends      search/Groq   3K        $0.0009                           │
-│  analyze_metrics     fast/DS       2K        $0.0002                           │
-│  generate_report     main/Claude   4K        $0.012                            │
-│  format_html         fast/DS       2K        $0.0002                           │
-│  send_email          (none)        0         $0                                 │
-│  save_to_db          (none)        0         $0                                 │
-│  ─────────────────────────────────────────────────                              │
-│  TOTAL                             11K       $0.0133                            │
-│                                                                                 │
-│  v0.27 (all Claude): 11K tokens × $0.003 = $0.033                             │
-│  v0.30 (agents): $0.0133                                                       │
-│  Savings: 60%                                                                   │
-│                                                                                 │
-└─────────────────────────────────────────────────────────────────────────────────┘
++---------------------------------------------------------------------------+
+|  COST BREAKDOWN                                                           |
++---------------------------------------------------------------------------+
+|                                                                           |
+|  Task               Provider       Tokens    Cost                         |
+|  --------------------------------------------------                      |
+|  scrape_hackernews   (none)        0         $0                           |
+|  scrape_reddit       (none)        0         $0                           |
+|  get_internal_data   (none)        0         $0                           |
+|  analyze_trends      Groq          3K        $0.0009                      |
+|  analyze_metrics     DeepSeek      2K        $0.0002                      |
+|  generate_report     Anthropic     4K        $0.012                       |
+|  format_html         DeepSeek      2K        $0.0002                      |
+|  send_email          (none)        0         $0                           |
+|  save_to_db          (none)        0         $0                           |
+|  --------------------------------------------------                      |
+|  TOTAL                             11K       $0.0133                      |
+|                                                                           |
+|  Single-provider (all Claude): 11K tokens x $0.003 = $0.033              |
+|  Multi-provider routing: $0.0133                                          |
+|  Savings: 60%                                                             |
+|                                                                           |
++---------------------------------------------------------------------------+
 ```
 
 ---
@@ -244,30 +236,19 @@ flowchart TB
 
 **Scenario:** Generate localized landing pages for QR Code AI in 5 languages, using NovaNet's knowledge graph for entity context and cultural intelligence.
 
-**v0.30 features used:** ALL 6 features (Agents, Records, Orchestrate Mode, Context Budget, Memory, Introspection)
+**Features used:** Multi-provider routing, structured output, MCP integration (NovaNet), agent verb
+
+> **Note:** This workflow uses `goal:` (orchestrate mode) and `record:` which are planned
+> features. The core verbs (`infer:`, `invoke:`, `agent:`) and data flow (`with:`, `structured:`)
+> are fully functional in v0.49.
 
 ### The Workflow
 
 ```yaml
-# generate-multilingual.nika.yaml — Full v0.30 showcase
-schema: nika/workflow@0.13
-goal:
-
-agents:
-  think:
-    provider: anthropic
-    model: claude-sonnet-4-6
-    extended_thinking: true
-    thinking_budget: 16384
-  default:
-    provider: anthropic
-    model: claude-sonnet-4-6
-  search:
-    provider: groq
-    model: llama-3.3-70b-versatile
-  lite:
-    provider: deepseek
-    model: deepseek-chat
+# generate-multilingual.nika.yaml — Multilingual content generation
+schema: "nika/workflow@0.12"
+provider: anthropic
+model: claude-sonnet-4-20250514
 
 mcp:
   servers:
@@ -275,84 +256,50 @@ mcp:
       command: cargo
       args: ["run", "-p", "novanet-mcp"]
 
-goal:
-  goal: |
-    Generate landing pages for QR Code AI in 5 locales: fr-FR, en-US, de-DE, ja-JP, es-ES.
-    For each locale:
-    1. Get entity context + knowledge atoms from NovaNet
-    2. Check if past records exist (reuse research)
-    3. Research locale-specific trends
-    4. Write 4 sections: hero, features, pricing, FAQ
-    5. Review for quality (score >= 0.85)
-    6. Persist records for future reuse
-  agent: think
-  max_rounds: 25
-  record_budget: 50000
+# goal: orchestrate mode (planned feature — illustrative)
+# goal: |
+#   Generate landing pages for QR Code AI in 5 locales: fr-FR, en-US, de-DE, ja-JP, es-ES.
+#   For each locale:
+#   1. Get entity context + knowledge atoms from NovaNet
+#   2. Research locale-specific trends
+#   3. Write 4 sections: hero, features, pricing, FAQ
+#   4. Review for quality (score >= 0.85)
 
 tasks:
   # ──────────────────────────────────────────────────────────
-  # TEMPLATE: Get context from NovaNet
+  # STAGE 1: Get context from NovaNet
   # ──────────────────────────────────────────────────────────
 
   - id: get_entity_context
-    agent: lite
     invoke:
-      tool: novanet_context
-      server: novanet
+      tool: "novanet::novanet_context"
       params:
-        focus_key: "{{with.entity_key}}"
-        locale: "{{with.locale}}"
+        focus_key: "qr-code-ai"
+        locale: "fr-FR"
         mode: page
-    record:
-      compress: true
-      max_tokens: 500
 
   - id: get_knowledge
-    agent: lite
     invoke:
-      tool: novanet_context
-      server: novanet
+      tool: "novanet::novanet_context"
       params:
-        focus_key: "{{with.entity_key}}"
-        locale: "{{with.locale}}"
+        focus_key: "qr-code-ai"
+        locale: "fr-FR"
         mode: knowledge
         atom_type: all
-    record:
-      compress: true
-      max_tokens: 400
-      retain: [expressions, taboos, audience_traits]
 
   # ──────────────────────────────────────────────────────────
-  # TEMPLATE: Check past experience
-  # ──────────────────────────────────────────────────────────
-
-  - id: recall_records
-    agent: lite
-    invoke:
-      tool: novanet_search
-      server: novanet
-      params:
-        query: "{{with.entity_key}} {{with.locale}} research"
-        kinds: ["Record"]
-        limit: 5
-    record:
-      compress: true
-      max_tokens: 300
-
-  # ──────────────────────────────────────────────────────────
-  # TEMPLATE: Research (skip if past records are fresh)
+  # STAGE 2: Research locale-specific trends
   # ──────────────────────────────────────────────────────────
 
   - id: research_locale
-    agent: search
-    context_budget: 6000
+    provider: groq
+    model: llama-3.3-70b-versatile
+    depends_on: [get_entity_context]
     with:
-      locale: "$get_entity_context.locale"
-      past_records: "$recall_records"
-      entity_key: "$get_entity_context.entity_key"
+      context: $get_entity_context
     infer: |
-      Research QR code market trends for {{with.locale}}.
-      Past experience (if any): {{with.past_records}}
+      Research QR code market trends for fr-FR.
+      Entity context: {{with.context}}
       Focus on: local adoption rates, popular use cases, regulatory requirements.
     structured:
       schema:
@@ -362,30 +309,21 @@ tasks:
           market_size: { type: string }
           regulations: { type: array, items: { type: string } }
         required: [key_findings]
-    record:
-      compress: true
-      max_tokens: 400
-      retain: [key_findings, market_size, regulations]
-      persist: novanet
-      entity_link: "{{with.entity_key}}"
 
   # ──────────────────────────────────────────────────────────
-  # TEMPLATE: Write sections
+  # STAGE 3: Write sections
   # ──────────────────────────────────────────────────────────
 
-  - id: write_section
-    agent: default
-    context_budget: 8000
+  - id: write_hero
+    depends_on: [get_entity_context, get_knowledge, research_locale]
     with:
-      section: "$orchestrator.current_section"
-      locale: "$get_entity_context.locale"
-      entity_context: "$get_entity_context"
-      knowledge: "$get_knowledge"
-      research: "$research_locale"
+      entity_context: $get_entity_context
+      knowledge: $get_knowledge
+      research: $research_locale
     infer: |
-      Write the {{with.section}} section for a QR Code AI landing page.
+      Write the hero section for a QR Code AI landing page.
 
-      Locale: {{with.locale}}
+      Locale: fr-FR
       Entity context: {{with.entity_context}}
       Knowledge atoms: {{with.knowledge}}
       Research: {{with.research}}
@@ -403,25 +341,87 @@ tasks:
           cta_text: { type: string }
           word_count: { type: integer }
         required: [content]
-    record:
-      compress: true
-      retain: [content]
-      max_tokens: 800
+
+  - id: write_features
+    depends_on: [get_entity_context, get_knowledge, research_locale]
+    with:
+      entity_context: $get_entity_context
+      knowledge: $get_knowledge
+      research: $research_locale
+    infer: |
+      Write the features section for a QR Code AI landing page.
+      Locale: fr-FR
+      Entity context: {{with.entity_context}}
+      Knowledge atoms: {{with.knowledge}}
+      Research: {{with.research}}
+      Write natively in the target language. Respect cultural taboos.
+    structured:
+      schema:
+        type: object
+        properties:
+          content: { type: string }
+          cta_text: { type: string }
+        required: [content]
+
+  - id: write_pricing
+    depends_on: [get_entity_context, get_knowledge, research_locale]
+    with:
+      entity_context: $get_entity_context
+      knowledge: $get_knowledge
+      research: $research_locale
+    infer: |
+      Write the pricing section for a QR Code AI landing page.
+      Locale: fr-FR
+      Entity context: {{with.entity_context}}
+      Knowledge atoms: {{with.knowledge}}
+      Write natively in the target language. Respect cultural taboos.
+    structured:
+      schema:
+        type: object
+        properties:
+          content: { type: string }
+          cta_text: { type: string }
+        required: [content]
+
+  - id: write_faq
+    depends_on: [get_entity_context, get_knowledge, research_locale]
+    with:
+      entity_context: $get_entity_context
+      knowledge: $get_knowledge
+      research: $research_locale
+    infer: |
+      Write the FAQ section for a QR Code AI landing page.
+      Locale: fr-FR
+      Entity context: {{with.entity_context}}
+      Knowledge atoms: {{with.knowledge}}
+      Write natively in the target language. Respect cultural taboos.
+    structured:
+      schema:
+        type: object
+        properties:
+          content: { type: string }
+        required: [content]
 
   # ──────────────────────────────────────────────────────────
-  # TEMPLATE: Review quality
+  # STAGE 4: Review quality
   # ──────────────────────────────────────────────────────────
 
   - id: review_page
-    agent: think
-    context_budget: 12000
+    extended_thinking: true
+    thinking_budget: 16384
+    depends_on: [write_hero, write_features, write_pricing, write_faq]
     with:
-      locale: "$get_entity_context.locale"
-      all_sections: "$write_section"
+      hero: $write_hero
+      features: $write_features
+      pricing: $write_pricing
+      faq: $write_faq
     infer: |
-      Review this landing page for {{with.locale}}.
+      Review this landing page for fr-FR.
 
-      Sections: {{with.all_sections}}
+      Hero: {{with.hero}}
+      Features: {{with.features}}
+      Pricing: {{with.pricing}}
+      FAQ: {{with.faq}}
 
       Check:
       1. Language quality (native, not translated?)
@@ -437,101 +437,83 @@ tasks:
           issues: { type: array, items: { type: string } }
           suggestions: { type: array, items: { type: string } }
         required: [score, issues]
-    record:
-      compress: true
-      retain: [score, issues, suggestions]
-      confidence_threshold: 0.85
 
   # ──────────────────────────────────────────────────────────
-  # TEMPLATE: Store result in NovaNet
+  # STAGE 5: Store result in NovaNet
   # ──────────────────────────────────────────────────────────
 
   - id: persist_page
-    agent: lite
+    depends_on: [review_page, write_hero, write_features, write_pricing, write_faq]
+    with:
+      hero: $write_hero
+      review: $review_page
     invoke:
-      tool: novanet_write
-      server: novanet
+      tool: "novanet::novanet_write"
       params:
         operation: upsert_node
         class: PageNative
-        key: "homepage-{{with.locale}}"
-        locale: "{{with.locale}}"
+        key: "homepage-fr-FR"
+        locale: "fr-FR"
         properties:
-          content: "{{with.final_content}}"
+          content: "{{with.hero}}"
           generated_by: nika
-          quality_score: "{{with.score}}"
-    record:
-      compress: true
-      max_tokens: 100
-      persist: novanet
-      entity_link: qr-code-ai
+          quality_score: "{{with.review}}"
 ```
 
-### Execution Flow (Orchestrate Mode)
+### Execution Flow
 
 ```mermaid
 sequenceDiagram
-    participant S as 🎯 Orchestrator
-    participant CTX as 🔌 NovaNet
-    participant R as 🔍 Research
-    participant W as ✍️ Writer
-    participant V as 🔬 Review
+    participant CTX as NovaNet (MCP)
+    participant R as Research (Groq)
+    participant W as Writer (Claude)
+    participant V as Review (Claude + thinking)
 
-    Note over S: Processing fr-FR first
+    Note over CTX: Processing fr-FR
 
-    S->>CTX: get_entity_context(locale="fr-FR")
-    CTX-->>S: Record: entity context
-    S->>CTX: get_knowledge(locale="fr-FR")
-    CTX-->>S: Record: expressions, taboos
+    CTX->>CTX: get_entity_context(locale="fr-FR")
+    CTX->>CTX: get_knowledge(locale="fr-FR")
 
-    S->>CTX: recall_records("qr-code fr-FR")
-    CTX-->>S: Record: no past records
+    CTX->>R: research_locale("fr-FR")
+    R-->>CTX: {key_findings, market_size}
 
-    S->>R: research_locale("fr-FR")
-    R-->>S: Record: {key_findings, confidence: 0.88}
+    par Write all sections in parallel
+        CTX->>W: write_hero("fr-FR")
+        CTX->>W: write_features("fr-FR")
+        CTX->>W: write_pricing("fr-FR")
+        CTX->>W: write_faq("fr-FR")
+    end
+    W-->>CTX: 4 section results
 
-    S->>W: write_section("hero", locale="fr-FR")
-    S->>W: write_section("features", locale="fr-FR")
-    S->>W: write_section("pricing", locale="fr-FR")
-    S->>W: write_section("faq", locale="fr-FR")
-    Note right of W: All 4 in parallel!
-    W-->>S: 4 Records (800 tok each)
+    CTX->>V: review_page(locale="fr-FR", sections=...)
+    V-->>CTX: {score: 0.91}
 
-    S->>V: review_page(locale="fr-FR", sections=...)
-    V-->>S: Record: {score: 0.91} ✅
-
-    S->>CTX: persist_page(locale="fr-FR")
-
-    Note over S: Moving to en-US...
-    Note over S: (same flow for 4 more locales)
+    CTX->>CTX: persist_page(locale="fr-FR")
 ```
 
 ### NovaNet's Role in Each Step
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│  🧠 WHAT NOVANET PROVIDES AT EACH STEP                                         │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                 │
-│  get_entity_context → "QR Code AI is a SaaS product that generates             │
-│                         dynamic QR codes using AI. Key features:                │
-│                         customization, analytics, batch generation..."          │
-│                                                                                 │
-│  get_knowledge →                                                                │
-│    expressions:  "code QR" (not "QR code" in French)                           │
-│                  "flash code" (alternate term in FR)                            │
-│                  "générer" (preferred over "créer" for AI context)              │
-│    taboos:       "Don't use 'gratuit' in headlines (implies low quality)"      │
-│    audience:     "French B2B prefers formal tone, data-driven arguments"       │
-│                                                                                 │
-│  recall_records → Past research findings from previous sessions                │
-│    (or empty if first run — research will be done fresh)                       │
-│                                                                                 │
-│  persist_page → Stores generated PageNative in the graph                       │
-│    linked to Entity "qr-code-ai" + Locale "fr-FR"                             │
-│    with provenance: generated_by=nika, quality_score=0.91                      │
-│                                                                                 │
-└─────────────────────────────────────────────────────────────────────────────────┘
++---------------------------------------------------------------------------+
+|  WHAT NOVANET PROVIDES AT EACH STEP                                       |
++---------------------------------------------------------------------------+
+|                                                                           |
+|  get_entity_context -> "QR Code AI is a SaaS product that generates       |
+|                         dynamic QR codes using AI. Key features:          |
+|                         customization, analytics, batch generation..."    |
+|                                                                           |
+|  get_knowledge ->                                                         |
+|    expressions:  "code QR" (not "QR code" in French)                      |
+|                  "flash code" (alternate term in FR)                       |
+|                  "generer" (preferred over "creer" for AI context)         |
+|    taboos:       "Don't use 'gratuit' in headlines (implies low quality)"  |
+|    audience:     "French B2B prefers formal tone, data-driven arguments"   |
+|                                                                           |
+|  persist_page -> Stores generated PageNative in the graph                 |
+|    linked to Entity "qr-code-ai" + Locale "fr-FR"                        |
+|    with provenance: generated_by=nika, quality_score=0.91                 |
+|                                                                           |
++---------------------------------------------------------------------------+
 ```
 
 ---
@@ -540,41 +522,19 @@ sequenceDiagram
 
 **Scenario:** A coding agent that analyzes a codebase, plans changes, implements them, runs tests, and iterates until tests pass.
 
-**v0.30 features used:** Agents, Records, Orchestrate Mode, Context Budget, Introspection
+**Features used:** Agent verb with tools, extended thinking, multi-provider routing, structured output
+
+> **Note:** This workflow uses `goal:` (orchestrate mode) and `record:` which are planned
+> features. The `agent:` verb, `exec:`, `infer:`, `with:`, and `structured:` are fully
+> functional in v0.49.
 
 ### The Workflow
 
 ```yaml
-# code-agent.nika.yaml — Coding agent with orchestrate mode
-schema: nika/workflow@0.13
-goal:
-
-agents:
-  think:
-    provider: anthropic
-    model: claude-sonnet-4-6
-    extended_thinking: true
-    thinking_budget: 32768
-  default:
-    provider: anthropic
-    model: claude-sonnet-4-6
-  lite:
-    provider: deepseek
-    model: deepseek-chat
-
-goal:
-  goal: |
-    Implement the feature described in the user's request.
-    Steps:
-    1. Read relevant source files to understand the codebase
-    2. Plan the implementation (what to change and why)
-    3. Implement changes (write/edit files)
-    4. Run tests
-    5. If tests fail: analyze errors, fix, re-test
-    6. Done when all tests pass
-  agent: think
-  max_rounds: 15
-  record_budget: 30000
+# code-agent.nika.yaml — Coding agent with iterative test loop
+schema: "nika/workflow@0.12"
+provider: anthropic
+model: claude-sonnet-4-20250514
 
 context:
   files:
@@ -583,38 +543,36 @@ context:
 
 tasks:
   # ──────────────────────────────────────────────────────────
-  # TEMPLATE: Read source files
+  # STEP 1: Read source files with agent loop
   # ──────────────────────────────────────────────────────────
 
   - id: read_files
-    agent: lite
-    with:
-      files: "$orchestrator.target_files"
     agent:
       prompt: |
-        Read the source files relevant to this task: {{with.files}}
+        Read the source files relevant to this feature request.
+        Feature request: {{context.request}}
+        Architecture: {{context.architecture}}
         Summarize what each file does and how they relate.
       tools: [nika:read, nika:glob, nika:grep]
       max_turns: 5
-    record:
-      compress: true
-      max_tokens: 600
-      retain: [file_summaries, dependencies]
+      completion:
+        mode: natural
 
   # ──────────────────────────────────────────────────────────
-  # TEMPLATE: Plan implementation
+  # STEP 2: Plan implementation (with extended thinking)
   # ──────────────────────────────────────────────────────────
 
   - id: plan
-    agent: think
-    context_budget: 10000
+    extended_thinking: true
+    thinking_budget: 32768
+    depends_on: [read_files]
     with:
-      codebase: "$read_files"
+      codebase: $read_files
     infer: |
       Based on the feature request and codebase analysis, create an implementation plan.
 
-      Feature request: {{context.files.request}}
-      Architecture: {{context.files.architecture}}
+      Feature request: {{context.request}}
+      Architecture: {{context.architecture}}
       Codebase analysis: {{with.codebase}}
 
       Output:
@@ -630,25 +588,19 @@ tasks:
           test_cases: { type: array, items: { type: string } }
           risks: { type: array, items: { type: string } }
         required: [files_to_change, test_cases]
-    record:
-      compress: true
-      max_tokens: 800
-      retain: [files_to_change, test_cases, risks]
 
   # ──────────────────────────────────────────────────────────
-  # TEMPLATE: Implement changes
+  # STEP 3: Implement changes with agent loop
   # ──────────────────────────────────────────────────────────
 
   - id: implement
-    agent: default
-    context_budget: 12000
+    depends_on: [plan, read_files]
     with:
-      change_description: "$orchestrator.current_change"
-      plan: "$plan"
-      relevant_code: "$read_files"
+      plan: $plan
+      relevant_code: $read_files
     agent:
       prompt: |
-        Implement the following change: {{with.change_description}}
+        Implement the changes described in this plan:
 
         Plan: {{with.plan}}
         Relevant code: {{with.relevant_code}}
@@ -657,36 +609,32 @@ tasks:
         Follow existing code style and patterns.
       tools: [nika:read, nika:write, nika:edit, nika:glob, nika:grep]
       max_turns: 10
-    record:
-      compress: true
-      max_tokens: 500
-      retain: [files_changed, summary]
+      completion:
+        mode: natural
 
   # ──────────────────────────────────────────────────────────
-  # TEMPLATE: Run tests
+  # STEP 4: Run tests
   # ──────────────────────────────────────────────────────────
 
   - id: run_tests
+    depends_on: [implement]
     exec:
       command: "cargo test 2>&1"
       shell: true
-    record:
-      compress: true
-      max_tokens: 400
-      retain: [pass_count, fail_count, errors]
 
   # ──────────────────────────────────────────────────────────
-  # TEMPLATE: Analyze test failures
+  # STEP 5: Analyze test failures (if any)
   # ──────────────────────────────────────────────────────────
 
   - id: analyze_failures
-    agent: think
-    context_budget: 8000
+    extended_thinking: true
+    thinking_budget: 16384
+    depends_on: [run_tests]
     with:
-      test_output: "$run_tests"
-      changes: "$implement"
+      test_output: $run_tests
+      changes: $implement
     infer: |
-      Tests failed. Analyze the errors and determine root cause.
+      Tests completed. Analyze the output and determine if any failures need fixing.
 
       Test output: {{with.test_output}}
       Recent changes: {{with.changes}}
@@ -704,78 +652,63 @@ tasks:
           root_causes: { type: array, items: { type: string } }
           fixes: { type: array, items: { type: string } }
         required: [failures, fixes]
-    record:
-      compress: true
-      max_tokens: 500
-      retain: [failures, root_causes, fixes]
 ```
 
 ### Execution Flow
 
 ```mermaid
 sequenceDiagram
-    participant S as 🎯 Orchestrator<br/>(Claude + thinking)
-    participant R as 📖 read_files<br/>(DeepSeek)
-    participant P as 🗺️ plan<br/>(Claude + thinking)
-    participant I as 💻 implement<br/>(Claude)
-    participant T as 🧪 run_tests<br/>(shell)
-    participant A as 🔍 analyze<br/>(Claude + thinking)
+    participant R as read_files<br/>(agent + tools)
+    participant P as plan<br/>(Claude + thinking)
+    participant I as implement<br/>(agent + tools)
+    participant T as run_tests<br/>(shell)
+    participant A as analyze<br/>(Claude + thinking)
 
-    Note over S: Round 1 — Understand the codebase
-    S->>R: read_files(files=["src/auth/", "src/api/"])
-    R-->>S: Record{file_summaries: [...], 600 tok}
+    Note over R: Step 1 — Understand the codebase
+    R->>R: read_files (agent loop, max 5 turns)
+    R-->>P: codebase summary
 
-    Note over S: Round 2 — Plan the implementation
-    S->>P: plan(codebase=read_files_record)
-    P-->>S: Record{files_to_change: [...], test_cases: [...], 800 tok}
+    Note over P: Step 2 — Plan the implementation
+    P->>P: plan (extended thinking)
+    P-->>I: {files_to_change, test_cases, risks}
 
-    Note over S: Round 3 — Implement
-    S->>I: implement(change="add auth middleware")
-    I-->>S: Record{files_changed: ["middleware.rs"], 500 tok}
+    Note over I: Step 3 — Implement
+    I->>I: implement (agent loop, max 10 turns)
+    I-->>T: files changed
 
-    Note over S: Round 4 — Test
-    S->>T: run_tests
-    T-->>S: Record{pass: 142, fail: 3, errors: [...]}
+    Note over T: Step 4 — Test
+    T->>T: cargo test
+    T-->>A: test output
 
-    Note over S: Round 5 — Tests failed! Analyze.
-    S->>A: analyze_failures(test_output=..., changes=...)
-    A-->>S: Record{fixes: ["missing import in line 45"]}
-
-    Note over S: Round 6 — Fix
-    S->>I: implement(change="fix import in middleware.rs")
-    I-->>S: Record{files_changed: ["middleware.rs"]}
-
-    Note over S: Round 7 — Re-test
-    S->>T: run_tests
-    T-->>S: Record{pass: 145, fail: 0} ✅
-
-    Note over S: ✅ All tests pass — DONE
+    Note over A: Step 5 — Analyze results
+    A->>A: analyze_failures (extended thinking)
+    A-->>A: {failures, fixes}
 ```
 
 ### Why This Beats a Simple Agent
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│  SIMPLE AGENT vs ORCHESTRATE CODING AGENT                                             │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                 │
-│  Simple agent (v0.27):                                                          │
-│  • ONE long conversation with the LLM                                           │
-│  • Context grows with every tool call                                           │
-│  • After 20 tool calls → dumb zone → makes mistakes                            │
-│  • Can't switch models for different subtasks                                   │
-│  • Everything in one prompt = confused, unfocused                               │
-│                                                                                 │
-│  Orchestrate coding agent (v0.30):                                                    │
-│  • Orchestrator PLANS what to do (with extended thinking)                             │
-│  • Each task (read, plan, implement, test) has fresh context                   │
-│  • Records pass only essential info (not 500 lines of code)                    │
-│  • Cheap model reads files (DeepSeek), expensive model plans (Claude)          │
-│  • If tests fail → analyze → fix → re-test (adaptive loop)                    │
-│                                                                                 │
-│  Result: More reliable, cheaper, and debuggable (traces show each step).       │
-│                                                                                 │
-└─────────────────────────────────────────────────────────────────────────────────┘
++---------------------------------------------------------------------------+
+|  SIMPLE AGENT vs STRUCTURED WORKFLOW                                      |
++---------------------------------------------------------------------------+
+|                                                                           |
+|  Simple agent (single conversation):                                      |
+|  - ONE long conversation with the LLM                                     |
+|  - Context grows with every tool call                                     |
+|  - After 20 tool calls -> dumb zone -> makes mistakes                     |
+|  - Can't switch models for different subtasks                             |
+|  - Everything in one prompt = confused, unfocused                         |
+|                                                                           |
+|  Structured workflow (Nika v0.49):                                        |
+|  - Each task (read, plan, implement, test) has fresh context              |
+|  - Data flow passes only essential info between tasks                     |
+|  - Cheap model reads files, expensive model plans                         |
+|  - Agent loops handle multi-turn tool use with bounded turns              |
+|  - If tests fail -> analyze -> iterate (explicit DAG)                     |
+|                                                                           |
+|  Result: More reliable, cheaper, and debuggable (traces show each step).  |
+|                                                                           |
++---------------------------------------------------------------------------+
 ```
 
 ---
@@ -785,90 +718,109 @@ sequenceDiagram
 Quick reference for which YAML fields to use:
 
 ```yaml
-# ══════════════════════════════════════════════════════════════
-# FEATURE 1: AGENTS (MODEL ROUTING)
-# ══════════════════════════════════════════════════════════════
+# ==============================================================
+# FEATURE 1: MULTI-PROVIDER ROUTING
+# ==============================================================
 
-# models: layer — define model aliases once
-models:
-  sonnet: { provider: claude, model: claude-sonnet-4-20250514 }
-  deepseek: { provider: deepseek, model: deepseek-chat }
-  groq-llama: { provider: groq, model: llama-3.3-70b-versatile }
-
-# agents: reference models by alias
-agents:
-  default: { model: sonnet }
-  lite:    { model: deepseek }
-  search:  { model: groq-llama }
-  think:   { model: sonnet, extended_thinking: true, thinking_budget: 16384 }
-
-default_agent: default
+# Workflow-level defaults
+schema: "nika/workflow@0.12"
+provider: anthropic
+model: claude-sonnet-4-20250514
 
 tasks:
-  - id: my_task
-    agent: search                   # ← Reference an agent preset
+  - id: cheap_task
+    provider: deepseek                   # Task-level override
+    model: deepseek-chat
+    infer: "..."
 
-# ══════════════════════════════════════════════════════════════
-# FEATURE 2: RECORDS
-# ══════════════════════════════════════════════════════════════
+  - id: fast_task
+    provider: groq                       # Another provider
+    model: llama-3.3-70b-versatile
+    infer: "..."
+
+  - id: quality_task
+    # Uses workflow defaults (anthropic / claude-sonnet-4-20250514)
+    infer: "..."
+
+  - id: thinking_task
+    extended_thinking: true              # Extended thinking on task
+    thinking_budget: 16384
+    infer: "..."
+
+# ==============================================================
+# FEATURE 2: STRUCTURED OUTPUT
+# ==============================================================
 
 tasks:
   - id: my_task
     infer: "..."
-    record:
-      compress: true                # Enable compression
-      max_tokens: 500               # Max size of compressed record
-      retain: [key_findings]        # Structured extraction
-      confidence_threshold: 0.8     # Quality threshold
+    structured:
+      schema:
+        type: object
+        properties:
+          name: { type: string }
+          score: { type: number }
+        required: [name, score]
+      enable_repair: true                # Auto-repair on violation
+      max_retries: 3                     # Retry attempts
 
-# ══════════════════════════════════════════════════════════════
-# FEATURE 3: ORCHESTRATE MODE
-# ══════════════════════════════════════════════════════════════
-
-goal: |                              # goal: field auto-enables orchestrate mode
-  What you want to achieve.
-  Natural language description.
-
-  agent: think                      # Which agent for orchestrator
-  max_rounds: 10                    # Max dispatch rounds
-  record_budget: 15000              # Total token budget
-
-# ══════════════════════════════════════════════════════════════
-# FEATURE 4: CONTEXT BUDGET
-# ══════════════════════════════════════════════════════════════
+# ==============================================================
+# FEATURE 3: DATA FLOW (with: bindings)
+# ==============================================================
 
 tasks:
-  - id: my_task
-    context_budget: 8000            # Max tokens in this task's context
-    infer: "..."
+  - id: upstream
+    infer: "Generate data"
 
-# ══════════════════════════════════════════════════════════════
-# FEATURE 5: PERSISTENT MEMORY (NovaNet)
-# ══════════════════════════════════════════════════════════════
+  - id: downstream
+    with:
+      data: $upstream                    # $ prefix required
+      env_key: $env.API_KEY             # Environment variable
+    infer: "Process: {{with.data}}"      # Always with. prefix
 
-tasks:
-  - id: my_task
-    infer: "..."
-    record:
-      compress: true
-      persist: novanet              # Store in NovaNet
-      entity_link: qr-code          # Link to entity
-
-# ══════════════════════════════════════════════════════════════
-# FEATURE 6: INTROSPECTION
-# ══════════════════════════════════════════════════════════════
+# ==============================================================
+# FEATURE 4: AGENT VERB (multi-turn tool use)
+# ==============================================================
 
 tasks:
   - id: smart_agent
     agent:
-      prompt: "..."
-      tools:
-        - nika:records              # Past records
-        - nika:threads              # Active/completed tasks
-        - nika:orchestrate                # Round, budget
-        - nika:cost                 # Token/cost report
-        - nika:dag_info             # DAG structure
-        - nika:task_status          # Single task status
+      prompt: "Research and implement..."
+      tools: [nika:read, nika:write, nika:edit, nika:glob, nika:grep]
+      max_turns: 10
+      completion:
+        mode: explicit                   # Must call nika:complete
+
+# ==============================================================
+# FEATURE 5: MCP INTEGRATION (NovaNet)
+# ==============================================================
+
+mcp:
+  servers:
+    novanet:
+      command: cargo
+      args: ["run", "-p", "novanet-mcp"]
+
+tasks:
+  - id: search
+    invoke:
+      tool: "novanet::novanet_search"    # Double colon for MCP tools
+      params:
+        query: "AI trends"
+        limit: 10
+
+# ==============================================================
+# FEATURE 6: RETRY + RESILIENCE
+# ==============================================================
+
+tasks:
+  - id: flaky_api
+    retry:                               # Task-level retry
+      max_attempts: 3
+      delay_ms: 2000
+      backoff: 2.0
+    fetch:
+      url: "https://api.example.com/data"
 ```
 
 ---
@@ -877,13 +829,12 @@ tasks:
 
 | Dimension | Use Case C (Pipeline) | Use Case A (Multilingual) | Use Case B (Coding) |
 |-----------|:--------------------:|:------------------------:|:-------------------:|
-| Mode | `dag` | `orchestrate` | `orchestrate` |
-| Agents | 3 (default, lite, search) | 4 (all) | 3 (think, default, lite) |
-| Records | ✅ compress + retain | ✅ compress + retain + persist | ✅ compress + retain |
-| Context Budget | ✅ per-task | ✅ per-task | ✅ per-task |
-| NovaNet | ❌ not needed | ✅ context + knowledge + persist | ❌ not needed |
-| Memory | ❌ | ✅ persist records | ❌ |
-| Introspection | ❌ | ❌ | ✅ (in agent tasks) |
+| Mode | DAG | DAG | DAG |
+| Providers | 3 (Anthropic, DeepSeek, Groq) | 2 (Anthropic, Groq) | 1 (Anthropic) |
+| Structured Output | Yes | Yes | Yes |
+| MCP (NovaNet) | No | Yes | No |
+| Agent Verb | No | No | Yes (read + implement) |
+| Extended Thinking | No | Yes (review) | Yes (plan + analyze) |
 | Estimated Cost | $0.013 | $0.50 (5 locales) | $0.10 |
 | Complexity | Low | High | Medium |
 
@@ -891,6 +842,6 @@ tasks:
 
 <div align="center">
 
-[← 08 Complete Guide](./08-nika-030-complete-guide.md) · [📋 Index](./00-README.md)
+[< 08 Complete Guide](./08-nika-030-complete-guide.md) · [Index](./00-README.md)
 
 </div>
