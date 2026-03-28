@@ -567,7 +567,20 @@ pub fn resolve_with<'a>(
         result.push_str(&intermediate[last_end..]);
     }
 
+    // SECURITY: Collect trusted input paths from the ORIGINAL template (same as resolve())
     if has_inputs && result.contains("{{") {
+        let trusted_inputs: std::collections::HashSet<String> = TEMPLATE_RE
+            .captures_iter(template)
+            .filter_map(|cap| {
+                let inner = cap[1].trim();
+                if let Ok(TemplateExpr::Input { path, .. }) = parse_template_expr(inner) {
+                    Some(format!("inputs.{}", path))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
         let intermediate = std::mem::take(&mut result);
         result = String::with_capacity(intermediate.len() + 64);
         let mut last_end = 0;
@@ -580,8 +593,16 @@ pub fn resolve_with<'a>(
                 Ok(TemplateExpr::Input { path, transforms }) => (path, transforms),
                 _ => continue,
             };
-            result.push_str(&intermediate[last_end..m.start()]);
             let full_path = format!("inputs.{}", path);
+            // Skip injected input refs that weren't in the original template
+            if !trusted_inputs.contains(&full_path) {
+                tracing::warn!(
+                    path = %full_path,
+                    "Blocked injected input reference in resolve_with (template injection attempt)"
+                );
+                continue;
+            }
+            result.push_str(&intermediate[last_end..m.start()]);
             match datastore.resolve_input_path(&full_path) {
                 Some(value) => {
                     let replacement = if !transforms.is_empty() {
@@ -1177,7 +1198,23 @@ pub fn resolve<'a>(
     // ─────────────────────────────────────────────────────────────
     // Pass 3: Resolve {{inputs.param}}
     // ─────────────────────────────────────────────────────────────
+    // SECURITY: Collect trusted input paths from the ORIGINAL template
+    // before Pass 1/2 altered the string. This prevents template injection
+    // where LLM output containing {{inputs.secret}} is substituted via
+    // with: bindings and then resolved here.
     if has_inputs && result.contains("inputs.") {
+        let trusted_inputs: std::collections::HashSet<String> = TEMPLATE_RE
+            .captures_iter(template)
+            .filter_map(|cap| {
+                let inner = cap[1].trim();
+                if let Ok(TemplateExpr::Input { path, .. }) = parse_template_expr(inner) {
+                    Some(format!("inputs.{}", path))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
         let intermediate = std::mem::take(&mut result);
         result = String::with_capacity(intermediate.len() + 64);
         let mut last_end = 0;
@@ -1190,8 +1227,16 @@ pub fn resolve<'a>(
                 Ok(TemplateExpr::Input { path, transforms }) => (path, transforms),
                 _ => continue,
             };
-            result.push_str(&intermediate[last_end..m.start()]);
             let full_path = format!("inputs.{}", path);
+            // Skip injected input refs that weren't in the original template
+            if !trusted_inputs.contains(&full_path) {
+                tracing::warn!(
+                    path = %full_path,
+                    "Blocked injected input reference (template injection attempt)"
+                );
+                continue;
+            }
+            result.push_str(&intermediate[last_end..m.start()]);
             match datastore.resolve_input_path(&full_path) {
                 Some(value) => {
                     let replacement = if !transforms.is_empty() {
@@ -4235,5 +4280,51 @@ mod v028_template_tests {
         let result = resolve_with("{{val | shell}}", &with, &ds).unwrap();
         // Single correct shell escape: 'it'\''s a test'
         assert_eq!(result, "'it'\\''s a test'");
+    }
+
+    // ========================================================================
+    // Template injection prevention tests (trusted_inputs + trusted_context)
+    // ========================================================================
+
+    /// Verify that injected {{inputs.secret}} via with: binding is NOT resolved.
+    /// Template: "{{data}} about {{inputs.topic}}"
+    /// with data = "{{inputs.secret}}" — inputs.secret must NOT leak.
+    #[test]
+    fn template_injection_inputs_blocked_in_resolve() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("data", json!("{{inputs.secret}}"));
+        let ds = RunContext::new();
+        let mut inputs = rustc_hash::FxHashMap::default();
+        inputs.insert("topic".to_string(), json!("AI workflows"));
+        inputs.insert("secret".to_string(), json!("sk-ant-SHOULD-NOT-LEAK"));
+        ds.set_inputs(inputs);
+
+        let result =
+            resolve("{{with.data}} about {{inputs.topic}}", &bindings, &ds).unwrap();
+        // inputs.topic should resolve, but injected inputs.secret should NOT
+        assert!(
+            !result.contains("sk-ant-SHOULD-NOT-LEAK"),
+            "Secret leaked via template injection: {result}"
+        );
+        assert!(result.contains("AI workflows"), "Legitimate input not resolved: {result}");
+    }
+
+    /// Same test for resolve_with
+    #[test]
+    fn template_injection_inputs_blocked_in_resolve_with() {
+        let with = make_with(&[("data", json!("{{inputs.secret}}"))]);
+        let ds = RunContext::new();
+        let mut inputs = rustc_hash::FxHashMap::default();
+        inputs.insert("topic".to_string(), json!("AI workflows"));
+        inputs.insert("secret".to_string(), json!("sk-ant-SHOULD-NOT-LEAK"));
+        ds.set_inputs(inputs);
+
+        let result =
+            resolve_with("{{data}} about {{inputs.topic}}", &with, &ds).unwrap();
+        assert!(
+            !result.contains("sk-ant-SHOULD-NOT-LEAK"),
+            "Secret leaked via template injection in resolve_with: {result}"
+        );
+        assert!(result.contains("AI workflows"), "Legitimate input not resolved: {result}");
     }
 }
