@@ -78,14 +78,34 @@ fn extract_templates_from_action(action: &AnalyzedTaskAction) -> Vec<String> {
             if let Some(ref system) = infer.system {
                 templates.push(system.clone());
             }
+            // Vision content: text parts may contain templates
+            if let Some(ref parts) = infer.content {
+                for part in parts {
+                    if let nika_core::ast::content::AnalyzedContentPart::Text { text } = part {
+                        templates.push(text.clone());
+                    }
+                }
+            }
         }
         AnalyzedTaskAction::Exec(exec) => {
             templates.push(exec.command.clone());
+            if let Some(ref cwd) = exec.cwd {
+                templates.push(cwd.clone());
+            }
+            for value in exec.env.values() {
+                templates.push(value.clone());
+            }
         }
         AnalyzedTaskAction::Fetch(fetch) => {
             templates.push(fetch.url.clone());
             if let Some(ref body) = fetch.body {
                 templates.push(body.clone());
+            }
+            for value in fetch.headers.values() {
+                templates.push(value.clone());
+            }
+            if let Some(ref json) = fetch.json {
+                collect_string_values(json, &mut templates);
             }
         }
         AnalyzedTaskAction::Invoke(invoke) => {
@@ -95,6 +115,9 @@ fn extract_templates_from_action(action: &AnalyzedTaskAction) -> Vec<String> {
         }
         AnalyzedTaskAction::Agent(agent) => {
             templates.push(agent.prompt.clone());
+            if let Some(ref system) = agent.system {
+                templates.push(system.clone());
+            }
         }
     }
 
