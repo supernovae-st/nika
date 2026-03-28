@@ -2746,9 +2746,6 @@ fn fmt_fallback_triggered_output() {
     let stripped = strip_ansi(&output);
     assert!(stripped.contains("fallback"), "should contain 'fallback'");
     assert!(stripped.contains("h100"), "should contain from_provider");
-    assert!(
-        stripped.contains("anthropic"),
-        "should contain to_provider"
-    );
+    assert!(stripped.contains("anthropic"), "should contain to_provider");
     assert!(stripped.contains("timeout"), "should contain reason");
 }

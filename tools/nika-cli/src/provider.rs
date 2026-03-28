@@ -142,7 +142,11 @@ pub async fn handle_provider_command(
                     .map(|v| !v.is_empty())
                     .unwrap_or(false);
                 // Only query keychain if env var is not set
-                let has_keychain = if has_env { false } else { NikaKeyring::exists(provider) };
+                let has_keychain = if has_env {
+                    false
+                } else {
+                    NikaKeyring::exists(provider)
+                };
                 let is_last = i == all_providers.len() - 1;
                 let connector = tree_connector(is_last).dimmed();
                 let (icon, source, masked) = match (has_env, has_keychain) {

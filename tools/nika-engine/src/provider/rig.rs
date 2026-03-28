@@ -680,9 +680,7 @@ impl RigProvider {
             .map_err(|_| RigInferError::Timeout {
                 duration_ms: VISION_TIMEOUT.as_millis() as u64,
             })?
-            .map_err(|e: super::native::NativeError| {
-                RigInferError::PromptError(e.to_string())
-            })?;
+            .map_err(|e: super::native::NativeError| RigInferError::PromptError(e.to_string()))?;
             return Ok(response.message.content);
         }
 
@@ -777,9 +775,7 @@ impl RigProvider {
             .map_err(|_| RigInferError::Timeout {
                 duration_ms: VISION_STREAM_TIMEOUT.as_millis() as u64,
             })?
-            .map_err(|e: super::native::NativeError| {
-                RigInferError::PromptError(e.to_string())
-            })?;
+            .map_err(|e: super::native::NativeError| RigInferError::PromptError(e.to_string()))?;
             // Send full response as a single Done chunk (non-streaming fallback)
             let text = response.message.content;
             if let Err(e) = tx.send(StreamChunk::Done(text.clone())).await {
@@ -998,18 +994,15 @@ impl RigProvider {
                     max_tokens: options.max_tokens,
                     ..Default::default()
                 };
-                timeout(
-                    OPTIONS_TIMEOUT,
-                    runtime.infer(&user_prompt, chat_options),
-                )
-                .await
-                .map_err(|_| RigInferError::Timeout {
-                    duration_ms: OPTIONS_TIMEOUT.as_millis() as u64,
-                })?
-                .map(|r| r.message.content)
-                .map_err(|e: super::native::NativeError| {
-                    RigInferError::PromptError(e.to_string())
-                })
+                timeout(OPTIONS_TIMEOUT, runtime.infer(&user_prompt, chat_options))
+                    .await
+                    .map_err(|_| RigInferError::Timeout {
+                        duration_ms: OPTIONS_TIMEOUT.as_millis() as u64,
+                    })?
+                    .map(|r| r.message.content)
+                    .map_err(|e: super::native::NativeError| {
+                        RigInferError::PromptError(e.to_string())
+                    })
             }
         }
     }

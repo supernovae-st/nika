@@ -433,19 +433,21 @@ impl TaskExecutor {
         output_policy: Option<&OutputPolicy>,
         routing: Option<&nika_core::ast::routing::RoutingConfig>,
     ) -> Result<String, NikaError> {
-        let chain = routing
-            .map(|r| &r.fallback)
-            .filter(|f| !f.is_empty());
+        let chain = routing.map(|r| &r.fallback).filter(|f| !f.is_empty());
 
         let Some(fallback_chain) = chain else {
             // No routing — standard execution
-            return self.execute(task_id, action, bindings, datastore, output_policy).await;
+            return self
+                .execute(task_id, action, bindings, datastore, output_policy)
+                .await;
         };
 
         // Only infer and agent verbs support fallback routing
         let is_llm_verb = matches!(action, TaskAction::Infer { .. } | TaskAction::Agent { .. });
         if !is_llm_verb {
-            return self.execute(task_id, action, bindings, datastore, output_policy).await;
+            return self
+                .execute(task_id, action, bindings, datastore, output_policy)
+                .await;
         }
 
         let mut errors: Vec<(String, String)> = Vec::new();
@@ -475,13 +477,14 @@ impl TaskExecutor {
                     let is_last = idx == fallback_chain.len() - 1;
                     if !is_last {
                         let next_provider = &fallback_chain[idx + 1];
-                        self.event_log.emit(crate::event::EventKind::FallbackTriggered {
-                            task_id: Arc::clone(task_id),
-                            from_provider: provider_name.clone(),
-                            to_provider: next_provider.clone(),
-                            reason,
-                            attempt: (idx + 1) as u32, // 1-indexed (consistent with TaskRetry)
-                        });
+                        self.event_log
+                            .emit(crate::event::EventKind::FallbackTriggered {
+                                task_id: Arc::clone(task_id),
+                                from_provider: provider_name.clone(),
+                                to_provider: next_provider.clone(),
+                                reason,
+                                attempt: (idx + 1) as u32, // 1-indexed (consistent with TaskRetry)
+                            });
                     }
                 }
             }
@@ -492,10 +495,7 @@ impl TaskExecutor {
             .last()
             .map(|(_, e)| e.clone())
             .unwrap_or_else(|| "unknown".to_string());
-        let details: Vec<String> = errors
-            .iter()
-            .map(|(p, e)| format!("{p}: {e}"))
-            .collect();
+        let details: Vec<String> = errors.iter().map(|(p, e)| format!("{p}: {e}")).collect();
         tracing::warn!(
             task_id = %task_id,
             chain = %fallback_chain.join(" → "),
@@ -603,7 +603,10 @@ fn classify_fallback_reason(err: &NikaError) -> String {
             let lower = message.to_lowercase();
             if lower.contains("429") || lower.contains("rate") || lower.contains("quota") {
                 "rate_limited".to_string()
-            } else if lower.contains("401") || lower.contains("unauthorized") || lower.contains("forbidden") {
+            } else if lower.contains("401")
+                || lower.contains("unauthorized")
+                || lower.contains("forbidden")
+            {
                 "auth_failed".to_string()
             } else {
                 "provider_error".to_string()
