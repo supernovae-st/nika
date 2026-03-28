@@ -192,10 +192,10 @@ jobs:
         working-directory: tools/nika
         run: cargo build --release --target ${{ matrix.target }} --no-default-features
 
-      - name: Build (cross, full features)
+      - name: Build (cross, full features minus keychain)
         if: matrix.cross && !matrix.docker
         working-directory: tools/nika
-        run: cross build --release --target ${{ matrix.target }}
+        run: cross build --release --target ${{ matrix.target }} --no-default-features --features tui,nika-daemon,media-core,lsp
 
       - name: Build (cross, musl static)
         if: matrix.cross && matrix.docker
@@ -1063,7 +1063,7 @@ jobs:
           echo "success_count=${SUCCESS}" >> $GITHUB_OUTPUT
           echo "total_count=${TOTAL}" >> $GITHUB_OUTPUT
 
-      - name: "Message 1: Header + Changelog"
+      - name: "Telegram: single release notification"
         if: env.HAS_TELEGRAM == 'true'
         uses: appleboy/telegram-action@v1.0.0
         with:
@@ -1072,48 +1072,22 @@ jobs:
           format: html
           disable_web_page_preview: true
           message: |
-            🦋 <b>Nika ${{ steps.stats.outputs.version }} released!</b>
+            🦋 <b>Nika ${{ steps.stats.outputs.version }}</b> — ${{ steps.stats.outputs.success_count }}/${{ steps.stats.outputs.total_count }} ✅
 
-            <b>What's changed:</b>
+            ${{ needs.release.result == 'success' && '✅' || '❌' }} GitHub Release
+            ${{ needs.docker-publish.result == 'success' && '✅' || '❌' }} Docker
+            ${{ needs.update-homebrew.result == 'success' && '✅' || needs.update-homebrew.result == 'skipped' && '⏭️' || '⚠️' }} Homebrew
+            ${{ needs.vscode-publish.result == 'success' && '✅' || '❌' }} VS Code + Open VSX
+            ${{ needs.npm-publish.result == 'success' && '✅' || '❌' }} npm
+            ${{ needs.crates-publish.result == 'success' && '✅' || '❌' }} crates.io
+            ${{ needs.update-scoop.result == 'success' && '✅' || needs.update-scoop.result == 'skipped' && '⏭️' || '⚠️' }} Scoop
+            ${{ needs.update-aur.result == 'success' && '✅' || needs.update-aur.result == 'skipped' && '⏭️' || '⚠️' }} AUR
+
+            <b>Changes:</b>
             ${{ steps.stats.outputs.changelog }}
 
+            🧪 ${{ steps.stats.outputs.test_count }}+ tests | 🦀 ${{ steps.stats.outputs.crate_count }} crates | 🔐 signed
             <a href="https://github.com/supernovae-st/nika/releases/tag/${{ env.RELEASE_TAG }}">View release</a>
-
-      - name: "Message 2: Platform status"
-        if: env.HAS_TELEGRAM == 'true'
-        uses: appleboy/telegram-action@v1.0.0
-        with:
-          to: ${{ secrets.TELEGRAM_CHAT_ID }}
-          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          format: html
-          disable_web_page_preview: true
-          message: |
-            📦 <b>Distribution — ${{ steps.stats.outputs.success_count }}/${{ steps.stats.outputs.total_count }} platforms</b>
-
-            ${{ needs.release.result == 'success' && '✅' || '❌' }} GitHub Release (7 binaries)
-            ${{ needs.docker-publish.result == 'success' && '✅' || '❌' }} Docker (ghcr.io + Docker Hub)
-            ${{ needs.update-homebrew.result == 'success' && '✅' || needs.update-homebrew.result == 'skipped' && '⏭️' || '⚠️' }} Homebrew tap
-            ${{ needs.vscode-publish.result == 'success' && '✅' || '❌' }} VS Code + Open VSX
-            ${{ needs.npm-publish.result == 'success' && '✅' || '❌' }} npm (${{ steps.stats.outputs.npm_count }} packages)
-            ${{ needs.crates-publish.result == 'success' && '✅' || '❌' }} crates.io (${{ steps.stats.outputs.crate_count }} crates)
-            ${{ needs.update-scoop.result == 'success' && '✅' || needs.update-scoop.result == 'skipped' && '⏭️' || '⚠️' }} Scoop bucket
-            ${{ needs.update-aur.result == 'success' && '✅' || needs.update-aur.result == 'skipped' && '⏭️' || '⚠️' }} AUR (nika-bin)
-
-      - name: "Message 3: Stats"
-        if: env.HAS_TELEGRAM == 'true'
-        uses: appleboy/telegram-action@v1.0.0
-        with:
-          to: ${{ secrets.TELEGRAM_CHAT_ID }}
-          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          format: html
-          disable_web_page_preview: true
-          message: |
-            📊 <b>Release Stats</b>
-
-            🦀 ${{ steps.stats.outputs.crate_count }} crates published
-            🧪 ${{ steps.stats.outputs.test_count }}+ tests passing
-            🔐 macOS signed + notarized
-            🛡️ SLSA provenance attested
             🐳 Docker SBOM + multi-arch
             📦 ${{ steps.stats.outputs.npm_count }} npm platform packages
 
