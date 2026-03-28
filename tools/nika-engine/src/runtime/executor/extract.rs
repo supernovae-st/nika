@@ -126,10 +126,8 @@ pub(crate) fn apply_extract(
 }
 
 /// Strip `<style>`, `<script>`, and `<noscript>` tags and their content from HTML.
-/// Used before markdown conversion to prevent CSS/JS from appearing as text.
-/// Strip `<style>`, `<script>`, and `<noscript>` tags and their content from HTML.
-/// Used before markdown conversion to prevent CSS/JS from appearing as text.
-#[cfg(feature = "fetch-markdown")]
+/// Used before markdown/text extraction to prevent CSS/JS from appearing as text.
+#[cfg(any(feature = "fetch-markdown", feature = "fetch-html"))]
 fn strip_non_content_tags(html: &str) -> String {
     // One regex per tag (regex crate doesn't support backreferences).
     static STYLE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
@@ -157,7 +155,9 @@ fn strip_non_content_tags(html: &str) -> String {
 
 #[cfg(feature = "fetch-html")]
 fn extract_text(html: &str, selector: Option<&str>) -> Result<String, NikaError> {
-    let document = scraper::Html::parse_document(html);
+    // Strip style/script/noscript tags to avoid CSS/JS in visible text
+    let clean = strip_non_content_tags(html);
+    let document = scraper::Html::parse_document(&clean);
     if let Some(css) = selector {
         let sel = scraper::Selector::parse(css).map_err(|_| NikaError::ExtractError {
             reason: format!("Invalid CSS selector: {css}"),
