@@ -275,6 +275,12 @@ impl InferBox {
             "🦙"
         } else if model.contains("deepseek") {
             "🔍"
+        } else if model.contains("qwen") {
+            "🌐"
+        } else if model.contains("gemini") {
+            "✨"
+        } else if model.contains("grok") {
+            "⚡"
         } else {
             "💬"
         }
