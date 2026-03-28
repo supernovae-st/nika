@@ -114,7 +114,12 @@ impl fmt::Display for TransformError {
                     f,
                     "[NIKA-152] Transform '{}' failed: expected {}, got {}",
                     op, expected, got
-                )
+                )?;
+                // Suggest to_string when a string transform receives a non-string
+                if *expected == "string" && (got == "object" || got == "array" || got == "number" || got == "boolean") {
+                    write!(f, " — try: to_string | {}", op)?;
+                }
+                Ok(())
             }
             TransformError::NullInput { op } => {
                 write!(
