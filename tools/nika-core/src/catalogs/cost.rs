@@ -43,7 +43,7 @@ pub static KNOWN_PRICING: &[ModelPricing] = &[
     },
     ModelPricing {
         provider: "Anthropic",
-        model_pattern: "haiku-3.5",
+        model_pattern: "haiku-4",
         input_per_million: 0.8,
         output_per_million: 4.0,
     },
@@ -245,6 +245,17 @@ mod tests {
         let p = find_pricing("gpt-4o-mini").unwrap();
         assert_eq!(p.provider, "OpenAI");
         assert!((p.input_per_million - 0.15).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn find_pricing_anthropic_haiku() {
+        // Must match both short and dated model IDs
+        let p = find_pricing("claude-haiku-4-5-20251001").unwrap();
+        assert_eq!(p.provider, "Anthropic");
+        assert!((p.input_per_million - 0.8).abs() < f64::EPSILON);
+
+        let p2 = find_pricing("claude-haiku-4-5").unwrap();
+        assert_eq!(p2.provider, "Anthropic");
     }
 
     #[test]
