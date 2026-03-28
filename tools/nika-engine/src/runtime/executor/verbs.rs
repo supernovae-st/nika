@@ -308,7 +308,9 @@ mod tests {
     fn coerce_json_types_f64() {
         let mut v = serde_json::json!("3.14");
         coerce_json_types(&mut v);
-        assert_eq!(v, serde_json::json!(3.14));
+        #[allow(clippy::approx_constant)]
+        let expected = serde_json::json!(3.14);
+        assert_eq!(v, expected);
     }
 
     #[test]
