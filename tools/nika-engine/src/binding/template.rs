@@ -1078,7 +1078,23 @@ pub fn resolve<'a>(
     // ─────────────────────────────────────────────────────────────
     // Pass 2: Resolve {{context.files.alias}} and {{context.session.key}}
     // ─────────────────────────────────────────────────────────────
+    // SECURITY: Collect trusted context paths from the ORIGINAL template
+    // before Pass 1 altered the string. This prevents template injection
+    // where LLM output containing {{context.files.secret}} is substituted
+    // into with: bindings and then resolved here.
     if has_context && result.contains("context.") {
+        let trusted_context: std::collections::HashSet<String> = TEMPLATE_RE
+            .captures_iter(template)
+            .filter_map(|cap| {
+                let inner = cap[1].trim();
+                if let Ok(TemplateExpr::Context { path, .. }) = parse_template_expr(inner) {
+                    Some(format!("context.{}", path))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
         let intermediate = std::mem::take(&mut result);
         result = String::with_capacity(intermediate.len() + 64);
         let mut last_end = 0;
@@ -1091,8 +1107,16 @@ pub fn resolve<'a>(
                 Ok(TemplateExpr::Context { path, transforms }) => (path, transforms),
                 _ => continue,
             };
-            result.push_str(&intermediate[last_end..m.start()]);
             let full_path = format!("context.{}", path);
+            // Skip injected context refs that weren't in the original template
+            if !trusted_context.contains(&full_path) {
+                tracing::warn!(
+                    path = %full_path,
+                    "Blocked injected context reference (template injection attempt)"
+                );
+                continue;
+            }
+            result.push_str(&intermediate[last_end..m.start()]);
             match datastore.resolve_context_path(&full_path) {
                 Some(value) => {
                     let replacement = if !transforms.is_empty() {
