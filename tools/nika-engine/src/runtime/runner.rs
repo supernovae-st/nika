@@ -867,6 +867,25 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         )
     }
 
+    /// Determine if an error is transient and worth retrying.
+    ///
+    /// Returns true for provider API errors (429, 500, timeout), exec failures,
+    /// MCP connection/timeout errors, and custom endpoint failures.
+    /// Returns false for validation, binding, DAG, schema, and security errors.
+    fn is_retryable(error: &NikaError) -> bool {
+        matches!(
+            error,
+            NikaError::ProviderApiError { .. }
+                | NikaError::ExecError { .. }
+                | NikaError::FetchError { .. }
+                | NikaError::Execution(_)
+                | NikaError::McpNotConnected { .. }
+                | NikaError::McpToolCallFailed { .. }
+                | NikaError::McpTimeout { .. }
+                | NikaError::EndpointConnectionFailed { .. }
+        )
+    }
+
     /// Execute a single task iteration (used for both regular tasks and for_each items)
     ///
     /// Bridge conversions (`lower_action`, `lower_output`) happen here at the
@@ -1030,16 +1049,86 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             )
             .await
         } else {
-            // Standard execution without retry
-            let result = executor
-                .execute(
-                    &task_id,
-                    &lowered_action,
-                    &bindings,
-                    &datastore,
-                    effective_output.as_ref(),
-                )
-                .await;
+            // Standard execution with optional task-level retry.
+            // Fetch handles retry internally (HTTP 5xx backoff) — skip runner retry.
+            let is_fetch = matches!(lowered_action, TaskAction::Fetch { .. });
+            let task_retry = if !is_fetch { task.retry.as_ref() } else { None };
+            let max_attempts = task_retry.map_or(1u32, |r| r.max_attempts.max(1));
+
+            let result = if max_attempts <= 1 {
+                // No retry — single execution
+                executor
+                    .execute(
+                        &task_id,
+                        &lowered_action,
+                        &bindings,
+                        &datastore,
+                        effective_output.as_ref(),
+                    )
+                    .await
+            } else {
+                // Task-level retry loop with exponential backoff
+                let delay_ms = task_retry.map_or(1000u64, |r| r.delay_ms);
+                let backoff = task_retry.map_or(1.0f64, |r| r.backoff.unwrap_or(1.0));
+                let mut last_err: Option<NikaError> = None;
+                let mut final_result = None;
+
+                for attempt in 1..=max_attempts {
+                    if attempt > 1 {
+                        let exp = (attempt - 2).min(30) as i32;
+                        let delay = (delay_ms as f64 * backoff.powi(exp)) as u64;
+                        tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+                        event_log.emit(EventKind::TaskRetry {
+                            task_id: Arc::clone(&task_id),
+                            attempt,
+                            max_attempts,
+                            backoff_ms: delay,
+                            error: last_err.take().map(|e| e.to_string()),
+                        });
+                    }
+
+                    match executor
+                        .execute(
+                            &task_id,
+                            &lowered_action,
+                            &bindings,
+                            &datastore,
+                            effective_output.as_ref(),
+                        )
+                        .await
+                    {
+                        Ok(output) => {
+                            if attempt > 1 {
+                                info!(
+                                    task_id = %task_id,
+                                    attempt = attempt,
+                                    "Task succeeded after retry"
+                                );
+                            }
+                            final_result = Some(Ok(output));
+                            break;
+                        }
+                        Err(e) if attempt < max_attempts && Self::is_retryable(&e) => {
+                            tracing::warn!(
+                                task_id = %task_id,
+                                attempt = attempt,
+                                max_attempts = max_attempts,
+                                error = %e,
+                                "Task failed (attempt {}/{}), retrying...",
+                                attempt,
+                                max_attempts,
+                            );
+                            last_err = Some(e);
+                        }
+                        Err(e) => {
+                            final_result = Some(Err(e));
+                            break;
+                        }
+                    }
+                }
+
+                final_result.unwrap_or_else(|| Err(last_err.unwrap()))
+            };
             let duration = start.elapsed();
 
             match result {
@@ -5984,6 +6073,296 @@ mod tests {
             "passing_parent should succeed — its iterations were all OK. \
             Error: {:?}",
             pass_tr.error()
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // TASK-LEVEL RETRY TESTS
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_is_retryable_provider_api_error() {
+        let err = NikaError::ProviderApiError {
+            message: "429 Too Many Requests".to_string(),
+        };
+        assert!(Runner::is_retryable(&err), "ProviderApiError should be retryable");
+    }
+
+    #[test]
+    fn test_is_retryable_exec_error() {
+        let err = NikaError::ExecError {
+            reason: "command timed out".to_string(),
+        };
+        assert!(Runner::is_retryable(&err), "ExecError should be retryable");
+    }
+
+    #[test]
+    fn test_is_retryable_fetch_error() {
+        let err = NikaError::FetchError {
+            reason: "connection reset".to_string(),
+        };
+        assert!(Runner::is_retryable(&err), "FetchError should be retryable");
+    }
+
+    #[test]
+    fn test_is_retryable_mcp_not_connected() {
+        let err = NikaError::McpNotConnected {
+            name: "novanet".to_string(),
+        };
+        assert!(Runner::is_retryable(&err), "McpNotConnected should be retryable");
+    }
+
+    #[test]
+    fn test_is_retryable_mcp_timeout() {
+        let err = NikaError::McpTimeout {
+            name: "search".to_string(),
+            operation: "tool_call".to_string(),
+        };
+        assert!(Runner::is_retryable(&err), "McpTimeout should be retryable");
+    }
+
+    #[test]
+    fn test_is_retryable_endpoint_connection_failed() {
+        let err = NikaError::EndpointConnectionFailed {
+            endpoint: "h100".to_string(),
+            reason: "connection refused".to_string(),
+        };
+        assert!(
+            Runner::is_retryable(&err),
+            "EndpointConnectionFailed should be retryable"
+        );
+    }
+
+    #[test]
+    fn test_is_not_retryable_validation_error() {
+        let err = NikaError::ValidationError {
+            reason: "invalid schema".to_string(),
+        };
+        assert!(!Runner::is_retryable(&err), "ValidationError should NOT be retryable");
+    }
+
+    #[test]
+    fn test_is_not_retryable_template_error() {
+        let err = NikaError::TemplateError {
+            template: "{{with.x}}".to_string(),
+            reason: "not found".to_string(),
+        };
+        assert!(!Runner::is_retryable(&err), "TemplateError should NOT be retryable");
+    }
+
+    #[test]
+    fn test_is_not_retryable_cycle_detected() {
+        let err = NikaError::CycleDetected {
+            cycle: "a -> b -> a".to_string(),
+        };
+        assert!(!Runner::is_retryable(&err), "CycleDetected should NOT be retryable");
+    }
+
+    #[test]
+    fn test_is_not_retryable_missing_api_key() {
+        let err = NikaError::MissingApiKey {
+            provider: "openai".to_string(),
+        };
+        assert!(!Runner::is_retryable(&err), "MissingApiKey should NOT be retryable");
+    }
+
+    #[tokio::test]
+    async fn test_exec_task_with_retry_runs_and_succeeds() {
+        // Create a workflow with an exec task that has retry config.
+        // The command succeeds on first try, so no retry needed —
+        // this tests that retry config doesn't break normal execution.
+        use crate::ast::analyzed::AnalyzedRetry;
+
+        let mut task_table = TaskTable::new();
+        task_table.insert("retryable");
+        let tid = task_table.get_id("retryable").unwrap();
+
+        let task = AnalyzedTask {
+            id: tid,
+            name: "retryable".to_string(),
+            description: None,
+            action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
+                command: "echo hello".to_string(),
+                shell: false,
+                cwd: None,
+                env: IndexMap::new(),
+                timeout_ms: None,
+                span: Span::dummy(),
+            }),
+            provider: None,
+            model: None,
+            base_url: None,
+            with_spec: Default::default(),
+            depends_on: vec![],
+            implicit_deps: vec![],
+            output: None,
+            for_each: None,
+            retry: Some(AnalyzedRetry {
+                max_attempts: 3,
+                delay_ms: 100,
+                backoff: Some(2.0),
+                span: Span::dummy(),
+            }),
+            decompose: None,
+            concurrency: None,
+            fail_fast: None,
+            artifact: None,
+            log: None,
+            structured: None,
+            preset: None,
+            span: Span::dummy(),
+        };
+
+        let workflow = AnalyzedWorkflow {
+            schema_version: SchemaVersion::V01,
+            name: None,
+            description: None,
+            provider: Some("mock".to_string()),
+            model: None,
+            base_url: None,
+            task_table,
+            tasks: vec![task],
+            mcp_servers: IndexMap::new(),
+            context_files: vec![],
+            include: vec![],
+            inputs: IndexMap::new(),
+            artifacts: None,
+            log: None,
+            agents: None,
+            skills_map: std::collections::HashMap::new(),
+            span: Span::dummy(),
+        };
+
+        let event_log = crate::event::EventLog::new();
+        let mut runner = Runner::with_event_log(workflow, event_log.clone())
+            .unwrap()
+            .quiet();
+        let result = runner.run().await;
+
+        assert!(result.is_ok(), "Workflow with retry should succeed: {:?}", result.err());
+        let output = result.unwrap();
+        assert!(output.contains("hello"), "Output should contain 'hello', got: {}", output);
+
+        // Verify no TaskRetry events (first attempt succeeded)
+        let events = event_log.events();
+        let retry_events: Vec<_> = events
+            .iter()
+            .filter(|e| matches!(e.kind, EventKind::TaskRetry { .. }))
+            .collect();
+        assert!(
+            retry_events.is_empty(),
+            "No TaskRetry events should be emitted when first attempt succeeds"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_exec_task_with_retry_retries_on_failure() {
+        // Create a workflow with an exec task that fails with retry config.
+        // Uses a temp file counter: first call creates the file and fails,
+        // second call sees the file and succeeds.
+        use crate::ast::analyzed::AnalyzedRetry;
+
+        let tmp = std::env::temp_dir().join(format!("nika_retry_test_{}", std::process::id()));
+        // Clean up any leftover from previous run
+        let _ = std::fs::remove_file(&tmp);
+
+        let cmd = format!(
+            "if [ -f '{}' ]; then echo success; else touch '{}'; exit 1; fi",
+            tmp.display(),
+            tmp.display()
+        );
+
+        let mut task_table = TaskTable::new();
+        task_table.insert("retryable");
+        let tid = task_table.get_id("retryable").unwrap();
+
+        let task = AnalyzedTask {
+            id: tid,
+            name: "retryable".to_string(),
+            description: None,
+            action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
+                command: cmd,
+                shell: true,
+                cwd: None,
+                env: IndexMap::new(),
+                timeout_ms: None,
+                span: Span::dummy(),
+            }),
+            provider: None,
+            model: None,
+            base_url: None,
+            with_spec: Default::default(),
+            depends_on: vec![],
+            implicit_deps: vec![],
+            output: None,
+            for_each: None,
+            retry: Some(AnalyzedRetry {
+                max_attempts: 3,
+                delay_ms: 50,
+                backoff: None,
+                span: Span::dummy(),
+            }),
+            decompose: None,
+            concurrency: None,
+            fail_fast: None,
+            artifact: None,
+            log: None,
+            structured: None,
+            preset: None,
+            span: Span::dummy(),
+        };
+
+        let workflow = AnalyzedWorkflow {
+            schema_version: SchemaVersion::V01,
+            name: None,
+            description: None,
+            provider: Some("mock".to_string()),
+            model: None,
+            base_url: None,
+            task_table,
+            tasks: vec![task],
+            mcp_servers: IndexMap::new(),
+            context_files: vec![],
+            include: vec![],
+            inputs: IndexMap::new(),
+            artifacts: None,
+            log: None,
+            agents: None,
+            skills_map: std::collections::HashMap::new(),
+            span: Span::dummy(),
+        };
+
+        let event_log = crate::event::EventLog::new();
+        let mut runner = Runner::with_event_log(workflow, event_log.clone())
+            .unwrap()
+            .quiet();
+        let result = runner.run().await;
+
+        // Clean up
+        let _ = std::fs::remove_file(&tmp);
+
+        assert!(
+            result.is_ok(),
+            "Workflow should succeed after retry: {:?}",
+            result.err()
+        );
+        let output = result.unwrap();
+        assert!(
+            output.contains("success"),
+            "Output should contain 'success' after retry, got: {}",
+            output
+        );
+
+        // Verify TaskRetry event was emitted
+        let events = event_log.events();
+        let retry_events: Vec<_> = events
+            .iter()
+            .filter(|e| matches!(e.kind, EventKind::TaskRetry { .. }))
+            .collect();
+        assert_eq!(
+            retry_events.len(),
+            1,
+            "Should have exactly 1 TaskRetry event (attempt 2 after first failure)"
         );
     }
 }
