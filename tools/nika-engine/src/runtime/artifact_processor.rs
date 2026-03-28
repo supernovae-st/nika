@@ -333,6 +333,7 @@ async fn write_single_artifact(
         ArtifactFormat::Json => OutputFormat::Json,
         ArtifactFormat::Yaml => OutputFormat::Text, // YAML treated as text for validation
         ArtifactFormat::Binary => OutputFormat::Text, // Binary bypasses format_output entirely
+        ArtifactFormat::Markdown => OutputFormat::Text, // Markdown treated as text
     };
 
     // Pre-resolve {{with.*}} and {{output}} binding references in the path
@@ -582,7 +583,7 @@ fn resolve_binary_checksum(
 /// Format output content based on artifact format
 fn format_output(output: &str, format: ArtifactFormat) -> Result<String, NikaError> {
     match format {
-        ArtifactFormat::Text => Ok(output.to_string()),
+        ArtifactFormat::Text | ArtifactFormat::Markdown => Ok(output.to_string()),
         ArtifactFormat::Json => {
             // Try to parse as JSON and pretty-print
             match serde_json::from_str::<serde_json::Value>(output) {

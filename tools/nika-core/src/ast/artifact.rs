@@ -144,6 +144,9 @@ pub enum ArtifactFormat {
 
     /// Binary (raw bytes from CAS store)
     Binary,
+
+    /// Markdown format
+    Markdown,
 }
 
 impl std::fmt::Display for ArtifactFormat {
@@ -153,6 +156,7 @@ impl std::fmt::Display for ArtifactFormat {
             Self::Json => write!(f, "json"),
             Self::Yaml => write!(f, "yaml"),
             Self::Binary => write!(f, "binary"),
+            Self::Markdown => write!(f, "markdown"),
         }
     }
 }
@@ -165,6 +169,7 @@ impl ArtifactFormat {
             Self::Json => "json",
             Self::Yaml => "yaml",
             Self::Binary => "bin",
+            Self::Markdown => "md",
         }
     }
 }
@@ -322,6 +327,7 @@ max_size: 52428800
         assert_eq!(ArtifactFormat::Json.to_string(), "json");
         assert_eq!(ArtifactFormat::Yaml.to_string(), "yaml");
         assert_eq!(ArtifactFormat::Binary.to_string(), "binary");
+        assert_eq!(ArtifactFormat::Markdown.to_string(), "markdown");
     }
 
     #[test]
@@ -330,6 +336,7 @@ max_size: 52428800
         assert_eq!(ArtifactFormat::Json.extension(), "json");
         assert_eq!(ArtifactFormat::Yaml.extension(), "yaml");
         assert_eq!(ArtifactFormat::Binary.extension(), "bin");
+        assert_eq!(ArtifactFormat::Markdown.extension(), "md");
     }
 
     #[test]
@@ -373,6 +380,44 @@ format: binary
             ArtifactSpec::Single(output) => {
                 assert_eq!(output.format, Some(ArtifactFormat::Binary));
                 assert_eq!(output.path, "./output/image.bin");
+            }
+            _ => panic!("Expected Single artifact"),
+        }
+    }
+
+    #[test]
+    fn test_artifact_format_markdown_serde() {
+        // Deserialize from YAML
+        let yaml = r#""markdown""#;
+        let format: ArtifactFormat = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(format, ArtifactFormat::Markdown);
+
+        // Serialize to JSON
+        let json = serde_json::to_string(&format).unwrap();
+        assert_eq!(json, r#""markdown""#);
+
+        // Deserialize from JSON
+        let back: ArtifactFormat = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, ArtifactFormat::Markdown);
+
+        // Extension
+        assert_eq!(ArtifactFormat::Markdown.extension(), "md");
+
+        // Display
+        assert_eq!(ArtifactFormat::Markdown.to_string(), "markdown");
+    }
+
+    #[test]
+    fn test_artifact_format_markdown_in_artifact_spec() {
+        let yaml = r#"
+path: report.md
+format: markdown
+"#;
+        let spec: ArtifactSpec = serde_yaml::from_str(yaml).unwrap();
+        match spec {
+            ArtifactSpec::Single(output) => {
+                assert_eq!(output.format, Some(ArtifactFormat::Markdown));
+                assert_eq!(output.path, "report.md");
             }
             _ => panic!("Expected Single artifact"),
         }

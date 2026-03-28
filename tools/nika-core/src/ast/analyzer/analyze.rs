@@ -721,7 +721,7 @@ fn analyze_task(
                     tracing::warn!(
                         task_id = %raw.id.value,
                         error = %e,
-                        "Failed to parse artifact: config, ignoring"
+                        "Failed to parse artifact config, ignoring"
                     );
                     None
                 }
