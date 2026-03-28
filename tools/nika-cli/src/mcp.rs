@@ -36,7 +36,7 @@ pub enum McpAction {
         #[arg(long)]
         command: Option<String>,
 
-        /// Custom arguments (overrides default -y <package>)
+        /// Custom arguments (overrides default `-y <package>`)
         #[arg(long)]
         args: Option<Vec<String>>,
     },

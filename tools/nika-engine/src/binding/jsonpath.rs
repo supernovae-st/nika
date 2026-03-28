@@ -104,7 +104,7 @@ pub fn is_jsonpath(path: &str) -> bool {
 pub enum Segment {
     /// Object field access: .field
     Field(String),
-    /// Array index access: [0]
+    /// Array index access: \[0\]
     Index(usize),
 }
 

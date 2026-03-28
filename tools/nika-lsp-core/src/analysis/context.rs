@@ -4,7 +4,7 @@
 //! text-based `CompletionContext` with the standalone LSP's AST-based `AstContext`.
 //!
 //! The initial implementation uses **text-based detection only** (matching the
-//! embedded LSP's approach). AST-based detection via [`PositionIndex`] will be
+//! embedded LSP's approach). AST-based detection via `PositionIndex` will be
 //! wired in a follow-up.
 
 use nika_core::ast::analyzed::AnalyzedWorkflow;

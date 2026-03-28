@@ -38,7 +38,7 @@ impl LineIndex {
     /// Build a `LineIndex` from text. O(n) scan.
     ///
     /// If `text.len()` exceeds `u32::MAX`, offsets are clamped via
-    /// [`safe_u32`]. In practice the caller ([`WorldDatabase::set_text`])
+    /// `safe_u32`. In practice the caller (`WorldDatabase::set_text`)
     /// rejects files larger than 64 MB, so this is purely defensive.
     pub fn new(text: &str) -> Self {
         let mut line_starts = vec![0u32];

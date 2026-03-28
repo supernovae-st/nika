@@ -178,7 +178,7 @@ impl NikaConfig {
 
     /// Resolve all configured endpoints into runtime-ready form.
     ///
-    /// Applies env var overrides (NIKA_ENDPOINT_<NAME>_URL, NIKA_ENDPOINT_<NAME>_KEY).
+    /// Applies env var overrides (`NIKA_ENDPOINT_<NAME>_URL`, `NIKA_ENDPOINT_<NAME>_KEY`).
     pub fn resolve_endpoints(&self) -> Result<crate::provider::endpoints::CustomEndpointMap> {
         crate::provider::endpoints::resolve_endpoints(&self.endpoints)
             .map_err(|e| NikaError::ConfigError { reason: e })

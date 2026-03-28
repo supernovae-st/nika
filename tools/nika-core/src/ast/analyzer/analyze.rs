@@ -3,7 +3,7 @@
 //! This is the core Phase 2 transformation that:
 //! 1. Validates schema version
 //! 2. Builds task table (interned IDs)
-//! 3. Resolves all task references (`with:` bindings → WithSpec, `depends_on:` → Vec<TaskId>)
+//! 3. Resolves all task references (`with:` bindings → WithSpec, `depends_on:` → `Vec<TaskId>`)
 //! 4. Extracts implicit dependencies from WithEntry task references
 //! 5. Resolves `include:` specifications
 //! 6. Detects cyclic dependencies

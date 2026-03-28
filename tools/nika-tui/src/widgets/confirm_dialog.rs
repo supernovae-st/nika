@@ -51,7 +51,7 @@ impl ConfirmAction {
 /// Displays a centered popup with:
 /// - Warning icon and action message
 /// - Detail text explaining consequences
-/// - [Y]es / [N]o key hints
+/// - \[Y\]es / \[N\]o key hints
 pub struct ConfirmDialog<'a> {
     action: &'a ConfirmAction,
 }

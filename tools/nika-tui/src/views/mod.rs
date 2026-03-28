@@ -3,9 +3,9 @@
 //! Three-view architecture for Nika TUI:
 //!
 //! **Views (Tab cycling through all 3):**
-//! 1. **Studio View** - Unified editor with browser + YAML editor + DAG (default) [s]
-//! 2. **Command View** - Fusion of Runner + Chat (execution + conversation) [c]
-//! 3. **Control View** - Provider config, theme, preferences [x]
+//! 1. **Studio View** - Unified editor with browser + YAML editor + DAG (default) \[s\]
+//! 2. **Command View** - Fusion of Runner + Chat (execution + conversation) \[c\]
+//! 3. **Control View** - Provider config, theme, preferences \[x\]
 //!
 //! # Navigation
 //!
@@ -18,8 +18,8 @@
 //!    DEFAULT
 //! ```
 //!
-//! Navigation: [Tab] cycles all 3 views, [Shift+Tab] cycles backward.
-//! Shortcuts: [1-3] jump directly, [s/c/x] letter shortcuts.
+//! Navigation: \[Tab\] cycles all 3 views, \[Shift+Tab\] cycles backward.
+//! Shortcuts: \[1-3\] jump directly, \[s/c/x\] letter shortcuts.
 
 mod chat;
 /// Chat-specific widgets, re-exported for public API access

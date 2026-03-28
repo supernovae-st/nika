@@ -252,7 +252,7 @@ impl RunContext {
     /// Returns (task_id, TaskResult) pairs for all stored results.
     /// Used by integrity checks at workflow end.
     ///
-    /// Note: for_each tasks store both individual iteration entries (task[0], task[1], ...)
+    /// Note: for_each tasks store both individual iteration entries (task\[0\], task\[1\], ...)
     /// and an aggregated parent entry (task). Media refs appear in both, so callers
     /// doing per-file checks may see duplicates. This is acceptable for warn-only checks.
     pub fn iter_results(&self) -> Vec<(Arc<str>, TaskResult)> {
