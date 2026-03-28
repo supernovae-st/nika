@@ -16,7 +16,7 @@ tasks:
   - id: combine
     depends_on: [list_files, show_date]
     with:
-      files: list_files
-      date: show_date
+      files: $list_files
+      date: $show_date
     exec:
       command: "echo 'Files:' && echo '{{with.files}}' && echo 'Date: {{with.date}}'"

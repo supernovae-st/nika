@@ -72,9 +72,9 @@ tasks:
   - id: weather
     depends_on: [destination, get_date, duration]
     with:
-      date: get_date
-      dest: destination
-      days: duration
+      date: $get_date
+      dest: $destination
+      days: $duration
     infer:
       prompt: |
         Current date: {{with.date}}
@@ -88,9 +88,9 @@ tasks:
   - id: flights
     depends_on: [destination, duration, budget]
     with:
-      dest: destination
-      days: duration
-      money: budget
+      dest: $destination
+      days: $duration
+      money: $budget
     infer:
       prompt: |
         Destination: {{with.dest}}
@@ -104,10 +104,10 @@ tasks:
   - id: hotels
     depends_on: [destination, duration, budget]
     with:
-      dest: destination
-      days: duration
-      money: budget
-      hobbies: interests
+      dest: $destination
+      days: $duration
+      money: $budget
+      hobbies: $interests
     infer:
       prompt: |
         Destination: {{with.dest}}
@@ -121,7 +121,7 @@ tasks:
   - id: visa_info
     depends_on: [destination]
     with:
-      dest: destination
+      dest: $destination
     infer:
       prompt: |
         Destination: {{with.dest}}
@@ -136,8 +136,8 @@ tasks:
   - id: food_spots
     depends_on: [budget, interests, destination]
     with:
-      dest: destination
-      money: budget
+      dest: $destination
+      money: $budget
     infer:
       prompt: |
         Destination: {{with.dest}}
@@ -150,7 +150,7 @@ tasks:
   - id: cultural_sites
     depends_on: [interests, destination]
     with:
-      dest: destination
+      dest: $destination
     infer:
       prompt: |
         Destination: {{with.dest}}
@@ -162,7 +162,7 @@ tasks:
   - id: tech_attractions
     depends_on: [interests, destination]
     with:
-      dest: destination
+      dest: $destination
     infer:
       prompt: |
         Destination: {{with.dest}}
@@ -174,7 +174,7 @@ tasks:
   - id: nightlife
     depends_on: [interests, destination]
     with:
-      dest: destination
+      dest: $destination
     infer:
       prompt: |
         Destination: {{with.dest}}
@@ -190,10 +190,10 @@ tasks:
   - id: activities_summary
     depends_on: [food_spots, cultural_sites, tech_attractions, nightlife]
     with:
-      food: food_spots
-      culture: cultural_sites
-      tech: tech_attractions
-      night: nightlife
+      food: $food_spots
+      culture: $cultural_sites
+      tech: $tech_attractions
+      night: $nightlife
     infer:
       prompt: |
         Combine these activity recommendations into a cohesive list:
@@ -215,10 +215,10 @@ tasks:
   - id: logistics_summary
     depends_on: [weather, flights, hotels, visa_info]
     with:
-      weather_info: weather
-      flight_info: flights
-      hotel_info: hotels
-      visa: visa_info
+      weather_info: $weather
+      flight_info: $flights
+      hotel_info: $hotels
+      visa: $visa_info
     infer:
       prompt: |
         Summarize the travel logistics:
@@ -244,11 +244,11 @@ tasks:
   - id: daily_itinerary
     depends_on: [duration, activities_summary, weather, destination]
     with:
-      dest: destination
-      days: duration
-      money: budget
-      weather_info: weather
-      activities: activities_summary
+      dest: $destination
+      days: $duration
+      money: $budget
+      weather_info: $weather
+      activities: $activities_summary
     infer:
       prompt: |
         Create a day-by-day itinerary for this trip:
@@ -274,10 +274,10 @@ tasks:
   - id: budget_breakdown
     depends_on: [budget, destination, logistics_summary]
     with:
-      money: budget
-      days: duration
-      dest: destination
-      logistics: logistics_summary
+      money: $budget
+      days: $duration
+      dest: $destination
+      logistics: $logistics_summary
     infer:
       prompt: |
         Create a budget breakdown:
@@ -299,13 +299,13 @@ tasks:
   - id: final_report
     depends_on: [logistics_summary, daily_itinerary, budget_breakdown, get_date, destination, duration, budget]
     with:
-      dest: destination
-      days: duration
-      money: budget
-      date: get_date
-      logistics: logistics_summary
-      itinerary: daily_itinerary
-      costs: budget_breakdown
+      dest: $destination
+      days: $duration
+      money: $budget
+      date: $get_date
+      logistics: $logistics_summary
+      itinerary: $daily_itinerary
+      costs: $budget_breakdown
     infer:
       prompt: |
         Create the FINAL TRAVEL PLAN:

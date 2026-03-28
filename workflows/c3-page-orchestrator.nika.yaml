@@ -104,8 +104,8 @@ tasks:
   - id: generate_blocks
     description: "Generate BlockNatives for each block, ordered by position"
     with:
-      page_structure: discover_page
-      page_context: get_page_context
+      page_structure: $discover_page
+      page_context: $get_page_context
     agent:
       prompt: |
         # C3 Block Generation Orchestrator
@@ -114,10 +114,10 @@ tasks:
         in locale "{{inputs.locale}}".
 
         ## Page Structure (from graph walk)
-        {{with.page_structure | to_yaml}}
+        {{with.page_structure | to_json}}
 
         ## Page Context
-        {{with.page_context | to_yaml}}
+        {{with.page_context | to_json}}
 
         ## Instructions
 
@@ -187,7 +187,7 @@ tasks:
   - id: assemble_page_native
     description: "Collect all BlockNative payloads and update PageNative.assembled"
     with:
-      blocks: generate_blocks
+      blocks: $generate_blocks
     agent:
       prompt: |
         # PageNative Assembly (C3 Pipeline)
@@ -196,7 +196,7 @@ tasks:
         have been generated.
 
         ## Block Generation Results
-        {{with.blocks | to_yaml}}
+        {{with.blocks | to_json}}
 
         ## Assembly Instructions
 
@@ -276,9 +276,9 @@ tasks:
   - id: summary
     description: "Display execution result"
     with:
-      blocks: generate_blocks
-      assembly: assemble_page_native
-      audit_result: audit
+      blocks: $generate_blocks
+      assembly: $assemble_page_native
+      audit_result: $audit
     exec: |
       echo "================================================================"
       echo "  C3 PAGE ORCHESTRATOR COMPLETE"

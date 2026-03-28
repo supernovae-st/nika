@@ -49,7 +49,7 @@ tasks:
   - id: save_stats
     depends_on: [get_stats]
     with:
-      data: get_stats
+      data: $get_stats
     exec:
       command: "echo {{with.data|shell}} > /tmp/nika-output/stats.txt && echo 'Stats saved'"
       shell: true
@@ -58,7 +58,7 @@ tasks:
   - id: save_search
     depends_on: [search]
     with:
-      data: search
+      data: $search
     exec:
       command: "echo {{with.data|shell}} > /tmp/nika-output/search.txt && echo 'Search saved'"
       shell: true

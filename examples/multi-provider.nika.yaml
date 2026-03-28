@@ -15,7 +15,7 @@ tasks:
   - id: claude_view
     depends_on: [topic]
     with:
-      subject: topic
+      subject: $topic
     infer:
       prompt: |
         Give a brief (2-3 sentences) perspective on: {{with.subject}}
@@ -24,7 +24,7 @@ tasks:
   - id: openai_view
     depends_on: [topic]
     with:
-      subject: topic
+      subject: $topic
     infer:
       prompt: |
         Give a brief (2-3 sentences) perspective on: {{with.subject}}
@@ -34,8 +34,8 @@ tasks:
   - id: synthesis
     depends_on: [claude_view, openai_view]
     with:
-      claude: claude_view
-      gpt: openai_view
+      claude: $claude_view
+      gpt: $openai_view
     infer:
       prompt: |
         Compare these two AI perspectives:

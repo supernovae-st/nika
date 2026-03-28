@@ -34,6 +34,6 @@ tasks:
   - id: show_count
     depends_on: [count_entities]
     with:
-      count: count_entities
+      count: $count_entities
     exec:
       command: "echo 'Entity count from NovaNet: {{with.count}}'"
