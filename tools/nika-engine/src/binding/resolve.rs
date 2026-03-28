@@ -553,12 +553,23 @@ fn resolve_with_entry(
     // Step 1+2: Dispatch by source and navigate segments
     let raw_value = resolve_binding_path(&entry.source, alias, datastore)?;
 
-    // Step 3: Apply transforms
+    // Step 3: Apply transforms.
+    // For null values: attempt transforms so `default()` in the chain can fire.
+    // If a non-default transform fails on null (NullInput), fall through to
+    // the entry-level default in Step 4.
     let transformed = match (&raw_value, &entry.transform) {
         (Some(v), Some(expr)) if !v.is_null() => {
             Some(expr.apply(v).map_err(|e| NikaError::PathNotFound {
                 path: format!("{} (transform error: {})", path_str, e),
             })?)
+        }
+        (Some(v), Some(expr)) if v.is_null() => {
+            // Null value: try transforms (default() handles null).
+            // If transform fails with NullInput, skip to Step 4 default.
+            match expr.apply(v) {
+                Ok(result) => Some(result),
+                Err(_) => raw_value, // NullInput → let Step 4 handle it
+            }
         }
         _ => raw_value,
     };
