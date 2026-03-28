@@ -78,7 +78,33 @@ impl TaskExecutor {
         }
 
         // POLICY CHECK: fetch verb
-        let policy_decision = self.policy_enforcer.read().check_fetch(&url);
+        // Two-phase: (1) string-level check with lock held, (2) async DNS check after drop
+        let policy_decision = {
+            let string_decision = self.policy_enforcer.read().check_fetch(&url);
+            if !string_decision.is_allowed() {
+                string_decision
+            } else {
+                // DNS rebinding check (async — lock must be dropped first)
+                use crate::runtime::policy::resolve_and_check_ssrf;
+                if let Ok(parsed) = url::Url::parse(&url) {
+                    if let Some(host) = parsed.host_str() {
+                        let h = host.to_lowercase();
+                        let h = h.trim_start_matches('[').trim_end_matches(']');
+                        if resolve_and_check_ssrf(h).await {
+                            PolicyDecision::Block(format!(
+                                "DNS rebinding SSRF: '{}' resolved to blocked IP", host
+                            ))
+                        } else {
+                            PolicyDecision::Allow
+                        }
+                    } else {
+                        PolicyDecision::Allow
+                    }
+                } else {
+                    PolicyDecision::Allow
+                }
+            }
+        };
         if let PolicyDecision::Block(reason) = policy_decision {
             // EMIT: PolicyBlocked
             self.event_log.emit(EventKind::PolicyBlocked {
