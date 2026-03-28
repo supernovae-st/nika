@@ -332,6 +332,7 @@ mod tests {
                 artifact: None,
                 log: None,
                 structured: None,
+                preset: None,
                 span: Span::dummy(),
             });
         }
@@ -405,6 +406,7 @@ mod tests {
                 artifact: None,
                 log: None,
                 structured: None,
+                preset: None,
                 span: Span::dummy(),
             });
         }

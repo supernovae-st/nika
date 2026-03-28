@@ -239,6 +239,7 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
             .as_ref()
             .is_some_and(|a| matches!(a, RawTaskAction::Infer(_) | RawTaskAction::Agent(_)));
         let has_task_model = task.model.is_some();
+        let has_preset = task.preset.is_some();
 
         // Provider 'mock' is exempt (no real API calls)
         let provider_name = task
@@ -249,7 +250,7 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
             .unwrap_or("");
         let is_mock = provider_name == "mock";
 
-        if uses_llm && !has_workflow_model && !has_task_model && !is_mock {
+        if uses_llm && !has_workflow_model && !has_task_model && !has_preset && !is_mock {
             let span = task.id.span;
             ctx.errors.push(AnalyzeError {
                 kind: AnalyzeErrorKind::MissingModel,
@@ -426,6 +427,38 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
     }
 
     // Copy task table to workflow BEFORE cycle detection so that
+    // 8b. Validate preset references
+    for task in &workflow.tasks {
+        if let Some(ref preset_name) = task.preset {
+            let agents_has_key = workflow
+                .agents
+                .as_ref()
+                .is_some_and(|a| a.contains_key(preset_name));
+            if !agents_has_key {
+                let available: Vec<String> = workflow
+                    .agents
+                    .as_ref()
+                    .map(|a| a.keys().cloned().collect())
+                    .unwrap_or_default();
+                let hint = if available.is_empty() {
+                    "Add an `agents:` block to the workflow header".to_string()
+                } else {
+                    format!("Available presets: {}", available.join(", "))
+                };
+                ctx.errors.push(AnalyzeError {
+                    kind: AnalyzeErrorKind::InvalidValue,
+                    span: task.span,
+                    message: format!(
+                        "Task '{}' references preset '{}' which is not defined in the agents: block",
+                        task.name, preset_name
+                    ),
+                    suggestion: Some(hint),
+                    note: None,
+                });
+            }
+        }
+    }
+
     // detect_cycles_dfs can resolve TaskId → name via workflow.task_table.
     // Previously the table was copied AFTER detection, leaving it empty and
     // producing error messages like "cyclic dependency detected: " with no names.
@@ -653,6 +686,7 @@ fn analyze_task(
         provider: raw.provider.as_ref().map(|s| s.value.clone()),
         model: raw.model.as_ref().map(|s| s.value.clone()),
         base_url: raw.base_url.as_ref().map(|s| s.value.clone()),
+        preset: raw.preset.as_ref().map(|s| s.value.clone()),
         with_spec: WithSpec::default(),
         depends_on: Vec::new(),
         implicit_deps: Vec::new(),
