@@ -322,6 +322,12 @@ impl RigAgentLoop {
             }
         }
 
+        // Wire token_budget shorthand into LimitTracker (fixes SF9)
+        // token_budget is the top-level shorthand; limits.max_tokens takes precedence.
+        if let Some(budget) = self.params.token_budget {
+            self.limit_tracker.set_max_tokens_if_unset(budget as u64);
+        }
+
         // Take ownership of tools for first attempt
         let tools = self.tools_as_boxed();
         let max_turns = self.params.max_turns.unwrap_or(10) as usize;

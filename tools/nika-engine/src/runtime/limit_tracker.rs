@@ -154,6 +154,16 @@ impl LimitTracker {
         &self.config
     }
 
+    /// Override max_tokens limit (used for token_budget shorthand).
+    ///
+    /// Only sets the limit if it's not already configured (explicit limits:
+    /// config takes precedence over the token_budget shorthand).
+    pub fn set_max_tokens_if_unset(&mut self, max: u64) {
+        if self.config.max_tokens == 0 {
+            self.config.max_tokens = max;
+        }
+    }
+
     /// Get the configured action for when a limit is reached.
     pub fn on_limit_action(&self) -> &crate::ast::limits::LimitAction {
         &self.config.on_limit_reached.action
@@ -960,5 +970,21 @@ mod tests {
 
         // After reset, duration should be near 0 again
         assert!(tracker.duration_secs() < 1);
+    }
+
+    #[test]
+    fn set_max_tokens_if_unset_when_zero() {
+        let mut tracker = LimitTracker::unlimited();
+        assert_eq!(tracker.config().max_tokens, 0);
+        tracker.set_max_tokens_if_unset(5000);
+        assert_eq!(tracker.config().max_tokens, 5000);
+    }
+
+    #[test]
+    fn set_max_tokens_if_unset_preserves_existing() {
+        let mut tracker = LimitTracker::new(config_with_tokens(10000));
+        tracker.set_max_tokens_if_unset(5000);
+        // Existing config (10000) takes precedence
+        assert_eq!(tracker.config().max_tokens, 10000);
     }
 }
