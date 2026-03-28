@@ -276,11 +276,25 @@ fn extract_task_templates(action: &TaskAction) -> Vec<String> {
         }
         TaskAction::Exec { exec } => {
             templates.push(exec.command.clone());
+            if let Some(ref cwd) = exec.cwd {
+                templates.push(cwd.clone());
+            }
+            if let Some(ref env) = exec.env {
+                for value in env.values() {
+                    templates.push(value.clone());
+                }
+            }
         }
         TaskAction::Fetch { fetch } => {
             templates.push(fetch.url.clone());
             if let Some(ref body) = fetch.body {
                 templates.push(body.clone());
+            }
+            for value in fetch.headers.values() {
+                templates.push(value.clone());
+            }
+            if let Some(ref json) = fetch.json {
+                collect_string_values(json, &mut templates);
             }
         }
         TaskAction::Invoke { invoke } => {
