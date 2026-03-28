@@ -480,7 +480,23 @@ impl RunContext {
                     }
                 }
             }
-            _ => None,
+            // Shorthand: context.<alias> → context.files.<alias>
+            // Allows {{context.readme}} instead of {{context.files.readme}}
+            alias => {
+                let value = context.get_file(alias)?;
+                if parts.len() == 2 {
+                    Some(value.clone())
+                } else {
+                    let remaining = parts[2..].join(".");
+                    match jsonpath::resolve(value, &remaining) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            tracing::debug!(path = %remaining, error = %e, "JSONPath resolution failed for context shorthand");
+                            None
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -1031,6 +1047,38 @@ mod tests {
         assert_eq!(
             store.resolve_context_path("context.session.level"),
             Some(json!(3))
+        );
+    }
+
+    #[test]
+    fn test_resolve_context_shorthand() {
+        let store = RunContext::new();
+        let mut context = LoadedContext::new();
+        context
+            .files
+            .insert("readme".to_string(), json!("# Hello World"));
+        context.files.insert(
+            "config".to_string(),
+            json!({"debug": true, "port": 8080}),
+        );
+        store.set_context(context);
+
+        // Shorthand: context.readme → context.files.readme
+        assert_eq!(
+            store.resolve_context_path("context.readme"),
+            Some(json!("# Hello World"))
+        );
+
+        // Shorthand with nested path: context.config.port
+        assert_eq!(
+            store.resolve_context_path("context.config.port"),
+            Some(json!(8080))
+        );
+
+        // Full path still works
+        assert_eq!(
+            store.resolve_context_path("context.files.readme"),
+            Some(json!("# Hello World"))
         );
     }
 
