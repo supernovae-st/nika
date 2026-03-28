@@ -1019,39 +1019,30 @@ fn parse_for_each(
             let items = match m.get_node("items") {
                 Some(Node::Sequence(seq)) => {
                     let arr: Vec<serde_json::Value> = seq.iter().map(node_to_json).collect();
-                    let items_str =
-                        serde_json::to_string(&arr).map_err(|e| ParseError {
-                            kind: ParseErrorKind::InvalidType,
-                            span,
-                            message: format!(
-                                "failed to serialize for_each items: {}",
-                                e
-                            ),
-                        })?;
+                    let items_str = serde_json::to_string(&arr).map_err(|e| ParseError {
+                        kind: ParseErrorKind::InvalidType,
+                        span,
+                        message: format!("failed to serialize for_each items: {}", e),
+                    })?;
                     Spanned::new(items_str, marked_span_to_span(file, seq.span()))
                 }
                 Some(Node::Scalar(s)) => {
-                    Spanned::new(
-                        s.as_str().to_string(),
-                        marked_span_to_span(file, s.span()),
-                    )
+                    Spanned::new(s.as_str().to_string(), marked_span_to_span(file, s.span()))
                 }
                 _ => {
                     return Err(ParseError {
                         kind: ParseErrorKind::MissingField,
                         span,
-                        message: "for_each object form requires 'items' field"
-                            .to_string(),
+                        message: "for_each object form requires 'items' field".to_string(),
                     });
                 }
             };
             // Inner mapping fields take precedence, fall back to task-level
-            let as_var = get_string_field(file, m, "as")?
-                .or(get_string_field(file, map, "as")?);
-            let concurrency = get_u32_field(file, m, "concurrency")?
-                .or(get_u32_field(file, map, "concurrency")?);
-            let fail_fast = get_bool_field(file, m, "fail_fast")?
-                .or(get_bool_field(file, map, "fail_fast")?);
+            let as_var = get_string_field(file, m, "as")?.or(get_string_field(file, map, "as")?);
+            let concurrency =
+                get_u32_field(file, m, "concurrency")?.or(get_u32_field(file, map, "concurrency")?);
+            let fail_fast =
+                get_bool_field(file, m, "fail_fast")?.or(get_bool_field(file, map, "fail_fast")?);
 
             Ok(Some(Spanned::new(
                 RawForEach {
@@ -2623,7 +2614,7 @@ tasks:
         assert_eq!(for_each.value.items.value, "{{with.data}}");
         assert_eq!(for_each.value.as_var.as_ref().unwrap().value, "item");
         assert_eq!(for_each.value.concurrency.as_ref().unwrap().value, 5);
-        assert_eq!(for_each.value.fail_fast.as_ref().unwrap().value, false);
+        assert!(!for_each.value.fail_fast.as_ref().unwrap().value);
     }
 
     #[test]
@@ -2660,7 +2651,11 @@ tasks:
         let result = parse(yaml, FileId(0));
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(err.message.contains("items"), "error should mention 'items': {}", err.message);
+        assert!(
+            err.message.contains("items"),
+            "error should mention 'items': {}",
+            err.message
+        );
     }
 
     #[test]

@@ -1027,7 +1027,11 @@ fn analyze_agent(raw: &RawAgentAction, ctx: &mut AnalyzerContext) -> AnalyzedAge
     use crate::ast::guardrails::GuardrailConfig;
 
     // Warn if LLM guardrails are used (not yet implemented at runtime)
-    if raw.guardrails.iter().any(|g| matches!(g, GuardrailConfig::Llm(_))) {
+    if raw
+        .guardrails
+        .iter()
+        .any(|g| matches!(g, GuardrailConfig::Llm(_)))
+    {
         ctx.add_warning(AnalyzeError::new(
             AnalyzeErrorKind::UnsupportedFeature,
             raw.prompt.span,

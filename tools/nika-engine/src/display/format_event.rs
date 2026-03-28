@@ -719,7 +719,7 @@ mod tests {
         // CJK characters are 3 bytes each — a 200+ char string of them would panic
         // with naive &e[..197] slicing on a char boundary
         let cjk_error = "日本語".repeat(100); // 300 CJK chars = 900 bytes
-        // Must not panic
+                                              // Must not panic
         let result = fmt_structured_output_attempt(1, "rig-extract", false, Some(&cjk_error));
         assert!(result.contains("..."));
     }

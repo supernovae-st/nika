@@ -116,7 +116,9 @@ impl fmt::Display for TransformError {
                     op, expected, got
                 )?;
                 // Suggest to_string when a string transform receives a non-string
-                if *expected == "string" && (got == "object" || got == "array" || got == "number" || got == "boolean") {
+                if *expected == "string"
+                    && (got == "object" || got == "array" || got == "number" || got == "boolean")
+                {
                     write!(f, " — try: to_string | {}", op)?;
                 }
                 Ok(())

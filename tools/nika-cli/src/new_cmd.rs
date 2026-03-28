@@ -30,7 +30,9 @@ pub fn handle_new_command(
         .to_string();
     if workflow_name.is_empty() {
         return Err(NikaError::ValidationError {
-            reason: format!("Invalid workflow name: '{raw_name}'. Use alphanumeric, hyphens, or underscores."),
+            reason: format!(
+                "Invalid workflow name: '{raw_name}'. Use alphanumeric, hyphens, or underscores."
+            ),
         });
     }
 

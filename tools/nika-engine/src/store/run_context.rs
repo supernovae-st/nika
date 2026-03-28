@@ -1057,10 +1057,9 @@ mod tests {
         context
             .files
             .insert("readme".to_string(), json!("# Hello World"));
-        context.files.insert(
-            "config".to_string(),
-            json!({"debug": true, "port": 8080}),
-        );
+        context
+            .files
+            .insert("config".to_string(), json!({"debug": true, "port": 8080}));
         store.set_context(context);
 
         // Shorthand: context.readme → context.files.readme

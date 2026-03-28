@@ -908,11 +908,9 @@ impl RigProvider {
                 RigProvider::XAi(client) => build_agent_with_tools!(client),
                 RigProvider::OpenAiCompat { client, .. } => build_agent_with_tools!(client),
                 #[cfg(feature = "native-inference")]
-                RigProvider::Native(_) => {
-                    Err(RigInferError::PromptError(
-                        "Native inference does not support tool-based structured output".to_string(),
-                    ))
-                }
+                RigProvider::Native(_) => Err(RigInferError::PromptError(
+                    "Native inference does not support tool-based structured output".to_string(),
+                )),
             }
         })
         .await
@@ -1485,11 +1483,14 @@ impl RigProvider {
         // but a slow stream (1 chunk every 59s) would never hit that.
         const STREAM_TOTAL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(600);
 
-        timeout(STREAM_TOTAL_TIMEOUT, self.infer_stream_inner(prompt, tx, model))
-            .await
-            .map_err(|_| RigInferError::Timeout {
-                duration_ms: STREAM_TOTAL_TIMEOUT.as_millis() as u64,
-            })?
+        timeout(
+            STREAM_TOTAL_TIMEOUT,
+            self.infer_stream_inner(prompt, tx, model),
+        )
+        .await
+        .map_err(|_| RigInferError::Timeout {
+            duration_ms: STREAM_TOTAL_TIMEOUT.as_millis() as u64,
+        })?
     }
 
     async fn infer_stream_inner(
