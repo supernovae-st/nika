@@ -417,7 +417,7 @@ pub(crate) fn fmt_structured_output_attempt(
     let err_msg = error
         .map(|e| {
             let truncated = if e.len() > 200 {
-                format!("{}...", &e[..197])
+                format!("{}...", &e[..colors::floor_char_boundary(e, 197)])
             } else {
                 e.to_string()
             };
@@ -708,4 +708,32 @@ pub(crate) fn fmt_template_resolved(template: &str, result: &str) -> String {
         template.dimmed(),
         result.dimmed()
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn structured_output_attempt_multibyte_error_no_panic() {
+        // CJK characters are 3 bytes each — a 200+ char string of them would panic
+        // with naive &e[..197] slicing on a char boundary
+        let cjk_error = "日本語".repeat(100); // 300 CJK chars = 900 bytes
+        // Must not panic
+        let result = fmt_structured_output_attempt(1, "rig-extract", false, Some(&cjk_error));
+        assert!(result.contains("..."));
+    }
+
+    #[test]
+    fn structured_output_attempt_short_error_no_truncation() {
+        let result = fmt_structured_output_attempt(2, "json-parse", false, Some("bad json"));
+        assert!(result.contains("bad json"));
+        assert!(!result.contains("..."));
+    }
+
+    #[test]
+    fn structured_output_attempt_success_no_error() {
+        let result = fmt_structured_output_attempt(0, "tool-inject", true, None);
+        assert!(result.contains("tool-inject"));
+    }
 }
