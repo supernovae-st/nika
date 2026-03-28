@@ -138,6 +138,63 @@ cargo clippy --workspace -- -D warnings          # Zero warnings
 cd editors/vscode && npm run compile             # Extension builds
 ```
 
+## Bugs Found by Swarm Audit (FIX THESE FIRST)
+
+### CRITICAL — Fix before daemon bridge work
+
+1. **Cost pattern "o1" matches "o1-mini"** → 5x surcoût
+   - File: `tools/nika-core/src/catalogs/cost.rs`
+   - Pattern "o1" (15.0/60.0) matches "o1-mini" (should be 3.0/12.0)
+   - Same issue: "gemini-2.5-flash" matches "gemini-1.5-flash" (2x)
+   - Fix: use more specific patterns or ordered matching (longest first)
+
+2. **Daemon secrets service only knows 7/19 providers**
+   - File: `tools/nika-daemon/src/services/secrets.rs:18-26`
+   - PROVIDERS array hardcodes only LLM providers
+   - Missing: neo4j, github, slack, firecrawl, supadata, dataforseo, ahrefs, postgres, filesystem, memory, perplexity, native
+   - Fix: expand PROVIDERS to include all 19 from providers.rs catalog
+
+3. **ConnectedClient doesn't support streaming (EventSubscribe)**
+   - File: `tools/nika-daemon/src/client.rs`
+   - `request()` method expects request → response pairs
+   - EventSubscribe keeps connection open for streaming
+   - Fix: add `subscribe_events() -> EventStream` method to ConnectedClient
+   - EventStream wraps the reader half, yields DaemonEvent
+
+### HIGH — Fix during daemon bridge work
+
+4. **KnownModel has no `provider` field** → can't filter models by provider
+   - File: `tools/nika-core/src/catalogs/models.rs`
+   - Fix: add `provider: &'static str` field, populate for all models
+
+5. **Duplicate "Vision Content" snippet**
+   - File: `editors/vscode/snippets/nika.code-snippets` lines 306-318
+   - Fix: delete the duplicate (keep lines 214-227)
+
+6. **E2e tests hardcode 300ms sleep** → flaky
+   - File: `tools/nika-lsp/tests/e2e_harness.rs`
+   - 8 tests use `sleep(300ms)` instead of waiting for publishDiagnostics
+   - Fix: use `read_until()` to wait for diagnostics before requesting completion/hover
+
+7. **3 handlers already accept daemon data but get None**
+   - File: `tools/nika-lsp-core/src/handler.rs:118,122,157`
+   - `completions(..., None)`, `hover(..., None)`, `code_lenses(..., None)`
+   - These are READY — just need to pass real DaemonBridge data
+
+### MEDIUM — Fix during UX polish
+
+8. **Output channel created twice** → 2 "Nika Language Server" channels
+   - File: `editors/vscode/src/extension.ts:466 + 543`
+   - Fix: remove one, use the other consistently
+
+9. **@ts-ignore for StatusBarAlignment**
+   - File: `editors/vscode/src/extension.ts:548`
+   - Fix: import StatusBarAlignment properly
+
+10. **Cost fallback returns $0.00 silently** for unknown models
+    - File: `tools/nika-core/src/catalogs/cost.rs`
+    - Fix: return Option<f64> instead of 0.0, let callers decide
+
 ## Commit conventions
 
 ```
