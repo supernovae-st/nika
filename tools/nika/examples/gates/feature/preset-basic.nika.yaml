@@ -1,0 +1,15 @@
+schema: nika/workflow@0.12
+workflow: feat-preset-basic
+description: "preset: resolves provider + model from agents: block"
+
+agents:
+  summarizer:
+    system: "You are a concise summarizer. Reply in one sentence."
+    provider: mock
+    model: mock-fast
+    temperature: 0.3
+
+tasks:
+  - id: summarize
+    preset: summarizer
+    infer: "Summarize the concept of workflow engines in one sentence."
