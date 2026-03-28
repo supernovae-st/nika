@@ -337,7 +337,7 @@
     "DecomposeSpec": {
       "type": "object",
       "description": "Runtime DAG expansion via MCP traversal (v0.5+)",
-      "required": ["strategy"],
+      "required": ["traverse", "source"],
       "additionalProperties": false,
       "properties": {
         "strategy": {
@@ -424,14 +424,6 @@
               "type": "array",
               "description": "Multimodal vision content parts (v0.34+).",
               "items": { "$ref": "#/$defs/ContentPart" }
-            },
-            "provider": {
-              "type": "string",
-              "description": "Provider override for this task"
-            },
-            "model": {
-              "type": "string",
-              "description": "Model override for this task"
             },
             "guardrails": {
               "type": "array",
@@ -548,10 +540,6 @@
           "type": "integer",
           "minimum": 1,
           "description": "Request timeout in seconds"
-        },
-        "retry": {
-          "$ref": "#/$defs/RetryConfig",
-          "description": "Retry configuration for failed requests (v0.19+)"
         },
         "follow_redirects": {
           "type": "boolean",
@@ -787,6 +775,10 @@
         },
         "limits": {
           "$ref": "#/$defs/LimitsConfig"
+        },
+        "from": {
+          "type": "string",
+          "description": "Reuse a named agent preset from agents: block"
         }
       }
     },
@@ -849,6 +841,10 @@
           "maximum": 10,
           "default": 2,
           "description": "Maximum retry attempts on validation failure (v0.10)"
+        },
+        "schema_ref": {
+          "type": "string",
+          "description": "Path to JSON Schema file"
         }
       }
     },
