@@ -351,6 +351,41 @@ enum Commands {
         strict: bool,
     },
 
+    /// Benchmark a workflow across multiple providers
+    ///
+    /// Runs the same workflow with different providers/endpoints, collects
+    /// speed, cost, and quality metrics, displays comparison.
+    ///
+    /// Examples:
+    ///   nika bench workflow.nika.yaml --providers anthropic,openai
+    ///   nika bench workflow.nika.yaml --providers h100,anthropic --iterations 5
+    ///   nika bench workflow.nika.yaml --providers mock --json
+    #[command(next_help_heading = "WORKFLOWS", visible_alias = "b")]
+    Bench {
+        /// Path to .nika.yaml workflow file
+        file: String,
+
+        /// Comma-separated list of providers to benchmark
+        #[arg(short = 'P', long, value_delimiter = ',', required = true)]
+        providers: Vec<String>,
+
+        /// Number of iterations per provider (default: 3)
+        #[arg(short = 'n', long, default_value = "3")]
+        iterations: usize,
+
+        /// Show per-task profile (Gantt bars)
+        #[arg(long)]
+        profile: bool,
+
+        /// Output results as JSON
+        #[arg(long)]
+        json: bool,
+
+        /// Skip cost confirmation
+        #[arg(short = 'y', long)]
+        yes: bool,
+    },
+
     /// Create .nika/config.toml (provider + permissions)
     #[command(next_help_heading = "PROJECT")]
     Init {
@@ -1048,6 +1083,15 @@ async fn main() {
             }
         }
 
+        Some(Commands::Bench {
+            file,
+            providers,
+            iterations,
+            profile,
+            json,
+            yes,
+        }) => run_bench(&file, &providers, iterations, profile, json, yes, quiet).await,
+
         Some(Commands::Init {
             permission,
             migrate_keys,
@@ -1464,6 +1508,362 @@ tasks:
     println!();
 
     Ok(())
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BENCH
+// ═══════════════════════════════════════════════════════════════════════════
+
+#[allow(clippy::too_many_arguments)]
+async fn run_bench(
+    file: &str,
+    providers: &[String],
+    iterations: usize,
+    show_profile: bool,
+    json_output: bool,
+    _skip_confirm: bool,
+    quiet: bool,
+) -> Result<(), NikaError> {
+    use nika::display::bench_cache;
+    use nika::display::renderer::RunStats;
+    use nika::event::EventLog;
+    use std::time::Instant;
+
+    if iterations == 0 {
+        return Err(NikaError::ValidationError {
+            reason: "Iterations must be >= 1".to_string(),
+        });
+    }
+    if providers.is_empty() {
+        return Err(NikaError::ValidationError {
+            reason: "At least one provider is required (--providers)".to_string(),
+        });
+    }
+
+    // Bootstrap secrets
+    let _ = nika::secrets::load_from_daemon_or_fallback().await;
+
+    let resolved_path = resolve_workflow_path(file).await?;
+    let yaml = tokio::fs::read_to_string(&resolved_path).await?;
+
+    let validator = WorkflowSchemaValidator::new()?;
+    validator.validate_yaml(&yaml)?;
+
+    let base_path = resolved_path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+
+    let base_workflow = parse_analyzed_with_includes(&yaml, base_path)?;
+    let task_count = base_workflow.tasks.len();
+    let wf_hash = bench_cache::workflow_hash(&yaml);
+
+    // Print header
+    if !quiet && !json_output {
+        nika::display::print_bench_header(
+            resolved_path
+                .file_name()
+                .and_then(|f| f.to_str())
+                .unwrap_or("workflow"),
+            task_count,
+            iterations,
+            providers,
+        );
+    }
+
+    let bench_start = Instant::now();
+    let mut all_results: Vec<nika::display::BenchProviderResult> = Vec::new();
+
+    for provider_name in providers {
+        let mut iteration_stats: Vec<RunStats> = Vec::new();
+
+        for i in 0..iterations {
+            if !quiet && !json_output {
+                eprint!(
+                    "  {} {} [{}/{}]...",
+                    nika::display::icons::provider(),
+                    provider_name,
+                    i + 1,
+                    iterations,
+                );
+            }
+
+            let mut workflow = base_workflow.clone();
+            workflow.provider = Some(provider_name.clone());
+
+            let event_log = EventLog::new();
+            let mut runner = Runner::with_event_log(workflow, event_log.clone())?
+                .with_base_path(base_path.to_path_buf())
+                .quiet();
+
+            let iter_start = Instant::now();
+            match runner.run().await {
+                Ok(_) => {
+                    let duration_ms = iter_start.elapsed().as_millis() as u64;
+                    let mut stats = RunStats::default();
+                    event_log.with_events(|events| {
+                        for event in events {
+                            stats.apply_event(event);
+                        }
+                    });
+
+                    if !quiet && !json_output {
+                        eprintln!(
+                            " {} {:.1}s",
+                            "\u{2713}".green(),
+                            duration_ms as f64 / 1000.0,
+                        );
+                    }
+
+                    iteration_stats.push(stats);
+                }
+                Err(e) => {
+                    if !quiet && !json_output {
+                        eprintln!(" {} {}", "\u{2717}".red(), e);
+                    }
+                    // Continue with remaining iterations
+                }
+            }
+        }
+
+        if iteration_stats.is_empty() {
+            if !quiet && !json_output {
+                eprintln!(
+                    "  {} All iterations failed for {}",
+                    "\u{26A0}".yellow(),
+                    provider_name,
+                );
+            }
+            continue;
+        }
+
+        // Aggregate across iterations
+        let result = aggregate_bench_stats(provider_name, &iteration_stats, task_count);
+        all_results.push(result);
+    }
+
+    let bench_duration = bench_start.elapsed();
+
+    if json_output {
+        // JSON export
+        let json_results: Vec<serde_json::Value> = all_results
+            .iter()
+            .map(|r| {
+                serde_json::json!({
+                    "provider": r.provider,
+                    "model": r.model,
+                    "ttft_p50_ms": r.ttft.p50,
+                    "ttft_p90_ms": r.ttft.p90,
+                    "ttft_p99_ms": r.ttft.p99,
+                    "tokens_per_sec": r.tokens_per_sec,
+                    "total_secs": r.total_secs,
+                    "cost_per_run": r.cost_per_run,
+                    "input_tokens": r.input_tokens,
+                    "output_tokens": r.output_tokens,
+                    "cache_tokens": r.cache_tokens,
+                })
+            })
+            .collect();
+        let output = serde_json::json!({
+            "workflow": file,
+            "workflow_hash": wf_hash,
+            "iterations": iterations,
+            "bench_duration_secs": bench_duration.as_secs_f64(),
+            "results": json_results,
+        });
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&output).unwrap_or_default()
+        );
+    } else if !quiet {
+        // Rich display
+        nika::display::print_speed_section(&all_results);
+        nika::display::print_cost_section(&all_results);
+
+        if show_profile {
+            nika::display::print_profile_section(&all_results);
+        }
+
+        nika::display::print_quality_section(&all_results);
+        nika::display::print_bench_summary(&all_results, bench_duration, task_count, iterations);
+    }
+
+    // Persist to bench cache
+    let cache_entry = bench_cache::BenchCacheEntry {
+        workflow_hash: wf_hash.clone(),
+        timestamp: {
+            use std::time::SystemTime;
+            let d = SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap_or_default();
+            format!("{}Z", d.as_secs())
+        },
+        iterations,
+        results: all_results
+            .iter()
+            .map(|r| {
+                (
+                    r.provider.clone(),
+                    bench_cache::CachedProviderResult {
+                        model: r.model.clone(),
+                        avg_duration_ms: (r.total_secs * 1000.0) as u64,
+                        avg_cost_usd: r.cost_per_run,
+                        avg_quality: r.quality_overall,
+                        ttft_p50_ms: r.ttft.p50,
+                        ttft_p90_ms: r.ttft.p90,
+                        avg_input_tokens: r.input_tokens,
+                        avg_output_tokens: r.output_tokens,
+                        avg_tokens_per_sec: r.tokens_per_sec,
+                    },
+                )
+            })
+            .collect(),
+    };
+    if let Err(e) = bench_cache::write_cache(base_path, &cache_entry) {
+        if !quiet {
+            eprintln!("  {} Cache write failed: {}", "\u{26A0}".yellow(), e);
+        }
+    }
+
+    Ok(())
+}
+
+/// Aggregate RunStats from multiple iterations into a single BenchProviderResult.
+fn aggregate_bench_stats(
+    provider_name: &str,
+    iteration_stats: &[nika::display::renderer::RunStats],
+    _task_count: usize,
+) -> nika::display::BenchProviderResult {
+    let n = iteration_stats.len() as f64;
+
+    // Aggregate TTFT values across all iterations
+    let mut all_ttft: Vec<u64> = iteration_stats
+        .iter()
+        .flat_map(|s| s.ttft_values.iter().copied())
+        .collect();
+    all_ttft.sort_unstable();
+
+    let ttft = nika::display::Percentiles {
+        p50: percentile(&all_ttft, 50),
+        p90: percentile(&all_ttft, 90),
+        p99: percentile(&all_ttft, 99),
+    };
+
+    // Average tokens
+    let avg_input: u64 = (iteration_stats
+        .iter()
+        .map(|s| s.total_input_tokens)
+        .sum::<u64>() as f64
+        / n) as u64;
+    let avg_output: u64 = (iteration_stats
+        .iter()
+        .map(|s| s.total_output_tokens)
+        .sum::<u64>() as f64
+        / n) as u64;
+    let avg_cache: u64 = (iteration_stats
+        .iter()
+        .map(|s| s.total_cache_tokens)
+        .sum::<u64>() as f64
+        / n) as u64;
+
+    // Average cost
+    let avg_cost: f64 = iteration_stats.iter().map(|s| s.total_cost).sum::<f64>() / n;
+
+    // Total duration from task_timeline (sum of all task durations)
+    let avg_duration_ms: f64 = iteration_stats
+        .iter()
+        .map(|s| {
+            s.task_timeline
+                .iter()
+                .map(|(_, _, start, dur)| start + dur)
+                .max()
+                .unwrap_or(0)
+        })
+        .sum::<u64>() as f64
+        / n;
+    let total_secs = avg_duration_ms / 1000.0;
+
+    // Tokens per second
+    let tokens_per_sec = if total_secs > 0.0 {
+        avg_output as f64 / total_secs
+    } else {
+        0.0
+    };
+
+    // Model name from the first iteration's provider_calls
+    let model = iteration_stats
+        .iter()
+        .flat_map(|s| s.provider_calls.first())
+        .map(|pc| pc.model.clone())
+        .next()
+        .unwrap_or_else(|| "unknown".to_string());
+
+    // Task timeline from the median iteration (by total duration)
+    let mut durations: Vec<(usize, u64)> = iteration_stats
+        .iter()
+        .enumerate()
+        .map(|(i, s)| {
+            let d = s
+                .task_timeline
+                .iter()
+                .map(|(_, _, start, dur)| start + dur)
+                .max()
+                .unwrap_or(0);
+            (i, d)
+        })
+        .collect();
+    durations.sort_by_key(|(_, d)| *d);
+    let median_idx = durations
+        .get(durations.len() / 2)
+        .map(|(i, _)| *i)
+        .unwrap_or(0);
+    let median_stats = &iteration_stats[median_idx];
+
+    let task_timeline: Vec<nika::display::BenchTaskTiming> = {
+        let max_dur = median_stats
+            .task_timeline
+            .iter()
+            .map(|(_, _, _, dur)| *dur)
+            .max()
+            .unwrap_or(1);
+        median_stats
+            .task_timeline
+            .iter()
+            .map(
+                |(task_id, verb, start, dur)| nika::display::BenchTaskTiming {
+                    task_id: task_id.clone(),
+                    verb: verb.clone(),
+                    start_ms: *start,
+                    duration_ms: *dur,
+                    is_bottleneck: *dur == max_dur,
+                },
+            )
+            .collect()
+    };
+
+    nika::display::BenchProviderResult {
+        provider: provider_name.to_string(),
+        model,
+        ttft,
+        tokens_per_sec,
+        total_secs,
+        cost_per_run: avg_cost,
+        input_tokens: avg_input,
+        output_tokens: avg_output,
+        cache_tokens: avg_cache,
+        task_timeline,
+        quality_scores: vec![],
+        quality_overall: None,
+    }
+}
+
+/// Compute the p-th percentile from a sorted slice.
+fn percentile(sorted: &[u64], p: u32) -> u64 {
+    if sorted.is_empty() {
+        return 0;
+    }
+    let idx = ((p as f64 / 100.0) * (sorted.len() as f64 - 1.0)).round() as usize;
+    sorted[idx.min(sorted.len() - 1)]
 }
 
 #[allow(clippy::too_many_arguments)]
