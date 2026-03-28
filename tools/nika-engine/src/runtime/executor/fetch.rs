@@ -10,6 +10,7 @@ use tracing::instrument;
 use crate::ast::FetchParams;
 use crate::binding::{template_resolve, ResolvedBindings};
 use crate::error::NikaError;
+use super::verbs::coerce_json_types;
 use crate::event::EventKind;
 use crate::runtime::policy::PolicyDecision;
 use crate::store::RunContext;
@@ -110,10 +111,15 @@ impl TaskExecutor {
             http_client.get(url.as_ref()) // Default to GET
         };
 
-        // Add headers
+        // Add headers (resolve templates in both keys and values)
         for (key, value) in &fetch.headers {
+            let resolved_key = if key.contains("{{") {
+                template_resolve(key, bindings, datastore)?.into_owned()
+            } else {
+                key.clone()
+            };
             let resolved_value = template_resolve(value, bindings, datastore)?;
-            request = request.header(key, resolved_value.as_ref());
+            request = request.header(resolved_key, resolved_value.as_ref());
         }
 
         // Handle json field - takes precedence over body
@@ -127,9 +133,13 @@ impl TaskExecutor {
                 })?;
             let resolved_json_str = template_resolve(&json_str, bindings, datastore)?.into_owned();
             let json_body = if resolved_json_str != json_str {
-                // Re-parse to validate the resolved JSON is still valid
+                // Re-parse to validate the resolved JSON is still valid, then
+                // coerce string values back to native types (same as invoke.rs)
                 serde_json::from_str::<serde_json::Value>(&resolved_json_str)
-                    .map(|v| serde_json::to_string(&v).unwrap_or(resolved_json_str.clone()))
+                    .map(|mut v| {
+                        coerce_json_types(&mut v);
+                        serde_json::to_string(&v).unwrap_or(resolved_json_str.clone())
+                    })
                     .unwrap_or(resolved_json_str)
             } else {
                 json_str
@@ -253,8 +263,10 @@ impl TaskExecutor {
                         elapsed_ms,
                     });
 
-                    // Check for server errors that should be retried
-                    if response.status().is_server_error() && attempt < effective_max_attempts {
+                    // Check for server errors or rate limits that should be retried
+                    let is_retryable_status = response.status().is_server_error()
+                        || response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS;
+                    if is_retryable_status && attempt < effective_max_attempts {
                         let status = response.status();
 
                         // Exponential backoff calculation
