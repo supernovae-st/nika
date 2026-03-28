@@ -227,7 +227,10 @@ impl ArtifactWriter {
         let final_path = validate_artifact_path(&self.artifact_dir, Path::new(&resolved_path))?;
         if let Some(parent) = final_path.parent() {
             if let Ok(canonical_parent) = parent.canonicalize() {
-                let canonical_base = self.artifact_dir.canonicalize().unwrap_or_else(|_| self.artifact_dir.clone());
+                let canonical_base = self
+                    .artifact_dir
+                    .canonicalize()
+                    .unwrap_or_else(|_| self.artifact_dir.clone());
                 if !canonical_parent.starts_with(&canonical_base) {
                     return Err(NikaError::ArtifactPathError {
                         path: final_path.display().to_string(),
@@ -306,7 +309,10 @@ impl ArtifactWriter {
         let final_path = validate_artifact_path(&self.artifact_dir, Path::new(&resolved_path))?;
         if let Some(parent) = final_path.parent() {
             if let Ok(canonical_parent) = parent.canonicalize() {
-                let canonical_base = self.artifact_dir.canonicalize().unwrap_or_else(|_| self.artifact_dir.clone());
+                let canonical_base = self
+                    .artifact_dir
+                    .canonicalize()
+                    .unwrap_or_else(|_| self.artifact_dir.clone());
                 if !canonical_parent.starts_with(&canonical_base) {
                     return Err(NikaError::ArtifactPathError {
                         path: final_path.display().to_string(),

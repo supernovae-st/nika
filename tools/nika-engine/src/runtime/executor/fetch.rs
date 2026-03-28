@@ -217,12 +217,18 @@ impl TaskExecutor {
             // SECURITY: reject CRLF injection in header keys and values
             if resolved_key.contains('\r') || resolved_key.contains('\n') {
                 return Err(NikaError::ValidationError {
-                    reason: format!("fetch: header key '{}' contains illegal CRLF characters", resolved_key.chars().take(30).collect::<String>()),
+                    reason: format!(
+                        "fetch: header key '{}' contains illegal CRLF characters",
+                        resolved_key.chars().take(30).collect::<String>()
+                    ),
                 });
             }
             if resolved_value.contains('\r') || resolved_value.contains('\n') {
                 return Err(NikaError::ValidationError {
-                    reason: format!("fetch: header '{}' value contains illegal CRLF characters", resolved_key),
+                    reason: format!(
+                        "fetch: header '{}' value contains illegal CRLF characters",
+                        resolved_key
+                    ),
                 });
             }
             request = request.header(resolved_key, resolved_value.as_ref());

@@ -701,7 +701,14 @@ impl Runner {
 
             // Execute (with routing fallback if configured)
             let result = executor
-                .execute_with_routing(task_id, &action, bindings, datastore, output_policy, routing)
+                .execute_with_routing(
+                    task_id,
+                    &action,
+                    bindings,
+                    datastore,
+                    output_policy,
+                    routing,
+                )
                 .await;
             let duration = start.elapsed();
 

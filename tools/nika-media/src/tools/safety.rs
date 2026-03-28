@@ -123,10 +123,9 @@ pub fn sanitize_svg(input: &str) -> Result<&str, MediaToolError> {
     // Allow internal fragment references like href="#icon".
     // Optional quote handles both href="http://..." and href=http://...
     // After optional quote, first char must NOT be # or quote (closing).
-    static XLINK_EXTERNAL_RE: std::sync::LazyLock<regex::Regex> =
-        std::sync::LazyLock::new(|| {
-            regex::Regex::new(r#"(?:xlink:)?href\s*=\s*["']?[^#\s"']"#).unwrap()
-        });
+    static XLINK_EXTERNAL_RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r#"(?:xlink:)?href\s*=\s*["']?[^#\s"']"#).unwrap()
+    });
     if XLINK_EXTERNAL_RE.is_match(&lower) {
         return Err(security_violation(
             "svg_render",

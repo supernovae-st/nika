@@ -465,7 +465,9 @@ impl TaskExecutor {
                                                         error: None,
                                                     },
                                                 );
-                                                let result_str = super::verbs::strip_think_tags(&result.value.to_string());
+                                                let result_str = super::verbs::strip_think_tags(
+                                                    &result.value.to_string(),
+                                                );
                                                 let cost = provider
                                                     .cost_provider_kind()
                                                     .map(|pk| {
@@ -615,7 +617,9 @@ impl TaskExecutor {
                                                         error: None,
                                                     },
                                                 );
-                                                let result_str = super::verbs::strip_think_tags(&result.value.to_string());
+                                                let result_str = super::verbs::strip_think_tags(
+                                                    &result.value.to_string(),
+                                                );
                                                 let est_in = estimate_tokens(prompt.len());
                                                 let est_out = estimate_tokens(result_str.len());
                                                 let cost = provider
@@ -1078,14 +1082,15 @@ impl TaskExecutor {
                         });
                     }
                     // SECURITY: SSRF protection — block internal/metadata endpoints
-                    let parsed = url::Url::parse(&resolved_url).map_err(|e| {
-                        NikaError::ValidationError {
+                    let parsed =
+                        url::Url::parse(&resolved_url).map_err(|e| NikaError::ValidationError {
                             reason: format!("ImageUrl is not a valid URL: {}", e),
-                        }
-                    })?;
-                    let host = parsed.host_str().ok_or_else(|| NikaError::ValidationError {
-                        reason: "ImageUrl has no host".to_string(),
-                    })?;
+                        })?;
+                    let host = parsed
+                        .host_str()
+                        .ok_or_else(|| NikaError::ValidationError {
+                            reason: "ImageUrl has no host".to_string(),
+                        })?;
                     let h = host.to_lowercase();
                     let h_normalized = h.trim_start_matches('[').trim_end_matches(']');
                     if crate::runtime::policy::is_ssrf_blocked(h_normalized) {
