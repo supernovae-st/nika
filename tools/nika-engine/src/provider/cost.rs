@@ -143,8 +143,10 @@ impl ModelPricing {
         output_tokens: u64,
         cached_tokens: u64,
     ) -> f64 {
-        let effective_input = input_tokens.saturating_sub(cached_tokens);
-        let cached_cost = (cached_tokens as f64 / 1_000_000.0) * self.input_per_million * 0.1;
+        // Cap cached_tokens at input_tokens to prevent over-claiming
+        let actual_cached = cached_tokens.min(input_tokens);
+        let effective_input = input_tokens - actual_cached;
+        let cached_cost = (actual_cached as f64 / 1_000_000.0) * self.input_per_million * 0.1;
         let input_cost = (effective_input as f64 / 1_000_000.0) * self.input_per_million;
         let output_cost = (output_tokens as f64 / 1_000_000.0) * self.output_per_million;
         let cost = cached_cost + input_cost + output_cost;
@@ -810,6 +812,53 @@ mod tests {
         let cost = calculate_cost(ProviderKind::Gemini, "gemini-2.0-flash", 100_000, 50_000);
         // 100000 * 0.1/1M + 50000 * 0.4/1M = 0.01 + 0.02 = 0.03
         assert!((cost - 0.03).abs() < 0.0001);
+    }
+
+    // ───────────────────────────────────────────────────────────────────────
+    // Cache cost tests
+    // ───────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn calculate_cost_with_cache_normal() {
+        let cost = calculate_cost_with_cache(
+            ProviderKind::Claude,
+            "claude-sonnet-4-6",
+            10_000,
+            5_000,
+            2_000,
+        );
+        // effective_input = 10000 - 2000 = 8000
+        // cached_cost = 2000 * 3.0/1M * 0.1 = 0.0006
+        // input_cost = 8000 * 3.0/1M = 0.024
+        // output_cost = 5000 * 15.0/1M = 0.075
+        // total = 0.0006 + 0.024 + 0.075 = 0.0996
+        assert!((cost - 0.0996).abs() < 0.0001);
+    }
+
+    #[test]
+    fn calculate_cost_with_cache_overclaimed() {
+        // cached_tokens > input_tokens — should cap at input_tokens
+        let cost = calculate_cost_with_cache(
+            ProviderKind::Claude,
+            "claude-sonnet-4-6",
+            100,
+            50,
+            200, // overclaimed: 200 > 100
+        );
+        // actual_cached = min(200, 100) = 100, effective_input = 0
+        // cached_cost = 100 * 3.0/1M * 0.1 = 0.00003
+        // input_cost = 0
+        // output_cost = 50 * 15.0/1M = 0.00075
+        // total = 0.00078
+        assert!((cost - 0.00078).abs() < 0.0001);
+    }
+
+    #[test]
+    fn calculate_cost_with_cache_zero_cached() {
+        let with_cache =
+            calculate_cost_with_cache(ProviderKind::Claude, "claude-sonnet-4-6", 1000, 500, 0);
+        let without_cache = calculate_cost(ProviderKind::Claude, "claude-sonnet-4-6", 1000, 500);
+        assert!((with_cache - without_cache).abs() < f64::EPSILON);
     }
 
     // ───────────────────────────────────────────────────────────────────────
