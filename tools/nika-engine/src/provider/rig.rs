@@ -3549,14 +3549,21 @@ mod tests {
     fn test_cost_provider_kind_standard_providers() {
         use crate::provider::cost::ProviderKind;
 
-        std::env::set_var("ANTHROPIC_API_KEY", "test-key");
-        std::env::set_var("OPENAI_API_KEY", "test-key");
+        // Use explicit API keys to avoid env var race in parallel tests
+        let claude_client = anthropic::Client::builder()
+            .api_key("test-key")
+            .build()
+            .unwrap();
+        let openai_client = openai::Client::builder()
+            .api_key("test-key")
+            .build()
+            .unwrap();
         assert_eq!(
-            RigProvider::claude().cost_provider_kind(),
+            RigProvider::Claude(claude_client).cost_provider_kind(),
             Some(ProviderKind::Claude)
         );
         assert_eq!(
-            RigProvider::openai().cost_provider_kind(),
+            RigProvider::OpenAI(openai_client).cost_provider_kind(),
             Some(ProviderKind::OpenAI)
         );
     }
