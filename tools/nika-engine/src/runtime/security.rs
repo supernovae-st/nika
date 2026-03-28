@@ -431,7 +431,8 @@ pub fn validate_exec_command_with_shell(cmd: &str, shell_mode: bool) -> Result<(
     if shell_mode {
         // Reject newlines in shell mode — sh -c treats \n as command separator,
         // which can bypass the blocklist (normalization collapses \n to space).
-        if cmd.contains('\n') {
+        // Tolerate trailing newline from YAML `|` blocks (e.g., `command: |\n  echo hello\n`).
+        if cmd.trim_end().contains('\n') {
             return Err(NikaError::BlockedCommand {
                 command: cmd.to_string(),
                 reason: "Newlines are not allowed in shell mode commands (use && or ; explicitly)"
@@ -1209,6 +1210,25 @@ mod tests {
             result.is_ok(),
             "newline should be allowed in non-shell mode"
         );
+    }
+
+    #[test]
+    fn test_shell_mode_allows_trailing_newline_from_yaml_block() {
+        // YAML `|` blocks add a trailing newline: "echo hello\n"
+        // This should NOT be rejected — it's not a newline injection
+        let result = validate_exec_command_with_shell("echo hello\n", true);
+        assert!(
+            result.is_ok(),
+            "Trailing newline from YAML | block should be allowed"
+        );
+
+        // Multiple trailing newlines/whitespace should also be fine
+        let result = validate_exec_command_with_shell("npm run build\n\n", true);
+        assert!(result.is_ok());
+
+        // But embedded newline should still be blocked
+        let result = validate_exec_command_with_shell("echo hello\nrm -rf /", true);
+        assert!(result.is_err());
     }
 
     // =========================================================================
