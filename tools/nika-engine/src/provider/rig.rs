@@ -647,6 +647,9 @@ impl RigProvider {
         use rig::completion::message::Message;
         use rig::OneOrMany;
 
+        /// Maximum time to wait for a vision inference call (5 minutes).
+        const VISION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
+
         // Early return: DeepSeek does not support vision at all
         if matches!(self, RigProvider::DeepSeek(_)) {
             return Err(RigInferError::VisionNotSupported(
@@ -669,12 +672,17 @@ impl RigProvider {
                 max_tokens,
                 ..Default::default()
             };
-            let response = runtime
-                .infer_vision(&prompt_text, vision_images, options)
-                .await
-                .map_err(|e: super::native::NativeError| {
-                    RigInferError::PromptError(e.to_string())
-                })?;
+            let response = timeout(
+                VISION_TIMEOUT,
+                runtime.infer_vision(&prompt_text, vision_images, options),
+            )
+            .await
+            .map_err(|_| RigInferError::Timeout {
+                duration_ms: VISION_TIMEOUT.as_millis() as u64,
+            })?
+            .map_err(|e: super::native::NativeError| {
+                RigInferError::PromptError(e.to_string())
+            })?;
             return Ok(response.message.content);
         }
 
@@ -694,9 +702,11 @@ impl RigProvider {
                     builder = builder.preamble(sys);
                 }
                 let agent = builder.build();
-                agent
-                    .prompt(message)
+                timeout(VISION_TIMEOUT, agent.prompt(message))
                     .await
+                    .map_err(|_| RigInferError::Timeout {
+                        duration_ms: VISION_TIMEOUT.as_millis() as u64,
+                    })?
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }};
         }
@@ -731,6 +741,9 @@ impl RigProvider {
         use rig::completion::message::Message;
         use rig::OneOrMany;
 
+        /// Maximum time to wait for a vision stream call (5 minutes).
+        const VISION_STREAM_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
+
         // Early return: DeepSeek does not support vision at all
         if matches!(self, RigProvider::DeepSeek(_)) {
             return Err(RigInferError::VisionNotSupported(
@@ -755,12 +768,17 @@ impl RigProvider {
                 max_tokens,
                 ..Default::default()
             };
-            let response = runtime
-                .infer_vision(&prompt_text, vision_images, options)
-                .await
-                .map_err(|e: super::native::NativeError| {
-                    RigInferError::PromptError(e.to_string())
-                })?;
+            let response = timeout(
+                VISION_STREAM_TIMEOUT,
+                runtime.infer_vision(&prompt_text, vision_images, options),
+            )
+            .await
+            .map_err(|_| RigInferError::Timeout {
+                duration_ms: VISION_STREAM_TIMEOUT.as_millis() as u64,
+            })?
+            .map_err(|e: super::native::NativeError| {
+                RigInferError::PromptError(e.to_string())
+            })?;
             // Send full response as a single Done chunk (non-streaming fallback)
             let text = response.message.content;
             if let Err(e) = tx.send(StreamChunk::Done(text.clone())).await {
@@ -915,6 +933,9 @@ impl RigProvider {
         prompt: &str,
         options: &InferOptions,
     ) -> Result<String, RigInferError> {
+        /// Maximum time to wait for an infer_with_options call (5 minutes).
+        const OPTIONS_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
+
         let model_id = options
             .model
             .as_deref()
@@ -950,9 +971,11 @@ impl RigProvider {
                     builder = builder.additional_params(params.clone());
                 }
                 let agent = builder.build();
-                agent
-                    .prompt(&user_prompt)
+                timeout(OPTIONS_TIMEOUT, agent.prompt(&user_prompt))
                     .await
+                    .map_err(|_| RigInferError::Timeout {
+                        duration_ms: OPTIONS_TIMEOUT.as_millis() as u64,
+                    })?
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }};
         }
@@ -974,13 +997,18 @@ impl RigProvider {
                     max_tokens: options.max_tokens,
                     ..Default::default()
                 };
-                runtime
-                    .infer(&user_prompt, chat_options)
-                    .await
-                    .map(|r| r.message.content)
-                    .map_err(|e: super::native::NativeError| {
-                        RigInferError::PromptError(e.to_string())
-                    })
+                timeout(
+                    OPTIONS_TIMEOUT,
+                    runtime.infer(&user_prompt, chat_options),
+                )
+                .await
+                .map_err(|_| RigInferError::Timeout {
+                    duration_ms: OPTIONS_TIMEOUT.as_millis() as u64,
+                })?
+                .map(|r| r.message.content)
+                .map_err(|e: super::native::NativeError| {
+                    RigInferError::PromptError(e.to_string())
+                })
             }
         }
     }
