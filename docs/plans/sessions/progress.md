@@ -1,10 +1,10 @@
 # Autonomous Session Progress
 
-**Updated**: 2026-03-29T01:00:00
-**Status**: HANDOFF
-**Sessions completed**: A (Security), B (Agent Refactor), C (partial — TaskEventGuard created)
-**Sessions remaining**: C (wire guard into runner.rs), D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V
-**Total commits**: 17
+**Updated**: 2026-03-29T02:30:00
+**Status**: IN_PROGRESS
+**Sessions completed**: A (Security), B (Agent Refactor), C (Silent Failures), E (partial — tautological tests)
+**Sessions remaining**: D, E (bare is_ok), F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V
+**Total commits**: 22
 **Total tests**: 8645 (0 failures, 0 clippy warnings)
 
 ## Session A: Security Hardening — DONE (10 commits)
@@ -19,22 +19,33 @@ DNS fail-closed, API key redaction, JSON Schema .ok(), template injection
 - run_claude/run_openai: thin wrappers delegating to run_agent_loop
 - token_budget wired into LimitTracker (SF9 fixed)
 
-## Session C: Silent Failures — IN PROGRESS (1 commit)
+## Session C: Silent Failures — DONE (4 commits)
 
-### Done:
-- `7ea8153` feat(runtime): add TaskEventGuard RAII pattern (event_guard.rs + 4 tests)
+1. `7ea8153` feat(runtime): add TaskEventGuard RAII pattern (4 tests)
+2. `bd8584f` fix(runtime): emit TaskFailed events for 17 silent DAG scheduling failures
+3. `b1a57d9` fix(runtime): emit ProviderResponded on Layer 0a no-spec early return (SF2)
+4. `f0270ad` fix(event): replace silent let _ = with warn!/debug! in event emission (SF6)
 
-### Remaining (next session should continue here):
-1. Wire TaskEventGuard into runner.rs execute_task() (replace manual emit calls)
-2. Add TaskFailed events to 17 silent TaskResult::failed in DAG scheduling (runner.rs:1680-2260)
-3. Fix SF3+SF4: for_each binding failures need TaskFailed events
-4. Fix SF6: EventLog silent trace write drops (warn! instead of let _ =)
-5. Fix CR1: SchemaGuardrail full JSON Schema validation (use jsonschema crate)
-6. Fix unwrap_or(0) instances (93 occurrences per plan)
+### Remaining for future session:
+- Wire TaskEventGuard into runner.rs execute_task() (replace manual emit calls)
+- Fix CR1: SchemaGuardrail full JSON Schema validation
+- Fix unwrap_or(0) instances
+
+## Session E: Test Hardening — PARTIAL (1 commit)
+
+1. `5edf2c5` test(agent): replace tautological tests with behavior assertions (CR2+CR3)
+
+### Remaining:
+- Convert 20+ highest-risk bare is_ok() to unwrap() with value checks
+
+## Next: Session D — Quality Infrastructure
+
+Or skip to Session F (Enums) / G (Split rig.rs) / J (Phase 0 Stabilization)
+based on priority.
 
 ## Verification State
 
-All green at handoff:
+All green:
 - `cargo test --workspace --lib` → 8645 tests, 0 failures
 - `cargo clippy --workspace -- -D warnings` → 0 warnings
 - `git push` → all commits pushed to main
