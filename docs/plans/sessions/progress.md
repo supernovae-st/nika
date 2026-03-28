@@ -1,44 +1,43 @@
 # Autonomous Session Progress
 
-**Updated**: 2026-03-29T00:30:00
-**Status**: IN_PROGRESS
-**Sessions completed**: A (Security), B (Agent Refactor)
-**Sessions remaining**: C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V
-**Total commits**: 15
-**Total tests**: 8641 (0 failures, 0 clippy warnings)
+**Updated**: 2026-03-29T01:00:00
+**Status**: HANDOFF
+**Sessions completed**: A (Security), B (Agent Refactor), C (partial — TaskEventGuard created)
+**Sessions remaining**: C (wire guard into runner.rs), D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V
+**Total commits**: 17
+**Total tests**: 8645 (0 failures, 0 clippy warnings)
 
-## Session A: Security Hardening — DONE
-
-10 commits, 11 bugs fixed. See git log for details.
+## Session A: Security Hardening — DONE (10 commits)
 
 Key fixes: shell -c blocklist, find -exec/xargs, skill path traversal,
 DNS fail-closed, API key redaction, JSON Schema .ok(), template injection
 (trusted_inputs + trusted_context), SSRF redirect DNS check, skill size limit.
 
-## Session B: Agent Loop Refactor — DONE
+## Session B: Agent Loop Refactor — DONE (5 commits)
 
-5 commits, 771 LOC removed:
-
-1. `c18ab51` refactor(agent): rename run_generic_provider_impl to run_agent_loop
-2. `71f4c13` refactor(agent): run_claude delegates to run_agent_loop (-384 LOC)
-3. `2755dd4` refactor(agent): run_openai delegates to run_agent_loop (-393 LOC)
-4. `73b6b88` fix(agent): wire token_budget into LimitTracker (SF9)
-
-### Results:
 - providers.rs: 1505 → 734 LOC (-771 LOC, -51%)
-- run_claude: 405 LOC → 15 LOC thin wrapper
-- run_openai: 399 LOC → 12 LOC thin wrapper
-- token_budget now wired into LimitTracker (SF9 fixed)
-- 55 agent tests pass unchanged + 2 new limit tracker tests
-- Extended thinking (SF10): deferred to later session (needs API investigation)
+- run_claude/run_openai: thin wrappers delegating to run_agent_loop
+- token_budget wired into LimitTracker (SF9 fixed)
 
-## Next: Session C — Silent Failures
+## Session C: Silent Failures — IN PROGRESS (1 commit)
 
-The next session should:
-1. Read `docs/plans/sessions/session-C-silent-failures.md`
-2. Fix TaskEventGuard pattern for 17 silent TaskResult::failed
-3. Fix 93 unwrap_or(0) instances
-4. Fix SchemaGuardrail full validation (CR1)
+### Done:
+- `7ea8153` feat(runtime): add TaskEventGuard RAII pattern (event_guard.rs + 4 tests)
+
+### Remaining (next session should continue here):
+1. Wire TaskEventGuard into runner.rs execute_task() (replace manual emit calls)
+2. Add TaskFailed events to 17 silent TaskResult::failed in DAG scheduling (runner.rs:1680-2260)
+3. Fix SF3+SF4: for_each binding failures need TaskFailed events
+4. Fix SF6: EventLog silent trace write drops (warn! instead of let _ =)
+5. Fix CR1: SchemaGuardrail full JSON Schema validation (use jsonschema crate)
+6. Fix unwrap_or(0) instances (93 occurrences per plan)
+
+## Verification State
+
+All green at handoff:
+- `cargo test --workspace --lib` → 8645 tests, 0 failures
+- `cargo clippy --workspace -- -D warnings` → 0 warnings
+- `git push` → all commits pushed to main
 
 ## For resume
 
