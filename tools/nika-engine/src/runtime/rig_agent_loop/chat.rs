@@ -284,13 +284,16 @@ impl RigAgentLoop {
         let tools = self.tools_as_boxed();
         let agent = builder.tools(tools).build();
 
-        let response = agent
+        let raw_response = agent
             .chat(prompt, self.history.clone())
             .await
             .map_err(|e| NikaError::AgentExecutionError {
                 task_id: self.task_id.clone(),
                 reason: e.to_string(),
             })?;
+
+        // Strip <think> blocks from reasoning models (Qwen, DeepSeek-R1)
+        let response = crate::runtime::executor::verbs::strip_think_tags(&raw_response);
 
         // Update history and increment turn count
         self.history.push(Message::user(prompt));
