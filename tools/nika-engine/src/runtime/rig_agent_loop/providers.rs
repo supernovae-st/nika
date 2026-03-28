@@ -190,6 +190,16 @@ impl RigAgentLoop {
             );
             match self.limit_tracker.on_limit_action() {
                 LimitAction::Fail => {
+                    self.event_log.emit(EventKind::ProviderResponded {
+                        task_id: Arc::from(self.task_id.as_str()),
+                        request_id: None,
+                        input_tokens: total_input_tokens,
+                        output_tokens: total_output_tokens,
+                        cache_read_tokens: total_cached_input_tokens,
+                        ttft_ms: None,
+                        finish_reason: format!("limit_exceeded:{}", exceeded.limit_type),
+                        cost_usd: self.limit_tracker.cost_usd(),
+                    });
                     return Err(NikaError::AgentLimitExceeded {
                         limit_type: format!("{}", exceeded.limit_type),
                         current: exceeded.current,
@@ -237,6 +247,16 @@ impl RigAgentLoop {
                 );
                 match self.limit_tracker.on_limit_action() {
                     LimitAction::Fail => {
+                        self.event_log.emit(EventKind::ProviderResponded {
+                            task_id: Arc::from(self.task_id.as_str()),
+                            request_id: None,
+                            input_tokens: total_input_tokens,
+                            output_tokens: total_output_tokens,
+                            cache_read_tokens: total_cached_input_tokens,
+                            ttft_ms: None,
+                            finish_reason: format!("limit_exceeded:{}", exceeded.limit_type),
+                            cost_usd: self.limit_tracker.cost_usd(),
+                        });
                         return Err(NikaError::AgentLimitExceeded {
                             limit_type: format!("{}", exceeded.limit_type),
                             current: exceeded.current,
@@ -345,6 +365,16 @@ impl RigAgentLoop {
                 );
                 match self.limit_tracker.on_limit_action() {
                     LimitAction::Fail => {
+                        self.event_log.emit(EventKind::ProviderResponded {
+                            task_id: Arc::from(self.task_id.as_str()),
+                            request_id: None,
+                            input_tokens: total_input_tokens,
+                            output_tokens: total_output_tokens,
+                            cache_read_tokens: total_cached_input_tokens,
+                            ttft_ms: None,
+                            finish_reason: format!("limit_exceeded:{}", exceeded.limit_type),
+                            cost_usd: self.limit_tracker.cost_usd(),
+                        });
                         return Err(NikaError::AgentLimitExceeded {
                             limit_type: format!("{}", exceeded.limit_type),
                             current: exceeded.current,
@@ -570,6 +600,16 @@ impl RigAgentLoop {
             );
             match self.limit_tracker.on_limit_action() {
                 LimitAction::Fail => {
+                    self.event_log.emit(EventKind::ProviderResponded {
+                        task_id: Arc::from(self.task_id.as_str()),
+                        request_id: None,
+                        input_tokens: total_input_tokens,
+                        output_tokens: total_output_tokens,
+                        cache_read_tokens: total_cached_input_tokens,
+                        ttft_ms: None,
+                        finish_reason: format!("limit_exceeded:{}", exceeded.limit_type),
+                        cost_usd: self.limit_tracker.cost_usd(),
+                    });
                     return Err(NikaError::AgentLimitExceeded {
                         limit_type: format!("{}", exceeded.limit_type),
                         current: exceeded.current,
@@ -617,6 +657,16 @@ impl RigAgentLoop {
                 );
                 match self.limit_tracker.on_limit_action() {
                     LimitAction::Fail => {
+                        self.event_log.emit(EventKind::ProviderResponded {
+                            task_id: Arc::from(self.task_id.as_str()),
+                            request_id: None,
+                            input_tokens: total_input_tokens,
+                            output_tokens: total_output_tokens,
+                            cache_read_tokens: total_cached_input_tokens,
+                            ttft_ms: None,
+                            finish_reason: format!("limit_exceeded:{}", exceeded.limit_type),
+                            cost_usd: self.limit_tracker.cost_usd(),
+                        });
                         return Err(NikaError::AgentLimitExceeded {
                             limit_type: format!("{}", exceeded.limit_type),
                             current: exceeded.current,
@@ -724,6 +774,16 @@ impl RigAgentLoop {
                 );
                 match self.limit_tracker.on_limit_action() {
                     LimitAction::Fail => {
+                        self.event_log.emit(EventKind::ProviderResponded {
+                            task_id: Arc::from(self.task_id.as_str()),
+                            request_id: None,
+                            input_tokens: total_input_tokens,
+                            output_tokens: total_output_tokens,
+                            cache_read_tokens: total_cached_input_tokens,
+                            ttft_ms: None,
+                            finish_reason: format!("limit_exceeded:{}", exceeded.limit_type),
+                            cost_usd: self.limit_tracker.cost_usd(),
+                        });
                         return Err(NikaError::AgentLimitExceeded {
                             limit_type: format!("{}", exceeded.limit_type),
                             current: exceeded.current,
@@ -1100,6 +1160,16 @@ impl RigAgentLoop {
             );
             match self.limit_tracker.on_limit_action() {
                 LimitAction::Fail => {
+                    self.event_log.emit(EventKind::ProviderResponded {
+                        task_id: Arc::from(self.task_id.as_str()),
+                        request_id: None,
+                        input_tokens: total_input_tokens,
+                        output_tokens: total_output_tokens,
+                        cache_read_tokens: total_cached_input_tokens,
+                        ttft_ms: None,
+                        finish_reason: format!("limit_exceeded:{}", exceeded.limit_type),
+                        cost_usd: self.limit_tracker.cost_usd(),
+                    });
                     return Err(NikaError::AgentLimitExceeded {
                         limit_type: format!("{}", exceeded.limit_type),
                         current: exceeded.current,
@@ -1147,6 +1217,16 @@ impl RigAgentLoop {
                 );
                 match self.limit_tracker.on_limit_action() {
                     LimitAction::Fail => {
+                        self.event_log.emit(EventKind::ProviderResponded {
+                            task_id: Arc::from(self.task_id.as_str()),
+                            request_id: None,
+                            input_tokens: total_input_tokens,
+                            output_tokens: total_output_tokens,
+                            cache_read_tokens: total_cached_input_tokens,
+                            ttft_ms: None,
+                            finish_reason: format!("limit_exceeded:{}", exceeded.limit_type),
+                            cost_usd: self.limit_tracker.cost_usd(),
+                        });
                         return Err(NikaError::AgentLimitExceeded {
                             limit_type: format!("{}", exceeded.limit_type),
                             current: exceeded.current,
@@ -1259,6 +1339,16 @@ impl RigAgentLoop {
                 );
                 match self.limit_tracker.on_limit_action() {
                     LimitAction::Fail => {
+                        self.event_log.emit(EventKind::ProviderResponded {
+                            task_id: Arc::from(self.task_id.as_str()),
+                            request_id: None,
+                            input_tokens: total_input_tokens,
+                            output_tokens: total_output_tokens,
+                            cache_read_tokens: total_cached_input_tokens,
+                            ttft_ms: None,
+                            finish_reason: format!("limit_exceeded:{}", exceeded.limit_type),
+                            cost_usd: self.limit_tracker.cost_usd(),
+                        });
                         return Err(NikaError::AgentLimitExceeded {
                             limit_type: format!("{}", exceeded.limit_type),
                             current: exceeded.current,
