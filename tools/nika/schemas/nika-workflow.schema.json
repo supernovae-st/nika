@@ -779,6 +779,10 @@
         },
         "limits": {
           "$ref": "#/$defs/LimitsConfig"
+        },
+        "from": {
+          "type": "string",
+          "description": "Reuse a named agent preset from agents: block"
         }
       }
     },
