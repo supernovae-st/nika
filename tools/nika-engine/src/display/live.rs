@@ -1188,6 +1188,21 @@ impl LiveRenderer {
                 ));
             }
 
+            // ── Task retry (always show) ────────────────────────
+            EventKind::TaskRetry {
+                task_id,
+                attempt,
+                max_attempts,
+                backoff_ms,
+                error,
+            } => {
+                let err_msg = error.as_deref().unwrap_or("transient failure");
+                self.log(&format!(
+                    "  ⟳ {} retry {}/{} (backoff {}ms): {}",
+                    task_id, attempt, max_attempts, backoff_ms, err_msg,
+                ));
+            }
+
             // ── Boot (always show) ───────────────────────────────
             EventKind::BootPhaseCompleted {
                 phase,
