@@ -22,13 +22,13 @@ BEFORE:
 
 AFTER:
   provider/
-  ├── mod.rs          (65 LOC — unchanged re-exports still work)
+  ├── mod.rs          (65 LOC — unchanged, re-exports still resolve)
   ├── rig/
-  │   ├── mod.rs      (~1630 LOC — RigProvider + infer + verify + helpers + InferOptions)
-  │   ├── error.rs    (~90 LOC — McpToolError + RigInferError)
+  │   ├── mod.rs      (~1580 LOC — RigProvider + infer + verify + helpers + InferOptions)
+  │   ├── error.rs    (~120 LOC — McpToolError + RigInferError + ProviderVerify types)
   │   ├── stream.rs   (~215 LOC — StreamChunk + StreamResult + consume_rig_stream)
   │   ├── tool.rs     (~245 LOC — NikaMcpToolDef + NikaMcpTool + ToolDyn impl)
-  │   └── tests.rs    (~1460 LOC — all tests)
+  │   └── tests.rs    (~1460 LOC — all tests in single file)
   ├── cost.rs
   ├── endpoints.rs
   └── native/
@@ -36,92 +36,119 @@ AFTER:
 
 ---
 
-## Phase 1: Create Directory Structure (5 min)
+## Dependency DAG (No Circular Dependencies — Confirmed by Architect Agent)
 
-### Step 1.1: Create the rig/ directory
-```bash
-mkdir -p tools/nika-engine/src/provider/rig
+```
+error.rs  (leaf — no nika imports)
+    ↑
+    ├── stream.rs  (uses RigInferError)
+    ├── tool.rs    (uses McpToolError)
+    └── mod.rs     (uses everything from all 3)
 ```
 
-### Step 1.2: Rename rig.rs → rig/mod.rs
+All macros are method-local (no cross-module macro risk).
+All `#[cfg(feature = "native-inference")]` gates stay in mod.rs (22 gates, none crosses boundaries).
+
+---
+
+## Section Map (from Architect Agent analysis)
+
+| Section | Lines | LOC | Target File | Key Types |
+|---------|-------|-----|-------------|-----------|
+| Imports + doc | 1-44 | 44 | mod.rs (stays) | `use` statements |
+| Tool errors | 46-118 | 73 | **error.rs** | `McpToolError`, `McpToolErrorKind` |
+| InferOptions + helpers | 120-182 | 63 | mod.rs (stays) | `InferOptions`, `is_reasoning_model()`, `build_response_format_params()`, `supports_native_structured_output()` |
+| RigProvider enum + core impls | 184-1145 | 962 | mod.rs (stays) | `RigProvider`, `from_name()`, `infer()`, `verify()`, `auto()` |
+| ProviderVerify types | 1147-1200 | 54 | **error.rs** | `ProviderVerifyResult`, `ProviderVerifyError` |
+| RigInferError | 1202-1215 | 14 | **error.rs** | `RigInferError` |
+| StreamChunk enum | 1217-1332 | 116 | **stream.rs** | `StreamChunk` (30+ variants) |
+| StreamResult + consume | 1334-1432 | 99 | **stream.rs** | `StreamResult`, `consume_rig_stream()` |
+| infer_stream methods | 1434-1933 | 500 | mod.rs (stays) | `impl RigProvider` streaming block |
+| NikaMcpTool | 1935-2100 | 166 | **tool.rs** | `NikaMcpToolDef`, `NikaMcpTool`, `AgentMediaStaging`, `ToolDyn` impl |
+| Native vision helper | 2102-2175 | 74 | mod.rs (stays) | `extract_native_vision_parts()` (cfg-gated) |
+| Tests | 2177-3640 | 1463 | **tests.rs** | ~65 test functions |
+
+---
+
+## Consumer Map (from Consumer Agent — most important for re-export decisions)
+
+### Most-consumed types (MUST remain accessible at `crate::provider::rig::X`):
+
+| Type | External Files | Crates |
+|------|---------------|--------|
+| `StreamChunk` | **13 files** | nika-engine, nika-tui (6 files), tests |
+| `RigProvider` | **14 files** | nika-engine, nika-cli, nika-tui, tests |
+| `InferOptions` | 1 file | nika-engine (executor/infer.rs) |
+| `NikaMcpTool`/`NikaMcpToolDef`/`AgentMediaStaging` | 1 file | nika-engine (rig_agent_loop/mod.rs) |
+| `build_response_format_params` | 1 file | nika-engine (executor/infer.rs) |
+| `is_reasoning_model` | 1 file | nika-engine (rig_agent_loop/streaming.rs) |
+
+### Zero-external-consumer types (only used within rig.rs itself):
+
+| Type | Notes |
+|------|-------|
+| `McpToolError` / `McpToolErrorKind` | Only in NikaMcpTool ToolDyn impl |
+| `ProviderVerifyResult` / `ProviderVerifyError` | Called via `.verify()`, return types not imported by name |
+| `consume_rig_stream` | Private fn, only called by RigProvider methods |
+| `RigInferError` | Only consumed by integration tests (not lib code) |
+
+---
+
+## Phase 1: Create Directory Structure (5 min)
+
+### Step 1.1: Create the rig/ directory and rename
 ```bash
+mkdir -p tools/nika-engine/src/provider/rig
 mv tools/nika-engine/src/provider/rig.rs tools/nika-engine/src/provider/rig/mod.rs
 ```
 
-### Step 1.3: Verify compilation
+### Step 1.2: Verify compilation
 ```bash
 cd tools && cargo check -p nika-engine
 ```
 This MUST pass — renaming to a directory module is a no-op in Rust.
 
-### Step 1.4: Commit
+### Step 1.3: Commit
 ```
-refactor(provider): rename rig.rs → rig/mod.rs (directory module)
+refactor(provider): convert rig.rs to directory module
 ```
 
 ---
 
-## Phase 2: Extract error.rs (~90 LOC)
+## Phase 2: Extract error.rs (~120 LOC)
 
-### Step 2.1: Create `tools/nika-engine/src/provider/rig/error.rs`
+### What moves:
+From mod.rs, cut these sections:
+1. **Lines ~46-118**: `McpToolError` struct, `McpToolErrorKind` enum, all impls (Display, Error, constructors)
+2. **Lines ~1147-1200**: `ProviderVerifyResult` struct, `ProviderVerifyError` enum + `suggestion()` method
+3. **Lines ~1202-1215**: `RigInferError` enum
 
-Move these items from mod.rs (lines 46-120 and 1202-1215):
-
+### Create `error.rs` with:
 ```rust
-// tools/nika-engine/src/provider/rig/error.rs
-
 //! Error types for the rig provider layer.
+//!
+//! Contains MCP tool errors, inference errors, and provider verification results.
 
 use std::fmt;
+use std::time::Duration;
 
-// ═══════════════════════════════════════════════════════════════════════════
-// TOOL ERROR TYPES
-// ═══════════════════════════════════════════════════════════════════════════
-
-/// MCP tool call error with semantic error kinds
-#[derive(Debug)]
-pub struct McpToolError {
-    pub(super) kind: McpToolErrorKind,
-    pub(super) message: String,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum McpToolErrorKind {
-    NotConnected,
-    ToolNotFound,
-    InvalidArgs,
-    ExecutionFailed,
-    Timeout,
-}
-
-// ... all McpToolError impls (Display, Error, constructors)
-
-/// Error type for RigProvider infer operations
-#[derive(Debug, thiserror::Error)]
-pub enum RigInferError {
-    #[error("Completion error: {0}")]
-    PromptError(String),
-
-    #[error("Stream timeout: no chunk received for {duration_ms}ms")]
-    Timeout { duration_ms: u64 },
-
-    #[error("Vision not supported: {0}")]
-    VisionNotSupported(String),
-}
+// [paste McpToolError + McpToolErrorKind + all impls]
+// [paste ProviderVerifyResult + ProviderVerifyError + suggestion()]
+// [paste RigInferError]
 ```
 
-### Step 2.2: In mod.rs, replace the moved code with:
+### In mod.rs, add at top (after existing `use` statements):
 ```rust
-mod error;
-pub use error::{McpToolError, McpToolErrorKind, RigInferError};
+pub mod error;
+pub use error::{McpToolError, McpToolErrorKind, ProviderVerifyError, ProviderVerifyResult, RigInferError};
 ```
 
-### Step 2.3: Verify
+### Verify:
 ```bash
 cd tools && cargo check -p nika-engine
 ```
 
-### Step 2.4: Commit
+### Commit:
 ```
 refactor(provider): extract error types to rig/error.rs
 ```
@@ -130,14 +157,19 @@ refactor(provider): extract error types to rig/error.rs
 
 ## Phase 3: Extract stream.rs (~215 LOC)
 
-### Step 3.1: Create `tools/nika-engine/src/provider/rig/stream.rs`
+### What moves:
+From mod.rs, cut these sections:
+1. **Lines ~1217-1332**: `StreamChunk` enum (all ~30 variants including Mcp*, Infer*, Exec*, Fetch*, Agent*, Provider*, NativeModel*)
+2. **Lines ~1334-1365**: `StreamResult` struct + `from_text()` method
+3. **Lines ~1367-1432**: `consume_rig_stream()` async function
 
-Move these items from mod.rs (lines 1217-1432):
-
+### Create `stream.rs` with:
 ```rust
-// tools/nika-engine/src/provider/rig/stream.rs
-
-//! Streaming types and helpers for rig provider inference.
+//! Streaming types and response consumer for rig provider inference.
+//!
+//! [`StreamChunk`] carries real-time streaming events to the TUI and CLI.
+//! [`StreamResult`] is the complete response after streaming finishes.
+//! [`consume_rig_stream`] is the shared loop for all rig-core providers.
 
 use futures::StreamExt;
 use rig::completion::GetTokenUsage;
@@ -149,59 +181,39 @@ use tokio::time::timeout;
 use crate::util::STREAM_CHUNK_TIMEOUT;
 use super::error::RigInferError;
 
-/// Chunk of streaming response for real-time display
-#[derive(Debug, Clone)]
-pub enum StreamChunk {
-    // ... ALL variants (Token, Thinking, Done, Error, Metrics, Mcp*, Infer*, Exec*, Fetch*, Agent*, Provider*, NativeModel*)
-}
-
-/// Complete streaming response with text and token usage metrics
-#[derive(Debug, Clone, Default)]
-pub struct StreamResult {
-    pub text: String,
-    pub input_tokens: u64,
-    pub output_tokens: u64,
-    pub total_tokens: u64,
-    pub cached_input_tokens: u64,
-    pub ttft_ms: Option<u64>,
-    pub request_id: Option<String>,
-}
-
-impl StreamResult {
-    pub fn from_text(text: impl Into<String>) -> Self { ... }
-}
+// [paste StreamChunk enum]
+// [paste StreamResult struct + impl]
 
 /// Consume a rig-core streaming response, forwarding chunks to the channel.
+///
+/// Shared streaming loop for all rig-core providers. Handles:
+/// - Per-chunk timeout via `STREAM_CHUNK_TIMEOUT`
+/// - Token text forwarding via `StreamChunk::Token`
+/// - Optional thinking/reasoning capture (Claude only)
+/// - Token usage extraction from `Final` response
 pub(super) async fn consume_rig_stream<R>(
-    stream: &mut rig::streaming::StreamingCompletionResponse<R>,
-    tx: &mpsc::Sender<StreamChunk>,
-    response_parts: &mut Vec<String>,
-    result: &mut StreamResult,
-    capture_thinking: bool,
-    stream_start: Instant,
+    // ... exact same signature and body
 ) -> Result<(), RigInferError>
 where
     R: Clone + Unpin + GetTokenUsage + serde::Serialize + serde::de::DeserializeOwned,
 { ... }
 ```
 
-### Key decisions:
-- `consume_rig_stream` is `pub(super)` — only used by `mod.rs` (RigProvider::infer_stream methods)
-- StreamChunk and StreamResult are `pub` — used across the engine
+### Key visibility: `consume_rig_stream` is `pub(super)` — only mod.rs calls it.
 
-### Step 3.2: In mod.rs, replace moved code with:
+### In mod.rs, replace the cut sections with:
 ```rust
-mod stream;
+pub mod stream;
 pub use stream::{StreamChunk, StreamResult};
 use stream::consume_rig_stream;
 ```
 
-### Step 3.3: Verify
+### Verify:
 ```bash
 cd tools && cargo check -p nika-engine
 ```
 
-### Step 3.4: Commit
+### Commit:
 ```
 refactor(provider): extract streaming types to rig/stream.rs
 ```
@@ -210,17 +222,23 @@ refactor(provider): extract streaming types to rig/stream.rs
 
 ## Phase 4: Extract tool.rs (~245 LOC)
 
-### Step 4.1: Create `tools/nika-engine/src/provider/rig/tool.rs`
+### What moves:
+From mod.rs, cut:
+1. **Lines ~1935-1951**: `NikaMcpToolDef` struct
+2. **Line ~1959**: `AgentMediaStaging` type alias
+3. **Lines ~1969-2013**: `NikaMcpTool` struct + methods (new, with_client, with_media_staging, tool_name)
+4. **Line ~2016**: `BoxFuture` type alias
+5. **Lines ~2018-2100**: `impl ToolDyn for NikaMcpTool`
 
-Move these items from mod.rs (lines 1935-2176):
-
+### Create `tool.rs` with:
 ```rust
-// tools/nika-engine/src/provider/rig/tool.rs
-
 //! NikaMcpTool — rig-core ToolDyn wrapper for MCP tools.
 //!
 //! Bridges rmcp 0.16 MCP tools to rig-core's agent system
 //! without version conflicts (rig uses rmcp 0.13 internally).
+//!
+//! Binary content from tool results is staged via [`AgentMediaStaging`]
+//! side-channel since rig's `ToolDyn::call()` returns `String` only.
 
 use std::future::Future;
 use std::pin::Pin;
@@ -232,36 +250,25 @@ use rig::tool::{ToolDyn, ToolError};
 use crate::mcp::McpClient;
 use super::error::McpToolError;
 
-/// Tool definition for Nika MCP tools.
-#[derive(Debug, Clone)]
-pub struct NikaMcpToolDef { ... }
-
-/// Shared media staging for agent tool calls.
-pub type AgentMediaStaging = Arc<dashmap::DashMap<String, Vec<crate::mcp::types::ContentBlock>>>;
-
-/// MCP tool wrapper implementing rig-core's `ToolDyn` trait.
-#[derive(Debug, Clone)]
-pub struct NikaMcpTool { ... }
-
-impl NikaMcpTool { ... }
-
-type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
-
-impl ToolDyn for NikaMcpTool { ... }
+// [paste NikaMcpToolDef]
+// [paste AgentMediaStaging type alias]
+// [paste NikaMcpTool struct + impls]
+// [paste BoxFuture type alias]
+// [paste ToolDyn impl]
 ```
 
-### Step 4.2: In mod.rs, replace moved code with:
+### In mod.rs, replace the cut sections with:
 ```rust
-mod tool;
+pub mod tool;
 pub use tool::{AgentMediaStaging, NikaMcpTool, NikaMcpToolDef};
 ```
 
-### Step 4.3: Verify
+### Verify:
 ```bash
 cd tools && cargo check -p nika-engine
 ```
 
-### Step 4.4: Commit
+### Commit:
 ```
 refactor(provider): extract NikaMcpTool to rig/tool.rs
 ```
@@ -270,221 +277,186 @@ refactor(provider): extract NikaMcpTool to rig/tool.rs
 
 ## Phase 5: Extract tests.rs (~1460 LOC)
 
-### Step 5.1: Create `tools/nika-engine/src/provider/rig/tests.rs`
+### What moves:
+From mod.rs, cut the ENTIRE block:
+- **Lines ~2177-3640**: `#[cfg(test)] mod tests { ... }`
 
-Move the entire `#[cfg(test)] mod tests { ... }` block (lines 2177-3640).
-
-### Step 5.2: In the test file, add super imports:
+### Create `tests.rs`:
 ```rust
-// At the top of tests.rs
-#[cfg(test)]
-mod tests {
-    use super::*;
-    // ... existing test imports
-}
+//! Tests for the rig provider module.
+
+use super::*;
+// ... keep all existing test imports from inside the mod tests block
 ```
 
-### Step 5.3: In mod.rs, replace the test module with:
+**Important:** The test module uses `use super::*;` which imports everything from mod.rs. Since mod.rs re-exports from error/stream/tool, all types remain accessible.
+
+### In mod.rs, replace the test block with:
 ```rust
 #[cfg(test)]
 #[path = "tests.rs"]
 mod tests;
 ```
 
-### Step 5.4: Verify
+### Verify (run the actual tests, not just compile):
 ```bash
 cd tools && cargo test -p nika-engine --lib -- provider::rig 2>&1 | tail -5
 ```
 
-### Step 5.5: Commit
+### Commit:
 ```
 refactor(provider): extract tests to rig/tests.rs
 ```
 
 ---
 
-## Phase 6: Clean Up mod.rs
+## Phase 6: Clean Up mod.rs Imports
 
-### Step 6.1: Organize imports in mod.rs
-After extraction, mod.rs should have:
-- Module doc comment
-- `mod error; mod stream; mod tool;` + `#[cfg(test)]` test module
-- `pub use` re-exports
-- RigProvider enum definition
-- InferOptions struct + helper functions
-- All `impl RigProvider` blocks (infer, infer_stream, verify, etc.)
-
-### Step 6.2: Remove unused imports
-After moving code, some imports will be unused in mod.rs. Remove them.
-
-### Step 6.3: Add module-level imports for moved types
-Where mod.rs uses types from submodules internally:
+### After all extractions, mod.rs should look like:
 ```rust
+//! Rig-core provider wrapper
+//! ... (existing doc comment)
+
+// Submodules
+pub mod error;
+pub mod stream;
+pub mod tool;
+
+#[cfg(test)]
+#[path = "tests.rs"]
+mod tests;
+
+// Re-exports for backward compat (all consumers use crate::provider::rig::X)
+pub use error::{McpToolError, McpToolErrorKind, ProviderVerifyError, ProviderVerifyResult, RigInferError};
+pub use stream::{StreamChunk, StreamResult};
+pub use tool::{AgentMediaStaging, NikaMcpTool, NikaMcpToolDef};
+
+// Internal re-imports for use within this module
 use error::RigInferError;
 use stream::{consume_rig_stream, StreamChunk, StreamResult};
+
+// External imports (remove any that were only needed by moved code)
+use crate::error_domains::ProviderError;
+use crate::mcp::McpClient;
+use crate::util::STREAM_CHUNK_TIMEOUT;
+use futures::StreamExt;
+use std::time::Instant;
+// ... etc.
+
+#[cfg(feature = "native-inference")]
+use crate::provider::native::InferenceBackend;
+use rig::client::{CompletionClient, ProviderClient};
+use rig::completion::{CompletionModel as _, GetTokenUsage, Prompt, PromptError, ToolDefinition};
+use rig::providers::{anthropic, deepseek, gemini, groq, mistral, openai, xai};
+use rig::streaming::StreamedAssistantContent;
+use rig::tool::ToolDyn;  // may no longer be needed if only tool.rs uses it
+use std::sync::Arc;
+use tokio::sync::mpsc;
+use tokio::time::timeout;
+
+// InferOptions, helper fns, RigProvider enum, all impl blocks remain here
 ```
 
-### Step 6.4: Verify full workspace
+### Step 6.1: Remove unused imports from mod.rs
+After moving types, these imports are likely no longer needed in mod.rs:
+- `std::future::Future` → moved to tool.rs
+- `std::pin::Pin` → moved to tool.rs
+- `rig::tool::{ToolDyn, ToolError}` → moved to tool.rs (unless RigProvider still needs ToolDyn)
+- `dashmap` → moved to tool.rs (via AgentMediaStaging)
+
+**CHECK**: Does mod.rs still use `ToolDyn`? It uses it in `infer_with_tools()` where it calls `.tool()` on agent builders. If so, keep the import. If not, remove.
+
+### Step 6.2: Run full workspace verification
 ```bash
 cd tools && cargo test --workspace --lib
 cd tools && cargo clippy --workspace -- -D warnings
 ```
 
-### Step 6.5: Commit
+### Commit:
 ```
 refactor(provider): clean up rig/mod.rs imports after split
 ```
 
 ---
 
-## Phase 7: Verify Re-exports (CRITICAL)
+## Phase 7: Final Verification
 
-### The re-export chain must be preserved:
-```
-nika-engine/src/provider/mod.rs line 54:
-  pub use rig::{NikaMcpTool, RigProvider, StreamResult};
-
-nika-engine/src/lib.rs line 93:
-  pub use provider::*;  (or specific types)
-```
-
-Since `rig/mod.rs` does `pub use tool::NikaMcpTool;` etc., the chain:
-- `provider::rig::NikaMcpTool` → works (re-exported from rig/mod.rs)
-- `provider::NikaMcpTool` → works (re-exported from provider/mod.rs)
-- External users see no change
-
-### Step 7.1: Grep for all import paths
+### 7.1: Line count check
 ```bash
-grep -rn "provider::rig::" tools/nika-engine/src/ --include="*.rs" | grep -v "tests"
-grep -rn "use crate::provider::rig" tools/nika-engine/src/ --include="*.rs"
+wc -l tools/nika-engine/src/provider/rig/*.rs
 ```
+Expected total: ~3640 (same as original, ±10 from added module headers)
 
-### Step 7.2: Verify no broken paths
+### 7.2: Test count check
 ```bash
 cd tools && cargo test --workspace --lib 2>&1 | grep "test result:"
 ```
-Expect: 8595 passed, 0 failed.
+Expected: 8595 passed, 0 failed.
+
+### 7.3: Clippy
+```bash
+cd tools && cargo clippy --workspace -- -D warnings
+```
+Expected: 0 warnings.
+
+### 7.4: Import path verification
+```bash
+# Every consumer must still resolve
+grep -rn "provider::rig::" tools/ --include="*.rs" | grep -v "target/" | grep -v "tests.rs"
+```
+Every match should compile cleanly.
+
+### 7.5: Push
+```bash
+git push
+```
 
 ---
 
-## Consumer Map (types that move → who uses them)
+## Re-export Chain Verification
 
-| Type | New Location | Consumers |
-|------|-------------|-----------|
-| `McpToolError` | error.rs | tool.rs (ToolDyn impl), agent loop |
-| `McpToolErrorKind` | error.rs | tool.rs |
-| `RigInferError` | error.rs | stream.rs (consume_rig_stream), mod.rs (infer methods), executor/infer.rs |
-| `StreamChunk` | stream.rs | mod.rs (infer_stream), runtime/executor/infer.rs, display/, TUI |
-| `StreamResult` | stream.rs | mod.rs (infer_stream), executor/infer.rs, agent loop |
-| `consume_rig_stream` | stream.rs (pub(super)) | mod.rs only |
-| `NikaMcpToolDef` | tool.rs | agent loop (providers.rs, thinking.rs) |
-| `NikaMcpTool` | tool.rs | agent loop, provider/mod.rs re-export |
-| `AgentMediaStaging` | tool.rs | agent loop (mod.rs) |
-| `RigProvider` | mod.rs (stays) | everywhere — enum + all impls stay together |
-| `InferOptions` | mod.rs (stays) | executor/infer.rs, agent loop |
-
----
-
-## Dependency Graph (submodule → what it imports)
+The critical chain that MUST be preserved:
 
 ```
-error.rs:
-  └── std::fmt, thiserror (no nika imports)
-
-stream.rs:
-  ├── error::RigInferError (super::error)
-  ├── crate::util::STREAM_CHUNK_TIMEOUT
-  ├── rig::streaming, rig::completion
-  ├── futures::StreamExt
-  └── tokio (mpsc, timeout)
-
-tool.rs:
-  ├── error::McpToolError (super::error)
-  ├── crate::mcp::McpClient
-  ├── rig::tool::{ToolDyn, ToolError}
-  ├── rig::completion::ToolDefinition
-  └── dashmap (for AgentMediaStaging)
-
-mod.rs:
-  ├── error::{McpToolError, RigInferError}
-  ├── stream::{StreamChunk, StreamResult, consume_rig_stream}
-  ├── tool::{NikaMcpTool, NikaMcpToolDef, AgentMediaStaging}
-  ├── rig::providers::{anthropic, openai, mistral, ...}
-  ├── rig::client::{CompletionClient, ProviderClient}
-  ├── crate::error_domains::ProviderError
-  └── crate::mcp::McpClient
+provider/rig/tool.rs        → defines NikaMcpTool
+provider/rig/mod.rs          → pub use tool::NikaMcpTool
+provider/mod.rs (line 54)   → pub use rig::NikaMcpTool       ← still resolves ✓
 ```
 
-**No circular dependencies.** The DAG is: error ← stream, error ← tool, all three ← mod.rs.
+Same for RigProvider (defined in mod.rs, re-exported by provider/mod.rs) and StreamResult (stream.rs → rig/mod.rs → provider/mod.rs).
+
+**No consumer uses `crate::provider::rig::stream::StreamChunk`** — they all use `crate::provider::rig::StreamChunk`. The re-export in rig/mod.rs makes this work.
 
 ---
 
 ## Risk Checklist
 
-- [ ] **`#[cfg(feature = "native-inference")]` blocks**: Lines 33-34, 1617-1655 in original. These STAY in mod.rs (they're inside RigProvider impl). No risk.
-- [ ] **Private helper functions**: `is_reasoning_model()`, `supports_native_structured_output()`, `build_response_format_params()` — these are used by mod.rs only, stay there.
-- [ ] **Re-exports from provider/mod.rs**: Line 54 `pub use rig::{NikaMcpTool, RigProvider, StreamResult};` — must still resolve after split.
-- [ ] **`BoxFuture` type alias**: Used only in tool.rs ToolDyn impl — moves with it.
-- [ ] **Tests reference private items**: Tests use `use super::*;` — verify they can still access everything via mod.rs re-exports.
+- [ ] `#[cfg(feature = "native-inference")]`: 22 gates, ALL stay in mod.rs. No risk.
+- [ ] Local macros (`vision_prompt!`, `vision_stream!`, `build_agent_with_tools!`, `build_and_prompt!`, `build_request_with_options!`): All defined inside method bodies. No cross-module risk.
+- [ ] `consume_rig_stream` generic bounds: Complex signature, but it stays as `pub(super)` in stream.rs. Only mod.rs calls it.
+- [ ] `BoxFuture` type alias: Moves to tool.rs. Only used by ToolDyn impl.
+- [ ] `extract_native_vision_parts()`: Private cfg-gated fn. Stays in mod.rs.
+- [ ] Re-exports from `provider/mod.rs` line 54: `pub use rig::{NikaMcpTool, RigProvider, StreamResult}` — all still resolve via rig/mod.rs re-exports.
+- [ ] Tests use `use super::*`: This imports from rig/mod.rs which re-exports everything. Tests remain valid.
 
 ---
 
-## Commit Strategy (7 commits)
+## Commit Strategy (6 commits)
 
 ```
-1. refactor(provider): rename rig.rs → rig/mod.rs (directory module)
+1. refactor(provider): convert rig.rs to directory module
 2. refactor(provider): extract error types to rig/error.rs
 3. refactor(provider): extract streaming types to rig/stream.rs
 4. refactor(provider): extract NikaMcpTool to rig/tool.rs
 5. refactor(provider): extract tests to rig/tests.rs
 6. refactor(provider): clean up rig/mod.rs imports after split
-7. chore(provider): update module documentation
 ```
 
 Each commit must:
-- Pass `cargo check -p nika-engine`
-- Pass `cargo test -p nika-engine --lib`
+- Pass `cargo check -p nika-engine` (phases 1-6)
+- Pass `cargo test -p nika-engine --lib` (phases 2-6)
+- Pass `cargo clippy --workspace -- -D warnings` (phase 6 only — full check)
 - End with co-author lines
-
----
-
-## Execution Methodology
-
-For EACH phase:
-1. **Read** the lines to move (verify content matches this plan)
-2. **Create** the new file with the moved content
-3. **Remove** the content from mod.rs
-4. **Add** the `mod` declaration + `pub use` re-exports
-5. **Fix** imports in the new file (`use super::` for sibling types)
-6. **Compile**: `cargo check -p nika-engine`
-7. **Test**: `cargo test -p nika-engine --lib -- provider::rig`
-8. **Commit**
-
-**NEVER skip the compile check between phases.** A compilation failure cascades and becomes much harder to diagnose.
-
----
-
-## Final Verification
-
-After all 7 commits:
-```bash
-# Full workspace
-cd tools && cargo test --workspace --lib
-cd tools && cargo clippy --workspace -- -D warnings
-
-# Verify line counts
-wc -l tools/nika-engine/src/provider/rig/*.rs
-# Expected:
-#   mod.rs    ~1630
-#   error.rs  ~90
-#   stream.rs ~215
-#   tool.rs   ~245
-#   tests.rs  ~1460
-#   Total:    ~3640 (same as original)
-
-# Verify test count unchanged
-# Expected: 8595 passed
-```
 
 ---
 
@@ -492,12 +464,21 @@ wc -l tools/nika-engine/src/provider/rig/*.rs
 
 | Phase | Risk | Effort | Dependencies |
 |-------|------|--------|-------------|
-| 1. Directory rename | ZERO | 5 min | None |
+| 1. Directory rename | ZERO | 2 min | None |
 | 2. error.rs | LOW | 15 min | Phase 1 |
-| 3. stream.rs | MEDIUM | 30 min | Phase 2 (needs RigInferError) |
-| 4. tool.rs | MEDIUM | 30 min | Phase 2 (needs McpToolError) |
-| 5. tests.rs | LOW | 15 min | Phases 2-4 |
+| 3. stream.rs | MEDIUM | 20 min | Phase 2 (needs RigInferError) |
+| 4. tool.rs | MEDIUM | 20 min | Phase 2 (needs McpToolError) |
+| 5. tests.rs | LOW | 10 min | Phases 2-4 |
 | 6. Cleanup | LOW | 15 min | Phase 5 |
-| 7. Docs | ZERO | 5 min | Phase 6 |
 
-**Total estimated effort:** ~2 hours (conservative)
+**Total estimated effort:** ~1.5 hours
+
+---
+
+## Research Sources
+
+This plan was informed by 4 parallel research agents:
+1. **rust-architect**: Deep section map, dependency graph, 22 cfg gates identified, no circular deps confirmed
+2. **rust-pro (consumer map)**: StreamChunk = 13 external files (most consumed), all import paths mapped
+3. **rig-core explorer**: rig-core uses flat per-provider modules; we don't need per-provider split
+4. **web-researcher**: Rust module split patterns, `pub(super)` visibility, `#[path]` attribute for tests
