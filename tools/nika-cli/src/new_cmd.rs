@@ -17,10 +17,22 @@ pub fn handle_new_command(
 
     let output_dir = output_dir.unwrap_or_else(|| PathBuf::from("."));
 
-    // Require name
-    let workflow_name = name.ok_or_else(|| NikaError::ValidationError {
+    // Require name, sanitize to basename only
+    let raw_name = name.ok_or_else(|| NikaError::ValidationError {
         reason: "Workflow name is required. Use: nika new <NAME> [--verb exec]".to_string(),
     })?;
+    let workflow_name = std::path::Path::new(&raw_name)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or(&raw_name)
+        .replace(|c: char| !c.is_alphanumeric() && c != '-' && c != '_', "-")
+        .trim_matches('-')
+        .to_string();
+    if workflow_name.is_empty() {
+        return Err(NikaError::ValidationError {
+            reason: format!("Invalid workflow name: '{raw_name}'. Use alphanumeric, hyphens, or underscores."),
+        });
+    }
 
     // Parse verb
     let verb = verb
