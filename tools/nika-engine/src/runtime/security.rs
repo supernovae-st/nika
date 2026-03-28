@@ -94,6 +94,31 @@ const BLOCKLIST: &[&str] = &[
     "env ",
     // Privilege escalation (su; sudo already covered above)
     "su ",
+    // ── Windows-specific dangerous patterns ──
+    // Destructive file/directory operations
+    "del /f",
+    "del /s",
+    "rd /s /q",
+    "rmdir /s /q",
+    // Disk formatting
+    "format c:",
+    "format d:",
+    // System shutdown/restart
+    "shutdown /s",
+    "shutdown /r",
+    // Shell wrappers (arbitrary command execution)
+    "cmd /c",
+    "cmd.exe /c",
+    "powershell -c",
+    "powershell.exe -c",
+    "powershell -enc",
+    "powershell -encodedcommand",
+    // Registry manipulation
+    "reg delete",
+    // Windows service manipulation
+    "sc delete",
+    // Privilege escalation
+    "runas ",
 ];
 
 /// Additional blocklist patterns that only apply in shell mode.
@@ -590,6 +615,64 @@ mod tests {
         assert!(err.to_string().contains("NIKA-053"));
         let err = check_blocklist("curl https://bad.com | base64 -d").unwrap_err();
         assert!(err.to_string().contains("NIKA-053"));
+    }
+
+    // =========================================================================
+    // Windows Blocklist Tests
+    // =========================================================================
+
+    #[test]
+    fn test_blocklist_rejects_windows_del() {
+        assert!(check_blocklist("del /f secret.txt").is_err());
+        assert!(check_blocklist("del /s C:\\Users").is_err());
+    }
+
+    #[test]
+    fn test_blocklist_rejects_windows_rmdir() {
+        assert!(check_blocklist("rd /s /q C:\\").is_err());
+        assert!(check_blocklist("rmdir /s /q C:\\Windows").is_err());
+    }
+
+    #[test]
+    fn test_blocklist_rejects_windows_format() {
+        assert!(check_blocklist("format c:").is_err());
+        assert!(check_blocklist("FORMAT C:").is_err());
+        assert!(check_blocklist("format d:").is_err());
+    }
+
+    #[test]
+    fn test_blocklist_rejects_windows_shutdown() {
+        assert!(check_blocklist("shutdown /s /t 0").is_err());
+        assert!(check_blocklist("shutdown /r").is_err());
+    }
+
+    #[test]
+    fn test_blocklist_rejects_windows_shell_wrappers() {
+        assert!(check_blocklist("cmd /c del *.*").is_err());
+        assert!(check_blocklist("cmd.exe /c format c:").is_err());
+        assert!(check_blocklist("powershell -c Remove-Item").is_err());
+        assert!(check_blocklist("powershell.exe -c Get-Process").is_err());
+        assert!(check_blocklist("powershell -enc dGVzdA==").is_err());
+        assert!(check_blocklist("powershell -encodedcommand dGVzdA==").is_err());
+    }
+
+    #[test]
+    fn test_blocklist_rejects_windows_registry_and_services() {
+        assert!(check_blocklist("reg delete HKLM\\SOFTWARE").is_err());
+        assert!(check_blocklist("sc delete MyService").is_err());
+    }
+
+    #[test]
+    fn test_blocklist_rejects_windows_runas() {
+        assert!(check_blocklist("runas /user:admin cmd").is_err());
+    }
+
+    #[test]
+    fn test_blocklist_allows_safe_windows_commands() {
+        // These should NOT be blocked
+        assert!(check_blocklist("dir C:\\Users").is_ok());
+        assert!(check_blocklist("type file.txt").is_ok());
+        assert!(check_blocklist("copy file1.txt file2.txt").is_ok());
     }
 
     // =========================================================================
