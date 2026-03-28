@@ -1345,6 +1345,15 @@ pub fn parse(source: &str, file_id: FileId) -> Result<RawWorkflow, ParseError> {
     // Parse workflow-level skills mapping (alias -> path)
     workflow.skills = parse_string_map(file_id, map, "skills")?;
 
+    // Parse routing configuration (fallback chains, smart routing)
+    workflow.routing = match map.get_node("routing") {
+        Some(node) => {
+            let span = node_to_span(file_id, node);
+            Some(Spanned::new(node_to_json(node), span))
+        }
+        None => None,
+    };
+
     // Parse tasks
     workflow.tasks = parse_tasks(file_id, map)?;
 
@@ -1820,6 +1829,16 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
         None => None,
     };
 
+    // Parse routing: config (task-level routing override)
+    let routing = match map.get_node("routing") {
+        Some(node) => {
+            let span = node_to_span(file_id, node);
+            let value = node_to_json(node);
+            Some(Spanned::new(value, span))
+        }
+        None => None,
+    };
+
     // Parse log: config (task-level log override)
     let log = match map.get_node("log") {
         Some(node) => {
@@ -1860,7 +1879,7 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
         concurrency: standalone_concurrency,
         fail_fast: standalone_fail_fast,
         structured,
-        routing: None,
+        routing,
         artifact,
         log,
     };
