@@ -278,6 +278,69 @@ mod tests {
     }
 
     // ========================================================================
+    // coerce_json_types tests
+    // ========================================================================
+
+    use super::coerce_json_types;
+
+    #[test]
+    fn coerce_json_types_i64() {
+        let mut v = serde_json::json!("42");
+        coerce_json_types(&mut v);
+        assert_eq!(v, serde_json::json!(42));
+    }
+
+    #[test]
+    fn coerce_json_types_large_u64() {
+        // u64::MAX = 18446744073709551615, i64::MAX = 9223372036854775807
+        // This value is > i64::MAX but valid u64 — must not lose precision via f64
+        let mut v = serde_json::json!("9999999999999999999");
+        coerce_json_types(&mut v);
+        assert!(v.is_number(), "should be coerced to a number");
+        assert_eq!(
+            v.as_u64(),
+            Some(9_999_999_999_999_999_999u64),
+            "large u64 must preserve full precision"
+        );
+    }
+
+    #[test]
+    fn coerce_json_types_f64() {
+        let mut v = serde_json::json!("3.14");
+        coerce_json_types(&mut v);
+        assert_eq!(v, serde_json::json!(3.14));
+    }
+
+    #[test]
+    fn coerce_json_types_bool_true() {
+        let mut v = serde_json::json!("true");
+        coerce_json_types(&mut v);
+        assert_eq!(v, serde_json::json!(true));
+    }
+
+    #[test]
+    fn coerce_json_types_bool_false() {
+        let mut v = serde_json::json!("false");
+        coerce_json_types(&mut v);
+        assert_eq!(v, serde_json::json!(false));
+    }
+
+    #[test]
+    fn coerce_json_types_null() {
+        let mut v = serde_json::json!("null");
+        coerce_json_types(&mut v);
+        assert_eq!(v, serde_json::Value::Null);
+    }
+
+    #[test]
+    fn coerce_json_types_nested_object() {
+        let mut v = serde_json::json!({"count": "100", "active": "true"});
+        coerce_json_types(&mut v);
+        assert_eq!(v["count"], serde_json::json!(100));
+        assert_eq!(v["active"], serde_json::json!(true));
+    }
+
+    // ========================================================================
     // Wave 2: Deep Audit - Bug-Proving Tests
     // ========================================================================
 
