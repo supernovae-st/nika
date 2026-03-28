@@ -32,6 +32,7 @@ pub mod builtin;
 pub mod chat_workflow;
 pub mod context;
 pub mod context_loader;
+pub mod event_guard;
 mod executor;
 pub mod hitl;
 pub mod limit_tracker;
