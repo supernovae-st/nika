@@ -2,7 +2,7 @@
 //!
 //! Both `nika lsp` (embedded) and `nika-lsp` (standalone) delegate
 //! ALL handler calls through this trait. The [`DefaultHandler`]
-//! implementation wires the pure functions from [`handlers`].
+//! implementation wires the pure functions from the `handlers` module.
 //!
 //! ## Usage
 //!

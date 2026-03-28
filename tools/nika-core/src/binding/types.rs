@@ -75,7 +75,7 @@ pub enum BindingSource {
 pub enum PathSegment {
     /// Named field: .name
     Field(Arc<str>),
-    /// Array index: [0]
+    /// Array index: \[0\]
     Index(usize),
 }
 
@@ -128,7 +128,7 @@ const RESERVED_INPUTS: &str = "inputs";
 const RESERVED_ENV: &str = "env";
 
 impl BindingPath {
-    /// Parse a binding path string like "$task_id.field[0].name"
+    /// Parse a binding path string like `$task_id.field[0].name`
     ///
     /// Reserved namespaces: context, inputs, env
     /// Everything else is a task reference or loop variable.

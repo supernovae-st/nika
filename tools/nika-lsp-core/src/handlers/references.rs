@@ -10,7 +10,7 @@
 
 /// A single reference location, expressed as byte offsets into the document.
 ///
-/// The tower-lsp shim converts these to `ls_types::Range` via [`LineIndex`].
+/// The tower-lsp shim converts these to `ls_types::Range` via `LineIndex`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReferenceEntry {
     /// Start byte offset of the reference in the document.

@@ -129,7 +129,7 @@ pub fn nika_home_opt() -> Option<PathBuf> {
 ///
 /// # Errors
 ///
-/// Returns [`NikaError::HomeDirectoryNotFound`] if the home directory cannot be determined
+/// Returns `NikaError::HomeDirectoryNotFound` if the home directory cannot be determined
 /// and `NIKA_HOME` is not set.
 pub fn nika_home_result() -> Result<PathBuf, crate::NikaError> {
     nika_home_opt().ok_or(crate::NikaError::HomeDirectoryNotFound)
@@ -139,7 +139,7 @@ pub fn nika_home_result() -> Result<PathBuf, crate::NikaError> {
 ///
 /// # Errors
 ///
-/// Returns [`NikaError::HomeDirectoryNotFound`] if the home directory cannot be determined.
+/// Returns `NikaError::HomeDirectoryNotFound` if the home directory cannot be determined.
 pub fn user_home_result() -> Result<PathBuf, crate::NikaError> {
     dirs::home_dir().ok_or(crate::NikaError::HomeDirectoryNotFound)
 }
