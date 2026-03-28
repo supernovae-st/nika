@@ -1264,6 +1264,20 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         }
     }
 
+    /// Emit a TaskFailed event for DAG scheduling failures.
+    ///
+    /// These failures occur before task execution (binding resolution, for_each
+    /// expansion, etc.) so they never get a TaskStarted event. We emit just
+    /// TaskFailed so the TUI, CLI renderer, and trace writer learn about them.
+    fn emit_scheduling_failure(&self, task_name: &str, error: &str, error_code: &str) {
+        self.event_log.emit(EventKind::TaskFailed {
+            task_id: Arc::from(task_name),
+            error: error.to_string(),
+            duration_ms: 0,
+            error_code: Some(error_code.to_string()),
+        });
+    }
+
     /// Main execution loop
     #[instrument(skip(self), fields(workflow_tasks = self.workflow.tasks.len()))]
     pub async fn run(&mut self) -> Result<String, NikaError> {
@@ -1681,12 +1695,11 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                 error = %e,
                                 "Failed to resolve bindings for decompose"
                             );
+                            let err_msg = format!("Decompose binding resolution failed: {e}");
+                            self.emit_scheduling_failure(&task.name, &err_msg, "NIKA-026");
                             self.datastore.insert(
                                 intern(&task.name),
-                                TaskResult::failed(
-                                    format!("Decompose binding resolution failed: {e}"),
-                                    std::time::Duration::ZERO,
-                                ),
+                                TaskResult::failed(err_msg, std::time::Duration::ZERO),
                             );
                             continue;
                         }
@@ -1718,6 +1731,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                 item_count: 0,
                                 duration_ms: decompose_start.elapsed().as_millis() as u64,
                             });
+                            self.emit_scheduling_failure(&task.name, &e.to_string(), "NIKA-026");
                             self.datastore.insert(
                                 intern(&task.name),
                                 TaskResult::failed(e.to_string(), std::time::Duration::ZERO),
@@ -1736,6 +1750,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                 task_id: task.name.clone(),
                                 timeout_secs: DECOMPOSE_TIMEOUT.as_secs(),
                             };
+                            self.emit_scheduling_failure(&task.name, &timeout_error.to_string(), "NIKA-026");
                             self.datastore.insert(
                                 intern(&task.name),
                                 TaskResult::failed(timeout_error.to_string(), DECOMPOSE_TIMEOUT),
@@ -1760,12 +1775,11 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                     error = %e,
                                     "Failed to resolve bindings for for_each"
                                 );
+                                let err_msg = format!("for_each binding resolution failed: {e}");
+                                self.emit_scheduling_failure(&task.name, &err_msg, "NIKA-026");
                                 self.datastore.insert(
                                     intern(&task.name),
-                                    TaskResult::failed(
-                                        format!("for_each binding resolution failed: {e}"),
-                                        std::time::Duration::ZERO,
-                                    ),
+                                    TaskResult::failed(err_msg, std::time::Duration::ZERO),
                                 );
                                 continue;
                             }
@@ -1778,29 +1792,27 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                     Some(value) => match value_to_array(&value) {
                                         Some(items) => Some(items),
                                         None => {
+                                            let err_msg = format!(
+                                                "for_each binding '${}' resolved to non-array value",
+                                                alias
+                                            );
+                                            self.emit_scheduling_failure(&task.name, &err_msg, "NIKA-026");
                                             self.datastore.insert(
                                                 intern(&task.name),
-                                                TaskResult::failed(
-                                                    format!(
-                                                        "for_each binding '${}' resolved to non-array value",
-                                                        alias
-                                                    ),
-                                                    std::time::Duration::ZERO,
-                                                ),
+                                                TaskResult::failed(err_msg, std::time::Duration::ZERO),
                                             );
                                             continue;
                                         }
                                     },
                                     None => {
+                                        let err_msg = format!(
+                                            "for_each input '{}' not found in workflow inputs",
+                                            alias
+                                        );
+                                        self.emit_scheduling_failure(&task.name, &err_msg, "NIKA-026");
                                         self.datastore.insert(
                                             intern(&task.name),
-                                            TaskResult::failed(
-                                                format!(
-                                                    "for_each input '{}' not found in workflow inputs",
-                                                    alias
-                                                ),
-                                                std::time::Duration::ZERO,
-                                            ),
+                                            TaskResult::failed(err_msg, std::time::Duration::ZERO),
                                         );
                                         continue;
                                     }
@@ -1809,12 +1821,11 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                 // $alias or $alias.nested.path format
                                 let mut segments = alias.split('.');
                                 let Some(base_alias) = segments.next() else {
+                                    let err_msg = "for_each: empty alias after '$' prefix".to_string();
+                                    self.emit_scheduling_failure(&task.name, &err_msg, "NIKA-026");
                                     self.datastore.insert(
                                         intern(&task.name),
-                                        TaskResult::failed(
-                                            "for_each: empty alias after '$' prefix".to_string(),
-                                            std::time::Duration::ZERO,
-                                        ),
+                                        TaskResult::failed(err_msg, std::time::Duration::ZERO),
                                     );
                                     continue;
                                 };
@@ -1859,15 +1870,14 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                             match next {
                                                 Some(v) => value_ref = v,
                                                 None => {
+                                                    let err_msg = format!(
+                                                        "for_each binding '${}': nested path segment '{}' not found",
+                                                        alias, segment
+                                                    );
+                                                    self.emit_scheduling_failure(&task.name, &err_msg, "NIKA-026");
                                                     self.datastore.insert(
                                                         intern(&task.name),
-                                                        TaskResult::failed(
-                                                            format!(
-                                                                "for_each binding '${}': nested path segment '{}' not found",
-                                                                alias, segment
-                                                            ),
-                                                            std::time::Duration::ZERO,
-                                                        ),
+                                                        TaskResult::failed(err_msg, std::time::Duration::ZERO),
                                                     );
                                                     traversal_failed = true;
                                                     break;
@@ -1882,30 +1892,28 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                         match value_to_array(value_ref) {
                                             Some(items) => Some(items),
                                             None => {
+                                                let err_msg = format!(
+                                                    "for_each binding '${}' resolved to non-array value",
+                                                    alias
+                                                );
+                                                self.emit_scheduling_failure(&task.name, &err_msg, "NIKA-026");
                                                 self.datastore.insert(
                                                     intern(&task.name),
-                                                    TaskResult::failed(
-                                                        format!(
-                                                            "for_each binding '${}' resolved to non-array value",
-                                                            alias
-                                                        ),
-                                                        std::time::Duration::ZERO,
-                                                    ),
+                                                    TaskResult::failed(err_msg, std::time::Duration::ZERO),
                                                 );
                                                 continue;
                                             }
                                         }
                                     }
                                     Err(e) => {
+                                        let err_msg = format!(
+                                            "for_each binding '{}' not found: {}",
+                                            base_alias, e
+                                        );
+                                        self.emit_scheduling_failure(&task.name, &err_msg, "NIKA-026");
                                         self.datastore.insert(
                                             intern(&task.name),
-                                            TaskResult::failed(
-                                                format!(
-                                                    "for_each binding '{}' not found: {}",
-                                                    base_alias, e
-                                                ),
-                                                std::time::Duration::ZERO,
-                                            ),
+                                            TaskResult::failed(err_msg, std::time::Duration::ZERO),
                                         );
                                         continue;
                                     }
@@ -1922,29 +1930,27 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                         Some(value) => match value_to_array(&value) {
                                             Some(items) => Some(items),
                                             None => {
+                                                let err_msg = format!(
+                                                    "for_each binding '{{{{inputs.{}}}}}' resolved to non-array value",
+                                                    param_path
+                                                );
+                                                self.emit_scheduling_failure(&task.name, &err_msg, "NIKA-026");
                                                 self.datastore.insert(
                                                     intern(&task.name),
-                                                    TaskResult::failed(
-                                                        format!(
-                                                            "for_each binding '{{{{inputs.{}}}}}' resolved to non-array value",
-                                                            param_path
-                                                        ),
-                                                        std::time::Duration::ZERO,
-                                                    ),
+                                                    TaskResult::failed(err_msg, std::time::Duration::ZERO),
                                                 );
                                                 continue;
                                             }
                                         },
                                         None => {
+                                            let err_msg = format!(
+                                                "for_each input '{}' not found in workflow inputs",
+                                                full_path
+                                            );
+                                            self.emit_scheduling_failure(&task.name, &err_msg, "NIKA-026");
                                             self.datastore.insert(
                                                 intern(&task.name),
-                                                TaskResult::failed(
-                                                    format!(
-                                                        "for_each input '{}' not found in workflow inputs",
-                                                        full_path
-                                                    ),
-                                                    std::time::Duration::ZERO,
-                                                ),
+                                                TaskResult::failed(err_msg, std::time::Duration::ZERO),
                                             );
                                             continue;
                                         }
@@ -2008,30 +2014,28 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                             }
 
                                             if traversal_failed {
+                                                let err_msg = format!(
+                                                    "for_each items: path traversal failed for '{{{{with.{}}}}}'",
+                                                    path
+                                                );
+                                                self.emit_scheduling_failure(&task.name, &err_msg, "NIKA-026");
                                                 self.datastore.insert(
                                                     intern(&task.name),
-                                                    TaskResult::failed(
-                                                        format!(
-                                                            "for_each items: path traversal failed for '{{{{with.{}}}}}'",
-                                                            path
-                                                        ),
-                                                        std::time::Duration::ZERO,
-                                                    ),
+                                                    TaskResult::failed(err_msg, std::time::Duration::ZERO),
                                                 );
                                                 continue;
                                             } else {
                                                 match value_to_array(value_ref) {
                                                     Some(items) => Some(items),
                                                     None => {
+                                                        let err_msg = format!(
+                                                            "for_each binding '{{{{with.{}}}}}' resolved to non-array value",
+                                                            path
+                                                        );
+                                                        self.emit_scheduling_failure(&task.name, &err_msg, "NIKA-026");
                                                         self.datastore.insert(
                                                             intern(&task.name),
-                                                            TaskResult::failed(
-                                                                format!(
-                                                                    "for_each binding '{{{{with.{}}}}}' resolved to non-array value",
-                                                                    path
-                                                                ),
-                                                                std::time::Duration::ZERO,
-                                                            ),
+                                                            TaskResult::failed(err_msg, std::time::Duration::ZERO),
                                                         );
                                                         continue;
                                                     }
@@ -2039,15 +2043,14 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                             }
                                         }
                                         Err(e) => {
+                                            let err_msg = format!(
+                                                "for_each binding '{}' not found: {}",
+                                                alias, e
+                                            );
+                                            self.emit_scheduling_failure(&task.name, &err_msg, "NIKA-026");
                                             self.datastore.insert(
                                                 intern(&task.name),
-                                                TaskResult::failed(
-                                                    format!(
-                                                        "for_each binding '{}' not found: {}",
-                                                        alias, e
-                                                    ),
-                                                    std::time::Duration::ZERO,
-                                                ),
+                                                TaskResult::failed(err_msg, std::time::Duration::ZERO),
                                             );
                                             continue;
                                         }
@@ -2180,6 +2183,12 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                         match permit {
                                             Ok(p) => p,
                                             Err(_) => {
+                                                event_log.emit(EventKind::TaskFailed {
+                                                    task_id: Arc::clone(&task_id),
+                                                    error: "Semaphore closed unexpectedly".to_string(),
+                                                    duration_ms: 0,
+                                                    error_code: Some("NIKA-026".to_string()),
+                                                });
                                                 return IterationResult {
                                                     store_id: task_id,
                                                     result: TaskResult::failed(
@@ -2243,16 +2252,15 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     // for_each was declared but items could not be resolved
                     // (unrecognized pattern, malformed JSON, malformed template).
                     // Fail explicitly instead of silently running as a regular task.
+                    let err_msg = format!(
+                        "for_each items could not be resolved for task '{}'. \
+                         Check the binding reference.",
+                        task.name
+                    );
+                    self.emit_scheduling_failure(&task.name, &err_msg, "NIKA-026");
                     self.datastore.insert(
                         intern(&task.name),
-                        TaskResult::failed(
-                            format!(
-                                "for_each items could not be resolved for task '{}'. \
-                                 Check the binding reference.",
-                                task.name
-                            ),
-                            std::time::Duration::ZERO,
-                        ),
+                        TaskResult::failed(err_msg, std::time::Duration::ZERO),
                     );
                     continue;
                 } else {
