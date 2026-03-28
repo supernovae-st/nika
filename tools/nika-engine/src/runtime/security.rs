@@ -340,8 +340,12 @@ pub(crate) fn sensitive_env_vars() -> Vec<&'static str> {
 
     // Common sensitive env vars beyond LLM providers
     vars.extend_from_slice(&[
+        "AWS_ACCESS_KEY_ID",
         "AWS_SECRET_ACCESS_KEY",
         "AWS_SESSION_TOKEN",
+        "GOOGLE_APPLICATION_CREDENTIALS",
+        "AZURE_CLIENT_SECRET",
+        "SCALEWAY_SECRET_KEY",
         "DATABASE_URL",
         "REDIS_URL",
         "MONGO_URI",
