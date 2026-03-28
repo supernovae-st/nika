@@ -1078,19 +1078,23 @@ impl TaskExecutor {
                         });
                     }
                     // SECURITY: SSRF protection — block internal/metadata endpoints
-                    if let Ok(parsed) = url::Url::parse(&resolved_url) {
-                        if let Some(host) = parsed.host_str() {
-                            let h = host.to_lowercase();
-                            let h_normalized = h.trim_start_matches('[').trim_end_matches(']');
-                            if crate::runtime::policy::is_ssrf_blocked(h_normalized) {
-                                return Err(NikaError::FetchError {
-                                    reason: format!(
-                                        "SSRF protection: image_url host '{}' is blocked",
-                                        h_normalized
-                                    ),
-                                });
-                            }
+                    let parsed = url::Url::parse(&resolved_url).map_err(|e| {
+                        NikaError::ValidationError {
+                            reason: format!("ImageUrl is not a valid URL: {}", e),
                         }
+                    })?;
+                    let host = parsed.host_str().ok_or_else(|| NikaError::ValidationError {
+                        reason: "ImageUrl has no host".to_string(),
+                    })?;
+                    let h = host.to_lowercase();
+                    let h_normalized = h.trim_start_matches('[').trim_end_matches(']');
+                    if crate::runtime::policy::is_ssrf_blocked(h_normalized) {
+                        return Err(NikaError::FetchError {
+                            reason: format!(
+                                "SSRF protection: image_url host '{}' is blocked",
+                                h_normalized
+                            ),
+                        });
                     }
                     let rig_detail = Some(match detail {
                         crate::ast::content::ImageDetail::Low => {
