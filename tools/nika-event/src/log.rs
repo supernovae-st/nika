@@ -224,6 +224,9 @@ pub enum EventKind {
         provider: String,
         model: String,
         prompt_len: usize,
+        /// Custom endpoint URL (if using OpenAI-compatible server)
+        #[serde(skip_serializing_if = "Option::is_none")]
+        endpoint_url: Option<String>,
     },
     ProviderResponded {
         task_id: Arc<str>,
@@ -2306,6 +2309,7 @@ mod tests {
                 provider: "anthropic".into(),
                 model: "claude-3-haiku".into(),
                 prompt_len: 42,
+                endpoint_url: None,
             },
             EventKind::ProviderResponded {
                 task_id: "t1".into(),

@@ -632,6 +632,7 @@ impl CliRenderer {
                 provider,
                 model,
                 prompt_len,
+                ..
             } => {
                 if self.detail.show_sub_events() {
                     println!(

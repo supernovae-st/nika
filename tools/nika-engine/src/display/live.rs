@@ -1679,6 +1679,7 @@ mod tests {
                 provider: "anthropic".to_string(),
                 model: "claude-sonnet-4-20250514".to_string(),
                 prompt_len: 500,
+                endpoint_url: None,
             },
         ));
         // No panic, no assertion on output (hidden target) — just verifying no crash

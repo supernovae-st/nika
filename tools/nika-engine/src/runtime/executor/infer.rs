@@ -203,6 +203,7 @@ impl TaskExecutor {
                     .unwrap_or("mock-model")
                     .to_string(),
                 prompt_len: prompt.len(),
+                endpoint_url: None,
             });
 
             let mock_response = serde_json::json!({
@@ -279,6 +280,7 @@ impl TaskExecutor {
                 .unwrap_or_else(|| provider.default_model())
                 .to_string(),
             prompt_len: prompt.len(),
+            endpoint_url: resolved_base_url.clone(),
         });
 
         // POLICY CHECK: token budget (atomic reserve to prevent TOCTOU with concurrent for_each)

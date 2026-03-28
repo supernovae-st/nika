@@ -3571,6 +3571,7 @@ fn test_provider_called_updates_task_and_metrics() {
             provider: "anthropic".to_string(),
             model: "claude-sonnet-4-6".to_string(),
             prompt_len: 1500,
+            endpoint_url: None,
         },
         200,
     );
