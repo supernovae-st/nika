@@ -1165,7 +1165,15 @@ impl TaskExecutor {
         // Strip <think> blocks from reasoning models (Qwen, DeepSeek-R1)
         let vision_result = super::verbs::strip_think_tags(&vision_result);
 
-        let est_in = estimate_tokens(prompt.len());
+        // Vision token estimate: text tokens + approximate image tokens.
+        // Image tokens vary by provider/resolution, but ~85 tokens per 512×512
+        // tile is a reasonable approximation (1 token per ~750 bytes).
+        let image_tokens: usize = if total_bytes > 0 {
+            ((total_bytes / 750).max(85)) as usize
+        } else {
+            0
+        };
+        let est_in = estimate_tokens(prompt.len()) + image_tokens as u64;
         let est_out = estimate_tokens(vision_result.len());
         self.policy_enforcer
             .write()
