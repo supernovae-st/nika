@@ -1370,6 +1370,15 @@ pub fn fix_suggestion_for_code(code: &str) -> Option<&'static str> {
         "NIKA-096" => Some("Check command/URL is valid"),
         "NIKA-097" => Some("The workflow was cancelled. No action needed."),
         "NIKA-098" => Some("A task panicked unexpectedly — check task logic"),
+        "NIKA-034" => {
+            Some("Add model: to your workflow header or task (e.g., model: claude-sonnet-4-20250514)")
+        }
+        "NIKA-071" => Some("Check that the alias is declared in the task's with: block"),
+        "NIKA-083" => Some("Check for circular dependencies or unresolvable task graph"),
+        "NIKA-110" => Some("Check MCP tool parameters and server availability"),
+        "NIKA-112" => {
+            Some("Check guardrail configuration — output did not meet quality constraints")
+        }
         _ => None,
     }
 }
