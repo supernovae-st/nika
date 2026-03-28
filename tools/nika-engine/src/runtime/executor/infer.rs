@@ -1176,6 +1176,9 @@ impl TaskExecutor {
             cost_usd: if cost.is_finite() { cost } else { 0.0 },
         });
 
+        // Run guardrails on vision output (same as non-vision path)
+        self.check_infer_guardrails(task_id, infer, &vision_result)?;
+
         Ok(vision_result)
     }
 
