@@ -555,19 +555,20 @@ impl Runner {
                     warnings += 1;
                     continue;
                 }
-                // Size check: CAS files may have compression framing (4-byte NK
-                // header + optional zstd), so on-disk size != original size.
-                // Only warn when on-disk is SMALLER than expected (truncation),
-                // since framing/compression always increases or changes size.
+                // Size check: with media-compression, CAS files have a 4-byte NK
+                // framing header and may be zstd-compressed, so on-disk size
+                // differs from MediaRef.size_bytes. Skip size validation when
+                // compression is enabled; existence check above is sufficient.
+                #[cfg(not(feature = "media-compression"))]
                 match std::fs::metadata(&media_ref.path) {
                     Ok(meta) => {
-                        if meta.len() < media_ref.size_bytes {
+                        if meta.len() != media_ref.size_bytes {
                             tracing::warn!(
                                 task_id = %task_id,
                                 hash = %media_ref.hash,
                                 expected = media_ref.size_bytes,
                                 actual = meta.len(),
-                                "Media integrity: CAS file smaller than expected (possible truncation)"
+                                "Media integrity: size mismatch"
                             );
                             warnings += 1;
                         }

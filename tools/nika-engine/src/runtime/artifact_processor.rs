@@ -192,11 +192,25 @@ async fn write_single_artifact(
     media_refs: &[MediaRef],
     artifact_index: usize,
 ) -> Result<WriteResult, NikaError> {
-    // Determine format (task spec > workflow default)
-    let format = output_spec
-        .format
-        .or(workflow_config.map(|c| c.format))
-        .unwrap_or(ArtifactFormat::Text);
+    // Determine format (task spec > workflow default).
+    //
+    // Auto-promote to Binary when the task produced media content but no
+    // explicit format was set. Without this, a workflow like:
+    //   artifact: { path: output.png }
+    // would default to Text and write the JSON metadata string instead of
+    // the actual image bytes — the root cause of "broken pixel" artifacts.
+    let explicit_format = output_spec.format.or(workflow_config.map(|c| c.format));
+    let format = match explicit_format {
+        Some(f) => f,
+        None if !media_refs.is_empty() => {
+            debug!(
+                task_id = %task_id,
+                "Auto-promoting artifact format to Binary (task produced media)"
+            );
+            ArtifactFormat::Binary
+        }
+        None => ArtifactFormat::Text,
+    };
 
     // Determine mode (task spec > workflow default) — computed before binary
     // branch so that binary artifacts can validate and reject unsupported modes.
@@ -2252,5 +2266,127 @@ mod tests {
 
         let written = std::fs::read(&result.paths[0]).unwrap();
         assert_eq!(written, binary_data);
+    }
+
+    /// Auto-promote to Binary when task produced media but format is unspecified.
+    ///
+    /// Before this fix, `artifact: { path: output.png }` without `format: binary`
+    /// would write the JSON metadata string instead of the actual image bytes.
+    #[tokio::test]
+    async fn test_auto_promote_binary_when_media_refs_present() {
+        let base = tempdir().unwrap();
+        let artifact_dir = base.path().join(".nika/artifacts");
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+
+        // Create a CAS-like file with binary content
+        let cas_dir = base.path().join("cas");
+        std::fs::create_dir_all(&cas_dir).unwrap();
+        let binary_data = b"\x89PNG\r\n\x1a\n fake png data";
+        let cas_file = cas_dir.join("testcas");
+        std::fs::write(&cas_file, binary_data).unwrap();
+
+        let media_refs = vec![MediaRef {
+            hash: "blake3:abc123".to_string(),
+            mime_type: "image/png".to_string(),
+            size_bytes: binary_data.len() as u64,
+            path: cas_file,
+            extension: "png".to_string(),
+            created_by: "gen_img".to_string(),
+            metadata: serde_json::Map::new(),
+        }];
+
+        let bindings = ResolvedBindings::default();
+        let datastore = RunContext::new();
+
+        // NO format specified — should auto-detect Binary from media_refs
+        let spec = ArtifactSpec::Single(ArtifactOutput {
+            path: "output.png".to_string(),
+            source: None,
+            template: None,
+            format: None, // <-- deliberately omitted
+            mode: None,
+        });
+
+        let json_output = r#"{"hash":"blake3:abc123","mime_type":"image/png","size_bytes":22}"#;
+
+        let result = process_task_artifacts(
+            "gen_img",
+            json_output,
+            &spec,
+            None,
+            base.path(),
+            None,
+            &bindings,
+            &datastore,
+            &media_refs,
+        )
+        .await;
+
+        assert_eq!(result.written, 1, "errors: {:?}", result.errors);
+
+        // The artifact should contain the actual binary data, NOT the JSON string
+        let written = std::fs::read(&result.paths[0]).unwrap();
+        assert_eq!(
+            written, binary_data,
+            "Artifact should contain binary image data, not JSON metadata"
+        );
+        assert!(
+            !String::from_utf8_lossy(&written).contains("blake3:"),
+            "Artifact must not contain JSON metadata hash"
+        );
+    }
+
+    /// When format IS explicitly set to Text, media_refs should NOT auto-promote.
+    #[tokio::test]
+    async fn test_explicit_text_format_not_overridden_by_media_refs() {
+        let base = tempdir().unwrap();
+        let artifact_dir = base.path().join(".nika/artifacts");
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+
+        let media_refs = vec![MediaRef {
+            hash: "blake3:abc123".to_string(),
+            mime_type: "image/png".to_string(),
+            size_bytes: 100,
+            path: PathBuf::from("/nonexistent"),
+            extension: "png".to_string(),
+            created_by: "gen_img".to_string(),
+            metadata: serde_json::Map::new(),
+        }];
+
+        let bindings = ResolvedBindings::default();
+        let datastore = RunContext::new();
+
+        // Explicit format: text — should NOT auto-promote
+        let spec = ArtifactSpec::Single(ArtifactOutput {
+            path: "metadata.json".to_string(),
+            source: None,
+            template: None,
+            format: Some(ArtifactFormat::Text),
+            mode: None,
+        });
+
+        let json_output = r#"{"hash":"blake3:abc123"}"#;
+
+        let result = process_task_artifacts(
+            "gen_img",
+            json_output,
+            &spec,
+            None,
+            base.path(),
+            None,
+            &bindings,
+            &datastore,
+            &media_refs,
+        )
+        .await;
+
+        assert_eq!(result.written, 1, "errors: {:?}", result.errors);
+
+        // Should contain the text output, not binary
+        let written = std::fs::read_to_string(&result.paths[0]).unwrap();
+        assert!(
+            written.contains("blake3:"),
+            "Explicit text format should write JSON metadata"
+        );
     }
 }

@@ -112,11 +112,12 @@ pub async fn handle_provider_command(
             let total = all_providers.len();
             for provider in &all_providers {
                 let env_var = provider_to_env_var(provider).unwrap_or("UNKNOWN_API_KEY");
-                if NikaKeyring::exists(provider)
-                    || std::env::var(env_var)
-                        .map(|v| !v.is_empty())
-                        .unwrap_or(false)
-                {
+                // Check env var FIRST to avoid unnecessary keychain access
+                // (keychain triggers macOS security prompts for unconfigured providers)
+                let has_env = std::env::var(env_var)
+                    .map(|v| !v.is_empty())
+                    .unwrap_or(false);
+                if has_env || NikaKeyring::exists(provider) {
                     configured += 1;
                 }
             }
@@ -136,28 +137,25 @@ pub async fn handle_provider_command(
             println!();
             for (i, provider) in all_providers.iter().enumerate() {
                 let env_var = provider_to_env_var(provider).unwrap_or("UNKNOWN_API_KEY");
-                let has_keychain = NikaKeyring::exists(provider);
+                // Check env var FIRST to minimize keychain access (avoids macOS popups)
                 let has_env = std::env::var(env_var)
                     .map(|v| !v.is_empty())
                     .unwrap_or(false);
+                // Only query keychain if env var is not set
+                let has_keychain = if has_env { false } else { NikaKeyring::exists(provider) };
                 let is_last = i == all_providers.len() - 1;
                 let connector = tree_connector(is_last).dimmed();
-                let (icon, source, masked) = match (has_keychain, has_env) {
+                let (icon, source, masked) = match (has_env, has_keychain) {
                     (true, _) => {
-                        let m = NikaKeyring::get_masked(provider).unwrap_or_default();
-                        let s = if has_env {
-                            "keychain + env"
-                        } else {
-                            "keychain"
-                        };
-                        (StatusIcon::Ok, s, m)
-                    }
-                    (false, true) => {
                         let m = std::env::var(env_var)
                             .ok()
                             .map(|k| mask_api_key(&k))
                             .unwrap_or_default();
                         (StatusIcon::Ok, "env", m)
+                    }
+                    (false, true) => {
+                        let m = NikaKeyring::get_masked(provider).unwrap_or_default();
+                        (StatusIcon::Ok, "keychain", m)
                     }
                     (false, false) => (StatusIcon::Fail, "", String::new()),
                 };
