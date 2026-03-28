@@ -443,8 +443,6 @@ pub struct McpClient {
     /// Response cache (None if caching disabled)
     cache: Option<ResponseCache>,
 
-    /// Whether the last call_tool() was a cache hit (for event logging)
-    last_cache_hit: AtomicBool,
 }
 
 impl std::fmt::Debug for McpClient {
@@ -456,7 +454,6 @@ impl std::fmt::Debug for McpClient {
             .field("has_adapter", &self.adapter.is_some())
             .field("has_validator", &self.validator.is_some())
             .field("has_cache", &self.cache.is_some())
-            .field("last_cache_hit", &self.last_cache_hit)
             .finish()
     }
 }
@@ -505,7 +502,6 @@ impl McpClient {
             adapter: Some(adapter),
             validator: None,
             cache: None,
-            last_cache_hit: AtomicBool::new(false),
         })
     }
 
@@ -558,14 +554,6 @@ impl McpClient {
         self.cache.as_ref().map(|c| c.stats())
     }
 
-    /// Check if the last `call_tool()` invocation was served from cache.
-    ///
-    /// This method returns the cached status from the most recent tool call.
-    /// Use this after `call_tool()` to determine if the response was cached.
-    pub fn was_last_call_cached(&self) -> bool {
-        self.last_cache_hit.load(Ordering::SeqCst)
-    }
-
     /// Create a mock MCP client for testing.
     ///
     /// The mock client is pre-connected and returns canned responses:
@@ -587,7 +575,6 @@ impl McpClient {
             adapter: None,
             validator: None,
             cache: None,
-            last_cache_hit: AtomicBool::new(false),
         }
     }
 
@@ -933,18 +920,16 @@ impl McpClient {
         // Check cache for a hit (before making the actual call)
         if let Some(ref cache) = self.cache {
             if let Some(cached_result) = cache.get(name, &params) {
-                self.last_cache_hit.store(true, Ordering::SeqCst);
                 tracing::debug!(
                     mcp_server = %self.name,
                     tool = %name,
                     "Cache hit for MCP tool call"
                 );
-                return Ok((*cached_result).clone());
+                let mut result = (*cached_result).clone();
+                result.was_cached = true;
+                return Ok(result);
             }
         }
-
-        // Not a cache hit - mark as miss
-        self.last_cache_hit.store(false, Ordering::SeqCst);
 
         if self.is_mock {
             if !self.connected.load(Ordering::SeqCst) {
@@ -1090,17 +1075,16 @@ impl McpClient {
         // Check cache for a hit
         if let Some(ref cache) = self.cache {
             if let Some(cached_result) = cache.get(name, &params) {
-                self.last_cache_hit.store(true, Ordering::SeqCst);
                 tracing::debug!(
                     mcp_server = %self.name,
                     tool = %name,
                     "Cache hit for MCP tool call"
                 );
-                return Ok((*cached_result).clone());
+                let mut result = (*cached_result).clone();
+                result.was_cached = true;
+                return Ok(result);
             }
         }
-
-        self.last_cache_hit.store(false, Ordering::SeqCst);
 
         if self.is_mock {
             if !self.connected.load(Ordering::SeqCst) {
@@ -2004,18 +1988,18 @@ mod tests {
         let params = serde_json::json!({"focus_key": "qr-code"});
 
         // First call - cache miss
-        let _result1 = client
+        let result1 = client
             .call_tool_with_retry_events("novanet_context", params.clone(), &task_id, &event_log)
             .await
             .unwrap();
-        assert!(!client.was_last_call_cached());
+        assert!(!result1.was_cached);
 
         // Second call - should hit cache
-        let _result2 = client
+        let result2 = client
             .call_tool_with_retry_events("novanet_context", params.clone(), &task_id, &event_log)
             .await
             .unwrap();
-        assert!(client.was_last_call_cached());
+        assert!(result2.was_cached);
     }
 
     #[tokio::test]

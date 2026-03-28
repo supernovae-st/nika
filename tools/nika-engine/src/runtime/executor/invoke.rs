@@ -314,12 +314,16 @@ impl TaskExecutor {
                     datastore.set_media(task_id, media_refs);
                 }
 
+                // Capture cache status before converting to JSON value
+                let was_cached = tool_result.was_cached;
+
                 // Text output flows as before (backward compat)
                 let text = tool_result.text();
-                serde_json::from_str(&text).unwrap_or_else(|_| {
+                let json_value = serde_json::from_str(&text).unwrap_or_else(|_| {
                     tracing::trace!(task = %task_id, "MCP tool returned non-JSON text, wrapping as string");
                     serde_json::Value::String(text)
-                })
+                });
+                (json_value, was_cached)
             } else if let Some(resource) = &resolved_resource {
                 // Resource read path -- now handles blob data via media pipeline
                 let content = client.read_resource(resource).await?;
@@ -397,7 +401,7 @@ impl TaskExecutor {
                 }
 
                 // Text output (if any)
-                content
+                let json_value = content
                     .text
                     .map(|t| {
                         serde_json::from_str(&t).unwrap_or_else(|_| {
@@ -405,14 +409,15 @@ impl TaskExecutor {
                             serde_json::Value::String(t)
                         })
                     })
-                    .unwrap_or(serde_json::Value::Null)
+                    .unwrap_or(serde_json::Value::Null);
+                (json_value, false) // Resources are never cached
             } else {
                 return Err(NikaError::ValidationError {
                     reason: "invoke: task requires either 'tool' or 'resource' field".to_string(),
                 });
             };
 
-            Ok::<(serde_json::Value, Arc<McpClient>), NikaError>((result, client))
+            Ok::<(serde_json::Value, Arc<McpClient>, bool), NikaError>((result.0, client, result.1))
         };
 
         // Use per-task timeout if specified, otherwise fall back to global deadline
@@ -437,7 +442,7 @@ impl TaskExecutor {
             }
         }?;
 
-        let (result, client) = mcp_result;
+        let (result, _client, was_cached) = mcp_result;
 
         // EMIT: McpResponse event (with full response for TUI display)
         // is_error is always false here -- error cases return early with their own McpResponse
@@ -447,7 +452,7 @@ impl TaskExecutor {
             call_id,
             output_len: result.to_string().len(),
             duration_ms,
-            cached: client.was_last_call_cached(),
+            cached: was_cached,
             is_error: false,
             response: Some(result.clone()),
         });
