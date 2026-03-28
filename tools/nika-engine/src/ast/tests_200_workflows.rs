@@ -141,7 +141,7 @@ tasks:
 #[test]
 fn a07_infer_thinking_true() {
     let yaml = wrap(
-        "infer:\n  prompt: \"Deep reasoning\"\n  provider: claude\n  extended_thinking: true\n  thinking_budget: 4096",
+        "provider: claude\ninfer:\n  prompt: \"Deep reasoning\"\n  extended_thinking: true\n  thinking_budget: 4096",
     );
     let w = ok(&yaml);
     match &w.tasks[0].action {
@@ -156,7 +156,7 @@ fn a07_infer_thinking_true() {
 #[test]
 fn a08_infer_thinking_custom_budget() {
     let yaml = wrap(
-        "infer:\n  prompt: \"Think deep\"\n  provider: claude\n  extended_thinking: true\n  thinking_budget: 8192",
+        "provider: claude\ninfer:\n  prompt: \"Think deep\"\n  extended_thinking: true\n  thinking_budget: 8192",
     );
     let w = ok(&yaml);
     match &w.tasks[0].action {
@@ -565,7 +565,7 @@ fn a38_infer_thinking_false() {
 #[test]
 fn a39_infer_thinking_budget_min() {
     let yaml = wrap(
-        "infer:\n  prompt: \"Min budget\"\n  provider: claude\n  extended_thinking: true\n  thinking_budget: 1024",
+        "provider: claude\ninfer:\n  prompt: \"Min budget\"\n  extended_thinking: true\n  thinking_budget: 1024",
     );
     let w = ok(&yaml);
     match &w.tasks[0].action {
@@ -577,7 +577,7 @@ fn a39_infer_thinking_budget_min() {
 #[test]
 fn a40_infer_thinking_budget_max() {
     let yaml = wrap(
-        "infer:\n  prompt: \"Max budget\"\n  provider: claude\n  extended_thinking: true\n  thinking_budget: 65536",
+        "provider: claude\ninfer:\n  prompt: \"Max budget\"\n  extended_thinking: true\n  thinking_budget: 65536",
     );
     let w = ok(&yaml);
     match &w.tasks[0].action {
@@ -6807,7 +6807,7 @@ fn u11_exec_validate_zero_timeout_err() {
 
 #[test]
 fn u12_infer_validate_thinking_budget_out_of_range() {
-    let yaml = wrap("infer:\n  prompt: \"Test\"\n  provider: claude\n  extended_thinking: true\n  thinking_budget: 999");
+    let yaml = wrap("provider: claude\ninfer:\n  prompt: \"Test\"\n  extended_thinking: true\n  thinking_budget: 999");
     let w = ok(&yaml);
     match &w.tasks[0].action {
         TaskAction::Infer { infer } => {
@@ -6851,7 +6851,7 @@ fn u14_fetch_retry_with_response_binary() {
 
 #[test]
 fn u15_infer_effective_thinking_budget_default() {
-    let yaml = wrap("infer:\n  prompt: \"Test\"\n  provider: claude\n  extended_thinking: true");
+    let yaml = wrap("provider: claude\ninfer:\n  prompt: \"Test\"\n  extended_thinking: true");
     let w = ok(&yaml);
     match &w.tasks[0].action {
         TaskAction::Infer { infer } => {
@@ -7958,7 +7958,7 @@ fn aa10_pr4_vision_image_url_unchanged() {
 
 #[test]
 fn aa11_pr4_extended_thinking_unchanged() {
-    let yaml = wrap("infer:\n  prompt: \"Deep\"\n  provider: claude\n  extended_thinking: true\n  thinking_budget: 8192");
+    let yaml = wrap("provider: claude\ninfer:\n  prompt: \"Deep\"\n  extended_thinking: true\n  thinking_budget: 8192");
     let w = ok(&yaml);
     match &w.tasks[0].action {
         TaskAction::Infer { infer } => {
@@ -8864,7 +8864,7 @@ fn ab06_model_template_in_agent() {
 fn ab07_extended_thinking_with_openai_parses_ok() {
     // Previously crashed with ValidationError, now degrades gracefully
     let yaml = wrap(
-        "infer:\n  prompt: \"Deep reasoning\"\n  provider: openai\n  extended_thinking: true\n  thinking_budget: 4096",
+        "provider: openai\ninfer:\n  prompt: \"Deep reasoning\"\n  extended_thinking: true\n  thinking_budget: 4096",
     );
     let w = ok(&yaml);
     let task = &w.tasks[0];
@@ -8896,7 +8896,7 @@ fn ab08_extended_thinking_with_groq_parses_ok() {
 #[test]
 fn ab09_extended_thinking_with_claude_still_ok() {
     let yaml = wrap(
-        "infer:\n  prompt: \"Think deeply\"\n  provider: claude\n  extended_thinking: true\n  thinking_budget: 16384",
+        "provider: claude\ninfer:\n  prompt: \"Think deeply\"\n  extended_thinking: true\n  thinking_budget: 16384",
     );
     let w = ok(&yaml);
     let task = &w.tasks[0];
