@@ -159,7 +159,13 @@ impl TaskExecutor {
         // Retry configuration
         let max_attempts = fetch.retry.as_ref().map_or(1, |r| r.max_attempts.max(1));
         let backoff_ms = fetch.retry.as_ref().map_or(1000, |r| r.backoff_ms);
-        let multiplier = fetch.retry.as_ref().map_or(2.0, |r| r.multiplier);
+        let multiplier = fetch.retry.as_ref().map_or(2.0, |r| {
+            if r.multiplier.is_finite() && r.multiplier > 0.0 {
+                r.multiplier
+            } else {
+                1.0
+            }
+        });
 
         // Check if request can be cloned (required for retry)
         let can_retry = request.try_clone().is_some();

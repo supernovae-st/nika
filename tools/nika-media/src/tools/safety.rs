@@ -104,7 +104,6 @@ pub fn sanitize_svg(input: &str) -> Result<&str, MediaToolError> {
         "<script",
         "<foreignobject",
         "javascript:",
-        "xlink:href",
         "file://",
         "data:text/html",
     ] {
@@ -196,6 +195,20 @@ mod tests {
     #[test]
     fn sanitize_svg_rejects_onerror_handler() {
         let svg = r#"<svg><image onerror ="alert(1)" href="x"/></svg>"#;
+        let err = sanitize_svg(svg).unwrap_err();
+        assert!(err.to_string().contains("NIKA-297"));
+    }
+
+    #[test]
+    fn sanitize_svg_allows_xlink_href_for_symbols() {
+        let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"><defs><rect id=\"icon\" width=\"10\" height=\"10\"/></defs><use xlink:href=\"#icon\"/></svg>";
+        assert!(sanitize_svg(svg).is_ok());
+    }
+
+    #[test]
+    fn sanitize_svg_still_rejects_javascript_in_xlink_href() {
+        let svg =
+            r#"<svg><a xlink:href="javascript:alert(1)"><text>click</text></a></svg>"#;
         let err = sanitize_svg(svg).unwrap_err();
         assert!(err.to_string().contains("NIKA-297"));
     }
