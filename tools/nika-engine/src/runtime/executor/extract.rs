@@ -15,7 +15,10 @@ pub(crate) fn apply_extract(
 
         #[cfg(feature = "fetch-markdown")]
         Some("markdown") => {
-            htmd::convert(body).map_err(|e| NikaError::ExtractError { reason: format!("HTML to markdown: {e}") })
+            // Strip <style> and <script> tags before conversion to avoid
+            // CSS/JS content appearing as plain text in the markdown output.
+            let clean = strip_non_content_tags(body);
+            htmd::convert(&clean).map_err(|e| NikaError::ExtractError { reason: format!("HTML to markdown: {e}") })
         }
 
         #[cfg(feature = "fetch-html")]
@@ -120,6 +123,36 @@ pub(crate) fn apply_extract(
         }
         .into()),
     }
+}
+
+/// Strip `<style>`, `<script>`, and `<noscript>` tags and their content from HTML.
+/// Used before markdown conversion to prevent CSS/JS from appearing as text.
+/// Strip `<style>`, `<script>`, and `<noscript>` tags and their content from HTML.
+/// Used before markdown conversion to prevent CSS/JS from appearing as text.
+#[cfg(feature = "fetch-markdown")]
+fn strip_non_content_tags(html: &str) -> String {
+    // One regex per tag (regex crate doesn't support backreferences).
+    static STYLE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::RegexBuilder::new(r"<style\b[^>]*>[\s\S]*?</style>")
+            .case_insensitive(true)
+            .build()
+            .unwrap()
+    });
+    static SCRIPT: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::RegexBuilder::new(r"<script\b[^>]*>[\s\S]*?</script>")
+            .case_insensitive(true)
+            .build()
+            .unwrap()
+    });
+    static NOSCRIPT: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::RegexBuilder::new(r"<noscript\b[^>]*>[\s\S]*?</noscript>")
+            .case_insensitive(true)
+            .build()
+            .unwrap()
+    });
+    let result = STYLE.replace_all(html, "");
+    let result = SCRIPT.replace_all(&result, "");
+    NOSCRIPT.replace_all(&result, "").into_owned()
 }
 
 #[cfg(feature = "fetch-html")]
