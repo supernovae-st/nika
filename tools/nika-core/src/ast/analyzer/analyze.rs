@@ -906,7 +906,9 @@ fn analyze_action(raw: &RawTaskAction, ctx: &mut AnalyzerContext) -> AnalyzedTas
         RawTaskAction::Exec(s) => AnalyzedTaskAction::Exec(analyze_shell_cmd(&s.value)),
         RawTaskAction::Fetch(s) => AnalyzedTaskAction::Fetch(analyze_fetch(&s.value, ctx)),
         RawTaskAction::Invoke(s) => AnalyzedTaskAction::Invoke(analyze_invoke(&s.value)),
-        RawTaskAction::Agent(s) => AnalyzedTaskAction::Agent(Box::new(analyze_agent(&s.value))),
+        RawTaskAction::Agent(s) => {
+            AnalyzedTaskAction::Agent(Box::new(analyze_agent(&s.value, ctx)))
+        }
     }
 }
 
@@ -1021,7 +1023,41 @@ fn analyze_invoke(raw: &RawInvokeAction) -> AnalyzedInvokeAction {
     }
 }
 
-fn analyze_agent(raw: &RawAgentAction) -> AnalyzedAgentAction {
+fn analyze_agent(raw: &RawAgentAction, ctx: &mut AnalyzerContext) -> AnalyzedAgentAction {
+    use crate::ast::guardrails::GuardrailConfig;
+
+    // Warn if LLM guardrails are used (not yet implemented at runtime)
+    if raw.guardrails.iter().any(|g| matches!(g, GuardrailConfig::Llm(_))) {
+        ctx.add_warning(AnalyzeError::new(
+            AnalyzeErrorKind::UnsupportedFeature,
+            raw.prompt.span,
+            "LLM guardrails (type: llm) are parsed but not yet executed at runtime \
+             — they will be silently skipped. Use type: regex or type: schema instead."
+                .to_string(),
+        ));
+    }
+
+    // Warn if extended_thinking + tools conflict
+    let has_tools = raw
+        .tools
+        .as_ref()
+        .map(|s| !s.value.is_empty())
+        .unwrap_or(false);
+    let has_thinking = raw
+        .extended_thinking
+        .as_ref()
+        .map(|s| s.value)
+        .unwrap_or(false);
+    if has_thinking && has_tools {
+        ctx.add_warning(AnalyzeError::new(
+            AnalyzeErrorKind::UnsupportedFeature,
+            raw.prompt.span,
+            "extended_thinking: true disables tool calling — tools will be ignored. \
+             Extended thinking is single-turn, text-only mode."
+                .to_string(),
+        ));
+    }
+
     AnalyzedAgentAction {
         prompt: raw.prompt.value.clone(),
         tools: raw
