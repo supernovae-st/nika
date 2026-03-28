@@ -532,13 +532,13 @@ fn format_section_infrastructure(stats: &RunStats, w: usize) -> Vec<String> {
             )
         ));
     }
-    if stats.fetch_retries > 0 {
+    if stats.retries > 0 {
         lines.push(format!(
             "│{}│",
             pad_right(
                 &format!(
-                    "  Fetch    {} retries",
-                    stats.fetch_retries.to_string().yellow(),
+                    "  Retry    {} attempts",
+                    stats.retries.to_string().yellow(),
                 ),
                 w
             )

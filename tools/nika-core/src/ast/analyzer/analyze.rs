@@ -123,6 +123,7 @@ pub fn validate(raw: &RawWorkflow) -> AnalyzeResult<()> {
             .as_ref()
             .is_some_and(|a| matches!(&a, RawTaskAction::Infer(_) | RawTaskAction::Agent(_)));
         let has_task_model = task.model.is_some();
+        let has_preset = task.preset.is_some();
         let provider_name = task
             .provider
             .as_ref()
@@ -130,7 +131,7 @@ pub fn validate(raw: &RawWorkflow) -> AnalyzeResult<()> {
             .unwrap_or(workflow_provider);
         let is_mock = provider_name == "mock";
 
-        if uses_llm && !has_workflow_model && !has_task_model && !is_mock {
+        if uses_llm && !has_workflow_model && !has_task_model && !has_preset && !is_mock {
             let span = task.id.span;
             ctx.errors.push(AnalyzeError {
                 kind: AnalyzeErrorKind::MissingModel,
@@ -162,6 +163,40 @@ pub fn validate(raw: &RawWorkflow) -> AnalyzeResult<()> {
     let task_names: Vec<String> = task_table.iter().map(|(_, n)| n.to_string()).collect();
     for raw_task in raw.tasks.value.iter() {
         validate_task_refs(&raw_task.value, &task_table, &task_names, &mut ctx);
+    }
+
+    // 4b. Validate preset references in validate() path
+    let agent_names: Vec<String> = raw
+        .agents
+        .as_ref()
+        .and_then(|a| {
+            if let serde_json::Value::Object(map) = &a.value {
+                Some(map.keys().cloned().collect())
+            } else {
+                None
+            }
+        })
+        .unwrap_or_default();
+    for raw_task in &raw.tasks.value {
+        if let Some(ref preset) = raw_task.value.preset {
+            if !agent_names.contains(&preset.value) {
+                let hint = if agent_names.is_empty() {
+                    "Add an `agents:` block to the workflow header".to_string()
+                } else {
+                    format!("Available presets: {}", agent_names.join(", "))
+                };
+                ctx.errors.push(AnalyzeError {
+                    kind: AnalyzeErrorKind::InvalidValue,
+                    span: preset.span,
+                    message: format!(
+                        "Task '{}' references preset '{}' which is not defined in the agents: block",
+                        raw_task.value.id.value, preset.value
+                    ),
+                    suggestion: Some(hint),
+                    note: None,
+                });
+            }
+        }
     }
 
     // 5. Detect cyclic dependencies (requires building a lightweight dep graph)

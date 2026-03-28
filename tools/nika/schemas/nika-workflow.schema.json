@@ -291,6 +291,11 @@
           "description": "Inline base URL for OpenAI-compatible endpoint (one-off override)",
           "examples": ["http://localhost:11434/v1"]
         },
+        "preset": {
+          "type": "string",
+          "description": "Reference to a named agent from the workflow's agents: block. Inherits provider, model, temperature, and system. Task-level overrides take precedence.",
+          "examples": ["think", "lite", "fast"]
+        },
         "retry": {
           "$ref": "#/$defs/RetryConfig",
           "description": "Retry configuration for this task (v0.19+)"
