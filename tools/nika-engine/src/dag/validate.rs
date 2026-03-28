@@ -1201,4 +1201,73 @@ mod tests {
         let result = validate_with_bindings(&workflow, &graph);
         assert!(result.is_ok());
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Runtime extract_task_templates coverage
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn extract_templates_exec_includes_cwd_and_env() {
+        use crate::ast::ExecParams;
+        let mut env = rustc_hash::FxHashMap::default();
+        env.insert("TOKEN".to_string(), "{{with.secret}}".to_string());
+        let action = crate::ast::TaskAction::Exec {
+            exec: ExecParams {
+                command: "echo {{with.msg}}".to_string(),
+                shell: None,
+                timeout: None,
+                cwd: Some("{{with.dir}}".to_string()),
+                env: Some(env),
+            },
+        };
+        let templates = extract_task_templates(&action);
+        assert!(templates.contains(&"echo {{with.msg}}".to_string()));
+        assert!(
+            templates.contains(&"{{with.dir}}".to_string()),
+            "exec.cwd should be extracted: {:?}",
+            templates,
+        );
+        assert!(
+            templates.contains(&"{{with.secret}}".to_string()),
+            "exec.env values should be extracted: {:?}",
+            templates,
+        );
+    }
+
+    #[test]
+    fn extract_templates_fetch_includes_headers_and_json() {
+        use crate::ast::FetchParams;
+        let mut headers = rustc_hash::FxHashMap::default();
+        headers.insert(
+            "Authorization".to_string(),
+            "Bearer {{with.token}}".to_string(),
+        );
+        let action = crate::ast::TaskAction::Fetch {
+            fetch: FetchParams {
+                url: "https://api.example.com/{{with.path}}".to_string(),
+                method: "POST".to_string(),
+                headers,
+                body: None,
+                json: Some(serde_json::json!({"key": "{{with.val}}"})),
+                timeout: None,
+                retry: None,
+                follow_redirects: None,
+                response: None,
+                extract: None,
+                selector: None,
+            },
+        };
+        let templates = extract_task_templates(&action);
+        assert!(templates.contains(&"https://api.example.com/{{with.path}}".to_string()));
+        assert!(
+            templates.contains(&"Bearer {{with.token}}".to_string()),
+            "fetch.headers values should be extracted: {:?}",
+            templates,
+        );
+        assert!(
+            templates.contains(&"{{with.val}}".to_string()),
+            "fetch.json string values should be extracted: {:?}",
+            templates,
+        );
+    }
 }
