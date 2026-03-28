@@ -3192,6 +3192,26 @@ mod tests {
         assert_eq!(opts.additional_params, Some(params));
     }
 
+    #[test]
+    fn test_infer_options_with_extended_thinking() {
+        let budget: u64 = 8192;
+        let thinking_params = serde_json::json!({
+            "thinking": { "type": "enabled", "budget_tokens": budget }
+        });
+        let opts = InferOptions {
+            model: Some("claude-sonnet-4-6".to_string()),
+            temperature: Some(1.0),
+            max_tokens: Some((budget as u32) + 8192),
+            system: None,
+            additional_params: Some(thinking_params.clone()),
+        };
+        assert_eq!(opts.temperature, Some(1.0));
+        assert_eq!(opts.max_tokens, Some(16384));
+        let params = opts.additional_params.unwrap();
+        assert_eq!(params["thinking"]["type"], "enabled");
+        assert_eq!(params["thinking"]["budget_tokens"], 8192);
+    }
+
     // =========================================================================
     // Structured Output Helper Tests
     // =========================================================================

@@ -189,17 +189,7 @@ impl InferParams {
             }
         }
 
-        // extended_thinking is only implemented for the agent: verb.
-        // For infer:, the field is parsed but never forwarded to the provider.
-        // Warn the user so they know to use agent: instead.
-        if self.extended_thinking == Some(true) {
-            tracing::warn!(
-                "extended_thinking: true on infer: verb is not yet supported — use agent: verb for extended thinking. The flag will be ignored."
-            );
-        }
-
-        // thinking_budget validation: still useful for catching typos even though
-        // the infer: verb doesn't forward it yet.
+        // thinking_budget validation
         if let Some(budget) = self.thinking_budget {
             if !(1024..=65536).contains(&budget) {
                 return Err(NikaError::ValidationError {
@@ -1785,6 +1775,29 @@ fetch:
             }
             _ => panic!("Expected TaskAction::Fetch"),
         }
+    }
+
+    #[test]
+    fn test_infer_extended_thinking_validates_ok() {
+        let params = InferParams {
+            prompt: "Deep reasoning".to_string(),
+            extended_thinking: Some(true),
+            thinking_budget: Some(8192),
+            ..Default::default()
+        };
+        // extended_thinking on infer: verb should pass validation (no longer warns/errors)
+        assert!(params.validate().is_ok());
+    }
+
+    #[test]
+    fn test_infer_extended_thinking_budget_too_low() {
+        let params = InferParams {
+            prompt: "Deep reasoning".to_string(),
+            extended_thinking: Some(true),
+            thinking_budget: Some(512), // below 1024 minimum
+            ..Default::default()
+        };
+        assert!(params.validate().is_err());
     }
 
     #[test]
