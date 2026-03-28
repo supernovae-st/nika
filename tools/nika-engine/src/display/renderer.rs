@@ -1311,6 +1311,25 @@ impl CliRenderer {
                 }
             }
 
+            // Routing events
+            EventKind::FallbackTriggered {
+                from_provider,
+                to_provider,
+                reason,
+                attempt,
+                ..
+            } => {
+                println!(
+                    "{}",
+                    super::format_event::fmt_fallback_triggered(
+                        from_provider,
+                        to_provider,
+                        reason,
+                        *attempt,
+                    )
+                );
+            }
+
             // Remaining events (WorkflowCompleted/Failed, WorkflowPaused/Resumed, etc.)
             // are either handled by summary or intentionally not rendered per-event.
             _ => {}
