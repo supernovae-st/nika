@@ -70,6 +70,8 @@ pub(crate) fn coerce_json_types(value: &mut serde_json::Value) {
         Value::String(s) => {
             if let Ok(n) = s.parse::<i64>() {
                 *value = Value::Number(n.into());
+            } else if let Ok(n) = s.parse::<u64>() {
+                *value = Value::Number(n.into());
             } else if let Ok(n) = s.parse::<f64>() {
                 if n.is_finite() {
                     if let Some(num) = serde_json::Number::from_f64(n) {
