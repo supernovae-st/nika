@@ -1096,6 +1096,15 @@ impl TaskExecutor {
                             ),
                         });
                     }
+                    // DNS rebinding check — resolve hostname and verify resolved IP
+                    if crate::runtime::policy::resolve_and_check_ssrf(h_normalized).await {
+                        return Err(NikaError::FetchError {
+                            reason: format!(
+                                "SSRF protection: image_url host '{}' resolves to blocked IP (DNS rebinding)",
+                                h_normalized
+                            ),
+                        });
+                    }
                     let rig_detail = Some(match detail {
                         crate::ast::content::ImageDetail::Low => {
                             rig::completion::message::ImageDetail::Low
