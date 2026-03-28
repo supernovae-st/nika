@@ -222,6 +222,62 @@ Local NDJSON memory. Self-improvement hooks.
    - Instruction pour reprendre
 3. Le prochain Claude reprend avec: `cat docs/plans/sessions/progress.md`
 
+## DÉMARRAGE — PREMIÈRE CHOSE À FAIRE (avant de lire les plans)
+
+```bash
+# 1. Déterminer ce qui est DÉJÀ fait (le watchdog a peut-être redémarré cette session)
+git log --oneline -50
+cat docs/plans/sessions/progress.md 2>/dev/null || echo "Première exécution"
+
+# 2. Vérifier que le code compile et les tests passent
+cd /Users/thibaut/dev/supernovae/nika/tools
+cargo test --workspace --lib 2>&1 | tail -5
+cargo clippy --workspace -- -D warnings 2>&1 | tail -3
+
+# 3. Vérifier les API keys (nécessaires pour E2E)
+echo "ANTHROPIC: $(echo $ANTHROPIC_API_KEY | head -c 8)..."
+echo "OPENAI: $(echo $OPENAI_API_KEY | head -c 8)..."
+
+# 4. Builder le binaire pour les tests E2E
+cargo build -p nika 2>&1 | tail -3
+```
+
+Si progress.md existe et montre des sessions DONE → SKIP ces sessions.
+Si le code ne compile pas → `git log --oneline -5` et `git diff HEAD~1` pour comprendre.
+Si les tests ne passent pas → `git stash` et retenter.
+
+## PROTECTION CONTRE LES CRASH / REPRISES
+
+### Si tu es une session RELANCÉE par le watchdog:
+1. Lis progress.md pour savoir où tu en es
+2. Lis `git log --oneline -10` pour voir les derniers commits
+3. Vérifie que le code compile: `cargo check --workspace`
+4. Si ça compile → continue à la prochaine session non-terminée
+5. Si ça ne compile pas → `git reset --hard HEAD~1` et continue
+
+### Si les crédits API s'épuisent:
+- Claude va s'arrêter proprement
+- Le watchdog détecte la mort et attend 30 min
+- Thibaut peut recharger les crédits
+- Le watchdog relance automatiquement
+- La nouvelle session reprend via progress.md
+
+### JAMAIS commiter du code qui ne compile pas:
+```bash
+# AVANT chaque commit, TOUJOURS:
+cargo check --workspace 2>&1 | tail -3
+# Si "error" → ne PAS commiter, fixer d'abord
+```
+
+## SESSIONS QUI NÉCESSITENT UN SETUP HUMAIN
+
+Les sessions P (Scaleway SSH) et Q (Telegram BotFather) nécessitent des accès que
+Claude n'a peut-être pas. Si SSH vers 51.15.136.200 échoue ou si le bot token
+n'est pas disponible:
+1. Note dans progress.md: "Session P/Q: SKIP — requires human SSH/Telegram setup"
+2. Passe directement à la session suivante
+3. Thibaut fera le setup manuellement
+
 ## MONITORING (Thibaut depuis son tel)
 ```bash
 git log --oneline -30
