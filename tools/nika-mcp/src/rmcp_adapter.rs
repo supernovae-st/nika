@@ -505,6 +505,7 @@ impl RmcpClientAdapter {
         Ok(ToolCallResult {
             content,
             is_error: result.is_error.unwrap_or(false),
+            was_cached: false,
         })
     }
 

@@ -385,7 +385,7 @@ async fn test_concurrent_cache_access() {
 
             // All should hit the same cache entry
             let result = client.call_tool("novanet_generate", params).await;
-            let was_cached = client.was_last_call_cached();
+            let was_cached = result.as_ref().map(|r| r.was_cached).unwrap_or(false);
 
             (i, result.is_ok(), was_cached)
         });

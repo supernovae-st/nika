@@ -324,6 +324,11 @@ pub struct ToolCallResult {
     /// Whether the tool call resulted in an error
     #[serde(default)]
     pub is_error: bool,
+
+    /// Whether this result was served from cache (not from the MCP server).
+    /// Per-result field eliminates the race condition of a shared AtomicBool.
+    #[serde(default)]
+    pub was_cached: bool,
 }
 
 impl ToolCallResult {
@@ -332,6 +337,7 @@ impl ToolCallResult {
         Self {
             content,
             is_error: false,
+            was_cached: false,
         }
     }
 
@@ -340,6 +346,7 @@ impl ToolCallResult {
         Self {
             content: vec![ContentBlock::text(message)],
             is_error: true,
+            was_cached: false,
         }
     }
 
