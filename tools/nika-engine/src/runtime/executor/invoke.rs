@@ -365,6 +365,7 @@ impl TaskExecutor {
                     );
                     let results = processor.process_all(&[block], task_id.as_ref()).await;
                     let mut media_refs = Vec::new();
+                    let mut fatal_error: Option<crate::media::MediaError> = None;
                     for result in results {
                         match result {
                             Ok((media_ref, store_result)) => {
@@ -392,8 +393,14 @@ impl TaskExecutor {
                                     hash: format!("blob_index:{}", idx),
                                     reason: error.to_string(),
                                 });
+                                if fatal_error.is_none() && !error.is_recoverable() {
+                                    fatal_error = Some(error);
+                                }
                             }
                         }
+                    }
+                    if let Some(error) = fatal_error {
+                        return Err(NikaError::MediaError(error));
                     }
                     if !media_refs.is_empty() {
                         datastore.set_media(task_id, media_refs);
