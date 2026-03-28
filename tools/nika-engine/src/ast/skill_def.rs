@@ -55,13 +55,12 @@ use crate::error::NikaError;
 /// use nika::ast::skill_def::resolve_skill_path;
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// // Local path
+/// // Local relative path (resolved against base_dir)
 /// let path = resolve_skill_path("./skills/seo.skill.md", Path::new("/project"))?;
 /// assert_eq!(path, PathBuf::from("/project/./skills/seo.skill.md"));
 ///
-/// // pkg: URI
-/// let path = resolve_skill_path("pkg:@supernovae/skills@1.0.0/rust.md", Path::new("/project"))?;
-/// // Returns ~/.nika/packages/@supernovae/skills/1.0.0/rust.md
+/// // Path traversal is blocked:
+/// assert!(resolve_skill_path("../../../../etc/passwd", Path::new("/project")).is_err());
 /// # Ok(())
 /// # }
 /// ```
@@ -73,12 +72,64 @@ pub fn resolve_skill_path(skill_path: &str, base_dir: &Path) -> Result<PathBuf, 
     } else {
         // Local path - resolve relative to base_dir
         let path = Path::new(skill_path);
-        if path.is_absolute() {
-            Ok(path.to_path_buf())
+        let full_path = if path.is_absolute() {
+            path.to_path_buf()
         } else {
-            Ok(base_dir.join(path))
-        }
+            base_dir.join(path)
+        };
+
+        // SECURITY: Block path traversal via .. components.
+        // Check both the raw skill_path (before join) and the resolved path.
+        // This prevents attacks like `skills: { evil: "../../../../etc/passwd" }`.
+        validate_skill_path_boundary(skill_path, &full_path, base_dir)?;
+
+        Ok(full_path)
     }
+}
+
+/// Validate that a skill path does not escape the project boundary.
+///
+/// Uses component-based traversal detection (no file existence required).
+/// Blocks:
+/// - `..` components in the skill path
+/// - Absolute paths pointing outside the project
+fn validate_skill_path_boundary(
+    skill_path: &str,
+    full_path: &Path,
+    base_dir: &Path,
+) -> Result<(), NikaError> {
+    use std::path::Component;
+
+    // Check for parent directory components in the raw path
+    let has_parent_traversal = Path::new(skill_path)
+        .components()
+        .any(|c| matches!(c, Component::ParentDir));
+
+    if has_parent_traversal {
+        return Err(NikaError::SkillLoadError {
+            skill: skill_path.to_string(),
+            reason: format!(
+                "Path traversal blocked: '{}' contains '..' components (must stay within project boundary '{}')",
+                skill_path,
+                base_dir.display()
+            ),
+        });
+    }
+
+    // For absolute paths: verify they start with the base directory
+    if full_path.is_absolute() && !full_path.starts_with(base_dir) {
+        // Allow pkg: paths (handled separately) and absolute paths within project
+        return Err(NikaError::SkillLoadError {
+            skill: skill_path.to_string(),
+            reason: format!(
+                "Path traversal blocked: '{}' is outside project boundary '{}'",
+                full_path.display(),
+                base_dir.display()
+            ),
+        });
+    }
+
+    Ok(())
 }
 
 /// Check if a skill path is a pkg: URI
@@ -255,10 +306,18 @@ skills: [seo, brand]
     }
 
     #[test]
-    fn test_resolve_skill_path_local_absolute() {
+    fn test_resolve_skill_path_local_absolute_outside_project_blocked() {
         let base_dir = Path::new("/project");
-        let result = resolve_skill_path("/absolute/path/skill.md", base_dir).unwrap();
-        assert_eq!(result, PathBuf::from("/absolute/path/skill.md"));
+        // Absolute paths outside the project boundary are now blocked (security fix)
+        let result = resolve_skill_path("/absolute/path/skill.md", base_dir);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_resolve_skill_path_local_absolute_inside_project_allowed() {
+        let base_dir = Path::new("/project");
+        let result = resolve_skill_path("/project/skills/seo.md", base_dir).unwrap();
+        assert_eq!(result, PathBuf::from("/project/skills/seo.md"));
     }
 
     #[test]
@@ -296,5 +355,38 @@ skills: [seo, brand]
         let base_dir = Path::new("/project");
         let result = resolve_skill_path("pkg:", base_dir);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_resolve_skill_path_blocks_path_traversal() {
+        let base_dir = Path::new("/project");
+        // Parent directory traversal must be blocked
+        let result = resolve_skill_path("../../../../etc/passwd", base_dir);
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("Path traversal blocked"), "Got: {err}");
+
+        // More subtle traversal
+        let result = resolve_skill_path("./skills/../../../etc/shadow", base_dir);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_resolve_skill_path_allows_normal_relative() {
+        let base_dir = Path::new("/project");
+        // Normal relative paths without .. are fine
+        let result = resolve_skill_path("skills/seo.md", base_dir);
+        assert!(result.is_ok());
+        let result = resolve_skill_path("./skills/brand.md", base_dir);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_resolve_skill_path_blocks_absolute_outside_project() {
+        let base_dir = Path::new("/project");
+        let result = resolve_skill_path("/etc/passwd", base_dir);
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("Path traversal blocked"), "Got: {err}");
     }
 }
