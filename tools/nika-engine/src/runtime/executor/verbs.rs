@@ -124,37 +124,56 @@ pub(crate) fn detect_image_media_type(
     }
 }
 
-/// Strip `<think>...</think>` blocks from LLM responses.
+/// Strip `<think>...</think>` and `<thinking>...</thinking>` blocks from LLM responses.
 ///
 /// Reasoning models (Qwen, DeepSeek-R1) emit thinking blocks that should
-/// not appear in the final task output. This is applied to ALL providers
-/// since any model might emit thinking blocks.
+/// not appear in the final task output. Case-insensitive to handle
+/// `<Think>`, `<THINK>`, `<thinking>`, etc. Applied to ALL providers.
 pub(crate) fn strip_think_tags(text: &str) -> String {
-    // Fast path: no think tags at all
-    if !text.contains("<think>") {
+    let lower = text.to_lowercase();
+
+    // Fast path: no think tags at all (case-insensitive check)
+    if !lower.contains("<think") {
         return text.to_string();
     }
 
+    // Use a simple state machine on the lowercase version to find tag positions,
+    // then slice from the original text to preserve non-tag content.
     let mut result = String::with_capacity(text.len());
-    let mut remaining = text;
+    let bytes = lower.as_bytes();
+    let mut i = 0;
 
-    while let Some(start) = remaining.find("<think>") {
-        // Add everything before the <think> tag
-        result.push_str(&remaining[..start]);
+    while i < bytes.len() {
+        // Try to match opening tag: <think> or <thinking>
+        if bytes[i] == b'<' {
+            let tag_end = if lower[i..].starts_with("<thinking>") {
+                Some(("</thinking>", 10)) // open tag len
+            } else if lower[i..].starts_with("<think>") {
+                Some(("</think>", 7)) // open tag len
+            } else {
+                None
+            };
 
-        // Find the matching </think>
-        if let Some(end) = remaining[start..].find("</think>") {
-            // Skip past </think> (8 chars)
-            remaining = &remaining[start + end + 8..];
-        } else {
-            // Unclosed <think> — strip everything after it
-            remaining = "";
-            break;
+            if let Some((close_tag, open_len)) = tag_end {
+                // Find the matching close tag
+                if let Some(close_pos) = lower[i + open_len..].find(close_tag) {
+                    // Skip the entire block: open tag + content + close tag
+                    i = i + open_len + close_pos + close_tag.len();
+                    continue;
+                } else {
+                    // Unclosed tag — strip everything from here
+                    break;
+                }
+            }
         }
+
+        // Safe: we're iterating byte-by-byte but the tags are ASCII.
+        // Copy char-by-char from original text to preserve UTF-8.
+        let ch = text[i..].chars().next().unwrap();
+        result.push(ch);
+        i += ch.len_utf8();
     }
 
-    // Add any remaining text after the last </think>
-    result.push_str(remaining);
     result.trim().to_string()
 }
 
@@ -189,6 +208,38 @@ mod tests {
     fn strip_think_tags_unclosed() {
         let input = "<think>thinking forever...";
         assert_eq!(strip_think_tags(input), "");
+    }
+
+    #[test]
+    fn strip_think_tags_case_insensitive() {
+        assert_eq!(
+            strip_think_tags("<Think>reasoning</Think>Answer"),
+            "Answer"
+        );
+        assert_eq!(
+            strip_think_tags("<THINK>loud thinking</THINK>Result"),
+            "Result"
+        );
+    }
+
+    #[test]
+    fn strip_thinking_tags() {
+        let input = "<thinking>DeepSeek-R1 style reasoning block</thinking>The answer.";
+        assert_eq!(strip_think_tags(input), "The answer.");
+    }
+
+    #[test]
+    fn strip_thinking_tags_case_insensitive() {
+        assert_eq!(
+            strip_think_tags("<Thinking>mixed case</Thinking>OK"),
+            "OK"
+        );
+    }
+
+    #[test]
+    fn strip_think_preserves_utf8() {
+        let input = "<think>reflexion en francais</think>Reponse: cafe et creme brulee";
+        assert_eq!(strip_think_tags(input), "Reponse: cafe et creme brulee");
     }
 
     #[test]
