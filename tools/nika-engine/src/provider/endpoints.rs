@@ -12,7 +12,7 @@ use std::collections::HashMap;
 /// api_key = "sk-internal-token"
 /// model = "meta-llama/Llama-3.1-70B-Instruct"
 /// ```
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq)]
 pub struct CustomEndpointConfig {
     /// Base URL of the OpenAI-compatible API (required).
     /// Must include the `/v1` path if the server expects it.
@@ -43,9 +43,22 @@ pub struct CustomEndpointConfig {
     pub currency: Option<String>,
 }
 
+impl std::fmt::Debug for CustomEndpointConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CustomEndpointConfig")
+            .field("base_url", &self.base_url)
+            .field("api_key", &self.api_key.as_ref().map(|_| "***"))
+            .field("model", &self.model)
+            .field("timeout_secs", &self.timeout_secs)
+            .field("hourly_rate", &self.hourly_rate)
+            .field("currency", &self.currency)
+            .finish()
+    }
+}
+
 /// A resolved endpoint ready for use at runtime.
 /// All env var overlays have been applied.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ResolvedEndpoint {
     pub base_url: String,
     pub api_key: String,
@@ -55,6 +68,19 @@ pub struct ResolvedEndpoint {
     pub hourly_rate: Option<f64>,
     /// Currency label (e.g. "USD", "EUR").
     pub currency: String,
+}
+
+impl std::fmt::Debug for ResolvedEndpoint {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ResolvedEndpoint")
+            .field("base_url", &self.base_url)
+            .field("api_key", &"***")
+            .field("default_model", &self.default_model)
+            .field("timeout_secs", &self.timeout_secs)
+            .field("hourly_rate", &self.hourly_rate)
+            .field("currency", &self.currency)
+            .finish()
+    }
 }
 
 /// Map of named endpoints (name -> resolved config).
@@ -380,5 +406,35 @@ mod tests {
                 crate::provider::rig::RigProvider::OpenAiCompat { .. }
             ));
         }
+    }
+
+    #[test]
+    fn test_debug_masks_api_key_custom_endpoint_config() {
+        let cfg = CustomEndpointConfig {
+            base_url: "http://localhost:8000/v1".to_string(),
+            api_key: Some("sk-secret-key-12345678".to_string()),
+            model: None,
+            timeout_secs: None,
+            hourly_rate: None,
+            currency: None,
+        };
+        let debug = format!("{:?}", cfg);
+        assert!(!debug.contains("sk-secret-key-12345678"), "Debug must not leak api_key");
+        assert!(debug.contains("***"), "Debug should show masked key");
+    }
+
+    #[test]
+    fn test_debug_masks_api_key_resolved_endpoint() {
+        let ep = ResolvedEndpoint {
+            base_url: "http://localhost:8000/v1".to_string(),
+            api_key: "sk-secret-key-12345678".to_string(),
+            default_model: None,
+            timeout_secs: 300,
+            hourly_rate: None,
+            currency: "USD".to_string(),
+        };
+        let debug = format!("{:?}", ep);
+        assert!(!debug.contains("sk-secret-key-12345678"), "Debug must not leak api_key");
+        assert!(debug.contains("***"), "Debug should show masked key");
     }
 }
