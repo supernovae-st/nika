@@ -676,6 +676,7 @@ fn check_editor_integration() -> Vec<DiagnosticCheck> {
     // Detect VS Code (or common forks) -- check PATH and platform-specific locations
     // (binary_path, short_cmd_for_suggestions, display_name)
     let editors: Vec<(String, &str, &str)> = {
+        #[allow(unused_mut)]
         let mut v: Vec<(String, &str, &str)> = vec![
             ("code".to_string(), "code", "VS Code"),
             ("cursor".to_string(), "cursor", "Cursor"),
