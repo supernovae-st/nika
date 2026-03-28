@@ -239,7 +239,7 @@ fn test_set_provider_list_does_not_change() {
     std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
 
     let mut agent = ChatAgent::new().expect("Should create agent");
-    let original = agent.provider_name();
+    let original = agent.provider_name().to_string();
 
     let result = agent.set_provider(ModelProvider::List);
 

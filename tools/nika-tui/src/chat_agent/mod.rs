@@ -227,7 +227,7 @@ impl ChatAgent {
     }
 
     /// Get the current provider name
-    pub fn provider_name(&self) -> &'static str {
+    pub fn provider_name(&self) -> &str {
         self.provider.name()
     }
 

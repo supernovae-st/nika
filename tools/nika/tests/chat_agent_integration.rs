@@ -104,7 +104,7 @@ async fn test_chat_agent_provider_switching() {
     assert_eq!(agent.provider_name(), "openai");
 
     // List doesn't change provider
-    let prev_provider = agent.provider_name();
+    let prev_provider = agent.provider_name().to_string();
     let result = agent.set_provider(ModelProvider::List);
     assert!(result.is_ok());
     assert_eq!(agent.provider_name(), prev_provider);
