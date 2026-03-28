@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.0] — 2026-03-28
+
+### Added
+- **`preset:` field on tasks** — Reference named agents from the workflow's `agents:` block. Inherits provider, model, temperature, and system prompt. Task-level overrides take precedence. Validated at analysis time (NIKA-144).
+- **`retry:` on all verbs** — Previously only effective on `fetch:` tasks. Now works on `infer:`, `exec:`, `invoke:`, and `agent:` via runner-level retry wrapper.
+- **TaskRetry event** — New `TaskRetry` event for non-fetch retry attempts with attempt count, backoff, and error details. Rendered in both live and classic display modes.
+- **Agent presets documentation** — New "Agent Presets" section in editor rules + `examples/agents-preset.nika.yaml` with mock provider.
+
+### Fixed
+- **Error code table** — NIKA-160-164 correctly documented as Parse errors (Phase 1 parser), not Policy/Boot. Added NIKA-165-169 range for Policy/Boot/Startup.
+- **VS Code template** — New workflow command now includes `model:` field (prevents NIKA-034 missing model error).
+- **VS Code showOutput command** — Registered in package.json contributes (was missing from manifest).
+- **Dead schema URL** — Removed non-existent `nika.sh/schemas/workflow.json` from VS Code yaml.schemas default.
+
+### Changed
+- **Workspace version** — Bumped all 10 workspace crates from 0.49.0 to 0.50.0.
+- **VS Code extension** — Bumped from 0.42.0 to 0.50.0.
+
 ## [0.49.3] — 2026-03-27
 
 ### Fixed
