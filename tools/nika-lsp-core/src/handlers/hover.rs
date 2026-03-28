@@ -390,35 +390,44 @@ fn template_hover(expr: &str) -> Option<HoverResult> {
 
 fn transform_hover(expr: &str) -> Option<HoverResult> {
     let t = expr.rsplit('|').next()?.trim();
-    let doc = match t {
-        "upper" | "uppercase" => "`uppercase` — Convert to UPPERCASE",
-        "lower" | "lowercase" => "`lowercase` — Convert to lowercase",
+    // Strip parenthesized args for parametric transforms: join(", ") → join
+    let base = t.split('(').next().unwrap_or(t).trim();
+    let doc = match base {
+        // String transforms
+        "upper" => "`upper` — Convert to UPPERCASE",
+        "lower" => "`lower` — Convert to lowercase",
         "trim" => "`trim` — Strip leading/trailing whitespace",
         "trim_start" => "`trim_start` — Strip leading whitespace",
         "trim_end" => "`trim_end` — Strip trailing whitespace",
-        "length" | "len" => "`length` — Count characters",
-        "reverse" => "`reverse` — Reverse string",
-        "base64_encode" => "`base64_encode` — Encode as Base64",
-        "base64_decode" => "`base64_decode` — Decode from Base64",
-        "url_encode" => "`url_encode` — URL-encode string",
-        "url_decode" => "`url_decode` — URL-decode string",
-        "json" | "to_json" => "`json` — Serialize to JSON string",
-        "from_json" => "`from_json` — Parse JSON string to object",
-        "lines" => "`lines` — Split into array of lines",
-        "words" => "`words` — Split into array of words",
+        "length" => "`length` — Count characters (string) or elements (array)",
+        "to_string" => "`to_string` — Convert any value to string",
+        // Array transforms
         "first" => "`first` — First element of array",
         "last" => "`last` — Last element of array",
         "flatten" => "`flatten` — Flatten nested arrays",
-        "unique" => "`unique` — Remove duplicates",
+        "reverse" => "`reverse` — Reverse array or string",
         "sort" => "`sort` — Sort array",
-        "count" => "`count` — Count array elements",
-        "sum" => "`sum` — Sum numeric array",
-        "min" => "`min` — Minimum value",
-        "max" => "`max` — Maximum value",
-        "join" => "`join` — Join array with separator",
-        "split" => "`split` — Split string into array",
-        "replace" => "`replace` — Replace substring",
-        "default" => "`default` — Fallback value if null/empty",
+        "unique" => "`unique` — Remove duplicates",
+        "compact" => "`compact` — Remove null values from array",
+        "keys" => "`keys` — Object keys as array",
+        "values" => "`values` — Object values as array",
+        // Numeric transforms
+        "to_number" => "`to_number` — Parse string to number",
+        "round" => "`round` — Round number (optional precision)",
+        "abs" => "`abs` — Absolute value",
+        "ceil" => "`ceil` — Round up to integer",
+        "floor" => "`floor` — Round down to integer",
+        // Type transforms
+        "to_bool" => "`to_bool` — Convert to boolean",
+        "to_json" => "`to_json` — Serialize to JSON string",
+        "parse_json" => "`parse_json` — Parse JSON string to value",
+        "type_of" => "`type_of` — Get type name (string, number, array, etc.)",
+        // Parametric transforms
+        "join" => "`join(sep)` — Join array with separator",
+        "split" => "`split(sep)` — Split string into array",
+        "default" => "`default(val)` — Fallback value if null/empty",
+        // System
+        "shell" => "`shell` — Shell-escape value for safe interpolation",
         _ => return None,
     };
     Some(HoverResult {
@@ -436,7 +445,7 @@ fn transform_hover(expr: &str) -> Option<HoverResult> {
 
 const FOREACH_DOC: &str = "## `for_each:` — Parallel Iteration\n\n\
     Execute task for each item in an array.\n\n\
-    ```yaml\nfor_each: [\"fr-FR\", \"en-US\", \"de-DE\"]\nas: locale\nconcurrency: 5\nfail_fast: true\ninfer: \"Generate for {{locale}}\"\n```";
+    ```yaml\nfor_each: [\"fr-FR\", \"en-US\", \"de-DE\"]\nas: locale\nconcurrency: 5\nfail_fast: true\ninfer: \"Generate for {{with.locale}}\"\n```";
 
 const MCP_DOC: &str = "## `mcp:` — MCP Server Configuration\n\n\
     Configure MCP servers for `invoke:` and `agent:` tasks.\n\n\
@@ -599,7 +608,11 @@ mod tests {
     #[test]
     fn transform_hover_common() {
         for t in [
-            "upper", "lower", "trim", "json", "length", "first", "last", "sort",
+            "upper", "lower", "trim", "to_json", "length", "first", "last", "sort",
+            "keys", "values", "compact", "unique", "flatten", "reverse",
+            "trim_start", "trim_end", "to_string", "to_number", "to_bool",
+            "parse_json", "round", "abs", "ceil", "floor", "type_of", "shell",
+            "join", "split", "default",
         ] {
             let expr = format!("with.data | {}", t);
             let r = transform_hover(&expr);
