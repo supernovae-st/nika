@@ -841,6 +841,10 @@
           "maximum": 10,
           "default": 2,
           "description": "Maximum retry attempts on validation failure (v0.10)"
+        },
+        "schema_ref": {
+          "type": "string",
+          "description": "Path to JSON Schema file"
         }
       }
     },
