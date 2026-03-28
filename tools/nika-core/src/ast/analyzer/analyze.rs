@@ -2621,7 +2621,11 @@ mod tests {
         let raw = make_raw_workflow("nika/workflow@0.12", vec![task]);
         let result = analyze(raw);
 
-        assert!(result.is_ok(), "retry on exec should succeed: {:?}", result.errors);
+        assert!(
+            result.is_ok(),
+            "retry on exec should succeed: {:?}",
+            result.errors
+        );
         let retry_warnings: Vec<_> = result
             .warnings
             .iter()
@@ -2641,7 +2645,10 @@ mod tests {
         let mut task = make_raw_task("my_invoke");
         task.action = Some(RawTaskAction::Invoke(Spanned::new(
             RawInvokeAction {
-                tool: Some(Spanned::new("nika:dimensions".to_string(), make_span(0, 15))),
+                tool: Some(Spanned::new(
+                    "nika:dimensions".to_string(),
+                    make_span(0, 15),
+                )),
                 ..Default::default()
             },
             make_span(0, 50),
@@ -2657,7 +2664,11 @@ mod tests {
         let raw = make_raw_workflow("nika/workflow@0.12", vec![task]);
         let result = analyze(raw);
 
-        assert!(result.is_ok(), "retry on invoke should succeed: {:?}", result.errors);
+        assert!(
+            result.is_ok(),
+            "retry on invoke should succeed: {:?}",
+            result.errors
+        );
         let retry_warnings: Vec<_> = result
             .warnings
             .iter()
