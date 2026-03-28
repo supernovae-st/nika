@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║  NIKA v0.51.0 — QUALITY OVERHAUL                                           ║
+║  11 security fixes | Agent refactor -771 LOC | Silent failure sweep         ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+```
+
+## [0.51.0] — 2026-03-29
+
+### Security
+- **Exec blocklist** — Block `bash -c`, `sh -c`, `zsh -c`, and 4 more shell `-c` variants. Block generic `python -c`, `python2 -c`, `python3 -c`. Block `find -exec`, `find -delete`, `xargs`.
+- **SSRF fail-closed** — DNS resolution failure now blocks (was: allowed). Post-redirect DNS SSRF check prevents hostname-to-private-IP redirects.
+- **Template injection** — Trusted allowlists for `{{inputs.*}}` and `{{context.*}}` in both `resolve()` and `resolve_with()`. Injected refs via LLM output are blocked.
+- **Skill loading** — Path traversal (`../`) blocked in `resolve_skill_path()`. File size limit (1 MiB) added.
+- **JSON Schema** — Invalid schema now errors immediately (was: silent `.ok()` wasting LLM calls).
+- **API key redaction** — `redact_for_event()` now regex-matches `sk-*`, `Bearer *`, `ghp_*`, `gho_*`, `xoxb-*`, `AKIA*` patterns.
+
+### Fixed
+- **Agent loop** — `run_claude` (405 LOC) and `run_openai` (399 LOC) replaced with thin wrappers delegating to generic `run_agent_loop`. Total: -771 LOC in providers.rs.
+- **token_budget** — Now wired into `LimitTracker` (was: parsed but ignored).
+- **Silent failures** — 17 DAG scheduling failures now emit `TaskFailed` events. Added `TaskEventGuard` RAII pattern. Fixed missing `ProviderResponded` on Layer 0a no-spec path. Replaced silent `let _ =` with `warn!`/`debug!` in event emission.
+- **Tautological tests** — Replaced 2 tests that only tested compiler derives with behavior assertions.
+- **Error code table** — NIKA-160-164 is Parse errors (not Policy/Boot) in README.
+
+### Changed
+- **Workspace version** — Bumped all crates from 0.50.0 to 0.51.0.
+- **VS Code extension** — Bumped to 0.51.0.
+
 ## [0.50.0] — 2026-03-28
 
 ### Added
