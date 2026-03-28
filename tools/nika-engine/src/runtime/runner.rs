@@ -652,8 +652,20 @@ impl Runner {
         let mut attempts = 0u32;
 
         // PERF: Compile JSON Schema validator ONCE before the retry loop.
-        // Previously compiled on every iteration (10-50ms per retry wasted).
-        let compiled_validator = jsonschema::validator_for(schema).ok();
+        // SECURITY: Fail-fast if the schema is invalid — don't waste LLM calls.
+        let compiled_validator = match jsonschema::validator_for(schema) {
+            Ok(v) => v,
+            Err(e) => {
+                let reason = format!("Invalid JSON Schema: {e}");
+                event_log.emit(EventKind::TaskFailed {
+                    task_id: Arc::clone(task_id),
+                    error: reason.clone(),
+                    error_code: Some("NIKA-300".to_string()),
+                    duration_ms: start.elapsed().as_millis() as u64,
+                });
+                return TaskResult::failed(reason, start.elapsed());
+            }
+        };
 
         loop {
             // Check cancellation before each retry attempt (avoids wasting LLM calls)
@@ -732,23 +744,7 @@ impl Runner {
                     };
 
                     // Validate against schema (using pre-compiled validator)
-                    let compiled = match compiled_validator.as_ref() {
-                        Some(c) => c,
-                        None => {
-                            event_log.emit(EventKind::TaskFailed {
-                                task_id: Arc::clone(task_id),
-                                error: "Invalid schema (failed to compile)".to_string(),
-                                duration_ms: duration.as_millis() as u64,
-                                error_code: Some("NIKA-061".to_string()),
-                            });
-                            return TaskResult::failed(
-                                "Invalid inline schema (compilation failed)".to_string(),
-                                duration,
-                            );
-                        }
-                    };
-
-                    let errors: Vec<_> = compiled.iter_errors(&json_value).collect();
+                    let errors: Vec<_> = compiled_validator.iter_errors(&json_value).collect();
                     if errors.is_empty() {
                         // Validation passed — attach media from staging side-channel
                         let media = datastore.take_media(task_id);
