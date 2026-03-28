@@ -1683,6 +1683,12 @@ impl RigProvider {
         let complete_response = response_parts.concat();
         let _ = tx.try_send(StreamChunk::Done(complete_response.clone()));
 
+        // Fallback: if stream ended without Final event, estimate tokens
+        if result.input_tokens == 0 && result.output_tokens == 0 && !complete_response.is_empty() {
+            result.input_tokens = (prompt.len() as u64).div_ceil(4);
+            result.output_tokens = (complete_response.len() as u64).div_ceil(4);
+        }
+
         // Send metrics after Done - use try_send to avoid blocking
         let _ = tx.try_send(StreamChunk::Metrics {
             input_tokens: result.input_tokens,
@@ -1921,13 +1927,25 @@ impl RigProvider {
                     }
                 }
 
-                // Note: Token counts not available in streaming mode
-                // They would require post-hoc tokenization
+                // Post-hoc token estimation (chars/4 heuristic — native
+                // streaming doesn't return usage metadata).
+                result.input_tokens = (native_prompt.len() as u64).div_ceil(4);
+                result.output_tokens = response_parts
+                    .iter()
+                    .map(|s| s.len() as u64)
+                    .sum::<u64>()
+                    .div_ceil(4);
             }
         }
 
         let complete_response = response_parts.concat();
         let _ = tx.try_send(StreamChunk::Done(complete_response.clone()));
+
+        // Fallback: if stream ended without Final event, estimate tokens
+        if result.input_tokens == 0 && result.output_tokens == 0 && !complete_response.is_empty() {
+            result.input_tokens = (prompt.len() as u64).div_ceil(4);
+            result.output_tokens = (complete_response.len() as u64).div_ceil(4);
+        }
 
         let _ = tx.try_send(StreamChunk::Metrics {
             input_tokens: result.input_tokens,
