@@ -742,6 +742,7 @@ impl RigProvider {
         use rig::OneOrMany;
 
         /// Maximum time to wait for a vision stream call (5 minutes).
+        #[allow(dead_code)]
         const VISION_STREAM_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
 
         // Early return: DeepSeek does not support vision at all
