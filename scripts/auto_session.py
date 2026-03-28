@@ -261,7 +261,7 @@ def handle_stall():
 
 
 def handle_dead():
-    """Handle a dead session — kill and restart."""
+    """Handle a dead session — kill and restart with backoff."""
     if stats["restarts"] >= MAX_RESTARTS:
         log("ERROR", f"Max restarts ({MAX_RESTARTS}) reached. Stopping.")
         update_progress("FAILED", "Max restarts reached")
@@ -273,6 +273,19 @@ def handle_dead():
 
     # Push any unpushed work
     git_push()
+
+    # Check if the process died QUICKLY (< 2 min) — likely credit/auth issue
+    last_commit_age = time.time() - stats.get("last_commit_ts", time.time())
+    if stats["commits_this_session"] == 0 and last_commit_age < 180:
+        backoff = min(300 * (2 ** min(stats.get("quick_deaths", 0), 5)), 3600)
+        stats["quick_deaths"] = stats.get("quick_deaths", 0) + 1
+        log("WARN", f"Quick death detected (likely credit/auth issue). "
+                     f"Waiting {backoff}s before retry...")
+        update_progress("WAITING", f"Quick death #{stats['quick_deaths']}. "
+                                    f"Waiting {backoff}s (credit/auth issue?)")
+        time.sleep(backoff)
+    else:
+        stats["quick_deaths"] = 0  # Reset on healthy session
 
     stats["restarts"] += 1
     save_stats()
