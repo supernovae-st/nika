@@ -136,17 +136,24 @@ impl ModelPricing {
         }
     }
 
-    /// Calculate cost with cached token discount (cached tokens at 10% of input rate).
+    /// Calculate cost with cached token discount.
+    ///
+    /// `cache_discount` is the fraction of input price charged for cached tokens:
+    /// - Anthropic: 0.1 (10% of input rate)
+    /// - OpenAI: 0.5 (50% of input rate)
+    /// - Others: 0.1 (conservative default)
     pub fn calculate_with_cache(
         &self,
         input_tokens: u64,
         output_tokens: u64,
         cached_tokens: u64,
+        cache_discount: f64,
     ) -> f64 {
         // Cap cached_tokens at input_tokens to prevent over-claiming
         let actual_cached = cached_tokens.min(input_tokens);
         let effective_input = input_tokens - actual_cached;
-        let cached_cost = (actual_cached as f64 / 1_000_000.0) * self.input_per_million * 0.1;
+        let cached_cost =
+            (actual_cached as f64 / 1_000_000.0) * self.input_per_million * cache_discount;
         let input_cost = (effective_input as f64 / 1_000_000.0) * self.input_per_million;
         let output_cost = (output_tokens as f64 / 1_000_000.0) * self.output_per_million;
         let cost = cached_cost + input_cost + output_cost;
@@ -645,7 +652,21 @@ pub fn calculate_cost(
     pricing.calculate(input_tokens, output_tokens)
 }
 
-/// Calculate cost with cached token discount.
+/// Get the cache discount rate for a provider.
+///
+/// Returns the fraction of input price charged for cached tokens:
+/// - Anthropic: 0.1 (10%)
+/// - OpenAI: 0.5 (50%)
+/// - DeepSeek: 0.1 (10%)
+/// - Others: 0.1 (conservative default)
+pub fn cache_discount_for_provider(provider: ProviderKind) -> f64 {
+    match provider {
+        ProviderKind::OpenAI => 0.5,
+        _ => 0.1,
+    }
+}
+
+/// Calculate cost with cached token discount (provider-aware rate).
 pub fn calculate_cost_with_cache(
     provider: ProviderKind,
     model: &str,
@@ -654,7 +675,8 @@ pub fn calculate_cost_with_cache(
     cached_tokens: u64,
 ) -> f64 {
     let pricing = get_model_pricing(provider, model);
-    pricing.calculate_with_cache(input_tokens, output_tokens, cached_tokens)
+    let discount = cache_discount_for_provider(provider);
+    pricing.calculate_with_cache(input_tokens, output_tokens, cached_tokens, discount)
 }
 
 /// Estimate cost before execution based on estimated tokens
