@@ -104,6 +104,7 @@ mod tests {
             log: None,
             structured: None,
             preset: None,
+            routing: None,
             span: crate::source::Span::dummy(),
         };
     }

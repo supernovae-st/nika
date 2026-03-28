@@ -13,7 +13,7 @@ use serde_json;
 use crate::error::NikaError;
 use crate::event::{AgentTurnMetadata, EventKind};
 
-use crate::ast::limits::LimitType;
+use crate::ast::limits::{LimitAction, LimitType};
 
 use super::types::{RigAgentLoopResult, RigAgentStatus};
 use super::RigAgentLoop;
@@ -176,8 +176,22 @@ impl RigAgentLoop {
                 limit = %exceeded.limit_type,
                 current = exceeded.current,
                 maximum = exceeded.maximum,
+                action = ?self.limit_tracker.on_limit_action(),
                 "Claude agent limit exceeded after first turn"
             );
+            match self.limit_tracker.on_limit_action() {
+                LimitAction::Fail => {
+                    return Err(NikaError::AgentLimitExceeded {
+                        limit_type: format!("{}", exceeded.limit_type),
+                        current: exceeded.current,
+                        maximum: exceeded.maximum,
+                    });
+                }
+                LimitAction::Escalate => {
+                    tracing::warn!(task_id = %self.task_id, "Escalation requested — returning partial result");
+                }
+                LimitAction::CompletePartial => {}
+            }
             return Ok(RigAgentLoopResult {
                 status,
                 turns: 1,
@@ -209,8 +223,22 @@ impl RigAgentLoop {
                     task_id = %self.task_id,
                     limit = %exceeded.limit_type,
                     retry = retry_count,
+                    action = ?self.limit_tracker.on_limit_action(),
                     "Claude agent limit exceeded during retry loop"
                 );
+                match self.limit_tracker.on_limit_action() {
+                    LimitAction::Fail => {
+                        return Err(NikaError::AgentLimitExceeded {
+                            limit_type: format!("{}", exceeded.limit_type),
+                            current: exceeded.current,
+                            maximum: exceeded.maximum,
+                        });
+                    }
+                    LimitAction::Escalate => {
+                        tracing::warn!(task_id = %self.task_id, "Escalation requested — returning partial result");
+                    }
+                    LimitAction::CompletePartial => {}
+                }
                 status = limit_status;
                 break;
             }
@@ -303,8 +331,22 @@ impl RigAgentLoop {
                     task_id = %self.task_id,
                     limit = %exceeded.limit_type,
                     guardrail_retry = guardrail_retry_count,
+                    action = ?self.limit_tracker.on_limit_action(),
                     "Claude agent limit exceeded during guardrail retry loop"
                 );
+                match self.limit_tracker.on_limit_action() {
+                    LimitAction::Fail => {
+                        return Err(NikaError::AgentLimitExceeded {
+                            limit_type: format!("{}", exceeded.limit_type),
+                            current: exceeded.current,
+                            maximum: exceeded.maximum,
+                        });
+                    }
+                    LimitAction::Escalate => {
+                        tracing::warn!(task_id = %self.task_id, "Escalation requested — returning partial result");
+                    }
+                    LimitAction::CompletePartial => {}
+                }
                 break;
             }
 
@@ -514,8 +556,22 @@ impl RigAgentLoop {
                 limit = %exceeded.limit_type,
                 current = exceeded.current,
                 maximum = exceeded.maximum,
+                action = ?self.limit_tracker.on_limit_action(),
                 "OpenAI agent limit exceeded after first turn"
             );
+            match self.limit_tracker.on_limit_action() {
+                LimitAction::Fail => {
+                    return Err(NikaError::AgentLimitExceeded {
+                        limit_type: format!("{}", exceeded.limit_type),
+                        current: exceeded.current,
+                        maximum: exceeded.maximum,
+                    });
+                }
+                LimitAction::Escalate => {
+                    tracing::warn!(task_id = %self.task_id, "Escalation requested — returning partial result");
+                }
+                LimitAction::CompletePartial => {}
+            }
             return Ok(RigAgentLoopResult {
                 status,
                 turns: 1,
@@ -547,8 +603,22 @@ impl RigAgentLoop {
                     task_id = %self.task_id,
                     limit = %exceeded.limit_type,
                     retry = retry_count,
+                    action = ?self.limit_tracker.on_limit_action(),
                     "OpenAI agent limit exceeded during retry loop"
                 );
+                match self.limit_tracker.on_limit_action() {
+                    LimitAction::Fail => {
+                        return Err(NikaError::AgentLimitExceeded {
+                            limit_type: format!("{}", exceeded.limit_type),
+                            current: exceeded.current,
+                            maximum: exceeded.maximum,
+                        });
+                    }
+                    LimitAction::Escalate => {
+                        tracing::warn!(task_id = %self.task_id, "Escalation requested — returning partial result");
+                    }
+                    LimitAction::CompletePartial => {}
+                }
                 status = limit_status;
                 break;
             }
@@ -640,8 +710,22 @@ impl RigAgentLoop {
                     task_id = %self.task_id,
                     limit = %exceeded.limit_type,
                     guardrail_retry = guardrail_retry_count,
+                    action = ?self.limit_tracker.on_limit_action(),
                     "OpenAI agent limit exceeded during guardrail retry loop"
                 );
+                match self.limit_tracker.on_limit_action() {
+                    LimitAction::Fail => {
+                        return Err(NikaError::AgentLimitExceeded {
+                            limit_type: format!("{}", exceeded.limit_type),
+                            current: exceeded.current,
+                            maximum: exceeded.maximum,
+                        });
+                    }
+                    LimitAction::Escalate => {
+                        tracing::warn!(task_id = %self.task_id, "Escalation requested — returning partial result");
+                    }
+                    LimitAction::CompletePartial => {}
+                }
                 break;
             }
 
@@ -1001,8 +1085,22 @@ impl RigAgentLoop {
                 limit = %exceeded.limit_type,
                 current = exceeded.current,
                 maximum = exceeded.maximum,
+                action = ?self.limit_tracker.on_limit_action(),
                 "Agent limit exceeded after first turn"
             );
+            match self.limit_tracker.on_limit_action() {
+                LimitAction::Fail => {
+                    return Err(NikaError::AgentLimitExceeded {
+                        limit_type: format!("{}", exceeded.limit_type),
+                        current: exceeded.current,
+                        maximum: exceeded.maximum,
+                    });
+                }
+                LimitAction::Escalate => {
+                    tracing::warn!(task_id = %self.task_id, "Escalation requested — returning partial result");
+                }
+                LimitAction::CompletePartial => {}
+            }
             return Ok(RigAgentLoopResult {
                 status,
                 turns: 1,
@@ -1034,8 +1132,22 @@ impl RigAgentLoop {
                     task_id = %self.task_id,
                     limit = %exceeded.limit_type,
                     retry = retry_count,
+                    action = ?self.limit_tracker.on_limit_action(),
                     "Agent limit exceeded during retry loop"
                 );
+                match self.limit_tracker.on_limit_action() {
+                    LimitAction::Fail => {
+                        return Err(NikaError::AgentLimitExceeded {
+                            limit_type: format!("{}", exceeded.limit_type),
+                            current: exceeded.current,
+                            maximum: exceeded.maximum,
+                        });
+                    }
+                    LimitAction::Escalate => {
+                        tracing::warn!(task_id = %self.task_id, "Escalation requested — returning partial result");
+                    }
+                    LimitAction::CompletePartial => {}
+                }
                 status = limit_status;
                 break;
             }
@@ -1132,8 +1244,22 @@ impl RigAgentLoop {
                     task_id = %self.task_id,
                     limit = %exceeded.limit_type,
                     guardrail_retry = guardrail_retry_count,
+                    action = ?self.limit_tracker.on_limit_action(),
                     "Agent limit exceeded during guardrail retry loop"
                 );
+                match self.limit_tracker.on_limit_action() {
+                    LimitAction::Fail => {
+                        return Err(NikaError::AgentLimitExceeded {
+                            limit_type: format!("{}", exceeded.limit_type),
+                            current: exceeded.current,
+                            maximum: exceeded.maximum,
+                        });
+                    }
+                    LimitAction::Escalate => {
+                        tracing::warn!(task_id = %self.task_id, "Escalation requested — returning partial result");
+                    }
+                    LimitAction::CompletePartial => {}
+                }
                 break;
             }
 

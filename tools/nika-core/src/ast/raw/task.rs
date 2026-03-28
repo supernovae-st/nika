@@ -70,6 +70,9 @@ pub struct RawTask {
     /// Standalone fail_fast (used with decompose when no for_each)
     pub fail_fast: Option<Spanned<bool>>,
 
+    /// Routing override for this task.
+    pub routing: Option<Spanned<serde_json::Value>>,
+
     /// Structured output specification (JSON schema enforcement)
     pub structured: Option<StructuredOutputSpec>,
 

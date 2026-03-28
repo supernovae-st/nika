@@ -698,6 +698,7 @@ mod tests {
                 log: None,
                 structured: None,
                 preset: None,
+                routing: None,
                 span: Span::dummy(),
             });
         }
@@ -953,6 +954,7 @@ mod tests {
                 log: None,
                 structured: None,
                 preset: None,
+                routing: None,
                 span: Span::dummy(),
             },
             // Duplicate name — same "fetch" string but different TaskId
@@ -977,6 +979,7 @@ mod tests {
                 log: None,
                 structured: None,
                 preset: None,
+                routing: None,
                 span: Span::dummy(),
             },
             AnalyzedTask {
@@ -1000,6 +1003,7 @@ mod tests {
                 log: None,
                 structured: None,
                 preset: None,
+                routing: None,
                 span: Span::dummy(),
             },
         ];
@@ -1177,6 +1181,7 @@ mod tests {
                 log: None,
                 structured: None,
                 preset: None,
+                routing: None,
                 span: Span::dummy(),
             },
             AnalyzedTask {
@@ -1200,6 +1205,7 @@ mod tests {
                 log: None,
                 structured: None,
                 preset: None,
+                routing: None,
                 span: Span::dummy(),
             },
         ];
@@ -1254,6 +1260,7 @@ mod tests {
                 log: None,
                 structured: None,
                 preset: None,
+                routing: None,
                 span: Span::dummy(),
             },
             AnalyzedTask {
@@ -1277,6 +1284,7 @@ mod tests {
                 log: None,
                 structured: None,
                 preset: None,
+                routing: None,
                 span: Span::dummy(),
             },
         ];
@@ -1323,6 +1331,7 @@ mod tests {
             log: None,
             structured: None,
             preset: None,
+            routing: None,
             span: Span::dummy(),
         }
     }

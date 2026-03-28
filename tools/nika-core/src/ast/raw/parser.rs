@@ -1365,6 +1365,7 @@ pub fn parse(source: &str, file_id: FileId) -> Result<RawWorkflow, ParseError> {
         "log",
         "agents",
         "skills",
+        "routing",
         "tasks",
     ];
     for (key, _) in map.iter() {
@@ -1713,6 +1714,7 @@ fn validate_task_keys(
         "decompose",
         "structured",
         "artifact",
+        "routing",
         "log",
         "concurrency",
         "fail_fast",
@@ -1858,6 +1860,7 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
         concurrency: standalone_concurrency,
         fail_fast: standalone_fail_fast,
         structured,
+        routing: None,
         artifact,
         log,
     };

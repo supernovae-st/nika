@@ -74,6 +74,9 @@ pub struct AnalyzedWorkflow {
     /// Used by `TaskExecutor` to wire skill injection into agent loops.
     pub skills_map: std::collections::HashMap<String, String>,
 
+    /// Routing configuration (fallback chains, smart routing).
+    pub routing: Option<crate::ast::routing::RoutingConfig>,
+
     /// Span of the entire workflow
     pub span: Span,
 }
@@ -97,6 +100,7 @@ impl Default for AnalyzedWorkflow {
             log: None,
             agents: None,
             skills_map: std::collections::HashMap::new(),
+            routing: None,
             span: Span::dummy(),
         }
     }
@@ -271,6 +275,7 @@ mod tests {
             log: None,
             structured: None,
             preset: None,
+            routing: None,
             span: Span::dummy(),
         });
 
@@ -295,6 +300,7 @@ mod tests {
             log: None,
             structured: None,
             preset: None,
+            routing: None,
             span: Span::dummy(),
         });
 

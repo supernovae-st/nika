@@ -68,6 +68,9 @@ pub struct RawWorkflow {
     /// file paths (local or `pkg:` URIs) for prompt augmentation.
     pub skills: Option<Spanned<indexmap::IndexMap<Spanned<String>, Spanned<String>>>>,
 
+    /// Routing configuration (fallback chains, smart routing).
+    pub routing: Option<Spanned<serde_json::Value>>,
+
     /// Task definitions (order matters for implicit flow)
     pub tasks: Spanned<Vec<Spanned<RawTask>>>,
 
