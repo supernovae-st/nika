@@ -1001,7 +1001,7 @@ impl RigAgentLoop {
             .clone()
             .unwrap_or_else(|| rig::providers::mistral::MISTRAL_LARGE.to_string());
         let client = rig::providers::mistral::Client::from_env();
-        self.run_generic_provider_impl(
+        self.run_agent_loop(
             client,
             &model_name,
             Some(crate::provider::cost::ProviderKind::Mistral),
@@ -1017,7 +1017,7 @@ impl RigAgentLoop {
             .clone()
             .unwrap_or_else(|| "llama-3.3-70b-versatile".to_string());
         let client = rig::providers::groq::Client::from_env();
-        self.run_generic_provider_impl(
+        self.run_agent_loop(
             client,
             &model_name,
             Some(crate::provider::cost::ProviderKind::Groq),
@@ -1033,7 +1033,7 @@ impl RigAgentLoop {
             .clone()
             .unwrap_or_else(|| "deepseek-chat".to_string());
         let client = rig::providers::deepseek::Client::from_env();
-        self.run_generic_provider_impl(
+        self.run_agent_loop(
             client,
             &model_name,
             Some(crate::provider::cost::ProviderKind::DeepSeek),
@@ -1049,7 +1049,7 @@ impl RigAgentLoop {
             .clone()
             .unwrap_or_else(|| "gemini-2.0-flash".to_string());
         let client = rig::providers::gemini::Client::from_env();
-        self.run_generic_provider_impl(
+        self.run_agent_loop(
             client,
             &model_name,
             Some(crate::provider::cost::ProviderKind::Gemini),
@@ -1065,7 +1065,7 @@ impl RigAgentLoop {
             .clone()
             .unwrap_or_else(|| "grok-3-fast".to_string());
         let client = rig::providers::xai::Client::from_env();
-        self.run_generic_provider_impl(
+        self.run_agent_loop(
             client,
             &model_name,
             Some(crate::provider::cost::ProviderKind::XAi),
@@ -1077,7 +1077,7 @@ impl RigAgentLoop {
     ///
     /// Uses rig-core's unified ProviderClient + CompletionClient interface.
     /// Includes retry logic for low confidence responses.
-    async fn run_generic_provider_impl<C>(
+    async fn run_agent_loop<C>(
         &mut self,
         client: C,
         model_name: &str,
