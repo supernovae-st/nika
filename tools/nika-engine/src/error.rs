@@ -217,6 +217,20 @@ pub enum NikaError {
     #[error("[NIKA-033] Invalid configuration: {message}")]
     InvalidConfig { message: String },
 
+    #[error("[NIKA-035] Custom endpoint '{name}' not found in config -- add it to [endpoints.{name}] in ~/.config/nika/config.toml")]
+    #[diagnostic(
+        code(nika::endpoint_not_found),
+        help("Add endpoint to config: nika config edit, or use a known provider name")
+    )]
+    EndpointNotFound { name: String },
+
+    #[error("[NIKA-036] Cannot connect to custom endpoint '{endpoint}': {reason}")]
+    #[diagnostic(
+        code(nika::endpoint_connection_failed),
+        help("Check that the endpoint URL is reachable and the API key is correct")
+    )]
+    EndpointConnectionFailed { endpoint: String, reason: String },
+
     // ═══════════════════════════════════════════
     // TEMPLATE/BINDING ERRORS (040-049)
     // ═══════════════════════════════════════════
@@ -906,6 +920,8 @@ impl NikaError {
             Self::ProviderApiError { .. } => "NIKA-031",
             Self::MissingApiKey { .. } => "NIKA-032",
             Self::InvalidConfig { .. } => "NIKA-033",
+            Self::EndpointNotFound { .. } => "NIKA-035",
+            Self::EndpointConnectionFailed { .. } => "NIKA-036",
             // Binding/Template errors
             Self::Execution(_) => "NIKA-096",
             Self::TemplateError { .. } => "NIKA-041",
@@ -1020,6 +1036,7 @@ impl NikaError {
         match self {
             Self::McpNotConnected { .. }
             | Self::ProviderApiError { .. }
+            | Self::EndpointConnectionFailed { .. }
             | Self::McpToolError { .. }
             | Self::Timeout { .. }
             | Self::McpTimeout { .. }
@@ -1073,6 +1090,12 @@ impl FixSuggestion for NikaError {
                 Some("Run `nika setup` to configure a provider, or set the env var (e.g. ANTHROPIC_API_KEY)")
             }
             NikaError::InvalidConfig { .. } => Some("Check configuration value is valid"),
+            NikaError::EndpointNotFound { .. } => {
+                Some("Add [endpoints.<name>] to ~/.config/nika/config.toml")
+            }
+            NikaError::EndpointConnectionFailed { .. } => {
+                Some("Check endpoint URL, network, and API key")
+            }
             NikaError::Execution(_) => Some("Check command/URL is valid"),
             NikaError::ExecError { .. } => {
                 Some("Check command syntax, working directory, and shell availability")
