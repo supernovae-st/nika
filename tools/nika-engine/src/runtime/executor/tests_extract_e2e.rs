@@ -57,6 +57,27 @@ const RICH_HTML: &str = r#"<!DOCTYPE html>
 </body>
 </html>"#;
 
+const BLOG_HTML: &str = r#"<html><head><title>Blog Post</title>
+<meta name="description" content="A great blog post">
+<meta property="og:title" content="OG Blog Title">
+<meta property="og:image" content="https://example.com/og.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://example.com/blog/post">
+<script type="application/ld+json">{"@type":"Article","headline":"JSON-LD Title"}</script>
+</head><body>
+<nav><a href="/">Home</a><a href="/about">About</a></nav>
+<article><h1>Blog Post Title</h1><p>This is the <strong>main content</strong> with a <a href="/related">related link</a>.</p>
+<ul><li>Item 1</li><li>Item 2</li></ul></article>
+<footer><a href="https://twitter.com/example" rel="nofollow">Twitter</a></footer>
+</body></html>"#;
+
+const JSON_API: &str =
+    r#"{"data":{"items":[{"name":"Alpha","score":95},{"name":"Beta","score":42}],"total":2}}"#;
+
+const RSS_FEED: &str = r#"<?xml version="1.0"?><rss version="2.0"><channel>
+<title>Test Feed</title><item><title>Entry 1</title><link>https://example.com/1</link>
+<pubDate>Mon, 20 Mar 2026 00:00:00 GMT</pubDate></item></channel></rss>"#;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // 1. markdown: HTML -> Markdown
 // ═══════════════════════════════════════════════════════════════════════════
@@ -132,6 +153,28 @@ tasks:
             result.contains("[Rust link](https://rust-lang.org)"),
             "link missing: {}",
             result
+        );
+    }
+
+    #[test]
+    fn apply_preserves_list_items() {
+        let result = apply_extract(BLOG_HTML, Some("markdown"), None).unwrap();
+        assert!(
+            result.contains("Item 1"),
+            "Expected 'Item 1' in markdown output"
+        );
+        assert!(
+            result.contains("Item 2"),
+            "Expected 'Item 2' in markdown output"
+        );
+    }
+
+    #[test]
+    fn apply_empty_html_returns_empty() {
+        let result = apply_extract("", Some("markdown"), None).unwrap();
+        assert!(
+            result.trim().is_empty(),
+            "Expected empty markdown for empty input"
         );
     }
 }
@@ -269,6 +312,21 @@ tasks:
             &result[..200]
         );
     }
+
+    #[test]
+    fn apply_empty_html_returns_empty() {
+        let result = apply_extract("", Some("text"), None).unwrap();
+        assert!(
+            result.trim().is_empty(),
+            "Expected empty text for empty input, got: '{result}'"
+        );
+    }
+
+    #[test]
+    fn apply_invalid_selector_returns_error() {
+        let result = apply_extract(BLOG_HTML, Some("text"), Some("[[[invalid"));
+        assert!(result.is_err(), "Invalid selector should produce an error");
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -389,6 +447,22 @@ tasks:
             err
         );
     }
+
+    #[test]
+    fn apply_returns_outer_html() {
+        let result = apply_extract(BLOG_HTML, Some("selector"), Some("article h1")).unwrap();
+        assert!(
+            result.contains("<h1>"),
+            "Selector should include the matched element's outer HTML"
+        );
+        assert!(result.contains("Blog Post Title"));
+    }
+
+    #[test]
+    fn apply_no_match_returns_empty() {
+        let result = apply_extract(BLOG_HTML, Some("selector"), Some("div.nonexistent")).unwrap();
+        assert!(result.is_empty(), "No match should return empty string");
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -464,6 +538,13 @@ tasks:
         assert!(parsed.get("twitter").is_none(), "no twitter: {}", result);
         assert!(parsed.get("json_ld").is_none(), "no json_ld: {}", result);
     }
+
+    #[test]
+    fn apply_returns_valid_json() {
+        let result = apply_extract(RICH_HTML, Some("metadata"), None).unwrap();
+        let parsed: Result<serde_json::Value, _> = serde_json::from_str(&result);
+        assert!(parsed.is_ok(), "metadata output must be valid JSON");
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -527,6 +608,38 @@ tasks:
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert_eq!(parsed["count"], 0);
         assert!(parsed["links"].as_array().unwrap().is_empty());
+    }
+
+    #[test]
+    fn apply_extracts_blog_html_links() {
+        let result = apply_extract(BLOG_HTML, Some("links"), None).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+
+        // BLOG_HTML has: /, /about, /related, https://twitter.com/example
+        assert_eq!(parsed["count"], 4);
+
+        let links = parsed["links"].as_array().unwrap();
+        let urls: Vec<&str> = links.iter().map(|l| l["url"].as_str().unwrap()).collect();
+        assert!(urls.contains(&"/"), "Expected '/' in links");
+        assert!(urls.contains(&"/about"), "Expected '/about' in links");
+        assert!(urls.contains(&"/related"), "Expected '/related' in links");
+
+        // Anchor text
+        let home_link = links.iter().find(|l| l["url"] == "/").unwrap();
+        assert_eq!(home_link["anchor"], "Home");
+
+        let about_link = links.iter().find(|l| l["url"] == "/about").unwrap();
+        assert_eq!(about_link["anchor"], "About");
+
+        let related_link = links.iter().find(|l| l["url"] == "/related").unwrap();
+        assert_eq!(related_link["anchor"], "related link");
+
+        // Nofollow on twitter link
+        let twitter_link = links
+            .iter()
+            .find(|l| l["url"].as_str().unwrap_or("").contains("twitter.com"))
+            .expect("twitter link should exist");
+        assert_eq!(twitter_link["rel"], "nofollow");
     }
 }
 
@@ -604,6 +717,35 @@ tasks:
         let result = apply_extract(r#"{"a": 1}"#, Some("jsonpath"), Some("$[invalid"));
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Invalid JSONPath"));
+    }
+
+    #[test]
+    fn apply_extracts_simple_path() {
+        let result = apply_extract(JSON_API, Some("jsonpath"), Some("$.data.total")).unwrap();
+        assert_eq!(result, "2");
+    }
+
+    #[test]
+    fn apply_extracts_array_names() {
+        let result =
+            apply_extract(JSON_API, Some("jsonpath"), Some("$.data.items[*].name")).unwrap();
+        let parsed: Vec<String> = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed, vec!["Alpha", "Beta"]);
+    }
+
+    #[test]
+    fn apply_extracts_second_item_name() {
+        let result =
+            apply_extract(JSON_API, Some("jsonpath"), Some("$.data.items[1].name")).unwrap();
+        assert_eq!(result, "\"Beta\"");
+    }
+
+    #[test]
+    fn apply_extracts_all_scores() {
+        let result =
+            apply_extract(JSON_API, Some("jsonpath"), Some("$.data.items[*].score")).unwrap();
+        let parsed: Vec<u64> = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed, vec![95, 42]);
     }
 }
 
@@ -715,6 +857,20 @@ tasks:
             .to_string()
             .contains("Feed parse failed"));
     }
+
+    #[test]
+    fn apply_parses_minimal_rss_feed() {
+        let result = apply_extract(RSS_FEED, Some("feed"), None).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed["title"], "Test Feed");
+        assert!(parsed["entries"].as_array().is_some());
+
+        let entries = parsed["entries"].as_array().unwrap();
+        assert!(!entries.is_empty(), "Feed should have at least one entry");
+        assert_eq!(entries[0]["title"], "Entry 1");
+        assert_eq!(entries[0]["url"], "https://example.com/1");
+        assert_eq!(parsed["entry_count"], 1);
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -752,6 +908,18 @@ tasks:
         let result = apply_extract(html, None, None).unwrap();
         assert_eq!(result, html);
     }
+
+    #[test]
+    fn apply_preserves_json() {
+        let result = apply_extract(JSON_API, None, None).unwrap();
+        assert_eq!(result, JSON_API, "JSON should be preserved verbatim");
+    }
+
+    #[test]
+    fn apply_preserves_xml() {
+        let result = apply_extract(RSS_FEED, None, None).unwrap();
+        assert_eq!(result, RSS_FEED, "XML should be preserved verbatim");
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -768,6 +936,21 @@ mod invalid_mode {
         let err = result.unwrap_err().to_string();
         assert!(err.contains("Unknown extract mode"), "error: {}", err);
         assert!(err.contains("xml"), "should name the mode: {}", err);
+    }
+
+    #[test]
+    fn apply_rejects_bogus_mode() {
+        let result = apply_extract(BLOG_HTML, Some("bogus_mode"), None);
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("Unknown extract mode"),
+            "Error should mention unknown mode"
+        );
+        assert!(
+            err.contains("bogus_mode"),
+            "Error should include the invalid mode name"
+        );
     }
 
     #[test]
