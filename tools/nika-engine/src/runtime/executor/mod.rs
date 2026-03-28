@@ -25,8 +25,6 @@ mod tests;
 #[cfg(test)]
 mod tests_extract_e2e;
 #[cfg(test)]
-mod tests_extraction_e2e;
-#[cfg(test)]
 mod tests_wiremock;
 pub(crate) mod verbs;
 
