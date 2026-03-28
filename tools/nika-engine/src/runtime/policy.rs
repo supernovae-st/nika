@@ -50,6 +50,14 @@ pub(crate) fn is_ssrf_blocked(host: &str) -> bool {
             if v6 == Ipv6Addr::LOCALHOST {
                 return true;
             }
+            // fe80::/10 — link-local (IPv6 equivalent of 169.254.0.0/16)
+            if (v6.segments()[0] & 0xffc0) == 0xfe80 {
+                return true;
+            }
+            // fc00::/7 — unique local address (IPv6 equivalent of RFC 1918)
+            if (v6.segments()[0] & 0xfe00) == 0xfc00 {
+                return true;
+            }
             // IPv4-mapped IPv6 (::ffff:a.b.c.d) — extract and re-check inner v4
             if let Some(mapped) = v6.to_ipv4_mapped() {
                 return is_blocked_v4(mapped);
@@ -696,6 +704,19 @@ mod tests {
         // ::1 (pure IPv6 loopback)
         assert!(enforcer
             .check_fetch("http://[::1]:9090/health")
+            .is_blocked());
+
+        // fe80::1 (IPv6 link-local)
+        assert!(enforcer
+            .check_fetch("http://[fe80::1]:8080/admin")
+            .is_blocked());
+        assert!(enforcer
+            .check_fetch("http://[fe80::1%25eth0]:8080/admin")
+            .is_blocked());
+
+        // fd00::1 (IPv6 unique local / ULA)
+        assert!(enforcer
+            .check_fetch("http://[fd12:3456:789a::1]:8080/api")
             .is_blocked());
     }
 

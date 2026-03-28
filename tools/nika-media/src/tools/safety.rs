@@ -118,16 +118,19 @@ pub fn sanitize_svg(input: &str) -> Result<&str, MediaToolError> {
         }
     }
 
-    // Block xlink:href with external URLs (SSRF via SVG rendering).
-    // Allow internal fragment references like xlink:href="#icon".
-    // Optional quote handles both xlink:href="http://..." and xlink:href=http://...
+    // Block href/xlink:href with external URLs (SSRF via SVG rendering).
+    // Covers both SVG 1.1 (xlink:href) and SVG 2 (plain href) on image/use elements.
+    // Allow internal fragment references like href="#icon".
+    // Optional quote handles both href="http://..." and href=http://...
     // After optional quote, first char must NOT be # or quote (closing).
     static XLINK_EXTERNAL_RE: std::sync::LazyLock<regex::Regex> =
-        std::sync::LazyLock::new(|| regex::Regex::new(r#"xlink:href\s*=\s*["']?[^#\s"']"#).unwrap());
+        std::sync::LazyLock::new(|| {
+            regex::Regex::new(r#"(?:xlink:)?href\s*=\s*["']?[^#\s"']"#).unwrap()
+        });
     if XLINK_EXTERNAL_RE.is_match(&lower) {
         return Err(security_violation(
             "svg_render",
-            "SVG contains xlink:href with external URL (only #fragment refs allowed)",
+            "SVG contains href with external URL (only #fragment refs allowed)",
         ));
     }
 
@@ -233,7 +236,16 @@ mod tests {
         let svg = r#"<svg><use xlink:href=http://evil.com/payload.svg /></svg>"#;
         let err = sanitize_svg(svg).unwrap_err();
         assert!(err.to_string().contains("NIKA-297"));
-        assert!(err.to_string().contains("xlink:href"));
+        assert!(err.to_string().contains("href"));
+    }
+
+    #[test]
+    fn sanitize_svg_rejects_plain_href_ssrf() {
+        // SVG 2 uses plain href (no xlink: prefix)
+        let svg = r#"<svg xmlns="http://www.w3.org/2000/svg"><image href="http://169.254.169.254/latest/meta-data/" width="10" height="10"/></svg>"#;
+        let err = sanitize_svg(svg).unwrap_err();
+        assert!(err.to_string().contains("NIKA-297"));
+        assert!(err.to_string().contains("href"));
     }
 
     #[test]
