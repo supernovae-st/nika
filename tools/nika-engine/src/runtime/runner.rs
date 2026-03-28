@@ -670,6 +670,7 @@ impl Runner {
         event_log: &EventLog,
         start: Instant,
         output_policy: Option<&OutputPolicy>,
+        routing: Option<&nika_core::ast::routing::RoutingConfig>,
     ) -> TaskResult {
         let mut current_infer = original_infer;
         let original_prompt = current_infer.prompt.clone();
@@ -698,9 +699,9 @@ impl Runner {
                 infer: current_infer.clone(),
             };
 
-            // Execute
+            // Execute (with routing fallback if configured)
             let result = executor
-                .execute(task_id, &action, bindings, datastore, output_policy)
+                .execute_with_routing(task_id, &action, bindings, datastore, output_policy, routing)
                 .await;
             let duration = start.elapsed();
 
@@ -1046,6 +1047,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 &event_log,
                 start,
                 effective_output.as_ref(),
+                task.routing.as_ref(),
             )
             .await
         } else {
