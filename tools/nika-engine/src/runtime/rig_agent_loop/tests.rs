@@ -9,29 +9,51 @@ use crate::runtime::rig_agent_loop::types::{
 use crate::runtime::rig_agent_loop::RigAgentLoop;
 
 #[test]
-fn test_rig_agent_status_variants() {
-    let status = RigAgentStatus::NaturalCompletion;
-    assert_eq!(status, RigAgentStatus::NaturalCompletion);
+fn test_rig_agent_status_completion_semantics() {
+    // NaturalCompletion and ExplicitCompletion are "completed"
+    assert!(RigAgentStatus::NaturalCompletion.is_completed());
+    assert!(RigAgentStatus::ExplicitCompletion.is_completed());
+    assert!(RigAgentStatus::HighConfidence(0.95).is_completed());
 
-    let status = RigAgentStatus::MaxTurnsReached;
-    assert_eq!(status, RigAgentStatus::MaxTurnsReached);
+    // MaxTurnsReached, LowConfidence are NOT completed
+    assert!(!RigAgentStatus::MaxTurnsReached.is_completed());
+    assert!(!RigAgentStatus::LowConfidence(0.5).is_completed());
+
+    // Only LowConfidence requires retry
+    assert!(RigAgentStatus::LowConfidence(0.5).requires_retry());
+    assert!(!RigAgentStatus::NaturalCompletion.requires_retry());
+    assert!(!RigAgentStatus::MaxTurnsReached.requires_retry());
+
+    // Canonical string is used in events — verify contract
+    assert_eq!(RigAgentStatus::NaturalCompletion.as_canonical_str(), "end_turn");
+    assert_eq!(RigAgentStatus::MaxTurnsReached.as_canonical_str(), "max_turns");
+    assert_eq!(RigAgentStatus::ExplicitCompletion.as_canonical_str(), "tool_complete");
+    assert_eq!(RigAgentStatus::Failed.as_canonical_str(), "error");
 }
 
 #[test]
-fn test_rig_agent_loop_result_debug() {
+fn test_rig_agent_loop_result_fields() {
     let result = RigAgentLoopResult {
         status: RigAgentStatus::NaturalCompletion,
-        turns: 1,
-        final_output: serde_json::json!({}),
-        total_tokens: 50,
-        confidence: None,
-        retry_count: 0,
+        turns: 3,
+        final_output: serde_json::json!({"answer": "42"}),
+        total_tokens: 1500,
+        confidence: Some(0.95),
+        retry_count: 1,
         guardrails_passed: true,
-        cost_usd: 0.0,
+        cost_usd: 0.05,
         partial_result: None,
     };
-    let debug = format!("{:?}", result);
-    assert!(debug.contains("NaturalCompletion"));
+
+    // Verify field values, not just Debug format
+    assert_eq!(result.turns, 3);
+    assert_eq!(result.total_tokens, 1500);
+    assert_eq!(result.confidence, Some(0.95));
+    assert_eq!(result.retry_count, 1);
+    assert!(result.guardrails_passed);
+    assert!(result.cost_usd > 0.0);
+    assert_eq!(result.final_output["answer"], "42");
+    assert!(result.status.is_completed());
 }
 
 // ========================================================================
