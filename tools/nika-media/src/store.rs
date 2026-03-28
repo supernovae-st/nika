@@ -236,8 +236,9 @@ fn transparent_decompress(data: Vec<u8>) -> Result<Vec<u8>, MediaError> {
             Ok(data[CAS_HEADER_LEN..].to_vec())
         }
         _ => {
-            // Unknown flag — treat as legacy for forward compat
-            Ok(data)
+            // Unknown flag — strip header, return data (forward compat)
+            tracing::warn!(flag, "Unknown CAS framing flag, stripping header");
+            Ok(data[CAS_HEADER_LEN..].to_vec())
         }
     }
 }
