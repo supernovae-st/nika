@@ -448,9 +448,9 @@ impl TaskExecutor {
             return self.execute(task_id, action, bindings, datastore, output_policy).await;
         }
 
-        let mut last_error: Option<NikaError> = None;
+        let mut errors: Vec<(String, String)> = Vec::new();
 
-        for (attempt, provider_name) in fallback_chain.iter().enumerate() {
+        for (idx, provider_name) in fallback_chain.iter().enumerate() {
             // Override the provider for this attempt
             let mut action_clone = action.clone();
             match &mut action_clone {
@@ -469,28 +469,43 @@ impl TaskExecutor {
             {
                 Ok(output) => return Ok(output),
                 Err(e) => {
-                    let is_last = attempt == fallback_chain.len() - 1;
+                    let reason = classify_fallback_reason(&e);
+                    errors.push((provider_name.clone(), e.to_string()));
+
+                    let is_last = idx == fallback_chain.len() - 1;
                     if !is_last {
-                        // Emit fallback event and try next
-                        let next_provider = &fallback_chain[attempt + 1];
+                        let next_provider = &fallback_chain[idx + 1];
                         self.event_log.emit(crate::event::EventKind::FallbackTriggered {
                             task_id: Arc::clone(task_id),
                             from_provider: provider_name.clone(),
                             to_provider: next_provider.clone(),
-                            reason: classify_fallback_reason(&e),
-                            attempt: attempt as u32,
+                            reason,
+                            attempt: (idx + 1) as u32, // 1-indexed (consistent with TaskRetry)
                         });
                     }
-                    last_error = Some(e);
                 }
             }
         }
 
+        // Build detailed error message with per-provider failures
+        let last_error = errors
+            .last()
+            .map(|(_, e)| e.clone())
+            .unwrap_or_else(|| "unknown".to_string());
+        let details: Vec<String> = errors
+            .iter()
+            .map(|(p, e)| format!("{p}: {e}"))
+            .collect();
+        tracing::warn!(
+            task_id = %task_id,
+            chain = %fallback_chain.join(" → "),
+            "Fallback chain exhausted: {}",
+            details.join("; ")
+        );
+
         Err(NikaError::FallbackChainExhausted {
             providers: fallback_chain.join(", "),
-            last_error: last_error
-                .map(|e| e.to_string())
-                .unwrap_or_else(|| "unknown".to_string()),
+            last_error,
         })
     }
 
@@ -582,6 +597,19 @@ fn classify_fallback_reason(err: &NikaError) -> String {
         NikaError::StructuredOutputAllLayersFailed { .. } => "structured_failure".to_string(),
         NikaError::EndpointConnectionFailed { .. } => "connection_failed".to_string(),
         NikaError::EndpointNotFound { .. } => "endpoint_not_found".to_string(),
+        NikaError::MissingApiKey { .. } => "missing_api_key".to_string(),
+        NikaError::ProviderNotConfigured { .. } => "provider_not_configured".to_string(),
+        NikaError::ProviderApiError { message, .. } => {
+            let lower = message.to_lowercase();
+            if lower.contains("429") || lower.contains("rate") || lower.contains("quota") {
+                "rate_limited".to_string()
+            } else if lower.contains("401") || lower.contains("unauthorized") || lower.contains("forbidden") {
+                "auth_failed".to_string()
+            } else {
+                "provider_error".to_string()
+            }
+        }
+        NikaError::AgentLimitExceeded { .. } => "limit_exceeded".to_string(),
         _ => "error".to_string(),
     }
 }
