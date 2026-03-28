@@ -309,19 +309,8 @@ impl Runner {
     pub fn with_custom_endpoints(
         &mut self,
         endpoints: crate::provider::endpoints::CustomEndpointMap,
-    ) -> Result<(), NikaError> {
-        let mcp_configs = lower_mcp_servers(self.workflow.mcp_servers.clone());
-        let provider = self.workflow.provider.as_deref().unwrap_or("claude");
-        self.executor = TaskExecutor::with_policy(
-            provider,
-            self.workflow.model.as_deref(),
-            mcp_configs,
-            self.event_log.clone(),
-            None,
-            None,
-            Some(endpoints),
-        )?;
-        Ok(())
+    ) {
+        self.executor.set_custom_endpoints(endpoints);
     }
 
     /// Set the permission mode for file tools (nika:write, nika:edit, etc.)

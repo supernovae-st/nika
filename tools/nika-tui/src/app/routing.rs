@@ -599,9 +599,7 @@ impl App {
             if let Ok(resolved) =
                 nika_engine::provider::endpoints::resolve_endpoints(&config.endpoints)
             {
-                if let Err(e) = runner.with_custom_endpoints(resolved) {
-                    tracing::warn!("Failed to resolve custom endpoints: {}", e);
-                }
+                runner.with_custom_endpoints(resolved);
             }
         }
 

@@ -274,7 +274,7 @@ pub async fn run_tui(workflow_path: &std::path::Path) -> nika_engine::error::Res
     if !config.endpoints.is_empty() {
         if let Ok(resolved) = nika_engine::provider::endpoints::resolve_endpoints(&config.endpoints)
         {
-            let _ = runner.with_custom_endpoints(resolved);
+            runner.with_custom_endpoints(resolved);
         }
     }
 

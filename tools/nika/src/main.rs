@@ -2218,7 +2218,7 @@ async fn run_workflow(
         .with_permission_mode(perm_mode);
     if !config.endpoints.is_empty() {
         if let Ok(resolved) = nika::provider::endpoints::resolve_endpoints(&config.endpoints) {
-            runner.with_custom_endpoints(resolved)?;
+            runner.with_custom_endpoints(resolved);
         }
     }
     if quiet {

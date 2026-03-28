@@ -209,6 +209,17 @@ impl TaskExecutor {
         self.tool_ctx.set_permission_mode(mode);
     }
 
+    /// Set custom endpoints without rebuilding the executor.
+    ///
+    /// Preserves all existing state (policy, permission mode, MCP connections,
+    /// HTTP client pool, CAS store). Only swaps the endpoint map.
+    pub fn set_custom_endpoints(
+        &mut self,
+        endpoints: crate::provider::endpoints::CustomEndpointMap,
+    ) {
+        self.custom_endpoints = Arc::new(endpoints);
+    }
+
     /// Set a cancellation token for aborting in-flight operations.
     ///
     /// When the token is cancelled, MCP invoke operations will abort promptly
