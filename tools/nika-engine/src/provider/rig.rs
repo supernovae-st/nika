@@ -740,7 +740,6 @@ impl RigProvider {
         use rig::OneOrMany;
 
         /// Maximum time to wait for a vision stream call (5 minutes).
-        #[allow(dead_code)]
         const VISION_STREAM_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
 
         // Early return: DeepSeek does not support vision at all
@@ -824,19 +823,27 @@ impl RigProvider {
             }};
         }
 
-        match self {
-            RigProvider::Claude(client) => vision_stream!(client, true),
-            RigProvider::OpenAI(client) => vision_stream!(client, false),
-            RigProvider::Mistral(client) => vision_stream!(client, false),
-            RigProvider::Groq(client) => vision_stream!(client, false),
-            RigProvider::Gemini(client) => vision_stream!(client, false),
-            RigProvider::XAi(client) => vision_stream!(client, false),
-            RigProvider::OpenAiCompat { client, .. } => vision_stream!(client, false),
-            // DeepSeek and Native handled above via early returns
-            RigProvider::DeepSeek(_) => unreachable!("DeepSeek handled above"),
-            #[cfg(feature = "native-inference")]
-            RigProvider::Native(_) => unreachable!("Native handled above"),
-        }
+        // Apply overall timeout to prevent slow-drip streams running forever
+        timeout(VISION_STREAM_TIMEOUT, async {
+            match self {
+                RigProvider::Claude(client) => vision_stream!(client, true),
+                RigProvider::OpenAI(client) => vision_stream!(client, false),
+                RigProvider::Mistral(client) => vision_stream!(client, false),
+                RigProvider::Groq(client) => vision_stream!(client, false),
+                RigProvider::Gemini(client) => vision_stream!(client, false),
+                RigProvider::XAi(client) => vision_stream!(client, false),
+                RigProvider::OpenAiCompat { client, .. } => vision_stream!(client, false),
+                // DeepSeek and Native handled above via early returns
+                RigProvider::DeepSeek(_) => unreachable!("DeepSeek handled above"),
+                #[cfg(feature = "native-inference")]
+                RigProvider::Native(_) => unreachable!("Native handled above"),
+            }
+            Ok::<(), RigInferError>(())
+        })
+        .await
+        .map_err(|_| RigInferError::Timeout {
+            duration_ms: VISION_STREAM_TIMEOUT.as_millis() as u64,
+        })??;
 
         result.text = response_parts.join("");
         Ok(result)
