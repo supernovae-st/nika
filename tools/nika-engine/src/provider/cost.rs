@@ -1205,10 +1205,8 @@ mod tests {
         // Regression: infer.rs used model.unwrap_or("default") for cost calculation,
         // which hits fallback pricing ($5/$15) instead of the actual model's pricing.
         // The fix uses provider.default_model() which returns a real model name.
-        let fallback_cost =
-            calculate_cost(ProviderKind::Claude, "default", 100_000, 50_000);
-        let real_cost =
-            calculate_cost(ProviderKind::Claude, "claude-sonnet-4-6", 100_000, 50_000);
+        let fallback_cost = calculate_cost(ProviderKind::Claude, "default", 100_000, 50_000);
+        let real_cost = calculate_cost(ProviderKind::Claude, "claude-sonnet-4-6", 100_000, 50_000);
         // "default" MUST NOT match any real pricing — proves the bug was real
         assert!(
             (fallback_cost - real_cost).abs() > 0.001,
@@ -1237,7 +1235,8 @@ mod tests {
         for (provider, model) in provider_defaults {
             let pricing = get_model_pricing(*provider, model);
             assert!(
-                (pricing.input_per_million - default_pricing.input_per_million).abs() > f64::EPSILON
+                (pricing.input_per_million - default_pricing.input_per_million).abs()
+                    > f64::EPSILON
                     || (pricing.output_per_million - default_pricing.output_per_million).abs()
                         > f64::EPSILON,
                 "{}/{} uses fallback pricing — add it to the pricing table!",
