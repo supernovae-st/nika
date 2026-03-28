@@ -64,6 +64,12 @@ const BLOCKLIST: &[&str] = &[
     "python -c",
     "python2 -c",
     "python3 -c",
+    // Indirect command execution via find/xargs
+    // Use " -exec" (with leading space) to match `find <path> -exec`
+    " -exec ",
+    " -execdir ",
+    " -delete",
+    "xargs ",
     // Privilege escalation
     "sudo ",
     "doas ",
@@ -715,6 +721,16 @@ mod tests {
         // python3 script.py (no -c) must NOT be blocked
         assert!(check_blocklist("python3 script.py").is_ok());
         assert!(check_blocklist("python3 ./my_script.py --arg").is_ok());
+    }
+
+    #[test]
+    fn test_blocklist_rejects_find_exec_and_xargs() {
+        assert!(check_blocklist("find / -exec rm {} +").is_err());
+        assert!(check_blocklist("find . -name '*.log' -delete").is_err());
+        assert!(check_blocklist("xargs rm < files.txt").is_err());
+        // find without -exec/-delete is allowed
+        assert!(check_blocklist("find . -name '*.txt'").is_ok());
+        assert!(check_blocklist("find . -type f").is_ok());
     }
 
     // =========================================================================
