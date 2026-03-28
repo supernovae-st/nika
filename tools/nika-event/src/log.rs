@@ -1039,11 +1039,15 @@ impl EventLog {
             let for_vec = event.clone();
 
             if let Some(ref writer) = self.trace_writer {
-                let _ = writer.append_event(&event);
+                if let Err(e) = writer.append_event(&event) {
+                    tracing::warn!(error = %e, "Failed to write event to trace file");
+                }
             }
 
             if let Some(ref tx) = self.broadcast_tx {
-                let _ = tx.send(event);
+                if let Err(e) = tx.send(event) {
+                    tracing::debug!(error = %e, "Broadcast send failed (no receivers)");
+                }
             } else {
                 drop(event); // consumed by trace above, explicit drop for clarity
             }
