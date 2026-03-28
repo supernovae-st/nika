@@ -555,34 +555,9 @@ impl Runner {
                     warnings += 1;
                     continue;
                 }
-                // Size check: with media-compression, CAS files have a 4-byte NK
-                // framing header and may be zstd-compressed, so on-disk size
-                // differs from MediaRef.size_bytes. Skip size validation when
-                // compression is enabled; existence check above is sufficient.
-                #[cfg(not(feature = "media-compression"))]
-                match std::fs::metadata(&media_ref.path) {
-                    Ok(meta) => {
-                        if meta.len() != media_ref.size_bytes {
-                            tracing::warn!(
-                                task_id = %task_id,
-                                hash = %media_ref.hash,
-                                expected = media_ref.size_bytes,
-                                actual = meta.len(),
-                                "Media integrity: size mismatch"
-                            );
-                            warnings += 1;
-                        }
-                    }
-                    Err(e) => {
-                        tracing::warn!(
-                            task_id = %task_id,
-                            hash = %media_ref.hash,
-                            error = %e,
-                            "Media integrity: failed to stat CAS file"
-                        );
-                        warnings += 1;
-                    }
-                }
+                // Note: Size check skipped — media-compression (default feature)
+                // adds NK framing + zstd, so on-disk size != MediaRef.size_bytes.
+                // Existence check above is sufficient.
             }
         }
 
