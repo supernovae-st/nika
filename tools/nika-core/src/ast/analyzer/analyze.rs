@@ -265,6 +265,17 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
     workflow.model = raw.model.map(|s| s.value);
     workflow.base_url = raw.base_url.map(|s| s.value);
 
+    // 3a. Parse routing configuration
+    workflow.routing = raw.routing.as_ref().and_then(|s| {
+        match serde_json::from_value::<crate::ast::routing::RoutingConfig>(s.value.clone()) {
+            Ok(config) => Some(config),
+            Err(e) => {
+                tracing::warn!("Invalid routing: config: {e}");
+                None
+            }
+        }
+    });
+
     // 3b. Validate model is specified when LLM verbs are used
     let has_workflow_model = workflow.model.is_some();
     for raw_task in &raw.tasks.value {
@@ -742,7 +753,19 @@ fn analyze_task(
                 }
             }),
         structured: raw.structured.clone(),
-        routing: None,
+        routing: raw.routing.as_ref().and_then(|s| {
+            match serde_json::from_value::<crate::ast::routing::RoutingConfig>(s.value.clone()) {
+                Ok(config) => Some(config),
+                Err(e) => {
+                    tracing::warn!(
+                        task_id = %raw.id.value,
+                        error = %e,
+                        "Failed to parse routing: config, ignoring"
+                    );
+                    None
+                }
+            }
+        }),
         span: raw.span,
     };
 
