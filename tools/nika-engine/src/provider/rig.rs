@@ -1464,6 +1464,24 @@ impl RigProvider {
         tx: mpsc::Sender<StreamChunk>,
         model: Option<&str>,
     ) -> Result<StreamResult, RigInferError> {
+        // Overall timeout for entire streaming operation (10 min).
+        // Individual chunks have their own 60s timeout in consume_rig_stream,
+        // but a slow stream (1 chunk every 59s) would never hit that.
+        const STREAM_TOTAL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(600);
+
+        timeout(STREAM_TOTAL_TIMEOUT, self.infer_stream_inner(prompt, tx, model))
+            .await
+            .map_err(|_| RigInferError::Timeout {
+                duration_ms: STREAM_TOTAL_TIMEOUT.as_millis() as u64,
+            })?
+    }
+
+    async fn infer_stream_inner(
+        &self,
+        prompt: &str,
+        tx: mpsc::Sender<StreamChunk>,
+        model: Option<&str>,
+    ) -> Result<StreamResult, RigInferError> {
         let model_id = model.unwrap_or_else(|| self.default_model());
         let mut response_parts: Vec<String> = Vec::new();
         let mut result = StreamResult::default();
@@ -1681,6 +1699,24 @@ impl RigProvider {
     /// # Returns
     /// `StreamResult` containing complete response text and token usage metrics
     pub async fn infer_stream_with_options(
+        &self,
+        prompt: &str,
+        tx: mpsc::Sender<StreamChunk>,
+        options: &InferOptions,
+    ) -> Result<StreamResult, RigInferError> {
+        const STREAM_TOTAL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(600);
+
+        timeout(
+            STREAM_TOTAL_TIMEOUT,
+            self.infer_stream_with_options_inner(prompt, tx, options),
+        )
+        .await
+        .map_err(|_| RigInferError::Timeout {
+            duration_ms: STREAM_TOTAL_TIMEOUT.as_millis() as u64,
+        })?
+    }
+
+    async fn infer_stream_with_options_inner(
         &self,
         prompt: &str,
         tx: mpsc::Sender<StreamChunk>,
