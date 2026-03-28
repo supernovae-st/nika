@@ -222,9 +222,24 @@ impl ArtifactWriter {
                 })?;
         }
 
-        // Final path validation after directory creation (mitigates TOCTOU)
-        // Re-validate now that parent directories exist and can be canonicalized
+        // Final path validation after directory creation — canonicalize parent
+        // to detect symlink escapes (the parent now exists on disk).
         let final_path = validate_artifact_path(&self.artifact_dir, Path::new(&resolved_path))?;
+        if let Some(parent) = final_path.parent() {
+            if let Ok(canonical_parent) = parent.canonicalize() {
+                let canonical_base = self.artifact_dir.canonicalize().unwrap_or_else(|_| self.artifact_dir.clone());
+                if !canonical_parent.starts_with(&canonical_base) {
+                    return Err(NikaError::ArtifactPathError {
+                        path: final_path.display().to_string(),
+                        reason: format!(
+                            "Symlink escape detected: resolved parent '{}' is outside artifact dir '{}'",
+                            canonical_parent.display(),
+                            canonical_base.display()
+                        ),
+                    });
+                }
+            }
+        }
 
         // Write atomically
         write_atomic(&final_path, request.content.as_bytes())
@@ -286,8 +301,24 @@ impl ArtifactWriter {
                 })?;
         }
 
-        // Final path validation after directory creation (mitigates TOCTOU)
+        // Final path validation after directory creation — canonicalize parent
+        // to detect symlink escapes (the parent now exists on disk).
         let final_path = validate_artifact_path(&self.artifact_dir, Path::new(&resolved_path))?;
+        if let Some(parent) = final_path.parent() {
+            if let Ok(canonical_parent) = parent.canonicalize() {
+                let canonical_base = self.artifact_dir.canonicalize().unwrap_or_else(|_| self.artifact_dir.clone());
+                if !canonical_parent.starts_with(&canonical_base) {
+                    return Err(NikaError::ArtifactPathError {
+                        path: final_path.display().to_string(),
+                        reason: format!(
+                            "Symlink escape detected: resolved parent '{}' is outside artifact dir '{}'",
+                            canonical_parent.display(),
+                            canonical_base.display()
+                        ),
+                    });
+                }
+            }
+        }
 
         // Write binary from CAS source using atomic temp+rename pattern.
         //
@@ -888,19 +919,23 @@ mod tests {
             expected_size: 9,
         };
 
-        // This currently SUCCEEDS because normalize_path doesn't resolve symlinks.
-        // Documented as a known limitation -- defense relies on the artifact_dir
-        // being created by nika itself (not user-controlled).
+        // Symlink escape is now BLOCKED by post-mkdir canonicalize check.
         let result = writer.write_binary(request).await;
         assert!(
-            result.is_ok(),
-            "Symlink-in-parent currently passes logical validation (known limitation)"
+            result.is_err(),
+            "Symlink escape should be blocked by canonicalize check"
+        );
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("Symlink escape") || err.contains("escape"),
+            "Error should mention symlink escape, got: {}",
+            err
         );
 
         let escaped_file = escape_target.join("file.bin");
         assert!(
-            escaped_file.exists(),
-            "File was written through symlink to escape target (known limitation)"
+            !escaped_file.exists(),
+            "File should NOT be written through symlink escape"
         );
     }
 
