@@ -1,0 +1,173 @@
+schema: "nika/workflow@0.12"
+workflow: e2e-mega-test
+description: "Full E2E test: all 5 verbs, for_each, context, artifacts, structured output, guardrails, error handling"
+provider: mock
+model: mock-model
+
+inputs:
+  topic: "Workflow engine testing"
+  max_items: 3
+
+context:
+  files:
+    readme: ./README.md
+
+artifacts:
+  dir: ./output/e2e-test
+  format: text
+  mode: overwrite
+
+tasks:
+  # -----------------------------------------------
+  # VERB 1: exec — gather system info
+  # -----------------------------------------------
+  - id: system_info
+    exec:
+      command: "echo '{\"os\": \"test\", \"arch\": \"x86_64\", \"timestamp\": \"2026-03-28\"}'"
+      shell: true
+      timeout: 10
+
+  # -----------------------------------------------
+  # VERB 2: fetch — HTTP request with extract
+  # -----------------------------------------------
+  - id: fetch_data
+    fetch:
+      url: "https://httpbin.org/json"
+      method: GET
+      extract: jsonpath
+      selector: "$.slideshow.title"
+      timeout: 15
+
+  # -----------------------------------------------
+  # VERB 3: infer — LLM with context files
+  # -----------------------------------------------
+  - id: analyze_context
+    depends_on: [system_info]
+    with:
+      sys: $system_info
+    infer:
+      prompt: |
+        Given this system context: {{with.sys}}
+        And this readme excerpt: {{context.readme | default("no readme") | trim}}
+        Topic: {{inputs.topic}}
+        Generate a JSON array of exactly {{inputs.max_items}} test scenarios.
+      temperature: 0.3
+      max_tokens: 500
+
+  # -----------------------------------------------
+  # VERB 3b: infer with structured output + artifact
+  # -----------------------------------------------
+  - id: structured_extract
+    depends_on: [analyze_context]
+    with:
+      raw: $analyze_context
+    infer:
+      prompt: |
+        Extract structured data from: {{with.raw}}
+        Return a JSON object with fields: title, items (array), score (number).
+    structured:
+      schema:
+        type: object
+        properties:
+          title:
+            type: string
+          items:
+            type: array
+            items:
+              type: string
+          score:
+            type: number
+            minimum: 0
+            maximum: 100
+        required: [title, items, score]
+      enable_repair: true
+      max_retries: 2
+    artifact:
+      path: structured-output.json
+      format: json
+
+  # -----------------------------------------------
+  # for_each with concurrency
+  # -----------------------------------------------
+  - id: process_items
+    depends_on: [structured_extract]
+    with:
+      data: $structured_extract
+    for_each:
+      items: "{{with.data.items | default(\"[\\\"a\\\", \\\"b\\\", \\\"c\\\"]\") | parse_json}}"
+      as: item
+      concurrency: 2
+      fail_fast: false
+    infer: "Process item: {{with.item}} — provide a one-sentence analysis."
+
+  # -----------------------------------------------
+  # Fan-in from for_each
+  # -----------------------------------------------
+  - id: measure_output
+    depends_on: [process_items]
+    with:
+      results: $process_items
+    exec:
+      command: "echo '{{with.results | length}} items processed'"
+      shell: true
+
+  # -----------------------------------------------
+  # VERB 5: agent — multi-turn with guardrails
+  # -----------------------------------------------
+  - id: review_agent
+    depends_on: [structured_extract, measure_output]
+    with:
+      structured: $structured_extract
+      count: $measure_output
+    agent:
+      system: "You are a quality reviewer. Be concise."
+      prompt: |
+        Review this structured output: {{with.structured}}
+        Items processed: {{with.count}}
+        Provide a quality assessment with exactly 3 bullet points.
+      max_turns: 3
+      temperature: 0.2
+      completion:
+        mode: natural
+      guardrails:
+        - type: length
+          min_words: 10
+          max_words: 500
+          on_failure: retry
+        - type: regex
+          pattern: "\\*"
+          message: "Response must contain bullet points"
+          on_failure: retry
+
+  # -----------------------------------------------
+  # Error handling: retry with backoff
+  # -----------------------------------------------
+  - id: risky_fetch
+    retry:
+      max_attempts: 1
+      delay_ms: 100
+    fetch:
+      url: "https://httpbin.org/status/200"
+      timeout: 5
+
+  # -----------------------------------------------
+  # Final synthesis with artifact
+  # -----------------------------------------------
+  - id: final_report
+    depends_on: [review_agent, fetch_data, risky_fetch]
+    with:
+      review: $review_agent
+      api_data: $fetch_data
+      risky: $risky_fetch
+    infer:
+      prompt: |
+        Create a final report combining:
+        - Review: {{with.review | default("review not available")}}
+        - API data: {{with.api_data | default("api data not available") | trim}}
+        - Risky fetch: {{with.risky | default("fetch failed as expected")}}
+
+        Include a summary section.
+      max_tokens: 800
+    artifact:
+      path: final-report.md
+      format: text

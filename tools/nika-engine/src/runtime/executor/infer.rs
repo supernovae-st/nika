@@ -765,6 +765,7 @@ impl TaskExecutor {
         // Use infer_stream_with_options when LLM control options are set
         // Otherwise fall back to infer_stream.
         // We discard the stream chunks (no TUI display in executor mode) but keep the StreamResult metrics.
+        let infer_start = Instant::now();
         let (tx, _rx) = mpsc::channel::<StreamChunk>(64);
         let has_llm_options = infer.temperature.is_some()
             || infer.max_tokens.is_some()
@@ -839,18 +840,28 @@ impl TaskExecutor {
             .adjust_reservation(estimated_tokens, actual_tokens);
 
         // EMIT: ProviderResponded with accurate token counts and cost from streaming response
-        let cost = provider
-            .cost_provider_kind()
-            .map(|pk| {
-                crate::provider::cost::calculate_cost_with_cache(
-                    pk,
-                    model.unwrap_or_else(|| provider.default_model()),
-                    stream_result.input_tokens,
-                    stream_result.output_tokens,
-                    stream_result.cached_input_tokens,
-                )
-            })
-            .unwrap_or(0.0);
+        let infer_duration = infer_start.elapsed();
+        let cost = if let Some(hourly_rate) = self.endpoint_hourly_rate(provider_name) {
+            // Custom endpoint with hourly_rate: use time-based cost
+            crate::provider::cost::calculate_hourly_cost(
+                infer_duration.as_secs_f64(),
+                hourly_rate,
+            )
+        } else {
+            // Cloud provider: use token-based cost
+            provider
+                .cost_provider_kind()
+                .map(|pk| {
+                    crate::provider::cost::calculate_cost_with_cache(
+                        pk,
+                        model.unwrap_or_else(|| provider.default_model()),
+                        stream_result.input_tokens,
+                        stream_result.output_tokens,
+                        stream_result.cached_input_tokens,
+                    )
+                })
+                .unwrap_or(0.0)
+        };
         self.event_log.emit(EventKind::ProviderResponded {
             task_id: Arc::clone(task_id),
             request_id: stream_result.request_id.clone(),

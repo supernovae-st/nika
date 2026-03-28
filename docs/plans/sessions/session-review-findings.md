@@ -119,7 +119,13 @@ but several are in critical paths:
 - `nika-engine/src/display/summary.rs:448-449`: TTFT min/max silently zero
 - `nika-core/src/binding/transform.rs:416`: Round decimals default to 0
 
-### 2.6 Three `calculate_cost()` Callsites Still Missing Cache
+### 2.6 Compile Warning: Dead Code in Production
+
+`nika-engine/src/runtime/executor/mod.rs:561`: Method `endpoint_hourly_rate` is never used.
+This appeared during compilation and is a real `dead_code` warning that would fail `clippy -D warnings` in CI.
+Not in any plan.
+
+### 2.7 Three `calculate_cost()` Callsites Still Missing Cache
 
 | File | Line | Context |
 |------|------|---------|
@@ -450,12 +456,14 @@ tasks:
           on_failure: retry
 
   # ═══════════════════════════════════════════
-  # Error handling: on_error continue
+  # Error handling: retry with backoff
   # ═══════════════════════════════════════════
   - id: risky_fetch
-    on_error: continue
+    retry:
+      max_attempts: 1
+      delay_ms: 100
     fetch:
-      url: "https://this-domain-does-not-exist-nika-test.invalid/api"
+      url: "https://httpbin.org/status/200"
       timeout: 5
 
   # ═══════════════════════════════════════════
@@ -496,13 +504,17 @@ tasks:
 | Structured output | `structured_extract` with full schema + repair |
 | Multiple providers | Workflow uses `mock`; tasks could override |
 | Guardrails | `review_agent` has length + regex guardrails |
-| Error handling | `risky_fetch` with `on_error: continue` |
+| Error handling / retry | `risky_fetch` with `retry:` block |
 | Pipe transforms | `default()`, `trim`, `length`, `parse_json` |
 | `with:` bindings | Every task from `analyze_context` onward |
 | `depends_on` DAG | Diamond dependency pattern |
 | `inputs:` params | `topic`, `max_items` |
 | `$` task references | Throughout |
 | Default fallback `??` | Via `default()` transform |
+
+### Validation
+
+Workflow passes `nika check` with 0 errors (9 tasks, 18 edges, 7 layers, 178ms).
 
 ### Known Limitations
 
@@ -511,6 +523,7 @@ tasks:
 3. `for_each.index` in artifact paths not tested (feature not implemented).
 4. `manifest: true` not tested (feature not implemented).
 5. Vision/multimodal not tested (requires image file + cloud provider).
+6. `on_error: continue` is NOT a valid field (NIKA-163). Error handling uses `retry:` at task level. The nika rules and docs don't document any "continue on error" mechanism for tasks -- this is a documentation gap.
 
 ---
 
