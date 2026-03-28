@@ -66,9 +66,10 @@ pub(crate) fn is_ssrf_blocked(host: &str) -> bool {
 ///
 /// Returns `true` if ANY resolved IP is blocked.
 pub(crate) async fn resolve_and_check_ssrf(host: &str) -> bool {
-    // Skip resolution for raw IPs — already checked by is_ssrf_blocked()
+    // Skip raw IPs — they were already checked by the string-level check_fetch().
+    // DNS rebinding only applies to hostnames that might resolve to private IPs.
     if host.parse::<IpAddr>().is_ok() {
-        return is_ssrf_blocked(host);
+        return false;
     }
 
     // Attempt DNS resolution with timeout
