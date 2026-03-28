@@ -421,20 +421,23 @@ tasks:
     }
 
     // ========================================================================
-    // Test: Task without any verb fails
+    // Test: Task without verb is valid (decompose-only or depends_on-only)
     // ========================================================================
     #[test]
-    fn test_task_without_verb_fails() {
+    fn test_task_without_verb_is_valid() {
         let validator = WorkflowSchemaValidator::new().unwrap();
         let yaml = r#"
 schema: "nika/workflow@0.12"
 tasks:
   - id: step1
-    output:
-      format: json
+    depends_on: [other_task]
 "#;
         let result = validator.validate_yaml(yaml);
-        assert!(result.is_err(), "Task without verb should fail");
+        assert!(
+            result.is_ok(),
+            "Verb-less task (depends_on only) should pass: {:?}",
+            result
+        );
     }
 
     // ========================================================================

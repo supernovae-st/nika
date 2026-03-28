@@ -314,8 +314,19 @@
         { "required": ["id", "fetch"] },
         { "required": ["id", "invoke"] },
         { "required": ["id", "agent"] },
-        { "required": ["id", "decompose"] },
-        { "required": ["id", "depends_on"] }
+        {
+          "required": ["id"],
+          "not": {
+            "anyOf": [
+              { "required": ["infer"] },
+              { "required": ["exec"] },
+              { "required": ["fetch"] },
+              { "required": ["invoke"] },
+              { "required": ["agent"] }
+            ]
+          },
+          "description": "Verb-less task: decompose-only or depends_on-only"
+        }
       ]
     },
     "DecomposeSpec": {
