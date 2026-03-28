@@ -3257,6 +3257,26 @@ fn pick_workflow(workflows: &[String]) -> Result<String, NikaError> {
 // DRY RUN
 // ═══════════════════════════════════════════════════════════════════════════
 
+/// Lightweight {{inputs.X}} template substitution for dry-run display.
+/// Only resolves `{{inputs.<key>}}` patterns — no full datastore needed.
+fn simple_input_resolve<'a, I>(template: &str, inputs: I) -> String
+where
+    I: IntoIterator<Item = (&'a String, &'a serde_json::Value)>,
+{
+    let mut result = template.to_string();
+    for (key, value) in inputs {
+        let pattern = format!("{{{{inputs.{}}}}}", key);
+        if result.contains(&pattern) {
+            let replacement = match value {
+                serde_json::Value::String(s) => s.clone(),
+                other => other.to_string(),
+            };
+            result = result.replace(&pattern, &replacement);
+        }
+    }
+    result
+}
+
 /// Show execution plan without running anything.
 #[allow(clippy::too_many_arguments)]
 async fn dry_run_workflow(
@@ -3363,8 +3383,18 @@ async fn dry_run_workflow(
     println!("  {}", "Tasks:".bold());
     for task in &workflow.tasks {
         let verb = task.action.verb_name();
-        let provider = task.provider.as_deref().unwrap_or(default_provider);
-        let model = task.model.as_deref().unwrap_or(default_model);
+        let resolved_provider = task
+            .provider
+            .as_deref()
+            .map(|p| simple_input_resolve(p, &workflow.inputs))
+            .unwrap_or_else(|| default_provider.to_string());
+        let resolved_model = task
+            .model
+            .as_deref()
+            .map(|m| simple_input_resolve(m, &workflow.inputs))
+            .unwrap_or_else(|| default_model.to_string());
+        let provider = resolved_provider.as_str();
+        let model = resolved_model.as_str();
         let deps: Vec<&str> = task
             .depends_on
             .iter()
@@ -3398,16 +3428,20 @@ async fn dry_run_workflow(
         // Estimate: ~500 input tokens, ~1000 output tokens per LLM task
         let mut total_cost = 0.0;
         for task in &llm_tasks {
-            let prov_str = task
+            let prov_resolved = task
                 .provider
                 .as_deref()
-                .or(workflow.provider.as_deref())
-                .unwrap_or("anthropic");
-            let model_str = task
+                .map(|p| simple_input_resolve(p, &workflow.inputs))
+                .or_else(|| workflow.provider.clone())
+                .unwrap_or_else(|| "anthropic".to_string());
+            let model_resolved = task
                 .model
                 .as_deref()
-                .or(workflow.model.as_deref())
-                .unwrap_or("claude-sonnet-4-6");
+                .map(|m| simple_input_resolve(m, &workflow.inputs))
+                .or_else(|| workflow.model.clone())
+                .unwrap_or_else(|| "claude-sonnet-4-6".to_string());
+            let prov_str = prov_resolved.as_str();
+            let model_str = model_resolved.as_str();
             let provider_kind = ProviderKind::parse(prov_str).unwrap_or(ProviderKind::Claude);
             total_cost += calculate_cost(provider_kind, model_str, 500, 1000);
         }
@@ -3642,5 +3676,40 @@ mod tests {
         let raw = vec!["key=".to_string()];
         let result = parse_cli_inputs(&raw).unwrap();
         assert_eq!(result[0].1, json!(""));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // simple_input_resolve
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn simple_input_resolve_replaces_template() {
+        let mut inputs = std::collections::HashMap::new();
+        inputs.insert("model".to_string(), json!("gpt-4o"));
+        assert_eq!(simple_input_resolve("{{inputs.model}}", &inputs), "gpt-4o");
+    }
+
+    #[test]
+    fn simple_input_resolve_no_template() {
+        let inputs: std::collections::HashMap<String, serde_json::Value> =
+            std::collections::HashMap::new();
+        assert_eq!(simple_input_resolve("openai", &inputs), "openai");
+    }
+
+    #[test]
+    fn simple_input_resolve_unresolved_stays() {
+        let inputs: std::collections::HashMap<String, serde_json::Value> =
+            std::collections::HashMap::new();
+        assert_eq!(
+            simple_input_resolve("{{inputs.missing}}", &inputs),
+            "{{inputs.missing}}"
+        );
+    }
+
+    #[test]
+    fn simple_input_resolve_numeric_value() {
+        let mut inputs = std::collections::HashMap::new();
+        inputs.insert("count".to_string(), json!(42));
+        assert_eq!(simple_input_resolve("{{inputs.count}}", &inputs), "42");
     }
 }
