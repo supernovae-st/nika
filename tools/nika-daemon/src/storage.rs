@@ -1,8 +1,8 @@
 //! SQLite storage layer for jobs and cache.
 //!
 //! Uses a dedicated thread with a command channel (research finding:
-//! rusqlite Connection is Send but NOT Sync — never use Arc<Mutex<Connection>>
-//! with spawn_blocking, use a dedicated thread with mpsc instead).
+//! rusqlite `Connection` is Send but NOT Sync — never use `Arc<Mutex<Connection>>`
+//! with `spawn_blocking`, use a dedicated thread with mpsc instead).
 //!
 //! WAL mode for concurrent reads. user_version pragma for schema migrations.
 
