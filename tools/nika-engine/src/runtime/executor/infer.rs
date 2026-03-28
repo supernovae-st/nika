@@ -760,17 +760,51 @@ impl TaskExecutor {
         // Otherwise fall back to infer_stream.
         // We discard the stream chunks (no TUI display in executor mode) but keep the StreamResult metrics.
         let (tx, _rx) = mpsc::channel::<StreamChunk>(64);
-        let has_llm_options =
-            infer.temperature.is_some() || infer.max_tokens.is_some() || resolved_system.is_some();
+        let has_llm_options = infer.temperature.is_some()
+            || infer.max_tokens.is_some()
+            || resolved_system.is_some()
+            || infer.extended_thinking == Some(true);
 
         let stream_result = if has_llm_options {
+            // Build additional_params for extended thinking (Claude-specific)
+            let additional_params = if infer.extended_thinking == Some(true) {
+                let budget = infer.thinking_budget.unwrap_or(4096);
+                // Extended thinking requires temperature=1 (Anthropic constraint)
+                if let Some(temp) = infer.temperature {
+                    if (temp - 1.0).abs() > f64::EPSILON {
+                        tracing::warn!(
+                            temperature = temp,
+                            "Ignoring temperature={temp} — extended thinking requires temperature=1.0"
+                        );
+                    }
+                }
+                Some(serde_json::json!({
+                    "thinking": { "type": "enabled", "budget_tokens": budget }
+                }))
+            } else {
+                None
+            };
+
+            // Compute effective max_tokens: when extended_thinking is on,
+            // Claude requires max_tokens > thinking_budget
+            let effective_max_tokens = if infer.extended_thinking == Some(true) {
+                let budget = infer.thinking_budget.unwrap_or(4096);
+                Some(infer.max_tokens.unwrap_or((budget as u32) + 8192))
+            } else {
+                infer.max_tokens
+            };
+
             // Use InferOptions for temperature, max_tokens, system prompt (resolved)
             let options = InferOptions {
                 model: model.map(|s| s.to_string()),
-                temperature: infer.temperature,
-                max_tokens: infer.max_tokens,
+                temperature: if infer.extended_thinking == Some(true) {
+                    Some(1.0) // Extended thinking requires temperature=1
+                } else {
+                    infer.temperature
+                },
+                max_tokens: effective_max_tokens,
                 system: resolved_system.clone(),
-                additional_params: None,
+                additional_params,
             };
             provider
                 .infer_stream_with_options(&prompt, tx, &options)
