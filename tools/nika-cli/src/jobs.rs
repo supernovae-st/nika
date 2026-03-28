@@ -304,11 +304,21 @@ mod tests {
 
     #[tokio::test]
     async fn job_list_no_daemon_returns_error() {
+        // Isolate from real daemon by pointing NIKA_HOME to a tempdir
+        let dir = tempfile::tempdir().unwrap();
+        let orig = std::env::var("NIKA_HOME").ok();
+        std::env::set_var("NIKA_HOME", dir.path());
+
         // When daemon is not running, job commands should return Err, not Ok(())
         let result = handle_job_command(JobAction::List { state: None }, true).await;
         assert!(
             result.is_err(),
             "job list should return Err when daemon is not running"
         );
+
+        match orig {
+            Some(v) => std::env::set_var("NIKA_HOME", v),
+            None => unsafe { std::env::remove_var("NIKA_HOME") },
+        }
     }
 }

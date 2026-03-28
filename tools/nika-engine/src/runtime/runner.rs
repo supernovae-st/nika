@@ -945,15 +945,57 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
         // Bridge AnalyzedTask to lowered types at executor boundary
         // PERF(M4): pass references — lower_action clones only what each verb needs
+
+        // Resolve preset: merge agent preset values as fallback for provider/model
+        // Precedence: task-level > preset > workflow-default
+        let (effective_provider, effective_model) = if let Some(ref preset_name) = task.preset {
+            if let Some(agent) = executor.get_preset(preset_name) {
+                (
+                    task.provider.clone().or_else(|| Some(agent.provider.clone())),
+                    task.model.clone().or_else(|| agent.model.clone()),
+                )
+            } else {
+                (task.provider.clone(), task.model.clone())
+            }
+        } else {
+            (task.provider.clone(), task.model.clone())
+        };
+
         // Resolve base_url: task-level override takes precedence over workflow default
         let resolved_base_url = task.base_url.clone().or(workflow_base_url);
-        let lowered_action = lower_action(
+        let mut lowered_action = lower_action(
             &task.action,
-            &task.provider,
-            &task.model,
+            &effective_provider,
+            &effective_model,
             &task.retry,
             &resolved_base_url,
         );
+
+        // Inject preset system/temperature into lowered action (task-level > preset)
+        if let Some(ref preset_name) = task.preset {
+            if let Some(agent) = executor.get_preset(preset_name) {
+                match &mut lowered_action {
+                    TaskAction::Infer { infer } => {
+                        if infer.system.is_none() {
+                            infer.system = Some(agent.system.clone());
+                        }
+                        if infer.temperature.is_none() {
+                            infer.temperature = agent.temperature.map(f64::from);
+                        }
+                    }
+                    TaskAction::Agent { agent: params } => {
+                        if params.system.is_none() {
+                            params.system = Some(agent.system.clone());
+                        }
+                        if params.temperature.is_none() {
+                            params.temperature = agent.temperature;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+
         let lowered_output = task
             .output
             .as_ref()
@@ -1217,6 +1259,14 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 skills = self.resolved_assets.skills.len(),
                 "Resolved workflow assets"
             );
+        }
+
+        // Wire resolved agent presets into executor for preset: resolution
+        if !self.resolved_assets.agents.is_empty() {
+            self.executor = self
+                .executor
+                .clone()
+                .with_resolved_agents(self.resolved_assets.agents.clone());
         }
 
         // Wire workflow-level skills mapping into the executor for agent skill injection.
@@ -2611,6 +2661,7 @@ mod tests {
             artifact: None,
             log: None,
             structured: None,
+            preset: None,
             span: Span::dummy(),
         };
 
@@ -2756,6 +2807,7 @@ mod tests {
                     artifact: None,
                     log: None,
                     structured: None,
+                    preset: None,
                     span: Span::dummy(),
                 }
             })
@@ -3453,6 +3505,7 @@ mod tests {
             artifact: None,
             log: None,
             structured: None,
+            preset: None,
             span: Span::dummy(),
         };
 
@@ -3498,6 +3551,7 @@ mod tests {
             artifact: None,
             log: None,
             structured: None,
+            preset: None,
             span: Span::dummy(),
         };
 
@@ -4257,6 +4311,7 @@ mod tests {
             artifact: None,
             log: None,
             structured,
+            preset: None,
             span: Span::dummy(),
         }
     }
@@ -4298,6 +4353,7 @@ mod tests {
             structured: Some(StructuredOutputSpec::with_inline_schema(
                 json!({"type": "object"}),
             )),
+            preset: None,
             span: Span::dummy(),
         };
         assert!(
@@ -5549,6 +5605,7 @@ mod tests {
             artifact: None,
             log: None,
             structured: None,
+            preset: None,
             span: Span::dummy(),
         };
 
@@ -5594,6 +5651,7 @@ mod tests {
             artifact: None,
             log: None,
             structured: None,
+            preset: None,
             span: Span::dummy(),
         };
 
@@ -5845,6 +5903,7 @@ mod tests {
             artifact: None,
             log: None,
             structured: None,
+            preset: None,
             span: Span::dummy(),
         };
 
@@ -5881,6 +5940,7 @@ mod tests {
             artifact: None,
             log: None,
             structured: None,
+            preset: None,
             span: Span::dummy(),
         };
 

@@ -697,6 +697,7 @@ mod tests {
                 artifact: None,
                 log: None,
                 structured: None,
+                preset: None,
                 span: Span::dummy(),
             });
         }
@@ -951,6 +952,7 @@ mod tests {
                 artifact: None,
                 log: None,
                 structured: None,
+                preset: None,
                 span: Span::dummy(),
             },
             // Duplicate name — same "fetch" string but different TaskId
@@ -974,6 +976,7 @@ mod tests {
                 artifact: None,
                 log: None,
                 structured: None,
+                preset: None,
                 span: Span::dummy(),
             },
             AnalyzedTask {
@@ -996,6 +999,7 @@ mod tests {
                 artifact: None,
                 log: None,
                 structured: None,
+                preset: None,
                 span: Span::dummy(),
             },
         ];
@@ -1172,6 +1176,7 @@ mod tests {
                 artifact: None,
                 log: None,
                 structured: None,
+                preset: None,
                 span: Span::dummy(),
             },
             AnalyzedTask {
@@ -1194,6 +1199,7 @@ mod tests {
                 artifact: None,
                 log: None,
                 structured: None,
+                preset: None,
                 span: Span::dummy(),
             },
         ];
@@ -1247,6 +1253,7 @@ mod tests {
                 artifact: None,
                 log: None,
                 structured: None,
+                preset: None,
                 span: Span::dummy(),
             },
             AnalyzedTask {
@@ -1269,6 +1276,7 @@ mod tests {
                 artifact: None,
                 log: None,
                 structured: None,
+                preset: None,
                 span: Span::dummy(),
             },
         ];
@@ -1314,6 +1322,7 @@ mod tests {
             artifact: None,
             log: None,
             structured: None,
+            preset: None,
             span: Span::dummy(),
         }
     }
@@ -1406,6 +1415,7 @@ mod tests {
                 log: None,
                 depends_on: Some(vec!["a".to_string()]), // self-reference!
                 structured: None,
+            preset: None,
             })],
         };
 
@@ -1475,6 +1485,7 @@ mod tests {
                     log: None,
                     depends_on: None,
                     structured: None,
+                preset: None,
                 }),
                 Arc::new(Task {
                     id: "b".to_string(),
@@ -1498,6 +1509,7 @@ mod tests {
                     log: None,
                     depends_on: Some(vec!["ghost".to_string()]),
                     structured: None,
+                preset: None,
                 }),
             ],
         };
@@ -1567,6 +1579,7 @@ mod tests {
                     log: None,
                     depends_on: None,
                     structured: None,
+                preset: None,
                 }),
                 Arc::new(Task {
                     id: "b".to_string(),
@@ -1590,6 +1603,7 @@ mod tests {
                     log: None,
                     depends_on: Some(vec!["a".to_string()]),
                     structured: None,
+                preset: None,
                 }),
             ],
         };

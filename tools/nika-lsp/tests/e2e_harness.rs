@@ -155,7 +155,11 @@ impl LspClient {
     ///
     /// Returns `Some(msg)` if found, `None` on timeout.  Any non-matching
     /// messages are silently discarded.
-    fn read_until(&mut self, predicate: impl Fn(&Value) -> bool, timeout: Duration) -> Option<Value> {
+    fn read_until(
+        &mut self,
+        predicate: impl Fn(&Value) -> bool,
+        timeout: Duration,
+    ) -> Option<Value> {
         let deadline = Instant::now() + timeout;
         while Instant::now() < deadline {
             // We need non-blocking behaviour.  A simple approach: set a
@@ -370,11 +374,7 @@ fn test_shutdown_and_exit() {
 
     // Shutdown should succeed.
     let resp = client.send_request("shutdown", json!(null));
-    assert!(
-        resp.get("error").is_none(),
-        "shutdown failed: {:?}",
-        resp
-    );
+    assert!(resp.get("error").is_none(), "shutdown failed: {:?}", resp);
     assert!(resp["result"].is_null(), "shutdown result should be null");
 
     // Send exit notification.
@@ -412,11 +412,7 @@ tasks:
 
     // Wait for publishDiagnostics.
     let diag = client.read_until(
-        |msg| {
-            msg.get("method")
-                .and_then(|m| m.as_str())
-                == Some("textDocument/publishDiagnostics")
-        },
+        |msg| msg.get("method").and_then(|m| m.as_str()) == Some("textDocument/publishDiagnostics"),
         Duration::from_secs(5),
     );
 
@@ -455,11 +451,7 @@ tasks:
 
     // Read until we get publishDiagnostics.
     let diag = client.read_until(
-        |msg| {
-            msg.get("method")
-                .and_then(|m| m.as_str())
-                == Some("textDocument/publishDiagnostics")
-        },
+        |msg| msg.get("method").and_then(|m| m.as_str()) == Some("textDocument/publishDiagnostics"),
         Duration::from_secs(5),
     );
 
@@ -472,9 +464,13 @@ tasks:
     );
 
     // At least one should mention schema.
-    let has_schema_error = diagnostics
-        .iter()
-        .any(|d| d["message"].as_str().unwrap_or("").to_lowercase().contains("schema"));
+    let has_schema_error = diagnostics.iter().any(|d| {
+        d["message"]
+            .as_str()
+            .unwrap_or("")
+            .to_lowercase()
+            .contains("schema")
+    });
     assert!(
         has_schema_error,
         "expected a diagnostic mentioning 'schema', got: {:#?}",
@@ -506,11 +502,7 @@ tasks:
     client.open_document("file:///tmp/badref.nika.yaml", doc);
 
     let diag = client.read_until(
-        |msg| {
-            msg.get("method")
-                .and_then(|m| m.as_str())
-                == Some("textDocument/publishDiagnostics")
-        },
+        |msg| msg.get("method").and_then(|m| m.as_str()) == Some("textDocument/publishDiagnostics"),
         Duration::from_secs(5),
     );
 
@@ -518,12 +510,10 @@ tasks:
     let params = &diag.unwrap()["params"];
     let diagnostics = params["diagnostics"].as_array().unwrap();
 
-    let has_unknown = diagnostics
-        .iter()
-        .any(|d| {
-            let msg = d["message"].as_str().unwrap_or("");
-            msg.to_lowercase().contains("unknown") || msg.to_lowercase().contains("nonexistent")
-        });
+    let has_unknown = diagnostics.iter().any(|d| {
+        let msg = d["message"].as_str().unwrap_or("");
+        msg.to_lowercase().contains("unknown") || msg.to_lowercase().contains("nonexistent")
+    });
     assert!(
         has_unknown,
         "expected diagnostic about unknown task reference, got: {:#?}",
@@ -573,10 +563,7 @@ fn test_completion_at_task_level() {
     );
 
     // The 5 verbs should be in the completions.
-    let labels: Vec<&str> = items
-        .iter()
-        .filter_map(|i| i["label"].as_str())
-        .collect();
+    let labels: Vec<&str> = items.iter().filter_map(|i| i["label"].as_str()).collect();
     assert!(
         labels.iter().any(|l| l.contains("infer")),
         "expected 'infer' in completions, got: {:?}",
@@ -662,10 +649,7 @@ tasks:
     );
 
     let symbols = result.as_array().unwrap();
-    assert!(
-        !symbols.is_empty(),
-        "expected at least one document symbol"
-    );
+    assert!(!symbols.is_empty(), "expected at least one document symbol");
 
     client.shutdown();
 }
@@ -681,11 +665,7 @@ fn test_empty_tasks_warning() {
     client.open_document("file:///tmp/empty.nika.yaml", doc);
 
     let diag = client.read_until(
-        |msg| {
-            msg.get("method")
-                .and_then(|m| m.as_str())
-                == Some("textDocument/publishDiagnostics")
-        },
+        |msg| msg.get("method").and_then(|m| m.as_str()) == Some("textDocument/publishDiagnostics"),
         Duration::from_secs(5),
     );
 
@@ -693,16 +673,14 @@ fn test_empty_tasks_warning() {
     let params = &diag.unwrap()["params"];
     let diagnostics = params["diagnostics"].as_array().unwrap();
 
-    let has_empty_warning = diagnostics
-        .iter()
-        .any(|d| {
-            let code = d["code"].as_str().unwrap_or("");
-            let msg = d["message"].as_str().unwrap_or("").to_lowercase();
-            code == "NIKA-144"
-                || code == "NIKA-145"
-                || msg.contains("no tasks")
-                || msg.contains("must not be empty")
-        });
+    let has_empty_warning = diagnostics.iter().any(|d| {
+        let code = d["code"].as_str().unwrap_or("");
+        let msg = d["message"].as_str().unwrap_or("").to_lowercase();
+        code == "NIKA-144"
+            || code == "NIKA-145"
+            || msg.contains("no tasks")
+            || msg.contains("must not be empty")
+    });
     assert!(
         has_empty_warning,
         "expected empty-tasks diagnostic (NIKA-144 or NIKA-145), got: {:#?}",
@@ -725,11 +703,7 @@ fn test_didclose_clears_diagnostics() {
 
     // Wait for initial diagnostics (with errors).
     let _ = client.read_until(
-        |msg| {
-            msg.get("method")
-                .and_then(|m| m.as_str())
-                == Some("textDocument/publishDiagnostics")
-        },
+        |msg| msg.get("method").and_then(|m| m.as_str()) == Some("textDocument/publishDiagnostics"),
         Duration::from_secs(5),
     );
 
@@ -744,9 +718,7 @@ fn test_didclose_clears_diagnostics() {
     // Server should publish empty diagnostics on close.
     let cleared = client.read_until(
         |msg| {
-            msg.get("method")
-                .and_then(|m| m.as_str())
-                == Some("textDocument/publishDiagnostics")
+            msg.get("method").and_then(|m| m.as_str()) == Some("textDocument/publishDiagnostics")
                 && msg["params"]["diagnostics"]
                     .as_array()
                     .map(|a| a.is_empty())
@@ -913,7 +885,11 @@ fn test_multiple_documents() {
             "position": { "line": 6, "character": 4 },
         }),
     );
-    assert!(resp_a.get("error").is_none(), "completion on doc A failed: {:?}", resp_a);
+    assert!(
+        resp_a.get("error").is_none(),
+        "completion on doc A failed: {:?}",
+        resp_a
+    );
 
     let resp_b = client.send_request(
         "textDocument/completion",
@@ -922,7 +898,11 @@ fn test_multiple_documents() {
             "position": { "line": 6, "character": 4 },
         }),
     );
-    assert!(resp_b.get("error").is_none(), "completion on doc B failed: {:?}", resp_b);
+    assert!(
+        resp_b.get("error").is_none(),
+        "completion on doc B failed: {:?}",
+        resp_b
+    );
 
     client.shutdown();
 }
@@ -1013,9 +993,17 @@ fn test_daemon_status_custom_request() {
     let resp = client.send_request("nika/daemonStatus", json!({}));
 
     // Should return { connected: false } when daemon not running
-    assert!(resp.get("error").is_none(), "daemon status error: {:?}", resp);
+    assert!(
+        resp.get("error").is_none(),
+        "daemon status error: {:?}",
+        resp
+    );
     let connected = resp["result"]["connected"].as_bool();
-    assert!(connected.is_some(), "Should have 'connected' field: {:?}", resp);
+    assert!(
+        connected.is_some(),
+        "Should have 'connected' field: {:?}",
+        resp
+    );
 
     client.shutdown();
 }

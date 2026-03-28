@@ -887,16 +887,17 @@ impl LanguageServer for NikaBackend {
         };
 
         let position = params.position;
-        let offset =
-            crate::position::position_to_offset(&text, position.line, position.character)
-                .map(|o| o.0)
-                .unwrap_or(0);
+        let offset = crate::position::position_to_offset(&text, position.line, position.character)
+            .map(|o| o.0)
+            .unwrap_or(0);
 
         let range = nika_lsp_core::handlers::rename::prepare_rename(&text, offset);
         match range {
             Some(r) => {
-                let start =
-                    crate::position::offset_to_position(&text, crate::position::ByteOffset(r.start));
+                let start = crate::position::offset_to_position(
+                    &text,
+                    crate::position::ByteOffset(r.start),
+                );
                 let end =
                     crate::position::offset_to_position(&text, crate::position::ByteOffset(r.end));
                 Ok(Some(PrepareRenameResponse::Range(Range { start, end })))
@@ -913,13 +914,11 @@ impl LanguageServer for NikaBackend {
         };
 
         let position = params.text_document_position.position;
-        let offset =
-            crate::position::position_to_offset(&text, position.line, position.character)
-                .map(|o| o.0)
-                .unwrap_or(0);
+        let offset = crate::position::position_to_offset(&text, position.line, position.character)
+            .map(|o| o.0)
+            .unwrap_or(0);
 
-        let edits =
-            nika_lsp_core::handlers::rename::rename(&text, offset, &params.new_name);
+        let edits = nika_lsp_core::handlers::rename::rename(&text, offset, &params.new_name);
 
         if edits.is_empty() {
             return Ok(None);
@@ -928,8 +927,10 @@ impl LanguageServer for NikaBackend {
         let text_edits: Vec<TextEdit> = edits
             .into_iter()
             .map(|e| {
-                let start =
-                    crate::position::offset_to_position(&text, crate::position::ByteOffset(e.start));
+                let start = crate::position::offset_to_position(
+                    &text,
+                    crate::position::ByteOffset(e.start),
+                );
                 let end =
                     crate::position::offset_to_position(&text, crate::position::ByteOffset(e.end));
                 TextEdit {

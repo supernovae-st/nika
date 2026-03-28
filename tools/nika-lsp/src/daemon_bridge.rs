@@ -9,9 +9,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 
-use nika_core::catalogs::{
-    CostEstimate, DaemonCapabilities, ProviderStatusInfo, WorkflowRunInfo,
-};
+use nika_core::catalogs::{CostEstimate, DaemonCapabilities, ProviderStatusInfo, WorkflowRunInfo};
 
 const CACHE_TTL: Duration = Duration::from_secs(60);
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
@@ -222,10 +220,7 @@ impl DaemonBridge {
     }
 
     #[cfg(unix)]
-    async fn send_get_workflow_history(
-        &self,
-        workflow: &str,
-    ) -> Option<Vec<WorkflowRunInfo>> {
+    async fn send_get_workflow_history(&self, workflow: &str) -> Option<Vec<WorkflowRunInfo>> {
         use nika_daemon::protocol::{DaemonRequest, DaemonResponse};
         let resp = self
             .send_request(DaemonRequest::GetWorkflowHistory {

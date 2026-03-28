@@ -280,7 +280,7 @@ impl RunStats {
                 self.structured_success_layer = Some(*layer);
             }
 
-            EventKind::FetchRetry { .. } => {
+            EventKind::FetchRetry { .. } | EventKind::TaskRetry { .. } => {
                 self.fetch_retries += 1;
             }
 
@@ -1110,6 +1110,28 @@ impl CliRenderer {
                         *status_code,
                         *backoff_ms,
                     )
+                );
+            }
+
+            // ═══════════════════════════════════════
+            // TASK RETRY (always show)
+            // ═══════════════════════════════════════
+            EventKind::TaskRetry {
+                task_id,
+                attempt,
+                max_attempts,
+                backoff_ms,
+                error,
+            } => {
+                let err_msg = error.as_deref().unwrap_or("transient failure");
+                println!(
+                    "  {} {} retry {}/{} (backoff {}ms): {}",
+                    self.ts(),
+                    task_id,
+                    attempt,
+                    max_attempts,
+                    backoff_ms,
+                    err_msg,
                 );
             }
 

@@ -95,6 +95,8 @@ pub struct TaskExecutor {
     workflow_base_dir: std::path::PathBuf,
     /// Custom endpoints for OpenAI-compatible servers (vLLM, TGI, Ollama)
     custom_endpoints: Arc<crate::provider::endpoints::CustomEndpointMap>,
+    /// Resolved agent presets from the workflow's `agents:` block
+    resolved_agents: Arc<crate::runtime::resolver::ResolvedAgents>,
 }
 
 impl TaskExecutor {
@@ -198,6 +200,7 @@ impl TaskExecutor {
             skills_map: std::collections::HashMap::new(),
             workflow_base_dir: working_dir,
             custom_endpoints: Arc::new(custom_endpoints.unwrap_or_default()),
+            resolved_agents: Arc::new(rustc_hash::FxHashMap::default()),
         })
     }
 
@@ -245,6 +248,20 @@ impl TaskExecutor {
     pub fn with_base_path(mut self, path: std::path::PathBuf) -> Self {
         self.workflow_base_dir = path;
         self
+    }
+
+    /// Set the resolved agent presets from the workflow's `agents:` block.
+    pub fn with_resolved_agents(
+        mut self,
+        agents: crate::runtime::resolver::ResolvedAgents,
+    ) -> Self {
+        self.resolved_agents = Arc::new(agents);
+        self
+    }
+
+    /// Look up a resolved agent preset by name.
+    pub fn get_preset(&self, name: &str) -> Option<&crate::runtime::resolver::ResolvedAgent> {
+        self.resolved_agents.get(name)
     }
 
     /// Inject a mock MCP client for testing

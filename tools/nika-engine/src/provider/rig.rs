@@ -137,10 +137,7 @@ pub struct InferOptions {
 /// Check if a provider name supports native structured output (string-based check).
 /// Prefer `RigProvider::supports_native_structured_output()` when you have the resolved provider.
 pub fn supports_native_structured_output(provider_name: &str) -> bool {
-    matches!(
-        provider_name,
-        "openai" | "groq" | "deepseek" | "xai"
-    )
+    matches!(provider_name, "openai" | "groq" | "deepseek" | "xai")
 }
 
 /// Build the `response_format: json_schema` payload for OpenAI-compatible providers.
@@ -3224,8 +3221,8 @@ mod tests {
         assert!(RigProvider::openai().supports_native_structured_output());
         assert!(!RigProvider::claude().supports_native_structured_output());
 
-        let compat = RigProvider::openai_compat("h100", "http://localhost:8000/v1", "test", None)
-            .unwrap();
+        let compat =
+            RigProvider::openai_compat("h100", "http://localhost:8000/v1", "test", None).unwrap();
         assert!(
             compat.supports_native_structured_output(),
             "OpenAiCompat (custom endpoints) should support native structured output"
@@ -3244,7 +3241,10 @@ mod tests {
         });
         let params = build_response_format_params(&schema);
         assert_eq!(params["response_format"]["type"], "json_schema");
-        assert_eq!(params["response_format"]["json_schema"]["name"], "structured_output");
+        assert_eq!(
+            params["response_format"]["json_schema"]["name"],
+            "structured_output"
+        );
         assert_eq!(params["response_format"]["json_schema"]["strict"], true);
         assert_eq!(
             params["response_format"]["json_schema"]["schema"]["properties"]["name"]["type"],
@@ -3486,13 +3486,9 @@ mod tests {
         assert_eq!(provider.default_model(), "Qwen/Qwen3-8B");
 
         // Without default model → fallback
-        let provider2 = RigProvider::openai_compat(
-            "h100",
-            "http://localhost:8000/v1",
-            "test-key",
-            None,
-        )
-        .unwrap();
+        let provider2 =
+            RigProvider::openai_compat("h100", "http://localhost:8000/v1", "test-key", None)
+                .unwrap();
         assert_eq!(provider2.default_model(), "gpt-3.5-turbo");
     }
 
@@ -3506,8 +3502,14 @@ mod tests {
 
         std::env::set_var("ANTHROPIC_API_KEY", "test-key");
         std::env::set_var("OPENAI_API_KEY", "test-key");
-        assert_eq!(RigProvider::claude().cost_provider_kind(), Some(ProviderKind::Claude));
-        assert_eq!(RigProvider::openai().cost_provider_kind(), Some(ProviderKind::OpenAI));
+        assert_eq!(
+            RigProvider::claude().cost_provider_kind(),
+            Some(ProviderKind::Claude)
+        );
+        assert_eq!(
+            RigProvider::openai().cost_provider_kind(),
+            Some(ProviderKind::OpenAI)
+        );
     }
 
     #[test]
@@ -3538,6 +3540,9 @@ mod tests {
         .unwrap();
         let pk = provider.cost_provider_kind().unwrap();
         let cost = calculate_cost(pk, "gpt-4o", 10_000, 5_000);
-        assert!(cost > 0.0, "Cost should be non-zero for known model via OpenAiCompat");
+        assert!(
+            cost > 0.0,
+            "Cost should be non-zero for known model via OpenAiCompat"
+        );
     }
 }

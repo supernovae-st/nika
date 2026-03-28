@@ -32,8 +32,22 @@ mod tests {
         assert_eq!(provider_env_var("nonexistent"), "UNKNOWN_API_KEY");
     }
     #[test]
+    #[serial]
     fn test_daemon_available_check() {
-        assert!(!daemon_available());
+        // Isolate from real daemon by pointing NIKA_HOME to a tempdir
+        let dir = tempfile::tempdir().unwrap();
+        let orig = std::env::var("NIKA_HOME").ok();
+        std::env::set_var("NIKA_HOME", dir.path());
+
+        assert!(
+            !daemon_available(),
+            "No daemon socket should exist in isolated tempdir"
+        );
+
+        match orig {
+            Some(v) => std::env::set_var("NIKA_HOME", v),
+            None => unsafe { std::env::remove_var("NIKA_HOME") },
+        }
     }
     #[tokio::test]
     #[serial]
