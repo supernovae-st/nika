@@ -12,6 +12,7 @@
 //! - `spinner` — Spinner constants and progress bar templates
 
 pub mod bench;
+pub mod bench_cache;
 pub mod check;
 pub mod cli_format;
 pub mod colors;
