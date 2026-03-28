@@ -22,10 +22,7 @@ pub enum LensCommand {
     /// "N tasks" info badge
     TaskCount(usize),
     /// Last run status: "✓ Last: 2.3s (12s ago)" or "✗ FAILED (1h ago)"
-    LastRun {
-        status: String,
-        detail: String,
-    },
+    LastRun { status: String, detail: String },
 }
 
 impl LensCommand {
@@ -120,7 +117,9 @@ mod tests {
         let lenses = code_lenses(text, None);
         assert!(lenses.iter().any(|l| l.command == LensCommand::Validate));
         assert!(lenses.iter().any(|l| l.command == LensCommand::Run));
-        assert!(!lenses.iter().any(|l| matches!(&l.command, LensCommand::LastRun { .. })));
+        assert!(!lenses
+            .iter()
+            .any(|l| matches!(&l.command, LensCommand::LastRun { .. })));
     }
 
     #[test]
@@ -136,7 +135,9 @@ mod tests {
         };
         let text = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: step1\n    infer: \"test\"";
         let lenses = code_lenses(text, Some(&run));
-        let last_run = lenses.iter().find(|l| matches!(&l.command, LensCommand::LastRun { .. }));
+        let last_run = lenses
+            .iter()
+            .find(|l| matches!(&l.command, LensCommand::LastRun { .. }));
         assert!(last_run.is_some(), "Should have LastRun lens");
         let title = last_run.unwrap().command.title();
         assert!(title.contains("✓"), "Success should show ✓: {title}");
@@ -155,7 +156,9 @@ mod tests {
         };
         let text = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: step1\n    infer: \"test\"";
         let lenses = code_lenses(text, Some(&run));
-        let last_run = lenses.iter().find(|l| matches!(&l.command, LensCommand::LastRun { .. }));
+        let last_run = lenses
+            .iter()
+            .find(|l| matches!(&l.command, LensCommand::LastRun { .. }));
         assert!(last_run.is_some());
         let title = last_run.unwrap().command.title();
         assert!(title.contains("✗"), "Failure should show ✗: {title}");

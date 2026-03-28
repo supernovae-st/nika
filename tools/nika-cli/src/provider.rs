@@ -95,9 +95,14 @@ fn provider_description(id: &str) -> &'static str {
         .unwrap_or("")
 }
 
-pub async fn handle_provider_command(action: ProviderAction, _quiet: bool) -> Result<(), NikaError> {
+pub async fn handle_provider_command(
+    action: ProviderAction,
+    _quiet: bool,
+) -> Result<(), NikaError> {
     use nika_engine::core::provider_to_env_var;
-    use nika_engine::secrets::{mask_api_key, migrate_env_to_keyring, validate_key_format, NikaKeyring};
+    use nika_engine::secrets::{
+        mask_api_key, migrate_env_to_keyring, validate_key_format, NikaKeyring,
+    };
 
     let all_providers = llm_provider_ids();
 

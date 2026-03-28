@@ -29,41 +29,153 @@ pub struct CostEstimate {
 /// Keep in sync with provider documentation.
 pub static KNOWN_PRICING: &[ModelPricing] = &[
     // Anthropic
-    ModelPricing { provider: "Anthropic", model_pattern: "opus-4", input_per_million: 15.0, output_per_million: 75.0 },
-    ModelPricing { provider: "Anthropic", model_pattern: "sonnet-4", input_per_million: 3.0, output_per_million: 15.0 },
-    ModelPricing { provider: "Anthropic", model_pattern: "haiku-3.5", input_per_million: 0.8, output_per_million: 4.0 },
+    ModelPricing {
+        provider: "Anthropic",
+        model_pattern: "opus-4",
+        input_per_million: 15.0,
+        output_per_million: 75.0,
+    },
+    ModelPricing {
+        provider: "Anthropic",
+        model_pattern: "sonnet-4",
+        input_per_million: 3.0,
+        output_per_million: 15.0,
+    },
+    ModelPricing {
+        provider: "Anthropic",
+        model_pattern: "haiku-3.5",
+        input_per_million: 0.8,
+        output_per_million: 4.0,
+    },
     // OpenAI
-    ModelPricing { provider: "OpenAI", model_pattern: "gpt-4o-mini", input_per_million: 0.15, output_per_million: 0.6 },
-    ModelPricing { provider: "OpenAI", model_pattern: "gpt-4o", input_per_million: 2.5, output_per_million: 10.0 },
-    ModelPricing { provider: "OpenAI", model_pattern: "gpt-4.1-nano", input_per_million: 0.1, output_per_million: 0.4 },
-    ModelPricing { provider: "OpenAI", model_pattern: "gpt-4.1-mini", input_per_million: 0.4, output_per_million: 1.6 },
-    ModelPricing { provider: "OpenAI", model_pattern: "gpt-4.1", input_per_million: 2.0, output_per_million: 8.0 },
-    ModelPricing { provider: "OpenAI", model_pattern: "o1", input_per_million: 15.0, output_per_million: 60.0 },
-    ModelPricing { provider: "OpenAI", model_pattern: "o3-mini", input_per_million: 1.1, output_per_million: 4.4 },
-    ModelPricing { provider: "OpenAI", model_pattern: "o4-mini", input_per_million: 1.1, output_per_million: 4.4 },
-    ModelPricing { provider: "OpenAI", model_pattern: "o3", input_per_million: 10.0, output_per_million: 40.0 },
+    ModelPricing {
+        provider: "OpenAI",
+        model_pattern: "gpt-4o-mini",
+        input_per_million: 0.15,
+        output_per_million: 0.6,
+    },
+    ModelPricing {
+        provider: "OpenAI",
+        model_pattern: "gpt-4o",
+        input_per_million: 2.5,
+        output_per_million: 10.0,
+    },
+    ModelPricing {
+        provider: "OpenAI",
+        model_pattern: "gpt-4.1-nano",
+        input_per_million: 0.1,
+        output_per_million: 0.4,
+    },
+    ModelPricing {
+        provider: "OpenAI",
+        model_pattern: "gpt-4.1-mini",
+        input_per_million: 0.4,
+        output_per_million: 1.6,
+    },
+    ModelPricing {
+        provider: "OpenAI",
+        model_pattern: "gpt-4.1",
+        input_per_million: 2.0,
+        output_per_million: 8.0,
+    },
+    ModelPricing {
+        provider: "OpenAI",
+        model_pattern: "o1",
+        input_per_million: 15.0,
+        output_per_million: 60.0,
+    },
+    ModelPricing {
+        provider: "OpenAI",
+        model_pattern: "o3-mini",
+        input_per_million: 1.1,
+        output_per_million: 4.4,
+    },
+    ModelPricing {
+        provider: "OpenAI",
+        model_pattern: "o4-mini",
+        input_per_million: 1.1,
+        output_per_million: 4.4,
+    },
+    ModelPricing {
+        provider: "OpenAI",
+        model_pattern: "o3",
+        input_per_million: 10.0,
+        output_per_million: 40.0,
+    },
     // Mistral
-    ModelPricing { provider: "Mistral", model_pattern: "mistral-large", input_per_million: 2.0, output_per_million: 6.0 },
-    ModelPricing { provider: "Mistral", model_pattern: "mistral-small", input_per_million: 0.2, output_per_million: 0.6 },
+    ModelPricing {
+        provider: "Mistral",
+        model_pattern: "mistral-large",
+        input_per_million: 2.0,
+        output_per_million: 6.0,
+    },
+    ModelPricing {
+        provider: "Mistral",
+        model_pattern: "mistral-small",
+        input_per_million: 0.2,
+        output_per_million: 0.6,
+    },
     // Groq (llama models)
-    ModelPricing { provider: "Groq", model_pattern: "llama-3.3-70b", input_per_million: 0.59, output_per_million: 0.79 },
-    ModelPricing { provider: "Groq", model_pattern: "llama-3.1-8b", input_per_million: 0.05, output_per_million: 0.08 },
+    ModelPricing {
+        provider: "Groq",
+        model_pattern: "llama-3.3-70b",
+        input_per_million: 0.59,
+        output_per_million: 0.79,
+    },
+    ModelPricing {
+        provider: "Groq",
+        model_pattern: "llama-3.1-8b",
+        input_per_million: 0.05,
+        output_per_million: 0.08,
+    },
     // DeepSeek
-    ModelPricing { provider: "DeepSeek", model_pattern: "deepseek-chat", input_per_million: 0.14, output_per_million: 0.28 },
-    ModelPricing { provider: "DeepSeek", model_pattern: "deepseek-reasoner", input_per_million: 0.55, output_per_million: 2.19 },
+    ModelPricing {
+        provider: "DeepSeek",
+        model_pattern: "deepseek-chat",
+        input_per_million: 0.14,
+        output_per_million: 0.28,
+    },
+    ModelPricing {
+        provider: "DeepSeek",
+        model_pattern: "deepseek-reasoner",
+        input_per_million: 0.55,
+        output_per_million: 2.19,
+    },
     // Gemini
-    ModelPricing { provider: "Gemini", model_pattern: "gemini-2.5-flash", input_per_million: 0.15, output_per_million: 0.6 },
-    ModelPricing { provider: "Gemini", model_pattern: "gemini-2.5-pro", input_per_million: 1.25, output_per_million: 10.0 },
+    ModelPricing {
+        provider: "Gemini",
+        model_pattern: "gemini-2.5-flash",
+        input_per_million: 0.15,
+        output_per_million: 0.6,
+    },
+    ModelPricing {
+        provider: "Gemini",
+        model_pattern: "gemini-2.5-pro",
+        input_per_million: 1.25,
+        output_per_million: 10.0,
+    },
     // xAI
-    ModelPricing { provider: "xAI", model_pattern: "grok-3-mini", input_per_million: 0.3, output_per_million: 0.5 },
-    ModelPricing { provider: "xAI", model_pattern: "grok-3", input_per_million: 3.0, output_per_million: 15.0 },
+    ModelPricing {
+        provider: "xAI",
+        model_pattern: "grok-3-mini",
+        input_per_million: 0.3,
+        output_per_million: 0.5,
+    },
+    ModelPricing {
+        provider: "xAI",
+        model_pattern: "grok-3",
+        input_per_million: 3.0,
+        output_per_million: 15.0,
+    },
 ];
 
 /// Find pricing for a model by pattern matching.
 ///
 /// Returns the first match from [`KNOWN_PRICING`]. Matching uses `contains()`.
 pub fn find_pricing(model: &str) -> Option<&'static ModelPricing> {
-    KNOWN_PRICING.iter().find(|p| model.contains(p.model_pattern))
+    KNOWN_PRICING
+        .iter()
+        .find(|p| model.contains(p.model_pattern))
 }
 
 /// Estimate cost for a model invocation.
@@ -190,7 +302,10 @@ mod tests {
 
     #[test]
     fn known_pricing_count() {
-        assert!(KNOWN_PRICING.len() >= 22, "Expected at least 22 pricing entries");
+        assert!(
+            KNOWN_PRICING.len() >= 22,
+            "Expected at least 22 pricing entries"
+        );
     }
 
     #[test]

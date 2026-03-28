@@ -749,15 +749,16 @@ async fn route_request(request: DaemonRequest, state: &Arc<ServerState>) -> Daem
 
         // ── LSP Queries ────────────────────────────────────────────────
         DaemonRequest::ListProviderStatus => {
-            use nika_core::catalogs::{
-                providers::KNOWN_PROVIDERS, KeySource, ProviderStatusInfo,
-            };
+            use nika_core::catalogs::{providers::KNOWN_PROVIDERS, KeySource, ProviderStatusInfo};
             let mut providers = Vec::new();
             for p in KNOWN_PROVIDERS {
                 let has_key = state.secret_service.has_secret(p.id).await;
                 let source = if has_key {
                     // Check env first, then keychain
-                    if std::env::var(p.env_var).map(|v| !v.is_empty()).unwrap_or(false) {
+                    if std::env::var(p.env_var)
+                        .map(|v| !v.is_empty())
+                        .unwrap_or(false)
+                    {
                         KeySource::Env
                     } else {
                         KeySource::Keychain
@@ -782,15 +783,13 @@ async fn route_request(request: DaemonRequest, state: &Arc<ServerState>) -> Daem
             model,
             input_tokens,
             output_tokens,
-        } => {
-            match nika_core::catalogs::estimate_cost(&model, input_tokens, output_tokens) {
-                Some(estimate) => DaemonResponse::CostEstimateResult { estimate },
-                None => DaemonResponse::Error {
-                    code: "COST-001".into(),
-                    message: format!("Unknown model for cost estimation: {}", model),
-                },
-            }
-        }
+        } => match nika_core::catalogs::estimate_cost(&model, input_tokens, output_tokens) {
+            Some(estimate) => DaemonResponse::CostEstimateResult { estimate },
+            None => DaemonResponse::Error {
+                code: "COST-001".into(),
+                message: format!("Unknown model for cost estimation: {}", model),
+            },
+        },
 
         DaemonRequest::GetWorkflowHistory { workflow } => {
             if let Some(ref job_service) = state.job_service {

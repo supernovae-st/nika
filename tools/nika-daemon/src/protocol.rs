@@ -134,9 +134,7 @@ pub enum DaemonRequest {
     },
 
     /// Get recent runs for a workflow file (for LSP hover/code lens).
-    GetWorkflowHistory {
-        workflow: String,
-    },
+    GetWorkflowHistory { workflow: String },
 
     /// Get daemon capabilities and stats (for LSP status bar).
     GetDaemonCapabilities,
@@ -197,7 +195,10 @@ impl std::fmt::Debug for DaemonRequest {
                 write!(f, "DaemonRequest::EstimateCost {{ model: {model:?}, .. }}")
             }
             Self::GetWorkflowHistory { workflow } => {
-                write!(f, "DaemonRequest::GetWorkflowHistory {{ workflow: {workflow:?} }}")
+                write!(
+                    f,
+                    "DaemonRequest::GetWorkflowHistory {{ workflow: {workflow:?} }}"
+                )
             }
             Self::GetDaemonCapabilities => write!(f, "DaemonRequest::GetDaemonCapabilities"),
         }
