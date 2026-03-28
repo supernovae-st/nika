@@ -649,10 +649,9 @@ impl TaskExecutor {
                                                     "Layer 0 + validation succeeded"
                                                 );
                                                 // Adjust token reservation before early return
-                                                let est_actual = estimate_tokens(result_str.len());
                                                 self.policy_enforcer.write().adjust_reservation(
                                                     estimated_tokens,
-                                                    est_actual,
+                                                    est_in + est_out,
                                                 );
                                                 return Ok(result_str);
                                             }
