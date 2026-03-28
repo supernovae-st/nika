@@ -613,7 +613,14 @@ pub fn get_model_pricing(provider: ProviderKind, model: &str) -> ModelPricing {
         ProviderKind::Native => return FREE_PRICING,
     };
 
-    pricing.copied().unwrap_or(DEFAULT_PRICING)
+    pricing.copied().unwrap_or_else(|| {
+        tracing::warn!(
+            provider = %provider.name(),
+            model = %model,
+            "Unknown model — using default pricing ($5/$15 per M tokens)"
+        );
+        DEFAULT_PRICING
+    })
 }
 
 /// Calculate cost for a given number of tokens

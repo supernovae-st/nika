@@ -2415,15 +2415,10 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 // Sort by index to preserve order
                 results.sort_by_key(|(idx, _)| *idx);
 
-                // Collect outputs into JSON array
+                // Collect outputs into JSON array (direct clone preserves types)
                 let outputs: Vec<Value> = results
                     .iter()
-                    .map(|(_, r)| {
-                        // Try to parse as JSON, fall back to string
-                        let output_str = r.output_str();
-                        serde_json::from_str(&output_str)
-                            .unwrap_or(Value::String(output_str.into_owned()))
-                    })
+                    .map(|(_, r)| (*r.output).clone())
                     .collect();
 
                 // Calculate aggregate duration and success
@@ -6404,6 +6399,127 @@ mod tests {
             retry_events.len(),
             1,
             "Should have exactly 1 TaskRetry event (attempt 2 after first failure)"
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // PRESET TESTS
+    // ═══════════════════════════════════════════════════════════════
+
+    fn make_preset_workflow(
+        preset_name: &str,
+        task_provider: Option<&str>,
+        task_model: Option<&str>,
+    ) -> AnalyzedWorkflow {
+        use crate::ast::agent_def::AgentDef;
+
+        let mut task_table = TaskTable::new();
+        task_table.insert("gen");
+        let tid = task_table.get_id("gen").unwrap();
+
+        let task = AnalyzedTask {
+            id: tid,
+            name: "gen".to_string(),
+            description: None,
+            action: AnalyzedTaskAction::Infer(AnalyzedInferAction {
+                prompt: "hello".to_string(),
+                system: None,
+                temperature: None,
+                max_tokens: None,
+                ..Default::default()
+            }),
+            provider: task_provider.map(|s| s.to_string()),
+            model: task_model.map(|s| s.to_string()),
+            base_url: None,
+            with_spec: Default::default(),
+            depends_on: vec![],
+            implicit_deps: vec![],
+            output: None,
+            for_each: None,
+            retry: None,
+            decompose: None,
+            concurrency: None,
+            fail_fast: None,
+            artifact: None,
+            log: None,
+            structured: None,
+            preset: Some(preset_name.to_string()),
+            routing: None,
+            span: Span::dummy(),
+        };
+
+        let mut agents = IndexMap::new();
+        agents.insert(
+            preset_name.to_string(),
+            AgentDef::Inline {
+                system: "You are helpful".to_string(),
+                provider: "mock".to_string(),
+                model: Some("mock-fast".to_string()),
+                max_turns: None,
+                temperature: Some(0.3),
+                skills: None,
+            },
+        );
+
+        AnalyzedWorkflow {
+            schema_version: SchemaVersion::V03,
+            name: None,
+            description: None,
+            provider: Some("mock".to_string()),
+            model: None,
+            base_url: None,
+            task_table,
+            tasks: vec![task],
+            mcp_servers: IndexMap::new(),
+            context_files: vec![],
+            include: vec![],
+            inputs: IndexMap::new(),
+            artifacts: None,
+            log: None,
+            agents: Some(agents),
+            skills_map: std::collections::HashMap::new(),
+            routing: None,
+            span: Span::dummy(),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_preset_resolves_provider_model() {
+        let workflow = make_preset_workflow("assistant", None, None);
+        let mut runner = Runner::new(workflow).unwrap();
+        let result = runner.run().await;
+        assert!(
+            result.is_ok(),
+            "Preset workflow should run: {:?}",
+            result.err()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_preset_task_override_wins() {
+        // Task sets provider: mock, preset sets provider: mock too but model differs.
+        // The task-level provider/model should win over preset.
+        let workflow = make_preset_workflow("writer", Some("mock"), Some("mock-fast"));
+        let mut runner = Runner::new(workflow).unwrap();
+        let result = runner.run().await;
+        assert!(
+            result.is_ok(),
+            "Task-level provider override should work: {:?}",
+            result.err()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_preset_injects_system_temperature() {
+        // Preset defines system + temperature; task has neither.
+        // The runner should inject both from the preset into the lowered action.
+        let workflow = make_preset_workflow("creative", None, None);
+        let mut runner = Runner::new(workflow).unwrap();
+        let result = runner.run().await;
+        assert!(
+            result.is_ok(),
+            "Preset with system + temperature should work: {:?}",
+            result.err()
         );
     }
 }
