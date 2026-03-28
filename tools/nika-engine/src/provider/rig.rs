@@ -874,6 +874,9 @@ impl RigProvider {
         use rig::agent::AgentBuilder;
         use rig::message::ToolChoice as RigToolChoice;
 
+        /// Maximum time for tool-injection structured output (5 minutes).
+        const TOOLS_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
+
         let model_id = model.unwrap_or_else(|| self.default_model());
         let max_tok = max_tokens.map(|v| v as u64).unwrap_or(8192);
 
@@ -894,23 +897,29 @@ impl RigProvider {
             }};
         }
 
-        match self {
-            RigProvider::Claude(client) => build_agent_with_tools!(client),
-            RigProvider::OpenAI(client) => build_agent_with_tools!(client),
-            RigProvider::Mistral(client) => build_agent_with_tools!(client),
-            RigProvider::Groq(client) => build_agent_with_tools!(client),
-            RigProvider::DeepSeek(client) => build_agent_with_tools!(client),
-            RigProvider::Gemini(client) => build_agent_with_tools!(client),
-            RigProvider::XAi(client) => build_agent_with_tools!(client),
-            RigProvider::OpenAiCompat { client, .. } => build_agent_with_tools!(client),
-            #[cfg(feature = "native-inference")]
-            RigProvider::Native(_) => {
-                // Native inference doesn't support tool calling
-                Err(RigInferError::PromptError(
-                    "Native inference does not support tool-based structured output".to_string(),
-                ))
+        let result = timeout(TOOLS_TIMEOUT, async {
+            match self {
+                RigProvider::Claude(client) => build_agent_with_tools!(client),
+                RigProvider::OpenAI(client) => build_agent_with_tools!(client),
+                RigProvider::Mistral(client) => build_agent_with_tools!(client),
+                RigProvider::Groq(client) => build_agent_with_tools!(client),
+                RigProvider::DeepSeek(client) => build_agent_with_tools!(client),
+                RigProvider::Gemini(client) => build_agent_with_tools!(client),
+                RigProvider::XAi(client) => build_agent_with_tools!(client),
+                RigProvider::OpenAiCompat { client, .. } => build_agent_with_tools!(client),
+                #[cfg(feature = "native-inference")]
+                RigProvider::Native(_) => {
+                    Err(RigInferError::PromptError(
+                        "Native inference does not support tool-based structured output".to_string(),
+                    ))
+                }
             }
-        }
+        })
+        .await
+        .map_err(|_| RigInferError::Timeout {
+            duration_ms: TOOLS_TIMEOUT.as_millis() as u64,
+        })?;
+        result
     }
 
     /// Text completion with full control over LLM parameters
