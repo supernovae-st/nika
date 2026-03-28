@@ -616,6 +616,23 @@ fn parse_infer_action(file: FileId, node: &Node) -> Result<RawInferAction, Parse
 
             let guardrails = parse_guardrails_field(file, m)?;
 
+            // Detect commonly misplaced keys inside infer: block
+            let misplaced_keys: Vec<&str> = ["provider", "model", "base_url"]
+                .iter()
+                .filter(|k| m.get_node(k).is_some())
+                .copied()
+                .collect();
+            if !misplaced_keys.is_empty() {
+                return Err(ParseError {
+                    kind: ParseErrorKind::UnknownField,
+                    span,
+                    message: format!(
+                        "{} must be set at task level, not inside the infer: block",
+                        misplaced_keys.join(", ")
+                    ),
+                });
+            }
+
             Ok(RawInferAction {
                 prompt,
                 system: get_string_field(file, m, "system")?,
@@ -2082,6 +2099,38 @@ tasks:
             }
             _ => panic!("Expected Infer action"),
         }
+    }
+
+    #[test]
+    fn test_parse_infer_rejects_misplaced_provider() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: test
+    infer:
+      prompt: "Hello"
+      provider: "groq"
+"#;
+        let err = parse(yaml, FileId(0)).unwrap_err();
+        assert!(
+            err.message.contains("task level"),
+            "Error should hint about task level: {}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn test_parse_infer_rejects_misplaced_model() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: test
+    infer:
+      prompt: "Hello"
+      model: "gpt-4o"
+"#;
+        let err = parse(yaml, FileId(0)).unwrap_err();
+        assert!(err.message.contains("task level"), "{}", err.message);
     }
 
     #[test]
