@@ -329,7 +329,7 @@ enum Commands {
         #[arg(long)]
         max_tokens: Option<u32>,
         /// Temperature
-        #[arg(short, long)]
+        #[arg(short = 'T', long)]
         temperature: Option<f64>,
         /// Read context from stdin
         #[arg(long)]
@@ -3711,5 +3711,16 @@ mod tests {
         let mut inputs = std::collections::HashMap::new();
         inputs.insert("count".to_string(), json!(42));
         assert_eq!(simple_input_resolve("{{inputs.count}}", &inputs), "42");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // CLI arg validation
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn cli_args_no_short_option_conflicts() {
+        // Verify all clap subcommands parse without short-option conflicts
+        use clap::CommandFactory;
+        Cli::command().debug_assert();
     }
 }
