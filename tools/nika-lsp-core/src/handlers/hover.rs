@@ -142,10 +142,10 @@ pub fn hover(
             range: None,
         }),
         CursorContext::Guardrails { .. } => Some(HoverResult {
-            contents: "## `guard:` — Output Guardrails\n\n\
-                Validate task output with rules.\n\n\
-                ```yaml\nguard:\n  - rule: \"Output must be valid JSON\"\n    on_fail: error\n```\n\n\
-                **on_fail:** `error` (default), `warn`, `retry`"
+            contents: "## `guardrails:` — Output Guardrails\n\n\
+                Validate LLM output. 4 types: `length`, `schema`, `regex`, `llm`.\n\n\
+                ```yaml\nguardrails:\n  - type: length\n    max_words: 500\n    on_failure: retry\n```\n\n\
+                **on_failure:** `retry` (default), `escalate`, `fail`"
                 .to_string(),
             range: None,
         }),
@@ -272,11 +272,11 @@ fn field_hover(prefix: &str) -> Option<HoverResult> {
         "for_each" => FOREACH_DOC,
         "timeout" => "## `timeout:` — Task Timeout\n\nMaximum execution time **in seconds**.\n\n```yaml\ntimeout: 30  # 30 seconds\n```",
         "retry" => "## `retry:` — Retry Policy\n\nRetry failed tasks with configurable backoff.\n\n```yaml\nretry:\n  max_attempts: 3\n  delay: 2\n  backoff: exponential\n```",
-        "guard" => "## `guard:` — Output Guardrails\n\nValidate task output with rules.\n\n```yaml\nguard:\n  - rule: \"Output must be valid JSON\"\n    on_fail: error\n```",
+        "guard" => "## `guardrails:` — Output Guardrails\n\nValidate LLM output. 4 types: `length`, `schema`, `regex`, `llm`.\n\n```yaml\nguardrails:\n  - type: length\n    max_words: 500\n    on_failure: retry\n```",
         "output" => "## `output:` — Output Format\n\nControl task output format.\n\n```yaml\noutput:\n  format: json\n```",
         "structured" => "## `structured:` — JSON Schema Output\n\nForce LLM to output valid JSON matching a schema.\n\n```yaml\nstructured:\n  schema:\n    type: object\n    properties:\n      title: { type: string }\n    required: [\"title\"]\n```",
         "on_error" => "## `on_error:` — Error Handling\n\nControl behavior when task fails.\n\n`continue` · `fail` (default) · `skip`",
-        "as" => "## `as:` — Loop Variable Name\n\nName for the current iteration item in `for_each:`.\n\n```yaml\nfor_each: [1, 2, 3]\nas: num\n```\n\nAccess via `{{item}}` or `{{num}}` in the task.",
+        "as" => "## `as:` — Loop Variable Name\n\nName for the current iteration item in `for_each:`.\n\n```yaml\nfor_each: [1, 2, 3]\nas: num\n```\n\nAccess via `{{with.item}}` or `{{with.num}}` in the task.",
         "concurrency" => "## `concurrency:` — Parallel Limit\n\nMax parallel iterations for `for_each:` loops.\n\n```yaml\nconcurrency: 5\n```",
         "fail_fast" => "## `fail_fast:` — Stop on First Failure\n\nAbort remaining iterations if one fails.\n\n```yaml\nfail_fast: true\n```",
         "description" => "## `description:` — Workflow Description\n\nHuman-readable description of the workflow.",

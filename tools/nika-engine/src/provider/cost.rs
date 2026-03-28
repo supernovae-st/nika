@@ -655,14 +655,17 @@ pub fn calculate_cost(
 /// Get the cache discount rate for a provider.
 ///
 /// Returns the fraction of input price charged for cached tokens:
-/// - Anthropic: 0.1 (10%)
-/// - OpenAI: 0.5 (50%)
-/// - DeepSeek: 0.1 (10%)
-/// - Others: 0.1 (conservative default)
+/// - Anthropic: 0.1 (10% of input rate)
+/// - OpenAI: 0.5 (50% of input rate)
+/// - DeepSeek: 0.1 (10% of input rate)
+/// - Others: 1.0 (no discount — provider doesn't support prompt caching)
 pub fn cache_discount_for_provider(provider: ProviderKind) -> f64 {
     match provider {
+        ProviderKind::Claude => 0.1,
         ProviderKind::OpenAI => 0.5,
-        _ => 0.1,
+        ProviderKind::DeepSeek => 0.1,
+        // Providers without prompt caching: no discount
+        _ => 1.0,
     }
 }
 
