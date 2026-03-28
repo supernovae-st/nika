@@ -67,13 +67,9 @@ impl From<ProviderError> for NikaError {
             ProviderError::ApiError { message } => NikaError::ProviderApiError { message },
             ProviderError::MissingApiKey { provider } => NikaError::MissingApiKey { provider },
             ProviderError::InvalidConfig { message } => NikaError::InvalidConfig { message },
-            ProviderError::EndpointNotFound { name } => NikaError::ProviderNotConfigured {
-                provider: format!("custom endpoint '{}'", name),
-            },
+            ProviderError::EndpointNotFound { name } => NikaError::EndpointNotFound { name },
             ProviderError::EndpointConnectionFailed { endpoint, reason } => {
-                NikaError::ProviderApiError {
-                    message: format!("Endpoint '{}': {}", endpoint, reason),
-                }
+                NikaError::EndpointConnectionFailed { endpoint, reason }
             }
         }
     }
