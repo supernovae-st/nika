@@ -13,7 +13,9 @@ use serde::{Deserialize, Serialize};
 /// Cached benchmark results for a single workflow.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BenchCacheEntry {
-    /// SHA-256 hash of the workflow YAML content (first 12 hex chars).
+    /// Hash of the workflow YAML content (16 hex chars, DefaultHasher).
+    /// NOTE: DefaultHasher is NOT stable across Rust versions. Cache may
+    /// invalidate on toolchain upgrade — this is acceptable for bench cache.
     pub workflow_hash: String,
     /// ISO-8601 timestamp of when the bench was run.
     pub timestamp: String,
@@ -38,7 +40,11 @@ pub struct CachedProviderResult {
     pub avg_tokens_per_sec: f64,
 }
 
-/// Compute the cache key (SHA-256 hash prefix) for a workflow YAML string.
+/// Compute the cache key for a workflow YAML string.
+///
+/// Uses `DefaultHasher` (SipHash) — not cryptographic, not stable across
+/// Rust versions. This is acceptable: bench cache is ephemeral and will
+/// simply miss (re-benchmark) after a toolchain upgrade.
 pub fn workflow_hash(yaml_content: &str) -> String {
     use std::hash::{Hash, Hasher};
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
