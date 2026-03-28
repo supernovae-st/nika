@@ -486,6 +486,13 @@ pub enum NikaError {
         violations: Vec<String>,
     },
 
+    #[error("[NIKA-114] Agent limit exceeded: {limit_type} ({current} >= {maximum})")]
+    AgentLimitExceeded {
+        limit_type: String,
+        current: f64,
+        maximum: f64,
+    },
+
     // ═══════════════════════════════════════════
     // RESILIENCE ERRORS (120-129)
     // ═══════════════════════════════════════════
@@ -974,6 +981,7 @@ impl NikaError {
             Self::AgentExecutionError { .. } => "NIKA-115",
             Self::ThinkingCaptureFailed { .. } => "NIKA-116",
             Self::GuardrailViolation { .. } => "NIKA-112",
+            Self::AgentLimitExceeded { .. } => "NIKA-114",
             // Resilience errors
             Self::Timeout { .. } => "NIKA-121",
             Self::McpToolCallFailed { .. } => "NIKA-110",
@@ -1205,6 +1213,9 @@ impl FixSuggestion for NikaError {
                 Some("One or more guardrails failed. Check guardrail config or adjust on_failure action")
             }
             // Resilience errors
+            NikaError::AgentLimitExceeded { .. } => {
+                Some("Increase limits or set on_limit_reached.action to complete_partial")
+            }
             NikaError::Timeout { .. } => Some("Increase timeout or check for slow operations"),
             NikaError::McpTimeout { .. } => {
                 Some("MCP server is slow or unresponsive. Check network and server health.")
@@ -2027,6 +2038,19 @@ mod tests {
         assert_eq!(err.code(), "NIKA-116");
         let msg = err.to_string();
         assert!(msg.contains("[NIKA-116]"));
+    }
+
+    #[test]
+    fn test_agent_limit_exceeded_error() {
+        let err = NikaError::AgentLimitExceeded {
+            limit_type: "turns".to_string(),
+            current: 10.0,
+            maximum: 5.0,
+        };
+        assert_eq!(err.code(), "NIKA-114");
+        let msg = err.to_string();
+        assert!(msg.contains("[NIKA-114]"));
+        assert!(msg.contains("turns"));
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

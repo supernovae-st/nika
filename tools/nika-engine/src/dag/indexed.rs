@@ -321,6 +321,7 @@ mod tests {
                 log: None,
                 structured: None,
                 preset: None,
+                routing: None,
                 span: Span::dummy(),
             });
         }
@@ -502,6 +503,7 @@ mod tests {
             log: None,
             structured: None,
             preset: None,
+            routing: None,
             span: Span::dummy(),
         };
 
@@ -577,6 +579,7 @@ mod tests {
             log: None,
             structured: None,
             preset: None,
+            routing: None,
             span: Span::dummy(),
         });
 
@@ -602,6 +605,7 @@ mod tests {
             log: None,
             structured: None,
             preset: None,
+            routing: None,
             span: Span::dummy(),
         });
 
@@ -738,6 +742,7 @@ mod tests {
             log: None,
             structured: None,
             preset: None,
+            routing: None,
             span: Span::dummy(),
         };
 
@@ -789,6 +794,7 @@ mod tests {
             log: None,
             structured: None,
             preset: None,
+            routing: None,
             span: Span::dummy(),
         });
 
@@ -814,6 +820,7 @@ mod tests {
             log: None,
             structured: None,
             preset: None,
+            routing: None,
             span: Span::dummy(),
         });
 

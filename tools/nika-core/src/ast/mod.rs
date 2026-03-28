@@ -56,6 +56,7 @@ pub mod include;
 pub mod limits;
 pub mod logging;
 pub mod output;
+pub mod routing;
 pub mod structured;
 
 // Re-export key types for convenient access
@@ -66,6 +67,7 @@ pub use include::IncludeSpec;
 pub use limits::{LimitAction, LimitStatus, LimitType, LimitsConfig, OnLimitReachedConfig};
 pub use logging::{LogConfig, LogFormat, LogLevel};
 pub use output::{OutputFormat, OutputPolicy, SchemaRef};
+pub use routing::{RetryCondition, RoutingConfig, RoutingStrategy};
 pub use schema::SchemaVersion;
 pub use structured::StructuredOutputSpec;
 

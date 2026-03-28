@@ -742,6 +742,7 @@ fn analyze_task(
                 }
             }),
         structured: raw.structured.clone(),
+        routing: None,
         span: raw.span,
     };
 

@@ -2626,6 +2626,7 @@ mod tests {
             log: None,
             agents: None,
             skills_map: std::collections::HashMap::new(),
+            routing: None,
             span: Span::dummy(),
         }
     }
@@ -2745,6 +2746,7 @@ mod tests {
             log: None,
             structured: None,
             preset: None,
+            routing: None,
             span: Span::dummy(),
         };
 
@@ -2765,6 +2767,7 @@ mod tests {
             log: None,
             agents: None,
             skills_map: std::collections::HashMap::new(),
+            routing: None,
             span: Span::dummy(),
         }
     }
@@ -2891,6 +2894,7 @@ mod tests {
                     log: None,
                     structured: None,
                     preset: None,
+                    routing: None,
                     span: Span::dummy(),
                 }
             })
@@ -2913,6 +2917,7 @@ mod tests {
             log: None,
             agents: None,
             skills_map: std::collections::HashMap::new(),
+            routing: None,
             span: Span::dummy(),
         }
     }
@@ -3589,6 +3594,7 @@ mod tests {
             log: None,
             structured: None,
             preset: None,
+            routing: None,
             span: Span::dummy(),
         };
 
@@ -3635,6 +3641,7 @@ mod tests {
             log: None,
             structured: None,
             preset: None,
+            routing: None,
             span: Span::dummy(),
         };
 
@@ -3655,6 +3662,7 @@ mod tests {
             log: None,
             agents: None,
             skills_map: std::collections::HashMap::new(),
+            routing: None,
             span: Span::dummy(),
         }
     }
@@ -4395,6 +4403,7 @@ mod tests {
             log: None,
             structured,
             preset: None,
+            routing: None,
             span: Span::dummy(),
         }
     }
@@ -4437,6 +4446,7 @@ mod tests {
                 json!({"type": "object"}),
             )),
             preset: None,
+            routing: None,
             span: Span::dummy(),
         };
         assert!(
@@ -5689,6 +5699,7 @@ mod tests {
             log: None,
             structured: None,
             preset: None,
+            routing: None,
             span: Span::dummy(),
         };
 
@@ -5735,6 +5746,7 @@ mod tests {
             log: None,
             structured: None,
             preset: None,
+            routing: None,
             span: Span::dummy(),
         };
 
@@ -5755,6 +5767,7 @@ mod tests {
             log: None,
             agents: None,
             skills_map: std::collections::HashMap::new(),
+            routing: None,
             span: Span::dummy(),
         }
     }
@@ -5987,6 +6000,7 @@ mod tests {
             log: None,
             structured: None,
             preset: None,
+            routing: None,
             span: Span::dummy(),
         };
 
@@ -6024,6 +6038,7 @@ mod tests {
             log: None,
             structured: None,
             preset: None,
+            routing: None,
             span: Span::dummy(),
         };
 
@@ -6044,6 +6059,7 @@ mod tests {
             log: None,
             agents: None,
             skills_map: std::collections::HashMap::new(),
+            routing: None,
             span: Span::dummy(),
         };
 
@@ -6223,6 +6239,7 @@ mod tests {
             log: None,
             structured: None,
             preset: None,
+            routing: None,
             span: Span::dummy(),
         };
 
@@ -6243,6 +6260,7 @@ mod tests {
             log: None,
             agents: None,
             skills_map: std::collections::HashMap::new(),
+            routing: None,
             span: Span::dummy(),
         };
 
@@ -6330,6 +6348,7 @@ mod tests {
             log: None,
             structured: None,
             preset: None,
+            routing: None,
             span: Span::dummy(),
         };
 
@@ -6350,6 +6369,7 @@ mod tests {
             log: None,
             agents: None,
             skills_map: std::collections::HashMap::new(),
+            routing: None,
             span: Span::dummy(),
         };
 

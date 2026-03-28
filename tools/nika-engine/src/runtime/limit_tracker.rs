@@ -154,6 +154,11 @@ impl LimitTracker {
         &self.config
     }
 
+    /// Get the configured action for when a limit is reached.
+    pub fn on_limit_action(&self) -> &crate::ast::limits::LimitAction {
+        &self.config.on_limit_reached.action
+    }
+
     // ═══════════════════════════════════════════════════════════════════════
     // Limit checking
     // ═══════════════════════════════════════════════════════════════════════
@@ -592,6 +597,36 @@ mod tests {
         tracker.add_turn();
         tracker.add_turn();
         assert!(tracker.approaching_limit()); // 90%
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // on_limit_action tests
+    // ════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn on_limit_action_default_is_complete_partial() {
+        let tracker = LimitTracker::new(full_config());
+        assert_eq!(
+            *tracker.on_limit_action(),
+            crate::ast::limits::LimitAction::CompletePartial
+        );
+    }
+
+    #[test]
+    fn on_limit_action_respects_config() {
+        let config = LimitsConfig {
+            max_turns: 5,
+            on_limit_reached: OnLimitReachedConfig {
+                action: crate::ast::limits::LimitAction::Fail,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let tracker = LimitTracker::new(config);
+        assert_eq!(
+            *tracker.on_limit_action(),
+            crate::ast::limits::LimitAction::Fail
+        );
     }
 
     // ════════════════════════════════════════════════════════════════════
