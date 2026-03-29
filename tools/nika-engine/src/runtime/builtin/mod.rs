@@ -32,6 +32,10 @@ mod complete;
 mod cost;
 mod emit;
 mod file_adapter;
+mod introspect_dag;
+mod introspect_orchestrate;
+mod introspect_task;
+mod introspect_threads;
 mod log;
 pub(crate) mod media;
 mod prompt;
@@ -48,6 +52,10 @@ pub use complete::{
     CompleteTool, COMPLETION_MARKER,
 };
 pub use cost::CostTool;
+pub use introspect_dag::DagInfoTool;
+pub use introspect_orchestrate::OrchestrateTool;
+pub use introspect_task::TaskStatusTool;
+pub use introspect_threads::ThreadsTool;
 pub use records::RecordsTool;
 pub use emit::EmitTool;
 pub use file_adapter::{create_file_tool_adapters, FileToolAdapter};

@@ -214,8 +214,8 @@ impl Runner {
             event_log.clone(),
         )?;
 
-        // Wire nika:records tool so agents can query compressed records
-        executor.wire_records_tool(Arc::new(datastore.clone()));
+        // Wire introspection tools (records, dag_info, task_status, threads, orchestrate)
+        executor.wire_introspection_tools(Arc::new(datastore.clone()));
 
         // Generate unique ID for this execution (used for trace files)
         let generation_id = format!("gen-{}", uuid::Uuid::new_v4());

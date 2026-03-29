@@ -205,16 +205,26 @@ impl TaskExecutor {
         })
     }
 
-    /// Wire nika:records introspection tool (requires RunContext for record queries).
+    /// Wire introspection tools that need RunContext (records, dag_info, task_status, threads, orchestrate).
     ///
     /// Must be called after construction because the datastore is created
     /// in the Runner, not the executor. Uses `Arc::get_mut` which succeeds
     /// because no other references exist at this point in initialization.
-    pub fn wire_records_tool(&mut self, datastore: Arc<crate::store::RunContext>) {
+    pub fn wire_introspection_tools(&mut self, datastore: Arc<crate::store::RunContext>) {
         if let Some(router) = Arc::get_mut(&mut self.builtin_router) {
-            router.register(super::builtin::RecordsTool::new(datastore));
+            router.register(super::builtin::RecordsTool::new(Arc::clone(&datastore)));
+            router.register(super::builtin::DagInfoTool::new(self.event_log.clone()));
+            router.register(super::builtin::TaskStatusTool::new(
+                self.event_log.clone(),
+                Arc::clone(&datastore),
+            ));
+            router.register(super::builtin::ThreadsTool::new(self.event_log.clone()));
+            router.register(super::builtin::OrchestrateTool::new(
+                self.event_log.clone(),
+                datastore,
+            ));
         } else {
-            tracing::warn!("Could not wire nika:records — router already shared");
+            tracing::warn!("Could not wire introspection tools — router already shared");
         }
     }
 

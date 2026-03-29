@@ -165,6 +165,20 @@ impl BuiltinToolRouter {
         self
     }
 
+    /// Add 4 introspection tools (dag_info, task_status, threads, orchestrate).
+    pub fn with_introspection(
+        mut self,
+        event_log: EventLog,
+        datastore: Arc<crate::store::RunContext>,
+    ) -> Self {
+        use super::{DagInfoTool, TaskStatusTool, ThreadsTool, OrchestrateTool};
+        self.register(DagInfoTool::new(event_log.clone()));
+        self.register(TaskStatusTool::new(event_log.clone(), Arc::clone(&datastore)));
+        self.register(ThreadsTool::new(event_log.clone()));
+        self.register(OrchestrateTool::new(event_log, datastore));
+        self
+    }
+
     /// Dispatch a tool call to the appropriate builtin tool.
     ///
     /// # Arguments
