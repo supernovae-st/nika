@@ -34,6 +34,7 @@ pub mod context;
 pub mod context_loader;
 pub mod event_guard;
 mod executor;
+pub mod executor_compressor;
 pub mod hitl;
 pub mod limit_tracker;
 pub mod output;
