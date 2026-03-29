@@ -1125,6 +1125,7 @@ fn test_supports_native_structured_output_by_name() {
 fn test_supports_native_structured_output_by_provider() {
     // RigProvider method detects OpenAiCompat (custom endpoints)
     std::env::set_var("OPENAI_API_KEY", "test-key");
+    std::env::set_var("ANTHROPIC_API_KEY", "test-key");
     assert!(RigProvider::openai().supports_native_structured_output());
     assert!(!RigProvider::claude().supports_native_structured_output());
 
