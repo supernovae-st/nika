@@ -53,6 +53,18 @@ struct OrchestrateResponse {
     total_tokens: u64,
     total_cost_usd: f64,
     records_count: usize,
+    /// Current orchestration round (from events, 0 if no rounds yet)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    round: Option<u32>,
+    /// Workflow goal (if orchestrator mode)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    goal: Option<String>,
+    /// Confidence target (if orchestrator mode)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    confidence_target: Option<f64>,
+    /// Cost limit in USD (if configured)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cost_limit_usd: Option<f64>,
 }
 
 impl BuiltinTool for OrchestrateTool {
@@ -81,6 +93,8 @@ impl BuiltinTool for OrchestrateTool {
             let mut completed: FxHashSet<String> = FxHashSet::default();
             let mut total_tokens: u64 = 0;
             let mut total_cost_usd: f64 = 0.0;
+            let mut latest_round: Option<u32> = None;
+            let mut goal: Option<String> = None;
 
             self.event_log.with_events(|events| {
                 for event in events {
@@ -103,6 +117,14 @@ impl BuiltinTool for OrchestrateTool {
                             total_tokens += input_tokens + output_tokens;
                             total_cost_usd += cost_usd;
                         }
+                        EventKind::OrchestratorStarted {
+                            goal: g, ..
+                        } => {
+                            goal = Some(g.clone());
+                        }
+                        EventKind::OrchestratorRound { round, .. } => {
+                            latest_round = Some(*round);
+                        }
                         _ => {}
                     }
                 }
@@ -116,6 +138,10 @@ impl BuiltinTool for OrchestrateTool {
                 total_tokens,
                 total_cost_usd,
                 records_count,
+                round: latest_round,
+                goal,
+                confidence_target: None, // Set by caller if orchestrator mode
+                cost_limit_usd: None,    // Set by caller if orchestrator mode
             };
 
             serde_json::to_string(&response).map_err(|e| NikaError::BuiltinToolError {
@@ -175,5 +201,54 @@ mod tests {
         assert_eq!(v["total_tokens"], 1500);
         assert!((v["total_cost_usd"].as_f64().unwrap() - 0.003).abs() < 1e-10);
         assert_eq!(v["records_count"], 0);
+        // No orchestrator events → fields absent
+        assert!(v.get("round").is_none());
+        assert!(v.get("goal").is_none());
+    }
+
+    #[tokio::test]
+    async fn test_orchestrate_with_round_events() {
+        let log = EventLog::new();
+        let ctx = Arc::new(RunContext::new());
+
+        log.emit(EventKind::OrchestratorStarted {
+            goal: "Research AI".to_string(),
+            max_rounds: 10,
+            agent: None,
+        });
+        log.emit(EventKind::OrchestratorRound {
+            round: 1,
+            records_count: 3,
+            cost_usd: 0.05,
+        });
+        log.emit(EventKind::OrchestratorRound {
+            round: 2,
+            records_count: 5,
+            cost_usd: 0.10,
+        });
+
+        let tool = OrchestrateTool::new(log, ctx);
+        let result = tool.call("{}".into()).await.unwrap();
+        let v: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(v["round"], 2);
+        assert_eq!(v["goal"], "Research AI");
+    }
+
+    #[tokio::test]
+    async fn test_orchestrate_no_orchestrator_events() {
+        let log = EventLog::new();
+        let ctx = Arc::new(RunContext::new());
+
+        // Only task events, no orchestrator events
+        log.emit(EventKind::TaskScheduled {
+            task_id: Arc::from("x"),
+            dependencies: vec![],
+        });
+
+        let tool = OrchestrateTool::new(log, ctx);
+        let result = tool.call("{}".into()).await.unwrap();
+        let v: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert!(v.get("round").is_none());
+        assert!(v.get("goal").is_none());
     }
 }
