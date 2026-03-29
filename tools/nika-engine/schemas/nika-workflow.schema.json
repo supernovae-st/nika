@@ -24,10 +24,21 @@
       "description": "Human-readable workflow description"
     },
     "provider": {
-      "type": "string",
+      "description": "Default LLM provider, custom endpoint name, or provider fallback chain (v0.50+)",
       "default": "claude",
-      "description": "Default LLM provider or custom endpoint name from config.toml (e.g., claude, openai, qwen, vllm, ollama)",
-      "examples": ["claude", "openai", "qwen", "native", "mock"]
+      "examples": ["claude", "openai", ["groq", "claude"]],
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Single provider or custom endpoint name"
+        },
+        {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "description": "Provider fallback chain — first = primary, rest = fallback on failure"
+        }
+      ]
     },
     "model": {
       "type": "string",
@@ -95,6 +106,10 @@
       "type": "object",
       "description": "Workflow input parameters (v0.10+)",
       "additionalProperties": {}
+    },
+    "routing": {
+      "$ref": "#/$defs/RoutingConfig",
+      "description": "Workflow-level provider routing with fallback chain and strategy (v0.50+)"
     }
   },
   "$defs": {
@@ -292,8 +307,14 @@
           "description": "MCP tool call task (v0.2+)"
         },
         "agent": {
-          "$ref": "#/$defs/AgentParams",
-          "description": "Agentic execution task (v0.2+)"
+          "description": "Agentic execution task (v0.2+). String = preset reference (e.g., agent: think)",
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "Agent preset reference — resolved from workflow's agents: block"
+            },
+            { "$ref": "#/$defs/AgentParams" }
+          ]
         },
         "artifact": {
           "$ref": "#/$defs/ArtifactSpec",
@@ -308,8 +329,19 @@
           "description": "Structured output validation with 4-layer defense (v0.21+)"
         },
         "provider": {
-          "type": "string",
-          "description": "Provider override or custom endpoint name for this task"
+          "description": "Provider override, custom endpoint name, or fallback chain for this task",
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "Single provider or custom endpoint name"
+            },
+            {
+              "type": "array",
+              "items": { "type": "string" },
+              "minItems": 1,
+              "description": "Provider fallback chain (v0.50+)"
+            }
+          ]
         },
         "model": {
           "type": "string",
@@ -325,6 +357,26 @@
           "type": "string",
           "description": "Reference to a named agent from the workflow's agents: block. Inherits provider, model, temperature, and system. Task-level overrides take precedence.",
           "examples": ["think", "lite", "fast"]
+        },
+        "record": {
+          "description": "Record specification for task output compression (v0.48+)",
+          "oneOf": [
+            {
+              "type": "boolean",
+              "description": "Shorthand: true enables recording with defaults"
+            },
+            { "$ref": "#/$defs/RecordSpec" }
+          ]
+        },
+        "context_budget": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200000,
+          "description": "Token budget for task bindings — auto-truncates if exceeded (v0.51+)"
+        },
+        "routing": {
+          "$ref": "#/$defs/RoutingConfig",
+          "description": "Provider routing with fallback chain and strategy (v0.50+)"
         },
         "retry": {
           "$ref": "#/$defs/RetryConfig",
@@ -348,7 +400,11 @@
         { "required": ["id", "exec"] },
         { "required": ["id", "fetch"] },
         { "required": ["id", "invoke"] },
-        { "required": ["id", "agent"] },
+        {
+          "required": ["id", "agent"],
+          "properties": { "agent": { "type": "object" } },
+          "description": "Agent verb (object form only — agent: string is a preset ref)"
+        },
         {
           "required": ["id"],
           "not": {
@@ -357,10 +413,13 @@
               { "required": ["exec"] },
               { "required": ["fetch"] },
               { "required": ["invoke"] },
-              { "required": ["agent"] }
+              {
+                "required": ["agent"],
+                "properties": { "agent": { "type": "object" } }
+              }
             ]
           },
-          "description": "Verb-less task: decompose-only or depends_on-only"
+          "description": "Verb-less task: decompose-only, depends_on-only, or preset-only"
         }
       ]
     },
@@ -991,7 +1050,7 @@
         },
         "format": {
           "type": "string",
-          "enum": ["text", "json", "yaml", "binary"],
+          "enum": ["text", "json", "yaml", "markdown", "binary"],
           "default": "text",
           "description": "Default output format"
         },
@@ -1040,7 +1099,7 @@
             },
             "format": {
               "type": "string",
-              "enum": ["text", "json", "yaml", "binary"],
+              "enum": ["text", "json", "yaml", "markdown", "binary"],
               "description": "Output format override"
             },
             "mode": {
@@ -1060,7 +1119,7 @@
               "path": { "type": "string" },
               "source": { "type": "string" },
               "template": { "type": "string", "description": "Template string (v0.22+)" },
-              "format": { "type": "string", "enum": ["text", "json", "yaml", "binary"] },
+              "format": { "type": "string", "enum": ["text", "json", "yaml", "markdown", "binary"] },
               "mode": { "type": "string", "enum": ["overwrite", "append", "unique", "fail"] }
             }
           }
@@ -1272,6 +1331,56 @@
         "file": {
           "type": "string",
           "description": "External agent definition file (legacy, use from: instead)"
+        }
+      }
+    },
+    "RecordSpec": {
+      "type": "object",
+      "description": "Record compression configuration for task outputs (v0.48+)",
+      "additionalProperties": false,
+      "properties": {
+        "compress": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to compress this task's output into a summary"
+        },
+        "retain": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Fields to retain verbatim in compressed summary (e.g., [\"stats\", \"findings\"])"
+        },
+        "max_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4096,
+          "default": 500,
+          "description": "Maximum tokens for the compressed summary"
+        },
+        "confidence_threshold": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.7,
+          "description": "Minimum confidence threshold for compression quality"
+        }
+      }
+    },
+    "RoutingConfig": {
+      "type": "object",
+      "description": "Provider routing configuration with fallback chain (v0.50+)",
+      "additionalProperties": false,
+      "properties": {
+        "fallback": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "description": "Provider fallback chain — tried in order on failure"
+        },
+        "strategy": {
+          "type": "string",
+          "enum": ["cost", "latency", "availability"],
+          "default": "availability",
+          "description": "Routing strategy for provider selection"
         }
       }
     }
