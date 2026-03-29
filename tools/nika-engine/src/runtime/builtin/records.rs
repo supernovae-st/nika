@@ -95,29 +95,42 @@ impl BuiltinTool for RecordsTool {
                     reason: format!("Invalid JSON parameters: {e}"),
                 })?;
 
-            let records = self.datastore.iter_records();
-
-            let results: Vec<RecordSummary> = records
-                .into_iter()
-                .filter(|(tid, _)| {
-                    params
-                        .task_id
-                        .as_ref()
-                        .is_none_or(|filter| tid.as_ref() == filter.as_str())
-                })
-                .filter(|(_, record)| {
-                    params
-                        .min_confidence
-                        .is_none_or(|min| record.confidence >= min)
-                })
-                .map(|(tid, record)| RecordSummary {
-                    task_id: tid.to_string(),
-                    summary: record.summary.clone(),
-                    confidence: record.confidence,
-                    compression_ratio: record.compression_ratio(),
-                    key_findings: record.key_findings.clone(),
-                })
-                .collect();
+            // Fast-path: single task_id lookup avoids cloning all records
+            let results: Vec<RecordSummary> = if let Some(ref tid) = params.task_id {
+                self.datastore
+                    .get_record(tid)
+                    .filter(|r| {
+                        params
+                            .min_confidence
+                            .is_none_or(|min| r.confidence >= min)
+                    })
+                    .into_iter()
+                    .map(|record| RecordSummary {
+                        task_id: tid.clone(),
+                        summary: record.summary.clone(),
+                        confidence: record.confidence,
+                        compression_ratio: record.compression_ratio(),
+                        key_findings: record.key_findings.clone(),
+                    })
+                    .collect()
+            } else {
+                self.datastore
+                    .iter_records()
+                    .into_iter()
+                    .filter(|(_, record)| {
+                        params
+                            .min_confidence
+                            .is_none_or(|min| record.confidence >= min)
+                    })
+                    .map(|(tid, record)| RecordSummary {
+                        task_id: tid.to_string(),
+                        summary: record.summary.clone(),
+                        confidence: record.confidence,
+                        compression_ratio: record.compression_ratio(),
+                        key_findings: record.key_findings.clone(),
+                    })
+                    .collect()
+            };
 
             serde_json::to_string(&results).map_err(|e| NikaError::BuiltinToolError {
                 tool: "nika:records".into(),

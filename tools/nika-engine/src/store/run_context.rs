@@ -185,8 +185,8 @@ pub struct RunContext {
     /// Read (and drained) by the runner after building TaskResult.
     media_staging: Arc<DashMap<Arc<str>, Vec<crate::media::MediaRef>, FxBuildHasher>>,
 
-    /// Compressed records: task_id → Record
-    records: Arc<DashMap<Arc<str>, crate::runtime::record::Record, FxBuildHasher>>,
+    /// Compressed records: task_id → Arc<Record> (zero-copy reads)
+    records: Arc<DashMap<Arc<str>, Arc<crate::runtime::record::Record>, FxBuildHasher>>,
 
     /// Shared per-run media budget (500MB default).
     /// Lives here so all invoke tasks in a single run share one budget.
@@ -329,12 +329,12 @@ impl RunContext {
 
     /// Store a compressed record for a task.
     pub fn set_record(&self, task_id: Arc<str>, record: crate::runtime::record::Record) {
-        self.records.insert(task_id, record);
+        self.records.insert(task_id, Arc::new(record));
     }
 
-    /// Get a record for a task (if compression was applied).
-    pub fn get_record(&self, task_id: &str) -> Option<crate::runtime::record::Record> {
-        self.records.get(task_id).map(|r| r.value().clone())
+    /// Get a record for a task (if compression was applied). O(1) clone via Arc.
+    pub fn get_record(&self, task_id: &str) -> Option<Arc<crate::runtime::record::Record>> {
+        self.records.get(task_id).map(|r| Arc::clone(r.value()))
     }
 
     /// Check if a task has a compressed record.
@@ -342,11 +342,11 @@ impl RunContext {
         self.records.contains_key(task_id)
     }
 
-    /// Iterate all records.
-    pub fn iter_records(&self) -> Vec<(Arc<str>, crate::runtime::record::Record)> {
+    /// Iterate all records. O(1) clone per entry via Arc.
+    pub fn iter_records(&self) -> Vec<(Arc<str>, Arc<crate::runtime::record::Record>)> {
         self.records
             .iter()
-            .map(|r| (Arc::clone(r.key()), r.value().clone()))
+            .map(|r| (Arc::clone(r.key()), Arc::clone(r.value())))
             .collect()
     }
 
