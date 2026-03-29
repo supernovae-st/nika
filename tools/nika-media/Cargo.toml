@@ -9,7 +9,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [features]
-default = ["media-compression", "media-core", "fetch-extract", "fetch-article", "fetch-feed", "media-chart", "media-phash", "media-pdf", "media-iqa", "media-qr", "media-compression"]
+default = ["media-compression", "media-core", "fetch-extract", "fetch-article", "fetch-feed", "media-chart", "media-phash", "media-pdf", "media-iqa", "media-qr"]
 media-compression = ["dep:zstd"]
 media-core = ["media-thumbnail", "media-metadata", "media-optimize", "media-svg"]
 media-thumbnail = ["dep:fast_image_resize", "dep:image"]
