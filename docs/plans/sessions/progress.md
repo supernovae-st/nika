@@ -1,74 +1,65 @@
 # Autonomous Session Progress
 
-**Updated**: 2026-03-29T09:00:00
+**Updated**: 2026-03-29T11:30:00
 **Status**: IN_PROGRESS
 **Version**: v0.51.0 (tagged + pushed)
-**Sessions completed**: A, B, C, E (partial), F (partial), G, J (partial)
-**Total commits**: 40 (5 new this session)
-**Total tests**: 2153 (0 failures, 0 clippy warnings)
+**Sessions completed**: A, B, C, D, E (partial), F (partial), G, J (partial), K (partial)
+**Total commits**: 47 (7 new this session)
+**Total tests**: 8,705+ across 11 crates (0 failures, 0 clippy warnings)
 
-## BLOC 1: QUALITY — v0.51.0 released (Sessions A, B, C, E)
+## Session D: Quality Infrastructure — DONE (4 commits)
+
+1. `bebf8b8` — 27 proptest property-based tests (transforms 13, cost 9, DAG 5)
+2. `1475c3c` — 24 `#[serial]` annotations for env-var-mutating tests (10 files)
+3. `62d85d7` — 57 workspace deps unified to [workspace.dependencies] (RC6)
+4. `54176eb` — Pricing table expanded 22→55 models + sync test (RC4)
+
+**NOT DONE (deferred):**
+- cargo-mutants run (requires external tool install, long runtime)
+- tracing-error wiring (SpanTrace integration — nice but not blocking)
+- E2E stress-test workflows (can be added later)
+
+## Session K: Inference Routing Part 1 — DONE (3 commits)
+
+1. `7ab0eb8` — Parse `provider: [groq, anthropic]` array syntax
+   - Parser detects YAML sequence, sets first as primary, auto-populates routing.fallback
+   - provider_chain field added to InferParams and AgentParams
+   - 5 parser tests: string, array, single-element, empty rejected, explicit routing override
+2. `17172db` — ProviderFallback event + NIKA-037 FallbackChainExhausted
+   - New EventKind variant with task_id/from/to/reason fields
+   - Display in live renderer (yellow warning), TUI captures as observability
+3. `4e8c4ef` — Executor fallback loop in infer
+   - Loops through provider_chain, tries get_rig_provider for each
+   - On failure, emits ProviderFallback event and tries next
+   - All fail → NIKA-037 FallbackChainExhausted
+
+**NOT DONE (deferred):**
+- Agent executor fallback (same pattern, lower priority)
+- nika bench command (Level 2 — separate feature, can be Session K.2)
+- LLM call-level fallback (rate limits, timeouts — needs deeper hook into streaming)
+
+## Previous Sessions (summary)
 
 - Session A: 11 security bugs fixed (10 commits)
 - Session B: Agent loop -771 LOC, token_budget wired (5 commits)
 - Session C: 17 silent failures fixed, TaskEventGuard (4 commits)
 - Session E: Tautological tests replaced (1 commit)
-
-## BLOC 2: ARCHITECTURE — Session G DONE, Session F DONE (Parts 1-3)
-
-### Session G: Split rig.rs — DONE (5 commits)
-
-```
-rig.rs (3675 LOC monolith) → rig/ directory:
-  mod.rs:   1691 LOC (-54%)
-  error.rs:  147 LOC
-  stream.rs: 231 LOC
-  tool.rs:   181 LOC
-  tests.rs: 1461 LOC
-```
-
-### Session F: Stringly-Typed Migration — Parts 1-3 DONE (5 commits)
-
-**Part 1: ExtractMode + ResponseMode enums** (commit 3cb6ea652)
-- `ExtractMode` (9 variants) and `ResponseMode` (2 variants) in nika-core/ast/extract.rs
-- Migrated across 14 files: AnalyzedFetchAction, FetchParams, apply_extract(), fetch.rs, CLI
-- Invalid modes caught at analysis time; ~186 test assertions updated
-
-**Part 2: Event type enums** (commit d3ce4235d)
-- `GuardrailType`, `Severity`, `AgentTurnKind`, `FinishReason`, `AgentStopReason` in nika-event/types.rs
-- FinishReason/AgentStopReason include Other(String) for dynamic values
-- Migrated across 24 files: EventKind variants, display, TUI, tests
-
-**Part 3: LSP + LOW bugs** (commits 928085dce, 3e10b78e8)
-- LSP completions use enum ALL_NAMES constants
-- compact transform filters empty strings (L2)
-- round(0) returns integer consistent with ceil/floor (L3)
-- EventKind variant count updated: 44 → 58 (L9)
-
-**NOT DONE (deferred):**
-- Part 4: EventKind grouping into sub-enums (HIGH risk, massive serde compat scope)
-- ProviderName enum migration (MEDIUM risk, 916 occurrences)
-
-## Session H: LSP Overhaul — TRIAGED
-
-Bugs 4-6 (template crash, NIKA-163 workflow keys, task keys) already fixed in prior sessions.
-Remaining: E2E test harness, validation parity, extension version sync.
-
-## OTHER
-
+- Session F: ExtractMode/ResponseMode/GuardrailType/Severity/etc. enums (5 commits)
+- Session G: Split rig.rs 3675→5 files (5 commits)
 - Session J: Error code table fix (1 commit)
 - Release: v0.51.0 bump, tag, CHANGELOG (3 commits)
 
 ## Next priorities
 
-1. **Session K**: Inference routing (fallback chains, `nika bench`)
-2. **Session D**: Quality infra (cargo-mutants, proptest strategies)
-3. **Session H remainder**: LSP E2E tests, extension version sync
-4. **Session L-N**: Phase 1 features (presets, compression, memory)
+1. **Session L**: Agent presets (`agent: think`, 8 presets, inheritance)
+2. **Session I**: TUI performance (Arc<Value>, DAG cache, Arc<str>)
+3. **Session M**: Record compression
+4. **Session K.2**: nika bench command
+5. **Session H remainder**: LSP E2E tests
 
 ## For resume
 
 ```bash
 cd /Users/thibaut/dev/supernovae/nika
-claude --dangerously-skip-permissions --model opus -p "$(cat docs/plans/sessions/mega-prompt-v3.md)"
+claude --dangerously-skip-permissions --model opus -p "$(cat docs/plans/sessions/mega-prompt-v4.md)"
 ```
