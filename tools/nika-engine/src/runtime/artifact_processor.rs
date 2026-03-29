@@ -957,10 +957,175 @@ fn normalize_artifact_path(path: &str, artifact_dir_str: &str) -> String {
     path.to_string()
 }
 
+/// Write artifacts.json manifest when `manifest: true` is set in workflow config.
+///
+/// Collects all ArtifactWritten events and writes a JSON manifest listing each artifact.
+pub fn write_artifact_manifest(
+    event_log: &EventLog,
+    workflow_config: &ArtifactsConfig,
+    base_path: &std::path::Path,
+) {
+    if !workflow_config.manifest {
+        return;
+    }
+
+    let artifacts_dir = workflow_config
+        .dir
+        .as_deref()
+        .map(|d| base_path.join(d))
+        .unwrap_or_else(|| base_path.join(DEFAULT_ARTIFACT_DIR));
+
+    // Collect all ArtifactWritten events
+    let entries: Vec<serde_json::Value> = event_log.with_events(|events| {
+        events
+            .iter()
+            .filter_map(|e| match &e.kind {
+                EventKind::ArtifactWritten {
+                    task_id,
+                    path,
+                    size,
+                    format,
+                    checksum,
+                } => Some(serde_json::json!({
+                    "task_id": task_id.as_ref(),
+                    "path": path,
+                    "size": size,
+                    "format": format,
+                    "checksum": checksum,
+                })),
+                _ => None,
+            })
+            .collect()
+    });
+
+    if entries.is_empty() {
+        debug!("No artifacts written — skipping manifest");
+        return;
+    }
+
+    let manifest = serde_json::json!({
+        "version": 1,
+        "artifacts": entries,
+    });
+
+    let manifest_path = artifacts_dir.join("artifacts.json");
+    if let Some(parent) = manifest_path.parent() {
+        if let Err(e) = std::fs::create_dir_all(parent) {
+            tracing::warn!(
+                path = %manifest_path.display(),
+                error = %e,
+                "Failed to create manifest directory"
+            );
+            return;
+        }
+    }
+
+    match serde_json::to_string_pretty(&manifest) {
+        Ok(json) => {
+            if let Err(e) = std::fs::write(&manifest_path, json) {
+                tracing::warn!(
+                    path = %manifest_path.display(),
+                    error = %e,
+                    "Failed to write artifact manifest"
+                );
+            } else {
+                debug!(
+                    path = %manifest_path.display(),
+                    count = entries.len(),
+                    "Artifact manifest written"
+                );
+            }
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, "Failed to serialize artifact manifest");
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use tempfile::tempdir;
+
+    #[test]
+    fn test_write_artifact_manifest_creates_file() {
+        let dir = tempdir().unwrap();
+        let event_log = EventLog::new();
+
+        // Emit some ArtifactWritten events
+        event_log.emit(EventKind::ArtifactWritten {
+            task_id: Arc::from("task1"),
+            path: "output/report.md".to_string(),
+            size: 1024,
+            format: "markdown".to_string(),
+            checksum: None,
+        });
+        event_log.emit(EventKind::ArtifactWritten {
+            task_id: Arc::from("task2"),
+            path: "output/data.json".to_string(),
+            size: 512,
+            format: "json".to_string(),
+            checksum: Some("abc123".to_string()),
+        });
+
+        let config = ArtifactsConfig {
+            dir: Some("output".to_string()),
+            manifest: true,
+            ..Default::default()
+        };
+
+        write_artifact_manifest(&event_log, &config, dir.path());
+
+        let manifest_path = dir.path().join("output/artifacts.json");
+        assert!(manifest_path.exists(), "Manifest file should be created");
+
+        let content = std::fs::read_to_string(&manifest_path).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
+        assert_eq!(parsed["version"], 1);
+        assert_eq!(parsed["artifacts"].as_array().unwrap().len(), 2);
+        assert_eq!(parsed["artifacts"][0]["task_id"], "task1");
+        assert_eq!(parsed["artifacts"][1]["checksum"], "abc123");
+    }
+
+    #[test]
+    fn test_write_artifact_manifest_skipped_when_false() {
+        let dir = tempdir().unwrap();
+        let event_log = EventLog::new();
+
+        event_log.emit(EventKind::ArtifactWritten {
+            task_id: Arc::from("task1"),
+            path: "out.md".to_string(),
+            size: 100,
+            format: "text".to_string(),
+            checksum: None,
+        });
+
+        let config = ArtifactsConfig {
+            manifest: false,
+            ..Default::default()
+        };
+
+        write_artifact_manifest(&event_log, &config, dir.path());
+
+        let manifest_path = dir.path().join(".nika/artifacts/artifacts.json");
+        assert!(!manifest_path.exists(), "Manifest should NOT be created when manifest: false");
+    }
+
+    #[test]
+    fn test_write_artifact_manifest_no_artifacts_skips() {
+        let dir = tempdir().unwrap();
+        let event_log = EventLog::new();
+
+        let config = ArtifactsConfig {
+            manifest: true,
+            ..Default::default()
+        };
+
+        write_artifact_manifest(&event_log, &config, dir.path());
+
+        let manifest_path = dir.path().join(".nika/artifacts/artifacts.json");
+        assert!(!manifest_path.exists(), "Manifest should NOT be created when no artifacts exist");
+    }
 
     #[test]
     fn test_format_output_text() {

@@ -35,7 +35,7 @@ use crate::runtime::boot::TraceConfig;
 use crate::store::{RunContext, TaskResult};
 use crate::util::{intern, DECOMPOSE_TIMEOUT};
 
-use super::artifact_processor::process_task_artifacts;
+use super::artifact_processor::{process_task_artifacts, write_artifact_manifest};
 use super::context_loader::load_context_analyzed;
 use super::executor::TaskExecutor;
 use super::output::{extract_json, format_validation_errors, make_task_result};
@@ -2548,6 +2548,11 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
         // Lockfile is removed automatically when `_lockfile_guard` drops
         // (at function exit -- normal return, error, or panic).
+
+        // Write artifact manifest if configured
+        if let Some(ref artifacts_config) = self.workflow.artifacts {
+            write_artifact_manifest(&self.event_log, artifacts_config, &base_path);
+        }
 
         // Get final output
         let output = self.get_final_output().unwrap_or_default();
