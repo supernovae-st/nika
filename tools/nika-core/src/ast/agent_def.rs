@@ -81,7 +81,7 @@ pub enum AgentDef {
 }
 
 fn default_provider() -> String {
-    "claude".to_string()
+    "anthropic".to_string()
 }
 
 impl AgentDef {
@@ -180,7 +180,7 @@ system: "You are a helpful assistant."
         } = def
         {
             assert_eq!(system, "You are a helpful assistant.");
-            assert_eq!(provider, "claude"); // default
+            assert_eq!(provider, "anthropic"); // canonical default
             assert!(model.is_none());
             assert!(max_turns.is_none());
             assert!(temperature.is_none());

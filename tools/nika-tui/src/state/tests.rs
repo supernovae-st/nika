@@ -744,7 +744,7 @@ fn test_settings_state_provider_auto_detection() {
 
     let (is_set, display) = state.key_status(SettingsField::Provider);
     assert!(!is_set); // Not explicitly set
-    assert!(display.contains("claude"));
+    assert!(display.contains("anthropic")); // Canonical name after alias resolution
     assert!(display.contains("auto"));
 }
 

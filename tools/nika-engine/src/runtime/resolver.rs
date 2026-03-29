@@ -337,7 +337,7 @@ async fn resolve_agent(
 
             Ok(ResolvedAgent {
                 system: loaded.system,
-                provider: loaded.provider.unwrap_or_else(|| "claude".to_string()),
+                provider: loaded.provider.unwrap_or_else(|| "anthropic".to_string()),
                 model: loaded.model,
                 max_turns: loaded.max_turns,
                 temperature: loaded.temperature,

@@ -209,7 +209,7 @@ impl Runner {
             .provider
             .as_ref()
             .map(|p| p.as_str())
-            .unwrap_or("claude");
+            .unwrap_or("anthropic");
 
         let mut executor = TaskExecutor::new(
             provider,
