@@ -36,6 +36,7 @@
 //! - NIKA-290-297: Media tool errors (tool, format, deps, timeout, args, pipeline, security)
 //! - NIKA-300-309: Structured Output errors (JSON Schema validation, extraction, repair)
 //! - NIKA-310-319: Course errors (course system, exercises, progress)
+//! - NIKA-320-324: Record compression errors (compression, JSON parse, confidence, tokens, provider)
 
 use crate::mcp::types::McpErrorCode;
 use crate::serde_yaml;
@@ -757,6 +758,51 @@ pub enum NikaError {
         help("Check file permissions and that the course directory exists")
     )]
     CourseWatchError { reason: String },
+
+    // ── Record compression (NIKA-320-324) ────────────────────────
+
+    #[error("[NIKA-320] Record compression failed for task '{task_id}': {reason}")]
+    #[diagnostic(
+        code(nika::record_compression_failed),
+        help("Compression is non-fatal — output was truncated instead")
+    )]
+    RecordCompressionFailed { task_id: String, reason: String },
+
+    #[error("[NIKA-321] Record compression returned invalid JSON for task '{task_id}': {reason}")]
+    #[diagnostic(
+        code(nika::record_invalid_json),
+        help("Ensure the compression model returns valid JSON")
+    )]
+    RecordInvalidJson { task_id: String, reason: String },
+
+    #[error("[NIKA-322] Record confidence {confidence:.2} below threshold {threshold:.2} for task '{task_id}'")]
+    #[diagnostic(
+        code(nika::record_low_confidence),
+        help("Lower the confidence_threshold or use a more capable compression model")
+    )]
+    RecordLowConfidence {
+        task_id: String,
+        confidence: f64,
+        threshold: f64,
+    },
+
+    #[error("[NIKA-323] Record max_tokens exceeded for task '{task_id}': {tokens} > {max}")]
+    #[diagnostic(
+        code(nika::record_tokens_exceeded),
+        help("Increase max_tokens in the record: spec or use a shorter prompt")
+    )]
+    RecordTokensExceeded {
+        task_id: String,
+        tokens: u64,
+        max: u32,
+    },
+
+    #[error("[NIKA-324] No compression provider available for task '{task_id}'")]
+    #[diagnostic(
+        code(nika::record_no_provider),
+        help("Add a 'summary' agent to the agents: block or configure a default provider")
+    )]
+    RecordNoProvider { task_id: String },
 }
 
 impl From<nika_core::error::CoreError> for NikaError {
@@ -1036,6 +1082,12 @@ impl NikaError {
             Self::CourseLevelLocked { .. } => "NIKA-312",
             Self::CourseProgressCorrupted { .. } => "NIKA-313",
             Self::CourseWatchError { .. } => "NIKA-314",
+            // Record compression errors
+            Self::RecordCompressionFailed { .. } => "NIKA-320",
+            Self::RecordInvalidJson { .. } => "NIKA-321",
+            Self::RecordLowConfidence { .. } => "NIKA-322",
+            Self::RecordTokensExceeded { .. } => "NIKA-323",
+            Self::RecordNoProvider { .. } => "NIKA-324",
             // Policy errors (renumbered from 160/161 to avoid ParseErrorKind collision)
             Self::PolicyViolation { .. } => "NIKA-165",
             Self::BootFailed { .. } => "NIKA-166",
@@ -1066,7 +1118,11 @@ impl NikaError {
             // Structured output errors that can be retried
             | Self::StructuredOutputExtractionFailed { .. }
             | Self::StructuredOutputValidationFailed { .. }
-            | Self::StructuredOutputRepairFailed { .. } => true,
+            | Self::StructuredOutputRepairFailed { .. }
+            // Record compression failures are non-fatal (fallback to truncation)
+            | Self::RecordCompressionFailed { .. }
+            | Self::RecordInvalidJson { .. }
+            | Self::RecordLowConfidence { .. } => true,
             // Delegate to MediaError's own is_recoverable (only I/O errors)
             Self::MediaError(e) => e.is_recoverable(),
             _ => false,
@@ -1339,6 +1395,22 @@ impl FixSuggestion for NikaError {
             }
             NikaError::FallbackChainExhausted { .. } => {
                 Some("Add more providers to routing.fallback or check provider health")
+            }
+            // Record compression errors
+            NikaError::RecordCompressionFailed { .. } => {
+                Some("Compression is non-fatal — output was truncated. Check the compression model.")
+            }
+            NikaError::RecordInvalidJson { .. } => {
+                Some("The compression model returned invalid JSON. Try a different model.")
+            }
+            NikaError::RecordLowConfidence { .. } => {
+                Some("Lower confidence_threshold in record: spec or use a more capable model.")
+            }
+            NikaError::RecordTokensExceeded { .. } => {
+                Some("Increase max_tokens in record: spec.")
+            }
+            NikaError::RecordNoProvider { .. } => {
+                Some("Add a 'summary' agent to agents: block or configure a default provider.")
             }
         }
     }
