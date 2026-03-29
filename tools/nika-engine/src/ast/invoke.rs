@@ -178,7 +178,8 @@ resource: entity://qr-code/fr-FR
             resource: None,
             timeout: None,
         };
-        assert!(params.validate().is_ok());
+        let result = params.validate();
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         assert!(params.is_tool_call());
         assert!(!params.is_resource_read());
     }
@@ -192,7 +193,8 @@ resource: entity://qr-code/fr-FR
             resource: Some("test://resource".to_string()),
             timeout: None,
         };
-        assert!(params.validate().is_ok());
+        let result = params.validate();
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         assert!(!params.is_tool_call());
         assert!(params.is_resource_read());
     }
@@ -207,7 +209,7 @@ resource: entity://qr-code/fr-FR
             timeout: None,
         };
         let result = params.validate();
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
         assert!(result
             .unwrap_err()
             .to_string()
@@ -224,7 +226,7 @@ resource: entity://qr-code/fr-FR
             timeout: None,
         };
         let result = params.validate();
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
         assert!(result
             .unwrap_err()
             .to_string()
@@ -245,7 +247,7 @@ resource: entity://qr-code/fr-FR
             timeout: None,
         };
         let result = params.validate();
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
         assert!(result.unwrap_err().to_string().contains("mcp"));
     }
 
@@ -259,7 +261,7 @@ resource: entity://qr-code/fr-FR
             timeout: None,
         };
         let result = params.validate();
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
         assert!(result.unwrap_err().to_string().contains("mcp"));
     }
 
@@ -273,7 +275,7 @@ resource: entity://qr-code/fr-FR
             timeout: None,
         };
         let result = params.validate();
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
         assert!(result.unwrap_err().to_string().contains("tool"));
     }
 
@@ -287,7 +289,7 @@ resource: entity://qr-code/fr-FR
             timeout: None,
         };
         let result = params.validate();
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
         assert!(result.unwrap_err().to_string().contains("tool"));
     }
 
@@ -301,7 +303,7 @@ resource: entity://qr-code/fr-FR
             timeout: None,
         };
         let result = params.validate();
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
         assert!(result.unwrap_err().to_string().contains("resource"));
     }
 
@@ -315,7 +317,7 @@ resource: entity://qr-code/fr-FR
             timeout: None,
         };
         let result = params.validate();
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
         assert!(result.unwrap_err().to_string().contains("resource"));
     }
 
@@ -333,7 +335,8 @@ resource: entity://qr-code/fr-FR
             resource: None,
             timeout: None,
         };
-        assert!(params.validate().is_ok());
+        let result = params.validate();
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         assert!(params.is_builtin_tool());
     }
 
@@ -347,7 +350,8 @@ resource: entity://qr-code/fr-FR
             resource: None,
             timeout: None,
         };
-        assert!(params.validate().is_ok());
+        let result = params.validate();
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         assert!(params.is_builtin_tool());
     }
 
@@ -362,7 +366,7 @@ resource: entity://qr-code/fr-FR
             timeout: None,
         };
         let result = params.validate();
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
         assert!(result.unwrap_err().to_string().contains("mcp"));
     }
 
@@ -401,7 +405,8 @@ params:
         let params: InvokeParams = serde_yaml::from_str(yaml).unwrap();
         assert!(params.mcp.is_none());
         assert_eq!(params.tool, Some("nika:sleep".to_string()));
-        assert!(params.validate().is_ok());
+        let result = params.validate();
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     // =========================================================================
@@ -419,7 +424,8 @@ params:
 "#;
         let params: InvokeParams = serde_yaml::from_str(yaml).unwrap();
         assert_eq!(params.timeout, Some(60));
-        assert!(params.validate().is_ok());
+        let result = params.validate();
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     #[test]
