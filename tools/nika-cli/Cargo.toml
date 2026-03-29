@@ -64,7 +64,6 @@ rustc-hash = { workspace = true }
 
 # Interactive wizard
 cliclack = { workspace = true }
-console = { workspace = true }
 
 # Logging
 tracing = { workspace = true }

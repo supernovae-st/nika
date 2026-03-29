@@ -41,15 +41,16 @@ editors/vscode/package-lock.json
 # Test artifacts
 *.profraw
 coverage/
+
+# Rust build artifacts
+tools/target/
 tools/nika/target/
-tools/nika/target-main/
-tools/nika/src/target-main/
+
+# Runtime state
+.nika/
 
 # Worktrees
 .worktrees/
-.claude
-.nika/
+
+# Generated files
 generated/
-crates/nika-cli/.nika/
-crates/nika-runtime/.nika/
-tools/target/

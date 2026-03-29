@@ -64,7 +64,6 @@ regex = { workspace = true }
 nika-daemon = { path = "../nika-daemon", version = "0.51.0", default-features = false }
 
 [dev-dependencies]
-tokio-test = "0.4"
 pretty_assertions = { workspace = true }
 serde_json = { workspace = true }
 
