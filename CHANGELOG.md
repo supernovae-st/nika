@@ -7,12 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-```
-╔═══════════════════════════════════════════════════════════════════════════════╗
-║  NIKA v0.51.0 — QUALITY OVERHAUL                                           ║
-║  11 security fixes | Agent refactor -771 LOC | Silent failure sweep         ║
-╚═══════════════════════════════════════════════════════════════════════════════╝
-```
+### Added
+- **ProviderName typed enum** — Provider aliases (claude, gpt, grok, local) now resolved at analysis time to canonical names (anthropic, openai, xai, native). Type-safe provider handling throughout core AST.
+- **P-RECORD: Record compression engine** — `record:` field on tasks enables LLM-compressed summaries. RecordCompressor with cheap model resolution (haiku/gpt-4.1-mini). NDJSON persistence in `.nika/records/`. `nika trace search` CLI with --workflow and --since filters.
+- **P-CONTEXT: Context budget enforcement** — `context_budget:` field limits binding size per task. CJK-aware token counting. Proportional truncation with BudgetOk/BudgetExceeded events.
+- **P-INTROSPECT: 4 introspection tools** — `nika:dag_info` (task count, completion), `nika:task_status` (per-task metrics), `nika:threads` (filterable task list), `nika:orchestrate` (aggregate stats stub).
+- **P-MEMORY-LOCAL: Cross-session memory** — NDJSON record persistence, output scanner (5 pattern categories for injection detection).
+- **Inference routing** — `provider: [groq, anthropic]` fallback chains. ProviderFallback event on failover. Retriable error detection (MissingApiKey, RateLimit, Timeout).
+- **Agent presets** — 8 built-in presets (think, summarize, translate, extract...). `agent: think` parser disambiguation. `nika:cost` introspection tool. AgentPresetUsed event.
+- **Artifact manifest** — `manifest: true` now writes artifacts.json index at workflow completion.
+- **for_each_index binding** — `{{with.for_each_index}}` available in for_each iterations.
+- **LLM compression wiring** — ExecutorCompressorLlm bridges TaskExecutor to CompressorLlm with cheap model resolution.
+
+### Changed
+- **Provider canonicalization** — All default provider strings use canonical "anthropic" instead of alias "claude". Config auto-detect, boot defaults, agent definitions, resolver fallback all consistent.
+- **Dead code cleanup** — Removed 702 LOC dead include_loader.rs.
+- **DX rules** — Synced Cursor, Windsurf, llms.txt with 13 common mistakes, 31 transforms, 30 tools.
+- **JSON Schema** — Synced with parser: 9 field additions.
 
 ## [0.51.0] — 2026-03-29
 
