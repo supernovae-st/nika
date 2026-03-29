@@ -85,6 +85,9 @@ pub struct RawTask {
     /// Record compression configuration
     pub record: Option<Spanned<serde_json::Value>>,
 
+    /// Context budget in tokens — limits total binding size passed to LLM
+    pub context_budget: Option<Spanned<u32>>,
+
     /// The span of the entire task block
     pub span: Span,
 }

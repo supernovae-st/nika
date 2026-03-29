@@ -92,6 +92,9 @@ pub struct AnalyzedTask {
     /// Record compression configuration
     pub record: Option<crate::ast::record::RecordSpec>,
 
+    /// Context budget in tokens — limits total binding size passed to LLM
+    pub context_budget: Option<u32>,
+
     /// Task-level routing override.
     pub routing: Option<crate::ast::routing::RoutingConfig>,
 

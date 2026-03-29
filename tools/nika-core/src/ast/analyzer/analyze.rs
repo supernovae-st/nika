@@ -801,6 +801,23 @@ fn analyze_task(
                 }
             }
         }),
+        context_budget: raw.context_budget.as_ref().and_then(|s| {
+            let val = s.value;
+            if val == 0 || val > 200_000 {
+                ctx.errors.push(AnalyzeError {
+                    kind: AnalyzeErrorKind::InvalidValue,
+                    span: s.span,
+                    message: format!(
+                        "context_budget must be between 1 and 200000, got {val}"
+                    ),
+                    suggestion: Some("Use a value like 4000 (roughly 16K chars)".to_string()),
+                    note: None,
+                });
+                None
+            } else {
+                Some(val)
+            }
+        }),
         span: raw.span,
     };
 
@@ -3255,6 +3272,65 @@ tasks:
         assert!(
             result.errors.is_empty(),
             "Multiple presets should work: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_context_budget_valid() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: test
+tasks:
+  - id: constrained
+    context_budget: 4000
+    infer: "Summarize"
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = analyze(raw);
+        assert!(result.errors.is_empty(), "Valid budget: {:?}", result.errors);
+        let wf = result.value.unwrap();
+        let task = wf.get_task_by_name("constrained").unwrap();
+        assert_eq!(task.context_budget, Some(4000));
+    }
+
+    #[test]
+    fn test_context_budget_zero_rejected() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: test
+tasks:
+  - id: bad
+    context_budget: 0
+    infer: "test"
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = analyze(raw);
+        assert!(
+            result.errors.iter().any(|e| e.message.contains("context_budget")),
+            "Should reject 0: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_context_budget_exceeds_max_rejected() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: test
+tasks:
+  - id: huge
+    context_budget: 250000
+    infer: "test"
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = analyze(raw);
+        assert!(
+            result.errors.iter().any(|e| e.message.contains("context_budget")),
+            "Should reject 250000: {:?}",
             result.errors
         );
     }
