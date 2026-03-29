@@ -1,61 +1,49 @@
 # Autonomous Session Progress
 
-**Updated**: 2026-03-29T20:00:00
-**Status**: COMPLETE (for this session)
+**Updated**: 2026-03-29T22:00:00
+**Status**: IN PROGRESS
 **Version**: v0.51.0 (tagged + pushed)
-**Sessions completed**: A, B, C, D, E (extended), F (partial), G, J (partial), K, L, I (partial), H (partial)
-**Total commits**: 61 (12 new this session)
-**Total tests**: 8,719 across 11 crates (0 failures, 0 clippy warnings)
+**Sessions completed**: A, B, C, D, E (extended), F (partial), G, J (partial), K, L (complete), I (partial), H (partial)
+**Total commits**: 70 (9 new this session)
+**Total tests**: 8,719+ across 11 crates (0 failures, 0 clippy warnings)
 
-## This Session — Phase 2 (12 commits, all pushed)
+## This Session — Phase 3 (9 commits, all pushed)
 
-### Session K Part 2: Agent Fallback — DONE (1 commit)
+### Session L.3: nika:cost + preset.rs — DONE (3 commits)
 
-1. `072ad00` — Agent executor provider fallback chain (same pattern as infer). 3 new tests.
-   - `nika bench` already fully implemented (1200+ LOC)
+1. `f1838e0` — feat(runtime): create preset.rs with apply_preset_to_action. 10 tests.
+2. `728c493` — feat(builtin): add nika:cost introspection tool. 5 tests.
+3. `1fa7d1a` — test(runtime): backward compat + integration tests. 5 tests.
 
-### Session L Part 2: Parser Disambiguation + Presets — DONE (3 commits)
+### Session E.3: Quality Plan Bugs — DONE (6 commits)
 
-1. `e44b6d4` — Parser: `agent: think` (scalar) → preset ref, `agent: { prompt: "..." }` → verb. 4 tests.
-2. `58cab94` — PresetApplied event: emitted on preset use, wired into runner/live/TUI. 1 test.
-3. `93eecc9` — `nika agent --list`: shows 8 built-in presets with model/temp/description.
+1. `7905cf0` — fix(daemon): log job state update failures instead of silent drop (SF7). 3 `let _` → `warn!`.
+2. `54c63c3` — fix(runtime): calculate real cost on Layer 0a no-spec ProviderResponded (SF2).
+3. `47c7589` — fix(runtime): remove unwrap panics in retry loop + fmt (auto-committed by hook with CR1).
+   - Includes CR1: full JSON Schema validation in guardrails (jsonschema crate). 5 new tests.
+4. `1f6a6d0` — fix(runtime): per-provider temperature validation (M-orig8). 5 tests.
 
-### Session I Part 1: TUI Performance — DONE (1 commit)
+**Bugs fixed this session**: SF2 (cost), SF7 (job logs), CR1 (guardrails), M-orig8 (temperature)
+**Already fixed (verified)**: SF3, SF4 (for_each events), SF5 (schema .ok()), SF6 (trace writer)
 
-1. `74127ef` — Arc<Value> wrap: 3 EventKind fields → Arc<Value>. 15 files across 4 crates.
+## Previous Sessions (61 commits)
 
-### Session E Part 2: Test Strengthening — DONE (4 commits)
-
-1. `f8f4c1b` — 100+ in 9 core files (security, validation, DAG, binding, AST, MCP, TUI)
-2. `512cf81` — 70+ in 6 engine files (endpoints, context, structured_output, emit, flow, invoke)
-3. `b579ea9` — 30+ in 3 files (native/traits, media/tests_e2e, cli/media)
-4. `e431ece` — 40+ in 5 files (executor/tests, artifact_processor, chat_agent, fetch_wiremock, exec_errors)
-
-**Total strengthened**: ~240+ bare is_ok()/is_err() → descriptive assertions with error context
-
-### Session H: LSP — Already done (verified)
-
-- NIKA-163 workflow-level key detection: already implemented with did-you-mean
-- template_validation crash: already fixed (no .unwrap() in lsp-core)
-- Remaining: VS Code extension version sync (manual portal step)
-
-### Progress docs (2 commits)
-
-## Previous Phase (49 commits)
-
-Sessions A-G, J, K1, L1, Release v0.51.0, progress docs.
+Sessions A-G, J, K, L (parts 1-2), I (partial), E (parts 1-2), Release v0.51.0.
 
 ## Deferred (for future sessions)
 
-- **Session I**: DAG layout cache, Arc<str> for task_id
-- **Session M**: Record compression (11 commits planned)
-- **Session N**: Context + memory
-- **Session E**: ~200 remaining bare is_ok() (low-priority files)
-- **Session H**: VS Code extension version sync + E2E test harness
+- **Session M**: Record compression / P-RECORD (11 commits planned)
+- **Session N**: Context + memory / P-CONTEXT (15 tasks)
+- **Session F.2**: ProviderName enum + EventKind grouping (~3h)
+- **Session I.2**: TUI Performance — DAG cache, Arc<str> (~1h)
+- **Session D.2**: Quality infrastructure — cargo-mutants, tracing-error, cargo-deny (~2h)
+- **Session J.2**: Registry fallback + LSP completions (~1h)
+- **Session H.2**: LSP remaining — VS Code extension fixes (~1.5h)
+- **Session E remaining**: ~200 bare is_ok() in low-priority files
 
 ## For resume
 
 ```bash
 cd /Users/thibaut/dev/supernovae/nika
-claude --dangerously-skip-permissions --model opus -p "$(cat docs/plans/sessions/mega-prompt-v5.md)"
+claude --dangerously-skip-permissions --model opus -p "$(cat docs/plans/sessions/mega-prompt-v2.md)"
 ```
