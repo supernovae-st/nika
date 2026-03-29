@@ -1,11 +1,11 @@
 # Autonomous Session Progress
 
-**Updated**: 2026-03-29T14:00:00
-**Status**: SESSION N COMPLETE (P-CONTEXT + P-INTROSPECT + P-MEMORY-LOCAL)
+**Updated**: 2026-03-29T16:00:00
+**Status**: SESSION N+ COMPLETE (P-CONTEXT + M.remaining + F.2 foundation)
 **Version**: v0.51.0
-**Sessions completed**: A, B, C, D, E (extended), F (partial), G, J (partial), K, L (complete), I (partial), H (partial), M (P-RECORD), N (P-CONTEXT)
-**Total commits**: 91 (9 new this session)
-**Total tests**: 8,831 across 12 crates (0 failures, 0 clippy warnings)
+**Sessions completed**: A, B, C, D, E (extended), F (partial+enum), G, J (partial), K, L (complete), I (partial), H (partial), M (P-RECORD complete), N (P-CONTEXT)
+**Total commits**: 94 (12 new this session)
+**Total tests**: 8,845 across 12 crates (0 failures, 0 clippy warnings)
 
 ## This Session — Session N (9 commits, all pushed)
 
@@ -26,6 +26,15 @@
 
 ### P-SECURITY: Output scanner (1 commit)
 7. `739898f` — feat(security): output scanner for LLM injection detection (8 tests)
+
+### Session M.remaining: LLM compression wiring — DONE (1 commit)
+8. `2a1cc71` — feat(runtime): wire LLM compression via ExecutorCompressorLlm (4 tests)
+
+### Session F.2 foundation: ProviderName enum — DONE (1 commit)
+9. `ddeb959` — feat(core): ProviderName typed enum with alias support (10 tests)
+
+### Security audit: SF1 + SF5 + S1/S2 — ALREADY FIXED
+Verified all 3 "quick wins" were already addressed in prior sessions.
 
 ### Summary
 - **context_budget:** Full pipeline — AST field → parser → analyzer validation → token counting → proportional truncation → runner integration → events + display
