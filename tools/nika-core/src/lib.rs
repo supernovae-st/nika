@@ -21,5 +21,8 @@ pub mod binding;
 pub mod catalogs;
 pub mod error;
 pub mod mcp;
+pub mod provider_name;
 pub mod schema;
 pub mod source;
+
+pub use provider_name::ProviderName;
