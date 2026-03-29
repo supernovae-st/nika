@@ -35,6 +35,7 @@ mod file_adapter;
 mod log;
 pub(crate) mod media;
 mod prompt;
+mod records;
 mod rig_adapter;
 mod router;
 mod run;
@@ -47,6 +48,7 @@ pub use complete::{
     CompleteTool, COMPLETION_MARKER,
 };
 pub use cost::CostTool;
+pub use records::RecordsTool;
 pub use emit::EmitTool;
 pub use file_adapter::{create_file_tool_adapters, FileToolAdapter};
 pub use log::{LogLevel, LogTool};

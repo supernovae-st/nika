@@ -21,7 +21,7 @@
 use super::media::{context::MediaToolContext, create_media_tool_adapters};
 use super::{
     create_file_tool_adapters, AssertTool, BuiltinTool, CompleteTool, CostTool, EmitTool, LogTool,
-    PromptTool, RunTool, SleepTool,
+    PromptTool, RecordsTool, RunTool, SleepTool,
 };
 use crate::error::NikaError;
 use crate::tools::ToolContext;
@@ -156,6 +156,12 @@ impl BuiltinToolRouter {
     /// Add nika:cost introspection tool (requires EventLog for token/cost queries).
     pub fn with_cost_tool(mut self, event_log: EventLog) -> Self {
         self.register(CostTool::new(event_log));
+        self
+    }
+
+    /// Add nika:records introspection tool (requires RunContext for record queries).
+    pub fn with_records_tool(mut self, datastore: Arc<crate::store::RunContext>) -> Self {
+        self.register(RecordsTool::new(datastore));
         self
     }
 
