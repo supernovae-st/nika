@@ -200,58 +200,73 @@ mod tests {
 
     #[test]
     fn test_validate_endpoint_url_valid_http() {
-        assert!(validate_endpoint_url("http://localhost:8000/v1").is_ok());
+        let result = validate_endpoint_url("http://localhost:8000/v1");
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     #[test]
     fn test_validate_endpoint_url_valid_https() {
-        assert!(validate_endpoint_url("https://h100.internal:8000/v1").is_ok());
+        let result = validate_endpoint_url("https://h100.internal:8000/v1");
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     #[test]
     fn test_validate_endpoint_url_valid_private_ip() {
-        assert!(validate_endpoint_url("http://10.0.1.42:8000/v1").is_ok());
-        assert!(validate_endpoint_url("http://192.168.1.100:8000/v1").is_ok());
-        assert!(validate_endpoint_url("http://172.16.0.5:8000/v1").is_ok());
+        let result = validate_endpoint_url("http://10.0.1.42:8000/v1");
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
+        let result = validate_endpoint_url("http://192.168.1.100:8000/v1");
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
+        let result = validate_endpoint_url("http://172.16.0.5:8000/v1");
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     #[test]
     fn test_validate_endpoint_url_blocks_metadata() {
-        assert!(validate_endpoint_url("http://169.254.169.254/latest").is_err());
-        assert!(validate_endpoint_url("http://metadata.google.internal/").is_err());
+        let result = validate_endpoint_url("http://169.254.169.254/latest");
+        assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
+        let result = validate_endpoint_url("http://metadata.google.internal/");
+        assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
     }
 
     #[test]
     fn test_validate_endpoint_url_blocks_link_local() {
-        assert!(validate_endpoint_url("http://169.254.0.1:8000").is_err());
+        let result = validate_endpoint_url("http://169.254.0.1:8000");
+        assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
     }
 
     #[test]
     fn test_validate_endpoint_url_blocks_ipv4_mapped_ipv6_link_local() {
-        assert!(validate_endpoint_url("http://[::ffff:169.254.169.254]/v1").is_err());
-        assert!(validate_endpoint_url("http://[::ffff:169.254.0.1]:8000").is_err());
+        let result = validate_endpoint_url("http://[::ffff:169.254.169.254]/v1");
+        assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
+        let result = validate_endpoint_url("http://[::ffff:169.254.0.1]:8000");
+        assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
     }
 
     #[test]
     fn test_validate_endpoint_url_allows_ipv4_mapped_ipv6_private() {
         // Private IPs are allowed for local inference servers
-        assert!(validate_endpoint_url("http://[::ffff:10.0.1.42]:8000/v1").is_ok());
-        assert!(validate_endpoint_url("http://[::ffff:192.168.1.1]:8000/v1").is_ok());
+        let result = validate_endpoint_url("http://[::ffff:10.0.1.42]:8000/v1");
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
+        let result = validate_endpoint_url("http://[::ffff:192.168.1.1]:8000/v1");
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     #[test]
     fn test_validate_endpoint_url_rejects_file_scheme() {
-        assert!(validate_endpoint_url("file:///etc/passwd").is_err());
+        let result = validate_endpoint_url("file:///etc/passwd");
+        assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
     }
 
     #[test]
     fn test_validate_endpoint_url_rejects_ftp() {
-        assert!(validate_endpoint_url("ftp://example.com").is_err());
+        let result = validate_endpoint_url("ftp://example.com");
+        assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
     }
 
     #[test]
     fn test_validate_endpoint_url_rejects_no_host() {
-        assert!(validate_endpoint_url("http://").is_err());
+        let result = validate_endpoint_url("http://");
+        assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
     }
 
     #[test]
@@ -363,7 +378,8 @@ mod tests {
                 currency: None,
             },
         );
-        assert!(resolve_endpoints(&configs).is_err());
+        let result = resolve_endpoints(&configs);
+        assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
     }
 
     #[test]

@@ -851,7 +851,7 @@ mod tests {
         let dag = Dag::from_analyzed(&workflow).unwrap();
 
         let result = dag.detect_cycles();
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
         let err = result.unwrap_err();
         assert!(err.to_string().contains("NIKA-020"));
     }
@@ -862,7 +862,8 @@ mod tests {
         let workflow = build_workflow(&[("a", &[], &[]), ("b", &["a"], &[]), ("c", &["b"], &[])]);
         let dag = Dag::from_analyzed(&workflow).unwrap();
 
-        assert!(dag.detect_cycles().is_ok());
+        let result = dag.detect_cycles();
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     #[test]
@@ -876,7 +877,8 @@ mod tests {
         ]);
         let dag = Dag::from_analyzed(&workflow).unwrap();
 
-        assert!(dag.detect_cycles().is_ok());
+        let result = dag.detect_cycles();
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         assert_eq!(dag.get_final_tasks().len(), 1);
         assert!(dag.has_path("a", "d"));
     }
@@ -892,7 +894,8 @@ mod tests {
         ]);
         let dag = Dag::from_analyzed(&workflow).unwrap();
 
-        assert!(dag.detect_cycles().is_ok());
+        let result = dag.detect_cycles();
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         assert_eq!(dag.get_final_tasks().len(), 2);
     }
 
@@ -904,7 +907,7 @@ mod tests {
         let dag = Dag::from_analyzed(&workflow).unwrap();
 
         let result = dag.detect_cycles();
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
         let err_msg = result.unwrap_err().to_string();
         assert!(err_msg.contains("→"));
     }
@@ -917,7 +920,7 @@ mod tests {
         let dag = Dag::from_analyzed(&workflow).unwrap();
 
         let result = dag.detect_cycles();
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -1102,7 +1105,8 @@ mod tests {
 
         assert!(dag.get_final_tasks().is_empty());
         assert!(dag.get_deepest_final_task().is_none());
-        assert!(dag.detect_cycles().is_ok());
+        let result = dag.detect_cycles();
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     #[test]
@@ -1114,7 +1118,8 @@ mod tests {
         assert!(dag.get_successors("solo").is_empty());
         assert_eq!(dag.get_final_tasks().len(), 1);
         assert_eq!(dag.get_deepest_final_task().unwrap().as_ref(), "solo");
-        assert!(dag.detect_cycles().is_ok());
+        let result = dag.detect_cycles();
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     #[test]
@@ -1133,7 +1138,8 @@ mod tests {
         ]);
         let dag = Dag::from_analyzed(&workflow).unwrap();
 
-        assert!(dag.detect_cycles().is_ok());
+        let result = dag.detect_cycles();
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         assert_eq!(dag.get_final_tasks().len(), 1);
         assert_eq!(dag.get_deepest_final_task().unwrap().as_ref(), "f");
         assert!(dag.has_path("a", "f"));

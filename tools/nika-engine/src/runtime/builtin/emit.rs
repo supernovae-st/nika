@@ -187,7 +187,7 @@ mod tests {
         let tool = EmitTool;
         let result = tool.call(r#"{"name": "test_event"}"#.to_string()).await;
 
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
         assert_eq!(response["emitted"], true);
         assert_eq!(response["name"], "test_event");
@@ -204,7 +204,7 @@ mod tests {
             )
             .await;
 
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
         assert_eq!(response["emitted"], true);
         assert_eq!(response["name"], "user_action");
@@ -229,7 +229,7 @@ mod tests {
             )
             .await;
 
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
         assert_eq!(response["payload"]["count"], 42);
         assert_eq!(response["payload"]["values"][1], 2);
@@ -241,7 +241,7 @@ mod tests {
         let tool = EmitTool;
         let result = tool.call(r#"{"name": ""}"#.to_string()).await;
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
         let err = result.unwrap_err();
         assert!(err.to_string().contains("cannot be empty"));
     }
@@ -251,7 +251,7 @@ mod tests {
         let tool = EmitTool;
         let result = tool.call(r#"{"payload": {"test": 1}}"#.to_string()).await;
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
         let err = result.unwrap_err();
         assert!(err.to_string().contains("Invalid JSON parameters"));
     }
@@ -261,7 +261,7 @@ mod tests {
         let tool = EmitTool;
         let result = tool.call("not json".to_string()).await;
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
         let err = result.unwrap_err();
         assert!(err.to_string().contains("Invalid JSON parameters"));
     }
@@ -273,7 +273,7 @@ mod tests {
             .call(r#"{"name": "event", "payload": null}"#.to_string())
             .await;
 
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
         assert_eq!(response["payload"], serde_json::json!(null));
     }
@@ -285,7 +285,7 @@ mod tests {
             .call(r#"{"name": "items", "payload": [1, 2, 3]}"#.to_string())
             .await;
 
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
         assert_eq!(response["payload"][0], 1);
         assert_eq!(response["payload"][2], 3);
@@ -298,7 +298,7 @@ mod tests {
             .call(r#"{"name": "message", "payload": "hello world"}"#.to_string())
             .await;
 
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
         assert_eq!(response["payload"], "hello world");
     }

@@ -509,14 +509,14 @@ mod tests {
         let valid_path = format!("{}/src/main.rs", working_dir);
 
         let result = ctx.validate_path(&valid_path);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     #[test]
     fn test_validate_path_outside_working_dir() {
         let ctx = test_context();
         let result = ctx.validate_path("/etc/passwd");
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
         assert!(result.unwrap_err().to_string().contains("outside"));
     }
 
@@ -540,12 +540,12 @@ mod tests {
 
         // Should fail before read
         let result = ctx.validate_read_before_edit(&path);
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
 
         // Should pass after read
         ctx.mark_as_read(&path);
         let result = ctx.validate_read_before_edit(&path);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     #[test]
@@ -564,16 +564,20 @@ mod tests {
         let ctx = ToolContext::new(working_dir, PermissionMode::Deny);
 
         let result = ctx.check_permission(ToolOperation::Read);
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
     }
 
     #[test]
     fn test_check_permission_accept_all() {
         let ctx = test_context();
 
-        assert!(ctx.check_permission(ToolOperation::Read).is_ok());
-        assert!(ctx.check_permission(ToolOperation::Write).is_ok());
-        assert!(ctx.check_permission(ToolOperation::Edit).is_ok());
-        assert!(ctx.check_permission(ToolOperation::Search).is_ok());
+        let result = ctx.check_permission(ToolOperation::Read);
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
+        let result = ctx.check_permission(ToolOperation::Write);
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
+        let result = ctx.check_permission(ToolOperation::Edit);
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
+        let result = ctx.check_permission(ToolOperation::Search);
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 }

@@ -1008,7 +1008,7 @@ mod tests {
             .validate("test-task", r#"{"name": "Alice", "age": 30}"#)
             .await;
 
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         let r = result.unwrap();
         assert_eq!(r.layer, 2);
         assert_eq!(r.layer_name, "extract_validate");
@@ -1029,7 +1029,7 @@ Hope this helps!"#;
 
         let result = engine.validate("test-task", output).await;
 
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         let r = result.unwrap();
         assert_eq!(r.value["name"], "Bob");
         assert_eq!(r.value["age"], 25);
@@ -1044,7 +1044,7 @@ Hope this helps!"#;
         // Missing required 'age' field
         let result = engine.validate("test-task", r#"{"name": "Charlie"}"#).await;
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
         let err = result.unwrap_err();
         assert!(matches!(
             err,
@@ -1060,7 +1060,7 @@ Hope this helps!"#;
 
         let result = engine.validate("test-task", "not json at all").await;
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -1093,7 +1093,7 @@ Hope this helps!"#;
         let mut engine = StructuredOutputEngine::new(spec, log);
 
         let result = engine.load_schema().await;
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -1133,7 +1133,7 @@ Hope this helps!"#;
         let spec = StructuredOutputSpec::with_example_file("/nonexistent/example.json");
         let mut engine = StructuredOutputEngine::new(spec, create_test_log());
         let result = engine.load_schema().await;
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
         let err = result.unwrap_err().to_string();
         assert!(err.contains("Failed to read example"), "got: {err}");
     }
@@ -1265,7 +1265,7 @@ Hope this helps!"#;
             .validate("task-3", r#"{"name": "Only name, no age"}"#)
             .await;
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
 
         // Check attempt count - should be just 1 (Layer 2 only)
         let events = log.events();
@@ -1328,7 +1328,7 @@ Hope this helps!"#;
         )
         .await;
 
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         let value = result.unwrap();
         assert_eq!(value["name"], "Standalone");
     }
@@ -1341,7 +1341,7 @@ Hope this helps!"#;
         let result =
             validate_structured_output("task-5", r#"{"invalid": true}"#, &spec, &log).await;
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -1358,7 +1358,7 @@ Hope this helps!"#;
             .validate("task-unicode", r#"{"name": "日本語テスト", "age": 25}"#)
             .await;
 
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         assert_eq!(result.unwrap().value["name"], "日本語テスト");
     }
 
@@ -1385,7 +1385,7 @@ Hope this helps!"#;
             .validate("task-nested", r#"{"user": {"name": "Nested User"}}"#)
             .await;
 
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     #[tokio::test]
@@ -1408,7 +1408,7 @@ Hope this helps!"#;
             .validate("task-array", r#"[{"id": 1}, {"id": 2}, {"id": 3}]"#)
             .await;
 
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         let arr = result.unwrap().value;
         assert!(arr.is_array());
         assert_eq!(arr.as_array().unwrap().len(), 3);
