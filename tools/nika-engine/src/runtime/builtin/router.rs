@@ -20,11 +20,12 @@
 
 use super::media::{context::MediaToolContext, create_media_tool_adapters};
 use super::{
-    create_file_tool_adapters, AssertTool, BuiltinTool, CompleteTool, EmitTool, LogTool,
+    create_file_tool_adapters, AssertTool, BuiltinTool, CompleteTool, CostTool, EmitTool, LogTool,
     PromptTool, RunTool, SleepTool,
 };
 use crate::error::NikaError;
 use crate::tools::ToolContext;
+use nika_event::EventLog;
 use rustc_hash::FxHashMap;
 use std::sync::Arc;
 
@@ -150,6 +151,12 @@ impl BuiltinToolRouter {
     /// Register a builtin tool.
     pub fn register<T: BuiltinTool + 'static>(&mut self, tool: T) {
         self.tools.insert(tool.name(), Arc::new(tool));
+    }
+
+    /// Add nika:cost introspection tool (requires EventLog for token/cost queries).
+    pub fn with_cost_tool(mut self, event_log: EventLog) -> Self {
+        self.register(CostTool::new(event_log));
+        self
     }
 
     /// Dispatch a tool call to the appropriate builtin tool.

@@ -176,6 +176,12 @@ impl TaskExecutor {
         // Separate CAS handle for vision content resolution (same directory)
         let cas = Arc::new(CasStore::workspace_default(&working_dir));
 
+        // Build router before struct init to avoid borrow-after-move on event_log
+        let builtin_router = Arc::new(
+            BuiltinToolRouter::with_all_tools(tool_ctx.clone(), media_ctx)
+                .with_cost_tool(event_log.clone()),
+        );
+
         Ok(Self {
             http_client,
             rig_provider_cache: Arc::new(DashMap::new()),
@@ -186,10 +192,7 @@ impl TaskExecutor {
             default_provider: provider.into(),
             default_model: model.map(Into::into),
             event_log,
-            builtin_router: Arc::new(BuiltinToolRouter::with_all_tools(
-                tool_ctx.clone(),
-                media_ctx,
-            )),
+            builtin_router,
             policy_enforcer: Arc::new(RwLock::new(policy_enforcer)),
             cancel_token: CancellationToken::new(),
             cas,
