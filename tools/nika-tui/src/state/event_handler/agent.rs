@@ -3,7 +3,7 @@
 //! AgentStart, AgentTurn, AgentComplete, AgentSpawned,
 //! ContextAssembled, TemplateResolved
 
-use nika_engine::event::{AgentTurnMetadata, ContextSource, ExcludedItem};
+use nika_engine::event::{AgentTurnKind, AgentTurnMetadata, ContextSource, ExcludedItem};
 
 use super::TuiState;
 use crate::state::notification::Notification;
@@ -21,7 +21,7 @@ impl TuiState {
     pub(super) fn on_agent_turn(
         &mut self,
         turn_index: u32,
-        kind: &str,
+        kind: &AgentTurnKind,
         metadata: &Option<AgentTurnMetadata>,
     ) {
         // Extract tokens from metadata if present

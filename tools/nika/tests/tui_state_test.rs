@@ -461,7 +461,7 @@ fn test_agent_turn_creates_turn_record() {
         &EventKind::AgentTurn {
             task_id: Arc::from("agent_task"),
             turn_index: 0,
-            kind: "started".to_string(),
+            kind: nika::event::AgentTurnKind::Started,
             metadata: None,
         },
         200,
@@ -490,14 +490,14 @@ fn test_agent_turn_with_metadata() {
         input_tokens: 500,
         output_tokens: 100,
         cache_read_tokens: 0,
-        stop_reason: "end_turn".to_string(),
+        stop_reason: nika::event::AgentStopReason::EndTurn,
     };
 
     state.handle_event(
         &EventKind::AgentTurn {
             task_id: Arc::from("agent_task"),
             turn_index: 0,
-            kind: "natural_completion".to_string(),
+            kind: nika::event::AgentTurnKind::NaturalCompletion,
             metadata: Some(metadata),
         },
         500,
@@ -528,7 +528,7 @@ fn test_agent_complete_clears_turns() {
         &EventKind::AgentTurn {
             task_id: Arc::from("agent_task"),
             turn_index: 0,
-            kind: "started".to_string(),
+            kind: nika::event::AgentTurnKind::Started,
             metadata: None,
         },
         200,
@@ -602,7 +602,7 @@ fn test_provider_responded_updates_metrics() {
             output_tokens: 500,
             cache_read_tokens: 200,
             ttft_ms: Some(150),
-            finish_reason: "end_turn".to_string(),
+            finish_reason: nika::event::FinishReason::EndTurn,
             cost_usd: 0.015,
         },
         500,

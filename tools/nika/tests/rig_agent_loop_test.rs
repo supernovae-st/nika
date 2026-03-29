@@ -562,11 +562,11 @@ async fn test_workflow_event_log_captures_agent_lifecycle() {
     assert!(events.len() >= 2, "Should capture start and end events");
 
     // Verify event sequence
-    let kinds: Vec<String> = events
+    let kinds: Vec<nika::event::AgentTurnKind> = events
         .iter()
         .filter_map(|e| {
             if let nika::event::EventKind::AgentTurn { kind, .. } = &e.kind {
-                Some(kind.clone())
+                Some(*kind)
             } else {
                 None
             }
@@ -574,7 +574,7 @@ async fn test_workflow_event_log_captures_agent_lifecycle() {
         .collect();
 
     assert!(
-        kinds.contains(&"started".to_string()),
+        kinds.contains(&nika::event::AgentTurnKind::Started),
         "Should have started event: {:?}",
         kinds
     );

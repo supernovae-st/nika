@@ -530,7 +530,7 @@ impl StructuredOutputEngine {
                     output_tokens: out_tok,
                     cache_read_tokens: 0,
                     ttft_ms: Some(elapsed.as_millis() as u64),
-                    finish_reason: "structured_output_retry".to_string(),
+                    finish_reason: nika_event::FinishReason::StructuredOutputRetry,
                     cost_usd: cost,
                 });
                 output
@@ -694,7 +694,7 @@ impl StructuredOutputEngine {
                     output_tokens: out_tok,
                     cache_read_tokens: 0,
                     ttft_ms: Some(elapsed.as_millis() as u64),
-                    finish_reason: "structured_output_repair".to_string(),
+                    finish_reason: nika_event::FinishReason::StructuredOutputRepair,
                     cost_usd: cost,
                 });
                 output

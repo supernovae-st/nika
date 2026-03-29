@@ -1328,7 +1328,7 @@ fn test_check_guardrails_llm_type_returns_immediate_failure() {
     let events = event_log.events();
     let has_failed = events
         .iter()
-        .any(|e| matches!(&e.kind, EventKind::GuardrailFailed { guardrail_type, .. } if guardrail_type == "llm"));
+        .any(|e| matches!(&e.kind, EventKind::GuardrailFailed { guardrail_type, .. } if *guardrail_type == nika_event::GuardrailType::Llm));
     assert!(has_failed, "Should emit GuardrailFailed event for llm type");
 }
 

@@ -243,7 +243,7 @@ impl TaskExecutor {
                 output_tokens: estimate_tokens(mock_response_str.len()),
                 cache_read_tokens: 0,
                 ttft_ms: Some(0),
-                finish_reason: "mock".to_string(),
+                finish_reason: nika_event::FinishReason::Mock,
                 cost_usd: 0.0,
             });
             return Ok(mock_response_str);
@@ -488,7 +488,7 @@ impl TaskExecutor {
                                                     cache_read_tokens: stream_result
                                                         .cached_input_tokens,
                                                     ttft_ms: stream_result.ttft_ms,
-                                                    finish_reason: "stop".to_string(),
+                                                    finish_reason: nika_event::FinishReason::Stop,
                                                     cost_usd: if cost.is_finite() {
                                                         cost
                                                     } else {
@@ -543,7 +543,7 @@ impl TaskExecutor {
                                             output_tokens: stream_result.output_tokens,
                                             cache_read_tokens: stream_result.cached_input_tokens,
                                             ttft_ms: stream_result.ttft_ms,
-                                            finish_reason: "layer0a_no_spec".to_string(),
+                                            finish_reason: nika_event::FinishReason::Other("layer0a_no_spec".to_string()),
                                             cost_usd: 0.0,
                                         });
                                         return Ok(stream_result.text);
@@ -653,7 +653,7 @@ impl TaskExecutor {
                                                     output_tokens: est_out,
                                                     cache_read_tokens: 0,
                                                     ttft_ms: None,
-                                                    finish_reason: "stop".to_string(),
+                                                    finish_reason: nika_event::FinishReason::Stop,
                                                     cost_usd: if cost.is_finite() {
                                                         cost
                                                     } else {
@@ -724,7 +724,7 @@ impl TaskExecutor {
                                             output_tokens: est_out,
                                             cache_read_tokens: 0,
                                             ttft_ms: None,
-                                            finish_reason: "stop".to_string(),
+                                            finish_reason: nika_event::FinishReason::Stop,
                                             cost_usd: if cost.is_finite() { cost } else { 0.0 },
                                         });
                                         // Adjust token reservation before early return
@@ -879,7 +879,7 @@ impl TaskExecutor {
             output_tokens: stream_result.output_tokens,
             cache_read_tokens: stream_result.cached_input_tokens,
             ttft_ms: stream_result.ttft_ms,
-            finish_reason: "stop".to_string(),
+            finish_reason: nika_event::FinishReason::Stop,
             cost_usd: if cost.is_finite() { cost } else { 0.0 },
         });
 
@@ -1224,7 +1224,7 @@ impl TaskExecutor {
             output_tokens: est_out,
             cache_read_tokens: 0,
             ttft_ms: None,
-            finish_reason: "stop".to_string(),
+            finish_reason: nika_event::FinishReason::Stop,
             cost_usd: if cost.is_finite() { cost } else { 0.0 },
         });
 
@@ -1255,13 +1255,13 @@ impl TaskExecutor {
             if result.passed {
                 self.event_log.emit(EventKind::GuardrailPassed {
                     task_id: Arc::clone(task_id),
-                    guardrail_type: result.guardrail_type.clone(),
+                    guardrail_type: nika_event::GuardrailType::parse(&result.guardrail_type).unwrap_or(nika_event::GuardrailType::Regex),
                     description: result.guardrail_id.clone(),
                 });
             } else {
                 self.event_log.emit(EventKind::GuardrailFailed {
                     task_id: Arc::clone(task_id),
-                    guardrail_type: result.guardrail_type.clone(),
+                    guardrail_type: nika_event::GuardrailType::parse(&result.guardrail_type).unwrap_or(nika_event::GuardrailType::Regex),
                     description: result.guardrail_id.clone(),
                     message: result
                         .message

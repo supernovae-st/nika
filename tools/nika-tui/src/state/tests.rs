@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use super::*;
 use crate::theme::{MissionPhase, TaskStatus};
-use nika_engine::event::EventKind;
+use nika_engine::event::{AgentStopReason, AgentTurnKind, EventKind, FinishReason};
 
 /// Use actual package version in tests to avoid version drift
 const TEST_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -1884,7 +1884,7 @@ fn test_agent_events_mark_reasoning_dirty() {
         &EventKind::AgentTurn {
             task_id: "task1".into(),
             turn_index: 0,
-            kind: "started".to_string(),
+            kind: AgentTurnKind::Started,
             metadata: None,
         },
         200,
@@ -1896,7 +1896,7 @@ fn test_agent_events_mark_reasoning_dirty() {
         &EventKind::AgentComplete {
             task_id: "task1".into(),
             turns: 1,
-            stop_reason: "natural".to_string(),
+            stop_reason: AgentStopReason::Natural,
         },
         300,
     );
@@ -3611,7 +3611,7 @@ fn test_provider_responded_updates_metrics() {
             output_tokens: 500,
             cache_read_tokens: 200,
             ttft_ms: Some(250),
-            finish_reason: "stop".to_string(),
+            finish_reason: FinishReason::Stop,
             cost_usd: 0.005,
         },
         500,
@@ -3793,7 +3793,7 @@ fn test_agent_task_completed_clears_agent_state() {
         &EventKind::AgentTurn {
             task_id: Arc::from("agent-task"),
             turn_index: 0,
-            kind: "thinking".to_string(),
+            kind: AgentTurnKind::Continue,
             metadata: None,
         },
         200,
@@ -4543,7 +4543,7 @@ fn test_should_break_on_agent_turn() {
     assert!(state.should_break(&EventKind::AgentTurn {
         task_id: Arc::from("task1"),
         turn_index: 2,
-        kind: "thinking".to_string(),
+        kind: AgentTurnKind::Continue,
         metadata: None,
     }));
 
@@ -4551,7 +4551,7 @@ fn test_should_break_on_agent_turn() {
     assert!(!state.should_break(&EventKind::AgentTurn {
         task_id: Arc::from("task1"),
         turn_index: 0,
-        kind: "thinking".to_string(),
+        kind: AgentTurnKind::Continue,
         metadata: None,
     }));
 }
@@ -4612,7 +4612,7 @@ fn test_threshold_notifications_all_fire_on_large_jump() {
             cache_read_tokens: 0,
             cost_usd: 0.01,
             ttft_ms: None,
-            finish_reason: "stop".to_string(),
+            finish_reason: FinishReason::Stop,
         },
         1,
     );
@@ -4644,7 +4644,7 @@ fn test_agent_complete_does_not_double_push_token_history() {
             cache_read_tokens: 0,
             cost_usd: 0.0,
             ttft_ms: None,
-            finish_reason: "stop".to_string(),
+            finish_reason: FinishReason::Stop,
         },
         1,
     );
@@ -4655,7 +4655,7 @@ fn test_agent_complete_does_not_double_push_token_history() {
         &EventKind::AgentComplete {
             task_id: "t".into(),
             turns: 1,
-            stop_reason: "natural_completion".to_string(),
+            stop_reason: AgentStopReason::NaturalCompletion,
         },
         2,
     );

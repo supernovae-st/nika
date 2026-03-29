@@ -790,7 +790,7 @@ impl CliRenderer {
                 if self.detail.show_sub_events() {
                     println!("{}", super::format_event::fmt_agent_turn(*turn_index, kind));
                     if let Some(meta) = metadata {
-                        if meta.stop_reason == "tool_use" {
+                        if meta.stop_reason == nika_event::AgentStopReason::ToolUse {
                             println!("{}", super::format_event::fmt_agent_turn_tool_use());
                         }
                     }

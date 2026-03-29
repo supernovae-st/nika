@@ -256,7 +256,7 @@ impl RigAgentLoop {
         self.event_log.emit(EventKind::AgentTurn {
             task_id: Arc::from(self.task_id.as_str()),
             turn_index,
-            kind: "started".to_string(),
+            kind: nika_event::AgentTurnKind::Started,
             metadata: None,
         });
 
@@ -311,7 +311,7 @@ impl RigAgentLoop {
         self.event_log.emit(EventKind::AgentTurn {
             task_id: Arc::from(self.task_id.as_str()),
             turn_index,
-            kind: stop_reason.to_string(),
+            kind: nika_event::AgentTurnKind::from(stop_reason),
             metadata: Some(metadata),
         });
 

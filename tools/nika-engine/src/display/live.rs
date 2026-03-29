@@ -881,7 +881,7 @@ impl LiveRenderer {
                 if self.detail.show_sub_events() {
                     self.log(&super::format_event::fmt_agent_turn(*turn_index, kind));
                     if let Some(meta) = metadata {
-                        if meta.stop_reason == "tool_use" {
+                        if meta.stop_reason == nika_event::AgentStopReason::ToolUse {
                             self.log(&super::format_event::fmt_agent_turn_tool_use());
                         }
                     }
@@ -1585,7 +1585,7 @@ mod tests {
                 output_tokens: 200,
                 cache_read_tokens: 50,
                 ttft_ms: Some(120),
-                finish_reason: "stop".to_string(),
+                finish_reason: nika_event::FinishReason::Stop,
                 cost_usd: 0.002,
             },
         ));
@@ -1939,7 +1939,7 @@ mod tests {
                 output_tokens: 100,
                 cache_read_tokens: 0,
                 ttft_ms: None,
-                finish_reason: "stop".to_string(),
+                finish_reason: nika_event::FinishReason::Stop,
                 cost_usd: 0.001,
             },
         ));
