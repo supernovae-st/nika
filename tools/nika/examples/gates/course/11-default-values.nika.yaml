@@ -52,13 +52,13 @@ tasks:
     exec: "echo 'PRIORITY={{with.val}}'"
     description: "?? chain: try source A, then B, then literal"
 
-  # -- default(V) transform --
+  # -- ?? on absent field --
   - id: default_transform
     depends_on: [partial_profile]
     with:
-      val: $partial_profile.nickname | default(anonymous)
+      val: $partial_profile.role ?? "guest"
     exec: "echo 'DEFAULT={{with.val}}'"
-    description: "default(V): provide fallback value via transform"
+    description: "?? on absent field: path does not exist, fallback triggers"
 
   # -- ?? with env var fallback --
   - id: env_fallback
@@ -67,13 +67,13 @@ tasks:
     exec: "echo 'REGION={{with.region}}'"
     description: "?? with env var: fallback when env not set"
 
-  # -- Combine default() with transforms --
+  # -- ?? + template transform chain --
   - id: fallback_with_transform
     depends_on: [partial_profile]
     with:
-      display: $partial_profile.nickname | default(anonymous) | upper
-    exec: "echo 'DISPLAY={{with.display}}'"
-    description: "default() followed by transform: fallback then uppercase"
+      val: $partial_profile.status ?? "unknown"
+    exec: "echo 'DISPLAY={{with.val | upper}}'"
+    description: "?? fallback then pipe transform in template"
 
   - id: verify
     depends_on: [fallback_exists, fallback_missing, fallback_absent, fallback_chain, default_transform, env_fallback, fallback_with_transform]

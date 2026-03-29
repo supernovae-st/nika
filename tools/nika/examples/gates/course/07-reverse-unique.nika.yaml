@@ -16,6 +16,7 @@ tasks:
   # -- Source: commit authors in chronological order (oldest first) --
   - id: commit_authors
     exec: 'echo ''["alice","bob","alice","charlie","bob","alice","diana","charlie","alice"]'''
+    output: { format: json }
     description: "Git commit authors in chronological order (oldest to newest)"
 
   # -- Reverse: most recent first --

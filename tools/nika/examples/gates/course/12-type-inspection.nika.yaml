@@ -24,10 +24,12 @@ tasks:
 
   - id: src_array
     exec: 'echo ''["alpha","beta","gamma"]'''
+    output: { format: json }
     description: "JSON array"
 
   - id: src_object
     exec: 'printf ''{"key":"value","count":3}'''
+    output: { format: json }
     description: "JSON object"
 
   # -- type_of on string --

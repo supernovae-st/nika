@@ -16,6 +16,7 @@ tasks:
   # -- Source: realistic server config --
   - id: server_config
     exec: 'printf ''{"hostname":"prod-api-01","region":"eu-west-1","cpu_cores":8,"memory_gb":32,"status":"healthy"}'''
+    output: { format: json }
     description: "Server configuration as JSON object"
 
   # -- Extract keys --

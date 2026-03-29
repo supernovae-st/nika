@@ -16,6 +16,7 @@ tasks:
   # -- Source: unsorted array with duplicates --
   - id: languages
     exec: 'echo ''["rust","python","go","rust","typescript","python","java","go","rust","elixir"]'''
+    output: { format: json }
     description: "Programming languages with duplicates"
 
   # -- Sort alphabetically --
