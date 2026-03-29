@@ -647,6 +647,18 @@ fn resolve_binding_path(
                 return Ok(datastore.resolve_path(&full_path));
             }
 
+            // Record-aware bindings: if task has a compressed Record,
+            // use Record fields instead of raw output.
+            if let Some(record) = datastore.get_record(task_id) {
+                if binding_path.segments.is_empty() {
+                    // $task → Record summary string
+                    return Ok(Some(Value::String(record.summary)));
+                }
+                // $task.field → navigate Record binding value
+                let record_value = record.to_binding_value();
+                return navigate_segments(&record_value, &binding_path.segments);
+            }
+
             let output = match datastore.get_output(task_id) {
                 Some(o) => o,
                 None => return Ok(None),
