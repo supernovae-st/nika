@@ -8,19 +8,47 @@ alwaysApply: false
 
 Nika is a semantic YAML workflow engine for AI tasks. Schema: `nika/workflow@0.12`.
 
+## CRITICAL: Common Mistakes
+
+| Wrong | Right |
+|-------|-------|
+| `timeout: 30000` (ms) | `timeout: 30` (seconds) |
+| `data: other_task` | `data: $other_task` ($ prefix) |
+| `{{data}}` | `{{with.data}}` (with. prefix) |
+| `{{item}}` in for_each | `{{with.item}}` (with. prefix) |
+| `retry: 3` | `retry: { max_attempts: 3, delay_ms: 2000 }` |
+| `.yaml` extension | `.nika.yaml` extension |
+| `shell: bash` | `shell: true` (boolean) |
+| Missing `schema:` | `schema: "nika/workflow@0.12"` |
+| `depends_on: task_id` | `depends_on: [task_id]` (array) |
+| `tool: "server/tool"` | `tool: "server::tool"` (double colon) |
+| `retry:` inside `invoke:` | `retry:` at task level |
+| `body: {...}` JSON | `json: {...}` (auto-serialized) |
+| `{{with.results.field}}` after for_each | `{{with.results[0].field}}` (array) |
+
+## Which Verb?
+
+- Need LLM output? → `infer:`
+- Need HTTP/API call? → `fetch:`
+- Need shell command? → `exec:`
+- Need MCP/builtin tool? → `invoke:`
+- Need multi-turn agent? → `agent:`
+
 ## Workflow Skeleton
 
 ```yaml
-schema: nika/workflow@0.12          # Required. Always @0.12
-workflow: my-workflow                # Optional identifier
-provider: anthropic                  # Default LLM provider
-model: claude-sonnet-4-20250514   # Default model
-inputs:                              # Parameters with defaults
+schema: nika/workflow@0.12
+workflow: my-workflow
+provider: claude                     # or array: [groq, claude] for fallback
+model: claude-sonnet-4-20250514
+inputs:
   name: "world"
-tasks: []                            # Required. Task list
+tasks:
+  - id: hello
+    infer: "Say hello to {{inputs.name}}"
 ```
 
-## 5 Verbs (each task uses exactly one)
+## 5 Verbs
 
 ### infer: -- LLM generation
 ```yaml
@@ -31,6 +59,18 @@ tasks: []                            # Required. Task list
     temperature: 0.7
     max_tokens: 1000
     extended_thinking: true          # Claude only
+    thinking_budget: 10000
+    response_format: json            # text | json | markdown
+    content:                         # Vision/multimodal (v0.34+)
+      - type: image
+        source: "{{with.hash}}"      # CAS hash, NOT file path
+        detail: high
+      - type: text
+        text: "Describe this"
+    guardrails:
+      - type: length
+        min_words: 50
+        on_failure: retry
 ```
 
 ### exec: -- Shell command
@@ -41,9 +81,8 @@ tasks: []                            # Required. Task list
     shell: true                      # Required for pipes/redirects
     cwd: ./frontend
     env: { NODE_ENV: production }
-    timeout: 30                      # seconds
+    timeout: 30                      # Seconds (NOT ms)
 ```
-Shorthand: `exec: "echo hello"`
 
 ### fetch: -- HTTP request
 ```yaml
@@ -52,36 +91,54 @@ Shorthand: `exec: "echo hello"`
     url: "https://api.example.com/data"
     method: POST
     headers: { Authorization: "Bearer {{with.token}}" }
-    json: { query: "{{with.q}}" }
-    extract: markdown                # markdown|article|text|selector|metadata|links|feed|jsonpath|llm_txt
-    response: full                   # full|binary|(default: raw body)
+    json: { query: "{{with.q}}" }    # Auto-serialized JSON body
+    extract: markdown                # 9 modes (see below)
+    response: full                   # full | binary | (default: raw body)
+    timeout: 30
 ```
+
+**9 Extract modes**: `markdown`, `article`, `text`, `selector`, `metadata`, `links`, `jsonpath`, `feed`, `llm_txt`
 
 ### invoke: -- MCP tool call
 ```yaml
 - id: search
   invoke:
-    tool: tool_name
-    mcp: server_name
+    tool: "novanet::novanet_search"  # server::tool (double colon)
     params: { query: "{{with.q}}" }
+    timeout: 30
 ```
-Builtins: `nika:import`, `nika:thumbnail`, `nika:chart`, `nika:metadata`, etc.
 
-### agent: -- Multi-turn agent loop
+**30 builtin tools** (nika: prefix, no MCP needed):
+- Always-on: `nika:import`, `nika:dimensions`, `nika:thumbhash`, `nika:dominant_color`, `nika:pipeline`
+- Media: `nika:thumbnail`, `nika:convert`, `nika:strip`, `nika:metadata`, `nika:optimize`, `nika:svg_render`
+- Opt-in: `nika:phash`, `nika:compare`, `nika:pdf_extract`, `nika:chart`, `nika:provenance`, `nika:verify`, `nika:qr_validate`, `nika:quality`, `nika:html_to_md`, `nika:css_select`, `nika:extract_metadata`, `nika:extract_links`, `nika:readability`
+- Runtime: `nika:cost`, `nika:records`, `nika:dag_info`, `nika:task_status`, `nika:threads`, `nika:orchestrate`
+
+### agent: -- Multi-turn loop
 ```yaml
 - id: research
   agent:
     prompt: "Research {{with.topic}}"
     tools: [web_search, read_file]
+    mcp: [novanet]
     max_turns: 20
     max_tokens: 4096
+    completion:
+      mode: explicit                 # explicit | natural | pattern
+    guardrails:
+      - type: length
+        max_words: 500
+        on_failure: retry
+    limits:
+      cost_usd: 2.0
+      duration_seconds: 120
 ```
+
+**Note**: `agent: "think"` (scalar) = preset reference, NOT the agent verb.
 
 ## Data Flow
 
 ```yaml
-- id: producer
-  exec: "echo 'hello'"
 - id: consumer
   depends_on: [producer]             # Ordering dependency
   with:                              # Data binding ($ prefix required)
@@ -89,100 +146,72 @@ Builtins: `nika:import`, `nika:thumbnail`, `nika:chart`, `nika:metadata`, etc.
     clean: $producer | trim | upper  # Pipe transforms
     temp: $api.data.temp ?? 20       # JSONPath + fallback
     key: $env.API_KEY                # Environment variable
-  exec: "echo '{{with.data}}'"
+  infer: "Process: {{with.data}}"
 ```
 
-## Templates: `{{with.alias}}`, `{{inputs.name}}`, `{{with.item}}`, `{{context.files.alias}}`
+## Templates
 
-## Transforms (pipe-chained in with: bindings)
-- **String**: `upper`, `lower`, `trim`, `trim_start`, `trim_end`
-- **Collection**: `length`, `first`, `last`, `first(N)`, `last(N)`, `keys`, `values`, `flatten`, `reverse`, `sort`, `unique`, `compact`
-- **Type**: `to_string`, `to_number`, `to_bool`, `to_json`, `parse_json`
-- **Numeric**: `round(N)`, `abs`, `ceil`, `floor`
-- **Utility**: `default(V)`, `type_of`, `join(S)`, `split(S)`
+`{{with.alias}}`, `{{inputs.name}}`, `{{with.item}}`, `{{context.readme}}`
 
-## Iteration
+## Transforms (31 pipe-chainable)
+
+- **String**: `upper`, `lower`, `trim`, `trim_start`, `trim_end`, `length`, `to_string`
+- **Array**: `first`, `last`, `first(N)`, `last(N)`, `flatten`, `reverse`, `sort`, `unique`, `compact`, `keys`, `values`
+- **Numeric**: `to_number`, `round(N)`, `abs`, `ceil`, `floor`
+- **Type**: `to_bool`, `to_json`, `parse_json`, `type_of`
+- **Parametric**: `join(",")`, `split(",")`, `default("fallback")`
+- **System**: `shell`
+
+## Task-Level Fields
 
 ```yaml
-- id: batch
-  for_each: "$list_task"
+- id: my-task
+  provider: openai                   # Override (or array: [openai, claude])
+  model: gpt-4o
+  preset: think                      # From agents: block
+  record: true                       # Output recording (v0.48+)
+  context_budget: 50000              # Token budget for bindings (v0.51+)
+  routing:                           # Provider routing (v0.50+)
+    fallback: [openai, claude]
+    strategy: cost                   # cost | latency | availability
+  retry: { max_attempts: 3, delay_ms: 1000, backoff: 2.0 }
+  structured:                        # JSON schema enforcement
+    schema: { type: object, properties: { name: { type: string } } }
+    max_retries: 3
+    enable_repair: true
+  artifact: { path: out.md, format: markdown }
+  for_each: "$items"
   as: item
-  concurrency: 5
-  fail_fast: true
-  exec: "echo '{{with.item}}'"
+  concurrency: 3
+  fail_fast: false
 ```
 
-## Example: Diamond DAG with Transforms
+## Structured Output (v0.35+)
 
 ```yaml
-schema: nika/workflow@0.12
-workflow: diamond-example
-tasks:
-  - id: source
-    exec: "echo '  raw data  '"
-  - id: left
-    with: { data: $source | trim | upper }
-    depends_on: [source]
-    infer: { prompt: "Analyze: {{with.data}}" }
-  - id: right
-    with: { data: $source | trim | lower }
-    depends_on: [source]
-    infer: { prompt: "Summarize: {{with.data}}" }
-  - id: merge
-    depends_on: [left, right]
-    with: { l: $left, r: $right }
-    infer: { prompt: "Combine:\n{{with.l}}\n{{with.r}}" }
+structured:
+  schema:
+    type: object
+    properties:
+      name: { type: string }
+      score: { type: number }
+    required: [name]
+  enable_repair: true                # LLM auto-repair
+  max_retries: 3
+  repair_model: claude-haiku-4-5     # Cheaper repair model
 ```
 
-## Example: Fetch + Extract Pipeline
+**5-layer defense**: tool injection → extractor → JSON validation → retry → LLM repair
 
-```yaml
-schema: nika/workflow@0.12
-workflow: web-research
-tasks:
-  - id: scrape
-    fetch:
-      url: "https://example.com/article"
-      extract: article
-  - id: analyze
-    with: { content: $scrape }
-    depends_on: [scrape]
-    infer:
-      prompt: "Key takeaways from:\n{{with.content}}"
-      structured:
-        schema:
-          type: object
-          properties:
-            takeaways: { type: array, items: { type: string } }
-          required: [takeaways]
-```
+## Security
 
-## Example: Agent with MCP
-
-```yaml
-schema: nika/workflow@0.12
-workflow: research-agent
-mcp:
-  novanet:
-    command: cargo
-    args: [run, -p, novanet-mcp]
-tasks:
-  - id: research
-    agent:
-      prompt: "Research quantum computing advances in 2025"
-      tools: [web_search, read_file]
-      mcp: [novanet]
-      max_turns: 15
-      max_tokens: 4096
-```
-
-## Common Mistakes
-- Missing `$` prefix in `with:` bindings: `data: other_task` should be `data: $other_task`
-- Wrong extension: use `.nika.yaml`, never `.yaml` alone
-- Missing `shell: true` when using pipes/redirects in exec commands
-- Using `depends_on:` for data flow (use `with:` instead; `depends_on:` is ordering only)
-- Schema must be full string: `nika/workflow@0.12`, not just `0.12`
-- Circular references in `with:` bindings are not allowed (DAG must be acyclic)
+- API keys: env vars only (`$env.API_KEY`). Never hardcode.
+- `fetch:` blocks SSRF (private IPs).
+- `exec:` blocklist: `rm -rf /`, `sudo`, `$()`, backticks (NIKA-053).
+- Never commit `.nika/traces/` to git.
 
 ## Providers
-LLM: `anthropic`/`claude`, `openai`/`gpt`, `mistral`, `groq`, `deepseek`, `gemini`/`google`, `xai`/`grok`, `native`/`local`
+
+`anthropic`/`claude`, `openai`/`gpt`, `mistral`, `groq`, `deepseek`/`deep-seek`, `gemini`/`google`, `xai`/`grok`, `native`/`local`, `mock`
+
+Provider array for fallback: `provider: [groq, claude, openai]`
