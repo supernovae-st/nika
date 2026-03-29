@@ -44,6 +44,46 @@ DOCUMENTATION:
     https://github.com/supernovae-st/nika";
 
 // ═══════════════════════════════════════════════════════════════════════════
+// BUILD METADATA
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Extended version string with channel, git hash, and build time.
+fn long_version() -> &'static str {
+    const VERSION: &str = env!("CARGO_PKG_VERSION");
+    const CHANNEL: &str = env!("NIKA_BUILD_CHANNEL");
+    const HASH: &str = env!("NIKA_GIT_HASH");
+
+    // Use a static OnceLock so we compute the string once
+    use std::sync::OnceLock;
+    static LONG: OnceLock<String> = OnceLock::new();
+    LONG.get_or_init(|| {
+        let ts: u64 = env!("NIKA_BUILD_TIMESTAMP").parse().unwrap_or(0);
+        let ago = if ts == 0 {
+            "unknown".to_string()
+        } else {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            let delta = now.saturating_sub(ts);
+            if delta < 60 {
+                "just now".to_string()
+            } else if delta < 3600 {
+                format!("{}min ago", delta / 60)
+            } else if delta < 86400 {
+                format!("{}h ago", delta / 3600)
+            } else {
+                format!("{}d ago", delta / 86400)
+            }
+        };
+        match CHANNEL {
+            "release" => format!("{VERSION} (release)"),
+            _ => format!("{VERSION}-{CHANNEL} ({HASH}, built {ago})"),
+        }
+    })
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // CLI STRUCTURE
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -78,7 +118,7 @@ fn cli_styles() -> clap::builder::Styles {
 
 #[derive(Parser)]
 #[command(name = "nika")]
-#[command(version)]
+#[command(version, long_version = long_version())]
 #[command(about = "Nika - DAG workflow runner for AI tasks")]
 #[command(long_about = LONG_ABOUT)]
 #[command(after_help = AFTER_HELP)]
@@ -513,6 +553,22 @@ enum Commands {
     Showcase {
         #[command(subcommand)]
         action: cli::showcase::ShowcaseAction,
+    },
+
+    /// Switch between dev and release channels
+    #[command(next_help_heading = "SYSTEM")]
+    Switch {
+        /// Channel to switch to (dev, release)
+        #[command(subcommand)]
+        action: Option<cli::switch::SwitchAction>,
+
+        /// One-time setup (create dirs, build dev, install hook)
+        #[arg(long)]
+        setup: bool,
+
+        /// Force rebuild dev binary now
+        #[arg(long)]
+        build: bool,
     },
 
     /// Check system health and diagnose issues
@@ -1199,6 +1255,20 @@ async fn main() {
 
         Some(Commands::Showcase { action }) => {
             cli::showcase::handle_showcase_command(action, quiet)
+        }
+
+        Some(Commands::Switch {
+            action,
+            setup,
+            build,
+        }) => {
+            if setup {
+                cli::switch::do_setup(quiet).await
+            } else if build {
+                cli::switch::do_build(quiet).await
+            } else {
+                cli::switch::handle_switch_command(action, quiet)
+            }
         }
 
         Some(Commands::Doctor { full, format, fix }) => {
