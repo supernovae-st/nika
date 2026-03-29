@@ -1,0 +1,67 @@
+schema: "nika/workflow@0.12"
+workflow: bindings-env-test
+description: "Test environment variable bindings: $env.VAR_NAME in with blocks"
+provider: mock
+
+tasks:
+  # Basic env binding: HOME
+  - id: test_env_home
+    with:
+      home: $env.HOME
+    infer: "Home directory: {{with.home}}"
+
+  # Env binding: PATH
+  - id: test_env_path
+    with:
+      path: $env.PATH
+    infer: "PATH length: {{with.path | length}}"
+
+  # Env binding with transform
+  - id: test_env_transform
+    with:
+      home: $env.HOME
+    infer: "Home uppercase: {{with.home | upper}}"
+
+  # Env with default for missing
+  - id: test_env_missing_with_default
+    with:
+      maybe_empty: $env.NONEXISTENT_VAR_XYZ_123
+    infer: "Missing env: {{with.maybe_empty | default('not set')}}"
+
+  # Multiple env bindings
+  - id: test_env_multiple
+    with:
+      home: $env.HOME
+      user: $env.USER
+      pwd: $env.PWD
+    infer: |
+      Environments:
+      - HOME: {{with.home}}
+      - USER: {{with.user}}
+      - PWD: {{with.pwd}}
+
+  # Env in input comparison
+  - id: test_env_in_output
+    with:
+      env_home: $env.HOME
+      env_pwd: $env.PWD
+    infer: |
+      Environment info:
+      Home: {{with.env_home}}
+      Working dir: {{with.env_pwd}}
+
+  # Env with path extraction (split)
+  - id: test_env_path_split
+    with:
+      path: $env.PATH
+    infer: "Path entries count: {{with.path | split(':') | length}}"
+
+  # Env HOME with string operations
+  - id: test_env_string_ops
+    with:
+      home: $env.HOME
+    infer: |
+      Home operations:
+      - Length: {{with.home | length}}
+      - Upper: {{with.home | upper}}
+      - Trim: {{with.home | trim}}

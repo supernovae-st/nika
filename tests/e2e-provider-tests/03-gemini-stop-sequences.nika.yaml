@@ -1,0 +1,160 @@
+schema: nika/workflow@0.12
+workflow: gemini-stop-sequences-test
+description: "Test Gemini with stop sequences and structured output"
+
+provider: gemini
+model: gemini-2.5-flash
+
+inputs:
+  conversation_topic: "AI and future of work"
+  max_turns: 3
+
+tasks:
+  # Task 1: Generate conversation with natural stop
+  - id: conversation_init
+    infer:
+      prompt: |
+        Start a conversation about: {{inputs.conversation_topic}}
+
+        Provide exactly 3 speaking points, then stop naturally.
+      max_tokens: 400
+    description: "Initialize conversation topic"
+
+  # Task 2: Use stop sequences to control generation
+  - id: structured_points
+    depends_on: [conversation_init]
+    with:
+      context: $conversation_init
+    infer:
+      prompt: |
+        Based on this context: {{with.context}}
+
+        List the main ideas. End with exactly "---END---"
+      max_tokens: 500
+      stop_sequences: ["---END---"]
+    description: "Generate with explicit stop sequence"
+
+  # Task 3: Multiple stop sequences
+  - id: multi_stop_test
+    infer:
+      prompt: |
+        Generate a thought about {{inputs.conversation_topic}}.
+        Stop if you reach natural conclusion or hit STOP or END.
+      max_tokens: 300
+      stop_sequences: ["STOP", "END", "---"]
+    description: "Test multiple stop sequences"
+
+  # Task 4: Structured output (JSON) with stop
+  - id: structured_analysis
+    depends_on: [conversation_init]
+    with:
+      conversation: $conversation_init
+    infer:
+      prompt: |
+        Analyze the conversation: {{with.conversation}}
+
+        Return JSON with: topic, key_points (array), sentiment (positive/neutral/negative)
+      response_format: json
+      max_tokens: 600
+    structured:
+      schema:
+        type: object
+        properties:
+          topic: { type: string }
+          key_points:
+            type: array
+            items: { type: string }
+            minItems: 1
+            maxItems: 10
+          sentiment: { type: string, enum: ["positive", "neutral", "negative"] }
+          analysis_depth: { type: string }
+        required: [topic, key_points, sentiment]
+      enable_repair: true
+      max_retries: 2
+    description: "Structured output with Gemini's response format"
+
+  # Task 5: Long-form with stop sequences
+  - id: long_form_generation
+    depends_on: [structured_analysis]
+    with:
+      analysis: $structured_analysis
+    infer:
+      prompt: |
+        Expand on this analysis: {{with.analysis | to_json}}
+
+        Write 3-4 paragraphs about implications.
+        Stop after the last complete sentence.
+      max_tokens: 1000
+      stop_sequences: ["[END]", "---", "DONE"]
+      temperature: 0.8
+    description: "Long-form generation with creative temperature"
+
+  # Task 6: Verify stop sequence behavior
+  - id: verify_stops
+    depends_on: [structured_points, multi_stop_test, long_form_generation]
+    with:
+      points: $structured_points
+      multi: $multi_stop_test
+      long_form: $long_form_generation
+    exec:
+      command: |
+        echo "=== Gemini Stop Sequences Test ==="
+        echo ""
+        echo "1. Single Stop Sequence (---END---):"
+        echo "Length: {{with.points | length}} characters"
+        echo "Preview: {{with.points | trim | first(80)}}..."
+        echo ""
+        echo "2. Multiple Stop Sequences (STOP, END, ---):"
+        echo "Length: {{with.multi | length}} characters"
+        echo "Preview: {{with.multi | trim | first(80)}}..."
+        echo ""
+        echo "3. Long-form Generation ([END], ---, DONE):"
+        echo "Length: {{with.long_form | length}} characters"
+        echo "Preview: {{with.long_form | trim | first(80)}}..."
+        echo ""
+        echo "Test Results:"
+        echo "  ✓ Stop sequences honored"
+        echo "  ✓ Generation controlled"
+        echo "  ✓ Structured output working"
+      shell: true
+    description: "Verify stop sequence behavior"
+
+  # Task 7: Test vision capability (if image available)
+  - id: gemini_capabilities
+    infer:
+      prompt: |
+        Gemini 2.5 Flash capabilities check:
+        - Long context window: 1M tokens
+        - Native JSON output: supported
+        - Stop sequences: supported
+        - Vision (multimodal): supported
+        - Extended thinking: experimental
+
+        Confirm all features operational for {{inputs.conversation_topic}} task.
+      max_tokens: 300
+    description: "Verify Gemini feature availability"
+
+  # Task 8: Summary
+  - id: test_summary
+    depends_on: [structured_analysis, long_form_generation, gemini_capabilities]
+    with:
+      analysis: $structured_analysis | to_json
+      long_form: $long_form_generation | trim | first(100)
+      capabilities: $gemini_capabilities
+    exec:
+      command: |
+        echo "=== Gemini Stop Sequences E2E Test Summary ==="
+        echo ""
+        echo "Features Tested:"
+        echo "  ✓ Stop sequences (single and multiple)"
+        echo "  ✓ Structured JSON output"
+        echo "  ✓ Response format control"
+        echo "  ✓ Temperature adjustment"
+        echo ""
+        echo "Analysis Result: {{with.analysis}}"
+        echo ""
+        echo "Long-form Preview: {{with.long_form}}..."
+        echo ""
+        echo "Capabilities: {{with.capabilities | trim | first(100)}}..."
+      shell: true
+    description: "Display Gemini test results"

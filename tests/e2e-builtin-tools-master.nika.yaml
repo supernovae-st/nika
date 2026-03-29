@@ -1,0 +1,409 @@
+schema: nika/workflow@0.12
+workflow: e2e-builtin-tools-master
+description: "Master test runner: E2E tests for all 18 builtin nika:* tools (core, file, introspection)"
+provider: mock
+
+tasks:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # PHASE 1: Core Tools Tests
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: phase1_core_tools
+    description: "Run E2E tests for 7 core tools: sleep, log, emit, assert, run, complete"
+    invoke:
+      tool: "nika:run"
+      params:
+        workflow: |
+          schema: nika/workflow@0.12
+          description: "Core tools: sleep, log, emit, assert, run, complete"
+          provider: mock
+
+          tasks:
+            # Test 1: nika:sleep
+            - id: test_sleep
+              invoke:
+                tool: "nika:sleep"
+                params:
+                  duration: "50ms"
+
+            # Test 2: nika:log
+            - id: test_log_info
+              invoke:
+                tool: "nika:log"
+                params:
+                  level: "info"
+                  message: "Core tool test: logging"
+
+            - id: test_log_error
+              invoke:
+                tool: "nika:log"
+                params:
+                  level: "error"
+                  message: "Core tool test: error level"
+
+            # Test 3: nika:emit
+            - id: test_emit
+              invoke:
+                tool: "nika:emit"
+                params:
+                  name: "core_tools_test_event"
+                  payload:
+                    phase: 1
+                    tools_tested: 7
+
+            # Test 4: nika:assert (pass)
+            - id: test_assert_true
+              invoke:
+                tool: "nika:assert"
+                params:
+                  condition: true
+                  message: "Core tools test assertion"
+
+            # Test 5: nika:assert (fail)
+            - id: test_assert_false
+              invoke:
+                tool: "nika:assert"
+                params:
+                  condition: false
+                  message: "This should fail"
+              retry:
+                max_attempts: 1
+
+            # Test 6: nika:run
+            - id: test_run_nested
+              invoke:
+                tool: "nika:run"
+                params:
+                  workflow: |
+                    schema: nika/workflow@0.12
+                    tasks:
+                      - id: nested
+                        infer:
+                          prompt: "Acknowledge nested workflow execution"
+                          temperature: 0
+                          max_tokens: 10
+                  inline: true
+
+            # Test 7: nika:complete
+            - id: test_complete
+              invoke:
+                tool: "nika:complete"
+                params:
+                  summary: "Core tools phase complete"
+
+            # Summary
+            - id: core_summary
+              depends_on:
+                - test_sleep
+                - test_log_info
+                - test_log_error
+                - test_emit
+                - test_assert_true
+              with:
+                sleep: $test_sleep
+                log_info: $test_log_info
+                log_error: $test_log_error
+                emit: $test_emit
+                assert: $test_assert_true
+              infer:
+                prompt: |
+                  Summarize core tools test execution:
+                  - nika:sleep: tested
+                  - nika:log: tested (info + error)
+                  - nika:emit: tested
+                  - nika:assert: tested (pass + fail)
+                  - nika:run: tested
+                  - nika:complete: tested
+
+                  Reply: CORE_TOOLS: [PASS|FAIL]
+        inline: true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # PHASE 2: File Tools Tests
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: phase2_file_tools
+    description: "Run E2E tests for 5 file tools: write, read, edit, glob, grep"
+    depends_on: [phase1_core_tools]
+    invoke:
+      tool: "nika:run"
+      params:
+        workflow: |
+          schema: nika/workflow@0.12
+          description: "File tools: write, read, edit, glob, grep"
+          provider: mock
+
+          tasks:
+            # Test 1: nika:write
+            - id: test_write
+              invoke:
+                tool: "nika:write"
+                params:
+                  file_path: "/tmp/e2e_test_file.txt"
+                  content: |
+                    E2E Test File
+                    Line 2: content to search
+                    Line 3: test pattern
+                    Final line
+
+            # Test 2: nika:read
+            - id: test_read
+              depends_on: [test_write]
+              invoke:
+                tool: "nika:read"
+                params:
+                  file_path: "/tmp/e2e_test_file.txt"
+
+            # Test 3: nika:edit
+            - id: test_edit
+              depends_on: [test_read]
+              invoke:
+                tool: "nika:edit"
+                params:
+                  file_path: "/tmp/e2e_test_file.txt"
+                  old_string: "Line 3: test pattern"
+                  new_string: "Line 3: EDITED test pattern"
+
+            # Read after edit
+            - id: test_read_after_edit
+              depends_on: [test_edit]
+              invoke:
+                tool: "nika:read"
+                params:
+                  file_path: "/tmp/e2e_test_file.txt"
+
+            # Test 4: nika:glob
+            - id: test_glob
+              depends_on: [test_write]
+              invoke:
+                tool: "nika:glob"
+                params:
+                  pattern: "*.txt"
+                  path: "/tmp"
+
+            # Test 5: nika:grep
+            - id: test_grep
+              depends_on: [test_read_after_edit]
+              invoke:
+                tool: "nika:grep"
+                params:
+                  pattern: "EDITED"
+                  path: "/tmp/e2e_test_file.txt"
+
+            # Summary
+            - id: file_summary
+              depends_on:
+                - test_write
+                - test_read
+                - test_edit
+                - test_glob
+                - test_grep
+              with:
+                write: $test_write
+                read: $test_read
+                edit: $test_edit
+                glob: $test_glob
+                grep: $test_grep
+              infer:
+                prompt: |
+                  Summarize file tools test execution:
+                  - nika:write: tested
+                  - nika:read: tested (before and after edit)
+                  - nika:edit: tested
+                  - nika:glob: tested
+                  - nika:grep: tested
+
+                  Reply: FILE_TOOLS: [PASS|FAIL]
+        inline: true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # PHASE 3: Introspection Tools Tests
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: phase3_introspection_tools
+    description: "Run E2E tests for 6 introspection tools: cost, records, dag_info, task_status, threads, orchestrate"
+    depends_on: [phase2_file_tools]
+    invoke:
+      tool: "nika:run"
+      params:
+        workflow: |
+          schema: nika/workflow@0.12
+          description: "Introspection tools: cost, records, dag_info, task_status, threads, orchestrate"
+          provider: mock
+
+          tasks:
+            # Setup: generate some activity
+            - id: setup_activity
+              infer:
+                prompt: "Generate test activity"
+                temperature: 0
+                max_tokens: 10
+
+            # Test 1: nika:cost
+            - id: test_cost
+              depends_on: [setup_activity]
+              invoke:
+                tool: "nika:cost"
+                params:
+                  include_details: true
+
+            # Test 2: nika:records
+            - id: test_records
+              depends_on: [setup_activity]
+              invoke:
+                tool: "nika:records"
+                params:
+                  limit: 20
+
+            # Test 3: nika:dag_info
+            - id: test_dag_info
+              depends_on: [setup_activity]
+              invoke:
+                tool: "nika:dag_info"
+                params:
+                  include_deps: true
+
+            # Test 4: nika:task_status
+            - id: test_task_status
+              depends_on: [setup_activity]
+              invoke:
+                tool: "nika:task_status"
+                params:
+                  task_id: "setup_activity"
+
+            # Test 5: nika:threads
+            - id: test_threads
+              depends_on: [setup_activity]
+              invoke:
+                tool: "nika:threads"
+                params:
+                  include_stats: true
+
+            # Test 6: nika:orchestrate
+            - id: test_orchestrate
+              depends_on: [setup_activity]
+              invoke:
+                tool: "nika:orchestrate"
+                params:
+                  format: "timeline"
+
+            # Summary
+            - id: introspection_summary
+              depends_on:
+                - test_cost
+                - test_records
+                - test_dag_info
+                - test_task_status
+                - test_threads
+                - test_orchestrate
+              with:
+                cost: $test_cost
+                records: $test_records
+                dag: $test_dag_info
+                task_status: $test_task_status
+                threads: $test_threads
+                orchestrate: $test_orchestrate
+              infer:
+                prompt: |
+                  Summarize introspection tools test execution:
+                  - nika:cost: tested
+                  - nika:records: tested
+                  - nika:dag_info: tested
+                  - nika:task_status: tested
+                  - nika:threads: tested
+                  - nika:orchestrate: tested
+
+                  Reply: INTROSPECTION_TOOLS: [PASS|FAIL]
+        inline: true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # FINAL VALIDATION: Comprehensive agent-based test validation
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: final_validation
+    description: "Agent-driven comprehensive validation of all 18 builtin tool tests"
+    depends_on:
+      - phase1_core_tools
+      - phase2_file_tools
+      - phase3_introspection_tools
+    with:
+      p1: $phase1_core_tools
+      p2: $phase2_file_tools
+      p3: $phase3_introspection_tools
+    agent:
+      prompt: |
+        You are the master E2E test validator for Nika's 18 builtin tools.
+
+        Review the three test phases:
+
+        PHASE 1 - CORE TOOLS (7):
+        {{with.p1}}
+        Tools: nika:sleep, nika:log, nika:emit, nika:assert, nika:run, nika:complete
+
+        PHASE 2 - FILE TOOLS (5):
+        {{with.p2}}
+        Tools: nika:write, nika:read, nika:edit, nika:glob, nika:grep
+
+        PHASE 3 - INTROSPECTION TOOLS (6):
+        {{with.p3}}
+        Tools: nika:cost, nika:records, nika:dag_info, nika:task_status, nika:threads, nika:orchestrate
+
+        Determine overall test status:
+        - Core tools: Did 7 tools execute successfully?
+        - File tools: Did 5 tools execute and produce expected outputs?
+        - Introspection tools: Did 6 tools return valid metrics/data?
+
+        Return comprehensive report:
+        - Total builtin tools tested: 18
+        - Tools passed: [count]
+        - Tools failed: [count]
+        - Phase summaries (PASS/FAIL for each)
+        - Critical failures (if any)
+        - Overall status: SUCCESS or FAILURE
+
+        Format as structured report with clear sections.
+      system: "You are a rigorous QA validator. Analyze test results precisely."
+      max_turns: 2
+      temperature: 0.1
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # FINAL REPORT
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: master_report
+    depends_on: [final_validation]
+    with:
+      validation_result: $final_validation
+    infer:
+      prompt: |
+        Extract the final test status from this comprehensive validation:
+
+        {{with.validation_result}}
+
+        Provide:
+        1. Overall status: SUCCESS or FAILURE
+        2. Summary statistics: [X] tools passed, [Y] tools failed
+        3. Brief recommendation for next steps
+
+        End with:
+        ════════════════════════════════════════
+        FINAL E2E TEST RESULT: [SUCCESS|FAILURE]
+        Tools tested: 18
+        ════════════════════════════════════════
+
+  - id: emit_test_complete
+    description: "Emit completion event for test infrastructure"
+    depends_on: [master_report]
+    invoke:
+      tool: "nika:emit"
+      params:
+        name: "e2e_builtin_tools_complete"
+        payload:
+          workflow: "e2e-builtin-tools-master"
+          total_tools: 18
+          categories:
+            - core: 7
+            - file: 5
+            - introspection: 6
+          timestamp: "2026-03-29T12:00:00Z"
+          result: "completed"

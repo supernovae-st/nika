@@ -1,0 +1,38 @@
+schema: "nika/workflow@0.12"
+workflow: fetch-extract-metadata
+description: "Test extract: metadata mode — extract OG tags, Twitter Cards, JSON-LD, SEO"
+provider: mock
+
+inputs:
+  target_url: "https://github.com/anthropics/anthropic-sdk-python"
+
+tasks:
+  - id: fetch_page_metadata
+    fetch:
+      url: "{{inputs.target_url}}"
+      extract: metadata
+      timeout: 10
+
+  - id: validate_metadata_structure
+    with:
+      metadata: $fetch_page_metadata
+    infer:
+      prompt: |
+        Analyze this extracted page metadata and verify it contains:
+
+        1. Title (from <title> or og:title)
+        2. Description (from meta description or og:description)
+        3. Open Graph tags (og:image, og:type, og:url)
+        4. Twitter Card data (twitter:card, twitter:title)
+        5. JSON-LD structured data (schema.org)
+        6. Favicon/image URLs if available
+
+        Metadata received:
+        {{with.metadata | to_json}}
+
+        Check:
+        - All keys are present and non-null
+        - URLs are valid format
+        - Text fields are non-empty strings
+
+        Respond: COMPLETE, PARTIAL, or MISSING with details.

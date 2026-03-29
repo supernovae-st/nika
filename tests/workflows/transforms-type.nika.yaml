@@ -1,0 +1,91 @@
+schema: "nika/workflow@0.12"
+workflow: transforms-type-test
+description: "Test type transforms: to_bool, to_json, parse_json, type_of"
+provider: mock
+
+inputs:
+  string_value: "hello"
+  number_value: 42
+  boolean_value: true
+  json_string: '{"name": "Alice", "age": 30}'
+  array_value: [1, 2, 3]
+  object_value: { x: 10, y: 20 }
+
+tasks:
+  # Type transform: type_of (string)
+  - id: test_type_of_string
+    with:
+      val: $inputs
+    infer: "Type of 'hello': {{with.val.string_value | type_of}}"
+
+  # Type transform: type_of (number)
+  - id: test_type_of_number
+    with:
+      val: $inputs
+    infer: "Type of 42: {{with.val.number_value | type_of}}"
+
+  # Type transform: type_of (boolean)
+  - id: test_type_of_boolean
+    with:
+      val: $inputs
+    infer: "Type of true: {{with.val.boolean_value | type_of}}"
+
+  # Type transform: type_of (array)
+  - id: test_type_of_array
+    with:
+      val: $inputs
+    infer: "Type of [1,2,3]: {{with.val.array_value | type_of}}"
+
+  # Type transform: type_of (object)
+  - id: test_type_of_object
+    with:
+      val: $inputs
+    infer: "Type of {x:10,y:20}: {{with.val.object_value | type_of}}"
+
+  # Type transform: to_json (serialize)
+  - id: test_to_json
+    with:
+      obj: $inputs
+    infer: "To JSON: {{with.obj.object_value | to_json}}"
+
+  # Type transform: parse_json (deserialize)
+  - id: test_parse_json
+    with:
+      json_str: $inputs
+    infer: "Parse JSON: {{with.json_str.json_string | parse_json | type_of}}"
+
+  # Extract from parsed JSON
+  - id: test_parse_json_access
+    with:
+      json_str: $inputs
+    infer: "Parse JSON then access: {{with.json_str.json_string | parse_json}}"
+
+  # Type chain: object -> to_json -> parse_json
+  - id: test_type_chain
+    with:
+      obj: $inputs
+    infer: "Object -> JSON -> parse: {{with.obj.object_value | to_json | parse_json | type_of}}"
+
+  # to_bool (truthy values)
+  - id: test_to_bool_string
+    with:
+      val: $inputs
+    infer: "To bool 'hello': {{with.val.string_value | to_bool}}"
+
+  # to_bool (falsy: empty string)
+  - id: test_to_bool_empty
+    with:
+      val: ""
+    infer: "To bool empty string: {{with.val | to_bool}}"
+
+  # to_bool (number)
+  - id: test_to_bool_number
+    with:
+      val: $inputs
+    infer: "To bool 42: {{with.val.number_value | to_bool}}"
+
+  # Type null safety
+  - id: test_type_null_safety
+    with:
+      maybe_null: $null
+    infer: "Type of null safe: {{with.maybe_null | default('default') | type_of}}"

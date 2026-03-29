@@ -1,0 +1,108 @@
+schema: nika/workflow@0.12
+workflow: anthropic-extended-thinking-test
+description: "Test Anthropic Claude with extended thinking and cache read tokens"
+
+provider: anthropic
+model: claude-sonnet-4-20250514
+
+inputs:
+  problem: "Solve this: What is 287 * 4523? Explain your reasoning step by step."
+  thinking_depth: "deep"
+
+tasks:
+  # Task 1: Extended thinking with cache enabled
+  - id: extended_thinking_solve
+    infer:
+      prompt: |
+        {{inputs.problem}}
+
+        Depth level: {{inputs.thinking_depth}}
+        Provide full reasoning.
+      extended_thinking: true
+      thinking_budget: 8000
+      max_tokens: 1500
+    description: "Use extended thinking for deep mathematical reasoning"
+
+  # Task 2: Verify result using structured output
+  - id: verify_with_structured
+    depends_on: [extended_thinking_solve]
+    with:
+      solution: $extended_thinking_solve
+    infer:
+      prompt: |
+        Based on this solution: {{with.solution}}
+
+        Extract and verify the final numerical answer.
+      max_tokens: 500
+    description: "Verify the extended thinking output with a follow-up"
+
+  # Task 3: Test cache read tokens (same prompt sent twice)
+  - id: cache_prompt_first
+    infer:
+      prompt: |
+        This is a cache test prompt.
+        It will be repeated in the next task.
+
+        System message:
+        You are a helpful assistant.
+        Analyze cache behavior in the logs.
+      max_tokens: 200
+    description: "First cache prompt - establishes baseline"
+
+  - id: cache_prompt_second
+    infer:
+      prompt: |
+        This is a cache test prompt.
+        It will be repeated in the next task.
+
+        System message:
+        You are a helpful assistant.
+        Analyze cache behavior in the logs.
+      max_tokens: 200
+    description: "Second cache prompt - should use cache read tokens"
+
+  # Task 5: Structured output with tool injection
+  - id: structured_analysis
+    depends_on: [extended_thinking_solve, verify_with_structured]
+    with:
+      thinking_result: $extended_thinking_solve
+      verify_result: $verify_with_structured
+    infer:
+      prompt: |
+        Analyze both results:
+        Thinking: {{with.thinking_result | first(200)}}
+        Verification: {{with.verify_result}}
+
+        Provide a final assessment.
+      max_tokens: 500
+    structured:
+      schema:
+        type: object
+        properties:
+          correctness: { type: string, enum: ["correct", "incorrect", "partial"] }
+          confidence_score: { type: number, minimum: 0, maximum: 1 }
+          reasoning_quality: { type: string }
+        required: [correctness, confidence_score]
+      enable_repair: true
+      max_retries: 2
+    description: "Structured output with schema validation"
+
+  # Task 6: Summary with cache metrics
+  - id: final_summary
+    depends_on: [extended_thinking_solve, verify_with_structured, structured_analysis]
+    with:
+      thinking: $extended_thinking_solve | trim | first(100)
+      verification: $verify_with_structured
+      analysis: $structured_analysis
+    exec:
+      command: |
+        echo "=== Anthropic Extended Thinking Test Summary ==="
+        echo "Thinking (first 100 chars): {{with.thinking}}..."
+        echo "Analysis result: {{with.analysis}}"
+        echo ""
+        echo "Check logs for:"
+        echo "  - extended_thinking usage"
+        echo "  - thinking tokens consumed"
+        echo "  - cache read tokens in second prompt"
+      shell: true
+    description: "Display test results and cache metrics"

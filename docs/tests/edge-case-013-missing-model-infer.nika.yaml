@@ -1,0 +1,18 @@
+schema: "nika/workflow@0.12"
+workflow: edge-case-013-missing-model-infer
+description: |
+  Missing model for infer verb when no default provided.
+  Tests analyzer error detection, missing required fields.
+  Expected: FAIL with NIKA-041 (template resolution error) or similar.
+  infer requires model at task or workflow level.
+provider: mock
+
+tasks:
+  - id: infer_no_model
+    infer:
+      prompt: "Generate something"
+      temperature: 0.7
+
+  - id: downstream
+    depends_on: [infer_no_model]
+    infer: "This should not run"

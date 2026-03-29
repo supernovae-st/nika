@@ -1,0 +1,407 @@
+schema: "nika/workflow@0.12"
+workflow: edge-case-002-linear-chain-100
+description: |
+  100-task linear chain (task1 → task2 → ... → task100).
+  Tests DAG depth stress, dependency chain resolution.
+  Expected: PASS. Should execute sequentially, final result is mock output.
+provider: mock
+
+tasks:
+  - id: task_001
+    infer: "Step 1"
+
+  - id: task_002
+    depends_on: [task_001]
+    infer: "Step 2"
+
+  - id: task_003
+    depends_on: [task_002]
+    infer: "Step 3"
+
+  - id: task_004
+    depends_on: [task_003]
+    infer: "Step 4"
+
+  - id: task_005
+    depends_on: [task_004]
+    infer: "Step 5"
+
+  - id: task_006
+    depends_on: [task_005]
+    infer: "Step 6"
+
+  - id: task_007
+    depends_on: [task_006]
+    infer: "Step 7"
+
+  - id: task_008
+    depends_on: [task_007]
+    infer: "Step 8"
+
+  - id: task_009
+    depends_on: [task_008]
+    infer: "Step 9"
+
+  - id: task_010
+    depends_on: [task_009]
+    infer: "Step 10"
+
+  - id: task_011
+    depends_on: [task_010]
+    infer: "Step 11"
+
+  - id: task_012
+    depends_on: [task_011]
+    infer: "Step 12"
+
+  - id: task_013
+    depends_on: [task_012]
+    infer: "Step 13"
+
+  - id: task_014
+    depends_on: [task_013]
+    infer: "Step 14"
+
+  - id: task_015
+    depends_on: [task_014]
+    infer: "Step 15"
+
+  - id: task_016
+    depends_on: [task_015]
+    infer: "Step 16"
+
+  - id: task_017
+    depends_on: [task_016]
+    infer: "Step 17"
+
+  - id: task_018
+    depends_on: [task_017]
+    infer: "Step 18"
+
+  - id: task_019
+    depends_on: [task_018]
+    infer: "Step 19"
+
+  - id: task_020
+    depends_on: [task_019]
+    infer: "Step 20"
+
+  - id: task_021
+    depends_on: [task_020]
+    infer: "Step 21"
+
+  - id: task_022
+    depends_on: [task_021]
+    infer: "Step 22"
+
+  - id: task_023
+    depends_on: [task_022]
+    infer: "Step 23"
+
+  - id: task_024
+    depends_on: [task_023]
+    infer: "Step 24"
+
+  - id: task_025
+    depends_on: [task_024]
+    infer: "Step 25"
+
+  - id: task_026
+    depends_on: [task_025]
+    infer: "Step 26"
+
+  - id: task_027
+    depends_on: [task_026]
+    infer: "Step 27"
+
+  - id: task_028
+    depends_on: [task_027]
+    infer: "Step 28"
+
+  - id: task_029
+    depends_on: [task_028]
+    infer: "Step 29"
+
+  - id: task_030
+    depends_on: [task_029]
+    infer: "Step 30"
+
+  - id: task_031
+    depends_on: [task_030]
+    infer: "Step 31"
+
+  - id: task_032
+    depends_on: [task_031]
+    infer: "Step 32"
+
+  - id: task_033
+    depends_on: [task_032]
+    infer: "Step 33"
+
+  - id: task_034
+    depends_on: [task_033]
+    infer: "Step 34"
+
+  - id: task_035
+    depends_on: [task_034]
+    infer: "Step 35"
+
+  - id: task_036
+    depends_on: [task_035]
+    infer: "Step 36"
+
+  - id: task_037
+    depends_on: [task_036]
+    infer: "Step 37"
+
+  - id: task_038
+    depends_on: [task_037]
+    infer: "Step 38"
+
+  - id: task_039
+    depends_on: [task_038]
+    infer: "Step 39"
+
+  - id: task_040
+    depends_on: [task_039]
+    infer: "Step 40"
+
+  - id: task_041
+    depends_on: [task_040]
+    infer: "Step 41"
+
+  - id: task_042
+    depends_on: [task_041]
+    infer: "Step 42"
+
+  - id: task_043
+    depends_on: [task_042]
+    infer: "Step 43"
+
+  - id: task_044
+    depends_on: [task_043]
+    infer: "Step 44"
+
+  - id: task_045
+    depends_on: [task_044]
+    infer: "Step 45"
+
+  - id: task_046
+    depends_on: [task_045]
+    infer: "Step 46"
+
+  - id: task_047
+    depends_on: [task_046]
+    infer: "Step 47"
+
+  - id: task_048
+    depends_on: [task_047]
+    infer: "Step 48"
+
+  - id: task_049
+    depends_on: [task_048]
+    infer: "Step 49"
+
+  - id: task_050
+    depends_on: [task_049]
+    infer: "Step 50"
+
+  - id: task_051
+    depends_on: [task_050]
+    infer: "Step 51"
+
+  - id: task_052
+    depends_on: [task_051]
+    infer: "Step 52"
+
+  - id: task_053
+    depends_on: [task_052]
+    infer: "Step 53"
+
+  - id: task_054
+    depends_on: [task_053]
+    infer: "Step 54"
+
+  - id: task_055
+    depends_on: [task_054]
+    infer: "Step 55"
+
+  - id: task_056
+    depends_on: [task_055]
+    infer: "Step 56"
+
+  - id: task_057
+    depends_on: [task_056]
+    infer: "Step 57"
+
+  - id: task_058
+    depends_on: [task_057]
+    infer: "Step 58"
+
+  - id: task_059
+    depends_on: [task_058]
+    infer: "Step 59"
+
+  - id: task_060
+    depends_on: [task_059]
+    infer: "Step 60"
+
+  - id: task_061
+    depends_on: [task_060]
+    infer: "Step 61"
+
+  - id: task_062
+    depends_on: [task_061]
+    infer: "Step 62"
+
+  - id: task_063
+    depends_on: [task_062]
+    infer: "Step 63"
+
+  - id: task_064
+    depends_on: [task_063]
+    infer: "Step 64"
+
+  - id: task_065
+    depends_on: [task_064]
+    infer: "Step 65"
+
+  - id: task_066
+    depends_on: [task_065]
+    infer: "Step 66"
+
+  - id: task_067
+    depends_on: [task_066]
+    infer: "Step 67"
+
+  - id: task_068
+    depends_on: [task_067]
+    infer: "Step 68"
+
+  - id: task_069
+    depends_on: [task_068]
+    infer: "Step 69"
+
+  - id: task_070
+    depends_on: [task_069]
+    infer: "Step 70"
+
+  - id: task_071
+    depends_on: [task_070]
+    infer: "Step 71"
+
+  - id: task_072
+    depends_on: [task_071]
+    infer: "Step 72"
+
+  - id: task_073
+    depends_on: [task_072]
+    infer: "Step 73"
+
+  - id: task_074
+    depends_on: [task_073]
+    infer: "Step 74"
+
+  - id: task_075
+    depends_on: [task_074]
+    infer: "Step 75"
+
+  - id: task_076
+    depends_on: [task_075]
+    infer: "Step 76"
+
+  - id: task_077
+    depends_on: [task_076]
+    infer: "Step 77"
+
+  - id: task_078
+    depends_on: [task_077]
+    infer: "Step 78"
+
+  - id: task_079
+    depends_on: [task_078]
+    infer: "Step 79"
+
+  - id: task_080
+    depends_on: [task_079]
+    infer: "Step 80"
+
+  - id: task_081
+    depends_on: [task_080]
+    infer: "Step 81"
+
+  - id: task_082
+    depends_on: [task_081]
+    infer: "Step 82"
+
+  - id: task_083
+    depends_on: [task_082]
+    infer: "Step 83"
+
+  - id: task_084
+    depends_on: [task_083]
+    infer: "Step 84"
+
+  - id: task_085
+    depends_on: [task_084]
+    infer: "Step 85"
+
+  - id: task_086
+    depends_on: [task_085]
+    infer: "Step 86"
+
+  - id: task_087
+    depends_on: [task_086]
+    infer: "Step 87"
+
+  - id: task_088
+    depends_on: [task_087]
+    infer: "Step 88"
+
+  - id: task_089
+    depends_on: [task_088]
+    infer: "Step 89"
+
+  - id: task_090
+    depends_on: [task_089]
+    infer: "Step 90"
+
+  - id: task_091
+    depends_on: [task_090]
+    infer: "Step 91"
+
+  - id: task_092
+    depends_on: [task_091]
+    infer: "Step 92"
+
+  - id: task_093
+    depends_on: [task_092]
+    infer: "Step 93"
+
+  - id: task_094
+    depends_on: [task_093]
+    infer: "Step 94"
+
+  - id: task_095
+    depends_on: [task_094]
+    infer: "Step 95"
+
+  - id: task_096
+    depends_on: [task_095]
+    infer: "Step 96"
+
+  - id: task_097
+    depends_on: [task_096]
+    infer: "Step 97"
+
+  - id: task_098
+    depends_on: [task_097]
+    infer: "Step 98"
+
+  - id: task_099
+    depends_on: [task_098]
+    infer: "Step 99"
+
+  - id: task_100
+    depends_on: [task_099]
+    infer: "Step 100 complete"

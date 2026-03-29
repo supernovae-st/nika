@@ -1,0 +1,36 @@
+schema: "nika/workflow@0.12"
+workflow: edge-case-014-env-var-default
+description: |
+  Environment variable with default fallback: {{$env.MISSING_VAR | default('fallback')}}.
+  Tests binding resolution, env var access, null safety with default.
+  Expected: PASS. Should use fallback value when env var is missing,
+  preventing null reference errors.
+provider: mock
+
+tasks:
+  - id: test_missing_env
+    with:
+      api_key: "{{$env.NONEXISTENT_API_KEY | default('test-key-123')}}"
+      timeout: "{{$env.REQUEST_TIMEOUT | default('30')}}"
+      debug: "{{$env.DEBUG_MODE | default('false') | to_bool}}"
+    infer: |
+      Environment variable test:
+      - API Key: {{with.api_key}}
+      - Timeout: {{with.timeout}}
+      - Debug: {{with.debug}}
+
+  - id: test_existing_env
+    with:
+      path: "{{$env.HOME | default('/tmp')}}"
+      user: "{{$env.USER | default('anonymous')}}"
+    infer: |
+      Home directory: {{with.path}}
+      User: {{with.user}}
+
+  - id: verify_defaults_used
+    depends_on: [test_missing_env, test_existing_env]
+    infer: |
+      All environment variables tested:
+      - Missing vars used default fallbacks
+      - Existing vars (if any) were resolved
+      - No null reference errors occurred

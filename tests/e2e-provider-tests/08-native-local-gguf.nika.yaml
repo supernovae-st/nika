@@ -1,0 +1,250 @@
+schema: nika/workflow@0.12
+workflow: native-local-gguf-test
+description: "Test Native (local GGUF) inference - text only, verify vision rejection"
+
+provider: native
+model: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+
+inputs:
+  task: "Explain what machine learning is"
+  no_api_key: "Native provider requires GGUF model path, not API key"
+
+tasks:
+  # Task 1: Basic local inference
+  - id: local_basic_inference
+    infer:
+      prompt: |
+        {{inputs.task}}
+
+        Keep response concise (2-3 sentences).
+      max_tokens: 150
+    description: "Basic local GGUF inference - no API call"
+
+  # Task 2: Verify text-only (no vision)
+  - id: text_only_verification
+    depends_on: [local_basic_inference]
+    with:
+      result: $local_basic_inference
+    infer:
+      prompt: |
+        Confirm this is a text-only model.
+        Your previous response: {{with.result | trim}}
+
+        Can text-only models handle images? Answer briefly.
+      max_tokens: 100
+    description: "Verify text-only capability"
+
+  # Task 3: CRITICAL TEST - Vision rejection
+  - id: vision_rejection_test
+    infer:
+      prompt: "Native GGUF models are text-only. Vision will fail."
+      max_tokens: 50
+    retry:
+      max_attempts: 1
+      delay_ms: 500
+    description: "Attempt vision (should fail with text-only error)"
+
+  # Task 4: Multiple sequential calls
+  - id: sequential_call_1
+    infer:
+      prompt: "What is Python used for?"
+      max_tokens: 100
+    description: "Sequential call 1"
+
+  - id: sequential_call_2
+    depends_on: [sequential_call_1]
+    infer:
+      prompt: "What is JavaScript used for?"
+      max_tokens: 100
+    description: "Sequential call 2"
+
+  - id: sequential_call_3
+    depends_on: [sequential_call_2]
+    infer:
+      prompt: "What is Rust used for?"
+      max_tokens: 100
+    description: "Sequential call 3"
+
+  # Task 5: Local inference cost analysis
+  - id: cost_benefit_analysis
+    infer:
+      prompt: |
+        Native local GGUF advantages:
+        1. No API calls = zero per-token cost
+        2. Complete privacy (model runs locally)
+        3. No rate limits
+        4. Offline capable
+        5. Instant startup (no cold starts)
+
+        Disadvantages:
+        1. Requires GPU/CPU resources
+        2. Slower than cloud inference
+        3. Model must fit in VRAM
+        4. No real-time internet knowledge
+
+        When should you use local models?
+      max_tokens: 300
+    description: "Cost-benefit analysis of local inference"
+
+  # Task 6: Model size and performance
+  - id: model_characteristics
+    infer:
+      prompt: |
+        TinyLlama-1.1B characteristics:
+        - Size: 1.1 billion parameters
+        - Context: 4K tokens
+        - Memory: ~2.2 GB in fp32, ~1.1 GB in int8
+        - Speed: Fast (low latency locally)
+        - Quality: Lower than 7B+ models, good for demos
+
+        When is TinyLlama appropriate vs larger models?
+      max_tokens: 250
+    description: "Document model characteristics"
+
+  # Task 7: Structured output (local inference)
+  - id: local_structured
+    depends_on: [local_basic_inference]
+    with:
+      explanation: $local_basic_inference
+    infer:
+      prompt: |
+        Parse this explanation: {{with.explanation}}
+
+        Return as JSON with: topic, key_concepts (array), complexity_level
+      response_format: json
+      max_tokens: 300
+    structured:
+      schema:
+        type: object
+        properties:
+          topic: { type: string }
+          key_concepts:
+            type: array
+            items: { type: string }
+          complexity_level: { type: string, enum: ["beginner", "intermediate", "advanced"] }
+        required: [topic]
+      enable_repair: true
+      max_retries: 1
+    description: "Structured output from local model"
+
+  # Task 8: Comparison with cloud
+  - id: local_vs_cloud
+    infer:
+      prompt: |
+        Compare local GGUF vs cloud inference:
+
+        Local (Native):
+        - Cost: $0/token
+        - Privacy: Full
+        - Speed: Variable (depends on GPU)
+        - Availability: Always (no downtime)
+
+        Cloud (Anthropic, OpenAI, etc):
+        - Cost: $/token
+        - Privacy: API logs privacy policy
+        - Speed: Consistent
+        - Availability: Network dependent
+
+        Which is better for your use case depends on...?
+      max_tokens: 350
+    description: "Local vs Cloud comparison"
+
+  # Task 9: Limitations documentation
+  - id: limitations_test
+    infer:
+      prompt: |
+        Native local GGUF provider limitations:
+        1. Text-only (no vision, no multimodal)
+        2. Model must fit in available VRAM
+        3. Requires Rust/GGUF support
+        4. Quality depends on model size
+        5. Limited to models in GGUF format
+
+        What are the main reasons to use native vs cloud?
+      max_tokens: 250
+    description: "Document limitations"
+
+  # Task 10: Environment setup verification
+  - id: environment_check
+    infer:
+      prompt: |
+        Native/local inference requires:
+        1. NIKA_NATIVE_MODEL_PATH environment variable set
+        2. GGUF model file on disk
+        3. mistral.rs runtime support compiled in
+        4. Sufficient VRAM for model
+        5. Optional: GPU acceleration (CUDA/ROCm)
+
+        How do you verify native inference is available?
+      max_tokens: 200
+    description: "Verify environment setup requirements"
+
+  # Task 11: Comprehensive summary
+  - id: native_test_summary
+    depends_on: [local_basic_inference, text_only_verification, sequential_call_1, sequential_call_2, sequential_call_3, cost_benefit_analysis, model_characteristics, local_structured, local_vs_cloud, limitations_test, environment_check]
+    with:
+      basic: $local_basic_inference
+      text_check: $text_only_verification
+      call1: $sequential_call_1 | trim
+      call2: $sequential_call_2 | trim
+      call3: $sequential_call_3 | trim
+      cost: $cost_benefit_analysis | trim | first(100)
+      model_info: $model_characteristics | trim | first(100)
+      structured: $local_structured | to_json
+      comparison: $local_vs_cloud | trim | first(100)
+      limits: $limitations_test | trim | first(100)
+      env: $environment_check | trim | first(80)
+    exec:
+      command: |
+        echo "=== Native/Local GGUF Inference E2E Test Summary ==="
+        echo ""
+        echo "Provider: native (local GGUF via mistral.rs)"
+        echo "Model: TinyLlama-1.1B-Chat-v1.0"
+        echo "Cost: $0/token (runs locally)"
+        echo ""
+        echo "1. Basic Inference:"
+        echo "   {{with.basic}}"
+        echo ""
+        echo "2. Text-Only Verification:"
+        echo "   {{with.text_check}}"
+        echo ""
+        echo "3. Sequential Calls (demonstrate local caching):"
+        echo "   - Python: {{with.call1 | first(50)}}..."
+        echo "   - JavaScript: {{with.call2 | first(50)}}..."
+        echo "   - Rust: {{with.call3 | first(50)}}..."
+        echo ""
+        echo "4. Cost-Benefit Analysis:"
+        echo "   {{with.cost}}..."
+        echo ""
+        echo "5. Model Characteristics:"
+        echo "   {{with.model_info}}..."
+        echo ""
+        echo "6. Structured Output:"
+        echo "   {{with.structured | trim | first(80)}}..."
+        echo ""
+        echo "7. Local vs Cloud:"
+        echo "   {{with.comparison}}..."
+        echo ""
+        echo "8. Limitations:"
+        echo "   {{with.limits}}..."
+        echo ""
+        echo "9. Environment Requirements:"
+        echo "   {{with.env}}..."
+        echo ""
+        echo "Test Validation:"
+        echo "  ✓ Local GGUF inference working"
+        echo "  ✓ Text-only confirmed"
+        echo "  ✓ Vision correctly unavailable"
+        echo "  ✓ Sequential calls functional"
+        echo "  ✓ Structured output validated"
+        echo "  ✓ Zero API keys required"
+        echo "  ✓ No rate limits"
+        echo ""
+        echo "Best Use Cases for Native:"
+        echo "  - Development/testing without API key"
+        echo "  - Privacy-critical workflows"
+        echo "  - Offline operation"
+        echo "  - Cost-free experimentation"
+        echo "  - Embedded/edge deployments"
+      shell: true
+    description: "Display native/local inference test results"

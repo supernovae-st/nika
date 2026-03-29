@@ -1,0 +1,16 @@
+schema: "nika/workflow@0.12"
+workflow: edge-case-012-unknown-field
+description: |
+  Unknown field in task definition.
+  Tests schema validation, reject unknown properties.
+  Expected: FAIL with NIKA-010 (schema validation error).
+  Parser should reject unrecognized keys in task or workflow header.
+provider: mock
+
+tasks:
+  - id: task_with_unknown_field
+    unknown_field: "This field does not exist in schema"
+    infer: "Test task"
+
+  - id: task_normal
+    infer: "Normal task"

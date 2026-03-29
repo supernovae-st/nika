@@ -1,0 +1,32 @@
+schema: "nika/workflow@0.12"
+workflow: edge-case-010-invalid-schema
+description: |
+  Invalid schema in structured output — schema validation fails.
+  Tests schema enforcement, error recovery, structured output validation.
+  Expected: FAIL with NIKA-300 (structured output validation failed).
+  LLM output violates schema (missing required field), exhausts repair attempts.
+provider: mock
+
+tasks:
+  - id: bad_structured
+    infer: "Generate data (will not match schema)"
+    structured:
+      schema:
+        type: object
+        properties:
+          required_field:
+            type: string
+            minLength: 1
+          count:
+            type: integer
+            minimum: 1
+        required: [required_field, count]
+        additionalProperties: false
+      enable_repair: true
+      max_retries: 2
+
+  - id: downstream_never_runs
+    depends_on: [bad_structured]
+    with:
+      data: $bad_structured
+    infer: "This should not execute: {{with.data | to_json}}"

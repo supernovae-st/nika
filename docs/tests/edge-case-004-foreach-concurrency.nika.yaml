@@ -1,0 +1,79 @@
+schema: "nika/workflow@0.12"
+workflow: edge-case-004-foreach-concurrency
+description: |
+  for_each with 50 items, concurrency: 5.
+  Tests concurrency limit enforcement, loop iteration.
+  Expected: PASS. Should process 50 items in 10 batches of 5,
+  returning array of 50 results.
+provider: mock
+
+inputs:
+  items:
+    - item_001
+    - item_002
+    - item_003
+    - item_004
+    - item_005
+    - item_006
+    - item_007
+    - item_008
+    - item_009
+    - item_010
+    - item_011
+    - item_012
+    - item_013
+    - item_014
+    - item_015
+    - item_016
+    - item_017
+    - item_018
+    - item_019
+    - item_020
+    - item_021
+    - item_022
+    - item_023
+    - item_024
+    - item_025
+    - item_026
+    - item_027
+    - item_028
+    - item_029
+    - item_030
+    - item_031
+    - item_032
+    - item_033
+    - item_034
+    - item_035
+    - item_036
+    - item_037
+    - item_038
+    - item_039
+    - item_040
+    - item_041
+    - item_042
+    - item_043
+    - item_044
+    - item_045
+    - item_046
+    - item_047
+    - item_048
+    - item_049
+    - item_050
+
+tasks:
+  - id: process_items
+    for_each:
+      items: "{{inputs.items}}"
+      as: item
+      concurrency: 5
+      fail_fast: false
+    infer: "Process {{with.item}}"
+
+  - id: summarize
+    depends_on: [process_items]
+    with:
+      results: $process_items
+    infer: |
+      Processed {{with.results | length}} items:
+      First: {{with.results | first}}
+      Last: {{with.results | last}}

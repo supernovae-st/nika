@@ -1,0 +1,133 @@
+schema: "nika/workflow@0.12"
+workflow: bindings-edge-cases-test
+description: "Test edge cases: null safety, empty values, type mismatches, deep nesting"
+provider: mock
+
+inputs:
+  deep:
+    level1:
+      level2:
+        level3:
+          level4:
+            value: "deep value"
+            items: [1, 2, 3]
+  empty_string: ""
+  empty_array: []
+  empty_object: {}
+  null_field: null
+  zero: 0
+  false_value: false
+
+tasks:
+  # Edge case: deep nested path access
+  - id: test_deep_nesting
+    with:
+      deep: $inputs
+    infer: "Deep value: {{with.deep.deep.level1.level2.level3.level4.value}}"
+
+  # Edge case: access array inside deep nesting
+  - id: test_deep_array_access
+    with:
+      deep: $inputs
+    infer: "Deep first item: {{with.deep.deep.level1.level2.level3.level4.items[0]}}"
+
+  # Edge case: empty string
+  - id: test_empty_string
+    with:
+      empty: $inputs
+    infer: "Empty string length: {{with.empty.empty_string | length}}"
+
+  # Edge case: empty array
+  - id: test_empty_array
+    with:
+      empty: $inputs
+    infer: "Empty array first: {{with.empty.empty_array | first | default('none')}}"
+
+  # Edge case: empty array compact
+  - id: test_empty_array_compact
+    with:
+      empty: $inputs
+    infer: "Empty array compact: {{with.empty.empty_array | compact | length}}"
+
+  # Edge case: zero value
+  - id: test_zero_value
+    with:
+      val: $inputs
+    infer: "Zero value: {{with.val.zero | to_bool}}"
+
+  # Edge case: false value
+  - id: test_false_value
+    with:
+      val: $inputs
+    infer: "False value type: {{with.val.false_value | type_of}}"
+
+  # Edge case: null field access
+  - id: test_null_field
+    with:
+      val: $inputs
+    infer: "Null field safe: {{with.val.null_field | default('was null')}}"
+
+  # Edge case: chained null safety
+  - id: test_chained_null_safety
+    with:
+      val: $inputs
+    infer: "Null chain: {{with.val.null_field | default('null') | upper | length}}"
+
+  # Edge case: empty object
+  - id: test_empty_object
+    with:
+      obj: $inputs
+    infer: "Empty object keys: {{with.obj.empty_object | keys | length}}"
+
+  # Edge case: array with only nulls
+  - id: test_null_array
+    with:
+      arr: [null, null, null]
+    infer: "Null array compact: {{with.arr | compact | length}}"
+
+  # Edge case: deeply nested null with default
+  - id: test_deep_null_default
+    with:
+      deep: $inputs
+      missing: $null
+    infer: |
+      Safe missing access:
+      {{with.missing | default('missing data')}}
+
+  # Edge case: access beyond array bounds (with default)
+  - id: test_out_of_bounds
+    with:
+      items: $inputs
+    infer: "Out of bounds safe: {{with.items.deep.level1.level2.level3.level4.items[99] | default('OOB')}}"
+
+  # Edge case: special characters in path
+  - id: test_special_chars
+    with:
+      data:
+        name: "test@example.com"
+        value: "hello-world"
+    infer: |
+      Special chars:
+      - Name: {{with.data.data.name}}
+      - Value: {{with.data.data.value}}
+
+  # Edge case: numeric string vs number
+  - id: test_numeric_string
+    with:
+      str: "123"
+      num: 123
+    infer: |
+      Type test:
+      - String: {{with.str | type_of}}
+      - Number: {{with.num | type_of}}
+      - To number: {{with.str | to_number | type_of}}
+
+  # Edge case: whitespace handling
+  - id: test_whitespace
+    with:
+      ws: "  \t\n  content  \t\n  "
+    infer: |
+      Whitespace:
+      - Trim: '{{with.ws | trim}}'
+      - Length before: {{with.ws | length}}
+      - Length after trim: {{with.ws | trim | length}}

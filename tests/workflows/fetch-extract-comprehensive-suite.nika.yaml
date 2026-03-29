@@ -1,0 +1,209 @@
+schema: "nika/workflow@0.12"
+workflow: fetch-extract-comprehensive-test-suite
+description: "Master test suite for all 9 fetch extract modes + response modes + retry"
+provider: mock
+
+context:
+  files:
+    extract_modes_doc: ./tests/docs/fetch-extract-modes.md
+
+artifacts:
+  dir: ./test-results
+  format: markdown
+  manifest: true
+
+inputs:
+  example_url: "https://example.com"
+  github_url: "https://github.com"
+  rust_url: "https://www.rust-lang.org"
+  api_url: "https://jsonplaceholder.typicode.com/posts/1"
+  httpbin_url: "https://httpbin.org/get"
+
+tasks:
+  - id: test_extract_markdown
+    description: "Extract mode 1: HTML to Markdown conversion"
+    fetch:
+      url: "{{inputs.example_url}}"
+      extract: markdown
+      timeout: 10
+
+  - id: test_extract_article
+    description: "Extract mode 2: Main article content via Readability"
+    fetch:
+      url: "{{inputs.rust_url}}"
+      extract: article
+      timeout: 15
+
+  - id: test_extract_text
+    description: "Extract mode 3: Visible text with optional selector"
+    fetch:
+      url: "{{inputs.github_url}}"
+      extract: text
+      timeout: 10
+
+  - id: test_extract_text_filtered
+    description: "Extract mode 3b: Text extraction with CSS selector"
+    fetch:
+      url: "{{inputs.github_url}}"
+      extract: text
+      selector: "main"
+      timeout: 10
+
+  - id: test_extract_selector
+    description: "Extract mode 4: Raw HTML of matching elements"
+    fetch:
+      url: "{{inputs.example_url}}"
+      extract: selector
+      selector: "h1"
+      timeout: 10
+
+  - id: test_extract_metadata
+    description: "Extract mode 5: OG tags, Twitter Cards, JSON-LD, SEO"
+    fetch:
+      url: "{{inputs.github_url}}"
+      extract: metadata
+      timeout: 10
+
+  - id: test_extract_links
+    description: "Extract mode 6: Link classification (internal/external)"
+    fetch:
+      url: "{{inputs.example_url}}"
+      extract: links
+      timeout: 15
+
+  - id: test_extract_jsonpath_simple
+    description: "Extract mode 7a: JSONPath on JSON API (simple query)"
+    fetch:
+      url: "{{inputs.api_url}}"
+      extract: jsonpath
+      selector: "$.title"
+      timeout: 10
+
+  - id: test_extract_jsonpath_array
+    description: "Extract mode 7b: JSONPath array slicing"
+    fetch:
+      url: "https://jsonplaceholder.typicode.com/posts"
+      extract: jsonpath
+      selector: "$[0:3].id"
+      timeout: 10
+
+  - id: test_extract_feed_atom
+    description: "Extract mode 8a: ATOM feed parsing"
+    fetch:
+      url: "https://github.com/anthropics/anthropic-sdk-python/releases.atom"
+      extract: feed
+      timeout: 15
+
+  - id: test_extract_feed_json
+    description: "Extract mode 8b: JSON feed parsing"
+    fetch:
+      url: "https://www.rust-lang.org/feed.json"
+      extract: feed
+      timeout: 15
+
+  - id: test_extract_llm_txt
+    description: "Extract mode 9: /llms.txt or /.well-known/llm.txt discovery"
+    fetch:
+      url: "https://anthropic.com"
+      extract: llm_txt
+      timeout: 15
+
+  - id: test_response_full
+    description: "Response mode 1: Full HTTP response (status, headers, body, url)"
+    fetch:
+      url: "{{inputs.httpbin_url}}"
+      response: full
+      timeout: 10
+
+  - id: test_response_binary
+    description: "Response mode 2: Binary storage in CAS media store"
+    fetch:
+      url: "https://example.com/image.png"
+      response: binary
+      timeout: 15
+
+  - id: test_fetch_with_retry
+    description: "Fetch with retry: exponential backoff (200ms, 400ms, 800ms)"
+    retry:
+      max_attempts: 3
+      delay_ms: 200
+      backoff: 2.0
+    fetch:
+      url: "{{inputs.httpbin_url}}"
+      timeout: 10
+
+  - id: test_fetch_with_custom_headers
+    description: "Fetch with headers: User-Agent and custom authentication"
+    fetch:
+      url: "{{inputs.httpbin_url}}/headers"
+      method: GET
+      headers:
+        User-Agent: "Nika-Test-Suite/1.0"
+        X-Custom-Header: "test-value"
+      timeout: 10
+
+  - id: test_fetch_post_json
+    description: "Fetch with POST and JSON body"
+    fetch:
+      url: "https://httpbin.org/post"
+      method: POST
+      json:
+        test_key: "test_value"
+        nested:
+          field: "data"
+      timeout: 10
+
+  - id: compile_results
+    depends_on:
+      - test_extract_markdown
+      - test_extract_article
+      - test_extract_text
+      - test_extract_text_filtered
+      - test_extract_selector
+      - test_extract_metadata
+      - test_extract_links
+      - test_extract_jsonpath_simple
+      - test_extract_jsonpath_array
+      - test_extract_feed_atom
+      - test_extract_feed_json
+      - test_extract_llm_txt
+      - test_response_full
+      - test_response_binary
+      - test_fetch_with_retry
+      - test_fetch_with_custom_headers
+      - test_fetch_post_json
+    infer:
+      prompt: |
+        Generate a comprehensive test report for the Fetch + Extract test suite.
+
+        Summary of test cases:
+        - 9 Extract modes (markdown, article, text, selector, metadata, links, jsonpath, feed, llm_txt)
+        - 2 Response modes (full, binary)
+        - 2 Advanced scenarios (retry with backoff, custom headers, POST with JSON)
+        - Total: 15 test tasks
+
+        Create a markdown report with:
+        1. Test Execution Summary (15/15 passed or list failures)
+        2. Extract Modes Coverage:
+           - Mode 1: markdown (HTML → Markdown)
+           - Mode 2: article (Readability extraction)
+           - Mode 3: text (plaintext with optional selector)
+           - Mode 4: selector (raw HTML elements)
+           - Mode 5: metadata (OG/Twitter/JSON-LD)
+           - Mode 6: links (internal/external classification)
+           - Mode 7: jsonpath (JSON API queries)
+           - Mode 8: feed (RSS/Atom/JSON feeds)
+           - Mode 9: llm_txt (/llms.txt discovery)
+        3. Response Modes Coverage:
+           - full (status + headers + body + url)
+           - binary (CAS media storage)
+        4. Advanced Features:
+           - Retry with exponential backoff
+           - Custom headers
+           - POST with JSON body
+        5. Recommendations for edge cases
+
+        Format as markdown with code blocks for examples.
+    artifact:
+      path: fetch-extract-test-report.md
+      format: markdown

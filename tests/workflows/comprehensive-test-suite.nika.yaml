@@ -1,0 +1,167 @@
+schema: "nika/workflow@0.12"
+workflow: comprehensive-transforms-bindings
+description: "Complete integration test: all 31 transforms + bindings in realistic workflows"
+provider: mock
+
+inputs:
+  users:
+    - id: 1
+      name: "Alice Johnson"
+      email: "alice@company.com"
+      tags: ["senior", "backend", "team-lead"]
+      score: 9.8
+    - id: 2
+      name: "Bob Smith"
+      email: "bob@company.com"
+      tags: ["junior", "frontend"]
+      score: 7.5
+    - id: 3
+      name: "Charlie Brown"
+      email: "charlie@company.com"
+      tags: ["mid-level", "fullstack", "devops"]
+      score: 8.2
+  csv_data: "alice,bob,charlie,alice,bob,dave"
+  api_response: '{"status": "ok", "count": 42, "items": ["x", "y", "z"]}'
+
+tasks:
+  # ========== STRING TRANSFORMS ==========
+  - id: demo_string_transforms
+    with:
+      input: $inputs
+    infer: |
+      String transforms on first user:
+      - Name: {{with.input.users[0].name}}
+      - Upper: {{with.input.users[0].name | upper}}
+      - Lower: {{with.input.users[0].name | lower}}
+      - Length: {{with.input.users[0].name | length}}
+
+  # ========== ARRAY TRANSFORMS ==========
+  - id: demo_array_transforms
+    with:
+      input: $inputs
+    infer: |
+      Array transforms on tags:
+      - All: {{with.input.users[0].tags | join(', ')}}
+      - Unique sorted: {{with.input.users[0].tags | unique | sort | join(' > ')}}
+      - Reversed: {{with.input.users[0].tags | reverse | join(' < ')}}
+      - First: {{with.input.users[0].tags | first}}
+      - Last: {{with.input.users[0].tags | last}}
+
+  # ========== NUMERIC TRANSFORMS ==========
+  - id: demo_numeric_transforms
+    with:
+      input: $inputs
+    infer: |
+      Numeric transforms on scores:
+      - Score 1: {{with.input.users[0].score}}
+      - Rounded: {{with.input.users[0].score | round}}
+      - Ceiling: {{with.input.users[0].score | ceil}}
+      - Floor: {{with.input.users[0].score | floor}}
+
+  # ========== TYPE TRANSFORMS ==========
+  - id: demo_type_transforms
+    with:
+      input: $inputs
+    infer: |
+      Type transforms:
+      - Type of name: {{with.input.users[0].name | type_of}}
+      - Type of score: {{with.input.users[0].score | type_of}}
+      - Type of tags: {{with.input.users[0].tags | type_of}}
+
+  # ========== PARAMETRIC TRANSFORMS ==========
+  - id: demo_parametric_transforms
+    with:
+      input: $inputs
+    infer: |
+      Parametric transforms:
+      - CSV split: {{with.input.csv_data | split(',') | join(' | ')}}
+      - CSV unique: {{with.input.csv_data | split(',') | unique | join(', ')}}
+      - CSV count: {{with.input.csv_data | split(',') | unique | length}}
+
+  # ========== JSON TRANSFORMS ==========
+  - id: demo_json_transforms
+    with:
+      input: $inputs
+    infer: |
+      JSON transforms:
+      - Parse: {{with.input.api_response | parse_json | type_of}}
+
+  # ========== COMPLEX CHAIN 1: Data Processing Pipeline ==========
+  - id: pipeline_process_users
+    with:
+      users: $inputs
+    infer: |
+      User processing pipeline:
+      {{with.users.users | length}} users found
+      Email domains: {{with.users.users | join(', ') | type_of}}
+
+  # ========== COMPLEX CHAIN 2: CSV Analysis ==========
+  - id: pipeline_csv_analysis
+    with:
+      csv: $inputs
+    infer: |
+      CSV Analysis:
+      - Raw: {{with.csv.csv_data}}
+      - Items: {{with.csv.csv_data | split(',') | join(', ')}}
+      - Unique: {{with.csv.csv_data | split(',') | unique | sort | join(' -> ')}}
+      - Count: {{with.csv.csv_data | split(',') | unique | length}} unique
+      - Uppercase: {{with.csv.csv_data | upper}}
+
+  # ========== EDGE CASE: Null safety throughout ==========
+  - id: pipeline_null_safety
+    with:
+      maybe_null: $null
+      empty: ""
+      zero: 0
+    infer: |
+      Null safety tests:
+      - Null default: {{with.maybe_null | default('N/A')}}
+      - Empty safe: {{with.empty | default('was empty') | upper}}
+      - Zero type: {{with.zero | type_of}}
+
+  # ========== CROSS-TASK BINDING: Reference previous results ==========
+  - id: summarize_all
+    depends_on: [demo_string_transforms, demo_array_transforms, pipeline_csv_analysis]
+    with:
+      strings: $demo_string_transforms
+      arrays: $demo_array_transforms
+      csv: $pipeline_csv_analysis
+    infer: |
+      Summary of all transforms:
+      String results: {{with.strings | length}} chars
+      Array results: {{with.arrays | length}} chars
+      CSV results: {{with.csv | length}} chars
+
+  # ========== INTEGRATION: Everything together ==========
+  - id: final_integration
+    depends_on: [summarize_all]
+    with:
+      summary: $summarize_all
+      original_users: $inputs
+      env_home: $env.HOME
+    infer: |
+      FINAL INTEGRATION REPORT
+      =======================
+
+      Summary length: {{with.summary | length}} characters
+
+      Users:
+      - Total: {{with.original_users.users | length}}
+      - First user: {{with.original_users.users[0].name}}
+      - All names: {{with.original_users.users | join(', ')}}
+
+      Tags from all users:
+      - All tags: {{with.original_users.users[0].tags | join(', ')}}
+
+      Scores:
+      - First score: {{with.original_users.users[0].score}}
+      - Type: {{with.original_users.users[0].score | type_of}}
+      - Rounded: {{with.original_users.users[0].score | round}}
+
+      CSV data:
+      - {{with.original_users.csv_data | split(',') | unique | length}} unique entries
+
+      Environment:
+      - Home path length: {{with.env_home | length}}
+
+      Execution complete!

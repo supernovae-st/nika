@@ -1,0 +1,70 @@
+schema: "nika/workflow@0.12"
+workflow: fetch-retry-unreliable
+description: "Test fetch with retry configuration — handle transient failures with backoff"
+provider: mock
+
+inputs:
+  flaky_endpoint: "https://httpbin.org/status/429"
+  retry_attempts: 3
+  retry_delay_ms: 500
+
+tasks:
+  - id: fetch_with_retry
+    retry:
+      max_attempts: "{{inputs.retry_attempts}}"
+      delay_ms: "{{inputs.retry_delay_ms}}"
+      backoff: 2.0
+    fetch:
+      url: "https://httpbin.org/get"
+      timeout: 10
+
+  - id: fetch_failing_endpoint
+    retry:
+      max_attempts: 2
+      delay_ms: 200
+    fetch:
+      url: "https://httpbin.org/status/500"
+      timeout: 5
+
+  - id: fetch_timeout_retry
+    retry:
+      max_attempts: 3
+      delay_ms: 1000
+    fetch:
+      url: "https://httpbin.org/delay/10"
+      timeout: 2
+
+  - id: summarize_retry_behavior
+    depends_on: [fetch_with_retry, fetch_failing_endpoint, fetch_timeout_retry]
+    infer:
+      prompt: |
+        Analyze retry behavior across three scenarios:
+
+        Scenario 1: fetch_with_retry (healthy endpoint)
+        - Max attempts: {{inputs.retry_attempts}}
+        - Delay: {{inputs.retry_delay_ms}}ms
+        - Backoff multiplier: 2.0
+        - Expected: success on first attempt
+        - Actual attempts: 1
+
+        Scenario 2: fetch_failing_endpoint (HTTP 500)
+        - Max attempts: 2
+        - Initial delay: 200ms
+        - Expected: retry after 200ms, then after 400ms
+        - Final result: failure (persistent error)
+
+        Scenario 3: fetch_timeout_retry (10s delay, 2s timeout)
+        - Max attempts: 3
+        - Delay: 1000ms
+        - Expected: timeout, retry after 1s, timeout, retry after 2s, timeout
+        - Total time: ~3s + overhead
+
+        Verify:
+        1. Exponential backoff applied correctly (200ms → 400ms → 800ms)
+        2. Transient errors trigger retry
+        3. Permanent errors stop retrying early
+        4. Timeout errors trigger retry
+        5. Success on first try skips retries
+        6. Max attempts respected
+
+        Respond: RETRY_BEHAVIOR_OK or RETRY_BEHAVIOR_ERROR with issues.

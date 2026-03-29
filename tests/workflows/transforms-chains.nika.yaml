@@ -1,0 +1,132 @@
+schema: "nika/workflow@0.12"
+workflow: transforms-chains-test
+description: "Test complex transform chains and null safety with default operator"
+provider: mock
+
+inputs:
+  text: "  hello world  "
+  items: [3, 1, 4, 1, 5, 9, 2, 6]
+  nested: [[1, 2], [3], [4, 5, 6]]
+  json_array: '[{"id": 1}, {"id": 2}]'
+  csv: "alice,bob,charlie,alice,bob"
+
+tasks:
+  # Chain 1: String manipulation
+  - id: chain_string_basic
+    with:
+      text: $inputs
+    infer: |
+      Chain: trim -> upper -> length
+      Result: {{with.text.text | trim | upper | length}}
+
+  # Chain 2: Array manipulation
+  - id: chain_array_basic
+    with:
+      items: $inputs
+    infer: |
+      Chain: unique -> sort -> join
+      Result: {{with.items.items | unique | sort | join(', ')}}
+
+  # Chain 3: Array manipulation reverse order
+  - id: chain_array_reverse
+    with:
+      items: $inputs
+    infer: |
+      Chain: unique -> sort -> reverse -> join
+      Result: {{with.items.items | unique | sort | reverse | join(' -> ')}}
+
+  # Chain 4: Nested flatten and sort
+  - id: chain_flatten_sort
+    with:
+      nested: $inputs
+    infer: |
+      Chain: flatten -> unique -> sort
+      Result: {{with.nested.nested | flatten | unique | sort | join(', ')}}
+
+  # Chain 5: String split and array operations
+  - id: chain_split_array_ops
+    with:
+      csv: $inputs
+    infer: |
+      Chain: split -> unique -> sort -> join
+      Result: {{with.csv.csv | split(',') | unique | sort | join(' & ')}}
+
+  # Chain 6: Parse JSON and manipulate
+  - id: chain_json_parse
+    with:
+      json: $inputs
+    infer: |
+      Chain: parse_json -> type_of
+      Result: {{with.json.json_array | parse_json | type_of}}
+
+  # Chain 7: Mixed types - string to number to string
+  - id: chain_type_conversion
+    with:
+      text: "123.456"
+    infer: |
+      Chain: to_number -> round -> to_string
+      Result: {{with.text | to_number | round | to_string}}
+
+  # Chain 8: Null safety - missing value with default in chain
+  - id: chain_null_safety_1
+    with:
+      maybe_null: $null
+    infer: |
+      Chain: default -> upper -> length
+      Result: {{with.maybe_null | default('missing') | upper | length}}
+
+  # Chain 9: Null safety - empty array with compact
+  - id: chain_null_safety_2
+    with:
+      sparse: [null, "a", null, "b", null]
+    infer: |
+      Chain: compact -> join -> upper
+      Result: {{with.sparse | compact | join(',') | upper}}
+
+  # Chain 10: Complex nested chain
+  - id: chain_complex
+    with:
+      items: $inputs
+    infer: |
+      Chain: unique -> sort -> reverse -> map to string -> join with arrows
+      Result: {{with.items.items | unique | sort | reverse | join(' -> ')}}
+
+  # Chain 11: Destructive - split CSV, get first N unique items
+  - id: chain_split_first_unique
+    with:
+      csv: $inputs
+    infer: |
+      Chain: split -> unique -> first
+      Result: {{with.csv.csv | split(',') | unique | first}}
+
+  # Chain 12: Array flatten then stringify and uppercase
+  - id: chain_flatten_upper
+    with:
+      nested: $inputs
+    infer: |
+      Chain: flatten -> join -> upper
+      Result: {{with.nested.nested | flatten | join('-') | upper}}
+
+  # Chain 13: Triple transform - string trim, length, to_string
+  - id: chain_string_length
+    with:
+      text: $inputs
+    infer: |
+      Chain: trim -> length -> to_string
+      Result: "{{with.text.text | trim | length | to_string}} characters"
+
+  # Chain 14: Numeric chain - ceil then abs then to_string
+  - id: chain_numeric_multi
+    with:
+      decimal: 3.7
+    infer: |
+      Chain: ceil -> to_string -> length
+      Result: "{{with.decimal | ceil | to_string | length}}"
+
+  # Chain 15: Maximum complexity - parse, check type, access
+  - id: chain_max_complex
+    with:
+      csv: $inputs
+    infer: |
+      Parse CSV into items, make unique, sort alphabetically, reverse, rejoin
+      Result: {{with.csv.csv | split(',') | unique | sort | reverse | join(' | ')}}

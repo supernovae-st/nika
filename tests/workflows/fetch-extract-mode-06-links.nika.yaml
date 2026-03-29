@@ -1,0 +1,34 @@
+schema: "nika/workflow@0.12"
+workflow: fetch-extract-links
+description: "Test extract: links mode — classify links as internal/external"
+provider: mock
+
+inputs:
+  base_url: "https://www.wikipedia.org/wiki/Artificial_intelligence"
+
+tasks:
+  - id: fetch_all_links
+    fetch:
+      url: "{{inputs.base_url}}"
+      extract: links
+      timeout: 15
+
+  - id: validate_link_classification
+    with:
+      links_data: $fetch_all_links
+    infer:
+      prompt: |
+        Examine this links extraction and verify:
+
+        Links data (raw):
+        {{with.links_data | to_json}}
+
+        Check for:
+        1. Internal links (same domain as {{inputs.base_url}}) are marked correctly
+        2. External links (different domains) are marked correctly
+        3. Links without href are filtered or marked as invalid
+        4. Each link has: href, text, type (internal|external|broken)
+        5. Broken links detected (if any)
+        6. Duplicates are handled appropriately
+
+        Respond: CLASSIFIED_OK or CLASSIFICATION_ERROR with issue.

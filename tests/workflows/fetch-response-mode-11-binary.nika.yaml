@@ -1,0 +1,47 @@
+schema: "nika/workflow@0.12"
+workflow: fetch-response-binary
+description: "Test response: binary mode — fetch and store image/binary in CAS media storage"
+provider: mock
+
+inputs:
+  image_url: "https://example.com/image.png"
+  pdf_url: "https://www.w3.org/WAI/test-evaluate/sample-files/sampledata.pdf"
+
+tasks:
+  - id: fetch_image_binary
+    fetch:
+      url: "{{inputs.image_url}}"
+      response: binary
+      timeout: 15
+
+  - id: fetch_pdf_binary
+    fetch:
+      url: "{{inputs.pdf_url}}"
+      response: binary
+      timeout: 20
+
+  - id: validate_binary_storage
+    with:
+      image_hash: $fetch_image_binary
+      pdf_hash: $fetch_pdf_binary
+    infer:
+      prompt: |
+        Validate binary media storage in CAS:
+
+        Image hash: {{with.image_hash}}
+        PDF hash: {{with.pdf_hash}}
+
+        Check:
+        1. Image hash is non-null and non-empty string
+        2. PDF hash is non-null and non-empty string
+        3. Hashes appear to be valid CAS references (hex or base64-like)
+        4. Hashes are different (not same object)
+        5. Media was stored in content-addressable storage
+        6. No HTML/text in hash value itself
+
+        Next steps should be able to:
+        - Invoke nika:dimensions on image hash
+        - Invoke nika:metadata on image hash
+        - Reference hash in vision: content: [type: image, source: hash]
+
+        Respond: BINARY_STORED_OK or BINARY_STORAGE_ERROR with details.

@@ -1,0 +1,21 @@
+schema: "nika/workflow@0.12"
+workflow: edge-case-011-circular-dependency
+description: |
+  Circular dependency detection: A → B → C → A.
+  Tests DAG validation, cycle detection at parse time.
+  Expected: FAIL with NIKA-020 (DAG cycle detected).
+  Should error during validation phase before execution.
+provider: mock
+
+tasks:
+  - id: task_a
+    depends_on: [task_c]
+    infer: "Task A"
+
+  - id: task_b
+    depends_on: [task_a]
+    infer: "Task B"
+
+  - id: task_c
+    depends_on: [task_b]
+    infer: "Task C"

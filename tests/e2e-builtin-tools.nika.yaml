@@ -1,0 +1,484 @@
+schema: nika/workflow@0.12
+workflow: e2e-builtin-tools
+description: "Comprehensive E2E tests for all 18 builtin nika:* tools"
+provider: mock
+
+inputs:
+  test_file_path: "/tmp/nika_e2e_test.txt"
+  search_pattern: "test"
+
+tasks:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # CORE TOOLS (7): sleep, log, emit, assert, run, complete
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: test_sleep
+    description: "nika:sleep - verify delay execution"
+    invoke:
+      tool: "nika:sleep"
+      params:
+        duration: "100ms"
+
+  - id: verify_sleep_result
+    depends_on: [test_sleep]
+    with:
+      sleep_result: $test_sleep
+    infer:
+      prompt: |
+        Verify that nika:sleep returned a valid response with slept_for_ms field.
+        Result: {{with.sleep_result}}
+        Reply only with: PASS or FAIL
+
+  - id: test_log
+    description: "nika:log - verify log event emission"
+    invoke:
+      tool: "nika:log"
+      params:
+        level: "info"
+        message: "E2E test: log message from nika:log"
+
+  - id: verify_log_result
+    depends_on: [test_log]
+    with:
+      log_result: $test_log
+    infer:
+      prompt: |
+        Verify nika:log returned {logged: true}.
+        Result: {{with.log_result}}
+        Reply with: PASS or FAIL
+
+  - id: test_emit
+    description: "nika:emit - verify custom event emission"
+    invoke:
+      tool: "nika:emit"
+      params:
+        name: "e2e_test_event"
+        payload:
+          timestamp: "2026-03-29T12:00:00Z"
+          test_id: "builtin_tools_e2e"
+
+  - id: verify_emit_result
+    depends_on: [test_emit]
+    with:
+      emit_result: $test_emit
+    infer:
+      prompt: |
+        Verify nika:emit returned {emitted: true}.
+        Result: {{with.emit_result}}
+        Reply with: PASS or FAIL
+
+  - id: test_assert_pass
+    description: "nika:assert - verify successful assertion"
+    invoke:
+      tool: "nika:assert"
+      params:
+        condition: true
+        message: "This assertion should pass"
+
+  - id: verify_assert_pass
+    depends_on: [test_assert_pass]
+    with:
+      assert_result: $test_assert_pass
+    infer:
+      prompt: |
+        Verify nika:assert with condition=true returned {passed: true}.
+        Result: {{with.assert_result}}
+        Reply with: PASS or FAIL
+
+  - id: test_assert_fail
+    description: "nika:assert - verify failed assertion error"
+    invoke:
+      tool: "nika:assert"
+      params:
+        condition: false
+        message: "This assertion should fail"
+    retry:
+      max_attempts: 1
+
+  - id: verify_assert_fail
+    depends_on: [test_assert_fail]
+    infer:
+      prompt: |
+        nika:assert with condition=false must fail with assertion error.
+        If test_assert_fail has error state, return PASS, else FAIL.
+        Reply with: PASS or FAIL
+
+  - id: test_run_inline_workflow
+    description: "nika:run - execute inline nested workflow"
+    invoke:
+      tool: "nika:run"
+      params:
+        workflow: |
+          schema: nika/workflow@0.12
+          tasks:
+            - id: nested_task
+              infer:
+                prompt: "Reply with: nested_success"
+                temperature: 0
+                max_tokens: 20
+        inline: true
+
+  - id: verify_run_inline
+    depends_on: [test_run_inline_workflow]
+    with:
+      run_result: $test_run_inline_workflow
+    infer:
+      prompt: |
+        Verify nika:run executed nested workflow and returned success status.
+        Result: {{with.run_result}}
+        Reply with: PASS or FAIL
+
+  - id: test_complete_signal
+    description: "nika:complete - verify agent completion marker"
+    invoke:
+      tool: "nika:complete"
+      params:
+        summary: "Agent task completed successfully"
+        context: "All builtin core tools validated"
+
+  - id: verify_complete
+    depends_on: [test_complete_signal]
+    with:
+      complete_result: $test_complete_signal
+    infer:
+      prompt: |
+        Verify nika:complete returned marker indicating agent stop.
+        Result: {{with.complete_result}}
+        Reply with: PASS or FAIL
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # FILE TOOLS (5): read, write, edit, glob, grep
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: test_write_file
+    description: "nika:write - create file with content"
+    invoke:
+      tool: "nika:write"
+      params:
+        file_path: "{{inputs.test_file_path}}"
+        content: |
+          Test file for nika:write
+          Line 2: search keyword here
+          Line 3: test pattern validation
+
+  - id: verify_write
+    depends_on: [test_write_file]
+    with:
+      write_result: $test_write_file
+    infer:
+      prompt: |
+        Verify nika:write succeeded (should contain success message or file path).
+        Result: {{with.write_result}}
+        Reply with: PASS or FAIL
+
+  - id: test_read_file
+    description: "nika:read - read file with line numbers"
+    depends_on: [test_write_file]
+    invoke:
+      tool: "nika:read"
+      params:
+        file_path: "{{inputs.test_file_path}}"
+
+  - id: verify_read
+    depends_on: [test_read_file]
+    with:
+      read_result: $test_read_file
+    infer:
+      prompt: |
+        Verify nika:read returned file content with "Test file for nika:write" visible.
+        Result: {{with.read_result}}
+        Reply with: PASS or FAIL
+
+  - id: test_edit_file
+    description: "nika:edit - modify file content"
+    depends_on: [test_read_file]
+    invoke:
+      tool: "nika:edit"
+      params:
+        file_path: "{{inputs.test_file_path}}"
+        old_string: "Line 2: search keyword here"
+        new_string: "Line 2: EDITED - search keyword here MODIFIED"
+
+  - id: verify_edit
+    depends_on: [test_edit_file]
+    with:
+      edit_result: $test_edit_file
+    infer:
+      prompt: |
+        Verify nika:edit succeeded (should show modified lines or success).
+        Result: {{with.edit_result}}
+        Reply with: PASS or FAIL
+
+  - id: test_read_after_edit
+    description: "nika:read - verify file after edit"
+    depends_on: [test_edit_file]
+    invoke:
+      tool: "nika:read"
+      params:
+        file_path: "{{inputs.test_file_path}}"
+
+  - id: verify_read_after_edit
+    depends_on: [test_read_after_edit]
+    with:
+      read_after_edit: $test_read_after_edit
+    infer:
+      prompt: |
+        Verify file contains "EDITED - search keyword here MODIFIED".
+        Result: {{with.read_after_edit}}
+        Reply with: PASS or FAIL
+
+  - id: test_glob
+    description: "nika:glob - find files by pattern"
+    invoke:
+      tool: "nika:glob"
+      params:
+        pattern: "*.txt"
+        path: "/tmp"
+
+  - id: verify_glob
+    depends_on: [test_glob]
+    with:
+      glob_result: $test_glob
+    infer:
+      prompt: |
+        Verify nika:glob found files matching *.txt pattern in /tmp.
+        Result: {{with.glob_result}}
+        Reply with: PASS or FAIL
+
+  - id: test_grep
+    description: "nika:grep - search content by pattern"
+    depends_on: [test_read_after_edit]
+    invoke:
+      tool: "nika:grep"
+      params:
+        pattern: "{{inputs.search_pattern}}"
+        path: "{{inputs.test_file_path}}"
+
+  - id: verify_grep
+    depends_on: [test_grep]
+    with:
+      grep_result: $test_grep
+    infer:
+      prompt: |
+        Verify nika:grep found matches for pattern "{{inputs.search_pattern}}" in file.
+        Result: {{with.grep_result}}
+        Reply with: PASS or FAIL
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # INTROSPECTION TOOLS (6): cost, records, dag_info, task_status, threads, orchestrate
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: test_cost_introspection
+    description: "nika:cost - query token and cost metrics"
+    invoke:
+      tool: "nika:cost"
+      params:
+        include_details: true
+
+  - id: verify_cost
+    depends_on: [test_cost_introspection]
+    with:
+      cost_result: $test_cost_introspection
+    infer:
+      prompt: |
+        Verify nika:cost returned cost metrics (total_tokens, input_tokens, output_tokens, etc).
+        Result: {{with.cost_result}}
+        Reply with: PASS or FAIL
+
+  - id: test_records_query
+    description: "nika:records - query workflow records"
+    invoke:
+      tool: "nika:records"
+      params:
+        filter: "status=completed"
+        limit: 10
+
+  - id: verify_records
+    depends_on: [test_records_query]
+    with:
+      records_result: $test_records_query
+    infer:
+      prompt: |
+        Verify nika:records returned query results with record metadata.
+        Result: {{with.records_result}}
+        Reply with: PASS or FAIL
+
+  - id: test_dag_info
+    description: "nika:dag_info - introspect DAG structure"
+    invoke:
+      tool: "nika:dag_info"
+      params:
+        include_deps: true
+
+  - id: verify_dag_info
+    depends_on: [test_dag_info]
+    with:
+      dag_result: $test_dag_info
+    infer:
+      prompt: |
+        Verify nika:dag_info returned DAG structure with task nodes and dependencies.
+        Result: {{with.dag_result}}
+        Reply with: PASS or FAIL
+
+  - id: test_task_status
+    description: "nika:task_status - query task execution metrics"
+    invoke:
+      tool: "nika:task_status"
+      params:
+        task_id: "test_sleep"
+
+  - id: verify_task_status
+    depends_on: [test_task_status]
+    with:
+      status_result: $test_task_status
+    infer:
+      prompt: |
+        Verify nika:task_status returned metrics (duration, tokens, status).
+        Result: {{with.status_result}}
+        Reply with: PASS or FAIL
+
+  - id: test_threads_query
+    description: "nika:threads - list active execution threads"
+    invoke:
+      tool: "nika:threads"
+      params:
+        include_stats: true
+
+  - id: verify_threads
+    depends_on: [test_threads_query]
+    with:
+      threads_result: $test_threads_query
+    infer:
+      prompt: |
+        Verify nika:threads returned thread information (task_id, status, elapsed_ms).
+        Result: {{with.threads_result}}
+        Reply with: PASS or FAIL
+
+  - id: test_orchestrate
+    description: "nika:orchestrate - query orchestration round tracking"
+    invoke:
+      tool: "nika:orchestrate"
+      params:
+        format: "timeline"
+
+  - id: verify_orchestrate
+    depends_on: [test_orchestrate]
+    with:
+      orch_result: $test_orchestrate
+    infer:
+      prompt: |
+        Verify nika:orchestrate returned round/wave tracking data.
+        Result: {{with.orch_result}}
+        Reply with: PASS or FAIL
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # FINAL SUMMARY: Agent-based validation of all tests
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: comprehensive_validation_agent
+    description: "Agent-driven E2E validation of all builtin tools"
+    depends_on:
+      - verify_sleep_result
+      - verify_log_result
+      - verify_emit_result
+      - verify_assert_pass
+      - verify_assert_fail
+      - verify_run_inline
+      - verify_complete
+      - verify_write
+      - verify_read
+      - verify_edit
+      - verify_read_after_edit
+      - verify_glob
+      - verify_grep
+      - verify_cost
+      - verify_records
+      - verify_dag_info
+      - verify_task_status
+      - verify_threads
+      - verify_orchestrate
+    with:
+      r_sleep: $verify_sleep_result
+      r_log: $verify_log_result
+      r_emit: $verify_emit_result
+      r_assert_p: $verify_assert_pass
+      r_assert_f: $verify_assert_fail
+      r_run: $verify_run_inline
+      r_complete: $verify_complete
+      r_write: $verify_write
+      r_read: $verify_read
+      r_edit: $verify_edit
+      r_read_edit: $verify_read_after_edit
+      r_glob: $verify_glob
+      r_grep: $verify_grep
+      r_cost: $verify_cost
+      r_records: $verify_records
+      r_dag: $verify_dag_info
+      r_task: $verify_task_status
+      r_threads: $verify_threads
+      r_orch: $verify_orchestrate
+    agent:
+      prompt: |
+        You are an E2E test validator for Nika builtin tools.
+        Analyze all 18 tool test results and determine if they PASSED or FAILED.
+
+        Core Tools (7):
+        1. nika:sleep - {{with.r_sleep}}
+        2. nika:log - {{with.r_log}}
+        3. nika:emit - {{with.r_emit}}
+        4. nika:assert (pass) - {{with.r_assert_p}}
+        5. nika:assert (fail error) - {{with.r_assert_f}}
+        6. nika:run (inline) - {{with.r_run}}
+        7. nika:complete - {{with.r_complete}}
+
+        File Tools (5):
+        8. nika:write - {{with.r_write}}
+        9. nika:read - {{with.r_read}}
+        10. nika:edit - {{with.r_edit}}
+        11. nika:glob - {{with.r_glob}}
+        12. nika:grep - {{with.r_grep}}
+
+        Introspection Tools (6):
+        13. nika:cost - {{with.r_cost}}
+        14. nika:records - {{with.r_records}}
+        15. nika:dag_info - {{with.r_dag}}
+        16. nika:task_status - {{with.r_task}}
+        17. nika:threads - {{with.r_threads}}
+        18. nika:orchestrate - {{with.r_orch}}
+
+        For each tool, verify:
+        - Response structure is valid JSON/valid format
+        - Expected fields are present (success/status indicators)
+        - No unexpected errors occurred
+
+        Return a summary with:
+        - Total tests: 18
+        - Passed: [count]
+        - Failed: [count]
+        - List any failures with tool name and reason
+
+        End with either:
+        SUCCESS: All 18 builtin tools E2E tests passed
+        or
+        FAILURE: [N] tests failed, [list]
+      system: "You are a thorough QA validator. Check all tests carefully. Be precise."
+      max_turns: 3
+      temperature: 0.2
+
+  - id: final_report
+    depends_on: [comprehensive_validation_agent]
+    with:
+      validation: $comprehensive_validation_agent
+    infer:
+      prompt: |
+        Extract the final result from this validation report.
+        Is the overall status SUCCESS or FAILURE?
+
+        Validation: {{with.validation}}
+
+        Reply with exactly:
+        FINAL: SUCCESS
+        or
+        FINAL: FAILURE
+
+        Then list the tool results in CSV format: tool_name,status

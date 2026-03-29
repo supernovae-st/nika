@@ -1,0 +1,41 @@
+schema: "nika/workflow@0.12"
+workflow: edge-case-015-timeout-error
+description: |
+  Provider timeout verification.
+  Tests timeout error code and handling across different verbs.
+  Expected: Behavior depends on provider response times:
+  - PASS if timeout is respected and caught gracefully
+  - FAIL with NIKA-045 (fetch error/timeout) or provider-specific timeout code
+provider: mock
+
+tasks:
+  - id: fetch_with_timeout
+    fetch:
+      url: "https://httpbin.org/delay/5"
+      timeout: 1
+      extract: markdown
+
+  - id: infer_with_timeout
+    infer:
+      prompt: "Generate response"
+      model: claude-sonnet-4-20250514
+      max_tokens: 10000
+      temperature: 0.7
+
+  - id: exec_with_timeout
+    retry:
+      max_attempts: 1
+    exec:
+      command: "sleep 10"
+      timeout: 2
+
+  - id: invoke_with_timeout
+    invoke:
+      tool: "nika:dimensions"
+      params:
+        path: "/tmp/large_file.bin"
+      timeout: 1
+
+  - id: error_handling
+    depends_on: [fetch_with_timeout]
+    infer: "Handle timeout gracefully if it occurred"

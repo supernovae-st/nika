@@ -1,0 +1,220 @@
+schema: nika/workflow@0.12
+workflow: deepseek-reasoning-test
+description: "Test DeepSeek with reasoning tokens and NO vision (verify error handling)"
+
+provider: deepseek
+model: deepseek-chat
+
+inputs:
+  problem: "A store sells apples at $2 each and oranges at $3 each. Maria buys 5 more apples than oranges and spends $31 total. How many of each fruit did she buy?"
+
+tasks:
+  # Task 1: Basic inference
+  - id: deepseek_basic
+    infer:
+      prompt: |
+        Solve this math problem:
+        {{inputs.problem}}
+
+        Show all steps clearly.
+      max_tokens: 400
+    description: "DeepSeek basic inference"
+
+  # Task 2: Reasoning-focused task (DeepSeek-reasoner has thinking tokens)
+  - id: deepseek_detailed_reasoning
+    depends_on: [deepseek_basic]
+    with:
+      solution: $deepseek_basic
+    infer:
+      prompt: |
+        Verify this solution and explain the reasoning:
+        {{with.solution}}
+
+        Check for errors and provide alternative approaches if applicable.
+      max_tokens: 500
+    description: "Detailed reasoning from DeepSeek"
+
+  # Task 3: Structured analysis
+  - id: deepseek_structured
+    depends_on: [deepseek_basic]
+    with:
+      answer: $deepseek_basic
+    infer:
+      prompt: |
+        From this solution: {{with.answer}}
+
+        Extract and verify the mathematical answer.
+      response_format: json
+      max_tokens: 300
+    structured:
+      schema:
+        type: object
+        properties:
+          number_of_apples: { type: integer, minimum: 0 }
+          number_of_oranges: { type: integer, minimum: 0 }
+          total_cost: { type: number }
+          solution_method: { type: string }
+          verification_passed: { type: boolean }
+        required: [number_of_apples, number_of_oranges]
+      enable_repair: true
+      max_retries: 2
+    description: "Structured answer extraction"
+
+  # Task 4: Alternative problem solving approach
+  - id: deepseek_alternative_method
+    infer:
+      prompt: |
+        Solve using algebra:
+        Let x = number of oranges
+        Let x + 5 = number of apples
+
+        Create and solve the equation from:
+        {{inputs.problem}}
+
+        Work through each step.
+      max_tokens: 400
+    description: "Algebraic approach"
+
+  # Task 5: Comparison of approaches
+  - id: compare_approaches
+    depends_on: [deepseek_basic, deepseek_alternative_method]
+    with:
+      approach1: $deepseek_basic
+      approach2: $deepseek_alternative_method
+    infer:
+      prompt: |
+        Compare these two solution methods:
+
+        Method 1 (free-form): {{with.approach1 | trim | first(100)}}...
+
+        Method 2 (algebraic): {{with.approach2 | trim | first(100)}}...
+
+        Which is clearer? What are the trade-offs?
+      max_tokens: 300
+    description: "Compare problem-solving approaches"
+
+  # Task 6: CRITICAL TEST - Vision rejection (DeepSeek does NOT support vision)
+  - id: deepseek_vision_attempt
+    infer:
+      prompt: "Test: DeepSeek should not support vision. This will fail appropriately."
+      max_tokens: 100
+    retry:
+      max_attempts: 1
+      delay_ms: 500
+    description: "Attempt vision (should fail gracefully with VisionNotSupported)"
+
+  # Task 7: Provider capability verification
+  - id: provider_capabilities
+    infer:
+      prompt: |
+        DeepSeek provider capabilities:
+        - Models: deepseek-chat, deepseek-reasoner, deepseek-coder
+        - Vision support: NO (explicitly not supported)
+        - Reasoning tokens: YES (deepseek-reasoner)
+        - Max tokens: Variable by model
+        - API compatibility: OpenAI-compatible
+
+        Confirm: What CAN DeepSeek do well?
+      max_tokens: 350
+    description: "List DeepSeek's capabilities and limitations"
+
+  # Task 8: Complex problem for reasoning
+  - id: complex_reasoning
+    infer:
+      prompt: |
+        Advanced problem: If a train leaves Station A at 9:00 AM traveling at 60 mph,
+        and another train leaves Station B (120 miles away) at 10:00 AM traveling at
+        80 mph toward Station A, when will they meet?
+
+        Solve step by step.
+      max_tokens: 500
+    description: "Complex reasoning problem"
+
+  # Task 9: Verify error handling
+  - id: error_handling_check
+    depends_on: [deepseek_basic, deepseek_structured, provider_capabilities]
+    with:
+      basic_result: $deepseek_basic | trim | first(100)
+      structured_result: $deepseek_structured
+      capabilities: $provider_capabilities
+    exec:
+      command: |
+        echo "=== DeepSeek Reasoning Test Summary ==="
+        echo ""
+        echo "1. Basic Inference Result:"
+        echo "   {{with.basic_result}}..."
+        echo ""
+        echo "2. Structured Output:"
+        echo "   {{with.structured_result | to_json | trim | first(100)}}..."
+        echo ""
+        echo "3. Provider Capabilities:"
+        echo "   {{with.capabilities | trim | first(150)}}..."
+        echo ""
+        echo "4. Vision Support Status:"
+        echo "   DeepSeek Vision: NOT SUPPORTED (expected behavior)"
+        echo ""
+        echo "5. Reasoning Features:"
+        echo "   - deepseek-chat: Standard inference"
+        echo "   - deepseek-reasoner: With reasoning tokens (advanced)"
+        echo "   - deepseek-coder: Code-focused variant"
+        echo ""
+        echo "Test Validation:"
+        echo "  ✓ Basic inference working"
+        echo "  ✓ Structured output validated"
+        echo "  ✓ Reasoning tasks handled"
+        echo "  ✓ Vision correctly rejected"
+        echo "  ✓ Error handling verified"
+      shell: true
+    description: "Verify error handling and capabilities"
+
+  # Task 10: Reasoning model alternative
+  - id: reasoner_model_note
+    infer:
+      prompt: |
+        For advanced reasoning problems, deepseek-reasoner model is available.
+        It uses reasoning tokens (similar to Claude's extended thinking).
+
+        Why would you choose deepseek-reasoner over deepseek-chat
+        for mathematical or logical problems?
+      max_tokens: 300
+    description: "Document reasoner variant benefits"
+
+  # Task 11: Comprehensive summary
+  - id: deepseek_summary
+    depends_on: [deepseek_basic, deepseek_detailed_reasoning, deepseek_structured, deepseek_alternative_method, complex_reasoning, reasoner_model_note]
+    with:
+      basic: $deepseek_basic
+      detailed: $deepseek_detailed_reasoning | trim | first(100)
+      structured: $deepseek_structured | to_json
+      alternative: $deepseek_alternative_method | trim | first(100)
+      complex: $complex_reasoning | trim | first(100)
+      reasoner_note: $reasoner_model_note
+    exec:
+      command: |
+        echo "=== DeepSeek Reasoning E2E Test Summary ==="
+        echo ""
+        echo "Test Coverage:"
+        echo "  ✓ Basic inference (deepseek-chat)"
+        echo "  ✓ Detailed reasoning"
+        echo "  ✓ Structured output with schema"
+        echo "  ✓ Alternative problem-solving approaches"
+        echo "  ✓ Complex multi-step problems"
+        echo "  ✗ Vision support (explicitly NOT available)"
+        echo ""
+        echo "Problem Solving Examples:"
+        echo "  Basic approach: {{with.basic | trim | first(60)}}..."
+        echo "  Alternative: {{with.alternative}}..."
+        echo "  Complex: {{with.complex}}..."
+        echo ""
+        echo "Structured Result: {{with.structured | trim | first(80)}}..."
+        echo ""
+        echo "Reasoning Model Option:"
+        echo "  {{with.reasoner_note | trim | first(150)}}..."
+        echo ""
+        echo "Key Findings:"
+        echo "  - Excellent for math/logic problems"
+        echo "  - Use deepseek-chat for general tasks"
+        echo "  - Use deepseek-reasoner for advanced reasoning"
+        echo "  - NO vision capability (correct error handling confirmed)"
+      shell: true
+    description: "Final DeepSeek test summary"

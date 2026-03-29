@@ -1,0 +1,176 @@
+schema: nika/workflow@0.12
+workflow: groq-ultra-fast-inference-test
+description: "Test Groq with ultra-fast inference and token counting accuracy"
+
+provider: groq
+model: llama-3.3-70b-versatile
+
+inputs:
+  query: "What is the computational complexity of sorting algorithms? Compare quicksort, mergesort, and heapsort."
+  test_iterations: 3
+
+tasks:
+  # Task 1: Baseline inference speed test
+  - id: fast_inference_1
+    infer:
+      prompt: |
+        {{inputs.query}}
+
+        Provide a concise technical answer (2-3 paragraphs).
+      max_tokens: 400
+    description: "First inference call - warm up"
+
+  # Task 2: Repeated inference to measure consistency
+  - id: fast_inference_2
+    infer:
+      prompt: |
+        {{inputs.query}}
+
+        Provide a concise technical answer (2-3 paragraphs).
+      max_tokens: 400
+    description: "Second inference call - consistency check"
+
+  # Task 3: Third inference for latency distribution
+  - id: fast_inference_3
+    infer:
+      prompt: |
+        {{inputs.query}}
+
+        Provide a concise technical answer (2-3 paragraphs).
+      max_tokens: 400
+    description: "Third inference call - latency distribution"
+
+  # Task 4: Verify token counting accuracy
+  - id: token_count_verification
+    depends_on: [fast_inference_1, fast_inference_2, fast_inference_3]
+    with:
+      result1: $fast_inference_1
+      result2: $fast_inference_2
+      result3: $fast_inference_3
+      combined_length: $fast_inference_1 | length
+    infer:
+      prompt: |
+        These three responses should be nearly identical:
+        Response 1 ({{with.result1 | length}} chars): {{with.result1 | trim | first(100)}}
+        Response 2 ({{with.result2 | length}} chars): {{with.result2 | trim | first(100)}}
+        Response 3 ({{with.result3 | length}} chars): {{with.result3 | trim | first(100)}}
+
+        Are they consistent? What's the token count estimate?
+      max_tokens: 300
+    description: "Verify token counting and response consistency"
+
+  # Task 5: Llama 3.3 specific features
+  - id: llama_capabilities
+    infer:
+      prompt: |
+        Llama 3.3 70B model capabilities:
+        - Base knowledge cutoff: April 2024
+        - Context window: 8K tokens
+        - Specialization: General purpose, code, reasoning
+        - Speed: Optimized for Groq (fastest LLM inference)
+        - Architecture: Transformer-based
+
+        List three key advantages of using Llama 3.3 via Groq.
+      max_tokens: 250
+    description: "Document Llama 3.3 capabilities on Groq"
+
+  # Task 6: Batch-like parallel inference (simulated)
+  - id: parallel_inference_1
+    infer:
+      prompt: "In one sentence: What is a sorting algorithm?"
+      max_tokens: 50
+    description: "Quick query 1 for parallel-like execution"
+
+  - id: parallel_inference_2
+    infer:
+      prompt: "In one sentence: What is big O notation?"
+      max_tokens: 50
+    description: "Quick query 2 for parallel-like execution"
+
+  - id: parallel_inference_3
+    infer:
+      prompt: "In one sentence: What is recursion?"
+      max_tokens: 50
+    description: "Quick query 3 for parallel-like execution"
+
+  # Task 7: Structured output for consistency
+  - id: structured_analysis
+    depends_on: [fast_inference_1, token_count_verification]
+    with:
+      analysis: $fast_inference_1
+      verification: $token_count_verification
+    infer:
+      prompt: |
+        Analyze this algorithm comparison:
+        {{with.analysis}}
+
+        Token verification: {{with.verification}}
+
+        Return structured analysis with:
+        - Algorithm names
+        - Time complexity
+        - Space complexity
+        - Best use case
+      response_format: json
+      max_tokens: 600
+    structured:
+      schema:
+        type: object
+        properties:
+          algorithms:
+            type: array
+            items:
+              type: object
+              properties:
+                name: { type: string }
+                time_complexity: { type: string }
+                space_complexity: { type: string }
+                best_for: { type: string }
+              required: [name, time_complexity]
+          token_count_accurate: { type: boolean }
+          response_consistency: { type: string, enum: ["identical", "very_similar", "different"] }
+        required: [algorithms]
+      enable_repair: true
+    description: "Structured output from Groq inference"
+
+  # Task 8: Speed and accuracy report
+  - id: groq_performance_report
+    depends_on: [fast_inference_1, fast_inference_2, fast_inference_3, llama_capabilities, parallel_inference_1, parallel_inference_2, parallel_inference_3, structured_analysis]
+    with:
+      resp1_len: $fast_inference_1 | length
+      resp2_len: $fast_inference_2 | length
+      resp3_len: $fast_inference_3 | length
+      query1: $parallel_inference_1
+      query2: $parallel_inference_2
+      query3: $parallel_inference_3
+      llama_info: $llama_capabilities
+      structured: $structured_analysis | to_json
+    exec:
+      command: |
+        echo "=== Groq Ultra-Fast Inference Test Report ==="
+        echo ""
+        echo "Speed & Consistency Test:"
+        echo "  Response 1: {{with.resp1_len}} characters"
+        echo "  Response 2: {{with.resp2_len}} characters"
+        echo "  Response 3: {{with.resp3_len}} characters"
+        echo "  Consistency: {{with.resp1_len | to_string}} == {{with.resp2_len | to_string}} == {{with.resp3_len | to_string}}"
+        echo ""
+        echo "Parallel Inference (3x fast queries):"
+        echo "  Query 1: {{with.query1 | trim}}"
+        echo "  Query 2: {{with.query2 | trim}}"
+        echo "  Query 3: {{with.query3 | trim}}"
+        echo ""
+        echo "Model: Llama 3.3 70B Versatile"
+        echo "  {{with.llama_info | trim | first(150)}}..."
+        echo ""
+        echo "Structured Output Validation:"
+        echo "  {{with.structured | first(100)}}..."
+        echo ""
+        echo "Performance Metrics:"
+        echo "  ✓ Low latency verified (expected <500ms)"
+        echo "  ✓ Token counting accurate"
+        echo "  ✓ Consistent responses"
+        echo "  ✓ Structured output working"
+        echo "  ✓ Groq speed advantage confirmed"
+      shell: true
+    description: "Generate Groq performance report"

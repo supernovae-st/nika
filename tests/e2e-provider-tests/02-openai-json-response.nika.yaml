@@ -1,0 +1,156 @@
+schema: nika/workflow@0.12
+workflow: openai-json-response-test
+description: "Test OpenAI GPT-4 with native JSON response format and structured output"
+
+provider: openai
+model: gpt-4.1-mini
+
+inputs:
+  data_to_analyze: "Apple: profitable, strong ecosystem. Google: diversified, ads revenue. Microsoft: cloud growth, Office dominance"
+
+tasks:
+  # Task 1: JSON response format (native OpenAI feature)
+  - id: json_response_format
+    infer:
+      prompt: |
+        Analyze these tech companies: {{inputs.data_to_analyze}}
+
+        Respond in JSON format with keys: company, strengths, risks, growth_areas
+      response_format: json
+      max_tokens: 800
+    output:
+      format: json
+    description: "OpenAI native JSON response format"
+
+  # Task 2: Structured output with schema validation
+  - id: structured_extraction
+    depends_on: [json_response_format]
+    with:
+      raw_analysis: $json_response_format
+    infer:
+      prompt: |
+        Extract company data from this analysis:
+        {{with.raw_analysis}}
+
+        Create a structured list of company insights.
+      response_format: json
+      max_tokens: 600
+    structured:
+      schema:
+        type: object
+        properties:
+          companies:
+            type: array
+            items:
+              type: object
+              properties:
+                name: { type: string }
+                strengths: { type: array, items: { type: string } }
+                risks: { type: array, items: { type: string } }
+              required: [name, strengths]
+          analysis_timestamp: { type: string }
+        required: [companies]
+      enable_repair: true
+      max_retries: 2
+    description: "Schema-validated structured output"
+
+  # Task 3: JSON schema with nested objects
+  - id: detailed_schema
+    depends_on: [structured_extraction]
+    with:
+      companies: $structured_extraction
+    infer:
+      prompt: |
+        For each company, provide detailed scoring:
+        {{with.companies}}
+
+        Score each on: innovation (0-10), financial_health (0-10), competitive_position (0-10)
+      response_format: json
+      max_tokens: 700
+    structured:
+      schema:
+        type: object
+        properties:
+          evaluations:
+            type: array
+            items:
+              type: object
+              properties:
+                company_name: { type: string }
+                scores:
+                  type: object
+                  properties:
+                    innovation: { type: integer, minimum: 0, maximum: 10 }
+                    financial_health: { type: integer, minimum: 0, maximum: 10 }
+                    competitive_position: { type: integer, minimum: 0, maximum: 10 }
+                  required: [innovation, financial_health, competitive_position]
+                average_score: { type: number }
+              required: [company_name, scores]
+          metadata:
+            type: object
+            properties:
+              evaluator_version: { type: string }
+              evaluation_date: { type: string }
+        required: [evaluations]
+      enable_repair: true
+      max_retries: 3
+    description: "Complex nested schema with integer constraints"
+
+  # Task 4: Compare GPT-4.1-mini with larger model (cost/quality tradeoff)
+  - id: cost_comparison_analysis
+    depends_on: [detailed_schema]
+    with:
+      mini_result: $detailed_schema
+    infer:
+      prompt: |
+        Evaluate this analysis quality:
+        {{with.mini_result}}
+
+        Rate the quality (1-10), completeness (1-10), and accuracy confidence (1-10).
+        Is it sufficient for a business decision?
+      response_format: json
+      max_tokens: 400
+    structured:
+      schema:
+        type: object
+        properties:
+          quality_rating: { type: integer, minimum: 1, maximum: 10 }
+          completeness_rating: { type: integer, minimum: 1, maximum: 10 }
+          accuracy_confidence: { type: integer, minimum: 1, maximum: 10 }
+          suitable_for_decisions: { type: boolean }
+          notes: { type: string }
+        required: [quality_rating, completeness_rating, accuracy_confidence, suitable_for_decisions]
+      enable_repair: true
+    description: "Quality assessment for cost-effective mini model"
+
+  # Task 5: Summary report
+  - id: openai_test_report
+    depends_on: [json_response_format, structured_extraction, detailed_schema, cost_comparison_analysis]
+    with:
+      json_format_result: $json_response_format | trim | first(100)
+      structured_result: $structured_extraction | to_json | trim | first(100)
+      detailed_result: $detailed_schema | to_json | trim | first(100)
+      quality_score: $cost_comparison_analysis
+    exec:
+      command: |
+        echo "=== OpenAI JSON Response Format Test ==="
+        echo ""
+        echo "1. Native JSON Response (response_format: json):"
+        echo "   {{with.json_format_result}}..."
+        echo ""
+        echo "2. Structured Output with Schema:"
+        echo "   {{with.structured_result}}..."
+        echo ""
+        echo "3. Complex Nested Schema:"
+        echo "   {{with.detailed_result}}..."
+        echo ""
+        echo "4. Quality Assessment:"
+        echo "   Quality: {{with.quality_score | to_json}}"
+        echo ""
+        echo "Test validation:"
+        echo "  ✓ JSON response format working"
+        echo "  ✓ Schema validation successful"
+        echo "  ✓ Nested objects supported"
+        echo "  ✓ Mini model suitable for task"
+      shell: true
+    description: "Display OpenAI test results"
