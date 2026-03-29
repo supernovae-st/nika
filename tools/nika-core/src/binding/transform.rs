@@ -332,8 +332,11 @@ impl TransformOp {
             TransformOp::Compact => match value {
                 Value::Null => Err(TransformError::NullInput { op: "compact" }),
                 Value::Array(arr) => {
-                    let compacted: Vec<Value> =
-                        arr.iter().filter(|v| !v.is_null()).cloned().collect();
+                    let compacted: Vec<Value> = arr
+                        .iter()
+                        .filter(|v| !v.is_null() && !matches!(v, Value::String(s) if s.is_empty()))
+                        .cloned()
+                        .collect();
                     Ok(Value::Array(compacted))
                 }
                 _ => Err(type_mismatch("compact", "array", value)),
@@ -414,11 +417,16 @@ impl TransformOp {
                 Value::Number(n) => {
                     let f = n.as_f64().unwrap_or(0.0);
                     let d = decimals.unwrap_or(0);
-                    let factor = 10f64.powi(d as i32);
-                    let rounded = (f * factor).round() / factor;
-                    Ok(serde_json::Number::from_f64(rounded)
-                        .map(Value::Number)
-                        .unwrap_or(Value::Null))
+                    if d == 0 {
+                        // No decimals → return integer (consistent with ceil/floor)
+                        Ok(Value::Number((f.round() as i64).into()))
+                    } else {
+                        let factor = 10f64.powi(d as i32);
+                        let rounded = (f * factor).round() / factor;
+                        Ok(serde_json::Number::from_f64(rounded)
+                            .map(Value::Number)
+                            .unwrap_or(Value::Null))
+                    }
                 }
                 _ => Err(type_mismatch("round", "number", value)),
             },
@@ -1059,6 +1067,14 @@ mod tests {
     }
 
     #[test]
+    fn apply_compact_filters_empty_strings() {
+        let result = TransformOp::Compact
+            .apply(&json!(["hello", "", null, "world", ""]))
+            .unwrap();
+        assert_eq!(result, json!(["hello", "world"]));
+    }
+
+    #[test]
     fn apply_flatten() {
         let result = TransformOp::Flatten.apply(&json!([[1, 2], [3]])).unwrap();
         assert_eq!(result, json!([1, 2, 3]));
@@ -1140,8 +1156,9 @@ mod tests {
 
     #[test]
     fn apply_round_no_decimals() {
+        // round with 0 decimals returns integer (consistent with ceil/floor)
         let result = TransformOp::Round(None).apply(&json!(3.7)).unwrap();
-        assert_eq!(result, json!(4.0));
+        assert_eq!(result, json!(4));
     }
 
     #[test]
