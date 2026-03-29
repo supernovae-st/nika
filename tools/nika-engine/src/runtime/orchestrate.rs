@@ -140,6 +140,7 @@ pub fn wrap_as_orchestrator(mut workflow: AnalyzedWorkflow) -> AnalyzedWorkflow 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use nika_core::ast::OrchestrateConfig;
     use nika_core::ast::analyzed::{
         AnalyzedExecAction, AnalyzedInferAction, SchemaVersion, TaskId, TaskTable,
     };
