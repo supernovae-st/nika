@@ -174,13 +174,17 @@ Token counting → context_budget: AST → Budget enforcement → Introspection 
 - Index: SQLite FTS5 via rusqlite + WAL (même pattern que daemon storage)
 - `nika trace search <query>`: CLI full-text search cross-session
 
-## D.2 Session M.remaining — LLM Compression Wiring (~1h)
+## D.2 Session M.remaining — LLM Compression + Wiring Gaps (~2h)
 
-**Ce qui manque**:
-1. `resolve_compression_provider()` — Look up "summary" agent in resolved_assets, fallback to cheapest model
-2. `ExecutorCompressorLlm` struct — Wraps `TaskExecutor::execute()` into `CompressorLlm` trait
-3. Wire into runner: replace truncation-only with `compressor.compress()` call
-4. E2E test: workflow with `record: { compress: true }` + mock provider → verify Record has LLM-generated summary
+**Gaps trouvés par audit de vérification (2026-03-30):**
+
+1. **CRITICAL: `nika:records` tool NOT wired in executor** — `with_records_tool()` exists on `BuiltinToolRouter` but is NEVER called in `executor/mod.rs:180-183`. The tool is unreachable at runtime.
+   - Fix: Add `.with_records_tool(Arc::clone(&datastore))` after `.with_cost_tool(event_log.clone())` in executor construction
+2. **`retain` field parsed but never consumed** — `RecordSpec.retain` is stored in AST but `RecordCompressor.compress()` ignores it. Should filter key_findings or raw output.
+3. `resolve_compression_provider()` — Look up "summary" agent in resolved_assets, fallback to cheapest model
+4. `ExecutorCompressorLlm` struct — Wraps `TaskExecutor::execute()` into `CompressorLlm` trait
+5. Wire into runner: replace truncation-only with `compressor.compress()` call
+6. E2E test: workflow with `record: { compress: true }` + mock provider → verify Record has LLM-generated summary
 
 ## D.3 Session F.2 — ProviderName enum + EventKind grouping (~3h)
 
@@ -234,7 +238,26 @@ COMMIT 4-5: EventKind grouping
 | Add files.associations to configurationDefaults | `editors/vscode/package.json` |
 | Import path validation | `nika-lsp/src/diagnostics.rs` |
 
-## D.8 Bugs systémiques restants
+## D.8 Quality Plan Bugs STILL OPEN (verified 2026-03-30)
+
+### HIGH — Silent Failures (confirmed NOT fixed)
+
+| Bug | Fichier | Fix |
+|-----|---------|-----|
+| **SF3** | `runner.rs:1800-1809` | for_each binding failure → emit TaskFailed event |
+| **SF4** | `runner.rs:2246-2261` | "items could not be resolved" → emit TaskFailed event |
+| **SF5** | `runner.rs:656` | `jsonschema::validator_for().ok()` → return error if invalid |
+| **SF6** | `nika-event/src/log.rs:1042` | Replace `let _ =` with `warn!` on trace write failure |
+
+### MEDIUM — Features (confirmed NOT fixed)
+
+| Bug | Fix |
+|-----|-----|
+| **M-orig3** | `manifest: true` never writes artifacts.json → implement `write_manifest()` |
+| **M-orig6** | `{{for_each.index}}` unavailable in artifact paths → inject variable |
+| **M-tok1** | Token counts = 0 when Final stream missing → add fallback estimation |
+
+### Systemic Issues
 
 | Catégorie | Count | Action |
 |-----------|-------|--------|
@@ -245,7 +268,6 @@ COMMIT 4-5: EventKind grouping
 | `unreachable!()` atteignables | 5 | runner.rs:5612, template.rs:313, rig.rs |
 | Dead mpsc channels | 2 | infer.rs:498, 850 |
 | `unsafe { env::set_var }` in async | 2 | fallback.rs:55, 81 |
-| `retain` field in RecordSpec parsed but never consumed | 1 | Implement or remove |
 
 ## D.9 Sessions Futures (v0.53+)
 
@@ -374,14 +396,15 @@ Pour les tâches mécaniques (is_ok(), enum migration, ProviderName remplacement
 ## G.4 Ordre d'exécution recommandé
 
 ```
-N → M.remaining → F.2 → I.2 → D.2 → J.2 → H.2
+N (en cours) → M.remaining (nika:records wiring + LLM compression) → E.remaining (SF3-6, M-orig3/6) → F.2 → I.2 → D.2 → J.2 → H.2
 ```
 
 Logique:
-1. **N** est la prochaine feature critique (P-CONTEXT), dépend de M (fait)
-2. **M.remaining** wire le CompressorLlm (1h, complète P-RECORD)
-3. **F.2** est un refactoring pur (ProviderName enum, pas de feature dependency)
-4. **I.2/D.2/J.2/H.2** sont indépendants
+1. **N** est EN COURS par l'autre agent (Session N P-CONTEXT)
+2. **M.remaining** CRITICAL: wire nika:records dans executor + CompressorLlm (2h)
+3. **E.remaining** fix SF3-SF6 (silent failures) + M-orig3/6 (manifest, for_each.index)
+4. **F.2** est un refactoring pur (ProviderName enum, pas de feature dependency)
+5. **I.2/D.2/J.2/H.2** sont indépendants
 
 ## G.5 Qualité Rust (leçons de l'audit)
 
