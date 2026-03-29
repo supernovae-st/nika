@@ -343,6 +343,20 @@ impl TaskExecutor {
         // Resolve model: task override -> workflow default -> provider default
         let model = resolved_model.as_deref().or(self.default_model.as_deref());
 
+        // Per-provider temperature validation (M-orig8)
+        if let Some(temp) = infer.temperature {
+            if let Some(pk) = crate::provider::cost::ProviderKind::parse(provider_name) {
+                let max = pk.max_temperature();
+                if temp > max {
+                    return Err(NikaError::ValidationError {
+                        reason: format!(
+                            "temperature {temp} exceeds {provider_name} maximum ({max})"
+                        ),
+                    });
+                }
+            }
+        }
+
         // EMIT: ProviderCalled
         self.event_log.emit(EventKind::ProviderCalled {
             task_id: Arc::clone(task_id),

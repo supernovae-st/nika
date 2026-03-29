@@ -99,6 +99,15 @@ impl ProviderKind {
     pub fn is_free(&self) -> bool {
         matches!(self, Self::Native)
     }
+
+    /// Maximum allowed temperature for this provider.
+    /// Anthropic/Mistral/DeepSeek: 1.0, OpenAI/Gemini/xAI/Groq/Native: 2.0.
+    pub fn max_temperature(&self) -> f64 {
+        match self {
+            Self::Claude | Self::Mistral | Self::DeepSeek => 1.0,
+            Self::OpenAI | Self::Gemini | Self::XAi | Self::Groq | Self::Native => 2.0,
+        }
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1490,5 +1499,49 @@ mod proptest_tests {
             prop_assert!(cost >= 0.0, "Hourly cost must be non-negative");
             prop_assert!(cost.is_finite(), "Hourly cost must be finite");
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Per-provider temperature limits (M-orig8)
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn provider_kind_max_temperature_anthropic() {
+        assert!(
+            (ProviderKind::Claude.max_temperature() - 1.0).abs() < f64::EPSILON,
+            "Anthropic max temperature is 1.0"
+        );
+    }
+
+    #[test]
+    fn provider_kind_max_temperature_openai() {
+        assert!(
+            (ProviderKind::OpenAI.max_temperature() - 2.0).abs() < f64::EPSILON,
+            "OpenAI max temperature is 2.0"
+        );
+    }
+
+    #[test]
+    fn provider_kind_max_temperature_mistral() {
+        assert!(
+            (ProviderKind::Mistral.max_temperature() - 1.0).abs() < f64::EPSILON,
+            "Mistral max temperature is 1.0"
+        );
+    }
+
+    #[test]
+    fn provider_kind_max_temperature_deepseek() {
+        assert!(
+            (ProviderKind::DeepSeek.max_temperature() - 1.0).abs() < f64::EPSILON,
+            "DeepSeek max temperature is 1.0"
+        );
+    }
+
+    #[test]
+    fn provider_kind_max_temperature_gemini() {
+        assert!(
+            (ProviderKind::Gemini.max_temperature() - 2.0).abs() < f64::EPSILON,
+            "Gemini max temperature is 2.0"
+        );
     }
 }
