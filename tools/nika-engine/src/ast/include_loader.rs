@@ -375,6 +375,7 @@ mod tests {
             log: None,
             depends_on: None,
             structured: None,
+            record: None,
             preset: None,
         });
 
@@ -440,6 +441,7 @@ mod tests {
             log: None,
             depends_on: None,
             structured: None,
+            record: None,
             preset: None,
         });
 

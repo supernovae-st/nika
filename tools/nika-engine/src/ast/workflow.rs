@@ -279,6 +279,9 @@ pub struct Task {
     /// ```
     #[serde(default)]
     pub structured: Option<super::structured::StructuredOutputSpec>,
+    /// Record compression configuration
+    #[serde(default)]
+    pub record: Option<nika_core::ast::record::RecordSpec>,
     /// Agent preset reference from the workflow's `agents:` block
     #[serde(default)]
     pub preset: Option<String>,
