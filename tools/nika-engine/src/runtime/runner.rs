@@ -933,6 +933,13 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             bindings.set(&var_name, value);
         }
 
+        // Enforce context_budget if configured on this task
+        if let Some(budget) = task.context_budget {
+            let budget_event =
+                crate::binding::token_budget::enforce_budget(&mut bindings, budget, &task_id);
+            event_log.emit(budget_event);
+        }
+
         // EMIT: TaskStarted
         event_log.emit(EventKind::TaskStarted {
             task_id: Arc::clone(&task_id),
