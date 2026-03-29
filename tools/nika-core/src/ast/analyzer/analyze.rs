@@ -2538,8 +2538,16 @@ mod tests {
         let analyze_result = analyze(raw.clone());
 
         // Both should fail
-        assert!(validate_result.is_err(), "Should fail but got: {:?}", validate_result.value);
-        assert!(analyze_result.is_err(), "Should fail but got: {:?}", analyze_result.value);
+        assert!(
+            validate_result.is_err(),
+            "Should fail but got: {:?}",
+            validate_result.value
+        );
+        assert!(
+            analyze_result.is_err(),
+            "Should fail but got: {:?}",
+            analyze_result.value
+        );
 
         // Both should report the same error kinds
         let validate_kinds: Vec<_> = validate_result.errors.iter().map(|e| &e.kind).collect();

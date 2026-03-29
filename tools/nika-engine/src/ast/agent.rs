@@ -489,7 +489,11 @@ mcp:
     fn validate_empty_prompt() {
         let params = AgentParams::default();
         let result = params.validate();
-        assert!(result.is_err(), "Should fail but got: {:?}", result.unwrap());
+        assert!(
+            result.is_err(),
+            "Should fail but got: {:?}",
+            result.unwrap()
+        );
     }
 
     #[test]
@@ -500,7 +504,11 @@ mcp:
             ..Default::default()
         };
         let result = params.validate();
-        assert!(result.is_err(), "Should fail but got: {:?}", result.unwrap());
+        assert!(
+            result.is_err(),
+            "Should fail but got: {:?}",
+            result.unwrap()
+        );
     }
 
     #[test]
@@ -511,7 +519,11 @@ mcp:
             ..Default::default()
         };
         let result = params.validate();
-        assert!(result.is_err(), "Should fail but got: {:?}", result.unwrap());
+        assert!(
+            result.is_err(),
+            "Should fail but got: {:?}",
+            result.unwrap()
+        );
     }
 
     #[test]
@@ -567,7 +579,11 @@ token_budget: 100000
             ..Default::default()
         };
         let result = params.validate();
-        assert!(result.is_err(), "Should fail but got: {:?}", result.unwrap());
+        assert!(
+            result.is_err(),
+            "Should fail but got: {:?}",
+            result.unwrap()
+        );
     }
 
     // ========================================================================

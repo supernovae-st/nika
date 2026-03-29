@@ -495,7 +495,11 @@ mod tests {
     #[test]
     fn test_validate_command_string_rejects_null_byte() {
         let result = validate_command_string("echo\x00hello");
-        assert!(result.is_err(), "Should fail but got: {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should fail but got: {:?}",
+            result.as_ref().ok()
+        );
         let err = result.unwrap_err();
         assert!(err.to_string().contains("NIKA-053"));
         assert!(err.to_string().contains("0x00"));
@@ -504,7 +508,11 @@ mod tests {
     #[test]
     fn test_validate_command_string_rejects_escape() {
         let result = validate_command_string("echo\x1bhello");
-        assert!(result.is_err(), "Should fail but got: {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should fail but got: {:?}",
+            result.as_ref().ok()
+        );
         let err = result.unwrap_err();
         assert!(err.to_string().contains("0x1B")); // ESC character
     }
@@ -538,7 +546,11 @@ mod tests {
     #[test]
     fn test_blocklist_rejects_rm_rf_root() {
         let result = check_blocklist("rm -rf /");
-        assert!(result.is_err(), "Should fail but got: {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should fail but got: {:?}",
+            result.as_ref().ok()
+        );
         let err = result.unwrap_err();
         assert!(err.to_string().contains("NIKA-053"));
         assert!(err.to_string().contains("rm -rf /"));
@@ -650,65 +662,137 @@ mod tests {
     #[test]
     fn test_blocklist_rejects_windows_del() {
         let result = check_blocklist("del /f secret.txt");
-        assert!(result.is_err(), "Should block 'del /f': {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should block 'del /f': {:?}",
+            result.as_ref().ok()
+        );
         let result = check_blocklist("del /s C:\\Users");
-        assert!(result.is_err(), "Should block 'del /s': {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should block 'del /s': {:?}",
+            result.as_ref().ok()
+        );
     }
 
     #[test]
     fn test_blocklist_rejects_windows_rmdir() {
         let result = check_blocklist("rd /s /q C:\\");
-        assert!(result.is_err(), "Should block 'rd /s /q': {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should block 'rd /s /q': {:?}",
+            result.as_ref().ok()
+        );
         let result = check_blocklist("rmdir /s /q C:\\Windows");
-        assert!(result.is_err(), "Should block 'rmdir /s /q': {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should block 'rmdir /s /q': {:?}",
+            result.as_ref().ok()
+        );
     }
 
     #[test]
     fn test_blocklist_rejects_windows_format() {
         let result = check_blocklist("format c:");
-        assert!(result.is_err(), "Should block 'format c:': {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should block 'format c:': {:?}",
+            result.as_ref().ok()
+        );
         let result = check_blocklist("FORMAT C:");
-        assert!(result.is_err(), "Should block 'FORMAT C:': {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should block 'FORMAT C:': {:?}",
+            result.as_ref().ok()
+        );
         let result = check_blocklist("format d:");
-        assert!(result.is_err(), "Should block 'format d:': {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should block 'format d:': {:?}",
+            result.as_ref().ok()
+        );
     }
 
     #[test]
     fn test_blocklist_rejects_windows_shutdown() {
         let result = check_blocklist("shutdown /s /t 0");
-        assert!(result.is_err(), "Should block 'shutdown /s': {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should block 'shutdown /s': {:?}",
+            result.as_ref().ok()
+        );
         let result = check_blocklist("shutdown /r");
-        assert!(result.is_err(), "Should block 'shutdown /r': {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should block 'shutdown /r': {:?}",
+            result.as_ref().ok()
+        );
     }
 
     #[test]
     fn test_blocklist_rejects_windows_shell_wrappers() {
         let result = check_blocklist("cmd /c del *.*");
-        assert!(result.is_err(), "Should block 'cmd /c': {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should block 'cmd /c': {:?}",
+            result.as_ref().ok()
+        );
         let result = check_blocklist("cmd.exe /c format c:");
-        assert!(result.is_err(), "Should block 'cmd.exe /c': {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should block 'cmd.exe /c': {:?}",
+            result.as_ref().ok()
+        );
         let result = check_blocklist("powershell -c Remove-Item");
-        assert!(result.is_err(), "Should block 'powershell -c': {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should block 'powershell -c': {:?}",
+            result.as_ref().ok()
+        );
         let result = check_blocklist("powershell.exe -c Get-Process");
-        assert!(result.is_err(), "Should block 'powershell.exe -c': {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should block 'powershell.exe -c': {:?}",
+            result.as_ref().ok()
+        );
         let result = check_blocklist("powershell -enc dGVzdA==");
-        assert!(result.is_err(), "Should block 'powershell -enc': {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should block 'powershell -enc': {:?}",
+            result.as_ref().ok()
+        );
         let result = check_blocklist("powershell -encodedcommand dGVzdA==");
-        assert!(result.is_err(), "Should block 'powershell -encodedcommand': {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should block 'powershell -encodedcommand': {:?}",
+            result.as_ref().ok()
+        );
     }
 
     #[test]
     fn test_blocklist_rejects_windows_registry_and_services() {
         let result = check_blocklist("reg delete HKLM\\SOFTWARE");
-        assert!(result.is_err(), "Should block 'reg delete': {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should block 'reg delete': {:?}",
+            result.as_ref().ok()
+        );
         let result = check_blocklist("sc delete MyService");
-        assert!(result.is_err(), "Should block 'sc delete': {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should block 'sc delete': {:?}",
+            result.as_ref().ok()
+        );
     }
 
     #[test]
     fn test_blocklist_rejects_windows_runas() {
         let result = check_blocklist("runas /user:admin cmd");
-        assert!(result.is_err(), "Should block 'runas': {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should block 'runas': {:?}",
+            result.as_ref().ok()
+        );
     }
 
     #[test]
@@ -730,32 +814,76 @@ mod tests {
     fn test_blocklist_rejects_unix_shell_c_variants() {
         // All Unix shell -c variants must be blocked
         let result = check_blocklist("bash -c 'echo pwned'");
-        assert!(result.is_err(), "Should block 'bash -c': {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should block 'bash -c': {:?}",
+            result.as_ref().ok()
+        );
         let result = check_blocklist("sh -c 'cat /etc/passwd'");
-        assert!(result.is_err(), "Should block 'sh -c': {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should block 'sh -c': {:?}",
+            result.as_ref().ok()
+        );
         let result = check_blocklist("zsh -c 'whoami'");
-        assert!(result.is_err(), "Should block 'zsh -c': {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should block 'zsh -c': {:?}",
+            result.as_ref().ok()
+        );
         let result = check_blocklist("dash -c 'id'");
-        assert!(result.is_err(), "Should block 'dash -c': {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should block 'dash -c': {:?}",
+            result.as_ref().ok()
+        );
         let result = check_blocklist("ksh -c 'ls'");
-        assert!(result.is_err(), "Should block 'ksh -c': {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should block 'ksh -c': {:?}",
+            result.as_ref().ok()
+        );
         let result = check_blocklist("csh -c 'echo test'");
-        assert!(result.is_err(), "Should block 'csh -c': {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should block 'csh -c': {:?}",
+            result.as_ref().ok()
+        );
         let result = check_blocklist("tcsh -c 'echo test'");
-        assert!(result.is_err(), "Should block 'tcsh -c': {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should block 'tcsh -c': {:?}",
+            result.as_ref().ok()
+        );
     }
 
     #[test]
     fn test_blocklist_rejects_generic_python_c() {
         // Generic python -c must be blocked (not just import socket)
         let result = check_blocklist("python -c 'import os'");
-        assert!(result.is_err(), "Should block 'python -c': {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should block 'python -c': {:?}",
+            result.as_ref().ok()
+        );
         let result = check_blocklist("python2 -c 'print(1)'");
-        assert!(result.is_err(), "Should block 'python2 -c': {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should block 'python2 -c': {:?}",
+            result.as_ref().ok()
+        );
         let result = check_blocklist("python3 -c 'print(1)'");
-        assert!(result.is_err(), "Should block 'python3 -c': {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should block 'python3 -c': {:?}",
+            result.as_ref().ok()
+        );
         let result = check_blocklist("python3 -c '__import__(\"os\").system(\"id\")'");
-        assert!(result.is_err(), "Should block 'python3 -c': {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should block 'python3 -c': {:?}",
+            result.as_ref().ok()
+        );
     }
 
     #[test]
@@ -770,11 +898,23 @@ mod tests {
     #[test]
     fn test_blocklist_rejects_find_exec_and_xargs() {
         let result = check_blocklist("find / -exec rm {} +");
-        assert!(result.is_err(), "Should block 'find -exec': {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should block 'find -exec': {:?}",
+            result.as_ref().ok()
+        );
         let result = check_blocklist("find . -name '*.log' -delete");
-        assert!(result.is_err(), "Should block '-delete': {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should block '-delete': {:?}",
+            result.as_ref().ok()
+        );
         let result = check_blocklist("xargs rm < files.txt");
-        assert!(result.is_err(), "Should block 'xargs': {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should block 'xargs': {:?}",
+            result.as_ref().ok()
+        );
         // find without -exec/-delete is allowed
         let result = check_blocklist("find . -name '*.txt'");
         assert!(result.is_ok(), "Should succeed: {:?}", result.err());
@@ -1066,7 +1206,11 @@ mod tests {
             "/tmp/evil.dylib".to_string(),
         )];
         let result = validate_env_vars(&vars);
-        assert!(result.is_err(), "Should block DYLD_INSERT_LIBRARIES but got: {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should block DYLD_INSERT_LIBRARIES but got: {:?}",
+            result.as_ref().ok()
+        );
     }
 
     #[test]
@@ -1297,7 +1441,11 @@ mod tests {
         // Non-shell mode: $() is harmless (shlex treats it as literal)
         let result = validate_exec_command_with_shell("echo $(rm -rf /)", false);
         // Still blocked by the regular blocklist due to "rm -rf /"
-        assert!(result.is_err(), "Should still block 'rm -rf /' in non-shell mode: {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should still block 'rm -rf /' in non-shell mode: {:?}",
+            result.as_ref().ok()
+        );
     }
 
     #[test]
@@ -1344,7 +1492,11 @@ mod tests {
 
         // But embedded newline should still be blocked
         let result = validate_exec_command_with_shell("echo hello\nrm -rf /", true);
-        assert!(result.is_err(), "Should block embedded newline in shell mode: {:?}", result.as_ref().ok());
+        assert!(
+            result.is_err(),
+            "Should block embedded newline in shell mode: {:?}",
+            result.as_ref().ok()
+        );
     }
 
     // =========================================================================
