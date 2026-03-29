@@ -928,9 +928,10 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             event_log.emit(event);
         }
 
-        // Add for_each binding if present
-        if let Some((var_name, value, _idx)) = for_each_binding {
+        // Add for_each binding if present (item value + iteration index)
+        if let Some((var_name, value, idx)) = for_each_binding {
             bindings.set(&var_name, value);
+            bindings.set("for_each_index", Value::Number(serde_json::Number::from(idx)));
         }
 
         // Enforce context_budget if configured on this task
@@ -3914,6 +3915,44 @@ mod tests {
             "for_each with empty array should produce empty array, got: {}",
             output
         );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // FOR_EACH INDEX VARIABLE
+    // ═══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn for_each_injects_for_each_index_binding() {
+        let workflow = create_for_each_workflow(
+            "indexed",
+            r#"["a", "b", "c"]"#,
+            "item",
+            "echo {{with.for_each_index}}",
+            None,
+            true,
+            false,
+        );
+
+        let mut runner = Runner::new(workflow).unwrap();
+        let result = runner.run().await;
+        assert!(result.is_ok(), "Workflow should succeed: {:?}", result.err());
+
+        let parent = runner.datastore.get("indexed");
+        assert!(parent.is_some(), "Parent result should exist");
+
+        let parent_result = parent.unwrap();
+        let output = parent_result.output_str();
+        let parsed: Vec<serde_json::Value> = serde_json::from_str(&output)
+            .unwrap_or_else(|_| panic!("Should be valid JSON array: {output}"));
+
+        // Results should contain indices 0, 1, 2 (order may vary due to concurrency)
+        let indices: Vec<String> = parsed
+            .iter()
+            .filter_map(|v| v.as_str().map(|s| s.trim().to_string()))
+            .collect();
+        assert!(indices.contains(&"0".to_string()), "Should contain index 0: {indices:?}");
+        assert!(indices.contains(&"1".to_string()), "Should contain index 1: {indices:?}");
+        assert!(indices.contains(&"2".to_string()), "Should contain index 2: {indices:?}");
     }
 
     // ═══════════════════════════════════════════════════════════════
