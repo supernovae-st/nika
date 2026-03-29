@@ -1,56 +1,81 @@
 # Autonomous Session Progress
 
-**Updated**: 2026-03-30T00:30:00
-**Status**: SESSION M COMPLETE
-**Version**: v0.51.0 (tagged + pushed)
-**Sessions completed**: A, B, C, D, E (extended), F (partial), G, J (partial), K, L (complete), I (partial), H (partial), M (P-RECORD foundation)
-**Total commits**: 82 (21 new this session)
-**Total tests**: 8,719+ across 11 crates (0 failures, 0 clippy warnings)
+**Updated**: 2026-03-29T14:00:00
+**Status**: SESSION N COMPLETE (P-CONTEXT + P-INTROSPECT + P-MEMORY-LOCAL)
+**Version**: v0.51.0
+**Sessions completed**: A, B, C, D, E (extended), F (partial), G, J (partial), K, L (complete), I (partial), H (partial), M (P-RECORD), N (P-CONTEXT)
+**Total commits**: 91 (9 new this session)
+**Total tests**: 8,831 across 12 crates (0 failures, 0 clippy warnings)
 
-## This Session — Phase 3 (21 commits, all pushed)
+## This Session — Session N (9 commits, all pushed)
 
-### Session L.3: nika:cost + preset.rs — DONE (3 commits)
+### Critical Fix: nika:records wiring
+1. `ee491c2` — fix(builtin): wire nika:records tool in executor router
 
-1. `f1838e0` — feat(runtime): create preset.rs with apply_preset_to_action. 10 tests.
-2. `728c493` — feat(builtin): add nika:cost introspection tool. 5 tests.
-3. `1fa7d1a` — test(runtime): backward compat + integration tests. 5 tests.
+### P-CONTEXT: context_budget (4 commits)
+1. `d6bc2bd` — feat(ast): add context_budget field to task AST (6 tests)
+2. `b90ab09` — feat(binding): add token counting utilities (11 tests)
+3. `17f9a02` — feat(event): add BudgetOk + BudgetExceeded events (2 tests)
+4. `952b7c7` — feat(binding): implement context budget enforcement (6 tests)
 
-### Session E.3: Quality Plan Bugs — DONE (5 commits)
+### P-INTROSPECT: 4 builtin tools (1 commit)
+5. `eef1ede` — feat(builtin): 4 introspection tools — dag_info, task_status, threads, orchestrate (7 tests)
 
-1. `7905cf0` — fix(daemon): SF7 silent job log drops.
-2. `54c63c3` — fix(runtime): SF2 real cost on Layer 0a.
-3. `47c7589` — fix: CR1 jsonschema guardrails + unwrap panics.
-4. `1f6a6d0` — fix(runtime): M-orig8 per-provider temperature validation.
-5. `f6cef0b` — docs: progress.
+### P-MEMORY-LOCAL: NDJSON persistence + CLI search (1 commit)
+6. `e2ae341` — feat(store): NDJSON record persistence + nika trace search (6 tests)
 
-### Session M: P-RECORD — DONE (10 commits)
+### P-SECURITY: Output scanner (1 commit)
+7. `739898f` — feat(security): output scanner for LLM injection detection (8 tests)
 
-1. `ed984ba` — Record struct + RunContext storage (12 tests)
-2. `ebf9b9f` — RecordSpec AST type + parse record: field (9 tests, 46 constructors)
-3. `e0007bb` — RecordCreated + RecordSkipped events + display
-4. `c28c149` — RecordCompressor with fallback strategy (8 tests)
-5. `9f227ae` — nika:records introspection tool (4 tests)
-6. `bf3f9e0` — Wire record compression at task completion boundary
-7. `45ca821` — Record-aware binding resolution ($task → summary)
-8. `aace55b` — NIKA-320-324 error codes
+### Summary
+- **context_budget:** Full pipeline — AST field → parser → analyzer validation → token counting → proportional truncation → runner integration → events + display
+- **4 introspection tools:** nika:dag_info, nika:task_status, nika:threads, nika:orchestrate (stub)
+- **NDJSON persistence:** RecordWriter persists to .nika/records/, runner auto-writes after completion
+- **CLI search:** `nika trace search <query>` with --workflow and --since filters
+- **Output scanner:** 5 pattern categories (invisible Unicode, exfiltration, role hijack, prompt injection)
+- **nika:records fix:** Wired the existing records tool that was registered but never connected
 
-**P-RECORD foundation complete**: Record struct, RecordSpec AST, parser, events, compressor (trait-based with truncation fallback), nika:records tool, runner wiring, Record-aware bindings, error codes. LLM-based compression (using CompressorLlm trait) deferred to when provider resolution is wired.
+### Deferred from Session N
+- **SQLite FTS5 index**: Replaced by file-based NDJSON search (sufficient for v0.54)
+- **Frozen context guard**: Low-priority defensive feature
+- **fs2 file locking**: Adds dependency, low-priority
 
-### Progress docs (3 commits)
+## Previous Sessions (82 commits)
 
-## Previous Sessions (61 commits)
-
-Sessions A-G, J, K, L (parts 1-2), I (partial), E (parts 1-2), Release v0.51.0.
+Sessions A-G, J, K, L (parts 1-2), I (partial), E (parts 1-2, 3), M (P-RECORD), Release v0.51.0.
 
 ## Deferred (for next session)
 
+### Priority 1 — Quick Wins (10 min)
+- **SF1**: DNS fail-closed (1 line in policy.rs)
+- **SF5**: jsonschema .ok() bypass (3 lines in runner.rs)
+- **S1+S2**: Block bash -c, zsh -c, python3 -c (5 lines in security.rs)
+
+### Priority 2 — Remaining Sessions
 - **Session M remaining**: LLM-based compression (wire CompressorLlm to executor), E2E tests
-- **Session N**: Context + memory / P-CONTEXT (15 tasks)
 - **Session F.2**: ProviderName enum + EventKind grouping (~3h)
 - **Session I.2**: TUI Performance — DAG cache, Arc<str> (~1h)
 - **Session D.2**: Quality infrastructure — cargo-mutants, tracing-error, cargo-deny (~2h)
 - **Session J.2**: Registry fallback + LSP completions (~1h)
 - **Session H.2**: LSP remaining — VS Code extension fixes (~1.5h)
+
+### Priority 3 — Code Quality (NEW Session G needed)
+- 60 `_ => {}` without logging → add tracing::warn!
+- 50+ `unwrap_or(0)` in production → explicit logging
+- 42 `#[allow(dead_code)]` → audit + clean
+- 28 untested EventKind variants → write emission tests
+- 5 reachable `unreachable!()` → proper error handling
+- 25+ bugs from handoffs with no session assignment
+
+### Priority 4 — Future Phases
+- **Session O**: P-ORCHESTRATE (goal:, DynamicDag)
+- **Session P**: Scaleway GPU deployment
+- **Session Q**: Telegram Bot trigger
+- **Session R**: CI Pipeline + Release
+- **Session S**: Self-Improvement / Hermes
+
+## Builtin Tools Count Update
+- **30 nika:* tools** (24 original + cost + records + dag_info + task_status + threads + orchestrate)
 
 ## For resume
 
