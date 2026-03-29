@@ -162,7 +162,7 @@ impl NikaConfig {
         self.defaults.provider.as_deref().or_else(|| {
             // Auto-detect based on available keys
             if self.api_keys.anthropic.is_some() {
-                Some("claude")
+                Some("anthropic")
             } else if self.api_keys.openai.is_some() {
                 Some("openai")
             } else {
@@ -335,7 +335,7 @@ mod tests {
             },
             ..Default::default()
         };
-        assert_eq!(anthropic.default_provider(), Some("claude"));
+        assert_eq!(anthropic.default_provider(), Some("anthropic"));
 
         // OpenAI key = openai provider
         let openai = NikaConfig {

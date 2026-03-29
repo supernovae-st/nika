@@ -174,7 +174,7 @@ impl Default for ProviderConfig {
 }
 
 fn default_provider() -> String {
-    "claude".to_string()
+    "anthropic".to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -689,7 +689,7 @@ mod tests {
     fn test_default_config() {
         let config = BootstrapConfig::default();
         assert_eq!(config.tools.permission, "plan");
-        assert_eq!(config.provider.default, "claude");
+        assert_eq!(config.provider.default, "anthropic");
         assert_eq!(config.editor.theme, "solarized");
         assert!(config.policy.allow_exec);
     }
