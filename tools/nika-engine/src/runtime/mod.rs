@@ -37,6 +37,7 @@ mod executor;
 pub mod executor_compressor;
 pub mod hitl;
 pub mod limit_tracker;
+pub mod orchestrate;
 pub mod output;
 pub mod output_scanner;
 pub mod partial;
