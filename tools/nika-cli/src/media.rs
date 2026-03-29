@@ -623,10 +623,14 @@ mod tests {
 
     #[test]
     fn test_parse_duration_valid() {
-        assert!(humantime::parse_duration("1h").is_ok());
-        assert!(humantime::parse_duration("30m").is_ok());
-        assert!(humantime::parse_duration("7d").is_ok());
-        assert!(humantime::parse_duration("5m").is_ok());
+        let r1 = humantime::parse_duration("1h");
+        assert!(r1.is_ok(), "1h should parse: {:?}", r1.as_ref().err());
+        let r2 = humantime::parse_duration("30m");
+        assert!(r2.is_ok(), "30m should parse: {:?}", r2.as_ref().err());
+        let r3 = humantime::parse_duration("7d");
+        assert!(r3.is_ok(), "7d should parse: {:?}", r3.as_ref().err());
+        let r4 = humantime::parse_duration("5m");
+        assert!(r4.is_ok(), "5m should parse: {:?}", r4.as_ref().err());
     }
 
     #[test]
@@ -642,7 +646,7 @@ mod tests {
         let store = CasStore::new(dir.path());
         // Should not panic on empty store
         let result = handle_list(&store, true);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "handle_list should succeed on empty store: {:?}", result.as_ref().err());
     }
 
     #[tokio::test]
@@ -650,7 +654,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let store = CasStore::new(dir.path());
         let result = handle_stats(&store, true);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "handle_stats should succeed on empty store: {:?}", result.as_ref().err());
     }
 
     #[tokio::test]
@@ -658,7 +662,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let store = CasStore::new(dir.path());
         let result = handle_clean(&store, dir.path(), "1h", true, false, true);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "dry-run clean should succeed on empty store: {:?}", result.as_ref().err());
     }
 
     #[tokio::test]
@@ -671,11 +675,11 @@ mod tests {
         std::fs::write(&lockfile, "locked").unwrap();
 
         let result = handle_clean(&store, dir.path(), "1h", false, false, true);
-        assert!(result.is_err());
+        assert!(result.is_err(), "clean should fail when lockfile present but got: {:?}", result.as_ref().ok());
 
         // With --force should work
         let result = handle_clean(&store, dir.path(), "1h", true, true, true);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "clean with --force should succeed: {:?}", result.as_ref().err());
     }
 
     // ── Functional tests with actual CAS data ──────────────────────────
@@ -699,7 +703,7 @@ mod tests {
 
         // handle_list with quiet=true prints entries to stdout but should not error
         let result = handle_list(&store, true);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "handle_list should succeed with data: {:?}", result.as_ref().err());
 
         let entries = store.list();
         assert_eq!(
@@ -723,7 +727,7 @@ mod tests {
 
         // handle_stats with quiet=false prints table to stdout but should not error
         let result = handle_stats(&store, false);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "handle_stats should succeed with data: {:?}", result.as_ref().err());
 
         let entries = store.list();
         assert_eq!(entries.len(), 2);
@@ -751,7 +755,7 @@ mod tests {
 
         // Clean with older_than=1h, dry_run=false, force=false
         let clean = handle_clean(&store, dir.path(), "1h", false, false, true);
-        assert!(clean.is_ok());
+        assert!(clean.is_ok(), "clean should succeed: {:?}", clean.as_ref().err());
 
         // File backdated 2h ago exceeds the 1h threshold; it should be gone
         assert_eq!(
@@ -774,7 +778,7 @@ mod tests {
 
         // dry_run=true: report what would be deleted, but don't actually delete
         let clean = handle_clean(&store, dir.path(), "1h", true, false, true);
-        assert!(clean.is_ok());
+        assert!(clean.is_ok(), "dry-run clean should succeed: {:?}", clean.as_ref().err());
 
         assert_eq!(store.list().len(), 1, "dry-run must not delete files");
     }
@@ -793,7 +797,7 @@ mod tests {
         // Request older_than="1m" -- the 5-minute safety floor clamps this to 5m.
         // The file is only 3 minutes old (< 5m floor), so it must survive.
         let clean = handle_clean(&store, dir.path(), "1m", false, false, true);
-        assert!(clean.is_ok());
+        assert!(clean.is_ok(), "clean with floor-clamped age should succeed: {:?}", clean.as_ref().err());
 
         assert_eq!(
             store.list().len(),
@@ -847,7 +851,7 @@ mod tests {
 
         // handle_stats itself should not error
         let result = handle_stats(&store, false);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "handle_stats shard distribution should succeed: {:?}", result.as_ref().err());
     }
 
     // ── Import tests ────────────────────────────────────────────────────
@@ -878,7 +882,7 @@ mod tests {
         std::fs::write(tmp.path(), &png_data).unwrap();
 
         let result = handle_import(&store, tmp.path(), true).await;
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "PNG import should succeed: {:?}", result.as_ref().err());
 
         // Verify file is in CAS
         let entries = store.list();
@@ -899,7 +903,7 @@ mod tests {
             true,
         )
         .await;
-        assert!(result.is_err());
+        assert!(result.is_err(), "importing nonexistent file should fail but got: {:?}", result.as_ref().ok());
     }
 
     #[tokio::test]
@@ -908,7 +912,7 @@ mod tests {
         let store = CasStore::new(dir.path());
 
         let result = handle_import(&store, dir.path(), true).await;
-        assert!(result.is_err());
+        assert!(result.is_err(), "importing directory should fail but got: {:?}", result.as_ref().ok());
     }
 
     #[tokio::test]
@@ -920,7 +924,7 @@ mod tests {
         std::fs::write(tmp.path(), b"").unwrap();
 
         let result = handle_import(&store, tmp.path(), true).await;
-        assert!(result.is_err());
+        assert!(result.is_err(), "importing empty file should fail but got: {:?}", result.as_ref().ok());
     }
 
     #[tokio::test]
@@ -933,9 +937,9 @@ mod tests {
 
         // Import twice
         let r1 = handle_import(&store, tmp.path(), true).await;
-        assert!(r1.is_ok());
+        assert!(r1.is_ok(), "first import should succeed: {:?}", r1.as_ref().err());
         let r2 = handle_import(&store, tmp.path(), true).await;
-        assert!(r2.is_ok());
+        assert!(r2.is_ok(), "second import (dedup) should succeed: {:?}", r2.as_ref().err());
 
         // CAS should still have only 1 entry (deduplicated)
         assert_eq!(store.list().len(), 1);
@@ -944,7 +948,8 @@ mod tests {
     #[test]
     fn test_cli_import_rejects_path_traversal() {
         let path = std::path::Path::new("../../etc/passwd");
-        assert!(validate_cli_import_path(path).is_err());
+        let result = validate_cli_import_path(path);
+        assert!(result.is_err(), "path traversal should be rejected but got: {:?}", result.as_ref().ok());
     }
 
     #[test]
@@ -959,7 +964,8 @@ mod tests {
     #[test]
     fn test_cli_import_allows_normal_paths() {
         let tmp = tempfile::NamedTempFile::new().unwrap();
-        assert!(validate_cli_import_path(tmp.path()).is_ok());
+        let result = validate_cli_import_path(tmp.path());
+        assert!(result.is_ok(), "normal path should be allowed: {:?}", result.as_ref().err());
     }
 
     // ── cli_format adoption tests ──────────────────────────────────────

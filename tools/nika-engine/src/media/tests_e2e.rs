@@ -1102,7 +1102,7 @@ mod tests {
         let store = CasStore::new(dir.path());
         // Hash too short (< 3 chars)
         let result = store.read("ab").await;
-        assert!(result.is_err());
+        assert!(result.is_err(), "reading short hash should fail but got: {:?}", result.as_ref().ok());
         assert_eq!(result.unwrap_err().code(), "NIKA-253");
     }
 
@@ -2325,7 +2325,7 @@ mod tests {
         store.clean_all();
 
         let read = store.read(&result.hash).await;
-        assert!(read.is_err());
+        assert!(read.is_err(), "reading cleaned hash should fail but got: {:?}", read.as_ref().ok());
         assert_eq!(read.unwrap_err().code(), "NIKA-253");
     }
 
@@ -3122,7 +3122,7 @@ mod tests {
         ];
         let results = processor.process_all(&blocks, "it1").await;
         assert_eq!(results.len(), 1);
-        assert!(results[0].is_ok());
+        assert!(results[0].is_ok(), "first result should succeed: {:?}", results[0].as_ref().err());
         assert_eq!(results[0].as_ref().unwrap().0.mime_type, "image/png");
     }
 
@@ -3183,7 +3183,7 @@ mod tests {
         ];
         let results = processor.process_all(&blocks, "g_allfail").await;
         assert_eq!(results.len(), 3);
-        assert!(results.iter().all(|r| r.is_err()));
+        assert!(results.iter().all(|r| r.is_err()), "all results should be errors");
         let indices: Vec<usize> = results.iter().map(|r| r.as_ref().unwrap_err().0).collect();
         assert_eq!(indices, vec![1, 3, 4]);
         for r in &results {
@@ -3205,7 +3205,7 @@ mod tests {
         ];
         let block = ContentBlock::image(encode_b64(&random), "application/octet-stream");
         let result = processor.process(&block, "g_unknown").await;
-        assert!(result.is_err());
+        assert!(result.is_err(), "unrecognizable bytes should fail but got: {:?}", result.as_ref().ok());
         assert_eq!(
             result.unwrap_err().code(),
             "NIKA-251",
@@ -3284,14 +3284,16 @@ mod tests {
     fn g_budget_zero_accepts_zero_size() {
         let budget = MediaBudget::with_max_per_run(0);
         // 0 + 0 = 0 which is NOT > 0
-        assert!(budget.check_and_add(0, "t1").is_ok());
+        let result = budget.check_and_add(0, "t1");
+        assert!(result.is_ok(), "zero-size add should succeed: {:?}", result.as_ref().err());
     }
 
     #[test]
     fn g_budget_u64_max_accepts_large_additions() {
         let budget = MediaBudget::with_max_per_run(u64::MAX);
         for i in 0..50 {
-            assert!(budget.check_and_add(1_000_000, &format!("t{i}")).is_ok());
+            let result = budget.check_and_add(1_000_000, &format!("t{i}"));
+            assert!(result.is_ok(), "large budget add should succeed: {:?}", result.as_ref().err());
         }
         assert_eq!(budget.current_bytes(), 50_000_000);
     }
@@ -3300,11 +3302,14 @@ mod tests {
     fn g_budget_u64_max_half_plus_half_succeeds() {
         let budget = MediaBudget::with_max_per_run(u64::MAX);
         let half = u64::MAX / 2;
-        assert!(budget.check_and_add(half, "t1").is_ok());
-        assert!(budget.check_and_add(half, "t2").is_ok());
+        let r1 = budget.check_and_add(half, "t1");
+        assert!(r1.is_ok(), "first half should succeed: {:?}", r1.as_ref().err());
+        let r2 = budget.check_and_add(half, "t2");
+        assert!(r2.is_ok(), "second half should succeed: {:?}", r2.as_ref().err());
         // u64::MAX / 2 * 2 = u64::MAX - 1 (since MAX is odd)
         // One more byte should succeed
-        assert!(budget.check_and_add(1, "t3").is_ok());
+        let r3 = budget.check_and_add(1, "t3");
+        assert!(r3.is_ok(), "one more byte should succeed: {:?}", r3.as_ref().err());
         assert_eq!(budget.current_bytes(), u64::MAX);
     }
 
@@ -3321,18 +3326,18 @@ mod tests {
 
         let b64 = encode_b64(&real_png_bytes());
 
-        assert!(procs[0]
+        let p0 = procs[0]
             .process(&ContentBlock::image(b64.clone(), "image/png"), "p0")
-            .await
-            .is_ok());
-        assert!(procs[1]
+            .await;
+        assert!(p0.is_ok(), "proc[0] should succeed: {:?}", p0.as_ref().err());
+        let p1 = procs[1]
             .process(&ContentBlock::image(b64.clone(), "image/png"), "p1")
-            .await
-            .is_ok());
+            .await;
+        assert!(p1.is_ok(), "proc[1] should succeed: {:?}", p1.as_ref().err());
         let r3 = procs[2]
             .process(&ContentBlock::image(b64.clone(), "image/png"), "p2")
             .await;
-        assert!(r3.is_err());
+        assert!(r3.is_err(), "proc[2] should exceed budget but got: {:?}", r3.as_ref().ok());
         assert_eq!(r3.unwrap_err().code(), "NIKA-259");
 
         let png_size = real_png_bytes().len() as u64;
