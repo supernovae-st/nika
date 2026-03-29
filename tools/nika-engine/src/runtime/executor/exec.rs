@@ -33,10 +33,17 @@ impl TaskExecutor {
         // For values that need shell escaping, use {{with.alias|shell}} syntax.
         let resolved_cmd = template_resolve(&params.command, bindings, datastore)?;
 
-        // SECURITY CHECK: validate command for control characters and blocklist
-        // In shell mode, also block command substitution ($(), backticks)
+        // SECURITY CHECK: validate resolved command for control characters and general blocklist
         let is_shell = params.shell == Some(true);
-        crate::runtime::security::validate_exec_command_with_shell(&resolved_cmd, is_shell)?;
+        crate::runtime::security::validate_exec_command_with_shell(&resolved_cmd, false)?;
+
+        // SHELL MODE: check raw template (pre-resolution) for shell metacharacters ($(), backticks).
+        // This prevents false positives when task output data contains shell metacharacters
+        // that were safely injected via {{with.alias | shell}} templates. The user's YAML
+        // template is what we audit for dangerous patterns, not the resolved data.
+        if is_shell {
+            crate::runtime::security::check_shell_mode_blocklist(&params.command)?;
+        }
 
         // POLICY CHECK: exec verb
         let policy_decision = self.policy_enforcer.read().check_exec(&resolved_cmd);
