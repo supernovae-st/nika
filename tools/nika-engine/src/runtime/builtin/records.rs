@@ -99,11 +99,7 @@ impl BuiltinTool for RecordsTool {
             let results: Vec<RecordSummary> = if let Some(ref tid) = params.task_id {
                 self.datastore
                     .get_record(tid)
-                    .filter(|r| {
-                        params
-                            .min_confidence
-                            .is_none_or(|min| r.confidence >= min)
-                    })
+                    .filter(|r| params.min_confidence.is_none_or(|min| r.confidence >= min))
                     .into_iter()
                     .map(|record| RecordSummary {
                         task_id: tid.clone(),
@@ -187,10 +183,7 @@ mod tests {
         ctx.set_record("a".into(), make_record("a", 0.9));
         ctx.set_record("b".into(), make_record("b", 0.7));
         let tool = RecordsTool::new(ctx);
-        let result = tool
-            .call(r#"{"task_id":"a"}"#.into())
-            .await
-            .unwrap();
+        let result = tool.call(r#"{"task_id":"a"}"#.into()).await.unwrap();
         let v: Vec<serde_json::Value> = serde_json::from_str(&result).unwrap();
         assert_eq!(v.len(), 1);
         assert_eq!(v[0]["task_id"], "a");
@@ -202,10 +195,7 @@ mod tests {
         ctx.set_record("high".into(), make_record("high", 0.9));
         ctx.set_record("low".into(), make_record("low", 0.3));
         let tool = RecordsTool::new(ctx);
-        let result = tool
-            .call(r#"{"min_confidence":0.5}"#.into())
-            .await
-            .unwrap();
+        let result = tool.call(r#"{"min_confidence":0.5}"#.into()).await.unwrap();
         let v: Vec<serde_json::Value> = serde_json::from_str(&result).unwrap();
         assert_eq!(v.len(), 1);
         assert_eq!(v[0]["task_id"], "high");

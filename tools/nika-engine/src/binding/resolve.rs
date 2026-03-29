@@ -659,11 +659,7 @@ fn resolve_binding_path(
                     binding_path.segments.first(),
                     Some(crate::binding::types::PathSegment::Field(f)) if f.as_ref() == "raw"
                 ) {
-                    return Ok(
-                        datastore
-                            .get_output(task_id)
-                            .map(|v| v.as_ref().clone()),
-                    );
+                    return Ok(datastore.get_output(task_id).map(|v| v.as_ref().clone()));
                 }
                 // $task.field → navigate Record binding value
                 let record_value = record.to_binding_value();

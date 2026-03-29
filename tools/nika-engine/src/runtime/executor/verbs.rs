@@ -165,7 +165,11 @@ pub(crate) fn strip_think_tags(text: &str) -> String {
     while let Some(&(i, _)) = chars.peek() {
         // Check if remaining text starts with a think tag (case-insensitive)
         let remaining = &text[i..];
-        let remaining_lower_start: String = remaining.chars().take(10).collect::<String>().to_lowercase();
+        let remaining_lower_start: String = remaining
+            .chars()
+            .take(10)
+            .collect::<String>()
+            .to_lowercase();
 
         let tag_match = if remaining_lower_start.starts_with("<thinking>") {
             Some(("<thinking>".len(), "</thinking>"))

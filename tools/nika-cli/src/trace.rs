@@ -225,10 +225,7 @@ pub fn handle_trace_command(action: TraceAction, _quiet: bool) -> Result<(), Nik
                     };
 
                     // Filter by query (case-insensitive substring match in summary)
-                    let summary = record
-                        .get("summary")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("");
+                    let summary = record.get("summary").and_then(|v| v.as_str()).unwrap_or("");
                     if !summary.to_lowercase().contains(&query_lower) {
                         continue;
                     }
@@ -246,10 +243,7 @@ pub fn handle_trace_command(action: TraceAction, _quiet: bool) -> Result<(), Nik
 
                     // Filter by since date
                     if let Some(ref since_str) = since {
-                        let record_date = record
-                            .get("date")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("");
+                        let record_date = record.get("date").and_then(|v| v.as_str()).unwrap_or("");
                         if record_date < since_str.as_str() {
                             continue;
                         }
@@ -261,14 +255,8 @@ pub fn handle_trace_command(action: TraceAction, _quiet: bool) -> Result<(), Nik
 
             // Sort by confidence descending
             results.sort_by(|a, b| {
-                let ca = a
-                    .get("confidence")
-                    .and_then(|v| v.as_f64())
-                    .unwrap_or(0.0);
-                let cb = b
-                    .get("confidence")
-                    .and_then(|v| v.as_f64())
-                    .unwrap_or(0.0);
+                let ca = a.get("confidence").and_then(|v| v.as_f64()).unwrap_or(0.0);
+                let cb = b.get("confidence").and_then(|v| v.as_f64()).unwrap_or(0.0);
                 cb.partial_cmp(&ca).unwrap_or(std::cmp::Ordering::Equal)
             });
 
@@ -277,12 +265,7 @@ pub fn handle_trace_command(action: TraceAction, _quiet: bool) -> Result<(), Nik
 
             println!(
                 "{}",
-                format!(
-                    "Records matching \"{}\" ({} results)",
-                    query,
-                    results.len()
-                )
-                .bold()
+                format!("Records matching \"{}\" ({} results)", query, results.len()).bold()
             );
             println!(
                 "  {:<22} {:<13} {:<12} {}",
@@ -298,22 +281,13 @@ pub fn handle_trace_command(action: TraceAction, _quiet: bool) -> Result<(), Nik
                     .get("workflow")
                     .and_then(|v| v.as_str())
                     .unwrap_or("-");
-                let task = record
-                    .get("task")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("-");
+                let task = record.get("task").and_then(|v| v.as_str()).unwrap_or("-");
                 let confidence = record
                     .get("confidence")
                     .and_then(|v| v.as_f64())
                     .unwrap_or(0.0);
-                let date = record
-                    .get("date")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("-");
-                let summary = record
-                    .get("summary")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
+                let date = record.get("date").and_then(|v| v.as_str()).unwrap_or("-");
+                let summary = record.get("summary").and_then(|v| v.as_str()).unwrap_or("");
 
                 println!(
                     "  {:<22} {:<13} {:<12.2} {}",

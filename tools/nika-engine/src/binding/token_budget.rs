@@ -50,9 +50,7 @@ pub fn estimate_tokens_value(value: &Value) -> u64 {
 }
 
 /// Estimate total tokens across all resolved bindings.
-pub fn estimate_bindings_tokens<'a>(
-    bindings: impl Iterator<Item = (&'a str, &'a Value)>,
-) -> u64 {
+pub fn estimate_bindings_tokens<'a>(bindings: impl Iterator<Item = (&'a str, &'a Value)>) -> u64 {
     bindings
         .map(|(alias, value)| {
             // alias contributes tokens too (template key overhead)
@@ -80,7 +78,13 @@ fn is_cjk(ch: char) -> bool {
 fn json_char_estimate(value: &Value) -> u64 {
     match value {
         Value::Null => 4,
-        Value::Bool(b) => if *b { 4 } else { 5 },
+        Value::Bool(b) => {
+            if *b {
+                4
+            } else {
+                5
+            }
+        }
         Value::Number(n) => {
             // Approximate: digits + sign + decimal point
             let s = n.to_string();
@@ -271,9 +275,7 @@ mod tests {
             ("data", json!("some text here")),
             ("config", json!({"key": "value"})),
         ];
-        let total = estimate_bindings_tokens(
-            bindings.iter().map(|(k, v)| (*k, v)),
-        );
+        let total = estimate_bindings_tokens(bindings.iter().map(|(k, v)| (*k, v)));
         assert!(total > 0, "Should have tokens");
     }
 
@@ -288,7 +290,11 @@ mod tests {
         let text = "This is a fairly long sentence that should be truncated to fit the budget";
         let truncated = truncate_to_tokens(text, 5);
         // 5 tokens * 4 chars = ~20 chars target
-        assert!(truncated.len() <= 24, "Should be truncated: len={}", truncated.len());
+        assert!(
+            truncated.len() <= 24,
+            "Should be truncated: len={}",
+            truncated.len()
+        );
         assert!(!truncated.is_empty(), "Should not be empty");
     }
 
@@ -336,7 +342,11 @@ mod tests {
                 let val = bindings.get("data").unwrap();
                 let text = val.as_str().unwrap();
                 let tokens = estimate_tokens_str(text);
-                assert!(tokens <= 80, "Should be truncated: {tokens} tokens, len={}", text.len());
+                assert!(
+                    tokens <= 80,
+                    "Should be truncated: {tokens} tokens, len={}",
+                    text.len()
+                );
             }
             _ => panic!("Should exceed budget"),
         }
@@ -376,8 +386,8 @@ mod tests {
     #[test]
     fn test_enforce_budget_multiple_bindings() {
         let mut bindings = super::super::ResolvedBindings::new();
-        bindings.set("big", json!("x ".repeat(200)));   // ~100 tokens
-        bindings.set("small", json!("tiny"));             // ~2 tokens
+        bindings.set("big", json!("x ".repeat(200))); // ~100 tokens
+        bindings.set("small", json!("tiny")); // ~2 tokens
         let task_id = std::sync::Arc::from("test");
         let event = enforce_budget(&mut bindings, 30, &task_id);
         match event {
@@ -402,7 +412,10 @@ mod tests {
         // JSON values are not string-truncatable
         let event = enforce_budget(&mut bindings, 2, &task_id);
         // Even though over budget, non-string values aren't modified
-        assert!(matches!(event, nika_event::EventKind::BudgetExceeded { .. }));
+        assert!(matches!(
+            event,
+            nika_event::EventKind::BudgetExceeded { .. }
+        ));
         let val = bindings.get("config").unwrap();
         assert!(val.is_object(), "JSON object should be preserved");
     }
