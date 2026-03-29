@@ -207,12 +207,15 @@ impl Runner {
         let mcp_configs = lower_mcp_servers(workflow.mcp_servers.clone());
         let provider = workflow.provider.as_deref().unwrap_or("claude");
 
-        let executor = TaskExecutor::new(
+        let mut executor = TaskExecutor::new(
             provider,
             workflow.model.as_deref(),
             mcp_configs,
             event_log.clone(),
         )?;
+
+        // Wire nika:records tool so agents can query compressed records
+        executor.wire_records_tool(Arc::new(datastore.clone()));
 
         // Generate unique ID for this execution (used for trace files)
         let generation_id = format!("gen-{}", uuid::Uuid::new_v4());
