@@ -6927,4 +6927,89 @@ mod tests {
             "Mock provider should emit ProviderResponded"
         );
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // RECORD TESTS
+    // ═══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn test_record_shorthand_true_creates_record() {
+        use nika_core::ast::record::RecordSpec;
+
+        let mut task_table = TaskTable::new();
+        task_table.insert("recorded");
+        let tid = task_table.get_id("recorded").unwrap();
+
+        let task = AnalyzedTask {
+            id: tid,
+            name: "recorded".to_string(),
+            description: None,
+            action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
+                command: "echo hello".to_string(),
+                shell: false,
+                cwd: None,
+                env: IndexMap::new(),
+                timeout_ms: None,
+                span: Span::dummy(),
+            }),
+            provider: None,
+            model: None,
+            base_url: None,
+            with_spec: Default::default(),
+            depends_on: vec![],
+            implicit_deps: vec![],
+            output: None,
+            for_each: None,
+            retry: None,
+            decompose: None,
+            concurrency: None,
+            fail_fast: None,
+            artifact: None,
+            log: None,
+            structured: None,
+            record: Some(RecordSpec::shorthand_true()),
+            context_budget: None,
+            preset: None,
+            routing: None,
+            span: Span::dummy(),
+        };
+
+        let workflow = AnalyzedWorkflow {
+            schema_version: SchemaVersion::V01,
+            name: None,
+            description: None,
+            provider: Some("mock".to_string()),
+            model: None,
+            base_url: None,
+            task_table,
+            tasks: vec![task],
+            mcp_servers: IndexMap::new(),
+            context_files: vec![],
+            inputs: Default::default(),
+            agents: Some(IndexMap::new()),
+            skills_map: std::collections::HashMap::new(),
+            artifacts: None,
+            log: None,
+            include: vec![],
+            routing: None,
+            span: Span::dummy(),
+        };
+
+        let event_log = EventLog::new();
+        let mut runner = Runner::with_event_log(workflow, event_log.clone()).unwrap();
+        let result = runner.run().await;
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
+
+        // Task should have produced a record in the datastore
+        let record = runner.datastore().get_record("recorded");
+        assert!(
+            record.is_some(),
+            "Task with record: true should create a Record in the datastore"
+        );
+
+        let rec = record.unwrap();
+        assert_eq!(rec.task_id.as_ref(), "recorded");
+        // Short output (< max_tokens) should produce a truncated/skipped record
+        assert!(!rec.summary.is_empty(), "Record summary should not be empty");
+    }
 }
