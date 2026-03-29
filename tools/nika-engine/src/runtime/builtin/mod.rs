@@ -29,6 +29,7 @@
 
 mod assert;
 mod complete;
+mod cost;
 mod emit;
 mod file_adapter;
 mod log;
@@ -41,6 +42,7 @@ mod sleep;
 mod r#trait;
 
 pub use assert::AssertTool;
+pub use cost::CostTool;
 pub use complete::{
     is_completion_signal, parse_completion_response, CompleteParams, CompleteResponse,
     CompleteTool, COMPLETION_MARKER,
