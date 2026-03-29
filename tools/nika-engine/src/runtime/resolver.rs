@@ -64,6 +64,8 @@ pub enum AgentSource {
     Inline,
     /// Loaded from external file
     External(String),
+    /// Built-in default preset
+    Builtin,
 }
 
 /// Resolved assets container
@@ -97,6 +99,113 @@ impl ResolvedAssets {
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DEFAULT PRESETS — 8 built-in agent presets available without agents: block
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Get built-in default presets. Available via `preset: think` without `agents:` block.
+pub fn default_presets() -> ResolvedAgents {
+    let mut presets = FxHashMap::default();
+
+    presets.insert(
+        "think".to_string(),
+        ResolvedAgent {
+            system: "You are a deep reasoning assistant. Think step by step through complex problems. Show your reasoning process.".to_string(),
+            provider: "anthropic".to_string(),
+            model: Some("claude-sonnet-4-20250514".to_string()),
+            max_turns: Some(5),
+            temperature: Some(0.3),
+            source: AgentSource::Builtin,
+        },
+    );
+
+    presets.insert(
+        "lite".to_string(),
+        ResolvedAgent {
+            system: "You are a fast, concise assistant. Give brief, direct answers.".to_string(),
+            provider: "anthropic".to_string(),
+            model: Some("claude-haiku-4-5".to_string()),
+            max_turns: Some(3),
+            temperature: Some(0.5),
+            source: AgentSource::Builtin,
+        },
+    );
+
+    presets.insert(
+        "search".to_string(),
+        ResolvedAgent {
+            system: "You are a research assistant with web search capabilities. Find accurate, up-to-date information. Cite sources.".to_string(),
+            provider: "anthropic".to_string(),
+            model: Some("claude-sonnet-4-20250514".to_string()),
+            max_turns: Some(10),
+            temperature: Some(0.3),
+            source: AgentSource::Builtin,
+        },
+    );
+
+    presets.insert(
+        "vision".to_string(),
+        ResolvedAgent {
+            system: "You are a vision analysis assistant. Describe images in detail, identify objects, read text, and analyze visual content.".to_string(),
+            provider: "anthropic".to_string(),
+            model: Some("claude-sonnet-4-20250514".to_string()),
+            max_turns: Some(3),
+            temperature: Some(0.3),
+            source: AgentSource::Builtin,
+        },
+    );
+
+    presets.insert(
+        "judge".to_string(),
+        ResolvedAgent {
+            system: "You are an impartial judge. Evaluate the quality, accuracy, and completeness of content. Provide a structured assessment with PASS or FAIL verdict.".to_string(),
+            provider: "anthropic".to_string(),
+            model: Some("claude-sonnet-4-20250514".to_string()),
+            max_turns: Some(3),
+            temperature: Some(0.1),
+            source: AgentSource::Builtin,
+        },
+    );
+
+    presets.insert(
+        "coder".to_string(),
+        ResolvedAgent {
+            system: "You are an expert programmer. Write clean, efficient, well-tested code. Follow best practices and explain your approach.".to_string(),
+            provider: "anthropic".to_string(),
+            model: Some("claude-sonnet-4-20250514".to_string()),
+            max_turns: Some(8),
+            temperature: Some(0.2),
+            source: AgentSource::Builtin,
+        },
+    );
+
+    presets.insert(
+        "summary".to_string(),
+        ResolvedAgent {
+            system: "You are a summarization specialist. Extract key points, themes, and insights from text. Be concise but comprehensive.".to_string(),
+            provider: "anthropic".to_string(),
+            model: Some("claude-haiku-4-5".to_string()),
+            max_turns: Some(3),
+            temperature: Some(0.3),
+            source: AgentSource::Builtin,
+        },
+    );
+
+    presets.insert(
+        "creative".to_string(),
+        ResolvedAgent {
+            system: "You are a creative writing assistant. Generate imaginative, engaging content with vivid language and original ideas.".to_string(),
+            provider: "anthropic".to_string(),
+            model: Some("claude-sonnet-4-20250514".to_string()),
+            max_turns: Some(5),
+            temperature: Some(0.9),
+            source: AgentSource::Builtin,
+        },
+    );
+
+    presets
+}
+
 /// Resolve all agents and skills in a workflow.
 ///
 /// This loads external agent files and skill contents, making them available
@@ -114,7 +223,12 @@ pub async fn resolve_assets(
 ) -> Result<ResolvedAssets, NikaError> {
     let mut assets = ResolvedAssets::new();
 
-    // Resolve agents
+    // Seed with default presets — workflow agents: block overrides these
+    for (name, preset) in default_presets() {
+        assets.agents.insert(name, preset);
+    }
+
+    // Resolve user-defined agents (override defaults with same name)
     if let Some(agents) = &workflow.agents {
         for (name, def) in agents {
             let resolved = resolve_agent(name, def, base_path).await?;
@@ -378,8 +492,8 @@ mod tests {
         let dir = tempdir().unwrap();
         let assets = resolve_assets(&workflow, dir.path()).await.unwrap();
 
-        assert!(assets.is_empty());
-        assert!(assets.agents.is_empty());
+        // Default presets are always present; skills should be empty
+        assert_eq!(assets.agents.len(), 8, "Should have 8 default presets");
         assert!(assets.skills.is_empty());
     }
 
@@ -417,7 +531,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let assets = resolve_assets(&workflow, dir.path()).await.unwrap();
 
-        assert_eq!(assets.agents.len(), 1);
+        assert_eq!(assets.agents.len(), 9, "8 defaults + 1 user-defined");
         let agent = assets.get_agent("test_agent").unwrap();
         assert_eq!(agent.system, "You are a test agent.");
         assert_eq!(agent.provider, "openai");
@@ -469,7 +583,7 @@ temperature: 0.5
 
         let assets = resolve_assets(&workflow, dir.path()).await.unwrap();
 
-        assert_eq!(assets.agents.len(), 1);
+        assert_eq!(assets.agents.len(), 9, "8 defaults + 1 user-defined");
         let agent = assets.get_agent("ext_agent").unwrap();
         assert_eq!(agent.system, "You are an external agent.");
         assert_eq!(agent.provider, "mistral");
@@ -652,8 +766,8 @@ system: "You are a researcher."
 
         let assets = resolve_assets(&workflow, dir.path()).await.unwrap();
 
-        // Check agents
-        assert_eq!(assets.agents.len(), 2);
+        // Check agents (8 defaults + 2 user-defined)
+        assert_eq!(assets.agents.len(), 10);
         let researcher = assets.get_agent("researcher").unwrap();
         assert_eq!(researcher.system, "You are a researcher.");
         assert_eq!(
@@ -760,5 +874,73 @@ system: "You are an agent with defaults."
         assert_eq!(assets.get_skill("skill"), Some("Skill content"));
         assert!(assets.get_skill("nonexistent").is_none());
         assert!(!assets.is_empty());
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Default presets
+    // ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn default_presets_has_8_entries() {
+        let presets = default_presets();
+        assert_eq!(presets.len(), 8, "Expected 8 default presets");
+    }
+
+    #[test]
+    fn default_presets_names() {
+        let presets = default_presets();
+        let expected = [
+            "think", "lite", "search", "vision", "judge", "coder", "summary", "creative",
+        ];
+        for name in &expected {
+            assert!(
+                presets.contains_key(*name),
+                "Missing default preset: {}",
+                name
+            );
+        }
+    }
+
+    #[test]
+    fn default_presets_all_builtin_source() {
+        let presets = default_presets();
+        for (name, preset) in &presets {
+            assert_eq!(
+                preset.source,
+                AgentSource::Builtin,
+                "Preset '{}' should have Builtin source",
+                name
+            );
+        }
+    }
+
+    #[test]
+    fn default_presets_temperature_ranges() {
+        let presets = default_presets();
+        for (name, preset) in &presets {
+            if let Some(temp) = preset.temperature {
+                assert!(
+                    (0.0..=2.0).contains(&temp),
+                    "Preset '{}' temperature {} out of range",
+                    name,
+                    temp
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn default_presets_think_is_reasoning() {
+        let presets = default_presets();
+        let think = &presets["think"];
+        assert_eq!(think.temperature, Some(0.3));
+        assert!(think.system.contains("reasoning") || think.system.contains("step by step"));
+    }
+
+    #[test]
+    fn default_presets_creative_high_temp() {
+        let presets = default_presets();
+        let creative = &presets["creative"];
+        assert!(creative.temperature.unwrap() > 0.7);
     }
 }
