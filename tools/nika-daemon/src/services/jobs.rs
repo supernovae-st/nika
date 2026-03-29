@@ -212,23 +212,29 @@ impl JobService {
                         JobState::Failed
                     };
 
-                    let _ = storage
+                    if let Err(e) = storage
                         .update_state(
                             &job_id,
                             state.clone(),
                             Some(exit_code),
                             Some(output.clone()),
                         )
-                        .await;
+                        .await
+                    {
+                        warn!(job_id, error = %e, "failed to update job state");
+                    }
 
-                    let _ = storage
+                    if let Err(e) = storage
                         .add_history(JobHistoryEvent {
                             job_id: job_id.clone(),
                             event: state.as_str().to_string(),
                             timestamp: chrono::Utc::now().to_rfc3339(),
                             details: Some(format!("exit_code: {exit_code}")),
                         })
-                        .await;
+                        .await
+                    {
+                        warn!(job_id, error = %e, "failed to add job history");
+                    }
 
                     if exit_code == 0 {
                         info!(job_id, "job completed successfully");
@@ -238,14 +244,17 @@ impl JobService {
                 }
                 Err(e) => {
                     error!(job_id, error = %e, "job execution error");
-                    let _ = storage
+                    if let Err(e2) = storage
                         .update_state(
                             &job_id,
                             JobState::Failed,
                             None,
                             Some(format!("execution error: {e}")),
                         )
-                        .await;
+                        .await
+                    {
+                        warn!(job_id, error = %e2, "failed to persist job failure state");
+                    }
                 }
             }
         });
