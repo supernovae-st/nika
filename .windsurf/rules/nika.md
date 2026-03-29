@@ -7,19 +7,47 @@ globs: "**/*.nika.yaml"
 
 Nika is a semantic YAML workflow engine for AI tasks. Schema: `nika/workflow@0.12`.
 
+## CRITICAL: Common Mistakes
+
+| Wrong | Right |
+|-------|-------|
+| `timeout: 30000` (ms) | `timeout: 30` (seconds) |
+| `data: other_task` | `data: $other_task` ($ prefix) |
+| `{{data}}` | `{{with.data}}` (with. prefix) |
+| `{{item}}` in for_each | `{{with.item}}` (with. prefix) |
+| `retry: 3` | `retry: { max_attempts: 3, delay_ms: 2000 }` |
+| `.yaml` extension | `.nika.yaml` extension |
+| `shell: bash` | `shell: true` (boolean) |
+| Missing `schema:` | `schema: "nika/workflow@0.12"` |
+| `depends_on: task_id` | `depends_on: [task_id]` (array) |
+| `tool: "server/tool"` | `tool: "server::tool"` (double colon) |
+| `retry:` inside `invoke:` | `retry:` at task level |
+| `body: {...}` JSON | `json: {...}` (auto-serialized) |
+| `{{with.results.field}}` after for_each | `{{with.results[0].field}}` (array) |
+
+## Which Verb?
+
+- Need LLM output? → `infer:`
+- Need HTTP/API call? → `fetch:`
+- Need shell command? → `exec:`
+- Need MCP/builtin tool? → `invoke:`
+- Need multi-turn agent? → `agent:`
+
 ## Workflow Skeleton
 
 ```yaml
-schema: nika/workflow@0.12          # Required. Always @0.12
-workflow: my-workflow                # Optional identifier
-provider: anthropic                  # Default LLM provider
-model: claude-sonnet-4-20250514   # Default model
-inputs:                              # Parameters with defaults
+schema: nika/workflow@0.12
+workflow: my-workflow
+provider: claude                     # or array: [groq, claude] for fallback
+model: claude-sonnet-4-20250514
+inputs:
   name: "world"
-tasks: []                            # Required. Task list
+tasks:
+  - id: hello
+    infer: "Say hello to {{inputs.name}}"
 ```
 
-## 5 Verbs (each task uses exactly one)
+## 5 Verbs
 
 ### infer: -- LLM generation
 ```yaml
@@ -30,6 +58,18 @@ tasks: []                            # Required. Task list
     temperature: 0.7
     max_tokens: 1000
     extended_thinking: true          # Claude only
+    thinking_budget: 10000
+    response_format: json            # text | json | markdown
+    content:                         # Vision/multimodal (v0.34+)
+      - type: image
+        source: "{{with.hash}}"      # CAS hash, NOT file path
+        detail: high
+      - type: text
+        text: "Describe this"
+    guardrails:
+      - type: length
+        min_words: 50
+        on_failure: retry
 ```
 
 ### exec: -- Shell command
@@ -40,9 +80,8 @@ tasks: []                            # Required. Task list
     shell: true                      # Required for pipes/redirects
     cwd: ./frontend
     env: { NODE_ENV: production }
-    timeout: 30                      # seconds
+    timeout: 30                      # Seconds (NOT ms)
 ```
-Shorthand: `exec: "echo hello"`
 
 ### fetch: -- HTTP request
 ```yaml
@@ -51,172 +90,128 @@ Shorthand: `exec: "echo hello"`
     url: "https://api.example.com/data"
     method: POST
     headers: { Authorization: "Bearer {{with.token}}" }
-    json: { query: "{{with.q}}" }
-    extract: markdown                # markdown|article|text|selector|metadata|links|feed|jsonpath|llm_txt
-    response: full                   # full|binary|(default: raw body)
+    json: { query: "{{with.q}}" }    # Auto-serialized JSON body
+    extract: markdown                # 9 modes: markdown|article|text|selector|metadata|links|jsonpath|feed|llm_txt
+    response: full                   # full | binary | (default: raw body)
+    timeout: 30
 ```
 
 ### invoke: -- MCP tool call
 ```yaml
 - id: search
   invoke:
-    tool: tool_name
-    mcp: server_name
+    tool: "novanet::novanet_search"  # server::tool (double colon)
     params: { query: "{{with.q}}" }
+    timeout: 30
 ```
-Builtins: `nika:import`, `nika:thumbnail`, `nika:chart`, `nika:metadata`, etc.
 
-### agent: -- Multi-turn agent loop
+**30 builtin nika:* tools** (no MCP needed):
+Always-on, Media, Opt-in, Runtime (nika:cost, nika:records, nika:dag_info, nika:task_status, nika:threads, nika:orchestrate)
+
+### agent: -- Multi-turn loop
 ```yaml
 - id: research
   agent:
     prompt: "Research {{with.topic}}"
     tools: [web_search, read_file]
+    mcp: [novanet]
     max_turns: 20
-    max_tokens: 4096
+    completion:
+      mode: explicit                 # explicit | natural | pattern
+    guardrails:
+      - type: length
+        max_words: 500
+        on_failure: retry
+    limits:
+      cost_usd: 2.0
 ```
+
+**Note**: `agent: "think"` (scalar) = preset reference, NOT the agent verb.
 
 ## Data Flow
 
 ```yaml
 - id: consumer
-  depends_on: [producer]             # Ordering dependency
-  with:                              # Data binding ($ prefix required)
-    data: $producer
+  depends_on: [producer]
+  with:
+    data: $producer                  # $ prefix required
     clean: $producer | trim | upper  # Pipe transforms
     temp: $api.data.temp ?? 20       # JSONPath + fallback
     key: $env.API_KEY                # Environment variable
-  exec: "echo '{{with.data}}'"
+  infer: "Process: {{with.data}}"
 ```
 
-## Templates
+Templates: `{{with.alias}}`, `{{inputs.name}}`, `{{with.item}}`, `{{context.readme}}`
 
-- `{{with.alias}}` -- Bound task output
-- `{{inputs.name}}` -- Workflow input parameter
-- `{{with.item}}` -- Current for_each item (default `as: item`)
-- `{{context.file}}` -- Loaded context file
+## Transforms (31 pipe-chainable)
 
-## Transforms (pipe-chained in with: bindings)
+- **String**: `upper`, `lower`, `trim`, `trim_start`, `trim_end`, `length`, `to_string`
+- **Array**: `first`, `last`, `first(N)`, `last(N)`, `flatten`, `reverse`, `sort`, `unique`, `compact`, `keys`, `values`
+- **Numeric**: `to_number`, `round(N)`, `abs`, `ceil`, `floor`
+- **Type**: `to_bool`, `to_json`, `parse_json`, `type_of`
+- **Parametric**: `join(",")`, `split(",")`, `default("fallback")`
+- **System**: `shell`
 
-- **String**: `upper`, `lower`, `trim`, `trim_start`, `trim_end`
-- **Collection**: `length`, `first`, `last`, `first(N)`, `last(N)`, `keys`, `values`, `flatten`, `reverse`, `sort`, `unique`, `compact`
-- **Type**: `to_string`, `to_number`, `to_bool`, `to_json`, `parse_json`
-- **Numeric**: `round(N)`, `abs`, `ceil`, `floor`
-- **Utility**: `default(V)`, `type_of`, `join(S)`, `split(S)`
-
-## Iteration
+## Task-Level Fields
 
 ```yaml
-- id: batch
-  for_each: "$list_task"
-  as: item
-  concurrency: 5
-  fail_fast: true
-  exec: "echo '{{with.item}}'"
-```
-
-## Task-Level Fields (all verbs)
-
-```yaml
-- id: my-task                        # Required, unique
-  description: "..."                 # Optional
-  provider: openai                   # Override workflow default
-  model: gpt-4o                      # Override workflow default
-  with: { alias: $task_id }          # Data bindings
-  depends_on: [task_a]               # Ordering-only deps
-  for_each: "$src"                    # Iteration
-  as: x
+- id: my-task
+  provider: openai                   # Override (or array: [openai, claude])
+  model: gpt-4o
+  preset: think                      # From agents: block
+  record: true                       # Output recording (v0.48+)
+  context_budget: 50000              # Token budget for bindings (v0.51+)
+  routing:                           # Provider routing (v0.50+)
+    fallback: [openai, claude]
+    strategy: cost                   # cost | latency | availability
   retry: { max_attempts: 3, delay_ms: 1000, backoff: 2.0 }
-  output: { format: json }           # text | json | yaml
-  artifact: { path: out.json }       # Persist output to file
-  structured: ./schema.json          # JSON schema enforcement
-  preset: think                      # Agent preset (from agents: block)
-  log: debug                         # Log level override
+  structured:
+    schema: { type: object, properties: { name: { type: string } } }
+    max_retries: 3
+    enable_repair: true
+  artifact: { path: out.md, format: markdown }
+```
+
+## Structured Output (v0.35+)
+
+5-layer defense: tool injection → extractor → JSON validation → retry → LLM repair
+
+```yaml
+structured:
+  schema:
+    type: object
+    properties:
+      name: { type: string }
+    required: [name]
+  enable_repair: true
+  max_retries: 3
+  repair_model: claude-haiku-4-5
 ```
 
 ## Agent Presets
 
-Define named agent configurations in the `agents:` block, reference them via `preset:` on tasks.
-Task-level overrides take precedence over preset values.
-
 ```yaml
-schema: nika/workflow@0.12
-workflow: preset-demo
 agents:
   think:
-    system: "You are a deep reasoning assistant"
-    provider: anthropic
+    system: "Deep reasoning assistant"
+    provider: claude
     model: claude-sonnet-4-20250514
     temperature: 0.3
-  lite:
-    provider: groq
-    model: llama-3.3-70b-versatile
-    temperature: 0.8
 tasks:
   - id: plan
-    preset: think
-    infer: "Plan the architecture for a REST API"
-  - id: implement
-    preset: lite
-    depends_on: [plan]
-    with: { plan: $plan }
-    infer: "Implement step 1 from: {{with.plan}}"
+    preset: think                    # Inherits from agents: block
+    infer: "Plan the architecture"
 ```
 
-## Example: Diamond DAG
+## Security
 
-```yaml
-schema: nika/workflow@0.12
-workflow: diamond
-tasks:
-  - id: source
-    exec: "echo 'data'"
-  - id: left
-    depends_on: [source]
-    with: { data: $source | trim | upper }
-    infer: { prompt: "Analyze: {{with.data}}" }
-  - id: right
-    depends_on: [source]
-    with: { data: $source | trim }
-    infer: { prompt: "Summarize: {{with.data}}" }
-  - id: merge
-    depends_on: [left, right]
-    with: { l: $left, r: $right }
-    infer: { prompt: "Combine:\n{{with.l}}\n{{with.r}}" }
-```
+- API keys: env vars only. Never hardcode.
+- `fetch:` blocks SSRF (private IPs).
+- `exec:` blocklist: `rm -rf /`, `sudo`, `$()`, backticks (NIKA-053).
+- Never commit `.nika/traces/` to git.
 
-## Example: Fetch + Structured Output
+## Providers
 
-```yaml
-schema: nika/workflow@0.12
-workflow: web-research
-tasks:
-  - id: scrape
-    fetch:
-      url: "https://example.com/article"
-      extract: article
-  - id: analyze
-    depends_on: [scrape]
-    with: { content: $scrape }
-    infer:
-      prompt: "Key takeaways:\n{{with.content}}"
-      structured:
-        schema:
-          type: object
-          properties:
-            takeaways: { type: array, items: { type: string } }
-          required: [takeaways]
-```
+`anthropic`/`claude`, `openai`/`gpt`, `mistral`, `groq`, `deepseek`/`deep-seek`, `gemini`/`google`, `xai`/`grok`, `native`/`local`, `mock`
 
-## Common Mistakes
-
-- Missing `$` prefix in `with:` bindings: use `$other_task`, not `other_task`
-- Wrong extension: use `.nika.yaml`, never `.yaml` alone
-- Missing `shell: true` for pipes/redirects in exec
-- Using `depends_on:` for data flow -- use `with:` instead
-- Schema must be `nika/workflow@0.12`, not just `0.12`
-- Circular references in `with:` are not allowed
-
-## LLM Providers
-
-`anthropic`/`claude`, `openai`/`gpt`, `mistral`, `groq`, `deepseek`, `gemini`/`google`, `xai`/`grok`, `native`/`local`
+Provider array for fallback: `provider: [groq, claude, openai]`
