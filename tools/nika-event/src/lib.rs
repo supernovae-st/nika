@@ -3,7 +3,7 @@
 //! Provides full audit trail with replay capability.
 //! Key types:
 //! - `Event`: Envelope with id + timestamp + kind
-//! - `EventKind`: 37 variants across 12 categories
+//! - `EventKind`: 58 variants across 15 categories
 //! - `EventLog`: Thread-safe, append-only log
 //! - `EventEmitter`: Trait for dependency injection
 //! - `NoopEmitter`: Zero-cost no-op for testing
