@@ -159,10 +159,78 @@ impl TaskExecutor {
             None => None,
         };
 
-        // Use task-level override or workflow default
-        let provider_name = resolved_provider
-            .as_deref()
-            .unwrap_or(&self.default_provider);
+        // Build provider chain: explicit chain > single provider > workflow default
+        let effective_chain: Vec<String> = if let Some(ref chain) = infer.provider_chain {
+            chain.clone()
+        } else {
+            vec![resolved_provider
+                .clone()
+                .unwrap_or_else(|| self.default_provider.to_string())]
+        };
+
+        // Resolve provider with fallback chain support.
+        // Try each provider in the chain; if get_rig_provider fails (missing API key),
+        // emit ProviderFallback event and try the next provider.
+        let (provider_name_owned, provider_idx) = {
+            let mut resolved_idx = 0;
+            let mut last_error: Option<NikaError> = None;
+            let mut found = false;
+
+            for (i, name) in effective_chain.iter().enumerate() {
+                if name == "mock" {
+                    // Mock always succeeds — don't need to check
+                    resolved_idx = i;
+                    found = true;
+                    break;
+                }
+                match self.get_rig_provider(name) {
+                    Ok(_) => {
+                        resolved_idx = i;
+                        found = true;
+                        break;
+                    }
+                    Err(e) => {
+                        if effective_chain.len() > 1 && i < effective_chain.len() - 1 {
+                            self.event_log.emit(EventKind::ProviderFallback {
+                                task_id: Arc::clone(task_id),
+                                from: name.clone(),
+                                to: effective_chain[i + 1].clone(),
+                                reason: format!("{}", e),
+                            });
+                            tracing::warn!(
+                                task_id = %task_id,
+                                from = %name,
+                                to = %effective_chain[i + 1],
+                                error = %e,
+                                "Provider fallback: {} → {}",
+                                name,
+                                effective_chain[i + 1]
+                            );
+                        }
+                        last_error = Some(e);
+                    }
+                }
+            }
+
+            if !found {
+                if effective_chain.len() > 1 {
+                    return Err(NikaError::from(
+                        crate::error_domains::ProviderError::FallbackChainExhausted {
+                            last_provider: effective_chain.last().cloned().unwrap_or_default(),
+                            last_error: last_error
+                                .map(|e| format!("{}", e))
+                                .unwrap_or_default(),
+                        },
+                    ));
+                } else {
+                    return Err(last_error.unwrap());
+                }
+            }
+
+            (effective_chain[resolved_idx].clone(), resolved_idx)
+        };
+        let _ = provider_idx; // Used for tracing if needed
+        let provider_name = &provider_name_owned;
 
         // Mock provider support for testing (no API call)
         // Generates a generic JSON response with common test fields
