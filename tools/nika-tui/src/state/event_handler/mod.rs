@@ -491,7 +491,12 @@ impl TuiState {
             | EventKind::FallbackTriggered { .. }
             | EventKind::ProviderFallback { .. }
             | EventKind::RecordCreated { .. }
-            | EventKind::RecordSkipped { .. } => {
+            | EventKind::RecordSkipped { .. }
+            | EventKind::OrchestratorStarted { .. }
+            | EventKind::OrchestratorRound { .. }
+            | EventKind::OrchestratorSubWorkflow { .. }
+            | EventKind::OrchestratorCompleted { .. }
+            | EventKind::OrchestratorFailed { .. } => {
                 // Observability events: captured in trace NDJSON but don't
                 // require TUI state mutations -- the TUI tracks task-level
                 // status via TaskStarted/TaskCompleted/TaskFailed.
