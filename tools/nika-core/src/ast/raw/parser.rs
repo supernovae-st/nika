@@ -1775,6 +1775,7 @@ fn validate_task_keys(
         "structured",
         "artifact",
         "routing",
+        "record",
         "log",
         "concurrency",
         "fail_fast",
@@ -1958,6 +1959,16 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
         None => None,
     };
 
+    // Parse record: config (task-level output compression)
+    let record = match map.get_node("record") {
+        Some(node) => {
+            let span = node_to_span(file_id, node);
+            let value = node_to_json(node);
+            Some(Spanned::new(value, span))
+        }
+        None => None,
+    };
+
     // Parse standalone concurrency/fail_fast (used with decompose when no for_each)
     let standalone_concurrency = if for_each.is_none() {
         get_u32_field(file_id, map, "concurrency")?
@@ -1991,6 +2002,7 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
         routing,
         artifact,
         log,
+        record,
     };
 
     Ok(Spanned::new(task, span))

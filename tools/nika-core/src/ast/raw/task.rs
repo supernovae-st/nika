@@ -82,6 +82,9 @@ pub struct RawTask {
     /// Log configuration override for this task
     pub log: Option<Spanned<serde_json::Value>>,
 
+    /// Record compression configuration
+    pub record: Option<Spanned<serde_json::Value>>,
+
     /// The span of the entire task block
     pub span: Span,
 }

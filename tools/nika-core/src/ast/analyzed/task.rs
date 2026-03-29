@@ -89,6 +89,9 @@ pub struct AnalyzedTask {
     /// Structured output specification (JSON schema enforcement)
     pub structured: Option<StructuredOutputSpec>,
 
+    /// Record compression configuration
+    pub record: Option<crate::ast::record::RecordSpec>,
+
     /// Task-level routing override.
     pub routing: Option<crate::ast::routing::RoutingConfig>,
 

@@ -766,6 +766,41 @@ fn analyze_task(
                 }
             }
         }),
+        record: raw.record.as_ref().and_then(|s| {
+            // Shorthand: record: true → RecordSpec { compress: true, ..default }
+            if let Some(b) = s.value.as_bool() {
+                if b {
+                    Some(crate::ast::record::RecordSpec::shorthand_true())
+                } else {
+                    None
+                }
+            } else {
+                match serde_json::from_value::<crate::ast::record::RecordSpec>(s.value.clone()) {
+                    Ok(spec) => {
+                        if let Err(e) = spec.validate() {
+                            ctx.errors.push(AnalyzeError {
+                                kind: AnalyzeErrorKind::InvalidValue,
+                                span: s.span,
+                                message: format!("record: {e}"),
+                                suggestion: None,
+                                note: None,
+                            });
+                            None
+                        } else {
+                            Some(spec)
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            task_id = %raw.id.value,
+                            error = %e,
+                            "Failed to parse record: config, ignoring"
+                        );
+                        None
+                    }
+                }
+            }
+        }),
         span: raw.span,
     };
 

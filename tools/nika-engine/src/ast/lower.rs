@@ -145,6 +145,7 @@ fn lower_task(task: AnalyzedTask, table: &TaskTable) -> Result<Task, NikaError> 
         log: task.log.clone(),
         depends_on,
         structured: task.structured,
+        record: task.record,
         preset: task.preset,
     })
 }
@@ -621,6 +622,7 @@ pub fn unlower(workflow: Workflow) -> Result<AnalyzedWorkflow, NikaError> {
             artifact: task.artifact.clone(),
             log: task.log.clone(),
             structured: task.structured.clone(),
+            record: None,
             preset: task.preset.clone(),
             routing: None,
             span: Span::dummy(),
@@ -919,6 +921,7 @@ mod tests {
             artifact: None,
             log: None,
             structured: None,
+            record: None,
             preset: None,
             routing: None,
             span: Span::dummy(),
@@ -980,6 +983,7 @@ mod tests {
             artifact: None,
             log: None,
             structured: None,
+            record: None,
             preset: None,
             routing: None,
             description: None,
