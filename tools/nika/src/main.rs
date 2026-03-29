@@ -303,10 +303,14 @@ enum Commands {
     ///
     /// Examples:
     ///   nika agent "Research AI workflows" --tool web_search --turns 5
+    ///   nika agent --list
     #[command(next_help_heading = "5 VERBS", visible_alias = "a")]
     Agent {
-        /// Agent objective
-        prompt: String,
+        /// Agent objective (required unless --list)
+        prompt: Option<String>,
+        /// List available agent presets (builtins + workflow-defined)
+        #[arg(long)]
+        list: bool,
         /// Provider
         #[arg(short, long)]
         provider: Option<String>,
@@ -1057,6 +1061,7 @@ async fn main() {
 
         Some(Commands::Agent {
             prompt,
+            list,
             provider,
             model,
             system,
@@ -1067,20 +1072,29 @@ async fn main() {
             temperature,
             stdin,
         }) => {
-            cli::verbs::handle_agent(
-                prompt,
-                provider,
-                model,
-                system,
-                tools,
-                mcp_servers,
-                turns,
-                max_tokens,
-                temperature,
-                stdin,
-                quiet,
-            )
-            .await
+            if list {
+                print_agent_presets();
+                Ok(())
+            } else {
+                let prompt = prompt.unwrap_or_else(|| {
+                    eprintln!("Error: prompt is required (use --list to see presets)");
+                    std::process::exit(1);
+                });
+                cli::verbs::handle_agent(
+                    prompt,
+                    provider,
+                    model,
+                    system,
+                    tools,
+                    mcp_servers,
+                    turns,
+                    max_tokens,
+                    temperature,
+                    stdin,
+                    quiet,
+                )
+                .await
+            }
         }
 
         Some(Commands::Check { file, strict }) => {
@@ -1531,6 +1545,58 @@ tasks:
     println!();
 
     Ok(())
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AGENT PRESETS
+// ═══════════════════════════════════════════════════════════════════════════
+
+fn print_agent_presets() {
+    use nika::runtime::resolver::default_presets;
+
+    let presets = default_presets();
+    let mut names: Vec<&String> = presets.keys().collect();
+    names.sort();
+
+    println!("\n {} {}\n", "⟡".cyan(), "Built-in Agent Presets".bold());
+    println!(
+        "  {:<12} {:<28} {:<6} {}",
+        "NAME".dimmed(),
+        "MODEL".dimmed(),
+        "TEMP".dimmed(),
+        "DESCRIPTION".dimmed(),
+    );
+    println!("  {}", "─".repeat(80).dimmed());
+
+    for name in &names {
+        let agent = &presets[*name];
+        let model = agent.model.as_deref().unwrap_or("default");
+        let temp = agent
+            .temperature
+            .map(|t| format!("{:.1}", t))
+            .unwrap_or_else(|| "—".to_string());
+        // First sentence of system prompt as description
+        let desc = agent.system.split('.').next().unwrap_or(&agent.system);
+        println!(
+            "  {:<12} {:<28} {:<6} {}",
+            name.cyan(),
+            model.dimmed(),
+            temp,
+            desc,
+        );
+    }
+
+    println!(
+        "\n  {} Use with: {} or {}",
+        "→".dimmed(),
+        "agent: <name>".cyan(),
+        "preset: <name>".cyan(),
+    );
+    println!(
+        "  {} Override in workflow {} block\n",
+        "→".dimmed(),
+        "agents:".cyan(),
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
