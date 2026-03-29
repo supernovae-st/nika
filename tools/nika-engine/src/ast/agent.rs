@@ -220,6 +220,11 @@ pub struct AgentParams {
     /// Base URL for OpenAI-compatible endpoint override.
     #[serde(default)]
     pub base_url: Option<String>,
+
+    /// Provider fallback chain: try providers in order until one succeeds.
+    /// Set from `provider: [groq, anthropic]` or `routing.fallback`.
+    #[serde(default)]
+    pub provider_chain: Option<Vec<String>>,
 }
 
 impl AgentParams {

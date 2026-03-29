@@ -79,6 +79,9 @@ pub struct InferParams {
     /// Base URL for OpenAI-compatible endpoint override.
     /// Resolved precedence: task base_url > workflow base_url > config endpoint > env var.
     pub base_url: Option<String>,
+    /// Provider fallback chain: try providers in order until one succeeds.
+    /// Set from `provider: [groq, anthropic]` or `routing.fallback`.
+    pub provider_chain: Option<Vec<String>>,
 }
 
 impl<'de> Deserialize<'de> for InferParams {
@@ -130,6 +133,7 @@ impl<'de> Deserialize<'de> for InferParams {
                 content: None,
                 guardrails: Vec::new(),
                 base_url: None,
+                provider_chain: None,
             }),
             InferParamsHelper::Full {
                 prompt,
@@ -156,6 +160,7 @@ impl<'de> Deserialize<'de> for InferParams {
                 content,
                 guardrails,
                 base_url: None,
+                provider_chain: None,
             }),
         }
     }

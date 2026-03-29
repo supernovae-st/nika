@@ -1836,10 +1836,44 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
 
     // Extract optional fields
     let description = get_string_field(file_id, map, "description")?;
-    let provider = get_string_field(file_id, map, "provider")?;
     let model = get_string_field(file_id, map, "model")?;
     let base_url = get_string_field(file_id, map, "base_url")?;
     let preset = get_string_field(file_id, map, "preset")?;
+
+    // Parse provider: string or array (fallback chain).
+    // `provider: anthropic` → single provider
+    // `provider: [groq, anthropic]` → first is primary, full list becomes routing.fallback
+    let (provider, provider_chain) = match map.get_node("provider") {
+        Some(Node::Scalar(_)) => {
+            let p = extract_string(file_id, map.get_node("provider").unwrap())?;
+            (Some(p), None)
+        }
+        Some(Node::Sequence(seq)) => {
+            let span = marked_span_to_span(file_id, seq.span());
+            let items: Result<Vec<_>, _> =
+                seq.iter().map(|node| extract_string(file_id, node)).collect();
+            let items = items?;
+            if items.is_empty() {
+                return Err(ParseError {
+                    kind: ParseErrorKind::InvalidType,
+                    span,
+                    message: "provider array must have at least one entry".to_string(),
+                });
+            }
+            let primary = items[0].clone();
+            let chain: Vec<String> = items.into_iter().map(|s| s.into_inner()).collect();
+            (Some(primary), Some(chain))
+        }
+        Some(_) => {
+            let node = map.get_node("provider").unwrap();
+            return Err(ParseError {
+                kind: ParseErrorKind::InvalidType,
+                span: node_to_span(file_id, node),
+                message: "provider must be a string or array of strings".to_string(),
+            });
+        }
+        None => (None, None),
+    };
 
     // Parse all task fields
     let action = parse_action(file_id, map)?;
@@ -1867,14 +1901,23 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
         None => None,
     };
 
-    // Parse routing: config (task-level routing override)
-    let routing = match map.get_node("routing") {
-        Some(node) => {
+    // Parse routing: config (task-level routing override).
+    // If provider was an array, auto-populate routing.fallback from the chain.
+    let routing = match (map.get_node("routing"), &provider_chain) {
+        (Some(node), _) => {
+            // Explicit routing: block takes priority
             let span = node_to_span(file_id, node);
             let value = node_to_json(node);
             Some(Spanned::new(value, span))
         }
-        None => None,
+        (None, Some(chain)) => {
+            // Auto-generate routing from provider array
+            let fallback_arr: Vec<serde_json::Value> =
+                chain.iter().map(|s| serde_json::Value::String(s.clone())).collect();
+            let value = serde_json::json!({ "fallback": fallback_arr });
+            Some(Spanned::new(value, span))
+        }
+        (None, None) => None,
     };
 
     // Parse log: config (task-level log override)
@@ -3368,5 +3411,105 @@ tasks:
             task.preset.is_none(),
             "task without preset: should have None"
         );
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Provider array syntax (fallback chains)
+    // ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn provider_string_parsed_as_single() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: gen
+    provider: anthropic
+    infer: "hello"
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_ok(), "parse failed: {:?}", result.err());
+        let wf = result.unwrap();
+        let task = &wf.tasks.value[0].value;
+        assert_eq!(task.provider.as_ref().unwrap().value, "anthropic");
+        // No routing generated for single provider
+        assert!(task.routing.is_none());
+    }
+
+    #[test]
+    fn provider_array_parsed_as_fallback_chain() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: gen
+    provider: [groq, anthropic]
+    infer: "hello"
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_ok(), "parse failed: {:?}", result.err());
+        let wf = result.unwrap();
+        let task = &wf.tasks.value[0].value;
+        // Primary provider is first in chain
+        assert_eq!(task.provider.as_ref().unwrap().value, "groq");
+        // Routing fallback is auto-populated from array
+        assert!(task.routing.is_some());
+        let routing_json = task.routing.as_ref().unwrap();
+        let fallback = routing_json.value["fallback"].as_array().unwrap();
+        assert_eq!(fallback.len(), 2);
+        assert_eq!(fallback[0].as_str().unwrap(), "groq");
+        assert_eq!(fallback[1].as_str().unwrap(), "anthropic");
+    }
+
+    #[test]
+    fn provider_single_element_array_no_routing() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: gen
+    provider: [anthropic]
+    infer: "hello"
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_ok(), "parse failed: {:?}", result.err());
+        let wf = result.unwrap();
+        let task = &wf.tasks.value[0].value;
+        assert_eq!(task.provider.as_ref().unwrap().value, "anthropic");
+        // Single-element array: routing generated but only 1 entry
+        assert!(task.routing.is_some());
+    }
+
+    #[test]
+    fn provider_empty_array_rejected() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: gen
+    provider: []
+    infer: "hello"
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_err(), "empty provider array should be rejected");
+    }
+
+    #[test]
+    fn explicit_routing_overrides_provider_array() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: gen
+    provider: [groq, anthropic]
+    routing:
+      fallback: [openai, mistral]
+    infer: "hello"
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_ok(), "parse failed: {:?}", result.err());
+        let wf = result.unwrap();
+        let task = &wf.tasks.value[0].value;
+        // Provider is first from array
+        assert_eq!(task.provider.as_ref().unwrap().value, "groq");
+        // Explicit routing: block wins over auto-generated
+        let routing_json = task.routing.as_ref().unwrap();
+        let fallback = routing_json.value["fallback"].as_array().unwrap();
+        assert_eq!(fallback[0].as_str().unwrap(), "openai");
     }
 }
