@@ -298,9 +298,95 @@ COMMIT 6: Doc fix + static assertion
 
 ---
 
-# SECTION E — BUGS SYSTÉMIQUES NON RÉSOLUS
+# SECTION E — AUDIT ARCHITECTURE (5 agents spécialisés, 2026-03-29)
 
-Source: `docs/plans/sessions/session-review-findings.md`
+## E.1 Top 5 refactorings architecturaux (Rust Architect)
+
+| # | Refactoring | Impact | Effort |
+|---|------------|--------|--------|
+| 1 | **Complete error domain migration** (`error_domains.rs`) — 96 flat variants → 12 domain sub-enums | HIGH | 3-4 days |
+| 2 | **Extract `nika-runtime` trait crate** — `trait TaskExecution`, `trait Provider`, `trait SecretResolver` → breaks engine→daemon edge | HIGH | 2-3 days |
+| 3 | **Restructure EventKind** — 66 flat → ~10 nested enums (TaskEvent, ProviderEvent, McpEvent...) | MEDIUM | 2-3 days |
+| 4 | **Split runner.rs** (6626 LOC) → scheduler.rs, for_each.rs, orchestration.rs, mod.rs, tests.rs | MEDIUM | 1-2 days |
+| 5 | **Thread typed enums** — ProviderKind replace String, VerbType to nika-core, ExtractMode in events | MEDIUM | 1-2 days |
+
+## E.2 Top 10 refactorings code quality (Rust Pro)
+
+| # | Fichier | Issue | LOC saved |
+|---|---------|-------|-----------|
+| 1 | `runner.rs:1128` | **CRITICAL**: bare `.unwrap()` in retry loop — panickable | 1 line fix |
+| 2 | `runner.rs:1689-2140` | for_each: 451-line if/else, 15 identical error blocks | -200 LOC |
+| 3 | `infer.rs:33-1051` | `run_infer()` 1018 lines, 7 duplicated emit+cost blocks | -300 LOC extracted |
+| 4 | `providers.rs:384-611` | 3 identical limit-check blocks in agent loop | -90 LOC |
+| 5 | `runner.rs:1669-1671` | workflow_artifacts/base_url cloned every DAG layer → Arc once | perf fix |
+| 6 | `resolve.rs:546-811` | resolve_with_entry + traced variant: 200 LOC duplication | -200 LOC |
+| 7 | `infer.rs:39-64` + `agent.rs:39-64` | Identical from_example pre-read | -50 LOC |
+| 8 | `providers.rs:220-297` | 5 provider methods identical boilerplate | -60 LOC |
+| 9 | `fallback.rs:55,81` | `unsafe { env::set_var }` in async context → use secret store | safety |
+| 10 | `infer.rs:498,850` | Dead mpsc::channel receivers — allocated but never read | 4 lines |
+
+## E.3 Infrastructure gaps (Daemon Architect)
+
+| Gap | Detail | Priority |
+|-----|--------|----------|
+| **Cache persistence** | In-memory only (DashMap). On restart, all LLM cache lost. Need SQLite table. | P0 |
+| **ConnectedClient for boot** | 7 sequential socket connections for secrets. Use pipelining. | P0 |
+| **Record persistence** | No records table. Need SQLite + FTS5 for P-RECORD. | P1 |
+| **CAS garbage collection** | Blobs accumulate forever at ~/.nika/media/cas/. No cleanup. | P1 |
+| **Config expansion** | Only `[api_keys]` + `[endpoints]`. Need `[routing]`, `[records]`, `[daemon]`, `[media]`. | P1 |
+| **Cron catch-up** | Missed schedules when daemon down. No compensation. | P2 |
+| **Health check** | `Ping` returns version+uptime but no readiness/liveness semantics. | P2 |
+| **Hot config reload** | SIGHUP commented as "future" but not implemented. | P3 |
+| **MCP server architecture** | `nika mcp serve` should embed engine directly, NOT go through daemon. 9 tools planned. | P2 |
+
+## E.4 Test gaps critiques (Code Reviewer)
+
+| # | Gap | Fichier | Confidence |
+|---|-----|---------|------------|
+| 1 | Provider fallback NIKA-037 has NO offline test | `executor/tests.rs` | 95% |
+| 2 | Daemon tests: bare `sleep(100ms)` for readiness (11 instances) | `server.rs` | 92% |
+| 3 | Structured output Layer 3/4 (retry+repair) ZERO tests | `structured_output.rs` | 90% |
+| 4 | Agent guardrail `on_failure: retry` never exercised | `rig_agent_loop/tests.rs` | 88% |
+| 5 | context_loader path traversal untested at integration level | `context_loader.rs` | 87% |
+| 6 | TUI 86k LOC with 277 tests — event pipeline not state-tested | `nika-tui` | 85% |
+| 7 | nika-cli has ZERO behavioral tests for command dispatch | `nika-cli/src/` | 82% |
+| 8 | Cron scheduling: no missed-fire or concurrent-cap tests | `services/jobs.rs` | 83% |
+| 9 | LSP e2e harness always `#[ignore]`, 9 bare `sleep()` calls | `e2e_harness.rs` | 81% |
+
+## E.5 Connexions features (Feature Architect)
+
+**Shared abstractions à créer AVANT Session M:**
+
+```rust
+// 1. IntrospectionContext (bundles state for 6 introspection tools)
+pub struct IntrospectionContext {
+    pub dag: Arc<Dag>,
+    pub datastore: Arc<RunContext>,
+    pub event_log: Arc<EventLog>,
+}
+
+// 2. RecordStore trait (engine in-memory, future: daemon-backed)
+pub trait RecordStore: Send + Sync {
+    fn set_record(&self, task_id: Arc<str>, record: Record);
+    fn get_record(&self, task_id: &str) -> Option<Record>;
+    fn iter_records(&self) -> Vec<(Arc<str>, Record)>;
+}
+
+// 3. PostCompletionStage trait (pipeline: scan → compress → artifact)
+pub trait PostCompletionStage: Send + Sync {
+    async fn process(&self, ctx: &PostCompletionCtx) -> PostCompletionResult;
+}
+// Stages: SecurityScanStage → RecordCompressionStage → ArtifactStage
+
+// 4. resolve_compression_provider() in resolver.rs
+// Fallback: summary preset → workflow default → cheapest model
+```
+
+**Ordre sécurité**: Output scan AVANT compression (protège le compressor LLM contre injection).
+
+**Records vivent dans engine, PAS daemon** (daemon ne dépend que de nika-core).
+
+## E.6 Bugs systémiques restants
 
 | Catégorie | Count | Action |
 |-----------|-------|--------|
@@ -313,6 +399,8 @@ Source: `docs/plans/sessions/session-review-findings.md`
 | `#[allow(dead_code)]` suspects | 42 | Auditer et supprimer ou justifier |
 | `unreachable!()` atteignables | 5 | runner.rs:5612, template.rs:313, rig.rs:721/723/837/839 |
 | README guardrail syntax wrong | 3 | Lines 399, 652, 660 |
+| Dead mpsc channels | 2 | infer.rs:498, 850 |
+| `unsafe { env::set_var }` in async | 2 | fallback.rs:55, 81 |
 
 ---
 
@@ -321,43 +409,63 @@ Source: `docs/plans/sessions/session-review-findings.md`
 ## F.1 Graphe de dépendances features
 
 ```
-                    L.3 (nika:cost)
-                         │
-                         ▼
-              M (P-RECORD: compression)
-                    │         │
-                    ▼         ▼
-        N.1 (token budgets)  N.2 (introspection tools)
-                    │         │
-                    ▼         ▼
-              N.3 (NDJSON + FTS5 persistence)
-                         │
-                         ▼
-              [Future] P-ORCHESTRATE (goal:, DynamicDag)
+[Session L.3: nika:cost tool] ─────────────────────────────────────────────┐
+     │                                                                      │
+     ▼                                                                      │
+[Pre-work: Create shared abstractions] ◄──── IntrospectionContext          │
+     │                                        RecordStore trait             │
+     │                                        PostCompletionStage trait     │
+     ▼                                                                      │
+[Session M: P-RECORD] ─────────────────────────────────────────────────────┤
+     │  Record struct + RecordSpec AST + Parser + Lower                    │
+     │  RecordCompressor (uses summary preset from L)                      │
+     │  PostCompletionPipeline: SecurityScan → RecordCompress → Artifact   │
+     │  Record-aware bindings ($task → Record.summary)                     │
+     │  Events: RecordCreated, RecordSkipped                               │
+     │  nika:records tool                                                   │
+     │                                                                      │
+     ├──► [Session N Track A: P-CONTEXT]                                   │
+     │      context_budget: AST, token counting, enforce_budget()          │
+     │                                                                      │
+     ├──► [Session N Track B: P-INTROSPECT] (parallélisable)              │
+     │      IntrospectionContext → dag_info, task_status, threads, orchestrate│
+     │                                                                      │
+     └──► [Session N Track C: P-MEMORY-LOCAL]                              │
+            RecordWriter NDJSON → SQLite FTS5 → nika trace search          │
+                 │                                                          │
+                 ▼                                                          │
+     [Future: P-ORCHESTRATE (v0.53)]                                       │
+            Orchestrator loop → DynamicDag → goal: field                    │
+                 │                                                          │
+                 ▼                                                          │
+     [Future: MCP Server Mode]                                              │
+            WorkflowRunner trait → Runner::new_for_embedding()             │
 ```
 
 ## F.2 Connexions entre composants
 
 | Source | Target | Lien |
 |--------|--------|------|
-| Agent presets | Records | Preset `summary` devrait auto-enable `record: { compress: true }` |
-| Records | Bindings | `$task` retourne Record.summary au lieu du raw output |
-| Records | Introspection | `nika:records` query les Records accumulés |
-| Records | Persistence | NDJSON écrit les Records après workflow completion |
-| Daemon | Persistence | Pattern DB thread + mpsc channel réutilisable pour FTS5 |
-| Daemon | nika:cost | Pourrait cacher les coûts cross-session |
-| Fallback chains | Bench | `nika bench` utilise déjà les stats — lier aux cost data |
-| Output scanner | Records | Scanner AVANT compression (le raw est plus riche) |
-| Token budgets | Context loading | `context_budget:` s'applique aux `with:` bindings |
-| MCP server mode | Engine | Runner doit être embeddable (pas de println!, pas de stdin) |
+| Agent presets | Records | `default_record` field sur AgentDef: `search` → auto compress |
+| Records | Bindings | `$task` retourne Record.summary, `$task.raw` → raw output |
+| Records | Introspection | `nika:records` query les Records via RunContext |
+| Records | Persistence | NDJSON via RecordWriter (engine-side, PAS daemon) |
+| Daemon | FTS5 pattern | `storage.rs` DB thread + mpsc — réutiliser pour RecordIndex |
+| Daemon | Cache | **Gap P0**: cache in-memory only, lost on restart |
+| Fallback chains | ProviderResponded | **Gap**: failed attempts must emit ProviderResponded(cost:0) |
+| Output scanner | Records | Scanner AVANT compression (protège compressor LLM) |
+| Token budgets | Bindings | Records = semantic compression, budget = hard truncation (complémentaires) |
+| MCP server | Engine | Embed Runner directly, NOT through daemon. 9 tools planned. |
 
-## F.3 Shared abstractions à créer AVANT les sessions
+## F.3 Shared abstractions à créer AVANT Session M (~2h pre-work)
 
-| Abstraction | Où | Utilisé par |
-|-------------|-----|-------------|
-| `BuiltinToolContext` struct | `builtin/mod.rs` | nika:cost, nika:records, 4 introspection tools |
-| `RecordStore` trait | `store/record.rs` | RunContext (in-memory), daemon (persistent) |
-| `TokenEstimator` trait | `binding/token_budget.rs` | Budget enforcement, Record compression |
+| Abstraction | Fichier | Utilisé par |
+|-------------|---------|-------------|
+| `IntrospectionContext` | `runtime/introspect.rs` (NEW) | 6 introspection tools (dag_info, task_status, threads, orchestrate, cost, records) |
+| `RecordStore` trait | `store/record_store.rs` (NEW) | RunContext (InMemoryRecordStore), future: DaemonRecordStore |
+| `PostCompletionStage` trait | `runtime/pipeline.rs` (NEW) | SecurityScan → RecordCompress → Artifact (extensible pipeline) |
+| `resolve_compression_provider()` | `runtime/resolver.rs` | summary preset → workflow default → cheapest model |
+| `emit_provider_responded()` helper | `runtime/executor/verbs.rs` | Deduplicate 11 identical emit+cost blocks across infer+agent |
 
 ---
 
