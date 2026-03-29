@@ -1,10 +1,10 @@
 # Autonomous Session Progress
 
-**Updated**: 2026-03-29T08:00:00
+**Updated**: 2026-03-29T09:00:00
 **Status**: IN_PROGRESS
 **Version**: v0.51.0 (tagged + pushed)
 **Sessions completed**: A, B, C, E (partial), F (partial), G, J (partial)
-**Total commits**: 39
+**Total commits**: 40 (5 new this session)
 **Total tests**: 2153 (0 failures, 0 clippy warnings)
 
 ## BLOC 1: QUALITY — v0.51.0 released (Sessions A, B, C, E)
@@ -14,54 +14,57 @@
 - Session C: 17 silent failures fixed, TaskEventGuard (4 commits)
 - Session E: Tautological tests replaced (1 commit)
 
-## BLOC 2: ARCHITECTURE — Session G DONE, Session F IN PROGRESS
+## BLOC 2: ARCHITECTURE — Session G DONE, Session F DONE (Parts 1-3)
 
 ### Session G: Split rig.rs — DONE (5 commits)
 
 ```
 rig.rs (3675 LOC monolith) → rig/ directory:
   mod.rs:   1691 LOC (-54%)
-  error.rs:  147 LOC (McpToolError, ProviderVerify*, RigInferError)
-  stream.rs: 231 LOC (StreamChunk, StreamResult, consume_rig_stream)
-  tool.rs:   181 LOC (NikaMcpToolDef, NikaMcpTool, ToolDyn impl)
-  tests.rs: 1461 LOC (76 test functions)
+  error.rs:  147 LOC
+  stream.rs: 231 LOC
+  tool.rs:   181 LOC
+  tests.rs: 1461 LOC
 ```
 
-### Session F: Stringly-Typed Migration — Parts 1-3 DONE (4 commits)
+### Session F: Stringly-Typed Migration — Parts 1-3 DONE (5 commits)
 
-**Part 1: ExtractMode + ResponseMode** (commit 3cb6ea652)
-- Created `ExtractMode` (9 variants) and `ResponseMode` (2 variants) in nika-core
-- Migrated AnalyzedFetchAction, FetchParams, apply_extract(), fetch.rs, CLI
-- Invalid modes caught at analysis time (type system prevents runtime invalid modes)
-- ~186 test assertions updated across 14 files
+**Part 1: ExtractMode + ResponseMode enums** (commit 3cb6ea652)
+- `ExtractMode` (9 variants) and `ResponseMode` (2 variants) in nika-core/ast/extract.rs
+- Migrated across 14 files: AnalyzedFetchAction, FetchParams, apply_extract(), fetch.rs, CLI
+- Invalid modes caught at analysis time; ~186 test assertions updated
 
-**Part 2: Event Type Enums** (commit d3ce4235d)
-- Created GuardrailType, Severity, AgentTurnKind, FinishReason, AgentStopReason in nika-event/types.rs
-- FinishReason and AgentStopReason include Other(String) for dynamic values
-- Migrated EventKind variants, display formatters, TUI handlers
-- ~50+ test constructions updated across 24 files
+**Part 2: Event type enums** (commit d3ce4235d)
+- `GuardrailType`, `Severity`, `AgentTurnKind`, `FinishReason`, `AgentStopReason` in nika-event/types.rs
+- FinishReason/AgentStopReason include Other(String) for dynamic values
+- Migrated across 24 files: EventKind variants, display, TUI, tests
 
 **Part 3: LSP + LOW bugs** (commits 928085dce, 3e10b78e8)
-- LSP completions use ExtractMode::ALL_NAMES / ResponseMode::ALL_NAMES
+- LSP completions use enum ALL_NAMES constants
 - compact transform filters empty strings (L2)
-- round(0) returns integer like ceil/floor (L3)
-- EventKind variant count: 44 → 58 (L9)
+- round(0) returns integer consistent with ceil/floor (L3)
+- EventKind variant count updated: 44 → 58 (L9)
 
-**NOT DONE from Session F:**
-- Part 4: EventKind grouping (RC7) — HIGH risk, massive scope, deferred
-- ProviderName enum migration — deferred to future session
+**NOT DONE (deferred):**
+- Part 4: EventKind grouping into sub-enums (HIGH risk, massive serde compat scope)
+- ProviderName enum migration (MEDIUM risk, 916 occurrences)
+
+## Session H: LSP Overhaul — TRIAGED
+
+Bugs 4-6 (template crash, NIKA-163 workflow keys, task keys) already fixed in prior sessions.
+Remaining: E2E test harness, validation parity, extension version sync.
 
 ## OTHER
 
-- Session J: Error code table fix, preset: already existed (1 commit)
+- Session J: Error code table fix (1 commit)
 - Release: v0.51.0 bump, tag, CHANGELOG (3 commits)
 
 ## Next priorities
 
-1. **Session H**: LSP overhaul (NIKA-163, hover, code actions)
-2. **Session K**: Inference routing (fallback chains)
-3. **Session D**: Quality infra (cargo-mutants, proptest)
-4. **Session L-N**: Phase 1 features
+1. **Session K**: Inference routing (fallback chains, `nika bench`)
+2. **Session D**: Quality infra (cargo-mutants, proptest strategies)
+3. **Session H remainder**: LSP E2E tests, extension version sync
+4. **Session L-N**: Phase 1 features (presets, compression, memory)
 
 ## For resume
 
