@@ -619,6 +619,7 @@ impl Runner {
                 .map(|parts| parts.iter().cloned().map(Into::into).collect()),
             guardrails: Vec::new(),
             base_url: None,
+            provider_chain: None,
         };
 
         Some((schema, max_retries, infer_params))
@@ -958,12 +959,19 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
         // Resolve base_url: task-level override takes precedence over workflow default
         let resolved_base_url = task.base_url.clone().or(workflow_base_url);
+        // Extract provider fallback chain from routing config
+        let provider_chain = task
+            .routing
+            .as_ref()
+            .filter(|r| r.fallback.len() > 1)
+            .map(|r| r.fallback.clone());
         let mut lowered_action = lower_action(
             &task.action,
             &effective_provider,
             &effective_model,
             &task.retry,
             &resolved_base_url,
+            &provider_chain,
         );
 
         // Inject preset system/temperature into lowered action (task-level > preset)
