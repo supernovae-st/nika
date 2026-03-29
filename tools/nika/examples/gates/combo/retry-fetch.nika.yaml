@@ -7,10 +7,12 @@ tasks:
     fetch:
       url: "https://httpbin.org/get"
       method: GET
-    max_retries: 2
+    retry:
+      max_attempts: 3
+      delay_ms: 1000
 
   - id: process
     depends_on: [resilient_fetch]
     with:
       data: $resilient_fetch
-    exec: "echo 'Fetched: {{with.data}}'"
+    exec: "echo 'Fetched: {{with.data | length}} chars'"

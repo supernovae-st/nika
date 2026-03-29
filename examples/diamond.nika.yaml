@@ -16,25 +16,25 @@ tasks:
     depends_on: [read_code]
     with:
       code: $read_code
+    model: claude-haiku-4-5
     infer:
       prompt: |
         Analyze this code for security issues:
         {{with.code}}
 
         List any security concerns briefly.
-      model: haiku  # Fast/cheap
 
   - id: quality
     depends_on: [read_code]
     with:
       code: $read_code
+    model: claude-haiku-4-5
     infer:
       prompt: |
         Analyze this code for quality issues:
         {{with.code}}
 
         List any code quality concerns briefly.
-      model: haiku
 
   - id: report
     depends_on: [security, quality]
