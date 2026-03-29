@@ -851,6 +851,25 @@ impl LiveRenderer {
             }
 
             // ── Agent ─────────────────────────────────────────────
+            EventKind::PresetApplied {
+                preset_name,
+                provider,
+                model,
+                ..
+            } => {
+                if self.detail.show_sub_events() {
+                    let model_str = model.as_deref().unwrap_or("default");
+                    let provider_str = provider.as_deref().unwrap_or("default");
+                    self.log(&format!(
+                        "      {} preset {} ({}/{})",
+                        "⟡".cyan(),
+                        preset_name.cyan(),
+                        provider_str.dimmed(),
+                        model_str.dimmed(),
+                    ));
+                }
+            }
+
             EventKind::AgentStart {
                 max_turns,
                 mcp_servers,

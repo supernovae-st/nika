@@ -139,6 +139,10 @@ impl TuiState {
             // ═══════════════════════════════════════════
             // AGENT EVENTS
             // ═══════════════════════════════════════════
+            EventKind::PresetApplied { .. } => {
+                // Informational — no TUI state change needed
+            }
+
             EventKind::AgentStart { max_turns, .. } => {
                 self.on_agent_start(*max_turns);
             }
