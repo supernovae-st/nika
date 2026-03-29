@@ -5352,6 +5352,7 @@ dependencies = [
  "chrono",
  "indexmap 2.13.0",
  "insta",
+ "jsonschema",
  "marked-yaml",
  "miette",
  "pretty_assertions",

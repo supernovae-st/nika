@@ -108,10 +108,7 @@ impl BuiltinTool for CostTool {
                         response.total_cost_usd += cost_usd;
                         response.calls += 1;
 
-                        let entry = response
-                            .per_task
-                            .entry(task_id.to_string())
-                            .or_default();
+                        let entry = response.per_task.entry(task_id.to_string()).or_default();
                         entry.input_tokens += input_tokens;
                         entry.output_tokens += output_tokens;
                         entry.cache_read_tokens += cache_read_tokens;

@@ -235,7 +235,12 @@ impl TaskExecutor {
         if provider_name == "mock" {
             // For vision content, include content metadata in mock response
             let vision_info = if has_content {
-                let parts = infer.content.as_ref().unwrap();
+                let parts = match infer.content.as_ref() {
+                    Some(p) => p,
+                    None => {
+                        return Ok("mock: {\"error\": \"vision content is empty\"}".to_string());
+                    }
+                };
                 let image_count = parts
                     .iter()
                     .filter(|p| {
@@ -607,7 +612,9 @@ impl TaskExecutor {
                                             .map(|pk| {
                                                 crate::provider::cost::calculate_cost_with_cache(
                                                     pk,
-                                                    model.unwrap_or_else(|| provider.default_model()),
+                                                    model.unwrap_or_else(|| {
+                                                        provider.default_model()
+                                                    }),
                                                     stream_result.input_tokens,
                                                     stream_result.output_tokens,
                                                     stream_result.cached_input_tokens,
@@ -622,11 +629,7 @@ impl TaskExecutor {
                                             cache_read_tokens: stream_result.cached_input_tokens,
                                             ttft_ms: stream_result.ttft_ms,
                                             finish_reason: nika_event::FinishReason::Stop,
-                                            cost_usd: if cost.is_finite() {
-                                                cost
-                                            } else {
-                                                0.0
-                                            },
+                                            cost_usd: if cost.is_finite() { cost } else { 0.0 },
                                         });
                                         return Ok(stream_result.text);
                                     }

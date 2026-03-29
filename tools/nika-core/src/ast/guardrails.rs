@@ -325,16 +325,12 @@ impl SchemaGuardrail {
         Ok(())
     }
 
-    /// Check if the output passes this guardrail.
-    ///
-    /// Note: Full JSON Schema validation requires jsonschema crate.
-    /// For now, we just verify the output is valid JSON with required fields.
+    /// Check if the output passes this guardrail using full JSON Schema validation.
     pub fn check(&self, output: &str) -> GuardrailResult {
         let id = self.id.clone().unwrap_or_else(|| "schema".to_string());
 
         // Try to parse as JSON
-        let parsed: Result<JsonValue, _> = serde_json::from_str(output);
-        let json = match parsed {
+        let json: JsonValue = match serde_json::from_str(output) {
             Ok(v) => v,
             Err(e) => {
                 return GuardrailResult::failed_with_action(
@@ -348,33 +344,30 @@ impl SchemaGuardrail {
             }
         };
 
-        // Check required fields if specified in schema
-        if let Some(required) = self.json_schema.get("required").and_then(|r| r.as_array()) {
-            if let Some(obj) = json.as_object() {
-                for field in required {
-                    if let Some(field_name) = field.as_str() {
-                        if !obj.contains_key(field_name) {
-                            return GuardrailResult::failed_with_action(
-                                id,
-                                "schema",
-                                self.message.clone().unwrap_or_else(|| {
-                                    format!("Missing required field: {}", field_name)
-                                }),
-                                self.on_failure,
-                            );
-                        }
-                    }
-                }
-            } else {
+        // Full JSON Schema validation via jsonschema crate
+        let validator = match jsonschema::validator_for(&self.json_schema) {
+            Ok(v) => v,
+            Err(e) => {
                 return GuardrailResult::failed_with_action(
                     id,
                     "schema",
-                    self.message
-                        .clone()
-                        .unwrap_or_else(|| "Expected JSON object".to_string()),
+                    format!("Invalid JSON Schema in guardrail: {e}"),
                     self.on_failure,
                 );
             }
+        };
+
+        let errors: Vec<String> = validator
+            .iter_errors(&json)
+            .map(|e| e.to_string())
+            .collect();
+        if !errors.is_empty() {
+            return GuardrailResult::failed_with_action(
+                id,
+                "schema",
+                self.message.clone().unwrap_or_else(|| errors.join("; ")),
+                self.on_failure,
+            );
         }
 
         GuardrailResult::passed(id, "schema")
@@ -1201,8 +1194,95 @@ mod tests {
         };
 
         let result = guardrail.check(r#"[1, 2, 3]"#);
+        assert!(!result.passed, "Array should fail object type check");
+    }
+
+    #[test]
+    fn test_schema_guardrail_type_mismatch() {
+        let guardrail = SchemaGuardrail {
+            id: None,
+            json_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "age": { "type": "number" }
+                }
+            }),
+            message: None,
+            on_failure: OnFailure::Retry,
+        };
+
+        let result = guardrail.check(r#"{"age": "not_a_number"}"#);
+        assert!(!result.passed, "String should fail number type check");
+    }
+
+    #[test]
+    fn test_schema_guardrail_enum_validation() {
+        let guardrail = SchemaGuardrail {
+            id: None,
+            json_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "status": { "type": "string", "enum": ["active", "inactive"] }
+                }
+            }),
+            message: None,
+            on_failure: OnFailure::Retry,
+        };
+
+        assert!(guardrail.check(r#"{"status": "active"}"#).passed);
+        assert!(
+            !guardrail.check(r#"{"status": "unknown"}"#).passed,
+            "Invalid enum value should fail"
+        );
+    }
+
+    #[test]
+    fn test_schema_guardrail_nested_object() {
+        let guardrail = SchemaGuardrail {
+            id: None,
+            json_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "user": {
+                        "type": "object",
+                        "required": ["name"],
+                        "properties": {
+                            "name": { "type": "string" }
+                        }
+                    }
+                },
+                "required": ["user"]
+            }),
+            message: None,
+            on_failure: OnFailure::Retry,
+        };
+
+        assert!(guardrail.check(r#"{"user": {"name": "Alice"}}"#).passed);
+        assert!(
+            !guardrail.check(r#"{"user": {}}"#).passed,
+            "Missing nested required field should fail"
+        );
+    }
+
+    #[test]
+    fn test_schema_guardrail_custom_message_overrides() {
+        let guardrail = SchemaGuardrail {
+            id: None,
+            json_schema: serde_json::json!({
+                "type": "object",
+                "required": ["name"]
+            }),
+            message: Some("Output must include a name field".to_string()),
+            on_failure: OnFailure::Fail,
+        };
+
+        let result = guardrail.check(r#"{"other": 1}"#);
         assert!(!result.passed);
-        assert!(result.message.unwrap().contains("Expected JSON object"));
+        assert_eq!(
+            result.message.as_deref(),
+            Some("Output must include a name field"),
+            "Custom message should override default"
+        );
     }
 
     // ========================================================================
