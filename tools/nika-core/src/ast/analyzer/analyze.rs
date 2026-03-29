@@ -261,6 +261,7 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
     // 3. Extract metadata
     workflow.name = raw.workflow.as_ref().map(|s| s.value.clone());
     workflow.description = raw.description.map(|s| s.value);
+    workflow.goal = raw.goal.map(|s| s.value);
     workflow.provider = raw.provider.map(|s| crate::ProviderName::parse(&s.value));
     workflow.model = raw.model.map(|s| s.value);
     workflow.base_url = raw.base_url.map(|s| s.value);

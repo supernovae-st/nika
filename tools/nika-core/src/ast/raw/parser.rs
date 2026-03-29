@@ -1347,6 +1347,7 @@ pub fn parse(source: &str, file_id: FileId) -> Result<RawWorkflow, ParseError> {
     // Extract optional fields
     workflow.workflow = get_string_field(file_id, map, "workflow")?;
     workflow.description = get_string_field(file_id, map, "description")?;
+    workflow.goal = get_string_field(file_id, map, "goal")?;
     workflow.provider = get_string_field(file_id, map, "provider")?;
     workflow.model = get_string_field(file_id, map, "model")?;
     workflow.base_url = get_string_field(file_id, map, "base_url")?;
@@ -1413,6 +1414,7 @@ pub fn parse(source: &str, file_id: FileId) -> Result<RawWorkflow, ParseError> {
         "schema",
         "workflow",
         "description",
+        "goal",
         "provider",
         "model",
         "base_url",
@@ -3692,5 +3694,62 @@ tasks:
             "Error should mention unknown field: {}",
             err.message
         );
+    }
+
+    // =========================================================================
+    // D.1: goal: field for P-ORCHESTRATE
+    // =========================================================================
+
+    #[test]
+    fn test_parse_goal_field() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+goal: "Research and write a comprehensive report on quantum computing"
+tasks:
+  - id: research
+    infer: "Research quantum computing"
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_ok(), "Parse failed: {:?}", result.err());
+        let workflow = result.unwrap();
+        assert_eq!(
+            workflow.goal.as_ref().unwrap().value,
+            "Research and write a comprehensive report on quantum computing"
+        );
+    }
+
+    #[test]
+    fn test_parse_workflow_without_goal() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: step1
+    exec: "echo hello"
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_ok(), "Parse failed: {:?}", result.err());
+        let workflow = result.unwrap();
+        assert!(workflow.goal.is_none());
+    }
+
+    #[test]
+    fn test_parse_goal_with_tasks() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+goal: "Build a podcast episode"
+description: "Full podcast production pipeline"
+provider: anthropic
+tasks:
+  - id: outline
+    infer: "Create outline"
+  - id: script
+    depends_on: [outline]
+    infer: "Write script"
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_ok(), "Parse failed: {:?}", result.err());
+        let workflow = result.unwrap();
+        assert_eq!(workflow.goal.as_ref().unwrap().value, "Build a podcast episode");
+        assert_eq!(workflow.task_count(), 2);
     }
 }

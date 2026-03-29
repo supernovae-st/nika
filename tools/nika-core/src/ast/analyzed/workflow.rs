@@ -32,6 +32,9 @@ pub struct AnalyzedWorkflow {
     /// Optional description
     pub description: Option<String>,
 
+    /// Orchestration goal — when present, enables orchestrator mode.
+    pub goal: Option<String>,
+
     /// Default provider for the workflow (typed enum)
     pub provider: Option<crate::ProviderName>,
 
@@ -87,6 +90,7 @@ impl Default for AnalyzedWorkflow {
             schema_version: SchemaVersion::V12,
             name: None,
             description: None,
+            goal: None,
             provider: None,
             model: None,
             base_url: None,
