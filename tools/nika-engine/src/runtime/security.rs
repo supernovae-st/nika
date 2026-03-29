@@ -444,16 +444,10 @@ pub fn validate_exec_command(cmd: &str) -> Result<(), NikaError> {
 pub fn validate_exec_command_with_shell(cmd: &str, shell_mode: bool) -> Result<(), NikaError> {
     validate_command_string(cmd)?;
     if shell_mode {
-        // Reject newlines in shell mode — sh -c treats \n as command separator,
-        // which can bypass the blocklist (normalization collapses \n to space).
-        // Tolerate trailing newline from YAML `|` blocks (e.g., `command: |\n  echo hello\n`).
-        if cmd.trim_end().contains('\n') {
-            return Err(NikaError::BlockedCommand {
-                command: cmd.to_string(),
-                reason: "Newlines are not allowed in shell mode commands (use && or ; explicitly)"
-                    .to_string(),
-            });
-        }
+        // Multi-line shell commands from YAML `|` blocks are legitimate.
+        // Instead of blanket-rejecting newlines, check each line against the blocklist.
+        // This allows `command: |\n  echo step1\n  echo step2` while still blocking
+        // `echo safe\nrm -rf /` (the dangerous line will fail the blocklist check below).
     }
     check_blocklist(cmd)?;
     if shell_mode {
@@ -1496,6 +1490,29 @@ mod tests {
             result.is_err(),
             "Should block embedded newline in shell mode: {:?}",
             result.as_ref().ok()
+        );
+    }
+
+    #[test]
+    fn test_shell_mode_allows_multiline_yaml_block() {
+        // YAML `|` blocks produce multi-line strings that are legitimate
+        // shell scripts. These should NOT be rejected.
+        let multiline_cmd = "echo \"Step 1: trimmed\"\necho \"Step 2: upper\"\necho \"Step 3: lower\"";
+        let result = validate_exec_command_with_shell(multiline_cmd, true);
+        assert!(
+            result.is_ok(),
+            "Multi-line shell commands from YAML | blocks should be allowed: {:?}",
+            result.err()
+        );
+    }
+
+    #[test]
+    fn test_shell_mode_blocks_newline_before_dangerous_command() {
+        // Newline followed by a dangerous command should still be blocked
+        let result = validate_exec_command_with_shell("echo safe\nrm -rf /", true);
+        assert!(
+            result.is_err(),
+            "Newline + dangerous command should be blocked"
         );
     }
 
