@@ -106,7 +106,55 @@ LES 5 COUCHES STRUCTURED OUTPUT doivent TOUTES etre testees:
 | DEAD-2 | artifact_paths field (populated, never read) | `runner.rs:148` | Delete field + 8 population sites |
 | DEAD-3 | RetryCondition enum (zero consumers) | `nika-core/ast/routing.rs:38` | Delete enum + re-export |
 
-### 1E — MSRV fix (1 line)
+### 1E — Daemon + secrets architecture cleanup (1h)
+
+Le daemon auto-start est implemente mais il faut:
+
+1. **Supprimer le code legacy keyring** non utilise:
+   - `keyring.rs`: les fonctions `NikaKeyring::get()`, `set()`, `delete()` restent pour le daemon
+   - MAIS: `nika provider set` (CLI) doit stocker via daemon IPC, PAS keyring direct
+   - Verifier que `nika provider set anthropic` passe par le daemon
+
+2. **Tests daemon auto-start** (4 tests):
+```rust
+#[tokio::test]
+async fn test_daemon_auto_starts_when_missing() {
+    // Verify: daemon_available()=false → auto-fork → daemon_available()=true
+}
+
+#[tokio::test]
+async fn test_daemon_not_started_if_nika_no_daemon() {
+    // Set NIKA_NO_DAEMON=1 → verify daemon NOT started
+}
+
+#[tokio::test]
+async fn test_secrets_from_env_without_daemon() {
+    // Set env var → verify secret found without daemon
+}
+
+#[tokio::test]
+async fn test_secrets_fallback_clear_error() {
+    // No env, no daemon → verify None returned (not panic, not popup)
+}
+```
+
+3. **Nettoyer `nika provider list`**: ne JAMAIS toucher au keychain directement
+   - Lister les providers depuis: env vars + daemon IPC uniquement
+   - Afficher "(env)" ou "(daemon)" a cote de chaque provider
+
+4. **Nettoyer les references legacy**:
+   - Supprimer `NIKA_SKIP_KEYCHAIN` (plus necessaire, keyring direct supprime)
+   - Supprimer `NIKA_KEYCHAIN_BOOT` references
+   - Mettre a jour la doc: "API keys via env vars or daemon"
+
+**Commits**:
+```
+test(daemon): add 4 auto-start + secrets resolution tests
+refactor(secrets): clean provider list — env + daemon only, no keyring
+docs: update secrets documentation — env vars or daemon, no direct keychain
+```
+
+### 1F — MSRV fix (1 line)
 
 ```
 File: tools/Cargo.toml
