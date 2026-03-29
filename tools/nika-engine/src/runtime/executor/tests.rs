@@ -1913,7 +1913,7 @@ async fn test_resolve_decompose_source_literal() {
     let datastore = RunContext::new();
 
     let result = executor.resolve_decompose_source("some-key", &bindings, &datastore);
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     assert_eq!(result.unwrap(), json!("some-key"));
 }
 
@@ -1925,7 +1925,7 @@ async fn test_resolve_decompose_source_template() {
     let datastore = RunContext::new();
 
     let result = executor.resolve_decompose_source("{{with.entity}}", &bindings, &datastore);
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     assert_eq!(result.unwrap(), json!("qr-code"));
 }
 
@@ -1937,7 +1937,7 @@ async fn test_resolve_decompose_source_dollar_binding() {
     let datastore = RunContext::new();
 
     let result = executor.resolve_decompose_source("$my_key", &bindings, &datastore);
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     assert_eq!(result.unwrap(), json!("entity-key"));
 }
 
@@ -1964,7 +1964,7 @@ async fn test_resolve_decompose_source_dollar_path_from_datastore() {
     );
 
     let result = executor.resolve_decompose_source("$prev_task.key", &bindings, &datastore);
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     assert_eq!(result.unwrap(), json!("nested-key"));
 }
 

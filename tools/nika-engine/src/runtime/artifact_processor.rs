@@ -965,14 +965,14 @@ mod tests {
     #[test]
     fn test_format_output_text() {
         let result = format_output("hello world", ArtifactFormat::Text);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         assert_eq!(result.unwrap(), "hello world");
     }
 
     #[test]
     fn test_format_output_json_valid() {
         let result = format_output(r#"{"key":"value"}"#, ArtifactFormat::Json);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         let formatted = result.unwrap();
         assert!(formatted.contains("key"));
         assert!(formatted.contains("value"));
@@ -981,7 +981,7 @@ mod tests {
     #[test]
     fn test_format_output_json_invalid() {
         let result = format_output("not json", ArtifactFormat::Json);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         // Should be wrapped as JSON string
         let formatted = result.unwrap();
         assert!(formatted.contains("not json"));
@@ -990,7 +990,7 @@ mod tests {
     #[test]
     fn test_format_output_yaml() {
         let result = format_output(r#"{"key":"value"}"#, ArtifactFormat::Yaml);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         let formatted = result.unwrap();
         assert!(formatted.contains("key"));
     }

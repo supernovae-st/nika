@@ -82,7 +82,7 @@ async fn test_chat_agent_claude_fallback() {
     std::env::set_var("ANTHROPIC_API_KEY", "test-key-for-integration-test");
 
     let agent = ChatAgent::new();
-    assert!(agent.is_ok());
+    assert!(agent.is_ok(), "Should succeed: {:?}", agent.err());
 }
 
 /// Test provider switching
@@ -95,18 +95,18 @@ async fn test_chat_agent_provider_switching() {
 
     // Switch to Claude
     let result = agent.set_provider(ModelProvider::Claude);
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     assert_eq!(agent.provider_name(), "claude");
 
     // Switch back to OpenAI
     let result = agent.set_provider(ModelProvider::OpenAI);
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     assert_eq!(agent.provider_name(), "openai");
 
     // List doesn't change provider
     let prev_provider = agent.provider_name().to_string();
     let result = agent.set_provider(ModelProvider::List);
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     assert_eq!(agent.provider_name(), prev_provider);
 }
 
@@ -491,7 +491,7 @@ async fn test_chat_agent_exec_echo() {
     let agent = ChatAgent::new().expect("Should create agent");
     let result = agent.exec_command("echo hello").await;
 
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     assert_eq!(result.unwrap(), "hello");
 }
 
@@ -503,7 +503,7 @@ async fn test_chat_agent_exec_with_args() {
     let agent = ChatAgent::new().expect("Should create agent");
     let result = agent.exec_command("echo -n 'test output'").await;
 
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     assert!(result.unwrap().contains("test output"));
 }
 
@@ -517,7 +517,7 @@ async fn test_chat_agent_exec_pipe() {
         .exec_command("echo 'hello world' | tr 'a-z' 'A-Z'")
         .await;
 
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     assert_eq!(result.unwrap(), "HELLO WORLD");
 }
 
@@ -530,7 +530,7 @@ async fn test_chat_agent_exec_failure() {
     let result = agent.exec_command("exit 1").await;
 
     // Command failure returns Ok with exit code info
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     let output = result.unwrap();
     assert!(output.contains("Exit code: 1"));
 }
@@ -543,7 +543,7 @@ async fn test_chat_agent_exec_env_var() {
     let agent = ChatAgent::new().expect("Should create agent");
     let result = agent.exec_command("echo $HOME").await;
 
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     // Should output the home directory path
     let output = result.unwrap();
     assert!(!output.is_empty());
@@ -558,7 +558,7 @@ async fn test_chat_agent_exec_pwd() {
     let agent = ChatAgent::new().expect("Should create agent");
     let result = agent.exec_command("pwd").await;
 
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     let output = result.unwrap();
     assert!(output.starts_with('/'));
 }
@@ -730,7 +730,7 @@ async fn test_full_flow_exec() {
     if let Command::Exec { command } = cmd {
         let agent = ChatAgent::new().expect("Should create agent");
         let result = agent.exec_command(&command).await;
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         assert!(result.unwrap().contains("integration test"));
     }
 }
@@ -803,7 +803,7 @@ async fn test_full_flow_model_switch() {
     if let Command::Model { provider } = cmd {
         let mut agent = ChatAgent::new().expect("Should create agent");
         let result = agent.set_provider(provider);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         assert_eq!(agent.provider_name(), "claude");
     }
 }
@@ -886,7 +886,7 @@ async fn test_full_agent_flow_with_api() {
     let result1 = agent
         .infer("What is 2+2? Answer with just the number.")
         .await;
-    assert!(result1.is_ok());
+    assert!(result1.is_ok(), "Should succeed: {:?}", result1.err());
     let response1 = result1.unwrap();
     assert!(response1.contains('4') || response1.contains("four"));
 
@@ -894,7 +894,7 @@ async fn test_full_agent_flow_with_api() {
     let result2 = agent
         .infer("What was my previous question about? One sentence.")
         .await;
-    assert!(result2.is_ok());
+    assert!(result2.is_ok(), "Should succeed: {:?}", result2.err());
 
     // History should have 4 messages (2 user + 2 assistant)
     assert_eq!(agent.history().len(), 4);
@@ -930,7 +930,7 @@ async fn test_chat_agent_fetch_post() {
 
     let result = agent.fetch("https://httpbin.org/post", "POST").await;
 
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     let response = result.unwrap();
     assert!(response.contains("httpbin") || response.contains("origin"));
 }
