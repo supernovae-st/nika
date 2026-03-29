@@ -51,6 +51,7 @@ pub mod jsonpath;
 pub mod mention;
 mod resolve;
 mod template;
+pub mod token_budget;
 mod validate;
 
 // Re-export from nika-core: identical modules
