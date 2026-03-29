@@ -380,11 +380,22 @@ fn parse_action(
     file: FileId,
     map: &marked_yaml::types::MarkedMappingNode,
 ) -> Result<Option<RawTaskAction>, ParseError> {
-    // Reject tasks with multiple verbs (must have exactly 0 or 1)
+    // Reject tasks with multiple verbs (must have exactly 0 or 1).
+    // `agent: <string>` (scalar) is a preset reference, NOT a verb —
+    // only `agent: { ... }` (mapping) counts as the agent verb.
     let verb_keys = ["infer", "exec", "fetch", "invoke", "agent"];
     let found: Vec<&str> = verb_keys
         .iter()
-        .filter(|k| map.get_node(k).is_some())
+        .filter(|k| {
+            let Some(node) = map.get_node(k) else {
+                return false;
+            };
+            // agent: scalar is a preset ref, not a verb
+            if **k == "agent" && matches!(node, Node::Scalar(_)) {
+                return false;
+            }
+            true
+        })
         .copied()
         .collect();
     if found.len() > 1 {
@@ -448,13 +459,15 @@ fn parse_action(
         let span = node_to_span(file, node);
         return Ok(Some(RawTaskAction::Invoke(Spanned::new(action, span))));
     }
-    // Check for agent verb
+    // Check for agent verb (mapping only — scalar is a preset reference, handled by caller)
     if let Some(node) = map.get_node("agent") {
-        let action = parse_agent_action(file, node)?;
-        let span = node_to_span(file, node);
-        return Ok(Some(RawTaskAction::Agent(Box::new(Spanned::new(
-            action, span,
-        )))));
+        if !matches!(node, Node::Scalar(_)) {
+            let action = parse_agent_action(file, node)?;
+            let span = node_to_span(file, node);
+            return Ok(Some(RawTaskAction::Agent(Box::new(Spanned::new(
+                action, span,
+            )))));
+        }
     }
 
     // No verb found — check for common misspellings before returning None.
@@ -1877,6 +1890,17 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
 
     // Parse all task fields
     let action = parse_action(file_id, map)?;
+
+    // `agent: <string>` (scalar) is a preset reference — merge into preset field.
+    // This is ergonomic sugar: `agent: think` ≡ `preset: think`.
+    // If both `agent: think` and `preset: other` are set, `agent:` wins.
+    let preset = match map.get_node("agent") {
+        Some(Node::Scalar(_)) => {
+            let agent_str = extract_string(file_id, map.get_node("agent").unwrap())?;
+            Some(agent_str)
+        }
+        _ => preset,
+    };
 
     // ── Validate no unknown task keys (NIKA-163) when a verb IS present ──
     if action.is_some() {
@@ -3511,5 +3535,95 @@ tasks:
         let routing_json = task.routing.as_ref().unwrap();
         let fallback = routing_json.value["fallback"].as_array().unwrap();
         assert_eq!(fallback[0].as_str().unwrap(), "openai");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // AGENT PRESET DISAMBIGUATION TESTS
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_agent_scalar_is_preset_not_verb() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: plan
+    agent: think
+    infer: "Plan the architecture"
+"#;
+        let wf = parse(yaml, FileId(0)).unwrap();
+        let task = &wf.tasks.value[0].value;
+
+        // agent: think (scalar) → preset, NOT verb
+        assert_eq!(
+            task.preset.as_ref().unwrap().value,
+            "think",
+            "agent: <string> should be stored as preset"
+        );
+        // infer: should be the actual verb
+        assert!(
+            matches!(&task.action, Some(RawTaskAction::Infer(_))),
+            "infer: should be the verb when agent: is scalar"
+        );
+    }
+
+    #[test]
+    fn test_agent_mapping_is_verb() {
+        // Regression: agent: { prompt: "..." } should still be parsed as agent verb
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: research
+    agent:
+      prompt: "Research AI trends"
+      max_turns: 5
+"#;
+        let wf = parse(yaml, FileId(0)).unwrap();
+        let task = &wf.tasks.value[0].value;
+
+        assert!(
+            matches!(&task.action, Some(RawTaskAction::Agent(_))),
+            "agent: {{ ... }} (mapping) should be parsed as agent verb"
+        );
+        assert!(
+            task.preset.is_none(),
+            "preset should NOT be set when agent: is a mapping verb"
+        );
+    }
+
+    #[test]
+    fn test_agent_scalar_overrides_explicit_preset() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: plan
+    preset: old_preset
+    agent: think
+    infer: "Plan it"
+"#;
+        let wf = parse(yaml, FileId(0)).unwrap();
+        let task = &wf.tasks.value[0].value;
+
+        // agent: think overrides preset: old_preset
+        assert_eq!(
+            task.preset.as_ref().unwrap().value,
+            "think",
+            "agent: <string> should override preset:"
+        );
+    }
+
+    #[test]
+    fn test_agent_scalar_standalone_no_verb() {
+        // agent: think with no other verb — task has no action
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: noop
+    agent: think
+"#;
+        let wf = parse(yaml, FileId(0)).unwrap();
+        let task = &wf.tasks.value[0].value;
+
+        assert!(task.action.is_none(), "No verb should be parsed");
+        assert_eq!(task.preset.as_ref().unwrap().value, "think");
     }
 }
