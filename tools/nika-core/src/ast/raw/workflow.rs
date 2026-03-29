@@ -21,6 +21,10 @@ pub struct RawWorkflow {
     /// Optional description
     pub description: Option<Spanned<String>>,
 
+    /// Orchestration goal — when present, enables orchestrator mode.
+    /// The orchestrator wraps all tasks into an agent loop that pursues this goal.
+    pub goal: Option<Spanned<String>>,
+
     /// Default provider (e.g., "claude", "openai")
     pub provider: Option<Spanned<String>>,
 
