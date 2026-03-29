@@ -1,0 +1,80 @@
+schema: nika/workflow@0.12
+workflow: e2e-artifact-json
+description: "Test 2: Write a JSON artifact to disk, read back and verify valid JSON structure"
+provider: mock
+
+inputs:
+  output_dir: "/tmp/nika_e2e_artifacts"
+
+artifacts:
+  dir: "{{inputs.output_dir}}"
+
+tasks:
+  # Step 1: Generate valid JSON via exec
+  - id: generate_json
+    description: "Generate JSON content with known fields"
+    exec:
+      command: |
+        printf '{"workflow":"e2e-artifact-json","status":"success","items":[1,2,3],"sentinel":"JSON_TEST_MARKER_002","nested":{"key":"value","flag":true}}'
+      shell: true
+    artifact:
+      path: test-data.json
+      format: json
+
+  # Step 2: Verify file exists on disk
+  - id: verify_file_exists
+    depends_on: [generate_json]
+    exec:
+      command: "test -f '{{inputs.output_dir}}/test-data.json' && echo 'FILE_EXISTS' || echo 'FILE_MISSING'"
+      shell: true
+
+  # Step 3: Read back and validate JSON with jq
+  - id: validate_json_syntax
+    depends_on: [verify_file_exists]
+    exec:
+      command: "jq '.' '{{inputs.output_dir}}/test-data.json' > /dev/null 2>&1 && echo 'VALID_JSON' || echo 'INVALID_JSON'"
+      shell: true
+
+  # Step 4: Extract specific fields to prove structure
+  - id: extract_json_fields
+    depends_on: [validate_json_syntax]
+    exec:
+      command: |
+        sentinel=$(jq -r '.sentinel' '{{inputs.output_dir}}/test-data.json')
+        status=$(jq -r '.status' '{{inputs.output_dir}}/test-data.json')
+        items_len=$(jq '.items | length' '{{inputs.output_dir}}/test-data.json')
+        nested_key=$(jq -r '.nested.key' '{{inputs.output_dir}}/test-data.json')
+        echo "sentinel=$sentinel status=$status items=$items_len nested_key=$nested_key"
+      shell: true
+
+  # Step 5: Assert everything
+  - id: verify_result
+    depends_on: [extract_json_fields]
+    with:
+      exists: $verify_file_exists
+      syntax: $validate_json_syntax
+      fields: $extract_json_fields
+    infer:
+      prompt: |
+        Validate the JSON artifact was correctly written and is parseable.
+
+        File check: {{with.exists}}
+        JSON syntax: {{with.syntax}}
+        Fields extracted: {{with.fields}}
+
+        Assert ALL of the following:
+        1. File check is "FILE_EXISTS"
+        2. JSON syntax is "VALID_JSON"
+        3. Fields contain "sentinel=JSON_TEST_MARKER_002"
+        4. Fields contain "status=success"
+        5. Fields contain "items=3"
+        6. Fields contain "nested_key=value"
+
+        Reply: ARTIFACT_JSON_PASS or ARTIFACT_JSON_FAIL with reason.
+
+  # Step 6: Cleanup
+  - id: cleanup
+    depends_on: [verify_result]
+    exec:
+      command: "rm -f '{{inputs.output_dir}}/test-data.json'"
+      shell: true

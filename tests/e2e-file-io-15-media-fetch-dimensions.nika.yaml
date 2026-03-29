@@ -1,0 +1,145 @@
+schema: nika/workflow@0.12
+workflow: e2e-media-fetch-dimensions
+description: "Test 15: fetch response:binary (download real image) → nika:dimensions → verify size"
+provider: mock
+
+inputs:
+  # httpbin.org/image/png returns a real PNG (known to be ~8.1KB, 100x100 pixels)
+  png_url: "https://httpbin.org/image/png"
+  # httpbin.org/image/jpeg returns a real JPEG (~35KB)
+  jpeg_url: "https://httpbin.org/image/jpeg"
+
+tasks:
+  # Step 1: Fetch PNG image in binary mode (stores to CAS)
+  - id: fetch_png
+    description: "Fetch PNG from network, store to CAS via response:binary"
+    fetch:
+      url: "{{inputs.png_url}}"
+      method: GET
+      response: binary
+      timeout: 15
+
+  # Step 2: Fetch JPEG image in binary mode
+  - id: fetch_jpeg
+    description: "Fetch JPEG from network, store to CAS via response:binary"
+    fetch:
+      url: "{{inputs.jpeg_url}}"
+      method: GET
+      response: binary
+      timeout: 15
+
+  # Step 3: Verify PNG hash is a real CAS hash
+  - id: verify_png_hash
+    depends_on: [fetch_png]
+    with:
+      hash: $fetch_png
+    infer:
+      prompt: |
+        Verify that the fetched PNG binary returned a valid CAS hash.
+        Hash: {{with.hash}}
+        Is this a non-empty hash string (not HTML, not empty, not error)? Reply: HASH_OK or HASH_BAD
+
+  # Step 4: Get dimensions of fetched PNG
+  - id: png_dimensions
+    depends_on: [fetch_png]
+    with:
+      png_hash: $fetch_png
+    invoke:
+      tool: "nika:dimensions"
+      params:
+        hash: "{{with.png_hash}}"
+
+  # Step 5: Get dimensions of fetched JPEG
+  - id: jpeg_dimensions
+    depends_on: [fetch_jpeg]
+    with:
+      jpeg_hash: $fetch_jpeg
+    invoke:
+      tool: "nika:dimensions"
+      params:
+        hash: "{{with.jpeg_hash}}"
+
+  # Step 6: Verify PNG dimensions are positive integers
+  - id: verify_png_dimensions
+    depends_on: [png_dimensions]
+    with:
+      dims: $png_dimensions
+    infer:
+      prompt: |
+        Verify nika:dimensions returned valid dimensions for the fetched PNG.
+
+        Dimensions: {{with.dims}}
+
+        Check:
+        1. Contains "width" field that is a positive integer (> 0)
+        2. Contains "height" field that is a positive integer (> 0)
+        3. No error present
+        4. httpbin PNG is typically 100x100 — width should be in range 50-500
+
+        Reply: PNG_DIMS_VALID or PNG_DIMS_INVALID with actual values.
+
+  # Step 7: Verify JPEG dimensions are positive integers
+  - id: verify_jpeg_dimensions
+    depends_on: [jpeg_dimensions]
+    with:
+      dims: $jpeg_dimensions
+    infer:
+      prompt: |
+        Verify nika:dimensions returned valid dimensions for the fetched JPEG.
+
+        Dimensions: {{with.dims}}
+
+        Check:
+        1. Contains "width" field that is a positive integer (> 0)
+        2. Contains "height" field that is a positive integer (> 0)
+        3. No error present
+
+        Reply: JPEG_DIMS_VALID or JPEG_DIMS_INVALID with actual values.
+
+  # Step 8: Verify the two images have different hashes (different CAS entries)
+  - id: verify_distinct_hashes
+    depends_on: [fetch_png, fetch_jpeg]
+    with:
+      png_hash: $fetch_png
+      jpeg_hash: $fetch_jpeg
+    infer:
+      prompt: |
+        Verify that the PNG and JPEG fetches produced distinct CAS hashes (different images stored separately).
+
+        PNG hash: {{with.png_hash}}
+        JPEG hash: {{with.jpeg_hash}}
+
+        Are the two hashes different from each other? Reply: HASHES_DISTINCT or HASHES_IDENTICAL
+
+  # Step 9: Final comprehensive assertion
+  - id: verify_fetch_dimensions_pipeline
+    depends_on:
+      - verify_png_dimensions
+      - verify_jpeg_dimensions
+      - verify_distinct_hashes
+    with:
+      png_hash_check: $verify_png_hash
+      png_dims_check: $verify_png_dimensions
+      jpeg_dims_check: $verify_jpeg_dimensions
+      distinct_hashes: $verify_distinct_hashes
+      png_dims: $png_dimensions
+      jpeg_dims: $jpeg_dimensions
+    infer:
+      prompt: |
+        Validate the complete fetch:binary → nika:dimensions pipeline for two image formats.
+
+        PNG hash validity: {{with.png_hash_check}}
+        PNG dimensions check: {{with.png_dims_check}}
+        JPEG dimensions check: {{with.jpeg_dims_check}}
+        Hash distinctness: {{with.distinct_hashes}}
+        PNG dimensions raw: {{with.png_dims}}
+        JPEG dimensions raw: {{with.jpeg_dims}}
+
+        Assert ALL of the following:
+        1. PNG hash validity is "HASH_OK"
+        2. PNG dimensions is "PNG_DIMS_VALID"
+        3. JPEG dimensions is "JPEG_DIMS_VALID"
+        4. Distinct hashes is "HASHES_DISTINCT"
+        5. Both dimension results contain numeric width and height > 0
+
+        Reply: MEDIA_FETCH_DIMENSIONS_PASS or MEDIA_FETCH_DIMENSIONS_FAIL with reason.

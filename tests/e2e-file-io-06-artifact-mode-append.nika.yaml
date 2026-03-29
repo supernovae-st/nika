@@ -1,0 +1,109 @@
+schema: nika/workflow@0.12
+workflow: e2e-artifact-mode-append
+description: "Test 6: mode:append — write twice to same path, verify content is concatenated"
+provider: mock
+
+inputs:
+  output_dir: "/tmp/nika_e2e_artifacts"
+
+artifacts:
+  dir: "{{inputs.output_dir}}"
+
+tasks:
+  # Step 1: Ensure any stale file is removed first
+  - id: setup
+    exec:
+      command: "mkdir -p '{{inputs.output_dir}}' && rm -f '{{inputs.output_dir}}/append-test.txt'"
+      shell: true
+
+  # Step 2: Write first line
+  - id: write_first_line
+    depends_on: [setup]
+    exec:
+      command: "printf 'LINE_ONE sentinel=APPEND_V1\n'"
+      shell: true
+    artifact:
+      path: append-test.txt
+      mode: append
+
+  # Step 3: Read after first write — should have 1 line
+  - id: read_after_first
+    depends_on: [write_first_line]
+    exec:
+      command: "cat '{{inputs.output_dir}}/append-test.txt'"
+      shell: true
+
+  # Step 4: Write second line to same path
+  - id: write_second_line
+    depends_on: [read_after_first]
+    exec:
+      command: "printf 'LINE_TWO sentinel=APPEND_V2\n'"
+      shell: true
+    artifact:
+      path: append-test.txt
+      mode: append
+
+  # Step 5: Read after second write — should have both lines
+  - id: read_after_second
+    depends_on: [write_second_line]
+    exec:
+      command: "cat '{{inputs.output_dir}}/append-test.txt'"
+      shell: true
+
+  # Step 6: Count lines in final file
+  - id: count_lines
+    depends_on: [read_after_second]
+    exec:
+      command: "wc -l < '{{inputs.output_dir}}/append-test.txt' | tr -d ' \t'"
+      shell: true
+
+  # Step 7: Write third line to prove further appending works
+  - id: write_third_line
+    depends_on: [count_lines]
+    exec:
+      command: "printf 'LINE_THREE sentinel=APPEND_V3\n'"
+      shell: true
+    artifact:
+      path: append-test.txt
+      mode: append
+
+  # Step 8: Final read — should have all 3 lines
+  - id: read_final
+    depends_on: [write_third_line]
+    exec:
+      command: "cat '{{inputs.output_dir}}/append-test.txt'"
+      shell: true
+
+  # Step 9: Assert append semantics
+  - id: verify_append
+    depends_on: [read_final]
+    with:
+      after_first: $read_after_first
+      after_second: $read_after_second
+      line_count_after_two: $count_lines
+      final_content: $read_final
+    infer:
+      prompt: |
+        Validate that mode:append correctly accumulated content across multiple writes.
+
+        Content after 1 write: {{with.after_first}}
+        Content after 2 writes: {{with.after_second}}
+        Line count after 2 writes: {{with.line_count_after_two}}
+        Final content (3 writes): {{with.final_content}}
+
+        Assert ALL of the following:
+        1. After 1 write: contains "LINE_ONE" and "APPEND_V1"
+        2. After 2 writes: contains BOTH "LINE_ONE" and "LINE_TWO"
+        3. After 2 writes: line count is 2
+        4. Final content contains ALL three: "LINE_ONE", "LINE_TWO", "LINE_THREE"
+        5. Final content contains all three sentinels: APPEND_V1, APPEND_V2, APPEND_V3
+        6. Order is preserved: LINE_ONE before LINE_TWO before LINE_THREE
+
+        Reply: ARTIFACT_APPEND_PASS or ARTIFACT_APPEND_FAIL with reason.
+
+  # Step 10: Cleanup
+  - id: cleanup
+    depends_on: [verify_append]
+    exec:
+      command: "rm -f '{{inputs.output_dir}}/append-test.txt'"
+      shell: true

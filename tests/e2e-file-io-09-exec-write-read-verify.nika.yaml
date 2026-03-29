@@ -1,0 +1,82 @@
+schema: nika/workflow@0.12
+workflow: e2e-exec-write-read-verify
+description: "Test 9: exec echo > /tmp file, then read back with exec:cat and verify content"
+provider: mock
+
+inputs:
+  target_file: "/tmp/nika-test-output.txt"
+
+tasks:
+  # Step 1: Write known content to /tmp file via exec redirect
+  - id: write_file
+    description: "Write sentinel content to /tmp using shell redirect"
+    exec:
+      command: |
+        printf 'EXEC_WRITE_SENTINEL_009\nLine 2: additional content\nLine 3: final line\n' > '{{inputs.target_file}}'
+        echo 'WRITE_DONE'
+      shell: true
+
+  # Step 2: Verify file exists
+  - id: verify_exists
+    depends_on: [write_file]
+    exec:
+      command: "test -f '{{inputs.target_file}}' && echo 'FILE_EXISTS' || echo 'FILE_MISSING'"
+      shell: true
+
+  # Step 3: Read back via cat
+  - id: read_file
+    depends_on: [verify_exists]
+    exec:
+      command: "cat '{{inputs.target_file}}'"
+      shell: true
+
+  # Step 4: Verify line count
+  - id: count_lines
+    depends_on: [read_file]
+    exec:
+      command: "wc -l < '{{inputs.target_file}}' | tr -d ' \t'"
+      shell: true
+
+  # Step 5: Grep for sentinel
+  - id: grep_sentinel
+    depends_on: [read_file]
+    exec:
+      command: "grep -c 'EXEC_WRITE_SENTINEL_009' '{{inputs.target_file}}'"
+      shell: true
+
+  # Step 6: Assert all conditions
+  - id: verify_result
+    depends_on: [grep_sentinel]
+    with:
+      write_result: $write_file
+      exists: $verify_exists
+      content: $read_file
+      lines: $count_lines
+      grep: $grep_sentinel
+    infer:
+      prompt: |
+        Validate that exec shell redirect correctly wrote and the file was readable.
+
+        Write result: {{with.write_result}}
+        File existence: {{with.exists}}
+        File content: {{with.content}}
+        Line count: {{with.lines}}
+        Grep count for sentinel: {{with.grep}}
+
+        Assert ALL of the following:
+        1. Write result contains "WRITE_DONE"
+        2. File existence is "FILE_EXISTS"
+        3. Content contains "EXEC_WRITE_SENTINEL_009"
+        4. Content contains "Line 2: additional content"
+        5. Content contains "Line 3: final line"
+        6. Line count is 3
+        7. Grep count for sentinel is 1
+
+        Reply: EXEC_WRITE_READ_PASS or EXEC_WRITE_READ_FAIL with reason.
+
+  # Step 7: Cleanup
+  - id: cleanup
+    depends_on: [verify_result]
+    exec:
+      command: "rm -f '{{inputs.target_file}}'"
+      shell: true

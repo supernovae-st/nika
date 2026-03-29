@@ -1,0 +1,94 @@
+schema: nika/workflow@0.12
+workflow: e2e-artifact-yaml
+description: "Test 3: Write a YAML artifact to disk, read back and verify valid YAML structure"
+provider: mock
+
+inputs:
+  output_dir: "/tmp/nika_e2e_artifacts"
+
+artifacts:
+  dir: "{{inputs.output_dir}}"
+
+tasks:
+  # Step 1: Generate valid YAML content
+  - id: generate_yaml
+    description: "Generate YAML content with sentinel values"
+    exec:
+      command: |
+        printf 'workflow: e2e-artifact-yaml\nstatus: success\nsentinel: YAML_TEST_MARKER_003\nitems:\n  - alpha\n  - beta\n  - gamma\nnested:\n  key: value\n  count: 42\n'
+      shell: true
+    artifact:
+      path: test-config.yaml
+      format: text
+
+  # Step 2: Verify file written
+  - id: verify_file_exists
+    depends_on: [generate_yaml]
+    exec:
+      command: "test -f '{{inputs.output_dir}}/test-config.yaml' && echo 'FILE_EXISTS' || echo 'FILE_MISSING'"
+      shell: true
+
+  # Step 3: Validate YAML syntax with python (widely available) or yq fallback
+  - id: validate_yaml_syntax
+    depends_on: [verify_file_exists]
+    exec:
+      command: |
+        if command -v python3 >/dev/null 2>&1; then
+          python3 -c "import yaml; yaml.safe_load(open('{{inputs.output_dir}}/test-config.yaml'))" 2>&1 && echo 'VALID_YAML' || echo 'INVALID_YAML'
+        else
+          echo 'PYTHON_UNAVAILABLE'
+        fi
+      shell: true
+
+  # Step 4: Read back file content
+  - id: read_artifact_content
+    depends_on: [validate_yaml_syntax]
+    exec:
+      command: "cat '{{inputs.output_dir}}/test-config.yaml'"
+      shell: true
+
+  # Step 5: Grep for expected keys in file
+  - id: verify_yaml_keys
+    depends_on: [read_artifact_content]
+    exec:
+      command: |
+        file='{{inputs.output_dir}}/test-config.yaml'
+        sentinel=$(grep -c 'YAML_TEST_MARKER_003' "$file")
+        items=$(grep -c '^\s*- ' "$file")
+        nested=$(grep -c 'nested:' "$file")
+        echo "sentinel_lines=$sentinel item_lines=$items nested_present=$nested"
+      shell: true
+
+  # Step 6: Assert correctness
+  - id: verify_result
+    depends_on: [verify_yaml_keys]
+    with:
+      exists: $verify_file_exists
+      syntax: $validate_yaml_syntax
+      content: $read_artifact_content
+      keys: $verify_yaml_keys
+    infer:
+      prompt: |
+        Validate the YAML artifact was correctly written to disk.
+
+        File check: {{with.exists}}
+        YAML syntax: {{with.syntax}}
+        File content: {{with.content}}
+        Key checks: {{with.keys}}
+
+        Assert ALL of the following:
+        1. File check is "FILE_EXISTS"
+        2. YAML syntax is "VALID_YAML" (or PYTHON_UNAVAILABLE if no python3)
+        3. Content contains "YAML_TEST_MARKER_003"
+        4. Content contains "items:" list with alpha, beta, gamma entries
+        5. Content contains "nested:" block
+        6. Key checks shows sentinel_lines=1
+
+        Reply: ARTIFACT_YAML_PASS or ARTIFACT_YAML_FAIL with reason.
+
+  # Step 7: Cleanup
+  - id: cleanup
+    depends_on: [verify_result]
+    exec:
+      command: "rm -f '{{inputs.output_dir}}/test-config.yaml'"
+      shell: true

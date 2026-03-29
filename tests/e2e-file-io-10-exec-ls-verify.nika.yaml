@@ -1,0 +1,88 @@
+schema: nika/workflow@0.12
+workflow: e2e-exec-ls-verify
+description: "Test 10: exec ls /tmp, verify output contains known files created beforehand"
+provider: mock
+
+inputs:
+  sentinel_file_a: "/tmp/nika-ls-test-sentinel-a.txt"
+  sentinel_file_b: "/tmp/nika-ls-test-sentinel-b.txt"
+
+tasks:
+  # Step 1: Create two sentinel files in /tmp
+  - id: create_sentinel_a
+    description: "Create sentinel file A in /tmp"
+    exec:
+      command: "echo 'sentinel_a_content' > '{{inputs.sentinel_file_a}}'"
+      shell: true
+
+  - id: create_sentinel_b
+    description: "Create sentinel file B in /tmp"
+    exec:
+      command: "echo 'sentinel_b_content' > '{{inputs.sentinel_file_b}}'"
+      shell: true
+
+  # Step 2: Run ls /tmp and capture output
+  - id: list_tmp
+    description: "List /tmp directory contents"
+    depends_on: [create_sentinel_a, create_sentinel_b]
+    exec:
+      command: "ls /tmp"
+      shell: true
+
+  # Step 3: grep ls output for our specific sentinel file names
+  - id: grep_sentinel_a
+    depends_on: [list_tmp]
+    exec:
+      command: "ls /tmp | grep -c 'nika-ls-test-sentinel-a' || echo '0'"
+      shell: true
+
+  - id: grep_sentinel_b
+    depends_on: [list_tmp]
+    exec:
+      command: "ls /tmp | grep -c 'nika-ls-test-sentinel-b' || echo '0'"
+      shell: true
+
+  # Step 4: Verify /tmp contains standard dirs too (sanity)
+  - id: check_tmp_nonempty
+    depends_on: [list_tmp]
+    with:
+      ls_output: $list_tmp
+    infer:
+      prompt: |
+        Check that ls /tmp produced output (non-empty listing).
+        ls output: {{with.ls_output}}
+
+        Is the listing non-empty (contains at least one entry)? Reply: NONEMPTY or EMPTY
+
+  # Step 5: Assert all conditions
+  - id: verify_result
+    depends_on: [grep_sentinel_a, grep_sentinel_b, check_tmp_nonempty]
+    with:
+      ls_output: $list_tmp
+      grep_a: $grep_sentinel_a
+      grep_b: $grep_sentinel_b
+      nonempty: $check_tmp_nonempty
+    infer:
+      prompt: |
+        Validate that exec ls /tmp shows files we created and is a real directory listing.
+
+        ls output: {{with.ls_output}}
+        grep count for sentinel-a: {{with.grep_a}}
+        grep count for sentinel-b: {{with.grep_b}}
+        Non-empty check: {{with.nonempty}}
+
+        Assert ALL of the following:
+        1. ls output is non-empty
+        2. grep count for sentinel-a is 1
+        3. grep count for sentinel-b is 1
+        4. Nonempty check is "NONEMPTY"
+        5. ls output contains both "nika-ls-test-sentinel-a.txt" and "nika-ls-test-sentinel-b.txt"
+
+        Reply: EXEC_LS_PASS or EXEC_LS_FAIL with reason.
+
+  # Step 6: Cleanup sentinel files
+  - id: cleanup
+    depends_on: [verify_result]
+    exec:
+      command: "rm -f '{{inputs.sentinel_file_a}}' '{{inputs.sentinel_file_b}}'"
+      shell: true

@@ -1,0 +1,89 @@
+schema: nika/workflow@0.12
+workflow: e2e-artifact-mode-unique
+description: "Test 5: mode:unique — write twice to same path, verify two distinct files created"
+provider: mock
+
+inputs:
+  output_dir: "/tmp/nika_e2e_artifacts/unique-test"
+
+artifacts:
+  dir: "{{inputs.output_dir}}"
+
+tasks:
+  # Step 1: Create output dir
+  - id: setup_dir
+    exec:
+      command: "mkdir -p '{{inputs.output_dir}}'"
+      shell: true
+
+  # Step 2: First write — creates unique-output.txt (or unique-output-N.txt)
+  - id: write_first
+    depends_on: [setup_dir]
+    exec:
+      command: "echo 'UNIQUE_FIRST_WRITE sentinel=UNIQUE_V1'"
+      shell: true
+    artifact:
+      path: unique-output.txt
+      mode: unique
+
+  # Step 3: Second write — must NOT overwrite; creates a new file
+  - id: write_second
+    depends_on: [write_first]
+    exec:
+      command: "echo 'UNIQUE_SECOND_WRITE sentinel=UNIQUE_V2'"
+      shell: true
+    artifact:
+      path: unique-output.txt
+      mode: unique
+
+  # Step 4: Count total files in the dir matching the base name
+  - id: count_unique_files
+    depends_on: [write_second]
+    exec:
+      command: "ls '{{inputs.output_dir}}' | grep -c 'unique-output' || echo '0'"
+      shell: true
+
+  # Step 5: List all files so we can inspect their names
+  - id: list_files
+    depends_on: [count_unique_files]
+    exec:
+      command: "ls -1 '{{inputs.output_dir}}'"
+      shell: true
+
+  # Step 6: Read all matching files to confirm distinct content
+  - id: read_all_content
+    depends_on: [list_files]
+    exec:
+      command: "cat '{{inputs.output_dir}}'/unique-output* 2>/dev/null || echo 'NO_FILES'"
+      shell: true
+
+  # Step 7: Assert two distinct files with distinct content
+  - id: verify_unique
+    depends_on: [read_all_content]
+    with:
+      file_count: $count_unique_files
+      file_list: $list_files
+      all_content: $read_all_content
+    infer:
+      prompt: |
+        Validate that mode:unique created two distinct files rather than overwriting.
+
+        Files matching "unique-output" in dir: {{with.file_count}}
+        Directory listing: {{with.file_list}}
+        Content of all matching files: {{with.all_content}}
+
+        Assert ALL of the following:
+        1. File count is 2 (two separate files)
+        2. Directory listing shows at least 2 files
+        3. Combined content contains "UNIQUE_FIRST_WRITE"
+        4. Combined content contains "UNIQUE_SECOND_WRITE"
+        5. Combined content contains both "UNIQUE_V1" and "UNIQUE_V2"
+
+        Reply: ARTIFACT_UNIQUE_PASS or ARTIFACT_UNIQUE_FAIL with reason.
+
+  # Step 8: Cleanup
+  - id: cleanup
+    depends_on: [verify_unique]
+    exec:
+      command: "rm -rf '{{inputs.output_dir}}'"
+      shell: true
