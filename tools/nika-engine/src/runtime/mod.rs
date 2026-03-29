@@ -37,6 +37,7 @@ mod executor;
 pub mod hitl;
 pub mod limit_tracker;
 pub mod output;
+pub mod output_scanner;
 pub mod partial;
 pub mod policy;
 pub mod preset;
