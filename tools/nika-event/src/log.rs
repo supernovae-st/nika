@@ -910,6 +910,44 @@ pub enum EventKind {
     },
 
     // ═══════════════════════════════════════════
+    // ORCHESTRATOR EVENTS
+    // ═══════════════════════════════════════════
+    /// Orchestrator started pursuing a goal.
+    OrchestratorStarted {
+        goal: String,
+        max_rounds: u32,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        agent: Option<String>,
+    },
+
+    /// Orchestrator completed a round.
+    OrchestratorRound {
+        round: u32,
+        records_count: usize,
+        cost_usd: f64,
+    },
+
+    /// Orchestrator launched a sub-workflow.
+    OrchestratorSubWorkflow {
+        round: u32,
+        yaml_hash: String,
+        task_count: usize,
+    },
+
+    /// Orchestrator completed successfully.
+    OrchestratorCompleted {
+        rounds: u32,
+        total_cost_usd: f64,
+        confidence: f64,
+    },
+
+    /// Orchestrator failed.
+    OrchestratorFailed {
+        round: u32,
+        reason: String,
+    },
+
+    // ═══════════════════════════════════════════
     // FETCH EXTRACT EVENTS
     // ═══════════════════════════════════════════
     /// Extraction mode applied to fetch response.
@@ -999,7 +1037,12 @@ impl EventKind {
             | Self::MediaIntegrityCheck { .. }
             | Self::BootPhaseCompleted { .. }
             | Self::NativeModelLoaded { .. }
-            | Self::ProviderInitialized { .. } => None,
+            | Self::ProviderInitialized { .. }
+            | Self::OrchestratorStarted { .. }
+            | Self::OrchestratorRound { .. }
+            | Self::OrchestratorSubWorkflow { .. }
+            | Self::OrchestratorCompleted { .. }
+            | Self::OrchestratorFailed { .. } => None,
         }
     }
 
@@ -1013,6 +1056,11 @@ impl EventKind {
                 | Self::WorkflowAborted { .. }
                 | Self::WorkflowPaused
                 | Self::WorkflowResumed
+                | Self::OrchestratorStarted { .. }
+                | Self::OrchestratorRound { .. }
+                | Self::OrchestratorSubWorkflow { .. }
+                | Self::OrchestratorCompleted { .. }
+                | Self::OrchestratorFailed { .. }
         )
     }
 }
@@ -4094,5 +4142,61 @@ mod tests {
         } else {
             panic!("Roundtrip failed");
         }
+    }
+
+    // ═══════════════════════════════════════════
+    // D.6: Orchestrator event tests
+    // ═══════════════════════════════════════════
+
+    #[test]
+    fn orchestrator_started_serializes() {
+        let event = EventKind::OrchestratorStarted {
+            goal: "Research quantum computing".to_string(),
+            max_rounds: 10,
+            agent: Some("researcher".to_string()),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("orchestrator_started"));
+        assert!(json.contains("quantum"));
+        let round: EventKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(round.task_id(), None);
+        assert!(round.is_workflow_event());
+    }
+
+    #[test]
+    fn orchestrator_round_serializes() {
+        let event = EventKind::OrchestratorRound {
+            round: 3,
+            records_count: 7,
+            cost_usd: 1.23,
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("orchestrator_round"));
+        let round: EventKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(round.task_id(), None);
+    }
+
+    #[test]
+    fn orchestrator_completed_serializes() {
+        let event = EventKind::OrchestratorCompleted {
+            rounds: 5,
+            total_cost_usd: 2.50,
+            confidence: 0.92,
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("orchestrator_completed"));
+        let round: EventKind = serde_json::from_str(&json).unwrap();
+        assert!(round.is_workflow_event());
+    }
+
+    #[test]
+    fn orchestrator_failed_serializes() {
+        let event = EventKind::OrchestratorFailed {
+            round: 7,
+            reason: "Budget exceeded".to_string(),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("orchestrator_failed"));
+        assert!(json.contains("Budget exceeded"));
     }
 }
