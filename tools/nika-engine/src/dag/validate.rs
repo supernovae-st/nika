@@ -737,7 +737,7 @@ mod tests {
 
         let graph = Dag::from_analyzed(&workflow).unwrap();
         let result = validate_with_bindings(&workflow, &graph);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     #[test]
@@ -782,7 +782,7 @@ mod tests {
 
         let graph = Dag::from_analyzed(&workflow).unwrap();
         let result = validate_with_bindings(&workflow, &graph);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     #[test]
@@ -811,7 +811,7 @@ mod tests {
 
         let graph = Dag::from_analyzed(&workflow).unwrap();
         let result = validate_with_bindings(&workflow, &graph);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     #[test]
@@ -851,7 +851,7 @@ mod tests {
 
         let graph = Dag::from_analyzed(&workflow).unwrap();
         let result = validate_with_bindings(&workflow, &graph);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     #[test]
@@ -880,7 +880,7 @@ mod tests {
 
         let graph = Dag::from_analyzed(&workflow).unwrap();
         let result = validate_with_bindings(&workflow, &graph);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     #[test]
@@ -906,7 +906,7 @@ mod tests {
 
         let graph = Dag::from_analyzed(&workflow).unwrap();
         let result = validate_with_bindings(&workflow, &graph);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     #[test]
@@ -933,7 +933,7 @@ mod tests {
 
         let graph = Dag::from_analyzed(&workflow).unwrap();
         let result = validate_with_bindings(&workflow, &graph);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -949,7 +949,7 @@ mod tests {
         ]);
         let graph = Dag::from_analyzed(&workflow).unwrap();
         let result = validate_with_bindings(&workflow, &graph);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     #[test]
@@ -1005,7 +1005,7 @@ mod tests {
         ]);
         let graph = Dag::from_analyzed(&workflow).unwrap();
         let result = validate_with_bindings(&workflow, &graph);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     #[test]
@@ -1018,7 +1018,7 @@ mod tests {
         ]);
         let graph = Dag::from_analyzed(&workflow).unwrap();
         let result = validate_with_bindings(&workflow, &graph);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     #[test]
@@ -1205,7 +1205,7 @@ mod tests {
         let workflow = build_workflow(&[("task1", &[], &[]), ("task2", &["task1"], &[])]);
         let graph = Dag::from_analyzed(&workflow).unwrap();
         let result = validate_with_bindings(&workflow, &graph);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     #[test]
@@ -1213,7 +1213,7 @@ mod tests {
         let workflow = build_workflow(&[]);
         let graph = Dag::from_analyzed(&workflow).unwrap();
         let result = validate_with_bindings(&workflow, &graph);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     // ═══════════════════════════════════════════════════════════════

@@ -589,7 +589,8 @@ infer:
             temperature: Some(0.7),
             ..Default::default()
         };
-        assert!(params.validate().is_ok());
+        let result = params.validate();
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     #[test]
@@ -599,7 +600,7 @@ infer:
             ..Default::default()
         };
         let result = params.validate();
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result);
         assert!(result.unwrap_err().to_string().contains("neither provided"));
     }
 
@@ -610,7 +611,7 @@ infer:
             ..Default::default()
         };
         let result = params.validate();
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result);
         assert!(result.unwrap_err().to_string().contains("neither provided"));
     }
 
@@ -625,7 +626,8 @@ infer:
             }]),
             ..Default::default()
         };
-        assert!(params.validate().is_ok());
+        let result = params.validate();
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     #[test]
@@ -638,7 +640,8 @@ infer:
             }]),
             ..Default::default()
         };
-        assert!(params.validate().is_ok());
+        let result = params.validate();
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     #[test]

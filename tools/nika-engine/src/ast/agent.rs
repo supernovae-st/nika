@@ -488,7 +488,8 @@ mcp:
     #[test]
     fn validate_empty_prompt() {
         let params = AgentParams::default();
-        assert!(params.validate().is_err());
+        let result = params.validate();
+        assert!(result.is_err(), "Should fail but got: {:?}", result.unwrap());
     }
 
     #[test]
@@ -498,7 +499,8 @@ mcp:
             max_turns: Some(0),
             ..Default::default()
         };
-        assert!(params.validate().is_err());
+        let result = params.validate();
+        assert!(result.is_err(), "Should fail but got: {:?}", result.unwrap());
     }
 
     #[test]
@@ -508,7 +510,8 @@ mcp:
             max_turns: Some(101),
             ..Default::default()
         };
-        assert!(params.validate().is_err());
+        let result = params.validate();
+        assert!(result.is_err(), "Should fail but got: {:?}", result.unwrap());
     }
 
     #[test]
@@ -518,7 +521,8 @@ mcp:
             max_turns: Some(50),
             ..Default::default()
         };
-        assert!(params.validate().is_ok());
+        let result = params.validate();
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     // ========================================================================
@@ -562,7 +566,8 @@ token_budget: 100000
             token_budget: Some(0),
             ..Default::default()
         };
-        assert!(params.validate().is_err());
+        let result = params.validate();
+        assert!(result.is_err(), "Should fail but got: {:?}", result.unwrap());
     }
 
     // ========================================================================
@@ -641,7 +646,8 @@ extended_thinking: false
             provider: Some("claude".to_string()),
             ..Default::default()
         };
-        assert!(params.validate().is_ok());
+        let result = params.validate();
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     #[test]
@@ -654,7 +660,8 @@ extended_thinking: false
             provider: None,
             ..Default::default()
         };
-        assert!(params.validate().is_ok());
+        let result = params.validate();
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     // ========================================================================
@@ -883,7 +890,8 @@ temperature: 1.5
         let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
         assert_eq!(params.tool_choice, Some(ToolChoice::Required));
         assert_eq!(params.temperature, Some(1.5));
-        assert!(params.validate().is_ok());
+        let result = params.validate();
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -1103,7 +1111,8 @@ completion:
       type: regex
 "#;
         let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
-        assert!(params.validate().is_ok());
+        let result = params.validate();
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     #[test]
@@ -1190,7 +1199,8 @@ completion:
         let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
 
         // Validate entire config
-        assert!(params.validate().is_ok());
+        let result = params.validate();
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
 
         // Check completion
         let completion = params.completion.clone().unwrap();
@@ -1364,7 +1374,8 @@ limits:
   max_duration_secs: 600
 "#;
         let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
-        assert!(params.validate().is_ok());
+        let result = params.validate();
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     #[test]
@@ -1395,7 +1406,8 @@ limits:
     message: "Research incomplete due to limits"
 "#;
         let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
-        assert!(params.validate().is_ok());
+        let result = params.validate();
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         assert!(params.has_limits());
 
         let limits = params.effective_limits();

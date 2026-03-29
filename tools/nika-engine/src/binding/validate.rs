@@ -70,39 +70,56 @@ mod tests {
 
     #[test]
     fn valid_simple() {
-        assert!(validate_task_id("weather").is_ok());
-        assert!(validate_task_id("w").is_ok());
+        let result = validate_task_id("weather");
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
+        let result = validate_task_id("w");
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     #[test]
     fn valid_with_underscore() {
-        assert!(validate_task_id("get_data").is_ok());
-        assert!(validate_task_id("fetch_api").is_ok());
-        assert!(validate_task_id("my_task_name").is_ok());
-        assert!(validate_task_id("a_").is_ok());
-        assert!(validate_task_id("a__b").is_ok());
+        let result = validate_task_id("get_data");
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
+        let result = validate_task_id("fetch_api");
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
+        let result = validate_task_id("my_task_name");
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
+        let result = validate_task_id("a_");
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
+        let result = validate_task_id("a__b");
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     #[test]
     fn valid_with_numbers() {
-        assert!(validate_task_id("task123").is_ok());
-        assert!(validate_task_id("step2").is_ok());
-        assert!(validate_task_id("v2_parser").is_ok());
-        assert!(validate_task_id("a0").is_ok());
-        assert!(validate_task_id("a123456789").is_ok());
+        let result = validate_task_id("task123");
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
+        let result = validate_task_id("step2");
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
+        let result = validate_task_id("v2_parser");
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
+        let result = validate_task_id("a0");
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
+        let result = validate_task_id("a123456789");
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     #[test]
     fn valid_single_letter() {
-        assert!(validate_task_id("a").is_ok());
-        assert!(validate_task_id("x").is_ok());
-        assert!(validate_task_id("z").is_ok());
+        let result = validate_task_id("a");
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
+        let result = validate_task_id("x");
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
+        let result = validate_task_id("z");
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     #[test]
     fn valid_all_lowercase_boundaries() {
-        assert!(validate_task_id("abcdefghijklmnopqrstuvwxyz").is_ok());
-        assert!(validate_task_id("a0123456789").is_ok());
+        let result = validate_task_id("abcdefghijklmnopqrstuvwxyz");
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
+        let result = validate_task_id("a0123456789");
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -164,38 +181,62 @@ mod tests {
 
     #[test]
     fn reject_spaces() {
-        assert!(validate_task_id("my task").is_err());
-        assert!(validate_task_id(" weather").is_err());
-        assert!(validate_task_id("weather ").is_err());
-        assert!(validate_task_id("my  task").is_err());
+        let result = validate_task_id("my task");
+        assert!(result.is_err(), "Should fail but got: {:?}", result.unwrap());
+        let result = validate_task_id(" weather");
+        assert!(result.is_err(), "Should fail but got: {:?}", result.unwrap());
+        let result = validate_task_id("weather ");
+        assert!(result.is_err(), "Should fail but got: {:?}", result.unwrap());
+        let result = validate_task_id("my  task");
+        assert!(result.is_err(), "Should fail but got: {:?}", result.unwrap());
     }
 
     #[test]
     fn reject_special_chars() {
-        assert!(validate_task_id("task!").is_err());
-        assert!(validate_task_id("task@name").is_err());
-        assert!(validate_task_id("task#1").is_err());
-        assert!(validate_task_id("task$").is_err());
-        assert!(validate_task_id("task%name").is_err());
-        assert!(validate_task_id("task&more").is_err());
-        assert!(validate_task_id("task(x)").is_err());
-        assert!(validate_task_id("task=value").is_err());
-        assert!(validate_task_id("task+more").is_err());
-        assert!(validate_task_id("task[0]").is_err());
-        assert!(validate_task_id("task{x}").is_err());
-        assert!(validate_task_id("task|pipe").is_err());
-        assert!(validate_task_id("task\\slash").is_err());
-        assert!(validate_task_id("task;semicolon").is_err());
-        assert!(validate_task_id("task:colon").is_err());
-        assert!(validate_task_id("task'quote").is_err());
-        assert!(validate_task_id("task\u{00a0}nbsp").is_err()); // non-breaking space
+        let result = validate_task_id("task!");
+        assert!(result.is_err(), "Should fail but got: {:?}", result.unwrap());
+        let result = validate_task_id("task@name");
+        assert!(result.is_err(), "Should fail but got: {:?}", result.unwrap());
+        let result = validate_task_id("task#1");
+        assert!(result.is_err(), "Should fail but got: {:?}", result.unwrap());
+        let result = validate_task_id("task$");
+        assert!(result.is_err(), "Should fail but got: {:?}", result.unwrap());
+        let result = validate_task_id("task%name");
+        assert!(result.is_err(), "Should fail but got: {:?}", result.unwrap());
+        let result = validate_task_id("task&more");
+        assert!(result.is_err(), "Should fail but got: {:?}", result.unwrap());
+        let result = validate_task_id("task(x)");
+        assert!(result.is_err(), "Should fail but got: {:?}", result.unwrap());
+        let result = validate_task_id("task=value");
+        assert!(result.is_err(), "Should fail but got: {:?}", result.unwrap());
+        let result = validate_task_id("task+more");
+        assert!(result.is_err(), "Should fail but got: {:?}", result.unwrap());
+        let result = validate_task_id("task[0]");
+        assert!(result.is_err(), "Should fail but got: {:?}", result.unwrap());
+        let result = validate_task_id("task{x}");
+        assert!(result.is_err(), "Should fail but got: {:?}", result.unwrap());
+        let result = validate_task_id("task|pipe");
+        assert!(result.is_err(), "Should fail but got: {:?}", result.unwrap());
+        let result = validate_task_id("task\\slash");
+        assert!(result.is_err(), "Should fail but got: {:?}", result.unwrap());
+        let result = validate_task_id("task;semicolon");
+        assert!(result.is_err(), "Should fail but got: {:?}", result.unwrap());
+        let result = validate_task_id("task:colon");
+        assert!(result.is_err(), "Should fail but got: {:?}", result.unwrap());
+        let result = validate_task_id("task'quote");
+        assert!(result.is_err(), "Should fail but got: {:?}", result.unwrap());
+        let result = validate_task_id("task\u{00a0}nbsp"); // non-breaking space
+        assert!(result.is_err(), "Should fail but got: {:?}", result.unwrap());
     }
 
     #[test]
     fn reject_emoji_and_unicode() {
-        assert!(validate_task_id("task😀").is_err());
-        assert!(validate_task_id("tâche").is_err()); // French accented character
-        assert!(validate_task_id("任務").is_err()); // Japanese
+        let result = validate_task_id("task😀");
+        assert!(result.is_err(), "Should fail but got: {:?}", result.unwrap());
+        let result = validate_task_id("tâche"); // French accented character
+        assert!(result.is_err(), "Should fail but got: {:?}", result.unwrap());
+        let result = validate_task_id("任務"); // Japanese
+        assert!(result.is_err(), "Should fail but got: {:?}", result.unwrap());
     }
 
     #[test]

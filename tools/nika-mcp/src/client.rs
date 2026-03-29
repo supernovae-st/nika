@@ -1535,7 +1535,7 @@ mod tests {
         let result = client
             .call_tool("unknown_tool", serde_json::json!({}))
             .await;
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         assert!(!result.unwrap().is_error);
     }
 
@@ -1547,7 +1547,7 @@ mod tests {
     async fn test_mock_read_resource_entity() {
         let client = McpClient::mock("test");
         let result = client.read_resource("neo4j://entity/qr-code").await;
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
 
         let resource = result.unwrap();
         assert_eq!(resource.uri, "neo4j://entity/qr-code");
@@ -1558,7 +1558,7 @@ mod tests {
     async fn test_mock_read_resource_file() {
         let client = McpClient::mock("test");
         let result = client.read_resource("file:///tmp/test.txt").await;
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
 
         let resource = result.unwrap();
         assert_eq!(resource.uri, "file:///tmp/test.txt");
@@ -1661,7 +1661,7 @@ mod tests {
             )
             .await;
 
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     #[tokio::test]
@@ -1685,7 +1685,7 @@ mod tests {
             .await;
 
         // Should pass because validation is disabled
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     #[tokio::test]
@@ -1703,7 +1703,7 @@ mod tests {
             )
             .await;
 
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     #[tokio::test]
@@ -1721,7 +1721,7 @@ mod tests {
             )
             .await;
 
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -1764,7 +1764,7 @@ mod tests {
 
         // First call - miss
         let result1 = client.call_tool("novanet_context", params.clone()).await;
-        assert!(result1.is_ok());
+        assert!(result1.is_ok(), "Should succeed: {:?}", result1.err());
 
         let stats = client.cache_stats().unwrap();
         assert_eq!(stats.misses, 1);
@@ -1773,7 +1773,7 @@ mod tests {
 
         // Second call with same params - hit
         let result2 = client.call_tool("novanet_context", params.clone()).await;
-        assert!(result2.is_ok());
+        assert!(result2.is_ok(), "Should succeed: {:?}", result2.err());
 
         let stats = client.cache_stats().unwrap();
         assert_eq!(stats.misses, 1);
@@ -1913,7 +1913,7 @@ mod tests {
         let client = McpClient::mock("test");
 
         let result = client.ping().await;
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
 
         let ping = result.unwrap();
         assert_eq!(ping.server, "test");
