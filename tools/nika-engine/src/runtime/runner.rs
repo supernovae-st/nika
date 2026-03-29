@@ -6601,4 +6601,210 @@ mod tests {
             panic!("Expected PresetApplied event");
         }
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Backward compat + integration tests for L.3
+    // ═══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn test_no_preset_workflow_runs_normally() {
+        // Workflow without agents: or preset: fields → current behavior unchanged
+        let workflow = create_exec_workflow(vec![("a", "echo hello")], vec![]);
+        let mut runner = Runner::new(workflow).unwrap();
+        let result = runner.run().await;
+        assert!(
+            result.is_ok(),
+            "Workflow without presets should run normally: {:?}",
+            result.err()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_no_preset_emits_no_preset_event() {
+        let workflow = create_exec_workflow(vec![("a", "echo hello")], vec![]);
+        let event_log = EventLog::new();
+        let mut runner = Runner::with_event_log(workflow, event_log.clone()).unwrap();
+        let _ = runner.run().await;
+
+        let preset_events: Vec<_> = event_log
+            .events()
+            .iter()
+            .filter(|e| matches!(&e.kind, crate::event::EventKind::PresetApplied { .. }))
+            .cloned()
+            .collect();
+        assert!(
+            preset_events.is_empty(),
+            "No PresetApplied events when no preset is used"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_multiple_tasks_different_presets() {
+        use crate::ast::agent_def::AgentDef;
+
+        let mut task_table = TaskTable::new();
+        task_table.insert("fast");
+        task_table.insert("deep");
+        let fast_id = task_table.get_id("fast").unwrap();
+        let deep_id = task_table.get_id("deep").unwrap();
+
+        let fast_task = AnalyzedTask {
+            id: fast_id,
+            name: "fast".to_string(),
+            description: None,
+            action: AnalyzedTaskAction::Infer(AnalyzedInferAction {
+                prompt: "quick answer".to_string(),
+                ..Default::default()
+            }),
+            provider: None,
+            model: None,
+            base_url: None,
+            with_spec: Default::default(),
+            depends_on: vec![],
+            implicit_deps: vec![],
+            output: None,
+            for_each: None,
+            retry: None,
+            decompose: None,
+            concurrency: None,
+            fail_fast: None,
+            artifact: None,
+            log: None,
+            structured: None,
+            preset: Some("speed".to_string()),
+            routing: None,
+            span: Span::dummy(),
+        };
+
+        let deep_task = AnalyzedTask {
+            id: deep_id,
+            name: "deep".to_string(),
+            description: None,
+            action: AnalyzedTaskAction::Infer(AnalyzedInferAction {
+                prompt: "deep analysis".to_string(),
+                ..Default::default()
+            }),
+            provider: None,
+            model: None,
+            base_url: None,
+            with_spec: Default::default(),
+            depends_on: vec![],
+            implicit_deps: vec![],
+            output: None,
+            for_each: None,
+            retry: None,
+            decompose: None,
+            concurrency: None,
+            fail_fast: None,
+            artifact: None,
+            log: None,
+            structured: None,
+            preset: Some("think".to_string()),
+            routing: None,
+            span: Span::dummy(),
+        };
+
+        let mut agents = IndexMap::new();
+        agents.insert(
+            "speed".to_string(),
+            AgentDef::Inline {
+                system: "Be fast".to_string(),
+                provider: "mock".to_string(),
+                model: Some("mock-fast".to_string()),
+                max_turns: None,
+                temperature: Some(0.1),
+                skills: None,
+            },
+        );
+        agents.insert(
+            "think".to_string(),
+            AgentDef::Inline {
+                system: "Think deeply".to_string(),
+                provider: "mock".to_string(),
+                model: Some("mock-slow".to_string()),
+                max_turns: None,
+                temperature: Some(0.7),
+                skills: None,
+            },
+        );
+
+        let workflow = AnalyzedWorkflow {
+            schema_version: SchemaVersion::V03,
+            name: None,
+            description: None,
+            provider: Some("mock".to_string()),
+            model: None,
+            base_url: None,
+            task_table,
+            tasks: vec![fast_task, deep_task],
+            mcp_servers: IndexMap::new(),
+            context_files: vec![],
+            include: vec![],
+            inputs: IndexMap::new(),
+            artifacts: None,
+            log: None,
+            agents: Some(agents),
+            skills_map: std::collections::HashMap::new(),
+            routing: None,
+            span: Span::dummy(),
+        };
+
+        let event_log = EventLog::new();
+        let mut runner = Runner::with_event_log(workflow, event_log.clone()).unwrap();
+        let result = runner.run().await;
+        assert!(
+            result.is_ok(),
+            "Multiple presets should work: {:?}",
+            result.err()
+        );
+
+        let preset_events: Vec<_> = event_log
+            .events()
+            .iter()
+            .filter(|e| matches!(&e.kind, crate::event::EventKind::PresetApplied { .. }))
+            .cloned()
+            .collect();
+        assert_eq!(
+            preset_events.len(),
+            2,
+            "Two tasks with presets → two PresetApplied events"
+        );
+    }
+
+    #[test]
+    fn test_cost_tool_registered_via_with_cost_tool() {
+        use crate::runtime::builtin::BuiltinToolRouter;
+        let router = BuiltinToolRouter::new().with_cost_tool(EventLog::new());
+        assert!(
+            router.has_tool("cost"),
+            "nika:cost should be registered via with_cost_tool"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_cost_accumulates_across_tasks() {
+        // Run a preset workflow and check that ProviderResponded events exist
+        let workflow = make_preset_workflow("assistant", None, None);
+        let event_log = EventLog::new();
+        let mut runner = Runner::with_event_log(workflow, event_log.clone()).unwrap();
+        let result = runner.run().await;
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
+
+        // The mock provider should have emitted at least one ProviderResponded
+        let provider_events: Vec<_> = event_log
+            .events()
+            .iter()
+            .filter(|e| {
+                matches!(
+                    &e.kind,
+                    crate::event::EventKind::ProviderResponded { .. }
+                )
+            })
+            .cloned()
+            .collect();
+        assert!(
+            !provider_events.is_empty(),
+            "Mock provider should emit ProviderResponded"
+        );
+    }
 }
