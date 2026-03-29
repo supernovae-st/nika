@@ -32,8 +32,8 @@ pub struct AnalyzedWorkflow {
     /// Optional description
     pub description: Option<String>,
 
-    /// Default provider for the workflow
-    pub provider: Option<String>,
+    /// Default provider for the workflow (typed enum)
+    pub provider: Option<crate::ProviderName>,
 
     /// Default model for the workflow
     pub model: Option<String>,
@@ -147,7 +147,7 @@ impl AnalyzedWorkflow {
         let mut input = String::new();
         input.push_str(self.schema_version.as_str());
         if let Some(ref provider) = self.provider {
-            input.push_str(provider);
+            input.push_str(provider.as_str());
         }
         if let Some(ref model) = self.model {
             input.push_str(model);
@@ -242,6 +242,44 @@ mod tests {
         assert_eq!(workflow.task_count(), 0);
         assert!(workflow.name.is_none());
         assert!(workflow.span.is_dummy());
+    }
+
+    #[test]
+    fn test_analyzed_workflow_provider_is_typed() {
+        use crate::ProviderName;
+
+        let mut workflow = AnalyzedWorkflow::default();
+        workflow.provider = Some(ProviderName::Anthropic);
+
+        // Provider should be a typed enum, not a raw string
+        assert_eq!(workflow.provider, Some(ProviderName::Anthropic));
+        assert!(workflow.provider.as_ref().unwrap().requires_api_key());
+        assert!(workflow.provider.as_ref().unwrap().supports_vision());
+    }
+
+    #[test]
+    fn test_analyzed_workflow_provider_alias_resolved() {
+        use crate::ProviderName;
+
+        // "claude" alias should resolve to Anthropic variant
+        let provider = ProviderName::parse("claude");
+        let mut workflow = AnalyzedWorkflow::default();
+        workflow.provider = Some(provider);
+
+        assert_eq!(workflow.provider, Some(ProviderName::Anthropic));
+        assert_eq!(workflow.provider.as_ref().unwrap().as_str(), "anthropic");
+    }
+
+    #[test]
+    fn test_analyzed_workflow_hash_with_typed_provider() {
+        use crate::ProviderName;
+
+        let mut workflow = AnalyzedWorkflow::default();
+        workflow.provider = Some(ProviderName::Anthropic);
+        workflow.model = Some("claude-sonnet-4-6".to_string());
+
+        let hash = workflow.compute_hash();
+        assert_eq!(hash.len(), 16); // 64-bit hex
     }
 
     #[test]

@@ -31,7 +31,7 @@ impl WorkflowMeta {
     pub fn from_workflow(wf: &AnalyzedWorkflow) -> Arc<Self> {
         Arc::new(Self {
             task_table: wf.task_table.clone(),
-            provider: wf.provider.clone(),
+            provider: wf.provider.as_ref().map(|p| p.to_string()),
             model: wf.model.clone(),
         })
     }
@@ -84,7 +84,7 @@ mod tests {
         for name in tasks {
             wf.task_table.insert(name);
         }
-        wf.provider = provider.map(String::from);
+        wf.provider = provider.map(nika_core::ProviderName::parse);
         wf.model = model.map(String::from);
         wf
     }

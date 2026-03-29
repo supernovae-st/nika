@@ -31,8 +31,8 @@ pub struct AnalyzedTask {
     /// The action this task performs
     pub action: AnalyzedTaskAction,
 
-    /// Task-specific provider override
-    pub provider: Option<String>,
+    /// Task-specific provider override (typed enum)
+    pub provider: Option<crate::ProviderName>,
 
     /// Task-specific model override
     pub model: Option<String>,
@@ -504,6 +504,53 @@ mod tests {
         assert_eq!(OutputFormat::parse("JSON"), Some(OutputFormat::Json));
         assert_eq!(OutputFormat::parse("yaml"), Some(OutputFormat::Yaml));
         assert_eq!(OutputFormat::parse("unknown"), None);
+    }
+
+    #[test]
+    fn test_analyzed_task_provider_is_typed() {
+        use crate::ProviderName;
+
+        let task = AnalyzedTask {
+            id: TaskId(0),
+            name: "test".to_string(),
+            description: None,
+            action: AnalyzedTaskAction::default(),
+            provider: Some(ProviderName::OpenAI),
+            model: Some("gpt-4o".to_string()),
+            base_url: None,
+            preset: None,
+            with_spec: crate::binding::WithSpec::default(),
+            depends_on: Vec::new(),
+            implicit_deps: Vec::new(),
+            output: None,
+            for_each: None,
+            retry: None,
+            decompose: None,
+            concurrency: None,
+            fail_fast: None,
+            artifact: None,
+            log: None,
+            structured: None,
+            record: None,
+            context_budget: None,
+            routing: None,
+            span: Span::dummy(),
+        };
+
+        // Provider should be typed, enabling compile-time guarantees
+        assert_eq!(task.provider, Some(ProviderName::OpenAI));
+        assert!(task.provider.as_ref().unwrap().requires_api_key());
+        assert!(task.provider.as_ref().unwrap().supports_vision());
+    }
+
+    #[test]
+    fn test_analyzed_task_provider_native_no_vision() {
+        use crate::ProviderName;
+
+        // Native provider should not support vision
+        let provider = ProviderName::Native;
+        assert!(!provider.supports_vision());
+        assert!(!provider.requires_api_key());
     }
 
     #[test]

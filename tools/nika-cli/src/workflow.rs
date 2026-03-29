@@ -347,7 +347,7 @@ pub async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Res
                 if let Ok(analyzed) = parse_analyzed(&content) {
                     for task in &analyzed.tasks {
                         if let Some(ref p) = task.provider {
-                            providers_used.insert(p.clone());
+                            providers_used.insert(p.to_string());
                         }
                     }
                 }

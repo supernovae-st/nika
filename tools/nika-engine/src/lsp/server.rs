@@ -208,7 +208,7 @@ fn check_model_compatibility(ast_index: &AstIndex, uri: &Uri, source: &str) -> V
 
         let config = TaskModelConfig {
             model_id,
-            provider: task.provider.clone(),
+            provider: task.provider.as_ref().map(|p| p.to_string()),
             extended_thinking,
             json_output,
             tool_choice_required,
