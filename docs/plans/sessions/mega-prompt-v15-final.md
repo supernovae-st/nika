@@ -60,8 +60,10 @@ LES 5 COUCHES STRUCTURED OUTPUT doivent TOUTES etre testees:
   Layer 3: Retry with Feedback (re-prompt avec erreurs)
   Layer 4: LLM Repair (cheap model repare le JSON)
 
-  Pour Groq et Native: PAS de Layer 0 natif → Layers 2-4 CRITIQUES
-  Tester specifiquement: schema complexe + Groq → verify repair chain
+  TOUS les providers DOIVENT produire du JSON valide. Pas d'exception.
+  Le chemin interne differe (Layer 0 natif vs Layer 2-4 repair) mais
+  le RESULTAT est identique: JSON conforme au schema.
+  Si un provider echoue → c'est un BUG ENGINE a fixer, pas une limitation.
 
 REGLE ABSOLUE STRUCTURED OUTPUT:
   Le prompt utilisateur ne doit JAMAIS mentionner le format JSON ou le schema.
