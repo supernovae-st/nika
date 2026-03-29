@@ -1,13 +1,48 @@
 # Autonomous Session Progress
 
-**Updated**: 2026-03-29T19:30:00
-**Status**: DX-1/2/3 + C.5/C.7 COMPLETE — schema sync, rules, manifest, records, dead code cleanup
+**Updated**: 2026-03-29T22:00:00
+**Status**: Gap analysis + F.2 ProviderName migration COMPLETE — typed providers, canonical "anthropic"
 **Version**: v0.51.0
-**Sessions completed**: A-N, DX-1, DX-2, DX-3, C.5 (partial), C.7
-**Total commits**: 106 (12 new this session)
-**Total tests**: 8,847 across 12 crates (0 failures, 0 clippy warnings)
+**Sessions completed**: A-N, DX-1, DX-2, DX-3, C.5 (partial), C.7, F.2 (core AST)
+**Total commits**: 108 (2 new this session)
+**Total tests**: 8,852 across 12 crates (0 failures, 0 clippy warnings)
 
-## This Session — DX + Quality (9 commits, all pushed)
+## This Session — Gap Analysis + Quality Sprint (2 commits, all pushed)
+
+### Comprehensive Gap Analysis
+- Analyzed all 14 sessions (A-N) against v1.0 master plan
+- Phase 1 Intelligence: **80% complete** (P-ORCHESTRATE remaining)
+- Found many "open bugs" from audits were already fixed in prior sessions
+- Identified discrepancies between plan files and reality (DAG cache exists, presets wired, cargo-deny configured)
+- Created quality sprint plan (P1-P4) prioritized by impact
+
+### F.2: ProviderName Migration — Core AST (2 commits)
+1. `b32b68d` — refactor(ast): migrate AnalyzedTask/Workflow.provider to ProviderName enum
+   - 12 files changed, 260 insertions, 98 deletions
+   - AnalyzedTask.provider + AnalyzedWorkflow.provider: Option<String> → Option<ProviderName>
+   - Analyzer now resolves aliases at parse time (claude→anthropic, gpt→openai)
+   - Engine boundary converts back via .to_string() (engine-side migration deferred)
+   - 5 new tests for typed ProviderName behavior
+
+2. `4a7fbab` — fix(provider): canonicalize all default provider strings to "anthropic"
+   - 5 hardcoded "claude" defaults → "anthropic" (runner, resolver, agent_def, config, boot)
+   - All layers now consistent: YAML → AST → engine → events → display
+
+### Quality Audit Results (bugs verified as already fixed)
+- **CR1** (SchemaGuardrail): Already uses jsonschema::validator_for() with full validation
+- **S3/S4** (SSRF): Already hardened with 3-layer defense (pre-request DNS, redirect policy, post-redirect DNS)
+- **SF1** (DNS fail-closed): Already implemented (DNS errors/timeouts → BLOCK)
+- **SF2** (ProviderResponded): Already fixed in prior session
+- **SF6** (trace drops): Already fixed with warn!/debug! logging
+- **SF8** (debug levels): All debug! usages are appropriate graceful degradation
+- **133 `_ => {}` patterns**: All intentional (TUI keys, event filtering, parser catch-alls)
+
+### Deferred
+- **Engine-side ProviderName migration** (InferParams, AgentParams, Workflow.provider: String → ProviderName): ~8 more fields, separate commit
+- **TUI Arc<str>**: Requires deep refactor of TaskState, Breakpoint enum (19 locations, marginal perf gain)
+- **cargo-mutants**: Tool needs installation + significant runtime
+
+## Previous Session — DX + Quality (9 commits, all pushed)
 
 ### DX-1: JSON Schema sync (1 commit)
 1. `b6fbb1b` — fix(schema): sync JSON Schema with parser — 9 field additions (8 tests)
