@@ -1,0 +1,156 @@
+schema: nika/workflow@0.12
+workflow: e2e-media-dimensions
+description: "Test 14: nika:import → nika:dimensions — verify width/height returned for known image"
+provider: mock
+
+inputs:
+  work_dir: "/tmp/nika_e2e_media_dimensions"
+  # We create a 100x200 PNG so width=100 height=200 are checkable exact values
+
+tasks:
+  # Step 1: Create a 100x200 PNG using Python
+  - id: create_test_image
+    description: "Create a 100x200 PNG with exact known dimensions"
+    exec:
+      command: |
+        mkdir -p '{{inputs.work_dir}}'
+        python3 -c "
+import struct, zlib
+
+def make_png(width, height):
+    def chunk(name, data):
+        c = zlib.crc32(name + data) & 0xffffffff
+        return struct.pack('>I', len(data)) + name + data + struct.pack('>I', c)
+    sig = b'\\x89PNG\\r\\n\\x1a\\n'
+    ihdr = chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 2, 0, 0, 0))
+    # One row = filter byte + RGB * width
+    row = b'\\x00' + b'\\xaa\\xbb\\xcc' * width
+    raw_data = row * height
+    idat = chunk(b'IDAT', zlib.compress(raw_data))
+    iend = chunk(b'IEND', b'')
+    return sig + ihdr + idat + iend
+
+with open('{{inputs.work_dir}}/test-100x200.png', 'wb') as f:
+    f.write(make_png(100, 200))
+print('PNG_100x200_CREATED')
+"
+      shell: true
+
+  # Step 2: Verify file exists
+  - id: verify_image_exists
+    depends_on: [create_test_image]
+    exec:
+      command: "test -f '{{inputs.work_dir}}/test-100x200.png' && echo 'IMAGE_EXISTS' || echo 'IMAGE_MISSING'"
+      shell: true
+
+  # Step 3: Import into CAS to get hash
+  - id: import_image
+    depends_on: [verify_image_exists]
+    invoke:
+      tool: "nika:import"
+      params:
+        path: "{{inputs.work_dir}}/test-100x200.png"
+
+  # Step 4: Get dimensions using CAS hash
+  - id: get_dimensions
+    depends_on: [import_image]
+    with:
+      image_hash: $import_image
+    invoke:
+      tool: "nika:dimensions"
+      params:
+        hash: "{{with.image_hash}}"
+
+  # Step 5: Verify width and height values
+  - id: verify_dimensions
+    depends_on: [get_dimensions]
+    with:
+      dims: $get_dimensions
+    infer:
+      prompt: |
+        Verify that nika:dimensions returned the correct width and height for a 100x200 PNG.
+
+        Dimensions result: {{with.dims}}
+
+        Check:
+        1. Result contains a "width" field equal to 100
+        2. Result contains a "height" field equal to 200
+        3. Result is a valid JSON object or structured data
+        4. No error message is present
+
+        Reply: DIMENSIONS_VALID or DIMENSIONS_INVALID with the actual values found.
+
+  # Step 6: Also verify nika:dimensions works on a 1x1 PNG (edge case)
+  - id: create_tiny_image
+    depends_on: [verify_dimensions]
+    exec:
+      command: |
+        python3 -c "
+import struct, zlib
+
+def png_1x1():
+    def chunk(name, data):
+        c = zlib.crc32(name + data) & 0xffffffff
+        return struct.pack('>I', len(data)) + name + data + struct.pack('>I', c)
+    sig = b'\\x89PNG\\r\\n\\x1a\\n'
+    ihdr = chunk(b'IHDR', struct.pack('>IIBBBBB', 1, 1, 8, 2, 0, 0, 0))
+    idat = chunk(b'IDAT', zlib.compress(b'\\x00\\xff\\x00\\x00'))
+    iend = chunk(b'IEND', b'')
+    return sig + ihdr + idat + iend
+
+with open('{{inputs.work_dir}}/tiny-1x1.png', 'wb') as f:
+    f.write(png_1x1())
+print('PNG_1x1_CREATED')
+"
+      shell: true
+
+  - id: import_tiny
+    depends_on: [create_tiny_image]
+    invoke:
+      tool: "nika:import"
+      params:
+        path: "{{inputs.work_dir}}/tiny-1x1.png"
+
+  - id: get_tiny_dimensions
+    depends_on: [import_tiny]
+    with:
+      tiny_hash: $import_tiny
+    invoke:
+      tool: "nika:dimensions"
+      params:
+        hash: "{{with.tiny_hash}}"
+
+  # Step 7: Final assertion
+  - id: verify_all_dimensions
+    depends_on: [get_tiny_dimensions]
+    with:
+      dims_100x200: $get_dimensions
+      dims_1x1: $get_tiny_dimensions
+      created: $create_test_image
+      exists: $verify_image_exists
+      main_check: $verify_dimensions
+    infer:
+      prompt: |
+        Validate full nika:dimensions pipeline for two PNG images.
+
+        PNG creation: {{with.created}}
+        File exists: {{with.exists}}
+        Dimensions (100x200): {{with.dims_100x200}}
+        Dimensions (1x1): {{with.dims_1x1}}
+        Main dimensions check: {{with.main_check}}
+
+        Assert ALL of the following:
+        1. PNG creation output contains "PNG_100x200_CREATED"
+        2. File exists is "IMAGE_EXISTS"
+        3. Main dimensions check is "DIMENSIONS_VALID"
+        4. 100x200 result contains width=100 and height=200
+        5. 1x1 result contains width=1 and height=1
+
+        Reply: MEDIA_DIMENSIONS_PASS or MEDIA_DIMENSIONS_FAIL with reason.
+
+  # Step 8: Cleanup
+  - id: cleanup
+    depends_on: [verify_all_dimensions]
+    exec:
+      command: "rm -rf '{{inputs.work_dir}}'"
+      shell: true

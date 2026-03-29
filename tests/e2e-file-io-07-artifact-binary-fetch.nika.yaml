@@ -1,0 +1,94 @@
+schema: nika/workflow@0.12
+workflow: e2e-artifact-binary-fetch
+description: "Test 7: fetch response:binary → save as binary artifact → verify CAS file exists"
+provider: mock
+
+inputs:
+  output_dir: "/tmp/nika_e2e_artifacts"
+  # 1x1 transparent PNG (smallest valid PNG, 68 bytes) — reliable, no external dependency
+  # Data URI is not supported; we use a stable CDN asset that won't 404
+  image_url: "https://httpbin.org/image/png"
+
+artifacts:
+  dir: "{{inputs.output_dir}}"
+
+tasks:
+  # Step 1: Fetch binary image from network
+  - id: fetch_binary_image
+    description: "Fetch PNG image in binary mode — stores to CAS, returns hash"
+    fetch:
+      url: "{{inputs.image_url}}"
+      method: GET
+      response: binary
+      timeout: 15
+    artifact:
+      path: fetched-image.bin
+      format: binary
+
+  # Step 2: Verify the artifact file was written
+  - id: verify_artifact_file
+    depends_on: [fetch_binary_image]
+    exec:
+      command: "test -f '{{inputs.output_dir}}/fetched-image.bin' && echo 'BINARY_FILE_EXISTS' || echo 'BINARY_FILE_MISSING'"
+      shell: true
+
+  # Step 3: Verify the artifact is non-empty (has actual bytes)
+  - id: verify_artifact_size
+    depends_on: [verify_artifact_file]
+    exec:
+      command: |
+        size=$(wc -c < '{{inputs.output_dir}}/fetched-image.bin' 2>/dev/null | tr -d ' ')
+        if [ "${size:-0}" -gt 0 ]; then
+          echo "BINARY_SIZE_OK bytes=$size"
+        else
+          echo "BINARY_SIZE_ZERO"
+        fi
+      shell: true
+
+  # Step 4: Verify the CAS hash returned from fetch
+  - id: verify_cas_hash
+    depends_on: [fetch_binary_image]
+    with:
+      hash: $fetch_binary_image
+    infer:
+      prompt: |
+        Verify the binary fetch returned a valid CAS hash for the stored media.
+
+        Hash returned: {{with.hash}}
+
+        Check:
+        1. Hash is a non-empty string
+        2. Hash looks like a content-addressable reference (hex, base58, or similar)
+        3. Hash does not contain HTML or error text
+        4. Hash length is > 8 characters
+
+        Reply: CAS_HASH_VALID or CAS_HASH_INVALID with reason.
+
+  # Step 5: Assert all conditions
+  - id: verify_binary_artifact
+    depends_on: [verify_artifact_size, verify_cas_hash]
+    with:
+      file_check: $verify_artifact_file
+      size_check: $verify_artifact_size
+      hash_check: $verify_cas_hash
+    infer:
+      prompt: |
+        Validate the binary fetch+artifact pipeline end-to-end.
+
+        File existence: {{with.file_check}}
+        File size: {{with.size_check}}
+        CAS hash: {{with.hash_check}}
+
+        Assert ALL of the following:
+        1. File existence is "BINARY_FILE_EXISTS"
+        2. File size is "BINARY_SIZE_OK" (bytes > 0)
+        3. CAS hash is "CAS_HASH_VALID"
+
+        Reply: ARTIFACT_BINARY_PASS or ARTIFACT_BINARY_FAIL with reason.
+
+  # Step 6: Cleanup
+  - id: cleanup
+    depends_on: [verify_binary_artifact]
+    exec:
+      command: "rm -f '{{inputs.output_dir}}/fetched-image.bin'"
+      shell: true

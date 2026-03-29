@@ -1,0 +1,117 @@
+schema: nika/workflow@0.12
+workflow: e2e-media-import
+description: "Test 13: invoke nika:import on a real image file, verify CAS hash returned"
+provider: mock
+
+inputs:
+  # Minimal 1x1 red PNG (base64 decoded to disk before import)
+  work_dir: "/tmp/nika_e2e_media_import"
+
+tasks:
+  # Step 1: Create a minimal valid PNG using Python or a known-good approach
+  # We use Python to write a 1x1 red PNG which is always available on macOS/Linux
+  - id: create_test_image
+    description: "Create a minimal valid PNG image for import testing"
+    exec:
+      command: |
+        mkdir -p '{{inputs.work_dir}}'
+        python3 -c "
+import struct, zlib
+
+def png_1x1(r, g, b):
+    def chunk(name, data):
+        c = zlib.crc32(name + data) & 0xffffffff
+        return struct.pack('>I', len(data)) + name + data + struct.pack('>I', c)
+    sig = b'\\x89PNG\\r\\n\\x1a\\n'
+    ihdr = chunk(b'IHDR', struct.pack('>IIBBBBB', 1, 1, 8, 2, 0, 0, 0))
+    raw = b'\\x00' + bytes([r, g, b])
+    idat = chunk(b'IDAT', zlib.compress(raw))
+    iend = chunk(b'IEND', b'')
+    return sig + ihdr + idat + iend
+
+with open('{{inputs.work_dir}}/test-image.png', 'wb') as f:
+    f.write(png_1x1(255, 0, 0))
+print('PNG_CREATED')
+"
+      shell: true
+
+  # Step 2: Verify the PNG file was created
+  - id: verify_image_file
+    depends_on: [create_test_image]
+    exec:
+      command: "test -f '{{inputs.work_dir}}/test-image.png' && echo 'IMAGE_FILE_EXISTS' || echo 'IMAGE_FILE_MISSING'"
+      shell: true
+
+  # Step 3: Check PNG file size is > 0
+  - id: check_png_size
+    depends_on: [verify_image_file]
+    exec:
+      command: |
+        size=$(wc -c < '{{inputs.work_dir}}/test-image.png' | tr -d ' ')
+        if [ "${size:-0}" -gt 50 ]; then
+          echo "PNG_SIZE_OK bytes=$size"
+        else
+          echo "PNG_SIZE_TOO_SMALL bytes=$size"
+        fi
+      shell: true
+
+  # Step 4: Import the image into CAS via nika:import
+  - id: import_image
+    description: "Import PNG into CAS — should return a content-addressable hash"
+    depends_on: [check_png_size]
+    invoke:
+      tool: "nika:import"
+      params:
+        path: "{{inputs.work_dir}}/test-image.png"
+
+  # Step 5: Verify the hash is a valid non-empty string
+  - id: verify_import_hash
+    depends_on: [import_image]
+    with:
+      hash: $import_image
+    infer:
+      prompt: |
+        Verify that nika:import returned a valid CAS hash for the imported image.
+
+        Import result: {{with.hash}}
+
+        Check:
+        1. Result is a non-empty string (not null or empty)
+        2. Result looks like a CAS hash (hex characters, possibly base58/base64)
+        3. Result is at least 8 characters long
+        4. Result does not contain error messages, HTML, or exception text
+        5. Result does not contain the original file path
+
+        Reply: IMPORT_HASH_VALID or IMPORT_HASH_INVALID with reason.
+
+  # Step 6: Assert all conditions
+  - id: verify_import
+    depends_on: [verify_import_hash]
+    with:
+      created: $create_test_image
+      file_check: $verify_image_file
+      size_check: $check_png_size
+      hash_check: $verify_import_hash
+    infer:
+      prompt: |
+        Validate the full nika:import pipeline for a real PNG file.
+
+        PNG creation: {{with.created}}
+        File existence: {{with.file_check}}
+        File size: {{with.size_check}}
+        Import hash: {{with.hash_check}}
+
+        Assert ALL of the following:
+        1. PNG creation output contains "PNG_CREATED"
+        2. File existence is "IMAGE_FILE_EXISTS"
+        3. File size is "PNG_SIZE_OK"
+        4. Import hash is "IMPORT_HASH_VALID"
+
+        Reply: MEDIA_IMPORT_PASS or MEDIA_IMPORT_FAIL with reason.
+
+  # Step 7: Cleanup
+  - id: cleanup
+    depends_on: [verify_import]
+    exec:
+      command: "rm -rf '{{inputs.work_dir}}'"
+      shell: true

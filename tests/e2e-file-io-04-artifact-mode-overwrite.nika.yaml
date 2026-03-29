@@ -1,0 +1,83 @@
+schema: nika/workflow@0.12
+workflow: e2e-artifact-mode-overwrite
+description: "Test 4: mode:overwrite — write file twice, verify second content replaces first"
+provider: mock
+
+inputs:
+  output_dir: "/tmp/nika_e2e_artifacts"
+
+artifacts:
+  dir: "{{inputs.output_dir}}"
+
+tasks:
+  # Step 1: Write initial file
+  - id: write_first
+    description: "Write FIRST_WRITE_CONTENT to file"
+    exec:
+      command: "echo 'FIRST_WRITE_CONTENT sentinel=OVERWRITE_V1'"
+      shell: true
+    artifact:
+      path: overwrite-test.txt
+      mode: overwrite
+
+  # Step 2: Read back — must see first content
+  - id: read_after_first
+    depends_on: [write_first]
+    exec:
+      command: "cat '{{inputs.output_dir}}/overwrite-test.txt'"
+      shell: true
+
+  # Step 3: Write second content to same path with overwrite
+  - id: write_second
+    description: "Write SECOND_WRITE_CONTENT — should replace first"
+    depends_on: [read_after_first]
+    exec:
+      command: "echo 'SECOND_WRITE_CONTENT sentinel=OVERWRITE_V2'"
+      shell: true
+    artifact:
+      path: overwrite-test.txt
+      mode: overwrite
+
+  # Step 4: Read back — must see second content, not first
+  - id: read_after_second
+    depends_on: [write_second]
+    exec:
+      command: "cat '{{inputs.output_dir}}/overwrite-test.txt'"
+      shell: true
+
+  # Step 5: Count lines — overwrite means 1 line, not 2
+  - id: count_lines
+    depends_on: [read_after_second]
+    exec:
+      command: "wc -l < '{{inputs.output_dir}}/overwrite-test.txt' | tr -d ' '"
+      shell: true
+
+  # Step 6: Verify overwrite semantics
+  - id: verify_overwrite
+    depends_on: [count_lines]
+    with:
+      first_read: $read_after_first
+      second_read: $read_after_second
+      line_count: $count_lines
+    infer:
+      prompt: |
+        Validate that mode:overwrite correctly replaced the first write with the second.
+
+        First read (after first write): {{with.first_read}}
+        Second read (after second write): {{with.second_read}}
+        Line count of final file: {{with.line_count}}
+
+        Assert ALL of the following:
+        1. First read contains "FIRST_WRITE_CONTENT" and "OVERWRITE_V1"
+        2. Second read contains "SECOND_WRITE_CONTENT" and "OVERWRITE_V2"
+        3. Second read does NOT contain "FIRST_WRITE_CONTENT" or "OVERWRITE_V1"
+        4. Line count is 1 (only the second write, not both)
+
+        Reply: ARTIFACT_OVERWRITE_PASS or ARTIFACT_OVERWRITE_FAIL with reason.
+
+  # Step 7: Cleanup
+  - id: cleanup
+    depends_on: [verify_overwrite]
+    exec:
+      command: "rm -f '{{inputs.output_dir}}/overwrite-test.txt'"
+      shell: true

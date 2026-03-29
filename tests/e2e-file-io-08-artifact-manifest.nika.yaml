@@ -1,0 +1,113 @@
+schema: nika/workflow@0.12
+workflow: e2e-artifact-manifest
+description: "Test 8: manifest:true — write multiple artifacts, verify artifacts.json index is created"
+provider: mock
+
+inputs:
+  output_dir: "/tmp/nika_e2e_artifacts/manifest-test"
+
+artifacts:
+  dir: "{{inputs.output_dir}}"
+  manifest: true
+
+tasks:
+  # Step 1: Ensure clean output dir
+  - id: setup
+    exec:
+      command: "rm -rf '{{inputs.output_dir}}' && mkdir -p '{{inputs.output_dir}}'"
+      shell: true
+
+  # Step 2: Write first artifact
+  - id: write_artifact_a
+    depends_on: [setup]
+    exec:
+      command: "echo 'ARTIFACT_A content sentinel=MANIFEST_TEST_A'"
+      shell: true
+    artifact:
+      path: artifact-a.txt
+      format: text
+
+  # Step 3: Write second artifact
+  - id: write_artifact_b
+    depends_on: [setup]
+    exec:
+      command: "echo 'ARTIFACT_B content sentinel=MANIFEST_TEST_B'"
+      shell: true
+    artifact:
+      path: artifact-b.txt
+      format: text
+
+  # Step 4: Write third artifact (JSON format)
+  - id: write_artifact_c
+    depends_on: [setup]
+    exec:
+      command: |
+        printf '{"id":"c","sentinel":"MANIFEST_TEST_C"}'
+      shell: true
+    artifact:
+      path: artifact-c.json
+      format: json
+
+  # Step 5: Wait for all artifacts then check manifest
+  - id: check_manifest_exists
+    depends_on: [write_artifact_a, write_artifact_b, write_artifact_c]
+    exec:
+      command: "test -f '{{inputs.output_dir}}/artifacts.json' && echo 'MANIFEST_EXISTS' || echo 'MANIFEST_MISSING'"
+      shell: true
+
+  # Step 6: Read manifest content
+  - id: read_manifest
+    depends_on: [check_manifest_exists]
+    exec:
+      command: "cat '{{inputs.output_dir}}/artifacts.json'"
+      shell: true
+
+  # Step 7: Validate manifest is valid JSON
+  - id: validate_manifest_json
+    depends_on: [read_manifest]
+    exec:
+      command: "jq '.' '{{inputs.output_dir}}/artifacts.json' > /dev/null 2>&1 && echo 'MANIFEST_VALID_JSON' || echo 'MANIFEST_INVALID_JSON'"
+      shell: true
+
+  # Step 8: Verify manifest references all three artifacts
+  - id: verify_manifest_entries
+    depends_on: [validate_manifest_json]
+    exec:
+      command: |
+        count_a=$(grep -c 'artifact-a.txt' '{{inputs.output_dir}}/artifacts.json' 2>/dev/null || echo 0)
+        count_b=$(grep -c 'artifact-b.txt' '{{inputs.output_dir}}/artifacts.json' 2>/dev/null || echo 0)
+        count_c=$(grep -c 'artifact-c.json' '{{inputs.output_dir}}/artifacts.json' 2>/dev/null || echo 0)
+        echo "a=$count_a b=$count_b c=$count_c"
+      shell: true
+
+  # Step 9: Assert all conditions
+  - id: verify_manifest
+    depends_on: [verify_manifest_entries]
+    with:
+      exists: $check_manifest_exists
+      content: $read_manifest
+      json_valid: $validate_manifest_json
+      entries: $verify_manifest_entries
+    infer:
+      prompt: |
+        Validate that the manifest:true option created artifacts.json correctly.
+
+        Manifest exists: {{with.exists}}
+        Manifest content: {{with.content}}
+        JSON validity: {{with.json_valid}}
+        Entry counts: {{with.entries}}
+
+        Assert ALL of the following:
+        1. Manifest exists: "MANIFEST_EXISTS"
+        2. JSON validity: "MANIFEST_VALID_JSON"
+        3. Entry counts shows a=1, b=1, c=1 (all three artifacts referenced)
+        4. Manifest content is a valid JSON array or object structure
+
+        Reply: ARTIFACT_MANIFEST_PASS or ARTIFACT_MANIFEST_FAIL with reason.
+
+  # Step 10: Cleanup
+  - id: cleanup
+    depends_on: [verify_manifest]
+    exec:
+      command: "rm -rf '{{inputs.output_dir}}'"
+      shell: true

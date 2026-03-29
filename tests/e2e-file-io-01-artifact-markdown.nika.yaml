@@ -1,0 +1,67 @@
+schema: nika/workflow@0.12
+workflow: e2e-artifact-markdown
+description: "Test 1: Write a markdown artifact to disk, then read it back and verify content"
+provider: mock
+
+inputs:
+  output_dir: "/tmp/nika_e2e_artifacts"
+
+artifacts:
+  dir: "{{inputs.output_dir}}"
+
+tasks:
+  # Step 1: Generate markdown content via exec
+  - id: generate_markdown
+    description: "Generate markdown content with known sentinel values"
+    exec:
+      command: |
+        printf '# E2E Artifact Test\n\nThis is a **markdown** artifact.\n\nSentinel: ARTIFACT_TEST_MARKER_001\n\n## Section 2\n\nMore content here.\n'
+      shell: true
+    artifact:
+      path: test-report.md
+      format: markdown
+
+  # Step 2: Verify the file was written to disk
+  - id: verify_file_exists
+    description: "Check the artifact file exists on disk using stat"
+    depends_on: [generate_markdown]
+    exec:
+      command: "test -f '{{inputs.output_dir}}/test-report.md' && echo 'FILE_EXISTS' || echo 'FILE_MISSING'"
+      shell: true
+
+  # Step 3: Read back the artifact content
+  - id: read_artifact_content
+    description: "Cat the artifact file to verify its content"
+    depends_on: [verify_file_exists]
+    exec:
+      command: "cat '{{inputs.output_dir}}/test-report.md'"
+      shell: true
+
+  # Step 4: Verify content correctness
+  - id: verify_content
+    depends_on: [read_artifact_content]
+    with:
+      exists: $verify_file_exists
+      content: $read_artifact_content
+    infer:
+      prompt: |
+        Validate that the markdown artifact was correctly written to disk.
+
+        File existence check: {{with.exists}}
+        File content: {{with.content}}
+
+        Assert ALL of the following:
+        1. File existence is "FILE_EXISTS" (not "FILE_MISSING")
+        2. Content contains "E2E Artifact Test"
+        3. Content contains "ARTIFACT_TEST_MARKER_001"
+        4. Content contains "## Section 2"
+        5. Content contains markdown bold markers (**markdown**)
+
+        Reply: ARTIFACT_MARKDOWN_PASS or ARTIFACT_MARKDOWN_FAIL with reason.
+
+  # Step 5: Cleanup
+  - id: cleanup
+    depends_on: [verify_content]
+    exec:
+      command: "rm -f '{{inputs.output_dir}}/test-report.md'"
+      shell: true

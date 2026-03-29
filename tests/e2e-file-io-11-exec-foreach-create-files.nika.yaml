@@ -1,0 +1,113 @@
+schema: nika/workflow@0.12
+workflow: e2e-exec-foreach-create-files
+description: "Test 11: for_each exec creates 5 files in parallel, then verify all 5 exist"
+provider: mock
+
+inputs:
+  work_dir: "/tmp/nika_e2e_foreach_files"
+
+tasks:
+  # Step 1: Create clean work directory
+  - id: setup_dir
+    exec:
+      command: "rm -rf '{{inputs.work_dir}}' && mkdir -p '{{inputs.work_dir}}'"
+      shell: true
+
+  # Step 2: Create 5 files in parallel using for_each
+  - id: create_files
+    depends_on: [setup_dir]
+    for_each:
+      items: ["file-001", "file-002", "file-003", "file-004", "file-005"]
+      as: filename
+      concurrency: 5
+    exec:
+      command: "echo 'CONTENT_FOR_{{with.filename}} sentinel=FOREACH_FILE_{{with.filename}}' > '{{inputs.work_dir}}/{{with.filename}}.txt'"
+      shell: true
+
+  # Step 3: Count files created
+  - id: count_created_files
+    depends_on: [create_files]
+    exec:
+      command: "ls '{{inputs.work_dir}}' | wc -l | tr -d ' \t'"
+      shell: true
+
+  # Step 4: List all created files
+  - id: list_created_files
+    depends_on: [count_created_files]
+    exec:
+      command: "ls -1 '{{inputs.work_dir}}'"
+      shell: true
+
+  # Step 5: Verify each specific file exists individually
+  - id: verify_each_file
+    depends_on: [list_created_files]
+    exec:
+      command: |
+        dir='{{inputs.work_dir}}'
+        for n in 001 002 003 004 005; do
+          if [ -f "$dir/file-$n.txt" ]; then
+            echo "file-$n=EXISTS"
+          else
+            echo "file-$n=MISSING"
+          fi
+        done
+      shell: true
+
+  # Step 6: Read one file to verify content
+  - id: read_sample_file
+    depends_on: [verify_each_file]
+    exec:
+      command: "cat '{{inputs.work_dir}}/file-003.txt'"
+      shell: true
+
+  # Step 7: Check all 5 files have non-zero size
+  - id: check_file_sizes
+    depends_on: [verify_each_file]
+    exec:
+      command: |
+        dir='{{inputs.work_dir}}'
+        empty_count=0
+        for n in 001 002 003 004 005; do
+          size=$(wc -c < "$dir/file-$n.txt" 2>/dev/null | tr -d ' ')
+          if [ "${size:-0}" -eq 0 ]; then
+            empty_count=$((empty_count + 1))
+          fi
+        done
+        echo "empty_files=$empty_count"
+      shell: true
+
+  # Step 8: Assert everything
+  - id: verify_foreach_files
+    depends_on: [read_sample_file, check_file_sizes]
+    with:
+      total_count: $count_created_files
+      file_listing: $list_created_files
+      existence_checks: $verify_each_file
+      sample_content: $read_sample_file
+      size_check: $check_file_sizes
+    infer:
+      prompt: |
+        Validate that for_each exec created all 5 files correctly in parallel.
+
+        Total file count: {{with.total_count}}
+        Directory listing: {{with.file_listing}}
+        Existence checks: {{with.existence_checks}}
+        Sample file content (file-003): {{with.sample_content}}
+        Empty file count: {{with.size_check}}
+
+        Assert ALL of the following:
+        1. Total count is 5
+        2. Existence checks show all 5 as "EXISTS" (no MISSING entries)
+        3. Sample content for file-003 contains "CONTENT_FOR_file-003"
+        4. Sample content contains "FOREACH_FILE_file-003"
+        5. Size check shows empty_files=0 (all files have content)
+        6. Directory listing contains file-001.txt through file-005.txt
+
+        Reply: EXEC_FOREACH_PASS or EXEC_FOREACH_FAIL with reason.
+
+  # Step 9: Cleanup
+  - id: cleanup
+    depends_on: [verify_foreach_files]
+    exec:
+      command: "rm -rf '{{inputs.work_dir}}'"
+      shell: true

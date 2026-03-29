@@ -1,0 +1,127 @@
+schema: nika/workflow@0.12
+workflow: e2e-exec-cwd
+description: "Test 12: exec with cwd: set — verify working directory respected for relative paths"
+provider: mock
+
+inputs:
+  work_dir: "/tmp/nika_e2e_cwd_test"
+  sub_dir: "/tmp/nika_e2e_cwd_test/subdir"
+
+tasks:
+  # Step 1: Create a directory hierarchy to test cwd
+  - id: setup_dirs
+    exec:
+      command: |
+        rm -rf '{{inputs.work_dir}}'
+        mkdir -p '{{inputs.work_dir}}'
+        mkdir -p '{{inputs.sub_dir}}'
+        echo 'PARENT_FILE sentinel=CWD_PARENT' > '{{inputs.work_dir}}/parent-file.txt'
+        echo 'SUBDIR_FILE sentinel=CWD_SUBDIR' > '{{inputs.sub_dir}}/subdir-file.txt'
+      shell: true
+
+  # Step 2: Run pwd with cwd: work_dir — verify we are in work_dir
+  - id: pwd_work_dir
+    depends_on: [setup_dirs]
+    exec:
+      command: "pwd"
+      cwd: "{{inputs.work_dir}}"
+
+  # Step 3: Run pwd with cwd: sub_dir — verify we are in sub_dir
+  - id: pwd_sub_dir
+    depends_on: [setup_dirs]
+    exec:
+      command: "pwd"
+      cwd: "{{inputs.sub_dir}}"
+
+  # Step 4: List relative paths from cwd (without absolute paths)
+  - id: ls_from_work_dir
+    depends_on: [setup_dirs]
+    exec:
+      command: "ls"
+      cwd: "{{inputs.work_dir}}"
+
+  - id: ls_from_sub_dir
+    depends_on: [setup_dirs]
+    exec:
+      command: "ls"
+      cwd: "{{inputs.sub_dir}}"
+
+  # Step 5: Create a file using relative path from cwd
+  - id: create_relative_file
+    depends_on: [ls_from_work_dir]
+    exec:
+      command: "echo 'CREATED_VIA_CWD sentinel=CWD_RELATIVE_WRITE' > cwd-relative-output.txt"
+      shell: true
+      cwd: "{{inputs.work_dir}}"
+
+  # Step 6: Verify file was created in work_dir (not current dir)
+  - id: verify_relative_file_location
+    depends_on: [create_relative_file]
+    exec:
+      command: |
+        if [ -f '{{inputs.work_dir}}/cwd-relative-output.txt' ]; then
+          echo 'FILE_IN_CWD'
+        else
+          echo 'FILE_NOT_IN_CWD'
+        fi
+        if [ -f './cwd-relative-output.txt' ]; then
+          echo 'FILE_IN_CURRENT_DIR'
+        else
+          echo 'FILE_NOT_IN_CURRENT_DIR'
+        fi
+      shell: true
+
+  # Step 7: Read the relative file from the cwd
+  - id: read_relative_file
+    depends_on: [verify_relative_file_location]
+    exec:
+      command: "cat cwd-relative-output.txt"
+      cwd: "{{inputs.work_dir}}"
+
+  # Step 8: Cat parent-file.txt via relative path with correct cwd
+  - id: cat_parent_relative
+    depends_on: [setup_dirs]
+    exec:
+      command: "cat parent-file.txt"
+      cwd: "{{inputs.work_dir}}"
+
+  # Step 9: Assert cwd semantics
+  - id: verify_cwd
+    depends_on: [read_relative_file, cat_parent_relative]
+    with:
+      pwd_work: $pwd_work_dir
+      pwd_sub: $pwd_sub_dir
+      ls_work: $ls_from_work_dir
+      ls_sub: $ls_from_sub_dir
+      file_location: $verify_relative_file_location
+      relative_content: $read_relative_file
+      parent_content: $cat_parent_relative
+    infer:
+      prompt: |
+        Validate that exec cwd: correctly sets the working directory for commands.
+
+        pwd in work_dir: {{with.pwd_work}}
+        pwd in sub_dir: {{with.pwd_sub}}
+        ls in work_dir: {{with.ls_work}}
+        ls in sub_dir: {{with.ls_sub}}
+        File location check: {{with.file_location}}
+        Content of relative file: {{with.relative_content}}
+        Content of parent-file.txt via relative path: {{with.parent_content}}
+
+        Assert ALL of the following:
+        1. pwd in work_dir ends with "nika_e2e_cwd_test" (not subdir)
+        2. pwd in sub_dir ends with "subdir"
+        3. ls in work_dir shows "parent-file.txt" and "subdir"
+        4. ls in sub_dir shows "subdir-file.txt"
+        5. File location shows "FILE_IN_CWD" (relative write went to cwd)
+        6. Relative file content contains "CREATED_VIA_CWD" and "CWD_RELATIVE_WRITE"
+        7. Parent file content contains "PARENT_FILE" and "CWD_PARENT"
+
+        Reply: EXEC_CWD_PASS or EXEC_CWD_FAIL with reason.
+
+  # Step 10: Cleanup
+  - id: cleanup
+    depends_on: [verify_cwd]
+    exec:
+      command: "rm -rf '{{inputs.work_dir}}'"
+      shell: true
