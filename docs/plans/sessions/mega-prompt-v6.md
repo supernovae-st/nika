@@ -136,40 +136,78 @@ Restant:
 2. **Arc<str> for task_id** — Replace `.to_string()` with `Arc::clone()` in TUI event handlers (~10 instances)
 3. **Document format!() pattern** — Annotate ~20 format!() per-frame allocations
 
-### 5. Session E Part 3: Remaining is_ok() + Quality Plan Bugs (~2h)
-
-**is_ok() strengthening**: ~221 remaining across ~40 files (diminishing returns — focus on engine + core)
+### 5. Session E Part 3: Quality Plan Bugs + Test Hardening (~3h)
 
 **Quality Plan bugs still open** (from `docs/plans/2026-03-28-v051-master-quality-plan.md`):
+
+**CRITICAL**:
 - **CR1**: SchemaGuardrail `.check()` only validates `required` — needs full JSON Schema validation via `jsonschema` crate
+- **CR2-CR3**: Agent status/result tests are tautologies — need real execution tests
+
+**HIGH — Silent Failures**:
 - **SF2**: Missing ProviderResponded event on Layer 0a no-spec path
 - **SF3-SF4**: for_each binding failures missing TaskFailed event
 - **SF5**: `jsonschema::validator_for(schema).ok()` silently disables validation
-- **SF6**: EventLog silently drops trace writes
+- **SF6**: EventLog silently drops trace writes with `let _ =`
+- **SF7**: Daemon job state updates silently dropped
 - **SF10**: `extended_thinking` agent = single-turn, no tools
+
+**MEDIUM**:
 - **M-tok1-4**: Token count gaps (0 when Final stream missing, native vision 0 tokens)
 - **M-sec2**: Symlinks in artifact dir escape boundary
 - **M-sec3**: Traces persist forever, no rotation
+- **M-orig1**: `for_each` ordering with `concurrency: 1` — verify or fix
 - **M-orig3**: `manifest: true` never writes artifacts.json
 - **M-orig6**: `{{for_each.index}}` unavailable in artifact paths
+- **M-orig7**: `extract: llm_txt` returns raw HTML fallback
+- **M-orig8**: Temperature not validated per-provider (Anthropic max 1.0)
 
-### 6. Session D Remaining: cargo-mutants + tracing-error
+**Test strengthening**: ~221 bare `assert!(is_ok())` remaining + 10 event emission tests + 4 E2E guardrail workflows + README guardrail syntax fixes (3 locations)
+
+**Systemic issues from review findings**:
+- 60+ `_ => {}` without logging (Rule 2 violation)
+- 50+ `unwrap_or(0)` in production (Rule 1 violation)
+- 28 untested EventKind variants
+- `ContextAssembled` reports hardcoded zeros (budget_used_pct: 0.0, truncated: false)
+- Chat path NEVER emits `ProviderResponded`
+- 3 `calculate_cost()` callsites still missing cache: structured_output.rs:206, thinking.rs:520, chat.rs:336
+
+### 6. Session F Part 2: ProviderName enum + EventKind grouping (~3h)
+
+Plan: `docs/plans/sessions/session-F-stringly-typed.md` (Parts 2, 4, 7)
+
+Restant:
+1. **ProviderName enum** — Replace `Option<String>` provider fields with typed enum (Anthropic, OpenAI, Mistral, Groq, DeepSeek, Gemini, XAi, Native, Mock, Custom(String)). Impacts 916+ occurrences across 116 files.
+2. **EventKind grouping** — Current: 66 flat variants. Extract into nested enums (TaskEvent, ProviderEvent, McpEvent, AgentEvent...). Backward-compat Serde required.
+3. **Doc comment fix** — log.rs:5 says "44 variants" but reality is 66+. Add static assertion.
+
+### 7. Session J Remaining: Registry + Docs (~1h)
+
+Plan: `docs/plans/sessions/session-J-phase0-stabilize.md`
+
+Most J items done (preset wiring, error codes). Restant:
+1. **Registry graceful fallback** — Friendly error when registry unreachable
+2. **LSP completion for preset field** — Add completions from agents block
+3. **Update llms.txt and llms-syntax.txt** — Verify current
+
+### 8. Session D Remaining: cargo-mutants + tracing-error (~2h)
 
 Plan: `docs/plans/sessions/session-D-quality-infra.md`
 
-- **cargo-mutants** — mutation testing for critical paths
+- **cargo-mutants** — mutation testing for critical paths (cost.rs, security.rs, transform.rs, flow.rs, guardrails.rs)
 - **tracing-error** — SpanTrace integration for error context
+- **cargo-deny** — license check (AGPL), CVE scanning, source validation
 - **E2E stress workflows** — 3 mock workflows testing concurrency limits
 
-### 7. Session H Part 2: LSP E2E Tests + VS Code Extension (~2h)
+### 9. Session H Part 2: LSP Remaining (~1.5h)
 
-Plan: `docs/plans/sessions/session-H-lsp-overhaul.md` (Parts 3-5)
+Plan: `docs/plans/sessions/session-H-lsp-overhaul.md`
 
-Restant:
-1. **VS Code extension version sync** — `editors/vscode/package.json` → match binary version
-2. **Extension command IDs** — verify all 5 commands register correctly
-3. **LSP validation parity** — `nika check` runs 7 phases, LSP runs only 3 → add remaining 4
-4. **E2E test harness** — stdio JSON-RPC test + 6 protocol tests (initialize, completion, diagnostics, hover, code actions, formatting)
+Most H items done (NIKA-163, template crash, E2E harness with 18 tests, version sync to 0.51). Restant:
+1. **Extension activation robustness** — Move registerCommand() to TOP of activate() before async binary discovery
+2. **files.associations** — Add `*.nika.yaml` → `nika` to configurationDefaults in package.json (currently empty)
+3. **Import path validation** — Check `imports: [./path/to/file.nika.yaml]` file existence in LSP
+4. **Fix failing test** — `completion_e2e.rs:673` expects `json` transform but it doesn't exist in catalog
 
 ### 8. Sessions Infrastructure (si SSH/tokens dispo)
 
@@ -194,13 +232,15 @@ Restant:
 
 ## ORDRE RECOMMANDÉ
 
-1. **Session L.3** — nika:cost tool + preset.rs module
-2. **Session E.3** — Quality Plan bugs (CR1, SF2-SF6)
-3. **Session M** — Record compression (P-RECORD)
-4. **Session N** — Context + memory (P-CONTEXT)
-5. **Session I.2** — TUI perf (DAG cache, Arc<str>)
-6. **Session D** — cargo-mutants, tracing-error
-7. **Session H.2** — LSP E2E tests
+1. **Session L.3** — nika:cost tool + preset.rs module (~1.5h)
+2. **Session E.3** — Quality Plan bugs: CR1 (SchemaGuardrail), SF2-SF6, CR2-CR3 (~3h)
+3. **Session M** — Record compression / P-RECORD (~3h, 11 commits)
+4. **Session N** — Context + memory / P-CONTEXT (~3h, 15 tasks)
+5. **Session F.2** — ProviderName enum + EventKind grouping (~3h)
+6. **Session I.2** — TUI perf: DAG cache, Arc<str> (~1h)
+7. **Session D** — cargo-mutants, tracing-error, cargo-deny (~2h)
+8. **Session J** — Registry fallback, LSP preset completions (~1h)
+9. **Session H.2** — Extension robustness, import validation (~1.5h)
 
 Si du temps après: R (CI), O (daemon), S-V (advanced).
 
