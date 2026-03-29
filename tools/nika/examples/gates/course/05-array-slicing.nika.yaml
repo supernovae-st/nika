@@ -16,6 +16,7 @@ tasks:
   # -- Source: ranked AI models --
   - id: models
     exec: 'echo ''["claude-opus","gpt-4o","gemini-pro","llama-405b","mistral-large","command-r-plus","deepseek-v3","qwen-72b"]'''
+    output: { format: json }
     description: "8 AI models ranked by benchmark score"
 
   # -- first: get the top-ranked model --

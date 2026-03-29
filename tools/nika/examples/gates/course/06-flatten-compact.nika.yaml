@@ -16,6 +16,7 @@ tasks:
   # -- Source: nested arrays simulating multi-source merge --
   - id: nested_data
     exec: 'echo ''[["rust","go"],["python",null,"java"],[null,"typescript"],["elixir"]]'''
+    output: { format: json }
     description: "Nested arrays with nulls from merging multiple data sources"
 
   # -- Flatten: collapse nesting into single array --
@@ -60,6 +61,7 @@ tasks:
   # -- Compact on flat array with nulls --
   - id: flat_with_nulls
     exec: 'echo ''["alpha",null,"beta",null,null,"gamma","delta",null]'''
+    output: { format: json }
     description: "Flat array with scattered nulls"
 
   - id: compact_flat

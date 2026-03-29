@@ -16,6 +16,7 @@ tasks:
   # -- Source: realistic API response --
   - id: api_response
     exec: 'printf ''{"users":[{"id":1,"name":"Alice","roles":["admin","dev"]},{"id":2,"name":"Bob","roles":["dev"]}],"total":2,"page":1}'''
+    output: { format: json }
     description: "Complex nested API response"
 
   # -- Parse: string -> structured --
@@ -71,6 +72,7 @@ tasks:
   # -- Simple value roundtrip --
   - id: simple_values
     exec: 'echo ''["hello","world",42,true,null]'''
+    output: { format: json }
     description: "Mixed-type array"
 
   - id: simple_roundtrip
