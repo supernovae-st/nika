@@ -769,6 +769,28 @@ pub enum EventKind {
     },
 
     // ═══════════════════════════════════════════
+    // CONTEXT BUDGET EVENTS
+    // ═══════════════════════════════════════════
+    /// Context budget check passed — bindings fit within budget
+    BudgetOk {
+        task_id: Arc<str>,
+        /// Configured budget in tokens
+        budget: u32,
+        /// Actual estimated tokens
+        actual: u32,
+    },
+    /// Context budget exceeded — bindings were truncated to fit
+    BudgetExceeded {
+        task_id: Arc<str>,
+        /// Configured budget in tokens
+        budget: u32,
+        /// Original estimated tokens before truncation
+        actual: u32,
+        /// Aliases that were truncated
+        truncated_fields: Vec<String>,
+    },
+
+    // ═══════════════════════════════════════════
     // BINDING EVENTS
     // ═══════════════════════════════════════════
     /// Binding default value applied (via ?? operator)
@@ -947,6 +969,8 @@ impl EventKind {
             | Self::TaskRetry { task_id, .. }
             | Self::FallbackTriggered { task_id, .. }
             | Self::PolicyBlocked { task_id, .. }
+            | Self::BudgetOk { task_id, .. }
+            | Self::BudgetExceeded { task_id, .. }
             | Self::BindingDefaultApplied { task_id, .. }
             | Self::BindingTransformApplied { task_id, .. }
             | Self::BindingEnvResolved { task_id, .. }
@@ -4023,5 +4047,52 @@ mod tests {
         assert!(json.contains("native_model_loaded"));
         let round: EventKind = serde_json::from_str(&json).unwrap();
         assert_eq!(round.task_id(), None);
+    }
+
+    #[test]
+    fn test_budget_ok_event() {
+        let event = EventKind::BudgetOk {
+            task_id: Arc::from("constrained"),
+            budget: 4000,
+            actual: 2500,
+        };
+        assert_eq!(event.task_id(), Some("constrained"));
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("budget_ok"), "Should serialize: {json}");
+        let round: EventKind = serde_json::from_str(&json).unwrap();
+        if let EventKind::BudgetOk { budget, actual, .. } = round {
+            assert_eq!(budget, 4000);
+            assert_eq!(actual, 2500);
+        } else {
+            panic!("Roundtrip failed");
+        }
+    }
+
+    #[test]
+    fn test_budget_exceeded_event() {
+        let event = EventKind::BudgetExceeded {
+            task_id: Arc::from("oversize"),
+            budget: 2000,
+            actual: 8000,
+            truncated_fields: vec!["data".to_string(), "context".to_string()],
+        };
+        assert_eq!(event.task_id(), Some("oversize"));
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("budget_exceeded"), "Should serialize: {json}");
+        assert!(json.contains("truncated_fields"));
+        let round: EventKind = serde_json::from_str(&json).unwrap();
+        if let EventKind::BudgetExceeded {
+            budget,
+            actual,
+            truncated_fields,
+            ..
+        } = round
+        {
+            assert_eq!(budget, 2000);
+            assert_eq!(actual, 8000);
+            assert_eq!(truncated_fields, vec!["data", "context"]);
+        } else {
+            panic!("Roundtrip failed");
+        }
     }
 }

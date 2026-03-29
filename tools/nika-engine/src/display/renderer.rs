@@ -1175,6 +1175,26 @@ impl CliRenderer {
             }
 
             // ═══════════════════════════════════════
+            // CONTEXT BUDGET EVENTS
+            // ═══════════════════════════════════════
+            EventKind::BudgetOk { budget, actual, .. } => {
+                if self.detail.show_sub_events() {
+                    println!("  budget ok: {actual}/{budget} tokens");
+                }
+            }
+            EventKind::BudgetExceeded {
+                budget,
+                actual,
+                truncated_fields,
+                ..
+            } => {
+                println!(
+                    "  budget exceeded: {actual} -> {budget} tokens (truncated: {})",
+                    truncated_fields.join(", ")
+                );
+            }
+
+            // ═══════════════════════════════════════
             // BINDING EVENTS
             // ═══════════════════════════════════════
             EventKind::BindingDefaultApplied { alias, path, .. } => {
