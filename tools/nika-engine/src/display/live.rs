@@ -1271,6 +1271,24 @@ impl LiveRenderer {
                 }
             }
 
+            // ── Context budget events ────────────────────────────
+            EventKind::BudgetOk { budget, actual, .. } => {
+                if self.detail.show_sub_events() {
+                    self.log(&format!("  📏 budget ok: {actual}/{budget} tokens"));
+                }
+            }
+            EventKind::BudgetExceeded {
+                budget,
+                actual,
+                truncated_fields,
+                ..
+            } => {
+                self.log(&format!(
+                    "  ⚠️  budget exceeded: {actual}→{budget} tokens (truncated: {})",
+                    truncated_fields.join(", ")
+                ));
+            }
+
             // ── Binding events ───────────────────────────────────
             EventKind::BindingDefaultApplied { alias, path, .. } => {
                 if self.detail.show_sub_events() {

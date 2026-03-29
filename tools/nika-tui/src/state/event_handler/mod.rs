@@ -475,6 +475,8 @@ impl TuiState {
             | EventKind::PolicyBlocked { .. }
             | EventKind::BootPhaseCompleted { .. }
             | EventKind::NativeModelLoaded { .. }
+            | EventKind::BudgetOk { .. }
+            | EventKind::BudgetExceeded { .. }
             | EventKind::BindingDefaultApplied { .. }
             | EventKind::BindingTransformApplied { .. }
             | EventKind::BindingEnvResolved { .. }
