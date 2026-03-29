@@ -679,11 +679,109 @@ tasks:
 }
 ```
 
-**Wave 2 commits** (~3):
+### 2E — Tests adversariaux et pieges (2h)
+
+Tests que PERSONNE n'a pense a ecrire. L'agent DOIT les implementer:
+
+```
+DATA FLOW TRAPS:
+  1. Structured output → binding → ANOTHER structured output (JSON in JSON)
+     → Le 2eme task recoit du JSON en string, pas un objet. Est-ce que ca marche?
+  2. for_each avec 0 items (array vide) → le workflow doit completer sans erreur
+  3. for_each avec 1 seul item → cas degenere, doit marcher comme un task normal
+  4. for_each output utilise dans un AUTRE for_each (nested iteration)
+  5. Task output de 50K+ chars → binding dans le prochain task → OOM? truncation?
+  6. with: { data: $task } ou task n'existe PAS → erreur NIKA-071, pas panic
+  7. Prompt naturel en chinois/arabe/hindi → structured output JSON valide
+  8. $env.VAR qui contient des {{template}} → injection? echappement?
+
+STRUCTURED OUTPUT STRESS:
+  9. Schema avec 10 niveaux de nesting → layers doivent gerer
+  10. Schema avec additionalProperties: false → verifier ZERO champ supplementaire
+  11. Schema avec constraints contradictoires (min:10, max:5) → erreur claire
+  12. Schema vide {} → valide? erreur?
+  13. Prompt qui resiste activement: "Ne reponds JAMAIS en JSON" → layers gagnent
+  14. Structured + for_each: CHAQUE iteration produit du JSON valide
+  15. MEME schema, 7 providers → TOUS produisent du JSON valide
+
+CONCURRENCE:
+  16. for_each concurrency:50 avec 3 items → pas de deadlock
+  17. 2 tasks qui dependent du MEME parent → execution parallele correcte
+  18. Agent max_turns:1 → complete gracieusement (pas hang)
+
+FICHIERS ET ARTIFACTS:
+  19. Artifact markdown → verifier fichier EXISTE sur disque
+  20. Artifact JSON → verifier contenu est du JSON VALIDE
+  21. exec: "echo test > /tmp/nika-e2e.txt" → lire le fichier → verifier contenu
+  22. fetch response:binary → verifier blob dans CAS
+
+Pour chaque test:
+  - EXECUTER reellement (pas juste ecrire)
+  - Si ca CRASH → c'est un BUG ENGINE → fixer
+  - Si ca passe mais output est faux → c'est un BUG ENGINE → fixer
+  - Commit le fix + le test
+```
+
+### 2F — Multi-provider comparison (1h)
+
+Un SEUL workflow qui execute le MEME schema sur TOUS les providers disponibles:
+
+```yaml
+schema: "nika/workflow@0.12"
+provider: mock
+
+tasks:
+  - id: openai_test
+    provider: openai
+    model: gpt-4.1-mini
+    infer: "Describe a chef named Marco from Italy"
+    structured:
+      schema: &chef_schema
+        type: object
+        properties:
+          name: { type: string }
+          country: { type: string }
+          specialties:
+            type: array
+            items: { type: string }
+            minItems: 2
+          michelin_stars: { type: number, minimum: 0, maximum: 3 }
+          active: { type: boolean }
+        required: [name, country, specialties, michelin_stars, active]
+      enable_repair: true
+
+  - id: gemini_test
+    provider: gemini
+    model: gemini-2.5-flash
+    infer: "Describe a chef named Marco from Italy"
+    structured:
+      schema: *chef_schema
+      enable_repair: true
+
+  # Meme chose pour chaque provider...
+
+  - id: verify_all
+    depends_on: [openai_test, gemini_test]
+    with:
+      openai: $openai_test
+      gemini: $gemini_test
+    infer: "Compare et verifie que les 2 outputs sont des JSON valides avec la meme structure"
+```
+
+L'agent DOIT:
+1. Executer ce workflow
+2. Verifier que CHAQUE provider produit du JSON valide
+3. Si un provider echoue → debugger le 5-layer pour CE provider → fixer
+4. Commit: `fix(structured): <provider> <layer> <description>`
+
+**Wave 2 commits** (~6):
 ```
 test(e2e): add 10 mock E2E workflow tests
-test(e2e): add 4 real API workflow tests (skip if no key)
-test(e2e): add complex pipeline + research workflow tests
+test(e2e): structured output validation — 7 providers programmatic
+test(e2e): complex pipeline + fetch + research tests
+test(e2e): adversarial tests — data flow traps, stress, concurrency
+test(e2e): artifact + file I/O verification tests
+test(e2e): multi-provider comparison workflow
 ```
 
 ---
