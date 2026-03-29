@@ -1,0 +1,97 @@
+schema: "nika/workflow@0.12"
+workflow: research-pipeline
+description: |
+  Multi-URL research pipeline: fetch 3 URLs → extract articles →
+  for_each summarize → synthesize final report.
+
+  Features tested:
+  - fetch verb (3 parallel fetches)
+  - extract:article (readability extraction)
+  - for_each (parallel concurrency)
+  - depends_on (task ordering)
+  - with bindings (data flow)
+  - Pipe transforms (join arrays)
+
+provider: mock
+model: claude-haiku-4-5
+
+inputs:
+  topic: "AI workflow engines"
+  urls:
+    - "https://example.com/article1"
+    - "https://example.com/article2"
+    - "https://example.com/article3"
+
+tasks:
+  # Task 1: Fetch all 3 URLs in parallel, extract article content
+  # Data flow:
+  #   fetch_urls
+  #    ├── url1 → extract:article → raw_articles[0]
+  #    ├── url2 → extract:article → raw_articles[1]
+  #    └── url3 → extract:article → raw_articles[2]
+  #       ↓
+  #   summarize_all (depends_on: fetch_urls)
+  #       ↓
+  #   synthesize_report
+
+  - id: fetch_urls
+    description: Fetch all input URLs and extract article content
+    for_each:
+      items: "{{inputs.urls}}"
+      as: url
+      concurrency: 3
+      fail_fast: false
+    fetch:
+      url: "{{with.url}}"
+      extract: article
+      timeout: 30
+
+  # Task 2: Summarize each extracted article in parallel
+  - id: summarize_all
+    description: Summarize each article with structured output
+    depends_on: [fetch_urls]
+    for_each:
+      items: "{{with.articles}}"
+      as: article
+      concurrency: 2
+    with:
+      articles: $fetch_urls
+    infer:
+      prompt: |
+        Summarize this article in 2-3 sentences:
+        {{with.article}}
+      max_tokens: 100
+    structured:
+      schema:
+        type: object
+        properties:
+          title: { type: string }
+          summary: { type: string }
+          key_points: { type: array, items: { type: string } }
+        required: [summary]
+      enable_repair: true
+
+  # Task 3: Synthesize all summaries into final report
+  - id: synthesize_report
+    description: Synthesize summaries into coherent report
+    depends_on: [summarize_all]
+    with:
+      summaries: $summarize_all
+      topic: "{{inputs.topic}}"
+    infer:
+      prompt: |
+        Create a comprehensive research report on {{with.topic}}
+        based on these article summaries:
+
+        {{with.summaries | join('\n---\n')}}
+
+        Format: markdown with sections for overview, key findings,
+        and recommendations.
+      max_tokens: 500
+      temperature: 0.7
+
+# Run with real provider:
+# ANTHROPIC_API_KEY=xxx nika run test-workflow-1-research-pipeline.nika.yaml
+#
+# With Groq fallback:
+# GROQ_API_KEY=xxx nika run test-workflow-1-research-pipeline.nika.yaml --provider groq

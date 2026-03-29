@@ -1,0 +1,194 @@
+schema: "nika/workflow@0.12"
+workflow: guardrails-pipeline
+description: |
+  Strict content generation with 3 types of guardrails:
+  - Length guardrail (min/max words)
+  - Schema guardrail (JSON structure validation)
+  - Regex guardrail (format compliance)
+
+  Features tested:
+  - guardrails block (4 types available)
+  - on_failure:retry (automatic retry if guardrail fails)
+  - on_failure:escalate (fail loudly with context)
+  - Length validation (min_words, max_words)
+  - Regex pattern matching
+  - Schema validation
+  - Multiple guardrails on single task
+
+provider: mock
+model: claude-haiku-4-5
+
+inputs:
+  content_type: "technical article"
+  target_audience: "developers"
+  word_count_target: 500
+
+tasks:
+  # Task 1: Generate content with length guardrail
+  - id: generate_article
+    description: |
+      Generate article with strict length guardrail.
+      Must be between 300-800 words.
+      Retry if validation fails.
+    infer:
+      prompt: |
+        Write a {{inputs.content_type}} for {{inputs.audience}}.
+
+        Topic: Best practices for code reviews
+
+        Include:
+        - Introduction
+        - 3-4 main points
+        - Practical tips
+        - Conclusion
+
+        Target length: ~{{inputs.word_count_target}} words
+      max_tokens: 600
+      temperature: 0.7
+
+    guardrails:
+      # Guardrail 1: Length (word count)
+      - type: length
+        min_words: 300
+        max_words: 800
+        on_failure: retry  # Auto-retry if too short/long
+
+  # Task 2: Extract structured data with schema guardrail
+  - id: extract_summary
+    description: |
+      Extract summary with schema validation.
+      Must match defined JSON structure.
+    depends_on: [generate_article]
+    with:
+      article: $generate_article
+    infer:
+      prompt: |
+        Extract a summary from this article:
+        {{with.article}}
+
+        Return JSON with: title, summary, key_points, audience
+      max_tokens: 300
+      response_format: json
+
+    guardrails:
+      # Guardrail 2: Schema (JSON structure)
+      - type: schema
+        json_schema:
+          type: object
+          properties:
+            title: { type: string, minLength: 5 }
+            summary: { type: string, minLength: 50 }
+            key_points:
+              type: array
+              items: { type: string }
+              minItems: 3
+              maxItems: 5
+            audience: { type: string }
+          required: [title, summary, key_points]
+        on_failure: escalate  # Fail with full error context
+
+  # Task 3: Generate structured outline with regex guardrail
+  - id: generate_outline
+    description: |
+      Generate outline that must start with "## Outline"
+      and use markdown structure.
+    depends_on: [extract_summary]
+    with:
+      summary: $extract_summary
+    infer:
+      prompt: |
+        Create a detailed outline based on this summary:
+        {{with.summary}}
+
+        Format as markdown with:
+        - Start with "## Outline" heading
+        - Use proper markdown hierarchy (##, ###, ####)
+        - Include at least 3 main sections
+      max_tokens: 400
+      temperature: 0.6
+
+    guardrails:
+      # Guardrail 3: Regex (format compliance)
+      - type: regex
+        pattern: "^## Outline"
+        message: "Outline must start with '## Outline' heading"
+        on_failure: retry  # Auto-retry with feedback
+
+  # Task 4: Validate outline with combined guardrails
+  - id: validate_outline
+    description: |
+      Validate outline with multiple guardrails.
+      Tests: length + regex + schema together.
+    depends_on: [generate_outline]
+    with:
+      outline: $generate_outline
+    infer:
+      prompt: |
+        Review this outline and validate it:
+        {{with.outline}}
+
+        Provide validation status and any issues found.
+      max_tokens: 200
+
+    guardrails:
+      - type: length
+        min_words: 50
+        max_words: 500
+        on_failure: retry
+      - type: regex
+        pattern: "^## Outline"
+        message: "Must start with section heading"
+        on_failure: retry
+      - type: regex
+        pattern: "\\d+\\.|\\-|\\*"  # Lists with bullets/numbers
+        message: "Must contain list structure"
+        on_failure: retry
+
+  # Task 5: Final review with LLM judge guardrail
+  - id: final_review
+    description: |
+      Final review using LLM judge guardrail.
+      LLM validates quality, not just format.
+    depends_on: [validate_outline]
+    with:
+      final_content: $validate_outline
+    infer:
+      prompt: |
+        Create a final summary of this outline:
+        {{with.final_content}}
+
+        Is it well-structured and comprehensive?
+      max_tokens: 250
+
+    guardrails:
+      # Guardrail 4: LLM judge (custom validation logic)
+      - type: llm
+        judge_prompt: |
+          Evaluate this response for quality:
+          - Is it well-organized?
+          - Does it address all topics?
+          - Is the structure clear?
+
+          Reply with PASS if quality is good, FAIL if not.
+        pass_pattern: "^PASS"
+        on_failure: retry  # Auto-retry if judge says FAIL
+
+# Guardrail behaviors:
+# - on_failure: retry  → Automatically retry the task with feedback
+# - on_failure: escalate → Fail loudly with full error + context
+# - on_failure: fail → Hard fail, stop workflow
+#
+# Guardrail types:
+# 1. length: min_words, max_words boundaries
+# 2. schema: JSON structure validation
+# 3. regex: Pattern matching (heading, format, structure)
+# 4. llm: Custom LLM judge for quality evaluation
+#
+# Run with real provider:
+# ANTHROPIC_API_KEY=xxx nika run test-workflow-8-guardrails.nika.yaml
+#
+# Test guardrail enforcement:
+# nika run test-workflow-8-guardrails.nika.yaml --provider mock --verbose
+#
+# Check task constraints:
+# nika workflow graph test-workflow-8-guardrails.nika.yaml | grep -i "guard"
