@@ -8,6 +8,24 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
 
+/// Approximate chars per token for heuristic token estimation.
+/// Conservative for English (~4 chars/token). CJK text is ~1-2 chars/token.
+pub const CHARS_PER_TOKEN: usize = 4;
+
+/// Find the largest byte index <= `max_byte` that is a valid UTF-8 char boundary.
+/// Equivalent to `str::floor_char_boundary` (stable in Rust 1.91, but MSRV is 1.86).
+fn safe_char_boundary(s: &str, max_byte: usize) -> usize {
+    if max_byte >= s.len() {
+        return s.len();
+    }
+    // Walk backwards from max_byte to find a char boundary (max 3 steps for UTF-8)
+    let mut pos = max_byte;
+    while pos > 0 && !s.is_char_boundary(pos) {
+        pos -= 1;
+    }
+    pos
+}
+
 /// Compressed task output produced by the RecordCompressor.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Record {
@@ -80,20 +98,24 @@ impl Record {
     }
 
     /// Create a truncation-based fallback record (no LLM, just cut output).
+    ///
+    /// Does NOT store raw_output — the original lives in TaskResult::output.
     pub fn truncated(task_id: Arc<str>, raw_output: &str, max_tokens: u32) -> Self {
-        let char_budget = (max_tokens as usize) * 4; // ~4 chars per token heuristic
-        let summary = if raw_output.len() > char_budget {
-            format!("{}...", &raw_output[..char_budget])
+        let char_budget = (max_tokens as usize) * CHARS_PER_TOKEN;
+        // Find a safe UTF-8 boundary at or before char_budget
+        let boundary = safe_char_boundary(raw_output, char_budget);
+        let summary = if boundary < raw_output.len() {
+            format!("{}...", &raw_output[..boundary])
         } else {
             raw_output.to_string()
         };
-        let tokens_compressed = (summary.len() / 4) as u64;
-        let tokens_original = (raw_output.len() / 4) as u64;
+        let tokens_compressed = (summary.len() / CHARS_PER_TOKEN) as u64;
+        let tokens_original = (raw_output.len() / CHARS_PER_TOKEN) as u64;
         Self {
             task_id,
             summary,
             key_findings: vec![],
-            raw_output: Some(raw_output.to_string()),
+            raw_output: None, // Original lives in TaskResult::output
             confidence: 0.0,
             tokens_original,
             tokens_compressed,
@@ -188,6 +210,16 @@ mod tests {
         assert_eq!(r.confidence, 0.0);
         assert_eq!(r.compression_model, "truncation");
         assert!(r.summary.len() <= 2003); // 500*4 + "..."
-        assert!(r.raw_output.is_some());
+        assert!(r.raw_output.is_none(), "raw_output lives in TaskResult");
+    }
+
+    #[test]
+    fn test_truncated_unicode_safety() {
+        // Emoji: 4 bytes each. Slicing mid-codepoint would panic without floor_char_boundary.
+        let raw = "🦋".repeat(1000); // 4000 bytes, 1000 chars
+        let r = Record::truncated("task1".into(), &raw, 100); // budget: 400 bytes
+        assert_eq!(r.confidence, 0.0);
+        // Should not panic — summary is valid UTF-8
+        assert!(r.summary.is_char_boundary(0));
     }
 }

@@ -652,7 +652,18 @@ fn resolve_binding_path(
             if let Some(record) = datastore.get_record(task_id) {
                 if binding_path.segments.is_empty() {
                     // $task → Record summary string
-                    return Ok(Some(Value::String(record.summary)));
+                    return Ok(Some(Value::String(record.summary.clone())));
+                }
+                // $task.raw → access raw output from TaskResult (bypass Record)
+                if matches!(
+                    binding_path.segments.first(),
+                    Some(crate::binding::types::PathSegment::Field(f)) if f.as_ref() == "raw"
+                ) {
+                    return Ok(
+                        datastore
+                            .get_output(task_id)
+                            .map(|v| v.as_ref().clone()),
+                    );
                 }
                 // $task.field → navigate Record binding value
                 let record_value = record.to_binding_value();
