@@ -1,54 +1,43 @@
 # Autonomous Session Progress
 
-**Updated**: 2026-03-29T04:30:00
-**Status**: HANDOFF
+**Updated**: 2026-03-29T06:00:00
+**Status**: IN_PROGRESS
 **Version**: v0.51.0 (tagged + pushed)
-**Sessions completed**: A, B, C, E (partial), J (partial)
-**Total commits**: 30
+**Sessions completed**: A, B, C, E (partial), G, J (partial)
+**Total commits**: 35
 **Total tests**: 8645 (0 failures, 0 clippy warnings)
 
-## BLOC 1: QUALITY — v0.51.0 released
+## BLOC 1: QUALITY — v0.51.0 released (Sessions A, B, C, E)
 
-### Session A: Security — DONE (10 commits)
-11 security bugs fixed.
+- Session A: 11 security bugs fixed (10 commits)
+- Session B: Agent loop -771 LOC, token_budget wired (5 commits)
+- Session C: 17 silent failures fixed, TaskEventGuard (4 commits)
+- Session E: Tautological tests replaced (1 commit)
 
-### Session B: Agent Refactor — DONE (5 commits)
-providers.rs: 1505 → 734 LOC (-771 LOC).
+## BLOC 2: ARCHITECTURE — Session G DONE
 
-### Session C: Silent Failures — DONE (4 commits)
-TaskEventGuard + 17 silent failures + ProviderResponded fix + event logging.
+### Session G: Split rig.rs — DONE (5 commits)
 
-### Session E: Test Hardening — PARTIAL (1 commit)
-Tautological tests replaced.
+```
+rig.rs (3675 LOC monolith) → rig/ directory:
+  mod.rs:   1691 LOC (-54%)
+  error.rs:  147 LOC (McpToolError, ProviderVerify*, RigInferError)
+  stream.rs: 231 LOC (StreamChunk, StreamResult, consume_rig_stream)
+  tool.rs:   181 LOC (NikaMcpToolDef, NikaMcpTool, ToolDyn impl)
+  tests.rs: 1461 LOC (76 test functions)
+```
 
-### Session J: Phase 0 — PARTIAL (1 commit)
-Error code table fixed. preset: already existed.
+## OTHER
 
-### Release (3 commits)
-v0.51.0 bump, tag, CHANGELOG.
+- Session J: Error code table fix, preset: already existed (1 commit)
+- Release: v0.51.0 bump, tag, CHANGELOG (3 commits)
 
-## BLOC 2: ARCHITECTURE — IN PROGRESS
+## Next priorities
 
-### Session G: Split rig.rs — IN PROGRESS (2 commits)
-
-1. `abb4060` refactor(provider): convert rig.rs to directory module (Phase 1)
-2. `46d24ce` refactor(provider): extract error types to rig/error.rs (Phase 2)
-
-**Current state**: mod.rs at 3534 LOC (from 3675), error.rs at 147 LOC.
-
-**Remaining phases**:
-3. Extract stream.rs (StreamChunk + StreamResult + consume_rig_stream, ~215 LOC)
-   - Cut lines ~1231-1446 from mod.rs
-   - Header: `use super::error::RigInferError;`
-   - Change `fn consume_rig_stream` visibility from `pub(crate)` to `pub`
-4. Extract tool.rs (NikaMcpToolDef + NikaMcpTool + ToolDyn impl, ~166 LOC)
-   - Cut lines ~1970-2135 from mod.rs
-   - Header: `use super::error::McpToolError;`
-5. Extract tests.rs (~1464 LOC)
-   - Cut `#[cfg(test)] mod tests { ... }` block (lines ~2212-3675)
-   - Replace with `#[cfg(test)] mod tests;` in mod.rs
-
-**After all phases**: mod.rs ~1600 LOC, total across 5 files unchanged.
+1. **Session F**: Enums migration (916 string literals)
+2. **Session H**: LSP overhaul
+3. **Session K**: Inference routing (fallback chains)
+4. **Session L-N**: Phase 1 features
 
 ## For resume
 
@@ -56,9 +45,3 @@ v0.51.0 bump, tag, CHANGELOG.
 cd /Users/thibaut/dev/supernovae/nika
 claude --dangerously-skip-permissions --model opus -p "$(cat docs/plans/sessions/mega-prompt-v2.md)"
 ```
-
-Next session should:
-1. Read this file
-2. Continue Session G Phase 3 (stream.rs extraction)
-3. Then Phase 4 (tool.rs) and Phase 5 (tests.rs)
-4. Then move to Session F (Enums) or Session K (Routing)
