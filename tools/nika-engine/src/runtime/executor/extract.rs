@@ -141,19 +141,19 @@ fn strip_non_content_tags(html: &str) -> String {
         regex::RegexBuilder::new(r"<style\b[^>]*>[\s\S]*?</style>")
             .case_insensitive(true)
             .build()
-            .unwrap()
+            .expect("STYLE_RE is a valid regex")
     });
     static SCRIPT: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
         regex::RegexBuilder::new(r"<script\b[^>]*>[\s\S]*?</script>")
             .case_insensitive(true)
             .build()
-            .unwrap()
+            .expect("SCRIPT_RE is a valid regex")
     });
     static NOSCRIPT: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
         regex::RegexBuilder::new(r"<noscript\b[^>]*>[\s\S]*?</noscript>")
             .case_insensitive(true)
             .build()
-            .unwrap()
+            .expect("NOSCRIPT_RE is a valid regex")
     });
     let result = STYLE.replace_all(html, "");
     let result = SCRIPT.replace_all(&result, "");

@@ -157,41 +157,50 @@ pub(crate) fn strip_think_tags(text: &str) -> String {
         return text.to_string();
     }
 
-    // Use a simple state machine on the lowercase version to find tag positions,
-    // then slice from the original text to preserve non-tag content.
+    // Iterate using char_indices on the ORIGINAL text to stay on char boundaries.
+    // Compare against lowercase on-the-fly for case-insensitive tag matching.
     let mut result = String::with_capacity(text.len());
-    let bytes = lower.as_bytes();
-    let mut i = 0;
+    let mut chars = text.char_indices().peekable();
 
-    while i < bytes.len() {
-        // Try to match opening tag: <think> or <thinking>
-        if bytes[i] == b'<' {
-            let tag_end = if lower[i..].starts_with("<thinking>") {
-                Some(("</thinking>", 10)) // open tag len
-            } else if lower[i..].starts_with("<think>") {
-                Some(("</think>", 7)) // open tag len
-            } else {
-                None
-            };
+    while let Some(&(i, _)) = chars.peek() {
+        // Check if remaining text starts with a think tag (case-insensitive)
+        let remaining = &text[i..];
+        let remaining_lower_start: String = remaining.chars().take(10).collect::<String>().to_lowercase();
 
-            if let Some((close_tag, open_len)) = tag_end {
-                // Find the matching close tag
-                if let Some(close_pos) = lower[i + open_len..].find(close_tag) {
-                    // Skip the entire block: open tag + content + close tag
-                    i = i + open_len + close_pos + close_tag.len();
-                    continue;
-                } else {
-                    // Unclosed tag — strip everything from here
-                    break;
-                }
+        let tag_match = if remaining_lower_start.starts_with("<thinking>") {
+            Some(("<thinking>".len(), "</thinking>"))
+        } else if remaining_lower_start.starts_with("<think>") {
+            Some(("<think>".len(), "</think>"))
+        } else {
+            None
+        };
+
+        if let Some((open_tag_chars, close_tag)) = tag_match {
+            // Skip open tag characters
+            for _ in 0..open_tag_chars {
+                chars.next();
             }
+            // Find close tag in remaining text (case-insensitive)
+            let after_open = chars.peek().map(|&(idx, _)| idx).unwrap_or(text.len());
+            let search_region = &text[after_open..];
+            let search_lower = search_region.to_lowercase();
+            if let Some(close_pos_in_lower) = search_lower.find(&close_tag.to_lowercase()) {
+                // Map the position back to the original text by counting chars
+                let chars_to_skip = search_region[..close_pos_in_lower].chars().count();
+                let close_tag_chars = close_tag.chars().count();
+                for _ in 0..(chars_to_skip + close_tag_chars) {
+                    chars.next();
+                }
+            } else {
+                // Unclosed tag — strip everything from here
+                break;
+            }
+            continue;
         }
 
-        // Safe: we're iterating byte-by-byte but the tags are ASCII.
-        // Copy char-by-char from original text to preserve UTF-8.
-        let ch = text[i..].chars().next().unwrap();
+        // Not inside a tag — copy char from original text
+        let (_, ch) = chars.next().unwrap();
         result.push(ch);
-        i += ch.len_utf8();
     }
 
     result.trim().to_string()
@@ -254,6 +263,26 @@ mod tests {
     fn strip_think_preserves_utf8() {
         let input = "<think>reflexion en francais</think>Reponse: cafe et creme brulee";
         assert_eq!(strip_think_tags(input), "Reponse: cafe et creme brulee");
+    }
+
+    #[test]
+    fn strip_think_turkish_i_no_panic() {
+        // U+0130 İ (2 bytes) lowercases to i + U+0307 (3 bytes) — byte lengths diverge
+        let input = "İstanbul<think>reasoning</think>answer";
+        assert_eq!(strip_think_tags(input), "İstanbulanswer");
+    }
+
+    #[test]
+    fn strip_think_german_sharp_s_no_panic() {
+        // ß (2 bytes) uppercases to SS but lowercase is stable; test mixed
+        let input = "Straße<THINK>thinking</THINK>Ergebnis";
+        assert_eq!(strip_think_tags(input), "StraßeErgebnis");
+    }
+
+    #[test]
+    fn strip_think_emoji_before_tag() {
+        let input = "🦋<think>reasoning</think>butterfly";
+        assert_eq!(strip_think_tags(input), "🦋butterfly");
     }
 
     #[test]
