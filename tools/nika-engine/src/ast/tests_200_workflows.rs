@@ -32,6 +32,7 @@
 //! AD. Extreme complexity (7 tests)
 
 use crate::ast::content::{ContentPart, ImageDetail};
+use crate::ast::extract::{ExtractMode, ResponseMode};
 use crate::ast::output::OutputFormat;
 use crate::ast::{parse_workflow, ResponseFormat, TaskAction};
 
@@ -3104,7 +3105,7 @@ fn l01_fetch_extract_markdown() {
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.extract.as_deref(), Some("markdown"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Markdown));
             assert!(fetch.selector.is_none());
         }
         _ => panic!("expected Fetch"),
@@ -3118,7 +3119,7 @@ fn l02_fetch_extract_article() {
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.extract.as_deref(), Some("article"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Article));
         }
         _ => panic!("expected Fetch"),
     }
@@ -3131,7 +3132,7 @@ fn l03_fetch_extract_text() {
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.extract.as_deref(), Some("text"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Text));
         }
         _ => panic!("expected Fetch"),
     }
@@ -3144,7 +3145,7 @@ fn l04_fetch_extract_text_with_selector() {
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.extract.as_deref(), Some("text"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Text));
             assert_eq!(fetch.selector.as_deref(), Some("div.content h2"));
         }
         _ => panic!("expected Fetch"),
@@ -3158,7 +3159,7 @@ fn l05_fetch_extract_selector_mode() {
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.extract.as_deref(), Some("selector"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Selector));
             assert_eq!(fetch.selector.as_deref(), Some("article ul li"));
         }
         _ => panic!("expected Fetch"),
@@ -3172,7 +3173,7 @@ fn l06_fetch_extract_metadata() {
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.extract.as_deref(), Some("metadata"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Metadata));
         }
         _ => panic!("expected Fetch"),
     }
@@ -3185,7 +3186,7 @@ fn l07_fetch_extract_links() {
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.extract.as_deref(), Some("links"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Links));
         }
         _ => panic!("expected Fetch"),
     }
@@ -3198,7 +3199,7 @@ fn l08_fetch_extract_jsonpath() {
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.extract.as_deref(), Some("jsonpath"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Jsonpath));
             assert_eq!(fetch.selector.as_deref(), Some("$.data.items"));
         }
         _ => panic!("expected Fetch"),
@@ -3212,7 +3213,7 @@ fn l09_fetch_extract_llm_txt() {
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.extract.as_deref(), Some("llm_txt"));
+            assert_eq!(fetch.extract, Some(ExtractMode::LlmTxt));
         }
         _ => panic!("expected Fetch"),
     }
@@ -3225,26 +3226,21 @@ fn l10_fetch_extract_feed() {
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.extract.as_deref(), Some("feed"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Feed));
         }
         _ => panic!("expected Fetch"),
     }
 }
 
 #[test]
-fn l11_fetch_extract_invalid_mode_parses_ok() {
-    // Invalid extract modes parse fine through the three-phase pipeline;
-    // validation happens at runtime via FetchParams::validate()
+fn l11_fetch_extract_invalid_mode_becomes_none() {
+    // Invalid extract modes are caught at analysis and result in None
     let w = ok(&wrap(
         "fetch:\n  url: \"https://example.com\"\n  extract: invalid_mode",
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.extract.as_deref(), Some("invalid_mode"));
-            let result = fetch.validate();
-            assert!(result.is_err());
-            let msg = format!("{}", result.unwrap_err());
-            assert!(msg.contains("extract must be one of"));
+            assert!(fetch.extract.is_none(), "invalid mode should be None after analysis");
         }
         _ => panic!("expected Fetch"),
     }
@@ -3278,7 +3274,7 @@ fn l13_fetch_extract_markdown_with_post() {
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
             assert_eq!(fetch.method, "POST");
-            assert_eq!(fetch.extract.as_deref(), Some("markdown"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Markdown));
         }
         _ => panic!("expected Fetch"),
     }
@@ -3292,7 +3288,7 @@ fn l14_fetch_extract_article_with_post() {
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
             assert_eq!(fetch.method, "POST");
-            assert_eq!(fetch.extract.as_deref(), Some("article"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Article));
         }
         _ => panic!("expected Fetch"),
     }
@@ -3306,7 +3302,7 @@ fn l15_fetch_extract_text_with_post() {
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
             assert_eq!(fetch.method, "POST");
-            assert_eq!(fetch.extract.as_deref(), Some("text"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Text));
         }
         _ => panic!("expected Fetch"),
     }
@@ -3320,7 +3316,7 @@ fn l16_fetch_extract_selector_with_post() {
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
             assert_eq!(fetch.method, "POST");
-            assert_eq!(fetch.extract.as_deref(), Some("selector"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Selector));
             assert_eq!(fetch.selector.as_deref(), Some("table.data td"));
         }
         _ => panic!("expected Fetch"),
@@ -3335,7 +3331,7 @@ fn l17_fetch_extract_metadata_with_post() {
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
             assert_eq!(fetch.method, "POST");
-            assert_eq!(fetch.extract.as_deref(), Some("metadata"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Metadata));
         }
         _ => panic!("expected Fetch"),
     }
@@ -3349,7 +3345,7 @@ fn l18_fetch_extract_links_with_post() {
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
             assert_eq!(fetch.method, "POST");
-            assert_eq!(fetch.extract.as_deref(), Some("links"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Links));
         }
         _ => panic!("expected Fetch"),
     }
@@ -3363,7 +3359,7 @@ fn l19_fetch_extract_jsonpath_with_post_and_body() {
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
             assert_eq!(fetch.method, "POST");
-            assert_eq!(fetch.extract.as_deref(), Some("jsonpath"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Jsonpath));
             assert_eq!(fetch.selector.as_deref(), Some("$.results"));
         }
         _ => panic!("expected Fetch"),
@@ -3378,7 +3374,7 @@ fn l20_fetch_extract_markdown_with_headers() {
     let w = ok(&yaml);
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.extract.as_deref(), Some("markdown"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Markdown));
             assert_eq!(fetch.headers.len(), 2);
             assert_eq!(fetch.headers.get("Accept").unwrap(), "text/html");
         }
@@ -3394,7 +3390,7 @@ fn l21_fetch_extract_article_with_headers() {
     let w = ok(&yaml);
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.extract.as_deref(), Some("article"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Article));
             assert!(fetch.headers.contains_key("Cookie"));
         }
         _ => panic!("expected Fetch"),
@@ -3409,7 +3405,7 @@ fn l22_fetch_extract_text_with_headers() {
     let w = ok(&yaml);
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.extract.as_deref(), Some("text"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Text));
             assert!(fetch.headers.contains_key("Authorization"));
         }
         _ => panic!("expected Fetch"),
@@ -3423,7 +3419,7 @@ fn l23_fetch_extract_markdown_with_timeout() {
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.extract.as_deref(), Some("markdown"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Markdown));
             assert_eq!(fetch.timeout, Some(30));
         }
         _ => panic!("expected Fetch"),
@@ -3437,7 +3433,7 @@ fn l24_fetch_extract_article_with_timeout() {
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.extract.as_deref(), Some("article"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Article));
             assert_eq!(fetch.timeout, Some(60));
         }
         _ => panic!("expected Fetch"),
@@ -3451,7 +3447,7 @@ fn l25_fetch_extract_text_with_timeout() {
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.extract.as_deref(), Some("text"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Text));
             assert_eq!(fetch.timeout, Some(10));
         }
         _ => panic!("expected Fetch"),
@@ -3465,7 +3461,7 @@ fn l26_fetch_extract_selector_with_timeout() {
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.extract.as_deref(), Some("selector"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Selector));
             assert_eq!(fetch.timeout, Some(15));
         }
         _ => panic!("expected Fetch"),
@@ -3479,7 +3475,7 @@ fn l27_fetch_extract_metadata_with_timeout() {
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.extract.as_deref(), Some("metadata"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Metadata));
             assert_eq!(fetch.timeout, Some(45));
         }
         _ => panic!("expected Fetch"),
@@ -3493,7 +3489,7 @@ fn l28_fetch_extract_links_with_timeout() {
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.extract.as_deref(), Some("links"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Links));
             assert_eq!(fetch.timeout, Some(20));
         }
         _ => panic!("expected Fetch"),
@@ -3507,7 +3503,7 @@ fn l29_fetch_extract_jsonpath_with_timeout() {
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.extract.as_deref(), Some("jsonpath"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Jsonpath));
             assert_eq!(fetch.selector.as_deref(), Some("$.items[*].name"));
             assert_eq!(fetch.timeout, Some(5));
         }
@@ -3522,7 +3518,7 @@ fn l30_fetch_extract_llm_txt_with_timeout() {
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.extract.as_deref(), Some("llm_txt"));
+            assert_eq!(fetch.extract, Some(ExtractMode::LlmTxt));
             assert_eq!(fetch.timeout, Some(10));
         }
         _ => panic!("expected Fetch"),
@@ -3536,7 +3532,7 @@ fn l31_fetch_extract_feed_with_timeout() {
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.extract.as_deref(), Some("feed"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Feed));
             assert_eq!(fetch.timeout, Some(30));
         }
         _ => panic!("expected Fetch"),
@@ -3550,8 +3546,8 @@ fn l32_fetch_extract_with_response_full() {
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.extract.as_deref(), Some("markdown"));
-            assert_eq!(fetch.response.as_deref(), Some("full"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Markdown));
+            assert_eq!(fetch.response, Some(ResponseMode::Full));
         }
         _ => panic!("expected Fetch"),
     }
@@ -3583,7 +3579,8 @@ fn l34_fetch_extract_validates_all_nine_modes() {
         let w = ok(&yaml);
         match &w.tasks[0].action {
             TaskAction::Fetch { fetch } => {
-                assert_eq!(fetch.extract.as_deref(), Some(*mode));
+                let expected = ExtractMode::parse(mode).unwrap();
+                assert_eq!(fetch.extract, Some(expected), "mode '{}' mismatch", mode);
             }
             _ => panic!("expected Fetch for mode {}", mode),
         }
@@ -3599,7 +3596,7 @@ fn l35_fetch_extract_markdown_with_post_headers_timeout() {
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
             assert_eq!(fetch.method, "POST");
-            assert_eq!(fetch.extract.as_deref(), Some("markdown"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Markdown));
             assert_eq!(fetch.timeout, Some(30));
             assert!(fetch.headers.contains_key("Accept"));
         }
@@ -3614,7 +3611,7 @@ fn l36_fetch_extract_jsonpath_nested_selector() {
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.extract.as_deref(), Some("jsonpath"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Jsonpath));
             assert_eq!(
                 fetch.selector.as_deref(),
                 Some("$.response.data.users[0].profile.name")
@@ -3631,7 +3628,7 @@ fn l37_fetch_extract_selector_complex_css() {
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.extract.as_deref(), Some("selector"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Selector));
             assert_eq!(
                 fetch.selector.as_deref(),
                 Some("main > article.post:first-child h2 a")
@@ -3648,7 +3645,7 @@ fn l38_fetch_extract_text_with_class_selector() {
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.extract.as_deref(), Some("text"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Text));
             assert_eq!(fetch.selector.as_deref(), Some(".main-content p"));
         }
         _ => panic!("expected Fetch"),
@@ -3664,7 +3661,7 @@ fn l39_fetch_extract_with_json_body() {
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
             assert_eq!(fetch.method, "POST");
-            assert_eq!(fetch.extract.as_deref(), Some("article"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Article));
             assert!(fetch.json.is_some());
         }
         _ => panic!("expected Fetch"),
@@ -3679,7 +3676,7 @@ fn l40_fetch_extract_with_follow_redirects() {
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
             assert_eq!(fetch.follow_redirects, Some(true));
-            assert_eq!(fetch.extract.as_deref(), Some("markdown"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Markdown));
         }
         _ => panic!("expected Fetch"),
     }
@@ -3696,7 +3693,7 @@ fn m01_fetch_response_full() {
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.response.as_deref(), Some("full"));
+            assert_eq!(fetch.response, Some(ResponseMode::Full));
         }
         _ => panic!("expected Fetch"),
     }
@@ -3709,24 +3706,21 @@ fn m02_fetch_response_binary() {
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.response.as_deref(), Some("binary"));
+            assert_eq!(fetch.response, Some(ResponseMode::Binary));
         }
         _ => panic!("expected Fetch"),
     }
 }
 
 #[test]
-fn m03_fetch_response_invalid_validates_err() {
+fn m03_fetch_response_invalid_becomes_none() {
+    // Invalid response modes are caught at analysis and become None
     let w = ok(&wrap(
         "fetch:\n  url: \"https://example.com\"\n  response: stream",
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.response.as_deref(), Some("stream"));
-            let result = fetch.validate();
-            assert!(result.is_err());
-            let msg = format!("{}", result.unwrap_err());
-            assert!(msg.contains("Invalid response mode"));
+            assert!(fetch.response.is_none(), "invalid response mode should become None");
         }
         _ => panic!("expected Fetch"),
     }
@@ -3739,7 +3733,7 @@ fn m04_fetch_response_full_follow_redirects_false() {
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.response.as_deref(), Some("full"));
+            assert_eq!(fetch.response, Some(ResponseMode::Full));
             assert_eq!(fetch.follow_redirects, Some(false));
         }
         _ => panic!("expected Fetch"),
@@ -3754,7 +3748,7 @@ fn m05_fetch_response_full_with_retry() {
     let w = ok(&yaml);
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.response.as_deref(), Some("full"));
+            assert_eq!(fetch.response, Some(ResponseMode::Full));
             assert!(fetch.retry.is_some());
         }
         _ => panic!("expected Fetch"),
@@ -3768,7 +3762,7 @@ fn m06_fetch_response_binary_with_timeout() {
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.response.as_deref(), Some("binary"));
+            assert_eq!(fetch.response, Some(ResponseMode::Binary));
             assert_eq!(fetch.timeout, Some(120));
         }
         _ => panic!("expected Fetch"),
@@ -3794,7 +3788,7 @@ fn m08_fetch_response_full_with_headers() {
     let w = ok(&yaml);
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.response.as_deref(), Some("full"));
+            assert_eq!(fetch.response, Some(ResponseMode::Full));
             assert!(fetch.headers.contains_key("Accept"));
         }
         _ => panic!("expected Fetch"),
@@ -3809,7 +3803,7 @@ fn m09_fetch_response_binary_with_post() {
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
             assert_eq!(fetch.method, "POST");
-            assert_eq!(fetch.response.as_deref(), Some("binary"));
+            assert_eq!(fetch.response, Some(ResponseMode::Binary));
             assert!(fetch.json.is_some());
         }
         _ => panic!("expected Fetch"),
@@ -3823,7 +3817,7 @@ fn m10_fetch_response_full_with_post_body() {
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.response.as_deref(), Some("full"));
+            assert_eq!(fetch.response, Some(ResponseMode::Full));
             assert!(fetch.body.is_some());
         }
         _ => panic!("expected Fetch"),
@@ -3837,7 +3831,7 @@ fn m11_fetch_response_binary_follow_redirects_true() {
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.response.as_deref(), Some("binary"));
+            assert_eq!(fetch.response, Some(ResponseMode::Binary));
             assert_eq!(fetch.follow_redirects, Some(true));
         }
         _ => panic!("expected Fetch"),
@@ -3852,7 +3846,7 @@ fn m12_fetch_response_full_with_retry_config() {
     let w = ok(&yaml);
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.response.as_deref(), Some("full"));
+            assert_eq!(fetch.response, Some(ResponseMode::Full));
             let retry = fetch.retry.as_ref().unwrap();
             assert_eq!(retry.max_attempts, 5);
             assert_eq!(retry.backoff_ms, 500);
@@ -3870,7 +3864,7 @@ fn m13_fetch_response_full_complete() {
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
             assert_eq!(fetch.method, "POST");
-            assert_eq!(fetch.response.as_deref(), Some("full"));
+            assert_eq!(fetch.response, Some(ResponseMode::Full));
             assert_eq!(fetch.timeout, Some(30));
             assert_eq!(fetch.follow_redirects, Some(true));
             assert_eq!(fetch.headers.len(), 2);
@@ -3888,7 +3882,7 @@ fn m14_fetch_response_binary_complete() {
     let w = ok(&yaml);
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.response.as_deref(), Some("binary"));
+            assert_eq!(fetch.response, Some(ResponseMode::Binary));
             assert_eq!(fetch.timeout, Some(60));
             assert_eq!(fetch.follow_redirects, Some(true));
             assert!(fetch.headers.contains_key("Accept"));
@@ -3898,14 +3892,13 @@ fn m14_fetch_response_binary_complete() {
 }
 
 #[test]
-fn m15_fetch_response_invalid_raw_parses_ok() {
+fn m15_fetch_response_invalid_raw_becomes_none() {
     let w = ok(&wrap(
         "fetch:\n  url: \"https://example.com\"\n  response: raw",
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.response.as_deref(), Some("raw"));
-            assert!(fetch.validate().is_err());
+            assert!(fetch.response.is_none(), "invalid 'raw' mode should become None");
         }
         _ => panic!("expected Fetch"),
     }
@@ -3944,8 +3937,8 @@ fn m18_fetch_response_with_extract_coexist() {
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.response.as_deref(), Some("full"));
-            assert_eq!(fetch.extract.as_deref(), Some("article"));
+            assert_eq!(fetch.response, Some(ResponseMode::Full));
+            assert_eq!(fetch.extract, Some(ExtractMode::Article));
         }
         _ => panic!("expected Fetch"),
     }
@@ -3959,7 +3952,7 @@ fn m19_fetch_response_binary_head_method() {
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
             assert_eq!(fetch.method, "HEAD");
-            assert_eq!(fetch.response.as_deref(), Some("binary"));
+            assert_eq!(fetch.response, Some(ResponseMode::Binary));
         }
         _ => panic!("expected Fetch"),
     }
@@ -3973,7 +3966,7 @@ fn m20_fetch_response_full_delete_method() {
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
             assert_eq!(fetch.method, "DELETE");
-            assert_eq!(fetch.response.as_deref(), Some("full"));
+            assert_eq!(fetch.response, Some(ResponseMode::Full));
         }
         _ => panic!("expected Fetch"),
     }
@@ -3989,7 +3982,7 @@ fn n01_fetch_extract_markdown_then_infer() {
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 2);
     match &w.tasks[0].action {
-        TaskAction::Fetch { fetch } => assert_eq!(fetch.extract.as_deref(), Some("markdown")),
+        TaskAction::Fetch { fetch } => assert_eq!(fetch.extract, Some(ExtractMode::Markdown)),
         _ => panic!("expected Fetch"),
     }
     match &w.tasks[1].action {
@@ -4004,7 +3997,7 @@ fn n02_fetch_extract_metadata_then_infer() {
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 2);
     match &w.tasks[0].action {
-        TaskAction::Fetch { fetch } => assert_eq!(fetch.extract.as_deref(), Some("metadata")),
+        TaskAction::Fetch { fetch } => assert_eq!(fetch.extract, Some(ExtractMode::Metadata)),
         _ => panic!("expected Fetch"),
     }
 }
@@ -4015,7 +4008,7 @@ fn n03_fetch_extract_links_then_infer() {
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 2);
     match &w.tasks[0].action {
-        TaskAction::Fetch { fetch } => assert_eq!(fetch.extract.as_deref(), Some("links")),
+        TaskAction::Fetch { fetch } => assert_eq!(fetch.extract, Some(ExtractMode::Links)),
         _ => panic!("expected Fetch"),
     }
 }
@@ -4026,7 +4019,7 @@ fn n04_fetch_response_full_then_infer() {
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 2);
     match &w.tasks[0].action {
-        TaskAction::Fetch { fetch } => assert_eq!(fetch.response.as_deref(), Some("full")),
+        TaskAction::Fetch { fetch } => assert_eq!(fetch.response, Some(ResponseMode::Full)),
         _ => panic!("expected Fetch"),
     }
 }
@@ -4037,7 +4030,7 @@ fn n05_fetch_response_binary_then_invoke_thumbnail() {
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 2);
     match &w.tasks[0].action {
-        TaskAction::Fetch { fetch } => assert_eq!(fetch.response.as_deref(), Some("binary")),
+        TaskAction::Fetch { fetch } => assert_eq!(fetch.response, Some(ResponseMode::Binary)),
         _ => panic!("expected Fetch"),
     }
     match &w.tasks[1].action {
@@ -4053,7 +4046,7 @@ fn n06_fetch_extract_text_selector_then_exec() {
     assert_eq!(w.tasks.len(), 2);
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.extract.as_deref(), Some("text"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Text));
             assert_eq!(fetch.selector.as_deref(), Some("h1"));
         }
         _ => panic!("expected Fetch"),
@@ -4078,7 +4071,7 @@ fn n08_fetch_extract_jsonpath_then_infer() {
     assert_eq!(w.tasks.len(), 2);
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.extract.as_deref(), Some("jsonpath"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Jsonpath));
             assert_eq!(fetch.selector.as_deref(), Some("$.data.products[*].name"));
         }
         _ => panic!("expected Fetch"),
@@ -4102,7 +4095,7 @@ fn n10_fetch_extract_feed_then_for_each() {
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 2);
     match &w.tasks[0].action {
-        TaskAction::Fetch { fetch } => assert_eq!(fetch.extract.as_deref(), Some("feed")),
+        TaskAction::Fetch { fetch } => assert_eq!(fetch.extract, Some(ExtractMode::Feed)),
         _ => panic!("expected Fetch"),
     }
 }
@@ -4148,7 +4141,7 @@ fn n14_fetch_extract_llm_txt_then_infer() {
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 2);
     match &w.tasks[0].action {
-        TaskAction::Fetch { fetch } => assert_eq!(fetch.extract.as_deref(), Some("llm_txt")),
+        TaskAction::Fetch { fetch } => assert_eq!(fetch.extract, Some(ExtractMode::LlmTxt)),
         _ => panic!("expected Fetch"),
     }
 }
@@ -4170,7 +4163,7 @@ fn o01_fetch_binary_then_vision_content() {
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 2);
     match &w.tasks[0].action {
-        TaskAction::Fetch { fetch } => assert_eq!(fetch.response.as_deref(), Some("binary")),
+        TaskAction::Fetch { fetch } => assert_eq!(fetch.response, Some(ResponseMode::Binary)),
         _ => panic!("expected Fetch"),
     }
     match &w.tasks[1].action {
@@ -4255,7 +4248,7 @@ fn o07_fetch_links_then_for_each_fetch_extract() {
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 2);
     match &w.tasks[1].action {
-        TaskAction::Fetch { fetch } => assert_eq!(fetch.extract.as_deref(), Some("markdown")),
+        TaskAction::Fetch { fetch } => assert_eq!(fetch.extract, Some(ExtractMode::Markdown)),
         _ => panic!("expected Fetch"),
     }
 }
@@ -4295,7 +4288,7 @@ fn o11_fetch_binary_download_resize_vision_pipeline() {
     assert_eq!(w.tasks.len(), 3);
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.response.as_deref(), Some("binary"));
+            assert_eq!(fetch.response, Some(ResponseMode::Binary));
             assert_eq!(fetch.timeout, Some(60));
         }
         _ => panic!("expected Fetch"),
@@ -4310,7 +4303,7 @@ fn o12_fetch_scrape_summarize_publish_workflow() {
     match &w.tasks[3].action {
         TaskAction::Fetch { fetch } => {
             assert_eq!(fetch.method, "POST");
-            assert_eq!(fetch.response.as_deref(), Some("full"));
+            assert_eq!(fetch.response, Some(ResponseMode::Full));
         }
         _ => panic!("expected Fetch"),
     }
@@ -4369,8 +4362,8 @@ fn p02_fetch_all_fields_combined() {
             assert!(fetch.json.is_some());
             assert_eq!(fetch.timeout, Some(60));
             assert_eq!(fetch.follow_redirects, Some(false));
-            assert_eq!(fetch.response.as_deref(), Some("full"));
-            assert_eq!(fetch.extract.as_deref(), Some("jsonpath"));
+            assert_eq!(fetch.response, Some(ResponseMode::Full));
+            assert_eq!(fetch.extract, Some(ExtractMode::Jsonpath));
             assert_eq!(fetch.selector.as_deref(), Some("$.data.results"));
             assert!(fetch.retry.is_some());
         }
@@ -4392,14 +4385,14 @@ fn p03_fetch_unicode_in_selector() {
 }
 
 #[test]
-fn p04_fetch_empty_extract_string_validates_err() {
+fn p04_fetch_empty_extract_string_becomes_none() {
+    // Empty extract string is caught at analysis and becomes None
     let w = ok(&wrap(
         "fetch:\n  url: \"https://example.com\"\n  extract: \"\"",
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.extract.as_deref(), Some(""));
-            assert!(fetch.validate().is_err());
+            assert!(fetch.extract.is_none(), "empty extract should become None");
         }
         _ => panic!("expected Fetch"),
     }
@@ -4415,7 +4408,7 @@ fn p05_fetch_extract_with_body_and_json_coexist() {
         TaskAction::Fetch { fetch } => {
             assert!(fetch.body.is_some());
             assert!(fetch.json.is_some());
-            assert_eq!(fetch.extract.as_deref(), Some("markdown"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Markdown));
         }
         _ => panic!("expected Fetch"),
     }
@@ -4428,8 +4421,8 @@ fn p06_fetch_response_full_extract_links_no_selector() {
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.response.as_deref(), Some("full"));
-            assert_eq!(fetch.extract.as_deref(), Some("links"));
+            assert_eq!(fetch.response, Some(ResponseMode::Full));
+            assert_eq!(fetch.extract, Some(ExtractMode::Links));
             assert!(fetch.selector.is_none());
         }
         _ => panic!("expected Fetch"),
@@ -4437,7 +4430,8 @@ fn p06_fetch_response_full_extract_links_no_selector() {
 }
 
 #[test]
-fn p07_fetch_extract_invalid_modes_validate_err() {
+fn p07_fetch_extract_invalid_modes_become_none() {
+    // Invalid extract modes are caught at analysis and become None
     let invalid_modes = ["html", "xml", "csv", "pdf", "image", "video"];
     for mode in &invalid_modes {
         let yaml = wrap(&format!(
@@ -4447,10 +4441,9 @@ fn p07_fetch_extract_invalid_modes_validate_err() {
         let w = ok(&yaml);
         match &w.tasks[0].action {
             TaskAction::Fetch { fetch } => {
-                assert_eq!(fetch.extract.as_deref(), Some(*mode));
                 assert!(
-                    fetch.validate().is_err(),
-                    "mode '{}' should fail validation",
+                    fetch.extract.is_none(),
+                    "invalid mode '{}' should become None after analysis",
                     mode
                 );
             }
@@ -4460,7 +4453,8 @@ fn p07_fetch_extract_invalid_modes_validate_err() {
 }
 
 #[test]
-fn p08_fetch_response_invalid_modes_validate_err() {
+fn p08_fetch_response_invalid_modes_become_none() {
+    // Invalid response modes are caught at analysis and become None
     let invalid_modes = ["stream", "chunked", "sse", "raw", "json"];
     for mode in &invalid_modes {
         let yaml = wrap(&format!(
@@ -4470,10 +4464,9 @@ fn p08_fetch_response_invalid_modes_validate_err() {
         let w = ok(&yaml);
         match &w.tasks[0].action {
             TaskAction::Fetch { fetch } => {
-                assert_eq!(fetch.response.as_deref(), Some(*mode));
                 assert!(
-                    fetch.validate().is_err(),
-                    "response mode '{}' should fail",
+                    fetch.response.is_none(),
+                    "invalid response mode '{}' should become None after analysis",
                     mode
                 );
             }
@@ -4690,7 +4683,7 @@ tasks:
     assert_eq!(w.tasks.len(), 2);
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.response.as_deref(), Some("full"));
+            assert_eq!(fetch.response, Some(ResponseMode::Full));
         }
         _ => panic!("expected Fetch"),
     }
@@ -5138,7 +5131,7 @@ tasks:
     assert!(w.tasks[0].for_each.is_some());
     assert_eq!(w.tasks[0].for_each_as.as_deref(), Some("url"));
     match &w.tasks[0].action {
-        TaskAction::Fetch { fetch } => assert_eq!(fetch.extract.as_deref(), Some("markdown")),
+        TaskAction::Fetch { fetch } => assert_eq!(fetch.extract, Some(ExtractMode::Markdown)),
         _ => panic!("expected Fetch"),
     }
 }
@@ -5158,7 +5151,7 @@ tasks:
 "#;
     let w = ok(yaml);
     match &w.tasks[0].action {
-        TaskAction::Fetch { fetch } => assert_eq!(fetch.extract.as_deref(), Some("metadata")),
+        TaskAction::Fetch { fetch } => assert_eq!(fetch.extract, Some(ExtractMode::Metadata)),
         _ => panic!("expected Fetch"),
     }
 }
@@ -5228,7 +5221,7 @@ tasks:
     let w = ok(yaml);
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.response.as_deref(), Some("full"));
+            assert_eq!(fetch.response, Some(ResponseMode::Full));
         }
         _ => panic!("expected Fetch"),
     }
@@ -6465,7 +6458,7 @@ tasks:
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
             assert!(fetch.retry.is_some());
-            assert_eq!(fetch.extract.as_deref(), Some("markdown"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Markdown));
         }
         _ => panic!("expected Fetch"),
     }
@@ -6699,7 +6692,7 @@ fn u03_fetch_retry_with_extract_markdown() {
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
             assert!(fetch.retry.is_some());
-            assert_eq!(fetch.extract.as_deref(), Some("markdown"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Markdown));
         }
         _ => panic!("expected Fetch"),
     }
@@ -6712,7 +6705,7 @@ fn u04_fetch_timeout_with_extract() {
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
             assert_eq!(fetch.timeout, Some(120));
-            assert_eq!(fetch.extract.as_deref(), Some("text"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Text));
         }
         _ => panic!("expected Fetch"),
     }
@@ -6727,7 +6720,7 @@ fn u05_fetch_follow_redirects_false_response_full() {
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
             assert_eq!(fetch.follow_redirects, Some(false));
-            assert_eq!(fetch.response.as_deref(), Some("full"));
+            assert_eq!(fetch.response, Some(ResponseMode::Full));
         }
         _ => panic!("expected Fetch"),
     }
@@ -6842,7 +6835,7 @@ fn u14_fetch_retry_with_response_binary() {
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
             assert!(fetch.retry.is_some());
-            assert_eq!(fetch.response.as_deref(), Some("binary"));
+            assert_eq!(fetch.response, Some(ResponseMode::Binary));
             assert_eq!(fetch.timeout, Some(300));
         }
         _ => panic!("expected Fetch"),
@@ -7801,8 +7794,8 @@ fn z19_fetch_all_fields_simultaneously() {
             assert!(fetch.json.is_some());
             assert_eq!(fetch.timeout, Some(60));
             assert_eq!(fetch.follow_redirects, Some(false));
-            assert_eq!(fetch.response.as_deref(), Some("full"));
-            assert_eq!(fetch.extract.as_deref(), Some("jsonpath"));
+            assert_eq!(fetch.response, Some(ResponseMode::Full));
+            assert_eq!(fetch.extract, Some(ExtractMode::Jsonpath));
             assert_eq!(fetch.selector.as_deref(), Some("$.results"));
             assert!(fetch.retry.is_some());
         }
@@ -9339,9 +9332,9 @@ tasks:
         TaskAction::Fetch { fetch } => {
             assert_eq!(fetch.url, "https://example.com/api/data");
             assert_eq!(fetch.method, "GET");
-            assert_eq!(fetch.extract.as_deref(), Some("jsonpath"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Jsonpath));
             assert_eq!(fetch.selector.as_deref(), Some("$.results[*].title"));
-            assert_eq!(fetch.response.as_deref(), Some("full"));
+            assert_eq!(fetch.response, Some(ResponseMode::Full));
             assert_eq!(fetch.timeout, Some(30));
         }
         _ => panic!("expected Fetch"),
@@ -9608,26 +9601,26 @@ tasks:
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 9);
     // Verify each extract mode
-    let extract_modes: Vec<Option<&str>> = w
+    let extract_modes: Vec<Option<ExtractMode>> = w
         .tasks
         .iter()
         .map(|t| match &t.action {
-            TaskAction::Fetch { fetch } => fetch.extract.as_deref(),
+            TaskAction::Fetch { fetch } => fetch.extract,
             _ => panic!("expected Fetch"),
         })
         .collect();
     assert_eq!(
         extract_modes,
         vec![
-            Some("markdown"),
-            Some("article"),
-            Some("text"),
-            Some("selector"),
-            Some("metadata"),
-            Some("links"),
-            Some("jsonpath"),
-            Some("feed"),
-            Some("llm_txt"),
+            Some(ExtractMode::Markdown),
+            Some(ExtractMode::Article),
+            Some(ExtractMode::Text),
+            Some(ExtractMode::Selector),
+            Some(ExtractMode::Metadata),
+            Some(ExtractMode::Links),
+            Some(ExtractMode::Jsonpath),
+            Some(ExtractMode::Feed),
+            Some(ExtractMode::LlmTxt),
         ]
     );
     // Verify text extract with CSS selector
@@ -9651,16 +9644,16 @@ tasks:
             assert!(fetch.headers.contains_key("Content-Type"));
             assert!(fetch.headers.contains_key("Authorization"));
             assert!(fetch.json.is_some());
-            assert_eq!(fetch.extract.as_deref(), Some("jsonpath"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Jsonpath));
             assert_eq!(fetch.selector.as_deref(), Some("$.data[*].name"));
-            assert_eq!(fetch.response.as_deref(), Some("full"));
+            assert_eq!(fetch.response, Some(ResponseMode::Full));
         }
         _ => panic!("expected Fetch"),
     }
     // Verify feed
     match &w.tasks[7].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.extract.as_deref(), Some("feed"));
+            assert_eq!(fetch.extract, Some(ExtractMode::Feed));
             assert!(fetch.selector.is_none());
         }
         _ => panic!("expected Fetch"),
@@ -9668,8 +9661,8 @@ tasks:
     // Verify llm_txt with response: full
     match &w.tasks[8].action {
         TaskAction::Fetch { fetch } => {
-            assert_eq!(fetch.extract.as_deref(), Some("llm_txt"));
-            assert_eq!(fetch.response.as_deref(), Some("full"));
+            assert_eq!(fetch.extract, Some(ExtractMode::LlmTxt));
+            assert_eq!(fetch.response, Some(ResponseMode::Full));
         }
         _ => panic!("expected Fetch"),
     }

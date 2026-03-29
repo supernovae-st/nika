@@ -749,8 +749,8 @@ fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
             // Convert seconds (runtime) back to milliseconds (analyzed)
             timeout_ms: fetch.timeout.map(|s| s * 1000),
             follow_redirects: fetch.follow_redirects.unwrap_or(true),
-            response: fetch.response.clone(),
-            extract: fetch.extract.clone(),
+            response: fetch.response,
+            extract: fetch.extract,
             selector: fetch.selector.clone(),
             span: Span::dummy(),
         }),

@@ -690,7 +690,7 @@ mod tests {
                 timeout: None,
                 retry: None,
                 follow_redirects: None,
-                response: Some("binary".to_string()),
+                response: Some(nika_core::ast::extract::ResponseMode::Binary),
                 extract: None,
                 selector: None,
             };
@@ -713,7 +713,7 @@ mod tests {
                 retry: None,
                 follow_redirects: None,
                 response: None,
-                extract: Some("selector".to_string()),
+                extract: Some(nika_core::ast::extract::ExtractMode::Selector),
                 selector: Some("div.content".to_string()),
             };
             assert!(
@@ -735,7 +735,7 @@ mod tests {
                 retry: None,
                 follow_redirects: None,
                 response: None,
-                extract: Some("article".to_string()),
+                extract: Some(nika_core::ast::extract::ExtractMode::Article),
                 selector: None,
             };
             assert!(
@@ -757,7 +757,7 @@ mod tests {
                 retry: None,
                 follow_redirects: None,
                 response: None,
-                extract: Some("feed".to_string()),
+                extract: Some(nika_core::ast::extract::ExtractMode::Feed),
                 selector: None,
             };
             assert!(params.validate().is_ok(), "extract: feed should be valid");
@@ -776,7 +776,7 @@ mod tests {
                 retry: None,
                 follow_redirects: None,
                 response: None,
-                extract: Some("llm_txt".to_string()),
+                extract: Some(nika_core::ast::extract::ExtractMode::LlmTxt),
                 selector: None,
             };
             assert!(
@@ -798,7 +798,7 @@ mod tests {
                 retry: None,
                 follow_redirects: None,
                 response: None,
-                extract: Some("markdown".to_string()),
+                extract: Some(nika_core::ast::extract::ExtractMode::Markdown),
                 selector: None,
             };
             assert!(
@@ -807,28 +807,8 @@ mod tests {
             );
         }
 
-        /// Invalid extract mode is rejected.
-        #[test]
-        fn fetch_params_extract_invalid_rejected() {
-            let params = FetchParams {
-                url: "https://example.com".to_string(),
-                method: "GET".to_string(),
-                headers: FxHashMap::default(),
-                body: None,
-                json: None,
-                timeout: None,
-                retry: None,
-                follow_redirects: None,
-                response: None,
-                extract: Some("invalid_mode".to_string()),
-                selector: None,
-            };
-            let err = params.validate().unwrap_err();
-            assert!(
-                err.to_string().contains("invalid_mode"),
-                "error should mention invalid mode: {err}"
-            );
-        }
+        // Invalid extract modes are now prevented at the type level (ExtractMode enum).
+        // The analyzer catches invalid strings from YAML at parse time.
 
         /// selector without extract is rejected.
         #[test]

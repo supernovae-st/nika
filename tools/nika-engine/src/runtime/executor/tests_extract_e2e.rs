@@ -5,6 +5,7 @@
 //! 2. apply_extract() produces the correct output given realistic test data
 //! 3. Edge cases: no extract (backward compat), invalid mode, selector without extract
 
+use crate::ast::extract::ExtractMode;
 use crate::ast::parse_workflow;
 use crate::ast::{FetchParams, TaskAction};
 use crate::runtime::executor::extract::apply_extract;
@@ -98,14 +99,14 @@ tasks:
       extract: markdown
 "#;
         let params = parse_fetch_params(yaml);
-        assert_eq!(params.extract.as_deref(), Some("markdown"));
+        assert_eq!(params.extract, Some(ExtractMode::Markdown));
         assert!(params.selector.is_none());
     }
 
     #[test]
     fn apply_converts_headings() {
         let html = "<h1>Title</h1><h2>Subtitle</h2><p>Body text.</p>";
-        let result = apply_extract(html, Some("markdown"), None).unwrap();
+        let result = apply_extract(html, Some(ExtractMode::Markdown), None).unwrap();
         assert!(result.contains("# Title"), "should convert h1: {}", result);
         assert!(
             result.contains("## Subtitle"),
@@ -123,7 +124,7 @@ tasks:
     fn apply_converts_bold_and_links() {
         let html =
             r#"<p>Click <strong>here</strong> for <a href="https://example.com">info</a>.</p>"#;
-        let result = apply_extract(html, Some("markdown"), None).unwrap();
+        let result = apply_extract(html, Some(ExtractMode::Markdown), None).unwrap();
         assert!(
             result.contains("**here**"),
             "should convert bold: {}",
@@ -138,7 +139,7 @@ tasks:
 
     #[test]
     fn e2e_rich_html_to_markdown() {
-        let result = apply_extract(RICH_HTML, Some("markdown"), None).unwrap();
+        let result = apply_extract(RICH_HTML, Some(ExtractMode::Markdown), None).unwrap();
         assert!(
             result.contains("# Main Heading"),
             "heading missing: {}",
@@ -158,7 +159,7 @@ tasks:
 
     #[test]
     fn apply_preserves_list_items() {
-        let result = apply_extract(BLOG_HTML, Some("markdown"), None).unwrap();
+        let result = apply_extract(BLOG_HTML, Some(ExtractMode::Markdown), None).unwrap();
         assert!(
             result.contains("Item 1"),
             "Expected 'Item 1' in markdown output"
@@ -171,7 +172,7 @@ tasks:
 
     #[test]
     fn apply_empty_html_returns_empty() {
-        let result = apply_extract("", Some("markdown"), None).unwrap();
+        let result = apply_extract("", Some(ExtractMode::Markdown), None).unwrap();
         assert!(
             result.trim().is_empty(),
             "Expected empty markdown for empty input"
@@ -199,7 +200,7 @@ tasks:
       extract: article
 "#;
         let params = parse_fetch_params(yaml);
-        assert_eq!(params.extract.as_deref(), Some("article"));
+        assert_eq!(params.extract, Some(ExtractMode::Article));
     }
 
     #[test]
@@ -224,7 +225,7 @@ tasks:
   </article>
   <footer>Copyright 2024</footer>
 </body></html>"#;
-        let result = apply_extract(html, Some("article"), None).unwrap();
+        let result = apply_extract(html, Some(ExtractMode::Article), None).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
 
         // Article should have structured fields
@@ -271,14 +272,14 @@ tasks:
       extract: text
 "#;
         let params = parse_fetch_params(yaml);
-        assert_eq!(params.extract.as_deref(), Some("text"));
+        assert_eq!(params.extract, Some(ExtractMode::Text));
         assert!(params.selector.is_none());
     }
 
     #[test]
     fn apply_strips_all_tags() {
         let html = "<html><body><h1>Title</h1><p>Hello <b>world</b></p></body></html>";
-        let result = apply_extract(html, Some("text"), None).unwrap();
+        let result = apply_extract(html, Some(ExtractMode::Text), None).unwrap();
         assert!(
             !result.contains('<'),
             "should have no HTML tags: {}",
@@ -295,7 +296,7 @@ tasks:
 
     #[test]
     fn e2e_rich_html_to_text() {
-        let result = apply_extract(RICH_HTML, Some("text"), None).unwrap();
+        let result = apply_extract(RICH_HTML, Some(ExtractMode::Text), None).unwrap();
         assert!(
             !result.contains("<h1>"),
             "should strip tags: {}",
@@ -315,7 +316,7 @@ tasks:
 
     #[test]
     fn apply_empty_html_returns_empty() {
-        let result = apply_extract("", Some("text"), None).unwrap();
+        let result = apply_extract("", Some(ExtractMode::Text), None).unwrap();
         assert!(
             result.trim().is_empty(),
             "Expected empty text for empty input, got: '{result}'"
@@ -324,7 +325,7 @@ tasks:
 
     #[test]
     fn apply_invalid_selector_returns_error() {
-        let result = apply_extract(BLOG_HTML, Some("text"), Some("[[[invalid"));
+        let result = apply_extract(BLOG_HTML, Some(ExtractMode::Text), Some("[[[invalid"));
         assert!(result.is_err(), "Invalid selector should produce an error");
     }
 }
@@ -350,13 +351,13 @@ tasks:
       selector: "p.intro"
 "#;
         let params = parse_fetch_params(yaml);
-        assert_eq!(params.extract.as_deref(), Some("text"));
+        assert_eq!(params.extract, Some(ExtractMode::Text));
         assert_eq!(params.selector.as_deref(), Some("p.intro"));
     }
 
     #[test]
     fn apply_filters_by_css_selector() {
-        let result = apply_extract(RICH_HTML, Some("text"), Some("p.intro")).unwrap();
+        let result = apply_extract(RICH_HTML, Some(ExtractMode::Text), Some("p.intro")).unwrap();
         assert!(
             result.contains("introduction"),
             "intro text missing: {}",
@@ -383,7 +384,7 @@ tasks:
     #[test]
     fn apply_empty_result_for_no_match() {
         let html = "<html><body><p>Only plain p</p></body></html>";
-        let result = apply_extract(html, Some("text"), Some("p.nonexistent")).unwrap();
+        let result = apply_extract(html, Some(ExtractMode::Text), Some("p.nonexistent")).unwrap();
         assert!(result.is_empty(), "no matches -> empty: {}", result);
     }
 }
@@ -409,13 +410,13 @@ tasks:
       selector: "div.sidebar"
 "#;
         let params = parse_fetch_params(yaml);
-        assert_eq!(params.extract.as_deref(), Some("selector"));
+        assert_eq!(params.extract, Some(ExtractMode::Selector));
         assert_eq!(params.selector.as_deref(), Some("div.sidebar"));
     }
 
     #[test]
     fn apply_returns_matching_html_elements() {
-        let result = apply_extract(RICH_HTML, Some("selector"), Some("div.sidebar")).unwrap();
+        let result = apply_extract(RICH_HTML, Some(ExtractMode::Selector), Some("div.sidebar")).unwrap();
         assert!(
             result.contains("<div class=\"sidebar\">"),
             "should return raw HTML: {}",
@@ -430,7 +431,7 @@ tasks:
 
     #[test]
     fn apply_returns_multiple_matches() {
-        let result = apply_extract(RICH_HTML, Some("selector"), Some("p.intro")).unwrap();
+        let result = apply_extract(RICH_HTML, Some(ExtractMode::Selector), Some("p.intro")).unwrap();
         // Two p.intro elements in RICH_HTML
         let count = result.matches("<p class=\"intro\">").count();
         assert_eq!(count, 2, "should match both p.intro elements: {}", result);
@@ -438,7 +439,7 @@ tasks:
 
     #[test]
     fn apply_requires_selector_field() {
-        let result = apply_extract("<html></html>", Some("selector"), None);
+        let result = apply_extract("<html></html>", Some(ExtractMode::Selector), None);
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(
@@ -450,7 +451,7 @@ tasks:
 
     #[test]
     fn apply_returns_outer_html() {
-        let result = apply_extract(BLOG_HTML, Some("selector"), Some("article h1")).unwrap();
+        let result = apply_extract(BLOG_HTML, Some(ExtractMode::Selector), Some("article h1")).unwrap();
         assert!(
             result.contains("<h1>"),
             "Selector should include the matched element's outer HTML"
@@ -460,7 +461,7 @@ tasks:
 
     #[test]
     fn apply_no_match_returns_empty() {
-        let result = apply_extract(BLOG_HTML, Some("selector"), Some("div.nonexistent")).unwrap();
+        let result = apply_extract(BLOG_HTML, Some(ExtractMode::Selector), Some("div.nonexistent")).unwrap();
         assert!(result.is_empty(), "No match should return empty string");
     }
 }
@@ -485,12 +486,12 @@ tasks:
       extract: metadata
 "#;
         let params = parse_fetch_params(yaml);
-        assert_eq!(params.extract.as_deref(), Some("metadata"));
+        assert_eq!(params.extract, Some(ExtractMode::Metadata));
     }
 
     #[test]
     fn apply_extracts_all_metadata() {
-        let result = apply_extract(RICH_HTML, Some("metadata"), None).unwrap();
+        let result = apply_extract(RICH_HTML, Some(ExtractMode::Metadata), None).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
 
         // Title
@@ -530,7 +531,7 @@ tasks:
     #[test]
     fn apply_handles_minimal_html() {
         let html = "<html><head><title>Only Title</title></head><body></body></html>";
-        let result = apply_extract(html, Some("metadata"), None).unwrap();
+        let result = apply_extract(html, Some(ExtractMode::Metadata), None).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert_eq!(parsed["title"], "Only Title");
         // No OG, Twitter, JSON-LD -> those keys should not exist
@@ -541,7 +542,7 @@ tasks:
 
     #[test]
     fn apply_returns_valid_json() {
-        let result = apply_extract(RICH_HTML, Some("metadata"), None).unwrap();
+        let result = apply_extract(RICH_HTML, Some(ExtractMode::Metadata), None).unwrap();
         let parsed: Result<serde_json::Value, _> = serde_json::from_str(&result);
         assert!(parsed.is_ok(), "metadata output must be valid JSON");
     }
@@ -567,12 +568,12 @@ tasks:
       extract: links
 "#;
         let params = parse_fetch_params(yaml);
-        assert_eq!(params.extract.as_deref(), Some("links"));
+        assert_eq!(params.extract, Some(ExtractMode::Links));
     }
 
     #[test]
     fn apply_extracts_all_links() {
-        let result = apply_extract(RICH_HTML, Some("links"), None).unwrap();
+        let result = apply_extract(RICH_HTML, Some(ExtractMode::Links), None).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
 
         // RICH_HTML has 5 anchor tags: /, /about, rust-lang.org, /contact, external.com
@@ -604,7 +605,7 @@ tasks:
     #[test]
     fn apply_handles_no_links() {
         let html = "<html><body><p>No links here</p></body></html>";
-        let result = apply_extract(html, Some("links"), None).unwrap();
+        let result = apply_extract(html, Some(ExtractMode::Links), None).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert_eq!(parsed["count"], 0);
         assert!(parsed["links"].as_array().unwrap().is_empty());
@@ -612,7 +613,7 @@ tasks:
 
     #[test]
     fn apply_extracts_blog_html_links() {
-        let result = apply_extract(BLOG_HTML, Some("links"), None).unwrap();
+        let result = apply_extract(BLOG_HTML, Some(ExtractMode::Links), None).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
 
         // BLOG_HTML has: /, /about, /related, https://twitter.com/example
@@ -663,28 +664,28 @@ tasks:
       selector: "$.data[*].name"
 "#;
         let params = parse_fetch_params(yaml);
-        assert_eq!(params.extract.as_deref(), Some("jsonpath"));
+        assert_eq!(params.extract, Some(ExtractMode::Jsonpath));
         assert_eq!(params.selector.as_deref(), Some("$.data[*].name"));
     }
 
     #[test]
     fn apply_extracts_single_value() {
         let json = r#"{"data": {"name": "Alice", "age": 30}}"#;
-        let result = apply_extract(json, Some("jsonpath"), Some("$.data.name")).unwrap();
+        let result = apply_extract(json, Some(ExtractMode::Jsonpath), Some("$.data.name")).unwrap();
         assert_eq!(result, "\"Alice\"");
     }
 
     #[test]
     fn apply_extracts_multiple_values() {
         let json = r#"{"users": [{"name": "Alice"}, {"name": "Bob"}, {"name": "Charlie"}]}"#;
-        let result = apply_extract(json, Some("jsonpath"), Some("$.users[*].name")).unwrap();
+        let result = apply_extract(json, Some(ExtractMode::Jsonpath), Some("$.users[*].name")).unwrap();
         assert_eq!(result, r#"["Alice","Bob","Charlie"]"#);
     }
 
     #[test]
     fn apply_extracts_nested_object() {
         let json = r#"{"response": {"metadata": {"version": 2, "lang": "en"}}}"#;
-        let result = apply_extract(json, Some("jsonpath"), Some("$.response.metadata")).unwrap();
+        let result = apply_extract(json, Some(ExtractMode::Jsonpath), Some("$.response.metadata")).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert_eq!(parsed["version"], 2);
         assert_eq!(parsed["lang"], "en");
@@ -693,13 +694,13 @@ tasks:
     #[test]
     fn apply_returns_null_for_no_match() {
         let json = r#"{"data": []}"#;
-        let result = apply_extract(json, Some("jsonpath"), Some("$.data[0].name")).unwrap();
+        let result = apply_extract(json, Some(ExtractMode::Jsonpath), Some("$.data[0].name")).unwrap();
         assert_eq!(result, "null");
     }
 
     #[test]
     fn apply_requires_selector() {
-        let result = apply_extract(r#"{"a": 1}"#, Some("jsonpath"), None);
+        let result = apply_extract(r#"{"a": 1}"#, Some(ExtractMode::Jsonpath), None);
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(err.contains("jsonpath requires 'selector'"));
@@ -707,28 +708,28 @@ tasks:
 
     #[test]
     fn apply_rejects_invalid_json() {
-        let result = apply_extract("not json", Some("jsonpath"), Some("$.a"));
+        let result = apply_extract("not json", Some(ExtractMode::Jsonpath), Some("$.a"));
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("not valid JSON"));
     }
 
     #[test]
     fn apply_rejects_invalid_jsonpath() {
-        let result = apply_extract(r#"{"a": 1}"#, Some("jsonpath"), Some("$[invalid"));
+        let result = apply_extract(r#"{"a": 1}"#, Some(ExtractMode::Jsonpath), Some("$[invalid"));
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Invalid JSONPath"));
     }
 
     #[test]
     fn apply_extracts_simple_path() {
-        let result = apply_extract(JSON_API, Some("jsonpath"), Some("$.data.total")).unwrap();
+        let result = apply_extract(JSON_API, Some(ExtractMode::Jsonpath), Some("$.data.total")).unwrap();
         assert_eq!(result, "2");
     }
 
     #[test]
     fn apply_extracts_array_names() {
         let result =
-            apply_extract(JSON_API, Some("jsonpath"), Some("$.data.items[*].name")).unwrap();
+            apply_extract(JSON_API, Some(ExtractMode::Jsonpath), Some("$.data.items[*].name")).unwrap();
         let parsed: Vec<String> = serde_json::from_str(&result).unwrap();
         assert_eq!(parsed, vec!["Alpha", "Beta"]);
     }
@@ -736,14 +737,14 @@ tasks:
     #[test]
     fn apply_extracts_second_item_name() {
         let result =
-            apply_extract(JSON_API, Some("jsonpath"), Some("$.data.items[1].name")).unwrap();
+            apply_extract(JSON_API, Some(ExtractMode::Jsonpath), Some("$.data.items[1].name")).unwrap();
         assert_eq!(result, "\"Beta\"");
     }
 
     #[test]
     fn apply_extracts_all_scores() {
         let result =
-            apply_extract(JSON_API, Some("jsonpath"), Some("$.data.items[*].score")).unwrap();
+            apply_extract(JSON_API, Some(ExtractMode::Jsonpath), Some("$.data.items[*].score")).unwrap();
         let parsed: Vec<u64> = serde_json::from_str(&result).unwrap();
         assert_eq!(parsed, vec![95, 42]);
     }
@@ -769,7 +770,7 @@ tasks:
       extract: feed
 "#;
         let params = parse_fetch_params(yaml);
-        assert_eq!(params.extract.as_deref(), Some("feed"));
+        assert_eq!(params.extract, Some(ExtractMode::Feed));
     }
 
     #[test]
@@ -796,7 +797,7 @@ tasks:
     </item>
   </channel>
 </rss>"#;
-        let result = apply_extract(rss, Some("feed"), None).unwrap();
+        let result = apply_extract(rss, Some(ExtractMode::Feed), None).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
 
         assert_eq!(parsed["title"], "Rust Blog");
@@ -837,7 +838,7 @@ tasks:
     <link href="https://example.com/2"/>
   </entry>
 </feed>"#;
-        let result = apply_extract(atom, Some("feed"), None).unwrap();
+        let result = apply_extract(atom, Some(ExtractMode::Feed), None).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
 
         assert_eq!(parsed["title"], "Atom Feed");
@@ -850,7 +851,7 @@ tasks:
 
     #[test]
     fn apply_rejects_invalid_feed() {
-        let result = apply_extract("this is not XML at all", Some("feed"), None);
+        let result = apply_extract("this is not XML at all", Some(ExtractMode::Feed), None);
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
@@ -860,7 +861,7 @@ tasks:
 
     #[test]
     fn apply_parses_minimal_rss_feed() {
-        let result = apply_extract(RSS_FEED, Some("feed"), None).unwrap();
+        let result = apply_extract(RSS_FEED, Some(ExtractMode::Feed), None).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert_eq!(parsed["title"], "Test Feed");
         assert!(parsed["entries"].as_array().is_some());
@@ -923,59 +924,22 @@ tasks:
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Invalid mode -> error
+// Invalid mode → caught at analysis (type system prevents runtime invalid modes)
 // ═══════════════════════════════════════════════════════════════════════════
 
 mod invalid_mode {
     use super::*;
 
     #[test]
-    fn apply_rejects_unknown_mode() {
-        let result = apply_extract("<html></html>", Some("xml"), None);
-        assert!(result.is_err());
-        let err = result.unwrap_err().to_string();
-        assert!(err.contains("Unknown extract mode"), "error: {}", err);
-        assert!(err.contains("xml"), "should name the mode: {}", err);
+    fn none_extract_returns_body_as_is() {
+        let result = apply_extract("<html></html>", None, None).unwrap();
+        assert_eq!(result, "<html></html>");
     }
 
     #[test]
-    fn apply_rejects_bogus_mode() {
-        let result = apply_extract(BLOG_HTML, Some("bogus_mode"), None);
-        assert!(result.is_err());
-        let err = result.unwrap_err().to_string();
-        assert!(
-            err.contains("Unknown extract mode"),
-            "Error should mention unknown mode"
-        );
-        assert!(
-            err.contains("bogus_mode"),
-            "Error should include the invalid mode name"
-        );
-    }
-
-    #[test]
-    fn validate_rejects_invalid_extract_in_fetch_params() {
-        let params = FetchParams {
-            url: "https://example.com".to_string(),
-            method: "GET".to_string(),
-            headers: rustc_hash::FxHashMap::default(),
-            body: None,
-            json: None,
-            timeout: None,
-            retry: None,
-            follow_redirects: None,
-            response: None,
-            extract: Some("foobar".to_string()),
-            selector: None,
-        };
-        let err = params.validate().unwrap_err();
-        assert!(err.to_string().contains("extract must be one of"));
-    }
-
-    #[test]
-    fn parse_passes_invalid_extract_but_validate_catches_it() {
-        // The analyzer does NOT validate extract mode values -- it passes them through.
-        // Validation happens at runtime via FetchParams::validate().
+    fn parse_invalid_extract_becomes_none() {
+        // Invalid extract modes are caught at analysis and become None.
+        // The type system (ExtractMode enum) prevents invalid modes at compile time.
         let yaml = r#"
 schema: "nika/workflow@0.12"
 provider: mock
@@ -985,16 +949,12 @@ tasks:
       url: "https://example.com"
       extract: invented_mode
 "#;
-        let workflow = parse_workflow(yaml).expect("parse succeeds (validation is deferred)");
+        let workflow = parse_workflow(yaml).expect("parse succeeds with warning");
         match &workflow.tasks[0].action {
             TaskAction::Fetch { fetch } => {
-                assert_eq!(fetch.extract.as_deref(), Some("invented_mode"));
-                // Runtime validation catches it
-                let err = fetch.validate().unwrap_err();
                 assert!(
-                    err.to_string().contains("extract must be one of"),
-                    "validate should reject: {}",
-                    err
+                    fetch.extract.is_none(),
+                    "invalid extract mode should become None after analysis"
                 );
             }
             _ => panic!("expected Fetch"),
@@ -1121,11 +1081,11 @@ tasks:
     let workflow = parse_workflow(yaml).expect("all 9 extract modes should parse");
     assert_eq!(workflow.tasks.len(), 9);
 
-    let modes: Vec<Option<&str>> = workflow
+    let modes: Vec<Option<ExtractMode>> = workflow
         .tasks
         .iter()
         .map(|t| match &t.action {
-            TaskAction::Fetch { fetch } => fetch.extract.as_deref(),
+            TaskAction::Fetch { fetch } => fetch.extract,
             _ => panic!("expected fetch"),
         })
         .collect();
@@ -1133,15 +1093,15 @@ tasks:
     assert_eq!(
         modes,
         vec![
-            Some("markdown"),
-            Some("article"),
-            Some("text"),
-            Some("text"),
-            Some("selector"),
-            Some("metadata"),
-            Some("links"),
-            Some("jsonpath"),
-            Some("feed"),
+            Some(ExtractMode::Markdown),
+            Some(ExtractMode::Article),
+            Some(ExtractMode::Text),
+            Some(ExtractMode::Text),
+            Some(ExtractMode::Selector),
+            Some(ExtractMode::Metadata),
+            Some(ExtractMode::Links),
+            Some(ExtractMode::Jsonpath),
+            Some(ExtractMode::Feed),
         ]
     );
 

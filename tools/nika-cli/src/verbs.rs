@@ -339,6 +339,25 @@ pub async fn handle_fetch(
             details: format!("Invalid --json-body: {}", e),
         })?;
 
+    let extract_mode = extract.as_deref().map(|s| {
+        nika_engine::ast::extract::ExtractMode::parse(s).ok_or_else(|| NikaError::ValidationError {
+            reason: format!(
+                "unknown extract mode '{}', expected one of: {}",
+                s,
+                nika_engine::ast::extract::ExtractMode::ALL_NAMES.join(", ")
+            ),
+        })
+    }).transpose()?;
+    let response_mode = response.as_deref().map(|s| {
+        nika_engine::ast::extract::ResponseMode::parse(s).ok_or_else(|| NikaError::ValidationError {
+            reason: format!(
+                "unknown response mode '{}', expected one of: {}",
+                s,
+                nika_engine::ast::extract::ResponseMode::ALL_NAMES.join(", ")
+            ),
+        })
+    }).transpose()?;
+
     let fetch = FetchParams {
         url: url.clone(),
         method: method.unwrap_or_else(|| "GET".to_string()),
@@ -346,9 +365,9 @@ pub async fn handle_fetch(
         body,
         json: json_value,
         timeout,
-        extract: extract.clone(),
+        extract: extract_mode,
         selector,
-        response,
+        response: response_mode,
         retry: None,
         follow_redirects: None,
     };

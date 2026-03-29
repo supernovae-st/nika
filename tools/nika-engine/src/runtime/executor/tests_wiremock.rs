@@ -222,7 +222,7 @@ async fn wiremock_fetch_response_full() {
     let (executor, bindings, datastore, _) = setup();
     let task_id: Arc<str> = Arc::from("wm_full");
     let mut params = fetch_params(&format!("{}/full", server.uri()), "GET");
-    params.response = Some("full".to_string());
+    params.response = Some(nika_core::ast::extract::ResponseMode::Full);
     let action = TaskAction::Fetch { fetch: params };
     let result = executor
         .execute(&task_id, &action, &bindings, &datastore, None)
@@ -252,7 +252,7 @@ async fn wiremock_fetch_response_binary_stores_in_cas() {
     let (executor, bindings, datastore, _) = setup();
     let task_id: Arc<str> = Arc::from("wm_binary");
     let mut params = fetch_params(&format!("{}/image.png", server.uri()), "GET");
-    params.response = Some("binary".to_string());
+    params.response = Some(nika_core::ast::extract::ResponseMode::Binary);
     let action = TaskAction::Fetch { fetch: params };
     let result = executor
         .execute(&task_id, &action, &bindings, &datastore, None)
@@ -284,7 +284,7 @@ async fn wiremock_fetch_response_binary_stages_media_ref() {
     let (executor, bindings, datastore, _) = setup();
     let task_id: Arc<str> = Arc::from("wm_binary_media");
     let mut params = fetch_params(&format!("{}/media.png", server.uri()), "GET");
-    params.response = Some("binary".to_string());
+    params.response = Some(nika_core::ast::extract::ResponseMode::Binary);
     let action = TaskAction::Fetch { fetch: params };
     let _result = executor
         .execute(&task_id, &action, &bindings, &datastore, None)
@@ -328,7 +328,7 @@ async fn wiremock_fetch_extract_markdown() {
     let (executor, bindings, datastore, _) = setup();
     let task_id: Arc<str> = Arc::from("wm_md");
     let mut params = fetch_params(&format!("{}/page", server.uri()), "GET");
-    params.extract = Some("markdown".to_string());
+    params.extract = Some(nika_core::ast::extract::ExtractMode::Markdown);
     let action = TaskAction::Fetch { fetch: params };
     let result = executor
         .execute(&task_id, &action, &bindings, &datastore, None)
@@ -353,7 +353,7 @@ async fn wiremock_fetch_extract_text_with_selector() {
     let (executor, bindings, datastore, _) = setup();
     let task_id: Arc<str> = Arc::from("wm_text");
     let mut params = fetch_params(&format!("{}/text", server.uri()), "GET");
-    params.extract = Some("text".to_string());
+    params.extract = Some(nika_core::ast::extract::ExtractMode::Text);
     params.selector = Some("p.target".to_string());
     let action = TaskAction::Fetch { fetch: params };
     let result = executor
@@ -383,7 +383,7 @@ async fn wiremock_fetch_extract_metadata_with_og_tags() {
     let (executor, bindings, datastore, _) = setup();
     let task_id: Arc<str> = Arc::from("wm_meta");
     let mut params = fetch_params(&format!("{}/meta", server.uri()), "GET");
-    params.extract = Some("metadata".to_string());
+    params.extract = Some(nika_core::ast::extract::ExtractMode::Metadata);
     let action = TaskAction::Fetch { fetch: params };
     let result = executor
         .execute(&task_id, &action, &bindings, &datastore, None)
@@ -411,7 +411,7 @@ async fn wiremock_fetch_extract_jsonpath() {
     let (executor, bindings, datastore, _) = setup();
     let task_id: Arc<str> = Arc::from("wm_jsonpath");
     let mut params = fetch_params(&format!("{}/api", server.uri()), "GET");
-    params.extract = Some("jsonpath".to_string());
+    params.extract = Some(nika_core::ast::extract::ExtractMode::Jsonpath);
     params.selector = Some("$.users[*].name".to_string());
     let action = TaskAction::Fetch { fetch: params };
     let result = executor
