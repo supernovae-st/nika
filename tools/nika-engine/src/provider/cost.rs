@@ -1458,8 +1458,12 @@ mod proptest_tests {
         #[test]
         fn cache_discount_in_range(provider in arb_provider()) {
             let discount = cache_discount_for_provider(provider);
-            prop_assert!(discount >= 0.0 && discount <= 1.0,
-                "Discount must be in [0,1], got {} for {:?}", discount, provider);
+            prop_assert!(
+                (0.0..=1.0).contains(&discount),
+                "Discount must be in [0,1], got {} for {:?}",
+                discount,
+                provider
+            );
         }
 
         // ── Property 8: ModelPricing::calculate is consistent ──
