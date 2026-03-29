@@ -1,13 +1,13 @@
 # Autonomous Session Progress
 
-**Updated**: 2026-03-29T22:00:00
-**Status**: IN PROGRESS
+**Updated**: 2026-03-29T23:30:00
+**Status**: IN PROGRESS — Session M (P-RECORD)
 **Version**: v0.51.0 (tagged + pushed)
 **Sessions completed**: A, B, C, D, E (extended), F (partial), G, J (partial), K, L (complete), I (partial), H (partial)
-**Total commits**: 70 (9 new this session)
+**Total commits**: 75 (14 new this session)
 **Total tests**: 8,719+ across 11 crates (0 failures, 0 clippy warnings)
 
-## This Session — Phase 3 (9 commits, all pushed)
+## This Session — Phase 3 (14 commits, all pushed)
 
 ### Session L.3: nika:cost + preset.rs — DONE (3 commits)
 
@@ -15,31 +15,33 @@
 2. `728c493` — feat(builtin): add nika:cost introspection tool. 5 tests.
 3. `1fa7d1a` — test(runtime): backward compat + integration tests. 5 tests.
 
-### Session E.3: Quality Plan Bugs — DONE (6 commits)
+### Session E.3: Quality Plan Bugs — DONE (5 commits)
 
-1. `7905cf0` — fix(daemon): log job state update failures instead of silent drop (SF7). 3 `let _` → `warn!`.
-2. `54c63c3` — fix(runtime): calculate real cost on Layer 0a no-spec ProviderResponded (SF2).
-3. `47c7589` — fix(runtime): remove unwrap panics in retry loop + fmt (auto-committed by hook with CR1).
-   - Includes CR1: full JSON Schema validation in guardrails (jsonschema crate). 5 new tests.
+1. `7905cf0` — fix(daemon): log job state update failures (SF7).
+2. `54c63c3` — fix(runtime): real cost on Layer 0a ProviderResponded (SF2).
+3. `47c7589` — fix(runtime): unwrap panics + CR1 jsonschema guardrails. 5 new tests.
 4. `1f6a6d0` — fix(runtime): per-provider temperature validation (M-orig8). 5 tests.
+5. `f6cef0b` — docs(plans): update progress.
 
-**Bugs fixed this session**: SF2 (cost), SF7 (job logs), CR1 (guardrails), M-orig8 (temperature)
-**Already fixed (verified)**: SF3, SF4 (for_each events), SF5 (schema .ok()), SF6 (trace writer)
+### Session M: P-RECORD — IN PROGRESS (4/11 commits done)
+
+1. `ed984ba` — feat(runtime): Record struct + RunContext storage. 12 tests.
+2. `ebf9b9f` — feat(ast): RecordSpec type + parse record: field. 9 tests. 46 constructors updated.
+3. `e0007bb` — feat(event): RecordCreated + RecordSkipped events. Display formatting.
+4. Next: RecordCompressor + runner wiring + bindings + nika:records tool
+
+**Session M remaining** (7 commits):
+- M.5: RecordCompressor with fallback strategy
+- M.6: Wire compression into runner at completion boundary
+- M.7: Record-aware bindings in resolve.rs
+- M.8: nika:records introspection tool
+- M.9: NIKA-320-324 error codes
+- M.10: E2E integration tests
+- M.11: Documentation
 
 ## Previous Sessions (61 commits)
 
 Sessions A-G, J, K, L (parts 1-2), I (partial), E (parts 1-2), Release v0.51.0.
-
-## Deferred (for future sessions)
-
-- **Session M**: Record compression / P-RECORD (11 commits planned)
-- **Session N**: Context + memory / P-CONTEXT (15 tasks)
-- **Session F.2**: ProviderName enum + EventKind grouping (~3h)
-- **Session I.2**: TUI Performance — DAG cache, Arc<str> (~1h)
-- **Session D.2**: Quality infrastructure — cargo-mutants, tracing-error, cargo-deny (~2h)
-- **Session J.2**: Registry fallback + LSP completions (~1h)
-- **Session H.2**: LSP remaining — VS Code extension fixes (~1.5h)
-- **Session E remaining**: ~200 bare is_ok() in low-priority files
 
 ## For resume
 
