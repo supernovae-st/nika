@@ -1776,6 +1776,7 @@ fn validate_task_keys(
         "artifact",
         "routing",
         "record",
+        "context_budget",
         "log",
         "concurrency",
         "fail_fast",
@@ -1969,6 +1970,9 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
         None => None,
     };
 
+    // Parse context_budget: token limit for binding truncation
+    let context_budget = get_u32_field(file_id, map, "context_budget")?;
+
     // Parse standalone concurrency/fail_fast (used with decompose when no for_each)
     let standalone_concurrency = if for_each.is_none() {
         get_u32_field(file_id, map, "concurrency")?
@@ -2003,6 +2007,7 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
         artifact,
         log,
         record,
+        context_budget,
     };
 
     Ok(Spanned::new(task, span))
@@ -3641,5 +3646,51 @@ tasks:
 
         assert!(task.action.is_none(), "No verb should be parsed");
         assert_eq!(task.preset.as_ref().unwrap().value, "think");
+    }
+
+    #[test]
+    fn test_parse_context_budget() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: constrained
+    context_budget: 4000
+    infer: "Summarize data"
+"#;
+        let wf = parse(yaml, FileId(0)).unwrap();
+        let task = wf.get_task("constrained").unwrap();
+        assert_eq!(task.value.context_budget.as_ref().unwrap().value, 4000);
+    }
+
+    #[test]
+    fn test_parse_context_budget_missing() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: no_budget
+    infer: "No budget"
+"#;
+        let wf = parse(yaml, FileId(0)).unwrap();
+        let task = wf.get_task("no_budget").unwrap();
+        assert!(task.value.context_budget.is_none());
+    }
+
+    #[test]
+    fn test_parse_context_budget_unknown_key_still_works() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: bad
+    context_budgetx: 4000
+    infer: "test"
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_err(), "Misspelled key should fail");
+        let err = result.unwrap_err();
+        assert!(
+            err.message.contains("unknown task field"),
+            "Error should mention unknown field: {}",
+            err.message
+        );
     }
 }
