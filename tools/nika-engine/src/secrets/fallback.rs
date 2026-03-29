@@ -6,7 +6,6 @@
 //! 3. Direct keyring (if native-keychain feature enabled and NIKA_SKIP_KEYCHAIN is not set)
 
 use crate::core::{ProviderCategory, KNOWN_PROVIDERS};
-use crate::secrets::keyring::{should_skip_keychain, NikaKeyring};
 use crate::secrets::result::SecretsLoadResult;
 use secrecy::SecretString;
 use tracing::{debug, info, trace};
@@ -59,34 +58,15 @@ pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
             }
         }
 
-        // 3. Try direct keyring (fallback)
-        if try_load_from_keyring(provider_id, env_var) {
-            result.from_env.push(provider_id.to_string());
-        } else {
-            result.not_found.push(provider_id.to_string());
-        }
+        // 3. No env var, no daemon → not found.
+        // Direct keyring access is DISABLED to prevent macOS Keychain popups.
+        // Users should either:
+        //   a) Set env vars (export PROVIDER_API_KEY=...)
+        //   b) Run `nika daemon install && nika daemon start` for daemon-managed secrets
+        result.not_found.push(provider_id.to_string());
     }
     info!("Secrets: {}", result.summary());
     result
-}
-
-fn try_load_from_keyring(provider: &str, env_var: &str) -> bool {
-    if cfg!(test) || should_skip_keychain() {
-        trace!("{}: keychain skipped", provider);
-        return false;
-    }
-    match NikaKeyring::get(provider) {
-        Ok(secret) => {
-            // SAFETY: called during sequential boot before spawning workflow tasks
-            unsafe { std::env::set_var(env_var, &*secret) };
-            debug!("{}: loaded from keyring", provider);
-            true
-        }
-        Err(_) => {
-            trace!("{}: not in keyring", provider);
-            false
-        }
-    }
 }
 
 pub async fn get_secret(provider: &str) -> Option<SecretString> {
@@ -108,11 +88,8 @@ pub async fn get_secret(provider: &str) -> Option<SecretString> {
         }
     }
 
-    // 3. Try direct keyring
-    if cfg!(test) || should_skip_keychain() {
-        return None;
-    }
-    NikaKeyring::get_secret(provider).ok()
+    // 3. No env, no daemon → None. Direct keyring disabled (prevents popups).
+    None
 }
 
 pub async fn has_secret(provider: &str) -> bool {
@@ -135,11 +112,8 @@ pub async fn has_secret(provider: &str) -> bool {
         }
     }
 
-    // 3. Try direct keyring
-    if cfg!(test) || should_skip_keychain() {
-        return false;
-    }
-    NikaKeyring::exists(provider)
+    // 3. No env, no daemon → false. Direct keyring disabled (prevents popups).
+    false
 }
 
 fn provider_env_var(provider: &str) -> &'static str {
