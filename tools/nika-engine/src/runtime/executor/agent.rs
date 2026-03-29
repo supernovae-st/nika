@@ -130,9 +130,101 @@ impl TaskExecutor {
             None => None,
         };
 
-        // Get provider name (task override or workflow default)
-        let provider_name: String =
-            resolved_provider.unwrap_or_else(|| self.default_provider.to_string());
+        // Build provider chain: explicit chain > single provider > workflow default
+        let effective_chain: Vec<String> = if let Some(ref chain) = resolved_agent.provider_chain {
+            chain.clone()
+        } else {
+            vec![resolved_provider
+                .clone()
+                .unwrap_or_else(|| self.default_provider.to_string())]
+        };
+
+        // Resolve provider with fallback chain support.
+        // Try each provider in the chain; validate availability (API key / custom endpoint).
+        // On failure, emit ProviderFallback event and try the next provider.
+        let provider_name: String = {
+            let mut last_error: Option<String> = None;
+            let mut found_provider: Option<String> = None;
+
+            for (i, name) in effective_chain.iter().enumerate() {
+                if name == "mock" {
+                    found_provider = Some(name.clone());
+                    break;
+                }
+                // Check custom endpoints first
+                if self.custom_endpoints.contains_key(name.as_str()) {
+                    found_provider = Some(name.clone());
+                    break;
+                }
+                // Check catalog provider has env key
+                match crate::core::find_provider(name) {
+                    Some(p) if p.has_env_key() || !p.requires_key => {
+                        found_provider = Some(name.clone());
+                        break;
+                    }
+                    Some(p) => {
+                        let err_msg =
+                            format!("Missing API key: {} not set", p.env_var);
+                        if effective_chain.len() > 1 && i < effective_chain.len() - 1 {
+                            self.event_log.emit(EventKind::ProviderFallback {
+                                task_id: Arc::clone(task_id),
+                                from: name.clone(),
+                                to: effective_chain[i + 1].clone(),
+                                reason: err_msg.clone(),
+                            });
+                            tracing::warn!(
+                                task_id = %task_id,
+                                from = %name,
+                                to = %effective_chain[i + 1],
+                                "Agent provider fallback: {} → {}",
+                                name,
+                                effective_chain[i + 1]
+                            );
+                        }
+                        last_error = Some(err_msg);
+                    }
+                    None => {
+                        let err_msg = format!("Unknown provider: '{}'", name);
+                        if effective_chain.len() > 1 && i < effective_chain.len() - 1 {
+                            self.event_log.emit(EventKind::ProviderFallback {
+                                task_id: Arc::clone(task_id),
+                                from: name.clone(),
+                                to: effective_chain[i + 1].clone(),
+                                reason: err_msg.clone(),
+                            });
+                            tracing::warn!(
+                                task_id = %task_id,
+                                from = %name,
+                                to = %effective_chain[i + 1],
+                                "Agent provider fallback: {} → {}",
+                                name,
+                                effective_chain[i + 1]
+                            );
+                        }
+                        last_error = Some(err_msg);
+                    }
+                }
+            }
+
+            match found_provider {
+                Some(p) => p,
+                None => {
+                    if effective_chain.len() > 1 {
+                        return Err(NikaError::FallbackChainExhausted {
+                            providers: effective_chain.join(", "),
+                            last_error: last_error.unwrap_or_default(),
+                        });
+                    } else {
+                        return Err(NikaError::MissingApiKey {
+                            provider: effective_chain
+                                .first()
+                                .cloned()
+                                .unwrap_or_default(),
+                        });
+                    }
+                }
+            }
+        };
 
         // Ensure resolved_agent has provider + model set for run_auto() dispatch
         let resolved_agent = AgentParams {
