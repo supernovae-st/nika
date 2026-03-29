@@ -10,8 +10,10 @@
 //! - `LoadedContext`: Loaded workflow context files
 
 pub mod context;
+pub mod record_writer;
 mod run_context;
 
 // Re-export all public types
 pub use context::LoadedContext;
+pub use record_writer::RecordWriter;
 pub use run_context::{RunContext, TaskOutcome, TaskResult};

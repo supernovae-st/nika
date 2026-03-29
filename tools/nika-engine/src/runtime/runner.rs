@@ -2582,6 +2582,20 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             );
         }
 
+        // Persist records as NDJSON for cross-session search
+        let records: Vec<(String, crate::runtime::record::Record)> = self
+            .datastore
+            .iter_records()
+            .into_iter()
+            .map(|(tid, arc_rec)| (tid.to_string(), (*arc_rec).clone()))
+            .collect();
+        if !records.is_empty() {
+            let wf_name = self.workflow.name.as_deref().unwrap_or("unnamed");
+            if let Err(e) = crate::store::RecordWriter::write_records(wf_name, &records) {
+                tracing::warn!(error = %e, "Failed to persist records as NDJSON");
+            }
+        }
+
         // Write execution trace to .nika/traces/
         let trace_path = self.write_trace();
 

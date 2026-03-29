@@ -42,6 +42,21 @@ pub enum TraceAction {
         #[arg(short, long, default_value = "10")]
         keep: usize,
     },
+
+    /// Search across workflow records
+    Search {
+        /// Search query
+        query: String,
+        /// Maximum results to show
+        #[arg(short, long, default_value = "20")]
+        limit: usize,
+        /// Filter by workflow name
+        #[arg(short, long)]
+        workflow: Option<String>,
+        /// Filter by date (ISO 8601)
+        #[arg(long)]
+        since: Option<String>,
+    },
 }
 
 pub fn handle_trace_command(action: TraceAction, _quiet: bool) -> Result<(), NikaError> {
@@ -173,6 +188,149 @@ pub fn handle_trace_command(action: TraceAction, _quiet: bool) -> Result<(), Nik
             println!("{} deleted {count} old traces, kept {keep}", StatusIcon::Ok);
             Ok(())
         }
+
+        TraceAction::Search {
+            query,
+            limit,
+            workflow,
+            since,
+        } => {
+            let records_dir = PathBuf::from(".nika/records");
+            if !records_dir.exists() {
+                println!("No records found");
+                return Ok(());
+            }
+
+            let query_lower = query.to_lowercase();
+
+            let mut results: Vec<serde_json::Value> = Vec::new();
+
+            let entries = fs::read_dir(&records_dir)?;
+
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().and_then(|e| e.to_str()) != Some("ndjson") {
+                    continue;
+                }
+
+                let content = match fs::read_to_string(&path) {
+                    Ok(c) => c,
+                    Err(_) => continue,
+                };
+
+                for line in content.lines() {
+                    let record: serde_json::Value = match serde_json::from_str(line) {
+                        Ok(v) => v,
+                        Err(_) => continue,
+                    };
+
+                    // Filter by query (case-insensitive substring match in summary)
+                    let summary = record
+                        .get("summary")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    if !summary.to_lowercase().contains(&query_lower) {
+                        continue;
+                    }
+
+                    // Filter by workflow name
+                    if let Some(ref wf) = workflow {
+                        let record_wf = record
+                            .get("workflow")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("");
+                        if record_wf != wf {
+                            continue;
+                        }
+                    }
+
+                    // Filter by since date
+                    if let Some(ref since_str) = since {
+                        let record_date = record
+                            .get("date")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("");
+                        if record_date < since_str.as_str() {
+                            continue;
+                        }
+                    }
+
+                    results.push(record);
+                }
+            }
+
+            // Sort by confidence descending
+            results.sort_by(|a, b| {
+                let ca = a
+                    .get("confidence")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0);
+                let cb = b
+                    .get("confidence")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0);
+                cb.partial_cmp(&ca).unwrap_or(std::cmp::Ordering::Equal)
+            });
+
+            // Limit results
+            results.truncate(limit);
+
+            println!(
+                "{}",
+                format!(
+                    "Records matching \"{}\" ({} results)",
+                    query,
+                    results.len()
+                )
+                .bold()
+            );
+            println!(
+                "  {:<22} {:<13} {:<12} {}",
+                "WORKFLOW".bold(),
+                "TASK".bold(),
+                "CONFIDENCE".bold(),
+                "DATE".bold()
+            );
+            println!("{}", separator(62));
+
+            for record in &results {
+                let wf = record
+                    .get("workflow")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("-");
+                let task = record
+                    .get("task")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("-");
+                let confidence = record
+                    .get("confidence")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0);
+                let date = record
+                    .get("date")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("-");
+                let summary = record
+                    .get("summary")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+
+                println!(
+                    "  {:<22} {:<13} {:<12.2} {}",
+                    wf.cyan(),
+                    task,
+                    confidence,
+                    date
+                );
+
+                // Show truncated summary as preview
+                let preview: String = summary.chars().take(60).collect();
+                let ellipsis = if summary.len() > 60 { "..." } else { "" };
+                println!("    {}{}", preview.dimmed(), ellipsis.dimmed());
+            }
+
+            Ok(())
+        }
     }
 }
 
@@ -212,5 +370,15 @@ mod tests {
     fn separator_used_in_list() {
         let sep = separator(62);
         assert!(sep.contains("─"));
+    }
+
+    #[test]
+    fn trace_action_search_variant_exists() {
+        let _ = TraceAction::Search {
+            query: "test".to_string(),
+            limit: 10,
+            workflow: None,
+            since: None,
+        };
     }
 }
