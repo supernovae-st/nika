@@ -547,7 +547,7 @@ impl RigAgentLoop {
                             mcp_server: "agent".to_string(),
                             tool: Some(tool_name),
                             resource: None,
-                            params: args_value,
+                            params: args_value.map(Arc::new),
                         });
                     }
 

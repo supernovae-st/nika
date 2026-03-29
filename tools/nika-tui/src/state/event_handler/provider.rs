@@ -3,6 +3,8 @@
 //! ProviderCalled, ProviderResponded, McpInvoke, McpResponse,
 //! McpConnected, McpError, McpRetry
 
+use std::sync::Arc;
+
 use nika_engine::event::FinishReason;
 
 use super::{TuiState, MAX_HISTORY_ENTRIES};
@@ -144,7 +146,7 @@ impl TuiState {
         tool: &Option<String>,
         resource: &Option<String>,
         call_id: &str,
-        params: &Option<serde_json::Value>,
+        params: &Option<Arc<serde_json::Value>>,
         timestamp_ms: u64,
     ) {
         let call = McpCall {
@@ -157,7 +159,7 @@ impl TuiState {
             completed: false,
             output_len: None,
             timestamp_ms,
-            params: params.clone(),
+            params: params.as_deref().cloned(),
             response: None,
             is_error: false,
             duration_ms: None,
@@ -189,7 +191,7 @@ impl TuiState {
         duration_ms: u64,
         cached: bool,
         is_error: bool,
-        response: &Option<serde_json::Value>,
+        response: &Option<Arc<serde_json::Value>>,
         timestamp_ms: u64,
     ) {
         // Track MCP cache hit/miss
@@ -205,7 +207,7 @@ impl TuiState {
             let name = call.tool.clone();
             call.completed = true;
             call.output_len = Some(output_len);
-            call.response = response.clone();
+            call.response = response.as_deref().cloned();
             call.is_error = is_error;
             call.duration_ms = Some(duration_ms);
             name

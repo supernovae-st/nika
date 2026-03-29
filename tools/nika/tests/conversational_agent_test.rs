@@ -99,7 +99,7 @@ fn test_event_log_mcp_invoke_sequence() {
         mcp_server: "novanet".to_string(),
         tool: Some("novanet_describe".to_string()),
         resource: None,
-        params: Some(serde_json::json!({"entity": "qr-code"})),
+        params: Some(Arc::new(serde_json::json!({"entity": "qr-code"}))),
     });
 
     log.emit(EventKind::McpResponse {
@@ -109,7 +109,7 @@ fn test_event_log_mcp_invoke_sequence() {
         duration_ms: 150,
         cached: false,
         is_error: false,
-        response: Some(serde_json::json!({"name": "QR Code"})),
+        response: Some(Arc::new(serde_json::json!({"name": "QR Code"}))),
     });
 
     let events = log.events();

@@ -39,10 +39,12 @@ use tokio::time::timeout;
 pub mod error;
 pub mod stream;
 pub mod tool;
-pub use error::{McpToolError, McpToolErrorKind, ProviderVerifyError, ProviderVerifyResult, RigInferError};
+pub use error::{
+    McpToolError, McpToolErrorKind, ProviderVerifyError, ProviderVerifyResult, RigInferError,
+};
+use stream::consume_rig_stream;
 pub use stream::{StreamChunk, StreamResult};
 pub use tool::{AgentMediaStaging, NikaMcpTool, NikaMcpToolDef};
-use stream::consume_rig_stream;
 
 /// Options for LLM inference
 ///
@@ -1685,7 +1687,6 @@ fn extract_native_vision_parts(
 
     Ok((text_parts.join("\n"), images))
 }
-
 
 #[cfg(test)]
 mod tests;

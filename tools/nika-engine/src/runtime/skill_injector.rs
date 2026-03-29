@@ -89,12 +89,13 @@ impl SkillInjector {
 
         // SECURITY: Pre-read size check to prevent DoS via huge skill files
         const MAX_SKILL_BYTES: u64 = 1_048_576; // 1 MiB
-        let metadata = fs::metadata(&resolved_path)
-            .await
-            .map_err(|e| NikaError::SkillLoadError {
-                skill: skill_path.to_string(),
-                reason: format!("Cannot stat file '{}': {}", resolved_path.display(), e),
-            })?;
+        let metadata =
+            fs::metadata(&resolved_path)
+                .await
+                .map_err(|e| NikaError::SkillLoadError {
+                    skill: skill_path.to_string(),
+                    reason: format!("Cannot stat file '{}': {}", resolved_path.display(), e),
+                })?;
         if metadata.len() > MAX_SKILL_BYTES {
             return Err(NikaError::SkillLoadError {
                 skill: skill_path.to_string(),

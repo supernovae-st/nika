@@ -1624,9 +1624,15 @@ fetch:
     fn test_fetch_validate_valid_extract_modes() {
         use nika_core::ast::extract::ExtractMode;
         let valid_modes = [
-            ExtractMode::Markdown, ExtractMode::Article, ExtractMode::Text,
-            ExtractMode::Selector, ExtractMode::Metadata, ExtractMode::Links,
-            ExtractMode::Jsonpath, ExtractMode::Feed, ExtractMode::LlmTxt,
+            ExtractMode::Markdown,
+            ExtractMode::Article,
+            ExtractMode::Text,
+            ExtractMode::Selector,
+            ExtractMode::Metadata,
+            ExtractMode::Links,
+            ExtractMode::Jsonpath,
+            ExtractMode::Feed,
+            ExtractMode::LlmTxt,
         ];
         for mode in &valid_modes {
             let params = FetchParams {
@@ -1720,7 +1726,10 @@ fetch:
         match action {
             TaskAction::Fetch { fetch } => {
                 assert_eq!(fetch.url, "https://example.com");
-                assert_eq!(fetch.extract, Some(nika_core::ast::extract::ExtractMode::Markdown));
+                assert_eq!(
+                    fetch.extract,
+                    Some(nika_core::ast::extract::ExtractMode::Markdown)
+                );
                 assert!(fetch.selector.is_none());
             }
             _ => panic!("Expected TaskAction::Fetch"),
@@ -1738,7 +1747,10 @@ fetch:
         let action: TaskAction = serde_yaml::from_str(yaml).unwrap();
         match action {
             TaskAction::Fetch { fetch } => {
-                assert_eq!(fetch.extract, Some(nika_core::ast::extract::ExtractMode::Selector));
+                assert_eq!(
+                    fetch.extract,
+                    Some(nika_core::ast::extract::ExtractMode::Selector)
+                );
                 assert_eq!(fetch.selector, Some("div.content".to_string()));
             }
             _ => panic!("Expected TaskAction::Fetch"),

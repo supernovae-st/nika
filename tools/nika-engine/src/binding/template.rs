@@ -4320,14 +4320,16 @@ mod v028_template_tests {
         inputs.insert("secret".to_string(), json!("sk-ant-SHOULD-NOT-LEAK"));
         ds.set_inputs(inputs);
 
-        let result =
-            resolve("{{with.data}} about {{inputs.topic}}", &bindings, &ds).unwrap();
+        let result = resolve("{{with.data}} about {{inputs.topic}}", &bindings, &ds).unwrap();
         // inputs.topic should resolve, but injected inputs.secret should NOT
         assert!(
             !result.contains("sk-ant-SHOULD-NOT-LEAK"),
             "Secret leaked via template injection: {result}"
         );
-        assert!(result.contains("AI workflows"), "Legitimate input not resolved: {result}");
+        assert!(
+            result.contains("AI workflows"),
+            "Legitimate input not resolved: {result}"
+        );
     }
 
     /// Same test for resolve_with
@@ -4340,13 +4342,15 @@ mod v028_template_tests {
         inputs.insert("secret".to_string(), json!("sk-ant-SHOULD-NOT-LEAK"));
         ds.set_inputs(inputs);
 
-        let result =
-            resolve_with("{{data}} about {{inputs.topic}}", &with, &ds).unwrap();
+        let result = resolve_with("{{data}} about {{inputs.topic}}", &with, &ds).unwrap();
         assert!(
             !result.contains("sk-ant-SHOULD-NOT-LEAK"),
             "Secret leaked via template injection in resolve_with: {result}"
         );
-        assert!(result.contains("AI workflows"), "Legitimate input not resolved: {result}");
+        assert!(
+            result.contains("AI workflows"),
+            "Legitimate input not resolved: {result}"
+        );
     }
 
     /// Verify that injected {{context.files.secret}} via with: binding is NOT resolved.
@@ -4358,7 +4362,8 @@ mod v028_template_tests {
         let ds = RunContext::new();
         let mut ctx = LoadedContext::new();
         ctx.files.insert("brand".to_string(), json!("SuperNovae"));
-        ctx.files.insert("secret".to_string(), json!("TOP-SECRET-DATA"));
+        ctx.files
+            .insert("secret".to_string(), json!("TOP-SECRET-DATA"));
         ds.set_context(ctx);
 
         let result = resolve_with(
@@ -4371,6 +4376,9 @@ mod v028_template_tests {
             !result.contains("TOP-SECRET-DATA"),
             "Secret context leaked via template injection: {result}"
         );
-        assert!(result.contains("SuperNovae"), "Legitimate context not resolved: {result}");
+        assert!(
+            result.contains("SuperNovae"),
+            "Legitimate context not resolved: {result}"
+        );
     }
 }

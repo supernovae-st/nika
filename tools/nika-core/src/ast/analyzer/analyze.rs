@@ -993,8 +993,8 @@ fn analyze_fetch(raw: &RawFetchAction, ctx: &mut AnalyzerContext) -> AnalyzedFet
             .as_ref()
             .map(|s| s.value)
             .unwrap_or(true),
-        response: raw.response.as_ref().and_then(|s| {
-            match crate::ast::extract::ResponseMode::parse(&s.value) {
+        response: raw.response.as_ref().and_then(
+            |s| match crate::ast::extract::ResponseMode::parse(&s.value) {
                 Some(mode) => Some(mode),
                 None => {
                     ctx.add_warning(AnalyzeError::new(
@@ -1008,8 +1008,8 @@ fn analyze_fetch(raw: &RawFetchAction, ctx: &mut AnalyzerContext) -> AnalyzedFet
                     ));
                     None
                 }
-            }
-        }),
+            },
+        ),
         extract: raw.extract.as_ref().and_then(|s| {
             match crate::ast::extract::ExtractMode::parse(&s.value) {
                 Some(mode) => Some(mode),

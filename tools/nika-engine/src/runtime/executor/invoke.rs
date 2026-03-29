@@ -94,7 +94,7 @@ impl TaskExecutor {
             mcp_server,
             tool: resolved_tool.clone(),
             resource: resolved_resource.clone(),
-            params: resolved_params.clone(),
+            params: resolved_params.clone().map(Arc::new),
         });
 
         // Check for builtin nika_* tools
@@ -160,7 +160,7 @@ impl TaskExecutor {
                             duration_ms,
                             cached: false,
                             is_error: false,
-                            response: Some(result_value.clone()),
+                            response: Some(Arc::new(result_value.clone())),
                         });
 
                         return Ok(result_value.to_string());
@@ -174,7 +174,7 @@ impl TaskExecutor {
                             duration_ms,
                             cached: false,
                             is_error: true,
-                            response: Some(serde_json::json!({"error": e.to_string()})),
+                            response: Some(Arc::new(serde_json::json!({"error": e.to_string()}))),
                         });
 
                         return Err(e);
@@ -217,7 +217,7 @@ impl TaskExecutor {
                         duration_ms,
                         cached: false,
                         is_error: true,
-                        response: Some(serde_json::json!({"error": error_text.clone()})),
+                        response: Some(Arc::new(serde_json::json!({"error": error_text.clone()}))),
                     });
                     return Err(NikaError::McpToolError {
                         tool: tool.clone(),
@@ -461,7 +461,7 @@ impl TaskExecutor {
             duration_ms,
             cached: was_cached,
             is_error: false,
-            response: Some(result.clone()),
+            response: Some(Arc::new(result.clone())),
         });
 
         // Return JSON string representation

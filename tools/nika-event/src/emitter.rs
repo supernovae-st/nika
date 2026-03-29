@@ -92,7 +92,7 @@ mod tests {
         let id = emitter.emit(EventKind::TaskStarted {
             task_id: Arc::from("test_task"),
             verb: "infer".into(),
-            inputs: json!({}),
+            inputs: Arc::new(json!({})),
         });
 
         assert_eq!(id, 0);
@@ -113,7 +113,7 @@ mod tests {
         let id2 = emitter.emit(EventKind::TaskStarted {
             task_id: Arc::from("task1"),
             verb: "infer".into(),
-            inputs: json!({}),
+            inputs: Arc::new(json!({})),
         });
         let id3 = emitter.emit(EventKind::TaskCompleted {
             task_id: Arc::from("task1"),
@@ -143,7 +143,7 @@ mod tests {
         let id2 = noop.emit(EventKind::TaskStarted {
             task_id: Arc::from("task"),
             verb: "infer".into(),
-            inputs: json!({}),
+            inputs: Arc::new(json!({})),
         });
         let id3 = noop.emit(EventKind::WorkflowCompleted {
             final_output: Arc::new(json!("output")),

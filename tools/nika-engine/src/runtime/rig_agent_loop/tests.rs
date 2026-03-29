@@ -26,9 +26,18 @@ fn test_rig_agent_status_completion_semantics() {
     assert!(!RigAgentStatus::MaxTurnsReached.requires_retry());
 
     // Canonical string is used in events — verify contract
-    assert_eq!(RigAgentStatus::NaturalCompletion.as_canonical_str(), "end_turn");
-    assert_eq!(RigAgentStatus::MaxTurnsReached.as_canonical_str(), "max_turns");
-    assert_eq!(RigAgentStatus::ExplicitCompletion.as_canonical_str(), "tool_complete");
+    assert_eq!(
+        RigAgentStatus::NaturalCompletion.as_canonical_str(),
+        "end_turn"
+    );
+    assert_eq!(
+        RigAgentStatus::MaxTurnsReached.as_canonical_str(),
+        "max_turns"
+    );
+    assert_eq!(
+        RigAgentStatus::ExplicitCompletion.as_canonical_str(),
+        "tool_complete"
+    );
     assert_eq!(RigAgentStatus::Failed.as_canonical_str(), "error");
 }
 

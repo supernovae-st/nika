@@ -8,6 +8,8 @@
 //! Run manually:
 //! - `cargo nextest run mcp_integration -- --ignored`
 
+use std::sync::Arc;
+
 use rustc_hash::FxHashMap;
 
 use nika::ast::{parse_workflow, McpConfigInline};
@@ -166,7 +168,7 @@ fn test_mcp_invoke_event() {
         mcp_server: "novanet".to_string(),
         tool: Some("novanet_describe".to_string()),
         resource: None,
-        params: Some(serde_json::json!({"entity": "qr-code"})),
+        params: Some(Arc::new(serde_json::json!({"entity": "qr-code"}))),
     });
 
     let events = log.events();
@@ -195,13 +197,13 @@ fn test_mcp_response_event() {
         duration_ms: 150,
         cached: false,
         is_error: false,
-        response: Some(serde_json::json!({
+        response: Some(Arc::new(serde_json::json!({
             "entity": {
                 "key": "qr-code",
                 "name": "QR Code",
                 "description": "Quick Response code"
             }
-        })),
+        }))),
     });
 
     let events = log.events();
@@ -236,7 +238,7 @@ fn test_mcp_tool_sequence() {
             mcp_server: "novanet".to_string(),
             tool: Some(tool.to_string()),
             resource: None,
-            params: Some(serde_json::from_str(params).unwrap()),
+            params: Some(Arc::new(serde_json::from_str(params).unwrap())),
         });
 
         log.emit(EventKind::McpResponse {
@@ -246,7 +248,7 @@ fn test_mcp_tool_sequence() {
             duration_ms: 100,
             cached: false,
             is_error: false,
-            response: Some(serde_json::json!({"success": true})),
+            response: Some(Arc::new(serde_json::json!({"success": true}))),
         });
     }
 
@@ -302,7 +304,7 @@ fn test_introspect_event() {
         mcp_server: "novanet".to_string(),
         tool: Some("novanet_introspect".to_string()),
         resource: None,
-        params: Some(serde_json::json!({"query": "nodes"})),
+        params: Some(Arc::new(serde_json::json!({"query": "nodes"}))),
     });
 
     log.emit(EventKind::McpResponse {
@@ -312,10 +314,10 @@ fn test_introspect_event() {
         duration_ms: 50,
         cached: false,
         is_error: false,
-        response: Some(serde_json::json!({
+        response: Some(Arc::new(serde_json::json!({
             "nodes": ["Entity", "EntityNative", "Page", "PageNative"],
             "count": 61
-        })),
+        }))),
     });
 
     let events = log.events();
@@ -369,7 +371,7 @@ fn test_multi_mcp_events() {
         mcp_server: "novanet".to_string(),
         tool: Some("novanet_describe".to_string()),
         resource: None,
-        params: Some(serde_json::json!({"entity": "qr-code"})),
+        params: Some(Arc::new(serde_json::json!({"entity": "qr-code"}))),
     });
 
     log.emit(EventKind::McpResponse {
@@ -389,7 +391,9 @@ fn test_multi_mcp_events() {
         mcp_server: "perplexity".to_string(),
         tool: Some("search".to_string()),
         resource: None,
-        params: Some(serde_json::json!({"query": "QR code best practices 2025"})),
+        params: Some(Arc::new(
+            serde_json::json!({"query": "QR code best practices 2025"}),
+        )),
     });
 
     log.emit(EventKind::McpResponse {
@@ -435,7 +439,7 @@ fn test_mcp_error_event() {
         mcp_server: "novanet".to_string(),
         tool: Some("novanet_describe".to_string()),
         resource: None,
-        params: Some(serde_json::json!({"entity": "nonexistent"})),
+        params: Some(Arc::new(serde_json::json!({"entity": "nonexistent"}))),
     });
 
     log.emit(EventKind::McpResponse {
@@ -445,7 +449,9 @@ fn test_mcp_error_event() {
         duration_ms: 30,
         cached: false,
         is_error: true,
-        response: Some(serde_json::json!({"error": "Entity not found: nonexistent"})),
+        response: Some(Arc::new(
+            serde_json::json!({"error": "Entity not found: nonexistent"}),
+        )),
     });
 
     let events = log.events();
@@ -468,7 +474,7 @@ fn test_mcp_cached_response() {
         duration_ms: 5, // Very fast because cached
         cached: true,
         is_error: false,
-        response: Some(serde_json::json!({"entity": "qr-code"})),
+        response: Some(Arc::new(serde_json::json!({"entity": "qr-code"}))),
     });
 
     let events = log.events();

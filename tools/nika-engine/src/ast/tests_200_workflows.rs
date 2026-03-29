@@ -3240,7 +3240,10 @@ fn l11_fetch_extract_invalid_mode_becomes_none() {
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert!(fetch.extract.is_none(), "invalid mode should be None after analysis");
+            assert!(
+                fetch.extract.is_none(),
+                "invalid mode should be None after analysis"
+            );
         }
         _ => panic!("expected Fetch"),
     }
@@ -3720,7 +3723,10 @@ fn m03_fetch_response_invalid_becomes_none() {
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert!(fetch.response.is_none(), "invalid response mode should become None");
+            assert!(
+                fetch.response.is_none(),
+                "invalid response mode should become None"
+            );
         }
         _ => panic!("expected Fetch"),
     }
@@ -3898,7 +3904,10 @@ fn m15_fetch_response_invalid_raw_becomes_none() {
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
-            assert!(fetch.response.is_none(), "invalid 'raw' mode should become None");
+            assert!(
+                fetch.response.is_none(),
+                "invalid 'raw' mode should become None"
+            );
         }
         _ => panic!("expected Fetch"),
     }

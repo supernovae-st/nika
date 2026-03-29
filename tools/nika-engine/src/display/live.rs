@@ -1413,7 +1413,10 @@ impl LiveRenderer {
             EventKind::MediaIntegrityCheck { .. } => {}
             // Provider fallback — show as warning in live view
             EventKind::ProviderFallback {
-                task_id, from, to, reason,
+                task_id,
+                from,
+                to,
+                reason,
             } => {
                 self.log(&format!(
                     "{} {} {}: {} → {} ({})",
@@ -1602,7 +1605,7 @@ mod tests {
             EventKind::TaskStarted {
                 task_id: Arc::from("research"),
                 verb: Arc::from("infer"),
-                inputs: serde_json::Value::Null,
+                inputs: Arc::new(serde_json::Value::Null),
             },
         ));
         assert_eq!(renderer.task_bars["research"].status, TaskStatus::Running);
@@ -1657,7 +1660,7 @@ mod tests {
             EventKind::TaskStarted {
                 task_id: Arc::from("broken"),
                 verb: Arc::from("exec"),
-                inputs: serde_json::Value::Null,
+                inputs: Arc::new(serde_json::Value::Null),
             },
         ));
 
@@ -1699,7 +1702,7 @@ mod tests {
                 EventKind::TaskStarted {
                     task_id: Arc::from("t1"),
                     verb: Arc::from("fetch"),
-                    inputs: serde_json::Value::Null,
+                    inputs: Arc::new(serde_json::Value::Null),
                 },
             ),
             make_event(
@@ -1788,7 +1791,7 @@ mod tests {
             EventKind::TaskStarted {
                 task_id: Arc::from("auth_task"),
                 verb: Arc::from("infer"),
-                inputs: serde_json::Value::Null,
+                inputs: Arc::new(serde_json::Value::Null),
             },
         ));
         renderer.render(&make_event(
@@ -1819,7 +1822,7 @@ mod tests {
             EventKind::TaskStarted {
                 task_id: Arc::from("task_x"),
                 verb: Arc::from("exec"),
-                inputs: serde_json::Value::Null,
+                inputs: Arc::new(serde_json::Value::Null),
             },
         ));
         renderer.render(&make_event(
@@ -1850,7 +1853,7 @@ mod tests {
             EventKind::TaskStarted {
                 task_id: Arc::from("streamer"),
                 verb: Arc::from("infer"),
-                inputs: serde_json::Value::Null,
+                inputs: Arc::new(serde_json::Value::Null),
             },
         ));
 
@@ -1910,7 +1913,7 @@ mod tests {
                 EventKind::TaskStarted {
                     task_id: Arc::from(task_id),
                     verb: Arc::from("infer"),
-                    inputs: serde_json::Value::Null,
+                    inputs: Arc::new(serde_json::Value::Null),
                 },
             ));
         }
@@ -1959,7 +1962,7 @@ mod tests {
             EventKind::TaskStarted {
                 task_id: Arc::from("flaky"),
                 verb: Arc::from("infer"),
-                inputs: serde_json::Value::Null,
+                inputs: Arc::new(serde_json::Value::Null),
             },
         ));
         renderer.render(&make_event(
@@ -1994,7 +1997,7 @@ mod tests {
             EventKind::TaskStarted {
                 task_id: Arc::from("flaky"),
                 verb: Arc::from("infer"),
-                inputs: serde_json::Value::Null,
+                inputs: Arc::new(serde_json::Value::Null),
             },
         ));
 
@@ -2028,7 +2031,7 @@ mod tests {
             EventKind::TaskStarted {
                 task_id: Arc::from("process"),
                 verb: Arc::from("infer"),
-                inputs: serde_json::Value::Null,
+                inputs: Arc::new(serde_json::Value::Null),
             },
         ));
         renderer.render(&make_event(
@@ -2064,7 +2067,7 @@ mod tests {
             EventKind::TaskStarted {
                 task_id: Arc::from("batch"),
                 verb: Arc::from("infer"),
-                inputs: serde_json::Value::Null,
+                inputs: Arc::new(serde_json::Value::Null),
             },
         ));
         renderer.render(&make_event(
@@ -2106,7 +2109,7 @@ mod tests {
             EventKind::TaskStarted {
                 task_id: Arc::from("batch2"),
                 verb: Arc::from("infer"),
-                inputs: serde_json::Value::Null,
+                inputs: Arc::new(serde_json::Value::Null),
             },
         ));
         renderer.render(&make_event(
@@ -2148,7 +2151,7 @@ mod tests {
             EventKind::TaskStarted {
                 task_id: Arc::from("seq"),
                 verb: Arc::from("infer"),
-                inputs: serde_json::Value::Null,
+                inputs: Arc::new(serde_json::Value::Null),
             },
         ));
         renderer.render(&make_event(
@@ -2198,7 +2201,7 @@ mod tests {
             EventKind::TaskStarted {
                 task_id: Arc::from("ok"),
                 verb: Arc::from("exec"),
-                inputs: serde_json::Value::Null,
+                inputs: Arc::new(serde_json::Value::Null),
             },
         ));
         renderer.render(&make_event(
@@ -2218,7 +2221,7 @@ mod tests {
             EventKind::TaskStarted {
                 task_id: Arc::from("bad"),
                 verb: Arc::from("exec"),
-                inputs: serde_json::Value::Null,
+                inputs: Arc::new(serde_json::Value::Null),
             },
         ));
         renderer.render(&make_event(

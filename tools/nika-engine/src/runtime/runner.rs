@@ -934,7 +934,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         event_log.emit(EventKind::TaskStarted {
             task_id: Arc::clone(&task_id),
             verb: Arc::from(task.action.verb_name()),
-            inputs: bindings.to_value(),
+            inputs: Arc::new(bindings.to_value()),
         });
 
         // Bridge AnalyzedTask to lowered types at executor boundary
@@ -1766,7 +1766,11 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                 task_id: task.name.clone(),
                                 timeout_secs: DECOMPOSE_TIMEOUT.as_secs(),
                             };
-                            self.emit_scheduling_failure(&task.name, &timeout_error.to_string(), "NIKA-026");
+                            self.emit_scheduling_failure(
+                                &task.name,
+                                &timeout_error.to_string(),
+                                "NIKA-026",
+                            );
                             self.datastore.insert(
                                 intern(&task.name),
                                 TaskResult::failed(timeout_error.to_string(), DECOMPOSE_TIMEOUT),
@@ -1812,10 +1816,15 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                                 "for_each binding '${}' resolved to non-array value",
                                                 alias
                                             );
-                                            self.emit_scheduling_failure(&task.name, &err_msg, "NIKA-026");
+                                            self.emit_scheduling_failure(
+                                                &task.name, &err_msg, "NIKA-026",
+                                            );
                                             self.datastore.insert(
                                                 intern(&task.name),
-                                                TaskResult::failed(err_msg, std::time::Duration::ZERO),
+                                                TaskResult::failed(
+                                                    err_msg,
+                                                    std::time::Duration::ZERO,
+                                                ),
                                             );
                                             continue;
                                         }
@@ -1825,7 +1834,9 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                             "for_each input '{}' not found in workflow inputs",
                                             alias
                                         );
-                                        self.emit_scheduling_failure(&task.name, &err_msg, "NIKA-026");
+                                        self.emit_scheduling_failure(
+                                            &task.name, &err_msg, "NIKA-026",
+                                        );
                                         self.datastore.insert(
                                             intern(&task.name),
                                             TaskResult::failed(err_msg, std::time::Duration::ZERO),
@@ -1837,7 +1848,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                 // $alias or $alias.nested.path format
                                 let mut segments = alias.split('.');
                                 let Some(base_alias) = segments.next() else {
-                                    let err_msg = "for_each: empty alias after '$' prefix".to_string();
+                                    let err_msg =
+                                        "for_each: empty alias after '$' prefix".to_string();
                                     self.emit_scheduling_failure(&task.name, &err_msg, "NIKA-026");
                                     self.datastore.insert(
                                         intern(&task.name),
@@ -1890,10 +1902,15 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                                         "for_each binding '${}': nested path segment '{}' not found",
                                                         alias, segment
                                                     );
-                                                    self.emit_scheduling_failure(&task.name, &err_msg, "NIKA-026");
+                                                    self.emit_scheduling_failure(
+                                                        &task.name, &err_msg, "NIKA-026",
+                                                    );
                                                     self.datastore.insert(
                                                         intern(&task.name),
-                                                        TaskResult::failed(err_msg, std::time::Duration::ZERO),
+                                                        TaskResult::failed(
+                                                            err_msg,
+                                                            std::time::Duration::ZERO,
+                                                        ),
                                                     );
                                                     traversal_failed = true;
                                                     break;
@@ -1912,10 +1929,15 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                                     "for_each binding '${}' resolved to non-array value",
                                                     alias
                                                 );
-                                                self.emit_scheduling_failure(&task.name, &err_msg, "NIKA-026");
+                                                self.emit_scheduling_failure(
+                                                    &task.name, &err_msg, "NIKA-026",
+                                                );
                                                 self.datastore.insert(
                                                     intern(&task.name),
-                                                    TaskResult::failed(err_msg, std::time::Duration::ZERO),
+                                                    TaskResult::failed(
+                                                        err_msg,
+                                                        std::time::Duration::ZERO,
+                                                    ),
                                                 );
                                                 continue;
                                             }
@@ -1926,7 +1948,9 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                             "for_each binding '{}' not found: {}",
                                             base_alias, e
                                         );
-                                        self.emit_scheduling_failure(&task.name, &err_msg, "NIKA-026");
+                                        self.emit_scheduling_failure(
+                                            &task.name, &err_msg, "NIKA-026",
+                                        );
                                         self.datastore.insert(
                                             intern(&task.name),
                                             TaskResult::failed(err_msg, std::time::Duration::ZERO),
@@ -1950,10 +1974,15 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                                     "for_each binding '{{{{inputs.{}}}}}' resolved to non-array value",
                                                     param_path
                                                 );
-                                                self.emit_scheduling_failure(&task.name, &err_msg, "NIKA-026");
+                                                self.emit_scheduling_failure(
+                                                    &task.name, &err_msg, "NIKA-026",
+                                                );
                                                 self.datastore.insert(
                                                     intern(&task.name),
-                                                    TaskResult::failed(err_msg, std::time::Duration::ZERO),
+                                                    TaskResult::failed(
+                                                        err_msg,
+                                                        std::time::Duration::ZERO,
+                                                    ),
                                                 );
                                                 continue;
                                             }
@@ -1963,10 +1992,15 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                                 "for_each input '{}' not found in workflow inputs",
                                                 full_path
                                             );
-                                            self.emit_scheduling_failure(&task.name, &err_msg, "NIKA-026");
+                                            self.emit_scheduling_failure(
+                                                &task.name, &err_msg, "NIKA-026",
+                                            );
                                             self.datastore.insert(
                                                 intern(&task.name),
-                                                TaskResult::failed(err_msg, std::time::Duration::ZERO),
+                                                TaskResult::failed(
+                                                    err_msg,
+                                                    std::time::Duration::ZERO,
+                                                ),
                                             );
                                             continue;
                                         }
@@ -2034,10 +2068,15 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                                     "for_each items: path traversal failed for '{{{{with.{}}}}}'",
                                                     path
                                                 );
-                                                self.emit_scheduling_failure(&task.name, &err_msg, "NIKA-026");
+                                                self.emit_scheduling_failure(
+                                                    &task.name, &err_msg, "NIKA-026",
+                                                );
                                                 self.datastore.insert(
                                                     intern(&task.name),
-                                                    TaskResult::failed(err_msg, std::time::Duration::ZERO),
+                                                    TaskResult::failed(
+                                                        err_msg,
+                                                        std::time::Duration::ZERO,
+                                                    ),
                                                 );
                                                 continue;
                                             } else {
@@ -2048,10 +2087,15 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                                             "for_each binding '{{{{with.{}}}}}' resolved to non-array value",
                                                             path
                                                         );
-                                                        self.emit_scheduling_failure(&task.name, &err_msg, "NIKA-026");
+                                                        self.emit_scheduling_failure(
+                                                            &task.name, &err_msg, "NIKA-026",
+                                                        );
                                                         self.datastore.insert(
                                                             intern(&task.name),
-                                                            TaskResult::failed(err_msg, std::time::Duration::ZERO),
+                                                            TaskResult::failed(
+                                                                err_msg,
+                                                                std::time::Duration::ZERO,
+                                                            ),
                                                         );
                                                         continue;
                                                     }
@@ -2063,10 +2107,15 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                                 "for_each binding '{}' not found: {}",
                                                 alias, e
                                             );
-                                            self.emit_scheduling_failure(&task.name, &err_msg, "NIKA-026");
+                                            self.emit_scheduling_failure(
+                                                &task.name, &err_msg, "NIKA-026",
+                                            );
                                             self.datastore.insert(
                                                 intern(&task.name),
-                                                TaskResult::failed(err_msg, std::time::Duration::ZERO),
+                                                TaskResult::failed(
+                                                    err_msg,
+                                                    std::time::Duration::ZERO,
+                                                ),
                                             );
                                             continue;
                                         }
@@ -6553,12 +6602,7 @@ mod tests {
         let events = event_log.events();
         let preset_events: Vec<_> = events
             .iter()
-            .filter(|e| {
-                matches!(
-                    &e.kind,
-                    crate::event::EventKind::PresetApplied { .. }
-                )
-            })
+            .filter(|e| matches!(&e.kind, crate::event::EventKind::PresetApplied { .. }))
             .collect();
 
         assert_eq!(

@@ -10,8 +10,8 @@ use std::sync::Arc;
 use rig::completion::ToolDefinition;
 use rig::tool::{ToolDyn, ToolError};
 
-use crate::mcp::McpClient;
 use super::error::McpToolError;
+use crate::mcp::McpClient;
 
 // =============================================================================
 // NikaMcpTool - Wrapper for MCP tools implementing rig-core's ToolDyn

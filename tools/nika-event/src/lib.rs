@@ -20,8 +20,8 @@ pub mod types;
 pub use emitter::{EventEmitter, NoopEmitter};
 pub use error::EventError;
 pub use log::{AgentTurnMetadata, ContextSource, Event, EventKind, EventLog, ExcludedItem};
-pub use types::{AgentStopReason, AgentTurnKind, FinishReason, GuardrailType, Severity};
 pub use trace::{
     calculate_workflow_hash, generate_generation_id, list_traces, prune_traces, TraceInfo,
     TraceWriter,
 };
+pub use types::{AgentStopReason, AgentTurnKind, FinishReason, GuardrailType, Severity};

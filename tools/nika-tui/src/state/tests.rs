@@ -194,7 +194,7 @@ fn test_tui_state_handle_task_lifecycle() {
         &EventKind::TaskStarted {
             verb: "infer".into(),
             task_id: Arc::from("task1"),
-            inputs: serde_json::json!({}),
+            inputs: Arc::new(serde_json::json!({})),
         },
         100,
     );
@@ -226,7 +226,7 @@ fn test_tui_state_handle_mcp_events() {
             mcp_server: "novanet".to_string(),
             tool: Some("novanet_describe".to_string()),
             resource: None,
-            params: Some(test_params.clone()),
+            params: Some(Arc::new(test_params.clone())),
         },
         100,
     );
@@ -249,7 +249,7 @@ fn test_tui_state_handle_mcp_events() {
             duration_ms: 100,
             cached: false,
             is_error: false,
-            response: Some(test_response.clone()),
+            response: Some(Arc::new(test_response.clone())),
         },
         200,
     );
@@ -272,7 +272,7 @@ fn test_tui_state_handle_mcp_error_response() {
             mcp_server: "novanet".to_string(),
             tool: Some("novanet_search".to_string()),
             resource: None,
-            params: Some(serde_json::json!({"invalid": "params"})),
+            params: Some(Arc::new(serde_json::json!({"invalid": "params"}))),
         },
         100,
     );
@@ -285,7 +285,7 @@ fn test_tui_state_handle_mcp_error_response() {
             duration_ms: 25,
             cached: false,
             is_error: true,
-            response: Some(serde_json::json!({"error": "Invalid params"})),
+            response: Some(Arc::new(serde_json::json!({"error": "Invalid params"}))),
         },
         125,
     );
@@ -310,7 +310,7 @@ fn test_tui_state_handle_mcp_parallel_calls() {
             mcp_server: "novanet".to_string(),
             tool: Some("novanet_context".to_string()),
             resource: None,
-            params: Some(serde_json::json!({"locale": "fr-FR"})),
+            params: Some(Arc::new(serde_json::json!({"locale": "fr-FR"}))),
         },
         100,
     );
@@ -321,7 +321,7 @@ fn test_tui_state_handle_mcp_parallel_calls() {
             mcp_server: "novanet".to_string(),
             tool: Some("novanet_context".to_string()),
             resource: None,
-            params: Some(serde_json::json!({"locale": "en-US"})),
+            params: Some(Arc::new(serde_json::json!({"locale": "en-US"}))),
         },
         110,
     );
@@ -339,7 +339,7 @@ fn test_tui_state_handle_mcp_parallel_calls() {
             duration_ms: 50,
             cached: false,
             is_error: false,
-            response: Some(serde_json::json!({"content": "English content"})),
+            response: Some(Arc::new(serde_json::json!({"content": "English content"}))),
         },
         160,
     );
@@ -358,7 +358,7 @@ fn test_tui_state_handle_mcp_parallel_calls() {
             duration_ms: 120,
             cached: false,
             is_error: false,
-            response: Some(serde_json::json!({"content": "French content"})),
+            response: Some(Arc::new(serde_json::json!({"content": "French content"}))),
         },
         220,
     );
@@ -382,14 +382,14 @@ fn test_breakpoint_detection() {
     let event = EventKind::TaskStarted {
         verb: "infer".into(),
         task_id: Arc::from("task1"),
-        inputs: serde_json::json!({}),
+        inputs: Arc::new(serde_json::json!({})),
     };
     assert!(state.should_break(&event));
 
     let event2 = EventKind::TaskStarted {
         verb: "infer".into(),
         task_id: Arc::from("task2"),
-        inputs: serde_json::json!({}),
+        inputs: Arc::new(serde_json::json!({})),
     };
     assert!(!state.should_break(&event2));
 }
@@ -442,7 +442,7 @@ fn test_timeline_cache_invalidation_on_task_started() {
         &EventKind::TaskStarted {
             verb: "infer".into(),
             task_id: Arc::from("task1"),
-            inputs: serde_json::json!({}),
+            inputs: Arc::new(serde_json::json!({})),
         },
         10,
     );
@@ -468,7 +468,7 @@ fn test_timeline_cache_invalidation_on_task_completed() {
         &EventKind::TaskStarted {
             verb: "infer".into(),
             task_id: Arc::from("task1"),
-            inputs: serde_json::json!({}),
+            inputs: Arc::new(serde_json::json!({})),
         },
         10,
     );
@@ -1785,7 +1785,7 @@ fn test_task_events_mark_progress_dag_dirty() {
         &EventKind::TaskStarted {
             verb: "infer".into(),
             task_id: "task1".into(),
-            inputs: serde_json::json!({}),
+            inputs: Arc::new(serde_json::json!({})),
         },
         200,
     );
@@ -2075,7 +2075,7 @@ fn test_task_started_invalidates_task_cache() {
         &EventKind::TaskStarted {
             verb: "infer".into(),
             task_id: "my_task".into(),
-            inputs: serde_json::json!({}),
+            inputs: Arc::new(serde_json::json!({})),
         },
         100,
     );
@@ -2582,7 +2582,7 @@ fn test_dag_version_tracks_timeline() {
         &nika_engine::event::EventKind::TaskStarted {
             task_id: std::sync::Arc::from("task1"),
             verb: std::sync::Arc::from("infer"),
-            inputs: serde_json::json!({}),
+            inputs: Arc::new(serde_json::json!({})),
         },
         100,
     );
@@ -2686,7 +2686,7 @@ fn test_happy_path_full_sequence() {
         &EventKind::TaskStarted {
             task_id: Arc::from("task-a"),
             verb: "infer".into(),
-            inputs: serde_json::json!({"prompt": "hello"}),
+            inputs: Arc::new(serde_json::json!({"prompt": "hello"})),
         },
         100,
     );
@@ -2713,7 +2713,7 @@ fn test_happy_path_full_sequence() {
         &EventKind::TaskStarted {
             task_id: Arc::from("task-b"),
             verb: "exec".into(),
-            inputs: serde_json::json!({}),
+            inputs: Arc::new(serde_json::json!({})),
         },
         700,
     );
@@ -2783,7 +2783,7 @@ fn test_error_path_full_sequence() {
         &EventKind::TaskStarted {
             task_id: Arc::from("failing-task"),
             verb: "infer".into(),
-            inputs: serde_json::json!({}),
+            inputs: Arc::new(serde_json::json!({})),
         },
         100,
     );
@@ -2862,7 +2862,7 @@ fn test_workflow_failed_kills_orphaned_running_tasks() {
         &EventKind::TaskStarted {
             task_id: Arc::from("task-a"),
             verb: "infer".into(),
-            inputs: serde_json::json!({}),
+            inputs: Arc::new(serde_json::json!({})),
         },
         20,
     );
@@ -2879,7 +2879,7 @@ fn test_workflow_failed_kills_orphaned_running_tasks() {
         &EventKind::TaskStarted {
             task_id: Arc::from("orphan-task"),
             verb: "exec".into(),
-            inputs: serde_json::json!({}),
+            inputs: Arc::new(serde_json::json!({})),
         },
         40,
     );
@@ -2947,7 +2947,7 @@ fn test_mcp_lifecycle_phase_transitions() {
         &EventKind::TaskStarted {
             task_id: Arc::from("invoke-task"),
             verb: "invoke".into(),
-            inputs: serde_json::json!({}),
+            inputs: Arc::new(serde_json::json!({})),
         },
         100,
     );
@@ -2961,7 +2961,7 @@ fn test_mcp_lifecycle_phase_transitions() {
             mcp_server: "novanet".to_string(),
             tool: Some("novanet_describe".to_string()),
             resource: None,
-            params: Some(serde_json::json!({"entity": "qr-code"})),
+            params: Some(Arc::new(serde_json::json!({"entity": "qr-code"}))),
         },
         200,
     );
@@ -2982,7 +2982,7 @@ fn test_mcp_lifecycle_phase_transitions() {
             duration_ms: 150,
             cached: false,
             is_error: false,
-            response: Some(serde_json::json!({"name": "QR Code"})),
+            response: Some(Arc::new(serde_json::json!({"name": "QR Code"}))),
         },
         350,
     );
@@ -3123,7 +3123,7 @@ fn test_task_started_does_not_overwrite_pause_phase() {
         &EventKind::TaskStarted {
             task_id: "late-task".into(),
             verb: "infer".into(),
-            inputs: serde_json::json!({}),
+            inputs: Arc::new(serde_json::json!({})),
         },
         1,
     );
@@ -3144,7 +3144,7 @@ fn test_task_started_does_not_overwrite_abort_phase() {
         &EventKind::TaskStarted {
             task_id: "late-task".into(),
             verb: "infer".into(),
-            inputs: serde_json::json!({}),
+            inputs: Arc::new(serde_json::json!({})),
         },
         1,
     );
@@ -3218,7 +3218,7 @@ fn test_workflow_aborted_event() {
         &EventKind::TaskStarted {
             task_id: Arc::from("running-task"),
             verb: "infer".into(),
-            inputs: serde_json::json!({}),
+            inputs: Arc::new(serde_json::json!({})),
         },
         100,
     );
@@ -3405,7 +3405,7 @@ fn test_phase_transition_countdown_to_launch() {
         &EventKind::TaskStarted {
             task_id: Arc::from("t1"),
             verb: "infer".into(),
-            inputs: serde_json::json!({}),
+            inputs: Arc::new(serde_json::json!({})),
         },
         10,
     );
@@ -3432,7 +3432,7 @@ fn test_phase_transition_launch_to_orbital() {
         &EventKind::TaskStarted {
             task_id: Arc::from("t2"),
             verb: "exec".into(),
-            inputs: serde_json::json!({}),
+            inputs: Arc::new(serde_json::json!({})),
         },
         100,
     );
@@ -3480,7 +3480,7 @@ fn test_task_started_unknown_task_id_no_panic() {
         &EventKind::TaskStarted {
             task_id: Arc::from("ghost-task"),
             verb: "infer".into(),
-            inputs: serde_json::json!({}),
+            inputs: Arc::new(serde_json::json!({})),
         },
         100,
     );
@@ -4458,7 +4458,7 @@ fn test_should_break_empty_breakpoints_always_false() {
         EventKind::TaskStarted {
             task_id: Arc::from("t1"),
             verb: "infer".into(),
-            inputs: serde_json::json!({}),
+            inputs: Arc::new(serde_json::json!({})),
         },
         EventKind::TaskCompleted {
             task_id: Arc::from("t1"),
@@ -4496,7 +4496,7 @@ fn test_should_break_after_task() {
     assert!(!state.should_break(&EventKind::TaskStarted {
         task_id: Arc::from("task1"),
         verb: "infer".into(),
-        inputs: serde_json::json!({}),
+        inputs: Arc::new(serde_json::json!({})),
     }));
 }
 
@@ -4709,7 +4709,7 @@ fn test_workflow_failed_kills_running_tasks() {
         &EventKind::TaskStarted {
             task_id: Arc::from("t1"),
             verb: "infer".into(),
-            inputs: serde_json::json!({}),
+            inputs: Arc::new(serde_json::json!({})),
         },
         2,
     );

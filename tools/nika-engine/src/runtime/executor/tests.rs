@@ -2440,10 +2440,7 @@ async fn test_agent_provider_fallback_to_mock() {
             guardrails: vec![],
             limits: None,
             base_url: None,
-            provider_chain: Some(vec![
-                "nonexistent_fake".to_string(),
-                "mock".to_string(),
-            ]),
+            provider_chain: Some(vec!["nonexistent_fake".to_string(), "mock".to_string()]),
         },
     };
 
@@ -2452,7 +2449,11 @@ async fn test_agent_provider_fallback_to_mock() {
         .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
-    assert!(result.is_ok(), "Agent should succeed via mock fallback: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Agent should succeed via mock fallback: {:?}",
+        result.err()
+    );
 
     // Verify ProviderFallback event was emitted
     let events = event_log.events();
@@ -2514,7 +2515,10 @@ async fn test_agent_provider_chain_all_fail() {
         .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
-    assert!(result.is_err(), "Should fail when all providers are unknown");
+    assert!(
+        result.is_err(),
+        "Should fail when all providers are unknown"
+    );
     match result.unwrap_err() {
         NikaError::FallbackChainExhausted { providers, .. } => {
             assert!(
@@ -2569,5 +2573,9 @@ async fn test_agent_single_provider_mock() {
         .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
-    assert!(result.is_ok(), "Single mock provider should succeed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Single mock provider should succeed: {:?}",
+        result.err()
+    );
 }

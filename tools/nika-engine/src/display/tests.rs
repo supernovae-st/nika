@@ -1874,14 +1874,20 @@ fn fmt_agent_start_output() {
 
 #[test]
 fn fmt_agent_turn_output() {
-    let out = strip_ansi(&format_event::fmt_agent_turn(0, &nika_event::AgentTurnKind::Started));
+    let out = strip_ansi(&format_event::fmt_agent_turn(
+        0,
+        &nika_event::AgentTurnKind::Started,
+    ));
     assert!(out.contains("turn 1"), "0-indexed should display as turn 1");
     assert!(out.contains("started"), "should contain kind");
 }
 
 #[test]
 fn fmt_agent_complete_output() {
-    let out = strip_ansi(&format_event::fmt_agent_complete(3, &nika_event::AgentStopReason::EndTurn));
+    let out = strip_ansi(&format_event::fmt_agent_complete(
+        3,
+        &nika_event::AgentStopReason::EndTurn,
+    ));
     assert!(out.contains("done"), "should contain 'done'");
     assert!(out.contains("3 turns"), "should contain turn count");
     assert!(out.contains("end_turn"), "should contain stop reason");
@@ -1926,10 +1932,7 @@ fn fmt_guardrail_passed_output() {
         &nika_event::GuardrailType::Length,
         "safe output",
     ));
-    assert!(
-        out.contains("length"),
-        "should contain guardrail type"
-    );
+    assert!(out.contains("length"), "should contain guardrail type");
     assert!(out.contains("safe output"), "should contain description");
 }
 
@@ -2579,7 +2582,7 @@ fn test_renderer_records_events() {
             EventKind::TaskStarted {
                 task_id: Arc::from("a"),
                 verb: "infer".into(),
-                inputs: serde_json::Value::Null,
+                inputs: Arc::new(serde_json::Value::Null),
             },
         ),
         make_event(
@@ -2609,7 +2612,7 @@ fn test_renderer_skips_already_rendered() {
             EventKind::TaskStarted {
                 task_id: Arc::from("a"),
                 verb: "exec".into(),
-                inputs: serde_json::Value::Null,
+                inputs: Arc::new(serde_json::Value::Null),
             },
         ),
         make_event(

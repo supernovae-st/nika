@@ -30,7 +30,7 @@ pub fn task_started(id: &str, verb: &str) -> EventKind {
     EventKind::TaskStarted {
         task_id: tid(id),
         verb: verb.into(),
-        inputs: serde_json::json!({}),
+        inputs: Arc::new(serde_json::json!({})),
     }
 }
 

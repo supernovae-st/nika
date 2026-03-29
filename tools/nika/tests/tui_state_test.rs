@@ -152,7 +152,7 @@ fn test_task_started_updates_status() {
         &EventKind::TaskStarted {
             task_id: Arc::from("step1"),
             verb: "infer".into(),
-            inputs: json!({"prompt": "Hello"}),
+            inputs: Arc::new(json!({"prompt": "Hello"})),
         },
         100,
     );
@@ -189,7 +189,7 @@ fn test_task_completed_updates_state() {
         &EventKind::TaskStarted {
             task_id: Arc::from("step1"),
             verb: "infer".into(),
-            inputs: json!({}),
+            inputs: Arc::new(json!({})),
         },
         100,
     );
@@ -227,7 +227,7 @@ fn test_task_failed_updates_state() {
         &EventKind::TaskStarted {
             task_id: Arc::from("step1"),
             verb: "infer".into(),
-            inputs: json!({}),
+            inputs: Arc::new(json!({})),
         },
         100,
     );
@@ -311,7 +311,7 @@ fn test_mcp_invoke_creates_call_record() {
             mcp_server: "novanet".to_string(),
             tool: Some("novanet_describe".to_string()),
             resource: None,
-            params: Some(json!({"entity": "qr-code"})),
+            params: Some(Arc::new(json!({"entity": "qr-code"}))),
         },
         100,
     );
@@ -352,7 +352,9 @@ fn test_mcp_response_updates_call_record() {
             duration_ms: 250,
             cached: false,
             is_error: false,
-            response: Some(json!({"key": "qr-code", "display_name": "QR Code"})),
+            response: Some(Arc::new(
+                json!({"key": "qr-code", "display_name": "QR Code"}),
+            )),
         },
         350,
     );
@@ -389,7 +391,7 @@ fn test_mcp_error_response() {
             duration_ms: 100,
             cached: false,
             is_error: true,
-            response: Some(json!({"error": "Entity not found"})),
+            response: Some(Arc::new(json!({"error": "Entity not found"}))),
         },
         200,
     );
@@ -649,7 +651,7 @@ fn test_mission_phase_transitions() {
         &EventKind::TaskStarted {
             task_id: Arc::from("t1"),
             verb: "infer".into(),
-            inputs: json!({}),
+            inputs: Arc::new(json!({})),
         },
         100,
     );
@@ -667,7 +669,7 @@ fn test_mission_phase_transitions() {
         &EventKind::TaskStarted {
             task_id: Arc::from("t2"),
             verb: "infer".into(),
-            inputs: json!({}),
+            inputs: Arc::new(json!({})),
         },
         500,
     );
@@ -707,7 +709,7 @@ fn test_slow_task_triggers_warning() {
         &EventKind::TaskStarted {
             task_id: Arc::from("slow"),
             verb: "infer".into(),
-            inputs: json!({}),
+            inputs: Arc::new(json!({})),
         },
         0,
     );
@@ -743,7 +745,7 @@ fn test_very_slow_task_triggers_alert() {
         &EventKind::TaskStarted {
             task_id: Arc::from("very_slow"),
             verb: "infer".into(),
-            inputs: json!({}),
+            inputs: Arc::new(json!({})),
         },
         0,
     );

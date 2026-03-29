@@ -272,7 +272,10 @@ pub(crate) fn fmt_policy_blocked(ts: &str, policy_type: &str, reason: &str) -> S
 
 // ── Guardrails ──────────────────────────────────────────────────────────
 
-pub(crate) fn fmt_guardrail_passed(guardrail_type: &nika_event::GuardrailType, description: &str) -> String {
+pub(crate) fn fmt_guardrail_passed(
+    guardrail_type: &nika_event::GuardrailType,
+    description: &str,
+) -> String {
     sub(format!(
         "{} {} {}",
         icons::guardrail(),
@@ -281,7 +284,10 @@ pub(crate) fn fmt_guardrail_passed(guardrail_type: &nika_event::GuardrailType, d
     ))
 }
 
-pub(crate) fn fmt_guardrail_failed(guardrail_type: &nika_event::GuardrailType, message: &str) -> String {
+pub(crate) fn fmt_guardrail_failed(
+    guardrail_type: &nika_event::GuardrailType,
+    message: &str,
+) -> String {
     sub(format!(
         "{} {} {}",
         icons::guardrail(),

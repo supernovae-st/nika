@@ -644,7 +644,10 @@ mod tests {
     fn redact_for_event_redacts_openai_key() {
         let input = "key=sk-proj-abc123def456ghi789";
         let result = redact_for_event(input);
-        assert!(result.contains("[REDACTED]"), "OpenAI key not redacted: {result}");
+        assert!(
+            result.contains("[REDACTED]"),
+            "OpenAI key not redacted: {result}"
+        );
         assert!(!result.contains("sk-proj-abc"));
     }
 
@@ -652,7 +655,10 @@ mod tests {
     fn redact_for_event_redacts_bearer_token() {
         let input = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9";
         let result = redact_for_event(input);
-        assert!(result.contains("[REDACTED]"), "Bearer token not redacted: {result}");
+        assert!(
+            result.contains("[REDACTED]"),
+            "Bearer token not redacted: {result}"
+        );
         assert!(!result.contains("eyJhbGci"));
     }
 
@@ -660,7 +666,10 @@ mod tests {
     fn redact_for_event_redacts_github_token() {
         let input = "token: ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij";
         let result = redact_for_event(input);
-        assert!(result.contains("[REDACTED]"), "GitHub PAT not redacted: {result}");
+        assert!(
+            result.contains("[REDACTED]"),
+            "GitHub PAT not redacted: {result}"
+        );
     }
 
     #[test]
