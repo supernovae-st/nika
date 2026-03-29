@@ -24,6 +24,9 @@ Nika is a semantic YAML workflow engine for AI tasks. Schema: `nika/workflow@0.1
 | `retry:` inside `invoke:` | `retry:` at task level |
 | `body: {...}` JSON | `json: {...}` (auto-serialized) |
 | `{{with.results.field}}` after for_each | `{{with.results[0].field}}` (array) |
+| `thinking: true` at task level | `infer: { extended_thinking: true }` inside infer |
+| `max_retries: 3` at task level | `retry: { max_attempts: 3 }` at task level |
+| `model: haiku` inside `infer:` | `model: claude-haiku-4-5` at task level |
 
 ## Which Verb?
 
@@ -123,7 +126,7 @@ Always-on, Media, Opt-in, Runtime (nika:cost, nika:records, nika:dag_info, nika:
         max_words: 500
         on_failure: retry
     limits:
-      cost_usd: 2.0
+      max_cost_usd: 2.0
 ```
 
 **Note**: `agent: "think"` (scalar) = preset reference, NOT the agent verb.
@@ -143,7 +146,7 @@ Always-on, Media, Opt-in, Runtime (nika:cost, nika:records, nika:dag_info, nika:
 
 Templates: `{{with.alias}}`, `{{inputs.name}}`, `{{with.item}}`, `{{context.readme}}`
 
-## Transforms (31 pipe-chainable)
+## Transforms (38 pipe-chainable)
 
 - **String**: `upper`, `lower`, `trim`, `trim_start`, `trim_end`, `length`, `to_string`
 - **Array**: `first`, `last`, `first(N)`, `last(N)`, `flatten`, `reverse`, `sort`, `unique`, `compact`, `keys`, `values`
