@@ -64,7 +64,13 @@ const MAX_TIMEOUT_SECS: u64 = 3600;
 #[derive(Debug, Clone, Deserialize)]
 pub struct RunParams {
     /// Path to the workflow file to execute.
+    /// Required when yaml_content is not provided.
+    #[serde(default)]
     pub workflow: String,
+    /// Inline YAML workflow content (alternative to file path).
+    /// When provided, `workflow` is used only as a label.
+    #[serde(default)]
+    pub yaml_content: Option<String>,
     /// Context as JSON string (for OpenAI strict mode).
     #[serde(default)]
     pub context_json: Option<String>,
@@ -146,7 +152,11 @@ impl BuiltinTool for RunTool {
             "properties": {
                 "workflow": {
                     "type": "string",
-                    "description": "Path to the workflow file to execute"
+                    "description": "Path to the workflow file to execute (or label when using yaml_content)"
+                },
+                "yaml_content": {
+                    "type": "string",
+                    "description": "Inline YAML workflow content (alternative to file path)"
                 },
                 "context_json": {
                     "type": "string",
@@ -161,7 +171,7 @@ impl BuiltinTool for RunTool {
                     "description": "Maximum recursion depth (default: 3, max: 10)"
                 }
             },
-            "required": ["workflow"],
+            "required": [],
             "additionalProperties": false
         })
     }
@@ -180,16 +190,20 @@ impl BuiltinTool for RunTool {
                     reason: format!("Invalid JSON parameters: {}", e),
                 })?;
 
-            // Validate workflow path
-            if params.workflow.is_empty() {
+            // Validate: either workflow path or yaml_content must be provided
+            let is_inline = params.yaml_content.is_some();
+            if !is_inline && params.workflow.is_empty() {
                 return Err(NikaError::BuiltinInvalidParams {
                     tool: "nika_run".into(),
-                    reason: "Workflow path cannot be empty".into(),
+                    reason: "Either 'workflow' (file path) or 'yaml_content' (inline YAML) must be provided".into(),
                 });
             }
 
-            // Validate workflow path extension
-            if !params.workflow.ends_with(".nika.yaml") && !params.workflow.ends_with(".nika.yml") {
+            // Validate workflow path extension (only for file-based runs)
+            if !is_inline
+                && !params.workflow.ends_with(".nika.yaml")
+                && !params.workflow.ends_with(".nika.yml")
+            {
                 return Err(NikaError::BuiltinInvalidParams {
                     tool: "nika_run".into(),
                     reason: format!(
@@ -219,46 +233,60 @@ impl BuiltinTool for RunTool {
             let next_depth = depth + 1;
             let timeout_duration = Duration::from_secs(timeout_secs);
 
-            // Path canonicalization for security
-            let workflow_path = Path::new(&params.workflow);
-            let canonical_path =
-                workflow_path
-                    .canonicalize()
-                    .map_err(|e| NikaError::BuiltinToolError {
+            // Get YAML content: either inline or from file
+            let yaml_content = if let Some(ref inline_yaml) = params.yaml_content {
+                // Inline YAML: validate minimum structure
+                if !inline_yaml.contains("schema:") {
+                    return Err(NikaError::BuiltinInvalidParams {
                         tool: "nika_run".into(),
-                        reason: format!(
-                            "Failed to resolve workflow path '{}': {}",
-                            params.workflow, e
-                        ),
-                    })?;
+                        reason: "Inline YAML must contain 'schema:' field".into(),
+                    });
+                }
+                tracing::debug!(
+                    target: "nika_run",
+                    label = %params.workflow,
+                    len = inline_yaml.len(),
+                    "Using inline YAML content"
+                );
+                inline_yaml.clone()
+            } else {
+                // File-based: path canonicalization + async read
+                let workflow_path = Path::new(&params.workflow);
+                let canonical_path =
+                    workflow_path
+                        .canonicalize()
+                        .map_err(|e| NikaError::BuiltinToolError {
+                            tool: "nika_run".into(),
+                            reason: format!(
+                                "Failed to resolve workflow path '{}': {}",
+                                params.workflow, e
+                            ),
+                        })?;
 
-            // Security: Ensure path doesn't escape to unexpected locations
-            // (canonicalize resolves symlinks and ..)
-            tracing::debug!(
-                target: "nika_run",
-                original = %params.workflow,
-                canonical = %canonical_path.display(),
-                "Resolved workflow path"
-            );
+                tracing::debug!(
+                    target: "nika_run",
+                    original = %params.workflow,
+                    canonical = %canonical_path.display(),
+                    "Resolved workflow path"
+                );
 
-            // Use tokio::fs for async file I/O (was blocking std::fs)
-            // Wrap file read in timeout to prevent hangs on slow filesystems
-            let yaml_content = tokio::time::timeout(
-                Duration::from_secs(30), // 30s timeout for file I/O
-                tokio::fs::read_to_string(&canonical_path),
-            )
-            .await
-            .map_err(|_| NikaError::BuiltinToolError {
-                tool: "nika_run".into(),
-                reason: format!(
-                    "Timed out reading workflow file '{}' after 30 seconds",
-                    params.workflow
-                ),
-            })?
-            .map_err(|e| NikaError::BuiltinToolError {
-                tool: "nika_run".into(),
-                reason: format!("Failed to read workflow file: {}", e),
-            })?;
+                tokio::time::timeout(
+                    Duration::from_secs(30),
+                    tokio::fs::read_to_string(&canonical_path),
+                )
+                .await
+                .map_err(|_| NikaError::BuiltinToolError {
+                    tool: "nika_run".into(),
+                    reason: format!(
+                        "Timed out reading workflow file '{}' after 30 seconds",
+                        params.workflow
+                    ),
+                })?
+                .map_err(|e| NikaError::BuiltinToolError {
+                    tool: "nika_run".into(),
+                    reason: format!("Failed to read workflow file: {}", e),
+                })?
+            };
 
             let workflow =
                 parse_analyzed(&yaml_content).map_err(|e| NikaError::BuiltinToolError {
@@ -362,10 +390,8 @@ mod tests {
         assert!(schema["properties"]["timeout_secs"].is_object());
         assert!(schema["properties"]["max_depth"].is_object());
         assert_eq!(schema["additionalProperties"], false);
-        assert!(schema["required"]
-            .as_array()
-            .unwrap()
-            .contains(&serde_json::json!("workflow")));
+        // No required fields: either workflow or yaml_content can be used
+        assert!(schema["properties"]["yaml_content"].is_object());
     }
 
     #[tokio::test]
@@ -452,7 +478,10 @@ tasks:
 
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(err.to_string().contains("cannot be empty"));
+        assert!(
+            err.to_string().contains("must be provided")
+                || err.to_string().contains("cannot be empty")
+        );
     }
 
     #[tokio::test]
@@ -506,13 +535,17 @@ tasks:
     }
 
     #[tokio::test]
-    async fn test_run_missing_workflow() {
+    async fn test_run_missing_workflow_and_yaml() {
         let tool = RunTool;
         let result = tool.call(r#"{"context": {"test": 1}}"#.to_string()).await;
 
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(err.to_string().contains("Invalid JSON parameters"));
+        assert!(
+            err.to_string().contains("must be provided"),
+            "Expected 'must be provided' error, got: {}",
+            err
+        );
     }
 
     #[tokio::test]
@@ -739,6 +772,7 @@ tasks:
     fn test_run_params_get_context_from_context_field() {
         let params = RunParams {
             workflow: "test.nika.yaml".to_string(),
+            yaml_content: None,
             context_json: None,
             context: Some(serde_json::json!({"key": "value"})),
             timeout_secs: 300,
@@ -754,6 +788,7 @@ tasks:
     fn test_run_params_get_context_from_context_json() {
         let params = RunParams {
             workflow: "test.nika.yaml".to_string(),
+            yaml_content: None,
             context_json: Some(r#"{"from": "json"}"#.to_string()),
             context: None,
             timeout_secs: 300,
@@ -770,6 +805,7 @@ tasks:
         // context_json should take priority over context
         let params = RunParams {
             workflow: "test.nika.yaml".to_string(),
+            yaml_content: None,
             context_json: Some(r#"{"priority": "json"}"#.to_string()),
             context: Some(serde_json::json!({"priority": "object"})),
             timeout_secs: 300,
@@ -785,6 +821,7 @@ tasks:
     fn test_run_params_get_context_invalid_json_errors() {
         let params = RunParams {
             workflow: "test.nika.yaml".to_string(),
+            yaml_content: None,
             context_json: Some("not valid json".to_string()),
             context: None,
             timeout_secs: 300,
@@ -803,6 +840,7 @@ tasks:
     fn test_run_params_get_context_none_when_both_empty() {
         let params = RunParams {
             workflow: "test.nika.yaml".to_string(),
+            yaml_content: None,
             context_json: None,
             context: None,
             timeout_secs: 300,
@@ -811,5 +849,106 @@ tasks:
 
         let context = params.get_context().unwrap();
         assert!(context.is_none());
+    }
+
+    // ═══════════════════════════════════════════
+    // D.4: Inline YAML support
+    // ═══════════════════════════════════════════
+
+    #[tokio::test]
+    async fn test_run_inline_yaml() {
+        let tool = RunTool;
+        let yaml = r#"schema: nika/workflow@0.12
+workflow: inline-test
+tasks:
+  - id: greet
+    exec: "echo inline""#;
+
+        let result = tool
+            .call(serde_json::json!({
+                "workflow": "inline-test",
+                "yaml_content": yaml
+            }).to_string())
+            .await;
+
+        assert!(result.is_ok(), "Inline YAML should work: {:?}", result.err());
+        let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
+        assert_eq!(response["executed"], true);
+    }
+
+    #[tokio::test]
+    async fn test_run_inline_yaml_invalid_schema() {
+        let tool = RunTool;
+        let result = tool
+            .call(serde_json::json!({
+                "yaml_content": "this is not YAML with schema"
+            }).to_string())
+            .await;
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("schema"));
+    }
+
+    #[tokio::test]
+    async fn test_run_inline_yaml_malformed() {
+        let tool = RunTool;
+        let result = tool
+            .call(serde_json::json!({
+                "yaml_content": "schema: nika/workflow@0.12\ntasks: not_a_list"
+            }).to_string())
+            .await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_run_inline_yaml_no_schema_keyword() {
+        let tool = RunTool;
+        let result = tool
+            .call(serde_json::json!({
+                "yaml_content": "tasks:\n  - id: foo\n    exec: echo"
+            }).to_string())
+            .await;
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("schema"));
+    }
+
+    #[tokio::test]
+    async fn test_run_neither_workflow_nor_yaml_errors() {
+        let tool = RunTool;
+        let result = tool
+            .call(r#"{}"#.to_string())
+            .await;
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("must be provided"));
+    }
+
+    #[test]
+    fn test_params_deserialize_with_yaml_content() {
+        let params: RunParams = serde_json::from_str(r#"{
+            "workflow": "label",
+            "yaml_content": "schema: nika/workflow@0.12\ntasks: []"
+        }"#).unwrap();
+        assert_eq!(params.workflow, "label");
+        assert!(params.yaml_content.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_run_inline_yaml_respects_depth_limit() {
+        let tool = RunTool;
+        let result = tool
+            .call(serde_json::json!({
+                "yaml_content": "schema: nika/workflow@0.12\ntasks:\n  - id: x\n    exec: echo",
+                "max_depth": 1
+            }).to_string())
+            .await;
+
+        // At depth 0, max_depth 1 should allow execution (0 < 1)
+        assert!(result.is_ok(), "Depth 0 < max_depth 1 should work: {:?}", result.err());
     }
 }
