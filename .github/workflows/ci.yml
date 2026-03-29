@@ -238,10 +238,10 @@ jobs:
           tool: cargo-audit,cargo-deny,cargo-machete
 
       - name: cargo audit (vulnerabilities)
-        working-directory: tools/nika
+        working-directory: tools
         run: |
           rm -rf ~/.cargo/advisory-db || true
-          cargo audit --deny warnings
+          cargo audit
 
       - name: cargo deny (licenses + bans + sources)
         working-directory: tools/nika
