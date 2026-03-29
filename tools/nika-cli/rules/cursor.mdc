@@ -88,7 +88,7 @@ include:                           # Include partial workflows (tasks merged int
 - **Inputs**: `{{inputs.param}}` for workflow parameters
 - **Context files**: `{{context.readme}}` for loaded file content
 
-## Pipe Transforms (31 available)
+## Pipe Transforms (38 available)
 
 **String**: `upper`, `lower`, `trim`, `trim_start`, `trim_end`, `length`, `to_string`
 **Array**: `first`, `last`, `flatten`, `reverse`, `sort`, `unique`, `compact`, `keys`, `values`
@@ -247,7 +247,7 @@ Use `content:` array instead of `prompt:` for images:
 ```
 
 **Tool naming rules:**
-- `nika:tool_name` — 24 builtin tools (always available, no server needed)
+- `nika:tool_name` — 30+ builtin tools (always available, no server needed)
 - `server::tool_name` — MCP server tools (double colon `::`, server must be running)
 - `mcp: server` + `tool: name` — split form (equivalent to `server::name`)
 - Short form for builtins: `invoke: "nika:thumbnail"`
@@ -379,11 +379,14 @@ Binary artifact (media pipeline):
     format: binary                     # Store raw CAS bytes directly
 ```
 
-## 24 Builtin Tools (nika:*)
+## 30+ Builtin Tools (nika:*)
 
 **Always-on**: `nika:import`, `nika:dimensions`, `nika:thumbhash`, `nika:dominant_color`, `nika:pipeline`
 **Media core**: `nika:thumbnail`, `nika:convert`, `nika:strip`, `nika:metadata`, `nika:optimize`, `nika:svg_render`
 **Opt-in**: `nika:phash`, `nika:compare`, `nika:pdf_extract`, `nika:chart`, `nika:provenance`, `nika:verify`, `nika:qr_validate`, `nika:quality`, `nika:html_to_md`, `nika:css_select`, `nika:extract_metadata`, `nika:extract_links`, `nika:readability`
+**Core**: `nika:sleep`, `nika:log`, `nika:emit`, `nika:assert`, `nika:prompt`, `nika:run`, `nika:complete`
+**File**: `nika:read`, `nika:write`, `nika:edit`, `nika:glob`, `nika:grep`
+**Introspection**: `nika:dag_info`, `nika:task_status`, `nika:threads`, `nika:orchestrate`, `nika:cost`, `nika:records`
 
 ## Pipeline Patterns
 
@@ -455,6 +458,10 @@ Run: `nika run workflow.nika.yaml --provider mock` or `nika run workflow.nika.ya
 | `invoke: { tool: "...", input: {...} }` | `invoke: { tool: "...", params: {...} }` — field is `params:` not `input:` |
 | `retry: { max_retries: N }` | `retry: { max_attempts: N }` — `max_retries` is for `structured:` validation retries |
 | `for_each` without `concurrency:` | Default is **sequential** (concurrency: 1) — set `concurrency: N` for parallel |
+| `thinking: true` at task level | `infer: { extended_thinking: true, thinking_budget: N }` inside infer block |
+| `max_retries: 3` at task level | `retry: { max_attempts: 3 }` — `max_retries` is only valid inside `structured:` |
+| `model: haiku` inside `infer:` block | `model: claude-haiku-4-5` at task level — model goes on the task, not the verb |
+| `$()` in shell: true commands | NIKA-053 blocks `$(` — use transforms or exec without shell instead |
 
 ## Key Error Codes
 
