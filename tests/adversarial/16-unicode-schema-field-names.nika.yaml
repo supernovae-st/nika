@@ -1,0 +1,47 @@
+schema: "nika/workflow@0.12"
+workflow: adversarial-16-unicode-schema-field-names
+description: |
+  STRUCTURED OUTPUT STRESS #16: Schema with unicode field names (emoji, CJK characters).
+  JSON Schema supports any valid JSON string as a property name,
+  including emoji and CJK characters.
+
+  Bug targets:
+  - Does the jsonschema crate handle unicode property names correctly?
+  - Does blake3 hash_schema produce unique hashes for unicode-keyed schemas?
+  - Does the LLM tool injection correctly serialize unicode field names?
+  - Does template interpolation {{with.result.名前}} work for CJK field access?
+
+  SHOULD_PASS: unicode field names are valid JSON and must work end-to-end.
+
+provider: mock
+
+tasks:
+  - id: unicode_field_names
+    infer:
+      prompt: |
+        Return a JSON object with fields named using unicode/emoji:
+        - "名前" (Japanese for "name"): a string value
+        - "🎯" (target emoji): a number value
+        - "مرحبا" (Arabic for "hello"): a boolean value
+    structured:
+      schema:
+        type: object
+        properties:
+          "名前":
+            type: string
+          "🎯":
+            type: number
+          "مرحبا":
+            type: boolean
+        required: ["名前", "🎯", "مرحبا"]
+      enable_repair: false
+      max_retries: 1
+
+  - id: access_unicode_field
+    depends_on: [unicode_field_names]
+    with:
+      result: $unicode_field_names
+    infer: |
+      Unicode field access test.
+      Result type: {{with.result | type_of}}
+      Full result: {{with.result | to_json}}

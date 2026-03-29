@@ -1,0 +1,40 @@
+schema: "nika/workflow@0.12"
+workflow: adversarial-10-binding-missing-dep
+description: |
+  DATA FLOW TRAP #10: with: { data: $task } where task hasn't run yet
+  because no depends_on edge was declared. This tests whether the engine
+  relies only on depends_on for ordering, or whether it also infers ordering
+  from with: bindings.
+
+  Per dag/validate.rs: implicit_deps are auto-extracted from with: bindings.
+  The Dag struct notes: "task.implicit_deps: Vec<TaskId> — auto-extracted from with: bindings"
+  So bindings SHOULD create implicit ordering edges.
+
+  Test: task_b references $task_a via with: but has NO explicit depends_on.
+  Does the engine auto-order task_a before task_b?
+
+  SHOULD_PASS: implicit deps from with: are respected — task_a runs first.
+  WOULD_FAIL (regression): if engine runs task_b before task_a because no explicit depends_on.
+
+provider: mock
+
+tasks:
+  - id: task_a
+    infer: "I am task A"
+
+  # No depends_on — but with: $task_a creates an implicit dependency
+  # The engine MUST run task_a before task_b
+  - id: task_b
+    with:
+      a_output: $task_a   # Implicit dep — no depends_on declared
+    infer: |
+      Task A said: {{with.a_output}}
+      This proves implicit ordering works.
+
+  # Even more adversarial: 3-hop implicit chain without any depends_on
+  - id: task_c
+    with:
+      b_output: $task_b   # Implicit dep on task_b (which implicitly deps on task_a)
+    infer: |
+      Chain result: {{with.b_output}}
+      All implicit ordering respected.

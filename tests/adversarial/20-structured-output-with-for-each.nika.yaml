@@ -1,0 +1,59 @@
+schema: "nika/workflow@0.12"
+workflow: adversarial-20-structured-output-for-each
+description: |
+  STRUCTURED OUTPUT STRESS #20: structured: combined with for_each.
+  Each iteration of the loop must produce valid JSON matching the schema.
+  The final output is Value::Array([{...}, {...}, {...}]) where each element is validated JSON.
+
+  Bug targets:
+  - Does structured: validation run once per iteration or once on the combined array?
+  - If one iteration's JSON fails validation, does fail_fast cancel others?
+  - Are the Layer 3/4 retry callbacks correctly scoped per-iteration?
+  - Does the downstream task see an array of validated objects or raw strings?
+
+  SHOULD_PASS: each iteration independently validates, all 3 must succeed.
+
+provider: mock
+
+inputs:
+  items:
+    - topic: "the Rust programming language"
+      expected_year: 2010
+    - topic: "the Python programming language"
+      expected_year: 1991
+    - topic: "the Go programming language"
+      expected_year: 2009
+
+tasks:
+  - id: structured_loop
+    with:
+      items: $inputs.items
+    for_each:
+      items: "{{with.items}}"
+      as: item
+      concurrency: 3   # All in parallel
+      fail_fast: false  # Don't stop on first failure
+    infer:
+      prompt: "What year was {{with.item.topic}} created? Return structured JSON."
+    structured:
+      schema:
+        type: object
+        properties:
+          topic:
+            type: string
+          year:
+            type: integer
+            minimum: 1950
+            maximum: 2030
+        required: [topic, year]
+      enable_repair: true
+      max_retries: 2
+
+  - id: verify_all_iterations
+    depends_on: [structured_loop]
+    with:
+      results: $structured_loop
+    infer: |
+      for_each + structured: produced {{with.results | length}} validated objects.
+      Each should have topic and year fields.
+      Results: {{with.results | to_json}}

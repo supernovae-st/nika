@@ -1,0 +1,39 @@
+schema: "nika/workflow@0.12"
+workflow: adversarial-25-invalid-provider-fallback
+description: |
+  PROVIDER EDGE CASE #25: Task uses provider: nonexistent_provider_xyz.
+  There is no fallback mechanism — the engine should fail with NIKA-030.
+
+  The secondary question: does specifying provider: mock on the WORKFLOW level
+  protect tasks that specify an unknown task-level provider?
+
+  Bug targets:
+  - Does the engine fail fast at startup (NIKA-030) or at runtime when task executes?
+  - Is the error message clear about WHICH task has the invalid provider?
+  - Does the rest of the workflow continue or abort on the bad task?
+
+  SHOULD_FAIL: NIKA-030 (ProviderNotConfigured) for the task with invalid provider.
+  Tasks using valid provider (mock) should still succeed.
+
+provider: mock
+
+tasks:
+  - id: valid_mock_task
+    provider: mock
+    infer: "I use mock provider — should succeed"
+
+  - id: invalid_provider_task
+    provider: nonexistent_provider_xyz_12345
+    infer: "I use a completely invalid provider — should fail with NIKA-030"
+
+  # This task depends on the failing task — should get NIKA-026 (DependencyChainFailed)
+  - id: downstream_of_invalid
+    depends_on: [invalid_provider_task]
+    with:
+      result: $invalid_provider_task
+    infer: "I depend on a failed task — should be NIKA-026"
+
+  # This task is independent of the failure — should succeed
+  - id: independent_valid_task
+    provider: mock
+    infer: "I am independent — should succeed even if other tasks fail"

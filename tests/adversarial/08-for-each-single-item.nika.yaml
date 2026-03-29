@@ -1,0 +1,53 @@
+schema: "nika/workflow@0.12"
+workflow: adversarial-08-for-each-single-item
+description: |
+  DATA FLOW TRAP #8: for_each with exactly 1 item — degenerate case.
+  The output is Value::Array([single_result]) not Value::String(single_result).
+  Downstream code that treats it as a scalar will break.
+
+  Bug target: if a downstream task does $for_each_task and then uses
+  {{with.result}} expecting a string — it will get an array with one element.
+  Does the engine coerce? Error? Silently wrap?
+
+  SHOULD_PASS: single item for_each produces [result], downstream uses | first.
+
+provider: mock
+
+tasks:
+  - id: single_item_list
+    exec:
+      command: "echo '[\"only-one\"]'"
+      shell: true
+    output:
+      format: json
+
+  - id: iterate_single
+    depends_on: [single_item_list]
+    with:
+      items: $single_item_list
+    for_each:
+      items: "{{with.items}}"
+      as: item
+      concurrency: 1
+    infer: "Processed: {{with.item}}"
+
+  # BUG TARGET: downstream assumes scalar, gets array
+  - id: consume_as_scalar_attempt
+    depends_on: [iterate_single]
+    with:
+      # This is Value::Array(["Processed: only-one"]), NOT a scalar string
+      result: $iterate_single
+    infer: |
+      Type of result: {{with.result | type_of}}
+      Length: {{with.result | length}}
+      Is array: should be 'array' not 'string'
+      First element: {{with.result | first}}
+
+  # Correct pattern: always use | first for single for_each
+  - id: consume_correctly
+    depends_on: [iterate_single]
+    with:
+      result: $iterate_single
+      scalar: $iterate_single.0   # Try array index access
+    infer: |
+      Correct first: {{with.result | first}}

@@ -1,0 +1,54 @@
+schema: "nika/workflow@0.12"
+workflow: adversarial-07-for-each-empty-array
+description: |
+  DATA FLOW TRAP #7: for_each with empty array input.
+  Per runner.rs line 2333: empty for_each stores TaskResult::success(Value::Array(vec![])).
+
+  The adversarial part: the DOWNSTREAM task binds $for_each_task and tries to
+  use the result as if it has elements. Specifically:
+  - {{with.results | first}} on an empty array: should give null or error?
+  - {{with.results | length}} should give 0
+  - {{with.results[0]}} should give null or NIKA-072
+
+  SHOULD_PASS: engine stores empty array, downstream handles it gracefully.
+  The first/default combination must not panic.
+
+provider: mock
+
+tasks:
+  - id: produce_empty_list
+    exec:
+      command: "echo '[]'"
+      shell: true
+    output:
+      format: json
+
+  - id: iterate_empty
+    depends_on: [produce_empty_list]
+    with:
+      items: $produce_empty_list
+    for_each:
+      items: "{{with.items}}"
+      as: item
+      concurrency: 1
+    infer: "This should never run: {{with.item}}"
+
+  # Downstream task consumes the empty for_each result
+  - id: consume_empty_result
+    depends_on: [iterate_empty]
+    with:
+      results: $iterate_empty
+    infer: |
+      Results count: {{with.results | length}}
+      First result: {{with.results | first | default("none")}}
+      Type: {{with.results | type_of}}
+
+  # Adversarial: try array index on empty result
+  - id: index_empty_result
+    depends_on: [iterate_empty]
+    with:
+      results: $iterate_empty
+      # This should safely produce null via default()
+      first_item: $iterate_empty ?? "fallback"
+    infer: |
+      Safe access: {{with.first_item}}

@@ -1,0 +1,44 @@
+schema: "nika/workflow@0.12"
+workflow: adversarial-26-concurrency-100-items-3
+description: |
+  TIMING & CONCURRENCY #26: for_each with concurrency:100 but only 3 items.
+  The semaphore is created with 100 permits but only 3 tasks ever try to acquire.
+
+  Bug targets:
+  - Does Semaphore::new(100) correctly handle under-subscription (3 < 100)?
+  - Do all 3 items complete successfully when semaphore has excess capacity?
+  - Is the JoinSet correctly awaited when fewer tasks than concurrency limit?
+  - Any off-by-one in the concurrency tracking?
+  - Does the event emit correct item_count (3) vs concurrency (100)?
+
+  SHOULD_PASS: all 3 items complete, no deadlock, correct result array.
+
+provider: mock
+
+tasks:
+  - id: three_items
+    exec:
+      command: "echo '[\"first\",\"second\",\"third\"]'"
+      shell: true
+    output:
+      format: json
+
+  - id: parallel_hundred_three
+    depends_on: [three_items]
+    with:
+      items: $three_items
+    for_each:
+      items: "{{with.items}}"
+      as: item
+      concurrency: 100   # 100 permits, only 3 items
+      fail_fast: false
+    infer: "Processing item: {{with.item}}"
+
+  - id: verify_three_results
+    depends_on: [parallel_hundred_three]
+    with:
+      results: $parallel_hundred_three
+    infer: |
+      Expected 3 results, got: {{with.results | length}}
+      Results: {{with.results | to_json}}
+      All items processed: {{with.results | length}}

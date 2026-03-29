@@ -1,0 +1,42 @@
+schema: "nika/workflow@0.12"
+workflow: adversarial-06-large-output-binding
+description: |
+  DATA FLOW TRAP #6: Task output is ~1MB text. Does binding truncate? OOM?
+  exec produces a large payload (~1MB via yes/dd), stored in datastore.
+  Next task binds it and interpolates into a prompt via {{with.big}}.
+
+  Bug targets:
+  - Does the datastore store the full Value::String(1MB)?
+  - Does template interpolation allocate a new 1MB+ string per task?
+  - Does MAX_TEMPLATE_VARS guard interact badly with large content?
+  - Does the LLM provider call fail due to oversized input?
+
+  SHOULD_PASS: engine handles large outputs without OOM (may truncate at provider level).
+  The mock provider accepts any input size.
+
+provider: mock
+
+tasks:
+  - id: generate_large_output
+    exec:
+      # Generate exactly 1MB of text: 1048576 bytes of 'A\n' repeated
+      command: "python3 -c \"print('A' * 1048576)\""
+      shell: true
+
+  - id: bind_large_output
+    depends_on: [generate_large_output]
+    with:
+      big: $generate_large_output
+    infer: |
+      I have received a large payload.
+      Length check: {{with.big | length}}
+      First 10 chars: {{with.big}}
+
+  - id: transform_large_output
+    depends_on: [generate_large_output]
+    with:
+      big: $generate_large_output
+    # Test that transforms work on large strings without allocation issues
+    infer: |
+      Trimmed length: {{with.big | trim | length}}
+      Upper length: {{with.big | upper | length}}

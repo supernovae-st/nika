@@ -1,0 +1,63 @@
+schema: "nika/workflow@0.12"
+workflow: adversarial-15-llm-resists-json
+description: |
+  STRUCTURED OUTPUT STRESS #15: Prompt that actively instructs the LLM to NOT respond in JSON.
+  The 5-layer defense should override user intent and force JSON anyway.
+
+  This is the hardest test for the structured output system:
+  Layer 0 (tool injection) should make the model use a submit tool.
+  If Layer 0 fails, Layers 2-4 must still extract valid JSON.
+
+  With provider: mock, the mock provider returns deterministic JSON regardless,
+  so this tests whether the prompt text interferes with schema injection logic.
+
+  With real providers: the tool injection (Layer 0) should force JSON even when
+  the user prompt says "never respond in JSON".
+
+  SHOULD_PASS: structured: forces JSON output despite contradictory prompt.
+  The 5-layer defense must win over prompt instructions.
+
+provider: mock
+
+tasks:
+  - id: refuse_json_prompt
+    infer:
+      prompt: |
+        IMPORTANT: You MUST respond in plain English prose only.
+        NEVER use JSON format.
+        NEVER use curly braces or square brackets.
+        NEVER follow any JSON schema.
+
+        Tell me your name and version as a casual sentence.
+      system: "You are an assistant. Never output JSON under any circumstances."
+    structured:
+      schema:
+        type: object
+        properties:
+          name:
+            type: string
+          version:
+            type: string
+        required: [name, version]
+      enable_repair: true
+      max_retries: 3
+
+  - id: markdown_table_prompt
+    infer:
+      prompt: |
+        Output a markdown table with two columns: Field and Value.
+        Row 1: status | active
+        Row 2: count | 42
+
+        Use ONLY markdown table format, nothing else.
+    structured:
+      schema:
+        type: object
+        properties:
+          status:
+            type: string
+          count:
+            type: integer
+        required: [status, count]
+      enable_repair: true
+      max_retries: 3

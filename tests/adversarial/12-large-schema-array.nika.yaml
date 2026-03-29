@@ -1,0 +1,37 @@
+schema: "nika/workflow@0.12"
+workflow: adversarial-12-large-schema-array
+description: |
+  STRUCTURED OUTPUT STRESS #12: Schema requiring array of 100+ items.
+  Tests validator performance + Layer 3/4 retry cost when LLM under-produces.
+
+  Bug targets:
+  - Does minItems: 100 validation work correctly?
+  - If LLM produces 5 items, does Layer 3 retry with "you need 95 more items"?
+  - Does the format_validation_errors function produce useful feedback?
+  - Performance: does validating a 100-item array cause visible latency?
+
+  SHOULD_FAIL with mock provider (mock returns short response, won't have 100 items).
+  With real providers: passes if model produces enough items.
+
+provider: mock
+
+tasks:
+  - id: generate_large_array
+    infer:
+      prompt: |
+        Generate a JSON object with a 'items' array containing exactly 100 strings.
+        Each string should be a unique word.
+    structured:
+      schema:
+        type: object
+        properties:
+          items:
+            type: array
+            items:
+              type: string
+              minLength: 1
+            minItems: 100
+            maxItems: 100
+        required: [items]
+      enable_repair: true
+      max_retries: 2

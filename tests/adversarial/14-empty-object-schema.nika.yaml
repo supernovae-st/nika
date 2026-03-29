@@ -1,0 +1,53 @@
+schema: "nika/workflow@0.12"
+workflow: adversarial-14-empty-object-schema
+description: |
+  STRUCTURED OUTPUT STRESS #14: Schema with no properties (empty object schema).
+  { "type": "object" } — any JSON object is valid, even {}.
+
+  Bug targets:
+  - Does the validator accept {} as valid? (Yes, per JSON Schema spec)
+  - Does the Layer 0 tool injection produce a useful schema for the LLM?
+  - Does the engine short-circuit when it sees an empty schema (no properties)?
+  - Does additionalProperties NOT being set mean all properties are allowed?
+
+  Special sub-case: schema is literally {} (no type constraint at all).
+  This means ANY JSON value (string, number, array, null) is valid.
+  Does the engine accept "hello" as valid structured output?
+
+  SHOULD_PASS: empty schema accepts any object.
+
+provider: mock
+
+tasks:
+  # Test 1: Empty object schema — any object is valid
+  - id: empty_properties_schema
+    infer:
+      prompt: "Return any JSON object you like"
+    structured:
+      schema:
+        type: object
+      enable_repair: false
+      max_retries: 1
+
+  # Test 2: Schema is literally {} — accepts anything including primitives
+  - id: empty_root_schema
+    infer:
+      prompt: "Return any JSON value"
+    structured:
+      schema: {}    # No constraints whatsoever
+      enable_repair: false
+      max_retries: 1
+
+  # Test 3: Schema with empty required array
+  - id: empty_required_array
+    infer:
+      prompt: "Return JSON with some fields"
+    structured:
+      schema:
+        type: object
+        properties:
+          optional_field:
+            type: string
+        required: []    # Empty required — nothing is mandatory
+      enable_repair: false
+      max_retries: 1

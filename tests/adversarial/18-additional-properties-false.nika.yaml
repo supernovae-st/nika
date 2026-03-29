@@ -1,0 +1,54 @@
+schema: "nika/workflow@0.12"
+workflow: adversarial-18-additional-properties-false
+description: |
+  STRUCTURED OUTPUT STRESS #18: Schema with additionalProperties: false.
+  The LLM should produce ONLY the declared fields — no extra fields allowed.
+
+  Real LLMs often add extra fields like "explanation", "note", "reasoning".
+  additionalProperties: false makes any extra field a schema violation.
+
+  Bug targets:
+  - Does Layer 2 correctly detect extra fields in the response?
+  - Does Layer 3 retry prompt mention which specific extra fields to remove?
+  - Does Layer 4 repair correctly strip extra fields?
+  - Does the tool injection in Layer 0 communicate additionalProperties: false to the LLM?
+
+  SHOULD_PASS: extra fields are stripped/rejected and valid output produced.
+  With mock: depends on mock response format.
+
+provider: mock
+
+tasks:
+  - id: strict_schema_no_extra_fields
+    infer:
+      prompt: |
+        Return ONLY these two fields: name (string) and age (integer).
+        Do NOT include any explanation, note, or other fields.
+    structured:
+      schema:
+        type: object
+        properties:
+          name:
+            type: string
+          age:
+            type: integer
+        required: [name, age]
+        additionalProperties: false   # STRICT: no extra fields allowed
+      enable_repair: true
+      max_retries: 3
+
+  # Adversarial variant: schema allows additional properties of specific type
+  - id: additional_props_typed
+    infer:
+      prompt: "Return an object with any string fields"
+    structured:
+      schema:
+        type: object
+        properties:
+          required_field:
+            type: string
+        required: [required_field]
+        additionalProperties:
+          type: string   # Extra props must be strings
+      enable_repair: true
+      max_retries: 2

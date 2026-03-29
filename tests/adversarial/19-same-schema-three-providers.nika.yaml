@@ -1,0 +1,89 @@
+schema: "nika/workflow@0.12"
+workflow: adversarial-19-same-schema-three-providers
+description: |
+  STRUCTURED OUTPUT STRESS #19: Same prompt and schema across 3 different providers.
+  All three must produce valid output conforming to the schema.
+
+  Bug targets:
+  - Provider-specific quirks in Layer 0 tool injection (does OpenAI format differ from Anthropic?)
+  - Provider-specific JSON extraction differences in Layer 2
+  - Does the mock provider's response satisfy the same schema as real providers?
+
+  REQUIRES REAL API KEYS for anthropic, openai, gemini.
+  Use --provider mock to skip real API calls.
+
+  SHOULD_PASS: all 3 providers produce valid structured output for the same schema.
+
+provider: anthropic
+model: claude-haiku-4-5   # Cheap model for testing
+
+tasks:
+  - id: anthropic_structured
+    provider: anthropic
+    model: claude-haiku-4-5
+    infer:
+      prompt: "What is 2+2? Return JSON with field 'answer' (integer) and 'confidence' (number 0-1)."
+    structured:
+      schema:
+        type: object
+        properties:
+          answer:
+            type: integer
+          confidence:
+            type: number
+            minimum: 0
+            maximum: 1
+        required: [answer, confidence]
+      enable_repair: true
+      max_retries: 2
+
+  - id: openai_structured
+    provider: openai
+    model: gpt-4o-mini
+    infer:
+      prompt: "What is 2+2? Return JSON with field 'answer' (integer) and 'confidence' (number 0-1)."
+    structured:
+      schema:
+        type: object
+        properties:
+          answer:
+            type: integer
+          confidence:
+            type: number
+            minimum: 0
+            maximum: 1
+        required: [answer, confidence]
+      enable_repair: true
+      max_retries: 2
+
+  - id: gemini_structured
+    provider: gemini
+    model: gemini-2.5-flash
+    infer:
+      prompt: "What is 2+2? Return JSON with field 'answer' (integer) and 'confidence' (number 0-1)."
+    structured:
+      schema:
+        type: object
+        properties:
+          answer:
+            type: integer
+          confidence:
+            type: number
+            minimum: 0
+            maximum: 1
+        required: [answer, confidence]
+      enable_repair: true
+      max_retries: 2
+
+  - id: compare_results
+    depends_on: [anthropic_structured, openai_structured, gemini_structured]
+    with:
+      r1: $anthropic_structured
+      r2: $openai_structured
+      r3: $gemini_structured
+    infer: |
+      All 3 providers returned valid structured output.
+      Anthropic: {{with.r1 | to_json}}
+      OpenAI: {{with.r2 | to_json}}
+      Gemini: {{with.r3 | to_json}}
+      All answers should be 4: {{with.r1.answer}}, {{with.r2.answer}}, {{with.r3.answer}}

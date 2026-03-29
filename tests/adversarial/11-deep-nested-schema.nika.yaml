@@ -1,0 +1,78 @@
+schema: "nika/workflow@0.12"
+workflow: adversarial-11-deep-nested-schema
+description: |
+  STRUCTURED OUTPUT STRESS #11: Schema with 20+ nested levels.
+  JSON Schema validators typically have recursion limits.
+  The jsonschema crate in Rust may stack-overflow or return an opaque error.
+
+  Bug targets:
+  - Does get_or_compile_validator handle deeply nested schemas?
+  - Does the validator stack-overflow on validation of matching deep JSON?
+  - Does Layer 4 LLM repair handle the schema instruction string correctly?
+
+  SHOULD_PASS with mock provider (returns fixed response).
+  With real providers, the LLM may refuse or produce truncated output.
+
+provider: mock
+
+tasks:
+  - id: validate_deep_schema
+    infer:
+      prompt: "Produce deeply nested JSON"
+    structured:
+      schema:
+        type: object
+        properties:
+          level1:
+            type: object
+            properties:
+              level2:
+                type: object
+                properties:
+                  level3:
+                    type: object
+                    properties:
+                      level4:
+                        type: object
+                        properties:
+                          level5:
+                            type: object
+                            properties:
+                              level6:
+                                type: object
+                                properties:
+                                  level7:
+                                    type: object
+                                    properties:
+                                      level8:
+                                        type: object
+                                        properties:
+                                          level9:
+                                            type: object
+                                            properties:
+                                              level10:
+                                                type: object
+                                                properties:
+                                                  level11:
+                                                    type: object
+                                                    properties:
+                                                      level12:
+                                                        type: object
+                                                        properties:
+                                                          value:
+                                                            type: string
+                                                        required: [value]
+                                                    required: [level12]
+                                                required: [level11]
+                                            required: [level10]
+                                          required: [level9]
+                                        required: [level8]
+                                      required: [level7]
+                                    required: [level6]
+                                  required: [level5]
+                                required: [level4]
+                              required: [level3]
+                            required: [level2]
+                          required: [level1]
+      enable_repair: false
+      max_retries: 1

@@ -1,0 +1,54 @@
+schema: "nika/workflow@0.12"
+workflow: adversarial-02-nested-for-each
+description: |
+  DATA FLOW TRAP #2: for_each output used as input to another for_each.
+  The first for_each produces a Value::Array. The second iterates that array.
+  Danger: the downstream for_each receives an array-of-arrays from the first
+  for_each, but binds each array-element (which is itself a string/value from
+  the first iteration). Does the engine correctly handle this?
+
+  Key bug target: does the second for_each see a flat array or an array-of-arrays?
+
+provider: mock
+
+# SHOULD_PASS: outer produces ["a","b"], inner iterates each element
+# Result: inner produces ["processed: a", "processed: b"]
+
+tasks:
+  - id: produce_list
+    exec:
+      command: "echo '[\"alpha\",\"beta\",\"gamma\"]'"
+      shell: true
+    output:
+      format: json
+
+  - id: outer_loop
+    depends_on: [produce_list]
+    with:
+      items: $produce_list
+    for_each:
+      items: "{{with.items}}"
+      as: word
+      concurrency: 1
+    infer: "Outer item: {{with.word}}"
+
+  # The tricky part: outer_loop output is Value::Array([...])
+  # Now iterate IT with another for_each
+  - id: inner_loop
+    depends_on: [outer_loop]
+    with:
+      processed: $outer_loop
+    for_each:
+      items: "{{with.processed}}"
+      as: result
+      concurrency: 1
+    infer: "Inner sees: {{with.result}}"
+
+  # Consume the double-iterated results
+  - id: aggregate
+    depends_on: [inner_loop]
+    with:
+      all: $inner_loop
+    infer: |
+      Aggregated {{with.all | length}} results.
+      All: {{with.all | join(", ")}}

@@ -1,0 +1,70 @@
+schema: "nika/workflow@0.12"
+workflow: adversarial-24-task-level-model-override
+description: |
+  PROVIDER EDGE CASE #24: Task-level model override different from workflow model.
+  Workflow default is mock/mock-model. Some tasks override to specific models.
+
+  Bug targets:
+  - Does the task-level model override propagate correctly to the executor?
+  - Does a task with provider: X and model: Y actually call provider X with model Y?
+  - Does the structured output Layer 3/4 retry use the TASK model, not the workflow model?
+  - If a task overrides provider but not model, does it use the workflow model? (May be wrong)
+  - Does the repair_model override in structured: use the right provider context?
+
+  SHOULD_PASS with mock (all calls go to mock).
+  Documents expected behavior for real provider overrides.
+
+provider: mock
+model: mock-default-model
+
+tasks:
+  - id: uses_workflow_defaults
+    infer: "Using workflow provider and model"
+
+  - id: overrides_model_only
+    # Provider inherits from workflow (mock), but model changes
+    # BUG TARGET: if provider: not set but model: is, what provider does it use?
+    model: mock-override-model
+    infer: "Using workflow provider but different model"
+
+  - id: overrides_both
+    provider: mock
+    model: mock-explicit-both
+    infer: "Using explicitly set provider and model"
+
+  - id: structured_with_repair_model_override
+    provider: mock
+    model: mock-main-model
+    infer:
+      prompt: "Return JSON with status field"
+    structured:
+      schema:
+        type: object
+        properties:
+          status:
+            type: string
+        required: [status]
+      enable_repair: true
+      max_retries: 2
+      repair_model: mock-repair-model   # Layer 4 uses different model
+      # BUG TARGET: does repair use mock provider + repair_model, or default provider?
+
+  # Diamond: two parallel tasks with different models, merged
+  - id: parallel_model_a
+    provider: mock
+    model: model-a
+    infer: "Model A output"
+
+  - id: parallel_model_b
+    provider: mock
+    model: model-b
+    infer: "Model B output"
+
+  - id: merge_different_models
+    depends_on: [parallel_model_a, parallel_model_b]
+    with:
+      a: $parallel_model_a
+      b: $parallel_model_b
+    infer: |
+      Model A said: {{with.a}}
+      Model B said: {{with.b}}

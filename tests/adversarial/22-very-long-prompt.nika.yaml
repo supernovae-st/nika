@@ -1,0 +1,50 @@
+schema: "nika/workflow@0.12"
+workflow: adversarial-22-very-long-prompt
+description: |
+  PROVIDER EDGE CASE #22: Very long prompt (10K+ tokens) hitting model context limits.
+  Tests graceful degradation when prompt exceeds provider's context window.
+
+  Bug targets:
+  - Does the engine emit a useful error (NIKA-031 or NIKA-030) vs opaque API error?
+  - Does template interpolation of large content work correctly (MAX_TEMPLATE_VARS)?
+  - Does the error message include the task ID and provider?
+
+  Use provider: mock for safe testing (mock accepts any size).
+  Use provider: anthropic with a tiny model for real context limit testing.
+
+  SHOULD_PASS with mock (accepts unlimited input).
+  SHOULD_FAIL gracefully with real providers when input exceeds limit.
+
+provider: mock
+
+tasks:
+  - id: generate_large_context
+    exec:
+      # Generate ~50KB of text (roughly 12K tokens)
+      command: "python3 -c \"print('word ' * 10000)\""
+      shell: true
+
+  - id: long_prompt_infer
+    depends_on: [generate_large_context]
+    with:
+      context: $generate_large_context
+    infer: |
+      You are given the following very long context document.
+      Please summarize it in one sentence.
+
+      CONTEXT:
+      {{with.context}}
+
+      IMPORTANT: The above context is intentionally very large to test context limits.
+      Summarize in one sentence.
+
+  # Test with explicit max_tokens to stay within limits
+  - id: long_prompt_with_limit
+    depends_on: [generate_large_context]
+    with:
+      context: $generate_large_context
+    infer:
+      prompt: |
+        Summarize (one sentence): {{with.context}}
+      max_tokens: 100
+      temperature: 0.0

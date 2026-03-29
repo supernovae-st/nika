@@ -1,0 +1,27 @@
+schema: "nika/workflow@0.12"
+workflow: adversarial-01-circular-binding
+description: |
+  DATA FLOW TRAP #1: Circular binding attempt.
+  Task A references task B which references task A.
+  Expected: SHOULD_FAIL with NIKA-020 (cycle) or NIKA-081 (non-upstream).
+
+  The DAG validator must catch this at check/startup time — never at runtime.
+  The key question: does the analyzer catch A→B→A through with: bindings,
+  or only through explicit depends_on edges?
+
+provider: mock
+
+# SHOULD_FAIL: NIKA-020 (CycleDetected) or NIKA-081 (WithNotUpstream)
+# The with: binding validator should reject the circular dependency
+# because task_b references task_a which is not upstream of task_b.
+
+tasks:
+  - id: task_a
+    with:
+      b_output: $task_b       # task_b has not run — and refs task_a itself
+    infer: "Result from B: {{with.b_output}}"
+
+  - id: task_b
+    with:
+      a_output: $task_a       # task_a references task_b — cycle!
+    infer: "Result from A: {{with.a_output}}"
