@@ -1277,6 +1277,69 @@ mod tests {
     fn hourly_cost_zero_rate() {
         assert!((calculate_hourly_cost(60.0, 0.0)).abs() < f64::EPSILON);
     }
+
+    // ───────────────────────────────────────────────────────────────────────
+    // Pricing table sync test — engine models must be covered by core
+    // ───────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn engine_models_covered_by_core_pricing() {
+        let all_providers = [
+            (ProviderKind::Claude, &*CLAUDE_PRICING),
+            (ProviderKind::OpenAI, &*OPENAI_PRICING),
+            (ProviderKind::Mistral, &*MISTRAL_PRICING),
+            (ProviderKind::Groq, &*GROQ_PRICING),
+            (ProviderKind::DeepSeek, &*DEEPSEEK_PRICING),
+            (ProviderKind::Gemini, &*GEMINI_PRICING),
+            (ProviderKind::XAi, &*XAI_PRICING),
+        ];
+
+        let mut missing = Vec::new();
+        let mut price_mismatches = Vec::new();
+
+        for (provider, table) in &all_providers {
+            for (model, engine_pricing) in table.iter() {
+                if let Some(core_pricing) = nika_core::catalogs::cost::find_pricing(model) {
+                    // Check prices match within tolerance
+                    if (core_pricing.input_per_million - engine_pricing.input_per_million).abs()
+                        > 0.01
+                    {
+                        price_mismatches.push(format!(
+                            "{:?}/{}: input core={} engine={}",
+                            provider,
+                            model,
+                            core_pricing.input_per_million,
+                            engine_pricing.input_per_million
+                        ));
+                    }
+                    if (core_pricing.output_per_million - engine_pricing.output_per_million).abs()
+                        > 0.01
+                    {
+                        price_mismatches.push(format!(
+                            "{:?}/{}: output core={} engine={}",
+                            provider,
+                            model,
+                            core_pricing.output_per_million,
+                            engine_pricing.output_per_million
+                        ));
+                    }
+                } else {
+                    missing.push(format!("{:?}/{}", provider, model));
+                }
+            }
+        }
+
+        assert!(
+            missing.is_empty(),
+            "Models in engine but NOT in core pricing: {:?}",
+            missing
+        );
+        assert!(
+            price_mismatches.is_empty(),
+            "Price mismatches between core and engine: {:?}",
+            price_mismatches
+        );
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
