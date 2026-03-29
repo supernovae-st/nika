@@ -1,4 +1,4 @@
-# COMBO: structured with max_retries inside chain
+# COMBO: structured with retry
 schema: nika/workflow@0.12
 model: gpt-4.1-mini
 workflow: combo-structured-retry
@@ -11,11 +11,10 @@ tasks:
     depends_on: [seed]
     with:
       instruction: $seed
-    infer: "{{with.instruction}}: Return JSON with title and score (1-10)"
     provider: openai
-    
-    max_tokens: 50
-    max_retries: 2
+    infer:
+      prompt: "{{with.instruction}}: Return JSON with title and score (1-10)"
+      max_tokens: 50
     structured:
       schema:
         type: object
@@ -23,3 +22,4 @@ tasks:
           title: { type: string }
           score: { type: integer }
         required: [title, score]
+      max_retries: 2

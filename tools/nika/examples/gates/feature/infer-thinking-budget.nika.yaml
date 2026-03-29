@@ -1,12 +1,12 @@
-# FEATURE: infer with thinking_budget: 4096 (extended thinking with budget)
+# FEATURE: infer with thinking_budget (extended thinking with budget)
 schema: nika/workflow@0.12
-model: gpt-4.1-mini
+provider: anthropic
+model: claude-sonnet-4-20250514
 workflow: feat-infer-thinking-budget
 tasks:
   - id: think_budget
-    infer: "What is 17 * 23? Just the number."
-    provider: openai
-    
-    thinking: true
-    thinking_budget: 4096
-    max_tokens: 50
+    infer:
+      prompt: "What is 17 * 23? Just the number."
+      extended_thinking: true
+      thinking_budget: 4096
+      max_tokens: 100

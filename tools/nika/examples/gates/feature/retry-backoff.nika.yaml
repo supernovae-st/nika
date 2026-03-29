@@ -5,7 +5,8 @@ tasks:
   - id: flaky
     fetch:
       url: "https://httpbin.org/get"
-      retry:
-        max_attempts: 3
-        backoff_ms: 100
-        multiplier: 2
+      method: GET
+    retry:
+      max_attempts: 3
+      delay_ms: 100
+      backoff: 2.0

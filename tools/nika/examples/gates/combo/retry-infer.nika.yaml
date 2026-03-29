@@ -5,8 +5,10 @@ workflow: combo-retry-infer
 
 tasks:
   - id: flaky_infer
-    infer: "Say 'hello' and nothing else."
     provider: openai
-    
-    max_tokens: 50
-    max_retries: 3
+    infer:
+      prompt: "Say 'hello' and nothing else."
+      max_tokens: 50
+    retry:
+      max_attempts: 3
+      delay_ms: 1000

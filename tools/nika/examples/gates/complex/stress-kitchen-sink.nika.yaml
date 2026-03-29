@@ -70,8 +70,10 @@ tasks:
     fetch:
       url: "https://httpbin.org/get?retry=true"
       method: GET
-    max_retries: 2
-    description: "Fetch with max_retries"
+    retry:
+      max_attempts: 3
+      delay_ms: 1000
+    description: "Fetch with retry"
 
   # ── FEATURE: infer basic ──
   - id: infer_basic

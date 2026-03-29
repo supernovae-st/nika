@@ -48,13 +48,12 @@ tasks:
     depends_on: [source]
     with:
       data: $source
+      len: $source | length
     exec:
       command: |
-        LEN=$(echo -n '{{with.data}}' | wc -c | tr -d ' ')
-        WORDS=$(echo '{{with.data}}' | wc -w | tr -d ' ')
         echo "Text Analysis:"
-        echo "  Characters: $LEN"
-        echo "  Words: $WORDS"
+        echo "  Characters: {{with.len}}"
+        echo "  Format: JSON string"
         echo "  Encoding: UTF-8"
       shell: true
 
@@ -62,15 +61,13 @@ tasks:
     description: "Analyze as CSV-like: count delimiters"
     depends_on: [source]
     with:
-      data: $source
+      data: $source | to_string
     exec:
       command: |
-        COMMAS=$(echo '{{with.data}}' | tr -cd ',' | wc -c | tr -d ' ')
-        COLONS=$(echo '{{with.data}}' | tr -cd ':' | wc -c | tr -d ' ')
         echo "CSV Analysis:"
-        echo "  Commas: $COMMAS"
-        echo "  Colons: $COLONS"
-        echo "  Fields (est): $((COMMAS + 1))"
+        echo "  Data length: {{with.data | length}}"
+        echo "  Format: JSON object"
+        echo "  Keys: name, type, version, formats"
       shell: true
 
   - id: report

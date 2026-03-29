@@ -16,20 +16,21 @@ tasks:
     depends_on: [topic]
     with:
       subject: $topic
+    provider: anthropic
+    model: claude-haiku-4-5
     infer:
       prompt: |
         Give a brief (2-3 sentences) perspective on: {{with.subject}}
-      model: haiku
 
   - id: openai_view
     depends_on: [topic]
     with:
       subject: $topic
+    provider: openai
+    model: gpt-4o-mini
     infer:
       prompt: |
         Give a brief (2-3 sentences) perspective on: {{with.subject}}
-      provider: openai
-      model: gpt-4o-mini
 
   - id: synthesis
     depends_on: [claude_view, openai_view]

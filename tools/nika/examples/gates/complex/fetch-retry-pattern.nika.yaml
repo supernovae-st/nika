@@ -10,7 +10,9 @@ tasks:
     fetch:
       url: "https://httpbin.org/get?test=retry"
       method: GET
-    max_retries: 3
+    retry:
+      max_attempts: 3
+      delay_ms: 1000
     description: "GET with 3 retries"
 
   # Fetch that might need retries
@@ -20,7 +22,9 @@ tasks:
       method: POST
       json:
         test: "retry-pattern"
-    max_retries: 2
+    retry:
+      max_attempts: 2
+      delay_ms: 1000
     description: "POST with 2 retries"
 
   # Process with fallback in case fetch returns unexpected data

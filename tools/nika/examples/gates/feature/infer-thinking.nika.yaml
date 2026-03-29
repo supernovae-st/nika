@@ -1,11 +1,12 @@
-# FEATURE: infer with thinking: true (extended thinking)
+# FEATURE: infer with extended_thinking (Claude thinking mode)
 schema: nika/workflow@0.12
-model: gpt-4.1-mini
+provider: anthropic
+model: claude-sonnet-4-20250514
 workflow: feat-infer-thinking
 tasks:
   - id: think
-    infer: "What is 17 * 23? Just the number."
-    provider: openai
-    
-    thinking: true
-    max_tokens: 50
+    infer:
+      prompt: "What is 17 * 23? Just the number."
+      extended_thinking: true
+      thinking_budget: 2048
+      max_tokens: 100

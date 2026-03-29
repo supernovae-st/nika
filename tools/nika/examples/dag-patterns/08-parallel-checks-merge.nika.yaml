@@ -23,32 +23,26 @@ description: "3 parallel checks -> merge errors -> final report"
 tasks:
   - id: check_syntax
     description: "Syntax validation check"
-    exec:
-      command: |
-        echo '{"check":"syntax","status":"pass","errors":0,"warnings":1,"message":"trailing comma on line 42"}'
-      shell: true
+    exec: "echo '{\"check\":\"syntax\",\"status\":\"pass\",\"errors\":0,\"warnings\":1}'"
+    output: { format: json }
 
   - id: check_types
     description: "Type validation check"
-    exec:
-      command: |
-        echo '{"check":"types","status":"fail","errors":2,"warnings":0,"message":"i32 vs u64 mismatch on line 17; unused generic on line 88"}'
-      shell: true
+    exec: "echo '{\"check\":\"types\",\"status\":\"fail\",\"errors\":2,\"warnings\":0}'"
+    output: { format: json }
 
   - id: check_style
     description: "Style validation check"
-    exec:
-      command: |
-        echo '{"check":"style","status":"pass","errors":0,"warnings":3,"message":"line length 102>100; missing doc comment; snake_case violation"}'
-      shell: true
+    exec: "echo '{\"check\":\"style\",\"status\":\"pass\",\"errors\":0,\"warnings\":3}'"
+    output: { format: json }
 
   - id: aggregate
     description: "Aggregate all check results"
     depends_on: [check_syntax, check_types, check_style]
     with:
-      syntax: $check_syntax
-      types: $check_types
-      style: $check_style
+      syntax: $check_syntax | to_json
+      types: $check_types | to_json
+      style: $check_style | to_json
     exec:
       command: |
         echo "=== Validation Summary ==="
@@ -61,7 +55,7 @@ tasks:
     description: "Generate final pass/fail report"
     depends_on: [aggregate]
     with:
-      results: $aggregate
+      results: $aggregate | trim
     exec:
       command: |
         echo "=== Final Validation Report ==="
