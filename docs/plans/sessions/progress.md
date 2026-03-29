@@ -1,13 +1,38 @@
 # Autonomous Session Progress
 
-**Updated**: 2026-03-29T16:00:00
-**Status**: SESSION N+ COMPLETE (P-CONTEXT + M.remaining + F.2 foundation)
+**Updated**: 2026-03-29T18:30:00
+**Status**: DX-1/2/3 + C.7 COMPLETE — schema sync, rules restructure, manifest, for_each_index
 **Version**: v0.51.0
-**Sessions completed**: A, B, C, D, E (extended), F (partial+enum), G, J (partial), K, L (complete), I (partial), H (partial), M (P-RECORD complete), N (P-CONTEXT)
-**Total commits**: 94 (12 new this session)
-**Total tests**: 8,845 across 12 crates (0 failures, 0 clippy warnings)
+**Sessions completed**: A-N, DX-1, DX-2, DX-3, C.7 (partial)
+**Total commits**: 103 (9 new this session)
+**Total tests**: 8,857 across 12 crates (0 failures, 0 clippy warnings)
 
-## This Session — Session N (9 commits, all pushed)
+## This Session — DX + Quality (9 commits, all pushed)
+
+### DX-1: JSON Schema sync (1 commit)
+1. `b6fbb1b` — fix(schema): sync JSON Schema with parser — 9 field additions (8 tests)
+
+### DX-2: nika.md restructure (0 commits — user home, not repo)
+- Rewrote `~/.claude/rules/nika.md`: mistakes first, decision tree, 30 tools, record/context_budget/routing
+
+### DX-3: Editor rules sync (4 commits)
+2. `aef4907` — docs(dx): sync Cursor rules
+3. `30d83db` — docs(dx): sync Windsurf rules
+4. `c45b4b8` — docs(dx): fix llms-syntax.txt — timeout→seconds, 31 transforms, 30 tools
+5. `740ff41` — docs(dx): expand llms.txt — 9→55 lines
+
+### C.7: Quality plan bugs (2 commits)
+6. `871801f` — feat(runtime): implement write_artifact_manifest for manifest: true (3 tests)
+7. `ac33eb3` — feat(runtime): inject for_each_index binding in for_each iterations (1 test)
+
+### Also committed (pre-session cleanup)
+8. `4dbcffd` — fix(runtime): handle multi-byte UTF-8 in strip_think_tags (3 tests)
+
+### Verified already fixed
+- SF3: for_each binding failure → emit_scheduling_failure already calls TaskFailed
+- SF4: items unresolved → emit_scheduling_failure already calls TaskFailed
+
+## Previous Session — Session N (9 commits, all pushed)
 
 ### Critical Fix: nika:records wiring
 1. `ee491c2` — fix(builtin): wire nika:records tool in executor router
