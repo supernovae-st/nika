@@ -944,11 +944,10 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         // Precedence: task-level > preset > workflow-default
         let (effective_provider, effective_model) = if let Some(ref preset_name) = task.preset {
             if let Some(agent) = executor.get_preset(preset_name) {
-                (
-                    task.provider
-                        .clone()
-                        .or_else(|| Some(agent.provider.clone())),
-                    task.model.clone().or_else(|| agent.model.clone()),
+                crate::runtime::preset::resolve_provider_model(
+                    &task.provider,
+                    &task.model,
+                    agent,
                 )
             } else {
                 (task.provider.clone(), task.model.clone())
@@ -985,28 +984,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     model: agent.model.clone(),
                 });
 
-                match &mut lowered_action {
-                    TaskAction::Infer { infer } => {
-                        if infer.system.is_none() {
-                            infer.system = Some(agent.system.clone());
-                        }
-                        if infer.temperature.is_none() {
-                            infer.temperature = agent.temperature.map(f64::from);
-                        }
-                    }
-                    TaskAction::Agent { agent: params } => {
-                        if params.system.is_none() {
-                            params.system = Some(agent.system.clone());
-                        }
-                        if params.temperature.is_none() {
-                            params.temperature = agent.temperature;
-                        }
-                        if params.max_turns.is_none() {
-                            params.max_turns = agent.max_turns;
-                        }
-                    }
-                    _ => {}
-                }
+                crate::runtime::preset::apply_preset_fields(&mut lowered_action, agent);
             }
         }
 

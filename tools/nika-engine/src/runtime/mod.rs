@@ -39,6 +39,7 @@ pub mod limit_tracker;
 pub mod output;
 pub mod partial;
 pub mod policy;
+pub mod preset;
 pub mod resolver;
 mod rig_agent_loop;
 mod runner;
