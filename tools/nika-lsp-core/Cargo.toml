@@ -10,15 +10,15 @@ rust-version.workspace = true
 
 [dependencies]
 nika-core = { workspace = true }
-ls-types = "0.0"
-ropey = "1.6"
+ls-types = { workspace = true }
+ropey = { workspace = true }
 dashmap = { workspace = true }
 rustc-hash = { workspace = true }
 tracing = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-tree-sitter = "0.25"
-tree-sitter-yaml = "0.7"
+tree-sitter = { workspace = true }
+tree-sitter-yaml = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }

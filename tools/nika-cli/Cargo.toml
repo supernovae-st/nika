@@ -54,8 +54,8 @@ colored = { workspace = true }
 chrono = { workspace = true }
 regex = { workspace = true }
 humantime = { workspace = true }
-infer = "0.19"
-which = "8"
+infer = { workspace = true }
+which = { workspace = true }
 dirs = { workspace = true }
 xxhash-rust = { workspace = true }
 
@@ -63,8 +63,8 @@ xxhash-rust = { workspace = true }
 rustc-hash = { workspace = true }
 
 # Interactive wizard
-cliclack = "0.5"
-console = "0.16"
+cliclack = { workspace = true }
+console = { workspace = true }
 
 # Logging
 tracing = { workspace = true }
@@ -75,4 +75,4 @@ nika-daemon = { workspace = true }
 [dev-dependencies]
 serial_test = { workspace = true }
 tempfile = { workspace = true }
-image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"] }
+image = { workspace = true }

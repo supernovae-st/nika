@@ -49,23 +49,23 @@ toml = { workspace = true }
 thiserror = { workspace = true }
 
 # TUI framework
-ratatui = "0.30"
-crossterm = { version = "0.29", features = ["event-stream"] }
-tui-input = { version = "0.15", features = ["crossterm"] }
+ratatui = { workspace = true }
+crossterm = { workspace = true }
+tui-input = { workspace = true }
 
 # Clipboard
-arboard = "3.4"
+arboard = { workspace = true }
 
 # Syntax Highlighting
-tree-sitter = "0.25"
-tree-sitter-yaml = "0.7"
-streaming-iterator = "0.1"
+tree-sitter = { workspace = true }
+tree-sitter-yaml = { workspace = true }
+streaming-iterator = { workspace = true }
 
 # Git integration (via CLI — no git2/openssl C compilation)
 
 # Unicode text handling
-unicode-width = "0.2"
-terminal_size = "0.4"
+unicode-width = { workspace = true }
+terminal_size = { workspace = true }
 
 # Utilities
 colored = { workspace = true }
@@ -80,13 +80,13 @@ uuid = { workspace = true }
 dirs = { workspace = true }
 rand = { workspace = true }
 reqwest = { workspace = true }
-infer = "0.19"
+infer = { workspace = true }
 
 # Signal handling (terminal restore on SIGTERM/SIGHUP)
-signal-hook = { version = "0.4", features = ["iterator"] }
+signal-hook = { workspace = true }
 
 # Secret zeroization (API keys)
-zeroize = "1"
+zeroize = { workspace = true }
 
 # Logging
 tracing = { workspace = true }
@@ -95,5 +95,5 @@ tracing = { workspace = true }
 tempfile = { workspace = true }
 insta = { workspace = true }
 pretty_assertions = { workspace = true }
-serial_test = "3.1"
+serial_test = { workspace = true }
 temp-env = "0.3"

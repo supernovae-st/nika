@@ -51,21 +51,21 @@ tokio-util = { workspace = true }
 # CAS storage
 blake3 = { workspace = true }
 base64 = { workspace = true }
-infer = "0.19"
-mime = "0.3"
-mime_guess = "2.0"
-bytes = "1"
+infer = { workspace = true }
+mime = { workspace = true }
+mime_guess = { workspace = true }
+bytes = { workspace = true }
 
 # Always-on tools
-imagesize = "0.14"
-thumbhash = "0.1"
-color-thief = "0.2"
-rayon = "1.10"
+imagesize = { workspace = true }
+thumbhash = { workspace = true }
+color-thief = { workspace = true }
+rayon = { workspace = true }
 regex = { workspace = true }
 
 # Media tools — Tier 2 (feature-gated)
 fast_image_resize = { version = "6.0", features = ["image"], optional = true }
-image = { version = "0.25", optional = true, default-features = false, features = ["png", "jpeg", "webp", "gif"] }
+image = { workspace = true, optional = true }
 nom-exif = { version = "2.7", optional = true }
 lofty = { version = "0.23", optional = true }
 oxipng = { version = "10.1", optional = true, default-features = false, features = ["parallel"] }
@@ -87,11 +87,11 @@ rgb = { version = "0.8", optional = true }
 zstd = { version = "0.13", optional = true, default-features = false }
 
 # Web extraction tools
-scraper = { version = "0.26", optional = true, features = ["atomic"] }
-htmd = { version = "0.5", optional = true }
-dom_smoothie = { version = "0.16", optional = true }
-feed-rs = { version = "2.3", optional = true }
-psl = { version = "2", optional = true }
+scraper = { workspace = true, optional = true }
+htmd = { workspace = true, optional = true }
+dom_smoothie = { workspace = true, optional = true }
+feed-rs = { workspace = true, optional = true }
+psl = { workspace = true, optional = true }
 url = { workspace = true }
 
 [dev-dependencies]

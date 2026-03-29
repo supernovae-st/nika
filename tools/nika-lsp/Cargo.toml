@@ -24,7 +24,7 @@ path = "src/main.rs"
 
 [dependencies]
 # LSP
-tower-lsp-server = "0.23"
+tower-lsp-server = { workspace = true }
 
 # Async runtime
 tokio = { workspace = true, features = ["full"] }
@@ -47,7 +47,7 @@ nika-engine = { path = "../nika-engine", version = "0.51.0", default-features = 
 nika-lsp-core = { workspace = true }
 
 # Text manipulation
-ropey = "1.6"
+ropey = { workspace = true }
 
 # Logging
 tracing = { workspace = true }

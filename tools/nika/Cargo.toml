@@ -74,11 +74,11 @@ miette = { workspace = true }
 thiserror = { workspace = true }
 
 # Interactive prompts (auto-discover, input prompts, cost confirm)
-cliclack = "0.5"
+cliclack = { workspace = true }
 
 # Utilities (used by main.rs, cli/, tui/)
 colored = { workspace = true }
-dotenvy = "0.15"
+dotenvy = { workspace = true }
 rand = { workspace = true }
 regex = { workspace = true }
 
@@ -87,7 +87,7 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 
 # LSP Server (feature-gated)
-tower-lsp-server = { version = "0.23", optional = true }
+tower-lsp-server = { workspace = true, optional = true }
 
 # Daemon IPC (Unix only — UDS sockets)
 [target.'cfg(unix)'.dependencies]
@@ -99,15 +99,15 @@ proptest = { workspace = true }
 insta = { workspace = true }
 pretty_assertions = { workspace = true }
 criterion = { version = "0.5", features = ["async_tokio"] }
-serial_test = "3.1"
+serial_test = { workspace = true }
 wiremock = "0.6"
 qrcode = "0.14"
-image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"] }
+image = { workspace = true }
 dashmap = { workspace = true }
 rig-core = { workspace = true }
 futures = { version = "0.3.32", default-features = false, features = ["alloc"] }
-ratatui = "0.30"
-crossterm = { version = "0.29", features = ["event-stream"] }
+ratatui = { workspace = true }
+crossterm = { workspace = true }
 parking_lot = { workspace = true }
 rustc-hash = { workspace = true }
 
