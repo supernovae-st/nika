@@ -404,6 +404,7 @@ pub fn list_nika_mcp_servers() -> Result<Vec<String>, McpError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use tempfile::TempDir;
 
     fn create_test_config(content: &str) -> (TempDir, NikaMcpConfigManager) {
@@ -526,6 +527,7 @@ servers:
     }
 
     #[test]
+    #[serial]
     fn test_load_servers_by_name() {
         let yaml = r#"
 version: 1
