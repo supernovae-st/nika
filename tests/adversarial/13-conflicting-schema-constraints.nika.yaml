@@ -1,0 +1,35 @@
+schema: "nika/workflow@0.12"
+workflow: adversarial-13-conflicting-schema-constraints
+description: |
+  STRUCTURED OUTPUT STRESS #13: Schema with logically impossible constraints.
+  minimum: 10, maximum: 5 — no valid integer can satisfy both.
+
+  Bug targets:
+  - Does get_or_compile_validator ACCEPT this schema (jsonschema crate compiles it)?
+  - Or does it REJECT it at compile time with a SchemaFailed error?
+  - If accepted, does every validation attempt fail with a confusing error?
+  - Does Layer 4 LLM repair enter an infinite loop trying to satisfy impossible constraints?
+
+  The jsonschema crate behavior: it typically compiles contradictory schemas without error,
+  but all validations fail. This means Layer 3 retry loops exhaust max_retries.
+
+  SHOULD_FAIL: NIKA-300 (StructuredOutputFailed) after exhausting retries,
+  because no output can ever satisfy minimum:10 AND maximum:5 simultaneously.
+
+provider: mock
+
+tasks:
+  - id: impossible_schema
+    infer:
+      prompt: "Return a JSON object with a number field"
+    structured:
+      schema:
+        type: object
+        properties:
+          value:
+            type: integer
+            minimum: 10
+            maximum: 5      # IMPOSSIBLE: minimum > maximum
+        required: [value]
+      enable_repair: true
+      max_retries: 2        # Will exhaust — no valid output exists

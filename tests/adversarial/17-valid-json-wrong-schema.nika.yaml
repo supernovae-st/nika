@@ -1,0 +1,54 @@
+schema: "nika/workflow@0.12"
+workflow: adversarial-17-valid-json-wrong-schema
+description: |
+  STRUCTURED OUTPUT STRESS #17: Response is valid JSON but wrong schema type.
+  The mock or real LLM returns {"result": "hello"} but schema requires
+  {"result": number, "count": integer}.
+
+  This specifically tests Layer 2 (Extract + Validate):
+  - Does it correctly identify the schema mismatch?
+  - Does it emit a useful error with the actual vs expected type?
+  - Does Layer 3 retry prompt include the validation errors?
+
+  With mock provider: the mock returns a fixed response that intentionally
+  violates the schema to force Layers 2→3→4.
+
+  SHOULD_FAIL: NIKA-300 after max_retries exhausted (mock always returns wrong schema).
+  With real providers: should eventually pass after repair.
+
+provider: mock
+
+tasks:
+  - id: wrong_type_response
+    infer:
+      # Mock will return something generic — test if validation catches type mismatch
+      prompt: |
+        Return JSON: {"result": 42, "count": 7}
+    structured:
+      schema:
+        type: object
+        properties:
+          result:
+            type: number
+          count:
+            type: integer
+            minimum: 1
+          label:
+            type: string
+            minLength: 3
+        required: [result, count, label]   # label is required but prompt doesn't mention it
+      enable_repair: true
+      max_retries: 2
+
+  - id: array_when_object_expected
+    infer:
+      prompt: "Return a list of items"
+    structured:
+      schema:
+        type: object   # Requires object, but LLM may return array
+        properties:
+          items:
+            type: array
+        required: [items]
+      enable_repair: true
+      max_retries: 2

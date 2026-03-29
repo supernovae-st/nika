@@ -1,0 +1,79 @@
+schema: "nika/workflow@0.12"
+workflow: adversarial-27-diamond-parallel-execution
+description: |
+  TIMING & CONCURRENCY #27: Two tasks that depend on the same parent run in parallel.
+  Classic diamond pattern: source → [left, right] → merge.
+  The adversarial version adds race conditions: both parallel tasks write to the same
+  datastore key (they don't, but tests that assumption).
+
+  Bug targets:
+  - Do left and right truly run in parallel, or sequentially?
+  - Is the datastore thread-safe for concurrent writes from left and right?
+  - Does the merge task correctly wait for BOTH to complete?
+  - If left succeeds but right fails, does merge get NIKA-026?
+  - Double-diamond: two sources, four parallel tasks, two merge points.
+
+  SHOULD_PASS: all tasks complete, merge sees both results correctly.
+
+provider: mock
+
+tasks:
+  - id: source
+    infer: "I am the source"
+
+  # Two tasks that both depend on source — should run in parallel
+  - id: left_branch
+    depends_on: [source]
+    with:
+      s: $source
+    infer: "Left branch received: {{with.s}}"
+
+  - id: right_branch
+    depends_on: [source]
+    with:
+      s: $source
+    infer: "Right branch received: {{with.s}}"
+
+  # Merge waits for BOTH left and right
+  - id: merge_both
+    depends_on: [left_branch, right_branch]
+    with:
+      l: $left_branch
+      r: $right_branch
+    infer: |
+      Merged: left={{with.l}} right={{with.r}}
+
+  # Double-diamond stress test
+  - id: source_2
+    infer: "Second source"
+
+  - id: branch_a
+    depends_on: [source, source_2]
+    with:
+      s1: $source
+      s2: $source_2
+    infer: "Branch A: {{with.s1}} + {{with.s2}}"
+
+  - id: branch_b
+    depends_on: [source, source_2]
+    with:
+      s1: $source
+      s2: $source_2
+    infer: "Branch B: {{with.s1}} + {{with.s2}}"
+
+  - id: branch_c
+    depends_on: [source, source_2]
+    with:
+      s1: $source
+      s2: $source_2
+    infer: "Branch C: {{with.s1}} + {{with.s2}}"
+
+  - id: final_merge
+    depends_on: [branch_a, branch_b, branch_c, merge_both]
+    with:
+      a: $branch_a
+      b: $branch_b
+      c: $branch_c
+      m: $merge_both
+    infer: |
+      Final: a={{with.a}} b={{with.b}} c={{with.c}} m={{with.m}}

@@ -1,0 +1,40 @@
+schema: "nika/workflow@0.12"
+workflow: adversarial-04-env-template-injection
+description: |
+  DATA FLOW TRAP #4: $env.VAR that contains {{template}} syntax.
+  If NIKA_TEST_EVIL_VAR is set to '{{context.files.secret}}',
+  does the engine expand it as a template (INJECTION) or treat it literally?
+
+  The template.rs 3-pass system is designed to block this via injection guards.
+  This test verifies the guard actually fires.
+
+  Setup: set env var before running:
+    NIKA_TEST_EVIL_VAR='{{inputs.anything}}' nika run 04-...
+
+  Expected behavior:
+  - SHOULD_PASS: engine treats the env var value as literal text
+  - The output should contain the literal string '{{inputs.anything}}'
+    NOT the resolved value of inputs.anything
+
+provider: mock
+
+inputs:
+  secret_data: "TOP_SECRET_CONTENTS"
+
+tasks:
+  - id: read_evil_env
+    with:
+      # The env var value may contain template syntax — must NOT be re-evaluated
+      evil: $env.NIKA_TEST_EVIL_VAR
+    infer: |
+      The env var contains: {{with.evil}}
+      This should be literal text, not expanded template.
+
+  - id: verify_no_injection
+    depends_on: [read_evil_env]
+    with:
+      raw_output: $read_evil_env
+    infer: |
+      Verify the output from previous task.
+      Did it contain literal template markers (safe) or expanded values (unsafe)?
+      Output was: {{with.raw_output}}

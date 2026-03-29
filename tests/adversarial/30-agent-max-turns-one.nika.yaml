@@ -1,0 +1,61 @@
+schema: "nika/workflow@0.12"
+workflow: adversarial-30-agent-max-turns-one
+description: |
+  TIMING & CONCURRENCY #30: agent with max_turns:1 — minimum possible turns.
+  Per rig_agent_loop/mod.rs line 232-240: max_turns is validated (0 = error, >100 = error).
+  max_turns:1 is valid but degenerate.
+
+  Bug targets:
+  - With max_turns:1, the agent gets exactly one turn before the loop exits.
+  - If the agent doesn't call nika:complete (explicit completion mode), does it gracefully stop?
+  - Is the output the partial result from turn 1, or an error?
+  - Does the history_capacity calculation (max_turns * 2 = 2) work correctly?
+  - With max_turns:0 — does it fail with NIKA-113 as expected?
+
+  SHOULD_PASS for max_turns:1 (graceful stop after 1 turn).
+  SHOULD_FAIL for max_turns:0 with NIKA-113 (InvalidMaxTurns).
+  SHOULD_FAIL for max_turns:101 with NIKA-113.
+
+provider: mock
+
+tasks:
+  # Test 1: max_turns:1 with natural completion mode
+  - id: agent_one_turn_natural
+    agent:
+      prompt: "What is 1+1?"
+      max_turns: 1
+      completion:
+        mode: natural   # Stops when no more tool calls — 1 turn is fine
+
+  # Test 2: max_turns:1 with explicit completion — agent MUST call nika:complete
+  # With only 1 turn, it must call nika:complete in that first response
+  - id: agent_one_turn_explicit
+    agent:
+      prompt: "Answer in one turn: What is 2+2? Call the complete tool with your answer."
+      max_turns: 1
+      completion:
+        mode: explicit   # Agent MUST call nika:complete — will it in only 1 turn?
+
+  # Test 3: max_turns:0 — should fail validation
+  - id: agent_zero_turns
+    agent:
+      prompt: "This should never run"
+      max_turns: 0   # INVALID — should fail with NIKA-113
+      completion:
+        mode: natural
+
+  # Test 4: max_turns:101 — exceeds limit, should fail with NIKA-113
+  - id: agent_too_many_turns
+    agent:
+      prompt: "This should also never run"
+      max_turns: 101   # INVALID — exceeds 100 limit
+      completion:
+        mode: natural
+
+  # Test 5: max_turns:100 — at the exact limit, should be valid
+  - id: agent_at_limit
+    agent:
+      prompt: "You have exactly 100 turns available but should complete quickly."
+      max_turns: 100
+      completion:
+        mode: natural

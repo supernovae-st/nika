@@ -1,0 +1,58 @@
+schema: "nika/workflow@0.12"
+workflow: adversarial-21-provider-empty-string
+description: |
+  PROVIDER EDGE CASE #21: Provider that returns empty string.
+  Simulate via exec that produces empty output fed to downstream infer.
+  Or: use a structured: task where mock returns empty.
+
+  The real question: if an infer task receives "" back from the LLM:
+  - Is the task marked as success with Value::String("")?
+  - Is it treated as a failure?
+  - Does structured: with empty output hit the "Empty output with JSON format" path
+    (output.rs line 171: returns Value::Null)?
+
+  Bug target: empty infer output with structured: should trigger Layer 3 retry,
+  not silently succeed with null.
+
+  SHOULD_FAIL: NIKA-300 (empty output cannot satisfy schema requirements).
+
+provider: mock
+
+tasks:
+  # Simulate empty output via exec
+  - id: empty_exec_output
+    exec:
+      command: "echo -n ''"
+      shell: true
+
+  # Bind empty output and use in template
+  - id: use_empty_output
+    depends_on: [empty_exec_output]
+    with:
+      empty: $empty_exec_output
+    infer: |
+      Length: {{with.empty | length}}
+      Type: {{with.empty | type_of}}
+      Default: {{with.empty | default("was empty")}}
+
+  # Structured output with empty exec response
+  - id: structured_from_empty
+    exec:
+      command: "echo -n ''"
+      shell: true
+    output:
+      format: json   # Empty + JSON = null per output.rs
+
+  # This is the critical test: structured: requires object, gets null
+  - id: structured_requires_object_gets_null
+    infer:
+      prompt: "Return an empty response (literally nothing)"
+    structured:
+      schema:
+        type: object
+        properties:
+          required_field:
+            type: string
+        required: [required_field]
+      enable_repair: true
+      max_retries: 2

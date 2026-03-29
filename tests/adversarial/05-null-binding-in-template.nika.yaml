@@ -1,0 +1,35 @@
+schema: "nika/workflow@0.12"
+workflow: adversarial-05-null-binding-in-template
+description: |
+  DATA FLOW TRAP #5: with: binding resolves to null, used in template without default.
+  Task A produces null output (empty exec with JSON format).
+  Task B binds $task_a and uses {{with.data}} directly — no default() guard.
+
+  Bug target: does the engine:
+  a) Silently substitute empty string?
+  b) Error with NIKA-072 (NullValue)?
+  c) Panic?
+
+  SHOULD_FAIL: NIKA-072 (NullValue in strict mode) unless lenient mode applies.
+  Per binding/resolve.rs line 441: null values without a default trigger NullValue error.
+
+provider: mock
+
+tasks:
+  - id: produces_null
+    exec:
+      command: "echo ''"
+      shell: true
+    output:
+      format: json   # Empty output + JSON format = null (per output.rs line 171)
+
+  - id: uses_null_without_guard
+    depends_on: [produces_null]
+    with:
+      data: $produces_null   # This resolves to null
+    # Template uses {{with.data}} with NO | default() guard
+    # Per template.rs security model, this should fail with NIKA-072
+    infer: "Processing: {{with.data}}"
+
+  # SHOULD_FAIL at the with: resolution step for uses_null_without_guard
+  # because data = null and no default is provided.

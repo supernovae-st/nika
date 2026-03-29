@@ -1,0 +1,83 @@
+schema: "nika/workflow@0.12"
+workflow: adversarial-23-non-latin-structured-output
+description: |
+  PROVIDER EDGE CASE #23: Prompt in Chinese/Arabic/Hindi, structured output with non-Latin values.
+  Tests the full pipeline with unicode content at every stage:
+  - Template resolution with unicode strings
+  - JSON extraction from unicode-heavy output
+  - Schema validation with unicode string values
+  - blake3 hashing of unicode schema content
+
+  Bug targets:
+  - Does extract_json_from_output correctly handle JSON with unicode values?
+  - Does the schema validator accept unicode strings?
+  - Does the output_scanner flag legitimate unicode as "dangerous unicode"?
+    (Per output_scanner.rs line 27: is_dangerous_unicode may false-positive on CJK)
+  - Does JSON serialization of unicode values round-trip correctly?
+
+  SHOULD_PASS: unicode content is valid JSON and must be accepted at every layer.
+
+provider: mock
+
+tasks:
+  - id: chinese_prompt_structured
+    infer:
+      prompt: |
+        用中文回答：请提供一个JSON对象，包含以下字段：
+        - "姓名"（name）: 字符串，你的名字
+        - "年龄"（age）: 整数，任意年龄
+        - "语言"（language）: 字符串，"中文"
+
+        仅返回JSON，不要其他内容。
+      system: "你是一个助手，只输出JSON格式的回答。"
+    structured:
+      schema:
+        type: object
+        properties:
+          姓名:
+            type: string
+          年龄:
+            type: integer
+          语言:
+            type: string
+        required: ["姓名", "年龄", "语言"]
+      enable_repair: true
+      max_retries: 2
+
+  - id: arabic_prompt_structured
+    infer:
+      prompt: |
+        أجب باللغة العربية: أعطني كائن JSON يحتوي على:
+        - "الاسم" (name): نص
+        - "العمر" (age): رقم صحيح
+        أعد JSON فقط.
+    structured:
+      schema:
+        type: object
+        properties:
+          الاسم:
+            type: string
+          العمر:
+            type: integer
+        required: ["الاسم", "العمر"]
+      enable_repair: true
+      max_retries: 2
+
+  - id: hindi_prompt_structured
+    infer:
+      prompt: |
+        हिंदी में उत्तर दें: एक JSON object दें जिसमें हो:
+        - "नाम" (name): string
+        - "उम्र" (age): integer
+        केवल JSON लौटाएं।
+    structured:
+      schema:
+        type: object
+        properties:
+          नाम:
+            type: string
+          उम्र:
+            type: integer
+        required: ["नाम", "उम्र"]
+      enable_repair: true
+      max_retries: 2

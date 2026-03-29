@@ -1,0 +1,31 @@
+schema: "nika/workflow@0.12"
+workflow: adversarial-09-depends-on-self
+description: |
+  DATA FLOW TRAP #9: depends_on: [self] — a task that depends on itself.
+  Per dag/flow.rs test at line 1412, self-references in depends_on are SILENTLY SKIPPED
+  (not treated as a cycle). This test verifies that behavior at the workflow level.
+
+  The key question: when nika check runs this, does it:
+  a) Silently ignore the self-dep and run the task (current behavior per unit test)
+  b) Fail with NIKA-020 (CycleDetected) — what a user would expect
+  c) Deadlock (task waits for itself to complete)
+
+  SHOULD_PASS: self-dep is silently skipped, task runs normally.
+  But this IS a surprising behavior — document it.
+
+  Secondary adversarial angle: does a task with both a self-dep AND a real dep deadlock?
+
+provider: mock
+
+tasks:
+  - id: self_dependent_task
+    depends_on: [self_dependent_task]   # Self-reference — should be silently skipped
+    infer: "I depend on myself but should still run"
+
+  - id: task_with_real_and_self_dep
+    depends_on: [self_dependent_task, task_with_real_and_self_dep]   # Both a real dep and self-dep
+    with:
+      prev: $self_dependent_task
+    infer: |
+      Previous result: {{with.prev}}
+      This task has a real dep and a self-dep, both should work.

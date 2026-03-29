@@ -1,0 +1,53 @@
+schema: "nika/workflow@0.12"
+workflow: adversarial-03-structured-in-structured
+description: |
+  DATA FLOW TRAP #3: Structured output fed into another structured output task.
+  Task 1 produces validated JSON {name, tags:[...]}.
+  Task 2 ingests that as a string in its prompt and must produce {summary, count}.
+
+  Bug target: does Layer 2 correctly handle the case where the input to the
+  second structured: block is itself a JSON-stringified object from task 1?
+  Specifically, the mock provider may return the prompt verbatim — will the
+  extractor misidentify the INPUT JSON as the OUTPUT JSON?
+
+provider: mock
+
+# SHOULD_PASS: each structured: task validates independently
+
+tasks:
+  - id: extract_data
+    infer:
+      prompt: "Return JSON with name and tags"
+    structured:
+      schema:
+        type: object
+        properties:
+          name:
+            type: string
+          tags:
+            type: array
+            items:
+              type: string
+        required: [name, tags]
+      enable_repair: false
+      max_retries: 1
+
+  - id: summarize_data
+    depends_on: [extract_data]
+    with:
+      data: $extract_data
+    infer:
+      prompt: |
+        Summarize this data: {{with.data | to_json}}
+        Return JSON with summary and count fields.
+    structured:
+      schema:
+        type: object
+        properties:
+          summary:
+            type: string
+          count:
+            type: integer
+        required: [summary, count]
+      enable_repair: false
+      max_retries: 1

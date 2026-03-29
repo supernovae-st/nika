@@ -1,0 +1,49 @@
+schema: "nika/workflow@0.12"
+workflow: adversarial-28-exec-timeout-one-second
+description: |
+  TIMING & CONCURRENCY #28: exec with timeout:1 on a command that takes longer than 1 second.
+  Per executor/exec.rs line 145: tokio::time::timeout kills the process.
+  Comment notes "kill_on_drop ensures child is killed when dropped on timeout (prevents orphans)".
+
+  Bug targets:
+  - Does the child process actually get killed, or does it become a zombie/orphan?
+  - Is the timeout error correctly surfaced as NIKA-096 or similar?
+  - Does the error message include which task timed out?
+  - After timeout, can subsequent tasks still run (datastore in clean state)?
+  - Race condition: does timeout of 1s kill a 1s sleep, or does off-by-one allow it?
+
+  SHOULD_FAIL: exec timeout causes task failure.
+  SHOULD: subsequent independent tasks still complete.
+
+provider: mock
+
+tasks:
+  # Task that will definitely timeout (sleeps 5 seconds, timeout is 1)
+  - id: slow_command
+    exec:
+      command: "sleep 5"
+      timeout: 1   # 1 second — will kill sleep 5
+
+  # Independent task that should complete even after slow_command fails
+  - id: independent_after_timeout
+    infer: "I am independent — should complete despite timeout above"
+
+  # Task with exactly 1 second timeout on 1 second command — race condition!
+  - id: race_condition_timeout
+    exec:
+      command: "sleep 1"
+      timeout: 1   # Exactly 1 second — will it pass or fail?
+
+  # Task that depends on the failed task — should get NIKA-026
+  - id: downstream_of_timeout
+    depends_on: [slow_command]
+    with:
+      result: $slow_command
+    infer: "I depend on timed-out task — should be NIKA-026"
+
+  # Verify orphan cleanup: shell process that spawns a background child
+  - id: orphan_risk_command
+    exec:
+      command: "bash -c 'sleep 10 & echo parent_done'"
+      shell: true
+      timeout: 1   # Kills parent — but does background sleep 10 become orphan?

@@ -1,0 +1,54 @@
+schema: "nika/workflow@0.12"
+workflow: adversarial-29-fetch-slow-url-timeout
+description: |
+  TIMING & CONCURRENCY #29: fetch to a URL that takes 10s to respond + timeout:5.
+  Uses httpbin.org/delay/10 which intentionally delays responses.
+
+  Bug targets:
+  - Is the NIKA-045 error (FetchError) surfaced with the task ID and URL?
+  - Does the fetch timeout cancel the underlying HTTP connection properly?
+  - Does the event log record the failed fetch with duration_ms close to timeout*1000?
+  - Does retry: interact correctly with fetch timeout? (retry should wait delay_ms then retry)
+  - Is the SSRF check attempted before or after the timeout? (Should be before)
+
+  SHOULD_FAIL: NIKA-045 (FetchError/timeout) when URL doesn't respond in time.
+
+  Note: This test requires network access. Use --offline flag to skip.
+
+provider: mock
+
+tasks:
+  # Fast fetch — should complete quickly
+  - id: fast_fetch
+    fetch:
+      url: "https://httpbin.org/get"
+      timeout: 10
+      method: GET
+
+  # Slow fetch that will timeout
+  - id: slow_fetch_timeout
+    fetch:
+      url: "https://httpbin.org/delay/10"   # 10 second delay
+      timeout: 3                              # 3 second timeout — will fail
+      method: GET
+
+  # Slow fetch with retry — will retry 3 times, each timing out
+  - id: slow_fetch_with_retry
+    retry:
+      max_attempts: 3
+      delay_ms: 100
+    fetch:
+      url: "https://httpbin.org/delay/10"
+      timeout: 2   # 2 second timeout per attempt
+      method: GET
+
+  # Independent task after failure
+  - id: independent_after_fetch_timeout
+    infer: "I run regardless of fetch failures above"
+
+  # SSRF attempt — should be blocked BEFORE any network connection
+  - id: ssrf_attempt
+    fetch:
+      url: "http://169.254.169.254/latest/meta-data/"   # AWS metadata endpoint (SSRF)
+      timeout: 5
+    # SHOULD_FAIL: NIKA-045 (SSRF blocked) before timeout fires
