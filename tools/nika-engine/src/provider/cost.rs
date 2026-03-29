@@ -1278,3 +1278,150 @@ mod tests {
         assert!((calculate_hourly_cost(60.0, 0.0)).abs() < f64::EPSILON);
     }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Property-based tests (proptest)
+// ═══════════════════════════════════════════════════════════════════════════
+
+#[cfg(test)]
+mod proptest_tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    fn arb_provider() -> impl Strategy<Value = ProviderKind> {
+        prop_oneof![
+            Just(ProviderKind::Claude),
+            Just(ProviderKind::OpenAI),
+            Just(ProviderKind::Mistral),
+            Just(ProviderKind::Groq),
+            Just(ProviderKind::DeepSeek),
+            Just(ProviderKind::Gemini),
+            Just(ProviderKind::XAi),
+            Just(ProviderKind::Native),
+        ]
+    }
+
+    fn arb_provider_with_model() -> impl Strategy<Value = (ProviderKind, &'static str)> {
+        prop_oneof![
+            Just((ProviderKind::Claude, "claude-sonnet-4-20250514")),
+            Just((ProviderKind::Claude, "claude-opus-4-20250514")),
+            Just((ProviderKind::OpenAI, "gpt-4o")),
+            Just((ProviderKind::OpenAI, "o3")),
+            Just((ProviderKind::Mistral, "mistral-large-latest")),
+            Just((ProviderKind::Groq, "llama-3.3-70b-versatile")),
+            Just((ProviderKind::DeepSeek, "deepseek-chat")),
+            Just((ProviderKind::Gemini, "gemini-2.5-pro")),
+            Just((ProviderKind::XAi, "grok-3")),
+            Just((ProviderKind::Native, "anything")),
+        ]
+    }
+
+    proptest! {
+        // ── Property 1: Cost is always non-negative and finite ──
+        #[test]
+        fn cost_always_valid(
+            (provider, model) in arb_provider_with_model(),
+            input in 0u64..10_000_000_000,
+            output in 0u64..10_000_000_000,
+        ) {
+            let cost = calculate_cost(provider, model, input, output);
+            prop_assert!(cost >= 0.0, "Negative cost for {:?}/{}: {}", provider, model, cost);
+            prop_assert!(cost.is_finite(), "Non-finite cost for {:?}/{}: {}", provider, model, cost);
+        }
+
+        // ── Property 2: Cache cost is always valid and <= uncached cost ──
+        #[test]
+        fn cost_with_cache_always_valid(
+            (provider, model) in arb_provider_with_model(),
+            input in 0u64..10_000_000_000,
+            output in 0u64..10_000_000_000,
+            cached in 0u64..10_000_000_000,
+        ) {
+            let cost = calculate_cost_with_cache(provider, model, input, output, cached);
+            prop_assert!(cost >= 0.0, "Negative cached cost: {}", cost);
+            prop_assert!(cost.is_finite(), "Non-finite cached cost: {}", cost);
+
+            let uncached = calculate_cost(provider, model, input, output);
+            // Allow tiny floating-point rounding tolerance (1e-6 relative)
+            let tolerance = uncached.abs() * 1e-9 + 1e-12;
+            prop_assert!(
+                cost <= uncached + tolerance,
+                "Cached cost {} > uncached cost {} (tolerance {}) for {:?}/{}",
+                cost, uncached, tolerance, provider, model
+            );
+        }
+
+        // ── Property 3: Zero tokens = zero cost ──
+        #[test]
+        fn cost_zero_tokens_is_zero(
+            (provider, model) in arb_provider_with_model(),
+        ) {
+            let cost = calculate_cost(provider, model, 0, 0);
+            prop_assert!((cost - 0.0).abs() < f64::EPSILON, "Zero tokens should be free, got {}", cost);
+        }
+
+        // ── Property 4: More input tokens = higher cost (monotonicity) ──
+        #[test]
+        fn cost_monotonically_increases_with_input(
+            (provider, model) in arb_provider_with_model(),
+            input1 in 0u64..5_000_000,
+            delta in 1u64..5_000_000,
+            output in 0u64..10_000_000,
+        ) {
+            let input2 = input1 + delta;
+            let cost1 = calculate_cost(provider, model, input1, output);
+            let cost2 = calculate_cost(provider, model, input2, output);
+            prop_assert!(
+                cost2 >= cost1,
+                "More input tokens should cost >= less: {}({}) vs {}({})",
+                cost1, input1, cost2, input2
+            );
+        }
+
+        // ── Property 5: Native provider is always free ──
+        #[test]
+        fn native_always_free(input in 0u64..u64::MAX, output in 0u64..u64::MAX) {
+            let cost = calculate_cost(ProviderKind::Native, "any-model", input, output);
+            prop_assert!((cost - 0.0).abs() < f64::EPSILON, "Native must be free, got {}", cost);
+        }
+
+        // ── Property 6: format_cost never panics ──
+        #[test]
+        fn format_cost_never_panics(cost in -1000.0f64..1000.0) {
+            let _ = format_cost(cost); // Must not panic
+        }
+
+        // ── Property 7: cache_discount is in [0.0, 1.0] for all providers ──
+        #[test]
+        fn cache_discount_in_range(provider in arb_provider()) {
+            let discount = cache_discount_for_provider(provider);
+            prop_assert!(discount >= 0.0 && discount <= 1.0,
+                "Discount must be in [0,1], got {} for {:?}", discount, provider);
+        }
+
+        // ── Property 8: ModelPricing::calculate is consistent ──
+        #[test]
+        fn pricing_calculate_consistent(
+            input_per_m in 0.0f64..100.0,
+            output_per_m in 0.0f64..100.0,
+            input in 0u64..10_000_000,
+            output in 0u64..10_000_000,
+        ) {
+            let pricing = ModelPricing::new(input_per_m, output_per_m);
+            let cost = pricing.calculate(input, output);
+            prop_assert!(cost >= 0.0, "Cost must be non-negative");
+            prop_assert!(cost.is_finite(), "Cost must be finite");
+        }
+
+        // ── Property 9: hourly cost is non-negative for valid inputs ──
+        #[test]
+        fn hourly_cost_non_negative(
+            duration in 0.0f64..86400.0,
+            rate in 0.0f64..100.0,
+        ) {
+            let cost = calculate_hourly_cost(duration, rate);
+            prop_assert!(cost >= 0.0, "Hourly cost must be non-negative");
+            prop_assert!(cost.is_finite(), "Hourly cost must be finite");
+        }
+    }
+}

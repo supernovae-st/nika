@@ -1628,3 +1628,100 @@ mod tests {
         assert!(dag.has_path("a", "b"));
     }
 }
+
+// ═══════════════════════════════════════════════════════════════
+// Property-based tests (proptest)
+// ═══════════════════════════════════════════════════════════════
+
+#[cfg(test)]
+mod proptest_tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        // ── Property 1: compute_layers never panics on arbitrary graphs ──
+        #[test]
+        fn compute_layers_never_panics(
+            n_nodes in 1usize..50,
+            n_edges in 0usize..100,
+        ) {
+            let nodes: Vec<String> = (0..n_nodes).map(|i| format!("t{}", i)).collect();
+            let node_refs: Vec<&str> = nodes.iter().map(|s| s.as_str()).collect();
+
+            let edges: Vec<(usize, usize)> = (0..n_edges)
+                .map(|i| (i % n_nodes, (i * 7 + 3) % n_nodes))
+                .collect();
+            let edge_refs: Vec<(&str, &str)> = edges
+                .iter()
+                .map(|(a, b)| (node_refs[*a], node_refs[*b]))
+                .collect();
+
+            let _ = compute_layers(&node_refs, &edge_refs); // Must not panic
+        }
+
+        // ── Property 2: Acyclic graph has all nodes assigned a depth ──
+        #[test]
+        fn acyclic_graph_all_nodes_assigned(
+            n_nodes in 2usize..30,
+            seed in 0usize..1000,
+        ) {
+            // Build guaranteed-acyclic graph: edges only go from lower to higher index
+            let nodes: Vec<String> = (0..n_nodes).map(|i| format!("t{}", i)).collect();
+            let node_refs: Vec<&str> = nodes.iter().map(|s| s.as_str()).collect();
+
+            let mut edges = Vec::new();
+            for i in 0..n_nodes {
+                for j in (i + 1)..n_nodes {
+                    if ((i * 31 + j * 17 + seed) % 5) == 0 {
+                        edges.push((node_refs[i], node_refs[j]));
+                    }
+                }
+            }
+
+            let depths = compute_layers(&node_refs, &edges);
+            prop_assert_eq!(depths.len(), n_nodes,
+                "All {} nodes should have a depth, got {}", n_nodes, depths.len());
+        }
+
+        // ── Property 3: Isolated nodes all have depth 0 ──
+        #[test]
+        fn isolated_nodes_have_depth_zero(n_nodes in 1usize..50) {
+            let nodes: Vec<String> = (0..n_nodes).map(|i| format!("t{}", i)).collect();
+            let node_refs: Vec<&str> = nodes.iter().map(|s| s.as_str()).collect();
+
+            let depths = compute_layers(&node_refs, &[]);
+            for (node, depth) in &depths {
+                prop_assert_eq!(*depth, 0, "Isolated node {} should have depth 0", node);
+            }
+        }
+
+        // ── Property 4: layer_count >= 1 for any graph with nodes ──
+        #[test]
+        fn layer_count_at_least_one(n_nodes in 1usize..20) {
+            let nodes: Vec<String> = (0..n_nodes).map(|i| format!("t{}", i)).collect();
+            let node_refs: Vec<&str> = nodes.iter().map(|s| s.as_str()).collect();
+            let depths = compute_layers(&node_refs, &[]);
+            prop_assert!(layer_count(&depths) >= 1);
+        }
+
+        // ── Property 5: Linear chain has depth == (n-1) for last node ──
+        #[test]
+        fn linear_chain_depth_equals_position(n_nodes in 2usize..30) {
+            let nodes: Vec<String> = (0..n_nodes).map(|i| format!("t{}", i)).collect();
+            let node_refs: Vec<&str> = nodes.iter().map(|s| s.as_str()).collect();
+
+            // Chain: t0 -> t1 -> t2 -> ...
+            let edges: Vec<(&str, &str)> = (0..n_nodes - 1)
+                .map(|i| (node_refs[i], node_refs[i + 1]))
+                .collect();
+
+            let depths = compute_layers(&node_refs, &edges);
+            for i in 0..n_nodes {
+                prop_assert_eq!(
+                    depths[node_refs[i]], i,
+                    "Node t{} should be at depth {}", i, i
+                );
+            }
+        }
+    }
+}

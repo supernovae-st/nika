@@ -1583,3 +1583,260 @@ mod tests {
         assert_eq!(result, json!([0.1, 0.9, 1.5, 2.3]));
     }
 }
+
+// ═══════════════════════════════════════════════════════════════
+// Property-based tests (proptest)
+// ═══════════════════════════════════════════════════════════════
+
+#[cfg(test)]
+mod proptest_tests {
+    use super::*;
+    use proptest::prelude::*;
+    use serde_json::{json, Number, Value};
+
+    /// Strategy for arbitrary JSON values (bounded depth)
+    fn arb_json_value() -> impl Strategy<Value = Value> {
+        let leaf = prop_oneof![
+            Just(Value::Null),
+            any::<bool>().prop_map(Value::Bool),
+            any::<i64>().prop_map(|n| Value::Number(n.into())),
+            any::<f64>()
+                .prop_filter("finite", |f| f.is_finite())
+                .prop_map(|f| {
+                    Number::from_f64(f)
+                        .map(Value::Number)
+                        .unwrap_or(Value::Null)
+                }),
+            "\\PC{0,100}".prop_map(Value::String),
+        ];
+        leaf.prop_recursive(
+            3,  // depth
+            64, // max nodes
+            8,  // items per collection
+            |inner| {
+                prop_oneof![
+                    prop::collection::vec(inner.clone(), 0..8).prop_map(Value::Array),
+                    prop::collection::hash_map("\\PC{1,20}", inner, 0..5)
+                        .prop_map(|m| Value::Object(m.into_iter().collect())),
+                ]
+            },
+        )
+    }
+
+    /// All simple (non-parameterized) transform op names
+    fn arb_simple_transform_name() -> impl Strategy<Value = String> {
+        prop_oneof![
+            Just("upper".into()),
+            Just("lower".into()),
+            Just("trim".into()),
+            Just("trim_start".into()),
+            Just("trim_end".into()),
+            Just("length".into()),
+            Just("first".into()),
+            Just("last".into()),
+            Just("keys".into()),
+            Just("values".into()),
+            Just("flatten".into()),
+            Just("reverse".into()),
+            Just("sort".into()),
+            Just("unique".into()),
+            Just("compact".into()),
+            Just("to_string".into()),
+            Just("to_number".into()),
+            Just("to_bool".into()),
+            Just("to_json".into()),
+            Just("parse_json".into()),
+            Just("round".into()),
+            Just("abs".into()),
+            Just("ceil".into()),
+            Just("floor".into()),
+            Just("type_of".into()),
+            Just("shell".into()),
+        ]
+    }
+
+    /// Parameterized transform names
+    fn arb_param_transform_name() -> impl Strategy<Value = String> {
+        prop_oneof![
+            (0usize..100).prop_map(|n| format!("first({})", n)),
+            (0usize..100).prop_map(|n| format!("last({})", n)),
+            (0u32..10).prop_map(|n| format!("round({})", n)),
+            "\\PC{0,20}".prop_map(|s| format!("join('{}')", s.replace('\'', ""))),
+            "\\PC{0,20}".prop_map(|s| format!("split('{}')", s.replace('\'', ""))),
+            "\\PC{0,20}".prop_map(|s| format!("default('{}')", s.replace('\'', ""))),
+        ]
+    }
+
+    proptest! {
+        // ── Property 1: No transform panics on any JSON value ──
+        #[test]
+        fn transform_never_panics(
+            value in arb_json_value(),
+            op_name in prop_oneof![arb_simple_transform_name(), arb_param_transform_name()]
+        ) {
+            if let Ok(expr) = TransformExpr::parse(&op_name) {
+                let _ = expr.apply(&value); // MUST NOT panic — Err is fine
+            }
+        }
+
+        // ── Property 2: Null input on failing transforms returns NullInput error ──
+        #[test]
+        fn null_on_failing_transform_returns_error(
+            op_name in prop_oneof![
+                Just("upper".to_string()), Just("lower".to_string()),
+                Just("trim".to_string()), Just("trim_start".to_string()),
+                Just("trim_end".to_string()), Just("first".to_string()),
+                Just("last".to_string()), Just("values".to_string()),
+                Just("flatten".to_string()), Just("reverse".to_string()),
+                Just("sort".to_string()), Just("unique".to_string()),
+                Just("compact".to_string()), Just("to_number".to_string()),
+                Just("to_bool".to_string()), Just("parse_json".to_string()),
+                Just("round".to_string()), Just("abs".to_string()),
+                Just("ceil".to_string()), Just("floor".to_string()),
+                Just("join(',')".to_string()), Just("split(',')".to_string()),
+            ]
+        ) {
+            let expr = TransformExpr::parse(&op_name).unwrap();
+            let result = expr.apply(&Value::Null);
+            prop_assert!(result.is_err(), "Expected error for {} on null, got {:?}", op_name, result);
+            match result {
+                Err(TransformError::NullInput { .. }) => {} // Expected
+                other => prop_assert!(false, "Expected NullInput for {}, got {:?}", op_name, other),
+            }
+        }
+
+        // ── Property 3: Propagating transforms on null return ok ──
+        #[test]
+        fn null_on_propagating_transform_returns_ok(
+            op_name in prop_oneof![
+                Just("length".to_string()), Just("keys".to_string()),
+                Just("to_string".to_string()), Just("to_json".to_string()),
+                Just("type_of".to_string()),
+            ]
+        ) {
+            let expr = TransformExpr::parse(&op_name).unwrap();
+            let result = expr.apply(&Value::Null);
+            prop_assert!(result.is_ok(), "Expected ok for {} on null, got {:?}", op_name, result);
+        }
+
+        // ── Property 4: default() always returns non-null ──
+        #[test]
+        fn default_on_null_returns_non_null(
+            default_val in "[a-zA-Z0-9 ]{0,30}"
+        ) {
+            let expr_str = format!("default('{}')", default_val);
+            if let Ok(expr) = TransformExpr::parse(&expr_str) {
+                let result = expr.apply(&Value::Null);
+                prop_assert!(result.is_ok(), "default should always succeed");
+                prop_assert!(!result.unwrap().is_null(), "default on null must not return null");
+            }
+        }
+
+        // ── Property 5: shell escape always wraps in single quotes ──
+        #[test]
+        fn shell_escape_always_single_quoted(input in "\\PC{0,100}") {
+            let expr = TransformExpr::parse("shell").unwrap();
+            let result = expr.apply(&Value::String(input)).unwrap();
+            if let Value::String(s) = result {
+                prop_assert!(s.starts_with('\''), "shell escape must start with '");
+                prop_assert!(s.ends_with('\''), "shell escape must end with '");
+            } else {
+                prop_assert!(false, "shell should return a string");
+            }
+        }
+
+        // ── Property 6: sort is idempotent ──
+        #[test]
+        fn sort_is_idempotent(items in prop::collection::vec(any::<i64>(), 0..20)) {
+            let arr = Value::Array(items.iter().map(|n| json!(n)).collect());
+            let expr = TransformExpr::parse("sort").unwrap();
+            let once = expr.apply(&arr).unwrap();
+            let twice = expr.apply(&once).unwrap();
+            prop_assert_eq!(once, twice);
+        }
+
+        // ── Property 7: unique is idempotent ──
+        #[test]
+        fn unique_is_idempotent(items in prop::collection::vec(0i64..10, 0..20)) {
+            let arr = Value::Array(items.iter().map(|n| json!(n)).collect());
+            let expr = TransformExpr::parse("unique").unwrap();
+            let once = expr.apply(&arr).unwrap();
+            let twice = expr.apply(&once).unwrap();
+            prop_assert_eq!(once, twice);
+        }
+
+        // ── Property 8: reverse is involution (f(f(x)) == x) ──
+        #[test]
+        fn reverse_is_involution(items in prop::collection::vec(any::<i64>(), 0..20)) {
+            let arr = Value::Array(items.iter().map(|n| json!(n)).collect());
+            let expr = TransformExpr::parse("reverse").unwrap();
+            let once = expr.apply(&arr).unwrap();
+            let twice = expr.apply(&once).unwrap();
+            prop_assert_eq!(arr, twice);
+        }
+
+        // ── Property 9: compact removes all nulls and empty strings ──
+        #[test]
+        fn compact_no_nulls_or_empty(items in prop::collection::vec(
+            prop_oneof![
+                Just(Value::Null),
+                any::<i64>().prop_map(|n| json!(n)),
+                Just(json!("hello")),
+                Just(json!("")),
+            ],
+            0..20
+        )) {
+            let arr = Value::Array(items);
+            let result = TransformExpr::parse("compact").unwrap().apply(&arr).unwrap();
+            if let Value::Array(ref compacted) = result {
+                for v in compacted {
+                    prop_assert!(!v.is_null(), "compact must remove nulls");
+                    prop_assert!(v != &json!(""), "compact must remove empty strings");
+                }
+            }
+        }
+
+        // ── Property 10: to_json then parse_json roundtrip for integers ──
+        #[test]
+        fn to_json_parse_json_roundtrip(n in any::<i64>()) {
+            let val = json!(n);
+            let as_json = TransformExpr::parse("to_json").unwrap().apply(&val).unwrap();
+            let back = TransformExpr::parse("parse_json").unwrap().apply(&as_json).unwrap();
+            prop_assert_eq!(val, back);
+        }
+
+        // ── Property 11: parse never panics on arbitrary strings ──
+        #[test]
+        fn transform_parse_no_panic(input in "\\PC{0,200}") {
+            let _ = TransformExpr::parse(&input); // Must not panic
+        }
+
+        // ── Property 12: pipe chain parse never panics ──
+        #[test]
+        fn pipe_chain_parse_no_panic(
+            ops in prop::collection::vec(arb_simple_transform_name(), 1..10)
+        ) {
+            let chain = ops.join(" | ");
+            let _ = TransformExpr::parse(&chain); // Must not panic
+        }
+
+        // ── Property 13: flatten total == sum of inner lengths ──
+        #[test]
+        fn flatten_total_equals_sum_of_inner(
+            items in prop::collection::vec(
+                prop::collection::vec(any::<i64>(), 0..5)
+                    .prop_map(|v| Value::Array(v.into_iter().map(|n| json!(n)).collect())),
+                0..10,
+            )
+        ) {
+            let expected_len: usize = items.iter().map(|v| {
+                if let Value::Array(a) = v { a.len() } else { 0 }
+            }).sum();
+            let arr = Value::Array(items);
+            let flat = TransformExpr::parse("flatten").unwrap().apply(&arr).unwrap();
+            if let Value::Array(ref f) = flat {
+                prop_assert_eq!(f.len(), expected_len, "flatten total must equal sum of inner lengths");
+            }
+        }
+    }
+}
