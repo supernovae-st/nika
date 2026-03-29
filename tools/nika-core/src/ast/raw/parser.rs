@@ -1397,6 +1397,15 @@ pub fn parse(source: &str, file_id: FileId) -> Result<RawWorkflow, ParseError> {
     // Parse workflow-level skills mapping (alias -> path)
     workflow.skills = parse_string_map(file_id, map, "skills")?;
 
+    // Parse orchestrate configuration (goal-driven agent loop)
+    workflow.orchestrate = match map.get_node("orchestrate") {
+        Some(node) => {
+            let span = node_to_span(file_id, node);
+            Some(Spanned::new(node_to_json(node), span))
+        }
+        None => None,
+    };
+
     // Parse routing configuration (fallback chains, smart routing)
     workflow.routing = match map.get_node("routing") {
         Some(node) => {
@@ -1427,6 +1436,7 @@ pub fn parse(source: &str, file_id: FileId) -> Result<RawWorkflow, ParseError> {
         "log",
         "agents",
         "skills",
+        "orchestrate",
         "routing",
         "tasks",
     ];
@@ -3730,6 +3740,42 @@ tasks:
         assert!(result.is_ok(), "Parse failed: {:?}", result.err());
         let workflow = result.unwrap();
         assert!(workflow.goal.is_none());
+    }
+
+    #[test]
+    fn test_parse_orchestrate_config() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+goal: "Research AI"
+orchestrate:
+  max_rounds: 20
+  confidence_target: 0.95
+  agent: researcher
+  max_cost_usd: 5.0
+tasks:
+  - id: step1
+    infer: "test"
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_ok(), "Parse failed: {:?}", result.err());
+        let workflow = result.unwrap();
+        assert!(workflow.orchestrate.is_some());
+    }
+
+    #[test]
+    fn test_parse_orchestrate_empty_config() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+goal: "Build something"
+orchestrate: {}
+tasks:
+  - id: step1
+    exec: "echo hello"
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_ok(), "Parse failed: {:?}", result.err());
+        let workflow = result.unwrap();
+        assert!(workflow.orchestrate.is_some());
     }
 
     #[test]

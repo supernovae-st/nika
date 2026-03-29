@@ -72,6 +72,9 @@ pub struct RawWorkflow {
     /// file paths (local or `pkg:` URIs) for prompt augmentation.
     pub skills: Option<Spanned<indexmap::IndexMap<Spanned<String>, Spanned<String>>>>,
 
+    /// Orchestrate configuration (goal-driven agent loop).
+    pub orchestrate: Option<Spanned<serde_json::Value>>,
+
     /// Routing configuration (fallback chains, smart routing).
     pub routing: Option<Spanned<serde_json::Value>>,
 

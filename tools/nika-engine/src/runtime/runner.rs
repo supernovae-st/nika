@@ -2727,6 +2727,7 @@ mod tests {
             log: None,
             agents: None,
             skills_map: std::collections::HashMap::new(),
+            orchestrate: None,
             routing: None,
             span: Span::dummy(),
         }
@@ -2871,6 +2872,7 @@ mod tests {
             log: None,
             agents: None,
             skills_map: std::collections::HashMap::new(),
+            orchestrate: None,
             routing: None,
             span: Span::dummy(),
         }
@@ -3024,6 +3026,7 @@ mod tests {
             log: None,
             agents: None,
             skills_map: std::collections::HashMap::new(),
+            orchestrate: None,
             routing: None,
             span: Span::dummy(),
         }
@@ -3774,6 +3777,7 @@ mod tests {
             log: None,
             agents: None,
             skills_map: std::collections::HashMap::new(),
+            orchestrate: None,
             routing: None,
             span: Span::dummy(),
         }
@@ -5939,6 +5943,7 @@ mod tests {
             log: None,
             agents: None,
             skills_map: std::collections::HashMap::new(),
+            orchestrate: None,
             routing: None,
             span: Span::dummy(),
         }
@@ -6236,6 +6241,7 @@ mod tests {
             log: None,
             agents: None,
             skills_map: std::collections::HashMap::new(),
+            orchestrate: None,
             routing: None,
             span: Span::dummy(),
         };
@@ -6449,6 +6455,7 @@ mod tests {
             log: None,
             agents: None,
             skills_map: std::collections::HashMap::new(),
+            orchestrate: None,
             routing: None,
             span: Span::dummy(),
         };
@@ -6561,6 +6568,7 @@ mod tests {
             log: None,
             agents: None,
             skills_map: std::collections::HashMap::new(),
+            orchestrate: None,
             routing: None,
             span: Span::dummy(),
         };
@@ -6678,6 +6686,7 @@ mod tests {
             log: None,
             agents: Some(agents),
             skills_map: std::collections::HashMap::new(),
+            orchestrate: None,
             routing: None,
             span: Span::dummy(),
         }
@@ -6904,6 +6913,7 @@ mod tests {
             log: None,
             agents: Some(agents),
             skills_map: std::collections::HashMap::new(),
+            orchestrate: None,
             routing: None,
             span: Span::dummy(),
         };
@@ -7026,6 +7036,7 @@ mod tests {
             artifacts: None,
             log: None,
             include: vec![],
+            orchestrate: None,
             routing: None,
             span: Span::dummy(),
         };
