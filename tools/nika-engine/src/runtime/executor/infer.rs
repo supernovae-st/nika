@@ -602,17 +602,31 @@ impl TaskExecutor {
                                                 + stream_result.output_tokens,
                                         );
                                         // BUGFIX SF2: Emit ProviderResponded before early return
+                                        let cost = provider
+                                            .cost_provider_kind()
+                                            .map(|pk| {
+                                                crate::provider::cost::calculate_cost_with_cache(
+                                                    pk,
+                                                    model.unwrap_or_else(|| provider.default_model()),
+                                                    stream_result.input_tokens,
+                                                    stream_result.output_tokens,
+                                                    stream_result.cached_input_tokens,
+                                                )
+                                            })
+                                            .unwrap_or(0.0);
                                         self.event_log.emit(EventKind::ProviderResponded {
                                             task_id: Arc::clone(task_id),
-                                            request_id: None,
+                                            request_id: stream_result.request_id.clone(),
                                             input_tokens: stream_result.input_tokens,
                                             output_tokens: stream_result.output_tokens,
                                             cache_read_tokens: stream_result.cached_input_tokens,
                                             ttft_ms: stream_result.ttft_ms,
-                                            finish_reason: nika_event::FinishReason::Other(
-                                                "layer0a_no_spec".to_string(),
-                                            ),
-                                            cost_usd: 0.0,
+                                            finish_reason: nika_event::FinishReason::Stop,
+                                            cost_usd: if cost.is_finite() {
+                                                cost
+                                            } else {
+                                                0.0
+                                            },
                                         });
                                         return Ok(stream_result.text);
                                     }
