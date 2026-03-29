@@ -62,6 +62,35 @@ LES 5 COUCHES STRUCTURED OUTPUT doivent TOUTES etre testees:
 
   Pour Groq et Native: PAS de Layer 0 natif → Layers 2-4 CRITIQUES
   Tester specifiquement: schema complexe + Groq → verify repair chain
+
+REGLE ABSOLUE STRUCTURED OUTPUT:
+  Le prompt utilisateur ne doit JAMAIS mentionner le format JSON ou le schema.
+  Le systeme de 5 layers s'en charge AUTOMATIQUEMENT.
+
+  INTERDIT dans le prompt:
+  ❌ "Reponds en JSON"
+  ❌ "Le format attendu est: {name: string, age: number}"
+  ❌ "Return a JSON object with fields..."
+  ❌ "Output format: JSON"
+
+  CORRECT — le prompt est NATUREL, le schema est dans structured::
+  ✅ prompt: "Decris Alice, 30 ans, developpeuse Rust"
+     structured:
+       schema:
+         type: object
+         properties:
+           name: { type: string }
+           age: { type: number }
+           skills: { type: array, items: { type: string } }
+         required: [name, age, skills]
+
+  C'est Layer 0 (tool injection) qui injecte le schema AUTOMATIQUEMENT.
+  Si Layer 0 echoue → Layer 2 extrait le JSON → Layer 3 retry → Layer 4 repair.
+  L'utilisateur ecrit un prompt NATUREL. Le systeme fait le reste.
+
+  TESTER: prompt naturel + schema complexe sur CHAQUE provider.
+  Si un provider ne produit pas du JSON valide → c'est un BUG ENGINE a fixer.
+  Si le test met le schema dans le prompt → c'est un BUG TEST a fixer.
 ```
 
 # 4 WAVES (15h total — donnees verifiees par 31 agents)
@@ -451,26 +480,76 @@ Si un workflow ECHOUE:
 5. Re-executer le workflow pour confirmer
 6. Commit: `fix(provider): <provider> structured output <layer> fix`
 
-Schema de test (meme pour tous les providers):
+Schema de test (MEME workflow pour TOUS les providers):
 ```yaml
-structured:
-  schema:
-    type: object
-    properties:
-      name: { type: string }
-      age: { type: number, minimum: 0, maximum: 150 }
-      skills: { type: array, items: { type: string }, minItems: 1 }
-      active: { type: boolean }
-    required: [name, age, skills, active]
-  enable_repair: true
-  max_retries: 3
+schema: "nika/workflow@0.12"
+provider: anthropic          # changer par provider
+model: claude-haiku-4-5     # changer par model
+
+tasks:
+  - id: extract_person
+    # PROMPT NATUREL — JAMAIS mentionner JSON ou le schema!
+    infer: "Decris une developpeuse nommee Alice, 30 ans, qui code en Rust et Python"
+    structured:
+      schema:
+        type: object
+        properties:
+          name: { type: string }
+          age: { type: number, minimum: 0, maximum: 150 }
+          skills: { type: array, items: { type: string }, minItems: 1 }
+          active: { type: boolean }
+        required: [name, age, skills, active]
+      enable_repair: true
+      max_retries: 3
+
+  - id: extract_nested
+    # Schema COMPLEXE avec nested objects + enums
+    infer: "Invente un produit technologique innovant avec son prix et sa categorie"
+    structured:
+      schema:
+        type: object
+        properties:
+          product:
+            type: object
+            properties:
+              name: { type: string }
+              price: { type: number, minimum: 0 }
+              currency: { type: string, enum: ["USD", "EUR", "GBP"] }
+            required: [name, price, currency]
+          category: { type: string, enum: ["hardware", "software", "service"] }
+          tags: { type: array, items: { type: string }, minItems: 2 }
+          available: { type: boolean }
+        required: [product, category, tags, available]
+      enable_repair: true
+      max_retries: 3
+
+  - id: verify
+    depends_on: [extract_person, extract_nested]
+    with:
+      person: $extract_person
+      product: $extract_nested
+    infer: "Verify the data: person={{with.person}}, product={{with.product}}"
 ```
 
 Le test DOIT verifier:
 - Le JSON est valide (parseable)
 - Le JSON match le schema (tous les required presents)
 - Les types sont corrects (name=string, age=number, etc.)
-- Pas de champ supplementaire non-declare
+- Le prompt NE MENTIONNE PAS le format JSON (c'est automatique)
+- Nested objects sont correctement structures
+- Enums sont respectes (currency=USD|EUR|GBP)
+
+EXECUTER ce workflow pour CHAQUE provider:
+```bash
+nika run test-structured.nika.yaml                              # anthropic (default)
+nika run test-structured.nika.yaml --provider openai --model gpt-4.1-mini
+nika run test-structured.nika.yaml --provider gemini --model gemini-2.5-flash
+nika run test-structured.nika.yaml --provider groq --model llama-3.3-70b-versatile
+nika run test-structured.nika.yaml --provider mistral --model mistral-small-latest
+nika run test-structured.nika.yaml --provider deepseek --model deepseek-chat
+nika run test-structured.nika.yaml --provider xai --model grok-3
+```
+Si UN SEUL echoue → debugger → fixer le code engine → re-tester.
 
 ### 2D — Complex pipeline tests: EXECUTE REAL WORKFLOWS (1h)
 
