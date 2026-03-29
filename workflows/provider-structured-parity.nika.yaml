@@ -1,0 +1,679 @@
+schema: "nika/workflow@0.12"
+workflow: provider-structured-parity
+description: |
+  Cross-provider structured output parity test.
+  Runs the SAME natural prompt on all 7 cloud providers with an identical
+  complex JSON schema, then verifies that every output shares the same
+  structure, types, and enum constraints.
+
+  Schema: person with nested location (city/country/timezone), array of
+  skills (name, level enum, years number), years_experience, remote bool,
+  and status enum.
+
+  NOTE: marked-yaml (the Nika parser) does not support YAML anchors (&/*)
+  at all — any anchor definition triggers NIKA-160. The schema is therefore
+  repeated verbatim for each provider task. This is intentional and correct.
+
+  Run with all API keys:
+    ANTHROPIC_API_KEY=... OPENAI_API_KEY=... GEMINI_API_KEY=... \
+    GROQ_API_KEY=... MISTRAL_API_KEY=... DEEPSEEK_API_KEY=... \
+    XAI_API_KEY=... nika run provider-structured-parity.nika.yaml
+
+  Mock run (no API calls needed):
+    nika run provider-structured-parity.nika.yaml --provider mock
+
+# Workflow-level fallback — each task overrides provider individually.
+# Setting mock here allows `--provider mock` to override everything at once.
+provider: mock
+model: gpt-4.1-mini
+
+tasks:
+  # ==========================================================================
+  # Phase 1 — 7 provider tasks run in parallel (no depends_on between them).
+  # The SAME natural prompt on each provider. Schema validated + auto-repaired.
+  # Prompt is pure natural language — the 5-layer system injects the schema.
+  # ==========================================================================
+
+  - id: anthropic_test
+    description: "Anthropic / Claude Haiku 4.5"
+    provider: anthropic
+    model: claude-haiku-4-5
+    infer: "Tell me about Kai, a software engineer who lives in Tokyo and works remotely"
+    structured:
+      schema:
+        type: object
+        properties:
+          name:
+            type: string
+          location:
+            type: object
+            properties:
+              city: { type: string }
+              country: { type: string }
+              timezone: { type: string }
+            required: [city, country, timezone]
+          skills:
+            type: array
+            items:
+              type: object
+              properties:
+                name: { type: string }
+                level:
+                  type: string
+                  enum: [beginner, intermediate, expert]
+                years:
+                  type: number
+                  minimum: 0
+                  maximum: 40
+              required: [name, level, years]
+            minItems: 3
+          years_experience:
+            type: number
+            minimum: 0
+            maximum: 50
+          remote: { type: boolean }
+          status:
+            type: string
+            enum: [employed, freelance, open_to_work]
+        required: [name, location, skills, years_experience, remote, status]
+      enable_repair: true
+      max_retries: 3
+
+  - id: openai_test
+    description: "OpenAI / GPT-4.1-mini"
+    provider: openai
+    model: gpt-4.1-mini
+    infer: "Tell me about Kai, a software engineer who lives in Tokyo and works remotely"
+    structured:
+      schema:
+        type: object
+        properties:
+          name:
+            type: string
+          location:
+            type: object
+            properties:
+              city: { type: string }
+              country: { type: string }
+              timezone: { type: string }
+            required: [city, country, timezone]
+          skills:
+            type: array
+            items:
+              type: object
+              properties:
+                name: { type: string }
+                level:
+                  type: string
+                  enum: [beginner, intermediate, expert]
+                years:
+                  type: number
+                  minimum: 0
+                  maximum: 40
+              required: [name, level, years]
+            minItems: 3
+          years_experience:
+            type: number
+            minimum: 0
+            maximum: 50
+          remote: { type: boolean }
+          status:
+            type: string
+            enum: [employed, freelance, open_to_work]
+        required: [name, location, skills, years_experience, remote, status]
+      enable_repair: true
+      max_retries: 3
+
+  - id: gemini_test
+    description: "Google / Gemini 2.5 Flash"
+    provider: gemini
+    model: gemini-2.5-flash
+    infer: "Tell me about Kai, a software engineer who lives in Tokyo and works remotely"
+    structured:
+      schema:
+        type: object
+        properties:
+          name:
+            type: string
+          location:
+            type: object
+            properties:
+              city: { type: string }
+              country: { type: string }
+              timezone: { type: string }
+            required: [city, country, timezone]
+          skills:
+            type: array
+            items:
+              type: object
+              properties:
+                name: { type: string }
+                level:
+                  type: string
+                  enum: [beginner, intermediate, expert]
+                years:
+                  type: number
+                  minimum: 0
+                  maximum: 40
+              required: [name, level, years]
+            minItems: 3
+          years_experience:
+            type: number
+            minimum: 0
+            maximum: 50
+          remote: { type: boolean }
+          status:
+            type: string
+            enum: [employed, freelance, open_to_work]
+        required: [name, location, skills, years_experience, remote, status]
+      enable_repair: true
+      max_retries: 3
+
+  - id: groq_test
+    description: "Groq / LLaMA 3.3 70B Versatile"
+    provider: groq
+    model: llama-3.3-70b-versatile
+    infer: "Tell me about Kai, a software engineer who lives in Tokyo and works remotely"
+    structured:
+      schema:
+        type: object
+        properties:
+          name:
+            type: string
+          location:
+            type: object
+            properties:
+              city: { type: string }
+              country: { type: string }
+              timezone: { type: string }
+            required: [city, country, timezone]
+          skills:
+            type: array
+            items:
+              type: object
+              properties:
+                name: { type: string }
+                level:
+                  type: string
+                  enum: [beginner, intermediate, expert]
+                years:
+                  type: number
+                  minimum: 0
+                  maximum: 40
+              required: [name, level, years]
+            minItems: 3
+          years_experience:
+            type: number
+            minimum: 0
+            maximum: 50
+          remote: { type: boolean }
+          status:
+            type: string
+            enum: [employed, freelance, open_to_work]
+        required: [name, location, skills, years_experience, remote, status]
+      enable_repair: true
+      max_retries: 3
+
+  - id: mistral_test
+    description: "Mistral / Mistral Large Latest"
+    provider: mistral
+    model: mistral-large-latest
+    infer: "Tell me about Kai, a software engineer who lives in Tokyo and works remotely"
+    structured:
+      schema:
+        type: object
+        properties:
+          name:
+            type: string
+          location:
+            type: object
+            properties:
+              city: { type: string }
+              country: { type: string }
+              timezone: { type: string }
+            required: [city, country, timezone]
+          skills:
+            type: array
+            items:
+              type: object
+              properties:
+                name: { type: string }
+                level:
+                  type: string
+                  enum: [beginner, intermediate, expert]
+                years:
+                  type: number
+                  minimum: 0
+                  maximum: 40
+              required: [name, level, years]
+            minItems: 3
+          years_experience:
+            type: number
+            minimum: 0
+            maximum: 50
+          remote: { type: boolean }
+          status:
+            type: string
+            enum: [employed, freelance, open_to_work]
+        required: [name, location, skills, years_experience, remote, status]
+      enable_repair: true
+      max_retries: 3
+
+  - id: deepseek_test
+    description: "DeepSeek / DeepSeek Chat"
+    provider: deepseek
+    model: deepseek-chat
+    infer: "Tell me about Kai, a software engineer who lives in Tokyo and works remotely"
+    structured:
+      schema:
+        type: object
+        properties:
+          name:
+            type: string
+          location:
+            type: object
+            properties:
+              city: { type: string }
+              country: { type: string }
+              timezone: { type: string }
+            required: [city, country, timezone]
+          skills:
+            type: array
+            items:
+              type: object
+              properties:
+                name: { type: string }
+                level:
+                  type: string
+                  enum: [beginner, intermediate, expert]
+                years:
+                  type: number
+                  minimum: 0
+                  maximum: 40
+              required: [name, level, years]
+            minItems: 3
+          years_experience:
+            type: number
+            minimum: 0
+            maximum: 50
+          remote: { type: boolean }
+          status:
+            type: string
+            enum: [employed, freelance, open_to_work]
+        required: [name, location, skills, years_experience, remote, status]
+      enable_repair: true
+      max_retries: 3
+
+  - id: xai_test
+    description: "xAI / Grok 3"
+    provider: xai
+    model: grok-3
+    infer: "Tell me about Kai, a software engineer who lives in Tokyo and works remotely"
+    structured:
+      schema:
+        type: object
+        properties:
+          name:
+            type: string
+          location:
+            type: object
+            properties:
+              city: { type: string }
+              country: { type: string }
+              timezone: { type: string }
+            required: [city, country, timezone]
+          skills:
+            type: array
+            items:
+              type: object
+              properties:
+                name: { type: string }
+                level:
+                  type: string
+                  enum: [beginner, intermediate, expert]
+                years:
+                  type: number
+                  minimum: 0
+                  maximum: 40
+              required: [name, level, years]
+            minItems: 3
+          years_experience:
+            type: number
+            minimum: 0
+            maximum: 50
+          remote: { type: boolean }
+          status:
+            type: string
+            enum: [employed, freelance, open_to_work]
+        required: [name, location, skills, years_experience, remote, status]
+      enable_repair: true
+      max_retries: 3
+
+  # ==========================================================================
+  # Phase 2 — Field extraction.
+  # Deep-path bindings on all 7 outputs. If any binding fails here it means
+  # that provider returned a structurally wrong object despite structured:.
+  # This runs after Phase 1 completes (all 7 tasks must finish first).
+  # ==========================================================================
+
+  - id: extract_fields
+    description: "Deep-path field access on all 7 outputs — binding smoke test"
+    depends_on:
+      - anthropic_test
+      - openai_test
+      - gemini_test
+      - groq_test
+      - mistral_test
+      - deepseek_test
+      - xai_test
+    with:
+      # name (string)
+      name_anthropic: $anthropic_test.name
+      name_openai:    $openai_test.name
+      name_gemini:    $gemini_test.name
+      name_groq:      $groq_test.name
+      name_mistral:   $mistral_test.name
+      name_deepseek:  $deepseek_test.name
+      name_xai:       $xai_test.name
+
+      # location.city (nested string)
+      city_anthropic: $anthropic_test.location.city
+      city_openai:    $openai_test.location.city
+      city_gemini:    $gemini_test.location.city
+      city_groq:      $groq_test.location.city
+      city_mistral:   $mistral_test.location.city
+      city_deepseek:  $deepseek_test.location.city
+      city_xai:       $xai_test.location.city
+
+      # years_experience (number)
+      exp_anthropic: $anthropic_test.years_experience
+      exp_openai:    $openai_test.years_experience
+      exp_gemini:    $gemini_test.years_experience
+      exp_groq:      $groq_test.years_experience
+      exp_mistral:   $mistral_test.years_experience
+      exp_deepseek:  $deepseek_test.years_experience
+      exp_xai:       $xai_test.years_experience
+
+      # remote (boolean)
+      remote_anthropic: $anthropic_test.remote
+      remote_openai:    $openai_test.remote
+      remote_gemini:    $gemini_test.remote
+      remote_groq:      $groq_test.remote
+      remote_mistral:   $mistral_test.remote
+      remote_deepseek:  $deepseek_test.remote
+      remote_xai:       $xai_test.remote
+
+      # status (enum)
+      status_anthropic: $anthropic_test.status
+      status_openai:    $openai_test.status
+      status_gemini:    $gemini_test.status
+      status_groq:      $groq_test.status
+      status_mistral:   $mistral_test.status
+      status_deepseek:  $deepseek_test.status
+      status_xai:       $xai_test.status
+
+      # skills[0].name — first array item field
+      skill0_anthropic: $anthropic_test.skills[0].name
+      skill0_openai:    $openai_test.skills[0].name
+      skill0_gemini:    $gemini_test.skills[0].name
+      skill0_groq:      $groq_test.skills[0].name
+      skill0_mistral:   $mistral_test.skills[0].name
+      skill0_deepseek:  $deepseek_test.skills[0].name
+      skill0_xai:       $xai_test.skills[0].name
+
+      # skills[0].level — first skill enum value
+      level0_anthropic: $anthropic_test.skills[0].level
+      level0_openai:    $openai_test.skills[0].level
+      level0_gemini:    $gemini_test.skills[0].level
+      level0_groq:      $groq_test.skills[0].level
+      level0_mistral:   $mistral_test.skills[0].level
+      level0_deepseek:  $deepseek_test.skills[0].level
+      level0_xai:       $xai_test.skills[0].level
+    exec:
+      shell: true
+      command: |
+        echo "=== FIELD EXTRACTION REPORT ==="
+        echo ""
+        echo "--- name (string) ---"
+        echo "  anthropic : {{with.name_anthropic}}"
+        echo "  openai    : {{with.name_openai}}"
+        echo "  gemini    : {{with.name_gemini}}"
+        echo "  groq      : {{with.name_groq}}"
+        echo "  mistral   : {{with.name_mistral}}"
+        echo "  deepseek  : {{with.name_deepseek}}"
+        echo "  xai       : {{with.name_xai}}"
+        echo ""
+        echo "--- location.city (nested object field) ---"
+        echo "  anthropic : {{with.city_anthropic}}"
+        echo "  openai    : {{with.city_openai}}"
+        echo "  gemini    : {{with.city_gemini}}"
+        echo "  groq      : {{with.city_groq}}"
+        echo "  mistral   : {{with.city_mistral}}"
+        echo "  deepseek  : {{with.city_deepseek}}"
+        echo "  xai       : {{with.city_xai}}"
+        echo ""
+        echo "--- years_experience (number) ---"
+        echo "  anthropic : {{with.exp_anthropic}}"
+        echo "  openai    : {{with.exp_openai}}"
+        echo "  gemini    : {{with.exp_gemini}}"
+        echo "  groq      : {{with.exp_groq}}"
+        echo "  mistral   : {{with.exp_mistral}}"
+        echo "  deepseek  : {{with.exp_deepseek}}"
+        echo "  xai       : {{with.exp_xai}}"
+        echo ""
+        echo "--- remote (boolean) ---"
+        echo "  anthropic : {{with.remote_anthropic}}"
+        echo "  openai    : {{with.remote_openai}}"
+        echo "  gemini    : {{with.remote_gemini}}"
+        echo "  groq      : {{with.remote_groq}}"
+        echo "  mistral   : {{with.remote_mistral}}"
+        echo "  deepseek  : {{with.remote_deepseek}}"
+        echo "  xai       : {{with.remote_xai}}"
+        echo ""
+        echo "--- status (enum: employed/freelance/open_to_work) ---"
+        echo "  anthropic : {{with.status_anthropic}}"
+        echo "  openai    : {{with.status_openai}}"
+        echo "  gemini    : {{with.status_gemini}}"
+        echo "  groq      : {{with.status_groq}}"
+        echo "  mistral   : {{with.status_mistral}}"
+        echo "  deepseek  : {{with.status_deepseek}}"
+        echo "  xai       : {{with.status_xai}}"
+        echo ""
+        echo "--- skills[0].name (array item string) ---"
+        echo "  anthropic : {{with.skill0_anthropic}}"
+        echo "  openai    : {{with.skill0_openai}}"
+        echo "  gemini    : {{with.skill0_gemini}}"
+        echo "  groq      : {{with.skill0_groq}}"
+        echo "  mistral   : {{with.skill0_mistral}}"
+        echo "  deepseek  : {{with.skill0_deepseek}}"
+        echo "  xai       : {{with.skill0_xai}}"
+        echo ""
+        echo "--- skills[0].level (enum: beginner/intermediate/expert) ---"
+        echo "  anthropic : {{with.level0_anthropic}}"
+        echo "  openai    : {{with.level0_openai}}"
+        echo "  gemini    : {{with.level0_gemini}}"
+        echo "  groq      : {{with.level0_groq}}"
+        echo "  mistral   : {{with.level0_mistral}}"
+        echo "  deepseek  : {{with.level0_deepseek}}"
+        echo "  xai       : {{with.level0_xai}}"
+
+  # ==========================================================================
+  # Phase 3 — Skills count check.
+  # Uses the `length` transform to confirm minItems: 3 is respected.
+  # ==========================================================================
+
+  - id: skills_count
+    description: "Verify all providers returned >= 3 skills (minItems constraint)"
+    depends_on:
+      - anthropic_test
+      - openai_test
+      - gemini_test
+      - groq_test
+      - mistral_test
+      - deepseek_test
+      - xai_test
+    with:
+      skills_anthropic: $anthropic_test.skills
+      skills_openai:    $openai_test.skills
+      skills_gemini:    $gemini_test.skills
+      skills_groq:      $groq_test.skills
+      skills_mistral:   $mistral_test.skills
+      skills_deepseek:  $deepseek_test.skills
+      skills_xai:       $xai_test.skills
+    exec:
+      shell: true
+      command: |
+        echo "=== SKILLS COUNT (all must be >= 3) ==="
+        echo "  anthropic : {{with.skills_anthropic | length}}"
+        echo "  openai    : {{with.skills_openai    | length}}"
+        echo "  gemini    : {{with.skills_gemini    | length}}"
+        echo "  groq      : {{with.skills_groq      | length}}"
+        echo "  mistral   : {{with.skills_mistral   | length}}"
+        echo "  deepseek  : {{with.skills_deepseek  | length}}"
+        echo "  xai       : {{with.skills_xai       | length}}"
+
+  # ==========================================================================
+  # Phase 4 — LLM judge.
+  # A cheap model receives all 7 raw outputs and produces a structured verdict
+  # for every provider: PASS/FAIL, violations list, missing fields, type errors,
+  # enum violations. A final overall_parity enum summarises the run.
+  # ==========================================================================
+
+  - id: verify
+    description: "LLM judge: structural parity across all 7 provider outputs"
+    depends_on: [extract_fields, skills_count]
+    with:
+      anthropic: $anthropic_test
+      openai:    $openai_test
+      gemini:    $gemini_test
+      groq:      $groq_test
+      mistral:   $mistral_test
+      deepseek:  $deepseek_test
+      xai:       $xai_test
+    provider: anthropic
+    model: claude-haiku-4-5
+    infer:
+      prompt: |
+        I have 7 structured outputs produced by different AI providers.
+        Each represents a software engineer named Kai who lives in Tokyo.
+
+        Expected schema constraints:
+        - name: non-empty string
+        - location: object with city (string), country (string), timezone (string)
+        - skills: array of at least 3 objects, each with:
+            name (string), level (one of: beginner, intermediate, expert),
+            years (number between 0 and 40)
+        - years_experience: number between 0 and 50
+        - remote: boolean
+        - status: one of: employed, freelance, open_to_work
+
+        Provider outputs:
+
+        ANTHROPIC: {{with.anthropic | to_json}}
+
+        OPENAI: {{with.openai | to_json}}
+
+        GEMINI: {{with.gemini | to_json}}
+
+        GROQ: {{with.groq | to_json}}
+
+        MISTRAL: {{with.mistral | to_json}}
+
+        DEEPSEEK: {{with.deepseek | to_json}}
+
+        XAI: {{with.xai | to_json}}
+
+        For each provider check all of the following and report violations:
+        1. All 6 required fields present
+        2. Correct types (name=string, location=object, skills=array,
+           years_experience=number, remote=boolean, status=string)
+        3. location has city, country, timezone (all strings)
+        4. skills array has at least 3 items
+        5. Each skill has name (string), level (enum), years (0-40 number)
+        6. level values are strictly within [beginner, intermediate, expert]
+        7. status is strictly within [employed, freelance, open_to_work]
+        8. years_experience is between 0 and 50
+        9. remote is a boolean (not a string "true"/"false")
+    structured:
+      schema:
+        type: object
+        properties:
+          provider_results:
+            type: array
+            items:
+              type: object
+              properties:
+                provider:
+                  type: string
+                  enum: [anthropic, openai, gemini, groq, mistral, deepseek, xai]
+                verdict:
+                  type: string
+                  enum: [PASS, FAIL]
+                violations:
+                  type: array
+                  items: { type: string }
+                missing_fields:
+                  type: array
+                  items: { type: string }
+                type_errors:
+                  type: array
+                  items: { type: string }
+                enum_violations:
+                  type: array
+                  items: { type: string }
+                skills_count:
+                  type: number
+              required:
+                [provider, verdict, violations, missing_fields, type_errors,
+                 enum_violations, skills_count]
+            minItems: 7
+          overall_parity:
+            type: string
+            enum: [ALL_PASS, PARTIAL_PASS, ALL_FAIL]
+          pass_count:
+            type: number
+            minimum: 0
+            maximum: 7
+          fail_count:
+            type: number
+            minimum: 0
+            maximum: 7
+          summary:
+            type: string
+        required:
+          [provider_results, overall_parity, pass_count, fail_count, summary]
+      enable_repair: true
+      max_retries: 3
+
+  # ==========================================================================
+  # Phase 5 — Final report.
+  # Pretty-prints the structured verify output to stdout.
+  # ==========================================================================
+
+  - id: report
+    description: "Print final parity report to stdout"
+    depends_on: [verify]
+    with:
+      results:    $verify.provider_results
+      parity:     $verify.overall_parity
+      pass_count: $verify.pass_count
+      fail_count: $verify.fail_count
+      summary:    $verify.summary
+    exec:
+      shell: true
+      command: |
+        echo ""
+        echo "╔══════════════════════════════════════════════════╗"
+        echo "║     PROVIDER STRUCTURED OUTPUT PARITY REPORT     ║"
+        echo "╚══════════════════════════════════════════════════╝"
+        echo ""
+        echo "Overall parity  : {{with.parity}}"
+        echo "Providers passed: {{with.pass_count}} / 7"
+        echo "Providers failed: {{with.fail_count}} / 7"
+        echo ""
+        echo "Summary:"
+        echo "  {{with.summary}}"
+        echo ""
+        echo "Per-provider verdicts:"
+        echo "{{with.results | to_json}}"
+        echo ""
