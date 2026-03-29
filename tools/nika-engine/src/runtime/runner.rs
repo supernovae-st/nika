@@ -1255,6 +1255,44 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             }
         }
 
+        // Record compression: if task succeeded and has record: spec with compress: true,
+        // compress the output into a Record and store it in the datastore.
+        if task_result.is_success() {
+            if let Some(ref record_spec) = task.record {
+                if record_spec.compress {
+                    let raw_output = task_result.output_str().into_owned();
+                    let compressor =
+                        crate::runtime::record_compress::RecordCompressor::new(event_log.clone());
+                    // Truncation-only for now (no LLM call).
+                    // Future: resolve compression provider from agents block and use CompressorLlm.
+                    let record = crate::runtime::record::Record::truncated(
+                        Arc::clone(&task_id),
+                        &raw_output,
+                        record_spec.max_tokens,
+                    );
+                    // Emit appropriate event
+                    if record.confidence > 0.0 {
+                        event_log.emit(EventKind::RecordCreated {
+                            task_id: Arc::clone(&task_id),
+                            summary_tokens: record.tokens_compressed,
+                            confidence: record.confidence,
+                            compression_cost_usd: record.compression_cost_usd,
+                            compression_ratio: record.compression_ratio(),
+                            model: record.compression_model.clone(),
+                        });
+                    } else {
+                        event_log.emit(EventKind::RecordSkipped {
+                            task_id: Arc::clone(&task_id),
+                            reason: "truncation-only mode (LLM compression planned)".to_string(),
+                        });
+                    }
+                    datastore.set_record(Arc::clone(&task_id), record);
+                    // Keep compressor alive for future LLM-based compression
+                    let _ = compressor;
+                }
+            }
+        }
+
         IterationResult {
             store_id: task_id,
             result: task_result,
