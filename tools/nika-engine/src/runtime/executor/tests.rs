@@ -8,7 +8,7 @@
 use super::*;
 use crate::ast::decompose::{DecomposeSpec, DecomposeStrategy};
 use crate::ast::output::{OutputFormat, OutputPolicy, SchemaRef};
-use crate::ast::{ExecParams, FetchParams, InferParams, InvokeParams};
+use crate::ast::{AgentParams, ExecParams, FetchParams, InferParams, InvokeParams};
 use crate::event::EventKind;
 use crate::store::{RunContext, TaskResult};
 use serde_json::json;
@@ -2403,4 +2403,171 @@ async fn test_exec_cwd_resolves_templates_shellfree_mode() {
         "cwd template not resolved in shell-free mode. Got: '{}'",
         result
     );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// AGENT PROVIDER FALLBACK CHAIN TESTS
+// ═══════════════════════════════════════════════════════════════
+
+#[tokio::test]
+async fn test_agent_provider_fallback_to_mock() {
+    // provider_chain: [nonexistent_fake, mock] should fall back to mock
+    let event_log = EventLog::new();
+    let executor = TaskExecutor::new("mock", None, None, event_log.clone()).unwrap();
+    let bindings = ResolvedBindings::new();
+    let datastore = RunContext::new();
+
+    let action = TaskAction::Agent {
+        agent: AgentParams {
+            prompt: "Say hello".to_string(),
+            system: None,
+            provider: None,
+            model: None,
+            mcp: vec![],
+            tools: vec![],
+            max_turns: Some(1),
+            stop_sequences: vec![],
+            scope: None,
+            token_budget: None,
+            extended_thinking: None,
+            thinking_budget: None,
+            depth_limit: None,
+            tool_choice: None,
+            temperature: None,
+            max_tokens: None,
+            skills: None,
+            completion: None,
+            guardrails: vec![],
+            limits: None,
+            base_url: None,
+            provider_chain: Some(vec![
+                "nonexistent_fake".to_string(),
+                "mock".to_string(),
+            ]),
+        },
+    };
+
+    let task_id: Arc<str> = Arc::from("test_agent_fallback");
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await;
+
+    assert!(result.is_ok(), "Agent should succeed via mock fallback: {:?}", result.err());
+
+    // Verify ProviderFallback event was emitted
+    let events = event_log.events();
+    let fallback_events: Vec<_> = events
+        .iter()
+        .filter(|e| matches!(&e.kind, EventKind::ProviderFallback { .. }))
+        .collect();
+    assert_eq!(
+        fallback_events.len(),
+        1,
+        "Expected exactly one ProviderFallback event"
+    );
+
+    if let EventKind::ProviderFallback { from, to, .. } = &fallback_events[0].kind {
+        assert_eq!(from, "nonexistent_fake");
+        assert_eq!(to, "mock");
+    }
+}
+
+#[tokio::test]
+async fn test_agent_provider_chain_all_fail() {
+    // provider_chain: [fake_1, fake_2] — both unknown → FallbackChainExhausted
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
+    let bindings = ResolvedBindings::new();
+    let datastore = RunContext::new();
+
+    let action = TaskAction::Agent {
+        agent: AgentParams {
+            prompt: "Say hello".to_string(),
+            system: None,
+            provider: None,
+            model: None,
+            mcp: vec![],
+            tools: vec![],
+            max_turns: Some(1),
+            stop_sequences: vec![],
+            scope: None,
+            token_budget: None,
+            extended_thinking: None,
+            thinking_budget: None,
+            depth_limit: None,
+            tool_choice: None,
+            temperature: None,
+            max_tokens: None,
+            skills: None,
+            completion: None,
+            guardrails: vec![],
+            limits: None,
+            base_url: None,
+            provider_chain: Some(vec![
+                "fake_provider_1".to_string(),
+                "fake_provider_2".to_string(),
+            ]),
+        },
+    };
+
+    let task_id: Arc<str> = Arc::from("test_agent_chain_exhausted");
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await;
+
+    assert!(result.is_err(), "Should fail when all providers are unknown");
+    match result.unwrap_err() {
+        NikaError::FallbackChainExhausted { providers, .. } => {
+            assert!(
+                providers.contains("fake_provider_1"),
+                "Error should list providers"
+            );
+            assert!(
+                providers.contains("fake_provider_2"),
+                "Error should list providers"
+            );
+        }
+        err => panic!("Expected FallbackChainExhausted, got: {err:?}"),
+    }
+}
+
+#[tokio::test]
+async fn test_agent_single_provider_mock() {
+    // Single provider (no chain) — mock should just work
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
+    let bindings = ResolvedBindings::new();
+    let datastore = RunContext::new();
+
+    let action = TaskAction::Agent {
+        agent: AgentParams {
+            prompt: "Say hello".to_string(),
+            system: None,
+            provider: Some("mock".to_string()),
+            model: None,
+            mcp: vec![],
+            tools: vec![],
+            max_turns: Some(1),
+            stop_sequences: vec![],
+            scope: None,
+            token_budget: None,
+            extended_thinking: None,
+            thinking_budget: None,
+            depth_limit: None,
+            tool_choice: None,
+            temperature: None,
+            max_tokens: None,
+            skills: None,
+            completion: None,
+            guardrails: vec![],
+            limits: None,
+            base_url: None,
+            provider_chain: None,
+        },
+    };
+
+    let task_id: Arc<str> = Arc::from("test_agent_single_mock");
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await;
+
+    assert!(result.is_ok(), "Single mock provider should succeed: {:?}", result.err());
 }
