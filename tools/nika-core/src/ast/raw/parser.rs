@@ -1863,8 +1863,10 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
         }
         Some(Node::Sequence(seq)) => {
             let span = marked_span_to_span(file_id, seq.span());
-            let items: Result<Vec<_>, _> =
-                seq.iter().map(|node| extract_string(file_id, node)).collect();
+            let items: Result<Vec<_>, _> = seq
+                .iter()
+                .map(|node| extract_string(file_id, node))
+                .collect();
             let items = items?;
             if items.is_empty() {
                 return Err(ParseError {
@@ -1936,8 +1938,10 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
         }
         (None, Some(chain)) => {
             // Auto-generate routing from provider array
-            let fallback_arr: Vec<serde_json::Value> =
-                chain.iter().map(|s| serde_json::Value::String(s.clone())).collect();
+            let fallback_arr: Vec<serde_json::Value> = chain
+                .iter()
+                .map(|s| serde_json::Value::String(s.clone()))
+                .collect();
             let value = serde_json::json!({ "fallback": fallback_arr });
             Some(Spanned::new(value, span))
         }

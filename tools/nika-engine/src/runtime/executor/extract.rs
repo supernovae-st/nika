@@ -341,21 +341,24 @@ mod tests {
     #[test]
     fn jsonpath_extracts_single_value() {
         let json = r#"{"users": [{"name": "Alice"}, {"name": "Bob"}]}"#;
-        let result = apply_extract(json, Some(ExtractMode::Jsonpath), Some("$.users[0].name")).unwrap();
+        let result =
+            apply_extract(json, Some(ExtractMode::Jsonpath), Some("$.users[0].name")).unwrap();
         assert_eq!(result, "\"Alice\"");
     }
 
     #[test]
     fn jsonpath_extracts_multiple_values() {
         let json = r#"{"users": [{"name": "Alice"}, {"name": "Bob"}]}"#;
-        let result = apply_extract(json, Some(ExtractMode::Jsonpath), Some("$.users[*].name")).unwrap();
+        let result =
+            apply_extract(json, Some(ExtractMode::Jsonpath), Some("$.users[*].name")).unwrap();
         assert_eq!(result, "[\"Alice\",\"Bob\"]");
     }
 
     #[test]
     fn jsonpath_no_match_returns_null() {
         let json = r#"{"users": []}"#;
-        let result = apply_extract(json, Some(ExtractMode::Jsonpath), Some("$.users[0].name")).unwrap();
+        let result =
+            apply_extract(json, Some(ExtractMode::Jsonpath), Some("$.users[0].name")).unwrap();
         assert_eq!(result, "null");
     }
 
@@ -377,7 +380,11 @@ mod tests {
 
     #[test]
     fn jsonpath_invalid_expression() {
-        let result = apply_extract(r#"{"a": 1}"#, Some(ExtractMode::Jsonpath), Some("$[invalid"));
+        let result = apply_extract(
+            r#"{"a": 1}"#,
+            Some(ExtractMode::Jsonpath),
+            Some("$[invalid"),
+        );
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(err.contains("Invalid JSONPath"));

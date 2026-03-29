@@ -80,13 +80,15 @@ impl RigAgentLoop {
             if result.passed {
                 self.event_log.emit(EventKind::GuardrailPassed {
                     task_id: Arc::clone(&task_id),
-                    guardrail_type: nika_event::GuardrailType::parse(&result.guardrail_type).unwrap_or(nika_event::GuardrailType::Regex),
+                    guardrail_type: nika_event::GuardrailType::parse(&result.guardrail_type)
+                        .unwrap_or(nika_event::GuardrailType::Regex),
                     description: result.guardrail_id.clone(),
                 });
             } else {
                 self.event_log.emit(EventKind::GuardrailFailed {
                     task_id: Arc::clone(&task_id),
-                    guardrail_type: nika_event::GuardrailType::parse(&result.guardrail_type).unwrap_or(nika_event::GuardrailType::Regex),
+                    guardrail_type: nika_event::GuardrailType::parse(&result.guardrail_type)
+                        .unwrap_or(nika_event::GuardrailType::Regex),
                     description: result.guardrail_id.clone(),
                     message: result
                         .message
@@ -114,7 +116,8 @@ impl RigAgentLoop {
             for result in escalations {
                 self.event_log.emit(EventKind::GuardrailEscalation {
                     task_id: Arc::clone(&task_id),
-                    guardrail_type: nika_event::GuardrailType::parse(&result.guardrail_type).unwrap_or(nika_event::GuardrailType::Regex),
+                    guardrail_type: nika_event::GuardrailType::parse(&result.guardrail_type)
+                        .unwrap_or(nika_event::GuardrailType::Regex),
                     guardrail_id: result.guardrail_id.clone(),
                     message: result
                         .message

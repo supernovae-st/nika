@@ -163,8 +163,7 @@ impl TaskExecutor {
                         break;
                     }
                     Some(p) => {
-                        let err_msg =
-                            format!("Missing API key: {} not set", p.env_var);
+                        let err_msg = format!("Missing API key: {} not set", p.env_var);
                         if effective_chain.len() > 1 && i < effective_chain.len() - 1 {
                             self.event_log.emit(EventKind::ProviderFallback {
                                 task_id: Arc::clone(task_id),
@@ -216,10 +215,7 @@ impl TaskExecutor {
                         });
                     } else {
                         return Err(NikaError::MissingApiKey {
-                            provider: effective_chain
-                                .first()
-                                .cloned()
-                                .unwrap_or_default(),
+                            provider: effective_chain.first().cloned().unwrap_or_default(),
                         });
                     }
                 }

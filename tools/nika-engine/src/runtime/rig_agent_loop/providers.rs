@@ -405,7 +405,10 @@ impl RigAgentLoop {
                         output_tokens: total_output_tokens,
                         cache_read_tokens: total_cached_input_tokens,
                         ttft_ms: first_ttft_ms,
-                        finish_reason: nika_event::FinishReason::Other(format!("limit_exceeded:{}", exceeded.limit_type)),
+                        finish_reason: nika_event::FinishReason::Other(format!(
+                            "limit_exceeded:{}",
+                            exceeded.limit_type
+                        )),
                         cost_usd: self.limit_tracker.cost_usd(),
                     });
                     return Err(NikaError::AgentLimitExceeded {
@@ -462,7 +465,10 @@ impl RigAgentLoop {
                             output_tokens: total_output_tokens,
                             cache_read_tokens: total_cached_input_tokens,
                             ttft_ms: first_ttft_ms,
-                            finish_reason: nika_event::FinishReason::Other(format!("limit_exceeded:{}", exceeded.limit_type)),
+                            finish_reason: nika_event::FinishReason::Other(format!(
+                                "limit_exceeded:{}",
+                                exceeded.limit_type
+                            )),
                             cost_usd: self.limit_tracker.cost_usd(),
                         });
                         return Err(NikaError::AgentLimitExceeded {
@@ -584,7 +590,10 @@ impl RigAgentLoop {
                             output_tokens: total_output_tokens,
                             cache_read_tokens: total_cached_input_tokens,
                             ttft_ms: first_ttft_ms,
-                            finish_reason: nika_event::FinishReason::Other(format!("limit_exceeded:{}", exceeded.limit_type)),
+                            finish_reason: nika_event::FinishReason::Other(format!(
+                                "limit_exceeded:{}",
+                                exceeded.limit_type
+                            )),
                             cost_usd: self.limit_tracker.cost_usd(),
                         });
                         return Err(NikaError::AgentLimitExceeded {

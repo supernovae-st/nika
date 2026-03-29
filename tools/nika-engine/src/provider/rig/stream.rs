@@ -10,8 +10,8 @@ use std::time::Instant;
 use tokio::sync::mpsc;
 use tokio::time::timeout;
 
-use crate::util::STREAM_CHUNK_TIMEOUT;
 use super::error::RigInferError;
+use crate::util::STREAM_CHUNK_TIMEOUT;
 
 // =============================================================================
 // StreamChunk - Communication type for streaming responses

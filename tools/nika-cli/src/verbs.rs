@@ -339,24 +339,34 @@ pub async fn handle_fetch(
             details: format!("Invalid --json-body: {}", e),
         })?;
 
-    let extract_mode = extract.as_deref().map(|s| {
-        nika_engine::ast::extract::ExtractMode::parse(s).ok_or_else(|| NikaError::ValidationError {
-            reason: format!(
-                "unknown extract mode '{}', expected one of: {}",
-                s,
-                nika_engine::ast::extract::ExtractMode::ALL_NAMES.join(", ")
-            ),
+    let extract_mode = extract
+        .as_deref()
+        .map(|s| {
+            nika_engine::ast::extract::ExtractMode::parse(s).ok_or_else(|| {
+                NikaError::ValidationError {
+                    reason: format!(
+                        "unknown extract mode '{}', expected one of: {}",
+                        s,
+                        nika_engine::ast::extract::ExtractMode::ALL_NAMES.join(", ")
+                    ),
+                }
+            })
         })
-    }).transpose()?;
-    let response_mode = response.as_deref().map(|s| {
-        nika_engine::ast::extract::ResponseMode::parse(s).ok_or_else(|| NikaError::ValidationError {
-            reason: format!(
-                "unknown response mode '{}', expected one of: {}",
-                s,
-                nika_engine::ast::extract::ResponseMode::ALL_NAMES.join(", ")
-            ),
+        .transpose()?;
+    let response_mode = response
+        .as_deref()
+        .map(|s| {
+            nika_engine::ast::extract::ResponseMode::parse(s).ok_or_else(|| {
+                NikaError::ValidationError {
+                    reason: format!(
+                        "unknown response mode '{}', expected one of: {}",
+                        s,
+                        nika_engine::ast::extract::ResponseMode::ALL_NAMES.join(", ")
+                    ),
+                }
+            })
         })
-    }).transpose()?;
+        .transpose()?;
 
     let fetch = FetchParams {
         url: url.clone(),

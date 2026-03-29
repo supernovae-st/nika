@@ -217,9 +217,7 @@ impl TaskExecutor {
                     return Err(NikaError::from(
                         crate::error_domains::ProviderError::FallbackChainExhausted {
                             last_provider: effective_chain.last().cloned().unwrap_or_default(),
-                            last_error: last_error
-                                .map(|e| format!("{}", e))
-                                .unwrap_or_default(),
+                            last_error: last_error.map(|e| format!("{}", e)).unwrap_or_default(),
                         },
                     ));
                 } else {
@@ -611,7 +609,9 @@ impl TaskExecutor {
                                             output_tokens: stream_result.output_tokens,
                                             cache_read_tokens: stream_result.cached_input_tokens,
                                             ttft_ms: stream_result.ttft_ms,
-                                            finish_reason: nika_event::FinishReason::Other("layer0a_no_spec".to_string()),
+                                            finish_reason: nika_event::FinishReason::Other(
+                                                "layer0a_no_spec".to_string(),
+                                            ),
                                             cost_usd: 0.0,
                                         });
                                         return Ok(stream_result.text);
@@ -1323,13 +1323,15 @@ impl TaskExecutor {
             if result.passed {
                 self.event_log.emit(EventKind::GuardrailPassed {
                     task_id: Arc::clone(task_id),
-                    guardrail_type: nika_event::GuardrailType::parse(&result.guardrail_type).unwrap_or(nika_event::GuardrailType::Regex),
+                    guardrail_type: nika_event::GuardrailType::parse(&result.guardrail_type)
+                        .unwrap_or(nika_event::GuardrailType::Regex),
                     description: result.guardrail_id.clone(),
                 });
             } else {
                 self.event_log.emit(EventKind::GuardrailFailed {
                     task_id: Arc::clone(task_id),
-                    guardrail_type: nika_event::GuardrailType::parse(&result.guardrail_type).unwrap_or(nika_event::GuardrailType::Regex),
+                    guardrail_type: nika_event::GuardrailType::parse(&result.guardrail_type)
+                        .unwrap_or(nika_event::GuardrailType::Regex),
                     description: result.guardrail_id.clone(),
                     message: result
                         .message

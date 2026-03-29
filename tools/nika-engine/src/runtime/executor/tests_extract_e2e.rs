@@ -416,7 +416,8 @@ tasks:
 
     #[test]
     fn apply_returns_matching_html_elements() {
-        let result = apply_extract(RICH_HTML, Some(ExtractMode::Selector), Some("div.sidebar")).unwrap();
+        let result =
+            apply_extract(RICH_HTML, Some(ExtractMode::Selector), Some("div.sidebar")).unwrap();
         assert!(
             result.contains("<div class=\"sidebar\">"),
             "should return raw HTML: {}",
@@ -431,7 +432,8 @@ tasks:
 
     #[test]
     fn apply_returns_multiple_matches() {
-        let result = apply_extract(RICH_HTML, Some(ExtractMode::Selector), Some("p.intro")).unwrap();
+        let result =
+            apply_extract(RICH_HTML, Some(ExtractMode::Selector), Some("p.intro")).unwrap();
         // Two p.intro elements in RICH_HTML
         let count = result.matches("<p class=\"intro\">").count();
         assert_eq!(count, 2, "should match both p.intro elements: {}", result);
@@ -451,7 +453,8 @@ tasks:
 
     #[test]
     fn apply_returns_outer_html() {
-        let result = apply_extract(BLOG_HTML, Some(ExtractMode::Selector), Some("article h1")).unwrap();
+        let result =
+            apply_extract(BLOG_HTML, Some(ExtractMode::Selector), Some("article h1")).unwrap();
         assert!(
             result.contains("<h1>"),
             "Selector should include the matched element's outer HTML"
@@ -461,7 +464,12 @@ tasks:
 
     #[test]
     fn apply_no_match_returns_empty() {
-        let result = apply_extract(BLOG_HTML, Some(ExtractMode::Selector), Some("div.nonexistent")).unwrap();
+        let result = apply_extract(
+            BLOG_HTML,
+            Some(ExtractMode::Selector),
+            Some("div.nonexistent"),
+        )
+        .unwrap();
         assert!(result.is_empty(), "No match should return empty string");
     }
 }
@@ -678,14 +686,20 @@ tasks:
     #[test]
     fn apply_extracts_multiple_values() {
         let json = r#"{"users": [{"name": "Alice"}, {"name": "Bob"}, {"name": "Charlie"}]}"#;
-        let result = apply_extract(json, Some(ExtractMode::Jsonpath), Some("$.users[*].name")).unwrap();
+        let result =
+            apply_extract(json, Some(ExtractMode::Jsonpath), Some("$.users[*].name")).unwrap();
         assert_eq!(result, r#"["Alice","Bob","Charlie"]"#);
     }
 
     #[test]
     fn apply_extracts_nested_object() {
         let json = r#"{"response": {"metadata": {"version": 2, "lang": "en"}}}"#;
-        let result = apply_extract(json, Some(ExtractMode::Jsonpath), Some("$.response.metadata")).unwrap();
+        let result = apply_extract(
+            json,
+            Some(ExtractMode::Jsonpath),
+            Some("$.response.metadata"),
+        )
+        .unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert_eq!(parsed["version"], 2);
         assert_eq!(parsed["lang"], "en");
@@ -694,7 +708,8 @@ tasks:
     #[test]
     fn apply_returns_null_for_no_match() {
         let json = r#"{"data": []}"#;
-        let result = apply_extract(json, Some(ExtractMode::Jsonpath), Some("$.data[0].name")).unwrap();
+        let result =
+            apply_extract(json, Some(ExtractMode::Jsonpath), Some("$.data[0].name")).unwrap();
         assert_eq!(result, "null");
     }
 
@@ -715,36 +730,53 @@ tasks:
 
     #[test]
     fn apply_rejects_invalid_jsonpath() {
-        let result = apply_extract(r#"{"a": 1}"#, Some(ExtractMode::Jsonpath), Some("$[invalid"));
+        let result = apply_extract(
+            r#"{"a": 1}"#,
+            Some(ExtractMode::Jsonpath),
+            Some("$[invalid"),
+        );
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Invalid JSONPath"));
     }
 
     #[test]
     fn apply_extracts_simple_path() {
-        let result = apply_extract(JSON_API, Some(ExtractMode::Jsonpath), Some("$.data.total")).unwrap();
+        let result =
+            apply_extract(JSON_API, Some(ExtractMode::Jsonpath), Some("$.data.total")).unwrap();
         assert_eq!(result, "2");
     }
 
     #[test]
     fn apply_extracts_array_names() {
-        let result =
-            apply_extract(JSON_API, Some(ExtractMode::Jsonpath), Some("$.data.items[*].name")).unwrap();
+        let result = apply_extract(
+            JSON_API,
+            Some(ExtractMode::Jsonpath),
+            Some("$.data.items[*].name"),
+        )
+        .unwrap();
         let parsed: Vec<String> = serde_json::from_str(&result).unwrap();
         assert_eq!(parsed, vec!["Alpha", "Beta"]);
     }
 
     #[test]
     fn apply_extracts_second_item_name() {
-        let result =
-            apply_extract(JSON_API, Some(ExtractMode::Jsonpath), Some("$.data.items[1].name")).unwrap();
+        let result = apply_extract(
+            JSON_API,
+            Some(ExtractMode::Jsonpath),
+            Some("$.data.items[1].name"),
+        )
+        .unwrap();
         assert_eq!(result, "\"Beta\"");
     }
 
     #[test]
     fn apply_extracts_all_scores() {
-        let result =
-            apply_extract(JSON_API, Some(ExtractMode::Jsonpath), Some("$.data.items[*].score")).unwrap();
+        let result = apply_extract(
+            JSON_API,
+            Some(ExtractMode::Jsonpath),
+            Some("$.data.items[*].score"),
+        )
+        .unwrap();
         let parsed: Vec<u64> = serde_json::from_str(&result).unwrap();
         assert_eq!(parsed, vec![95, 42]);
     }

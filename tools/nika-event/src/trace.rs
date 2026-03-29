@@ -365,7 +365,7 @@ mod tests {
             kind: EventKind::TaskStarted {
                 verb: "infer".into(),
                 task_id: "test_task".into(),
-                inputs: json!({}),
+                inputs: Arc::new(json!({})),
             },
         };
 

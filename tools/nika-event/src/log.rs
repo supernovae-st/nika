@@ -192,7 +192,7 @@ pub enum EventKind {
         /// Verb type (infer, exec, fetch, invoke, agent)
         verb: Arc<str>,
         /// Resolved inputs from ResolvedBindings (what the task receives)
-        inputs: Value,
+        inputs: Arc<Value>,
     },
     TaskCompleted {
         task_id: Arc<str>,
@@ -291,7 +291,7 @@ pub enum EventKind {
         resource: Option<String>,
         /// Full params passed to MCP tool (for TUI display)
         #[serde(skip_serializing_if = "Option::is_none")]
-        params: Option<Value>,
+        params: Option<Arc<Value>>,
     },
     /// MCP operation completed
     McpResponse {
@@ -307,7 +307,7 @@ pub enum EventKind {
         is_error: bool,
         /// Full response JSON (for TUI display)
         #[serde(skip_serializing_if = "Option::is_none")]
-        response: Option<Value>,
+        response: Option<Arc<Value>>,
     },
     /// MCP server connection established
     McpConnected {
@@ -1241,7 +1241,7 @@ mod tests {
         let started = EventKind::TaskStarted {
             verb: "infer".into(),
             task_id: "task1".into(),
-            inputs: json!({}),
+            inputs: Arc::new(json!({})),
         };
         assert_eq!(started.task_id(), Some("task1"));
 
@@ -1260,7 +1260,7 @@ mod tests {
         assert!(!EventKind::TaskStarted {
             verb: "infer".into(),
             task_id: "t1".into(),
-            inputs: json!({}),
+            inputs: Arc::new(json!({})),
         }
         .is_workflow_event());
     }
@@ -1294,7 +1294,7 @@ mod tests {
             EventKind::TaskStarted {
                 task_id: "analyze".into(),
                 verb: "infer".into(),
-                inputs: json!({"weather": "sunny"}),
+                inputs: Arc::new(json!({"weather": "sunny"})),
             }
         );
     }
@@ -1318,12 +1318,12 @@ mod tests {
         let id2 = log.emit(EventKind::TaskStarted {
             verb: "infer".into(),
             task_id: "t1".into(),
-            inputs: json!({}),
+            inputs: Arc::new(json!({})),
         });
         let id3 = log.emit(EventKind::TaskStarted {
             verb: "infer".into(),
             task_id: "t2".into(),
-            inputs: json!({}),
+            inputs: Arc::new(json!({})),
         });
 
         assert_eq!(id1, 0);
@@ -1339,7 +1339,7 @@ mod tests {
         log.emit(EventKind::TaskStarted {
             verb: "infer".into(),
             task_id: "t1".into(),
-            inputs: json!({}),
+            inputs: Arc::new(json!({})),
         });
 
         let events = log.events();
@@ -1355,12 +1355,12 @@ mod tests {
         log.emit(EventKind::TaskStarted {
             verb: "infer".into(),
             task_id: "alpha".into(),
-            inputs: json!({}),
+            inputs: Arc::new(json!({})),
         });
         log.emit(EventKind::TaskStarted {
             verb: "infer".into(),
             task_id: "beta".into(),
-            inputs: json!({}),
+            inputs: Arc::new(json!({})),
         });
         log.emit(EventKind::TaskCompleted {
             task_id: "alpha".into(),
@@ -1385,7 +1385,7 @@ mod tests {
         log.emit(EventKind::TaskStarted {
             verb: "infer".into(),
             task_id: "t1".into(),
-            inputs: json!({}),
+            inputs: Arc::new(json!({})),
         });
         log.emit(EventKind::WorkflowCompleted {
             final_output: Arc::new(json!("done")),
@@ -1403,7 +1403,7 @@ mod tests {
         log.emit(EventKind::TaskStarted {
             verb: "infer".into(),
             task_id: "task1".into(),
-            inputs: json!({}),
+            inputs: Arc::new(json!({})),
         });
 
         let json = log.to_json();
@@ -1424,7 +1424,7 @@ mod tests {
         log.emit(EventKind::TaskStarted {
             verb: "infer".into(),
             task_id: "t1".into(),
-            inputs: json!({}),
+            inputs: Arc::new(json!({})),
         });
         assert_eq!(cloned.len(), 2);
     }
@@ -1442,7 +1442,7 @@ mod tests {
                     log.emit(EventKind::TaskStarted {
                         verb: "infer".into(),
                         task_id: Arc::from(format!("task{}", i)),
-                        inputs: json!({}),
+                        inputs: Arc::new(json!({})),
                     })
                 })
             })
@@ -1474,7 +1474,7 @@ mod tests {
         log.emit(EventKind::TaskStarted {
             verb: "infer".into(),
             task_id: "t1".into(),
-            inputs: json!({}),
+            inputs: Arc::new(json!({})),
         });
 
         let events = log.events();
@@ -1498,7 +1498,7 @@ mod tests {
         log.emit(EventKind::TaskStarted {
             verb: "infer".into(),
             task_id: "analyze".into(),
-            inputs: inputs.clone(),
+            inputs: Arc::new(inputs.clone()),
         });
 
         let events = log.filter_task("analyze");
@@ -1508,7 +1508,7 @@ mod tests {
             inputs: captured, ..
         } = &events[0].kind
         {
-            assert_eq!(captured, &inputs);
+            assert_eq!(captured.as_ref(), &inputs);
             assert_eq!(captured["weather"], "sunny");
             assert_eq!(captured["nested"]["key"], "value");
         } else {
@@ -2344,7 +2344,7 @@ mod tests {
             EventKind::TaskStarted {
                 task_id: "t1".into(),
                 verb: "infer".into(),
-                inputs: serde_json::json!({}),
+                inputs: Arc::new(serde_json::json!({})),
             },
             EventKind::TaskCompleted {
                 task_id: "t1".into(),
@@ -2402,7 +2402,7 @@ mod tests {
                 mcp_server: "novanet".into(),
                 tool: Some("novanet_search".into()),
                 resource: None,
-                params: Some(serde_json::json!({"query": "test"})),
+                params: Some(Arc::new(serde_json::json!({"query": "test"}))),
             },
             EventKind::McpResponse {
                 task_id: "t1".into(),
@@ -2411,7 +2411,7 @@ mod tests {
                 duration_ms: 80,
                 cached: false,
                 is_error: false,
-                response: Some(serde_json::json!({"found": 3})),
+                response: Some(Arc::new(serde_json::json!({"found": 3}))),
             },
             EventKind::McpConnected {
                 server_name: "novanet".into(),
@@ -2901,7 +2901,7 @@ mod tests {
         let non_wf = EventKind::TaskStarted {
             task_id: "t".into(),
             verb: "infer".into(),
-            inputs: serde_json::json!({}),
+            inputs: Arc::new(serde_json::json!({})),
         };
         assert!(!non_wf.is_workflow_event());
     }
@@ -3413,7 +3413,7 @@ mod tests {
         log.emit(EventKind::TaskStarted {
             task_id: "gen_image".into(),
             verb: "invoke".into(),
-            inputs: json!({}),
+            inputs: Arc::new(json!({})),
         });
         log.emit(media_extracted("gen_image", 1, &["image"]));
         log.emit(media_processed("gen_image", BLAKE3_PNG, "image/png", 4096));
@@ -3742,7 +3742,7 @@ mod tests {
         log.emit(EventKind::TaskStarted {
             task_id: task.into(),
             verb: "invoke".into(),
-            inputs: json!({"tool": "screenshot"}),
+            inputs: Arc::new(json!({"tool": "screenshot"})),
         });
 
         // Step 2: Media blocks extracted

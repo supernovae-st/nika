@@ -31,7 +31,7 @@ impl TaskEventGuard {
         event_log.emit(EventKind::TaskStarted {
             task_id: Arc::clone(&task_id),
             verb: Arc::from(verb),
-            inputs,
+            inputs: Arc::new(inputs),
         });
         Self {
             task_id,
@@ -102,7 +102,11 @@ mod tests {
             // Guard is dropped here without calling .complete() or .fail()
         }
         let events = log.events();
-        assert_eq!(events.len(), 2, "Expected TaskStarted + TaskFailed from drop");
+        assert_eq!(
+            events.len(),
+            2,
+            "Expected TaskStarted + TaskFailed from drop"
+        );
         assert!(matches!(
             &events[0].kind,
             EventKind::TaskStarted { task_id, .. } if task_id.as_ref() == "test_task"
