@@ -865,13 +865,20 @@ tasks:
     exec: "echo inline""#;
 
         let result = tool
-            .call(serde_json::json!({
-                "workflow": "inline-test",
-                "yaml_content": yaml
-            }).to_string())
+            .call(
+                serde_json::json!({
+                    "workflow": "inline-test",
+                    "yaml_content": yaml
+                })
+                .to_string(),
+            )
             .await;
 
-        assert!(result.is_ok(), "Inline YAML should work: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Inline YAML should work: {:?}",
+            result.err()
+        );
         let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
         assert_eq!(response["executed"], true);
     }
@@ -880,9 +887,12 @@ tasks:
     async fn test_run_inline_yaml_invalid_schema() {
         let tool = RunTool;
         let result = tool
-            .call(serde_json::json!({
-                "yaml_content": "this is not YAML with schema"
-            }).to_string())
+            .call(
+                serde_json::json!({
+                    "yaml_content": "this is not YAML with schema"
+                })
+                .to_string(),
+            )
             .await;
 
         assert!(result.is_err());
@@ -894,9 +904,12 @@ tasks:
     async fn test_run_inline_yaml_malformed() {
         let tool = RunTool;
         let result = tool
-            .call(serde_json::json!({
-                "yaml_content": "schema: nika/workflow@0.12\ntasks: not_a_list"
-            }).to_string())
+            .call(
+                serde_json::json!({
+                    "yaml_content": "schema: nika/workflow@0.12\ntasks: not_a_list"
+                })
+                .to_string(),
+            )
             .await;
 
         assert!(result.is_err());
@@ -906,9 +919,12 @@ tasks:
     async fn test_run_inline_yaml_no_schema_keyword() {
         let tool = RunTool;
         let result = tool
-            .call(serde_json::json!({
-                "yaml_content": "tasks:\n  - id: foo\n    exec: echo"
-            }).to_string())
+            .call(
+                serde_json::json!({
+                    "yaml_content": "tasks:\n  - id: foo\n    exec: echo"
+                })
+                .to_string(),
+            )
             .await;
 
         assert!(result.is_err());
@@ -919,9 +935,7 @@ tasks:
     #[tokio::test]
     async fn test_run_neither_workflow_nor_yaml_errors() {
         let tool = RunTool;
-        let result = tool
-            .call(r#"{}"#.to_string())
-            .await;
+        let result = tool.call(r#"{}"#.to_string()).await;
 
         assert!(result.is_err());
         let err = result.unwrap_err();
@@ -930,10 +944,13 @@ tasks:
 
     #[test]
     fn test_params_deserialize_with_yaml_content() {
-        let params: RunParams = serde_json::from_str(r#"{
+        let params: RunParams = serde_json::from_str(
+            r#"{
             "workflow": "label",
             "yaml_content": "schema: nika/workflow@0.12\ntasks: []"
-        }"#).unwrap();
+        }"#,
+        )
+        .unwrap();
         assert_eq!(params.workflow, "label");
         assert!(params.yaml_content.is_some());
     }
@@ -942,13 +959,20 @@ tasks:
     async fn test_run_inline_yaml_respects_depth_limit() {
         let tool = RunTool;
         let result = tool
-            .call(serde_json::json!({
-                "yaml_content": "schema: nika/workflow@0.12\ntasks:\n  - id: x\n    exec: echo",
-                "max_depth": 1
-            }).to_string())
+            .call(
+                serde_json::json!({
+                    "yaml_content": "schema: nika/workflow@0.12\ntasks:\n  - id: x\n    exec: echo",
+                    "max_depth": 1
+                })
+                .to_string(),
+            )
             .await;
 
         // At depth 0, max_depth 1 should allow execution (0 < 1)
-        assert!(result.is_ok(), "Depth 0 < max_depth 1 should work: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Depth 0 < max_depth 1 should work: {:?}",
+            result.err()
+        );
     }
 }

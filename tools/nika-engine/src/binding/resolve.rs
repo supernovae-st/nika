@@ -2605,15 +2605,11 @@ mod tests {
         let mut spec = WithSpec::default();
         spec.insert(
             "api_key".to_string(),
-            WithEntry::simple(
-                BindingPath::parse("$env.NIKA_TEST_ELEVENLABS_API_KEY").unwrap(),
-            ),
+            WithEntry::simple(BindingPath::parse("$env.NIKA_TEST_ELEVENLABS_API_KEY").unwrap()),
         );
         spec.insert(
             "token".to_string(),
-            WithEntry::simple(
-                BindingPath::parse("$env.NIKA_TEST_MY_SECRET_TOKEN").unwrap(),
-            ),
+            WithEntry::simple(BindingPath::parse("$env.NIKA_TEST_MY_SECRET_TOKEN").unwrap()),
         );
         spec.insert(
             "auth".to_string(),
@@ -2645,7 +2641,10 @@ mod tests {
         );
 
         let result = ResolvedBindings::from_with_spec(Some(&spec), &store);
-        assert!(result.is_err(), "Missing env var without ?? fallback should error");
+        assert!(
+            result.is_err(),
+            "Missing env var without ?? fallback should error"
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════

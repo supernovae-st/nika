@@ -140,10 +140,10 @@ pub fn wrap_as_orchestrator(mut workflow: AnalyzedWorkflow) -> AnalyzedWorkflow 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nika_core::ast::OrchestrateConfig;
     use nika_core::ast::analyzed::{
         AnalyzedExecAction, AnalyzedInferAction, SchemaVersion, TaskId, TaskTable,
     };
+    use nika_core::ast::OrchestrateConfig;
 
     fn make_task(
         id: TaskId,
@@ -186,14 +186,20 @@ mod tests {
         let t2 = task_table.insert("summarize");
 
         let tasks = vec![
-            make_task(t1, "research", Some("Research the topic"),
+            make_task(
+                t1,
+                "research",
+                Some("Research the topic"),
                 AnalyzedTaskAction::Infer(AnalyzedInferAction {
                     prompt: "Research AI".to_string(),
                     ..Default::default()
                 }),
                 vec![],
             ),
-            make_task(t2, "summarize", Some("Summarize findings"),
+            make_task(
+                t2,
+                "summarize",
+                Some("Summarize findings"),
                 AnalyzedTaskAction::Exec(AnalyzedExecAction {
                     command: "echo done".to_string(),
                     ..Default::default()
