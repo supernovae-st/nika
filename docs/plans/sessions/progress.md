@@ -1,13 +1,13 @@
 # Autonomous Session Progress
 
-**Updated**: 2026-03-29T19:00:00
-**Status**: IN_PROGRESS
+**Updated**: 2026-03-29T20:00:00
+**Status**: COMPLETE (for this session)
 **Version**: v0.51.0 (tagged + pushed)
-**Sessions completed**: A, B, C, D, E (extended), F (partial), G, J (partial), K, L, I (partial)
-**Total commits**: 59 (10 new this session)
+**Sessions completed**: A, B, C, D, E (extended), F (partial), G, J (partial), K, L, I (partial), H (partial)
+**Total commits**: 61 (12 new this session)
 **Total tests**: 8,719 across 11 crates (0 failures, 0 clippy warnings)
 
-## This Session — Phase 2 (10 commits, all pushed)
+## This Session — Phase 2 (12 commits, all pushed)
 
 ### Session K Part 2: Agent Fallback — DONE (1 commit)
 
@@ -22,29 +22,36 @@
 
 ### Session I Part 1: TUI Performance — DONE (1 commit)
 
-1. `74127ef` — Arc<Value> wrap: 3 EventKind fields changed from Value to Arc<Value>. 15 files across 4 crates.
+1. `74127ef` — Arc<Value> wrap: 3 EventKind fields → Arc<Value>. 15 files across 4 crates.
 
-### Session E Part 2: Test Strengthening — DONE (3 commits)
+### Session E Part 2: Test Strengthening — DONE (4 commits)
 
-1. `f8f4c1b` — 100+ assertions in 9 core files (security, validation, DAG, binding, AST, MCP, TUI)
-2. `512cf81` — 70+ assertions in 6 engine files (endpoints, context, structured_output, emit, flow, invoke)
-3. `b579ea9` — 30+ assertions in 3 files (native/traits, media/tests_e2e, cli/media)
+1. `f8f4c1b` — 100+ in 9 core files (security, validation, DAG, binding, AST, MCP, TUI)
+2. `512cf81` — 70+ in 6 engine files (endpoints, context, structured_output, emit, flow, invoke)
+3. `b579ea9` — 30+ in 3 files (native/traits, media/tests_e2e, cli/media)
+4. `e431ece` — 40+ in 5 files (executor/tests, artifact_processor, chat_agent, fetch_wiremock, exec_errors)
 
-**Total strengthened**: ~200+ bare is_ok()/is_err() → descriptive assertions with error context
+**Total strengthened**: ~240+ bare is_ok()/is_err() → descriptive assertions with error context
 
-### Progress doc (2 commits)
+### Session H: LSP — Already done (verified)
+
+- NIKA-163 workflow-level key detection: already implemented with did-you-mean
+- template_validation crash: already fixed (no .unwrap() in lsp-core)
+- Remaining: VS Code extension version sync (manual portal step)
+
+### Progress docs (2 commits)
 
 ## Previous Phase (49 commits)
 
 Sessions A-G, J, K1, L1, Release v0.51.0, progress docs.
 
-## Deferred
+## Deferred (for future sessions)
 
 - **Session I**: DAG layout cache, Arc<str> for task_id
 - **Session M**: Record compression (11 commits planned)
 - **Session N**: Context + memory
-- **Session E**: ~280 remaining bare is_ok()
-- **Session H**: LSP E2E tests
+- **Session E**: ~200 remaining bare is_ok() (low-priority files)
+- **Session H**: VS Code extension version sync + E2E test harness
 
 ## For resume
 
