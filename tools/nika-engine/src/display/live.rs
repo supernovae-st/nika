@@ -1401,6 +1401,26 @@ impl LiveRenderer {
                 }
             }
 
+            // ── Record events ─────────────────────────────────────
+            EventKind::RecordCreated {
+                model,
+                compression_ratio,
+                confidence,
+                ..
+            } => {
+                if self.detail.show_sub_events() {
+                    self.log(&format!(
+                        "  ◆ Record compressed (model={model}, ratio={:.0}%, confidence={confidence:.2})",
+                        compression_ratio * 100.0,
+                    ));
+                }
+            }
+            EventKind::RecordSkipped { reason, .. } => {
+                if self.detail.show_sub_events() {
+                    self.log(&format!("  ◇ Record skipped: {reason}"));
+                }
+            }
+
             // ── Intentional no-ops ────────────────────────────────
             // Explicit arms prevent new EventKind variants from being silently swallowed.
             // If you add a new variant to EventKind, you MUST add an arm here (or a real handler).
