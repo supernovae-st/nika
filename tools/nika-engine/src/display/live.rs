@@ -1440,28 +1440,40 @@ impl LiveRenderer {
             }
 
             // ── Orchestrator events ────────────────────────────────
-            EventKind::OrchestratorStarted { goal, max_rounds, .. } => {
+            EventKind::OrchestratorStarted {
+                goal, max_rounds, ..
+            } => {
                 self.log(&format!(
                     "{} {} Orchestrator started (max {max_rounds} rounds): {goal}",
                     self.ts(),
                     "⚡".cyan(),
                 ));
             }
-            EventKind::OrchestratorRound { round, records_count, cost_usd } => {
+            EventKind::OrchestratorRound {
+                round,
+                records_count,
+                cost_usd,
+            } => {
                 self.log(&format!(
                     "{} {} Round {round}: {records_count} records, ${cost_usd:.4}",
                     self.ts(),
                     "↻".cyan(),
                 ));
             }
-            EventKind::OrchestratorSubWorkflow { round, task_count, .. } => {
+            EventKind::OrchestratorSubWorkflow {
+                round, task_count, ..
+            } => {
                 if self.detail.show_sub_events() {
                     self.log(&format!(
                         "  ⎋ Round {round}: sub-workflow ({task_count} tasks)",
                     ));
                 }
             }
-            EventKind::OrchestratorCompleted { rounds, total_cost_usd, confidence } => {
+            EventKind::OrchestratorCompleted {
+                rounds,
+                total_cost_usd,
+                confidence,
+            } => {
                 self.log(&format!(
                     "{} {} Orchestrator done: {rounds} rounds, ${total_cost_usd:.4}, confidence={confidence:.2}",
                     self.ts(),

@@ -942,10 +942,7 @@ pub enum EventKind {
     },
 
     /// Orchestrator failed.
-    OrchestratorFailed {
-        round: u32,
-        reason: String,
-    },
+    OrchestratorFailed { round: u32, reason: String },
 
     // ═══════════════════════════════════════════
     // FETCH EXTRACT EVENTS

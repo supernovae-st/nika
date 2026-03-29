@@ -117,9 +117,7 @@ impl BuiltinTool for OrchestrateTool {
                             total_tokens += input_tokens + output_tokens;
                             total_cost_usd += cost_usd;
                         }
-                        EventKind::OrchestratorStarted {
-                            goal: g, ..
-                        } => {
+                        EventKind::OrchestratorStarted { goal: g, .. } => {
                             goal = Some(g.clone());
                         }
                         EventKind::OrchestratorRound { round, .. } => {

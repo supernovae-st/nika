@@ -3795,7 +3795,10 @@ tasks:
         let result = parse(yaml, FileId(0));
         assert!(result.is_ok(), "Parse failed: {:?}", result.err());
         let workflow = result.unwrap();
-        assert_eq!(workflow.goal.as_ref().unwrap().value, "Build a podcast episode");
+        assert_eq!(
+            workflow.goal.as_ref().unwrap().value,
+            "Build a podcast episode"
+        );
         assert_eq!(workflow.task_count(), 2);
     }
 }

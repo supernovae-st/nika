@@ -1497,7 +1497,8 @@ mod tests {
     fn test_shell_mode_allows_multiline_yaml_block() {
         // YAML `|` blocks produce multi-line strings that are legitimate
         // shell scripts. These should NOT be rejected.
-        let multiline_cmd = "echo \"Step 1: trimmed\"\necho \"Step 2: upper\"\necho \"Step 3: lower\"";
+        let multiline_cmd =
+            "echo \"Step 1: trimmed\"\necho \"Step 2: upper\"\necho \"Step 3: lower\"";
         let result = validate_exec_command_with_shell(multiline_cmd, true);
         assert!(
             result.is_ok(),
