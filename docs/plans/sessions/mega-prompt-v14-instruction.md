@@ -414,4 +414,64 @@ cargo test --workspace --lib 2>&1 | tail -5
 # GO — WAVE 1 → WAVE 2 → WAVE 3 → WAVE 4 → WAVE 5 → v0.52.0
 ```
 
+---
+
+# SECTION BONUS — FINDINGS DES 11 AGENTS SPECIALISES (line numbers exactes)
+
+## CRITICAL SECURITY (fix dans Wave 1)
+
+| # | Bug | File:Line | Fix |
+|---|-----|-----------|-----|
+| SEC-1 | IPv4-compatible IPv6 `::127.0.0.1` bypasses SSRF | `policy.rs:46-68` | Add `v6.to_ipv4()` check (catches both mapped AND compatible) |
+| SEC-2 | `/usr/bin/sudo` bypasses blocklist (full path) | `security.rs:28-137` | Strip path prefix from first token before blocklist match |
+| SEC-3 | Symlink artifact escape via `ln -s` in exec task | `io/security.rs:436-457` | Call `validate_canonicalized_boundary()` on parent after mkdir |
+| SEC-4 | `canonicalize()` failure silently skips symlink check | `io/writer.rs:229,311` | Treat canonicalize Err as ArtifactPathError |
+
+## HIGH BUGS (fix dans Wave 1)
+
+| # | Bug | File:Line | Fix |
+|---|-----|-----------|-----|
+| BUG-1 | SpawnAgentTool gets disconnected CancellationToken | `rig_agent_loop/mod.rs:263` | Pass `self.cancel_token.child_token()` |
+| BUG-2 | HashMap `depths[key]` can panic | `runner.rs:1481,1504` | Use `.get().copied().unwrap_or(0)` |
+| BUG-3 | `println!` not guarded by `!self.quiet` | `runner.rs:1497-1499` | Add `if !self.quiet` guard |
+| BUG-4 | 5 JSONPath errors logged at debug! (should be warn!) | `run_context.rs:420,488,506,523,605` | Change to `tracing::warn!` |
+| BUG-5 | 5 builtin tools use `.unwrap_or_default()` for serialization | `tools/{grep,edit,write,read,glob}.rs` | Map to `Err(NikaError::BuiltinToolError)` |
+| BUG-6 | Template malformed `{{...}}` silently passes through to LLM | `template.rs:474,1100` | Add `tracing::warn!` for malformed expressions |
+
+## PERFORMANCE (fix dans Wave 3)
+
+| # | Finding | File:Line | Fix |
+|---|---------|-----------|-----|
+| PERF-1 | `resolve_alias_path` clones Value unconditionally | `template.rs:283` | Use Cow<Value> to borrow when no parse needed |
+| PERF-2 | `compute_depths` is O(V^2), existing Kahn's BFS is O(V+E) | `dag/flow.rs:266-319` | Reuse `compute_layers()` result |
+| PERF-3 | MCP connections sequential in agent setup | `executor/agent.rs:234-237` | Use `futures::future::join_all` |
+
+## DEAD CODE (fix dans Wave 1)
+
+| Verdict | Count | Items |
+|---------|-------|-------|
+| REMOVE allow (code IS used) | 10 | png_crc, fixture_png/jpeg, setup, Action enum, McpClient::name |
+| DELETE code (truly dead) | 4 | `artifact_paths` field in runner, `setup_with_working_memory`, `RetryCondition` enum, `SetupResult.message` |
+| KEEP (justified) | 10 | RAII handles, cfg-gated, public API, palette |
+
+## ERROR HANDLING (top 5 to fix)
+
+| # | Pattern | File:Line | Fix |
+|---|---------|-----------|-----|
+| ERR-1 | Workflow output silently defaults to "" | `runner.rs:2570` | warn! when get_final_output() is None |
+| ERR-2 | Structured output layers discard prev errors | `structured_output.rs:318,346,365` | Accumulate layer errors in Vec |
+| ERR-3 | for_each type extraction silently returns None | `runner.rs:128` | warn! for non-empty items that fail parse |
+| ERR-4 | Binding transform NullInput catches ALL errors | `resolve.rs:571` | Match specifically on NullInput |
+| ERR-5 | env::current_dir().unwrap_or_default() = empty PathBuf | `executor/mod.rs:273` | Return early with descriptive error |
+
+## ARCHITECTURE NOTES (for reference, not immediate action)
+
+- `nika-engine` (150k LOC) should eventually split into `nika-runtime` + `nika-display`
+- NikaError 101 variants → 14 domain wrappers (error_domains.rs Phase 2-4)
+- `nika-media → nika-mcp` inverted dependency (ContentBlock should be in nika-core)
+- `nika-engine → nika-init` unnecessary (scaffolding not needed by runtime)
+- Display module (12k LOC) is lowest-hanging extraction for `nika-display` crate
+
+---
+
 Pas de questions. Lis, code, test, commit, push, continue.
