@@ -56,6 +56,12 @@ pub enum ProviderError {
 
     #[error("[NIKA-036] Cannot connect to custom endpoint '{endpoint}': {reason}")]
     EndpointConnectionFailed { endpoint: String, reason: String },
+
+    #[error("[NIKA-037] Fallback chain exhausted — all providers failed. Last: {last_provider}. Error: {last_error}")]
+    FallbackChainExhausted {
+        last_provider: String,
+        last_error: String,
+    },
 }
 
 impl From<ProviderError> for NikaError {
@@ -71,6 +77,15 @@ impl From<ProviderError> for NikaError {
             ProviderError::EndpointConnectionFailed { endpoint, reason } => {
                 NikaError::EndpointConnectionFailed { endpoint, reason }
             }
+            ProviderError::FallbackChainExhausted {
+                last_provider,
+                last_error,
+            } => NikaError::ProviderApiError {
+                message: format!(
+                    "[NIKA-037] Fallback chain exhausted — all providers failed. Last: {}. Error: {}",
+                    last_provider, last_error
+                ),
+            },
         }
     }
 }

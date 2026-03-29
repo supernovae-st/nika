@@ -249,6 +249,17 @@ pub enum EventKind {
         cost_usd: f64,
     },
 
+    /// Provider fallback: one provider failed, trying the next in the chain
+    ProviderFallback {
+        task_id: Arc<str>,
+        /// Provider that failed
+        from: String,
+        /// Provider being tried next
+        to: String,
+        /// Reason for fallback (error message)
+        reason: String,
+    },
+
     // ═══════════════════════════════════════════
     // CONTEXT ASSEMBLY
     // ═══════════════════════════════════════════
@@ -875,6 +886,7 @@ impl EventKind {
             | Self::TemplateResolved { task_id, .. }
             | Self::ProviderCalled { task_id, .. }
             | Self::ProviderResponded { task_id, .. }
+            | Self::ProviderFallback { task_id, .. }
             | Self::ContextAssembled { task_id, .. }
             | Self::McpInvoke { task_id, .. }
             | Self::McpResponse { task_id, .. }

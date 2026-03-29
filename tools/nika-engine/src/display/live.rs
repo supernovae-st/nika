@@ -1392,6 +1392,20 @@ impl LiveRenderer {
             EventKind::MediaProcessed { .. } => {}
             // MediaIntegrityCheck warnings are surfaced in the summary, not the live spinner
             EventKind::MediaIntegrityCheck { .. } => {}
+            // Provider fallback — show as warning in live view
+            EventKind::ProviderFallback {
+                task_id, from, to, reason,
+            } => {
+                self.log(&format!(
+                    "{} {} {}: {} → {} ({})",
+                    self.ts(),
+                    "⟳".yellow(),
+                    task_id,
+                    from,
+                    to,
+                    reason
+                ));
+            }
         }
     }
 

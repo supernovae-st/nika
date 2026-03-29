@@ -482,7 +482,8 @@ impl TuiState {
             | EventKind::BuiltinToolInvoked { .. }
             | EventKind::StreamingDelta { .. }
             | EventKind::ExtractApplied { .. }
-            | EventKind::FallbackTriggered { .. } => {
+            | EventKind::FallbackTriggered { .. }
+            | EventKind::ProviderFallback { .. } => {
                 // Observability events: captured in trace NDJSON but don't
                 // require TUI state mutations -- the TUI tracks task-level
                 // status via TaskStarted/TaskCompleted/TaskFailed.
