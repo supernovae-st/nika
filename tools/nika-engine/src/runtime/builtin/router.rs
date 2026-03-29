@@ -331,7 +331,7 @@ mod tests {
             .dispatch("nika:test", r#"{"hello":"world"}"#.to_string())
             .await;
 
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         assert_eq!(result.unwrap(), r#"received: {"hello":"world"}"#);
     }
 
@@ -371,7 +371,7 @@ mod tests {
             .dispatch("nika:sleep", r#"{"duration":"1ms"}"#.to_string())
             .await;
 
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
         assert_eq!(response["slept_for_ms"], 1);
     }
@@ -386,7 +386,7 @@ mod tests {
             )
             .await;
 
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
         assert_eq!(response["logged"], true);
     }
@@ -401,7 +401,7 @@ mod tests {
             )
             .await;
 
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
         assert_eq!(response["emitted"], true);
     }
@@ -413,7 +413,7 @@ mod tests {
             .dispatch("nika:assert", r#"{"condition":true}"#.to_string())
             .await;
 
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
         assert_eq!(response["passed"], true);
     }
@@ -441,7 +441,7 @@ mod tests {
             )
             .await;
 
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
         assert_eq!(response["response"], "yes");
         assert_eq!(response["default_used"], true);
@@ -511,7 +511,7 @@ mod tests {
         .to_string();
 
         let result = router.dispatch("nika:glob", glob_args).await;
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         let output = result.unwrap();
         assert!(output.contains("a.txt"));
         assert!(output.contains("b.txt"));
@@ -537,7 +537,7 @@ mod tests {
         .to_string();
 
         let result = router.dispatch("nika:grep", grep_args).await;
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         assert!(result.unwrap().contains("search.txt"));
     }
 

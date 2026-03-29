@@ -187,7 +187,7 @@ fn test_set_provider_openai() {
     let mut agent = ChatAgent::new().expect("Should create agent");
     let result = agent.set_provider(ModelProvider::OpenAI);
 
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     assert_eq!(agent.provider_name(), "openai");
 }
 
@@ -203,7 +203,7 @@ fn test_set_provider_claude() {
     // (parallel tests might remove it)
     if std::env::var("ANTHROPIC_API_KEY").is_ok() {
         let result = agent.set_provider(ModelProvider::Claude);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         assert_eq!(agent.provider_name(), "claude");
     }
 }
@@ -243,7 +243,7 @@ fn test_set_provider_list_does_not_change() {
 
     let result = agent.set_provider(ModelProvider::List);
 
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     assert_eq!(agent.provider_name(), original);
 }
 
@@ -261,7 +261,7 @@ fn test_set_provider_mistral() {
     let result = agent.set_provider(ModelProvider::Mistral);
 
     if std::env::var("MISTRAL_API_KEY").is_ok_and(|v| !v.is_empty()) {
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         assert_eq!(agent.provider_name(), "mistral");
     }
 }
@@ -276,7 +276,7 @@ fn test_set_provider_groq() {
     let result = agent.set_provider(ModelProvider::Groq);
 
     if std::env::var("GROQ_API_KEY").is_ok_and(|v| !v.is_empty()) {
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         assert_eq!(agent.provider_name(), "groq");
     }
 }
@@ -291,7 +291,7 @@ fn test_set_provider_deepseek() {
     let result = agent.set_provider(ModelProvider::DeepSeek);
 
     if std::env::var("DEEPSEEK_API_KEY").is_ok_and(|v| !v.is_empty()) {
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         assert_eq!(agent.provider_name(), "deepseek");
     }
 }
@@ -303,7 +303,7 @@ fn test_with_overrides_mistral() {
 
     let agent = ChatAgent::with_overrides(Some("mistral"), None);
     if std::env::var("MISTRAL_API_KEY").is_ok_and(|v| !v.is_empty()) {
-        assert!(agent.is_ok());
+        assert!(agent.is_ok(), "Should succeed: {:?}", agent.err());
         assert_eq!(agent.unwrap().provider_name(), "mistral");
     }
 }
@@ -420,7 +420,7 @@ async fn test_exec_command_echo() {
     let agent = ChatAgent::new().expect("Should create agent");
     let result = agent.exec_command("echo hello").await;
 
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     assert_eq!(result.unwrap(), "hello");
 }
 
@@ -432,7 +432,7 @@ async fn test_exec_command_with_args() {
     let agent = ChatAgent::new().expect("Should create agent");
     let result = agent.exec_command("echo -n 'test output'").await;
 
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     assert!(result.unwrap().contains("test output"));
 }
 
@@ -445,7 +445,7 @@ async fn test_exec_command_failure() {
     let result = agent.exec_command("exit 1").await;
 
     // Command failure returns Ok with exit code info
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     let output = result.unwrap();
     assert!(output.contains("Exit code: 1"));
 }
@@ -460,7 +460,7 @@ async fn test_exec_command_pipe() {
         .exec_command("echo 'hello world' | tr 'a-z' 'A-Z'")
         .await;
 
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     assert_eq!(result.unwrap(), "HELLO WORLD");
 }
 

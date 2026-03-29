@@ -1700,7 +1700,7 @@ mod tests {
         );
 
         let result = analyze(raw);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.errors);
 
         let workflow = result.value.unwrap();
         assert_eq!(workflow.task_count(), 2);
@@ -1712,7 +1712,7 @@ mod tests {
     fn test_analyze_invalid_schema() {
         let raw = make_raw_workflow("invalid", vec![]);
         let result = analyze(raw);
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.value);
         assert_eq!(result.errors[0].kind, AnalyzeErrorKind::InvalidSchema);
     }
 
@@ -1721,7 +1721,7 @@ mod tests {
         // Valid schema with at least one task
         let raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("step1")]);
         let result = analyze(raw);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.errors);
     }
 
     #[test]
@@ -1732,7 +1732,7 @@ mod tests {
         );
 
         let result = analyze(raw);
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.value);
         assert_eq!(result.errors[0].kind, AnalyzeErrorKind::DuplicateTask);
     }
 
@@ -1747,7 +1747,7 @@ mod tests {
 
         let raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("task1"), task2]);
         let result = analyze(raw);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.errors);
 
         let workflow = result.value.unwrap();
         let t2 = workflow.get_task_by_name("task2").unwrap();
@@ -1764,7 +1764,7 @@ mod tests {
         let raw = make_raw_workflow("nika/workflow@0.12", vec![task1]);
         let result = analyze(raw);
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.value);
         assert_eq!(result.errors[0].kind, AnalyzeErrorKind::UnknownTask);
     }
 
@@ -1777,7 +1777,7 @@ mod tests {
         let raw = make_raw_workflow("nika/workflow@0.12", vec![task1]);
         let result = analyze(raw);
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.value);
         assert_eq!(result.errors[0].kind, AnalyzeErrorKind::InvalidBinding);
     }
 
@@ -1789,7 +1789,7 @@ mod tests {
 
         let raw = make_raw_workflow("nika/workflow@0.12", vec![task1]);
         let result = analyze(raw);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.errors);
 
         let workflow = result.value.unwrap();
         let t1 = workflow.get_task_by_name("task1").unwrap();
@@ -1805,7 +1805,7 @@ mod tests {
 
         let raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("task1"), task2]);
         let result = analyze(raw);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.errors);
 
         let workflow = result.value.unwrap();
         let t2 = workflow.get_task_by_name("task2").unwrap();
@@ -1820,7 +1820,7 @@ mod tests {
 
         let raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("task1"), task2]);
         let result = analyze(raw);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.errors);
 
         let workflow = result.value.unwrap();
         let t2 = workflow.get_task_by_name("task2").unwrap();
@@ -1836,7 +1836,7 @@ mod tests {
 
         let raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("task1"), task2]);
         let result = analyze(raw);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.errors);
 
         let workflow = result.value.unwrap();
         let t2 = workflow.get_task_by_name("task2").unwrap();
@@ -1855,7 +1855,7 @@ mod tests {
 
         let raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("task1"), task2]);
         let result = analyze(raw);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.errors);
 
         let workflow = result.value.unwrap();
         let t2 = workflow.get_task_by_name("task2").unwrap();
@@ -1870,7 +1870,7 @@ mod tests {
         let raw = make_raw_workflow("nika/workflow@0.12", vec![task1]);
         let result = analyze(raw);
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.value);
         assert_eq!(result.errors[0].kind, AnalyzeErrorKind::UnknownTask);
     }
 
@@ -1884,7 +1884,7 @@ mod tests {
             vec![make_raw_task("task1"), make_raw_task("task2"), task3],
         );
         let result = analyze(raw);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.errors);
 
         let workflow = result.value.unwrap();
         let t3 = workflow.get_task_by_name("task3").unwrap();
@@ -1906,7 +1906,7 @@ mod tests {
         let raw = make_raw_workflow("nika/workflow@0.12", vec![task1, task2]);
         let result = analyze(raw);
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.value);
         assert!(result
             .errors
             .iter()
@@ -1924,7 +1924,7 @@ mod tests {
         let raw = make_raw_workflow("nika/workflow@0.12", vec![task1, task2]);
         let result = analyze(raw);
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.value);
         assert!(result
             .errors
             .iter()
@@ -1943,7 +1943,7 @@ mod tests {
         let raw = make_raw_workflow("nika/workflow@0.12", vec![task1, task2]);
         let result = analyze(raw);
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.value);
         assert!(result
             .errors
             .iter()
@@ -1984,7 +1984,7 @@ mod tests {
 
         let raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("task1"), task2]);
         let result = analyze(raw);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.errors);
 
         let wf = result.value.unwrap();
         let t2 = wf.get_task_by_name("task2").unwrap();
@@ -2030,7 +2030,7 @@ mod tests {
         ));
 
         let result = analyze(raw);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.errors);
 
         let workflow = result.value.unwrap();
         assert_eq!(workflow.include.len(), 2);
@@ -2063,7 +2063,7 @@ mod tests {
         let raw = make_raw_workflow("nika/workflow@0.1", vec![task]);
         let result = analyze(raw);
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.value);
         assert!(result
             .errors
             .iter()
@@ -2115,7 +2115,7 @@ mod tests {
         let raw = make_raw_workflow("nika/workflow@0.2", vec![task]);
         let result = analyze(raw);
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.value);
         assert!(result
             .errors
             .iter()
@@ -2143,7 +2143,7 @@ mod tests {
         let raw = make_raw_workflow("nika/workflow@0.1", vec![task]);
         let result = analyze(raw);
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.value);
         assert!(result
             .errors
             .iter()
@@ -2187,7 +2187,7 @@ mod tests {
         let raw = make_raw_workflow("nika/workflow@0.1", vec![task]);
         let result = analyze(raw);
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.value);
         assert!(result
             .errors
             .iter()
@@ -2204,7 +2204,7 @@ mod tests {
         let raw = make_raw_workflow("nika/workflow@0.11", vec![task]);
         let result = analyze(raw);
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.value);
         assert!(result
             .errors
             .iter()
@@ -2220,7 +2220,7 @@ mod tests {
         let raw = make_raw_workflow("nika/workflow@0.11", vec![task]);
         let result = analyze(raw);
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.value);
         assert!(result
             .errors
             .iter()
@@ -2246,7 +2246,7 @@ mod tests {
 
         let result = analyze(raw);
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.value);
         assert!(result
             .errors
             .iter()
@@ -2327,7 +2327,7 @@ mod tests {
         let raw = make_raw_workflow("nika/workflow@0.1", vec![task]);
         let result = analyze(raw);
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.value);
         let err = &result.errors[0];
         assert!(err.message.contains("requires schema version"));
         assert!(err.message.contains("nika/workflow@0.3"));
@@ -2354,7 +2354,7 @@ mod tests {
         ));
 
         let result = analyze(raw);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.errors);
 
         let workflow = result.value.unwrap();
         assert_eq!(workflow.name.as_deref(), Some("my-workflow"));
@@ -2383,7 +2383,7 @@ mod tests {
         raw.inputs = Some(Spanned::new(inputs, make_span(0, 50)));
 
         let result = analyze(raw);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.errors);
 
         let workflow = result.value.unwrap();
         assert_eq!(workflow.inputs.len(), 2);
@@ -2405,14 +2405,14 @@ mod tests {
         );
 
         let result = validate(&raw);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.errors);
     }
 
     #[test]
     fn test_validate_invalid_schema() {
         let raw = make_raw_workflow("invalid", vec![]);
         let result = validate(&raw);
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.value);
         assert_eq!(result.errors[0].kind, AnalyzeErrorKind::InvalidSchema);
     }
 
@@ -2424,7 +2424,7 @@ mod tests {
         );
 
         let result = validate(&raw);
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.value);
         assert_eq!(result.errors[0].kind, AnalyzeErrorKind::DuplicateTask);
     }
 
@@ -2436,7 +2436,7 @@ mod tests {
         let raw = make_raw_workflow("nika/workflow@0.12", vec![task1]);
         let result = validate(&raw);
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.value);
         assert_eq!(result.errors[0].kind, AnalyzeErrorKind::UnknownTask);
     }
 
@@ -2448,7 +2448,7 @@ mod tests {
         let raw = make_raw_workflow("nika/workflow@0.12", vec![task1]);
         let result = validate(&raw);
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.value);
         assert_eq!(result.errors[0].kind, AnalyzeErrorKind::UnknownTask);
     }
 
@@ -2460,7 +2460,7 @@ mod tests {
         let raw = make_raw_workflow("nika/workflow@0.12", vec![task1]);
         let result = validate(&raw);
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.value);
         assert_eq!(result.errors[0].kind, AnalyzeErrorKind::InvalidBinding);
     }
 
@@ -2475,7 +2475,7 @@ mod tests {
         let raw = make_raw_workflow("nika/workflow@0.12", vec![task1, task2]);
         let result = validate(&raw);
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.value);
         assert!(result
             .errors
             .iter()
@@ -2493,7 +2493,7 @@ mod tests {
         let raw = make_raw_workflow("nika/workflow@0.12", vec![task1, task2]);
         let result = validate(&raw);
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.value);
         assert!(result
             .errors
             .iter()
@@ -2518,7 +2518,7 @@ mod tests {
         let raw = make_raw_workflow("nika/workflow@0.1", vec![task]);
         let result = validate(&raw);
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.value);
         assert!(result
             .errors
             .iter()
@@ -2538,8 +2538,8 @@ mod tests {
         let analyze_result = analyze(raw.clone());
 
         // Both should fail
-        assert!(validate_result.is_err());
-        assert!(analyze_result.is_err());
+        assert!(validate_result.is_err(), "Should fail but got: {:?}", validate_result.value);
+        assert!(analyze_result.is_err(), "Should fail but got: {:?}", analyze_result.value);
 
         // Both should report the same error kinds
         let validate_kinds: Vec<_> = validate_result.errors.iter().map(|e| &e.kind).collect();
@@ -2554,7 +2554,7 @@ mod tests {
 
         let raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("task1"), task2]);
         let result = validate(&raw);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.errors);
     }
 
     // ====================================================================
@@ -2574,7 +2574,7 @@ mod tests {
         raw.mcp = Some(Spanned::new(mcp_config, make_span(5, 35)));
 
         let result = analyze(raw);
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.value);
         assert_eq!(result.errors.len(), 1);
         assert_eq!(result.errors[0].kind, AnalyzeErrorKind::MissingField);
         let msg = result.errors[0].message.to_lowercase();
@@ -2605,7 +2605,7 @@ mod tests {
         raw.mcp = Some(Spanned::new(mcp_config, make_span(5, 65)));
 
         let result = analyze(raw);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.errors);
     }
 
     #[test]
@@ -2654,7 +2654,7 @@ mod tests {
         raw.mcp = Some(Spanned::new(mcp_config, make_span(5, 35)));
 
         let result = analyze(raw);
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.value);
         assert_eq!(result.errors.len(), 1);
         assert_eq!(result.errors[0].kind, AnalyzeErrorKind::MissingField);
     }
@@ -2979,7 +2979,7 @@ mod tests {
 
         let raw = make_raw_workflow("nika/workflow@0.12", vec![task1a, task1b]);
         let result = analyze(raw);
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.value);
         assert!(
             result.errors.len() >= 2,
             "analyzer should collect all errors, got {}: {:?}",
@@ -2995,7 +2995,7 @@ mod tests {
 
         let raw = make_raw_workflow("nika/workflow@0.12", vec![task]);
         let result = analyze(raw);
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.value);
         assert!(
             result
                 .errors
@@ -3014,7 +3014,7 @@ mod tests {
 
         let raw = make_raw_workflow("nika/workflow@0.12", vec![task]);
         let result = analyze(raw);
-        assert!(result.is_err());
+        assert!(result.is_err(), "Should fail but got: {:?}", result.value);
         assert!(
             result
                 .errors
@@ -3082,7 +3082,7 @@ mod tests {
         let raw = make_raw_workflow("nika/workflow@0.12", vec![task]);
 
         let result = analyze(raw);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.errors);
 
         let workflow = result.value.unwrap();
         assert!(
