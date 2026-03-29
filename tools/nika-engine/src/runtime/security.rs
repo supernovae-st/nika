@@ -1582,4 +1582,45 @@ mod tests {
         assert!(!is_valid_env_var_name("MY{VAR}"));
         assert!(!is_valid_env_var_name("A=B"));
     }
+
+    // =========================================================================
+    // Shell blocklist: pre-resolution vs post-resolution
+    // =========================================================================
+
+    #[test]
+    fn test_shell_blocklist_on_raw_template_allows_data_with_dollar_paren() {
+        // Raw template has no $( — safe
+        let raw_template = "echo 'Special: {{with.cmd}}'";
+        assert!(
+            check_shell_mode_blocklist(raw_template).is_ok(),
+            "Template without $() should pass shell blocklist"
+        );
+
+        // But a resolved command with $( from data would have been blocked before the fix
+        let resolved = "echo 'Special: echo Today is $(date +%Y-%m-%d)'";
+        assert!(
+            check_shell_mode_blocklist(resolved).is_err(),
+            "Resolved command with $() is still dangerous if checked directly"
+        );
+    }
+
+    #[test]
+    fn test_shell_blocklist_blocks_literal_dollar_paren_in_template() {
+        // User WROTE $() in their YAML — this should always be blocked
+        let raw_template = "echo $(date +%Y-%m-%d)";
+        assert!(
+            check_shell_mode_blocklist(raw_template).is_err(),
+            "Literal $() in template should be blocked"
+        );
+    }
+
+    #[test]
+    fn test_shell_blocklist_allows_template_placeholders() {
+        // Template placeholders like {{with.x}} don't contain $( or backticks
+        let raw_template = "echo '{{with.output}}' | grep pattern";
+        assert!(
+            check_shell_mode_blocklist(raw_template).is_ok(),
+            "Template with {{with.x}} should pass shell blocklist"
+        );
+    }
 }
