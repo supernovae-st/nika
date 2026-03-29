@@ -172,7 +172,7 @@ pub async fn do_setup(quiet: bool) -> Result<(), NikaError> {
     }
 
     // 5. Create symlink — default to dev
-    let channel = if release.is_some() { "dev" } else { "dev" };
+    let channel = "dev";
     let target = &dev_binary;
     let symlink_path = bin_dir.join("nika");
     let _ = std::fs::remove_file(&symlink_path);
@@ -457,8 +457,6 @@ fn print_channel_line(name: &str, info: &Option<ChannelInfo>, active: &str) {
             };
             let detail_str = if ch.detail.starts_with('✗') {
                 ch.detail.custom_color(SOL_RED).to_string()
-            } else if is_active {
-                ch.detail.custom_color(SOL_DIM).to_string()
             } else {
                 ch.detail.custom_color(SOL_DIM).to_string()
             };
