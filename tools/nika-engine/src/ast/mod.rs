@@ -102,7 +102,7 @@ pub mod limits {
 mod action;
 mod agent;
 pub mod import_loader;
-pub mod include_loader;
+// include_loader removed — expand_raw_include (import_loader.rs) handles DAG fusion
 mod invoke;
 pub mod loader;
 pub mod pkg_resolver;
@@ -135,8 +135,7 @@ pub use decompose::{DecomposeSpec, DecomposeStrategy};
 pub use loader::{discover_definitions, load_definition, DefinitionKind, LoadedDefinition};
 // Import loader is defined in import_loader.rs
 pub use import_loader::expand_raw_include;
-// Include loader is defined in include_loader.rs
-pub use include_loader::expand_includes;
+// Include loader removed — raw-level expansion via import_loader is the active path
 // StructuredOutputSpec is defined in structured.rs
 pub use structured::StructuredOutputSpec;
 // CompletionConfig is defined in completion.rs
