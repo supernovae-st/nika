@@ -176,6 +176,11 @@ tasks:
 - `depends_on:` is ordering only; `with:` carries data
 - Schema string: `nika/workflow@0.12`, not `0.12`
 - `timeout:` is seconds, not milliseconds
+- `max_retries: 3` at task level — use `retry: { max_attempts: 3 }` instead
+- `thinking: true` at task level — use `infer: { extended_thinking: true }` inside infer
+- `model: haiku` inside `infer:` — put `model: claude-haiku-4-5` at task level
+- `$()` in shell: true templates — NIKA-053 blocks command substitution
+- `body: {...}` in fetch — use `json: {...}` for auto-serialized JSON
 
 ## Providers
 
