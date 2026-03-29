@@ -779,6 +779,236 @@ tasks:
         let validator = WorkflowSchemaValidator::new().unwrap();
         assert!(validator.validate_yaml(yaml).is_ok());
     }
+
+    // ========================================================================
+    // Test: Provider array (fallback chain) passes
+    // ========================================================================
+    #[test]
+    fn test_provider_array_fallback_chain_passes() {
+        let validator = WorkflowSchemaValidator::new().unwrap();
+
+        // Workflow-level provider array
+        let yaml = r#"
+schema: nika/workflow@0.12
+provider: [groq, claude]
+tasks:
+  - id: step1
+    infer: "Hello"
+"#;
+        let result = validator.validate_yaml(yaml);
+        assert!(
+            result.is_ok(),
+            "Workflow-level provider array should pass: {:?}",
+            result
+        );
+
+        // Task-level provider array
+        let yaml2 = r#"
+schema: nika/workflow@0.12
+tasks:
+  - id: step1
+    provider: [openai, anthropic, groq]
+    infer: "Hello"
+"#;
+        let result2 = validator.validate_yaml(yaml2);
+        assert!(
+            result2.is_ok(),
+            "Task-level provider array should pass: {:?}",
+            result2
+        );
+    }
+
+    // ========================================================================
+    // Test: Agent scalar (preset reference) passes
+    // ========================================================================
+    #[test]
+    fn test_agent_scalar_preset_reference_passes() {
+        let validator = WorkflowSchemaValidator::new().unwrap();
+        let yaml = r#"
+schema: nika/workflow@0.12
+agents:
+  think:
+    model: claude-sonnet-4-20250514
+    temperature: 1.0
+tasks:
+  - id: step1
+    agent: think
+    infer: "Analyze this"
+"#;
+        let result = validator.validate_yaml(yaml);
+        assert!(
+            result.is_ok(),
+            "Agent scalar preset reference should pass: {:?}",
+            result
+        );
+    }
+
+    // ========================================================================
+    // Test: Artifact format: markdown passes
+    // ========================================================================
+    #[test]
+    fn test_artifact_format_markdown_passes() {
+        let validator = WorkflowSchemaValidator::new().unwrap();
+        let yaml = r#"
+schema: nika/workflow@0.12
+artifacts:
+  dir: ./output
+  format: markdown
+tasks:
+  - id: report
+    infer: "Generate report"
+    artifact:
+      path: report.md
+      format: markdown
+"#;
+        let result = validator.validate_yaml(yaml);
+        assert!(
+            result.is_ok(),
+            "Artifact format: markdown should pass: {:?}",
+            result
+        );
+    }
+
+    // ========================================================================
+    // Test: Record field passes (boolean shorthand + object form)
+    // ========================================================================
+    #[test]
+    fn test_record_field_passes() {
+        let validator = WorkflowSchemaValidator::new().unwrap();
+
+        // Boolean shorthand
+        let yaml = r#"
+schema: nika/workflow@0.12
+tasks:
+  - id: step1
+    record: true
+    infer: "Hello"
+"#;
+        let result = validator.validate_yaml(yaml);
+        assert!(
+            result.is_ok(),
+            "record: true shorthand should pass: {:?}",
+            result
+        );
+
+        // Object form
+        let yaml2 = r#"
+schema: nika/workflow@0.12
+tasks:
+  - id: step1
+    record:
+      compress: true
+      retain: [stats, findings]
+      max_tokens: 1000
+      confidence_threshold: 0.8
+    infer: "Hello"
+"#;
+        let result2 = validator.validate_yaml(yaml2);
+        assert!(
+            result2.is_ok(),
+            "record: object form should pass: {:?}",
+            result2
+        );
+    }
+
+    // ========================================================================
+    // Test: context_budget field passes
+    // ========================================================================
+    #[test]
+    fn test_context_budget_field_passes() {
+        let validator = WorkflowSchemaValidator::new().unwrap();
+        let yaml = r#"
+schema: nika/workflow@0.12
+tasks:
+  - id: step1
+    context_budget: 50000
+    infer: "Hello"
+"#;
+        let result = validator.validate_yaml(yaml);
+        assert!(
+            result.is_ok(),
+            "context_budget field should pass: {:?}",
+            result
+        );
+    }
+
+    // ========================================================================
+    // Test: context_budget out of range fails
+    // ========================================================================
+    #[test]
+    fn test_context_budget_out_of_range_fails() {
+        let validator = WorkflowSchemaValidator::new().unwrap();
+        let yaml = r#"
+schema: nika/workflow@0.12
+tasks:
+  - id: step1
+    context_budget: 0
+    infer: "Hello"
+"#;
+        let result = validator.validate_yaml(yaml);
+        assert!(result.is_err(), "context_budget: 0 should fail (min 1)");
+    }
+
+    // ========================================================================
+    // Test: Routing config passes (task and workflow level)
+    // ========================================================================
+    #[test]
+    fn test_routing_config_passes() {
+        let validator = WorkflowSchemaValidator::new().unwrap();
+
+        // Workflow-level routing
+        let yaml = r#"
+schema: nika/workflow@0.12
+routing:
+  fallback: [groq, claude, openai]
+  strategy: cost
+tasks:
+  - id: step1
+    infer: "Hello"
+"#;
+        let result = validator.validate_yaml(yaml);
+        assert!(
+            result.is_ok(),
+            "Workflow-level routing should pass: {:?}",
+            result
+        );
+
+        // Task-level routing
+        let yaml2 = r#"
+schema: nika/workflow@0.12
+tasks:
+  - id: step1
+    routing:
+      fallback: [openai, anthropic]
+      strategy: latency
+    infer: "Hello"
+"#;
+        let result2 = validator.validate_yaml(yaml2);
+        assert!(
+            result2.is_ok(),
+            "Task-level routing should pass: {:?}",
+            result2
+        );
+    }
+
+    // ========================================================================
+    // Test: Invalid routing strategy fails
+    // ========================================================================
+    #[test]
+    fn test_invalid_routing_strategy_fails() {
+        let validator = WorkflowSchemaValidator::new().unwrap();
+        let yaml = r#"
+schema: nika/workflow@0.12
+routing:
+  fallback: [groq, claude]
+  strategy: invalid
+tasks:
+  - id: step1
+    infer: "Hello"
+"#;
+        let result = validator.validate_yaml(yaml);
+        assert!(result.is_err(), "Invalid routing strategy should fail");
+    }
 }
 
 // ========================================================================
