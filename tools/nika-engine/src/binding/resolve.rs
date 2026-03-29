@@ -692,25 +692,17 @@ fn resolve_binding_path(
         }
 
         BindingSource::Env(var_name) => {
-            let name_upper = var_name.to_uppercase();
-            // Block known secret patterns (API keys, tokens, passwords)
+            // Warn on secret-pattern vars for audit trail, but allow access.
+            // Users explicitly reference $env.VAR in their YAML — that's an opt-in.
             const SECRET_PATTERNS: &[&str] =
                 &["KEY", "SECRET", "TOKEN", "PASSWORD", "CREDENTIAL", "AUTH"];
-            let is_secret = SECRET_PATTERNS.iter().any(|p| name_upper.contains(p));
-            // Allow NIKA_ prefix or safe system variables only
-            const SAFE_VARS: &[&str] = &[
-                "PATH", "HOME", "USER", "SHELL", "LANG", "TERM", "PWD", "TMPDIR", "TZ",
-            ];
-            let is_allowed =
-                name_upper.starts_with("NIKA_") || SAFE_VARS.iter().any(|v| name_upper == *v);
-            if is_secret || !is_allowed {
-                tracing::warn!(var = %var_name, "Blocked $env access to restricted variable");
-                Ok(None)
-            } else {
-                match std::env::var(var_name.as_ref()) {
-                    Ok(val) => Ok(Some(Value::String(val))),
-                    Err(_) => Ok(None),
-                }
+            let name_upper = var_name.to_uppercase();
+            if SECRET_PATTERNS.iter().any(|p| name_upper.contains(p)) {
+                tracing::debug!(var = %var_name, "Accessing secret-pattern env var via $env binding");
+            }
+            match std::env::var(var_name.as_ref()) {
+                Ok(val) => Ok(Some(Value::String(val))),
+                Err(_) => Ok(None),
             }
         }
 
@@ -2595,6 +2587,65 @@ mod tests {
         assert_eq!(bindings.get("from_env"), Some(&json!("env_val")));
 
         std::env::remove_var("NIKA_TEST_MIXED_8A");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // BUG-001: $env should allow secret-pattern vars (KEY, TOKEN, etc.)
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn env_binding_allows_secret_pattern_vars() {
+        let store = RunContext::new();
+
+        // Set env vars with secret patterns (KEY, TOKEN, AUTH)
+        std::env::set_var("NIKA_TEST_ELEVENLABS_API_KEY", "sk-test-123");
+        std::env::set_var("NIKA_TEST_MY_SECRET_TOKEN", "tok-456");
+        std::env::set_var("NIKA_TEST_CUSTOM_AUTH", "auth-789");
+
+        let mut spec = WithSpec::default();
+        spec.insert(
+            "api_key".to_string(),
+            WithEntry::simple(
+                BindingPath::parse("$env.NIKA_TEST_ELEVENLABS_API_KEY").unwrap(),
+            ),
+        );
+        spec.insert(
+            "token".to_string(),
+            WithEntry::simple(
+                BindingPath::parse("$env.NIKA_TEST_MY_SECRET_TOKEN").unwrap(),
+            ),
+        );
+        spec.insert(
+            "auth".to_string(),
+            WithEntry::simple(BindingPath::parse("$env.NIKA_TEST_CUSTOM_AUTH").unwrap()),
+        );
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+
+        // All secret-pattern vars should now be accessible (BUG-001 fix)
+        assert_eq!(bindings.get("api_key"), Some(&json!("sk-test-123")));
+        assert_eq!(bindings.get("token"), Some(&json!("tok-456")));
+        assert_eq!(bindings.get("auth"), Some(&json!("auth-789")));
+
+        std::env::remove_var("NIKA_TEST_ELEVENLABS_API_KEY");
+        std::env::remove_var("NIKA_TEST_MY_SECRET_TOKEN");
+        std::env::remove_var("NIKA_TEST_CUSTOM_AUTH");
+    }
+
+    #[test]
+    fn env_binding_returns_error_for_missing_var() {
+        let store = RunContext::new();
+
+        let mut spec = WithSpec::default();
+        spec.insert(
+            "missing".to_string(),
+            WithEntry::simple(
+                BindingPath::parse("$env.NIKA_TEST_SURELY_NONEXISTENT_VAR_12345").unwrap(),
+            ),
+        );
+
+        let result = ResolvedBindings::from_with_spec(Some(&spec), &store);
+        assert!(result.is_err(), "Missing env var without ?? fallback should error");
     }
 
     // ═══════════════════════════════════════════════════════════════
