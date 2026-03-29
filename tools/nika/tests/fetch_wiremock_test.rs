@@ -148,7 +148,7 @@ async fn test_fetch_get_plain_text() {
         .await;
 
     // Assert
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     assert_eq!(result.unwrap(), "Hello, World!");
 }
 
@@ -217,7 +217,7 @@ async fn test_fetch_post_empty_body() {
         .await;
 
     // Assert
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     assert_eq!(result.unwrap(), ""); // 204 returns empty body
 }
 
@@ -284,7 +284,7 @@ async fn test_fetch_404_error_returns_body() {
         .await;
 
     // Assert
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     let body = result.unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&body).unwrap();
     assert_eq!(parsed["code"], 404);
@@ -319,7 +319,7 @@ async fn test_fetch_401_unauthorized() {
         .await;
 
     // Assert
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     let body = result.unwrap();
     assert!(body.contains("Unauthorized"));
 }
@@ -395,7 +395,7 @@ async fn test_fetch_with_content_type_header() {
         .await;
 
     // Assert
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
 }
 
 // =============================================================================
@@ -429,7 +429,7 @@ async fn test_fetch_put_method() {
         .await;
 
     // Assert
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     let response_body = result.unwrap();
     assert!(response_body.contains("updated"));
 }
@@ -460,7 +460,7 @@ async fn test_fetch_delete_method() {
         .await;
 
     // Assert
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
 }
 
 #[tokio::test]
@@ -490,7 +490,7 @@ async fn test_fetch_patch_method() {
         .await;
 
     // Assert
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
 }
 
 // =============================================================================
@@ -522,7 +522,7 @@ async fn test_fetch_verifies_call_count() {
         let result = executor
             .execute(&task_id, &action, &bindings, &datastore, None)
             .await;
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     // Assert - verification happens automatically when MockServer drops
@@ -561,7 +561,7 @@ async fn test_fetch_multiple_endpoints() {
     let result1 = executor
         .execute(&task_id1, &action1, &bindings, &datastore, None)
         .await;
-    assert!(result1.is_ok());
+    assert!(result1.is_ok(), "Should succeed: {:?}", result1.err());
     assert!(result1.unwrap().contains("alice"));
 
     // Act & Assert - products endpoint
@@ -573,7 +573,7 @@ async fn test_fetch_multiple_endpoints() {
     let result2 = executor
         .execute(&task_id2, &action2, &bindings, &datastore, None)
         .await;
-    assert!(result2.is_ok());
+    assert!(result2.is_ok(), "Should succeed: {:?}", result2.err());
     assert!(result2.unwrap().contains("widget"));
 }
 
@@ -618,7 +618,7 @@ async fn test_fetch_large_json_response() {
         .await;
 
     // Assert
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     let body = result.unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&body).unwrap();
     assert_eq!(parsed["items"].as_array().unwrap().len(), 100);
@@ -662,7 +662,7 @@ async fn test_fetch_with_delay_succeeds() {
     let elapsed = start.elapsed();
 
     // Assert
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     assert_eq!(result.unwrap(), "slow response");
     assert!(
         elapsed >= Duration::from_millis(100),
@@ -695,7 +695,7 @@ async fn test_fetch_unmatched_path_returns_error() {
         .await;
 
     // Assert - wiremock returns 404 for unmatched requests by default
-    assert!(result.is_ok()); // Our executor returns body even for non-2xx
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err()); // Our executor returns body even for non-2xx
     let body = result.unwrap();
     assert!(body.is_empty() || body.contains("404"));
 }

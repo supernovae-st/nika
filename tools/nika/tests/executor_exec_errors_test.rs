@@ -58,7 +58,7 @@ async fn test_exec_empty_command_string() {
     let executor = create_executor();
     let result = run_exec(&executor, "empty_cmd", "", None).await;
 
-    assert!(result.is_err());
+    assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
     let err = result.unwrap_err();
     // Empty command should fail during shlex parsing or validation
     assert!(
@@ -72,7 +72,7 @@ async fn test_exec_whitespace_only_command() {
     let executor = create_executor();
     let result = run_exec(&executor, "whitespace_cmd", "   ", None).await;
 
-    assert!(result.is_err());
+    assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
     let err = result.unwrap_err();
     assert!(
         matches!(err, NikaError::Execution(_)),
@@ -90,7 +90,7 @@ async fn test_exec_unbalanced_single_quotes() {
     // Missing closing single quote
     let result = run_exec(&executor, "unbalanced_single", "echo 'hello", None).await;
 
-    assert!(result.is_err());
+    assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
     let err = result.unwrap_err();
     if let NikaError::Execution(msg) = &err {
         assert!(
@@ -108,7 +108,7 @@ async fn test_exec_unbalanced_double_quotes() {
     // Missing closing double quote
     let result = run_exec(&executor, "unbalanced_double", "echo \"hello", None).await;
 
-    assert!(result.is_err());
+    assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
     let err = result.unwrap_err();
     if let NikaError::Execution(msg) = &err {
         assert!(
@@ -126,7 +126,7 @@ async fn test_exec_mixed_unbalanced_quotes() {
     // Mixed unbalanced quotes
     let result = run_exec(&executor, "mixed_quotes", "echo \"hello'", None).await;
 
-    assert!(result.is_err());
+    assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
 }
 
 // ============================================================================
@@ -145,7 +145,7 @@ async fn test_exec_nonexistent_command() {
     )
     .await;
 
-    assert!(result.is_err());
+    assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
     let err = result.unwrap_err();
     assert!(
         matches!(err, NikaError::Execution(_)),
@@ -165,7 +165,7 @@ async fn test_exec_nonexistent_command_shell_mode() {
     )
     .await;
 
-    assert!(result.is_err());
+    assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
 }
 
 // ============================================================================
@@ -178,7 +178,7 @@ async fn test_exec_exit_code_1() {
     // false command always returns exit code 1
     let result = run_exec(&executor, "exit_1", "false", None).await;
 
-    assert!(result.is_err());
+    assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
     let err = result.unwrap_err();
     if let NikaError::Execution(msg) = &err {
         assert!(
@@ -196,7 +196,7 @@ async fn test_exec_exit_code_1_shell_mode() {
     // exit 1 in shell mode
     let result = run_exec(&executor, "exit_1_shell", "exit 1", Some(true)).await;
 
-    assert!(result.is_err());
+    assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
 }
 
 #[tokio::test]
@@ -205,7 +205,7 @@ async fn test_exec_exit_code_2() {
     // Shell exit 2 (often indicates invalid usage)
     let result = run_exec(&executor, "exit_2", "exit 2", Some(true)).await;
 
-    assert!(result.is_err());
+    assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
 }
 
 #[tokio::test]
@@ -214,7 +214,7 @@ async fn test_exec_exit_code_127() {
     // exit 127 is "command not found" in shell
     let result = run_exec(&executor, "exit_127", "exit 127", Some(true)).await;
 
-    assert!(result.is_err());
+    assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
 }
 
 // ============================================================================
@@ -233,7 +233,7 @@ async fn test_exec_stderr_output_captured() {
     )
     .await;
 
-    assert!(result.is_err());
+    assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
     let err = result.unwrap_err();
     if let NikaError::Execution(msg) = &err {
         // Stderr should be captured in the error message
@@ -256,7 +256,7 @@ async fn test_exec_large_stderr() {
     )
     .await;
 
-    assert!(result.is_err());
+    assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
 }
 
 // ============================================================================
@@ -268,7 +268,7 @@ async fn test_exec_blocked_rm_rf() {
     let executor = create_executor();
     let result = run_exec(&executor, "blocked_rm", "rm -rf /", None).await;
 
-    assert!(result.is_err());
+    assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
     let err = result.unwrap_err();
     let msg = err.to_string();
     assert!(
@@ -282,7 +282,7 @@ async fn test_exec_blocked_sudo() {
     let executor = create_executor();
     let result = run_exec(&executor, "blocked_sudo", "sudo ls", None).await;
 
-    assert!(result.is_err());
+    assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
 }
 
 #[tokio::test]
@@ -290,7 +290,7 @@ async fn test_exec_blocked_chmod_777() {
     let executor = create_executor();
     let result = run_exec(&executor, "blocked_chmod", "chmod 777 /", None).await;
 
-    assert!(result.is_err());
+    assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
 }
 
 #[tokio::test]
@@ -298,7 +298,7 @@ async fn test_exec_blocked_mkfs() {
     let executor = create_executor();
     let result = run_exec(&executor, "blocked_mkfs", "mkfs.ext4 /dev/sda", None).await;
 
-    assert!(result.is_err());
+    assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
 }
 
 #[tokio::test]
@@ -306,7 +306,7 @@ async fn test_exec_blocked_dd() {
     let executor = create_executor();
     let result = run_exec(&executor, "blocked_dd", "dd if=/dev/zero of=/dev/sda", None).await;
 
-    assert!(result.is_err());
+    assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
 }
 
 // ============================================================================
@@ -333,7 +333,7 @@ async fn test_exec_template_missing_binding() {
         .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
-    assert!(result.is_err());
+    assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
     let err = result.unwrap_err();
     // Should error on missing binding
     assert!(
@@ -361,7 +361,7 @@ async fn test_exec_shell_mode_pipes_work() {
     )
     .await;
 
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     let output = result.unwrap();
     assert!(output.contains("HELLO"), "Expected HELLO, got: {output}");
 }
@@ -378,7 +378,7 @@ async fn test_exec_shell_mode_redirects_work() {
     )
     .await;
 
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
 }
 
 #[tokio::test]
@@ -393,7 +393,7 @@ async fn test_exec_shell_mode_command_chaining() {
     )
     .await;
 
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     let output = result.unwrap();
     assert!(output.contains("first"));
     assert!(output.contains("second"));
@@ -432,7 +432,7 @@ async fn test_exec_simple_echo_success() {
     let executor = create_executor();
     let result = run_exec(&executor, "echo_success", "echo hello", None).await;
 
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     let output = result.unwrap();
     assert!(output.contains("hello"));
 }
@@ -442,7 +442,7 @@ async fn test_exec_with_arguments() {
     let executor = create_executor();
     let result = run_exec(&executor, "with_args", "echo -n test", None).await;
 
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     let output = result.unwrap();
     assert!(output.contains("test"));
 }
@@ -452,7 +452,7 @@ async fn test_exec_with_spaces_in_quotes() {
     let executor = create_executor();
     let result = run_exec(&executor, "quoted_spaces", "echo 'hello world'", None).await;
 
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     let output = result.unwrap();
     assert!(output.contains("hello world"));
 }
