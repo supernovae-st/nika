@@ -1,0 +1,14 @@
+# Cargo audit configuration
+# Review date: 2026-Q2
+
+[advisories]
+# All transitive deps — no fix available upstream
+
+ignore = [
+    # rsa (Marvin Attack) — via c2pa → nika-media. No fixed version exists.
+    # Upstream: https://github.com/RustCrypto/RSA/issues/19
+    "RUSTSEC-2023-0071",
+]
+
+# Treat unmaintained crate warnings as allowed (transitive deps we can't control)
+informational_warnings = ["unmaintained", "unsound"]
