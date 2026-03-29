@@ -20,6 +20,25 @@ pub fn daemon_available() -> bool {
 
 pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
     let mut result = SecretsLoadResult::default();
+
+    // Auto-start daemon if not running (Unix only, silent)
+    #[cfg(unix)]
+    if !daemon_available() && std::env::var("NIKA_NO_DAEMON").is_err() {
+        let log_dir = nika_daemon::daemon_dir();
+        let _ = std::fs::create_dir_all(&log_dir);
+        let log_path = log_dir.join("daemon.log");
+        match nika_daemon::lifecycle::daemonize(&log_path) {
+            Ok(()) => {
+                debug!("auto-started daemon in background");
+                // Give daemon time to bind socket
+                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            }
+            Err(e) => {
+                trace!("daemon auto-start failed (non-fatal): {e}");
+            }
+        }
+    }
+
     #[cfg(unix)]
     let daemon = if daemon_available() {
         Some(nika_daemon::DaemonClient::default_path())
