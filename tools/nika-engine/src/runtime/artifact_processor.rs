@@ -1108,7 +1108,10 @@ mod tests {
         write_artifact_manifest(&event_log, &config, dir.path());
 
         let manifest_path = dir.path().join(".nika/artifacts/artifacts.json");
-        assert!(!manifest_path.exists(), "Manifest should NOT be created when manifest: false");
+        assert!(
+            !manifest_path.exists(),
+            "Manifest should NOT be created when manifest: false"
+        );
     }
 
     #[test]
@@ -1124,7 +1127,10 @@ mod tests {
         write_artifact_manifest(&event_log, &config, dir.path());
 
         let manifest_path = dir.path().join(".nika/artifacts/artifacts.json");
-        assert!(!manifest_path.exists(), "Manifest should NOT be created when no artifacts exist");
+        assert!(
+            !manifest_path.exists(),
+            "Manifest should NOT be created when no artifacts exist"
+        );
     }
 
     #[test]

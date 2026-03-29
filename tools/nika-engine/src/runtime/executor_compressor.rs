@@ -73,14 +73,8 @@ impl CompressorLlm for ExecutorCompressorLlm<'_> {
 fn resolve_cheap_model(provider: &str, default_model: &str) -> (String, String) {
     let lower = provider.to_lowercase();
     match lower.as_str() {
-        "anthropic" | "claude" => (
-            "anthropic".to_string(),
-            "claude-haiku-4-5".to_string(),
-        ),
-        "openai" | "gpt" => (
-            "openai".to_string(),
-            "gpt-4.1-mini".to_string(),
-        ),
+        "anthropic" | "claude" => ("anthropic".to_string(), "claude-haiku-4-5".to_string()),
+        "openai" | "gpt" => ("openai".to_string(), "gpt-4.1-mini".to_string()),
         "mock" => ("mock".to_string(), "mock".to_string()),
         _ => (provider.to_string(), default_model.to_string()),
     }

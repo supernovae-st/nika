@@ -760,7 +760,6 @@ pub enum NikaError {
     CourseWatchError { reason: String },
 
     // ── Record compression (NIKA-320-324) ────────────────────────
-
     #[error("[NIKA-320] Record compression failed for task '{task_id}': {reason}")]
     #[diagnostic(
         code(nika::record_compression_failed),

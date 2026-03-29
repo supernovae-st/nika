@@ -129,9 +129,7 @@ impl BuiltinTool for ThreadsTool {
 
             let mut entries: Vec<ThreadEntry> = status_map
                 .into_iter()
-                .filter(|(_, (st, _))| {
-                    params.status.as_ref().is_none_or(|filter| st == filter)
-                })
+                .filter(|(_, (st, _))| params.status.as_ref().is_none_or(|filter| st == filter))
                 .map(|(tid, (st, verb))| ThreadEntry {
                     task_id: tid,
                     status: st,
@@ -226,10 +224,7 @@ mod tests {
         assert_eq!(v.len(), 4);
 
         // Filter by running
-        let result = tool
-            .call(r#"{"status":"running"}"#.into())
-            .await
-            .unwrap();
+        let result = tool.call(r#"{"status":"running"}"#.into()).await.unwrap();
         let v: Vec<serde_json::Value> = serde_json::from_str(&result).unwrap();
         assert_eq!(v.len(), 1);
         assert_eq!(v[0]["task_id"], "b");

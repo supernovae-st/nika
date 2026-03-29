@@ -209,10 +209,7 @@ mod tests {
         });
 
         let tool = TaskStatusTool::new(log, ctx);
-        let result = tool
-            .call(r#"{"task_id":"research"}"#.into())
-            .await
-            .unwrap();
+        let result = tool.call(r#"{"task_id":"research"}"#.into()).await.unwrap();
         let v: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert_eq!(v["task_id"], "research");
         assert_eq!(v["status"], "completed");
@@ -228,9 +225,7 @@ mod tests {
         let ctx = Arc::new(RunContext::new());
 
         let tool = TaskStatusTool::new(log, ctx);
-        let result = tool
-            .call(r#"{"task_id":"nonexistent"}"#.into())
-            .await;
+        let result = tool.call(r#"{"task_id":"nonexistent"}"#.into()).await;
 
         assert!(result.is_err());
         let err = result.unwrap_err();

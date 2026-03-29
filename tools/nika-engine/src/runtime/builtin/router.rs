@@ -171,9 +171,12 @@ impl BuiltinToolRouter {
         event_log: EventLog,
         datastore: Arc<crate::store::RunContext>,
     ) -> Self {
-        use super::{DagInfoTool, TaskStatusTool, ThreadsTool, OrchestrateTool};
+        use super::{DagInfoTool, OrchestrateTool, TaskStatusTool, ThreadsTool};
         self.register(DagInfoTool::new(event_log.clone()));
-        self.register(TaskStatusTool::new(event_log.clone(), Arc::clone(&datastore)));
+        self.register(TaskStatusTool::new(
+            event_log.clone(),
+            Arc::clone(&datastore),
+        ));
         self.register(ThreadsTool::new(event_log.clone()));
         self.register(OrchestrateTool::new(event_log, datastore));
         self

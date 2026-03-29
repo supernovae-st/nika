@@ -105,7 +105,10 @@ mod tests {
     fn test_validate_zero_max_tokens() {
         let mut spec = RecordSpec::shorthand_true();
         spec.max_tokens = 0;
-        assert!(spec.validate().unwrap_err().contains("max_tokens must be > 0"));
+        assert!(spec
+            .validate()
+            .unwrap_err()
+            .contains("max_tokens must be > 0"));
     }
 
     #[test]
@@ -119,7 +122,10 @@ mod tests {
     fn test_validate_bad_confidence() {
         let mut spec = RecordSpec::shorthand_true();
         spec.confidence_threshold = 1.5;
-        assert!(spec.validate().unwrap_err().contains("confidence_threshold"));
+        assert!(spec
+            .validate()
+            .unwrap_err()
+            .contains("confidence_threshold"));
     }
 
     #[test]
