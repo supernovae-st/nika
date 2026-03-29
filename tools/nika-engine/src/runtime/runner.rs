@@ -944,11 +944,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         // Precedence: task-level > preset > workflow-default
         let (effective_provider, effective_model) = if let Some(ref preset_name) = task.preset {
             if let Some(agent) = executor.get_preset(preset_name) {
-                crate::runtime::preset::resolve_provider_model(
-                    &task.provider,
-                    &task.model,
-                    agent,
-                )
+                crate::runtime::preset::resolve_provider_model(&task.provider, &task.model, agent)
             } else {
                 (task.provider.clone(), task.model.clone())
             }
@@ -1103,7 +1099,16 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     }
                 }
 
-                final_result.unwrap_or_else(|| Err(last_err.unwrap()))
+                final_result.unwrap_or_else(|| {
+                    Err(
+                        last_err.unwrap_or_else(|| crate::error::NikaError::ExecError {
+                            reason: format!(
+                                "Task '{}' failed after {} attempts: no error captured",
+                                task_id, max_attempts
+                            ),
+                        }),
+                    )
+                })
             };
             let duration = start.elapsed();
 
@@ -6794,12 +6799,7 @@ mod tests {
         let provider_events: Vec<_> = event_log
             .events()
             .iter()
-            .filter(|e| {
-                matches!(
-                    &e.kind,
-                    crate::event::EventKind::ProviderResponded { .. }
-                )
-            })
+            .filter(|e| matches!(&e.kind, crate::event::EventKind::ProviderResponded { .. }))
             .cloned()
             .collect();
         assert!(

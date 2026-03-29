@@ -125,8 +125,7 @@ mod tests {
     #[test]
     fn test_partial_override_provider_only() {
         let preset = make_preset();
-        let (provider, model) =
-            resolve_provider_model(&Some("openai".to_string()), &None, &preset);
+        let (provider, model) = resolve_provider_model(&Some("openai".to_string()), &None, &preset);
         assert_eq!(provider.as_deref(), Some("openai"));
         assert_eq!(
             model.as_deref(),
