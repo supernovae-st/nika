@@ -45,6 +45,7 @@ coverage/
 # Rust build artifacts
 tools/target/
 tools/nika/target/
+tools/nika/target-*/
 
 # Runtime state
 .nika/
