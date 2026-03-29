@@ -394,6 +394,30 @@ pub enum EventKind {
     },
 
     // ═══════════════════════════════════════════
+    // RECORD EVENTS
+    // ═══════════════════════════════════════════
+    /// Task output was compressed into a Record
+    RecordCreated {
+        task_id: Arc<str>,
+        /// Token count of compressed summary
+        summary_tokens: u64,
+        /// Confidence score from compression LLM
+        confidence: f64,
+        /// Cost of the compression call
+        compression_cost_usd: f64,
+        /// Compression ratio (compressed/original)
+        compression_ratio: f64,
+        /// Model used for compression
+        model: String,
+    },
+    /// Record compression was skipped (fallback to truncation or disabled)
+    RecordSkipped {
+        task_id: Arc<str>,
+        /// Reason compression was skipped
+        reason: String,
+    },
+
+    // ═══════════════════════════════════════════
     // GUARDRAIL EVENTS
     // ═══════════════════════════════════════════
     /// Guardrail check passed
@@ -902,6 +926,8 @@ impl EventKind {
             | Self::AgentStart { task_id, .. }
             | Self::AgentTurn { task_id, .. }
             | Self::AgentComplete { task_id, .. }
+            | Self::RecordCreated { task_id, .. }
+            | Self::RecordSkipped { task_id, .. }
             | Self::ArtifactWritten { task_id, .. }
             | Self::ArtifactFailed { task_id, .. }
             | Self::VisionContentResolved { task_id, .. }
@@ -2457,6 +2483,19 @@ mod tests {
                 child_task_id: "sub-agent1".into(),
                 depth: 1,
             },
+            // Records (2)
+            EventKind::RecordCreated {
+                task_id: "t1".into(),
+                summary_tokens: 150,
+                confidence: 0.85,
+                compression_cost_usd: 0.0002,
+                compression_ratio: 0.03,
+                model: "claude-haiku-4-5".to_string(),
+            },
+            EventKind::RecordSkipped {
+                task_id: "t1".into(),
+                reason: "compression failed".to_string(),
+            },
             // Guardrails (3)
             EventKind::GuardrailPassed {
                 task_id: "t1".into(),
@@ -2557,12 +2596,12 @@ mod tests {
     }
 
     #[test]
-    fn wave2_variant_count_is_38() {
+    fn wave2_variant_count_is_40() {
         let variants = all_38_variants();
         assert_eq!(
             variants.len(),
-            38,
-            "EventKind should have exactly 38 variants"
+            40,
+            "EventKind should have exactly 40 variants (38 + RecordCreated + RecordSkipped)"
         );
     }
 
@@ -2798,8 +2837,8 @@ mod tests {
         // Log has task_id: Some("t1"), so it goes in with
         assert_eq!(
             with_task_id.len(),
-            27,
-            "27 variants should have task_id (including Log with Some, 4 media events)"
+            29,
+            "29 variants should have task_id (including Log with Some, 4 media events, 2 record events)"
         );
         assert_eq!(
             without_task_id.len(),

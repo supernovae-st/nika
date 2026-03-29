@@ -1330,6 +1330,25 @@ impl CliRenderer {
                 );
             }
 
+            EventKind::RecordCreated {
+                model,
+                compression_ratio,
+                confidence,
+                ..
+            } => {
+                if self.detail.show_sub_events() {
+                    println!(
+                        "  ◆ Record compressed (model={model}, ratio={:.0}%, confidence={confidence:.2})",
+                        compression_ratio * 100.0,
+                    );
+                }
+            }
+            EventKind::RecordSkipped { reason, .. } => {
+                if self.detail.show_sub_events() {
+                    println!("  ◇ Record skipped: {reason}");
+                }
+            }
+
             // Remaining events (WorkflowCompleted/Failed, WorkflowPaused/Resumed, etc.)
             // are either handled by summary or intentionally not rendered per-event.
             _ => {}
