@@ -205,6 +205,19 @@ impl TaskExecutor {
         })
     }
 
+    /// Wire nika:records introspection tool (requires RunContext for record queries).
+    ///
+    /// Must be called after construction because the datastore is created
+    /// in the Runner, not the executor. Uses `Arc::get_mut` which succeeds
+    /// because no other references exist at this point in initialization.
+    pub fn wire_records_tool(&mut self, datastore: Arc<crate::store::RunContext>) {
+        if let Some(router) = Arc::get_mut(&mut self.builtin_router) {
+            router.register(super::builtin::RecordsTool::new(datastore));
+        } else {
+            tracing::warn!("Could not wire nika:records — router already shared");
+        }
+    }
+
     /// Set the permission mode for file tools (nika:write, nika:edit, etc.)
     pub fn set_permission_mode(&self, mode: PermissionMode) {
         self.tool_ctx.set_permission_mode(mode);
