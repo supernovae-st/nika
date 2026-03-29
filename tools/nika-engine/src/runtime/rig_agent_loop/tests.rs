@@ -1,4 +1,5 @@
 use rustc_hash::FxHashMap;
+use serial_test::serial;
 
 use crate::ast::AgentParams;
 use crate::event::{EventKind, EventLog};
@@ -1345,6 +1346,7 @@ fn test_check_guardrails_llm_type_returns_immediate_failure() {
 // FIX: Add `if has_key("GEMINI_API_KEY") { return self.chat_continue_gemini(prompt).await; }`
 // before the Err(...) in chat_continue(), and implement chat_continue_gemini().
 #[tokio::test]
+#[serial]
 async fn wave2_chat_continue_missing_gemini_dispatch() {
     // Temporarily set ONLY GEMINI_API_KEY (clear all others)
     // Save originals

@@ -673,6 +673,7 @@ impl BootContext {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use tempfile::tempdir;
 
     #[test]
@@ -738,6 +739,7 @@ default = "openai"
     // ─── Bug 14: provider validation must use KNOWN_PROVIDERS, not hardcoded ──
 
     #[tokio::test]
+    #[serial]
     async fn test_provider_validation_detects_xai() {
         let temp = tempdir().unwrap();
         let nika_dir = temp.path().join(".nika");
@@ -766,6 +768,7 @@ default = "openai"
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_provider_validation_ignores_empty_env_var() {
         let temp = tempdir().unwrap();
         let nika_dir = temp.path().join(".nika");

@@ -900,6 +900,7 @@ mod tests {
     use crate::binding::types::BindingPath;
     use crate::store::TaskResult;
     use serde_json::json;
+    use serial_test::serial;
     use std::sync::Arc;
     use std::time::Duration;
 
@@ -2117,6 +2118,7 @@ mod tests {
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
+    #[serial]
     fn with_spec_env_existing_var() {
         // Use a known env var
         std::env::set_var("NIKA_TEST_VAR_8A", "test_value_8a");
@@ -2517,6 +2519,7 @@ mod tests {
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
+    #[serial]
     fn with_spec_mixed_sources() {
         use rustc_hash::FxHashMap;
 

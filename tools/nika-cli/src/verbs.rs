@@ -631,6 +631,7 @@ pub async fn handle_agent(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use std::sync::Mutex;
 
     /// All env-var-mutating tests must hold this lock so they don't race.
@@ -748,6 +749,7 @@ mod tests {
     // ───────────────────────────────────────────────────────────────────────
 
     #[test]
+    #[serial]
     fn detect_provider_returns_none_when_no_keys() {
         let _guard = ENV_LOCK.lock().unwrap();
         let saved = clear_provider_env();
@@ -759,6 +761,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn detect_provider_returns_anthropic_when_set() {
         let _guard = ENV_LOCK.lock().unwrap();
         let saved = clear_provider_env();
@@ -772,6 +775,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn detect_provider_priority_anthropic_over_openai() {
         let _guard = ENV_LOCK.lock().unwrap();
         let saved = clear_provider_env();
@@ -792,6 +796,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn detect_provider_falls_through_to_openai() {
         let _guard = ENV_LOCK.lock().unwrap();
         let saved = clear_provider_env();
@@ -805,6 +810,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn detect_provider_ignores_empty_and_whitespace_keys() {
         let _guard = ENV_LOCK.lock().unwrap();
         let saved = clear_provider_env();
@@ -826,6 +832,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn detect_provider_xai_last_resort() {
         let _guard = ENV_LOCK.lock().unwrap();
         let saved = clear_provider_env();
@@ -843,6 +850,7 @@ mod tests {
     // ───────────────────────────────────────────────────────────────────────
 
     #[test]
+    #[serial]
     fn resolve_explicit_provider_flag_wins() {
         let _guard = ENV_LOCK.lock().unwrap();
         let saved = clear_provider_env();
@@ -859,6 +867,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn resolve_composite_model_extracts_both() {
         let _guard = ENV_LOCK.lock().unwrap();
         let saved = clear_provider_env();
@@ -872,6 +881,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn resolve_composite_model_ignores_provider_flag() {
         // Composite syntax should take precedence over the -p flag
         let _guard = ENV_LOCK.lock().unwrap();
@@ -889,6 +899,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn resolve_model_only_uses_env_auto_detect() {
         let _guard = ENV_LOCK.lock().unwrap();
         let saved = clear_provider_env();
@@ -904,6 +915,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn resolve_no_provider_no_env_is_error() {
         let _guard = ENV_LOCK.lock().unwrap();
         let saved = clear_provider_env();
@@ -919,6 +931,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn resolve_no_provider_no_model_no_env_is_error() {
         let _guard = ENV_LOCK.lock().unwrap();
         let saved = clear_provider_env();
@@ -934,6 +947,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn resolve_provider_flag_only_no_model() {
         let _guard = ENV_LOCK.lock().unwrap();
         let saved = clear_provider_env();
@@ -946,6 +960,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn resolve_invalid_composite_model_propagates_error() {
         let _guard = ENV_LOCK.lock().unwrap();
         let saved = clear_provider_env();

@@ -331,6 +331,7 @@ impl ConnectedClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use tokio::net::UnixListener;
 
     /// Helper: start a mock server that responds to one request.
@@ -592,6 +593,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn read_auth_token_nonexistent_returns_error() {
         // Set NIKA_HOME to a temp dir where no token exists
         let dir = tempfile::tempdir().unwrap();
@@ -608,6 +610,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn read_auth_token_reads_file_content() {
         let dir = tempfile::tempdir().unwrap();
         let daemon_dir = dir.path().join("daemon");

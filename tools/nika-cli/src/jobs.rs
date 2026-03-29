@@ -301,8 +301,10 @@ fn job_err(e: nika_daemon::DaemonError) -> NikaError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[tokio::test]
+    #[serial]
     async fn job_list_no_daemon_returns_error() {
         // Isolate from real daemon by pointing NIKA_HOME to a tempdir
         let dir = tempfile::tempdir().unwrap();

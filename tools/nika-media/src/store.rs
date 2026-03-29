@@ -562,6 +562,7 @@ fn validate_hash_hex(raw: &str) -> Result<(), MediaError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[tokio::test]
     async fn store_and_read_roundtrip() {
@@ -776,6 +777,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn workspace_default_without_env_uses_nika_media_store_path() {
         // Ensure NIKA_MEDIA_STORE is NOT set for this test
         let saved = std::env::var("NIKA_MEDIA_STORE").ok();
@@ -793,6 +795,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn workspace_default_respects_nika_media_store_env() {
         let dir = tempfile::tempdir().unwrap();
         let override_path = dir.path().join("custom-store");
@@ -812,6 +815,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn workspace_default_canonicalizes_existing_override_path() {
         let dir = tempfile::tempdir().unwrap();
         // Create a subdirectory so canonicalize has something to resolve
@@ -847,6 +851,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn env_override_store_is_fully_functional() {
         let dir = tempfile::tempdir().unwrap();
         let override_path = dir.path().join("custom-cas");
