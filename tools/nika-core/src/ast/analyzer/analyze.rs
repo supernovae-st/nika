@@ -266,7 +266,19 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
     workflow.model = raw.model.map(|s| s.value);
     workflow.base_url = raw.base_url.map(|s| s.value);
 
-    // 3a. Parse routing configuration
+    // 3a. Parse orchestrate configuration
+    workflow.orchestrate = raw.orchestrate.as_ref().and_then(|s| {
+        match serde_json::from_value::<crate::ast::orchestrate::OrchestrateConfig>(s.value.clone())
+        {
+            Ok(config) => Some(config),
+            Err(e) => {
+                tracing::warn!("Invalid orchestrate: config: {e}");
+                None
+            }
+        }
+    });
+
+    // 3b. Parse routing configuration
     workflow.routing = raw.routing.as_ref().and_then(|s| {
         match serde_json::from_value::<crate::ast::routing::RoutingConfig>(s.value.clone()) {
             Ok(config) => Some(config),
