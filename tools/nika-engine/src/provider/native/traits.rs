@@ -423,7 +423,7 @@ mod tests {
         let result = backend
             .load_dyn(PathBuf::from("/tmp/model.gguf"), LoadConfig::default())
             .await;
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "load_dyn should succeed: {:?}", result.as_ref().err());
         assert!(backend.is_loaded_dyn());
     }
 
@@ -433,7 +433,7 @@ mod tests {
         assert!(backend.is_loaded());
 
         let result = backend.unload_dyn().await;
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "unload_dyn should succeed: {:?}", result.as_ref().err());
         assert!(!backend.is_loaded_dyn());
     }
 
@@ -445,7 +445,7 @@ mod tests {
         let result = dyn_backend
             .infer_dyn("hello world".to_string(), ChatOptions::default())
             .await;
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "infer_dyn should succeed: {:?}", result.as_ref().err());
         let response = result.unwrap();
         assert_eq!(response.message.content, "echo: hello world");
         assert!(response.done);
@@ -459,7 +459,7 @@ mod tests {
         let result = dyn_backend
             .infer_dyn("hello".to_string(), ChatOptions::default())
             .await;
-        assert!(result.is_err());
+        assert!(result.is_err(), "infer_dyn should fail when not loaded but got: {:?}", result.as_ref().ok());
         assert!(
             matches!(result.unwrap_err(), NativeError::ModelNotLoaded),
             "expected ModelNotLoaded error"
@@ -474,7 +474,7 @@ mod tests {
         let result = dyn_backend
             .infer_stream_dyn("hello".to_string(), ChatOptions::default())
             .await;
-        assert!(result.is_err());
+        assert!(result.is_err(), "infer_stream_dyn should always fail but got: {:?}", result.as_ref().ok());
         match result {
             Err(NativeError::InvalidConfig(msg)) => {
                 assert!(
@@ -494,17 +494,17 @@ mod tests {
         let load_result = backend
             .load_dyn(PathBuf::from("/tmp/model.gguf"), LoadConfig::default())
             .await;
-        assert!(load_result.is_ok());
+        assert!(load_result.is_ok(), "load_dyn should succeed: {:?}", load_result.as_ref().err());
         assert!(backend.is_loaded_dyn());
 
         let infer_result = backend
             .infer_dyn("test prompt".to_string(), ChatOptions::default())
             .await;
-        assert!(infer_result.is_ok());
+        assert!(infer_result.is_ok(), "infer_dyn should succeed: {:?}", infer_result.as_ref().err());
         assert_eq!(infer_result.unwrap().message.content, "echo: test prompt");
 
         let unload_result = backend.unload_dyn().await;
-        assert!(unload_result.is_ok());
+        assert!(unload_result.is_ok(), "unload_dyn should succeed: {:?}", unload_result.as_ref().err());
         assert!(!backend.is_loaded_dyn());
     }
 }
