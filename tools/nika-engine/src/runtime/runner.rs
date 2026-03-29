@@ -977,6 +977,14 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         // Inject preset system/temperature into lowered action (task-level > preset)
         if let Some(ref preset_name) = task.preset {
             if let Some(agent) = executor.get_preset(preset_name) {
+                // Emit PresetApplied event
+                event_log.emit(crate::event::EventKind::PresetApplied {
+                    task_id: Arc::clone(&task_id),
+                    preset_name: preset_name.clone(),
+                    provider: Some(agent.provider.clone()),
+                    model: agent.model.clone(),
+                });
+
                 match &mut lowered_action {
                     TaskAction::Infer { infer } => {
                         if infer.system.is_none() {
@@ -6532,5 +6540,43 @@ mod tests {
             "Preset with system + temperature should work: {:?}",
             result.err()
         );
+    }
+
+    #[tokio::test]
+    async fn test_preset_emits_preset_applied_event() {
+        let workflow = make_preset_workflow("assistant", None, None);
+        let event_log = EventLog::new();
+        let mut runner = Runner::with_event_log(workflow, event_log.clone()).unwrap();
+        let result = runner.run().await;
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
+
+        let events = event_log.events();
+        let preset_events: Vec<_> = events
+            .iter()
+            .filter(|e| {
+                matches!(
+                    &e.kind,
+                    crate::event::EventKind::PresetApplied { .. }
+                )
+            })
+            .collect();
+
+        assert_eq!(
+            preset_events.len(),
+            1,
+            "Expected exactly one PresetApplied event"
+        );
+
+        if let crate::event::EventKind::PresetApplied {
+            preset_name,
+            provider,
+            ..
+        } = &preset_events[0].kind
+        {
+            assert_eq!(preset_name, "assistant");
+            assert_eq!(provider.as_deref(), Some("mock"));
+        } else {
+            panic!("Expected PresetApplied event");
+        }
     }
 }

@@ -344,6 +344,13 @@ pub enum EventKind {
     // ═══════════════════════════════════════════
     // AGENT EVENTS
     // ═══════════════════════════════════════════
+    /// Agent preset was applied to a task (via `agent: <name>` or `preset: <name>`)
+    PresetApplied {
+        task_id: Arc<str>,
+        preset_name: String,
+        provider: Option<String>,
+        model: Option<String>,
+    },
     /// Agent loop started
     AgentStart {
         task_id: Arc<str>,
@@ -891,6 +898,7 @@ impl EventKind {
             | Self::McpInvoke { task_id, .. }
             | Self::McpResponse { task_id, .. }
             | Self::McpRetry { task_id, .. }  // P2 Fix: Added McpRetry
+            | Self::PresetApplied { task_id, .. }
             | Self::AgentStart { task_id, .. }
             | Self::AgentTurn { task_id, .. }
             | Self::AgentComplete { task_id, .. }
