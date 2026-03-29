@@ -1266,23 +1266,22 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         }
 
         // Record compression: if task succeeded and has record: { compress: true },
-        // create a compressed Record and store it for downstream bindings.
-        // TODO(P-RECORD): Wire CompressorLlm for LLM-based compression.
-        //   Currently truncation-only — the CompressorLlm trait + RecordCompressor
-        //   are ready but need provider resolution from the agents: block.
+        // create a compressed Record via LLM (or truncation fallback) and store.
         if task_result.is_success() {
             if let Some(ref record_spec) = task.record {
                 if record_spec.compress {
                     let raw_output = task_result.output_str();
-                    let record = crate::runtime::record::Record::truncated(
-                        Arc::clone(&task_id),
-                        &raw_output,
-                        record_spec.max_tokens,
+                    let compressor = crate::runtime::record_compress::RecordCompressor::new(
+                        event_log.clone(),
                     );
-                    event_log.emit(EventKind::RecordSkipped {
-                        task_id: Arc::clone(&task_id),
-                        reason: "truncation fallback (LLM compression not yet wired)".to_string(),
-                    });
+                    let llm = crate::runtime::executor_compressor::ExecutorCompressorLlm::new(
+                        &executor,
+                        executor.default_provider(),
+                        "claude-haiku-4-5",
+                    );
+                    let record = compressor
+                        .compress(&task_id, &raw_output, record_spec, &llm)
+                        .await;
                     datastore.set_record(Arc::clone(&task_id), record);
                 }
             }
