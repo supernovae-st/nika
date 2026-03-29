@@ -115,17 +115,49 @@ src/
 ## Testing
 
 ```bash
-cargo test --workspace --lib             # All crates (8260+, safe — no keychain)
+cargo test --workspace --lib             # All crates (8900+, safe — no keychain)
 cargo test --lib                         # nika binary tests only
-cargo test -p nika-engine --lib          # Engine tests only (3870+)
-cargo test -p nika-daemon --lib          # Daemon tests only (116)
-cargo test -p nika-tui --lib             # TUI tests only (2120+)
+cargo test -p nika-engine --lib          # Engine tests only (4170+)
+cargo test -p nika-daemon --lib          # Daemon tests only (164)
+cargo test -p nika-tui --lib             # TUI tests only (2153+)
 cargo test -p nika-engine --lib -- display  # Display system tests (255+)
 cargo test --features lsp               # Include LSP tests
 cargo clippy --workspace -- -D warnings  # Zero warnings policy
 ```
 
 **WARNING:** `cargo test` (without `--lib`) runs contract tests that trigger macOS Keychain popups. Always use `--lib` for safe testing.
+
+### Testing Philosophy — Be INTELLIGENT, Not Superficial
+
+**Structured output tests**: validate output PROGRAMMATICALLY, not with `assert!(!output.is_empty())`.
+
+```rust
+// BAD — proves nothing:
+assert!(!output.is_empty());
+
+// BAD — cheating (mentioning JSON in prompt):
+infer: "Return a JSON object with name and age"
+
+// GOOD — natural prompt + programmatic validation:
+infer: "Parle-moi d'Alice, 30 ans, developpeuse"
+// Then in Rust test:
+let parsed: Value = serde_json::from_str(&output).expect("valid JSON");
+assert!(parsed["name"].is_string());
+assert!(parsed["age"].as_f64().unwrap() >= 0.0);
+assert!(parsed["skills"].as_array().unwrap().len() >= 2);
+```
+
+**Rules:**
+1. Same test on ALL 7 providers — if one fails, it's an ENGINE bug to fix
+2. Prompt must be NATURAL — the 5-layer system injects JSON schema automatically
+3. Check EventLog for StructuredOutputSuccess — verify which layer succeeded
+4. Validate every field: type, enum, range, minItems, required
+5. E2E = parse → analyze → DAG → execute → validate output → verify events
+
+### Secrets & Daemon
+
+Daemon auto-starts on any nika command. No keychain popups (direct keyring access removed).
+Resolution: env vars → daemon IPC → clear error. Opt-out: `NIKA_NO_DAEMON=1`.
 
 ## Conventions
 

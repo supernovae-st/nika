@@ -78,3 +78,43 @@ nika trace list                        # Execution traces
 nika help                              # Full command reference
 nika help verbs                        # Deep-dive: 5 semantic verbs
 ```
+
+## Structured Output — 5-Layer Defense (Killer Feature)
+
+`structured:` enforces schema-validated JSON with automatic retry and repair.
+The prompt MUST be natural language. NEVER mention JSON or the schema in the prompt.
+The 5 layers handle extraction automatically:
+
+```yaml
+tasks:
+  - id: extract
+    # Prompt NATUREL — jamais mentionner JSON
+    infer: "Parle-moi d'Alice, 30 ans, developpeuse Rust et Python"
+    structured:
+      schema:
+        type: object
+        properties:
+          name: { type: string }
+          age: { type: number, minimum: 0 }
+          skills: { type: array, items: { type: string }, minItems: 1 }
+        required: [name, age, skills]
+      enable_repair: true
+      max_retries: 3
+```
+
+Layers: L0 tool injection (provider-native) → L2 extract+validate → L3 retry with feedback → L4 LLM repair.
+Result: valid JSON matching the schema. Same result on ALL 7 providers. No exceptions.
+
+## Secrets Architecture
+
+Resolution order: env vars → daemon IPC → error (no keychain popup).
+Daemon auto-starts on any `nika` command. Install permanently: `nika daemon install`.
+
+## Testing Philosophy
+
+Tests must be INTELLIGENT, not superficial:
+- Validate output programmatically (type, enum, range, constraints) — not just `!is_empty()`
+- Same test on ALL providers — if one fails, it's an ENGINE bug
+- Prompts in tests must be NATURAL — never mention JSON format
+- Check EventLog for correct events (StructuredOutputSuccess, ProviderResponded)
+- E2E: parse YAML → analyze → run → validate output → verify events
