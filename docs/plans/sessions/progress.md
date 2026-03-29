@@ -1,11 +1,11 @@
 # Autonomous Session Progress
 
-**Updated**: 2026-03-29T18:30:00
-**Status**: DX-1/2/3 + C.7 COMPLETE — schema sync, rules restructure, manifest, for_each_index
+**Updated**: 2026-03-29T19:30:00
+**Status**: DX-1/2/3 + C.5/C.7 COMPLETE — schema sync, rules, manifest, records, dead code cleanup
 **Version**: v0.51.0
-**Sessions completed**: A-N, DX-1, DX-2, DX-3, C.7 (partial)
-**Total commits**: 103 (9 new this session)
-**Total tests**: 8,857 across 12 crates (0 failures, 0 clippy warnings)
+**Sessions completed**: A-N, DX-1, DX-2, DX-3, C.5 (partial), C.7
+**Total commits**: 106 (12 new this session)
+**Total tests**: 8,847 across 12 crates (0 failures, 0 clippy warnings)
 
 ## This Session — DX + Quality (9 commits, all pushed)
 
@@ -25,12 +25,20 @@
 6. `871801f` — feat(runtime): implement write_artifact_manifest for manifest: true (3 tests)
 7. `ac33eb3` — feat(runtime): inject for_each_index binding in for_each iterations (1 test)
 
-### Also committed (pre-session cleanup)
-8. `4dbcffd` — fix(runtime): handle multi-byte UTF-8 in strip_think_tags (3 tests)
+### Dead code cleanup (1 commit)
+8. `38aed16` — refactor(ast): remove dead include_loader.rs — 702 LOC
+
+### Records integration (1 commit)
+9. `5e5f6a8` — test(runtime): add runner integration test for record: true
+
+### Pre-session cleanup (1 commit)
+10. `4dbcffd` — fix(runtime): handle multi-byte UTF-8 in strip_think_tags (3 tests)
 
 ### Verified already fixed
-- SF3: for_each binding failure → emit_scheduling_failure already calls TaskFailed
-- SF4: items unresolved → emit_scheduling_failure already calls TaskFailed
+- SF3/SF4: for_each binding → emit_scheduling_failure already calls TaskFailed
+- SF1/SF5/S1+S2: DNS fail-closed, jsonschema, bash -c blocking — all fixed
+- nika:records: wired via wire_introspection_tools() in executor
+- include: loader: expand_raw_include() works, expand_includes() was dead code (removed)
 
 ## Previous Session — Session N (9 commits, all pushed)
 
