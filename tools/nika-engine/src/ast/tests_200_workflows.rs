@@ -224,7 +224,7 @@ fn a13_infer_provider_at_task_level_claude() {
     let w = ok(&yaml);
     match &w.tasks[0].action {
         TaskAction::Infer { infer } => {
-            assert_eq!(infer.provider.as_deref(), Some("claude"));
+            assert_eq!(infer.provider.as_deref(), Some("anthropic"));
         }
         _ => panic!("expected Infer"),
     }
@@ -498,7 +498,7 @@ fn a32_infer_provider_claude() {
     let yaml = wrap("provider: claude\ninfer: \"Test\"");
     let w = ok(&yaml);
     match &w.tasks[0].action {
-        TaskAction::Infer { infer } => assert_eq!(infer.provider.as_deref(), Some("claude")),
+        TaskAction::Infer { infer } => assert_eq!(infer.provider.as_deref(), Some("anthropic")),
         _ => panic!("expected Infer"),
     }
 }
@@ -1393,7 +1393,7 @@ fn e06_agent_with_provider_model() {
     let w = ok(&yaml);
     match &w.tasks[0].action {
         TaskAction::Agent { agent } => {
-            assert_eq!(agent.provider.as_deref(), Some("claude"));
+            assert_eq!(agent.provider.as_deref(), Some("anthropic"));
             assert_eq!(agent.model.as_deref(), Some("claude-sonnet-4-6"));
         }
         _ => panic!("expected Agent"),
@@ -1554,7 +1554,7 @@ fn e20_agent_full_config() {
         TaskAction::Agent { agent } => {
             assert_eq!(agent.prompt, "Full config");
             assert_eq!(agent.system.as_deref(), Some("Expert"));
-            assert_eq!(agent.provider.as_deref(), Some("claude"));
+            assert_eq!(agent.provider.as_deref(), Some("anthropic"));
             assert_eq!(agent.max_turns, Some(15));
             assert_eq!(agent.token_budget, Some(100000));
             assert_eq!(agent.temperature, Some(0.8));
@@ -1965,7 +1965,7 @@ tasks:
     infer: "B"
 "#;
     let w = ok(yaml);
-    assert_eq!(w.provider, "claude");
+    assert_eq!(w.provider, "anthropic");
     match &w.tasks[1].action {
         TaskAction::Infer { infer } => {
             assert_eq!(infer.provider.as_deref(), Some("openai"));
@@ -2987,7 +2987,7 @@ tasks:
 fn k01_workflow_default_provider_claude() {
     let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: t1\n    infer: \"Hello\"";
     let w = ok(yaml);
-    assert_eq!(w.provider, "claude");
+    assert_eq!(w.provider, "anthropic");
 }
 
 #[test]
@@ -5546,20 +5546,27 @@ tasks:
 
 #[test]
 fn s07_agent_all_providers() {
-    let providers = [
-        "claude", "openai", "groq", "gemini", "xai", "deepseek", "mistral",
+    // Input alias → canonical name after ProviderName resolution
+    let providers: &[(&str, &str)] = &[
+        ("claude", "anthropic"),
+        ("openai", "openai"),
+        ("groq", "groq"),
+        ("gemini", "gemini"),
+        ("xai", "xai"),
+        ("deepseek", "deepseek"),
+        ("mistral", "mistral"),
     ];
-    for provider in &providers {
+    for (alias, canonical) in providers {
         let yaml = wrap(&format!(
             "agent:\n  prompt: \"Test\"\n  provider: {}",
-            provider
+            alias
         ));
         let w = ok(&yaml);
         match &w.tasks[0].action {
             TaskAction::Agent { agent } => {
-                assert_eq!(agent.provider.as_deref(), Some(*provider));
+                assert_eq!(agent.provider.as_deref(), Some(*canonical));
             }
-            _ => panic!("expected Agent for {}", provider),
+            _ => panic!("expected Agent for {}", alias),
         }
     }
 }
@@ -6017,7 +6024,7 @@ tasks:
       prompt: "Incorporate feedback: {{with.feedback}}"
 "#;
     let w = ok(yaml);
-    assert_eq!(w.provider, "claude");
+    assert_eq!(w.provider, "anthropic");
     match &w.tasks[1].action {
         TaskAction::Infer { infer } => assert_eq!(infer.provider.as_deref(), Some("openai")),
         _ => panic!("expected Infer"),
@@ -6436,7 +6443,7 @@ tasks:
     infer: "Uses gemini"
 "#;
     let w = ok(yaml);
-    assert_eq!(w.provider, "claude");
+    assert_eq!(w.provider, "anthropic");
     assert_eq!(w.model.as_deref(), Some("claude-sonnet-4-6"));
     match &w.tasks[1].action {
         TaskAction::Infer { infer } => {
@@ -6969,16 +6976,24 @@ fn v04_schema_011_still_parses() {
 
 #[test]
 fn v05_all_providers_at_workflow_level() {
-    let providers = [
-        "claude", "openai", "groq", "gemini", "xai", "deepseek", "mistral", "mock",
+    // Input alias → canonical name after ProviderName resolution
+    let providers: &[(&str, &str)] = &[
+        ("claude", "anthropic"),
+        ("openai", "openai"),
+        ("groq", "groq"),
+        ("gemini", "gemini"),
+        ("xai", "xai"),
+        ("deepseek", "deepseek"),
+        ("mistral", "mistral"),
+        ("mock", "mock"),
     ];
-    for p in &providers {
+    for (alias, canonical) in providers {
         let yaml = format!(
             "schema: \"nika/workflow@0.12\"\nprovider: {}\nmodel: test-model\ntasks:\n  - id: t1\n    infer: \"Test\"",
-            p
+            alias
         );
         let w = ok(&yaml);
-        assert_eq!(w.provider, *p);
+        assert_eq!(w.provider, *canonical);
     }
 }
 
@@ -7750,7 +7765,7 @@ fn z17_agent_with_all_optional_fields() {
         TaskAction::Agent { agent } => {
             assert_eq!(agent.prompt, "Full agent");
             assert!(agent.system.is_some());
-            assert_eq!(agent.provider.as_deref(), Some("claude"));
+            assert_eq!(agent.provider.as_deref(), Some("anthropic"));
             assert_eq!(agent.model.as_deref(), Some("claude-sonnet-4-6"));
             assert_eq!(agent.mcp.len(), 1);
             assert_eq!(agent.tools.len(), 2);
@@ -7782,7 +7797,7 @@ fn z18_infer_all_fields_simultaneously() {
             assert_eq!(infer.extended_thinking, Some(true));
             assert_eq!(infer.thinking_budget, Some(4096));
             assert!(infer.content.is_some());
-            assert_eq!(infer.provider.as_deref(), Some("claude"));
+            assert_eq!(infer.provider.as_deref(), Some("anthropic"));
             assert_eq!(infer.model.as_deref(), Some("claude-sonnet-4-6"));
         }
         _ => panic!("expected Infer"),
@@ -8027,7 +8042,7 @@ tasks:
 fn aa15_workflow_default_provider_still_claude() {
     let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: t1\n    infer: \"Hello\"";
     let w = ok(yaml);
-    assert_eq!(w.provider, "claude");
+    assert_eq!(w.provider, "anthropic");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

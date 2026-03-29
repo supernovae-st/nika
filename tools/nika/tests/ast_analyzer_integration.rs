@@ -48,7 +48,10 @@ tasks:
     assert_eq!(workflow.task_count(), 1);
     assert!(workflow.has_task("hello"));
     assert!(workflow.provider.is_some());
-    assert_eq!(workflow.provider.as_deref(), Some("claude"));
+    assert_eq!(
+        workflow.provider.as_ref().map(|p| p.as_str()),
+        Some("anthropic")
+    );
 }
 
 #[test]

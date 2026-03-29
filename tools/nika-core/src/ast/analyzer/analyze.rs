@@ -261,7 +261,7 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
     // 3. Extract metadata
     workflow.name = raw.workflow.as_ref().map(|s| s.value.clone());
     workflow.description = raw.description.map(|s| s.value);
-    workflow.provider = raw.provider.map(|s| s.value);
+    workflow.provider = raw.provider.map(|s| crate::ProviderName::parse(&s.value));
     workflow.model = raw.model.map(|s| s.value);
     workflow.base_url = raw.base_url.map(|s| s.value);
 
@@ -292,7 +292,7 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
             .provider
             .as_ref()
             .map(|p| p.value.as_str())
-            .or(workflow.provider.as_deref())
+            .or(workflow.provider.as_ref().map(|p| p.as_str()))
             .unwrap_or("");
         let is_mock = provider_name == "mock";
 
@@ -709,7 +709,10 @@ fn analyze_task(
         name: raw.id.value.clone(),
         description: raw.description.as_ref().map(|s| s.value.clone()),
         action: AnalyzedTaskAction::default(),
-        provider: raw.provider.as_ref().map(|s| s.value.clone()),
+        provider: raw
+            .provider
+            .as_ref()
+            .map(|s| crate::ProviderName::parse(&s.value)),
         model: raw.model.as_ref().map(|s| s.value.clone()),
         base_url: raw.base_url.as_ref().map(|s| s.value.clone()),
         preset: raw.preset.as_ref().map(|s| s.value.clone()),
@@ -807,9 +810,7 @@ fn analyze_task(
                 ctx.errors.push(AnalyzeError {
                     kind: AnalyzeErrorKind::InvalidValue,
                     span: s.span,
-                    message: format!(
-                        "context_budget must be between 1 and 200000, got {val}"
-                    ),
+                    message: format!("context_budget must be between 1 and 200000, got {val}"),
                     suggestion: Some("Use a value like 4000 (roughly 16K chars)".to_string()),
                     note: None,
                 });
@@ -829,7 +830,10 @@ fn analyze_task(
         if let RawTaskAction::Agent(ref agent_spanned) = action {
             let agent = &agent_spanned.value;
             if task.provider.is_none() {
-                task.provider = agent.provider.as_ref().map(|s| s.value.clone());
+                task.provider = agent
+                    .provider
+                    .as_ref()
+                    .map(|s| crate::ProviderName::parse(&s.value));
             }
             if task.model.is_none() {
                 task.model = agent.model.as_ref().map(|s| s.value.clone());
@@ -2411,7 +2415,7 @@ mod tests {
         let workflow = result.value.unwrap();
         assert_eq!(workflow.name.as_deref(), Some("my-workflow"));
         assert_eq!(workflow.description.as_deref(), Some("A test workflow"));
-        assert_eq!(workflow.provider.as_deref(), Some("claude"));
+        assert_eq!(workflow.provider, Some(crate::ProviderName::Anthropic));
         assert_eq!(workflow.model.as_deref(), Some("claude-sonnet-4-6"));
     }
 
@@ -3289,7 +3293,11 @@ tasks:
 "#;
         let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
         let result = analyze(raw);
-        assert!(result.errors.is_empty(), "Valid budget: {:?}", result.errors);
+        assert!(
+            result.errors.is_empty(),
+            "Valid budget: {:?}",
+            result.errors
+        );
         let wf = result.value.unwrap();
         let task = wf.get_task_by_name("constrained").unwrap();
         assert_eq!(task.context_budget, Some(4000));
@@ -3309,7 +3317,10 @@ tasks:
         let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
         let result = analyze(raw);
         assert!(
-            result.errors.iter().any(|e| e.message.contains("context_budget")),
+            result
+                .errors
+                .iter()
+                .any(|e| e.message.contains("context_budget")),
             "Should reject 0: {:?}",
             result.errors
         );
@@ -3329,7 +3340,10 @@ tasks:
         let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
         let result = analyze(raw);
         assert!(
-            result.errors.iter().any(|e| e.message.contains("context_budget")),
+            result
+                .errors
+                .iter()
+                .any(|e| e.message.contains("context_budget")),
             "Should reject 250000: {:?}",
             result.errors
         );

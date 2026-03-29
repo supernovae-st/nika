@@ -205,7 +205,11 @@ impl Runner {
 
         // Bridge MCP servers to old FxHashMap<String, McpConfigInline> for TaskExecutor
         let mcp_configs = lower_mcp_servers(workflow.mcp_servers.clone());
-        let provider = workflow.provider.as_deref().unwrap_or("claude");
+        let provider = workflow
+            .provider
+            .as_ref()
+            .map(|p| p.as_str())
+            .unwrap_or("claude");
 
         let mut executor = TaskExecutor::new(
             provider,
@@ -608,7 +612,7 @@ impl Runner {
         // Build InferParams directly from analyzed types
         let infer_params = InferParams {
             prompt: infer_action.prompt.clone(),
-            provider: task.provider.clone(),
+            provider: task.provider.as_ref().map(|p| p.to_string()),
             model: task.model.clone(),
             temperature: infer_action.temperature,
             max_tokens: infer_action.max_tokens,
@@ -931,7 +935,10 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         // Add for_each binding if present (item value + iteration index)
         if let Some((var_name, value, idx)) = for_each_binding {
             bindings.set(&var_name, value);
-            bindings.set("for_each_index", Value::Number(serde_json::Number::from(idx)));
+            bindings.set(
+                "for_each_index",
+                Value::Number(serde_json::Number::from(idx)),
+            );
         }
 
         // Enforce context_budget if configured on this task
@@ -953,14 +960,19 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
         // Resolve preset: merge agent preset values as fallback for provider/model
         // Precedence: task-level > preset > workflow-default
+        let task_provider_str = task.provider.as_ref().map(|p| p.to_string());
         let (effective_provider, effective_model) = if let Some(ref preset_name) = task.preset {
             if let Some(agent) = executor.get_preset(preset_name) {
-                crate::runtime::preset::resolve_provider_model(&task.provider, &task.model, agent)
+                crate::runtime::preset::resolve_provider_model(
+                    &task_provider_str,
+                    &task.model,
+                    agent,
+                )
             } else {
-                (task.provider.clone(), task.model.clone())
+                (task_provider_str, task.model.clone())
             }
         } else {
-            (task.provider.clone(), task.model.clone())
+            (task_provider_str, task.model.clone())
         };
 
         // Resolve base_url: task-level override takes precedence over workflow default
@@ -1272,9 +1284,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             if let Some(ref record_spec) = task.record {
                 if record_spec.compress {
                     let raw_output = task_result.output_str();
-                    let compressor = crate::runtime::record_compress::RecordCompressor::new(
-                        event_log.clone(),
-                    );
+                    let compressor =
+                        crate::runtime::record_compress::RecordCompressor::new(event_log.clone());
                     let llm = crate::runtime::executor_compressor::ExecutorCompressorLlm::new(
                         &executor,
                         executor.default_provider(),
@@ -2702,7 +2713,7 @@ mod tests {
             schema_version: SchemaVersion::V03,
             name: None,
             description: None,
-            provider: Some("mock".to_string()),
+            provider: Some(nika_core::ProviderName::Mock),
             model: None,
             base_url: None,
             task_table: TaskTable::new(),
@@ -2845,7 +2856,7 @@ mod tests {
             schema_version: SchemaVersion::V03,
             name: None,
             description: None,
-            provider: Some("mock".to_string()),
+            provider: Some(nika_core::ProviderName::Mock),
             model: None,
             base_url: None,
             task_table,
@@ -2997,7 +3008,7 @@ mod tests {
             schema_version: SchemaVersion::V01,
             name: None,
             description: None,
-            provider: Some("mock".to_string()),
+            provider: Some(nika_core::ProviderName::Mock),
             model: None,
             base_url: None,
             task_table,
@@ -3746,7 +3757,7 @@ mod tests {
             schema_version: SchemaVersion::V03,
             name: None,
             description: None,
-            provider: Some("mock".to_string()),
+            provider: Some(nika_core::ProviderName::Mock),
             model: None,
             base_url: None,
             task_table,
@@ -3935,7 +3946,11 @@ mod tests {
 
         let mut runner = Runner::new(workflow).unwrap();
         let result = runner.run().await;
-        assert!(result.is_ok(), "Workflow should succeed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Workflow should succeed: {:?}",
+            result.err()
+        );
 
         let parent = runner.datastore.get("indexed");
         assert!(parent.is_some(), "Parent result should exist");
@@ -3950,9 +3965,18 @@ mod tests {
             .iter()
             .filter_map(|v| v.as_str().map(|s| s.trim().to_string()))
             .collect();
-        assert!(indices.contains(&"0".to_string()), "Should contain index 0: {indices:?}");
-        assert!(indices.contains(&"1".to_string()), "Should contain index 1: {indices:?}");
-        assert!(indices.contains(&"2".to_string()), "Should contain index 2: {indices:?}");
+        assert!(
+            indices.contains(&"0".to_string()),
+            "Should contain index 0: {indices:?}"
+        );
+        assert!(
+            indices.contains(&"1".to_string()),
+            "Should contain index 1: {indices:?}"
+        );
+        assert!(
+            indices.contains(&"2".to_string()),
+            "Should contain index 2: {indices:?}"
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -5897,7 +5921,7 @@ mod tests {
             schema_version: SchemaVersion::V03,
             name: None,
             description: None,
-            provider: Some("mock".to_string()),
+            provider: Some(nika_core::ProviderName::Mock),
             model: None,
             base_url: None,
             task_table,
@@ -6193,7 +6217,7 @@ mod tests {
             schema_version: SchemaVersion::V03,
             name: None,
             description: None,
-            provider: Some("mock".to_string()),
+            provider: Some(nika_core::ProviderName::Mock),
             model: None,
             base_url: None,
             task_table,
@@ -6405,7 +6429,7 @@ mod tests {
             schema_version: SchemaVersion::V01,
             name: None,
             description: None,
-            provider: Some("mock".to_string()),
+            provider: Some(nika_core::ProviderName::Mock),
             model: None,
             base_url: None,
             task_table,
@@ -6516,7 +6540,7 @@ mod tests {
             schema_version: SchemaVersion::V01,
             name: None,
             description: None,
-            provider: Some("mock".to_string()),
+            provider: Some(nika_core::ProviderName::Mock),
             model: None,
             base_url: None,
             task_table,
@@ -6593,7 +6617,7 @@ mod tests {
                 max_tokens: None,
                 ..Default::default()
             }),
-            provider: task_provider.map(|s| s.to_string()),
+            provider: task_provider.map(nika_core::ProviderName::parse),
             model: task_model.map(|s| s.to_string()),
             base_url: None,
             with_spec: Default::default(),
@@ -6632,7 +6656,7 @@ mod tests {
             schema_version: SchemaVersion::V03,
             name: None,
             description: None,
-            provider: Some("mock".to_string()),
+            provider: Some(nika_core::ProviderName::Mock),
             model: None,
             base_url: None,
             task_table,
@@ -6857,7 +6881,7 @@ mod tests {
             schema_version: SchemaVersion::V03,
             name: None,
             description: None,
-            provider: Some("mock".to_string()),
+            provider: Some(nika_core::ProviderName::Mock),
             model: None,
             base_url: None,
             task_table,
@@ -6978,7 +7002,7 @@ mod tests {
             schema_version: SchemaVersion::V01,
             name: None,
             description: None,
-            provider: Some("mock".to_string()),
+            provider: Some(nika_core::ProviderName::Mock),
             model: None,
             base_url: None,
             task_table,
@@ -7010,6 +7034,9 @@ mod tests {
         let rec = record.unwrap();
         assert_eq!(rec.task_id.as_ref(), "recorded");
         // Short output (< max_tokens) should produce a truncated/skipped record
-        assert!(!rec.summary.is_empty(), "Record summary should not be empty");
+        assert!(
+            !rec.summary.is_empty(),
+            "Record summary should not be empty"
+        );
     }
 }

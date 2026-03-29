@@ -416,7 +416,7 @@ tasks:
         let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
 
         assert_eq!(workflow.schema, "nika/workflow@0.12");
-        assert_eq!(workflow.provider, "claude"); // default
+        assert_eq!(workflow.provider, "anthropic"); // default
         assert_eq!(workflow.tasks.len(), 1);
         assert_eq!(workflow.tasks[0].id, "hello");
         assert_eq!(workflow.model.as_deref(), Some("test-model"));
@@ -994,7 +994,7 @@ tasks:
     infer: "Test"
 "#;
         let workflow = parse_workflow(yaml).expect("Failed to parse");
-        assert_eq!(workflow.provider, "claude");
+        assert_eq!(workflow.provider, "anthropic");
     }
 
     #[test]

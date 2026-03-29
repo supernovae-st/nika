@@ -85,7 +85,9 @@ pub fn lower(analyzed: AnalyzedWorkflow) -> Result<Workflow, NikaError> {
     Ok(Workflow {
         schema: schema_version.as_str().to_string(),
         name,
-        provider: provider.unwrap_or_else(|| "claude".to_string()),
+        provider: provider
+            .map(|p| p.to_string())
+            .unwrap_or_else(|| "anthropic".to_string()),
         model,
         mcp,
         context,
@@ -112,9 +114,10 @@ fn lower_task(task: AnalyzedTask, table: &TaskTable) -> Result<Task, NikaError> 
         .as_ref()
         .filter(|r| r.fallback.len() > 1)
         .map(|r| r.fallback.clone());
+    let provider_str = task.provider.as_ref().map(|p| p.to_string());
     let action = lower_action(
         &task.action,
-        &task.provider,
+        &provider_str,
         &task.model,
         &task.retry,
         &task.base_url,
@@ -605,7 +608,7 @@ pub fn unlower(workflow: Workflow) -> Result<AnalyzedWorkflow, NikaError> {
             name: task.id.clone(),
             description: None,
             action,
-            provider: task_provider,
+            provider: task_provider.map(nika_core::ProviderName::from),
             model: task_model,
             base_url: None,
             with_spec,
@@ -660,7 +663,7 @@ pub fn unlower(workflow: Workflow) -> Result<AnalyzedWorkflow, NikaError> {
         schema_version,
         name: workflow.name,
         description: None,
-        provider: Some(workflow.provider),
+        provider: Some(nika_core::ProviderName::from(workflow.provider)),
         model: workflow.model,
         base_url: None,
         task_table,
@@ -935,7 +938,7 @@ mod tests {
         let wf = dummy_workflow();
         let lowered = lower(wf).unwrap();
         assert_eq!(lowered.schema, "nika/workflow@0.12");
-        assert_eq!(lowered.provider, "claude");
+        assert_eq!(lowered.provider, "anthropic");
         assert!(lowered.tasks.is_empty());
         assert!(lowered.mcp.is_none());
         assert!(lowered.inputs.is_none());
@@ -944,7 +947,7 @@ mod tests {
     #[test]
     fn lower_provider_passthrough() {
         let mut wf = dummy_workflow();
-        wf.provider = Some("openai".to_string());
+        wf.provider = Some(nika_core::ProviderName::OpenAI);
         wf.model = Some("gpt-4o".to_string());
         let lowered = lower(wf).unwrap();
         assert_eq!(lowered.provider, "openai");
@@ -970,7 +973,7 @@ mod tests {
                 guardrails: Vec::new(),
                 span: Span::dummy(),
             }),
-            provider: Some("mistral".to_string()),
+            provider: Some(nika_core::ProviderName::Mistral),
             model: Some("mistral-large".to_string()),
             base_url: None,
             with_spec: WithSpec::default(),
@@ -1142,7 +1145,7 @@ mod tests {
                 limits: None,
                 span: Span::dummy(),
             })),
-            provider: Some("claude".to_string()),
+            provider: Some(nika_core::ProviderName::Anthropic),
             ..dummy_task(id, "researcher")
         });
 
@@ -1153,7 +1156,7 @@ mod tests {
                 assert_eq!(agent.tools, vec!["nika:read", "nika:write"]);
                 assert_eq!(agent.max_turns, Some(10));
                 assert_eq!(agent.max_tokens, Some(4096));
-                assert_eq!(agent.provider.as_deref(), Some("claude"));
+                assert_eq!(agent.provider.as_deref(), Some("anthropic"));
                 assert_eq!(agent.skills.as_deref(), Some(&["writing".to_string()][..]));
             }
             _ => panic!("expected Agent action"),
@@ -1893,7 +1896,7 @@ mod tests {
     // Roundtrip documentation tests — prove known lossy conversions
     // =========================================================================
 
-    /// L1: Provider None normalizes to "claude" during lowering.
+    /// L1: Provider None normalizes to "anthropic" (canonical) during lowering.
     #[test]
     fn roundtrip_provider_none_becomes_claude() {
         let wf = AnalyzedWorkflow {
@@ -1902,13 +1905,13 @@ mod tests {
         };
         let lowered = lower(wf).unwrap();
         assert_eq!(
-            lowered.provider, "claude",
-            "None provider should default to claude"
+            lowered.provider, "anthropic",
+            "None provider should default to anthropic (canonical)"
         );
         let unlowered = unlower(lowered).unwrap();
         assert_eq!(
             unlowered.provider,
-            Some("claude".to_string()),
+            Some(nika_core::ProviderName::Anthropic),
             "After roundtrip, provider is Some(\"claude\"), not None"
         );
     }

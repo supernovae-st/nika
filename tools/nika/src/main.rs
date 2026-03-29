@@ -1681,7 +1681,7 @@ async fn run_bench(
             }
 
             let mut workflow = base_workflow.clone();
-            workflow.provider = Some(provider_name.clone());
+            workflow.provider = Some(provider_name.as_str().into());
 
             let event_log = EventLog::new();
             let mut runner = Runner::with_event_log(workflow, event_log.clone())?
@@ -2119,7 +2119,7 @@ async fn run_workflow(
     }
 
     if let Some(p) = provider_override {
-        workflow.provider = Some(p);
+        workflow.provider = Some(p.into());
     }
     if let Some(m) = model_override {
         workflow.model = Some(m);
@@ -2191,7 +2191,11 @@ async fn run_workflow(
             .filter(|t| matches!(t.action.verb_name(), "infer" | "agent"))
             .count();
         if infer_count > 0 {
-            let provider_name = workflow.provider.as_deref().unwrap_or("anthropic");
+            let provider_name = workflow
+                .provider
+                .as_ref()
+                .map(|p| p.as_str())
+                .unwrap_or("anthropic");
             let model_name = workflow
                 .model
                 .as_deref()
@@ -2246,7 +2250,11 @@ async fn run_workflow(
         let gen_id = format!("{:08x}", rand::random::<u32>());
         nika::display::header::print_header(
             workflow.name.as_deref(),
-            workflow.provider.as_deref().unwrap_or("(auto)"),
+            workflow
+                .provider
+                .as_ref()
+                .map(|p| p.as_str())
+                .unwrap_or("(auto)"),
             workflow.model.as_deref().unwrap_or("(default)"),
             workflow.tasks.len(),
             layer_count,
@@ -2457,14 +2465,17 @@ async fn validate_workflow(file: &str, quiet: bool) -> Result<(), NikaError> {
     let t = Instant::now();
     let mut provider_warnings: Vec<String> = Vec::new();
     {
-        let mut providers_used = std::collections::HashSet::new();
-        providers_used.insert(workflow.provider.clone());
+        let mut providers_used: std::collections::HashSet<String> =
+            std::collections::HashSet::new();
+        if !workflow.provider.is_empty() {
+            providers_used.insert(workflow.provider.clone());
+        }
 
         // Collect per-task providers from analyzed AST
         if let Ok(analyzed) = parse_analyzed(&yaml) {
             for task in &analyzed.tasks {
                 if let Some(ref p) = task.provider {
-                    providers_used.insert(p.clone());
+                    providers_used.insert(p.to_string());
                 }
             }
         }
@@ -3366,7 +3377,7 @@ async fn dry_run_workflow(
 
     // Apply overrides
     if let Some(p) = provider_override {
-        workflow.provider = Some(p);
+        workflow.provider = Some(p.into());
     }
     if let Some(m) = model_override {
         workflow.model = Some(m);
@@ -3443,7 +3454,11 @@ async fn dry_run_workflow(
     println!();
 
     // Per-task details
-    let default_provider = workflow.provider.as_deref().unwrap_or("(auto)");
+    let default_provider = workflow
+        .provider
+        .as_ref()
+        .map(|p| p.as_str())
+        .unwrap_or("(auto)");
     let default_model = workflow.model.as_deref().unwrap_or("(default)");
 
     println!("  {}", "Tasks:".bold());
@@ -3451,8 +3466,8 @@ async fn dry_run_workflow(
         let verb = task.action.verb_name();
         let resolved_provider = task
             .provider
-            .as_deref()
-            .map(|p| simple_input_resolve(p, &workflow.inputs))
+            .as_ref()
+            .map(|p| simple_input_resolve(p.as_str(), &workflow.inputs))
             .unwrap_or_else(|| default_provider.to_string());
         let resolved_model = task
             .model
@@ -3496,9 +3511,9 @@ async fn dry_run_workflow(
         for task in &llm_tasks {
             let prov_resolved = task
                 .provider
-                .as_deref()
-                .map(|p| simple_input_resolve(p, &workflow.inputs))
-                .or_else(|| workflow.provider.clone())
+                .as_ref()
+                .map(|p| simple_input_resolve(p.as_str(), &workflow.inputs))
+                .or_else(|| workflow.provider.as_ref().map(|p| p.to_string()))
                 .unwrap_or_else(|| "anthropic".to_string());
             let model_resolved = task
                 .model
