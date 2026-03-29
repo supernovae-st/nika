@@ -325,43 +325,115 @@ provider_test!(test_deepseek_chat, "deepseek", "deepseek-chat", "DEEPSEEK_API_KE
 // xAI — Grok
 provider_test!(test_xai_grok, "xai", "grok-3", "XAI_API_KEY");
 
-// === STRUCTURED OUTPUT PER PROVIDER ===
+// === STRUCTURED OUTPUT: VALIDATION PROGRAMMATIQUE PAR PROVIDER ===
+//
+// ARCHITECTURE DU TEST:
+// 1. Prompt NATUREL (jamais mentionner JSON)
+// 2. Schema complexe (nested, enums, arrays, constraints)
+// 3. Executer le workflow
+// 4. Parser le JSON output
+// 5. Valider CHAQUE champ contre le schema (type + constraints)
+// 6. Verifier QUEL layer a reussi (via EventLog)
+// 7. Si echec → c'est un BUG ENGINE, pas un "provider limitation"
 
-#[tokio::test]
-async fn test_anthropic_structured_json() {
-    if std::env::var("ANTHROPIC_API_KEY").is_err() { return; }
-    let yaml = r#"
+const STRUCTURED_SCHEMA: &str = r#"
+type: object
+properties:
+  person:
+    type: object
+    properties:
+      name: { type: string }
+      age: { type: number, minimum: 0, maximum: 150 }
+      role: { type: string, enum: ["developer", "designer", "manager"] }
+    required: [name, age, role]
+  skills: { type: array, items: { type: string }, minItems: 2 }
+  active: { type: boolean }
+required: [person, skills, active]
+"#;
+
+// Prompt NATUREL — ne mentionne JAMAIS JSON, schema, format, structure
+const NATURAL_PROMPT: &str = "Parle-moi d'Alice, 30 ans, developpeuse senior qui maitrise Rust, Python et TypeScript";
+
+fn validate_structured_output(output: &str, provider: &str) {
+    // 1. Must be valid JSON
+    let parsed: serde_json::Value = serde_json::from_str(output)
+        .unwrap_or_else(|e| panic!("{provider}: output is not valid JSON: {e}\nRaw: {output}"));
+
+    // 2. Required top-level fields exist
+    assert!(parsed.get("person").is_some(), "{provider}: missing 'person' field");
+    assert!(parsed.get("skills").is_some(), "{provider}: missing 'skills' field");
+    assert!(parsed.get("active").is_some(), "{provider}: missing 'active' field");
+
+    // 3. Nested object validation
+    let person = &parsed["person"];
+    assert!(person["name"].is_string(), "{provider}: person.name is not string");
+    assert!(person["age"].is_number(), "{provider}: person.age is not number");
+    let age = person["age"].as_f64().unwrap();
+    assert!((0.0..=150.0).contains(&age), "{provider}: age {age} out of range 0-150");
+
+    // 4. Enum validation
+    let role = person["role"].as_str().unwrap_or("");
+    assert!(
+        ["developer", "designer", "manager"].contains(&role),
+        "{provider}: role '{role}' not in enum"
+    );
+
+    // 5. Array with minItems
+    let skills = parsed["skills"].as_array()
+        .unwrap_or_else(|| panic!("{provider}: skills is not an array"));
+    assert!(skills.len() >= 2, "{provider}: skills has {} items, need >= 2", skills.len());
+
+    // 6. Boolean
+    assert!(parsed["active"].is_boolean(), "{provider}: active is not boolean");
+}
+
+macro_rules! structured_test {
+    ($name:ident, $provider:expr, $model:expr, $env_key:expr) => {
+        #[tokio::test]
+        async fn $name() {
+            if std::env::var($env_key).is_err() {
+                eprintln!("Skip {}: no {}", stringify!($name), $env_key);
+                return;
+            }
+            let yaml = format!(r#"
 schema: "nika/workflow@0.12"
-provider: anthropic
-model: claude-haiku-4-5
+provider: {provider}
+model: {model}
 tasks:
   - id: extract
-    infer: "Return a JSON object with fields: name (string) and age (number) for a person named Alice aged 30"
+    infer: "{prompt}"
     structured:
       schema:
-        type: object
-        properties:
-          name: { type: string }
-          age: { type: number }
-        required: [name, age]
-"#;
-    let result = run_workflow(yaml).await.unwrap();
-    let parsed: serde_json::Value = serde_json::from_str(&result).expect("Should be valid JSON");
-    assert_eq!(parsed["name"], "Alice");
-    assert_eq!(parsed["age"], 30);
+{schema}
+      enable_repair: true
+      max_retries: 3
+"#, provider=$provider, model=$model, prompt=NATURAL_PROMPT,
+    schema=STRUCTURED_SCHEMA.lines().map(|l| format!("        {l}")).collect::<Vec<_>>().join("\n"));
+
+            let (output, events) = run_workflow_with_events(&yaml).await
+                .unwrap_or_else(|e| panic!("{} workflow failed: {e}", $provider));
+
+            // Validate output programmatically
+            validate_structured_output(&output, $provider);
+
+            // Verify which layer succeeded (observability)
+            let layer_events: Vec<_> = events.iter()
+                .filter(|e| matches!(&e.kind, EventKind::StructuredOutputSuccess { .. }))
+                .collect();
+            assert!(!layer_events.is_empty(),
+                "{}: no StructuredOutputSuccess event — 5-layer system did not activate", $provider);
+        }
+    };
 }
 
-#[tokio::test]
-async fn test_openai_structured_json() {
-    if std::env::var("OPENAI_API_KEY").is_err() { return; }
-    // Same test with OpenAI
-}
-
-#[tokio::test]
-async fn test_gemini_structured_json() {
-    if std::env::var("GEMINI_API_KEY").is_err() { return; }
-    // Same test with Gemini
-}
+// Test CHAQUE provider avec le MEME schema
+structured_test!(test_structured_anthropic, "anthropic", "claude-haiku-4-5", "ANTHROPIC_API_KEY");
+structured_test!(test_structured_openai, "openai", "gpt-4.1-mini", "OPENAI_API_KEY");
+structured_test!(test_structured_gemini, "gemini", "gemini-2.5-flash", "GEMINI_API_KEY");
+structured_test!(test_structured_groq, "groq", "llama-3.3-70b-versatile", "GROQ_API_KEY");
+structured_test!(test_structured_mistral, "mistral", "mistral-small-latest", "MISTRAL_API_KEY");
+structured_test!(test_structured_deepseek, "deepseek", "deepseek-chat", "DEEPSEEK_API_KEY");
+structured_test!(test_structured_xai, "xai", "grok-3", "XAI_API_KEY");
 
 // === FETCH (no API key needed) ===
 
@@ -585,12 +657,13 @@ provider: anthropic
 model: claude-haiku-4-5
 tasks:
   - id: research
-    infer: "List 3 facts about Rust programming language as JSON array"
+    # PROMPT NATUREL — jamais mentionner JSON!
+    infer: "Donne 3 faits interessants sur le langage Rust"
     structured:
       schema:
         type: object
         properties:
-          facts: { type: array, items: { type: string } }
+          facts: { type: array, items: { type: string }, minItems: 3 }
         required: [facts]
   - id: summarize
     depends_on: [research]
@@ -702,15 +775,31 @@ chore(release): tag v0.52.0
 
 | Metrique | Avant | Cible |
 |----------|-------|-------|
-| Tests | 8,888 | **9,100+** (E2E + security) |
+| Tests | 8,903 | **9,200+** |
 | Security bugs | 4 | **0** |
 | High bugs | 6 | **0** |
 | Error handling | 5 gaps | **0** |
 | Dead code | 3 items | **0** |
-| MSRV | 1.86 (violated) | **1.94** (correct) |
-| ProviderName | String | **typed enum** |
-| E2E tests | 0 | **14+** |
+| MSRV | 1.86 (violated) | **1.94** |
+| ProviderName | String | **typed enum partout** |
+| Structured output | non teste | **7/7 providers valides** |
+| Prompt naturel | non verifie | **zero mention JSON dans prompts** |
+| Schema validation | basique | **programmatique (type+enum+range)** |
+| Daemon | manual start | **auto-start transparent** |
+| Keychain popup | possible | **impossible (code supprime)** |
+| E2E workflows | 0 executes | **20+ executes et valides** |
 | Version | v0.51.0 | **v0.52.0 tagged** |
+
+# DEFINITION OF DONE (pour chaque provider)
+
+Un provider est "done" quand:
+1. Infer simple → output non-vide ✓
+2. Structured output simple (3 champs) → JSON valide + schema match ✓
+3. Structured output complexe (nested + enum + array) → JSON valide + schema match ✓
+4. Pipeline 3 etapes (infer → with binding → infer) → output final coherent ✓
+5. EventLog contient StructuredOutputSuccess avec le bon layer ✓
+6. Aucun warning "malformed" dans les logs ✓
+7. Cost tracking correct (ProviderResponded event avec tokens > 0) ✓
 
 # CONTEXT WINDOW HANDOFF
 
