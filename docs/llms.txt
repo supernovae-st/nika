@@ -1,9 +1,59 @@
 # Nika
 
-> Semantic YAML workflow engine for AI tasks. Orchestrate LLMs, APIs, shell commands, and MCP tools with declarative DAG workflows. Schema: nika/workflow@0.12
+> Semantic YAML workflow engine for AI tasks. Orchestrate LLMs, APIs, shell commands, and MCP tools with declarative DAG workflows.
 
-Nika is a Rust CLI tool that executes `.nika.yaml` workflow files. Each workflow defines a directed acyclic graph (DAG) of tasks using 5 verbs: infer (LLM generation), exec (shell commands), fetch (HTTP requests), invoke (MCP tool calls), and agent (multi-turn autonomous loops).
+Nika is a Rust CLI tool that executes `.nika.yaml` workflow files. Each workflow defines a directed acyclic graph (DAG) of tasks using 5 verbs: `infer` (LLM generation), `exec` (shell commands), `fetch` (HTTP requests), `invoke` (MCP tool calls), and `agent` (multi-turn autonomous loops).
+
+Schema: `nika/workflow@0.12` | Extension: `.nika.yaml`
+
+## Key Features
+
+- **5 semantic verbs**: infer, exec, fetch, invoke, agent — each task uses exactly one
+- **9 LLM providers**: Anthropic/Claude, OpenAI, Mistral, Groq, DeepSeek, Gemini, xAI, native (local GGUF), mock
+- **Provider fallback**: `provider: [groq, claude, openai]` — automatic retry on failure
+- **30 builtin tools**: Media processing (nika:import, nika:thumbnail, nika:convert), introspection (nika:dag_info, nika:cost), and more
+- **9 fetch extract modes**: markdown, article, text, selector, metadata, links, jsonpath, feed, llm_txt
+- **Structured output**: 5-layer JSON schema enforcement with auto-repair
+- **Vision/multimodal**: Send images to LLMs via CAS hashes (v0.34+)
+- **Agent guardrails**: length, schema, regex, LLM judge — with retry/escalate/fail actions
+- **31 pipe transforms**: String, array, numeric, type conversions — chainable in templates
+- **Record & compression**: Task output recording with LLM-based compression (v0.48+)
+- **Context budget**: Token-level control over task binding sizes (v0.51+)
+- **OpenAI-compatible endpoints**: Connect to vLLM, Ollama, TGI, LiteLLM via base_url
+- **12-level learning course**: `nika init --course` with 44 progressive exercises
+- **115 showcase workflows**: Production-ready templates across domains
 
 ## Documentation
 
-- [Quick Reference](llms-syntax.txt): Complete workflow syntax — verbs, fields, bindings, transforms
+- [Syntax Reference](llms-syntax.txt): Complete workflow syntax — verbs, fields, bindings, transforms, providers, security, CLI commands
+
+## Quick Example
+
+```yaml
+schema: nika/workflow@0.12
+provider: claude
+model: claude-sonnet-4-20250514
+
+tasks:
+  - id: research
+    infer:
+      prompt: "Research AI workflow engines"
+      temperature: 0.7
+
+  - id: summarize
+    depends_on: [research]
+    with: { data: $research }
+    infer:
+      prompt: "Summarize: {{with.data}}"
+      max_tokens: 500
+```
+
+## CLI
+
+```bash
+nika run workflow.nika.yaml      # Execute
+nika check workflow.nika.yaml    # Validate
+nika ui                          # Terminal UI
+nika init --course               # Learning course
+nika doctor                      # System health
+```
