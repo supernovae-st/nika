@@ -37,6 +37,33 @@ dispatching-parallel-agents → Agents paralleles pour Wave 3
 
 ---
 
+# PHILOSOPHIE: TEST → CASSE → FIX → VERIFIE
+
+```
+POUR CHAQUE PROVIDER (anthropic, openai, gemini, groq, mistral, deepseek, xai):
+  1. Ecrire un workflow avec structured output (JSON schema)
+  2. EXECUTER le workflow avec `nika run`
+  3. Si ca CASSE → debugger, trouver le root cause dans le code engine
+  4. FIXER le code (pas le test!) avec TDD
+  5. RE-EXECUTER → verifier que ca passe
+  6. Commit le fix + le test
+
+ZERO FAUX POSITIF:
+  - Si un test passe mais le output est mauvais → le test est FAUX → le fixer
+  - Si un test echoue mais c'est un bug engine → fixer l'ENGINE
+  - Si structured output echoue → traverser les 5 layers pour trouver ou ca casse
+  - Si un provider timeout → verifier timeout config, pas just skip
+
+LES 5 COUCHES STRUCTURED OUTPUT doivent TOUTES etre testees:
+  Layer 0: Tool injection / response_format (provider-natif)
+  Layer 2: Extract + Validate (post-processing JSON)
+  Layer 3: Retry with Feedback (re-prompt avec erreurs)
+  Layer 4: LLM Repair (cheap model repare le JSON)
+
+  Pour Groq et Native: PAS de Layer 0 natif → Layers 2-4 CRITIQUES
+  Tester specifiquement: schema complexe + Groq → verify repair chain
+```
+
 # 4 WAVES (15h total — donnees verifiees par 31 agents)
 
 ## WAVE 1: VRAIS BUGS (3h, 15 fixes chirurgicaux)
@@ -99,7 +126,7 @@ chore: bump MSRV to 1.94 (div_ceil requirement)
 
 ---
 
-## WAVE 2: E2E WORKFLOW TESTS (6h)
+## WAVE 2: E2E WORKFLOW TESTS — RUN + FIX + VERIFY (8h)
 
 ### 2A — Mock E2E workflows (3h)
 
@@ -353,7 +380,71 @@ tasks:
 }
 ```
 
-### 2C — Complex workflow tests (1h)
+### 2C — Structured output par provider: RUN + DEBUG + FIX (2h)
+
+L'objectif N'EST PAS juste d'ecrire des tests. C'est de les EXECUTER et de FIXER ce qui casse.
+
+```bash
+# Pour CHAQUE provider disponible, executer:
+nika run test-structured-anthropic.nika.yaml
+nika run test-structured-openai.nika.yaml
+nika run test-structured-gemini.nika.yaml
+nika run test-structured-groq.nika.yaml      # CRITIQUE: pas de Layer 0
+nika run test-structured-mistral.nika.yaml
+nika run test-structured-deepseek.nika.yaml
+nika run test-structured-xai.nika.yaml
+```
+
+Si un workflow ECHOUE:
+1. Lire le trace: `nika trace show <generation_id>`
+2. Identifier la layer qui echoue (StructuredOutputAttempt events)
+3. Trouver le bug dans le code engine
+4. Fixer avec TDD (test rouge → fix → test vert)
+5. Re-executer le workflow pour confirmer
+6. Commit: `fix(provider): <provider> structured output <layer> fix`
+
+Schema de test (meme pour tous les providers):
+```yaml
+structured:
+  schema:
+    type: object
+    properties:
+      name: { type: string }
+      age: { type: number, minimum: 0, maximum: 150 }
+      skills: { type: array, items: { type: string }, minItems: 1 }
+      active: { type: boolean }
+    required: [name, age, skills, active]
+  enable_repair: true
+  max_retries: 3
+```
+
+Le test DOIT verifier:
+- Le JSON est valide (parseable)
+- Le JSON match le schema (tous les required presents)
+- Les types sont corrects (name=string, age=number, etc.)
+- Pas de champ supplementaire non-declare
+
+### 2D — Complex pipeline tests: EXECUTE REAL WORKFLOWS (1h)
+
+Il y a 84 fichiers .nika.yaml dans tests/ et docs/tests/.
+L'agent DOIT executer les plus importants et fixer ce qui casse:
+
+```bash
+# Executer les workflows existants un par un:
+nika run tests/e2e-provider-tests/01-anthropic-extended-thinking.nika.yaml
+nika run tests/e2e-provider-tests/02-openai-json-response.nika.yaml
+nika run tests/e2e-provider-tests/04-groq-ultra-fast-inference.nika.yaml
+nika run tests/workflows/transforms-string.nika.yaml --provider mock
+nika run tests/workflows/bindings-basic.nika.yaml --provider mock
+nika run tests/workflows/fetch-extract-mode-01-markdown.nika.yaml
+nika run test-workflow-1-research-pipeline.nika.yaml --provider mock
+nika run test-workflow-4-retry-fallback.nika.yaml --provider mock
+nika run test-workflow-8-guardrails.nika.yaml --provider mock
+
+# Si un workflow a des erreurs de SYNTAXE → fixer le .nika.yaml
+# Si un workflow echoue a l'EXECUTION → fixer le code engine
+# Si un workflow produit un mauvais OUTPUT → fixer le workflow ou l'engine
+```
 
 ```rust
 #[tokio::test]
