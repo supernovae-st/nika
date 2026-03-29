@@ -363,12 +363,12 @@ pub struct FetchParams {
     /// Defaults to true if not specified
     #[serde(default)]
     pub follow_redirects: Option<bool>,
-    /// Response mode: "full" (status + headers + body JSON) or "binary" (CAS store)
+    /// Response mode: full (status + headers + body JSON) or binary (CAS store)
     #[serde(default)]
-    pub response: Option<String>,
-    /// Extraction mode: markdown, text, selector, metadata, links, jsonpath
+    pub response: Option<nika_core::ast::extract::ResponseMode>,
+    /// Extraction mode for post-processing
     #[serde(default)]
-    pub extract: Option<String>,
+    pub extract: Option<nika_core::ast::extract::ExtractMode>,
     /// CSS selector or JSONPath expression (used with extract: selector, text, jsonpath)
     #[serde(default)]
     pub selector: Option<String>,
@@ -405,39 +405,17 @@ impl FetchParams {
                 reason: "Fetch timeout must be greater than 0".into(),
             });
         }
-        if let Some(ref r) = self.response {
-            if r != "full" && r != "binary" {
-                return Err(NikaError::ValidationError {
-                    reason: format!("Invalid response mode '{}', expected 'full' or 'binary'", r),
-                });
-            }
-        }
-        if let Some(ref extract) = self.extract {
-            let valid = [
-                "markdown", "article", "text", "selector", "metadata", "links", "jsonpath", "feed",
-                "llm_txt",
-            ];
-            if !valid.contains(&extract.as_str()) {
-                return Err(NikaError::ValidationError {
-                    reason: format!(
-                        "fetch extract must be one of: {}, got '{}'",
-                        valid.join(", "),
-                        extract
-                    ),
-                });
-            }
-        }
+        // extract and response modes are validated at the type level (enums).
         if self.selector.is_some() && self.extract.is_none() {
             return Err(NikaError::ValidationError {
                 reason: "fetch 'selector' requires 'extract' to be set".to_string(),
             });
         }
-        if self.response.is_some() && self.extract.is_some() {
+        if let (Some(resp), Some(ext)) = (&self.response, &self.extract) {
             return Err(NikaError::ValidationError {
                 reason: format!(
                     "fetch cannot combine 'response: {}' with 'extract: {}' — response modes bypass extraction",
-                    self.response.as_deref().unwrap_or(""),
-                    self.extract.as_deref().unwrap_or("")
+                    resp, ext
                 ),
             });
         }
@@ -1639,9 +1617,11 @@ fetch:
 
     #[test]
     fn test_fetch_validate_valid_extract_modes() {
+        use nika_core::ast::extract::ExtractMode;
         let valid_modes = [
-            "markdown", "article", "text", "selector", "metadata", "links", "jsonpath", "feed",
-            "llm_txt",
+            ExtractMode::Markdown, ExtractMode::Article, ExtractMode::Text,
+            ExtractMode::Selector, ExtractMode::Metadata, ExtractMode::Links,
+            ExtractMode::Jsonpath, ExtractMode::Feed, ExtractMode::LlmTxt,
         ];
         for mode in &valid_modes {
             let params = FetchParams {
@@ -1654,7 +1634,7 @@ fetch:
                 retry: None,
                 follow_redirects: None,
                 response: None,
-                extract: Some(mode.to_string()),
+                extract: Some(*mode),
                 selector: None,
             };
             assert!(
@@ -1665,25 +1645,8 @@ fetch:
         }
     }
 
-    #[test]
-    fn test_fetch_validate_invalid_extract_mode() {
-        let params = FetchParams {
-            url: "https://example.com".to_string(),
-            method: "GET".to_string(),
-            headers: FxHashMap::default(),
-            body: None,
-            json: None,
-            timeout: None,
-            retry: None,
-            follow_redirects: None,
-            response: None,
-            extract: Some("invalid_mode".to_string()),
-            selector: None,
-        };
-        let err = params.validate().unwrap_err();
-        assert!(err.to_string().contains("extract must be one of"));
-        assert!(err.to_string().contains("invalid_mode"));
-    }
+    // Invalid extract modes are now prevented at the type level (ExtractMode enum).
+    // The analyzer catches invalid strings from YAML and emits a warning.
 
     #[test]
     fn test_fetch_validate_selector_without_extract() {
@@ -1717,7 +1680,7 @@ fetch:
             retry: None,
             follow_redirects: None,
             response: None,
-            extract: Some("text".to_string()),
+            extract: Some(nika_core::ast::extract::ExtractMode::Text),
             selector: Some("p.intro".to_string()),
         };
         assert!(params.validate().is_ok());
@@ -1752,7 +1715,7 @@ fetch:
         match action {
             TaskAction::Fetch { fetch } => {
                 assert_eq!(fetch.url, "https://example.com");
-                assert_eq!(fetch.extract, Some("markdown".to_string()));
+                assert_eq!(fetch.extract, Some(nika_core::ast::extract::ExtractMode::Markdown));
                 assert!(fetch.selector.is_none());
             }
             _ => panic!("Expected TaskAction::Fetch"),
@@ -1770,7 +1733,7 @@ fetch:
         let action: TaskAction = serde_yaml::from_str(yaml).unwrap();
         match action {
             TaskAction::Fetch { fetch } => {
-                assert_eq!(fetch.extract, Some("selector".to_string()));
+                assert_eq!(fetch.extract, Some(nika_core::ast::extract::ExtractMode::Selector));
                 assert_eq!(fetch.selector, Some("div.content".to_string()));
             }
             _ => panic!("Expected TaskAction::Fetch"),

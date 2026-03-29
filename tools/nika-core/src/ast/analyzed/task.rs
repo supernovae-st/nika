@@ -214,11 +214,11 @@ pub struct AnalyzedFetchAction {
     /// Follow redirects
     pub follow_redirects: bool,
 
-    /// Response mode: "full" or "binary"
-    pub response: Option<String>,
+    /// Response mode: full or binary
+    pub response: Option<crate::ast::extract::ResponseMode>,
 
-    /// Extraction mode: markdown, article, text, selector, metadata, links, feed, jsonpath, llm_txt
-    pub extract: Option<String>,
+    /// Extraction mode for post-processing
+    pub extract: Option<crate::ast::extract::ExtractMode>,
 
     /// CSS selector or JSONPath expression (used with extract)
     pub selector: Option<String>,

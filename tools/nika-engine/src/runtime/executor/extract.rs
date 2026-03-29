@@ -1,20 +1,31 @@
 //! Post-processing extraction for the fetch: verb.
 
+use nika_core::ast::extract::ExtractMode;
+
 use crate::error::NikaError;
+#[cfg(not(all(
+    feature = "fetch-markdown",
+    feature = "fetch-html",
+    feature = "fetch-article",
+    feature = "fetch-feed"
+)))]
 use crate::error_domains::ExecutionError;
 
 /// Apply extraction to a fetch response body.
 /// Returns processed text or original body if no extraction configured.
 pub(crate) fn apply_extract(
     body: &str,
-    extract: Option<&str>,
+    extract: Option<ExtractMode>,
     selector: Option<&str>,
 ) -> Result<String, NikaError> {
-    match extract {
-        None => Ok(body.to_string()),
+    let mode = match extract {
+        None => return Ok(body.to_string()),
+        Some(m) => m,
+    };
 
+    match mode {
         #[cfg(feature = "fetch-markdown")]
-        Some("markdown") => {
+        ExtractMode::Markdown => {
             // Strip <style> and <script> tags before conversion to avoid
             // CSS/JS content appearing as plain text in the markdown output.
             let clean = strip_non_content_tags(body);
@@ -22,10 +33,10 @@ pub(crate) fn apply_extract(
         }
 
         #[cfg(feature = "fetch-html")]
-        Some("text") => extract_text(body, selector),
+        ExtractMode::Text => extract_text(body, selector),
 
         #[cfg(feature = "fetch-html")]
-        Some("selector") => {
+        ExtractMode::Selector => {
             let css = selector.ok_or_else(|| {
                 NikaError::ExtractError {
                     reason: "extract: selector requires 'selector' field".to_string(),
@@ -35,13 +46,13 @@ pub(crate) fn apply_extract(
         }
 
         #[cfg(feature = "fetch-html")]
-        Some("metadata") => extract_metadata_json(body),
+        ExtractMode::Metadata => extract_metadata_json(body),
 
         #[cfg(feature = "fetch-html")]
-        Some("links") => extract_links_json(body, None),
+        ExtractMode::Links => extract_links_json(body, None),
 
         #[cfg(feature = "fetch-article")]
-        Some("article") => {
+        ExtractMode::Article => {
             let mut readability =
                 dom_smoothie::Readability::new(body, None, None)
                     .map_err(|e| NikaError::ExtractError { reason: format!("Readability init failed: {e}") })?;
@@ -59,7 +70,7 @@ pub(crate) fn apply_extract(
         }
 
         #[cfg(feature = "fetch-feed")]
-        Some("feed") => {
+        ExtractMode::Feed => {
             let feed = feed_rs::parser::parse(body.as_bytes())
                 .map_err(|e| NikaError::ExtractError { reason: format!("Feed parse failed: {e}") })?;
             let entries: Vec<serde_json::Value> = feed
@@ -84,7 +95,7 @@ pub(crate) fn apply_extract(
             .to_string())
         }
 
-        Some("jsonpath") => {
+        ExtractMode::Jsonpath => {
             let path = selector.ok_or_else(|| {
                 NikaError::ExtractError {
                     reason: "extract: jsonpath requires 'selector' field with JSONPath expression"
@@ -94,32 +105,28 @@ pub(crate) fn apply_extract(
             extract_jsonpath(body, path)
         }
 
+        // LlmTxt is handled in fetch.rs before apply_extract is called.
+        // If it somehow reaches here, return the body as-is.
+        ExtractMode::LlmTxt => Ok(body.to_string()),
+
         #[cfg(not(feature = "fetch-markdown"))]
-        Some("markdown") => Err(ExecutionError::ExtractFailed {
+        ExtractMode::Markdown => Err(ExecutionError::ExtractFailed {
             reason: "extract: markdown requires feature 'fetch-markdown'. Build with: cargo build --features fetch-markdown".to_string(),
         }
         .into()),
         #[cfg(not(feature = "fetch-html"))]
-        Some("text" | "selector" | "metadata" | "links") => Err(ExecutionError::ExtractFailed {
+        ExtractMode::Text | ExtractMode::Selector | ExtractMode::Metadata | ExtractMode::Links => Err(ExecutionError::ExtractFailed {
             reason: "extract: text/selector/metadata/links requires feature 'fetch-html'. Build with: cargo build --features fetch-html".to_string(),
         }
         .into()),
         #[cfg(not(feature = "fetch-article"))]
-        Some("article") => Err(ExecutionError::ExtractFailed {
+        ExtractMode::Article => Err(ExecutionError::ExtractFailed {
             reason: "extract: article requires feature 'fetch-article'. Build with: cargo build --features fetch-article".to_string(),
         }
         .into()),
         #[cfg(not(feature = "fetch-feed"))]
-        Some("feed") => Err(ExecutionError::ExtractFailed {
+        ExtractMode::Feed => Err(ExecutionError::ExtractFailed {
             reason: "extract: feed requires feature 'fetch-feed'. Build with: cargo build --features fetch-feed".to_string(),
-        }
-        .into()),
-
-        Some(unknown) => Err(ExecutionError::ExtractFailed {
-            reason: format!(
-                "Unknown extract mode '{}'. Available: markdown, article, text, selector, metadata, links, jsonpath, feed, llm_txt",
-                unknown
-            ),
         }
         .into()),
     }
@@ -324,38 +331,37 @@ mod tests {
     }
 
     #[test]
-    fn unknown_extract_mode_returns_error() {
-        let result = apply_extract("<html></html>", Some("invalid_mode"), None);
-        assert!(result.is_err());
-        let err = result.unwrap_err().to_string();
-        assert!(err.contains("Unknown extract mode"));
-        assert!(err.contains("invalid_mode"));
+    fn none_extract_returns_body() {
+        // With ExtractMode enum, invalid modes are prevented at compile time.
+        // None returns body as-is.
+        let result = apply_extract("<html></html>", None, None).unwrap();
+        assert_eq!(result, "<html></html>");
     }
 
     #[test]
     fn jsonpath_extracts_single_value() {
         let json = r#"{"users": [{"name": "Alice"}, {"name": "Bob"}]}"#;
-        let result = apply_extract(json, Some("jsonpath"), Some("$.users[0].name")).unwrap();
+        let result = apply_extract(json, Some(ExtractMode::Jsonpath), Some("$.users[0].name")).unwrap();
         assert_eq!(result, "\"Alice\"");
     }
 
     #[test]
     fn jsonpath_extracts_multiple_values() {
         let json = r#"{"users": [{"name": "Alice"}, {"name": "Bob"}]}"#;
-        let result = apply_extract(json, Some("jsonpath"), Some("$.users[*].name")).unwrap();
+        let result = apply_extract(json, Some(ExtractMode::Jsonpath), Some("$.users[*].name")).unwrap();
         assert_eq!(result, "[\"Alice\",\"Bob\"]");
     }
 
     #[test]
     fn jsonpath_no_match_returns_null() {
         let json = r#"{"users": []}"#;
-        let result = apply_extract(json, Some("jsonpath"), Some("$.users[0].name")).unwrap();
+        let result = apply_extract(json, Some(ExtractMode::Jsonpath), Some("$.users[0].name")).unwrap();
         assert_eq!(result, "null");
     }
 
     #[test]
     fn jsonpath_requires_selector() {
-        let result = apply_extract(r#"{"a": 1}"#, Some("jsonpath"), None);
+        let result = apply_extract(r#"{"a": 1}"#, Some(ExtractMode::Jsonpath), None);
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(err.contains("jsonpath requires 'selector'"));
@@ -363,7 +369,7 @@ mod tests {
 
     #[test]
     fn jsonpath_invalid_json_body() {
-        let result = apply_extract("not json", Some("jsonpath"), Some("$.a"));
+        let result = apply_extract("not json", Some(ExtractMode::Jsonpath), Some("$.a"));
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(err.contains("not valid JSON"));
@@ -371,7 +377,7 @@ mod tests {
 
     #[test]
     fn jsonpath_invalid_expression() {
-        let result = apply_extract(r#"{"a": 1}"#, Some("jsonpath"), Some("$[invalid"));
+        let result = apply_extract(r#"{"a": 1}"#, Some(ExtractMode::Jsonpath), Some("$[invalid"));
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(err.contains("Invalid JSONPath"));
@@ -381,7 +387,7 @@ mod tests {
     #[test]
     fn markdown_extract_converts_html() {
         let html = "<h1>Title</h1><p>Hello <strong>world</strong></p>";
-        let result = apply_extract(html, Some("markdown"), None).unwrap();
+        let result = apply_extract(html, Some(ExtractMode::Markdown), None).unwrap();
         assert!(result.contains("# Title"));
         assert!(result.contains("**world**"));
     }
@@ -390,7 +396,7 @@ mod tests {
     #[test]
     fn text_extract_without_selector() {
         let html = "<html><body><h1>Title</h1><p>Hello world</p></body></html>";
-        let result = apply_extract(html, Some("text"), None).unwrap();
+        let result = apply_extract(html, Some(ExtractMode::Text), None).unwrap();
         assert!(result.contains("Title"));
         assert!(result.contains("Hello world"));
     }
@@ -399,7 +405,7 @@ mod tests {
     #[test]
     fn text_extract_with_selector() {
         let html = r#"<html><body><p class="intro">First</p><p class="intro">Second</p><p>Third</p></body></html>"#;
-        let result = apply_extract(html, Some("text"), Some("p.intro")).unwrap();
+        let result = apply_extract(html, Some(ExtractMode::Text), Some("p.intro")).unwrap();
         assert!(result.contains("First"));
         assert!(result.contains("Second"));
         assert!(!result.contains("Third"));
@@ -410,14 +416,14 @@ mod tests {
     fn selector_extract_returns_html() {
         let html =
             r#"<html><body><div class="content"><p>Hello</p></div><div>Other</div></body></html>"#;
-        let result = apply_extract(html, Some("selector"), Some("div.content")).unwrap();
+        let result = apply_extract(html, Some(ExtractMode::Selector), Some("div.content")).unwrap();
         assert!(result.contains("<p>Hello</p>"));
     }
 
     #[cfg(feature = "fetch-html")]
     #[test]
     fn selector_extract_requires_selector_field() {
-        let result = apply_extract("<html></html>", Some("selector"), None);
+        let result = apply_extract("<html></html>", Some(ExtractMode::Selector), None);
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(err.contains("requires 'selector' field"));
@@ -434,7 +440,7 @@ mod tests {
             <meta name="twitter:card" content="summary">
             <link rel="canonical" href="https://example.com/page">
         </head><body></body></html>"#;
-        let result = apply_extract(html, Some("metadata"), None).unwrap();
+        let result = apply_extract(html, Some(ExtractMode::Metadata), None).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert_eq!(parsed["title"], "My Page");
         assert_eq!(parsed["description"], "Page description");
@@ -460,7 +466,7 @@ mod tests {
                 The more text we have here, the better the extraction will work.</p>
             </article>
         </body></html>"#;
-        let result = apply_extract(html, Some("article"), None).unwrap();
+        let result = apply_extract(html, Some(ExtractMode::Article), None).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert!(parsed.get("title").is_some());
         assert!(parsed.get("content").is_some());
@@ -486,7 +492,7 @@ mod tests {
                 </item>
             </channel>
         </rss>"#;
-        let result = apply_extract(rss, Some("feed"), None).unwrap();
+        let result = apply_extract(rss, Some(ExtractMode::Feed), None).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert_eq!(parsed["title"], "Test Feed");
         assert_eq!(parsed["entry_count"], 2);
@@ -507,7 +513,7 @@ mod tests {
                 <summary>Atom summary</summary>
             </entry>
         </feed>"#;
-        let result = apply_extract(atom, Some("feed"), None).unwrap();
+        let result = apply_extract(atom, Some(ExtractMode::Feed), None).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert_eq!(parsed["title"], "Atom Feed");
         assert_eq!(parsed["entry_count"], 1);
@@ -516,7 +522,7 @@ mod tests {
     #[cfg(feature = "fetch-feed")]
     #[test]
     fn feed_extract_invalid_input_returns_error() {
-        let result = apply_extract("not xml at all", Some("feed"), None);
+        let result = apply_extract("not xml at all", Some(ExtractMode::Feed), None);
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(err.contains("Feed parse failed"));
@@ -529,7 +535,7 @@ mod tests {
             <a href="https://example.com">Example</a>
             <a href="/about" rel="nofollow">About</a>
         </body></html>"#;
-        let result = apply_extract(html, Some("links"), None).unwrap();
+        let result = apply_extract(html, Some(ExtractMode::Links), None).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert_eq!(parsed["count"], 2);
         let links = parsed["links"].as_array().unwrap();

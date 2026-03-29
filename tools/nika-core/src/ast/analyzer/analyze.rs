@@ -993,8 +993,40 @@ fn analyze_fetch(raw: &RawFetchAction, ctx: &mut AnalyzerContext) -> AnalyzedFet
             .as_ref()
             .map(|s| s.value)
             .unwrap_or(true),
-        response: raw.response.as_ref().map(|s| s.value.clone()),
-        extract: raw.extract.as_ref().map(|s| s.value.clone()),
+        response: raw.response.as_ref().and_then(|s| {
+            match crate::ast::extract::ResponseMode::parse(&s.value) {
+                Some(mode) => Some(mode),
+                None => {
+                    ctx.add_warning(AnalyzeError::new(
+                        AnalyzeErrorKind::InvalidValue,
+                        s.span,
+                        format!(
+                            "unknown response mode '{}', expected one of: {}",
+                            s.value,
+                            crate::ast::extract::ResponseMode::ALL_NAMES.join(", ")
+                        ),
+                    ));
+                    None
+                }
+            }
+        }),
+        extract: raw.extract.as_ref().and_then(|s| {
+            match crate::ast::extract::ExtractMode::parse(&s.value) {
+                Some(mode) => Some(mode),
+                None => {
+                    ctx.add_warning(AnalyzeError::new(
+                        AnalyzeErrorKind::InvalidValue,
+                        s.span,
+                        format!(
+                            "unknown extract mode '{}', expected one of: {}",
+                            s.value,
+                            crate::ast::extract::ExtractMode::ALL_NAMES.join(", ")
+                        ),
+                    ));
+                    None
+                }
+            }
+        }),
         selector: raw.selector.as_ref().map(|s| s.value.clone()),
         span: raw.url.span,
     }

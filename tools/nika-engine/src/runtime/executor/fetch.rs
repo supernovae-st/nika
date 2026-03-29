@@ -447,7 +447,7 @@ impl TaskExecutor {
                     // Success or non-retryable error status
 
                     // Check response mode BEFORE consuming the body
-                    if fetch.response.as_deref() == Some("full") {
+                    if fetch.response == Some(nika_core::ast::extract::ResponseMode::Full) {
                         let status = response.status().as_u16();
                         let headers: serde_json::Map<String, serde_json::Value> = response
                             .headers()
@@ -481,7 +481,7 @@ impl TaskExecutor {
                         .to_string());
                     }
 
-                    if fetch.response.as_deref() == Some("binary") {
+                    if fetch.response == Some(nika_core::ast::extract::ResponseMode::Binary) {
                         // Reject non-success HTTP status before storing anything in CAS.
                         // Without this, 4xx/5xx error pages (HTML) get stored as binary artifacts.
                         if !response.status().is_success() {
@@ -572,7 +572,7 @@ impl TaskExecutor {
                         }
                     }
                     // Special case: llm_txt requires sub-requests, handled here not in extract.rs
-                    if fetch.extract.as_deref() == Some("llm_txt") {
+                    if fetch.extract == Some(nika_core::ast::extract::ExtractMode::LlmTxt) {
                         let parsed =
                             url::Url::parse(url.as_ref()).map_err(|e| NikaError::FetchError {
                                 reason: format!("Invalid URL for llm_txt: {e}"),
@@ -635,11 +635,11 @@ impl TaskExecutor {
                     };
                     let extract_result = super::extract::apply_extract(
                         &raw_body,
-                        fetch.extract.as_deref(),
+                        fetch.extract,
                         resolved_selector.as_deref(),
                     );
                     // EMIT: ExtractApplied (if an extract mode was specified)
-                    if let Some(mode) = fetch.extract.as_deref() {
+                    if let Some(mode) = fetch.extract {
                         let output_len = extract_result.as_ref().map(|s| s.len()).unwrap_or(0);
                         self.event_log.emit(EventKind::ExtractApplied {
                             task_id: Arc::clone(task_id),

@@ -68,6 +68,9 @@ pub mod context {
 pub mod decompose {
     pub use nika_core::ast::decompose::*;
 }
+pub mod extract {
+    pub use nika_core::ast::extract::*;
+}
 pub mod logging {
     pub use nika_core::ast::logging::*;
 }
