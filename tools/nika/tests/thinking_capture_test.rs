@@ -73,7 +73,7 @@ async fn test_extended_thinking_captures_tokens() {
                 kind,
                 metadata: Some(_),
                 ..
-            } if kind != "started"
+            } if *kind != nika::event::AgentTurnKind::Started
         )
     });
 
@@ -167,7 +167,7 @@ async fn test_standard_mode_captures_tokens() {
                 kind,
                 metadata: Some(_),
                 ..
-            } if kind != "started"
+            } if *kind != nika::event::AgentTurnKind::Started
         )
     });
 
@@ -247,7 +247,7 @@ async fn test_mock_mode_has_tokens() {
                 kind,
                 metadata: Some(_),
                 ..
-            } if kind != "started"
+            } if *kind != nika::event::AgentTurnKind::Started
         )
     });
 
@@ -317,7 +317,7 @@ async fn test_openai_standard_mode_captures_tokens() {
                 kind,
                 metadata: Some(_),
                 ..
-            } if kind != "started"
+            } if *kind != nika::event::AgentTurnKind::Started
         )
     });
 

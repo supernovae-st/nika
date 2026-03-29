@@ -287,7 +287,7 @@ impl TaskExecutor {
         self.event_log.emit(EventKind::AgentComplete {
             task_id: Arc::clone(task_id),
             turns: result.turns as u32,
-            stop_reason: format!("{:?}", result.status),
+            stop_reason: nika_event::AgentStopReason::from(format!("{:?}", result.status)),
         });
 
         tracing::info!(

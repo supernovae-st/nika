@@ -74,14 +74,14 @@ fn test_event_log_conversation_tracking() {
     log.emit(EventKind::AgentTurn {
         task_id: "chat-1".into(),
         turn_index: 1,
-        kind: "continue".to_string(),
+        kind: nika::event::AgentTurnKind::Continue,
         metadata: None,
     });
 
     log.emit(EventKind::AgentComplete {
         task_id: "chat-1".into(),
         turns: 1,
-        stop_reason: "natural_completion".to_string(),
+        stop_reason: nika::event::AgentStopReason::NaturalCompletion,
     });
 
     let events = log.events();
@@ -374,7 +374,7 @@ fn test_event_kind_task_id_extraction() {
     let event = EventKind::AgentTurn {
         task_id: "test-task".into(),
         turn_index: 1,
-        kind: "continue".to_string(),
+        kind: nika::event::AgentTurnKind::Continue,
         metadata: None,
     };
 
@@ -383,7 +383,7 @@ fn test_event_kind_task_id_extraction() {
     let event = EventKind::AgentComplete {
         task_id: "complete-task".into(),
         turns: 2,
-        stop_reason: "max_turns".to_string(),
+        stop_reason: nika::event::AgentStopReason::MaxTurns,
     };
 
     assert_eq!(event.task_id(), Some("complete-task"));

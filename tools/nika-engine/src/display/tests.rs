@@ -915,7 +915,7 @@ fn run_stats_apply_provider_responded() {
             output_tokens: 50,
             cache_read_tokens: 10,
             ttft_ms: Some(45),
-            finish_reason: String::new(),
+            finish_reason: nika_event::FinishReason::Stop,
             cost_usd: 0.005,
         },
     };
@@ -945,7 +945,7 @@ fn run_stats_apply_provider_responded_no_ttft() {
             output_tokens: 80,
             cache_read_tokens: 0,
             ttft_ms: None,
-            finish_reason: String::new(),
+            finish_reason: nika_event::FinishReason::Stop,
             cost_usd: 0.01,
         },
     };
@@ -979,7 +979,7 @@ fn run_stats_apply_multiple_provider_calls_accumulate() {
                 output_tokens: 50,
                 cache_read_tokens: 5,
                 ttft_ms: Some(40 + i),
-                finish_reason: String::new(),
+                finish_reason: nika_event::FinishReason::Stop,
                 cost_usd: 0.001,
             },
         };
@@ -1025,7 +1025,7 @@ fn run_stats_tracks_provider_from_provider_called() {
             output_tokens: 50,
             cache_read_tokens: 0,
             ttft_ms: Some(45),
-            finish_reason: "stop".to_string(),
+            finish_reason: nika_event::FinishReason::Stop,
             cost_usd: 0.005,
         },
     });
@@ -1072,7 +1072,7 @@ fn run_stats_multi_turn_agent_retains_provider() {
             output_tokens: 50,
             cache_read_tokens: 0,
             ttft_ms: Some(45),
-            finish_reason: "tool_use".to_string(),
+            finish_reason: nika_event::FinishReason::ToolUse,
             cost_usd: 0.003,
         },
     });
@@ -1088,7 +1088,7 @@ fn run_stats_multi_turn_agent_retains_provider() {
             output_tokens: 80,
             cache_read_tokens: 50,
             ttft_ms: Some(30),
-            finish_reason: "stop".to_string(),
+            finish_reason: nika_event::FinishReason::Stop,
             cost_usd: 0.005,
         },
     });
@@ -1120,7 +1120,7 @@ fn run_stats_provider_defaults_to_unknown_without_provider_called() {
             output_tokens: 50,
             cache_read_tokens: 0,
             ttft_ms: None,
-            finish_reason: "stop".to_string(),
+            finish_reason: nika_event::FinishReason::Stop,
             cost_usd: 0.001,
         },
     });
@@ -1196,7 +1196,7 @@ fn run_stats_apply_guardrail_events() {
         timestamp_ms: 0,
         kind: EventKind::GuardrailPassed {
             task_id: Arc::from("t1"),
-            guardrail_type: "length".into(),
+            guardrail_type: nika_event::GuardrailType::Length,
             description: "max 1000 chars".into(),
         },
     });
@@ -1208,7 +1208,7 @@ fn run_stats_apply_guardrail_events() {
         timestamp_ms: 0,
         kind: EventKind::GuardrailFailed {
             task_id: Arc::from("t1"),
-            guardrail_type: "schema".into(),
+            guardrail_type: nika_event::GuardrailType::Schema,
             description: "JSON schema".into(),
             message: "missing field".into(),
         },
@@ -1221,10 +1221,10 @@ fn run_stats_apply_guardrail_events() {
         timestamp_ms: 0,
         kind: EventKind::GuardrailEscalation {
             task_id: Arc::from("t1"),
-            guardrail_type: "llm".into(),
+            guardrail_type: nika_event::GuardrailType::Llm,
             guardrail_id: "safety-1".into(),
             message: "content unsafe".into(),
-            severity: "high".into(),
+            severity: nika_event::Severity::High,
             suggested_action: None,
         },
     });
@@ -1874,14 +1874,14 @@ fn fmt_agent_start_output() {
 
 #[test]
 fn fmt_agent_turn_output() {
-    let out = strip_ansi(&format_event::fmt_agent_turn(0, "inference"));
+    let out = strip_ansi(&format_event::fmt_agent_turn(0, &nika_event::AgentTurnKind::Started));
     assert!(out.contains("turn 1"), "0-indexed should display as turn 1");
-    assert!(out.contains("inference"), "should contain kind");
+    assert!(out.contains("started"), "should contain kind");
 }
 
 #[test]
 fn fmt_agent_complete_output() {
-    let out = strip_ansi(&format_event::fmt_agent_complete(3, "end_turn"));
+    let out = strip_ansi(&format_event::fmt_agent_complete(3, &nika_event::AgentStopReason::EndTurn));
     assert!(out.contains("done"), "should contain 'done'");
     assert!(out.contains("3 turns"), "should contain turn count");
     assert!(out.contains("end_turn"), "should contain stop reason");
@@ -1923,11 +1923,11 @@ fn fmt_policy_blocked_output() {
 #[test]
 fn fmt_guardrail_passed_output() {
     let out = strip_ansi(&format_event::fmt_guardrail_passed(
-        "content_filter",
+        &nika_event::GuardrailType::Length,
         "safe output",
     ));
     assert!(
-        out.contains("content_filter"),
+        out.contains("length"),
         "should contain guardrail type"
     );
     assert!(out.contains("safe output"), "should contain description");
@@ -1936,18 +1936,18 @@ fn fmt_guardrail_passed_output() {
 #[test]
 fn fmt_guardrail_failed_output() {
     let out = strip_ansi(&format_event::fmt_guardrail_failed(
-        "pii_check",
+        &nika_event::GuardrailType::Regex,
         "email detected",
     ));
-    assert!(out.contains("pii_check"), "should contain guardrail type");
+    assert!(out.contains("regex"), "should contain guardrail type");
     assert!(out.contains("email detected"), "should contain message");
 }
 
 #[test]
 fn fmt_guardrail_escalation_output() {
     let out = strip_ansi(&format_event::fmt_guardrail_escalation(
-        "llm",
-        "high",
+        &nika_event::GuardrailType::Llm,
+        &nika_event::Severity::High,
         "needs human review",
     ));
     assert!(out.contains("escalation"), "should contain 'escalation'");
@@ -2699,7 +2699,7 @@ fn test_renderer_stats_accumulates_tokens() {
             output_tokens: 50,
             cache_read_tokens: 10,
             ttft_ms: Some(42),
-            finish_reason: "end_turn".into(),
+            finish_reason: nika_event::FinishReason::EndTurn,
             cost_usd: 0.003,
         },
     )];

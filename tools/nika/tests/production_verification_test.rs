@@ -43,7 +43,7 @@ fn test_phase1_agent_turn_metadata_has_thinking_field() {
         input_tokens: 100,
         output_tokens: 50,
         cache_read_tokens: 0,
-        stop_reason: "end_turn".to_string(),
+        stop_reason: nika::event::AgentStopReason::EndTurn,
     };
 
     assert!(metadata.thinking.is_some());

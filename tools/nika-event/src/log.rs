@@ -80,13 +80,16 @@ pub struct AgentTurnMetadata {
     #[serde(default)]
     pub cache_read_tokens: u64,
 
-    /// Stop reason: "end_turn", "tool_use", "max_tokens", "stop_sequence"
-    pub stop_reason: String,
+    /// Stop reason
+    pub stop_reason: crate::types::AgentStopReason,
 }
 
 impl AgentTurnMetadata {
     /// Create metadata for a simple text response (no thinking)
-    pub fn text_only(response: impl Into<String>, stop_reason: impl Into<String>) -> Self {
+    pub fn text_only(
+        response: impl Into<String>,
+        stop_reason: impl Into<crate::types::AgentStopReason>,
+    ) -> Self {
         Self {
             thinking: None,
             response_text: response.into(),
@@ -102,7 +105,7 @@ impl AgentTurnMetadata {
         response: impl Into<String>,
         input_tokens: u64,
         output_tokens: u64,
-        stop_reason: impl Into<String>,
+        stop_reason: impl Into<crate::types::AgentStopReason>,
     ) -> Self {
         Self {
             thinking: None,
@@ -241,7 +244,7 @@ pub enum EventKind {
         /// Time to first token (ms), if known
         ttft_ms: Option<u64>,
         /// Finish reason
-        finish_reason: String,
+        finish_reason: crate::types::FinishReason,
         /// Estimated cost in USD
         cost_usd: f64,
     },
@@ -346,8 +349,8 @@ pub enum EventKind {
     AgentTurn {
         task_id: Arc<str>,
         turn_index: u32,
-        /// Event kind: "started", "continue", "natural_completion", "explicit_completion"
-        kind: String,
+        /// Event kind
+        kind: crate::types::AgentTurnKind,
         /// Turn metadata including response text, tokens, thinking
         #[serde(skip_serializing_if = "Option::is_none")]
         metadata: Option<AgentTurnMetadata>,
@@ -356,7 +359,7 @@ pub enum EventKind {
     AgentComplete {
         task_id: Arc<str>,
         turns: u32,
-        stop_reason: String,
+        stop_reason: crate::types::AgentStopReason,
     },
 
     // ═══════════════════════════════════════════
@@ -379,8 +382,8 @@ pub enum EventKind {
     GuardrailPassed {
         /// Task ID for correlation
         task_id: Arc<str>,
-        /// Guardrail type: "length", "schema", "regex"
-        guardrail_type: String,
+        /// Guardrail type
+        guardrail_type: crate::types::GuardrailType,
         /// Human-readable description of the guardrail
         description: String,
     },
@@ -388,8 +391,8 @@ pub enum EventKind {
     GuardrailFailed {
         /// Task ID for correlation
         task_id: Arc<str>,
-        /// Guardrail type: "length", "schema", "regex", "llm"
-        guardrail_type: String,
+        /// Guardrail type
+        guardrail_type: crate::types::GuardrailType,
         /// Human-readable description of the guardrail
         description: String,
         /// Error message explaining why it failed
@@ -402,14 +405,14 @@ pub enum EventKind {
     GuardrailEscalation {
         /// Task ID for correlation
         task_id: Arc<str>,
-        /// Guardrail type: "length", "schema", "regex", "llm"
-        guardrail_type: String,
+        /// Guardrail type
+        guardrail_type: crate::types::GuardrailType,
         /// Guardrail ID for identification
         guardrail_id: String,
         /// Error message explaining why it failed
         message: String,
-        /// Severity level: "low", "medium", "high", "critical"
-        severity: String,
+        /// Severity level
+        severity: crate::types::Severity,
         /// Suggested action (optional)
         #[serde(skip_serializing_if = "Option::is_none")]
         suggested_action: Option<String>,
@@ -1204,7 +1207,7 @@ mod tests {
             output_tokens,
             cache_read_tokens: 0,
             ttft_ms: Some(150),
-            finish_reason: "stop".to_string(),
+            finish_reason: crate::types::FinishReason::Stop,
             cost_usd: 0.001,
         }
     }
@@ -1533,7 +1536,7 @@ mod tests {
             output_tokens: 150,
             cache_read_tokens: 200,
             ttft_ms: Some(85),
-            finish_reason: "stop".to_string(),
+            finish_reason: crate::types::FinishReason::Stop,
             cost_usd: 0.0025,
         });
 
@@ -1556,7 +1559,7 @@ mod tests {
             assert_eq!(*output_tokens, 150);
             assert_eq!(*cache_read_tokens, 200);
             assert_eq!(*ttft_ms, Some(85));
-            assert_eq!(finish_reason, "stop");
+            assert_eq!(*finish_reason, crate::types::FinishReason::Stop);
             assert!((*cost_usd - 0.0025).abs() < f64::EPSILON);
         } else {
             panic!("Expected ProviderResponded event");
@@ -1667,7 +1670,7 @@ mod tests {
         let metadata = AgentTurnMetadata::text_only("Hello world", "end_turn");
 
         assert_eq!(metadata.response_text, "Hello world");
-        assert_eq!(metadata.stop_reason, "end_turn");
+        assert_eq!(metadata.stop_reason, crate::types::AgentStopReason::EndTurn);
         assert_eq!(metadata.input_tokens, 0);
         assert_eq!(metadata.output_tokens, 0);
         assert_eq!(metadata.cache_read_tokens, 0);
@@ -1680,7 +1683,7 @@ mod tests {
         let metadata = AgentTurnMetadata::with_usage("Response", 100, 50, "tool_use");
 
         assert_eq!(metadata.response_text, "Response");
-        assert_eq!(metadata.stop_reason, "tool_use");
+        assert_eq!(metadata.stop_reason, crate::types::AgentStopReason::ToolUse);
         assert_eq!(metadata.input_tokens, 100);
         assert_eq!(metadata.output_tokens, 50);
         assert_eq!(metadata.total_tokens(), 150);
@@ -1695,7 +1698,7 @@ mod tests {
             input_tokens: 200,
             output_tokens: 100,
             cache_read_tokens: 50,
-            stop_reason: "end_turn".to_string(),
+            stop_reason: crate::types::AgentStopReason::EndTurn,
         };
 
         assert!(metadata.has_thinking());
@@ -1727,7 +1730,7 @@ mod tests {
             input_tokens: 50,
             output_tokens: 25,
             cache_read_tokens: 0,
-            stop_reason: "end_turn".to_string(),
+            stop_reason: crate::types::AgentStopReason::EndTurn,
         };
         let json = serde_json::to_value(&metadata).unwrap();
 
@@ -1744,7 +1747,7 @@ mod tests {
         log.emit(EventKind::AgentTurn {
             task_id: "agent_task".into(),
             turn_index: 1,
-            kind: "end_turn".to_string(), // Canonical snake_case
+            kind: crate::types::AgentTurnKind::from("end_turn"), // Canonical snake_case
             metadata: Some(metadata),
         });
 
@@ -1769,7 +1772,7 @@ mod tests {
         log.emit(EventKind::AgentTurn {
             task_id: "agent_task".into(),
             turn_index: 1,
-            kind: "started".to_string(),
+            kind: crate::types::AgentTurnKind::Started,
             metadata: None,
         });
 
@@ -1778,7 +1781,7 @@ mod tests {
 
         if let EventKind::AgentTurn { metadata, kind, .. } = &events[0].kind {
             assert!(metadata.is_none());
-            assert_eq!(kind, "started");
+            assert_eq!(*kind, crate::types::AgentTurnKind::Started);
         } else {
             panic!("Expected AgentTurn without metadata");
         }
@@ -2074,7 +2077,7 @@ mod tests {
 
         log.emit(EventKind::GuardrailPassed {
             task_id: "agent_task".into(),
-            guardrail_type: "length".to_string(),
+            guardrail_type: crate::types::GuardrailType::Length,
             description: "min_words: 10".to_string(),
         });
 
@@ -2087,7 +2090,7 @@ mod tests {
             ..
         } = &events[0].kind
         {
-            assert_eq!(guardrail_type, "length");
+            assert_eq!(*guardrail_type, crate::types::GuardrailType::Length);
             assert_eq!(description, "min_words: 10");
         } else {
             panic!("Expected GuardrailPassed event");
@@ -2100,7 +2103,7 @@ mod tests {
 
         log.emit(EventKind::GuardrailFailed {
             task_id: "agent_task".into(),
-            guardrail_type: "regex".to_string(),
+            guardrail_type: crate::types::GuardrailType::Regex,
             description: "must_contain_email".to_string(),
             message: "Output does not match pattern: [a-z]+@[a-z]+\\.[a-z]+".to_string(),
         });
@@ -2115,7 +2118,7 @@ mod tests {
             ..
         } = &events[0].kind
         {
-            assert_eq!(guardrail_type, "regex");
+            assert_eq!(*guardrail_type, crate::types::GuardrailType::Regex);
             assert_eq!(description, "must_contain_email");
             assert!(message.contains("does not match pattern"));
         } else {
@@ -2127,7 +2130,7 @@ mod tests {
     fn guardrail_passed_serializes() {
         let event = EventKind::GuardrailPassed {
             task_id: "task1".into(),
-            guardrail_type: "schema".to_string(),
+            guardrail_type: crate::types::GuardrailType::Schema,
             description: "output_schema".to_string(),
         };
 
@@ -2142,7 +2145,7 @@ mod tests {
     fn guardrail_failed_serializes() {
         let event = EventKind::GuardrailFailed {
             task_id: "task1".into(),
-            guardrail_type: "length".to_string(),
+            guardrail_type: crate::types::GuardrailType::Length,
             description: "max_chars: 100".to_string(),
             message: "Output has 150 chars, max is 100".to_string(),
         };
@@ -2159,14 +2162,14 @@ mod tests {
     fn guardrail_events_task_id_extraction() {
         let passed = EventKind::GuardrailPassed {
             task_id: "guard1".into(),
-            guardrail_type: "length".to_string(),
+            guardrail_type: crate::types::GuardrailType::Length,
             description: "min_words: 5".to_string(),
         };
         assert_eq!(passed.task_id(), Some("guard1"));
 
         let failed = EventKind::GuardrailFailed {
             task_id: "guard2".into(),
-            guardrail_type: "regex".to_string(),
+            guardrail_type: crate::types::GuardrailType::Regex,
             description: "pattern".to_string(),
             message: "No match".to_string(),
         };
@@ -2181,14 +2184,14 @@ mod tests {
         // Length guardrail passes
         log.emit(EventKind::GuardrailPassed {
             task_id: "validate_output".into(),
-            guardrail_type: "length".to_string(),
+            guardrail_type: crate::types::GuardrailType::Length,
             description: "min_words: 10, max_words: 100".to_string(),
         });
 
         // Schema guardrail fails
         log.emit(EventKind::GuardrailFailed {
             task_id: "validate_output".into(),
-            guardrail_type: "schema".to_string(),
+            guardrail_type: crate::types::GuardrailType::Schema,
             description: "json_schema".to_string(),
             message: "Missing required field: 'title'".to_string(),
         });
@@ -2196,7 +2199,7 @@ mod tests {
         // Regex guardrail passes
         log.emit(EventKind::GuardrailPassed {
             task_id: "validate_output".into(),
-            guardrail_type: "regex".to_string(),
+            guardrail_type: crate::types::GuardrailType::Regex,
             description: "contains_email".to_string(),
         });
 
@@ -2223,10 +2226,10 @@ mod tests {
 
         log.emit(EventKind::GuardrailEscalation {
             task_id: "agent_task".into(),
-            guardrail_type: "llm".to_string(),
+            guardrail_type: crate::types::GuardrailType::Llm,
             guardrail_id: "content_safety".to_string(),
             message: "Content may be inappropriate for the target audience".to_string(),
-            severity: "high".to_string(),
+            severity: crate::types::Severity::High,
             suggested_action: Some("Review output before publishing".to_string()),
         });
 
@@ -2242,10 +2245,10 @@ mod tests {
             ..
         } = &events[0].kind
         {
-            assert_eq!(guardrail_type, "llm");
+            assert_eq!(*guardrail_type, crate::types::GuardrailType::Llm);
             assert_eq!(guardrail_id, "content_safety");
             assert!(message.contains("inappropriate"));
-            assert_eq!(severity, "high");
+            assert_eq!(*severity, crate::types::Severity::High);
             assert!(suggested_action.is_some());
         } else {
             panic!("Expected GuardrailEscalation event");
@@ -2256,10 +2259,10 @@ mod tests {
     fn guardrail_escalation_serializes() {
         let event = EventKind::GuardrailEscalation {
             task_id: "task1".into(),
-            guardrail_type: "llm".to_string(),
+            guardrail_type: crate::types::GuardrailType::Llm,
             guardrail_id: "safety_check".to_string(),
             message: "Safety violation detected".to_string(),
-            severity: "critical".to_string(),
+            severity: crate::types::Severity::Critical,
             suggested_action: None,
         };
 
@@ -2275,10 +2278,10 @@ mod tests {
     fn guardrail_escalation_task_id_extraction() {
         let escalation = EventKind::GuardrailEscalation {
             task_id: "esc1".into(),
-            guardrail_type: "llm".to_string(),
+            guardrail_type: crate::types::GuardrailType::Llm,
             guardrail_id: "quality".to_string(),
             message: "Quality below threshold".to_string(),
-            severity: "medium".to_string(),
+            severity: crate::types::Severity::Medium,
             suggested_action: None,
         };
         assert_eq!(escalation.task_id(), Some("esc1"));
@@ -2354,7 +2357,7 @@ mod tests {
                 output_tokens: 50,
                 cache_read_tokens: 10,
                 ttft_ms: Some(200),
-                finish_reason: "end_turn".into(),
+                finish_reason: crate::types::FinishReason::EndTurn,
                 cost_usd: 0.001,
             },
             // Context (1)
@@ -2414,20 +2417,20 @@ mod tests {
             EventKind::AgentTurn {
                 task_id: "agent1".into(),
                 turn_index: 1,
-                kind: "started".into(),
+                kind: crate::types::AgentTurnKind::Started,
                 metadata: Some(AgentTurnMetadata {
                     thinking: Some("Let me think...".into()),
                     response_text: "Here is my response".into(),
                     input_tokens: 100,
                     output_tokens: 50,
                     cache_read_tokens: 0,
-                    stop_reason: "end_turn".into(),
+                    stop_reason: crate::types::AgentStopReason::EndTurn,
                 }),
             },
             EventKind::AgentComplete {
                 task_id: "agent1".into(),
                 turns: 3,
-                stop_reason: "natural_completion".into(),
+                stop_reason: crate::types::AgentStopReason::NaturalCompletion,
             },
             EventKind::AgentSpawned {
                 parent_task_id: "agent1".into(),
@@ -2437,21 +2440,21 @@ mod tests {
             // Guardrails (3)
             EventKind::GuardrailPassed {
                 task_id: "t1".into(),
-                guardrail_type: "length".into(),
+                guardrail_type: crate::types::GuardrailType::Length,
                 description: "max 1000 chars".into(),
             },
             EventKind::GuardrailFailed {
                 task_id: "t1".into(),
-                guardrail_type: "schema".into(),
+                guardrail_type: crate::types::GuardrailType::Schema,
                 description: "JSON schema".into(),
                 message: "missing field 'title'".into(),
             },
             EventKind::GuardrailEscalation {
                 task_id: "t1".into(),
-                guardrail_type: "llm".into(),
+                guardrail_type: crate::types::GuardrailType::Llm,
                 guardrail_id: "safety-check".into(),
                 message: "content flagged".into(),
-                severity: "high".into(),
+                severity: crate::types::Severity::High,
                 suggested_action: Some("human review".into()),
             },
             // Builtin (2)
@@ -2685,10 +2688,10 @@ mod tests {
         // This test verifies serialization.
         let variant = EventKind::GuardrailEscalation {
             task_id: "t1".into(),
-            guardrail_type: "llm".into(),
+            guardrail_type: crate::types::GuardrailType::Llm,
             guardrail_id: "check-1".into(),
             message: "flagged".into(),
-            severity: "high".into(),
+            severity: crate::types::Severity::High,
             suggested_action: None,
         };
         // It serializes fine -- it's just never emitted
@@ -2707,7 +2710,7 @@ mod tests {
             output_tokens: 50,
             cache_read_tokens: 0,
             ttft_ms: None,
-            finish_reason: "end_turn".into(),
+            finish_reason: crate::types::FinishReason::EndTurn,
             cost_usd: 0.0,
         };
         let json = serde_json::to_string(&variant).unwrap();
@@ -2727,10 +2730,10 @@ mod tests {
         // Fields WITH skip_serializing_if should be truly absent when None
         let variant = EventKind::GuardrailEscalation {
             task_id: "t1".into(),
-            guardrail_type: "llm".into(),
+            guardrail_type: crate::types::GuardrailType::Llm,
             guardrail_id: "check".into(),
             message: "flagged".into(),
-            severity: "high".into(),
+            severity: crate::types::Severity::High,
             suggested_action: None, // has skip_serializing_if
         };
         let json = serde_json::to_string(&variant).unwrap();
@@ -2749,7 +2752,7 @@ mod tests {
             output_tokens: 50,
             cache_read_tokens: 0,
             ttft_ms: Some(150),
-            finish_reason: "end_turn".into(),
+            finish_reason: crate::types::FinishReason::EndTurn,
             cost_usd: 0.001,
         };
         let json = serde_json::to_string(&variant).unwrap();

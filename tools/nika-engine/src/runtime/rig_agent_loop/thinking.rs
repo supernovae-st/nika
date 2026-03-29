@@ -59,7 +59,7 @@ impl RigAgentLoop {
             let task_id: Arc<str> = Arc::from(self.task_id.as_str());
             self.event_log.emit(EventKind::GuardrailFailed {
                 task_id,
-                guardrail_type: "llm".to_string(),
+                guardrail_type: nika_event::GuardrailType::Llm,
                 description: "LLM judge guardrail".to_string(),
                 message: "type: llm guardrails are not yet implemented — \
                           use type: regex, type: length, or type: schema instead"
@@ -80,13 +80,13 @@ impl RigAgentLoop {
             if result.passed {
                 self.event_log.emit(EventKind::GuardrailPassed {
                     task_id: Arc::clone(&task_id),
-                    guardrail_type: result.guardrail_type.clone(),
+                    guardrail_type: nika_event::GuardrailType::parse(&result.guardrail_type).unwrap_or(nika_event::GuardrailType::Regex),
                     description: result.guardrail_id.clone(),
                 });
             } else {
                 self.event_log.emit(EventKind::GuardrailFailed {
                     task_id: Arc::clone(&task_id),
-                    guardrail_type: result.guardrail_type.clone(),
+                    guardrail_type: nika_event::GuardrailType::parse(&result.guardrail_type).unwrap_or(nika_event::GuardrailType::Regex),
                     description: result.guardrail_id.clone(),
                     message: result
                         .message
@@ -114,13 +114,13 @@ impl RigAgentLoop {
             for result in escalations {
                 self.event_log.emit(EventKind::GuardrailEscalation {
                     task_id: Arc::clone(&task_id),
-                    guardrail_type: result.guardrail_type.clone(),
+                    guardrail_type: nika_event::GuardrailType::parse(&result.guardrail_type).unwrap_or(nika_event::GuardrailType::Regex),
                     guardrail_id: result.guardrail_id.clone(),
                     message: result
                         .message
                         .clone()
                         .unwrap_or_else(|| "Guardrail requires escalation".to_string()),
-                    severity: "high".to_string(),
+                    severity: nika_event::Severity::High,
                     suggested_action: Some("Review agent output and provide guidance".to_string()),
                 });
             }
@@ -385,7 +385,7 @@ impl RigAgentLoop {
         self.event_log.emit(EventKind::AgentTurn {
             task_id: Arc::from(self.task_id.as_str()),
             turn_index: 1,
-            kind: "started".to_string(),
+            kind: nika_event::AgentTurnKind::Started,
             metadata: None,
         });
 
@@ -485,14 +485,14 @@ impl RigAgentLoop {
             input_tokens,
             output_tokens,
             cache_read_tokens: cached_input_tokens,
-            stop_reason: stop_reason.to_string(),
+            stop_reason: nika_event::AgentStopReason::from(stop_reason.to_string()),
         };
 
         // Emit completion event
         self.event_log.emit(EventKind::AgentTurn {
             task_id: Arc::from(self.task_id.as_str()),
             turn_index: 1,
-            kind: stop_reason.to_string(),
+            kind: nika_event::AgentTurnKind::from(stop_reason),
             metadata: Some(metadata),
         });
 

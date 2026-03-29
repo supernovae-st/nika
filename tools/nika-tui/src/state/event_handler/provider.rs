@@ -3,6 +3,8 @@
 //! ProviderCalled, ProviderResponded, McpInvoke, McpResponse,
 //! McpConnected, McpError, McpRetry
 
+use nika_engine::event::FinishReason;
+
 use super::{TuiState, MAX_HISTORY_ENTRIES};
 use crate::state::notification::Notification;
 use crate::state::types::McpCall;
@@ -43,7 +45,7 @@ impl TuiState {
         cache_read_tokens: u64,
         cost_usd: f64,
         ttft_ms: &Option<u64>,
-        finish_reason: &str,
+        finish_reason: &FinishReason,
         timestamp_ms: u64,
     ) {
         // Capture finish_reason on the task

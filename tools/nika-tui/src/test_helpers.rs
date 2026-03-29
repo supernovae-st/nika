@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use nika_engine::event::EventKind;
+use nika_engine::event::{EventKind, FinishReason};
 
 /// Standard test state constructor
 pub fn test_state() -> crate::state::TuiState {
@@ -66,7 +66,7 @@ pub fn provider_responded(task_id: &str, input: u64, output: u64) -> EventKind {
         cache_read_tokens: 0,
         cost_usd: 0.0,
         ttft_ms: None,
-        finish_reason: "stop".to_string(),
+        finish_reason: FinishReason::Stop,
     }
 }
 

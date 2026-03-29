@@ -168,12 +168,12 @@ pub(crate) fn fmt_agent_start(max_turns: u32, mcp_servers: &[String]) -> String 
     ))
 }
 
-pub(crate) fn fmt_agent_turn(turn_index: u32, kind: &str) -> String {
+pub(crate) fn fmt_agent_turn(turn_index: u32, kind: &nika_event::AgentTurnKind) -> String {
     sub(format!(
         "{} turn {}/…  {}",
         icons::agent_meta(),
         (turn_index + 1).to_string().white(),
-        kind.dimmed()
+        kind.as_str().dimmed()
     ))
 }
 
@@ -181,13 +181,13 @@ pub(crate) fn fmt_agent_turn_tool_use() -> String {
     sub(format!("{} tool_use", "↳".dimmed()))
 }
 
-pub(crate) fn fmt_agent_complete(turns: u32, stop_reason: &str) -> String {
+pub(crate) fn fmt_agent_complete(turns: u32, stop_reason: &nika_event::AgentStopReason) -> String {
     sub(format!(
         "{} {} {} turns · {}",
         icons::agent_meta(),
         "done".green(),
         turns,
-        stop_reason.dimmed()
+        stop_reason.as_str().dimmed()
     ))
 }
 
@@ -272,7 +272,7 @@ pub(crate) fn fmt_policy_blocked(ts: &str, policy_type: &str, reason: &str) -> S
 
 // ── Guardrails ──────────────────────────────────────────────────────────
 
-pub(crate) fn fmt_guardrail_passed(guardrail_type: &str, description: &str) -> String {
+pub(crate) fn fmt_guardrail_passed(guardrail_type: &nika_event::GuardrailType, description: &str) -> String {
     sub(format!(
         "{} {} {}",
         icons::guardrail(),
@@ -281,7 +281,7 @@ pub(crate) fn fmt_guardrail_passed(guardrail_type: &str, description: &str) -> S
     ))
 }
 
-pub(crate) fn fmt_guardrail_failed(guardrail_type: &str, message: &str) -> String {
+pub(crate) fn fmt_guardrail_failed(guardrail_type: &nika_event::GuardrailType, message: &str) -> String {
     sub(format!(
         "{} {} {}",
         icons::guardrail(),
@@ -291,8 +291,8 @@ pub(crate) fn fmt_guardrail_failed(guardrail_type: &str, message: &str) -> Strin
 }
 
 pub(crate) fn fmt_guardrail_escalation(
-    guardrail_type: &str,
-    severity: &str,
+    guardrail_type: &nika_event::GuardrailType,
+    severity: &nika_event::Severity,
     message: &str,
 ) -> String {
     sub(format!(

@@ -27,7 +27,7 @@ impl RigAgentLoop {
         self.event_log.emit(EventKind::AgentTurn {
             task_id: Arc::from(self.task_id.as_str()),
             turn_index: 1,
-            kind: "started".to_string(),
+            kind: nika_event::AgentTurnKind::Started,
             metadata: None,
         });
 
@@ -49,14 +49,14 @@ impl RigAgentLoop {
             input_tokens: 50,
             output_tokens: 50,
             cache_read_tokens: 0,
-            stop_reason: stop_reason.to_string(),
+            stop_reason: nika_event::AgentStopReason::from(stop_reason.to_string()),
         };
 
         // Emit completion event with metadata
         self.event_log.emit(EventKind::AgentTurn {
             task_id: Arc::from(self.task_id.as_str()),
             turn_index: 1,
-            kind: stop_reason.to_string(),
+            kind: nika_event::AgentTurnKind::from(stop_reason),
             metadata: Some(metadata),
         });
 
@@ -349,7 +349,7 @@ impl RigAgentLoop {
         self.event_log.emit(EventKind::AgentTurn {
             task_id: Arc::from(self.task_id.as_str()),
             turn_index: 1,
-            kind: "started".to_string(),
+            kind: nika_event::AgentTurnKind::Started,
             metadata: None,
         });
 
@@ -405,7 +405,7 @@ impl RigAgentLoop {
                         output_tokens: total_output_tokens,
                         cache_read_tokens: total_cached_input_tokens,
                         ttft_ms: first_ttft_ms,
-                        finish_reason: format!("limit_exceeded:{}", exceeded.limit_type),
+                        finish_reason: nika_event::FinishReason::Other(format!("limit_exceeded:{}", exceeded.limit_type)),
                         cost_usd: self.limit_tracker.cost_usd(),
                     });
                     return Err(NikaError::AgentLimitExceeded {
@@ -462,7 +462,7 @@ impl RigAgentLoop {
                             output_tokens: total_output_tokens,
                             cache_read_tokens: total_cached_input_tokens,
                             ttft_ms: first_ttft_ms,
-                            finish_reason: format!("limit_exceeded:{}", exceeded.limit_type),
+                            finish_reason: nika_event::FinishReason::Other(format!("limit_exceeded:{}", exceeded.limit_type)),
                             cost_usd: self.limit_tracker.cost_usd(),
                         });
                         return Err(NikaError::AgentLimitExceeded {
@@ -490,7 +490,7 @@ impl RigAgentLoop {
             self.event_log.emit(EventKind::AgentTurn {
                 task_id: Arc::from(self.task_id.as_str()),
                 turn_index: retry_count + 1,
-                kind: format!("retry_{}", retry_count),
+                kind: nika_event::AgentTurnKind::Continue,
                 metadata: Some(AgentTurnMetadata {
                     thinking: None,
                     response_text: format!(
@@ -500,7 +500,7 @@ impl RigAgentLoop {
                     input_tokens: 0,
                     output_tokens: 0,
                     cache_read_tokens: 0,
-                    stop_reason: "low_confidence_retry".to_string(),
+                    stop_reason: nika_event::AgentStopReason::LowConfidenceRetry,
                 }),
             });
 
@@ -548,13 +548,13 @@ impl RigAgentLoop {
             input_tokens: total_input_tokens,
             output_tokens: total_output_tokens,
             cache_read_tokens: total_cached_input_tokens,
-            stop_reason: stop_reason.to_string(),
+            stop_reason: nika_event::AgentStopReason::from(stop_reason.to_string()),
         };
 
         self.event_log.emit(EventKind::AgentTurn {
             task_id: Arc::from(self.task_id.as_str()),
             turn_index: retry_count + 1,
-            kind: stop_reason.to_string(),
+            kind: nika_event::AgentTurnKind::from(stop_reason),
             metadata: Some(metadata),
         });
 
@@ -584,7 +584,7 @@ impl RigAgentLoop {
                             output_tokens: total_output_tokens,
                             cache_read_tokens: total_cached_input_tokens,
                             ttft_ms: first_ttft_ms,
-                            finish_reason: format!("limit_exceeded:{}", exceeded.limit_type),
+                            finish_reason: nika_event::FinishReason::Other(format!("limit_exceeded:{}", exceeded.limit_type)),
                             cost_usd: self.limit_tracker.cost_usd(),
                         });
                         return Err(NikaError::AgentLimitExceeded {
@@ -615,7 +615,7 @@ impl RigAgentLoop {
             self.event_log.emit(EventKind::AgentTurn {
                 task_id: Arc::from(self.task_id.as_str()),
                 turn_index: retry_count + guardrail_retry_count + 1,
-                kind: format!("guardrail_retry_{}", guardrail_retry_count),
+                kind: nika_event::AgentTurnKind::Continue,
                 metadata: Some(AgentTurnMetadata {
                     thinking: None,
                     response_text: format!(
@@ -625,7 +625,7 @@ impl RigAgentLoop {
                     input_tokens: 0,
                     output_tokens: 0,
                     cache_read_tokens: 0,
-                    stop_reason: "guardrail_retry".to_string(),
+                    stop_reason: nika_event::AgentStopReason::GuardrailRetry,
                 }),
             });
 
@@ -711,7 +711,7 @@ impl RigAgentLoop {
             output_tokens: total_output_tokens,
             cache_read_tokens: total_cached_input_tokens,
             ttft_ms: first_ttft_ms,
-            finish_reason: final_reason.to_string(),
+            finish_reason: nika_event::FinishReason::from(final_reason.to_string()),
             cost_usd: if total_cost.is_finite() {
                 total_cost
             } else {

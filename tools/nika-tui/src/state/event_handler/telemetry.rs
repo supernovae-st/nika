@@ -5,6 +5,8 @@
 
 use std::sync::Arc;
 
+use nika_engine::event::{GuardrailType, Severity};
+
 use super::TuiState;
 use crate::state::notification::Notification;
 
@@ -152,7 +154,7 @@ impl TuiState {
     pub(super) fn on_guardrail_passed(
         &mut self,
         task_id: &str,
-        guardrail_type: &str,
+        guardrail_type: &GuardrailType,
         description: &str,
         timestamp_ms: u64,
     ) {
@@ -169,7 +171,7 @@ impl TuiState {
     pub(super) fn on_guardrail_failed(
         &mut self,
         task_id: &str,
-        guardrail_type: &str,
+        guardrail_type: &GuardrailType,
         description: &str,
         message: &str,
         timestamp_ms: u64,
@@ -188,10 +190,10 @@ impl TuiState {
     pub(super) fn on_guardrail_escalation(
         &mut self,
         task_id: &str,
-        guardrail_type: &str,
+        guardrail_type: &GuardrailType,
         guardrail_id: &str,
         message: &str,
-        severity: &str,
+        severity: &Severity,
         suggested_action: &Option<String>,
         timestamp_ms: u64,
     ) {
