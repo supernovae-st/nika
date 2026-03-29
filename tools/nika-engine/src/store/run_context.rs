@@ -185,6 +185,9 @@ pub struct RunContext {
     /// Read (and drained) by the runner after building TaskResult.
     media_staging: Arc<DashMap<Arc<str>, Vec<crate::media::MediaRef>, FxBuildHasher>>,
 
+    /// Compressed records: task_id → Record
+    records: Arc<DashMap<Arc<str>, crate::runtime::record::Record, FxBuildHasher>>,
+
     /// Shared per-run media budget (500MB default).
     /// Lives here so all invoke tasks in a single run share one budget.
     media_budget: Arc<crate::media::MediaBudget>,
@@ -201,6 +204,7 @@ impl Default for RunContext {
             results: Arc::new(DashMap::with_hasher(FxBuildHasher)),
             context: Arc::default(),
             inputs: Arc::default(),
+            records: Arc::new(DashMap::with_hasher(FxBuildHasher)),
             media_staging: Arc::new(DashMap::with_hasher(FxBuildHasher)),
             media_budget: Arc::new({
                 let max = std::env::var("NIKA_MEDIA_BUDGET")
@@ -319,6 +323,31 @@ impl RunContext {
     /// Get the shared per-run media budget.
     pub fn media_budget(&self) -> &Arc<crate::media::MediaBudget> {
         &self.media_budget
+    }
+
+    // ── Record storage ────────────────────────────────────────────
+
+    /// Store a compressed record for a task.
+    pub fn set_record(&self, task_id: Arc<str>, record: crate::runtime::record::Record) {
+        self.records.insert(task_id, record);
+    }
+
+    /// Get a record for a task (if compression was applied).
+    pub fn get_record(&self, task_id: &str) -> Option<crate::runtime::record::Record> {
+        self.records.get(task_id).map(|r| r.value().clone())
+    }
+
+    /// Check if a task has a compressed record.
+    pub fn has_record(&self, task_id: &str) -> bool {
+        self.records.contains_key(task_id)
+    }
+
+    /// Iterate all records.
+    pub fn iter_records(&self) -> Vec<(Arc<str>, crate::runtime::record::Record)> {
+        self.records
+            .iter()
+            .map(|r| (Arc::clone(r.key()), r.value().clone()))
+            .collect()
     }
 
     /// Set the workspace root (called by Runner at workflow start).
@@ -1589,5 +1618,58 @@ mod tests {
         assert_eq!(store.resolve_path("thumb.metadata.width").unwrap(), 256);
         assert_eq!(store.resolve_path("dim.width").unwrap(), 256);
         assert_eq!(store.resolve_path("dim.orientation").unwrap(), "landscape");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Record storage tests
+    // ═══════════════════════════════════════════════════════════════
+
+    fn make_test_record(task_id: &str) -> crate::runtime::record::Record {
+        crate::runtime::record::Record {
+            task_id: Arc::from(task_id),
+            summary: format!("Summary of {task_id}"),
+            key_findings: vec!["finding1".to_string()],
+            raw_output: None,
+            confidence: 0.9,
+            tokens_original: 1000,
+            tokens_compressed: 100,
+            compression_model: "mock".to_string(),
+            compression_cost_usd: 0.0,
+            compression_duration: std::time::Duration::ZERO,
+        }
+    }
+
+    #[test]
+    fn test_record_set_get_roundtrip() {
+        let ctx = RunContext::new();
+        let record = make_test_record("task1");
+        ctx.set_record("task1".into(), record);
+        let got = ctx.get_record("task1").expect("record should exist");
+        assert_eq!(got.summary, "Summary of task1");
+        assert_eq!(got.confidence, 0.9);
+    }
+
+    #[test]
+    fn test_record_has_record() {
+        let ctx = RunContext::new();
+        assert!(!ctx.has_record("task1"));
+        ctx.set_record("task1".into(), make_test_record("task1"));
+        assert!(ctx.has_record("task1"));
+        assert!(!ctx.has_record("task2"));
+    }
+
+    #[test]
+    fn test_record_iter_records() {
+        let ctx = RunContext::new();
+        ctx.set_record("a".into(), make_test_record("a"));
+        ctx.set_record("b".into(), make_test_record("b"));
+        let records = ctx.iter_records();
+        assert_eq!(records.len(), 2);
+    }
+
+    #[test]
+    fn test_record_missing_returns_none() {
+        let ctx = RunContext::new();
+        assert!(ctx.get_record("nonexistent").is_none());
     }
 }

@@ -40,6 +40,7 @@ pub mod output;
 pub mod partial;
 pub mod policy;
 pub mod preset;
+pub mod record;
 pub mod resolver;
 mod rig_agent_loop;
 mod runner;
