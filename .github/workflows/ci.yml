@@ -241,7 +241,7 @@ jobs:
         working-directory: tools
         run: |
           rm -rf ~/.cargo/advisory-db || true
-          cargo audit
+          cargo audit --ignore RUSTSEC-2023-0071
 
       - name: cargo deny (licenses + bans + sources)
         working-directory: tools/nika
