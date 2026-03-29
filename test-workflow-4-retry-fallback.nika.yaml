@@ -1,0 +1,130 @@
+schema: "nika/workflow@0.12"
+workflow: retry-and-fallback-pipeline
+description: |
+  Robust extraction with multi-layer retry logic and provider fallback.
+  First attempt with Anthropic + structured output repair, fallback to Groq.
+
+  Features tested:
+  - retry block (max_attempts, exponential backoff)
+  - structured output (JSON validation + LLM auto-repair)
+  - Provider-level routing (anthropic → groq fallback)
+  - repair_model (cheaper model for validation retry)
+  - max_retries within structured (validation repair attempts)
+  - on_failure handling (graceful degradation)
+
+provider: anthropic
+model: claude-sonnet-4-20250514
+
+inputs:
+  unstable_url: "https://example.com/flaky-api"
+  max_retry_attempts: 3
+
+tasks:
+  # Task 1: Attempt to fetch with retry and structured extraction
+  - id: fetch_with_retry
+    description: Fetch with 3 retry attempts, exponential backoff
+    retry:
+      max_attempts: "{{inputs.max_retry_attempts}}"
+      delay_ms: 1000
+      backoff: 2.0  # 1s → 2s → 4s
+    fetch:
+      url: "{{inputs.unstable_url}}"
+      extract: jsonpath
+      selector: "$.data[0].result"
+      timeout: 15
+
+  # Task 2: Validate extracted data with structured schema + repair
+  - id: validate_and_repair
+    description: |
+      Validate JSON with strict schema. If validation fails,
+      use cheaper model (haiku) to repair the response.
+    depends_on: [fetch_with_retry]
+    with:
+      raw_data: $fetch_with_retry
+    infer:
+      prompt: |
+        Extract and clean this data:
+        {{with.raw_data}}
+
+        Return valid JSON matching the schema.
+      model: claude-sonnet-4-20250514
+      temperature: 0.3
+    structured:
+      schema:
+        type: object
+        properties:
+          id: { type: string }
+          name: { type: string }
+          value: { type: number }
+          status:
+            type: string
+            enum: [active, inactive, pending]
+          metadata:
+            type: object
+            additionalProperties: true
+        required: [id, name, status]
+      enable_repair: true  # Automatically repair violations
+      max_retries: 2      # Up to 2 repair attempts
+      repair_model: claude-haiku-4-5  # Use cheaper model for repairs
+
+  # Task 3: Process validated data or fall back to mock
+  - id: process_validated
+    description: Process cleaned data or use default if repair failed
+    depends_on: [validate_and_repair]
+    with:
+      data: "$validate_and_repair | default({'id': 'unknown', 'name': 'fallback', 'status': 'pending'})"
+    infer:
+      prompt: |
+        Process this data and generate a summary:
+        ID: {{with.data.id}}
+        Name: {{with.data.name}}
+        Status: {{with.data.status}}
+
+        Provide a brief assessment of the data quality.
+      max_tokens: 150
+      temperature: 0.5
+
+  # Task 4: Fallback attempt if main pipeline fails
+  - id: fallback_groq
+    description: |
+      Fallback task using Groq if upstream fails.
+      Note: Set provider: groq to actually use Groq API.
+    depends_on: [process_validated]
+    with:
+      original_url: "{{inputs.unstable_url}}"
+    infer:
+      prompt: |
+        The primary extraction pipeline for {{with.original_url}} encountered issues.
+        Provide a fallback analysis or best-effort extraction summary.
+      model: llama-3.3-70b-versatile  # Groq model
+      max_tokens: 200
+      temperature: 0.7
+
+  # Task 5: Aggregate results from both paths
+  - id: final_report
+    description: Synthesize results from primary or fallback path
+    depends_on: [process_validated, fallback_groq]
+    with:
+      primary: "$process_validated | default('primary path failed')"
+      fallback: "$fallback_groq | default('fallback path unavailable')"
+    infer:
+      prompt: |
+        Create a final report combining these results:
+
+        Primary extraction:
+        {{with.primary}}
+
+        Fallback extraction:
+        {{with.fallback}}
+
+        Which result is more reliable? Why?
+      max_tokens: 250
+
+# Run with Anthropic:
+# ANTHROPIC_API_KEY=xxx nika run test-workflow-4-retry-fallback.nika.yaml
+#
+# Run with Groq fallback enabled:
+# ANTHROPIC_API_KEY=xxx GROQ_API_KEY=xxx nika run test-workflow-4-retry-fallback.nika.yaml
+#
+# Test retry logic with mock (instant):
+# nika run test-workflow-4-retry-fallback.nika.yaml --provider mock

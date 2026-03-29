@@ -1,0 +1,129 @@
+schema: "nika/workflow@0.12"
+workflow: exec-fetch-pipeline
+description: |
+  Execute local command to list files → for_each fetch metadata →
+  aggregate with pipe transforms and type coercion.
+
+  Features tested:
+  - exec verb (shell command with output parsing)
+  - for_each (parallel processing with concurrency)
+  - fetch + extract:metadata (OG tags, JSON-LD, SEO)
+  - with bindings (complex nested path access)
+  - Pipe transforms (map, sort, compact, length, join)
+  - Type coercion (to_number, to_json, parse_json)
+  - Array access after for_each
+
+provider: mock
+model: claude-haiku-4-5
+
+inputs:
+  file_directory: "./docs"
+  metadata_selector: "title,description"
+
+tasks:
+  # Task 1: List files in directory via shell exec
+  - id: list_files
+    description: Execute shell command to list files (JSON output)
+    exec:
+      command: |
+        find {{inputs.file_directory}} -type f -name "*.md" \
+          | head -10 \
+          | jq -R '{path: .}' -s '.'
+      shell: true
+      cwd: "."
+      timeout: 10
+
+  # Task 2: Fetch metadata from each file URL
+  - id: fetch_metadata
+    description: Fetch HTTP headers and metadata from URLs
+    depends_on: [list_files]
+    for_each:
+      items: "{{with.files | first}}"
+      as: file
+      concurrency: 3
+    with:
+      files: "$list_files | parse_json"
+    fetch:
+      url: "file://{{with.file.path}}"
+      extract: metadata
+      timeout: 5
+      response: full
+
+  # Task 3: Transform and aggregate metadata results
+  - id: aggregate_metadata
+    description: |
+      Aggregate metadata with pipe transforms.
+      Extracts titles, counts, and analyzes patterns.
+    depends_on: [fetch_metadata]
+    with:
+      metadata_list: $fetch_metadata
+      file_count: "{{with.metadata_list | length}}"
+      titles: "{{with.metadata_list | compact | unique | join(', ')}}"
+    infer:
+      prompt: |
+        Analyze this metadata collection:
+        - File count: {{with.file_count}}
+        - Unique titles: {{with.titles}}
+
+        Identify patterns, missing metadata, and recommendations
+        for documentation structure.
+      max_tokens: 250
+      temperature: 0.6
+
+  # Task 4: Generate statistics with structured output
+  - id: generate_stats
+    description: Generate statistics with type-safe schema
+    depends_on: [aggregate_metadata]
+    with:
+      aggregated: $aggregate_metadata
+    infer:
+      prompt: |
+        Based on this analysis:
+        {{with.aggregated}}
+
+        Generate comprehensive statistics report.
+    structured:
+      schema:
+        type: object
+        properties:
+          total_files: { type: integer }
+          documented_files: { type: integer }
+          coverage_percentage: { type: number }
+          missing_descriptions:
+            type: array
+            items: { type: string }
+          recommendations:
+            type: array
+            items: { type: string }
+        required: [total_files, coverage_percentage]
+      enable_repair: true
+
+  # Task 5: Final summary with complex transforms
+  - id: final_summary
+    description: Generate final summary with array transforms
+    depends_on: [generate_stats]
+    with:
+      stats: $generate_stats
+      coverage: "{{with.stats.coverage_percentage | round}}"
+      missing_count: "{{with.stats.missing_descriptions | length}}"
+    infer:
+      prompt: |
+        Create a final summary report:
+
+        Coverage: {{with.coverage}}%
+        Missing: {{with.missing_count}} files
+
+        Provide actionable recommendations to improve documentation.
+      max_tokens: 200
+      temperature: 0.5
+
+# Run with real provider:
+# ANTHROPIC_API_KEY=xxx nika run test-workflow-6-exec-fetch.nika.yaml
+#
+# Test with different directory:
+# nika run test-workflow-6-exec-fetch.nika.yaml --input file_directory=/path/to/docs
+#
+# Trace execution and transforms:
+# nika run test-workflow-6-exec-fetch.nika.yaml --trace
+#
+# Note: file:// URLs require appropriate permissions

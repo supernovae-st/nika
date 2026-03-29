@@ -1,0 +1,107 @@
+schema: "nika/workflow@0.12"
+workflow: agent-with-builtin-tools
+description: |
+  Multi-turn agent using 3 builtin tools: nika:dag_info, nika:task_status,
+  nika:records. Agent controls completion explicitly via nika:complete tool.
+
+  Features tested:
+  - agent verb (multi-turn autonomous loop)
+  - 3 builtin nika:* tools (always-available)
+  - completion:explicit (agent must call nika:complete)
+  - max_turns (limit iterations)
+  - tool_choice:auto (let agent decide tool usage)
+  - with bindings (context injection)
+
+provider: mock
+model: claude-haiku-4-5
+
+inputs:
+  workflow_file: "./example.nika.yaml"
+  inspection_depth: "detailed"
+
+tasks:
+  # Task 1: Prepare workflow context for agent inspection
+  - id: load_workflow
+    description: Load workflow file as context
+    exec:
+      command: "echo 'mock workflow loaded'"
+      shell: false
+      timeout: 5
+
+  # Task 2: Multi-turn agent to inspect and report on workflow
+  - id: workflow_inspector
+    description: |
+      Autonomous agent that uses builtin tools to inspect workflow:
+      - nika:dag_info — analyze task DAG structure
+      - nika:task_status — check individual task status
+      - nika:records — retrieve execution records
+    depends_on: [load_workflow]
+    with:
+      workflow: "{{inputs.workflow_file}}"
+      depth: "{{inputs.inspection_depth}}"
+    agent:
+      system: |
+        You are a Nika workflow inspector. Analyze the given workflow
+        and provide detailed diagnostics using the available tools.
+        Report on:
+        1. DAG structure and dependencies
+        2. Task status and completion times
+        3. Record counts and data flow patterns
+        4. Potential bottlenecks or issues
+
+        Always use the available tools to gather data before
+        making recommendations.
+      prompt: |
+        Inspect this workflow thoroughly: {{with.workflow}}
+        Depth level: {{with.depth}}
+
+        Use the available tools to analyze the workflow structure,
+        task dependencies, and execution records. Provide a
+        comprehensive inspection report.
+      tools:
+        - nika:dag_info
+        - nika:task_status
+        - nika:records
+      max_turns: 5
+      temperature: 0.5
+      tool_choice: auto
+      token_budget: 10000
+
+      completion:
+        mode: explicit  # Agent MUST call nika:complete to finish
+
+      guardrails:
+        - type: length
+          min_words: 50
+          max_words: 1000
+          on_failure: retry
+        - type: regex
+          pattern: "^## (Analysis|Findings|Report)"
+          message: "Report must start with proper heading"
+          on_failure: retry
+
+      limits:
+        max_cost_usd: 0.50
+        max_duration_secs: 60
+
+  # Task 3: Parse agent findings and structure results
+  - id: parse_inspection
+    description: Structure agent inspection results
+    depends_on: [workflow_inspector]
+    with:
+      inspection: $workflow_inspector
+    infer:
+      prompt: |
+        Extract key findings from this inspection report:
+        {{with.inspection}}
+
+        List any identified issues, bottlenecks, or recommendations.
+      max_tokens: 200
+
+# Run with real provider:
+# ANTHROPIC_API_KEY=xxx nika run test-workflow-3-agent-tools.nika.yaml
+#
+# Visualize task dependencies:
+# nika workflow graph test-workflow-3-agent-tools.nika.yaml
+#
+# Note: nika:* builtin tools are always available without MCP server

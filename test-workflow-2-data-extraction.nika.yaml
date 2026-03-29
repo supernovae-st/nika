@@ -1,0 +1,111 @@
+schema: "nika/workflow@0.12"
+workflow: data-extraction-pipeline
+description: |
+  Generate URLs → fetch with JSONPath extraction → aggregate results
+  with structured output and type coercion.
+
+  Features tested:
+  - infer (LLM generation with structured output)
+  - structured (JSON schema validation + repair)
+  - for_each (array iteration with type handling)
+  - fetch + extract:jsonpath (HTTP + JSONPath selector)
+  - with bindings (nested path access $result.field)
+  - Pipe transforms (map, compact, type coercion)
+
+provider: mock
+model: claude-haiku-4-5
+
+inputs:
+  data_source: "product-api"
+  item_count: 5
+
+tasks:
+  # Task 1: Generate list of API endpoints using structured output
+  - id: generate_urls
+    description: Use LLM to generate valid API URLs as structured JSON
+    infer:
+      prompt: |
+        Generate {{inputs.item_count}} realistic API endpoint URLs
+        for a {{inputs.data_source}} service.
+        Include URLs like:
+        - /api/v1/products/{id}
+        - /api/v1/categories/{id}
+        - /api/v1/inventory/{id}
+    structured:
+      schema:
+        type: object
+        properties:
+          endpoints:
+            type: array
+            items:
+              type: object
+              properties:
+                url: { type: string }
+                jsonpath: { type: string }
+              required: [url, jsonpath]
+        required: [endpoints]
+      enable_repair: true
+      max_retries: 2
+
+  # Task 2: Fetch each endpoint and extract data with JSONPath
+  - id: fetch_all
+    description: Fetch all endpoints and extract JSON data
+    depends_on: [generate_urls]
+    for_each:
+      items: "{{with.endpoints}}"
+      as: endpoint
+      concurrency: 3
+    with:
+      endpoints: "$generate_urls.endpoints"
+    fetch:
+      url: "{{with.endpoint.url}}"
+      extract: jsonpath
+      selector: "{{with.endpoint.jsonpath}}"
+      response: full
+      timeout: 20
+
+  # Task 3: Parse and aggregate extracted data with transforms
+  - id: aggregate_data
+    description: Aggregate all extracted data with null-safe transforms
+    depends_on: [fetch_all]
+    with:
+      raw_results: $fetch_all
+    infer:
+      prompt: |
+        I have extracted data from {{with.raw_results | length}} API endpoints.
+        The data includes:
+        {{with.raw_results | compact | unique | join(', ')}}
+
+        Create a summary report of the aggregated data structure,
+        noting any patterns or anomalies.
+      max_tokens: 300
+      temperature: 0.5
+
+  # Task 4: Validate aggregated data matches expected schema
+  - id: validate_schema
+    description: Validate aggregated results against strict schema
+    depends_on: [aggregate_data]
+    with:
+      summary: $aggregate_data
+      raw_data: "$fetch_all | first | default('no data')"
+    infer:
+      prompt: |
+        Validate this aggregated data and report any schema violations:
+        {{with.raw_data}}
+    structured:
+      schema:
+        type: object
+        properties:
+          valid: { type: boolean }
+          error_count: { type: integer }
+          warnings:
+            type: array
+            items: { type: string }
+        required: [valid, error_count]
+      enable_repair: true
+
+# Run with real provider:
+# ANTHROPIC_API_KEY=xxx nika run test-workflow-2-data-extraction.nika.yaml
+#
+# Test with dry-run (no API calls):
+# nika run test-workflow-2-data-extraction.nika.yaml --dry-run
