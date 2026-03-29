@@ -19,7 +19,7 @@ keychain = ["dep:keyring"]
 nika-core = { workspace = true }
 
 # Keychain (optional — behind keychain feature)
-keyring = { version = "3", features = ["apple-native"], optional = true }
+keyring = { workspace = true, optional = true }
 
 # Async runtime
 tokio = { workspace = true, features = ["net", "signal", "process", "fs", "io-util", "rt-multi-thread", "macros", "sync", "time"] }
@@ -41,7 +41,7 @@ blake3 = { workspace = true }
 chrono = { workspace = true }
 
 # Cron expression parsing (scheduler)
-croner = "3"
+croner = { workspace = true }
 
 # IDs
 uuid = { workspace = true }
@@ -50,10 +50,10 @@ uuid = { workspace = true }
 dirs = { workspace = true }
 
 # Storage (SQLite for jobs + cache persistence)
-rusqlite = { version = "0.39", features = ["bundled"] }
+rusqlite = { workspace = true }
 
 # File watching
-notify = "8"
+notify = { workspace = true }
 globset = { workspace = true }
 
 # Concurrent cache
@@ -61,9 +61,9 @@ dashmap = { workspace = true }
 
 # Unix (daemonize, signals, socket perms)
 [target.'cfg(unix)'.dependencies]
-nix = { version = "0.31", features = ["signal", "process", "fs", "net"] }
+nix = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "test-util"] }
 tempfile = { workspace = true }
-serial_test = "3"
+serial_test = { workspace = true }
