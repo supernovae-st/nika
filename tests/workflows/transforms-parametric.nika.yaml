@@ -1,0 +1,100 @@
+schema: "nika/workflow@0.12"
+workflow: transforms-parametric-test
+description: "Test parametric transforms: join(sep), split(sep), default(value)"
+provider: mock
+
+inputs:
+  items: ["apple", "banana", "cherry"]
+  numbers: [1, 2, 3, 4, 5]
+  csv_string: "red,green,blue"
+  pipe_string: "one|two|three"
+  sentence: "The quick brown fox"
+
+tasks:
+  # Parametric: join with comma
+  - id: test_join_comma
+    with:
+      items: $inputs
+    infer: "Join with comma: {{with.items.items | join(', ')}}"
+
+  # Parametric: join with semicolon
+  - id: test_join_semicolon
+    with:
+      items: $inputs
+    infer: "Join with semicolon: {{with.items.items | join('; ')}}"
+
+  # Parametric: join numbers with dash
+  - id: test_join_numbers
+    with:
+      nums: $inputs
+    infer: "Join numbers: {{with.nums.numbers | join('-')}}"
+
+  # Parametric: join with newline (multi-line)
+  - id: test_join_newline
+    with:
+      items: $inputs
+    infer: |
+      Join with newlines:
+      {{with.items.items | join('\n')}}
+
+  # Parametric: split by comma
+  - id: test_split_comma
+    with:
+      csv: $inputs
+    infer: "Split CSV: {{with.csv.csv_string | split(',') | join(' | ')}}"
+
+  # Parametric: split by pipe
+  - id: test_split_pipe
+    with:
+      pipe: $inputs
+    infer: "Split pipe: {{with.pipe.pipe_string | split('|') | join(', ')}}"
+
+  # Parametric: split sentence by space
+  - id: test_split_space
+    with:
+      text: $inputs
+    infer: "Split by space: {{with.text.sentence | split(' ') | join('-')}}"
+
+  # Parametric: default (with value present)
+  - id: test_default_present
+    with:
+      val: "present"
+    infer: "Default with value: {{with.val | default('fallback')}}"
+
+  # Parametric: default (with null/missing)
+  - id: test_default_missing
+    with:
+      maybe_null: $null
+    infer: "Default with null: {{with.maybe_null | default('fallback')}}"
+
+  # Parametric: default in chain
+  - id: test_default_in_chain
+    with:
+      maybe_null: $null
+    infer: "Default in chain: {{with.maybe_null | default('N/A') | upper}}"
+
+  # Parametric: split -> unique -> join
+  - id: test_split_unique_join
+    with:
+      csv: $inputs
+    infer: |
+      CSV -> split -> unique -> join:
+      {{with.csv.csv_string | split(',') | unique | join(' AND ')}}
+
+  # Parametric: split -> reverse -> join
+  - id: test_split_reverse_join
+    with:
+      csv: $inputs
+    infer: "Reverse order: {{with.csv.csv_string | split(',') | reverse | join(', ')}}"
+
+  # Parametric: join array of objects (stringified)
+  - id: test_join_objects
+    with:
+      nums: $inputs
+    infer: "Join nums as strings: {{with.nums.numbers | to_string | join(' + ')}}"
+
+  # Complex: split -> map to upper -> join
+  - id: test_split_upper_join
+    with:
+      csv: $inputs
+    infer: "Uppercase CSV: {{with.csv.csv_string | split(',') | join(', ') | upper}}"

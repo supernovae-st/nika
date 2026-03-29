@@ -1,0 +1,58 @@
+schema: "nika/workflow@0.12"
+workflow: fetch-extract-jsonpath
+description: "Test extract: jsonpath mode — query JSON API with JSONPath expressions"
+provider: mock
+
+inputs:
+  api_url: "https://jsonplaceholder.typicode.com/posts/1"
+  jsonpath_expr: "$.title"
+  complex_jsonpath: "$.userId"
+
+tasks:
+  - id: fetch_json_simple
+    fetch:
+      url: "{{inputs.api_url}}"
+      extract: jsonpath
+      selector: "{{inputs.jsonpath_expr}}"
+      timeout: 10
+
+  - id: fetch_json_complex
+    fetch:
+      url: "https://jsonplaceholder.typicode.com/posts"
+      extract: jsonpath
+      selector: "$[0:3].id"
+      timeout: 10
+
+  - id: fetch_json_nested
+    fetch:
+      url: "https://jsonplaceholder.typicode.com/posts/1/comments"
+      extract: jsonpath
+      selector: "$.*.email"
+      timeout: 10
+
+  - id: validate_jsonpath_results
+    with:
+      simple_result: $fetch_json_simple
+      complex_result: $fetch_json_complex
+      nested_result: $fetch_json_nested
+    infer:
+      prompt: |
+        Verify JSONPath extraction results:
+
+        Simple query ($.title):
+        {{with.simple_result}}
+
+        Complex query ($[0:3].id - first 3 IDs):
+        {{with.complex_result | to_json}}
+
+        Nested query ($.*.email - all emails):
+        {{with.nested_result | to_json}}
+
+        Check:
+        1. Simple result is a string value (title field)
+        2. Complex result is an array of integers
+        3. Nested result is an array of email strings
+        4. No HTML or markup in results
+        5. Correct data types preserved
+
+        Respond: VALID_EXTRACTION or INVALID_EXTRACTION with details.

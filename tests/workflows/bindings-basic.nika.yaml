@@ -1,0 +1,90 @@
+schema: "nika/workflow@0.12"
+workflow: bindings-basic-test
+description: "Test basic binding system: with, path access, array indexing, null coalescing"
+provider: mock
+
+inputs:
+  user:
+    name: "Alice"
+    age: 30
+    email: "alice@example.com"
+    tags: ["admin", "developer", "lead"]
+  scores: [95, 87, 92, 88]
+  metadata:
+    version: "1.0"
+    timestamp: "2024-01-15T10:30:00Z"
+
+tasks:
+  # Basic binding: direct input
+  - id: test_basic_binding
+    with:
+      user: $inputs
+    infer: "User: {{with.user}}"
+
+  # Path access: nested field
+  - id: test_path_access_name
+    with:
+      user: $inputs
+    infer: "User name: {{with.user.user.name}}"
+
+  # Path access: nested field age
+  - id: test_path_access_age
+    with:
+      user: $inputs
+    infer: "User age: {{with.user.user.age}}"
+
+  # Array indexing: first score
+  - id: test_array_indexing_first
+    with:
+      scores: $inputs
+    infer: "First score: {{with.scores.scores[0]}}"
+
+  # Array indexing: last score
+  - id: test_array_indexing_last
+    with:
+      scores: $inputs
+    infer: "Last score: {{with.scores.scores[3]}}"
+
+  # Array indexing with path: tags
+  - id: test_array_path_access
+    with:
+      user: $inputs
+    infer: "First tag: {{with.user.user.tags[0]}}"
+
+  # Array path with transform: upper
+  - id: test_array_path_transform
+    with:
+      user: $inputs
+    infer: "First tag uppercase: {{with.user.user.tags[0] | upper}}"
+
+  # Nested path: metadata version
+  - id: test_nested_path
+    with:
+      metadata: $inputs
+    infer: "Version: {{with.metadata.metadata.version}}"
+
+  # Direct input reference
+  - id: test_input_reference
+    infer: "Input user name: {{inputs.user.name}}"
+
+  # String interpolation with multiple bindings
+  - id: test_multiple_bindings
+    with:
+      user: $inputs
+      scores: $inputs
+    infer: |
+      Summary: {{with.user.user.name}} scored {{with.scores.scores[0]}}/100
+
+  # Conditional-like with default
+  - id: test_default_null_coalesce
+    with:
+      user: $inputs
+      maybe_missing: $null
+    infer: "Safe access: {{with.maybe_missing | default('N/A')}}"
+
+  # Complex path with default
+  - id: test_complex_path_default
+    with:
+      user: $inputs
+      maybe_nested: $null
+    infer: "Nested safe: {{with.maybe_nested | default('unknown') | upper}}"

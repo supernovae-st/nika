@@ -1,0 +1,41 @@
+schema: "nika/workflow@0.12"
+workflow: fetch-extract-text
+description: "Test extract: text mode with optional CSS selector filtering"
+provider: mock
+
+inputs:
+  url_with_selector: "https://github.com"
+  css_selector: "body"
+
+tasks:
+  - id: fetch_all_text
+    fetch:
+      url: "{{inputs.url_with_selector}}"
+      extract: text
+      timeout: 10
+
+  - id: fetch_filtered_text
+    fetch:
+      url: "{{inputs.url_with_selector}}"
+      extract: text
+      selector: "{{inputs.css_selector}}"
+      timeout: 10
+
+  - id: compare_extraction
+    with:
+      all_text: $fetch_all_text
+      filtered_text: $fetch_filtered_text
+    infer:
+      prompt: |
+        Compare these two text extractions:
+
+        All visible text length: {{with.all_text | length}}
+        Filtered text (selector: {{inputs.css_selector}}) length: {{with.filtered_text | length}}
+
+        All text sample: {{with.all_text | default("empty") | length | to_string}}: {{with.all_text}}
+
+        1. Is filtered text a subset of all text?
+        2. Is selector correctly applied (no HTML)?
+        3. Visible text properly converted to plaintext?
+
+        Respond: OK or ISSUE with details.

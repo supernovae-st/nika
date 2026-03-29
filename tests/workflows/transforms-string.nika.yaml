@@ -1,0 +1,63 @@
+schema: "nika/workflow@0.12"
+workflow: transforms-string-test
+description: "Test all string transforms: upper, lower, trim, trim_start, trim_end, length, to_string"
+provider: mock
+
+inputs:
+  text: "  hello world  "
+  number: 42
+
+tasks:
+  # String transform: upper
+  - id: test_upper
+    with:
+      text: $inputs
+    infer: "Upper: {{with.text.text | upper}}"
+
+  # String transform: lower
+  - id: test_lower
+    with:
+      text: $inputs
+    infer: "Lower: {{with.text.text | lower}}"
+
+  # String transform: trim (both sides)
+  - id: test_trim
+    with:
+      text: $inputs
+    infer: "Trim: '{{with.text.text | trim}}'"
+
+  # String transform: trim_start
+  - id: test_trim_start
+    with:
+      text: $inputs
+    infer: "Trim start: '{{with.text.text | trim_start}}'"
+
+  # String transform: trim_end
+  - id: test_trim_end
+    with:
+      text: $inputs
+    infer: "Trim end: '{{with.text.text | trim_end}}'"
+
+  # String transform: length
+  - id: test_length
+    with:
+      text: $inputs
+    infer: "Length: {{with.text.text | length}}"
+
+  # String transform: to_string (identity for strings)
+  - id: test_to_string
+    with:
+      text: $inputs
+    infer: "To string: {{with.text.text | to_string}}"
+
+  # Chained string transforms
+  - id: test_chain_strings
+    with:
+      text: $inputs
+    infer: "Chain (trim->upper->length): {{with.text.text | trim | upper | length}}"
+
+  # String with null safety
+  - id: test_string_null_safety
+    with:
+      maybe_null: $null
+    infer: "Null safe: {{with.maybe_null | default('missing') | upper}}"

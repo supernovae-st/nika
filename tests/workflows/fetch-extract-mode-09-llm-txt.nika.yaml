@@ -1,0 +1,44 @@
+schema: "nika/workflow@0.12"
+workflow: fetch-extract-llm-txt
+description: "Test extract: llm_txt mode — discover and parse /llms.txt or /.well-known/llm.txt"
+provider: mock
+
+inputs:
+  domain_with_llms_txt: "https://anthropic.com"
+  domain_without_llms_txt: "https://example.com"
+
+tasks:
+  - id: attempt_fetch_llms_txt_site1
+    fetch:
+      url: "{{inputs.domain_with_llms_txt}}"
+      extract: llm_txt
+      timeout: 15
+
+  - id: attempt_fetch_llms_txt_site2
+    fetch:
+      url: "{{inputs.domain_without_llms_txt}}"
+      extract: llm_txt
+      timeout: 15
+
+  - id: validate_llm_txt_discovery
+    with:
+      site1_result: $attempt_fetch_llms_txt_site1
+      site2_result: $attempt_fetch_llms_txt_site2
+    infer:
+      prompt: |
+        Validate /llms.txt discovery and parsing:
+
+        Site 1 (Anthropic) result:
+        {{with.site1_result | to_json | default("not-found")}}
+
+        Site 2 (Example) result:
+        {{with.site2_result | to_json | default("not-found")}}
+
+        Check:
+        1. If /llms.txt exists: parsed successfully
+        2. If not found: graceful fallback (null or empty array)
+        3. Standard locations checked: /llms.txt, /.well-known/llm.txt
+        4. Content format recognized (YAML or JSON or plain text)
+        5. Key fields extracted if present: models, contact, guidelines
+
+        Respond: LLMS_TXT_OK or LLMS_TXT_ERROR with details.

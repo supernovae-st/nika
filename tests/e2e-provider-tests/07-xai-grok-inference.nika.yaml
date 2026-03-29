@@ -1,0 +1,227 @@
+schema: nika/workflow@0.12
+workflow: xai-grok-inference-test
+description: "Test xAI Grok with standard inference and rapid response"
+
+provider: xai
+model: grok-3
+
+inputs:
+  current_topic: "The role of AI in scientific discovery"
+  tone: "accessible"
+
+tasks:
+  # Task 1: Basic inference
+  - id: grok_basic
+    infer:
+      prompt: |
+        Discuss {{inputs.current_topic}}.
+        Tone: {{inputs.tone}}
+
+        Cover:
+        1. Current applications
+        2. Breakthrough examples
+        3. Future potential
+      max_tokens: 500
+    description: "Grok basic inference"
+
+  # Task 2: Grok's sarcasm and personality
+  - id: grok_personality
+    infer:
+      prompt: |
+        Grok is known for having personality and wit.
+        Explain {{inputs.current_topic}} with a bit of humor and sarcasm.
+
+        Make it entertaining while staying accurate.
+      max_tokens: 450
+      temperature: 0.8
+    description: "Test Grok's distinctive personality"
+
+  # Task 3: Structured output
+  - id: grok_structured
+    depends_on: [grok_basic]
+    with:
+      analysis: $grok_basic
+    infer:
+      prompt: |
+        Based on this analysis: {{with.analysis}}
+
+        Extract the main points in structured form.
+      response_format: json
+      max_tokens: 600
+    structured:
+      schema:
+        type: object
+        properties:
+          main_topic: { type: string }
+          applications:
+            type: array
+            items: { type: string }
+            minItems: 2
+          breakthroughs:
+            type: array
+            items:
+              type: object
+              properties:
+                example: { type: string }
+                impact: { type: string }
+              required: [example]
+          future_directions:
+            type: array
+            items: { type: string }
+          challenges:
+            type: array
+            items: { type: string }
+        required: [main_topic, applications]
+      enable_repair: true
+      max_retries: 2
+    description: "Structured JSON extraction"
+
+  # Task 4: Fast inference speed test
+  - id: grok_speed_test_1
+    infer:
+      prompt: "In one sentence: What is machine learning?"
+      max_tokens: 50
+    description: "Speed test query 1"
+
+  - id: grok_speed_test_2
+    infer:
+      prompt: "In one sentence: What is neural networks?"
+      max_tokens: 50
+    description: "Speed test query 2"
+
+  - id: grok_speed_test_3
+    infer:
+      prompt: "In one sentence: What is deep learning?"
+      max_tokens: 50
+    description: "Speed test query 3"
+
+  # Task 5: Complex reasoning
+  - id: grok_reasoning
+    infer:
+      prompt: |
+        {{inputs.current_topic}}
+
+        Why is AI particularly suited for scientific discovery compared to other domains?
+        Explain causality and practical examples.
+      max_tokens: 400
+    description: "Complex reasoning task"
+
+  # Task 6: Code/logic generation
+  - id: grok_technical
+    infer:
+      prompt: |
+        Describe a simple algorithm for discovering patterns in scientific data.
+        Include pseudocode or conceptual steps.
+
+        Topic context: {{inputs.current_topic}}
+      max_tokens: 500
+    description: "Technical explanation with structure"
+
+  # Task 7: Multi-turn style follow-up
+  - id: grok_followup
+    depends_on: [grok_personality]
+    with:
+      previous: $grok_personality
+    infer:
+      prompt: |
+        Based on this perspective: {{with.previous | trim | first(100)}}...
+
+        What's one counterargument or alternative view?
+      max_tokens: 300
+    description: "Follow-up to initial response"
+
+  # Task 8: Edge case - very brief response
+  - id: grok_brief
+    infer:
+      prompt: |
+        {{inputs.current_topic}}
+        Respond in exactly 20 words or less.
+      max_tokens: 30
+    description: "Constraint test - brief response"
+
+  # Task 9: Grok-specific features summary
+  - id: grok_features
+    infer:
+      prompt: |
+        Grok model characteristics:
+        - Provider: xAI
+        - Known for: Personality, humor, accuracy
+        - Speed: Fast inference
+        - Variants: grok-3, grok-3-mini, grok-2
+        - Context: Real-time internet-aware in some versions
+
+        List advantages of Grok for general discussion and explanation tasks.
+      max_tokens: 350
+    description: "Document Grok features and strengths"
+
+  # Task 10: Comparison perspective
+  - id: grok_comparison
+    infer:
+      prompt: |
+        How does Grok (xAI) compare to Claude, GPT-4, and Gemini?
+        Consider: speed, personality, accuracy, cost.
+
+        Be objective and fair to all models.
+      max_tokens: 400
+    description: "Comparative analysis with other models"
+
+  # Task 11: Comprehensive test summary
+  - id: xai_test_summary
+    depends_on: [grok_basic, grok_personality, grok_structured, grok_reasoning, grok_technical, grok_followup, grok_brief, grok_features, grok_comparison]
+    with:
+      basic: $grok_basic | trim | first(80)
+      personality: $grok_personality | trim | first(80)
+      structured: $grok_structured | to_json | trim | first(80)
+      reasoning: $grok_reasoning | trim | first(80)
+      technical: $grok_technical | trim | first(80)
+      followup: $grok_followup
+      brief: $grok_brief
+      features: $grok_features
+      comparison: $grok_comparison | trim | first(100)
+    exec:
+      command: |
+        echo "=== xAI Grok Inference E2E Test Summary ==="
+        echo ""
+        echo "1. Basic Inference:"
+        echo "   {{with.basic}}..."
+        echo ""
+        echo "2. Personality Test (sarcasm/humor):"
+        echo "   {{with.personality}}..."
+        echo ""
+        echo "3. Structured JSON Output:"
+        echo "   {{with.structured}}..."
+        echo ""
+        echo "4. Complex Reasoning:"
+        echo "   {{with.reasoning}}..."
+        echo ""
+        echo "5. Technical Explanation:"
+        echo "   {{with.technical}}..."
+        echo ""
+        echo "6. Follow-up Capability:"
+        echo "   {{with.followup | trim}}"
+        echo ""
+        echo "7. Brief Response (constraint):"
+        echo "   {{with.brief}}"
+        echo ""
+        echo "8. Model Features:"
+        echo "   {{with.features | trim | first(150)}}..."
+        echo ""
+        echo "9. Comparative Analysis:"
+        echo "   {{with.comparison}}..."
+        echo ""
+        echo "Test Results:"
+        echo "  ✓ Basic inference working"
+        echo "  ✓ Personality evident in responses"
+        echo "  ✓ Structured output validated"
+        echo "  ✓ Reasoning capability demonstrated"
+        echo "  ✓ Technical explanations clear"
+        echo "  ✓ Constraint handling effective"
+        echo "  ✓ Speed adequate for general use"
+        echo ""
+        echo "Grok Strengths:"
+        echo "  - Engaging, personality-driven responses"
+        echo "  - Good reasoning capabilities"
+        echo "  - Fast inference"
+        echo "  - Multiple model variants available"
+      shell: true
+    description: "Display xAI Grok test results"

@@ -1,0 +1,32 @@
+schema: "nika/workflow@0.12"
+workflow: fetch-extract-selector
+description: "Test extract: selector mode — extract raw HTML of matching elements"
+provider: mock
+
+inputs:
+  target_selector: "h1"
+  page_url: "https://example.com"
+
+tasks:
+  - id: fetch_heading_html
+    fetch:
+      url: "{{inputs.page_url}}"
+      extract: selector
+      selector: "{{inputs.target_selector}}"
+      timeout: 10
+
+  - id: validate_html_structure
+    with:
+      html_content: $fetch_heading_html
+    infer:
+      prompt: |
+        Examine this extracted HTML and verify:
+        1. Content includes actual HTML tags (not plaintext)
+        2. Tags match the selector criteria (headings: h1, h2, h3, etc)
+        3. No inner content is lost (full element tree preserved)
+        4. Attributes are intact (class, id, data-*, etc)
+        5. Proper closing tags present
+
+        HTML: {{with.html_content | default("no-content")}}
+
+        Respond: VALID_HTML or INVALID_HTML with reason.

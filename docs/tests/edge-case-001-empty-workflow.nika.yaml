@@ -1,0 +1,9 @@
+schema: "nika/workflow@0.12"
+workflow: edge-case-001-empty-workflow
+description: |
+  Test empty workflow (0 tasks) — should error gracefully.
+  Expected: FAIL with NIKA-010 (schema validation error) or similar.
+  Reason: Workflows require at least 1 task or be explicitly empty.
+provider: mock
+
+tasks: []

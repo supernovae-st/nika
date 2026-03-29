@@ -1,0 +1,134 @@
+schema: "nika/workflow@0.12"
+workflow: edge-case-007-all-transforms
+description: |
+  Tests all 31 pipe transforms in a single workflow.
+  String: upper, lower, trim, trim_start, trim_end, length, to_string
+  Array: first, last, flatten, reverse, sort, unique, compact, keys, values
+  Numeric: to_number, round, abs, ceil, floor
+  Type: to_bool, to_json, parse_json, type_of
+  Parametric: join, split, default
+  Expected: PASS. Each transform should execute correctly in pipeline.
+provider: mock
+
+tasks:
+  - id: prepare_data
+    infer: "Prepare test data"
+    structured:
+      schema:
+        type: object
+        properties:
+          text: { type: string }
+          numbers: { type: array, items: { type: number } }
+          nested_arrays: { type: array, items: { type: array, items: { type: number } } }
+          obj: { type: object, additionalProperties: { type: string } }
+          float_val: { type: number }
+          bool_val: { type: boolean }
+          json_str: { type: string }
+
+  - id: test_string_transforms
+    depends_on: [prepare_data]
+    with:
+      data: $prepare_data
+      upper_text: "{{with.data.text | upper}}"
+      lower_text: "{{with.data.text | lower}}"
+      trimmed: "{{with.data.text | trim}}"
+      trim_start_text: "{{with.data.text | trim_start}}"
+      trim_end_text: "{{with.data.text | trim_end}}"
+      text_length: "{{with.data.text | length}}"
+      num_as_string: "{{with.data.float_val | to_string}}"
+    infer: |
+      String transforms:
+      - upper: {{with.upper_text}}
+      - lower: {{with.lower_text}}
+      - trim: {{with.trimmed}}
+      - trim_start: {{with.trim_start_text}}
+      - trim_end: {{with.trim_end_text}}
+      - length: {{with.text_length}}
+      - to_string: {{with.num_as_string}}
+
+  - id: test_array_transforms
+    depends_on: [prepare_data]
+    with:
+      data: $prepare_data
+      first_num: "{{with.data.numbers | first}}"
+      last_num: "{{with.data.numbers | last}}"
+      flattened: "{{with.data.nested_arrays | flatten | to_json}}"
+      reversed: "{{with.data.numbers | reverse | to_json}}"
+      sorted: "{{with.data.numbers | sort | to_json}}"
+      unique_nums: "{{with.data.numbers | unique | to_json}}"
+      array_keys: "{{with.data.obj | keys | to_json}}"
+      array_values: "{{with.data.obj | values | to_json}}"
+    infer: |
+      Array transforms:
+      - first: {{with.first_num}}
+      - last: {{with.last_num}}
+      - flatten: {{with.flattened}}
+      - reverse: {{with.reversed}}
+      - sort: {{with.sorted}}
+      - unique: {{with.unique_nums}}
+      - keys: {{with.array_keys}}
+      - values: {{with.array_values}}
+
+  - id: test_numeric_transforms
+    depends_on: [prepare_data]
+    with:
+      data: $prepare_data
+      str_to_num: "{{'42' | to_number}}"
+      rounded: "{{with.data.float_val | round}}"
+      absolute: "{{-5 | abs}}"
+      ceil_val: "{{with.data.float_val | ceil}}"
+      floor_val: "{{with.data.float_val | floor}}"
+    infer: |
+      Numeric transforms:
+      - to_number: {{with.str_to_num}}
+      - round: {{with.rounded}}
+      - abs: {{with.absolute}}
+      - ceil: {{with.ceil_val}}
+      - floor: {{with.floor_val}}
+
+  - id: test_type_transforms
+    depends_on: [prepare_data]
+    with:
+      data: $prepare_data
+      bool_from_str: "{{'true' | to_bool}}"
+      to_json_str: "{{with.data.obj | to_json}}"
+      parsed_json: "{{with.data.json_str | parse_json | type_of}}"
+      type_number: "{{with.data.float_val | type_of}}"
+      type_bool: "{{with.data.bool_val | type_of}}"
+    infer: |
+      Type transforms:
+      - to_bool: {{with.bool_from_str}}
+      - to_json: {{with.to_json_str}}
+      - parse_json type: {{with.parsed_json}}
+      - number type: {{with.type_number}}
+      - bool type: {{with.type_bool}}
+
+  - id: test_parametric_transforms
+    depends_on: [prepare_data]
+    with:
+      data: $prepare_data
+      joined: "{{with.data.numbers | to_json | default('[]') | join(', ')}}"
+      split_text: "{{with.data.text | split(' ') | to_json}}"
+      with_default: "{{with.data.missing | default('fallback value')}}"
+    infer: |
+      Parametric transforms:
+      - join: {{with.joined}}
+      - split: {{with.split_text}}
+      - default: {{with.with_default}}
+
+  - id: test_compact
+    depends_on: [prepare_data]
+    with:
+      data: $prepare_data
+      compacted: "{{with.data.numbers | compact | to_json}}"
+    infer: "Compact: {{with.compacted}}"
+
+  - id: finalize
+    depends_on:
+      - test_string_transforms
+      - test_array_transforms
+      - test_numeric_transforms
+      - test_type_transforms
+      - test_parametric_transforms
+      - test_compact
+    infer: "All 31 transforms tested successfully"

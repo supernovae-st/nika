@@ -1,0 +1,22 @@
+schema: "nika/workflow@0.12"
+workflow: edge-case-009-max-retry-exhaustion
+description: |
+  Max retry exhaustion — retry 3 attempts, all fail.
+  Tests error handling, retry limit enforcement, error propagation.
+  Expected: FAIL with NIKA-026 (dependency chain failed).
+  Upstream task retries 3 times and fails, blocking downstream.
+provider: mock
+
+tasks:
+  - id: failing_task
+    retry:
+      max_attempts: 3
+      delay_ms: 100
+      backoff: 1.0
+    infer: "This will always fail in mock provider with deterministic error"
+
+  - id: downstream_blocked
+    depends_on: [failing_task]
+    with:
+      upstream: $failing_task
+    infer: "This should never execute due to upstream failure: {{with.upstream}}"

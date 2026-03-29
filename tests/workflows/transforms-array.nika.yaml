@@ -1,0 +1,80 @@
+schema: "nika/workflow@0.12"
+workflow: transforms-array-test
+description: "Test all array transforms: first, last, flatten, reverse, sort, unique, compact, keys, values"
+provider: mock
+
+inputs:
+  items: [1, 2, 3, 2, 1]
+  nested: [[1, 2], [3, 4], [5]]
+  sparse: [1, null, 3, null, 5]
+  object: { name: "Alice", age: 30, city: "NYC" }
+
+tasks:
+  # Array transform: first
+  - id: test_first
+    with:
+      items: $inputs
+    infer: "First: {{with.items.items | first}}"
+
+  # Array transform: last
+  - id: test_last
+    with:
+      items: $inputs
+    infer: "Last: {{with.items.items | last}}"
+
+  # Array transform: flatten
+  - id: test_flatten
+    with:
+      nested: $inputs
+    infer: "Flatten: {{with.nested.nested | flatten | join(', ')}}"
+
+  # Array transform: reverse
+  - id: test_reverse
+    with:
+      items: $inputs
+    infer: "Reverse: {{with.items.items | reverse | join(', ')}}"
+
+  # Array transform: sort
+  - id: test_sort
+    with:
+      items: $inputs
+    infer: "Sort: {{with.items.items | sort | join(', ')}}"
+
+  # Array transform: unique
+  - id: test_unique
+    with:
+      items: $inputs
+    infer: "Unique: {{with.items.items | unique | join(', ')}}"
+
+  # Array transform: compact (remove nulls)
+  - id: test_compact
+    with:
+      sparse: $inputs
+    infer: "Compact: {{with.sparse.sparse | compact | join(', ')}}"
+
+  # Array transform: keys (object keys)
+  - id: test_keys
+    with:
+      object: $inputs
+    infer: "Keys: {{with.object.object | keys | join(', ')}}"
+
+  # Array transform: values (object values)
+  - id: test_values
+    with:
+      object: $inputs
+    infer: "Values: {{with.object.object | values | join(', ')}}"
+
+  # Chained array transforms
+  - id: test_chain_array
+    with:
+      items: $inputs
+    infer: "Chain (unique->sort->reverse): {{with.items.items | unique | sort | reverse | join(', ')}}"
+
+  # Complex chain: flatten -> compact -> unique -> sort
+  - id: test_complex_chain
+    with:
+      nested: $inputs
+      sparse: $inputs
+    infer: |
+      Nested flatten + compact + unique + sort:
+      {{with.nested.nested | flatten | unique | sort | join(', ')}}

@@ -1,0 +1,31 @@
+schema: "nika/workflow@0.12"
+workflow: fetch-extract-article
+description: "Test extract: article mode — extract main article content via Readability"
+provider: mock
+
+inputs:
+  blog_url: "https://www.rust-lang.org/en-US"
+
+tasks:
+  - id: fetch_article_content
+    fetch:
+      url: "{{inputs.blog_url}}"
+      extract: article
+      timeout: 15
+
+  - id: verify_article_extraction
+    with:
+      article: $fetch_article_content
+    infer:
+      prompt: |
+        Evaluate this article extraction. Check if:
+        1. Navigation/sidebar content is removed
+        2. Main article body is preserved
+        3. Ads and boilerplate are filtered out
+        4. Text is contiguous without gaps
+        5. Approximate length > 500 chars
+
+        Article text (first 1000 chars):
+        {{with.article | length | to_string}}: {{with.article}}
+
+        Respond: PASS or FAIL with reason.

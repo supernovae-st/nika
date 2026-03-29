@@ -1,0 +1,86 @@
+schema: "nika/workflow@0.12"
+workflow: edge-case-008-cjk-unicode
+description: |
+  CJK (Chinese/Japanese/Korean) text and Unicode in templates.
+  Tests Unicode handling, multi-byte character encoding.
+  Expected: PASS. Should handle CJK and emoji correctly in templates,
+  data flow, and output.
+provider: mock
+
+inputs:
+  chinese_text: "你好，这是一个测试工作流。"
+  japanese_text: "こんにちは、これはテストです。"
+  korean_text: "안녕하세요, 이것은 테스트입니다."
+  emoji_text: "🚀 Workflow 🎉 Test 🌟"
+  mixed_text: "Hello 世界 🌍 مرحبا мир"
+
+tasks:
+  - id: process_cjk
+    with:
+      cn: "{{inputs.chinese_text}}"
+      jp: "{{inputs.japanese_text}}"
+      ko: "{{inputs.korean_text}}"
+    infer: |
+      Process CJK text:
+      Chinese: {{with.cn}}
+      Japanese: {{with.jp}}
+      Korean: {{with.ko}}
+
+  - id: process_emoji
+    with:
+      emoji: "{{inputs.emoji_text}}"
+      mixed: "{{inputs.mixed_text}}"
+    infer: |
+      Emoji and mixed text:
+      Emoji: {{with.emoji}}
+      Mixed: {{with.mixed}}
+
+  - id: transform_cjk
+    depends_on: [process_cjk]
+    with:
+      cn_upper: "{{inputs.chinese_text | upper}}"
+      cn_length: "{{inputs.chinese_text | length}}"
+      cn_trim: "{{inputs.chinese_text | trim}}"
+    infer: |
+      CJK transforms:
+      - Upper: {{with.cn_upper}}
+      - Length: {{with.cn_length}}
+      - Trimmed: {{with.cn_trim}}
+
+  - id: create_cjk_array
+    infer: "Create CJK array"
+    structured:
+      schema:
+        type: object
+        properties:
+          items:
+            type: array
+            items: { type: string }
+          mapping:
+            type: object
+            properties:
+              language: { type: string }
+              text: { type: string }
+        required: [items]
+
+  - id: process_array
+    depends_on: [create_cjk_array]
+    with:
+      data: $create_cjk_array
+      first: "{{with.data.items | first}}"
+      joined: "{{with.data.items | join(' | ')}}"
+    infer: |
+      CJK array processing:
+      First item: {{with.first}}
+      All items: {{with.joined}}
+      Full data: {{with.data | to_json}}
+
+  - id: verify_encoding
+    depends_on: [process_emoji, transform_cjk, process_array]
+    infer: |
+      Unicode verification complete:
+      - All CJK characters processed
+      - All emoji preserved
+      - All multi-byte encodings handled
+      - Length calculations correct
+      Final: 你好 こんにちは 안녕하세요 🌟

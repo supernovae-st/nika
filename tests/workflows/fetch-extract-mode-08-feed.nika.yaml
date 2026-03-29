@@ -1,0 +1,45 @@
+schema: "nika/workflow@0.12"
+workflow: fetch-extract-feed
+description: "Test extract: feed mode — parse RSS/Atom/JSON feeds"
+provider: mock
+
+inputs:
+  rss_feed_url: "https://github.com/anthropics/anthropic-sdk-python/releases.atom"
+  json_feed_url: "https://www.rust-lang.org/feed.json"
+
+tasks:
+  - id: fetch_atom_feed
+    fetch:
+      url: "{{inputs.rss_feed_url}}"
+      extract: feed
+      timeout: 15
+
+  - id: fetch_json_feed
+    fetch:
+      url: "{{inputs.json_feed_url}}"
+      extract: feed
+      timeout: 15
+
+  - id: validate_feed_parsing
+    with:
+      atom_entries: $fetch_atom_feed
+      json_entries: $fetch_json_feed
+    infer:
+      prompt: |
+        Validate RSS/Atom/JSON feed parsing:
+
+        ATOM feed entries (first entry):
+        {{with.atom_entries | first | to_json | default("empty")}}
+
+        JSON feed entries (first entry):
+        {{with.json_entries | first | to_json | default("empty")}}
+
+        Verify each feed:
+        1. Returns array of entries/items
+        2. Each entry has: title, link, published_at (or date)
+        3. Optional fields: author, description, content
+        4. Links are valid URLs
+        5. Timestamps are parseable (ISO 8601)
+        6. Deduplication applied if needed
+
+        Respond: FEED_OK or FEED_PARSE_ERROR with details.

@@ -1,0 +1,26 @@
+schema: "nika/workflow@0.12"
+workflow: fetch-extract-markdown
+description: "Test extract: markdown mode — convert HTML to clean Markdown"
+provider: mock
+
+tasks:
+  - id: fetch_example_markdown
+    fetch:
+      url: "https://example.com"
+      extract: markdown
+      timeout: 10
+
+  - id: validate_markdown_output
+    with:
+      content: $fetch_example_markdown
+    infer:
+      prompt: |
+        Analyze this extracted Markdown content and verify it meets these criteria:
+        1. Contains proper Markdown syntax (# headers, **bold**, links, etc)
+        2. No HTML tags remain (except Markdown)
+        3. Clean formatting without excessive whitespace
+        4. Readable structure preserved from original
+
+        Content: {{with.content}}
+
+        Reply with VALID or INVALID and brief explanation.

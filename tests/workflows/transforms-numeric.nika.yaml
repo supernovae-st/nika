@@ -1,0 +1,71 @@
+schema: "nika/workflow@0.12"
+workflow: transforms-numeric-test
+description: "Test numeric transforms: to_number, round, abs, ceil, floor"
+provider: mock
+
+inputs:
+  decimal: 3.7
+  negative: -42
+  string_number: "123.456"
+  pi: 3.14159
+
+tasks:
+  # Numeric transform: to_number (from string)
+  - id: test_to_number
+    with:
+      str: $inputs
+    infer: "To number: {{with.str.string_number | to_number}}"
+
+  # Numeric transform: round
+  - id: test_round
+    with:
+      num: $inputs
+    infer: "Round 3.7: {{with.num.decimal | round}}"
+
+  # Numeric transform: round pi
+  - id: test_round_pi
+    with:
+      num: $inputs
+    infer: "Round pi: {{with.num.pi | round}}"
+
+  # Numeric transform: abs (absolute value)
+  - id: test_abs
+    with:
+      num: $inputs
+    infer: "Abs(-42): {{with.num.negative | abs}}"
+
+  # Numeric transform: ceil (ceiling)
+  - id: test_ceil
+    with:
+      num: $inputs
+    infer: "Ceil 3.7: {{with.num.decimal | ceil}}"
+
+  # Numeric transform: floor
+  - id: test_floor
+    with:
+      num: $inputs
+    infer: "Floor 3.7: {{with.num.decimal | floor}}"
+
+  # Chained numeric transforms
+  - id: test_chain_numeric
+    with:
+      num: $inputs
+    infer: "Ceil then to_string: {{with.num.decimal | ceil | to_string}}"
+
+  # String to number chain
+  - id: test_string_to_number_chain
+    with:
+      str: $inputs
+    infer: "String to number to round: {{with.str.string_number | to_number | round}}"
+
+  # Abs of negative to string
+  - id: test_abs_to_string
+    with:
+      num: $inputs
+    infer: "Abs(-42) to string: {{with.num.negative | abs | to_string}}"
+
+  # Numeric null safety
+  - id: test_numeric_null_safety
+    with:
+      maybe_null: $null
+    infer: "Numeric null safe: {{with.maybe_null | default(0) | abs}}"

@@ -1,0 +1,61 @@
+schema: "nika/workflow@0.12"
+workflow: edge-case-006-nested-templates
+description: |
+  Deeply nested template: {{with.data.nested.array[0].field | upper | trim}}
+  Tests complex template path resolution, array indexing, multiple transforms.
+  Expected: PASS. Should resolve nested paths and apply transforms correctly.
+provider: mock
+
+tasks:
+  - id: create_nested_data
+    infer: "Generate nested structure"
+    structured:
+      schema:
+        type: object
+        properties:
+          data:
+            type: object
+            properties:
+              nested:
+                type: object
+                properties:
+                  array:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        field:
+                          type: string
+                        id:
+                          type: number
+                    minItems: 1
+                  label:
+                    type: string
+          metadata:
+            type: object
+            properties:
+              count:
+                type: number
+        required: [data]
+
+  - id: extract_nested_value
+    depends_on: [create_nested_data]
+    with:
+      nested_data: $create_nested_data
+      first_field: "{{with.nested_data.data.nested.array[0].field | upper | trim}}"
+      second_item_id: "{{with.nested_data.data.nested.array[1].id | default(0) | to_number}}"
+      label_upper: "{{with.nested_data.data.nested.label | upper}}"
+    infer: |
+      First array field (uppercase): {{with.first_field}}
+      Second item ID: {{with.second_item_id}}
+      Label (uppercase): {{with.label_upper}}
+      Raw data: {{with.nested_data | to_json}}
+
+  - id: complex_pipeline
+    depends_on: [extract_nested_value]
+    with:
+      results: $extract_nested_value
+      all_fields: "{{with.results | keys | join(', ')}}"
+    infer: |
+      All result fields: {{with.all_fields}}
+      Results: {{with.results}}

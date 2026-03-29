@@ -1,0 +1,36 @@
+schema: "nika/workflow@0.12"
+workflow: fetch-response-full
+description: "Test response: full mode — retrieve complete HTTP response with headers"
+provider: mock
+
+inputs:
+  test_url: "https://httpbin.org/get"
+
+tasks:
+  - id: fetch_with_full_response
+    fetch:
+      url: "{{inputs.test_url}}"
+      response: full
+      timeout: 10
+
+  - id: validate_response_structure
+    with:
+      http_response: $fetch_with_full_response
+    infer:
+      prompt: |
+        Validate the full HTTP response structure:
+
+        Response object:
+        {{with.http_response | to_json}}
+
+        Verify:
+        1. Contains status field (HTTP status code, e.g., 200)
+        2. Contains headers object (dict of header name: value)
+        3. Contains body field (response body as string)
+        4. Contains url field (final URL after redirects)
+        5. Status is numeric (e.g., 200, 404)
+        6. Headers include Content-Type
+        7. URL is valid format
+        8. Body is non-null
+
+        Respond: STRUCTURE_OK or STRUCTURE_ERROR with missing fields.

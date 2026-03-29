@@ -1,0 +1,354 @@
+schema: nika/workflow@0.12
+workflow: e2e-file-tools
+description: "E2E tests for file nika:* tools (read, write, edit, glob, grep)"
+provider: mock
+
+inputs:
+  test_dir: "/tmp/nika_e2e_file_tests"
+  test_file: "/tmp/nika_e2e_file_tests/test_document.txt"
+  test_file2: "/tmp/nika_e2e_file_tests/test_data.txt"
+  markdown_file: "/tmp/nika_e2e_file_tests/readme.md"
+
+tasks:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # FILE TOOL 1: nika:write
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: write_primary_file
+    description: "Write primary test file with multiple lines"
+    invoke:
+      tool: "nika:write"
+      params:
+        file_path: "{{inputs.test_file}}"
+        content: |
+          # Test Document
+          This is line 1 of the test file.
+          This line contains the search keyword.
+          Line 3: More content here.
+          Pattern matching test text.
+          Final line with some data.
+
+  - id: write_secondary_file
+    description: "Write secondary file for glob testing"
+    invoke:
+      tool: "nika:write"
+      params:
+        file_path: "{{inputs.test_file2}}"
+        content: |
+          Data File
+          Row 1: value_a
+          Row 2: value_b
+          Row 3: value_c
+
+  - id: write_markdown_file
+    description: "Write markdown file for format diversity testing"
+    invoke:
+      tool: "nika:write"
+      params:
+        file_path: "{{inputs.markdown_file}}"
+        content: |
+          # README
+
+          ## Section 1
+          Some markdown content here.
+
+          ## Section 2
+          - Item 1: keyword appears
+          - Item 2: more content
+          - Item 3: keyword found again
+
+  - id: validate_write
+    depends_on: [write_primary_file, write_secondary_file, write_markdown_file]
+    with:
+      primary: $write_primary_file
+      secondary: $write_secondary_file
+      markdown: $write_markdown_file
+    infer:
+      prompt: |
+        Validate all 3 write operations succeeded:
+        - Primary file: {{with.primary}}
+        - Secondary file: {{with.secondary}}
+        - Markdown file: {{with.markdown}}
+
+        All should show success or file path confirmation.
+        Reply: PASS or FAIL
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # FILE TOOL 2: nika:read
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: read_primary_file
+    description: "Read primary file and verify content"
+    depends_on: [write_primary_file]
+    invoke:
+      tool: "nika:read"
+      params:
+        file_path: "{{inputs.test_file}}"
+
+  - id: read_secondary_file
+    description: "Read secondary file"
+    depends_on: [write_secondary_file]
+    invoke:
+      tool: "nika:read"
+      params:
+        file_path: "{{inputs.test_file2}}"
+
+  - id: read_markdown_file
+    description: "Read markdown file"
+    depends_on: [write_markdown_file]
+    invoke:
+      tool: "nika:read"
+      params:
+        file_path: "{{inputs.markdown_file}}"
+
+  - id: validate_read
+    depends_on: [read_primary_file, read_secondary_file, read_markdown_file]
+    with:
+      primary: $read_primary_file
+      secondary: $read_secondary_file
+      markdown: $read_markdown_file
+    infer:
+      prompt: |
+        Validate all reads returned correct file content:
+        - Primary contains "search keyword": {{with.primary}}
+        - Secondary contains "value_": {{with.secondary}}
+        - Markdown contains "README": {{with.markdown}}
+
+        All should have visible line numbers (1, 2, 3...).
+        Reply: PASS or FAIL
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # FILE TOOL 3: nika:edit
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: edit_primary_file_line2
+    description: "Edit line 2 of primary file"
+    depends_on: [read_primary_file]
+    invoke:
+      tool: "nika:edit"
+      params:
+        file_path: "{{inputs.test_file}}"
+        old_string: "This line contains the search keyword."
+        new_string: "EDITED: This line has been modified by nika:edit."
+
+  - id: edit_primary_file_line4
+    description: "Edit line 4 - pattern matching line"
+    depends_on: [edit_primary_file_line2]
+    invoke:
+      tool: "nika:edit"
+      params:
+        file_path: "{{inputs.test_file}}"
+        old_string: "Pattern matching test text."
+        new_string: "EDITED: New pattern content goes here."
+
+  - id: read_after_first_edit
+    description: "Read after first edit to verify changes"
+    depends_on: [edit_primary_file_line2]
+    invoke:
+      tool: "nika:read"
+      params:
+        file_path: "{{inputs.test_file}}"
+
+  - id: validate_edit_first
+    depends_on: [read_after_first_edit]
+    with:
+      edited_content: $read_after_first_edit
+    infer:
+      prompt: |
+        Verify first edit applied:
+        Content should contain "EDITED: This line has been modified"
+        Result: {{with.edited_content}}
+        Reply: PASS or FAIL
+
+  - id: read_after_second_edit
+    description: "Read after second edit"
+    depends_on: [edit_primary_file_line4]
+    invoke:
+      tool: "nika:read"
+      params:
+        file_path: "{{inputs.test_file}}"
+
+  - id: validate_edit_second
+    depends_on: [read_after_second_edit]
+    with:
+      edited_content: $read_after_second_edit
+    infer:
+      prompt: |
+        Verify second edit applied:
+        Content should contain "EDITED: New pattern content"
+        Result: {{with.edited_content}}
+        Reply: PASS or FAIL
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # FILE TOOL 4: nika:glob
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: glob_txt_files
+    description: "Find all .txt files in test directory"
+    depends_on: [write_primary_file, write_secondary_file]
+    invoke:
+      tool: "nika:glob"
+      params:
+        pattern: "*.txt"
+        path: "{{inputs.test_dir}}"
+
+  - id: glob_markdown_files
+    description: "Find all .md files"
+    depends_on: [write_markdown_file]
+    invoke:
+      tool: "nika:glob"
+      params:
+        pattern: "*.md"
+        path: "{{inputs.test_dir}}"
+
+  - id: glob_all_files
+    description: "Find all files with * pattern"
+    depends_on: [write_markdown_file]
+    invoke:
+      tool: "nika:glob"
+      params:
+        pattern: "*"
+        path: "{{inputs.test_dir}}"
+
+  - id: validate_glob
+    depends_on: [glob_txt_files, glob_markdown_files, glob_all_files]
+    with:
+      txt_files: $glob_txt_files
+      md_files: $glob_markdown_files
+      all_files: $glob_all_files
+    infer:
+      prompt: |
+        Validate glob results:
+        - *.txt should find 2 files: {{with.txt_files}}
+        - *.md should find 1 file: {{with.md_files}}
+        - * should find 3+ files: {{with.all_files}}
+
+        Results should contain file paths or file listings.
+        Reply: PASS or FAIL
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # FILE TOOL 5: nika:grep
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: grep_keyword_simple
+    description: "Search for 'keyword' pattern"
+    depends_on: [read_after_first_edit]
+    invoke:
+      tool: "nika:grep"
+      params:
+        pattern: "keyword"
+        path: "{{inputs.test_file}}"
+
+  - id: grep_edited_pattern
+    description: "Search for 'EDITED' pattern"
+    depends_on: [read_after_second_edit]
+    invoke:
+      tool: "nika:grep"
+      params:
+        pattern: "EDITED"
+        path: "{{inputs.test_file}}"
+
+  - id: grep_markdown_section
+    description: "Search in markdown file for section headers"
+    depends_on: [read_markdown_file]
+    invoke:
+      tool: "nika:grep"
+      params:
+        pattern: "^##"
+        path: "{{inputs.markdown_file}}"
+
+  - id: grep_all_files_pattern
+    description: "Grep across multiple files"
+    depends_on: [read_after_second_edit]
+    invoke:
+      tool: "nika:grep"
+      params:
+        pattern: "content"
+        path: "{{inputs.test_dir}}"
+
+  - id: validate_grep
+    depends_on: [grep_keyword_simple, grep_edited_pattern, grep_markdown_section, grep_all_files_pattern]
+    with:
+      keyword: $grep_keyword_simple
+      edited: $grep_edited_pattern
+      markdown: $grep_markdown_section
+      all_files: $grep_all_files_pattern
+    infer:
+      prompt: |
+        Validate grep results found expected patterns:
+        - "keyword": {{with.keyword}}
+        - "EDITED": {{with.edited}}
+        - "^##" in markdown: {{with.markdown}}
+        - "content" across files: {{with.all_files}}
+
+        All should contain file paths and matching line references.
+        Reply: PASS or FAIL
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # COMBINED: Edit and grep workflow
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: combined_edit_grep
+    description: "Edit file then grep for new content"
+    depends_on: [validate_edit_second]
+    invoke:
+      tool: "nika:edit"
+      params:
+        file_path: "{{inputs.test_file}}"
+        old_string: "Final line with some data."
+        new_string: "FINAL: Verification complete with unique_marker_12345"
+
+  - id: grep_new_content
+    description: "Grep for the newly added content"
+    depends_on: [combined_edit_grep]
+    invoke:
+      tool: "nika:grep"
+      params:
+        pattern: "unique_marker_12345"
+        path: "{{inputs.test_file}}"
+
+  - id: validate_combined
+    depends_on: [grep_new_content]
+    with:
+      grep_result: $grep_new_content
+    infer:
+      prompt: |
+        Verify combined edit+grep workflow:
+        Grep should find "unique_marker_12345" in file.
+        Result: {{with.grep_result}}
+        Reply: PASS or FAIL
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # FINAL SUMMARY
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: summary
+    depends_on:
+      - validate_write
+      - validate_read
+      - validate_edit_first
+      - validate_edit_second
+      - validate_glob
+      - validate_grep
+      - validate_combined
+    with:
+      write: $validate_write
+      read: $validate_read
+      edit1: $validate_edit_first
+      edit2: $validate_edit_second
+      glob: $validate_glob
+      grep: $validate_grep
+      combined: $validate_combined
+    infer:
+      prompt: |
+        Summarize file tools E2E test results:
+        - nika:write: {{with.write}}
+        - nika:read: {{with.read}}
+        - nika:edit (first): {{with.edit1}}
+        - nika:edit (second): {{with.edit2}}
+        - nika:glob: {{with.glob}}
+        - nika:grep: {{with.grep}}
+        - Combined (edit+grep): {{with.combined}}
+
+        List tools in CSV: tool_name,status
+        End with: FILE_TOOLS_TESTS: [PASS|FAIL]

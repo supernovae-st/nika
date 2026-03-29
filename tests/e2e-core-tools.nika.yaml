@@ -1,0 +1,318 @@
+schema: nika/workflow@0.12
+workflow: e2e-core-tools
+description: "E2E tests for core nika:* tools (sleep, log, emit, assert, run, complete)"
+provider: mock
+
+tasks:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # CORE TOOL 1: nika:sleep
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: sleep_100ms
+    description: "Sleep for 100ms and verify timing"
+    invoke:
+      tool: "nika:sleep"
+      params:
+        duration: "100ms"
+
+  - id: sleep_1s
+    description: "Sleep for 1 second"
+    invoke:
+      tool: "nika:sleep"
+      params:
+        duration: "1s"
+
+  - id: validate_sleep
+    depends_on: [sleep_100ms, sleep_1s]
+    with:
+      result_100: $sleep_100ms
+      result_1: $sleep_1s
+    infer:
+      prompt: |
+        Validate sleep results:
+        - Result 100ms: {{with.result_100}}
+        - Result 1s: {{with.result_1}}
+
+        Both should have slept_for_ms field with values >= requested duration.
+        Reply: PASS or FAIL
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # CORE TOOL 2: nika:log
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: log_info
+    description: "Log at INFO level"
+    invoke:
+      tool: "nika:log"
+      params:
+        level: "info"
+        message: "E2E test: info level message"
+
+  - id: log_debug
+    description: "Log at DEBUG level"
+    invoke:
+      tool: "nika:log"
+      params:
+        level: "debug"
+        message: "E2E test: debug level message"
+
+  - id: log_warn
+    description: "Log at WARN level"
+    invoke:
+      tool: "nika:log"
+      params:
+        level: "warn"
+        message: "E2E test: warn level message"
+
+  - id: log_error
+    description: "Log at ERROR level"
+    invoke:
+      tool: "nika:log"
+      params:
+        level: "error"
+        message: "E2E test: error level message"
+
+  - id: validate_log
+    depends_on: [log_info, log_debug, log_warn, log_error]
+    with:
+      info_res: $log_info
+      debug_res: $log_debug
+      warn_res: $log_warn
+      error_res: $log_error
+    infer:
+      prompt: |
+        Validate all 4 log operations succeeded:
+        - INFO: {{with.info_res}}
+        - DEBUG: {{with.debug_res}}
+        - WARN: {{with.warn_res}}
+        - ERROR: {{with.error_res}}
+
+        All should have {logged: true}.
+        Reply: PASS or FAIL
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # CORE TOOL 3: nika:emit
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: emit_startup
+    description: "Emit startup event"
+    invoke:
+      tool: "nika:emit"
+      params:
+        name: "workflow_startup"
+        payload:
+          timestamp: "2026-03-29T12:00:00Z"
+          version: "0.12"
+
+  - id: emit_progress
+    description: "Emit progress event with metadata"
+    invoke:
+      tool: "nika:emit"
+      params:
+        name: "test_progress"
+        payload:
+          task: "core_tools"
+          completed: 3
+          total: 7
+
+  - id: emit_completion
+    description: "Emit completion event"
+    invoke:
+      tool: "nika:emit"
+      params:
+        name: "test_complete"
+        payload:
+          status: "success"
+          duration_ms: 1234
+
+  - id: validate_emit
+    depends_on: [emit_startup, emit_progress, emit_completion]
+    with:
+      startup: $emit_startup
+      progress: $emit_progress
+      completion: $emit_completion
+    infer:
+      prompt: |
+        Validate all 3 emit operations succeeded:
+        - Startup: {{with.startup}}
+        - Progress: {{with.progress}}
+        - Completion: {{with.completion}}
+
+        All should have {emitted: true}.
+        Reply: PASS or FAIL
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # CORE TOOL 4: nika:assert
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: assert_true_case1
+    description: "Assert true condition - case 1"
+    invoke:
+      tool: "nika:assert"
+      params:
+        condition: true
+        message: "Basic true assertion"
+
+  - id: assert_true_case2
+    description: "Assert true condition - case 2"
+    invoke:
+      tool: "nika:assert"
+      params:
+        condition: true
+        message: "Another true assertion"
+
+  - id: assert_false_case
+    description: "Assert false condition (should error)"
+    invoke:
+      tool: "nika:assert"
+      params:
+        condition: false
+        message: "This should fail"
+    retry:
+      max_attempts: 1
+
+  - id: validate_assert_pass
+    depends_on: [assert_true_case1, assert_true_case2]
+    with:
+      case1: $assert_true_case1
+      case2: $assert_true_case2
+    infer:
+      prompt: |
+        Validate both true assertions passed:
+        - Case 1: {{with.case1}}
+        - Case 2: {{with.case2}}
+
+        Both should have {passed: true}.
+        Reply: PASS or FAIL
+
+  - id: validate_assert_fail
+    depends_on: [assert_false_case]
+    infer:
+      prompt: |
+        Verify assert_false_case failed with error.
+        If the task has an error state, it correctly failed.
+        Reply: PASS or FAIL
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # CORE TOOL 5: nika:run
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: run_simple_inline
+    description: "Run simple inline workflow with single task"
+    invoke:
+      tool: "nika:run"
+      params:
+        workflow: |
+          schema: nika/workflow@0.12
+          tasks:
+            - id: hello
+              infer:
+                prompt: "Reply with: Hello from nested workflow"
+                temperature: 0
+                max_tokens: 20
+        inline: true
+
+  - id: run_workflow_with_steps
+    description: "Run workflow with multiple steps"
+    invoke:
+      tool: "nika:run"
+      params:
+        workflow: |
+          schema: nika/workflow@0.12
+          tasks:
+            - id: step1
+              infer:
+                prompt: "Generate a 5-letter word"
+                temperature: 0
+                max_tokens: 10
+            - id: step2
+              depends_on: [step1]
+              infer:
+                prompt: "Generate an antonym of a common word"
+                temperature: 0
+                max_tokens: 15
+        inline: true
+
+  - id: validate_run
+    depends_on: [run_simple_inline, run_workflow_with_steps]
+    with:
+      simple: $run_simple_inline
+      complex: $run_workflow_with_steps
+    infer:
+      prompt: |
+        Validate both nested workflows executed successfully:
+        - Simple: {{with.simple}}
+        - Complex: {{with.complex}}
+
+        Both should show completion status.
+        Reply: PASS or FAIL
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # CORE TOOL 6: nika:complete
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: complete_basic
+    description: "Signal completion with summary"
+    invoke:
+      tool: "nika:complete"
+      params:
+        summary: "All core tools validated"
+        context: "E2E test suite completed"
+
+  - id: complete_with_metadata
+    description: "Signal completion with additional metadata"
+    invoke:
+      tool: "nika:complete"
+      params:
+        summary: "Core tools test batch complete"
+        context: "Tested: sleep, log, emit, assert, run, complete"
+        exit_code: 0
+
+  - id: validate_complete
+    depends_on: [complete_basic, complete_with_metadata]
+    with:
+      basic: $complete_basic
+      metadata: $complete_with_metadata
+    infer:
+      prompt: |
+        Validate both completion signals returned success marker:
+        - Basic: {{with.basic}}
+        - With Metadata: {{with.metadata}}
+
+        Both should contain completion marker or success indicator.
+        Reply: PASS or FAIL
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # FINAL SUMMARY
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: summary
+    depends_on:
+      - validate_sleep
+      - validate_log
+      - validate_emit
+      - validate_assert_pass
+      - validate_assert_fail
+      - validate_run
+      - validate_complete
+    with:
+      sleep_validation: $validate_sleep
+      log_validation: $validate_log
+      emit_validation: $validate_emit
+      assert_pass: $validate_assert_pass
+      assert_fail: $validate_assert_fail
+      run_validation: $validate_run
+      complete_validation: $validate_complete
+    infer:
+      prompt: |
+        Summarize core tools E2E test results:
+        - nika:sleep: {{with.sleep_validation}}
+        - nika:log: {{with.log_validation}}
+        - nika:emit: {{with.emit_validation}}
+        - nika:assert (pass): {{with.assert_pass}}
+        - nika:assert (fail): {{with.assert_fail}}
+        - nika:run: {{with.run_validation}}
+        - nika:complete: {{with.complete_validation}}
+
+        List tools in CSV: tool_name,status
+        End with: CORE_TOOLS_TESTS: [PASS|FAIL]

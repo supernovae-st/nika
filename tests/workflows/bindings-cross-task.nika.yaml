@@ -1,0 +1,110 @@
+schema: "nika/workflow@0.12"
+workflow: bindings-cross-task-test
+description: "Test cross-task bindings: data flow between tasks, dependencies, path access"
+provider: mock
+
+inputs:
+  name: "Project Alpha"
+  count: 5
+
+tasks:
+  # Task 1: Generate initial data
+  - id: task_generate
+    with:
+      input_name: $inputs
+    infer: |
+      Generate a list of items for {{with.input_name.name}}:
+      ["Item 1", "Item 2", "Item 3"]
+
+  # Task 2: Reference task_generate output
+  - id: task_consume_output
+    depends_on: [task_generate]
+    with:
+      generated: $task_generate
+    infer: "Consumed: {{with.generated}}"
+
+  # Task 3: Extract specific index from array
+  - id: task_array_access
+    depends_on: [task_generate]
+    with:
+      items: $task_generate
+    infer: "First item: {{with.items[0]}}"
+
+  # Task 4: Chain multiple task references
+  - id: task_chain_refs
+    depends_on: [task_generate]
+    with:
+      data: $task_generate
+      input: $inputs
+    infer: |
+      Project: {{with.input.name}}
+      Data: {{with.data}}
+
+  # Task 5: Transform cross-task binding
+  - id: task_transform_cross
+    depends_on: [task_generate]
+    with:
+      items: $task_generate
+    infer: "Items uppercase: {{with.items | upper}}"
+
+  # Task 6: Access nested path from previous task
+  - id: task_nested_extract
+    depends_on: [task_generate]
+    with:
+      data: $task_generate
+    infer: "Data length: {{with.data | length}}"
+
+  # Task 7: Default on cross-task binding
+  - id: task_maybe_missing
+    depends_on: [task_chain_refs]
+    with:
+      prev: $task_chain_refs
+      missing: $null
+    infer: "Safe prev: {{with.missing | default('no data')}}, Real: {{with.prev}}"
+
+  # Task 8: Array of cross-task data
+  - id: task_array_items
+    depends_on: [task_generate]
+    with:
+      list: $task_generate
+    infer: "List count: {{with.list | length}}"
+
+  # Task 9: Complex chain with multiple deps
+  - id: task_complex_multi_dep
+    depends_on: [task_generate, task_chain_refs]
+    with:
+      gen: $task_generate
+      chain: $task_chain_refs
+      input: $inputs
+    infer: |
+      Complex:
+      - Generated: {{with.gen}}
+      - Chained: {{with.chain}}
+      - Input name: {{with.input.name}}
+      - Input count: {{with.input.count}}
+
+  # Task 10: Ordering without data (depends_on only)
+  - id: task_order_only
+    depends_on: [task_complex_multi_dep]
+    infer: "This runs after task_complex_multi_dep"
+
+  # Task 11: Reference chain - task refs another task ref
+  - id: task_ref_of_ref
+    depends_on: [task_consume_output]
+    with:
+      consumed: $task_consume_output
+    infer: "Ref of ref: {{with.consumed}}"
+
+  # Task 12: Array operations on cross-task binding
+  - id: task_array_ops
+    depends_on: [task_generate]
+    with:
+      data: $task_generate
+    infer: "First element: {{with.data | first}}"
+
+  # Task 13: Chained transforms on cross-task data
+  - id: task_chain_transforms
+    depends_on: [task_generate]
+    with:
+      data: $task_generate
+    infer: "Upper and length: {{with.data | upper | length}}"

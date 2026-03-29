@@ -1,0 +1,108 @@
+schema: "nika/workflow@0.12"
+workflow: edge-case-003-diamond-dag
+description: |
+  Diamond DAG: fan-out (1 → 10 parallel tasks) → fan-in (all to 1).
+  Tests parallel execution, data merging from multiple sources.
+  Expected: PASS. All 10 parallel tasks should execute concurrently,
+  then merge results into final_merge task.
+provider: mock
+
+tasks:
+  - id: start
+    infer: "Initialize workflow"
+
+  - id: branch_001
+    depends_on: [start]
+    with:
+      input: $start
+    infer: "Branch 1 processing: {{with.input}}"
+
+  - id: branch_002
+    depends_on: [start]
+    with:
+      input: $start
+    infer: "Branch 2 processing: {{with.input}}"
+
+  - id: branch_003
+    depends_on: [start]
+    with:
+      input: $start
+    infer: "Branch 3 processing: {{with.input}}"
+
+  - id: branch_004
+    depends_on: [start]
+    with:
+      input: $start
+    infer: "Branch 4 processing: {{with.input}}"
+
+  - id: branch_005
+    depends_on: [start]
+    with:
+      input: $start
+    infer: "Branch 5 processing: {{with.input}}"
+
+  - id: branch_006
+    depends_on: [start]
+    with:
+      input: $start
+    infer: "Branch 6 processing: {{with.input}}"
+
+  - id: branch_007
+    depends_on: [start]
+    with:
+      input: $start
+    infer: "Branch 7 processing: {{with.input}}"
+
+  - id: branch_008
+    depends_on: [start]
+    with:
+      input: $start
+    infer: "Branch 8 processing: {{with.input}}"
+
+  - id: branch_009
+    depends_on: [start]
+    with:
+      input: $start
+    infer: "Branch 9 processing: {{with.input}}"
+
+  - id: branch_010
+    depends_on: [start]
+    with:
+      input: $start
+    infer: "Branch 10 processing: {{with.input}}"
+
+  - id: final_merge
+    depends_on:
+      - branch_001
+      - branch_002
+      - branch_003
+      - branch_004
+      - branch_005
+      - branch_006
+      - branch_007
+      - branch_008
+      - branch_009
+      - branch_010
+    with:
+      b1: $branch_001
+      b2: $branch_002
+      b3: $branch_003
+      b4: $branch_004
+      b5: $branch_005
+      b6: $branch_006
+      b7: $branch_007
+      b8: $branch_008
+      b9: $branch_009
+      b10: $branch_010
+    infer: |
+      Merge all 10 branches:
+      B1: {{with.b1}}
+      B2: {{with.b2}}
+      B3: {{with.b3}}
+      B4: {{with.b4}}
+      B5: {{with.b5}}
+      B6: {{with.b6}}
+      B7: {{with.b7}}
+      B8: {{with.b8}}
+      B9: {{with.b9}}
+      B10: {{with.b10}}

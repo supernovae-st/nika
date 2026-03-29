@@ -1,0 +1,416 @@
+schema: nika/workflow@0.12
+workflow: e2e-introspection-tools
+description: "E2E tests for introspection nika:* tools (cost, records, dag_info, task_status, threads, orchestrate)"
+provider: mock
+
+tasks:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # SETUP: Generate some workflow activity for introspection
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: setup_task1
+    description: "Setup task to generate event log entries"
+    infer:
+      prompt: "Generate a 10-word paragraph about AI workflows"
+      temperature: 0.5
+      max_tokens: 30
+
+  - id: setup_task2
+    description: "Another setup task"
+    depends_on: [setup_task1]
+    with:
+      prev: $setup_task1
+    infer:
+      prompt: "Expand on this concept: {{with.prev}}"
+      temperature: 0.5
+      max_tokens: 30
+
+  - id: setup_task3
+    description: "Third setup for diverse metrics"
+    depends_on: [setup_task2]
+    invoke:
+      tool: "nika:log"
+      params:
+        level: "info"
+        message: "Setup complete - ready for introspection"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # INTROSPECTION TOOL 1: nika:cost
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: cost_query_basic
+    description: "Query token and cost metrics"
+    depends_on: [setup_task3]
+    invoke:
+      tool: "nika:cost"
+      params:
+        include_details: true
+
+  - id: cost_query_by_provider
+    description: "Query cost metrics by provider"
+    depends_on: [setup_task3]
+    invoke:
+      tool: "nika:cost"
+      params:
+        group_by: "provider"
+
+  - id: cost_query_by_model
+    description: "Query cost metrics by model"
+    depends_on: [setup_task3]
+    invoke:
+      tool: "nika:cost"
+      params:
+        group_by: "model"
+
+  - id: validate_cost
+    depends_on: [cost_query_basic, cost_query_by_provider, cost_query_by_model]
+    with:
+      basic: $cost_query_basic
+      by_provider: $cost_query_by_provider
+      by_model: $cost_query_by_model
+    infer:
+      prompt: |
+        Validate cost tool results have expected structure:
+        - Basic query: {{with.basic}}
+          Should include: total_tokens, input_tokens, output_tokens, total_cost_usd
+        - By provider: {{with.by_provider}}
+          Should have provider-level breakdown
+        - By model: {{with.by_model}}
+          Should have model-level breakdown
+
+        Reply: PASS or FAIL
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # INTROSPECTION TOOL 2: nika:records
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: records_query_all
+    description: "Query all records"
+    depends_on: [setup_task3]
+    invoke:
+      tool: "nika:records"
+      params:
+        limit: 100
+
+  - id: records_query_completed
+    description: "Query completed tasks only"
+    depends_on: [setup_task3]
+    invoke:
+      tool: "nika:records"
+      params:
+        filter: "status=completed"
+        limit: 50
+
+  - id: records_query_recent
+    description: "Query recent records with sorting"
+    depends_on: [setup_task3]
+    invoke:
+      tool: "nika:records"
+      params:
+        limit: 20
+        sort: "timestamp_desc"
+
+  - id: validate_records
+    depends_on: [records_query_all, records_query_completed, records_query_recent]
+    with:
+      all: $records_query_all
+      completed: $records_query_completed
+      recent: $records_query_recent
+    infer:
+      prompt: |
+        Validate records query results:
+        - All records query: {{with.all}}
+          Should return array of task records
+        - Completed filter: {{with.completed}}
+          Should only have status=completed items
+        - Recent (sorted): {{with.recent}}
+          Should be ordered by timestamp descending
+
+        Each record should have: task_id, status, timestamp, duration
+
+        Reply: PASS or FAIL
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # INTROSPECTION TOOL 3: nika:dag_info
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: dag_info_full
+    description: "Query full DAG structure with dependencies"
+    depends_on: [setup_task3]
+    invoke:
+      tool: "nika:dag_info"
+      params:
+        include_deps: true
+
+  - id: dag_info_nodes_only
+    description: "Query DAG nodes without edge details"
+    depends_on: [setup_task3]
+    invoke:
+      tool: "nika:dag_info"
+      params:
+        include_deps: false
+
+  - id: dag_info_with_metrics
+    description: "Query DAG with execution metrics per node"
+    depends_on: [setup_task3]
+    invoke:
+      tool: "nika:dag_info"
+      params:
+        include_deps: true
+        include_metrics: true
+
+  - id: validate_dag_info
+    depends_on: [dag_info_full, dag_info_nodes_only, dag_info_with_metrics]
+    with:
+      full: $dag_info_full
+      nodes_only: $dag_info_nodes_only
+      with_metrics: $dag_info_with_metrics
+    infer:
+      prompt: |
+        Validate DAG introspection results:
+        - Full DAG: {{with.full}}
+          Should have nodes and dependencies arrays
+        - Nodes only: {{with.nodes_only}}
+          Should have node list without edge info
+        - With metrics: {{with.with_metrics}}
+          Should include execution timing per node
+
+        DAG should show tasks: setup_task1, setup_task2, setup_task3, etc.
+
+        Reply: PASS or FAIL
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # INTROSPECTION TOOL 4: nika:task_status
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: task_status_setup1
+    description: "Query status of setup_task1"
+    depends_on: [setup_task3]
+    invoke:
+      tool: "nika:task_status"
+      params:
+        task_id: "setup_task1"
+
+  - id: task_status_setup2
+    description: "Query status of setup_task2"
+    depends_on: [setup_task3]
+    invoke:
+      tool: "nika:task_status"
+      params:
+        task_id: "setup_task2"
+
+  - id: task_status_setup3
+    description: "Query status of setup_task3"
+    depends_on: [setup_task3]
+    invoke:
+      tool: "nika:task_status"
+      params:
+        task_id: "setup_task3"
+
+  - id: validate_task_status
+    depends_on: [task_status_setup1, task_status_setup2, task_status_setup3]
+    with:
+      t1: $task_status_setup1
+      t2: $task_status_setup2
+      t3: $task_status_setup3
+    infer:
+      prompt: |
+        Validate task status queries:
+        - setup_task1: {{with.t1}}
+          Should show: status=completed, duration_ms, tokens_used
+        - setup_task2: {{with.t2}}
+          Should show: depends_on=[setup_task1], status, duration
+        - setup_task3: {{with.t3}}
+          Should show: depends_on=[setup_task2], status, duration
+
+        Reply: PASS or FAIL
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # INTROSPECTION TOOL 5: nika:threads
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: threads_list_current
+    description: "List current execution threads"
+    depends_on: [setup_task3]
+    invoke:
+      tool: "nika:threads"
+      params:
+        include_stats: true
+
+  - id: threads_list_completed
+    description: "List completed threads"
+    depends_on: [setup_task3]
+    invoke:
+      tool: "nika:threads"
+      params:
+        filter: "status=completed"
+
+  - id: threads_with_durations
+    description: "List threads with execution timings"
+    depends_on: [setup_task3]
+    invoke:
+      tool: "nika:threads"
+      params:
+        include_stats: true
+        sort: "duration_desc"
+
+  - id: validate_threads
+    depends_on: [threads_list_current, threads_list_completed, threads_with_durations]
+    with:
+      current: $threads_list_current
+      completed: $threads_list_completed
+      by_duration: $threads_with_durations
+    infer:
+      prompt: |
+        Validate threads introspection results:
+        - Current threads: {{with.current}}
+          Should list active execution threads with task_id, status
+        - Completed threads: {{with.completed}}
+          Should only show threads with status=completed
+        - By duration: {{with.by_duration}}
+          Should be sorted longest duration first
+
+        Each thread entry should have: task_id, status, elapsed_ms, thread_id
+
+        Reply: PASS or FAIL
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # INTROSPECTION TOOL 6: nika:orchestrate
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: orchestrate_timeline
+    description: "Get orchestration timeline view"
+    depends_on: [setup_task3]
+    invoke:
+      tool: "nika:orchestrate"
+      params:
+        format: "timeline"
+
+  - id: orchestrate_rounds
+    description: "Get orchestration rounds"
+    depends_on: [setup_task3]
+    invoke:
+      tool: "nika:orchestrate"
+      params:
+        format: "rounds"
+
+  - id: orchestrate_waves
+    description: "Get orchestration waves"
+    depends_on: [setup_task3]
+    invoke:
+      tool: "nika:orchestrate"
+      params:
+        format: "waves"
+
+  - id: orchestrate_with_metrics
+    description: "Get orchestration data with metrics"
+    depends_on: [setup_task3]
+    invoke:
+      tool: "nika:orchestrate"
+      params:
+        format: "timeline"
+        include_metrics: true
+
+  - id: validate_orchestrate
+    depends_on: [orchestrate_timeline, orchestrate_rounds, orchestrate_waves, orchestrate_with_metrics]
+    with:
+      timeline: $orchestrate_timeline
+      rounds: $orchestrate_rounds
+      waves: $orchestrate_waves
+      metrics: $orchestrate_with_metrics
+    infer:
+      prompt: |
+        Validate orchestration introspection results:
+        - Timeline: {{with.timeline}}
+          Should show task execution order
+        - Rounds: {{with.rounds}}
+          Should show round-based grouping
+        - Waves: {{with.waves}}
+          Should show wave-based parallelism
+        - With metrics: {{with.metrics}}
+          Should include timing and concurrency data
+
+        Results should show coordination between: setup_task1 → setup_task2 → setup_task3
+
+        Reply: PASS or FAIL
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # COMBINED: Cross-tool validation
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: cross_tool_validation
+    description: "Agent validates consistency across all introspection tools"
+    depends_on:
+      - validate_cost
+      - validate_records
+      - validate_dag_info
+      - validate_task_status
+      - validate_threads
+      - validate_orchestrate
+    with:
+      cost: $validate_cost
+      records: $validate_records
+      dag: $validate_dag_info
+      task_st: $validate_task_status
+      thrds: $validate_threads
+      orch: $validate_orchestrate
+    agent:
+      prompt: |
+        You are a data consistency validator for Nika introspection tools.
+
+        Verify that all introspection tools report consistent information:
+
+        1. Cost tool: {{with.cost}}
+        2. Records tool: {{with.records}}
+        3. DAG info tool: {{with.dag}}
+        4. Task status tool: {{with.task_st}}
+        5. Threads tool: {{with.thrds}}
+        6. Orchestrate tool: {{with.orch}}
+
+        Check for:
+        - Task IDs are consistent across all tools
+        - Status values match (completed in records matches threads)
+        - Duration metrics are consistent
+        - Cost totals make sense with task counts
+        - Dependency graph is consistent with task order
+
+        Reply with:
+        CONSISTENCY_CHECK: [PASS|FAIL]
+        And list any inconsistencies found.
+      max_turns: 2
+      temperature: 0.2
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # FINAL SUMMARY
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: summary
+    depends_on:
+      - validate_cost
+      - validate_records
+      - validate_dag_info
+      - validate_task_status
+      - validate_threads
+      - validate_orchestrate
+      - cross_tool_validation
+    with:
+      cost: $validate_cost
+      records: $validate_records
+      dag_info: $validate_dag_info
+      task_status: $validate_task_status
+      threads: $validate_threads
+      orchestrate: $validate_orchestrate
+      consistency: $cross_tool_validation
+    infer:
+      prompt: |
+        Summarize introspection tools E2E test results:
+        - nika:cost: {{with.cost}}
+        - nika:records: {{with.records}}
+        - nika:dag_info: {{with.dag_info}}
+        - nika:task_status: {{with.task_status}}
+        - nika:threads: {{with.threads}}
+        - nika:orchestrate: {{with.orchestrate}}
+        - Cross-tool consistency: {{with.consistency}}
+
+        List tools in CSV: tool_name,status
+        End with: INTROSPECTION_TOOLS_TESTS: [PASS|FAIL]

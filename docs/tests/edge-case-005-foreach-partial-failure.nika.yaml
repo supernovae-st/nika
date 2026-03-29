@@ -1,0 +1,46 @@
+schema: "nika/workflow@0.12"
+workflow: edge-case-005-foreach-partial-failure
+description: |
+  for_each with fail_fast: false and 3/10 items causing errors.
+  Tests partial results collection with failures.
+  Expected: PASS (with fail_fast: false).
+  Should complete with array containing 7 successes + 3 failures,
+  each marked with error status.
+provider: mock
+
+inputs:
+  items:
+    - good_1
+    - bad_1
+    - good_2
+    - good_3
+    - bad_2
+    - good_4
+    - good_5
+    - bad_3
+    - good_6
+    - good_7
+
+tasks:
+  - id: process_with_failures
+    for_each:
+      items: "{{inputs.items}}"
+      as: item
+      concurrency: 2
+      fail_fast: false
+    infer: |
+      Process item: {{with.item}}
+      {% if with.item | startswith('bad') %}
+      Return error status
+      {% else %}
+      Return success status
+      {% endif %}
+
+  - id: analyze_results
+    depends_on: [process_with_failures]
+    with:
+      results: $process_with_failures
+    infer: |
+      Analyzed {{with.results | length}} items.
+      Count: {{with.results | length}}
+      Details: {{with.results | to_json}}
