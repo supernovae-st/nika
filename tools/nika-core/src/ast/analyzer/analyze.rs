@@ -3429,4 +3429,29 @@ tasks:
             result.errors
         );
     }
+
+    #[test]
+    fn test_concurrency_zero_inside_for_each_object_rejected() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: test
+tasks:
+  - id: loop_task
+    for_each:
+      items: ["a", "b", "c"]
+      concurrency: 0
+    infer: "process {{with.item}}"
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = analyze(raw);
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| e.message.contains("concurrency: 0 is invalid")),
+            "Should reject concurrency: 0 inside for_each object form: {:?}",
+            result.errors
+        );
+    }
 }
