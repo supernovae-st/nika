@@ -824,6 +824,13 @@ Hope this helps!"#;
     }
 
     #[test]
+    fn extract_json_from_fence_with_trailing_space() {
+        let input = "``` \n{\"key\": \"value\"}\n```";
+        let result = extract_json_from_output(input).unwrap();
+        assert_eq!(result["key"], "value");
+    }
+
+    #[test]
     fn extract_json_from_prose_with_braces() {
         let input = r#"I'll generate the fortune for you:
 
