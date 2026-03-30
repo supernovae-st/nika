@@ -50,6 +50,8 @@ mod rig_agent_loop;
 mod runner;
 pub mod security;
 mod skill_injector;
+#[cfg(test)]
+mod tests_e2e_workflow;
 pub mod spawn;
 pub mod structured_output;
 pub mod submit_tool;
