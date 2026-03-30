@@ -24,6 +24,16 @@ pub struct OrchestrateConfig {
     pub max_cost_usd: Option<f64>,
 }
 
+impl OrchestrateConfig {
+    /// Validate configuration values. Clamps confidence_target to 0.0-1.0.
+    pub fn validate(&mut self) {
+        self.confidence_target = self.confidence_target.clamp(0.0, 1.0);
+        if self.max_rounds == 0 {
+            self.max_rounds = 1;
+        }
+    }
+}
+
 impl Default for OrchestrateConfig {
     fn default() -> Self {
         Self {

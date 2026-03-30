@@ -441,17 +441,26 @@ impl RigProvider {
     ///
     /// # Returns
     /// The completion text from the model
-    pub async fn infer(&self, prompt: &str, model: Option<&str>) -> Result<String, RigInferError> {
+    pub async fn infer(
+        &self,
+        prompt: &str,
+        model: Option<&str>,
+        max_tokens: Option<u64>,
+    ) -> Result<String, RigInferError> {
         /// Maximum time to wait for a single infer() completion (5 minutes).
         /// Prevents hung LLM calls from blocking the runtime indefinitely.
         const INFER_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
 
         let model_id = model.unwrap_or_else(|| self.default_model());
+        let effective_max_tokens = max_tokens.unwrap_or(8192);
 
         match self {
             RigProvider::Claude(client) => {
                 // Anthropic requires max_tokens to be set explicitly
-                let agent = client.agent(model_id).max_tokens(8192).build();
+                let agent = client
+                    .agent(model_id)
+                    .max_tokens(effective_max_tokens)
+                    .build();
                 timeout(INFER_TIMEOUT, agent.prompt(prompt))
                     .await
                     .map_err(|_| RigInferError::Timeout {
@@ -460,7 +469,10 @@ impl RigProvider {
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
             RigProvider::OpenAI(client) => {
-                let agent = client.agent(model_id).max_tokens(8192).build();
+                let agent = client
+                    .agent(model_id)
+                    .max_tokens(effective_max_tokens)
+                    .build();
                 timeout(INFER_TIMEOUT, agent.prompt(prompt))
                     .await
                     .map_err(|_| RigInferError::Timeout {
@@ -469,7 +481,10 @@ impl RigProvider {
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
             RigProvider::Mistral(client) => {
-                let agent = client.agent(model_id).max_tokens(8192).build();
+                let agent = client
+                    .agent(model_id)
+                    .max_tokens(effective_max_tokens)
+                    .build();
                 timeout(INFER_TIMEOUT, agent.prompt(prompt))
                     .await
                     .map_err(|_| RigInferError::Timeout {
@@ -478,7 +493,10 @@ impl RigProvider {
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
             RigProvider::Groq(client) => {
-                let agent = client.agent(model_id).max_tokens(8192).build();
+                let agent = client
+                    .agent(model_id)
+                    .max_tokens(effective_max_tokens)
+                    .build();
                 timeout(INFER_TIMEOUT, agent.prompt(prompt))
                     .await
                     .map_err(|_| RigInferError::Timeout {
@@ -487,7 +505,10 @@ impl RigProvider {
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
             RigProvider::DeepSeek(client) => {
-                let agent = client.agent(model_id).max_tokens(8192).build();
+                let agent = client
+                    .agent(model_id)
+                    .max_tokens(effective_max_tokens)
+                    .build();
                 timeout(INFER_TIMEOUT, agent.prompt(prompt))
                     .await
                     .map_err(|_| RigInferError::Timeout {
@@ -496,7 +517,10 @@ impl RigProvider {
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
             RigProvider::Gemini(client) => {
-                let agent = client.agent(model_id).max_tokens(8192).build();
+                let agent = client
+                    .agent(model_id)
+                    .max_tokens(effective_max_tokens)
+                    .build();
                 timeout(INFER_TIMEOUT, agent.prompt(prompt))
                     .await
                     .map_err(|_| RigInferError::Timeout {
@@ -505,7 +529,10 @@ impl RigProvider {
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
             RigProvider::XAi(client) => {
-                let agent = client.agent(model_id).max_tokens(8192).build();
+                let agent = client
+                    .agent(model_id)
+                    .max_tokens(effective_max_tokens)
+                    .build();
                 timeout(INFER_TIMEOUT, agent.prompt(prompt))
                     .await
                     .map_err(|_| RigInferError::Timeout {
@@ -514,7 +541,10 @@ impl RigProvider {
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
             RigProvider::OpenAiCompat { client, .. } => {
-                let agent = client.agent(model_id).max_tokens(8192).build();
+                let agent = client
+                    .agent(model_id)
+                    .max_tokens(effective_max_tokens)
+                    .build();
                 timeout(INFER_TIMEOUT, agent.prompt(prompt))
                     .await
                     .map_err(|_| RigInferError::Timeout {
@@ -1014,7 +1044,7 @@ impl RigProvider {
         // Use a minimal prompt to test connectivity
         let test_prompt = "Hi";
 
-        match self.infer(test_prompt, None).await {
+        match self.infer(test_prompt, None, None).await {
             Ok(_) => Ok(ProviderVerifyResult {
                 provider: self.name().to_string(),
                 latency: start.elapsed(),
@@ -1125,6 +1155,7 @@ impl RigProvider {
         prompt: &str,
         tx: mpsc::Sender<StreamChunk>,
         model: Option<&str>,
+        max_tokens: Option<u64>,
     ) -> Result<StreamResult, RigInferError> {
         // Overall timeout for entire streaming operation (10 min).
         // Individual chunks have their own 60s timeout in consume_rig_stream,
@@ -1133,7 +1164,7 @@ impl RigProvider {
 
         timeout(
             STREAM_TOTAL_TIMEOUT,
-            self.infer_stream_inner(prompt, tx, model),
+            self.infer_stream_inner(prompt, tx, model, max_tokens),
         )
         .await
         .map_err(|_| RigInferError::Timeout {
@@ -1146,15 +1177,20 @@ impl RigProvider {
         prompt: &str,
         tx: mpsc::Sender<StreamChunk>,
         model: Option<&str>,
+        max_tokens: Option<u64>,
     ) -> Result<StreamResult, RigInferError> {
         let model_id = model.unwrap_or_else(|| self.default_model());
+        let effective_max_tokens = max_tokens.unwrap_or(8192);
         let mut response_parts: Vec<String> = Vec::new();
         let mut result = StreamResult::default();
 
         match self {
             RigProvider::Claude(client) => {
                 let model = client.completion_model(model_id);
-                let request = model.completion_request(prompt).max_tokens(8192).build();
+                let request = model
+                    .completion_request(prompt)
+                    .max_tokens(effective_max_tokens)
+                    .build();
                 let stream_start = Instant::now();
                 let mut stream = model
                     .stream(request)
@@ -1172,7 +1208,10 @@ impl RigProvider {
             }
             RigProvider::OpenAI(client) => {
                 let model = client.completion_model(model_id);
-                let request = model.completion_request(prompt).max_tokens(8192).build();
+                let request = model
+                    .completion_request(prompt)
+                    .max_tokens(effective_max_tokens)
+                    .build();
                 let stream_start = Instant::now();
                 let mut stream = model
                     .stream(request)
@@ -1190,7 +1229,10 @@ impl RigProvider {
             }
             RigProvider::Mistral(client) => {
                 let model = client.completion_model(model_id);
-                let request = model.completion_request(prompt).max_tokens(8192).build();
+                let request = model
+                    .completion_request(prompt)
+                    .max_tokens(effective_max_tokens)
+                    .build();
                 let stream_start = Instant::now();
                 let mut stream = model
                     .stream(request)
@@ -1208,7 +1250,10 @@ impl RigProvider {
             }
             RigProvider::Groq(client) => {
                 let model = client.completion_model(model_id);
-                let request = model.completion_request(prompt).max_tokens(8192).build();
+                let request = model
+                    .completion_request(prompt)
+                    .max_tokens(effective_max_tokens)
+                    .build();
                 let stream_start = Instant::now();
                 let mut stream = model
                     .stream(request)
@@ -1226,7 +1271,10 @@ impl RigProvider {
             }
             RigProvider::DeepSeek(client) => {
                 let model = client.completion_model(model_id);
-                let request = model.completion_request(prompt).max_tokens(8192).build();
+                let request = model
+                    .completion_request(prompt)
+                    .max_tokens(effective_max_tokens)
+                    .build();
                 let stream_start = Instant::now();
                 let mut stream = model
                     .stream(request)
@@ -1244,7 +1292,10 @@ impl RigProvider {
             }
             RigProvider::Gemini(client) => {
                 let model = client.completion_model(model_id);
-                let request = model.completion_request(prompt).max_tokens(8192).build();
+                let request = model
+                    .completion_request(prompt)
+                    .max_tokens(effective_max_tokens)
+                    .build();
                 let stream_start = Instant::now();
                 let mut stream = model
                     .stream(request)
@@ -1262,7 +1313,10 @@ impl RigProvider {
             }
             RigProvider::XAi(client) => {
                 let model = client.completion_model(model_id);
-                let request = model.completion_request(prompt).max_tokens(8192).build();
+                let request = model
+                    .completion_request(prompt)
+                    .max_tokens(effective_max_tokens)
+                    .build();
                 let stream_start = Instant::now();
                 let mut stream = model
                     .stream(request)
@@ -1280,7 +1334,10 @@ impl RigProvider {
             }
             RigProvider::OpenAiCompat { client, .. } => {
                 let model = client.completion_model(model_id);
-                let request = model.completion_request(prompt).max_tokens(8192).build();
+                let request = model
+                    .completion_request(prompt)
+                    .max_tokens(effective_max_tokens)
+                    .build();
                 let stream_start = Instant::now();
                 let mut stream = model
                     .stream(request)

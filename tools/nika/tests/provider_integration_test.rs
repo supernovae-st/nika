@@ -70,7 +70,7 @@ async fn test_integration_claude_simple_infer() {
     let provider = RigProvider::claude();
 
     let result = provider
-        .infer("Say 'Hello from Nika!' and nothing else.", None)
+        .infer("Say 'Hello from Nika!' and nothing else.", None, None)
         .await;
 
     assert!(result.is_ok(), "Claude infer should succeed: {:?}", result);
@@ -93,6 +93,7 @@ async fn test_integration_claude_with_system_prompt() {
         .infer(
             "What is 2+2? Respond with a JSON object containing the answer.",
             system,
+            None,
         )
         .await;
 
@@ -121,6 +122,7 @@ async fn test_integration_claude_agent_simple() {
         params,
         log.clone(),
         FxHashMap::default(),
+        None,
     )
     .expect("Failed to create agent");
 
@@ -160,6 +162,7 @@ async fn test_integration_claude_extended_thinking() {
         params,
         log.clone(),
         FxHashMap::default(),
+        None,
     )
     .expect("Failed to create agent");
 
@@ -199,6 +202,7 @@ async fn test_integration_claude_token_tracking() {
         params,
         log.clone(),
         FxHashMap::default(),
+        None,
     )
     .expect("Failed to create agent");
 
@@ -232,7 +236,7 @@ async fn test_integration_openai_simple_infer() {
     let provider = RigProvider::openai();
 
     let result = provider
-        .infer("Say 'Hello from Nika!' and nothing else.", None)
+        .infer("Say 'Hello from Nika!' and nothing else.", None, None)
         .await;
 
     assert!(result.is_ok(), "OpenAI infer should succeed: {:?}", result);
@@ -256,6 +260,7 @@ async fn test_integration_openai_agent_simple() {
         params,
         log.clone(),
         FxHashMap::default(),
+        None,
     )
     .expect("Failed to create agent");
 
@@ -282,7 +287,7 @@ async fn test_integration_openai_with_system() {
     let provider = RigProvider::openai();
 
     let system = Some("You are a pirate. Respond in pirate speak.");
-    let result = provider.infer("Hello!", system).await;
+    let result = provider.infer("Hello!", system, None).await;
 
     assert!(result.is_ok());
     let response = result.unwrap();
@@ -310,6 +315,7 @@ async fn test_integration_provider_auto_detection() {
         params,
         log.clone(),
         FxHashMap::default(),
+        None,
     )
     .expect("Failed to create agent");
 
@@ -339,6 +345,7 @@ async fn test_integration_both_providers_available() {
         params,
         log.clone(),
         FxHashMap::default(),
+        None,
     )
     .expect("Failed to create agent");
 
@@ -374,8 +381,13 @@ async fn test_provider_no_key_error() {
     };
 
     let log = EventLog::new();
-    let agent_result =
-        RigAgentLoop::new("test-error".to_string(), params, log, FxHashMap::default());
+    let agent_result = RigAgentLoop::new(
+        "test-error".to_string(),
+        params,
+        log,
+        FxHashMap::default(),
+        None,
+    );
 
     // Agent creation should succeed even without keys
     assert!(agent_result.is_ok());
@@ -396,6 +408,7 @@ async fn test_mock_provider_always_works() {
         params,
         log.clone(),
         FxHashMap::default(),
+        None,
     )
     .expect("Failed to create agent");
 

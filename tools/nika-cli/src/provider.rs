@@ -607,7 +607,7 @@ async fn run_provider_test(provider: &str) -> Result<String, String> {
         }
         _ => return Err(format!("Unknown provider: {provider}")),
     };
-    match prov.infer("Say 'OK' if you can hear me.", None).await {
+    match prov.infer("Say 'OK' if you can hear me.", None, None).await {
         Ok(response) => {
             let truncated: String = response.chars().take(80).collect();
             Ok(format!("Connection OK — {truncated}"))

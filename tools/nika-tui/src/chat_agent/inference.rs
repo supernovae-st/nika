@@ -78,7 +78,7 @@ impl ChatAgent {
             // Real-time streaming - tokens appear as they arrive
             let result = self
                 .provider
-                .infer_stream(prompt, tx, self.model_override.as_deref())
+                .infer_stream(prompt, tx, self.model_override.as_deref(), None)
                 .await
                 .map_err(|e| NikaError::ProviderApiError {
                     message: e.to_string(),
@@ -100,7 +100,7 @@ impl ChatAgent {
         } else {
             // Blocking call - full response at once
             self.provider
-                .infer(prompt, None)
+                .infer(prompt, None, None)
                 .await
                 .map_err(|e| NikaError::ProviderApiError {
                     message: e.to_string(),

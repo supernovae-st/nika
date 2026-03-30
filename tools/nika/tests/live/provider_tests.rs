@@ -43,7 +43,7 @@ async fn test_claude_simple_infer() {
     let start = Instant::now();
 
     let result = provider
-        .infer("What is 2+2? Answer with just the number.", None)
+        .infer("What is 2+2? Answer with just the number.", None, None)
         .await;
 
     let elapsed = start.elapsed();
@@ -78,6 +78,7 @@ async fn test_claude_streaming_response() {
         .infer(
             "List the first 5 prime numbers, one per line.",
             Some("claude-sonnet-4-20250514"),
+            None,
         )
         .await;
 
@@ -108,6 +109,7 @@ async fn test_claude_with_custom_model() {
         .infer(
             "Say 'hello' and nothing else.",
             Some("claude-sonnet-4-20250514"),
+            None,
         )
         .await;
 
@@ -132,7 +134,11 @@ async fn test_openai_simple_infer() {
     let start = Instant::now();
 
     let result = provider
-        .infer("What is the capital of France? Answer in one word.", None)
+        .infer(
+            "What is the capital of France? Answer in one word.",
+            None,
+            None,
+        )
         .await;
 
     let elapsed = start.elapsed();
@@ -157,7 +163,7 @@ async fn test_openai_gpt4o() {
     let provider = RigProvider::openai();
 
     let result = provider
-        .infer("What is 10 * 10? Just the number.", Some("gpt-4o"))
+        .infer("What is 10 * 10? Just the number.", Some("gpt-4o"), None)
         .await;
 
     assert!(result.is_ok());
@@ -179,7 +185,7 @@ async fn test_mistral_simple_infer() {
     let provider = RigProvider::mistral();
 
     let result = provider
-        .infer("What color is the sky? One word answer.", None)
+        .infer("What color is the sky? One word answer.", None, None)
         .await;
 
     assert!(result.is_ok(), "Mistral infer failed: {:?}", result.err());
@@ -203,7 +209,7 @@ async fn test_groq_simple_infer() {
     let start = Instant::now();
 
     let result = provider
-        .infer("Count from 1 to 5, comma separated.", None)
+        .infer("Count from 1 to 5, comma separated.", None, None)
         .await;
 
     let elapsed = start.elapsed();
@@ -232,7 +238,7 @@ async fn test_deepseek_simple_infer() {
     let provider = RigProvider::deepseek();
 
     let result = provider
-        .infer("What is 7 + 8? Just the number.", None)
+        .infer("What is 7 + 8? Just the number.", None, None)
         .await;
 
     assert!(result.is_ok(), "DeepSeek infer failed: {:?}", result.err());
@@ -257,7 +263,9 @@ async fn test_auto_provider_detection() {
     }
 
     let provider = provider.unwrap();
-    let result = provider.infer("Say 'auto' and nothing else.", None).await;
+    let result = provider
+        .infer("Say 'auto' and nothing else.", None, None)
+        .await;
 
     assert!(
         result.is_ok(),
@@ -285,7 +293,7 @@ async fn test_provider_fallback_chain() {
     println!("Available providers: {:?}", providers_available);
 
     let provider = RigProvider::auto().expect("Should have a provider");
-    let result = provider.infer("Test", None).await;
+    let result = provider.infer("Test", None, None).await;
     assert!(result.is_ok());
 }
 
@@ -308,8 +316,12 @@ async fn test_claude_concurrent_requests() {
         .map(|i| {
             let p = RigProvider::claude();
             tokio::spawn(async move {
-                p.infer(&format!("What is {} + {}? Just the number.", i, i), None)
-                    .await
+                p.infer(
+                    &format!("What is {} + {}? Just the number.", i, i),
+                    None,
+                    None,
+                )
+                .await
             })
         })
         .collect();
@@ -342,7 +354,7 @@ async fn test_claude_invalid_model_error() {
     let provider = RigProvider::claude();
 
     let result = provider
-        .infer("Test", Some("nonexistent-model-12345"))
+        .infer("Test", Some("nonexistent-model-12345"), None)
         .await;
 
     // Should fail with model not found
@@ -357,7 +369,7 @@ async fn test_invalid_api_key_error() {
     env::set_var("ANTHROPIC_API_KEY", "sk-invalid-key-12345");
 
     let provider = RigProvider::claude();
-    let result = provider.infer("Test", None).await;
+    let result = provider.infer("Test", None, None).await;
 
     // Restore original
     if let Some(key) = original {
@@ -386,6 +398,7 @@ async fn test_claude_response_format_json() {
         .infer(
             "Return a JSON object with keys 'name' and 'value'. Name should be 'test', value should be 42. Only output the JSON, no markdown.",
             None,
+        None,
         )
         .await;
 
@@ -412,7 +425,7 @@ async fn test_claude_multilingual() {
 
     // French prompt
     let result = provider
-        .infer("Dis 'bonjour' en français, un seul mot.", None)
+        .infer("Dis 'bonjour' en français, un seul mot.", None, None)
         .await;
 
     assert!(result.is_ok());

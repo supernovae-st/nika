@@ -91,8 +91,14 @@ fn create_test_agent() -> RigAgentLoop {
     let event_log = EventLog::new();
     let mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
 
-    RigAgentLoop::new("test_provider".to_string(), params, event_log, mcp_clients)
-        .expect("Should create RigAgentLoop")
+    RigAgentLoop::new(
+        "test_provider".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+    )
+    .expect("Should create RigAgentLoop")
 }
 
 // =============================================================================
@@ -280,8 +286,14 @@ async fn test_run_auto_explicit_claude_provider() {
     let event_log = EventLog::new();
     let mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
 
-    let mut agent = RigAgentLoop::new("test_explicit".to_string(), params, event_log, mcp_clients)
-        .expect("Should create agent");
+    let mut agent = RigAgentLoop::new(
+        "test_explicit".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+    )
+    .expect("Should create agent");
 
     let result = agent.run_auto().await;
 
@@ -322,8 +334,14 @@ async fn test_run_auto_explicit_openai_provider() {
     let event_log = EventLog::new();
     let mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
 
-    let mut agent = RigAgentLoop::new("test_explicit".to_string(), params, event_log, mcp_clients)
-        .expect("Should create agent");
+    let mut agent = RigAgentLoop::new(
+        "test_explicit".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+    )
+    .expect("Should create agent");
 
     let result = agent.run_auto().await;
 
@@ -361,8 +379,14 @@ async fn test_run_auto_invalid_provider_name() {
     let event_log = EventLog::new();
     let mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
 
-    let mut agent = RigAgentLoop::new("test_invalid".to_string(), params, event_log, mcp_clients)
-        .expect("Should create agent");
+    let mut agent = RigAgentLoop::new(
+        "test_invalid".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+    )
+    .expect("Should create agent");
 
     let result = agent.run_auto().await;
 
@@ -410,6 +434,7 @@ async fn test_run_auto_provider_aliases() {
         params_anthropic,
         event_log,
         mcp_clients,
+        None,
     )
     .expect("Should create agent");
 
@@ -430,8 +455,14 @@ async fn test_run_auto_provider_aliases() {
     };
     let event_log = EventLog::new();
     let mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
-    let mut agent = RigAgentLoop::new("test_alias".to_string(), params_gpt, event_log, mcp_clients)
-        .expect("Should create agent");
+    let mut agent = RigAgentLoop::new(
+        "test_alias".to_string(),
+        params_gpt,
+        event_log,
+        mcp_clients,
+        None,
+    )
+    .expect("Should create agent");
 
     let result = agent.run_auto().await;
     // Should attempt OpenAI, not fail with "unknown provider"
@@ -458,8 +489,14 @@ async fn test_run_auto_provider_case_insensitive() {
         };
         let event_log = EventLog::new();
         let mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
-        let mut agent = RigAgentLoop::new("test_case".to_string(), params, event_log, mcp_clients)
-            .expect("Should create agent");
+        let mut agent = RigAgentLoop::new(
+            "test_case".to_string(),
+            params,
+            event_log,
+            mcp_clients,
+            None,
+        )
+        .expect("Should create agent");
 
         let result = agent.run_auto().await;
         let err_msg = result.unwrap_err().to_string();

@@ -71,7 +71,13 @@ fn test_rig_agent_loop_creation_with_extended_thinking() {
     let event_log = EventLog::new();
     let mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
 
-    let result = RigAgentLoop::new("test_thinking".to_string(), params, event_log, mcp_clients);
+    let result = RigAgentLoop::new(
+        "test_thinking".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+    );
 
     assert!(
         result.is_ok(),
@@ -96,6 +102,7 @@ async fn test_rig_agent_loop_mock_completes_with_thinking_enabled() {
         params,
         event_log.clone(),
         mcp_clients,
+        None,
     )
     .unwrap();
 
@@ -128,6 +135,7 @@ async fn test_agent_turn_events_emitted_with_thinking_param() {
         params,
         event_log.clone(),
         mcp_clients,
+        None,
     )
     .unwrap();
 
@@ -326,6 +334,7 @@ Consider:
         params,
         event_log.clone(),
         mcp_clients,
+        None,
     )
     .unwrap();
 
@@ -357,6 +366,7 @@ async fn test_reasoning_capture_with_mcp_tools() {
         params,
         event_log.clone(),
         mcp_clients,
+        None,
     )
     .unwrap();
 

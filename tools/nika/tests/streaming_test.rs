@@ -183,7 +183,8 @@ async fn test_claude_streaming() {
     });
 
     // Run streaming inference
-    let result: Result<StreamResult, RigInferError> = provider.infer_stream(prompt, tx, None).await;
+    let result: Result<StreamResult, RigInferError> =
+        provider.infer_stream(prompt, tx, None, None).await;
     assert!(result.is_ok(), "infer_stream failed: {:?}", result.err());
 
     let stream_result = result.unwrap();
@@ -238,7 +239,8 @@ async fn test_openai_streaming() {
         tokens
     });
 
-    let result: Result<StreamResult, RigInferError> = provider.infer_stream(prompt, tx, None).await;
+    let result: Result<StreamResult, RigInferError> =
+        provider.infer_stream(prompt, tx, None, None).await;
     assert!(result.is_ok(), "infer_stream failed: {:?}", result.err());
 
     let stream_result = result.unwrap();
@@ -293,7 +295,7 @@ async fn run_streaming_test(
         (tokens, got_done, got_metrics)
     });
 
-    let result = provider.infer_stream(prompt, tx, None).await;
+    let result = provider.infer_stream(prompt, tx, None, None).await;
     if let Err(e) = &result {
         return Err(format!("{} infer_stream failed: {:?}", provider_name, e));
     }

@@ -280,12 +280,13 @@ impl SpawnAgentTool {
             ..Default::default()
         };
 
-        // Create child RigAgentLoop
+        // Create child RigAgentLoop (inherits parent policy — spawned agents are also sandboxed)
         let mut child_loop = super::RigAgentLoop::new(
             params.task_id.clone(),
             child_params,
             self.event_log.clone(),
             self.mcp_clients.clone(),
+            None, // TODO: propagate policy_enforcer from parent
         )
         .map_err(|e| SpawnAgentError::ExecutionFailed(e.to_string()))?;
 
