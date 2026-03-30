@@ -361,9 +361,9 @@ impl RigAgentLoop {
         // Capture TTFT from first streaming call (most meaningful for latency tracking)
         let first_ttft_ms = result.ttft_ms;
 
-        total_input_tokens += result.input_tokens;
-        total_output_tokens += result.output_tokens;
-        total_cached_input_tokens += result.cached_input_tokens;
+        total_input_tokens = total_input_tokens.saturating_add(result.input_tokens);
+        total_output_tokens = total_output_tokens.saturating_add(result.output_tokens);
+        total_cached_input_tokens = total_cached_input_tokens.saturating_add(result.cached_input_tokens);
 
         // Record turn in limit tracker
         let turn_cost = provider_kind
@@ -524,9 +524,9 @@ impl RigAgentLoop {
                 .stream_with_tools(model.clone(), &current_prompt, vec![], max_turns)
                 .await?;
 
-            total_input_tokens += result.input_tokens;
-            total_output_tokens += result.output_tokens;
-            total_cached_input_tokens += result.cached_input_tokens;
+            total_input_tokens = total_input_tokens.saturating_add(result.input_tokens);
+            total_output_tokens = total_output_tokens.saturating_add(result.output_tokens);
+            total_cached_input_tokens = total_cached_input_tokens.saturating_add(result.cached_input_tokens);
 
             // Record retry turn in limit tracker
             let retry_cost = provider_kind
@@ -653,9 +653,9 @@ impl RigAgentLoop {
                 .stream_with_tools(model.clone(), &current_prompt, vec![], max_turns)
                 .await?;
 
-            total_input_tokens += result.input_tokens;
-            total_output_tokens += result.output_tokens;
-            total_cached_input_tokens += result.cached_input_tokens;
+            total_input_tokens = total_input_tokens.saturating_add(result.input_tokens);
+            total_output_tokens = total_output_tokens.saturating_add(result.output_tokens);
+            total_cached_input_tokens = total_cached_input_tokens.saturating_add(result.cached_input_tokens);
 
             // Record guardrail retry turn in limit tracker
             let gr_cost = provider_kind

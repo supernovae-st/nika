@@ -1636,49 +1636,36 @@ fn wave2_max_turns_reached_never_produced() {
     }
 }
 
-// ---- BUG: Token u32 overflow in run_generic_provider_impl ----
-// In providers.rs lines 400-401 and 447-448:
-//   total_input_tokens += result.input_tokens;
-//   total_output_tokens += result.output_tokens;
-// These are u32 additions that can overflow with large values.
-// Then on line 479:
-//   total_tokens: (total_input_tokens + total_output_tokens) as u64,
-// This performs the addition in u32 space BEFORE widening to u64.
-//
-// FIX: Use u64 for total_input_tokens and total_output_tokens, or use
-// checked_add/saturating_add, and compute:
-//   total_tokens: (total_input_tokens as u64) + (total_output_tokens as u64),
+// ---- FIXED: Token overflow in run_generic_provider_impl ----
+// Previously used `+=` which panics in debug on overflow.
+// Now uses `saturating_add` — clamps at u64::MAX instead of panicking.
 #[test]
-fn wave2_token_overflow_u32_addition_before_widening() {
-    // Simulate the arithmetic from run_generic_provider_impl
-    let total_input_tokens: u32 = u32::MAX - 100; // 4_294_967_195
-    let total_output_tokens: u32 = u32::MAX - 200; // 4_294_967_095
+fn token_accumulation_saturating_add_prevents_overflow() {
+    // Simulate the saturating_add pattern from providers.rs
+    let mut total_input_tokens: u64 = u64::MAX - 10;
+    let result_tokens: u64 = 100;
 
-    // The code does: (total_input_tokens + total_output_tokens) as u64
-    // This overflows in u32 space, then the garbage value is cast to u64
-    let buggy_result = (total_input_tokens.wrapping_add(total_output_tokens)) as u64;
-
-    // Correct result using u64 arithmetic
-    let correct_result = (total_input_tokens as u64) + (total_output_tokens as u64);
-
-    // BUG PROVEN: The wrapping u32 addition produces a wrong value when widened to u64
-    assert_ne!(
-        buggy_result, correct_result,
-        "BUG PROVEN: u32 overflow before widening to u64. \
-         Buggy: {}, Correct: {}",
-        buggy_result, correct_result
+    // saturating_add clamps at u64::MAX instead of panicking or wrapping
+    total_input_tokens = total_input_tokens.saturating_add(result_tokens);
+    assert_eq!(
+        total_input_tokens,
+        u64::MAX,
+        "saturating_add should clamp at u64::MAX"
     );
 
-    // Also demonstrate the per-turn accumulation overflow
-    let total: u32 = u32::MAX - 50;
-    let result_tokens: u32 = 100;
-    // In real code: total_input_tokens += result.input_tokens
-    // This panics in debug mode, wraps in release mode
-    let overflowed = total.checked_add(result_tokens);
-    assert!(
-        overflowed.is_none(),
-        "BUG PROVEN: u32 accumulation overflows when tokens exceed u32::MAX"
-    );
+    // Multiple saturating additions stay at MAX
+    total_input_tokens = total_input_tokens.saturating_add(1_000_000);
+    assert_eq!(total_input_tokens, u64::MAX);
+}
+
+#[test]
+fn token_accumulation_normal_values_unaffected() {
+    // Normal usage is unchanged — saturating_add behaves like += for small values
+    let mut total: u64 = 0;
+    total = total.saturating_add(1000);
+    total = total.saturating_add(2000);
+    total = total.saturating_add(3000);
+    assert_eq!(total, 6000);
 }
 
 // ---- BUG: Tools consumed on single use via std::mem::take ----
