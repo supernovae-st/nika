@@ -8,22 +8,44 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Added
-- **ModelResolver** — centralized model routing via `ModelResolver` struct
+- **ModelResolver** — Centralized model routing via `ModelResolver` struct. Eliminates 9 hardcoded model fallback sites in infer, agent, and compressor. TUI wired to `default_model_for_provider`.
+- **`concurrency: 0` rejection** — Analyzer now rejects `concurrency: 0` with clear NIKA-010 error instead of silent deadlock.
+- **YAML anchor ADR** — Document YAML anchor limitation + improve NIKA-160 error message with actionable suggestion.
 
 ### Fixed
-- **Security** — wire output_scanner + fix empty provider chain panic
-- **Streaming** — log try_send failures at debug level (9 sites)
+- **Security: quote-aware backtick detection** — NIKA-053 now correctly handles backticks inside quoted strings, preventing false positives on legitimate shell commands.
+- **Security: output_scanner wired** — Output scanner active + fix empty provider chain panic.
+- **Agent: token overflow** — `saturating_add` for token accumulation prevents u64 overflow in cost tracking, display, and orchestrate.
+- **Agent: fallback chain index** — Pass actual chain index to ModelResolver for correct fallback substitution.
+- **Agent: LowConfidence debug log** — Add debug log for `LowConfidence(0.0)` in explicit completion mode to aid debugging.
+- **Structured output: max_tokens propagation** — `max_tokens` now correctly propagated through `InferCallback` for L3/L4 retries.
+- **Structured output: L0 safety-net** — Wire L0 safety-net context + retry delay + fix "unknown" model in structured output pipeline.
+- **Streaming** — Log `try_send` failures at debug level (9 sites).
+- **Output** — Harden JSON fence stripping for uppercase markers and Windows CRLF line endings.
+- **Transforms** — `default()` now treats empty strings as needing fallback.
+- **Examples** — Use `inputs:` instead of shell `${}` in example workflows, add `extract: article`.
+- **Test docstring** — Correct NIKA-061 → NIKA-060 in structured output test.
+- **Orchestrate** — Wire `wrap_as_orchestrator` + security fixes.
 
 ### Changed
-- **ProviderName migration complete** — 33 files migrated from `Option<String>` → `Option<ProviderName>`
-- **Secrets** — provider list shows source (env, daemon, or keychain)
-- **CI** — cargo-deny and machete hard fail (remove `|| true`)
-- **Deps** — remove 6 dead workspace dependencies
-- **Docker** — update Dockerfile VERSION 0.40.2 → 0.52.0
+- **ProviderName migration complete** — 33 files migrated from `Option<String>` → `Option<ProviderName>`.
+- **Structured output refactor** — Extract `InferCallback` factory method, L0a `response_format`, and L0b `tool_injection` into dedicated methods. Reduces `execute_infer` complexity.
+- **TUI** — 4 views (app, lifecycle, chat_overlay, chat) wired to `default_model_for_provider` from catalog.
+- **Secrets** — Provider list shows source (env, daemon, or keychain).
+- **CI** — cargo-deny and machete hard fail (remove `|| true`).
+- **Deps** — Remove 6 dead workspace dependencies.
+- **Docker** — Update Dockerfile VERSION 0.40.2 → 0.52.0.
+- **Style** — rustfmt pass on 7 files.
 
 ### Testing
-- 4 auto-start + secrets resolution tests (daemon)
-- 12 adversarial tests — data flow traps, structured stress, concurrency (e2e)
+- **E2E structured output** — Basic schema, array, chained structured output tests (mock provider).
+- **E2E fetch** — Invalid URL, data chain, SSRF block tests.
+- **E2E invoke** — Builtin `nika:log` + unknown tool error tests.
+- **E2E retry** — Retry machinery + NIKA-026 error propagation tests.
+- **E2E transforms** — Parametric transforms (join/split) + for_each with infer.
+- **Edge cases** — `default()` transform + JSON fence extraction edge cases.
+- **Daemon** — 4 auto-start + secrets resolution tests.
+- **Adversarial** — 12 adversarial tests: data flow traps, structured stress, concurrency.
 
 ---
 
