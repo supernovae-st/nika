@@ -271,7 +271,7 @@ mod tests {
 
     #[test]
     fn test_estimate_bindings_tokens() {
-        let bindings = vec![
+        let bindings = [
             ("data", json!("some text here")),
             ("config", json!({"key": "value"})),
         ];

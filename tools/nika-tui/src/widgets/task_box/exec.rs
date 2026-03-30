@@ -323,7 +323,10 @@ impl ExecBox {
         }
 
         // Footer: exit code, pid (if Some), cwd (if Some)
-        let exit_style = Style::default().fg(exit::code_color(self.exit_code.unwrap_or(0)));
+        let exit_style = Style::default().fg(match self.exit_code {
+            Some(code) => exit::code_color(code),
+            None => crate::tokens::compat::SLATE_500, // Unknown exit code — dim, not green
+        });
         let exit_display = self.exit_display();
 
         let mut footer_spans = vec![

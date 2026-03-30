@@ -492,8 +492,7 @@ mod tests {
             .await;
         assert!(
             result.is_err(),
-            "infer_stream_dyn should always fail but got: {:?}",
-            result.as_ref().ok()
+            "infer_stream_dyn should always fail but got Ok(_)"
         );
         match result {
             Err(NativeError::InvalidConfig(msg)) => {

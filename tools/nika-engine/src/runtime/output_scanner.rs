@@ -186,7 +186,7 @@ mod tests {
         let clean = sanitize_output(text);
         assert_eq!(clean, "HelloWorld!");
         assert!(
-            !clean.chars().any(|c| is_dangerous_unicode(c)),
+            !clean.chars().any(is_dangerous_unicode),
             "Sanitized text should have no dangerous chars"
         );
     }
