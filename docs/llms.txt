@@ -17,7 +17,7 @@ Schema: `nika/workflow@0.12` | Extension: `.nika.yaml`
 - **Vision/multimodal**: Send images to LLMs via CAS hashes (v0.34+)
 - **Agent guardrails**: length, schema, regex, LLM judge — with retry/escalate/fail actions
 - **31 pipe transforms**: String, array, numeric, type conversions — chainable in templates
-- **Record & compression**: Task output recording with LLM-based compression (v0.48+)
+- **Record & compression**: Task output recording with LLM-based compression (v0.51+)
 - **Context budget**: Token-level control over task binding sizes (v0.51+)
 - **OpenAI-compatible endpoints**: Connect to vLLM, Ollama, TGI, LiteLLM via base_url
 - **12-level learning course**: `nika init --course` with 44 progressive exercises

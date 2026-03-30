@@ -162,7 +162,7 @@ Templates: `{{with.alias}}`, `{{inputs.name}}`, `{{with.item}}`, `{{context.read
   provider: openai                   # Override (or array: [openai, claude])
   model: gpt-4o
   preset: think                      # From agents: block
-  record: true                       # Output recording (v0.48+)
+  record: true                       # Output recording (v0.51+)
   context_budget: 50000              # Token budget for bindings (v0.51+)
   routing:                           # Provider routing (v0.50+)
     fallback: [openai, claude]

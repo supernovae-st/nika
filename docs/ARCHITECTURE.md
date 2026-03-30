@@ -1,6 +1,6 @@
 # Nika Architecture
 
-Schema `nika/workflow@0.12` | v0.49.0 | 12 crates | 8,300+ tests
+Schema `nika/workflow@0.12` | v0.52.0 | 12 crates | 8,888+ tests
 
 ---
 
