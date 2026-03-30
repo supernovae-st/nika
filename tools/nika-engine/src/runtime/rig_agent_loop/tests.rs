@@ -155,6 +155,67 @@ fn test_determine_status_explicit_over_natural() {
     );
 }
 
+/// BUG-8: In explicit completion mode, when the agent ends a turn WITHOUT
+/// calling nika:complete, determine_status returns LowConfidence(0.0).
+/// This is CORRECT behavior — it forces the agent loop to retry, giving the
+/// agent another chance to call nika:complete. The 0.0 confidence is not a
+/// failure; it's a deliberate signal that the agent hasn't finished yet.
+#[test]
+fn test_explicit_mode_returns_low_confidence_without_nika_complete() {
+    use crate::ast::completion::{CompletionConfig, CompletionMode};
+
+    let params = AgentParams {
+        prompt: "Test".to_string(),
+        completion: Some(CompletionConfig {
+            mode: CompletionMode::Explicit,
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let event_log = EventLog::new();
+    let mcp_clients = FxHashMap::default();
+
+    let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+
+    // Agent output without COMPLETION_MARKER — simulate natural end-of-turn
+    let output_without_complete = "Here is my analysis of the data. The results look good.";
+    let status = agent.determine_status(output_without_complete);
+
+    // Must be LowConfidence(0.0), NOT NaturalCompletion
+    assert_eq!(status, RigAgentStatus::LowConfidence(0.0));
+    assert!(
+        status.requires_retry(),
+        "LowConfidence(0.0) must trigger retry so agent can call nika:complete"
+    );
+    assert!(
+        !status.is_completed(),
+        "Without nika:complete in explicit mode, the agent is NOT done"
+    );
+}
+
+/// Contrast: in natural/default mode, the same output should be NaturalCompletion
+#[test]
+fn test_natural_mode_returns_natural_completion_without_nika_complete() {
+    let params = AgentParams {
+        prompt: "Test".to_string(),
+        // No completion config → default mode (natural)
+        ..Default::default()
+    };
+    let event_log = EventLog::new();
+    let mcp_clients = FxHashMap::default();
+
+    let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+
+    let output_without_complete = "Here is my analysis of the data. The results look good.";
+    let status = agent.determine_status(output_without_complete);
+
+    assert_eq!(status, RigAgentStatus::NaturalCompletion);
+    assert!(
+        status.is_completed(),
+        "Natural mode: end-of-turn without nika:complete is a valid completion"
+    );
+}
+
 #[test]
 fn test_explicit_completion_status_canonical_str() {
     assert_eq!(
