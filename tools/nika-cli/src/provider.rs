@@ -110,14 +110,46 @@ pub async fn handle_provider_command(
         ProviderAction::List => {
             let mut configured = 0usize;
             let total = all_providers.len();
+
+            // Pre-check daemon availability once (avoid per-provider reconnect)
+            #[cfg(unix)]
+            let daemon_client = {
+                let sock = nika_daemon::daemon_socket_path();
+                if sock.exists() {
+                    Some(nika_daemon::DaemonClient::new(&sock))
+                } else {
+                    None
+                }
+            };
+            #[cfg(not(unix))]
+            let daemon_client: Option<()> = None;
+
             for provider in &all_providers {
                 let env_var = provider_to_env_var(provider).unwrap_or("UNKNOWN_API_KEY");
-                // Check env var FIRST to avoid unnecessary keychain access
-                // (keychain triggers macOS security prompts for unconfigured providers)
+                // Check env var FIRST to avoid unnecessary keychain/daemon access
                 let has_env = std::env::var(env_var)
                     .map(|v| !v.is_empty())
                     .unwrap_or(false);
-                if has_env || NikaKeyring::exists(provider) {
+                if has_env {
+                    configured += 1;
+                    continue;
+                }
+                // Try daemon IPC, fall back to direct keychain
+                #[cfg(unix)]
+                {
+                    if let Some(ref client) = daemon_client {
+                        if let Ok(exists) = client.has_secret(provider).await {
+                            if exists {
+                                configured += 1;
+                                continue;
+                            }
+                        }
+                        // Daemon returned false or errored — skip keychain
+                        // (daemon already proxies keychain, no point double-checking)
+                        continue;
+                    }
+                }
+                if NikaKeyring::exists(provider) {
                     configured += 1;
                 }
             }
@@ -137,31 +169,74 @@ pub async fn handle_provider_command(
             println!();
             for (i, provider) in all_providers.iter().enumerate() {
                 let env_var = provider_to_env_var(provider).unwrap_or("UNKNOWN_API_KEY");
-                // Check env var FIRST to minimize keychain access (avoids macOS popups)
+                // Check env var FIRST to minimize keychain/daemon access
                 let has_env = std::env::var(env_var)
                     .map(|v| !v.is_empty())
                     .unwrap_or(false);
-                // Only query keychain if env var is not set
-                let has_keychain = if has_env {
-                    false
+
+                // Determine source: env > daemon > keychain
+                let (has_daemon, has_keychain) = if has_env {
+                    (false, false)
                 } else {
-                    NikaKeyring::exists(provider)
+                    #[cfg(unix)]
+                    {
+                        if let Some(ref client) = daemon_client {
+                            if let Ok(exists) = client.has_secret(provider).await {
+                                if exists {
+                                    (true, false)
+                                } else {
+                                    (false, false)
+                                }
+                            } else {
+                                // Daemon errored — fall back to direct keychain
+                                (false, NikaKeyring::exists(provider))
+                            }
+                        } else {
+                            // No daemon available — direct keychain
+                            (false, NikaKeyring::exists(provider))
+                        }
+                    }
+                    #[cfg(not(unix))]
+                    {
+                        (false, NikaKeyring::exists(provider))
+                    }
                 };
+
                 let is_last = i == all_providers.len() - 1;
                 let connector = tree_connector(is_last).dimmed();
-                let (icon, source, masked) = match (has_env, has_keychain) {
-                    (true, _) => {
+                let (icon, source, masked) = match (has_env, has_daemon, has_keychain) {
+                    (true, _, _) => {
                         let m = std::env::var(env_var)
                             .ok()
                             .map(|k| mask_api_key(&k))
                             .unwrap_or_default();
                         (StatusIcon::Ok, "env", m)
                     }
-                    (false, true) => {
+                    (_, true, _) => {
+                        // Daemon-sourced: get masked key via daemon
+                        #[cfg(unix)]
+                        let m = {
+                            if let Some(ref client) = daemon_client {
+                                client
+                                    .get_secret(provider)
+                                    .await
+                                    .ok()
+                                    .flatten()
+                                    .map(|k| mask_api_key(&k))
+                                    .unwrap_or_default()
+                            } else {
+                                String::new()
+                            }
+                        };
+                        #[cfg(not(unix))]
+                        let m = String::new();
+                        (StatusIcon::Ok, "daemon", m)
+                    }
+                    (_, _, true) => {
                         let m = NikaKeyring::get_masked(provider).unwrap_or_default();
                         (StatusIcon::Ok, "keychain", m)
                     }
-                    (false, false) => (StatusIcon::Fail, "", String::new()),
+                    _ => (StatusIcon::Fail, "", String::new()),
                 };
                 if masked.is_empty() {
                     println!(
