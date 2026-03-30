@@ -9,6 +9,9 @@ repository.workspace = true
 rust-version.workspace = true
 publish = true
 
+[package.metadata.cargo-machete]
+ignored = ["rig-core"]  # imported as `rig`, machete can't detect renamed crates
+
 [features]
 default = ["media-core", "fetch-extract", "fetch-article", "fetch-feed", "media-chart", "media-phash", "media-pdf", "media-iqa", "media-qr", "media-compression"]
 # Only 2 features remain opt-in:
@@ -33,7 +36,7 @@ media-qr = ["nika-media/media-qr"]
 media-compression = ["nika-media/media-compression"]
 media-iqa = ["nika-media/media-iqa"]
 # Web extraction — forwarded to nika-media
-fetch-html = ["nika-media/fetch-html", "dep:scraper", "dep:psl"]
+fetch-html = ["nika-media/fetch-html", "dep:scraper"]
 fetch-markdown = ["nika-media/fetch-markdown", "dep:htmd"]
 fetch-article = ["nika-media/fetch-article", "dep:dom_smoothie", "dep:scraper"]
 fetch-feed = ["nika-media/fetch-feed", "dep:feed-rs"]
@@ -59,7 +62,6 @@ toml = { workspace = true }
 
 # YAML parsing
 serde-saphyr = { workspace = true }
-marked-yaml = { workspace = true }
 indexmap = { workspace = true }
 
 # JSONPath (RFC 9535)
@@ -118,8 +120,7 @@ globset = { workspace = true }
 # DAG
 petgraph = { workspace = true }
 
-# MCP
-rmcp = { workspace = true }
+# MCP (rmcp used via nika-mcp)
 
 # LLM Agent Framework
 rig-core = { workspace = true }
@@ -130,7 +131,6 @@ terminal_size = { workspace = true }
 
 # Media pipeline
 blake3 = { workspace = true }
-infer = { workspace = true }
 base64 = { workspace = true }
 
 # Image processing (used by native vision — provider/native/runtime.rs)
@@ -141,7 +141,6 @@ dom_smoothie = { workspace = true, optional = true }
 feed-rs = { workspace = true, optional = true }
 scraper = { workspace = true, optional = true }
 htmd = { workspace = true, optional = true }
-psl = { workspace = true, optional = true }
 
 # LSP Server (feature-gated)
 tower-lsp-server = { workspace = true, optional = true }
