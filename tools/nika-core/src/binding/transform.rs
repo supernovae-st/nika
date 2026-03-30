@@ -548,8 +548,10 @@ impl TransformOp {
                 _ => Err(type_mismatch("split", "string", value)),
             },
             TransformOp::Shell => {
-                // Shell escaping — all types get escaped, not just strings
+                // Shell escaping — all types get escaped, not just strings.
+                // Null input is an error (not the string 'null').
                 match value {
+                    Value::Null => Err(TransformError::NullInput { op: "shell" }),
                     Value::String(s) => Ok(Value::String(shell_escape(s))),
                     _ => Ok(Value::String(shell_escape(&value.to_string()))),
                 }
@@ -1317,6 +1319,12 @@ mod tests {
     fn apply_shell() {
         let result = TransformOp::Shell.apply(&json!("hello world")).unwrap();
         assert_eq!(result, json!("'hello world'"));
+    }
+
+    #[test]
+    fn apply_shell_null_errors() {
+        let err = TransformOp::Shell.apply(&Value::Null).unwrap_err();
+        assert!(matches!(err, TransformError::NullInput { op: "shell" }));
     }
 
     // ─────────────────────────────────────────────────────────────
