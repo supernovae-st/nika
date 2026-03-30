@@ -107,17 +107,8 @@ clap_complete = "4.6"
 # Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-tracing-error = "0.2"
-
-# Defensive types
-nutype = { version = "0.6", features = ["serde"] }
-static_assertions = "1.1"
-strum = { version = "0.27", features = ["derive"] }
-derive_more = { version = "2.0", features = ["display", "from", "error"] }
-
 # Interactive prompts
 cliclack = "0.5"
-console = "0.16"
 
 # File type detection
 infer = "0.19"
