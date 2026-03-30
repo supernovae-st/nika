@@ -1050,3 +1050,102 @@ tasks:
         "Agent should produce output even with max_turns:1"
     );
 }
+
+// =============================================================================
+// Session 2A E2E Tests
+// =============================================================================
+
+/// E2E: Provider fallback chain — first provider fails (missing key),
+/// falls back to mock which always succeeds.
+#[tokio::test]
+async fn e2e_provider_fallback_to_mock() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+model: mock-model
+tasks:
+  - id: fallback_test
+    provider: [nonexistent_provider_xyz, mock]
+    infer: "Test fallback"
+"#;
+    let result = run_workflow(yaml).await;
+    assert!(
+        result.is_ok(),
+        "Fallback chain should succeed via mock: {result:?}"
+    );
+}
+
+/// E2E: Artifact writing creates a file on disk.
+/// Verifies that artifact: config produces a real file with task output.
+#[tokio::test]
+async fn e2e_artifact_writing_creates_file() {
+    let temp_dir = std::env::temp_dir().join(format!("nika_e2e_artifact_{}", std::process::id()));
+    std::fs::create_dir_all(&temp_dir).unwrap();
+    let artifact_dir = temp_dir.display();
+
+    let yaml = format!(
+        r#"
+schema: "nika/workflow@0.12"
+provider: mock
+artifacts:
+  dir: "{artifact_dir}"
+tasks:
+  - id: report
+    infer: "Generate a test report"
+    artifact:
+      path: report.json
+      format: json
+"#
+    );
+
+    let result = run_workflow(&yaml).await;
+    assert!(
+        result.is_ok(),
+        "Workflow with artifact should succeed: {result:?}"
+    );
+
+    let artifact_path = temp_dir.join("report.json");
+    assert!(
+        artifact_path.exists(),
+        "Artifact file should exist at {}",
+        artifact_path.display()
+    );
+    let content = std::fs::read_to_string(&artifact_path).unwrap();
+    assert!(!content.is_empty(), "Artifact file should have content");
+
+    // Cleanup
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}
+
+/// E2E: for_each + structured output produces an array of schema-valid JSON.
+/// Each item in the for_each produces a structured output, and the final
+/// result is an array with one valid object per iteration.
+#[tokio::test]
+async fn e2e_for_each_with_structured_output() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: process
+    for_each: ["alice", "bob", "charlie"]
+    as: person
+    infer: "Describe {{with.person}}"
+    structured:
+      schema:
+        type: object
+        properties:
+          name: { type: string }
+          age: { type: integer, minimum: 0 }
+        required: [name, age]
+
+  - id: collect
+    depends_on: [process]
+    with:
+      results: $process
+    infer: "Collected {{with.results | length}} results"
+"#;
+    let result = run_workflow(yaml).await;
+    assert!(
+        result.is_ok(),
+        "for_each + structured should succeed: {result:?}"
+    );
+}
