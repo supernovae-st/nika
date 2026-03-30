@@ -671,7 +671,7 @@ Three views for the complete workflow lifecycle:
 
 ```
 +-----------------------------------------------------------------------------+
-| Nika Studio                                                  v0.48.0        |
+| Nika Studio                                                  v0.52.0        |
 |-----------------------------------------------------------------------------|
 | +- Files ----------+ +- Editor ------------------------------------------+ |
 | | > workflows/     | |  1 | schema: "nika/workflow@0.12"                 | |
@@ -969,7 +969,7 @@ cargo install --path tools/nika
 ### Verify
 
 ```bash
-nika --version       # nika 0.42.0
+nika --version       # nika 0.52.0
 nika doctor          # Full system health check
 ```
 
@@ -1250,9 +1250,9 @@ flowchart LR
 
 <div align="center">
 
-**Nika v0.48.0** | Schema `nika/workflow@0.12` | Rust 1.86+ | AGPL-3.0-or-later
+**Nika v0.52.0** | Schema `nika/workflow@0.12` | Rust 1.86+ | AGPL-3.0-or-later
 
-310k+ LOC across 10 crates | 8,100+ tests | 0 clippy warnings
+310k+ LOC across 12 crates | 8,888+ tests | 0 clippy warnings
 
 [SuperNovae Studio](https://supernovae.studio) | [QR Code AI](https://qrcode-ai.com) | [GitHub](https://github.com/supernovae-st/nika)
 

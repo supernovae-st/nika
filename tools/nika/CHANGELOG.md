@@ -7,9 +7,174 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+- **ModelResolver** — centralized model routing via `ModelResolver` struct
+
+### Fixed
+- **Security** — wire output_scanner + fix empty provider chain panic
+- **Streaming** — log try_send failures at debug level (9 sites)
+
+### Changed
+- **ProviderName migration complete** — 33 files migrated from `Option<String>` → `Option<ProviderName>`
+- **Secrets** — provider list shows source (env, daemon, or keychain)
+- **CI** — cargo-deny and machete hard fail (remove `|| true`)
+- **Deps** — remove 6 dead workspace dependencies
+- **Docker** — update Dockerfile VERSION 0.40.2 → 0.52.0
+
+### Testing
+- 4 auto-start + secrets resolution tests (daemon)
+- 12 adversarial tests — data flow traps, structured stress, concurrency (e2e)
+
 ---
 
-## [0.49.0](https://github.com/supernovae-st/nika/releases/tag/v0.49.0) - 2026-03-27
+## [0.52.0](https://github.com/supernovae-st/nika/releases/tag/v0.52.0) - 2026-03-30
+
+### Added
+- **Multi-Workflow Orchestration (P-ORCHESTRATE)** — `goal:` field, `orchestrate:` config block, 5 new EventKind variants, enhanced `nika:orchestrate` builtin with round tracking, `yaml_content` parameter for `nika:run`
+- **Comprehensive E2E Test Suite** — 55 agent swarm, 10 pipeline, 15 artifact, 30 adversarial, 7-provider structured output parity (120+ test workflows total)
+- **`for_each_index` binding** — access loop iteration index via `{{with.for_each_index}}`
+- **Artifact manifest generation** — `artifacts: { manifest: true }` writes `artifacts.json` index
+- **`nika switch` command** — dual channel management (dev/release)
+- **Daemon auto-start** — CLI auto-starts daemon on first command
+- **LLM injection output scanner** — detect prompt injection in task outputs
+
+### Changed
+- **ProviderName typed enum** — `provider:` field migrated from strings to compile-time validated enum with backward-compatible aliases (`claude` → `anthropic`, `gpt` → `openai`)
+- **Secrets architecture overhaul** — removed direct keyring access from CLI/engine (daemon-only), `$env.SECRET_VAR` now allowed (BUG-001 fix)
+- **Shell blocklist pre-resolution** — check raw YAML template, not resolved command
+- **12 stale workflows** updated to current syntax
+
+### Fixed
+- **Security** — IPv6 SSRF bypass, path blocklist bypass, symlink escape, multi-line shell validation
+- **Runtime** — UTF-8 multi-byte handling in `strip_think_tags`, HashMap panic, cancel token, exit_code
+- **JSON Schema sync** — 9 field additions to match parser
+- **Provider canonicalization** — all defaults now "anthropic"
+
+### Removed
+- **`include_loader.rs`** — 702 LOC of dead legacy include system code
+
+### Stats
+- 8,888+ tests pass, 12 workspace crates, 120+ E2E test workflows
+
+---
+
+## [0.51.0](https://github.com/supernovae-st/nika/releases/tag/v0.51.0) - 2026-03-29
+
+### Added
+- **Provider Fallback Chains** — `provider: [anthropic, openai, gemini]` for automatic failover with `ProviderFallback` and `FallbackTriggered` events, smart error classification (quota, auth, rate limit, timeout)
+- **Agent Presets** — 8 built-in templates (`think`, `lite`, `search`, `vision`, `judge`, `coder`, `summary`, `creative`); use `from: preset_name` shorthand; `nika agent --list` to see all
+- **Record Persistence (P-RECORD)** — `record:` field for append-only NDJSON output, `nika:records` introspection tool, compression strategy with sampling fallback
+- **Context Budgets (P-CONTEXT)** — `context_budget` token limits with proportional truncation and LLM-based semantic compression; `BudgetOk`/`BudgetExceeded` events
+- **Introspection Tools** — `nika:dag_info`, `nika:task_status`, `nika:threads`, `nika:orchestrate`, `nika:cost`
+- **Expanded Pricing Table** — 22 → 55 models across all providers
+- **27 property-based tests** (proptest) for core engine invariants
+- **TTFT Telemetry** — capture time-to-first-token for agent turns
+
+### Changed
+- **rig.rs refactored** — monolithic file split into 5 modules: `error.rs`, `stream.rs`, `tool.rs`, `tests.rs`, `mod.rs`
+- **Agent loop unified** — `run_claude`/`run_openai` merged into `run_agent_loop` (-777 LOC)
+- **Event type safety** — stringly-typed fields replaced with Rust enums (`ExtractMode`, `ResponseFormat`)
+- **AST type safety** — extract and response fields use enums instead of string patterns
+- **Per-provider temperature validation** enforced (OpenAI 0.0–2.0, Anthropic 0.0–1.0)
+- **57 workspace dependencies** unified
+
+### Fixed
+- **Runtime panics** — unwrap() removed in retry loop + mock provider; RAII `TaskEventGuard` pattern
+- **Cost calculation** — real cost on Layer 0a (was deferred); per-provider cache discount (OpenAI 50%, Anthropic 10%)
+- **Streaming timeouts** — 600s overall timeout (was unbounded)
+- **Vision token estimation** — image tokens now estimated (was hardcoded 0)
+- **`default()` transform** — now fires on null values
+- **Markdown extraction** — strip style/script/noscript tags
+- **MCP validator cache** — rebuilt after reconnect
+- **17 silent DAG failures** — now emit `TaskFailed` events
+- **Fallback routing** — improved reason classification + error accumulation
+
+### Security
+- DNS rebinding SSRF protection via pre-resolution
+- Streaming response size limits
+- Template injection context allowlist
+- CRLF header injection prevention
+- Sensitive env var redaction (AWS, API keys)
+- IPv6 link-local + ULA blocking
+- Skill file 10MB size limit
+- Exec blocklist expansion (`find -exec`, `find -delete`, `xargs`, Windows commands)
+- TOCTOU race elimination in write_unique
+- Symlink escape detection via canonicalize
+- JSON Schema fail-closed validation
+
+### Performance
+- Event data wrapped in Arc to eliminate TUI clones
+- Context budget enforcement without full re-tokenization
+
+### Stats
+- 200+ test assertions strengthened from bare `.is_ok()` to context-aware validation
+
+---
+
+## [0.50.0](https://github.com/supernovae-st/nika/releases/tag/v0.50.0) - 2026-03-28
+
+### Added
+- **Custom OpenAI-compatible endpoints** — `base_url` field on workflows and tasks for routing to local, on-prem, or custom LLM backends; NIKA-035 (endpoint not found), NIKA-036 (connection failed)
+- **LSP overhaul** — daemon bridge, smart completions (31 transforms + 24 builtin tools), rename refactoring, hover docs with workflow history, AST caching, validation parity
+- **VS Code extension** — status bar, output channel, 7 new snippets, auto-download LSP binary
+- **Extended thinking** — `extended_thinking: true` + `thinking_budget:` on infer tasks
+- **Retry on all verbs** — `retry:` with exponential backoff on `infer`, `exec`, `fetch`, `invoke`, `agent`; `TaskRetry` events in live + classic renderers
+- **Benchmarking** — `nika bench` for provider performance, latency, and cost with cache persistence
+- **`nika init` improvements** — `hello.nika.yaml` starter, `AGENTS.md`, `CLAUDE.md` symlink
+- **Zero-friction onboarding** — npm post-install daemon start, instant editor detection
+- **Preset field** — `preset:` for agent-based model routing
+- **`ArtifactFormat::Markdown`** variant + object form for `for_each`
+
+### Changed
+- **`imports:` → `include:`** — renamed for consistency (legacy removed)
+- **Template resolution** — now resolves in model, provider, base_url, vision content, exec env, fetch json body, agent system prompt, selector
+- **Parser validation** — reject provider/model/base_url inside `infer:` block
+- **Think tag stripping** — case-insensitive, works in vision + agent loops
+- **Pricing** — o3: $10/$40 → $2/$8; backoff clamped to prevent NaN
+- **CLI migration** — onboarding and provider commands moved to `nika-cli`
+
+### Fixed
+- **Memory leak** — `Box::leak` eliminated in OpenAiCompat provider
+- **Cost calculation** — custom endpoints at $0.00; cached_tokens capped at input_tokens
+- **Media binding** — positional matching in for_each, side-channel interception in success paths
+- **MCP** — cwd config wired to `Command.current_dir()`
+- **JSON Schema** — 9+ fields added to match runtime
+- **ANSI stripping** — fixed in `format_failed`
+- **Provider stats** — preserved across multi-turn agent events
+
+### Security
+- SHA256 verification for binary downloads
+- Newline injection blocking in shell exec
+- SVG sanitizer — `xlink:href` external URLs blocked
+- IPv4-mapped IPv6 link-local SSRF protection
+
+### Stats
+- 22 new e2e + stress tests, 14 LSP protocol tests
+- Deps: rig-core 0.33, scraper 0.26, rusqlite, notify, croner
+
+---
+
+## [0.49.2](https://github.com/supernovae-st/nika/releases/tag/v0.49.2) - 2026-03-27
+
+### Security
+- **Constant-time auth token comparison** via blake3 — prevents timing-based token enumeration
+- **API key visibility warning** — warn about key exposure in process list
+
+### Changed
+- **CLI format unification** — provider, model, daemon, and config layers now use `StatusIcon` + `separator()` for consistent output
+- **TUI cleanup** — removed unused `EdgeStyle::Smooth` variant, simplified DAG edge rendering
+
+### Testing
+- 7 unit tests for `parse_config_value` and `find_nika_dir`
+- Edge case tests for `format_uptime` (daemon)
+- Tests for `on_context_assembled` and `on_template_resolved` (TUI)
+
+### Documentation
+- Accuracy pass across all content suites — technical bible, architecture, user guide, cookbook, learning, marketing, media/press (80+ files)
+
+---
+
+## [0.49.1](https://github.com/supernovae-st/nika/releases/tag/v0.49.1) - 2026-03-27
 
 ### Added
 - **`nika setup`** — interactive onboarding wizard using `cliclack` for first-run API key setup
