@@ -341,7 +341,7 @@ pub async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Res
                     std::collections::HashSet::new();
 
                 // Workflow default provider
-                providers_used.insert(workflow.provider.clone());
+                providers_used.insert(workflow.provider.to_string());
 
                 // Per-task providers from analyzed AST
                 if let Ok(analyzed) = parse_analyzed(&content) {

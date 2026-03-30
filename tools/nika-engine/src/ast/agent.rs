@@ -18,6 +18,7 @@
 //!     max_turns: 10
 //! ```
 
+use nika_core::ProviderName;
 use serde::Deserialize;
 
 use crate::ast::completion::CompletionConfig;
@@ -95,7 +96,7 @@ pub struct AgentParams {
 
     /// LLM provider override (defaults to workflow provider)
     #[serde(default)]
-    pub provider: Option<String>,
+    pub provider: Option<ProviderName>,
 
     /// Model override (defaults to workflow model)
     #[serde(default)]
@@ -224,7 +225,7 @@ pub struct AgentParams {
     /// Provider fallback chain: try providers in order until one succeeds.
     /// Set from `provider: [groq, anthropic]` or `routing.fallback`.
     #[serde(default)]
-    pub provider_chain: Option<Vec<String>>,
+    pub provider_chain: Option<Vec<ProviderName>>,
 }
 
 impl AgentParams {
@@ -379,7 +380,7 @@ impl AgentParams {
         // Graceful degradation: extended_thinking with non-Claude provider
         if self.extended_thinking == Some(true) {
             if let Some(ref provider) = self.provider {
-                if provider != "claude" {
+                if *provider != ProviderName::Anthropic {
                     tracing::warn!(
                         provider = %provider,
                         "extended_thinking: true ignored — only supported by Claude provider"
@@ -454,7 +455,7 @@ model: claude-sonnet-4-6
 "#;
         let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
         assert_eq!(params.prompt, "Test prompt");
-        assert_eq!(params.provider, Some("claude".to_string()));
+        assert_eq!(params.provider, Some(ProviderName::Anthropic));
         assert_eq!(params.model, Some("claude-sonnet-4-6".to_string()));
     }
 
@@ -645,7 +646,7 @@ extended_thinking: false
         let params = AgentParams {
             prompt: "test".to_string(),
             extended_thinking: Some(true),
-            provider: Some("openai".to_string()),
+            provider: Some(ProviderName::OpenAI),
             ..Default::default()
         };
         assert!(
@@ -659,7 +660,7 @@ extended_thinking: false
         let params = AgentParams {
             prompt: "test".to_string(),
             extended_thinking: Some(true),
-            provider: Some("claude".to_string()),
+            provider: Some(ProviderName::Anthropic),
             ..Default::default()
         };
         let result = params.validate();

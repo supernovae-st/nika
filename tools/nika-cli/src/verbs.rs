@@ -569,7 +569,7 @@ pub async fn handle_agent(
     let agent = AgentParams {
         prompt: full_prompt,
         system,
-        provider: Some(provider_name.clone()),
+        provider: Some(nika_core::ProviderName::parse(&provider_name)),
         model: model_name.clone(),
         tools,
         mcp: mcp_servers,

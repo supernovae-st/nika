@@ -37,7 +37,7 @@ tasks:
 
     // Verify basic workflow fields
     assert_eq!(workflow.schema, "nika/workflow@0.12");
-    assert_eq!(workflow.provider, "claude");
+    assert_eq!(workflow.provider, nika_core::ProviderName::Anthropic);
     assert_eq!(workflow.tasks.len(), 1);
 
     // Verify mcp config exists
@@ -72,7 +72,7 @@ tasks:
 
     // Verify basic fields
     assert_eq!(workflow.schema, "nika/workflow@0.12");
-    assert_eq!(workflow.provider, "claude");
+    assert_eq!(workflow.provider, nika_core::ProviderName::Anthropic);
     assert_eq!(workflow.tasks.len(), 1);
 
     // mcp should be None for v0.1 workflows

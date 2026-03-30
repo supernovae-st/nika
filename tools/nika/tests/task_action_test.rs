@@ -99,7 +99,7 @@ infer:
     match action {
         TaskAction::Infer { infer } => {
             assert_eq!(infer.prompt, "Analyze this");
-            assert_eq!(infer.provider, Some("openai".to_string()));
+            assert_eq!(infer.provider, Some(nika_core::ProviderName::OpenAI));
             assert_eq!(infer.model, Some("gpt-4".to_string()));
         }
         other => panic!("Expected Infer variant, got {:?}", other),

@@ -1680,7 +1680,7 @@ async fn test_run_infer_mock_with_task_level_provider() {
 
     let infer = InferParams {
         prompt: "Test task-level provider override".to_string(),
-        provider: Some("mock".to_string()),
+        provider: Some(nika_core::ProviderName::Mock),
         ..Default::default()
     };
 
@@ -2440,7 +2440,7 @@ async fn test_agent_provider_fallback_to_mock() {
             guardrails: vec![],
             limits: None,
             base_url: None,
-            provider_chain: Some(vec!["nonexistent_fake".to_string(), "mock".to_string()]),
+            provider_chain: Some(vec![nika_core::ProviderName::Custom("nonexistent_fake".to_string()), nika_core::ProviderName::Mock]),
         },
     };
 
@@ -2504,8 +2504,8 @@ async fn test_agent_provider_chain_all_fail() {
             limits: None,
             base_url: None,
             provider_chain: Some(vec![
-                "fake_provider_1".to_string(),
-                "fake_provider_2".to_string(),
+                nika_core::ProviderName::Custom("fake_provider_1".to_string()),
+                nika_core::ProviderName::Custom("fake_provider_2".to_string()),
             ]),
         },
     };
@@ -2545,7 +2545,7 @@ async fn test_agent_single_provider_mock() {
         agent: AgentParams {
             prompt: "Say hello".to_string(),
             system: None,
-            provider: Some("mock".to_string()),
+            provider: Some(nika_core::ProviderName::Mock),
             model: None,
             mcp: vec![],
             tools: vec![],

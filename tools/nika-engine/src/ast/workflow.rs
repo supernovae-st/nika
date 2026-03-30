@@ -7,6 +7,7 @@
 //! - `ContextConfig`: File loading at workflow start
 //! - `IncludeSpec`: DAG fusion from external workflows
 
+use nika_core::ProviderName;
 use rustc_hash::FxHashMap;
 use std::sync::Arc;
 
@@ -42,7 +43,7 @@ pub type McpConfigInline = nika_mcp::McpConfigInline;
 pub struct Workflow {
     pub schema: String,
     pub name: Option<String>,
-    pub provider: String,
+    pub provider: ProviderName,
     pub model: Option<String>,
     /// MCP server configurations
     ///
@@ -100,7 +101,7 @@ impl Workflow {
 
         let mut hasher_input = String::new();
         hasher_input.push_str(&self.schema);
-        hasher_input.push_str(&self.provider);
+        hasher_input.push_str(self.provider.as_str());
         if let Some(ref model) = self.model {
             hasher_input.push_str(model);
         }
@@ -399,6 +400,7 @@ mod tests {
     use super::*;
     use crate::ast::parse_workflow;
     use crate::serde_yaml;
+    use nika_core::ProviderName;
 
     // ═══════════════════════════════════════════════════════════════════════════
     // WORKFLOW PARSING TESTS
@@ -416,7 +418,7 @@ tasks:
         let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
 
         assert_eq!(workflow.schema, "nika/workflow@0.12");
-        assert_eq!(workflow.provider, "anthropic"); // default
+        assert_eq!(workflow.provider, ProviderName::Anthropic); // default
         assert_eq!(workflow.tasks.len(), 1);
         assert_eq!(workflow.tasks[0].id, "hello");
         assert_eq!(workflow.model.as_deref(), Some("test-model"));
@@ -436,7 +438,7 @@ tasks:
 "#;
         let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
 
-        assert_eq!(workflow.provider, "openai");
+        assert_eq!(workflow.provider, ProviderName::OpenAI);
         assert_eq!(workflow.model, Some("gpt-4-turbo".to_string()));
     }
 
@@ -994,7 +996,7 @@ tasks:
     infer: "Test"
 "#;
         let workflow = parse_workflow(yaml).expect("Failed to parse");
-        assert_eq!(workflow.provider, "anthropic");
+        assert_eq!(workflow.provider, ProviderName::Anthropic);
     }
 
     #[test]

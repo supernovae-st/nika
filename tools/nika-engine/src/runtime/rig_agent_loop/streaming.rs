@@ -289,7 +289,7 @@ impl RigAgentLoop {
 
             // Inject stop_sequences via additional_params (provider-specific key)
             if let Some(stop_params) = Self::stop_sequences_params(
-                self.params.provider.as_deref().unwrap_or(""),
+                self.params.provider.as_ref().map(|p| p.as_str()).unwrap_or(""),
                 &self.params.stop_sequences,
             ) {
                 builder = builder.additional_params(stop_params);
@@ -441,7 +441,7 @@ impl RigAgentLoop {
 
         // Inject stop_sequences via additional_params (provider-specific key)
         if let Some(stop_params) = Self::stop_sequences_params(
-            self.params.provider.as_deref().unwrap_or(""),
+            self.params.provider.as_ref().map(|p| p.as_str()).unwrap_or(""),
             &self.params.stop_sequences,
         ) {
             builder = builder.additional_params(stop_params);

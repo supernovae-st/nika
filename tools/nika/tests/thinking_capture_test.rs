@@ -34,7 +34,7 @@ async fn test_extended_thinking_captures_tokens() {
         prompt: "What is 2+2? Think step by step before answering.".to_string(),
         extended_thinking: Some(true),
         thinking_budget: Some(1024), // Small budget for fast test
-        provider: Some("claude".to_string()),
+        provider: Some(nika_core::ProviderName::Anthropic),
         model: Some("claude-sonnet-4-6".to_string()),
         max_turns: Some(1),
         ..Default::default()
@@ -136,7 +136,7 @@ async fn test_standard_mode_captures_tokens() {
     let params = AgentParams {
         prompt: "Say hello in exactly one word.".to_string(),
         extended_thinking: Some(false), // Explicitly disabled
-        provider: Some("claude".to_string()),
+        provider: Some(nika_core::ProviderName::Anthropic),
         model: Some("claude-sonnet-4-6".to_string()),
         max_turns: Some(1),
         ..Default::default()
@@ -286,7 +286,7 @@ async fn test_openai_standard_mode_captures_tokens() {
     // Arrange
     let params = AgentParams {
         prompt: "Say hello in exactly one word.".to_string(),
-        provider: Some("openai".to_string()),
+        provider: Some(nika_core::ProviderName::OpenAI),
         model: Some("gpt-4o-mini".to_string()), // Use cheaper model for tests
         max_turns: Some(1),
         ..Default::default()

@@ -360,11 +360,7 @@ impl StandaloneState {
         // Summary
         result.push_str("│\n");
         result.push_str("├─ Summary ─────────────────────\n");
-        let provider_display = if workflow.provider.is_empty() {
-            "(default)"
-        } else {
-            &workflow.provider
-        };
+        let provider_display = workflow.provider.as_str();
         result.push_str(&format!("│ • Provider: {}\n", provider_display));
         result.push_str(&format!(
             "│ • Model: {}\n",

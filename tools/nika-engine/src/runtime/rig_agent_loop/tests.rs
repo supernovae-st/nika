@@ -933,7 +933,7 @@ fn test_agent_loop_with_extended_thinking_creates_successfully() {
     let params = AgentParams {
         prompt: "Analyze this problem step by step".to_string(),
         extended_thinking: Some(true),
-        provider: Some("claude".to_string()),
+        provider: Some(nika_core::ProviderName::Anthropic),
         ..Default::default()
     };
     let event_log = EventLog::new();
@@ -994,7 +994,7 @@ fn test_agent_loop_with_system_prompt_and_thinking() {
         prompt: "What is 2+2?".to_string(),
         system: Some("You are a math tutor. Think step by step.".to_string()),
         extended_thinking: Some(true),
-        provider: Some("claude".to_string()),
+        provider: Some(nika_core::ProviderName::Anthropic),
         ..Default::default()
     };
     let event_log = EventLog::new();

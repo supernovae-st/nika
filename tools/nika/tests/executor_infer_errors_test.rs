@@ -298,7 +298,9 @@ async fn test_infer_unknown_provider() {
     let action = TaskAction::Infer {
         infer: InferParams {
             prompt: "Test prompt".to_string(),
-            provider: Some("unknown_provider".to_string()),
+            provider: Some(nika_core::ProviderName::Custom(
+                "unknown_provider".to_string(),
+            )),
             ..Default::default()
         },
     };

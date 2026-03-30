@@ -476,7 +476,7 @@ mod tests {
         let workflow = crate::ast::Workflow {
             schema: "nika/workflow@0.12".to_string(),
             name: None,
-            provider: "claude".to_string(),
+            provider: nika_core::ProviderName::Anthropic,
             model: None,
             mcp: None,
             context: None,
@@ -515,7 +515,7 @@ mod tests {
         let workflow = crate::ast::Workflow {
             schema: "nika/workflow@0.12".to_string(),
             name: None,
-            provider: "claude".to_string(),
+            provider: nika_core::ProviderName::Anthropic,
             model: None,
             mcp: None,
             context: None,
@@ -568,7 +568,7 @@ temperature: 0.5
         let workflow = crate::ast::Workflow {
             schema: "nika/workflow@0.12".to_string(),
             name: None,
-            provider: "claude".to_string(),
+            provider: nika_core::ProviderName::Anthropic,
             model: None,
             mcp: None,
             context: None,
@@ -611,7 +611,7 @@ temperature: 0.5
         let workflow = crate::ast::Workflow {
             schema: "nika/workflow@0.12".to_string(),
             name: None,
-            provider: "claude".to_string(),
+            provider: nika_core::ProviderName::Anthropic,
             model: None,
             mcp: None,
             context: None,
@@ -654,7 +654,7 @@ You are an expert SEO content writer.
         let workflow = crate::ast::Workflow {
             schema: "nika/workflow@0.12".to_string(),
             name: None,
-            provider: "claude".to_string(),
+            provider: nika_core::ProviderName::Anthropic,
             model: None,
             mcp: None,
             context: None,
@@ -685,7 +685,7 @@ You are an expert SEO content writer.
         let workflow = crate::ast::Workflow {
             schema: "nika/workflow@0.12".to_string(),
             name: None,
-            provider: "claude".to_string(),
+            provider: nika_core::ProviderName::Anthropic,
             model: None,
             mcp: None,
             context: None,
@@ -751,7 +751,7 @@ system: "You are a researcher."
         let workflow = crate::ast::Workflow {
             schema: "nika/workflow@0.12".to_string(),
             name: None,
-            provider: "claude".to_string(),
+            provider: nika_core::ProviderName::Anthropic,
             model: None,
             mcp: None,
             context: None,
@@ -812,7 +812,7 @@ system: "You are an agent with defaults."
         let workflow = crate::ast::Workflow {
             schema: "nika/workflow@0.12".to_string(),
             name: None,
-            provider: "claude".to_string(),
+            provider: nika_core::ProviderName::Anthropic,
             model: None,
             mcp: None,
             context: None,
