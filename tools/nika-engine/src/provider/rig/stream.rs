@@ -232,8 +232,7 @@ where
                             })
                             .and_then(|v| v.as_str());
                         if let Some(r) = reason {
-                            result.finish_reason =
-                                Some(nika_event::FinishReason::from(r));
+                            result.finish_reason = Some(nika_event::FinishReason::from(r));
                         }
                     }
                 }

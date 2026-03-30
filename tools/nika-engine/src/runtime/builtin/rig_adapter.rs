@@ -170,12 +170,13 @@ impl ToolDyn for NikaBuiltinToolAdapter {
                             + 1;
                         match &result {
                             Ok(ref result_str) => {
-                                let task_count = serde_json::from_str::<serde_json::Value>(
-                                    result_str,
-                                )
-                                .ok()
-                                .and_then(|v| v["output"]["result"].as_str().map(|s| s.len()))
-                                .unwrap_or(0);
+                                let task_count =
+                                    serde_json::from_str::<serde_json::Value>(result_str)
+                                        .ok()
+                                        .and_then(|v| {
+                                            v["output"]["result"].as_str().map(|s| s.len())
+                                        })
+                                        .unwrap_or(0);
                                 event_log.emit(EventKind::OrchestratorSubWorkflow {
                                     round,
                                     yaml_hash: format!("round-{}", round),
@@ -195,9 +196,7 @@ impl ToolDyn for NikaBuiltinToolAdapter {
                         let round = event_log
                             .events()
                             .iter()
-                            .filter(|e| {
-                                matches!(&e.kind, EventKind::OrchestratorRound { .. })
-                            })
+                            .filter(|e| matches!(&e.kind, EventKind::OrchestratorRound { .. }))
                             .count() as u32
                             + 1;
                         let cost_usd: f64 = event_log

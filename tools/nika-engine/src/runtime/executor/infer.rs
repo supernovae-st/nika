@@ -721,7 +721,10 @@ impl TaskExecutor {
             output_tokens: stream_result.output_tokens,
             cache_read_tokens: stream_result.cached_input_tokens,
             ttft_ms: stream_result.ttft_ms,
-            finish_reason: stream_result.finish_reason.clone().unwrap_or(nika_event::FinishReason::Stop),
+            finish_reason: stream_result
+                .finish_reason
+                .clone()
+                .unwrap_or(nika_event::FinishReason::Stop),
             cost_usd: if cost.is_finite() { cost } else { 0.0 },
         });
 
@@ -876,7 +879,10 @@ impl TaskExecutor {
                                 output_tokens: stream_result.output_tokens,
                                 cache_read_tokens: stream_result.cached_input_tokens,
                                 ttft_ms: stream_result.ttft_ms,
-                                finish_reason: stream_result.finish_reason.clone().unwrap_or(nika_event::FinishReason::Stop),
+                                finish_reason: stream_result
+                                    .finish_reason
+                                    .clone()
+                                    .unwrap_or(nika_event::FinishReason::Stop),
                                 cost_usd: if cost.is_finite() { cost } else { 0.0 },
                             });
                             self.policy_enforcer.write().adjust_reservation(
@@ -935,7 +941,10 @@ impl TaskExecutor {
                         output_tokens: stream_result.output_tokens,
                         cache_read_tokens: stream_result.cached_input_tokens,
                         ttft_ms: stream_result.ttft_ms,
-                        finish_reason: stream_result.finish_reason.clone().unwrap_or(nika_event::FinishReason::Stop),
+                        finish_reason: stream_result
+                            .finish_reason
+                            .clone()
+                            .unwrap_or(nika_event::FinishReason::Stop),
                         cost_usd: if cost.is_finite() { cost } else { 0.0 },
                     });
                     return Ok((true, Some(stream_result.text)));
