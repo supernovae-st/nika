@@ -258,6 +258,32 @@ Includes: base64 size accuracy, f64 infinity acceptable, compile-only tests, beh
 
 ---
 
+## DEAD CODE (from dead-code agent — 13 findings, ~400 lines reclaimable)
+
+### DELETE: `tools/submit_tool.rs` (305 lines) — dead module
+**File**: `nika-engine/src/tools/submit_tool.rs`
+Entirely superseded by `runtime/submit_tool.rs` which implements `rig::tool::ToolDyn`.
+Also remove from `tools/mod.rs:59` (`mod submit_tool`) and line 68 (`pub use`).
+
+### DELETE: 10 unused pub functions
+| Function | File:Line |
+|----------|-----------|
+| `with_verbose()` | `runtime/boot.rs:320` |
+| `is_partial()` | `rig_agent_loop/types.rs:113` |
+| `user_home_result()` | `core/paths.rs:143` |
+| `get_failed_dependency()` | `store/run_context.rs:348` |
+| `add_string()` | `nika-core/source/registry.rs:196` |
+| `attach_trace_writer()` | `nika-event/log.rs:1143` |
+| `events_since()` | `nika-event/log.rs:1256` |
+| `create_rig_file_tools()` | `tools/rig_adapter.rs:138` |
+| `RigFileTool` struct | `tools/rig_adapter.rs` |
+| `run_expect_fail()` | `tests_e2e_workflow.rs:28` |
+
+### REFACTOR: gate `inject_mock_mcp_client()` behind `#[cfg(test)]`
+**File**: `executor/mod.rs:307`
+
+---
+
 ## SESSION HANDOFF PROMPTS
 
 ### Session 3A/4A Combined: Bug Fixes + Performance (recommended)
