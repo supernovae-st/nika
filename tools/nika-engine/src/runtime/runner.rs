@@ -956,11 +956,11 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             event_log.emit(budget_event);
         }
 
-        // EMIT: TaskStarted
+        // EMIT: TaskStarted (with redacted env-sourced secrets)
         event_log.emit(EventKind::TaskStarted {
             task_id: Arc::clone(&task_id),
             verb: Arc::from(task.action.verb_name()),
-            inputs: Arc::new(bindings.to_value()),
+            inputs: Arc::new(bindings.to_value_redacted()),
         });
 
         // Bridge AnalyzedTask to lowered types at executor boundary
