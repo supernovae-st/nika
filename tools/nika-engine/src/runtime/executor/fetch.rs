@@ -336,6 +336,14 @@ impl TaskExecutor {
         let req_has_body = fetch.body.is_some() || fetch.json.is_some();
 
         for attempt in 1..=effective_max_attempts {
+            // Check for workflow cancellation before each attempt
+            if self.cancel_token.is_cancelled() {
+                return Err(NikaError::TaskCancelled {
+                    task_id: task_id.to_string(),
+                    reason: "workflow cancelled during fetch".to_string(),
+                });
+            }
+
             // Check overall deadline before each attempt
             if Instant::now() >= overall_deadline {
                 return Err(ExecutionError::FetchFailed {
@@ -372,7 +380,17 @@ impl TaskExecutor {
                 has_body: req_has_body,
             });
 
-            match req.send().await {
+            let send_result = tokio::select! {
+                biased;
+                _ = self.cancel_token.cancelled() => {
+                    return Err(NikaError::TaskCancelled {
+                        task_id: task_id.to_string(),
+                        reason: "workflow cancelled during fetch".to_string(),
+                    });
+                }
+                result = req.send() => result,
+            };
+            match send_result {
                 Ok(response) => {
                     // SECURITY: Post-redirect SSRF check.
                     // The redirect policy only does string-level IP checks. A redirect

@@ -163,20 +163,31 @@ impl TaskExecutor {
             let child = cmd.spawn().map_err(|e| NikaError::ExecError {
                 reason: format!("Failed to spawn command: {}", e),
             })?;
-            match tokio::time::timeout(exec_deadline, child.wait_with_output()).await {
-                Ok(Ok(out)) => out,
-                Ok(Err(e)) => {
-                    return Err(ExecutionError::ExecFailed {
-                        reason: format!("Failed to execute command: {}", e),
-                    }
-                    .into());
-                }
-                Err(_) => {
+            let exec_fut = tokio::time::timeout(exec_deadline, child.wait_with_output());
+            tokio::select! {
+                biased;
+                _ = self.cancel_token.cancelled() => {
                     // child is dropped here -> kill_on_drop sends SIGKILL
-                    return Err(ExecutionError::ExecFailed {
-                        reason: format!("Command timed out after {}s", exec_deadline.as_secs()),
+                    return Err(NikaError::TaskCancelled {
+                        task_id: task_id.to_string(),
+                        reason: "workflow cancelled during exec".to_string(),
+                    });
+                }
+                result = exec_fut => match result {
+                    Ok(Ok(out)) => out,
+                    Ok(Err(e)) => {
+                        return Err(ExecutionError::ExecFailed {
+                            reason: format!("Failed to execute command: {}", e),
+                        }
+                        .into());
                     }
-                    .into());
+                    Err(_) => {
+                        // child is dropped here -> kill_on_drop sends SIGKILL
+                        return Err(ExecutionError::ExecFailed {
+                            reason: format!("Command timed out after {}s", exec_deadline.as_secs()),
+                        }
+                        .into());
+                    }
                 }
             }
         } else {
@@ -250,20 +261,31 @@ impl TaskExecutor {
             let child = cmd.spawn().map_err(|e| NikaError::ExecError {
                 reason: format!("Failed to spawn command: {}", e),
             })?;
-            match tokio::time::timeout(exec_deadline, child.wait_with_output()).await {
-                Ok(Ok(out)) => out,
-                Ok(Err(e)) => {
-                    return Err(ExecutionError::ExecFailed {
-                        reason: format!("Failed to execute command: {}", e),
-                    }
-                    .into());
-                }
-                Err(_) => {
+            let exec_fut = tokio::time::timeout(exec_deadline, child.wait_with_output());
+            tokio::select! {
+                biased;
+                _ = self.cancel_token.cancelled() => {
                     // child is dropped here -> kill_on_drop sends SIGKILL
-                    return Err(ExecutionError::ExecFailed {
-                        reason: format!("Command timed out after {}s", exec_deadline.as_secs()),
+                    return Err(NikaError::TaskCancelled {
+                        task_id: task_id.to_string(),
+                        reason: "workflow cancelled during exec".to_string(),
+                    });
+                }
+                result = exec_fut => match result {
+                    Ok(Ok(out)) => out,
+                    Ok(Err(e)) => {
+                        return Err(ExecutionError::ExecFailed {
+                            reason: format!("Failed to execute command: {}", e),
+                        }
+                        .into());
                     }
-                    .into());
+                    Err(_) => {
+                        // child is dropped here -> kill_on_drop sends SIGKILL
+                        return Err(ExecutionError::ExecFailed {
+                            reason: format!("Command timed out after {}s", exec_deadline.as_secs()),
+                        }
+                        .into());
+                    }
                 }
             }
         };
