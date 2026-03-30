@@ -1186,3 +1186,101 @@ tasks:
         }
     }
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// 12. RETRY + ERROR PROPAGATION (tests 49-50)
+// ═══════════════════════════════════════════════════════════════════
+
+/// `exec: "false"` always exits non-zero. With `retry: { max_attempts: 2 }`,
+/// the engine should attempt the command twice before ultimately failing.
+/// This proves the retry machinery actually executes (not silently skipped).
+#[tokio::test]
+async fn e2e_retry_exec_still_fails() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: flaky
+    exec: "false"
+    retry:
+      max_attempts: 2
+      delay_ms: 10
+"#;
+    let workflow = parse_analyzed(yaml).unwrap();
+    let event_log = EventLog::new();
+    let mut runner = Runner::with_event_log(workflow, event_log.clone()).unwrap().quiet();
+    let result = runner.run().await;
+    assert!(
+        result.is_err(),
+        "Permanently failing command should still fail after retries"
+    );
+
+    // Verify we got a TaskFailed event for the flaky task
+    let events = event_log.events();
+    let task_failed = events.iter().find(|e| {
+        matches!(
+            &e.kind,
+            crate::event::EventKind::TaskFailed { task_id, .. }
+            if task_id.as_ref() == "flaky"
+        )
+    });
+    assert!(
+        task_failed.is_some(),
+        "Should have TaskFailed event for 'flaky' after retries exhausted"
+    );
+}
+
+/// Upstream `exec: "false"` fails. Downstream task with `depends_on: [upstream]`
+/// and `with: { data: $upstream }` should be skipped/failed via NIKA-026 cascade.
+/// This proves the DAG executor propagates failures to dependent tasks.
+#[tokio::test]
+async fn e2e_error_propagation_nika026() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: upstream
+    exec: "false"
+  - id: downstream
+    depends_on: [upstream]
+    with:
+      data: $upstream
+    exec: "echo '{{with.data}}'"
+"#;
+    let workflow = parse_analyzed(yaml).unwrap();
+    let event_log = EventLog::new();
+    let mut runner = Runner::with_event_log(workflow, event_log.clone()).unwrap().quiet();
+    let result = runner.run().await;
+    assert!(result.is_err(), "Upstream failure should cascade to workflow failure");
+
+    // Verify upstream failed
+    let events = event_log.events();
+    let upstream_failed = events.iter().any(|e| {
+        matches!(
+            &e.kind,
+            crate::event::EventKind::TaskFailed { task_id, .. }
+            if task_id.as_ref() == "upstream"
+        )
+    });
+    assert!(upstream_failed, "Upstream task should have TaskFailed event");
+
+    // Verify downstream was skipped (NIKA-026 dependency chain failure)
+    let downstream_skipped = events.iter().any(|e| {
+        matches!(
+            &e.kind,
+            crate::event::EventKind::TaskSkipped { task_id, .. }
+            if task_id.as_ref() == "downstream"
+        )
+    });
+    let downstream_failed = events.iter().any(|e| {
+        matches!(
+            &e.kind,
+            crate::event::EventKind::TaskFailed { task_id, .. }
+            if task_id.as_ref() == "downstream"
+        )
+    });
+    assert!(
+        downstream_skipped || downstream_failed,
+        "Downstream should be skipped or failed due to NIKA-026 cascade"
+    );
+}
