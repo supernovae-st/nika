@@ -113,13 +113,16 @@ impl TaskExecutor {
         }
 
         // POLICY CHECK: fetch verb
-        // Two-phase: (1) string-level check with lock held, (2) async DNS check after drop
+        // Two-phase: (1) string-level check with lock held, (2) async DNS check + pinning
+        // The pinned addresses prevent TOCTOU DNS rebinding — reqwest uses these IPs
+        // instead of re-resolving, so the validated IPs are the same ones used for connection.
+        let mut pinned_host: Option<String> = None;
+        let mut pinned_addrs: Vec<std::net::SocketAddr> = Vec::new();
         let policy_decision = {
             let string_decision = self.policy_enforcer.read().check_fetch(&url);
             if !string_decision.is_allowed() {
                 string_decision
             } else {
-                // DNS rebinding check + pinning (async — lock must be dropped first)
                 use crate::runtime::policy::resolve_and_pin_ssrf;
                 if let Ok(parsed) = url::Url::parse(&url) {
                     if let Some(host) = parsed.host_str() {
@@ -127,7 +130,13 @@ impl TaskExecutor {
                         let h = h.trim_start_matches('[').trim_end_matches(']');
                         match resolve_and_pin_ssrf(h).await {
                             Err(reason) => PolicyDecision::Block(reason),
-                            Ok(_) => PolicyDecision::Allow,
+                            Ok(addrs) => {
+                                if !addrs.is_empty() {
+                                    pinned_host = Some(host.to_string());
+                                    pinned_addrs = addrs;
+                                }
+                                PolicyDecision::Allow
+                            }
                         }
                     } else {
                         PolicyDecision::Allow
@@ -161,29 +170,41 @@ impl TaskExecutor {
             result: redact_for_event(&url),
         });
 
-        // Select HTTP client based on follow_redirects setting
-        // Default behavior (None or Some(true)) uses the shared client with redirects enabled
-        // When follow_redirects = false, create a one-off client without redirect following
-        let http_client: std::borrow::Cow<'_, reqwest::Client> =
+        // Select HTTP client based on follow_redirects + DNS pinning
+        // When we have pinned DNS addresses, build a one-off client with .resolve()
+        // to prevent TOCTOU rebinding. Otherwise use the shared client.
+        let needs_custom_client =
+            fetch.follow_redirects == Some(false) || !pinned_addrs.is_empty();
+        let http_client: std::borrow::Cow<'_, reqwest::Client> = if needs_custom_client {
+            let mut builder = reqwest::Client::builder()
+                .timeout(crate::util::FETCH_TIMEOUT)
+                .connect_timeout(crate::util::CONNECT_TIMEOUT)
+                .user_agent(format!("nika/{}", env!("CARGO_PKG_VERSION")));
             if fetch.follow_redirects == Some(false) {
                 tracing::debug!(
                     task_id = %task_id,
                     "fetch: using no-redirect client (follow_redirects=false)"
                 );
-                std::borrow::Cow::Owned(
-                    reqwest::Client::builder()
-                        .timeout(crate::util::FETCH_TIMEOUT)
-                        .connect_timeout(crate::util::CONNECT_TIMEOUT)
-                        .redirect(reqwest::redirect::Policy::none())
-                        .user_agent(format!("nika/{}", env!("CARGO_PKG_VERSION")))
-                        .build()
-                        .map_err(|e| NikaError::FetchError {
-                            reason: format!("HTTP client build failed: {e}"),
-                        })?,
-                )
-            } else {
-                std::borrow::Cow::Borrowed(&self.http_client)
-            };
+                builder = builder.redirect(reqwest::redirect::Policy::none());
+            }
+            // DNS pinning: force reqwest to use our pre-validated IPs
+            if let Some(ref host) = pinned_host {
+                for addr in &pinned_addrs {
+                    builder = builder.resolve(host, *addr);
+                }
+                tracing::debug!(
+                    task_id = %task_id,
+                    host = %host,
+                    addrs = %pinned_addrs.len(),
+                    "fetch: DNS pinned to pre-validated addresses"
+                );
+            }
+            std::borrow::Cow::Owned(builder.build().map_err(|e| NikaError::FetchError {
+                reason: format!("HTTP client build failed: {e}"),
+            })?)
+        } else {
+            std::borrow::Cow::Borrowed(&self.http_client)
+        };
 
         // Build request based on HTTP method
         let mut request = if fetch.method.eq_ignore_ascii_case("POST") {
