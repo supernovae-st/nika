@@ -2687,10 +2687,25 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 .iter()
                 .filter(|e| matches!(&e.kind, EventKind::OrchestratorRound { .. }))
                 .count() as u32;
+            // Extract confidence from the orchestrator's output (nika:complete response)
+            let confidence = self
+                .datastore
+                .get(crate::runtime::orchestrate::ORCHESTRATOR_TASK_ID)
+                .and_then(|result| {
+                    // The output is either a JSON string containing the complete response
+                    // or the raw text. Try to parse confidence from it.
+                    match result.output.as_ref() {
+                        Value::String(s) => serde_json::from_str::<serde_json::Value>(s)
+                            .ok()
+                            .and_then(|v| v["confidence"].as_f64()),
+                        v => v.get("confidence").and_then(|c| c.as_f64()),
+                    }
+                })
+                .unwrap_or(1.0);
             self.event_log.emit(EventKind::OrchestratorCompleted {
                 rounds,
                 total_cost_usd: total_cost,
-                confidence: 1.0, // Default — will be wired from nika:complete response
+                confidence,
             });
         }
 
