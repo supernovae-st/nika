@@ -1,0 +1,39 @@
+schema: "nika/workflow@0.12"
+workflow: orchestrate-openai
+description: "Goal-driven orchestration with OpenAI"
+
+provider: openai
+model: gpt-4o-mini
+
+goal: "Produire une analyse SWOT de Nika (workflow engine IA)"
+
+orchestrate:
+  max_rounds: 2
+  confidence_target: 0.75
+
+tasks:
+  - id: strengths_weaknesses
+    description: "Forces et faiblesses"
+    infer:
+      prompt: |
+        Analyse SWOT de Nika, un workflow engine YAML pour l'IA:
+        - 5 verbes (infer, exec, fetch, invoke, agent)
+        - 7 providers LLM (Anthropic, OpenAI, Mistral, Groq, DeepSeek, Gemini, xAI)
+        - Structured output avec 5 couches de defense
+        - 30+ builtin tools (media, file, introspection)
+        - En Rust, open source AGPL
+        - Solo founder, pas encore lance
+
+        Donne 3 forces et 3 faiblesses. Sois concis.
+      max_tokens: 400
+
+  - id: opportunities_threats
+    description: "Opportunites et menaces"
+    depends_on: [strengths_weaknesses]
+    with:
+      sw: $strengths_weaknesses
+    infer:
+      prompt: |
+        Base sur cette analyse: {{with.sw}}
+        Donne 3 opportunites et 3 menaces pour Nika face a LangChain, CrewAI, Dify. Sois concis.
+      max_tokens: 400
