@@ -80,10 +80,19 @@ pub(crate) fn is_ssrf_blocked(host: &str) -> bool {
 ///
 /// Returns `true` if ANY resolved IP is blocked.
 pub(crate) async fn resolve_and_check_ssrf(host: &str) -> bool {
+    resolve_and_pin_ssrf(host).await.is_err()
+}
+
+/// Resolve DNS for SSRF check and return pinned addresses.
+///
+/// Returns `Ok(Vec<SocketAddr>)` if all resolved IPs are safe (can be used for pinning).
+/// Returns `Err(reason)` if any resolved IP is blocked or resolution fails.
+/// DNS pinning prevents TOCTOU rebinding: the resolved IPs from this check
+/// are reused for the actual HTTP request via reqwest's `.resolve()`.
+pub(crate) async fn resolve_and_pin_ssrf(host: &str) -> Result<Vec<std::net::SocketAddr>, String> {
     // Skip raw IPs — they were already checked by the string-level check_fetch().
-    // DNS rebinding only applies to hostnames that might resolve to private IPs.
     if host.parse::<IpAddr>().is_ok() {
-        return false;
+        return Ok(vec![]);
     }
 
     // Attempt DNS resolution with timeout
@@ -95,7 +104,8 @@ pub(crate) async fn resolve_and_check_ssrf(host: &str) -> bool {
 
     match lookup {
         Ok(Ok(addrs)) => {
-            for addr in addrs {
+            let addrs: Vec<std::net::SocketAddr> = addrs.collect();
+            for addr in &addrs {
                 let ip_str = addr.ip().to_string();
                 if is_ssrf_blocked(&ip_str) {
                     tracing::warn!(
@@ -103,18 +113,18 @@ pub(crate) async fn resolve_and_check_ssrf(host: &str) -> bool {
                         resolved_ip = %ip_str,
                         "DNS rebinding SSRF blocked: hostname resolved to private IP"
                     );
-                    return true;
+                    return Err(format!("DNS rebinding SSRF: '{}' resolved to blocked IP {}", host, ip_str));
                 }
             }
-            false
+            Ok(addrs)
         }
         Ok(Err(e)) => {
             tracing::warn!(host = %host, error = %e, "DNS resolution failed for SSRF check — blocking (fail-closed)");
-            true
+            Err(format!("DNS resolution failed: {e}"))
         }
         Err(_) => {
             tracing::warn!(host = %host, "DNS resolution timed out (3s) for SSRF check — blocking (fail-closed)");
-            true
+            Err("DNS resolution timed out (3s)".to_string())
         }
     }
 }

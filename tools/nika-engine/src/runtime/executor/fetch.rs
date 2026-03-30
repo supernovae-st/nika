@@ -119,19 +119,15 @@ impl TaskExecutor {
             if !string_decision.is_allowed() {
                 string_decision
             } else {
-                // DNS rebinding check (async — lock must be dropped first)
-                use crate::runtime::policy::resolve_and_check_ssrf;
+                // DNS rebinding check + pinning (async — lock must be dropped first)
+                use crate::runtime::policy::resolve_and_pin_ssrf;
                 if let Ok(parsed) = url::Url::parse(&url) {
                     if let Some(host) = parsed.host_str() {
                         let h = host.to_lowercase();
                         let h = h.trim_start_matches('[').trim_end_matches(']');
-                        if resolve_and_check_ssrf(h).await {
-                            PolicyDecision::Block(format!(
-                                "DNS rebinding SSRF: '{}' resolved to blocked IP",
-                                host
-                            ))
-                        } else {
-                            PolicyDecision::Allow
+                        match resolve_and_pin_ssrf(h).await {
+                            Err(reason) => PolicyDecision::Block(reason),
+                            Ok(_) => PolicyDecision::Allow,
                         }
                     } else {
                         PolicyDecision::Allow
