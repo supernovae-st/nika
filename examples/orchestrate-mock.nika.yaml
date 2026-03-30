@@ -1,0 +1,26 @@
+schema: "nika/workflow@0.12"
+workflow: orchestrate-mock-demo
+description: |
+  Démo orchestrate avec provider mock (pas besoin d'API key).
+  Montre le mécanisme sans appels réels.
+
+provider: mock
+model: test-model
+
+goal: "Vérifier que l'orchestration fonctionne correctement"
+
+orchestrate:
+  max_rounds: 2
+  confidence_target: 0.80
+
+tasks:
+  - id: step1
+    description: "Première étape de collecte"
+    infer: "Collecte les données initiales sur le sujet"
+
+  - id: step2
+    description: "Deuxième étape d'analyse"
+    depends_on: [step1]
+    with:
+      data: $step1
+    infer: "Analyse les données: {{with.data}}"

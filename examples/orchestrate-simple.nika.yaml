@@ -1,0 +1,60 @@
+schema: "nika/workflow@0.12"
+workflow: orchestrate-simple
+description: |
+  Exemple simple d'orchestration goal-driven.
+  L'orchestrateur évalue si les tasks ont atteint l'objectif,
+  et peut lancer des workflows supplémentaires si nécessaire.
+
+provider: anthropic
+model: claude-sonnet-4-20250514
+
+goal: "Produire une analyse SWOT complète de Nika (workflow engine)"
+
+orchestrate:
+  max_rounds: 3
+  confidence_target: 0.80
+
+tasks:
+  # Phase 1: Recherche des forces et faiblesses
+  - id: strengths
+    description: "Identifier les forces de Nika"
+    infer:
+      prompt: |
+        Tu es analyste produit. Identifie 5 forces clés de Nika,
+        un moteur de workflows YAML pour l'IA avec 5 verbes
+        (infer, exec, fetch, invoke, agent), structured output,
+        7 providers LLM, et 30+ outils builtin.
+      max_tokens: 500
+
+  - id: weaknesses
+    description: "Identifier les faiblesses de Nika"
+    infer:
+      prompt: |
+        Tu es analyste produit critique. Identifie 5 faiblesses
+        ou risques pour Nika, un nouveau workflow engine IA en Rust.
+        C'est un projet open source d'un solo founder, pas encore lancé.
+      max_tokens: 500
+
+  # Phase 2: Analyse marché
+  - id: opportunities
+    description: "Identifier les opportunités de marché"
+    depends_on: [strengths]
+    with:
+      forces: $strengths
+    infer:
+      prompt: |
+        En te basant sur ces forces: {{with.forces}}
+        Identifie 5 opportunités de marché pour un workflow engine IA en 2026.
+      max_tokens: 500
+
+  - id: threats
+    description: "Identifier les menaces concurrentielles"
+    depends_on: [weaknesses]
+    with:
+      faiblesses: $weaknesses
+    infer:
+      prompt: |
+        En te basant sur ces faiblesses: {{with.faiblesses}}
+        Identifie 5 menaces pour un nouveau workflow engine IA face à
+        LangChain, CrewAI, Dify, n8n, et les solutions cloud (AWS Step Functions).
+      max_tokens: 500

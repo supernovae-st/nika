@@ -110,6 +110,40 @@
     "routing": {
       "$ref": "#/$defs/RoutingConfig",
       "description": "Workflow-level provider routing with fallback chain and strategy (v0.50+)"
+    },
+    "goal": {
+      "type": "string",
+      "description": "Goal-driven orchestration (v0.52+). When set, an orchestrator agent is appended to the workflow DAG that evaluates task results and can launch additional sub-workflows until the goal is met.",
+      "examples": ["Produce a comprehensive market analysis report", "Research and summarize AI safety findings"]
+    },
+    "orchestrate": {
+      "type": "object",
+      "description": "Orchestration configuration (v0.52+). Controls the orchestrator agent's behavior.",
+      "additionalProperties": false,
+      "properties": {
+        "max_rounds": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 10,
+          "description": "Maximum orchestration rounds before graceful stop"
+        },
+        "confidence_target": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "default": 0.85,
+          "description": "Confidence threshold (0.0-1.0). Agent must self-assess at least this confidence before completing."
+        },
+        "agent": {
+          "type": "string",
+          "description": "Optional agent preset name from the agents: block"
+        },
+        "max_cost_usd": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Optional cost budget in USD. Orchestrator stops if exceeded."
+        }
+      }
     }
   },
   "$defs": {
