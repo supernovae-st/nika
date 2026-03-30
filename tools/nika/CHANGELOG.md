@@ -7,15 +7,45 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+---
+
+## [0.53.0](https://github.com/supernovae-st/nika/releases/tag/v0.53.0) - 2026-03-30
+
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║  🦋 NIKA v0.53.0 — PARANOIA AUDIT HARDENING                                 ║
+║  3 CRITICAL + 3 HIGH + 3 MEDIUM bugs fixed · 2 security patches             ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║                                                                               ║
+║  🔴 fetch 5xx no longer treated as success on last retry                     ║
+║  🔴 transform parser respects | inside parenthesized args                    ║
+║  🔴 traced/untraced binding resolution now identical                         ║
+║  🔒 trace files redact $env-sourced secrets + API key patterns               ║
+║  🔒 shell: true warns on unescaped template bindings                         ║
+║                                                                               ║
+║  12 commits | 9,011 tests | +200 LOC fixes | -209 LOC stale tests           ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+```
+
 ### Added
 - **ModelResolver** — Centralized model routing via `ModelResolver` struct. Eliminates 9 hardcoded model fallback sites in infer, agent, and compressor. TUI wired to `default_model_for_provider`.
 - **`concurrency: 0` rejection** — Analyzer now rejects `concurrency: 0` with clear NIKA-010 error instead of silent deadlock.
 - **YAML anchor ADR** — Document YAML anchor limitation + improve NIKA-160 error message with actionable suggestion.
 
 ### Fixed
+- **CRITICAL: fetch 5xx treated as success** — Fetch verb now returns error after exhausting retries on 5xx/429, instead of passing the error body as valid output to downstream tasks.
+- **CRITICAL: transform parser pipe in parens** — `join(" | ")` and `split(",")` no longer split on `|` inside parenthesized arguments. New paren/quote-depth-aware parser.
+- **CRITICAL: traced/untraced binding divergence** — `resolve_with_entry_traced` now handles null+transform identically to `resolve_with_entry`, fixing silent failures in debug/telemetry runs.
+- **Security: trace files leak secrets** — TaskStarted events now use `to_value_redacted()` which masks all `$env`-sourced binding values and applies API key regex patterns.
+- **Security: shell escape warning** — Emits `tracing::warn` when `shell: true` commands contain unescaped `{{with.*}}` or `{{inputs.*}}` templates.
 - **Security: quote-aware backtick detection** — NIKA-053 now correctly handles backticks inside quoted strings, preventing false positives on legitimate shell commands.
 - **Security: output_scanner wired** — Output scanner active + fix empty provider chain panic.
-- **Agent: token overflow** — `saturating_add` for token accumulation prevents u64 overflow in cost tracking, display, and orchestrate.
+- **nika:write param alias** — `path` now accepted as alias for `file_path` in `nika:write` params.
+- **Token overflow** — `saturating_add` applied to 3 remaining non-saturating sites (runner summary, introspect_task, thinking single-turn).
+- **thinking_budget truncation** — `u64→u32` cast uses `u32::try_from` with clamp instead of silent `as u32` truncation.
+- **NaN/Infinity in transforms** — `round`, `ceil`, `floor`, `abs` return null for NaN/Infinity instead of silent 0 or wrap-around.
+- **NIKA-204 error message** — Path validation error now suggests `--workdir` flag.
 - **Agent: fallback chain index** — Pass actual chain index to ModelResolver for correct fallback substitution.
 - **Agent: LowConfidence debug log** — Add debug log for `LowConfidence(0.0)` in explicit completion mode to aid debugging.
 - **Structured output: max_tokens propagation** — `max_tokens` now correctly propagated through `InferCallback` for L3/L4 retries.
@@ -36,16 +66,19 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Deps** — Remove 6 dead workspace dependencies.
 - **Docker** — Update Dockerfile VERSION 0.40.2 → 0.52.0.
 - **Style** — rustfmt pass on 7 files.
+- **Removed 5 stale BUG PROVEN tests** — Bugs already fixed in production (mem::take, u32 overflow, stdlib tests).
 
 ### Testing
 - **E2E structured output** — Basic schema, array, chained structured output tests (mock provider).
-- **E2E fetch** — Invalid URL, data chain, SSRF block tests.
+- **E2E fetch** — Invalid URL, data chain, SSRF block tests + exhausted 5xx retry test.
 - **E2E invoke** — Builtin `nika:log` + unknown tool error tests.
 - **E2E retry** — Retry machinery + NIKA-026 error propagation tests.
-- **E2E transforms** — Parametric transforms (join/split) + for_each with infer.
+- **E2E transforms** — Parametric transforms (join/split) + for_each with infer + pipe-in-join-arg tests.
 - **Edge cases** — `default()` transform + JSON fence extraction edge cases.
 - **Daemon** — 4 auto-start + secrets resolution tests.
 - **Adversarial** — 12 adversarial tests: data flow traps, structured stress, concurrency.
+- **Security** — Trace redaction tests (env-sourced masking + API key regex).
+- **Binding** — Traced/untraced null+transform parity test.
 
 ---
 
