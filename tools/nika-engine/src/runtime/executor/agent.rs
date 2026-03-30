@@ -147,24 +147,24 @@ impl TaskExecutor {
         // Resolve provider with fallback chain support.
         // Try each provider in the chain; validate availability (API key / custom endpoint).
         // On failure, emit ProviderFallback event and try the next provider.
-        let provider_name: String = {
+        let (provider_name, provider_chain_idx): (String, usize) = {
             let mut last_error: Option<String> = None;
-            let mut found_provider: Option<String> = None;
+            let mut found_provider: Option<(String, usize)> = None;
 
             for (i, name) in effective_chain.iter().enumerate() {
                 if name == "mock" {
-                    found_provider = Some(name.clone());
+                    found_provider = Some((name.clone(), i));
                     break;
                 }
                 // Check custom endpoints first
                 if self.custom_endpoints.contains_key(name.as_str()) {
-                    found_provider = Some(name.clone());
+                    found_provider = Some((name.clone(), i));
                     break;
                 }
                 // Check catalog provider has env key
                 match crate::core::find_provider(name) {
                     Some(p) if p.has_env_key() || !p.requires_key => {
-                        found_provider = Some(name.clone());
+                        found_provider = Some((name.clone(), i));
                         break;
                     }
                     Some(p) => {
@@ -211,7 +211,7 @@ impl TaskExecutor {
             }
 
             match found_provider {
-                Some(p) => p,
+                Some(found) => found,
                 None => {
                     if effective_chain.len() > 1 {
                         return Err(NikaError::FallbackChainExhausted {
@@ -228,11 +228,12 @@ impl TaskExecutor {
         };
 
         // Resolve model via ModelResolver (task > workflow > provider default)
+        // provider_chain_idx > 0 triggers incompatibility check for fallback substitution
         let resolved_model_id = nika_core::catalogs::ModelResolver::resolve(
             resolved_model.as_deref(),
             self.default_model.as_deref(),
             &provider_name,
-            0,
+            provider_chain_idx,
             resolved_model.as_deref(),
         )
         .model_id;
