@@ -145,14 +145,29 @@ impl std::error::Error for TransformError {}
 fn split_pipe_respecting_parens(input: &str) -> Vec<&str> {
     let mut result = Vec::new();
     let mut depth: u32 = 0;
-    let mut in_quotes = false;
+    let mut quote_char: Option<char> = None;
     let mut start = 0;
     for (i, c) in input.char_indices() {
         match c {
-            '"' | '\'' if depth > 0 => in_quotes = !in_quotes,
-            '(' if !in_quotes => depth += 1,
-            ')' if !in_quotes && depth > 0 => depth -= 1,
-            '|' if depth == 0 && !in_quotes => {
+            // Track quotes only inside parenthesized arguments.
+            // This handles `join(", ")` and `join(' | ')` correctly
+            // while ignoring top-level apostrophes (`it's a test | upper`).
+            '"' | '\'' if depth > 0 => {
+                if quote_char == Some(c) {
+                    quote_char = None; // Close matching quote
+                } else if quote_char.is_none() {
+                    quote_char = Some(c); // Open new quote
+                }
+                // Mismatched quote (e.g. ' inside "...") → ignored
+            }
+            '(' if quote_char.is_none() => depth += 1,
+            ')' if depth > 0 => {
+                // Auto-close any unclosed quote at paren boundary.
+                // Handles `filter(it's)` where the apostrophe is not a delimiter.
+                quote_char = None;
+                depth -= 1;
+            }
+            '|' if depth == 0 => {
                 result.push(&input[start..i]);
                 start = i + 1;
             }
@@ -1910,5 +1925,32 @@ mod proptest_tests {
                 prop_assert_eq!(f.len(), expected_len, "flatten total must equal sum of inner lengths");
             }
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // split_pipe_respecting_parens — quote tracking
+    // ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn pipe_split_unquoted_apostrophe_in_parens() {
+        // "filter(it's)" should NOT break the pipe parser
+        let parts = split_pipe_respecting_parens("join(it's) | upper");
+        assert_eq!(parts.len(), 2, "apostrophe inside parens must not break split");
+        assert_eq!(parts[0].trim(), "join(it's)");
+        assert_eq!(parts[1].trim(), "upper");
+    }
+
+    #[test]
+    fn pipe_split_quoted_pipe_in_parens() {
+        let parts = split_pipe_respecting_parens(r#"join(" | ") | upper"#);
+        assert_eq!(parts.len(), 2);
+        assert_eq!(parts[0].trim(), r#"join(" | ")"#);
+    }
+
+    #[test]
+    fn pipe_split_top_level_apostrophe() {
+        // Apostrophe at top level (no parens) should not break splitting
+        let parts = split_pipe_respecting_parens("it's a test | upper");
+        assert_eq!(parts.len(), 2);
     }
 }
