@@ -1515,6 +1515,21 @@ impl LiveRenderer {
                     reason
                 ));
             }
+            // Security scan finding — show as warning
+            EventKind::SecurityScanFinding {
+                task_id,
+                pattern,
+                description,
+            } => {
+                self.log(&format!(
+                    "{} {} {}: security scan: [{}] {}",
+                    self.ts(),
+                    "⚠".yellow().bold(),
+                    task_id,
+                    pattern,
+                    description
+                ));
+            }
         }
     }
 

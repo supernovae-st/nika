@@ -960,6 +960,18 @@ pub enum EventKind {
         /// Output length after extraction (bytes)
         output_len: usize,
     },
+
+    // ═══════════════════════════════════════════
+    // SECURITY EVENTS
+    // ═══════════════════════════════════════════
+    /// LLM output security scan finding (output_scanner).
+    SecurityScanFinding {
+        task_id: Arc<str>,
+        /// Pattern category: "invisible_unicode", "exfiltration", "role_hijack", etc.
+        pattern: String,
+        /// Human-readable description of the finding.
+        description: String,
+    },
 }
 
 impl EventKind {
@@ -1015,7 +1027,8 @@ impl EventKind {
             | Self::ForEachCompleted { task_id, .. }
             | Self::BuiltinToolInvoked { task_id, .. }
             | Self::StreamingDelta { task_id, .. }
-            | Self::ExtractApplied { task_id, .. } => Some(task_id),
+            | Self::ExtractApplied { task_id, .. }
+            | Self::SecurityScanFinding { task_id, .. } => Some(task_id),
             // AgentSpawned uses parent_task_id as the primary task reference
             Self::AgentSpawned { parent_task_id, .. } => Some(parent_task_id),
             // Log and Custom may optionally have task_id

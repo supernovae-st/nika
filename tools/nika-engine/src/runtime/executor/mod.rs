@@ -422,7 +422,8 @@ impl TaskExecutor {
         output_policy: Option<&OutputPolicy>,
     ) -> Result<String, NikaError> {
         debug!("Running task action");
-        match action {
+        let is_llm_verb = matches!(action, TaskAction::Infer { .. } | TaskAction::Agent { .. });
+        let result = match action {
             TaskAction::Infer { infer } => {
                 self.run_infer(task_id, infer, bindings, datastore, output_policy)
                     .await
@@ -438,7 +439,23 @@ impl TaskExecutor {
                 self.run_agent(task_id, agent, bindings, datastore, output_policy)
                     .await
             }
+        };
+
+        // Scan LLM output for injection patterns (infer + agent verbs only)
+        if is_llm_verb {
+            if let Ok(ref output) = result {
+                let findings = crate::runtime::output_scanner::scan_output(output);
+                for finding in &findings {
+                    self.event_log.emit(EventKind::SecurityScanFinding {
+                        task_id: Arc::clone(task_id),
+                        pattern: finding.pattern.clone(),
+                        description: finding.description.clone(),
+                    });
+                }
+            }
         }
+
+        result
     }
 
     /// Execute a task action with routing (fallback chain support).
