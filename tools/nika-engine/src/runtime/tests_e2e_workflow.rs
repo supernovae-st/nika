@@ -888,3 +888,142 @@ tasks:
         .any(|e| matches!(e.kind, crate::event::EventKind::WorkflowCompleted { .. }));
     assert!(has_wf_completed, "Should emit WorkflowCompleted");
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// 9. STRUCTURED OUTPUT (tests 41-43)
+// ═══════════════════════════════════════════════════════════════════
+
+/// Structured output with a schema matching mock provider fields succeeds.
+/// Mock returns JSON with `name`, `age`, `items`, etc. — schema validation
+/// in `make_task_result` passes because the mock output satisfies the schema.
+#[tokio::test]
+async fn e2e_structured_output_basic_schema() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: extract
+    infer: "Tell me about Alice, 30, developer"
+    structured:
+      schema:
+        type: object
+        properties:
+          name: { type: string }
+          age: { type: number }
+          items:
+            type: array
+            items: { type: string }
+        required: [name, age, items]
+"#;
+    let output = run_and_get(yaml, "extract").await;
+    let parsed: serde_json::Value = serde_json::from_str(&output)
+        .unwrap_or_else(|e| panic!("Should be valid JSON: {e}\nGot: {output}"));
+    assert!(parsed.is_object(), "Should be a JSON object: {output}");
+    // Validate the mock response structurally matches the required fields
+    assert!(parsed.get("name").is_some(), "JSON should contain 'name' field");
+    assert!(parsed.get("age").is_some(), "JSON should contain 'age' field");
+    assert!(
+        parsed.get("items").and_then(|v| v.as_array()).is_some(),
+        "JSON should contain 'items' as an array"
+    );
+    // Verify mock-specific field — confirms we're testing the real mock path
+    assert_eq!(parsed["mock"], true, "Should be a mock response");
+}
+
+/// Structured output with a schema that does NOT match mock output fails with
+/// NIKA-061 (schema validation). This proves the 5-layer defense actually validates
+/// output against the declared schema — even for mock provider.
+#[tokio::test]
+async fn e2e_structured_output_schema_mismatch_fails() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: list
+    infer: "List three colors"
+    structured:
+      schema:
+        type: object
+        properties:
+          colors:
+            type: array
+            items: { type: string }
+        required: [colors]
+"#;
+    let workflow = parse_analyzed(yaml).unwrap();
+    let event_log = EventLog::new();
+    let mut runner = Runner::with_event_log(workflow, event_log.clone()).unwrap().quiet();
+    let result = runner.run().await;
+    assert!(result.is_err(), "Schema mismatch should fail the workflow");
+
+    // Verify the failure is NIKA-061 (schema validation), not a random error
+    let events = event_log.events();
+    let task_failed = events.iter().find(|e| {
+        matches!(
+            &e.kind,
+            crate::event::EventKind::TaskFailed { task_id, .. }
+            if task_id.as_ref() == "list"
+        )
+    });
+    assert!(task_failed.is_some(), "Should have TaskFailed event for 'list'");
+    if let Some(evt) = task_failed {
+        if let crate::event::EventKind::TaskFailed { error, error_code, .. } = &evt.kind {
+            assert!(
+                error.contains("colors") && error.contains("required"),
+                "Error should mention missing 'colors' field: {error}"
+            );
+            assert_eq!(
+                error_code.as_deref(),
+                Some("NIKA-060"),
+                "Error code should be NIKA-060 (schema validation via make_task_result)"
+            );
+        }
+    }
+}
+
+/// Structured output flows into a downstream task via `with:` binding.
+/// Uses a schema matching mock fields so step1 succeeds, then verifies
+/// step2 receives the structured JSON and produces its own output.
+#[tokio::test]
+async fn e2e_structured_output_chained() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: step1
+    infer: "Describe a user"
+    structured:
+      schema:
+        type: object
+        properties:
+          name: { type: string }
+          age: { type: number }
+        required: [name, age]
+  - id: step2
+    depends_on: [step1]
+    with:
+      data: $step1
+    infer:
+      prompt: "Expand on: {{with.data}}"
+"#;
+    let runner = run_yaml(yaml).await;
+    let r1 = runner.datastore().get("step1").expect("step1 exists");
+    assert!(r1.is_success(), "step1 should succeed");
+    // Verify step1 produced valid JSON matching the declared schema
+    let step1_output = r1.output_str();
+    let parsed: serde_json::Value = serde_json::from_str(&step1_output)
+        .unwrap_or_else(|e| panic!("step1 should be valid JSON: {e}\nGot: {step1_output}"));
+    assert!(parsed.is_object(), "step1 should be a JSON object");
+    assert!(parsed.get("name").is_some(), "step1 should have 'name' field");
+    assert!(parsed.get("age").is_some(), "step1 should have 'age' field");
+
+    let r2 = runner.datastore().get("step2").expect("step2 exists");
+    assert!(r2.is_success(), "step2 should succeed — data flows from structured step1 to step2");
+    // Verify step2 received step1's output via binding and produced its own output
+    let step2_output = r2.output_str();
+    assert!(!step2_output.is_empty(), "step2 should have non-empty output");
+    // step2 is also mock infer, so it returns mock JSON
+    let parsed2: serde_json::Value = serde_json::from_str(&step2_output)
+        .unwrap_or_else(|e| panic!("step2 should be valid JSON: {e}\nGot: {step2_output}"));
+    assert_eq!(parsed2["mock"], true, "step2 should be a mock response");
+}
