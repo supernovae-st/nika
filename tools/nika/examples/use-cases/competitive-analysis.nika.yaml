@@ -2,7 +2,8 @@
 # Fetch a competitor's webpage, analyze positioning, and compare with your product.
 #
 # Usage:
-#   URL="https://example.com" nika run examples/use-cases/competitive-analysis.nika.yaml
+#   nika run examples/use-cases/competitive-analysis.nika.yaml
+#   nika run examples/use-cases/competitive-analysis.nika.yaml -i url=https://example.com
 #
 # Requirements:
 #   - OPENAI_API_KEY
@@ -14,12 +15,16 @@ description: "Fetch competitor page, analyze positioning, compare with your prod
 provider: openai
 model: gpt-4.1-mini
 
+inputs:
+  url: "https://httpbin.org/html"
+
 tasks:
   # Step 1: Fetch competitor page content
   - id: fetch_competitor
     fetch:
-      url: "${URL:-https://httpbin.org/html}"
+      url: "{{inputs.url}}"
       method: GET
+      extract: article
 
   # Step 2: Analyze the competitor's positioning
   - id: analyze_positioning
