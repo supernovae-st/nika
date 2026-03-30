@@ -919,22 +919,19 @@ tasks:
     let parsed: serde_json::Value = serde_json::from_str(&output)
         .unwrap_or_else(|e| panic!("Should be valid JSON: {e}\nGot: {output}"));
     assert!(parsed.is_object(), "Should be a JSON object: {output}");
-    // Validate the mock response structurally matches the required fields
+    // Validate schema-conforming mock generates all required fields
     assert!(parsed.get("name").is_some(), "JSON should contain 'name' field");
     assert!(parsed.get("age").is_some(), "JSON should contain 'age' field");
     assert!(
         parsed.get("items").and_then(|v| v.as_array()).is_some(),
         "JSON should contain 'items' as an array"
     );
-    // Verify mock-specific field — confirms we're testing the real mock path
-    assert_eq!(parsed["mock"], true, "Should be a mock response");
 }
 
-/// Structured output with a schema that does NOT match mock output fails with
-/// NIKA-060 (schema validation via make_task_result). This proves the engine validates
-/// output against the declared schema — even for mock provider.
+/// Mock provider generates schema-conforming JSON when structured: is configured.
+/// This proves the generate_mock_json() function produces valid output for any schema.
 #[tokio::test]
-async fn e2e_structured_output_schema_mismatch_fails() {
+async fn e2e_mock_structured_output_valid_json() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
 provider: mock
@@ -948,37 +945,24 @@ tasks:
           colors:
             type: array
             items: { type: string }
+            minItems: 2
         required: [colors]
 "#;
     let workflow = parse_analyzed(yaml).unwrap();
     let event_log = EventLog::new();
     let mut runner = Runner::with_event_log(workflow, event_log.clone()).unwrap().quiet();
     let result = runner.run().await;
-    assert!(result.is_err(), "Schema mismatch should fail the workflow");
+    assert!(result.is_ok(), "Mock + structured should succeed: {:?}", result.err());
 
-    // Verify the failure is NIKA-060 (schema validation), not a random error
-    let events = event_log.events();
-    let task_failed = events.iter().find(|e| {
-        matches!(
-            &e.kind,
-            crate::event::EventKind::TaskFailed { task_id, .. }
-            if task_id.as_ref() == "list"
-        )
-    });
-    assert!(task_failed.is_some(), "Should have TaskFailed event for 'list'");
-    if let Some(evt) = task_failed {
-        if let crate::event::EventKind::TaskFailed { error, error_code, .. } = &evt.kind {
-            assert!(
-                error.contains("colors") && error.contains("required"),
-                "Error should mention missing 'colors' field: {error}"
-            );
-            assert_eq!(
-                error_code.as_deref(),
-                Some("NIKA-060"),
-                "Error code should be NIKA-060 (schema validation via make_task_result)"
-            );
-        }
-    }
+    let output = result.unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&output)
+        .unwrap_or_else(|e| panic!("Should be valid JSON: {e}\nGot: {output}"));
+    let colors = parsed.get("colors").and_then(|v| v.as_array());
+    assert!(colors.is_some(), "Output should have 'colors' array: {output}");
+    assert!(
+        colors.unwrap().len() >= 2,
+        "colors should have at least 2 items (minItems): {output}"
+    );
 }
 
 /// Structured output flows into a downstream task via `with:` binding.

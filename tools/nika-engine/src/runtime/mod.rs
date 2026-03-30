@@ -53,6 +53,7 @@ mod skill_injector;
 #[cfg(test)]
 mod tests_e2e_workflow;
 pub mod spawn;
+pub mod mock_json;
 pub mod structured_output;
 pub mod submit_tool;
 
