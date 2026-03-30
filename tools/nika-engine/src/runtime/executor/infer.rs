@@ -9,6 +9,8 @@ use serde_json::Value;
 use tokio::sync::mpsc;
 use tracing::{debug, instrument, warn};
 
+use nika_core::catalogs::ModelResolver;
+
 use crate::provider::rig::RigProvider;
 
 use crate::ast::output::{OutputPolicy, SchemaRef};
@@ -385,8 +387,16 @@ impl TaskExecutor {
             self.get_rig_provider(provider_name)?
         };
 
-        // Resolve model: task override -> workflow default -> provider default
-        let model = resolved_model.as_deref().or(self.default_model.as_deref());
+        // Resolve model once via ModelResolver (task > workflow > provider default)
+        let resolved_m = ModelResolver::resolve(
+            resolved_model.as_deref(),
+            self.default_model.as_deref(),
+            provider_name,
+            provider_idx,
+            resolved_model.as_deref(),
+        );
+        let model_id = resolved_m.model_id;
+        let model: Option<&str> = Some(&model_id);
 
         // Per-provider temperature validation (M-orig8)
         if let Some(temp) = infer.temperature {
@@ -406,9 +416,7 @@ impl TaskExecutor {
         self.event_log.emit(EventKind::ProviderCalled {
             task_id: Arc::clone(task_id),
             provider: provider_name.to_string(),
-            model: model
-                .unwrap_or_else(|| provider.default_model())
-                .to_string(),
+            model: model_id.clone(),
             prompt_len: prompt.len(),
             endpoint_url: resolved_base_url.clone(),
         });
@@ -444,7 +452,7 @@ impl TaskExecutor {
                     datastore,
                     &provider,
                     provider_name,
-                    model,
+                    &model_id,
                     resolved_system.as_deref(),
                     estimated_tokens,
                 )
@@ -550,7 +558,7 @@ impl TaskExecutor {
                     let (layer_0a_attempted, maybe_l0a) = if let Ok(ref sv) = schema_value {
                         self.try_layer_0a_response_format(
                             &provider,
-                            model,
+                            &model_id,
                             &prompt,
                             infer,
                             policy,
@@ -575,7 +583,7 @@ impl TaskExecutor {
                         if let Ok(ref sv) = schema_value {
                             if let Some(result) = self.try_layer_0b_tool_injection(
                                 &provider,
-                                model,
+                                &model_id,
                                 &prompt,
                                 infer,
                                 policy,
@@ -686,7 +694,7 @@ impl TaskExecutor {
                 .map(|pk| {
                     crate::provider::cost::calculate_cost_with_cache(
                         pk,
-                        model.unwrap_or_else(|| provider.default_model()),
+                        &model_id,
                         stream_result.input_tokens,
                         stream_result.output_tokens,
                         stream_result.cached_input_tokens,
@@ -725,7 +733,7 @@ impl TaskExecutor {
                             .with_original_prompt(prompt.to_string())
                             .with_provider_context(
                                 provider_name.to_string(),
-                                model.unwrap_or_else(|| provider.default_model()).to_string(),
+                                model_id.clone(),
                             )
                             .with_max_tokens(infer.max_tokens);
 
@@ -783,7 +791,7 @@ impl TaskExecutor {
     async fn try_layer_0a_response_format(
         &self,
         provider: &RigProvider,
-        model: Option<&str>,
+        model_id: &str,
         prompt: &str,
         infer: &InferParams,
         policy: &OutputPolicy,
@@ -807,7 +815,7 @@ impl TaskExecutor {
         let rf_params = build_response_format_params(schema_value);
         let (tx_rf, _rx_rf) = mpsc::channel::<StreamChunk>(64);
         let rf_options = InferOptions {
-            model: model.map(|s| s.to_string()),
+            model: Some(model_id.to_string()),
             temperature: infer.temperature,
             max_tokens: infer.max_tokens,
             system: resolved_system.clone(),
@@ -829,9 +837,7 @@ impl TaskExecutor {
                     .with_original_prompt(prompt.to_string())
                     .with_provider_context(
                         provider_name.to_string(),
-                        model
-                            .unwrap_or_else(|| provider.default_model())
-                            .to_string(),
+                        model_id.to_string(),
                     )
                     .with_max_tokens(infer.max_tokens);
 
@@ -858,7 +864,7 @@ impl TaskExecutor {
                                 .map(|pk| {
                                     crate::provider::cost::calculate_cost_with_cache(
                                         pk,
-                                        model.unwrap_or_else(|| provider.default_model()),
+                                        model_id,
                                         stream_result.input_tokens,
                                         stream_result.output_tokens,
                                         stream_result.cached_input_tokens,
@@ -925,9 +931,7 @@ impl TaskExecutor {
                         .map(|pk| {
                             crate::provider::cost::calculate_cost_with_cache(
                                 pk,
-                                model.unwrap_or_else(|| {
-                                    provider.default_model()
-                                }),
+                                model_id,
                                 stream_result.input_tokens,
                                 stream_result.output_tokens,
                                 stream_result.cached_input_tokens,
@@ -981,7 +985,7 @@ impl TaskExecutor {
     async fn try_layer_0b_tool_injection(
         &self,
         provider: &RigProvider,
-        model: Option<&str>,
+        model_id: &str,
         prompt: &str,
         infer: &InferParams,
         policy: &OutputPolicy,
@@ -1014,7 +1018,7 @@ impl TaskExecutor {
             .infer_with_tools(
                 prompt,
                 tools,
-                model,
+                Some(model_id),
                 infer.max_tokens,
                 resolved_system.as_deref(),
             )
@@ -1037,9 +1041,7 @@ impl TaskExecutor {
                     .with_original_prompt(prompt.to_string())
                     .with_provider_context(
                         provider_name.to_string(),
-                        model
-                            .unwrap_or_else(|| provider.default_model())
-                            .to_string(),
+                        model_id.to_string(),
                     )
                     .with_max_tokens(infer.max_tokens);
 
@@ -1066,7 +1068,7 @@ impl TaskExecutor {
                                 .map(|pk| {
                                     crate::provider::cost::calculate_cost_with_cache(
                                         pk,
-                                        model.unwrap_or_else(|| provider.default_model()),
+                                        model_id,
                                         est_in,
                                         est_out,
                                         0, // No cache info for non-streaming
@@ -1135,7 +1137,7 @@ impl TaskExecutor {
                         .map(|pk| {
                             crate::provider::cost::calculate_cost_with_cache(
                                 pk,
-                                model.unwrap_or_else(|| provider.default_model()),
+                                model_id,
                                 est_in,
                                 est_out,
                                 0, // No cache info for non-streaming
@@ -1208,7 +1210,7 @@ impl TaskExecutor {
         datastore: &RunContext,
         provider: &crate::provider::rig::RigProvider,
         _provider_name: &str,
-        model: Option<&str>,
+        model_id: &str,
         resolved_system: Option<&str>,
         reserved_tokens: u64,
     ) -> Result<String, NikaError> {
@@ -1392,7 +1394,7 @@ impl TaskExecutor {
         );
 
         let vision_work =
-            provider.infer_vision(user_content, model, resolved_system, infer.max_tokens);
+            provider.infer_vision(user_content, Some(model_id), resolved_system, infer.max_tokens);
         let vision_result = tokio::select! {
             result = vision_work => {
                 result.map_err(|e| ProviderError::ApiError { message: e.to_string() })?
@@ -1427,7 +1429,7 @@ impl TaskExecutor {
             .map(|pk| {
                 crate::provider::cost::calculate_cost_with_cache(
                     pk,
-                    model.unwrap_or_else(|| provider.default_model()),
+                    model_id,
                     est_in,
                     est_out,
                     0, // Vision: no cache info available yet
