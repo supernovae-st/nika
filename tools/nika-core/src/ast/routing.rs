@@ -34,19 +34,6 @@ pub enum RoutingStrategy {
     Availability,
 }
 
-/// Condition for retry behavior within routing (P-MODEL v0.51).
-#[allow(dead_code)]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum RetryCondition {
-    /// Retry on any error.
-    Always,
-    /// Retry only on transient errors (rate limits, timeouts).
-    Transient,
-    /// Never retry (fail immediately).
-    Never,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

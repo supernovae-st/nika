@@ -144,9 +144,6 @@ struct IterationResult {
     result: TaskResult,
     /// For for_each: (parent_id, index) to enable aggregation
     for_each_info: Option<(Arc<str>, usize)>,
-    /// Paths of artifacts written during this task (for CLI reporting)
-    #[allow(dead_code)]
-    artifact_paths: Vec<PathBuf>,
 }
 
 /// DAG workflow runner with event sourcing
@@ -923,7 +920,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     store_id: task_id,
                     result: TaskResult::failed(e.to_string(), duration),
                     for_each_info,
-                    artifact_paths: vec![],
+
                 };
             }
         };
@@ -1174,7 +1171,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                         store_id: task_id,
                                         result: TaskResult::failed(e.to_string(), duration),
                                         for_each_info,
-                                        artifact_paths: vec![],
+                    
                                     };
                                 }
                             }
@@ -1220,7 +1217,6 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         };
 
         // Process artifacts if task succeeded and has artifact config
-        let mut artifact_paths = Vec::new();
         if task_result.is_success() {
             if let Some(ref artifact_spec) = task.artifact {
                 let output_content = task_result.output_str().into_owned();
@@ -1245,8 +1241,6 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         "Artifacts written"
                     );
                 }
-                artifact_paths = artifact_result.paths;
-
                 if !artifact_result.errors.is_empty() {
                     let error_msgs: Vec<String> = artifact_result
                         .errors
@@ -1303,7 +1297,6 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             store_id: task_id,
             result: task_result,
             for_each_info,
-            artifact_paths,
         }
     }
 
@@ -2252,7 +2245,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                                 .to_string(),
                                         ),
                                         for_each_info: Some((parent_task_id, idx)),
-                                        artifact_paths: vec![],
+                    
                                     };
                                 }
 
@@ -2267,7 +2260,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                                 "Cancelled while waiting for semaphore".to_string(),
                                             ),
                                             for_each_info: Some((parent_task_id, idx)),
-                                            artifact_paths: vec![],
+                        
                                         };
                                     }
 
@@ -2288,7 +2281,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                                         std::time::Duration::ZERO,
                                                     ),
                                                     for_each_info: Some((parent_task_id, idx)),
-                                                    artifact_paths: vec![],
+                                
                                                 };
                                             }
                                         }
@@ -2303,7 +2296,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                             "Cancelled after semaphore acquire".to_string(),
                                         ),
                                         for_each_info: Some((parent_task_id, idx)),
-                                        artifact_paths: vec![],
+                    
                                     };
                                 }
 
@@ -2428,7 +2421,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                     store_id,
                                     result: task_result,
                                     for_each_info,
-                                    artifact_paths: _,
+
                                 } = iteration_result;
 
                                 _completed += 1;
