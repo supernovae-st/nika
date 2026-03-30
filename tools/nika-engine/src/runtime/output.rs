@@ -61,6 +61,16 @@ fn get_or_compile_validator(schema: &Value) -> Result<Arc<Validator>, NikaError>
     Ok(compiled)
 }
 
+/// Try to extract JSON from inside a fenced code block starting with `marker`.
+/// Returns `Some(Value)` if a valid JSON block was found, `None` otherwise.
+fn try_extract_fenced_json(text: &str, marker: &str) -> Option<Value> {
+    let start = text.find(marker)?;
+    let after_marker = &text[start + marker.len()..];
+    let end = after_marker.find("```")?;
+    let json_str = after_marker[..end].trim();
+    serde_json::from_str::<Value>(json_str).ok()
+}
+
 /// Extract JSON from LLM output, handling markdown code blocks.
 ///
 /// LLMs often wrap JSON in markdown code blocks like:
@@ -81,25 +91,20 @@ fn extract_json_from_output(output: &str) -> Result<Value, String> {
         return Ok(v);
     }
 
-    // Strategy 2: Extract from ```json ... ``` blocks
-    if let Some(start) = trimmed.find("```json") {
-        let after_marker = &trimmed[start + 7..];
-        if let Some(end) = after_marker.find("```") {
-            let json_str = after_marker[..end].trim();
-            if let Ok(v) = serde_json::from_str::<Value>(json_str) {
-                return Ok(v);
-            }
-        }
+    // Strategy 2: Extract from ```json ... ``` blocks (case-insensitive)
+    if let Some(result) = try_extract_fenced_json(trimmed, "```json") {
+        return Ok(result);
+    }
+    // Also handle ```JSON (some LLMs use uppercase)
+    if let Some(result) = try_extract_fenced_json(trimmed, "```JSON") {
+        return Ok(result);
     }
 
     // Strategy 3: Extract from ``` ... ``` blocks (no language specifier)
-    if let Some(start) = trimmed.find("```\n") {
-        let after_marker = &trimmed[start + 4..];
-        if let Some(end) = after_marker.find("```") {
-            let json_str = after_marker[..end].trim();
-            if let Ok(v) = serde_json::from_str::<Value>(json_str) {
-                return Ok(v);
-            }
+    // Handle both Unix (\n) and Windows (\r\n) line endings, plus bare ``` with space
+    for fence in &["```\n", "```\r\n", "``` "] {
+        if let Some(result) = try_extract_fenced_json(trimmed, fence) {
+            return Ok(result);
         }
     }
 
@@ -802,6 +807,20 @@ Hope this helps!"#;
 "#;
         let result = extract_json_from_output(input).unwrap();
         assert!(result["items"].is_array());
+    }
+
+    #[test]
+    fn extract_json_from_uppercase_json_fence() {
+        let input = "```JSON\n{\"key\": \"value\"}\n```";
+        let result = extract_json_from_output(input).unwrap();
+        assert_eq!(result["key"], "value");
+    }
+
+    #[test]
+    fn extract_json_from_windows_line_endings() {
+        let input = "```\r\n{\"key\": \"value\"}\r\n```";
+        let result = extract_json_from_output(input).unwrap();
+        assert_eq!(result["key"], "value");
     }
 
     #[test]
