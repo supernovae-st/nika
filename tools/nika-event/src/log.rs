@@ -1130,9 +1130,9 @@ impl EventLog {
     /// Create a new event log with broadcast channel for TUI
     ///
     /// Returns (EventLog, Receiver) tuple. Pass the receiver to TUI App.
-    /// Broadcast capacity: 1024 events (M6 fix: accommodate heavy for_each + fast providers).
+    /// Broadcast capacity: 4096 events (accommodate heavy for_each + fast providers).
     pub fn new_with_broadcast() -> (Self, broadcast::Receiver<Event>) {
-        let (tx, rx) = broadcast::channel(1024);
+        let (tx, rx) = broadcast::channel(4096);
         let event_log = Self {
             events: Arc::new(RwLock::new(Vec::with_capacity(256))),
             start_time: Instant::now(),
@@ -2803,12 +2803,12 @@ mod tests {
 
     #[test]
     fn wave2_broadcast_channel_lagged_on_overflow() {
-        // EventLog broadcast capacity is 1024
+        // EventLog broadcast capacity is 4096
         // new_with_broadcast returns (EventLog, Receiver)
         let (log, mut rx) = EventLog::new_with_broadcast();
 
-        // Emit 1100 events (exceeds 1024 capacity)
-        for _ in 0..1100 {
+        // Emit 4200 events (exceeds 4096 capacity)
+        for _ in 0..4200 {
             log.emit(EventKind::WorkflowPaused);
         }
 
@@ -2827,13 +2827,13 @@ mod tests {
                 Err(broadcast::error::TryRecvError::Closed) => break,
             }
         }
-        // Should have experienced lag because 1100 > 1024
+        // Should have experienced lag because 4200 > 4096
         assert!(
             lagged,
-            "Expected broadcast lag when emitting 1100 events into 1024 capacity channel"
+            "Expected broadcast lag when emitting 4200 events into 4096 capacity channel"
         );
-        // But all 1100 events should be in the log (log is unbounded)
-        assert_eq!(log.events().len(), 1100);
+        // But all events should be in the log (log is unbounded)
+        assert_eq!(log.events().len(), 4200);
     }
 
     // Dead variant tests: LimitReached and PartialCompletion are defined but never emitted in runtime code.
