@@ -2,7 +2,8 @@
 # Fetch a URL and analyze its SEO, readability, and tone.
 #
 # Usage:
-#   URL="https://example.com" nika run examples/use-cases/content-audit.nika.yaml
+#   nika run examples/use-cases/content-audit.nika.yaml
+#   nika run examples/use-cases/content-audit.nika.yaml -i url=https://example.com
 #
 # Requirements:
 #   - OPENAI_API_KEY
@@ -16,12 +17,16 @@ model: gpt-4.1-mini
 artifacts:
   dir: ./examples/use-cases/.output
 
+inputs:
+  url: "https://httpbin.org/html"
+
 tasks:
   # Step 1: Fetch the page content
   - id: fetch_page
     fetch:
-      url: "${URL:-https://httpbin.org/html}"
+      url: "{{inputs.url}}"
       method: GET
+      extract: article
 
   # Step 2: SEO analysis
   - id: seo_analysis
