@@ -102,4 +102,161 @@ mod tests {
         let r = load_from_daemon_or_fallback().await;
         assert!(!r.summary().is_empty());
     }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_daemon_not_started_if_nika_no_daemon() {
+        let dir = tempfile::tempdir().unwrap();
+        let orig_home = std::env::var("NIKA_HOME").ok();
+        let orig_no_daemon = std::env::var("NIKA_NO_DAEMON").ok();
+
+        std::env::set_var("NIKA_HOME", dir.path());
+        std::env::set_var("NIKA_NO_DAEMON", "1");
+
+        let _result = load_from_daemon_or_fallback().await;
+
+        // No daemon socket should have been created in the tempdir
+        let socket_exists = dir
+            .path()
+            .read_dir()
+            .unwrap()
+            .any(|entry| {
+                entry
+                    .ok()
+                    .map(|e| e.file_name().to_string_lossy().contains("sock"))
+                    .unwrap_or(false)
+            });
+        assert!(
+            !socket_exists,
+            "NIKA_NO_DAEMON=1 should prevent daemon auto-start"
+        );
+
+        match orig_home {
+            Some(v) => std::env::set_var("NIKA_HOME", v),
+            None => unsafe { std::env::remove_var("NIKA_HOME") },
+        }
+        match orig_no_daemon {
+            Some(v) => std::env::set_var("NIKA_NO_DAEMON", v),
+            None => unsafe { std::env::remove_var("NIKA_NO_DAEMON") },
+        }
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_secrets_from_env_without_daemon() {
+        let dir = tempfile::tempdir().unwrap();
+        let orig_home = std::env::var("NIKA_HOME").ok();
+        let orig_no_daemon = std::env::var("NIKA_NO_DAEMON").ok();
+        let orig_key = std::env::var("ANTHROPIC_API_KEY").ok();
+
+        std::env::set_var("NIKA_HOME", dir.path());
+        std::env::set_var("NIKA_NO_DAEMON", "1");
+        std::env::set_var("ANTHROPIC_API_KEY", "test-key-123");
+
+        let secret = get_secret("anthropic").await;
+        assert!(secret.is_some(), "get_secret should return Some when env var is set");
+        assert_eq!(
+            secret.unwrap().expose_secret(),
+            "test-key-123",
+            "get_secret should return the env var value"
+        );
+
+        let exists = has_secret("anthropic").await;
+        assert!(exists, "has_secret should return true when env var is set");
+
+        match orig_home {
+            Some(v) => std::env::set_var("NIKA_HOME", v),
+            None => unsafe { std::env::remove_var("NIKA_HOME") },
+        }
+        match orig_no_daemon {
+            Some(v) => std::env::set_var("NIKA_NO_DAEMON", v),
+            None => unsafe { std::env::remove_var("NIKA_NO_DAEMON") },
+        }
+        match orig_key {
+            Some(v) => std::env::set_var("ANTHROPIC_API_KEY", v),
+            None => unsafe { std::env::remove_var("ANTHROPIC_API_KEY") },
+        }
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_secrets_fallback_clear_error_when_no_source() {
+        let dir = tempfile::tempdir().unwrap();
+        let orig_home = std::env::var("NIKA_HOME").ok();
+        let orig_no_daemon = std::env::var("NIKA_NO_DAEMON").ok();
+        let orig_key = std::env::var("ANTHROPIC_API_KEY").ok();
+
+        std::env::set_var("NIKA_HOME", dir.path());
+        std::env::set_var("NIKA_NO_DAEMON", "1");
+        // Ensure the key is fully unset, not just empty
+        unsafe { std::env::remove_var("ANTHROPIC_API_KEY") };
+
+        let exists = has_secret("anthropic").await;
+        assert!(
+            !exists,
+            "has_secret should return false when no env var and no daemon"
+        );
+
+        let secret = get_secret("anthropic").await;
+        assert!(
+            secret.is_none(),
+            "get_secret should return None when no env var and no daemon"
+        );
+
+        match orig_home {
+            Some(v) => std::env::set_var("NIKA_HOME", v),
+            None => unsafe { std::env::remove_var("NIKA_HOME") },
+        }
+        match orig_no_daemon {
+            Some(v) => std::env::set_var("NIKA_NO_DAEMON", v),
+            None => unsafe { std::env::remove_var("NIKA_NO_DAEMON") },
+        }
+        match orig_key {
+            Some(v) => std::env::set_var("ANTHROPIC_API_KEY", v),
+            None => unsafe { std::env::remove_var("ANTHROPIC_API_KEY") },
+        }
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_load_result_env_provider_detected() {
+        let dir = tempfile::tempdir().unwrap();
+        let orig_home = std::env::var("NIKA_HOME").ok();
+        let orig_no_daemon = std::env::var("NIKA_NO_DAEMON").ok();
+        let orig_key = std::env::var("OPENAI_API_KEY").ok();
+
+        std::env::set_var("NIKA_HOME", dir.path());
+        std::env::set_var("NIKA_NO_DAEMON", "1");
+        std::env::set_var("OPENAI_API_KEY", "sk-test-123");
+
+        let result = load_from_daemon_or_fallback().await;
+
+        assert!(
+            result.from_env.contains(&"openai".to_string()),
+            "openai should appear in from_env when OPENAI_API_KEY is set"
+        );
+        assert!(
+            result.total_loaded() >= 1,
+            "at least 1 provider should be loaded, got {}",
+            result.total_loaded()
+        );
+        let summary = result.summary();
+        assert!(
+            summary.contains("from env"),
+            "summary should mention 'from env': {summary}"
+        );
+
+        match orig_home {
+            Some(v) => std::env::set_var("NIKA_HOME", v),
+            None => unsafe { std::env::remove_var("NIKA_HOME") },
+        }
+        match orig_no_daemon {
+            Some(v) => std::env::set_var("NIKA_NO_DAEMON", v),
+            None => unsafe { std::env::remove_var("NIKA_NO_DAEMON") },
+        }
+        match orig_key {
+            Some(v) => std::env::set_var("OPENAI_API_KEY", v),
+            None => unsafe { std::env::remove_var("OPENAI_API_KEY") },
+        }
+    }
 }
