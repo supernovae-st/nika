@@ -400,7 +400,7 @@ impl RigProvider {
     /// Get the provider name
     pub fn name(&self) -> &str {
         match self {
-            RigProvider::Claude(_) => "claude",
+            RigProvider::Claude(_) => "anthropic",
             RigProvider::OpenAI(_) => "openai",
             RigProvider::Mistral(_) => "mistral",
             RigProvider::Groq(_) => "groq",
