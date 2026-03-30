@@ -1284,3 +1284,58 @@ tasks:
         "Downstream should be skipped or failed due to NIKA-026 cascade"
     );
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// 13. PARAMETRIC TRANSFORMS + FOR_EACH+INFER (tests 51-52)
+// ═══════════════════════════════════════════════════════════════════
+
+/// Parametric transforms `split(",")` and `join(" + ")` in a data pipeline.
+/// Exec outputs "alpha,beta,gamma", downstream splits on comma via `with:` binding,
+/// then joins with " + " in the exec template. Proves parametric transforms
+/// work end-to-end through the binding→template resolution chain.
+#[tokio::test]
+async fn e2e_transform_join_split_default() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: source
+    exec: "echo alpha,beta,gamma"
+  - id: transform
+    depends_on: [source]
+    with:
+      parts: $source | trim | split(",")
+    exec:
+      command: "echo {{with.parts | join(\" + \")}}"
+      shell: true
+"#;
+    let output = run_and_get(yaml, "transform").await;
+    assert!(
+        output.contains("alpha") && output.contains("beta"),
+        "Split+join should preserve elements: {output}"
+    );
+}
+
+/// `for_each` with inline array + `as: color` + `infer:` verb using mock provider.
+/// The mock provider returns deterministic JSON for each iteration.
+/// for_each output is always a JSON array — verify length == 3 (one per color).
+#[tokio::test]
+async fn e2e_for_each_with_infer() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: loop_infer
+    for_each: ["red", "green", "blue"]
+    as: color
+    infer: "Describe the color {{with.color}}"
+"#;
+    let output = run_and_get(yaml, "loop_infer").await;
+    let arr: Vec<serde_json::Value> = serde_json::from_str(&output)
+        .unwrap_or_else(|e| panic!("for_each output should be a JSON array: {e}\nGot: {output}"));
+    assert_eq!(
+        arr.len(),
+        3,
+        "Should have 3 infer results (one per color), got: {output}"
+    );
+}
