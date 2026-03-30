@@ -227,10 +227,20 @@ impl TaskExecutor {
             }
         };
 
+        // Resolve model via ModelResolver (task > workflow > provider default)
+        let resolved_model_id = nika_core::catalogs::ModelResolver::resolve(
+            resolved_model.as_deref(),
+            self.default_model.as_deref(),
+            &provider_name,
+            0,
+            resolved_model.as_deref(),
+        )
+        .model_id;
+
         // Ensure resolved_agent has provider + model set for run_auto() dispatch
         let resolved_agent = AgentParams {
             provider: Some(nika_core::ProviderName::parse(&provider_name)),
-            model: resolved_model.or_else(|| self.default_model.as_ref().map(|m| m.to_string())),
+            model: Some(resolved_model_id),
             ..resolved_agent
         };
 
