@@ -859,22 +859,47 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
     /// Determine if an error is transient and worth retrying.
     ///
-    /// Returns true for provider API errors (429, 500, timeout), exec failures,
-    /// MCP connection/timeout errors, and custom endpoint failures.
-    /// Returns false for validation, binding, DAG, schema, and security errors.
+    /// Returns true for transient errors (429, 5xx, timeout, connection failures).
+    /// Returns false for permanent errors (401, 403, 404, validation, DAG, schema,
+    /// security, command-not-found, permission-denied).
     fn is_retryable(error: &NikaError) -> bool {
-        matches!(
-            error,
-            NikaError::ProviderApiError { .. }
-                | NikaError::ExecError { .. }
-                | NikaError::FetchError { .. }
-                | NikaError::Execution(_)
-                | NikaError::McpNotConnected { .. }
-                | NikaError::McpToolCallFailed { .. }
-                | NikaError::McpTimeout { .. }
-                | NikaError::Timeout { .. }
-                | NikaError::EndpointConnectionFailed { .. }
-        )
+        match error {
+            // Provider API errors: only retry transient HTTP failures
+            NikaError::ProviderApiError { message } => {
+                let m = message.to_lowercase();
+                // Permanent: auth failures, invalid model, bad request
+                let is_permanent = m.contains("401")
+                    || m.contains("403")
+                    || m.contains("404")
+                    || m.contains("unauthorized")
+                    || m.contains("forbidden")
+                    || m.contains("invalid api key")
+                    || m.contains("invalid_api_key")
+                    || m.contains("authentication");
+                !is_permanent
+            }
+            // Exec errors: only retry timeouts, not permanent failures
+            NikaError::ExecError { reason } => {
+                let r = reason.to_lowercase();
+                // Permanent: command not found, permission denied, bad cwd
+                let is_permanent = r.contains("not found")
+                    || r.contains("permission denied")
+                    || r.contains("no such file")
+                    || r.contains("cannot find")
+                    || r.contains("unbalanced quotes");
+                !is_permanent
+            }
+            // These are generally transient
+            NikaError::FetchError { .. }
+            | NikaError::Execution(_)
+            | NikaError::McpNotConnected { .. }
+            | NikaError::McpToolCallFailed { .. }
+            | NikaError::McpTimeout { .. }
+            | NikaError::Timeout { .. }
+            | NikaError::EndpointConnectionFailed { .. } => true,
+            // Everything else is permanent
+            _ => false,
+        }
     }
 
     /// Execute a single task iteration (used for both regular tasks and for_each items)
@@ -6495,6 +6520,50 @@ mod tests {
         assert!(
             !Runner::is_retryable(&err),
             "MissingApiKey should NOT be retryable"
+        );
+    }
+
+    #[test]
+    fn test_is_not_retryable_provider_401() {
+        let err = NikaError::ProviderApiError {
+            message: "401 Unauthorized: invalid API key".to_string(),
+        };
+        assert!(
+            !Runner::is_retryable(&err),
+            "ProviderApiError 401 should NOT be retryable"
+        );
+    }
+
+    #[test]
+    fn test_is_not_retryable_provider_403() {
+        let err = NikaError::ProviderApiError {
+            message: "403 Forbidden: account suspended".to_string(),
+        };
+        assert!(
+            !Runner::is_retryable(&err),
+            "ProviderApiError 403 should NOT be retryable"
+        );
+    }
+
+    #[test]
+    fn test_is_not_retryable_exec_not_found() {
+        let err = NikaError::ExecError {
+            reason: "Failed to spawn command: No such file or directory".to_string(),
+        };
+        assert!(
+            !Runner::is_retryable(&err),
+            "ExecError 'not found' should NOT be retryable"
+        );
+    }
+
+    #[test]
+    fn test_is_not_retryable_exec_permission_denied() {
+        let err = NikaError::ExecError {
+            reason: "Failed to spawn command: Permission denied".to_string(),
+        };
+        assert!(
+            !Runner::is_retryable(&err),
+            "ExecError 'permission denied' should NOT be retryable"
         );
     }
 
