@@ -461,6 +461,18 @@ impl TaskExecutor {
                         continue;
                     }
 
+                    // If we exhausted retries and the last status was retryable,
+                    // return the error instead of treating the error body as success.
+                    if is_retryable_status {
+                        let status = response.status();
+                        return Err(NikaError::FetchError {
+                            reason: format!(
+                                "HTTP {} after {} retry attempt(s) exhausted",
+                                status, effective_max_attempts,
+                            ),
+                        });
+                    }
+
                     // Success or non-retryable error status
 
                     // Check response mode BEFORE consuming the body

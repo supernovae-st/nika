@@ -785,3 +785,43 @@ async fn wiremock_fetch_template_resolved_in_url() {
         .collect();
     assert_eq!(tpl.len(), 1);
 }
+
+#[tokio::test]
+async fn wiremock_fetch_returns_error_on_exhausted_5xx_retries() {
+    let server = MockServer::start().await;
+
+    // ALL requests return 500 — no recovery
+    Mock::given(method("GET"))
+        .and(path("/always-500"))
+        .respond_with(ResponseTemplate::new(500).set_body_string("Internal Server Error"))
+        .mount(&server)
+        .await;
+
+    let (executor, bindings, datastore, event_log) = setup();
+    let task_id: Arc<str> = Arc::from("wm_exhaust_5xx");
+    let mut params = fetch_params(&format!("{}/always-500", server.uri()), "GET");
+    let retry_cfg: serde_json::Value = serde_json::json!({
+        "max_attempts": 2,
+        "backoff_ms": 10,
+        "multiplier": 1.0
+    });
+    params.retry = Some(serde_json::from_value(retry_cfg).unwrap());
+    let action = TaskAction::Fetch { fetch: params };
+
+    // Must return Err, NOT Ok with empty/error body
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await;
+    assert!(result.is_err(), "fetch should fail after exhausting retries on 500, got: {:?}", result);
+
+    // Verify retry events were emitted
+    let events = event_log.filter_task("wm_exhaust_5xx");
+    let retries: Vec<_> = events
+        .iter()
+        .filter(|e| matches!(e.kind, EventKind::FetchRetry { .. }))
+        .collect();
+    assert!(
+        !retries.is_empty(),
+        "Should have emitted at least one FetchRetry event"
+    );
+}
