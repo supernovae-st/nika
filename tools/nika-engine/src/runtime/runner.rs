@@ -2326,7 +2326,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                                     task_id: Arc::clone(&task_id),
                                                     error: "Semaphore closed unexpectedly".to_string(),
                                                     duration_ms: 0,
-                                                    error_code: Some("NIKA-026".to_string()),
+                                                    error_code: Some("NIKA-028".to_string()),
                                                 });
                                                 return IterationResult {
                                                     store_id: task_id,
