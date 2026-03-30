@@ -1832,10 +1832,22 @@ fn validate_task_keys(
                     message: format!("unknown task field '{}...' (key too long)", &key_str[..32]),
                 });
             }
-            let suggestion = KNOWN_TASK_KEYS
-                .iter()
-                .find(|k| is_likely_misspelling(key_str, k))
-                .map(|k| format!(" (did you mean '{}'?)", k));
+            // Common mistakes that are too far for Levenshtein to catch
+            let explicit_suggestion = match key_str {
+                "use" => Some("did you mean 'with'?"),
+                "max_retries" => {
+                    Some("did you mean 'retry: { max_attempts: N }'? (max_retries is only valid inside structured:)")
+                }
+                _ => None,
+            };
+            let suggestion = explicit_suggestion
+                .map(|s| format!(" ({})", s))
+                .or_else(|| {
+                    KNOWN_TASK_KEYS
+                        .iter()
+                        .find(|k| is_likely_misspelling(key_str, k))
+                        .map(|k| format!(" (did you mean '{}'?)", k))
+                });
             return Err(ParseError {
                 kind: ParseErrorKind::UnknownField,
                 span,
@@ -3714,6 +3726,40 @@ tasks:
         assert!(
             err.message.contains("unknown task field"),
             "Error should mention unknown field: {}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn test_reject_use_keyword_with_helpful_hint() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: bad
+    use: { data: $step1 }
+    infer: "test"
+"#;
+        let err = parse(yaml, FileId(0)).unwrap_err();
+        assert!(
+            err.message.contains("did you mean 'with'"),
+            "Should suggest 'with:' for 'use:': {}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn test_reject_max_retries_at_task_level() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: bad
+    max_retries: 3
+    infer: "test"
+"#;
+        let err = parse(yaml, FileId(0)).unwrap_err();
+        assert!(
+            err.message.contains("retry:"),
+            "Should suggest 'retry:' for 'max_retries:': {}",
             err.message
         );
     }
