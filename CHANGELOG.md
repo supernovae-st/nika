@@ -5,37 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.52.0] — 2026-03-30
+
+### Security
+- **IPv4-compatible IPv6 SSRF bypass** — Block `::127.0.0.1`, `::169.254.169.254` and other IPv4-compatible IPv6 addresses that bypassed SSRF protection.
+- **Absolute path blocklist bypass** — `/usr/bin/sudo`, `/usr/bin/doas`, `/usr/local/bin/python3 -c` now caught by extracting basename from first token before blocklist matching.
+- **Symlink artifact escape (fail-closed)** — `canonicalize()` failures in artifact writer now return `ArtifactPathError` instead of silently skipping the symlink check.
 
 ### Added
-- **P-ORCHESTRATE: Goal-driven workflow orchestration** — 6-part feature (goal field, orchestrate config, agent wrapper, inline YAML execution, round tracking, 5 events). `goal:` + `orchestrate:` workflow headers. `wrap_as_orchestrator()` transforms goal-driven workflows into agent tasks. `nika:run` accepts `yaml_content` for inline YAML. OrchestratorStarted/Round/SubWorkflow/Completed/Failed events. 31 new tests.
-- **ProviderName typed enum** — Provider aliases (claude, gpt, grok, local) now resolved at analysis time to canonical names (anthropic, openai, xai, native). Type-safe provider handling throughout core AST.
-- **P-RECORD: Record compression engine** — `record:` field on tasks enables LLM-compressed summaries. RecordCompressor with cheap model resolution (haiku/gpt-4.1-mini). NDJSON persistence in `.nika/records/`. `nika trace search` CLI with --workflow and --since filters.
-- **P-CONTEXT: Context budget enforcement** — `context_budget:` field limits binding size per task. CJK-aware token counting. Proportional truncation with BudgetOk/BudgetExceeded events.
-- **P-INTROSPECT: 4 introspection tools** — `nika:dag_info` (task count, completion), `nika:task_status` (per-task metrics), `nika:threads` (filterable task list), `nika:orchestrate` (round tracking + cost).
-- **P-MEMORY-LOCAL: Cross-session memory** — NDJSON record persistence, output scanner (5 pattern categories for injection detection).
-- **Inference routing** — `provider: [groq, anthropic]` fallback chains. ProviderFallback event on failover. Retriable error detection (MissingApiKey, RateLimit, Timeout).
-- **Agent presets** — 8 built-in presets (think, summarize, translate, extract...). `agent: think` parser disambiguation. `nika:cost` introspection tool. AgentPresetUsed event.
-- **Artifact manifest** — `manifest: true` now writes artifacts.json index at workflow completion.
-- **for_each_index binding** — `{{with.for_each_index}}` available in for_each iterations.
-- **LLM compression wiring** — ExecutorCompressorLlm bridges TaskExecutor to CompressorLlm with cheap model resolution.
-- **Daemon auto-start** — Daemon starts automatically on any `nika` command. No manual `nika daemon start` required.
+- **28 E2E workflow tests** — Comprehensive end-to-end tests: 12 mock (infer, depends_on, fan-out, for_each, exec, retry, inputs), 7 real API provider tests (all 7 providers), 7 structured output validation tests (programmatic JSON validation per provider), 2 integration tests (pipeline + fetch).
+- **P-ORCHESTRATE: Goal-driven workflow orchestration** — 6-part feature (goal field, orchestrate config, agent wrapper, inline YAML execution, round tracking, 5 events).
+- **ProviderName typed enum** — Provider aliases resolved at analysis time to canonical names. Type-safe provider handling throughout core AST.
+- **P-RECORD: Record compression engine** — `record:` field, NDJSON persistence, `nika trace search` CLI.
+- **P-CONTEXT: Context budget enforcement** — `context_budget:` field, CJK-aware token counting.
+- **P-INTROSPECT: 4 introspection tools** — `nika:dag_info`, `nika:task_status`, `nika:threads`, `nika:orchestrate`.
+- **P-MEMORY-LOCAL: Cross-session memory** — NDJSON records, output scanner injection detection.
+- **Inference routing** — `provider: [groq, anthropic]` fallback chains with ProviderFallback event.
+- **Agent presets** — 8 built-in presets. `nika:cost` introspection tool.
+- **Daemon auto-start** — Daemon starts automatically on any `nika` command.
 
 ### Fixed
-- **$env secret blocking (BUG-001)** — Removed overly restrictive KEY/SECRET/TOKEN/PASSWORD blocklist on `$env` vars. All env vars now accessible (user explicitly writes them in YAML). Debug-level audit log for secret-pattern vars.
-- **Shell blocklist false positive (BUG-005)** — `check_shell_mode_blocklist()` now checks raw YAML template (pre-resolution), not resolved command. Data containing `$(` from task output no longer triggers NIKA-053. 3 new pre-resolution tests.
-- **12 stale example workflows** — Fixed `max_retries:` → `retry: { max_attempts: N }`, `thinking: true` → `extended_thinking: true` inside `infer:`, `model:` inside verb block → task level. All 15 courses + 15 DAG patterns pass E2E.
-- **DAG 07 conditional-fan-out** — Removed `$(...)` command substitution from YAML templates, replaced with pipe transforms.
-- **DAG 08 parallel-checks-merge** — Fixed JSON data injection into shell commands via `output: { format: json }` + `| to_json`.
-- **Direct keyring access removed** — No more macOS Keychain popup risk. Secrets resolved via env vars or daemon IPC only.
+- **SpawnAgent cancel token** — Child agents now receive `cancel_token.child_token()` so parent cancellation cascades correctly.
+- **HashMap panic in DAG depth calculation** — Direct indexing replaced with `.get().copied().unwrap_or(0)` in two places.
+- **Exit code display** — `None` exit code now renders with dim color (not success green).
+- **Missing size_bytes warning** — Media tool results without `size_bytes` now log a warning.
+- **Empty workflow output warning** — Final output defaults logged at warn level instead of silently.
+- **Structured output error accumulation** — Layer 2/3/4 errors now accumulated in Vec and included in NIKA-300 error message.
+- **JSONPath debug→warn** — 5 JSONPath resolution failures upgraded to warn level for user visibility.
+- **Malformed template warning** — Template parse errors now emit tracing::warn with expression and error context.
+- **Transform null error logging** — Transform errors on null values logged at debug with error context.
+- **$env secret blocking (BUG-001)** — All env vars now accessible.
+- **Shell blocklist false positive (BUG-005)** — Pre-resolution blocklist check.
+- **12 stale example workflows** — Fixed field names and placements.
+- **4 pre-existing clippy errors** — field_reassign_with_default, redundant closure, useless vec!, non-Debug assert.
 
 ### Changed
-- **Provider canonicalization** — All default provider strings use canonical "anthropic" instead of alias "claude". Config auto-detect, boot defaults, agent definitions, resolver fallback all consistent.
-- **Dead code cleanup** — Removed 702 LOC dead include_loader.rs.
-- **DX rules overhaul** — All 7 AI editor rule files updated (Claude, Cursor, Windsurf, Roo, Copilot): transforms 31→38, builtin tools 24→30+ (added Core/File/Introspection categories), 4 new common mistakes (thinking, max_retries, model placement, $()). BUG-001 and BUG-002 in nika-bugs-and-patterns.md corrected (both were false reports).
-- **JSON Schema** — Synced with parser: 9 field additions.
-- **LSP workspace deps** — nika-lsp uses workspace dependencies for nika-engine and nika-daemon (eliminates version drift warnings).
-- **Test count** — 8,903 tests across 12 crates (up from 8,260 in v0.50).
+- **Dead code removed** — `RecordSpec.retain` (never consumed), `IterationResult.artifact_paths` (populated but ignored), `RetryCondition` enum (zero consumers), 702 LOC include_loader.rs.
+- **Provider canonicalization** — Consistent "anthropic" instead of "claude" alias.
+- **Test count** — 8,938 tests across 12 crates (up from 8,903 in v0.51).
 
 ## [0.51.0] — 2026-03-29
 
