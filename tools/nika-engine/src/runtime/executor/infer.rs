@@ -33,19 +33,35 @@ impl TaskExecutor {
     ///
     /// Used by L0 safety-net, main streaming path (L2-L3), and repair path (L4).
     /// All three sites share the same pattern: clone provider, wrap in Arc, strip think tags.
+    ///
+    /// When `max_tokens` is passed by the engine (from the task's configured value),
+    /// the callback uses `infer_with_options` to respect that limit instead of the
+    /// hardcoded 8192 default.
     fn make_infer_callback(
         provider: &RigProvider,
         model: Option<&str>,
     ) -> InferCallback {
         let provider = provider.clone();
         let model_for_retry = model.map(|s| s.to_string());
-        Arc::new(move |retry_prompt: String| {
+        Arc::new(move |retry_prompt: String, max_tokens: Option<u32>| {
             let provider = provider.clone();
             let model = model_for_retry.clone();
             Box::pin(async move {
-                provider
-                    .infer(&retry_prompt, model.as_deref())
-                    .await
+                let result = if max_tokens.is_some() {
+                    let opts = InferOptions {
+                        model: model.clone(),
+                        max_tokens,
+                        ..Default::default()
+                    };
+                    provider
+                        .infer_with_options(&retry_prompt, &opts)
+                        .await
+                } else {
+                    provider
+                        .infer(&retry_prompt, model.as_deref())
+                        .await
+                };
+                result
                     .map(|s| super::verbs::strip_think_tags(&s))
                     .map_err(|e| NikaError::ProviderApiError {
                         message: format!("structured output retry failed: {}", e),
@@ -710,7 +726,8 @@ impl TaskExecutor {
                             .with_provider_context(
                                 provider_name.to_string(),
                                 model.unwrap_or_else(|| provider.default_model()).to_string(),
-                            );
+                            )
+                            .with_max_tokens(infer.max_tokens);
 
                     // Wire repair_model: use a different (cheaper) model for Layer 4 repair
                     // Resolve templates (e.g. "{{inputs.fast_model}}")
@@ -815,7 +832,8 @@ impl TaskExecutor {
                         model
                             .unwrap_or_else(|| provider.default_model())
                             .to_string(),
-                    );
+                    )
+                    .with_max_tokens(infer.max_tokens);
 
                     match engine
                         .validate(task_id.as_ref(), &stream_result.text)
@@ -1022,7 +1040,8 @@ impl TaskExecutor {
                         model
                             .unwrap_or_else(|| provider.default_model())
                             .to_string(),
-                    );
+                    )
+                    .with_max_tokens(infer.max_tokens);
 
                     match engine.validate(task_id.as_ref(), &tool_result).await {
                         Ok(result) => {
