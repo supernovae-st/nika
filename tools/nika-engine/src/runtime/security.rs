@@ -269,6 +269,10 @@ pub fn check_blocklist(cmd: &str) -> Result<(), NikaError> {
     let normalized = normalize_for_blocklist(cmd);
     let lower = normalized.to_lowercase();
 
+    // SEC-2: Also check with the first token basename-resolved.
+    // "/usr/bin/sudo rm -rf /" → "sudo rm -rf /" to catch absolute-path bypass.
+    let basename_normalized = normalize_first_token_basename(&lower);
+
     for pattern in BLOCKLIST {
         // Blocklist patterns are already clean ASCII — only lowercase them.
         // Do NOT apply normalize_for_blocklist() which strips trailing spaces
@@ -276,7 +280,8 @@ pub fn check_blocklist(cmd: &str) -> Result<(), NikaError> {
         // that rely on a trailing space to avoid false positives
         // (e.g. "su " must NOT match "successfully").
         let normalized_pattern = pattern.to_lowercase();
-        if lower.contains(&normalized_pattern) {
+        if lower.contains(&normalized_pattern) || basename_normalized.contains(&normalized_pattern)
+        {
             tracing::warn!(
                 command = %cmd,
                 normalized = %lower,
@@ -290,6 +295,27 @@ pub fn check_blocklist(cmd: &str) -> Result<(), NikaError> {
         }
     }
     Ok(())
+}
+
+/// Normalize the first token of a command to its basename.
+///
+/// `/usr/bin/sudo rm -rf /` → `sudo rm -rf /`
+/// `/usr/local/bin/python3 -c "..."` → `python3 -c "..."`
+///
+/// This prevents bypass via absolute path to blocked binaries.
+fn normalize_first_token_basename(cmd: &str) -> String {
+    let trimmed = cmd.trim();
+    if let Some(space_pos) = trimmed.find(' ') {
+        let first_token = &trimmed[..space_pos];
+        if first_token.contains('/') || first_token.contains('\\') {
+            let basename = std::path::Path::new(first_token)
+                .file_name()
+                .and_then(|f| f.to_str())
+                .unwrap_or(first_token);
+            return format!("{} {}", basename, &trimmed[space_pos + 1..]);
+        }
+    }
+    cmd.to_string()
 }
 
 /// Blocked environment variable names (library injection / privilege escalation).
@@ -1623,5 +1649,62 @@ mod tests {
             check_shell_mode_blocklist(raw_template).is_ok(),
             "Template with {{with.x}} should pass shell blocklist"
         );
+    }
+
+    // =========================================================================
+    // SEC-2: Absolute path bypass (e.g. /usr/bin/sudo)
+    // =========================================================================
+
+    #[test]
+    fn test_blocklist_rejects_absolute_path_sudo() {
+        let err = check_blocklist("/usr/bin/sudo rm -rf /tmp").unwrap_err();
+        assert!(
+            err.to_string().contains("NIKA-053"),
+            "/usr/bin/sudo must be blocked"
+        );
+    }
+
+    #[test]
+    fn test_blocklist_rejects_absolute_path_doas() {
+        let err = check_blocklist("/usr/bin/doas cat /etc/shadow").unwrap_err();
+        assert!(
+            err.to_string().contains("NIKA-053"),
+            "/usr/bin/doas must be blocked"
+        );
+    }
+
+    #[test]
+    fn test_blocklist_rejects_absolute_path_pkexec() {
+        let err = check_blocklist("/usr/bin/pkexec sh").unwrap_err();
+        assert!(
+            err.to_string().contains("NIKA-053"),
+            "/usr/bin/pkexec must be blocked"
+        );
+    }
+
+    #[test]
+    fn test_blocklist_rejects_absolute_path_python() {
+        let err = check_blocklist("/usr/local/bin/python3 -c 'import os'").unwrap_err();
+        assert!(
+            err.to_string().contains("NIKA-053"),
+            "/usr/local/bin/python3 -c must be blocked"
+        );
+    }
+
+    #[test]
+    fn test_blocklist_rejects_absolute_path_env() {
+        let err = check_blocklist("/usr/bin/env rm -rf /tmp").unwrap_err();
+        assert!(
+            err.to_string().contains("NIKA-053"),
+            "/usr/bin/env must be blocked"
+        );
+    }
+
+    #[test]
+    fn test_blocklist_allows_paths_with_safe_basenames() {
+        // A path to a safe binary should still be allowed
+        assert!(check_blocklist("/usr/bin/echo hello world").is_ok());
+        assert!(check_blocklist("/usr/local/bin/jq '.data'").is_ok());
+        assert!(check_blocklist("/usr/bin/ffmpeg -i input.mp3 output.wav").is_ok());
     }
 }
