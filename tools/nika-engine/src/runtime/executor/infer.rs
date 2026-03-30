@@ -221,7 +221,11 @@ impl TaskExecutor {
                         },
                     ));
                 } else {
-                    return Err(last_error.unwrap());
+                    return Err(last_error.unwrap_or_else(|| {
+                        NikaError::ProviderNotConfigured {
+                            provider: "none (empty provider chain)".to_string(),
+                        }
+                    }));
                 }
             }
 
@@ -478,6 +482,30 @@ impl TaskExecutor {
                 };
 
                 {
+                    // BUG-1 FIX: Create inference callback for Layer 0 safety net
+                    // validation so L3 (retry with feedback) and L4 (LLM repair)
+                    // are enabled when L0a/L0b output fails schema validation.
+                    let l0_infer_callback: InferCallback = {
+                        let provider = provider.clone();
+                        let model_for_retry = model.map(|s| s.to_string());
+                        Arc::new(move |retry_prompt: String| {
+                            let provider = provider.clone();
+                            let model = model_for_retry.clone();
+                            Box::pin(async move {
+                                provider
+                                    .infer(&retry_prompt, model.as_deref())
+                                    .await
+                                    .map(|s| super::verbs::strip_think_tags(&s))
+                                    .map_err(|e| NikaError::ProviderApiError {
+                                        message: format!(
+                                            "structured output retry failed: {}",
+                                            e
+                                        ),
+                                    })
+                            })
+                        })
+                    };
+
                     if let Err(ref e) = schema_value {
                         warn!(
                             task_id = %task_id,
@@ -533,7 +561,8 @@ impl TaskExecutor {
                                         let mut engine = StructuredOutputEngine::new(
                                             spec,
                                             Arc::new(self.event_log.clone()),
-                                        );
+                                        )
+                                        .with_infer_callback(l0_infer_callback.clone());
 
                                         match engine
                                             .validate(task_id.as_ref(), &stream_result.text)
@@ -712,7 +741,8 @@ impl TaskExecutor {
                                         let mut engine = StructuredOutputEngine::new(
                                             spec,
                                             Arc::new(self.event_log.clone()),
-                                        );
+                                        )
+                                        .with_infer_callback(l0_infer_callback.clone());
 
                                         match engine.validate(task_id.as_ref(), &tool_result).await
                                         {
