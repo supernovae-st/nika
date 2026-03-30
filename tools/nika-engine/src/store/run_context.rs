@@ -155,6 +155,51 @@ impl TaskResult {
             other => Cow::Owned(other.to_string()),
         }
     }
+
+    /// Estimate the in-memory size of the output in bytes.
+    ///
+    /// Uses string length for strings, recursive estimate for JSON objects/arrays.
+    pub fn output_size_estimate(&self) -> usize {
+        estimate_value_size(&self.output)
+    }
+
+    /// Maximum allowed task output size (50 MB).
+    pub const MAX_OUTPUT_SIZE: usize = 50 * 1024 * 1024;
+
+    /// If output exceeds MAX_OUTPUT_SIZE, truncate it and return the original size.
+    /// Returns `Some(original_size)` if truncation happened, `None` otherwise.
+    pub fn truncate_if_oversized(&mut self) -> Option<usize> {
+        let size = self.output_size_estimate();
+        if size > Self::MAX_OUTPUT_SIZE {
+            let truncated = format!(
+                "[TRUNCATED: output was {} bytes, limit is {} bytes]",
+                size,
+                Self::MAX_OUTPUT_SIZE
+            );
+            self.output = Arc::new(Value::String(truncated));
+            Some(size)
+        } else {
+            None
+        }
+    }
+}
+
+/// Recursively estimate the in-memory byte size of a serde_json::Value.
+fn estimate_value_size(value: &Value) -> usize {
+    match value {
+        Value::Null | Value::Bool(_) => 8,
+        Value::Number(_) => 16,
+        Value::String(s) => s.len() + 24, // String header + data
+        Value::Array(arr) => {
+            24 + arr.iter().map(estimate_value_size).sum::<usize>()
+        }
+        Value::Object(map) => {
+            48 + map
+                .iter()
+                .map(|(k, v)| k.len() + 24 + estimate_value_size(v))
+                .sum::<usize>()
+        }
+    }
 }
 
 /// Thread-safe storage for task results (lock-free)
@@ -1671,5 +1716,37 @@ mod tests {
     fn test_record_missing_returns_none() {
         let ctx = RunContext::new();
         assert!(ctx.get_record("nonexistent").is_none());
+    }
+
+    #[test]
+    fn test_output_size_estimate_string() {
+        let result = TaskResult::success("hello world", Duration::from_secs(1));
+        // 11 chars + 24 overhead
+        assert_eq!(result.output_size_estimate(), 35);
+    }
+
+    #[test]
+    fn test_truncate_if_oversized_small_output_unchanged() {
+        let mut result = TaskResult::success("small output", Duration::from_secs(1));
+        assert!(result.truncate_if_oversized().is_none());
+        assert_eq!(result.output_str(), "small output");
+    }
+
+    #[test]
+    fn test_truncate_if_oversized_large_output_truncated() {
+        // Create a string just over 50MB
+        let large = "x".repeat(51 * 1024 * 1024);
+        let mut result = TaskResult::success(large, Duration::from_secs(1));
+        let original_size = result.truncate_if_oversized();
+        assert!(original_size.is_some(), "Should have been truncated");
+        assert!(
+            result.output_str().starts_with("[TRUNCATED:"),
+            "Output should be truncated message, got: {}",
+            &result.output_str()[..50]
+        );
+        assert!(
+            result.output_size_estimate() < TaskResult::MAX_OUTPUT_SIZE,
+            "Truncated output should be under limit"
+        );
     }
 }

@@ -2453,6 +2453,17 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                     });
                                 }
 
+                                // Enforce 50MB output size limit to prevent OOM
+                                let mut task_result = task_result;
+                                if let Some(original_size) = task_result.truncate_if_oversized() {
+                                    tracing::warn!(
+                                        task_id = %store_id,
+                                        original_size,
+                                        limit = TaskResult::MAX_OUTPUT_SIZE,
+                                        "Task output exceeds 50MB limit — truncated"
+                                    );
+                                }
+
                                 // Store individual result
                                 self.datastore
                                     .insert(Arc::clone(&store_id), task_result.clone());
