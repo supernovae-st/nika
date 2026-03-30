@@ -280,6 +280,26 @@ impl TaskExecutor {
         // Mock provider support for testing (no API call)
         // Generates a generic JSON response with common test fields
         if provider_name == "mock" {
+            // Mock failure simulation: NIKA_MOCK_FAIL_COUNT=N makes the first N calls fail
+            // with a transient error (retryable). Used for testing retry + backoff.
+            use std::sync::atomic::{AtomicU32, Ordering};
+            static MOCK_CALL_COUNTER: AtomicU32 = AtomicU32::new(0);
+            if let Ok(fail_count_str) = std::env::var("NIKA_MOCK_FAIL_COUNT") {
+                if let Ok(fail_count) = fail_count_str.parse::<u32>() {
+                    let call_num = MOCK_CALL_COUNTER.fetch_add(1, Ordering::SeqCst);
+                    if call_num < fail_count {
+                        return Err(NikaError::ProviderApiError {
+                            message: format!(
+                                "Mock failure simulation: call {} of {} (NIKA_MOCK_FAIL_COUNT={})",
+                                call_num + 1,
+                                fail_count,
+                                fail_count
+                            ),
+                        });
+                    }
+                }
+            }
+
             // For vision content, include content metadata in mock response
             let vision_info = if has_content {
                 let parts = match infer.content.as_ref() {
