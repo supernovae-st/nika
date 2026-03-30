@@ -1348,6 +1348,16 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             .into());
         }
 
+        // P-ORCHESTRATE: Emit OrchestratorStarted when goal is present
+        if let Some(ref goal) = self.workflow.goal {
+            let orch_config = self.workflow.orchestrate.as_ref();
+            self.event_log.emit(EventKind::OrchestratorStarted {
+                goal: goal.clone(),
+                max_rounds: orch_config.map(|c| c.max_rounds).unwrap_or(10),
+                agent: orch_config.and_then(|c| c.agent.clone()),
+            });
+        }
+
         // Load context files if workflow has context_files
         let base_path = std::env::current_dir().unwrap_or_else(|e| {
             tracing::warn!(error = %e, "Failed to get current directory, using '.'");
@@ -2626,6 +2636,32 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 String::new()
             }
         };
+
+        // P-ORCHESTRATE: Emit OrchestratorCompleted when goal workflow finishes
+        if self.workflow.goal.is_some() {
+            // Compute total cost from ProviderResponded events
+            let total_cost: f64 = self
+                .event_log
+                .events()
+                .iter()
+                .filter_map(|e| match &e.kind {
+                    EventKind::ProviderResponded { cost_usd, .. } => Some(cost_usd),
+                    _ => None,
+                })
+                .sum();
+            // Count orchestrator rounds from OrchestratorRound events (if any)
+            let rounds: u32 = self
+                .event_log
+                .events()
+                .iter()
+                .filter(|e| matches!(&e.kind, EventKind::OrchestratorRound { .. }))
+                .count() as u32;
+            self.event_log.emit(EventKind::OrchestratorCompleted {
+                rounds,
+                total_cost_usd: total_cost,
+                confidence: 1.0, // Default — will be wired from nika:complete response
+            });
+        }
 
         // EMIT: WorkflowCompleted
         self.event_log.emit(EventKind::WorkflowCompleted {
