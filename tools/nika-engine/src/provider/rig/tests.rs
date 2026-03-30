@@ -32,6 +32,7 @@ fn stream_result_with_tokens() {
         cached_input_tokens: 20,
         ttft_ms: None,
         request_id: None,
+        finish_reason: None,
     };
     assert_eq!(
         result.total_tokens,
