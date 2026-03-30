@@ -173,8 +173,7 @@ impl TaskExecutor {
         // Select HTTP client based on follow_redirects + DNS pinning
         // When we have pinned DNS addresses, build a one-off client with .resolve()
         // to prevent TOCTOU rebinding. Otherwise use the shared client.
-        let needs_custom_client =
-            fetch.follow_redirects == Some(false) || !pinned_addrs.is_empty();
+        let needs_custom_client = fetch.follow_redirects == Some(false) || !pinned_addrs.is_empty();
         let http_client: std::borrow::Cow<'_, reqwest::Client> = if needs_custom_client {
             let mut builder = reqwest::Client::builder()
                 .timeout(crate::util::FETCH_TIMEOUT)

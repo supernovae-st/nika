@@ -498,13 +498,11 @@ impl TransformOp {
             },
 
             // ── Utility ──────────────────────────────────────
-            TransformOp::Default(default_val) => {
-                match value {
-                    Value::Null => Ok(default_val.clone()),
-                    Value::String(s) if s.is_empty() => Ok(default_val.clone()),
-                    _ => Ok(value.clone()),
-                }
-            }
+            TransformOp::Default(default_val) => match value {
+                Value::Null => Ok(default_val.clone()),
+                Value::String(s) if s.is_empty() => Ok(default_val.clone()),
+                _ => Ok(value.clone()),
+            },
             TransformOp::TypeOf => {
                 let name = value_type_name(value);
                 Ok(Value::String(name.to_string()))

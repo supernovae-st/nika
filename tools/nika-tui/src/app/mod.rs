@@ -619,7 +619,11 @@ impl App {
                 .map(|p| p.name)
                 .unwrap_or(provider_id.as_str());
             // Only override if user hasn't set a model override too
-            let model = config.chat.default_model.as_deref().unwrap_or(catalog_model);
+            let model = config
+                .chat
+                .default_model
+                .as_deref()
+                .unwrap_or(catalog_model);
             command_view.chat.set_model(model);
             command_view.chat.set_provider(display_name);
             command_view.chat.provider.id = provider_id.clone();

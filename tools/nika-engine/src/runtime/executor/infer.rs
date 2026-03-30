@@ -39,10 +39,7 @@ impl TaskExecutor {
     /// When `max_tokens` is passed by the engine (from the task's configured value),
     /// the callback uses `infer_with_options` to respect that limit instead of the
     /// hardcoded 8192 default.
-    fn make_infer_callback(
-        provider: &RigProvider,
-        model: Option<&str>,
-    ) -> InferCallback {
+    fn make_infer_callback(provider: &RigProvider, model: Option<&str>) -> InferCallback {
         let provider = provider.clone();
         let model_for_retry = model.map(|s| s.to_string());
         Arc::new(move |retry_prompt: String, max_tokens: Option<u32>| {
@@ -55,13 +52,9 @@ impl TaskExecutor {
                         max_tokens,
                         ..Default::default()
                     };
-                    provider
-                        .infer_with_options(&retry_prompt, &opts)
-                        .await
+                    provider.infer_with_options(&retry_prompt, &opts).await
                 } else {
-                    provider
-                        .infer(&retry_prompt, model.as_deref())
-                        .await
+                    provider.infer(&retry_prompt, model.as_deref()).await
                 };
                 result
                     .map(|s| super::verbs::strip_think_tags(&s))
@@ -264,11 +257,11 @@ impl TaskExecutor {
                         },
                     ));
                 } else {
-                    return Err(last_error.unwrap_or_else(|| {
-                        NikaError::ProviderNotConfigured {
+                    return Err(
+                        last_error.unwrap_or_else(|| NikaError::ProviderNotConfigured {
                             provider: "none (empty provider chain)".to_string(),
-                        }
-                    }));
+                        }),
+                    );
                 }
             }
 
@@ -596,19 +589,22 @@ impl TaskExecutor {
                     // double API calls and double billing.
                     if !layer_0a_attempted {
                         if let Ok(ref sv) = schema_value {
-                            if let Some(result) = self.try_layer_0b_tool_injection(
-                                &provider,
-                                &model_id,
-                                &prompt,
-                                infer,
-                                policy,
-                                sv,
-                                &l0_infer_callback,
-                                task_id,
-                                provider_name,
-                                &resolved_system,
-                                estimated_tokens,
-                            ).await? {
+                            if let Some(result) = self
+                                .try_layer_0b_tool_injection(
+                                    &provider,
+                                    &model_id,
+                                    &prompt,
+                                    infer,
+                                    policy,
+                                    sv,
+                                    &l0_infer_callback,
+                                    task_id,
+                                    provider_name,
+                                    &resolved_system,
+                                    estimated_tokens,
+                                )
+                                .await?
+                            {
                                 return Ok(result);
                             }
                         }
@@ -747,10 +743,7 @@ impl TaskExecutor {
                         StructuredOutputEngine::new(spec.clone(), Arc::new(self.event_log.clone()))
                             .with_infer_callback(infer_callback)
                             .with_original_prompt(prompt.to_string())
-                            .with_provider_context(
-                                provider_name.to_string(),
-                                model_id.clone(),
-                            )
+                            .with_provider_context(provider_name.to_string(), model_id.clone())
                             .with_max_tokens(infer.max_tokens);
 
                     // Wire repair_model: use a different (cheaper) model for Layer 4 repair
@@ -845,36 +838,25 @@ impl TaskExecutor {
             Ok(stream_result) => {
                 // Validate through StructuredOutputEngine as safety net
                 if let Some(spec) = policy.to_structured_spec() {
-                    let mut engine = StructuredOutputEngine::new(
-                        spec,
-                        Arc::new(self.event_log.clone()),
-                    )
-                    .with_infer_callback(l0_infer_callback.clone())
-                    .with_original_prompt(prompt.to_string())
-                    .with_provider_context(
-                        provider_name.to_string(),
-                        model_id.to_string(),
-                    )
-                    .with_max_tokens(infer.max_tokens);
+                    let mut engine =
+                        StructuredOutputEngine::new(spec, Arc::new(self.event_log.clone()))
+                            .with_infer_callback(l0_infer_callback.clone())
+                            .with_original_prompt(prompt.to_string())
+                            .with_provider_context(provider_name.to_string(), model_id.to_string())
+                            .with_max_tokens(infer.max_tokens);
 
-                    match engine
-                        .validate(task_id.as_ref(), &stream_result.text)
-                        .await
-                    {
+                    match engine.validate(task_id.as_ref(), &stream_result.text).await {
                         Ok(result) => {
-                            self.event_log.emit(
-                                EventKind::StructuredOutputAttempt {
-                                    task_id: Arc::clone(task_id),
-                                    layer: 0,
-                                    layer_name: "response_format".to_string(),
-                                    attempt: 1,
-                                    success: true,
-                                    error: None,
-                                },
-                            );
-                            let result_str = super::verbs::strip_think_tags(
-                                &result.value.to_string(),
-                            );
+                            self.event_log.emit(EventKind::StructuredOutputAttempt {
+                                task_id: Arc::clone(task_id),
+                                layer: 0,
+                                layer_name: "response_format".to_string(),
+                                attempt: 1,
+                                success: true,
+                                error: None,
+                            });
+                            let result_str =
+                                super::verbs::strip_think_tags(&result.value.to_string());
                             let cost = provider
                                 .cost_provider_kind()
                                 .map(|pk| {
@@ -895,16 +877,11 @@ impl TaskExecutor {
                                 cache_read_tokens: stream_result.cached_input_tokens,
                                 ttft_ms: stream_result.ttft_ms,
                                 finish_reason: nika_event::FinishReason::Stop,
-                                cost_usd: if cost.is_finite() {
-                                    cost
-                                } else {
-                                    0.0
-                                },
+                                cost_usd: if cost.is_finite() { cost } else { 0.0 },
                             });
                             self.policy_enforcer.write().adjust_reservation(
                                 estimated_tokens,
-                                stream_result.input_tokens
-                                    + stream_result.output_tokens,
+                                stream_result.input_tokens + stream_result.output_tokens,
                             );
                             return Ok((true, Some(result_str)));
                         }
@@ -914,16 +891,14 @@ impl TaskExecutor {
                                 error = %e,
                                 "Layer 0a: response_format result failed validation, falling through"
                             );
-                            self.event_log.emit(
-                                EventKind::StructuredOutputAttempt {
-                                    task_id: Arc::clone(task_id),
-                                    layer: 0,
-                                    layer_name: "response_format".to_string(),
-                                    attempt: 1,
-                                    success: false,
-                                    error: Some(e.to_string()),
-                                },
-                            );
+                            self.event_log.emit(EventKind::StructuredOutputAttempt {
+                                task_id: Arc::clone(task_id),
+                                layer: 0,
+                                layer_name: "response_format".to_string(),
+                                attempt: 1,
+                                success: false,
+                                error: Some(e.to_string()),
+                            });
                         }
                     }
                 } else {
@@ -938,8 +913,7 @@ impl TaskExecutor {
                     });
                     self.policy_enforcer.write().adjust_reservation(
                         estimated_tokens,
-                        stream_result.input_tokens
-                            + stream_result.output_tokens,
+                        stream_result.input_tokens + stream_result.output_tokens,
                     );
                     // BUGFIX SF2: Emit ProviderResponded before early return
                     let cost = provider
@@ -1012,8 +986,7 @@ impl TaskExecutor {
         resolved_system: &Option<String>,
         estimated_tokens: u64,
     ) -> Result<Option<String>, NikaError> {
-        let submit_tool =
-            crate::runtime::submit_tool::DynamicSubmitTool::new(schema_value.clone());
+        let submit_tool = crate::runtime::submit_tool::DynamicSubmitTool::new(schema_value.clone());
         let tools: Vec<Box<dyn rig::tool::ToolDyn>> = vec![Box::new(submit_tool)];
 
         debug!(
@@ -1049,44 +1022,33 @@ impl TaskExecutor {
 
                 // Still validate through the engine as safety net
                 if let Some(spec) = policy.to_structured_spec() {
-                    let mut engine = StructuredOutputEngine::new(
-                        spec,
-                        Arc::new(self.event_log.clone()),
-                    )
-                    .with_infer_callback(l0_infer_callback.clone())
-                    .with_original_prompt(prompt.to_string())
-                    .with_provider_context(
-                        provider_name.to_string(),
-                        model_id.to_string(),
-                    )
-                    .with_max_tokens(infer.max_tokens);
+                    let mut engine =
+                        StructuredOutputEngine::new(spec, Arc::new(self.event_log.clone()))
+                            .with_infer_callback(l0_infer_callback.clone())
+                            .with_original_prompt(prompt.to_string())
+                            .with_provider_context(provider_name.to_string(), model_id.to_string())
+                            .with_max_tokens(infer.max_tokens);
 
                     match engine.validate(task_id.as_ref(), &tool_result).await {
                         Ok(result) => {
                             // Emit success ONLY after validation passes
-                            self.event_log.emit(
-                                EventKind::StructuredOutputAttempt {
-                                    task_id: Arc::clone(task_id),
-                                    layer: 0,
-                                    layer_name: "tool_injection".to_string(),
-                                    attempt: 1,
-                                    success: true,
-                                    error: None,
-                                },
-                            );
-                            let result_str = super::verbs::strip_think_tags(
-                                &result.value.to_string(),
-                            );
+                            self.event_log.emit(EventKind::StructuredOutputAttempt {
+                                task_id: Arc::clone(task_id),
+                                layer: 0,
+                                layer_name: "tool_injection".to_string(),
+                                attempt: 1,
+                                success: true,
+                                error: None,
+                            });
+                            let result_str =
+                                super::verbs::strip_think_tags(&result.value.to_string());
                             let est_in = estimate_tokens(prompt.len());
                             let est_out = estimate_tokens(result_str.len());
                             let cost = provider
                                 .cost_provider_kind()
                                 .map(|pk| {
                                     crate::provider::cost::calculate_cost_with_cache(
-                                        pk,
-                                        model_id,
-                                        est_in,
-                                        est_out,
+                                        pk, model_id, est_in, est_out,
                                         0, // No cache info for non-streaming
                                     )
                                 })
@@ -1099,11 +1061,7 @@ impl TaskExecutor {
                                 cache_read_tokens: 0,
                                 ttft_ms: None,
                                 finish_reason: nika_event::FinishReason::Stop,
-                                cost_usd: if cost.is_finite() {
-                                    cost
-                                } else {
-                                    0.0
-                                },
+                                cost_usd: if cost.is_finite() { cost } else { 0.0 },
                             });
                             debug!(
                                 task_id = %task_id,
@@ -1111,24 +1069,21 @@ impl TaskExecutor {
                                 "Layer 0 + validation succeeded"
                             );
                             // Adjust token reservation before early return
-                            self.policy_enforcer.write().adjust_reservation(
-                                estimated_tokens,
-                                est_in + est_out,
-                            );
+                            self.policy_enforcer
+                                .write()
+                                .adjust_reservation(estimated_tokens, est_in + est_out);
                             return Ok(Some(result_str));
                         }
                         Err(e) => {
                             // Emit failure when validation rejects tool output
-                            self.event_log.emit(
-                                EventKind::StructuredOutputAttempt {
-                                    task_id: Arc::clone(task_id),
-                                    layer: 0,
-                                    layer_name: "tool_injection".to_string(),
-                                    attempt: 1,
-                                    success: false,
-                                    error: Some(e.to_string()),
-                                },
-                            );
+                            self.event_log.emit(EventKind::StructuredOutputAttempt {
+                                task_id: Arc::clone(task_id),
+                                layer: 0,
+                                layer_name: "tool_injection".to_string(),
+                                attempt: 1,
+                                success: false,
+                                error: Some(e.to_string()),
+                            });
                             debug!(
                                 task_id = %task_id,
                                 error = %e,
@@ -1152,10 +1107,7 @@ impl TaskExecutor {
                         .cost_provider_kind()
                         .map(|pk| {
                             crate::provider::cost::calculate_cost_with_cache(
-                                pk,
-                                model_id,
-                                est_in,
-                                est_out,
+                                pk, model_id, est_in, est_out,
                                 0, // No cache info for non-streaming
                             )
                         })
@@ -1182,8 +1134,8 @@ impl TaskExecutor {
                 // This happens when the provider doesn't support tool_choice
                 // or when structured output uses a fast-path bypass.
                 let err_str = e.to_string();
-                let is_expected_skip = err_str.contains("MaxTurnError")
-                    || err_str.contains("max turn limit: 0");
+                let is_expected_skip =
+                    err_str.contains("MaxTurnError") || err_str.contains("max turn limit: 0");
                 let error_msg = if is_expected_skip {
                     "tool injection skipped (not supported by provider)".to_string()
                 } else {
@@ -1409,8 +1361,12 @@ impl TaskExecutor {
             "Vision content resolved, calling infer_vision"
         );
 
-        let vision_work =
-            provider.infer_vision(user_content, Some(model_id), resolved_system, infer.max_tokens);
+        let vision_work = provider.infer_vision(
+            user_content,
+            Some(model_id),
+            resolved_system,
+            infer.max_tokens,
+        );
         let vision_result = tokio::select! {
             result = vision_work => {
                 result.map_err(|e| ProviderError::ApiError { message: e.to_string() })?
@@ -1444,11 +1400,7 @@ impl TaskExecutor {
             .cost_provider_kind()
             .map(|pk| {
                 crate::provider::cost::calculate_cost_with_cache(
-                    pk,
-                    model_id,
-                    est_in,
-                    est_out,
-                    0, // Vision: no cache info available yet
+                    pk, model_id, est_in, est_out, 0, // Vision: no cache info available yet
                 )
             })
             .unwrap_or(0.0);

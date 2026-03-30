@@ -37,6 +37,7 @@ mod executor;
 pub mod executor_compressor;
 pub mod hitl;
 pub mod limit_tracker;
+pub(crate) mod mock_json;
 pub mod orchestrate;
 pub mod output;
 pub mod output_scanner;
@@ -50,12 +51,11 @@ mod rig_agent_loop;
 mod runner;
 pub mod security;
 mod skill_injector;
-#[cfg(test)]
-mod tests_e2e_workflow;
 pub mod spawn;
-pub(crate) mod mock_json;
 pub mod structured_output;
 pub mod submit_tool;
+#[cfg(test)]
+mod tests_e2e_workflow;
 
 // Re-export public types
 pub use builtin::{

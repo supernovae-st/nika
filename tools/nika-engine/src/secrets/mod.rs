@@ -116,16 +116,12 @@ mod tests {
         let _result = load_from_daemon_or_fallback().await;
 
         // No daemon socket should have been created in the tempdir
-        let socket_exists = dir
-            .path()
-            .read_dir()
-            .unwrap()
-            .any(|entry| {
-                entry
-                    .ok()
-                    .map(|e| e.file_name().to_string_lossy().contains("sock"))
-                    .unwrap_or(false)
-            });
+        let socket_exists = dir.path().read_dir().unwrap().any(|entry| {
+            entry
+                .ok()
+                .map(|e| e.file_name().to_string_lossy().contains("sock"))
+                .unwrap_or(false)
+        });
         assert!(
             !socket_exists,
             "NIKA_NO_DAEMON=1 should prevent daemon auto-start"
@@ -154,7 +150,10 @@ mod tests {
         std::env::set_var("ANTHROPIC_API_KEY", "test-key-123");
 
         let secret = get_secret("anthropic").await;
-        assert!(secret.is_some(), "get_secret should return Some when env var is set");
+        assert!(
+            secret.is_some(),
+            "get_secret should return Some when env var is set"
+        );
         assert_eq!(
             secret.unwrap().expose_secret(),
             "test-key-123",

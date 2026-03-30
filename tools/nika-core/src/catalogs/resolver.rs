@@ -142,18 +142,14 @@ impl ModelResolver {
 
         // Step 2: If this is a fallback provider, check compatibility
         if fallback_position > 0 {
-            if let ModelCompatibility::Incompatible { .. } =
-                Self::validate(canonical, &candidate)
-            {
+            if let ModelCompatibility::Incompatible { .. } = Self::validate(canonical, &candidate) {
                 let substitute =
                     default_model_for_provider(provider).unwrap_or("claude-sonnet-4-6");
                 return ResolvedModel {
                     model_id: substitute.to_string(),
                     provider_id: canonical.to_string(),
                     source: ModelSource::FallbackSubstituted {
-                        original_model: original_model
-                            .unwrap_or(&candidate)
-                            .to_string(),
+                        original_model: original_model.unwrap_or(&candidate).to_string(),
                         chain_position: fallback_position,
                     },
                 };
@@ -304,7 +300,14 @@ mod tests {
     #[test]
     fn every_provider_has_a_default() {
         for id in [
-            "anthropic", "openai", "mistral", "groq", "deepseek", "gemini", "xai", "native",
+            "anthropic",
+            "openai",
+            "mistral",
+            "groq",
+            "deepseek",
+            "gemini",
+            "xai",
+            "native",
             "mock",
         ] {
             assert!(

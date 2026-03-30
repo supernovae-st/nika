@@ -812,7 +812,11 @@ async fn wiremock_fetch_returns_error_on_exhausted_5xx_retries() {
     let result = executor
         .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
-    assert!(result.is_err(), "fetch should fail after exhausting retries on 500, got: {:?}", result);
+    assert!(
+        result.is_err(),
+        "fetch should fail after exhausting retries on 500, got: {:?}",
+        result
+    );
 
     // Verify retry events were emitted
     let events = event_log.filter_task("wm_exhaust_5xx");

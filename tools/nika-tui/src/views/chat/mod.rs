@@ -335,7 +335,11 @@ impl ChatView {
                 (model.to_string(), p.name.to_string(), p.id.to_string())
             })
             .unwrap_or_else(|| {
-                ("No API Key".to_string(), "None".to_string(), "none".to_string())
+                (
+                    "No API Key".to_string(),
+                    "None".to_string(),
+                    "none".to_string(),
+                )
             });
 
         // Initialize session context with detected MCP servers

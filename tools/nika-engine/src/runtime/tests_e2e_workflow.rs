@@ -18,7 +18,10 @@ async fn run_yaml(yaml: &str) -> Runner {
 /// Helper: parse YAML, run workflow, expect success, return task output
 async fn run_and_get(yaml: &str, task_id: &str) -> String {
     let runner = run_yaml(yaml).await;
-    let result = runner.datastore().get(task_id).expect("task result should exist");
+    let result = runner
+        .datastore()
+        .get(task_id)
+        .expect("task result should exist");
     assert!(result.is_success(), "task should succeed: {:?}", result);
     result.output_str().to_string()
 }
@@ -77,7 +80,10 @@ tasks:
 "#;
     let runner = run_yaml(yaml).await;
     for id in &["source", "left", "right", "merge"] {
-        assert!(runner.datastore().get(id).unwrap().is_success(), "{id} should succeed");
+        assert!(
+            runner.datastore().get(id).unwrap().is_success(),
+            "{id} should succeed"
+        );
     }
 }
 
@@ -123,7 +129,10 @@ tasks:
 "#;
     let runner = run_yaml(yaml).await;
     for id in &["root", "child_a", "child_b", "leaf_a1", "leaf_b1"] {
-        assert!(runner.datastore().get(id).unwrap().is_success(), "{id} failed");
+        assert!(
+            runner.datastore().get(id).unwrap().is_success(),
+            "{id} failed"
+        );
     }
 }
 
@@ -239,7 +248,10 @@ tasks:
       shell: true
 "#;
     let output = run_and_get(yaml, "merge").await;
-    assert!(output.contains("alpha") && output.contains("bravo"), "got: {output}");
+    assert!(
+        output.contains("alpha") && output.contains("bravo"),
+        "got: {output}"
+    );
 }
 
 #[tokio::test]
@@ -359,7 +371,10 @@ tasks:
         "multi",
     )
     .await;
-    assert!(output.contains("line1") && output.contains("line3"), "got: {output}");
+    assert!(
+        output.contains("line1") && output.contains("line3"),
+        "got: {output}"
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -506,7 +521,10 @@ tasks:
     exec: "echo NUM_{{with.num}}"
 "#;
     let output = run_and_get(yaml, "named").await;
-    assert!(output.contains("NUM_one") || output.contains("one"), "got: {output}");
+    assert!(
+        output.contains("NUM_one") || output.contains("one"),
+        "got: {output}"
+    );
 }
 
 #[tokio::test]
@@ -622,7 +640,10 @@ tasks:
       shell: true
 "#;
     let output = run_and_get(yaml, "pick").await;
-    assert!(output.contains("alpha") && output.contains("gamma"), "got: {output}");
+    assert!(
+        output.contains("alpha") && output.contains("gamma"),
+        "got: {output}"
+    );
 }
 
 #[tokio::test]
@@ -767,7 +788,10 @@ tasks:
       shell: true
 "#;
     let output = run_and_get(yaml, "unicode").await;
-    assert!(output.contains("Thibaut") && output.contains("🦋"), "got: {output}");
+    assert!(
+        output.contains("Thibaut") && output.contains("🦋"),
+        "got: {output}"
+    );
 }
 
 #[tokio::test]
@@ -784,7 +808,10 @@ tasks:
     )
     .await;
     // Empty output should still succeed
-    assert!(output.is_empty() || output.trim().is_empty(), "got: {output}");
+    assert!(
+        output.is_empty() || output.trim().is_empty(),
+        "got: {output}"
+    );
 }
 
 #[tokio::test]
@@ -860,7 +887,9 @@ tasks:
 "#;
     let workflow = parse_analyzed(yaml).unwrap();
     let event_log = EventLog::new();
-    let mut runner = Runner::with_event_log(workflow, event_log.clone()).unwrap().quiet();
+    let mut runner = Runner::with_event_log(workflow, event_log.clone())
+        .unwrap()
+        .quiet();
     runner.run().await.unwrap();
 
     let events = event_log.events();
@@ -920,8 +949,14 @@ tasks:
         .unwrap_or_else(|e| panic!("Should be valid JSON: {e}\nGot: {output}"));
     assert!(parsed.is_object(), "Should be a JSON object: {output}");
     // Validate schema-conforming mock generates all required fields
-    assert!(parsed.get("name").is_some(), "JSON should contain 'name' field");
-    assert!(parsed.get("age").is_some(), "JSON should contain 'age' field");
+    assert!(
+        parsed.get("name").is_some(),
+        "JSON should contain 'name' field"
+    );
+    assert!(
+        parsed.get("age").is_some(),
+        "JSON should contain 'age' field"
+    );
     assert!(
         parsed.get("items").and_then(|v| v.as_array()).is_some(),
         "JSON should contain 'items' as an array"
@@ -950,15 +985,24 @@ tasks:
 "#;
     let workflow = parse_analyzed(yaml).unwrap();
     let event_log = EventLog::new();
-    let mut runner = Runner::with_event_log(workflow, event_log.clone()).unwrap().quiet();
+    let mut runner = Runner::with_event_log(workflow, event_log.clone())
+        .unwrap()
+        .quiet();
     let result = runner.run().await;
-    assert!(result.is_ok(), "Mock + structured should succeed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Mock + structured should succeed: {:?}",
+        result.err()
+    );
 
     let output = result.unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&output)
         .unwrap_or_else(|e| panic!("Should be valid JSON: {e}\nGot: {output}"));
     let colors = parsed.get("colors").and_then(|v| v.as_array());
-    assert!(colors.is_some(), "Output should have 'colors' array: {output}");
+    assert!(
+        colors.is_some(),
+        "Output should have 'colors' array: {output}"
+    );
     assert!(
         colors.unwrap().len() >= 2,
         "colors should have at least 2 items (minItems): {output}"
@@ -998,14 +1042,23 @@ tasks:
     let parsed: serde_json::Value = serde_json::from_str(&step1_output)
         .unwrap_or_else(|e| panic!("step1 should be valid JSON: {e}\nGot: {step1_output}"));
     assert!(parsed.is_object(), "step1 should be a JSON object");
-    assert!(parsed.get("name").is_some(), "step1 should have 'name' field");
+    assert!(
+        parsed.get("name").is_some(),
+        "step1 should have 'name' field"
+    );
     assert!(parsed.get("age").is_some(), "step1 should have 'age' field");
 
     let r2 = runner.datastore().get("step2").expect("step2 exists");
-    assert!(r2.is_success(), "step2 should succeed — data flows from structured step1 to step2");
+    assert!(
+        r2.is_success(),
+        "step2 should succeed — data flows from structured step1 to step2"
+    );
     // Verify step2 received step1's output via binding and produced its own output
     let step2_output = r2.output_str();
-    assert!(!step2_output.is_empty(), "step2 should have non-empty output");
+    assert!(
+        !step2_output.is_empty(),
+        "step2 should have non-empty output"
+    );
     // step2 is also mock infer, so it returns mock JSON
     let parsed2: serde_json::Value = serde_json::from_str(&step2_output)
         .unwrap_or_else(|e| panic!("step2 should be valid JSON: {e}\nGot: {step2_output}"));
@@ -1033,7 +1086,10 @@ tasks:
     let workflow = parse_analyzed(yaml).unwrap();
     let mut runner = Runner::new(workflow).unwrap().quiet();
     let result = runner.run().await;
-    assert!(result.is_err(), "Fetch to unreachable IP should fail the workflow");
+    assert!(
+        result.is_err(),
+        "Fetch to unreachable IP should fail the workflow"
+    );
 }
 
 /// Data chain: exec produces HTML string, then infer with mock processes it.
@@ -1077,7 +1133,9 @@ tasks:
 "#;
     let workflow = parse_analyzed(yaml).unwrap();
     let event_log = EventLog::new();
-    let mut runner = Runner::with_event_log(workflow, event_log.clone()).unwrap().quiet();
+    let mut runner = Runner::with_event_log(workflow, event_log.clone())
+        .unwrap()
+        .quiet();
     let result = runner.run().await;
     assert!(result.is_err(), "SSRF to localhost should be blocked");
 
@@ -1121,10 +1179,7 @@ tasks:
         .unwrap_or_else(|e| panic!("Should be valid JSON: {e}\nGot: {output}"));
     assert_eq!(parsed["logged"], true, "nika:log should return logged=true");
     assert_eq!(parsed["level"], "info", "level should be 'info'");
-    assert_eq!(
-        parsed["message"], "E2E invoke test",
-        "message should match"
-    );
+    assert_eq!(parsed["message"], "E2E invoke test", "message should match");
 }
 
 /// Invoke an unknown builtin tool `nika:nonexistent_tool_xyz` should fail
@@ -1144,9 +1199,14 @@ tasks:
 "#;
     let workflow = parse_analyzed(yaml).unwrap();
     let event_log = EventLog::new();
-    let mut runner = Runner::with_event_log(workflow, event_log.clone()).unwrap().quiet();
+    let mut runner = Runner::with_event_log(workflow, event_log.clone())
+        .unwrap()
+        .quiet();
     let result = runner.run().await;
-    assert!(result.is_err(), "Unknown builtin tool should fail the workflow");
+    assert!(
+        result.is_err(),
+        "Unknown builtin tool should fail the workflow"
+    );
 
     // Verify the error mentions the unknown tool name
     let events = event_log.events();
@@ -1192,7 +1252,9 @@ tasks:
 "#;
     let workflow = parse_analyzed(yaml).unwrap();
     let event_log = EventLog::new();
-    let mut runner = Runner::with_event_log(workflow, event_log.clone()).unwrap().quiet();
+    let mut runner = Runner::with_event_log(workflow, event_log.clone())
+        .unwrap()
+        .quiet();
     let result = runner.run().await;
     assert!(
         result.is_err(),
@@ -1233,9 +1295,14 @@ tasks:
 "#;
     let workflow = parse_analyzed(yaml).unwrap();
     let event_log = EventLog::new();
-    let mut runner = Runner::with_event_log(workflow, event_log.clone()).unwrap().quiet();
+    let mut runner = Runner::with_event_log(workflow, event_log.clone())
+        .unwrap()
+        .quiet();
     let result = runner.run().await;
-    assert!(result.is_err(), "Upstream failure should cascade to workflow failure");
+    assert!(
+        result.is_err(),
+        "Upstream failure should cascade to workflow failure"
+    );
 
     // Verify upstream failed
     let events = event_log.events();
@@ -1246,7 +1313,10 @@ tasks:
             if task_id.as_ref() == "upstream"
         )
     });
-    assert!(upstream_failed, "Upstream task should have TaskFailed event");
+    assert!(
+        upstream_failed,
+        "Upstream task should have TaskFailed event"
+    );
 
     // Verify downstream was skipped (NIKA-026 dependency chain failure)
     let downstream_skipped = events.iter().any(|e| {

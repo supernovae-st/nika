@@ -114,7 +114,8 @@ impl BuiltinTool for OrchestrateTool {
                             cost_usd,
                             ..
                         } => {
-                            total_tokens = total_tokens.saturating_add(input_tokens.saturating_add(*output_tokens));
+                            total_tokens = total_tokens
+                                .saturating_add(input_tokens.saturating_add(*output_tokens));
                             total_cost_usd += cost_usd;
                         }
                         EventKind::OrchestratorStarted { goal: g, .. } => {
