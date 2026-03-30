@@ -436,10 +436,17 @@ impl TaskExecutor {
                     if is_retryable_status && attempt < effective_max_attempts {
                         let status = response.status();
 
-                        // Exponential backoff calculation
-                        let exp = (attempt - 1).min(30) as i32;
-                        let delay_ms = backoff_ms
-                            .saturating_mul(multiplier.powi(exp).min(u64::MAX as f64) as u64);
+                        // Prefer server-mandated Retry-After delay on 429, else exponential backoff
+                        let delay_ms = if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+                            parse_retry_after(response.headers())
+                        } else {
+                            None
+                        }
+                        .unwrap_or_else(|| {
+                            let exp = (attempt - 1).min(30) as i32;
+                            backoff_ms
+                                .saturating_mul(multiplier.powi(exp).min(u64::MAX as f64) as u64)
+                        });
 
                         // EMIT: FetchRetry
                         self.event_log.emit(EventKind::FetchRetry {
@@ -466,13 +473,19 @@ impl TaskExecutor {
                         let bounded_delay =
                             std::time::Duration::from_millis(delay_ms).min(remaining);
                         if bounded_delay.is_zero() {
-                            return Err(ExecutionError::FetchFailed {
-                                reason: format!(
-                                    "Overall fetch deadline exceeded during backoff after {} of {} attempts",
-                                    attempt, effective_max_attempts,
-                                ),
-                            }
-                            .into());
+                            let reason = format!(
+                                "Overall fetch deadline exceeded during backoff after {} of {} attempts",
+                                attempt, effective_max_attempts,
+                            );
+                            // EMIT: FetchExhausted
+                            self.event_log.emit(EventKind::FetchExhausted {
+                                task_id: Arc::clone(task_id),
+                                url: url.to_string(),
+                                attempts: attempt,
+                                last_status: Some(response.status().as_u16()),
+                                reason: reason.clone(),
+                            });
+                            return Err(ExecutionError::FetchFailed { reason }.into());
                         }
                         tokio::time::sleep(bounded_delay).await;
                         continue;
@@ -482,12 +495,19 @@ impl TaskExecutor {
                     // return the error instead of treating the error body as success.
                     if is_retryable_status {
                         let status = response.status();
-                        return Err(NikaError::FetchError {
-                            reason: format!(
-                                "HTTP {} after {} retry attempt(s) exhausted",
-                                status, effective_max_attempts,
-                            ),
+                        let reason = format!(
+                            "HTTP {} after {} retry attempt(s) exhausted",
+                            status, effective_max_attempts,
+                        );
+                        // EMIT: FetchExhausted
+                        self.event_log.emit(EventKind::FetchExhausted {
+                            task_id: Arc::clone(task_id),
+                            url: url.to_string(),
+                            attempts: effective_max_attempts,
+                            last_status: Some(status.as_u16()),
+                            reason: reason.clone(),
                         });
+                        return Err(NikaError::FetchError { reason });
                     }
 
                     // Success or non-retryable error status
@@ -730,25 +750,37 @@ impl TaskExecutor {
                         let bounded_delay =
                             std::time::Duration::from_millis(delay_ms).min(remaining);
                         if bounded_delay.is_zero() {
-                            return Err(ExecutionError::FetchFailed {
-                                reason: format!(
-                                    "Overall fetch deadline exceeded during backoff after {} of {} attempts",
-                                    attempt, effective_max_attempts,
-                                ),
-                            }
-                            .into());
+                            let reason = format!(
+                                "Overall fetch deadline exceeded during backoff after {} of {} attempts",
+                                attempt, effective_max_attempts,
+                            );
+                            // EMIT: FetchExhausted
+                            self.event_log.emit(EventKind::FetchExhausted {
+                                task_id: Arc::clone(task_id),
+                                url: url.to_string(),
+                                attempts: attempt,
+                                last_status: None,
+                                reason: reason.clone(),
+                            });
+                            return Err(ExecutionError::FetchFailed { reason }.into());
                         }
                         tokio::time::sleep(bounded_delay).await;
                         continue;
                     }
 
-                    return Err(ExecutionError::FetchFailed {
-                        reason: format!(
-                            "HTTP request failed after {} attempts: {}",
-                            effective_max_attempts, e
-                        ),
-                    }
-                    .into());
+                    let reason = format!(
+                        "HTTP request failed after {} attempts: {}",
+                        effective_max_attempts, e
+                    );
+                    // EMIT: FetchExhausted
+                    self.event_log.emit(EventKind::FetchExhausted {
+                        task_id: Arc::clone(task_id),
+                        url: url.to_string(),
+                        attempts: effective_max_attempts,
+                        last_status: None,
+                        reason: reason.clone(),
+                    });
+                    return Err(ExecutionError::FetchFailed { reason }.into());
                 }
             }
         }
@@ -757,5 +789,73 @@ impl TaskExecutor {
         Err(last_error.unwrap_or_else(|| NikaError::FetchError {
             reason: "HTTP request failed: unknown error".to_string(),
         }))
+    }
+}
+
+/// Parse the `Retry-After` header from a 429 response.
+///
+/// Supports delay-seconds format per RFC 7231 §7.1.3:
+/// - `Retry-After: 120` → 120_000ms
+///
+/// HTTP-date format is not supported (uncommon for LLM APIs).
+/// Returns `None` if the header is missing, unparseable, or zero.
+/// Caps at 5 minutes to prevent servers from stalling a workflow indefinitely.
+fn parse_retry_after(headers: &reqwest::header::HeaderMap) -> Option<u64> {
+    const MAX_RETRY_AFTER_MS: u64 = 300_000; // 5 minutes cap
+
+    let value = headers.get(reqwest::header::RETRY_AFTER)?.to_str().ok()?;
+    let secs = value.trim().parse::<u64>().ok()?;
+    if secs == 0 {
+        return None;
+    }
+    Some(secs.saturating_mul(1000).min(MAX_RETRY_AFTER_MS))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_retry_after_integer_seconds() {
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(reqwest::header::RETRY_AFTER, "30".parse().unwrap());
+        assert_eq!(parse_retry_after(&headers), Some(30_000));
+    }
+
+    #[test]
+    fn parse_retry_after_missing_header() {
+        let headers = reqwest::header::HeaderMap::new();
+        assert_eq!(parse_retry_after(&headers), None);
+    }
+
+    #[test]
+    fn parse_retry_after_zero_returns_none() {
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(reqwest::header::RETRY_AFTER, "0".parse().unwrap());
+        assert_eq!(parse_retry_after(&headers), None);
+    }
+
+    #[test]
+    fn parse_retry_after_caps_at_5_minutes() {
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(reqwest::header::RETRY_AFTER, "600".parse().unwrap());
+        assert_eq!(parse_retry_after(&headers), Some(300_000)); // capped
+    }
+
+    #[test]
+    fn parse_retry_after_non_numeric_returns_none() {
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(
+            reqwest::header::RETRY_AFTER,
+            "Fri, 31 Dec 2099 23:59:59 GMT".parse().unwrap(),
+        );
+        assert_eq!(parse_retry_after(&headers), None); // HTTP-date not supported
+    }
+
+    #[test]
+    fn parse_retry_after_whitespace_trimmed() {
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(reqwest::header::RETRY_AFTER, " 5 ".parse().unwrap());
+        assert_eq!(parse_retry_after(&headers), Some(5_000));
     }
 }

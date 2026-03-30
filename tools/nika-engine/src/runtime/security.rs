@@ -256,8 +256,7 @@ pub fn check_shell_mode_blocklist(cmd: &str) -> Result<(), NikaError> {
 
         if matched {
             tracing::warn!(
-                command = %cmd,
-                normalized = %lower,
+                command = %crate::util::redact_secrets(cmd),
                 pattern = %pattern,
                 "NIKA-053: Blocked dangerous shell-mode pattern"
             );
@@ -375,8 +374,7 @@ pub fn check_blocklist(cmd: &str) -> Result<(), NikaError> {
         if lower.contains(&normalized_pattern) || basename_normalized.contains(&normalized_pattern)
         {
             tracing::warn!(
-                command = %cmd,
-                normalized = %lower,
+                command = %crate::util::redact_secrets(cmd),
                 pattern = %pattern,
                 "NIKA-053: Blocked dangerous command"
             );

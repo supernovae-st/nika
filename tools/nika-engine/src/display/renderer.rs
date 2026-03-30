@@ -282,7 +282,9 @@ impl RunStats {
                 self.structured_success_layer = Some(*layer);
             }
 
-            EventKind::FetchRetry { .. } | EventKind::TaskRetry { .. } => {
+            EventKind::FetchRetry { .. }
+            | EventKind::FetchExhausted { .. }
+            | EventKind::TaskRetry { .. } => {
                 self.retries += 1;
             }
 
@@ -1112,6 +1114,25 @@ impl CliRenderer {
                         *status_code,
                         *backoff_ms,
                     )
+                );
+            }
+
+            // ═══════════════════════════════════════
+            // FETCH EXHAUSTED (always show)
+            // ═══════════════════════════════════════
+            EventKind::FetchExhausted {
+                url,
+                attempts,
+                last_status,
+                reason,
+                ..
+            } => {
+                let status_str = last_status
+                    .map(|s| format!(" (HTTP {})", s))
+                    .unwrap_or_default();
+                println!(
+                    "  \x1b[31m✗\x1b[0m fetch exhausted after {} attempts{}: {} — {}",
+                    attempts, status_str, url, reason,
                 );
             }
 

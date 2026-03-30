@@ -95,28 +95,9 @@ pub(crate) fn coerce_json_types(value: &mut serde_json::Value) {
 /// 1. Pattern-matches known API key formats and replaces with `[REDACTED]`.
 /// 2. Truncates to 200 bytes with UTF-8-safe boundary.
 pub(crate) fn redact_for_event(s: &str) -> String {
-    use std::sync::LazyLock;
-
-    /// Matches common API key / token patterns:
-    /// - `sk-ant-api03-...` (Anthropic)
-    /// - `sk-proj-...` (OpenAI)
-    /// - `sk-...` (generic)
-    /// - `Bearer <token>` (Authorization headers)
-    /// - `ghp_...` / `gho_...` (GitHub)
-    /// - `xoxb-...` / `xoxp-...` (Slack)
-    /// - `AKIA...` (AWS access key)
-    /// - `gsk_...` (Groq)
-    /// - `AIza...` (Google/Gemini)
-    /// - `xai-...` (xAI/Grok)
-    static SECRET_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
-        regex::Regex::new(
-            r"(?i)(sk-[a-zA-Z0-9_-]{10,}|Bearer\s+[a-zA-Z0-9_.\-]{10,}|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|xox[bp]-[a-zA-Z0-9\-]+|AKIA[A-Z0-9]{16}|gsk_[a-zA-Z0-9]{20,}|AIza[a-zA-Z0-9_\-]{30,}|xai-[a-zA-Z0-9]{20,})"
-        ).expect("SECRET_RE is a valid regex")
-    });
-
-    let redacted = SECRET_RE.replace_all(s, "[REDACTED]");
+    let redacted = crate::util::redact_secrets(s);
     if redacted.len() <= 200 {
-        redacted.into_owned()
+        redacted
     } else {
         let mut boundary = 200;
         while boundary > 0 && !redacted.is_char_boundary(boundary) {

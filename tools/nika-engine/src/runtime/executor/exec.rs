@@ -43,7 +43,7 @@ impl TaskExecutor {
         if is_shell {
             use std::sync::LazyLock;
             static BINDING_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
-                regex::Regex::new(r"\{\{(with|inputs)\.[^}]+\}\}").expect("valid regex")
+                regex::Regex::new(r"\{\{(with|inputs|context)\.[^}]+\}\}").expect("valid regex")
             });
             for cap in BINDING_RE.find_iter(&params.command) {
                 let m = cap.as_str();
@@ -78,7 +78,7 @@ impl TaskExecutor {
             });
             tracing::warn!(
                 task_id = %task_id,
-                command = %resolved_cmd,
+                command = %redact_for_event(&resolved_cmd),
                 reason = %reason,
                 "exec: blocked by policy"
             );

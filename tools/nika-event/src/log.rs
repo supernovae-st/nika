@@ -693,6 +693,20 @@ pub enum EventKind {
         backoff_ms: u64,
     },
 
+    /// Fetch retries exhausted — all attempts failed
+    FetchExhausted {
+        task_id: Arc<str>,
+        /// URL that was being fetched
+        url: String,
+        /// Total attempts made
+        attempts: u32,
+        /// Last HTTP status code (None for network errors)
+        #[serde(skip_serializing_if = "Option::is_none")]
+        last_status: Option<u16>,
+        /// Human-readable reason
+        reason: String,
+    },
+
     /// Task-level retry attempt (all verbs except fetch, which has FetchRetry)
     TaskRetry {
         task_id: Arc<str>,
@@ -1013,6 +1027,7 @@ impl EventKind {
             | Self::GuardrailEscalation { task_id, .. }
             | Self::ExecCompleted { task_id, .. }
             | Self::FetchRetry { task_id, .. }
+            | Self::FetchExhausted { task_id, .. }
             | Self::TaskRetry { task_id, .. }
             | Self::FallbackTriggered { task_id, .. }
             | Self::PolicyBlocked { task_id, .. }
