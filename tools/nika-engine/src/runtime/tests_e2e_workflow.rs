@@ -1111,3 +1111,78 @@ tasks:
         "Should emit PolicyBlocked event for SSRF-blocked fetch"
     );
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// 11. INVOKE VERB (BUILTIN TOOLS) (tests 47-48)
+// ═══════════════════════════════════════════════════════════════════
+
+/// Invoke `nika:log` builtin tool succeeds and returns structured JSON
+/// with `logged: true`. This tests the full E2E invoke dispatch path:
+/// YAML parse → DAG → TaskExecutor → BuiltinToolRouter → LogTool → result.
+#[tokio::test]
+async fn e2e_invoke_builtin_nika_log() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: log_it
+    invoke:
+      tool: "nika:log"
+      params:
+        level: info
+        message: "E2E invoke test"
+"#;
+    let output = run_and_get(yaml, "log_it").await;
+    let parsed: serde_json::Value = serde_json::from_str(&output)
+        .unwrap_or_else(|e| panic!("Should be valid JSON: {e}\nGot: {output}"));
+    assert_eq!(parsed["logged"], true, "nika:log should return logged=true");
+    assert_eq!(parsed["level"], "info", "level should be 'info'");
+    assert_eq!(
+        parsed["message"], "E2E invoke test",
+        "message should match"
+    );
+}
+
+/// Invoke an unknown builtin tool `nika:nonexistent_tool_xyz` should fail
+/// the workflow with a BuiltinToolError. This proves the router rejects
+/// unregistered tool names rather than silently succeeding.
+#[tokio::test]
+async fn e2e_invoke_unknown_tool_fails() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: bad_invoke
+    invoke:
+      tool: "nika:nonexistent_tool_xyz"
+      params:
+        foo: bar
+"#;
+    let workflow = parse_analyzed(yaml).unwrap();
+    let event_log = EventLog::new();
+    let mut runner = Runner::with_event_log(workflow, event_log.clone()).unwrap().quiet();
+    let result = runner.run().await;
+    assert!(result.is_err(), "Unknown builtin tool should fail the workflow");
+
+    // Verify the error mentions the unknown tool name
+    let events = event_log.events();
+    let task_failed = events.iter().find(|e| {
+        matches!(
+            &e.kind,
+            crate::event::EventKind::TaskFailed { task_id, .. }
+            if task_id.as_ref() == "bad_invoke"
+        )
+    });
+    assert!(
+        task_failed.is_some(),
+        "Should have TaskFailed event for 'bad_invoke'"
+    );
+    if let Some(evt) = task_failed {
+        if let crate::event::EventKind::TaskFailed { error, .. } = &evt.kind {
+            assert!(
+                error.contains("nonexistent_tool_xyz") || error.contains("Unknown"),
+                "Error should mention the unknown tool: {error}"
+            );
+        }
+    }
+}
