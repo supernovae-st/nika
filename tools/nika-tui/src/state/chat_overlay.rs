@@ -79,14 +79,15 @@ impl Default for ChatOverlayState {
 impl ChatOverlayState {
     /// Create new chat overlay state with welcome message
     pub fn new() -> Self {
-        // Detect initial model from environment
-        let initial_model = if std::env::var("ANTHROPIC_API_KEY").is_ok() {
-            "claude-sonnet-4".to_string()
-        } else if std::env::var("OPENAI_API_KEY").is_ok() {
-            "gpt-4o".to_string()
-        } else {
-            "No API Key".to_string()
-        };
+        // Detect initial model from environment via provider catalog
+        use nika_core::catalogs::{default_model_for_provider, providers::KNOWN_PROVIDERS};
+        let initial_model = KNOWN_PROVIDERS
+            .iter()
+            .filter(|p| p.requires_key)
+            .find(|p| std::env::var(p.env_var).is_ok_and(|v| !v.is_empty()))
+            .and_then(|p| default_model_for_provider(p.id))
+            .unwrap_or("No API Key")
+            .to_string();
 
         let mut edit_history = EditHistory::default();
         edit_history.init("", 0);
