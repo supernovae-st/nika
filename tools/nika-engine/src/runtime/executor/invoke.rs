@@ -208,6 +208,20 @@ impl TaskExecutor {
                     .call_tool_with_retry_events(tool, params, task_id, &self.event_log)
                     .await?;
 
+                // Enforce 50MB size limit on MCP tool results to prevent OOM
+                const MAX_MCP_RESULT_SIZE: usize = 50 * 1024 * 1024;
+                let result_size = tool_result.content_size_bytes();
+                if result_size > MAX_MCP_RESULT_SIZE {
+                    return Err(NikaError::McpToolError {
+                        tool: tool.clone(),
+                        reason: format!(
+                            "MCP tool result exceeds 50MB limit ({} bytes)",
+                            result_size
+                        ),
+                        error_code: None,
+                    });
+                }
+
                 // Check if tool returned an error
                 if tool_result.is_error {
                     // Emit response event before returning error
