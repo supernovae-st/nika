@@ -113,6 +113,12 @@ pub struct RigAgentLoop {
     /// Runtime limit tracker for cost/token/duration enforcement.
     /// Instantiated from `AgentParams.limits` if configured, otherwise unlimited.
     limit_tracker: LimitTracker,
+    /// Cancellation token for cooperative shutdown.
+    /// Root agents own a token; child agents (via SpawnAgentTool) receive
+    /// a child_token() so cancelling the parent cascades to children.
+    /// Stored to keep the token alive — child_token() refs depend on it.
+    #[allow(dead_code)]
+    cancel_token: tokio_util::sync::CancellationToken,
 }
 
 impl std::fmt::Debug for RigAgentLoop {
@@ -245,6 +251,10 @@ impl RigAgentLoop {
         // Create shared media staging for agent tool calls (H1 side-channel)
         let media_staging: AgentMediaStaging = Arc::new(dashmap::DashMap::new());
 
+        // Root agents own a CancellationToken; child agents (via SpawnAgentTool)
+        // will receive a child_token() so parent cancellation cascades.
+        let cancel_token = tokio_util::sync::CancellationToken::new();
+
         // Build tools from MCP clients (with media staging for binary content)
         let mut tools = Self::build_tools(&params.mcp, &mcp_clients, &media_staging)?;
 
@@ -253,6 +263,7 @@ impl RigAgentLoop {
         let current_depth = 1_u32;
         let max_depth = params.effective_depth_limit();
         if current_depth < max_depth {
+            // BUG-1 fix: Use child_token() so cancelling the parent cascades to spawned agents.
             let spawn_tool = super::spawn::SpawnAgentTool::with_mcp(
                 current_depth,
                 max_depth,
@@ -260,7 +271,7 @@ impl RigAgentLoop {
                 event_log.clone(),
                 mcp_clients.clone(),
                 params.mcp.clone(),
-                tokio_util::sync::CancellationToken::new(),
+                cancel_token.child_token(),
             )
             .with_parent_config(
                 params.model.clone(),
@@ -422,6 +433,7 @@ impl RigAgentLoop {
             base_dir: None,
             media_staging,
             limit_tracker,
+            cancel_token,
         })
     }
 

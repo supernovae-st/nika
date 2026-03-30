@@ -1478,7 +1478,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     .map(|t| StaticDagTask {
                         id: t.name.clone(),
                         verb: t.action.verb_name().to_string(),
-                        layer: depths[t.name.as_str()],
+                        layer: depths.get(t.name.as_str()).copied().unwrap_or(0),
                     })
                     .collect();
                 let total_deps: usize =
@@ -1501,7 +1501,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     .workflow
                     .tasks
                     .iter()
-                    .map(|t| (Arc::from(t.name.as_str()), depths[t.name.as_str()]))
+                    .map(|t| (Arc::from(t.name.as_str()), depths.get(t.name.as_str()).copied().unwrap_or(0)))
                     .collect();
                 renderer.set_task_layers(task_layers);
             }
@@ -2567,7 +2567,13 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         }
 
         // Get final output
-        let output = self.get_final_output().unwrap_or_default();
+        let output = match self.get_final_output() {
+            Some(o) => o,
+            None => {
+                tracing::warn!("No final output from workflow — defaulting to empty string");
+                String::new()
+            }
+        };
 
         // EMIT: WorkflowCompleted
         self.event_log.emit(EventKind::WorkflowCompleted {

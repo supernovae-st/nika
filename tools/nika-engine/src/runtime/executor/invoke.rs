@@ -122,7 +122,10 @@ impl TaskExecutor {
                                 obj.get("mime_type").and_then(|v| v.as_str()),
                             ) {
                                 let size_bytes =
-                                    obj.get("size_bytes").and_then(|v| v.as_u64()).unwrap_or(0);
+                                    obj.get("size_bytes").and_then(|v| v.as_u64()).unwrap_or_else(|| {
+                                        tracing::warn!(hash = %hash, "size_bytes missing from media tool result — defaulting to 0");
+                                        0
+                                    });
                                 let path = obj
                                     .get("path")
                                     .and_then(|v| v.as_str())
