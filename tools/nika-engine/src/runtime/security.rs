@@ -146,6 +146,10 @@ const SHELL_MODE_BLOCKLIST: &[&str] = &[
     "`",  // Bash process substitution — executes commands via /dev/fd
     "<(", // Here-string — feeds arbitrary input to interpreters
     "<<<",
+    // Shell alias/function definitions — can redefine blocked commands
+    "alias ",
+    "function ",
+    "declare -f",
 ];
 
 /// Check command against shell-mode-specific blocklist.
