@@ -24,6 +24,15 @@ const AGENT_STREAM_TOTAL_TIMEOUT: std::time::Duration = std::time::Duration::fro
 use super::types::StreamingResult;
 use super::RigAgentLoop;
 
+/// Send a stream chunk to TUI, logging at debug if the channel is full/closed.
+macro_rules! stream_send {
+    ($tx:expr, $chunk:expr $(,)?) => {
+        if let Err(e) = $tx.try_send($chunk) {
+            tracing::debug!("Stream send dropped: {e}");
+        }
+    };
+}
+
 impl RigAgentLoop {
     // =========================================================================
     // Streaming Helpers
@@ -125,7 +134,7 @@ impl RigAgentLoop {
                         }
                         // Send token to TUI for real-time display
                         if let Some(ref tx) = self.stream_tx {
-                            let _ = tx.try_send(crate::provider::rig::StreamChunk::Token(
+                            stream_send!(tx,crate::provider::rig::StreamChunk::Token(
                                 text.text.clone(),
                             ));
                         }
@@ -145,7 +154,7 @@ impl RigAgentLoop {
                     StreamedAssistantContent::ReasoningDelta { reasoning, .. } => {
                         // Send thinking content to TUI
                         if let Some(ref tx) = self.stream_tx {
-                            let _ = tx.try_send(crate::provider::rig::StreamChunk::Thinking(
+                            stream_send!(tx,crate::provider::rig::StreamChunk::Thinking(
                                 reasoning.clone(),
                             ));
                         }
@@ -157,7 +166,7 @@ impl RigAgentLoop {
                             if let ReasoningContent::Text { text, .. } = block {
                                 // Send thinking to TUI
                                 if let Some(ref tx) = self.stream_tx {
-                                    let _ = tx.try_send(
+                                    stream_send!(tx,
                                         crate::provider::rig::StreamChunk::Thinking(text.clone()),
                                     );
                                 }
@@ -173,7 +182,7 @@ impl RigAgentLoop {
                             cached_input_tokens = usage.cached_input_tokens;
                             // Send final metrics to TUI
                             if let Some(ref tx) = self.stream_tx {
-                                let _ = tx.try_send(crate::provider::rig::StreamChunk::Metrics {
+                                stream_send!(tx,crate::provider::rig::StreamChunk::Metrics {
                                     input_tokens: usage.input_tokens,
                                     output_tokens: usage.output_tokens,
                                 });
@@ -478,7 +487,7 @@ impl RigAgentLoop {
                         "Agent stream timed out waiting for chunk"
                     );
                     if let Some(ref tx) = self.stream_tx {
-                        let _ = tx.try_send(crate::provider::rig::StreamChunk::Error(format!(
+                        stream_send!(tx,crate::provider::rig::StreamChunk::Error(format!(
                             "Stream timeout: no chunk received for {}s",
                             STREAM_CHUNK_TIMEOUT.as_secs()
                         )));
@@ -501,7 +510,7 @@ impl RigAgentLoop {
                             tui_ttft_ms = Some(tui_stream_start.elapsed().as_millis() as u64);
                         }
                         if let Some(ref tx) = self.stream_tx {
-                            let _ = tx.try_send(crate::provider::rig::StreamChunk::Token(
+                            stream_send!(tx,crate::provider::rig::StreamChunk::Token(
                                 text.text.clone(),
                             ));
                         }
@@ -533,7 +542,7 @@ impl RigAgentLoop {
 
                         // Send McpCallStart to TUI
                         if let Some(ref tx) = self.stream_tx {
-                            let _ = tx.try_send(crate::provider::rig::StreamChunk::McpCallStart {
+                            stream_send!(tx,crate::provider::rig::StreamChunk::McpCallStart {
                                 tool: tool_name.clone(),
                                 server: "agent".to_string(),
                                 params: args_string,
@@ -566,7 +575,7 @@ impl RigAgentLoop {
                             .collect::<Vec<_>>()
                             .join("");
                         if let Some(ref tx) = self.stream_tx {
-                            let _ = tx.try_send(crate::provider::rig::StreamChunk::Thinking(
+                            stream_send!(tx,crate::provider::rig::StreamChunk::Thinking(
                                 reasoning_str.clone(),
                             ));
                         }
@@ -590,7 +599,7 @@ impl RigAgentLoop {
 
                         // Send metrics to TUI
                         if let Some(ref tx) = self.stream_tx {
-                            let _ = tx.try_send(crate::provider::rig::StreamChunk::Metrics {
+                            stream_send!(tx,crate::provider::rig::StreamChunk::Metrics {
                                 input_tokens: usage.input_tokens,
                                 output_tokens: usage.output_tokens,
                             });
