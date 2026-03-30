@@ -227,6 +227,7 @@ impl RigAgentLoop {
         params: AgentParams,
         event_log: EventLog,
         mcp_clients: FxHashMap<String, Arc<McpClient>>,
+        policy_enforcer: Option<Arc<parking_lot::RwLock<crate::runtime::policy::PolicyEnforcer>>>,
     ) -> Result<Self, NikaError> {
         // Validate params
         if params.prompt.is_empty() {
@@ -255,8 +256,14 @@ impl RigAgentLoop {
         // will receive a child_token() so parent cancellation cascades.
         let cancel_token = tokio_util::sync::CancellationToken::new();
 
-        // Build tools from MCP clients (with media staging for binary content)
-        let mut tools = Self::build_tools(&params.mcp, &mcp_clients, &media_staging)?;
+        // Build tools from MCP clients (with media staging and policy enforcement)
+        let mut tools = Self::build_tools(
+            &params.mcp,
+            &mcp_clients,
+            &media_staging,
+            policy_enforcer.as_ref(),
+            &event_log,
+        )?;
 
         // Add spawn_agent tool if depth_limit allows spawning (MVP 8 Phase 2)
         // Default depth is 1 (root agent). Child agents get higher depths via spawn_agent.
@@ -655,11 +662,13 @@ impl RigAgentLoop {
         all_blocks
     }
 
-    /// Build NikaMcpTool instances from MCP clients with media staging
+    /// Build NikaMcpTool instances from MCP clients with media staging and policy
     fn build_tools(
         mcp_names: &[String],
         mcp_clients: &FxHashMap<String, Arc<McpClient>>,
         media_staging: &AgentMediaStaging,
+        policy_enforcer: Option<&Arc<parking_lot::RwLock<crate::runtime::policy::PolicyEnforcer>>>,
+        event_log: &EventLog,
     ) -> Result<Vec<Arc<dyn rig::tool::ToolDyn>>, NikaError> {
         let mut tools: Vec<Arc<dyn rig::tool::ToolDyn>> = Vec::new();
 
@@ -674,7 +683,7 @@ impl RigAgentLoop {
             let tool_defs = client.get_tool_definitions();
 
             for def in tool_defs {
-                let tool = NikaMcpTool::with_media_staging(
+                let mut tool = NikaMcpTool::with_media_staging(
                     NikaMcpToolDef {
                         name: def.name.clone(),
                         description: def.description.clone().unwrap_or_default(),
@@ -686,6 +695,10 @@ impl RigAgentLoop {
                     client.clone(),
                     Arc::clone(media_staging),
                 );
+                // Attach policy enforcer for security checks on agent tool calls
+                if let Some(enforcer) = policy_enforcer {
+                    tool = tool.with_policy(Arc::clone(enforcer), event_log.clone());
+                }
                 tools.push(Arc::new(tool));
             }
         }

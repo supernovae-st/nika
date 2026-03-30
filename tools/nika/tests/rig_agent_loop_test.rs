@@ -29,7 +29,13 @@ fn test_rig_agent_loop_creation_with_valid_params() {
     let mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
 
     // Act
-    let result = RigAgentLoop::new("test_task".to_string(), params, event_log, mcp_clients);
+    let result = RigAgentLoop::new(
+        "test_task".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+    );
 
     // Assert
     assert!(
@@ -47,7 +53,13 @@ fn test_rig_agent_loop_creation_with_empty_prompt_fails() {
     let mcp_clients = FxHashMap::default();
 
     // Act
-    let result = RigAgentLoop::new("test_task".to_string(), params, event_log, mcp_clients);
+    let result = RigAgentLoop::new(
+        "test_task".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+    );
 
     // Assert
     assert!(result.is_err(), "Should fail with empty prompt");
@@ -71,7 +83,13 @@ fn test_rig_agent_loop_creation_with_zero_max_turns_fails() {
     let mcp_clients = FxHashMap::default();
 
     // Act
-    let result = RigAgentLoop::new("test_task".to_string(), params, event_log, mcp_clients);
+    let result = RigAgentLoop::new(
+        "test_task".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+    );
 
     // Assert
     assert!(result.is_err(), "Should fail with zero max_turns");
@@ -98,6 +116,7 @@ async fn test_rig_agent_loop_runs_to_natural_completion() {
         params,
         event_log.clone(),
         mcp_clients,
+        None,
     )
     .unwrap();
 
@@ -131,6 +150,7 @@ async fn test_rig_agent_loop_respects_max_turns() {
         params,
         event_log.clone(),
         mcp_clients,
+        None,
     )
     .unwrap();
 
@@ -160,6 +180,7 @@ async fn test_rig_agent_loop_emits_events() {
         params,
         event_log.clone(),
         mcp_clients,
+        None,
     )
     .unwrap();
 
@@ -210,6 +231,7 @@ async fn test_rig_agent_loop_with_mock_mcp_client() {
         params,
         event_log.clone(),
         mcp_clients,
+        None,
     )
     .unwrap();
 
@@ -239,6 +261,7 @@ async fn test_rig_agent_loop_builds_tool_definitions_from_mcp() {
         params,
         event_log.clone(),
         mcp_clients,
+        None,
     )
     .unwrap();
 
@@ -376,6 +399,7 @@ async fn test_workflow_multi_locale_generation_pattern() {
             params,
             event_log,
             mcp_clients,
+            None,
         )
         .unwrap();
 
@@ -415,6 +439,7 @@ fn test_workflow_mcp_server_not_found_error() {
         params,
         event_log,
         mcp_clients,
+        None,
     );
 
     // Assert: Should fail with McpNotConnected error
@@ -444,8 +469,14 @@ async fn test_workflow_multiple_mcp_servers() {
         Arc::new(McpClient::mock("filesystem")),
     );
 
-    let agent_loop =
-        RigAgentLoop::new("test_multi_mcp".to_string(), params, event_log, mcp_clients).unwrap();
+    let agent_loop = RigAgentLoop::new(
+        "test_multi_mcp".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+    )
+    .unwrap();
 
     // Assert: Tools from both MCP servers are available
     // novanet mock returns 3 tools, filesystem mock returns 3 tools
@@ -470,7 +501,7 @@ fn test_workflow_max_turns_validation() {
     let event_log = EventLog::new();
     let mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
 
-    let result = RigAgentLoop::new("test_max".to_string(), params, event_log, mcp_clients);
+    let result = RigAgentLoop::new("test_max".to_string(), params, event_log, mcp_clients, None);
 
     assert!(result.is_err(), "max_turns > 100 should fail");
 }
@@ -549,6 +580,7 @@ async fn test_workflow_event_log_captures_agent_lifecycle() {
         params,
         event_log.clone(),
         mcp_clients,
+        None,
     )
     .unwrap();
 
@@ -616,6 +648,7 @@ Focus on high-quality, SEO-optimized French content.
         params,
         event_log,
         mcp_clients,
+        None,
     )
     .unwrap();
 
@@ -659,6 +692,7 @@ async fn test_uc002_multi_locale_pipeline() {
             params,
             event_log,
             mcp_clients,
+            None,
         )
         .unwrap();
 
@@ -718,6 +752,7 @@ Steps:
         params,
         event_log,
         mcp_clients,
+        None,
     )
     .unwrap();
 

@@ -154,7 +154,7 @@ pub async fn run_onboarding_wizard() -> Result<bool, NikaError> {
                 return Ok(true);
             }
         };
-        match prov.infer("Say 'OK' if you can hear me.", None).await {
+        match prov.infer("Say 'OK' if you can hear me.", None, None).await {
             Ok(_) => spinner.stop(format!("{} Connection successful!", StatusIcon::Ok)),
             Err(e) => spinner.stop(format!("{} Connection failed: {e}", StatusIcon::Fail)),
         }

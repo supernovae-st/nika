@@ -199,6 +199,7 @@ impl TaskExecutor {
         // waiting up to INVOKE_TASK_DEADLINE (5 min).
         let mcp_work = async {
             let client = self.get_mcp_client(mcp_name).await?;
+            const MAX_MCP_RESULT_SIZE: usize = 50 * 1024 * 1024;
 
             let result = if let Some(tool) = &resolved_tool {
                 // Tool call path - use already-resolved params
@@ -209,7 +210,6 @@ impl TaskExecutor {
                     .await?;
 
                 // Enforce 50MB size limit on MCP tool results to prevent OOM
-                const MAX_MCP_RESULT_SIZE: usize = 50 * 1024 * 1024;
                 let result_size = tool_result.content_size_bytes();
                 if result_size > MAX_MCP_RESULT_SIZE {
                     return Err(NikaError::McpToolError {
@@ -344,6 +344,20 @@ impl TaskExecutor {
             } else if let Some(resource) = &resolved_resource {
                 // Resource read path -- now handles blob data via media pipeline
                 let content = client.read_resource(resource).await?;
+
+                // Enforce 50MB size limit on MCP resource reads (mirrors tool call check)
+                let resource_size = content.text.as_ref().map(|t| t.len()).unwrap_or(0)
+                    + content.blob.as_ref().map(|b| b.len()).unwrap_or(0);
+                if resource_size > MAX_MCP_RESULT_SIZE {
+                    return Err(NikaError::McpToolError {
+                        tool: format!("resource:{}", resource),
+                        reason: format!(
+                            "MCP resource exceeds 50MB limit ({} bytes)",
+                            resource_size
+                        ),
+                        error_code: None,
+                    });
+                }
 
                 // If resource has a blob, process it through the media pipeline
                 if let Some(blob) = &content.blob {

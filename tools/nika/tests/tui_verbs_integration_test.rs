@@ -78,7 +78,7 @@ mod infer_tests {
         });
 
         let result: Result<StreamResult, RigInferError> = provider
-            .infer_stream("Count from 1 to 5, one number per line", tx, None)
+            .infer_stream("Count from 1 to 5, one number per line", tx, None, None)
             .await;
 
         assert!(result.is_ok(), "Stream failed: {:?}", result.err());
@@ -107,7 +107,7 @@ mod infer_tests {
         }
 
         let provider = RigProvider::openai();
-        let result = provider.infer("Reply with exactly: PONG", None).await;
+        let result = provider.infer("Reply with exactly: PONG", None, None).await;
 
         assert!(result.is_ok(), "Infer failed: {:?}", result.err());
         let response = result.unwrap();
@@ -142,7 +142,7 @@ mod infer_tests {
         });
 
         let result: Result<StreamResult, RigInferError> =
-            provider.infer_stream("Say hello", tx, None).await;
+            provider.infer_stream("Say hello", tx, None, None).await;
 
         assert!(result.is_ok(), "Stream failed: {:?}", result.err());
         let stream_result = result.unwrap();
@@ -357,8 +357,9 @@ mod agent_tests {
         let event_log = EventLog::new();
         let mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
 
-        let mut agent = RigAgentLoop::new("test-agent".into(), params, event_log, mcp_clients)
-            .expect("Failed to create agent");
+        let mut agent =
+            RigAgentLoop::new("test-agent".into(), params, event_log, mcp_clients, None)
+                .expect("Failed to create agent");
 
         let result = agent.run_auto().await;
         assert!(result.is_ok(), "Agent failed: {:?}", result.err());
@@ -393,8 +394,14 @@ mod agent_tests {
 
         let event_log = EventLog::new();
 
-        let mut agent = RigAgentLoop::new("test-agent-mcp".into(), params, event_log, mcp_clients)
-            .expect("Failed to create agent");
+        let mut agent = RigAgentLoop::new(
+            "test-agent-mcp".into(),
+            params,
+            event_log,
+            mcp_clients,
+            None,
+        )
+        .expect("Failed to create agent");
 
         let result = agent.run_auto().await;
         eprintln!("Agent result: {:?}", result);

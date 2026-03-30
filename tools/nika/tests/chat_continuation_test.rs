@@ -35,8 +35,14 @@ fn create_agent_loop(prompt: &str) -> RigAgentLoop {
     let event_log = EventLog::new();
     let mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
 
-    RigAgentLoop::new("test_chat".to_string(), params, event_log, mcp_clients)
-        .expect("Should create agent loop")
+    RigAgentLoop::new(
+        "test_chat".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+    )
+    .expect("Should create agent loop")
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -198,7 +204,7 @@ fn test_with_history_sets_initial_history() {
         Message::assistant("Previous answer"),
     ];
 
-    let agent_loop = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients)
+    let agent_loop = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None)
         .unwrap()
         .with_history(pre_history);
 
@@ -222,7 +228,7 @@ fn test_with_history_chaining() {
     let mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
 
     // Verify with_history returns Self for chaining
-    let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients)
+    let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None)
         .unwrap()
         .with_history(vec![Message::user("Hello")]);
 
@@ -373,6 +379,7 @@ async fn test_chat_continue_emits_events() {
         params,
         event_log.clone(),
         mcp_clients,
+        None,
     )
     .unwrap();
 

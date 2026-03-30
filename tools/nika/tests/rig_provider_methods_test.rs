@@ -35,8 +35,14 @@ fn create_agent_loop(prompt: &str) -> RigAgentLoop {
     let event_log = EventLog::new();
     let mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
 
-    RigAgentLoop::new("test_task".to_string(), params, event_log, mcp_clients)
-        .expect("Should create agent loop with valid params")
+    RigAgentLoop::new(
+        "test_task".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+    )
+    .expect("Should create agent loop with valid params")
 }
 
 fn create_agent_loop_with_model(prompt: &str, model: &str) -> RigAgentLoop {
@@ -51,8 +57,14 @@ fn create_agent_loop_with_model(prompt: &str, model: &str) -> RigAgentLoop {
     let event_log = EventLog::new();
     let mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
 
-    RigAgentLoop::new("test_task".to_string(), params, event_log, mcp_clients)
-        .expect("Should create agent loop with valid params")
+    RigAgentLoop::new(
+        "test_task".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+    )
+    .expect("Should create agent loop with valid params")
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -85,7 +97,13 @@ fn test_agent_loop_creation_for_mistral_valid() {
     let event_log = EventLog::new();
     let mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
 
-    let result = RigAgentLoop::new("mistral_task".to_string(), params, event_log, mcp_clients);
+    let result = RigAgentLoop::new(
+        "mistral_task".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+    );
     assert!(result.is_ok(), "Should create agent loop for Mistral");
 }
 
@@ -102,7 +120,13 @@ fn test_agent_loop_creation_for_groq_valid() {
     let event_log = EventLog::new();
     let mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
 
-    let result = RigAgentLoop::new("groq_task".to_string(), params, event_log, mcp_clients);
+    let result = RigAgentLoop::new(
+        "groq_task".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+    );
     assert!(result.is_ok(), "Should create agent loop for Groq");
 }
 
@@ -119,7 +143,13 @@ fn test_agent_loop_creation_for_deepseek_valid() {
     let event_log = EventLog::new();
     let mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
 
-    let result = RigAgentLoop::new("deepseek_task".to_string(), params, event_log, mcp_clients);
+    let result = RigAgentLoop::new(
+        "deepseek_task".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+    );
     assert!(result.is_ok(), "Should create agent loop for DeepSeek");
 }
 
@@ -180,6 +210,7 @@ async fn test_run_mistral_emits_events() {
         params,
         event_log.clone(),
         mcp_clients,
+        None,
     )
     .unwrap();
 
@@ -243,6 +274,7 @@ async fn test_run_groq_emits_events() {
         params,
         event_log.clone(),
         mcp_clients,
+        None,
     )
     .unwrap();
 
@@ -306,6 +338,7 @@ async fn test_run_deepseek_emits_events() {
         params,
         event_log.clone(),
         mcp_clients,
+        None,
     )
     .unwrap();
 

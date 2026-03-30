@@ -43,6 +43,31 @@ fn build_system_prompt(goal: &str, tasks: &[AnalyzedTask], confidence_target: f6
          If your confidence is below this threshold, continue working to improve results.\n",
     ));
 
+    prompt.push_str(
+        "\n## nika:run YAML Syntax\n\n\
+         When calling nika:run with yaml_content, use this EXACT syntax:\n\n\
+         ```yaml\n\
+         schema: \"nika/workflow@0.12\"\n\
+         provider: openai\n\
+         model: gpt-4o-mini\n\
+         tasks:\n\
+         \x20 - id: my_task\n\
+         \x20   infer: \"Your prompt here\"\n\
+         \x20 - id: second_task\n\
+         \x20   depends_on: [my_task]\n\
+         \x20   with:\n\
+         \x20     data: $my_task\n\
+         \x20   infer: \"Analyze: {{with.data}}\"\n\
+         ```\n\n\
+         RULES:\n\
+         - ALWAYS start with `schema: \"nika/workflow@0.12\"`\n\
+         - Use `tasks:` (NOT `steps:`)\n\
+         - Every task MUST have `id:` field\n\
+         - Use `infer:` for LLM calls, `exec:` for shell commands, `fetch:` for HTTP\n\
+         - Reference other tasks with `$task_id` in `with:` bindings\n\
+         - Use `{{with.alias}}` for template variables\n",
+    );
+
     prompt
 }
 

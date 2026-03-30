@@ -328,7 +328,7 @@ async fn test_infer_with_provider() {
 
     let provider = RigProvider::auto().expect("Should have a provider");
     let result = provider
-        .infer("What is 1+1? Answer with just the number.", None)
+        .infer("What is 1+1? Answer with just the number.", None, None)
         .await;
 
     assert!(result.is_ok());
@@ -349,6 +349,7 @@ async fn test_infer_with_context() {
     let result = provider
         .infer(
             "You are a poet. Write a single haiku about Rust programming.",
+            None,
             None,
         )
         .await;

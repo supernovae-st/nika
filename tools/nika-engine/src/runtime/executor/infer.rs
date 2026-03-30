@@ -54,7 +54,7 @@ impl TaskExecutor {
                     };
                     provider.infer_with_options(&retry_prompt, &opts).await
                 } else {
-                    provider.infer(&retry_prompt, model.as_deref()).await
+                    provider.infer(&retry_prompt, model.as_deref(), None).await
                 };
                 result
                     .map(|s| super::verbs::strip_think_tags(&s))
@@ -677,7 +677,7 @@ impl TaskExecutor {
         } else {
             // Fallback: use original infer_stream
             provider
-                .infer_stream(&prompt, tx, model)
+                .infer_stream(&prompt, tx, model, None)
                 .await
                 .map_err(|e| ProviderError::ApiError {
                     message: e.to_string(),

@@ -420,6 +420,52 @@ impl PolicyEnforcer {
         self.token_budget.used
     }
 
+    /// Check if an agent tool call is allowed.
+    ///
+    /// Enforces:
+    /// - `allow_exec: false` blocks tools with exec/run/shell in the name
+    /// - `allow_network: false` blocks tools with fetch/http/request in the name
+    /// - `blocked_commands` patterns checked against tool name
+    pub fn check_tool_call(&self, tool_name: &str) -> PolicyDecision {
+        let lower = tool_name.to_lowercase();
+
+        // Block exec-like tools when exec is disabled
+        if !self.config.allow_exec {
+            for pattern in &["exec", "run_command", "shell", "terminal", "bash"] {
+                if lower.contains(pattern) {
+                    return PolicyDecision::Block(format!(
+                        "Agent tool '{}' blocked: exec is disabled by policy",
+                        tool_name
+                    ));
+                }
+            }
+        }
+
+        // Block network-like tools when network is disabled
+        if !self.config.allow_network {
+            for pattern in &["fetch", "http", "request", "curl", "download"] {
+                if lower.contains(pattern) {
+                    return PolicyDecision::Block(format!(
+                        "Agent tool '{}' blocked: network access is disabled by policy",
+                        tool_name
+                    ));
+                }
+            }
+        }
+
+        // Check blocked_commands patterns against tool name
+        for blocked in &self.config.blocked_commands {
+            if lower.contains(&blocked.to_lowercase()) {
+                return PolicyDecision::Block(format!(
+                    "Agent tool '{}' blocked: matches blocked pattern '{}'",
+                    tool_name, blocked
+                ));
+            }
+        }
+
+        PolicyDecision::Allow
+    }
+
     /// Convert policy decision to result
     pub fn enforce(&self, decision: PolicyDecision) -> Result<(), NikaError> {
         match decision {
@@ -853,5 +899,58 @@ mod tests {
             super::resolve_and_check_ssrf("this-host-does-not-exist-nika-test.invalid").await,
             "Non-resolving hostname must be blocked (fail-closed)"
         );
+    }
+
+    // =========================================================================
+    // check_tool_call tests (SEC-AGENT-01)
+    // =========================================================================
+
+    #[test]
+    fn test_tool_call_allowed_by_default() {
+        let enforcer = PolicyEnforcer::default();
+        assert!(enforcer.check_tool_call("novanet_search").is_allowed());
+        assert!(enforcer.check_tool_call("nika:complete").is_allowed());
+    }
+
+    #[test]
+    fn test_tool_call_blocks_exec_tools_when_disabled() {
+        let config = PolicyConfig {
+            allow_exec: false,
+            ..Default::default()
+        };
+        let enforcer = PolicyEnforcer::new(config);
+        assert!(enforcer.check_tool_call("run_command").is_blocked());
+        assert!(enforcer.check_tool_call("exec_sql").is_blocked());
+        assert!(enforcer.check_tool_call("bash_shell").is_blocked());
+        // Safe tools still allowed
+        assert!(enforcer.check_tool_call("novanet_search").is_allowed());
+    }
+
+    #[test]
+    fn test_tool_call_blocks_network_tools_when_disabled() {
+        let config = PolicyConfig {
+            allow_network: false,
+            ..Default::default()
+        };
+        let enforcer = PolicyEnforcer::new(config);
+        assert!(enforcer.check_tool_call("http_request").is_blocked());
+        assert!(enforcer.check_tool_call("fetch_url").is_blocked());
+        assert!(enforcer.check_tool_call("curl_api").is_blocked());
+        // Non-network tools still allowed
+        assert!(enforcer.check_tool_call("novanet_context").is_allowed());
+    }
+
+    #[test]
+    fn test_tool_call_blocked_commands_pattern() {
+        let config = PolicyConfig {
+            blocked_commands: vec!["dangerous_tool".to_string()],
+            ..Default::default()
+        };
+        let enforcer = PolicyEnforcer::new(config);
+        assert!(enforcer.check_tool_call("dangerous_tool").is_blocked());
+        assert!(enforcer
+            .check_tool_call("my_dangerous_tool_v2")
+            .is_blocked());
+        assert!(enforcer.check_tool_call("safe_tool").is_allowed());
     }
 }

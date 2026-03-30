@@ -242,7 +242,8 @@ fn test_rig_agent_loop_explicit_completion_status() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+    let agent =
+        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
 
     // Response with completion marker
     let response = format!(r#"Result: {{"marker": "{}"}}"#, COMPLETION_MARKER);
@@ -260,7 +261,8 @@ fn test_rig_agent_loop_natural_completion_status() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+    let agent =
+        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
 
     // Regular response, no marker, no stop condition
     let status = agent.determine_status("Task completed normally.");
@@ -277,7 +279,8 @@ fn test_rig_agent_loop_explicit_takes_priority() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
+    let agent =
+        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
 
     // Response with completion marker
     let response = format!("Result with marker: {}", COMPLETION_MARKER);

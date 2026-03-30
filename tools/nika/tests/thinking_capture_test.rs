@@ -48,6 +48,7 @@ async fn test_extended_thinking_captures_tokens() {
         params,
         event_log.clone(),
         mcp_clients,
+        None,
     )
     .expect("Agent creation should succeed");
 
@@ -150,6 +151,7 @@ async fn test_standard_mode_captures_tokens() {
         params,
         event_log.clone(),
         mcp_clients,
+        None,
     )
     .expect("Agent creation should succeed");
 
@@ -230,6 +232,7 @@ async fn test_mock_mode_has_tokens() {
         params,
         event_log.clone(),
         mcp_clients,
+        None,
     )
     .expect("Agent creation should succeed");
 
@@ -300,6 +303,7 @@ async fn test_openai_standard_mode_captures_tokens() {
         params,
         event_log.clone(),
         mcp_clients,
+        None,
     )
     .expect("Agent creation should succeed");
 
