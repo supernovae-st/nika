@@ -185,18 +185,29 @@ impl TaskResult {
 }
 
 /// Recursively estimate the in-memory byte size of a serde_json::Value.
+/// Bounded to 128 levels of nesting to prevent stack overflow on pathological inputs.
 fn estimate_value_size(value: &Value) -> usize {
+    estimate_value_size_bounded(value, 0)
+}
+
+fn estimate_value_size_bounded(value: &Value, depth: usize) -> usize {
+    if depth > 128 {
+        return 1024; // Conservative estimate for deeply nested values
+    }
     match value {
         Value::Null | Value::Bool(_) => 8,
         Value::Number(_) => 16,
-        Value::String(s) => s.len() + 24, // String header + data
+        Value::String(s) => s.len() + 24,
         Value::Array(arr) => {
-            24 + arr.iter().map(estimate_value_size).sum::<usize>()
+            24 + arr
+                .iter()
+                .map(|v| estimate_value_size_bounded(v, depth + 1))
+                .sum::<usize>()
         }
         Value::Object(map) => {
             48 + map
                 .iter()
-                .map(|(k, v)| k.len() + 24 + estimate_value_size(v))
+                .map(|(k, v)| k.len() + 24 + estimate_value_size_bounded(v, depth + 1))
                 .sum::<usize>()
         }
     }

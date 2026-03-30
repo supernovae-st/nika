@@ -48,20 +48,8 @@ fn generate_mock_object(schema: &Value) -> Value {
     let mut obj = serde_json::Map::new();
 
     if let Some(Value::Object(properties)) = schema.get("properties") {
-        let required: Vec<&str> = schema
-            .get("required")
-            .and_then(|r| r.as_array())
-            .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect())
-            .unwrap_or_default();
-
         for (key, prop_schema) in properties {
-            // Generate values for required fields and all fields with properties
-            if required.contains(&key.as_str()) || !required.is_empty() {
-                obj.insert(key.clone(), generate_mock_json(prop_schema));
-            } else {
-                // If no required specified, generate all fields
-                obj.insert(key.clone(), generate_mock_json(prop_schema));
-            }
+            obj.insert(key.clone(), generate_mock_json(prop_schema));
         }
     }
 
@@ -73,7 +61,11 @@ fn generate_mock_array(schema: &Value) -> Value {
         .get("minItems")
         .and_then(|v| v.as_u64())
         .unwrap_or(1) as usize;
-    let count = min_items.clamp(1, 5); // At least 1, at most 5
+    let max_items = schema
+        .get("maxItems")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(20) as usize;
+    let count = min_items.max(1).min(max_items); // Respect minItems, cap at maxItems or 20
 
     let item_schema = schema.get("items").cloned().unwrap_or(json!({"type": "string"}));
     let items: Vec<Value> = (0..count).map(|_| generate_mock_json(&item_schema)).collect();
