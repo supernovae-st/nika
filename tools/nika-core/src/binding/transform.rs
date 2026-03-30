@@ -439,6 +439,9 @@ impl TransformOp {
                 Value::Null => Err(TransformError::NullInput { op: "round" }),
                 Value::Number(n) => {
                     let f = n.as_f64().unwrap_or(0.0);
+                    if f.is_nan() || f.is_infinite() {
+                        return Ok(Value::Null);
+                    }
                     let d = decimals.unwrap_or(0);
                     if d == 0 {
                         // No decimals → return integer (consistent with ceil/floor)
@@ -459,6 +462,9 @@ impl TransformOp {
                     if let Some(i) = n.as_i64() {
                         Ok(Value::Number(i.unsigned_abs().into()))
                     } else if let Some(f) = n.as_f64() {
+                        if f.is_nan() || f.is_infinite() {
+                            return Ok(Value::Null);
+                        }
                         Ok(serde_json::Number::from_f64(f.abs())
                             .map(Value::Number)
                             .unwrap_or(Value::Null))
@@ -472,6 +478,9 @@ impl TransformOp {
                 Value::Null => Err(TransformError::NullInput { op: "ceil" }),
                 Value::Number(n) => {
                     let f = n.as_f64().unwrap_or(0.0);
+                    if f.is_nan() || f.is_infinite() {
+                        return Ok(Value::Null);
+                    }
                     Ok(Value::Number((f.ceil() as i64).into()))
                 }
                 _ => Err(type_mismatch("ceil", "number", value)),
@@ -480,6 +489,9 @@ impl TransformOp {
                 Value::Null => Err(TransformError::NullInput { op: "floor" }),
                 Value::Number(n) => {
                     let f = n.as_f64().unwrap_or(0.0);
+                    if f.is_nan() || f.is_infinite() {
+                        return Ok(Value::Null);
+                    }
                     Ok(Value::Number((f.floor() as i64).into()))
                 }
                 _ => Err(type_mismatch("floor", "number", value)),
