@@ -29,6 +29,31 @@ use super::TaskExecutor;
 use crate::error_domains::ProviderError;
 
 impl TaskExecutor {
+    /// Build an [`InferCallback`] that calls `provider.infer()` with optional model override.
+    ///
+    /// Used by L0 safety-net, main streaming path (L2-L3), and repair path (L4).
+    /// All three sites share the same pattern: clone provider, wrap in Arc, strip think tags.
+    fn make_infer_callback(
+        provider: &RigProvider,
+        model: Option<&str>,
+    ) -> InferCallback {
+        let provider = provider.clone();
+        let model_for_retry = model.map(|s| s.to_string());
+        Arc::new(move |retry_prompt: String| {
+            let provider = provider.clone();
+            let model = model_for_retry.clone();
+            Box::pin(async move {
+                provider
+                    .infer(&retry_prompt, model.as_deref())
+                    .await
+                    .map(|s| super::verbs::strip_think_tags(&s))
+                    .map_err(|e| NikaError::ProviderApiError {
+                        message: format!("structured output retry failed: {}", e),
+                    })
+            })
+        })
+    }
+
     #[instrument(skip(self, infer, bindings, datastore, output_policy), fields(%task_id))]
     pub(super) async fn run_infer(
         &self,
@@ -485,26 +510,7 @@ impl TaskExecutor {
                     // BUG-1 FIX: Create inference callback for Layer 0 safety net
                     // validation so L3 (retry with feedback) and L4 (LLM repair)
                     // are enabled when L0a/L0b output fails schema validation.
-                    let l0_infer_callback: InferCallback = {
-                        let provider = provider.clone();
-                        let model_for_retry = model.map(|s| s.to_string());
-                        Arc::new(move |retry_prompt: String| {
-                            let provider = provider.clone();
-                            let model = model_for_retry.clone();
-                            Box::pin(async move {
-                                provider
-                                    .infer(&retry_prompt, model.as_deref())
-                                    .await
-                                    .map(|s| super::verbs::strip_think_tags(&s))
-                                    .map_err(|e| NikaError::ProviderApiError {
-                                        message: format!(
-                                            "structured output retry failed: {}",
-                                            e
-                                        ),
-                                    })
-                            })
-                        })
-                    };
+                    let l0_infer_callback = Self::make_infer_callback(&provider, model);
 
                     if let Err(ref e) = schema_value {
                         warn!(
@@ -1034,23 +1040,7 @@ impl TaskExecutor {
 
                     // Create inference callback for Layer 2 & 3
                     // This allows the engine to actually call the LLM for retries and repairs
-                    let infer_callback: InferCallback = {
-                        let provider = provider.clone();
-                        let model_for_retry = model.map(|s| s.to_string());
-                        Arc::new(move |retry_prompt: String| {
-                            let provider = provider.clone();
-                            let model = model_for_retry.clone();
-                            Box::pin(async move {
-                                provider
-                                    .infer(&retry_prompt, model.as_deref())
-                                    .await
-                                    .map(|s| super::verbs::strip_think_tags(&s))
-                                    .map_err(|e| NikaError::ProviderApiError {
-                                        message: format!("structured output retry failed: {}", e),
-                                    })
-                            })
-                        })
-                    };
+                    let infer_callback = Self::make_infer_callback(&provider, model);
 
                     let mut engine =
                         StructuredOutputEngine::new(spec.clone(), Arc::new(self.event_log.clone()))
@@ -1068,23 +1058,8 @@ impl TaskExecutor {
                         None => None,
                     };
                     if let Some(ref repair_model_name) = resolved_repair_model {
-                        let repair_model_name = repair_model_name.clone();
-                        let repair_provider = provider.clone();
-                        let repair_callback: crate::runtime::structured_output::InferCallback =
-                            Arc::new(move |repair_prompt: String| {
-                                let p = repair_provider.clone();
-                                let m = repair_model_name.clone();
-                                Box::pin(async move {
-                                    p.infer(&repair_prompt, Some(&m)).await.map_err(|e| {
-                                        NikaError::ProviderApiError {
-                                            message: format!(
-                                                "structured repair (repair_model) failed: {}",
-                                                e
-                                            ),
-                                        }
-                                    })
-                                })
-                            });
+                        let repair_callback =
+                            Self::make_infer_callback(&provider, Some(repair_model_name));
                         engine = engine.with_repair_callback(repair_callback);
                     }
 
