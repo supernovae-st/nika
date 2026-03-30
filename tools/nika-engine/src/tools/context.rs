@@ -233,7 +233,8 @@ impl ToolContext {
             return Err(NikaError::ToolError {
                 code: ToolErrorCode::PathOutOfBounds.code(),
                 message: format!(
-                    "Path '{}' is outside working directory '{}'",
+                    "Path '{}' is outside working directory '{}'. \
+                     Use --workdir to change the base directory, or use an absolute path within it.",
                     file_path,
                     self.working_dir.display()
                 ),
