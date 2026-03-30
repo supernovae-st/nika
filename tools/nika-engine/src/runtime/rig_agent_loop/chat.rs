@@ -276,7 +276,11 @@ impl RigAgentLoop {
         }
 
         if let Some(stop_params) = Self::stop_sequences_params(
-            self.params.provider.as_ref().map(|p| p.as_str()).unwrap_or(""),
+            self.params
+                .provider
+                .as_ref()
+                .map(|p| p.as_str())
+                .unwrap_or(""),
             &self.params.stop_sequences,
         ) {
             builder = builder.additional_params(stop_params);
@@ -330,7 +334,11 @@ impl RigAgentLoop {
         let est_input = prompt.chars().count().div_ceil(4) as u64;
         let est_output = response.chars().count().div_ceil(4) as u64;
         let provider_kind = crate::provider::cost::ProviderKind::parse(
-            self.params.provider.as_ref().map(|p| p.as_str()).unwrap_or(""),
+            self.params
+                .provider
+                .as_ref()
+                .map(|p| p.as_str())
+                .unwrap_or(""),
         );
         let cost = provider_kind
             .map(|pk| crate::provider::cost::calculate_cost(pk, model_name, est_input, est_output))

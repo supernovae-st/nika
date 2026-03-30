@@ -958,11 +958,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         // Precedence: task-level > preset > workflow-default
         let (effective_provider, effective_model) = if let Some(ref preset_name) = task.preset {
             if let Some(agent) = executor.get_preset(preset_name) {
-                crate::runtime::preset::resolve_provider_model(
-                    &task.provider,
-                    &task.model,
-                    agent,
-                )
+                crate::runtime::preset::resolve_provider_model(&task.provider, &task.model, agent)
             } else {
                 (task.provider.clone(), task.model.clone())
             }
@@ -977,7 +973,12 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             .routing
             .as_ref()
             .filter(|r| r.fallback.len() > 1)
-            .map(|r| r.fallback.iter().map(|s| nika_core::ProviderName::parse(s)).collect());
+            .map(|r| {
+                r.fallback
+                    .iter()
+                    .map(|s| nika_core::ProviderName::parse(s))
+                    .collect()
+            });
         let mut lowered_action = lower_action(
             &task.action,
             &effective_provider,

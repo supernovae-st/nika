@@ -224,7 +224,10 @@ fn a13_infer_provider_at_task_level_claude() {
     let w = ok(&yaml);
     match &w.tasks[0].action {
         TaskAction::Infer { infer } => {
-            assert_eq!(infer.provider.as_ref().map(|p| p.as_str()), Some("anthropic"));
+            assert_eq!(
+                infer.provider.as_ref().map(|p| p.as_str()),
+                Some("anthropic")
+            );
         }
         _ => panic!("expected Infer"),
     }
@@ -498,7 +501,10 @@ fn a32_infer_provider_claude() {
     let yaml = wrap("provider: claude\ninfer: \"Test\"");
     let w = ok(&yaml);
     match &w.tasks[0].action {
-        TaskAction::Infer { infer } => assert_eq!(infer.provider.as_ref().map(|p| p.as_str()), Some("anthropic")),
+        TaskAction::Infer { infer } => assert_eq!(
+            infer.provider.as_ref().map(|p| p.as_str()),
+            Some("anthropic")
+        ),
         _ => panic!("expected Infer"),
     }
 }
@@ -508,7 +514,9 @@ fn a33_infer_provider_openai() {
     let yaml = wrap("provider: openai\ninfer: \"Test\"");
     let w = ok(&yaml);
     match &w.tasks[0].action {
-        TaskAction::Infer { infer } => assert_eq!(infer.provider.as_ref().map(|p| p.as_str()), Some("openai")),
+        TaskAction::Infer { infer } => {
+            assert_eq!(infer.provider.as_ref().map(|p| p.as_str()), Some("openai"))
+        }
         _ => panic!("expected Infer"),
     }
 }
@@ -518,7 +526,9 @@ fn a34_infer_provider_groq() {
     let yaml = wrap("provider: groq\ninfer: \"Test\"");
     let w = ok(&yaml);
     match &w.tasks[0].action {
-        TaskAction::Infer { infer } => assert_eq!(infer.provider.as_ref().map(|p| p.as_str()), Some("groq")),
+        TaskAction::Infer { infer } => {
+            assert_eq!(infer.provider.as_ref().map(|p| p.as_str()), Some("groq"))
+        }
         _ => panic!("expected Infer"),
     }
 }
@@ -528,7 +538,9 @@ fn a35_infer_provider_gemini() {
     let yaml = wrap("provider: gemini\ninfer: \"Test\"");
     let w = ok(&yaml);
     match &w.tasks[0].action {
-        TaskAction::Infer { infer } => assert_eq!(infer.provider.as_ref().map(|p| p.as_str()), Some("gemini")),
+        TaskAction::Infer { infer } => {
+            assert_eq!(infer.provider.as_ref().map(|p| p.as_str()), Some("gemini"))
+        }
         _ => panic!("expected Infer"),
     }
 }
@@ -538,7 +550,9 @@ fn a36_infer_provider_xai() {
     let yaml = wrap("provider: xai\ninfer: \"Test\"");
     let w = ok(&yaml);
     match &w.tasks[0].action {
-        TaskAction::Infer { infer } => assert_eq!(infer.provider.as_ref().map(|p| p.as_str()), Some("xai")),
+        TaskAction::Infer { infer } => {
+            assert_eq!(infer.provider.as_ref().map(|p| p.as_str()), Some("xai"))
+        }
         _ => panic!("expected Infer"),
     }
 }
@@ -548,7 +562,10 @@ fn a37_infer_provider_deepseek() {
     let yaml = wrap("provider: deepseek\ninfer: \"Test\"");
     let w = ok(&yaml);
     match &w.tasks[0].action {
-        TaskAction::Infer { infer } => assert_eq!(infer.provider.as_ref().map(|p| p.as_str()), Some("deepseek")),
+        TaskAction::Infer { infer } => assert_eq!(
+            infer.provider.as_ref().map(|p| p.as_str()),
+            Some("deepseek")
+        ),
         _ => panic!("expected Infer"),
     }
 }
@@ -1393,7 +1410,10 @@ fn e06_agent_with_provider_model() {
     let w = ok(&yaml);
     match &w.tasks[0].action {
         TaskAction::Agent { agent } => {
-            assert_eq!(agent.provider.as_ref().map(|p| p.as_str()), Some("anthropic"));
+            assert_eq!(
+                agent.provider.as_ref().map(|p| p.as_str()),
+                Some("anthropic")
+            );
             assert_eq!(agent.model.as_deref(), Some("claude-sonnet-4-6"));
         }
         _ => panic!("expected Agent"),
@@ -1554,7 +1574,10 @@ fn e20_agent_full_config() {
         TaskAction::Agent { agent } => {
             assert_eq!(agent.prompt, "Full config");
             assert_eq!(agent.system.as_deref(), Some("Expert"));
-            assert_eq!(agent.provider.as_ref().map(|p| p.as_str()), Some("anthropic"));
+            assert_eq!(
+                agent.provider.as_ref().map(|p| p.as_str()),
+                Some("anthropic")
+            );
             assert_eq!(agent.max_turns, Some(15));
             assert_eq!(agent.token_budget, Some(100000));
             assert_eq!(agent.temperature, Some(0.8));
@@ -1965,7 +1988,7 @@ tasks:
     infer: "B"
 "#;
     let w = ok(yaml);
-    assert_eq!(w.provider.as_str(),"anthropic");
+    assert_eq!(w.provider.as_str(), "anthropic");
     match &w.tasks[1].action {
         TaskAction::Infer { infer } => {
             assert_eq!(infer.provider.as_ref().map(|p| p.as_str()), Some("openai"));
@@ -2828,7 +2851,7 @@ tasks:
           text: "What is in this image?"
 "#;
     let w = ok(yaml);
-    assert_eq!(w.provider.as_str(),"mock");
+    assert_eq!(w.provider.as_str(), "mock");
     match &w.tasks[0].action {
         TaskAction::Infer { infer } => {
             let parts = infer.content.as_ref().unwrap();
@@ -2987,7 +3010,7 @@ tasks:
 fn k01_workflow_default_provider_claude() {
     let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: t1\n    infer: \"Hello\"";
     let w = ok(yaml);
-    assert_eq!(w.provider.as_str(),"anthropic");
+    assert_eq!(w.provider.as_str(), "anthropic");
 }
 
 #[test]
@@ -2995,7 +3018,7 @@ fn k02_workflow_custom_provider() {
     let yaml =
         "schema: \"nika/workflow@0.12\"\nprovider: openai\nmodel: test-model\ntasks:\n  - id: t1\n    infer: \"Hello\"";
     let w = ok(yaml);
-    assert_eq!(w.provider.as_str(),"openai");
+    assert_eq!(w.provider.as_str(), "openai");
 }
 
 #[test]
@@ -5564,7 +5587,10 @@ fn s07_agent_all_providers() {
         let w = ok(&yaml);
         match &w.tasks[0].action {
             TaskAction::Agent { agent } => {
-                assert_eq!(agent.provider.as_ref().map(|p| p.as_str()), Some(*canonical));
+                assert_eq!(
+                    agent.provider.as_ref().map(|p| p.as_str()),
+                    Some(*canonical)
+                );
             }
             _ => panic!("expected Agent for {}", alias),
         }
@@ -6024,13 +6050,17 @@ tasks:
       prompt: "Incorporate feedback: {{with.feedback}}"
 "#;
     let w = ok(yaml);
-    assert_eq!(w.provider.as_str(),"anthropic");
+    assert_eq!(w.provider.as_str(), "anthropic");
     match &w.tasks[1].action {
-        TaskAction::Infer { infer } => assert_eq!(infer.provider.as_ref().map(|p| p.as_str()), Some("openai")),
+        TaskAction::Infer { infer } => {
+            assert_eq!(infer.provider.as_ref().map(|p| p.as_str()), Some("openai"))
+        }
         _ => panic!("expected Infer"),
     }
     match &w.tasks[2].action {
-        TaskAction::Infer { infer } => assert_eq!(infer.provider.as_ref().map(|p| p.as_str()), Some("gemini")),
+        TaskAction::Infer { infer } => {
+            assert_eq!(infer.provider.as_ref().map(|p| p.as_str()), Some("gemini"))
+        }
         _ => panic!("expected Infer"),
     }
 }
@@ -6443,7 +6473,7 @@ tasks:
     infer: "Uses gemini"
 "#;
     let w = ok(yaml);
-    assert_eq!(w.provider.as_str(),"anthropic");
+    assert_eq!(w.provider.as_str(), "anthropic");
     assert_eq!(w.model.as_deref(), Some("claude-sonnet-4-6"));
     match &w.tasks[1].action {
         TaskAction::Infer { infer } => {
@@ -6993,7 +7023,7 @@ fn v05_all_providers_at_workflow_level() {
             alias
         );
         let w = ok(&yaml);
-        assert_eq!(w.provider.as_str(),*canonical);
+        assert_eq!(w.provider.as_str(), *canonical);
     }
 }
 
@@ -7700,7 +7730,7 @@ tasks:
     infer: "Test"
 "#;
     let w = ok(yaml);
-    assert_eq!(w.provider.as_str(),"openai");
+    assert_eq!(w.provider.as_str(), "openai");
     assert!(w.model.is_some());
     assert!(w.inputs.is_some());
     assert!(w.context.is_some());
@@ -7765,7 +7795,10 @@ fn z17_agent_with_all_optional_fields() {
         TaskAction::Agent { agent } => {
             assert_eq!(agent.prompt, "Full agent");
             assert!(agent.system.is_some());
-            assert_eq!(agent.provider.as_ref().map(|p| p.as_str()), Some("anthropic"));
+            assert_eq!(
+                agent.provider.as_ref().map(|p| p.as_str()),
+                Some("anthropic")
+            );
             assert_eq!(agent.model.as_deref(), Some("claude-sonnet-4-6"));
             assert_eq!(agent.mcp.len(), 1);
             assert_eq!(agent.tools.len(), 2);
@@ -7797,7 +7830,10 @@ fn z18_infer_all_fields_simultaneously() {
             assert_eq!(infer.extended_thinking, Some(true));
             assert_eq!(infer.thinking_budget, Some(4096));
             assert!(infer.content.is_some());
-            assert_eq!(infer.provider.as_ref().map(|p| p.as_str()), Some("anthropic"));
+            assert_eq!(
+                infer.provider.as_ref().map(|p| p.as_str()),
+                Some("anthropic")
+            );
             assert_eq!(infer.model.as_deref(), Some("claude-sonnet-4-6"));
         }
         _ => panic!("expected Infer"),
@@ -8042,7 +8078,7 @@ tasks:
 fn aa15_workflow_default_provider_still_claude() {
     let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: t1\n    infer: \"Hello\"";
     let w = ok(yaml);
-    assert_eq!(w.provider.as_str(),"anthropic");
+    assert_eq!(w.provider.as_str(), "anthropic");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -9499,7 +9535,10 @@ tasks:
                 Some("You are a world-class research assistant with deep expertise.")
             );
             assert!(agent.prompt.contains("comprehensively"));
-            assert_eq!(agent.provider.as_ref().map(|p| p.as_str()), Some("anthropic"));
+            assert_eq!(
+                agent.provider.as_ref().map(|p| p.as_str()),
+                Some("anthropic")
+            );
             assert_eq!(agent.model.as_deref(), Some("claude-sonnet-4-20250514"));
             assert_eq!(agent.temperature, Some(0.4));
             assert_eq!(agent.max_tokens, Some(16384));
@@ -10110,11 +10149,14 @@ tasks:
 "#;
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 8);
-    assert_eq!(w.provider.as_str(),"mock"); // workflow-level
-                                    // Verify per-task providers
+    assert_eq!(w.provider.as_str(), "mock"); // workflow-level
+                                             // Verify per-task providers
     match &w.tasks[0].action {
         TaskAction::Infer { infer } => {
-            assert_eq!(infer.provider.as_ref().map(|p| p.as_str()), Some("anthropic"));
+            assert_eq!(
+                infer.provider.as_ref().map(|p| p.as_str()),
+                Some("anthropic")
+            );
             assert_eq!(infer.model.as_deref(), Some("claude-sonnet-4-20250514"));
             assert_eq!(infer.extended_thinking, Some(true));
             assert_eq!(infer.thinking_budget, Some(4096));
