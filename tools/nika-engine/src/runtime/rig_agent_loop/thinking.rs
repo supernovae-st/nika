@@ -518,7 +518,7 @@ impl RigAgentLoop {
             status: status.clone(),
             turns: 1,
             final_output: serde_json::json!({ "response": response }),
-            total_tokens: input_tokens + output_tokens,
+            total_tokens: input_tokens.saturating_add(output_tokens),
             confidence: status.confidence(),
             retry_count: 0,
             guardrails_passed,
