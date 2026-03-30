@@ -536,6 +536,9 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
     // 9. Detect cyclic dependencies
     detect_cycles(&workflow, &mut ctx);
 
+    // 10. Detect artifact path collisions (static paths only)
+    detect_artifact_collisions(&workflow, &mut ctx);
+
     // Build result
     if ctx.errors.is_empty() {
         let mut result = AnalyzeResult::ok(workflow);
@@ -1717,6 +1720,50 @@ fn detect_cycles_dfs(
 
     path.pop();
     rec_stack.remove(&task_id);
+}
+
+/// Detect artifact path collisions between tasks (static paths only).
+///
+/// Paths containing `{{` are templates resolved at runtime and cannot be checked statically.
+/// For_each tasks are also skipped since each iteration may produce unique paths.
+fn detect_artifact_collisions(workflow: &AnalyzedWorkflow, ctx: &mut AnalyzerContext) {
+    use crate::ast::artifact::ArtifactSpec;
+    let mut seen: HashMap<String, (String, crate::source::Span)> = HashMap::new();
+
+    for task in &workflow.tasks {
+        // Skip for_each tasks — their artifact paths are per-iteration
+        if task.for_each.is_some() {
+            continue;
+        }
+
+        let paths: Vec<&str> = match task.artifact.as_ref() {
+            Some(ArtifactSpec::Single(out)) => vec![out.path.as_str()],
+            Some(ArtifactSpec::Multiple(outs)) => outs.iter().map(|o| o.path.as_str()).collect(),
+            _ => continue,
+        };
+
+        for path in paths {
+            // Skip template paths — can't check statically
+            if path.contains("{{") {
+                continue;
+            }
+            if let Some((prev_task, _prev_span)) = seen.get(path) {
+                ctx.warnings.push(AnalyzeError {
+                    kind: AnalyzeErrorKind::InvalidValue,
+                    span: task.span,
+                    message: format!(
+                        "Artifact path '{}' in task '{}' collides with task '{}' — \
+                         the second write will overwrite the first",
+                        path, task.name, prev_task
+                    ),
+                    suggestion: None,
+                    note: None,
+                });
+            } else {
+                seen.insert(path.to_string(), (task.name.clone(), task.span));
+            }
+        }
+    }
 }
 
 #[cfg(test)]
