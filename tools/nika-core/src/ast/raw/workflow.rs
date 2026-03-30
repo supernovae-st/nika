@@ -78,6 +78,9 @@ pub struct RawWorkflow {
     /// Routing configuration (fallback chains, smart routing).
     pub routing: Option<Spanned<serde_json::Value>>,
 
+    /// Global workflow timeout in seconds (optional, default: 3600s = 1h).
+    pub max_duration_secs: Option<Spanned<u64>>,
+
     /// Task definitions (order matters for implicit flow)
     pub tasks: Spanned<Vec<Spanned<RawTask>>>,
 

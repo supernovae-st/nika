@@ -83,6 +83,9 @@ pub struct AnalyzedWorkflow {
     /// Routing configuration (fallback chains, smart routing).
     pub routing: Option<crate::ast::routing::RoutingConfig>,
 
+    /// Global workflow timeout in seconds (default: 3600s = 1h).
+    pub max_duration_secs: u64,
+
     /// Span of the entire workflow
     pub span: Span,
 }
@@ -109,6 +112,7 @@ impl Default for AnalyzedWorkflow {
             skills_map: std::collections::HashMap::new(),
             orchestrate: None,
             routing: None,
+            max_duration_secs: 3600,
             span: Span::dummy(),
         }
     }

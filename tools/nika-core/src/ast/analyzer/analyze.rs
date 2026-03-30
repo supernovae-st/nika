@@ -289,6 +289,13 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
         }
     });
 
+    // 3c. Global workflow timeout (default: 3600s = 1h)
+    workflow.max_duration_secs = raw
+        .max_duration_secs
+        .as_ref()
+        .map(|s| s.value)
+        .unwrap_or(3600);
+
     // 3b. Validate model is specified when LLM verbs are used
     let has_workflow_model = workflow.model.is_some();
     for raw_task in &raw.tasks.value {
