@@ -635,10 +635,15 @@ impl RigProvider {
             RigProvider::Gemini(client) => vision_prompt!(client),
             RigProvider::XAi(client) => vision_prompt!(client),
             RigProvider::OpenAiCompat { client, .. } => vision_prompt!(client),
-            // DeepSeek and Native handled above via early returns
-            RigProvider::DeepSeek(_) => unreachable!("DeepSeek handled above"),
+            // DeepSeek and Native are handled above via early returns.
+            // These arms exist for exhaustiveness in case the early returns are refactored.
+            RigProvider::DeepSeek(_) => Err(RigInferError::VisionNotSupported(
+                "DeepSeek does not support vision".to_string(),
+            )),
             #[cfg(feature = "native-inference")]
-            RigProvider::Native(_) => unreachable!("Native handled above"),
+            RigProvider::Native(_) => Err(RigInferError::VisionNotSupported(
+                "Native provider requires NativeRuntime path for vision".to_string(),
+            )),
         }
     }
 
@@ -751,10 +756,19 @@ impl RigProvider {
                 RigProvider::Gemini(client) => vision_stream!(client, false),
                 RigProvider::XAi(client) => vision_stream!(client, false),
                 RigProvider::OpenAiCompat { client, .. } => vision_stream!(client, false),
-                // DeepSeek and Native handled above via early returns
-                RigProvider::DeepSeek(_) => unreachable!("DeepSeek handled above"),
+                // DeepSeek and Native are handled above via early returns.
+                // These arms exist for exhaustiveness in case the early returns are refactored.
+                RigProvider::DeepSeek(_) => {
+                    return Err(RigInferError::VisionNotSupported(
+                        "DeepSeek does not support vision".to_string(),
+                    ))
+                }
                 #[cfg(feature = "native-inference")]
-                RigProvider::Native(_) => unreachable!("Native handled above"),
+                RigProvider::Native(_) => {
+                    return Err(RigInferError::VisionNotSupported(
+                        "Native provider requires NativeRuntime path for vision".to_string(),
+                    ))
+                }
             }
             Ok::<(), RigInferError>(())
         })
