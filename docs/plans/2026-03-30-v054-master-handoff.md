@@ -220,7 +220,7 @@ These wave2 bugs are NOW FIXED:
 
 | Agent | Result |
 |-------|--------|
-| Deep commit analysis (8 commits) | All orthogonal to handoff. No new P0 bugs. 2 audit items resolved. |
+| Deep commit analysis (8 commits) | All orthogonal. 3 audit items resolved (CRIT-3/4/5 orchestrator, unreachable!, empty tests). CancellationToken wired into exec+fetch. Permanent error retry skip (401/403). FallbackChainExhausted error mapping fixed. finish_reason propagation. Canonical provider names in telemetry. |
 | Regression check | **ZERO regressions** to v0.53 fixes. All 10 check points intact. |
 | Handoff cross-reference | 0/25 items fully addressed. 2 partially touched (FETCH-2, TUI-1). |
 
@@ -229,7 +229,7 @@ These wave2 bugs are NOW FIXED:
 ```
 Version:           v0.53.0 + 9 post-release commits
 Total LOC:         356K (Rust)
-Test count:        9,011+ (all green locally, CI pending fmt fix)
+Test count:        9,015 (all green locally + CI fmt fix pushed)
 Crates:            12 (nika, nika-engine, nika-core, nika-tui, nika-mcp, nika-media, nika-daemon, nika-cli, nika-event, nika-init, nika-lsp-core, nika-lsp)
 Workflows:         644 (.nika.yaml)
 Error codes:       158 (NIKA-000 to NIKA-324)
