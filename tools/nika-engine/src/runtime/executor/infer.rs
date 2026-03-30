@@ -377,6 +377,8 @@ impl TaskExecutor {
                 finish_reason: nika_event::FinishReason::Mock,
                 cost_usd: 0.0,
             });
+            // Run guardrails on mock output (same as non-mock path)
+            self.check_infer_guardrails(task_id, infer, &mock_response_str)?;
             return Ok(mock_response_str);
         }
 
