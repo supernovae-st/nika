@@ -72,6 +72,8 @@ nika doctor --fix                      # System health + auto-repair
 nika daemon status                     # Background daemon (Unix)
 nika cache stats                       # LLM response cache (Unix)
 nika setup                             # API key setup wizard
+nika bench                             # Provider benchmarking
+nika switch dev|release                # Channel management
 nika features                          # Compiled feature flags
 nika completion zsh                    # Shell completions
 nika trace list                        # Execution traces

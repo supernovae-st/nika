@@ -23,6 +23,12 @@ include:                           # Include partial workflows (tasks merged int
   - path: ./partials/setup.nika.yaml
     prefix: setup_
 
+goal: "High-level objective"       # P-ORCHESTRATE: orchestrator intent
+orchestrate:                       # Multi-workflow orchestration (v0.52+)
+  workflows:
+    - name: sub_flow
+      path: ./sub.nika.yaml
+
 mcp:                               # MCP server configuration
   server-name:
     command: npx
@@ -194,6 +200,16 @@ Fields available on any task (all verbs):
   artifact:
     path: result.json
     format: json
+
+  # Custom endpoint (v0.50+)
+  base_url: "http://localhost:8000/v1"  # OpenAI-compatible endpoint
+
+  # Provider fallback (v0.51+)
+  # provider: [groq, claude, openai]   # At task or workflow level
+
+  # Recording & context (v0.51+)
+  record: true                      # Output recording to NDJSON
+  context_budget: 50000             # Token budget for bindings
 
   # Resilience
   retry:

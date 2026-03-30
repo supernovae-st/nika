@@ -19,7 +19,7 @@ tasks:
 
 ## Top-Level Keys
 
-`schema`, `workflow`, `description`, `provider`, `model`, `inputs`, `context`, `imports`, `mcp`, `agents`, `skills`, `artifacts`, `log`, `tasks`
+`schema`, `workflow`, `description`, `provider`, `model`, `inputs`, `context`, `include`, `mcp`, `agents`, `skills`, `artifacts`, `goal`, `orchestrate`, `log`, `tasks`
 
 ## 5 Verbs -- Each task uses exactly one
 
@@ -48,7 +48,7 @@ tasks:
 
 ## Task-Level Keys (all verbs)
 
-`id` (required), `description`, `provider`, `model`, `with`, `depends_on`, `for_each`, `retry`, `output`, `artifact`, `structured`, `log`, `concurrency`, `fail_fast`
+`id` (required), `description`, `provider`, `model`, `base_url`, `with`, `depends_on`, `for_each`, `as`, `retry`, `output`, `artifact`, `structured`, `record`, `context_budget`, `routing`, `preset`, `log`, `concurrency`, `fail_fast`
 
 ## Data Bindings
 
