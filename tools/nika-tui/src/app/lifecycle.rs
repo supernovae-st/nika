@@ -62,15 +62,14 @@ impl App {
         }
 
         let tx = self.stream_chunk_tx.clone();
-        let provider_ids = [
-            ("claude", "claude-sonnet-4-6"),
-            ("openai", "gpt-4o"),
-            ("mistral", "mistral-large-latest"),
-            ("groq", "llama-3.3-70b-versatile"),
-            ("deepseek", "deepseek-chat"),
-            ("gemini", "gemini-2.0-flash"),
-            ("xai", "grok-3-fast"),
-        ];
+        use nika_core::catalogs::default_model_for_provider;
+        let provider_ids: Vec<(&str, String)> = ["claude", "openai", "mistral", "groq", "deepseek", "gemini", "xai"]
+            .iter()
+            .map(|&id| {
+                let model = default_model_for_provider(id).unwrap_or("unknown").to_string();
+                (id, model)
+            })
+            .collect();
         let cache = Arc::clone(&self.verification_cache);
 
         // Check cache and send events for cached providers, mark uncached as verifying
