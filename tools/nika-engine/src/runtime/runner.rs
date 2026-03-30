@@ -2746,7 +2746,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         ..
                     } = &e.kind
                     {
-                        (tokens + input_tokens + output_tokens, cost + cost_usd)
+                        (tokens.saturating_add(*input_tokens).saturating_add(*output_tokens), cost + cost_usd)
                     } else {
                         (tokens, cost)
                     }
