@@ -1314,10 +1314,18 @@ pub fn parse(source: &str, file_id: FileId) -> Result<RawWorkflow, ParseError> {
     let node = parse_yaml(file_id.0 as usize, source).map_err(|e| {
         // Extract span from LoadError variants that carry a Marker
         let span = extract_span_from_load_error(file_id, &e);
+        let message = if matches!(&e, LoadError::UnexpectedAnchor(_)) {
+            "YAML anchors (&/*) are not supported. \
+             Use `include:` with `prefix:` for shared task definitions. \
+             See: https://github.com/SuperNovae-studio/nika/blob/main/docs/adr/0001-yaml-anchors-not-supported.md"
+                .to_string()
+        } else {
+            format!("YAML syntax error: {}", e)
+        };
         ParseError {
             kind: ParseErrorKind::Syntax,
             span,
-            message: format!("YAML syntax error: {}", e),
+            message,
         }
     })?;
 
@@ -3800,5 +3808,29 @@ tasks:
             "Build a podcast episode"
         );
         assert_eq!(workflow.task_count(), 2);
+    }
+
+    #[test]
+    fn parse_yaml_anchor_gives_actionable_error() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: &shared_task base
+    infer: "hello"
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_err(), "YAML anchors should be rejected");
+        let err = result.unwrap_err();
+        assert_eq!(err.kind, ParseErrorKind::Syntax);
+        assert!(
+            err.message.contains("anchors"),
+            "Error should mention anchors: {}",
+            err.message,
+        );
+        assert!(
+            err.message.contains("include:"),
+            "Error should suggest include: as alternative: {}",
+            err.message,
+        );
     }
 }
