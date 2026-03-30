@@ -140,6 +140,29 @@ impl std::error::Error for TransformError {}
 // TransformExpr
 // ═══════════════════════════════════════════════════════════════
 
+/// Split a pipe-separated transform chain while respecting parentheses and quotes.
+/// e.g. `join(" | ")` is one segment, not split on the inner `|`.
+fn split_pipe_respecting_parens(input: &str) -> Vec<&str> {
+    let mut result = Vec::new();
+    let mut depth: u32 = 0;
+    let mut in_quotes = false;
+    let mut start = 0;
+    for (i, c) in input.char_indices() {
+        match c {
+            '"' | '\'' if depth > 0 => in_quotes = !in_quotes,
+            '(' if !in_quotes => depth += 1,
+            ')' if !in_quotes && depth > 0 => depth -= 1,
+            '|' if depth == 0 && !in_quotes => {
+                result.push(&input[start..i]);
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+    result.push(&input[start..]);
+    result
+}
+
 impl TransformExpr {
     /// Parse a pipe-separated transform expression.
     ///
@@ -152,9 +175,9 @@ impl TransformExpr {
             });
         }
 
-        let ops: SmallVec<[TransformOp; 2]> = trimmed
-            .split('|')
-            .map(str::trim)
+        let ops: SmallVec<[TransformOp; 2]> = split_pipe_respecting_parens(trimmed)
+            .iter()
+            .map(|s| s.trim())
             .filter(|s| !s.is_empty())
             .map(|s| parse_single_op(s, input))
             .collect::<Result<_, _>>()?;
@@ -1419,6 +1442,29 @@ mod tests {
             .apply(&json!(["a", 1, true]))
             .unwrap();
         assert_eq!(result, json!("a, 1, true"));
+    }
+
+    #[test]
+    fn parse_chain_with_pipe_in_join_arg() {
+        // B4: join(" | ") must NOT split on the | inside parentheses
+        let expr = TransformExpr::parse(r#"trim | split(",") | join(" | ")"#).unwrap();
+        assert_eq!(expr.ops.len(), 3);
+        assert_eq!(
+            expr.ops.as_slice(),
+            &[
+                TransformOp::Trim,
+                TransformOp::Split(",".to_string()),
+                TransformOp::Join(" | ".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn apply_chain_with_pipe_in_join_arg() {
+        // B4: end-to-end — split then join with pipe separator
+        let expr = TransformExpr::parse(r#"split(",") | join(" | ")"#).unwrap();
+        let result = expr.apply(&json!("a,b,c")).unwrap();
+        assert_eq!(result, json!("a | b | c"));
     }
 
     #[test]
