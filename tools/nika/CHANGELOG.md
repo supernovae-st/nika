@@ -9,6 +9,56 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.54.0](https://github.com/supernovae-st/nika/releases/tag/v0.54.0) - 2026-03-31
+
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║  🦋 NIKA v0.54.0 — SECURITY HARDENING                                       ║
+║  Sprint 1 (P0) + Sprint 2 (P1) from 20-agent deep audit                     ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║                                                                               ║
+║  🔒 Shared redact_secrets() — single regex, 13 secret patterns               ║
+║  🔒 Recursive JSON redaction — nested objects/arrays walked                   ║
+║  🔒 Agent PolicyEnforcer — tool calls checked before dispatch                 ║
+║  🔧 FetchExhausted event — observability at all 4 exhaustion paths            ║
+║  🔧 Retry-After header — 429 uses server-mandated delay                      ║
+║  🔧 Parametric max_tokens — no more hardcoded 8192                            ║
+║                                                                               ║
+║  2 commits | 9,038 tests | 8 bugs fixed | 27 new tests                      ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+```
+
+### Added
+- **`FetchExhausted` event** — New event type emitted at all 4 retry-exhaustion paths (5xx exhaustion, network error exhaustion, deadline exceeded during 5xx backoff, deadline exceeded during network backoff). Full observability for fetch failures.
+- **`PolicyEnforcer.check_tool_call()`** — Agent tool calls now checked against security policy before MCP dispatch. Blocks exec-like tools when `allow_exec: false`, network tools when `allow_network: false`, and custom patterns via `blocked_commands`.
+- **`redact_secrets()` shared utility** — Single source of truth for secret pattern regex in `util/mod.rs`. Covers 13 patterns: OpenAI, Anthropic, GitHub PAT/OAuth, Slack, AWS, Groq, Google, xAI, Stripe (`sk_live_`, `rk_live_`), Twilio (`AC...`, `whsec_`), and database URIs (`postgres://`, `mongodb://`, `mysql://`, `redis://`).
+- **`parse_retry_after()`** — Fetch verb now parses `Retry-After` header on 429 responses. Uses server-mandated delay instead of exponential backoff, capped at 5 minutes.
+
+### Fixed
+- **SEC-1: Secrets logged in `tracing::warn`** — `exec.rs` policy-blocked warning now uses `redact_for_event()`. `security.rs` blocklist warnings use `redact_secrets()`. Resolved commands no longer leak API keys to structured logs.
+- **SEC-2: `to_value_redacted()` doesn't recurse** — Now walks nested JSON objects and arrays (depth-bounded to 16 levels). Previously only redacted top-level strings, leaking secrets in nested structures.
+- **EXEC-1: `BINDING_RE` misses `{{context.*}}`** — Shell escape warning regex extended from `(with|inputs)` to `(with|inputs|context)`.
+- **AGENT-1: `max_tokens(8192)` hardcoded** — 16 instances in `rig/mod.rs` replaced. `infer()` and `infer_stream()` now accept `Option<u64>` max_tokens parameter, defaulting to 8192 when `None`.
+- **SEC-AGENT-01: Agent bypasses security** — `PolicyEnforcer` threaded through `RigAgentLoop` → `NikaMcpTool`. Agent tool calls run `check_tool_call()` before dispatching to MCP client. Emits `PolicyBlocked` events on block.
+- **MCP-1: 50MB limit not on resource reads** — Resource reads now enforce the same 50MB size limit as tool calls. Previously only `call_tool` results were size-checked.
+- **FETCH-2: No `FetchFailed` event on exhaustion** — All 4 retry-exhaustion code paths now emit `FetchExhausted` event before returning error.
+- **FETCH-1: 429 `Retry-After` header ignored** — Parse integer-seconds `Retry-After`, use as backoff delay instead of exponential. Capped at 5 minutes.
+
+### Changed
+- **`redact_for_event()` delegates to shared `redact_secrets()`** — Eliminates duplicate `SECRET_RE` regex in `verbs.rs` and `resolve.rs`.
+- **`NikaMcpTool` gains `with_policy()` builder** — Attaches `PolicyEnforcer` + `EventLog` for security-checked tool calls in agent loops.
+- **Display renderers handle `FetchExhausted`** — Live, classic, and TUI renderers all render the new event.
+
+### Testing
+- 11 `redact_secrets` unit tests (all 13 patterns + safe string preservation)
+- 6 `parse_retry_after` unit tests (integer, zero, cap, missing, non-numeric, whitespace)
+- 2 recursive redaction tests (nested objects, arrays with mixed types)
+- 4 `check_tool_call` policy tests (default allow, exec block, network block, custom patterns)
+- 4 existing `redact_for_event` tests still pass (delegates to shared function)
+
+---
+
 ## [0.53.0](https://github.com/supernovae-st/nika/releases/tag/v0.53.0) - 2026-03-30
 
 ```
