@@ -142,9 +142,14 @@ const BLOCKLIST: &[&str] = &[
 /// In shell-free mode (shlex), they are harmless literal strings.
 const SHELL_MODE_BLOCKLIST: &[&str] = &[
     // Command substitution — executes arbitrary commands inside $()
-    "$(", // Backtick command substitution — legacy form of $()
-    "`",  // Bash process substitution — executes commands via /dev/fd
-    "<(", // Here-string — feeds arbitrary input to interpreters
+    "$(",
+    // Backtick command substitution — legacy form of $()
+    // NOTE: backtick uses quote-aware matching (contains_unquoted) to allow
+    // backticks inside quoted strings like `echo "file\`name.txt"`
+    "`",
+    // Bash process substitution — executes commands via /dev/fd
+    "<(",
+    // Here-string — feeds arbitrary input to interpreters
     "<<<",
     // Shell alias/function definitions — can redefine blocked commands
     "alias ",
@@ -152,11 +157,87 @@ const SHELL_MODE_BLOCKLIST: &[&str] = &[
     "declare -f",
 ];
 
+/// Check whether `haystack` contains `needle` outside of quoted regions.
+///
+/// Tracks shell quoting state (single quotes, double quotes) while scanning.
+/// Inside double quotes, `\"` is recognized as an escaped quote (not a closer).
+/// Single quotes have no escape mechanism in POSIX shell.
+///
+/// Returns `true` only when `needle` appears at a position that is NOT inside
+/// a quoted string.
+fn contains_unquoted(haystack: &str, needle: &str) -> bool {
+    if needle.is_empty() {
+        return false;
+    }
+
+    #[derive(Clone, Copy, PartialEq)]
+    enum QuoteState {
+        None,
+        Single,
+        Double,
+    }
+
+    let chars: Vec<char> = haystack.chars().collect();
+    let needle_chars: Vec<char> = needle.chars().collect();
+    let mut state = QuoteState::None;
+    let mut i = 0;
+
+    while i < chars.len() {
+        let c = chars[i];
+
+        match state {
+            QuoteState::None => {
+                // Check for quote openers
+                if c == '\'' {
+                    state = QuoteState::Single;
+                    i += 1;
+                    continue;
+                }
+                if c == '"' {
+                    state = QuoteState::Double;
+                    i += 1;
+                    continue;
+                }
+                // Check for needle match at this position (outside quotes)
+                if i + needle_chars.len() <= chars.len()
+                    && chars[i..i + needle_chars.len()] == needle_chars[..]
+                {
+                    return true;
+                }
+            }
+            QuoteState::Single => {
+                // Single quotes: only a closing single quote ends it
+                // No escape mechanism in POSIX shell
+                if c == '\'' {
+                    state = QuoteState::None;
+                }
+            }
+            QuoteState::Double => {
+                // Double quotes: backslash escapes the next character
+                if c == '\\' && i + 1 < chars.len() {
+                    i += 2; // skip escaped char
+                    continue;
+                }
+                if c == '"' {
+                    state = QuoteState::None;
+                }
+            }
+        }
+        i += 1;
+    }
+
+    false
+}
+
 /// Check command against shell-mode-specific blocklist.
 ///
 /// These patterns (command substitution, backticks) are only dangerous
 /// when shell mode is active (`shell: true`). In shell-free mode,
 /// they are harmless literal characters.
+///
+/// The backtick pattern uses quote-aware matching so that backticks
+/// inside quoted strings (e.g. `echo "file\`name.txt"`) are allowed,
+/// while unquoted backtick substitution (e.g. `echo \`whoami\``) is blocked.
 ///
 /// # Errors
 ///
@@ -166,7 +247,14 @@ pub fn check_shell_mode_blocklist(cmd: &str) -> Result<(), NikaError> {
     let lower = normalized.to_lowercase();
 
     for pattern in SHELL_MODE_BLOCKLIST {
-        if lower.contains(pattern) {
+        let matched = if *pattern == "`" {
+            // Quote-aware matching for backtick — allows backticks inside quotes
+            contains_unquoted(&lower, pattern)
+        } else {
+            lower.contains(pattern)
+        };
+
+        if matched {
             tracing::warn!(
                 command = %cmd,
                 normalized = %lower,
@@ -1454,6 +1542,96 @@ mod tests {
         assert!(result.is_ok(), "Should succeed: {:?}", result.err());
         let result = check_shell_mode_blocklist("cat file.txt");
         assert!(result.is_ok(), "Should succeed: {:?}", result.err());
+    }
+
+    // =========================================================================
+    // BUG-6: Quote-aware backtick detection
+    // =========================================================================
+
+    #[test]
+    fn test_backtick_inside_double_quotes_is_allowed() {
+        // Backtick inside double quotes is a literal character, not command substitution
+        let result = check_shell_mode_blocklist(r#"echo "file`name.txt""#);
+        assert!(
+            result.is_ok(),
+            "Backtick inside double quotes should be allowed: {:?}",
+            result.err()
+        );
+    }
+
+    #[test]
+    fn test_backtick_inside_single_quotes_is_allowed() {
+        // Backtick inside single quotes is always literal
+        let result = check_shell_mode_blocklist("echo 'it`s fine'");
+        assert!(
+            result.is_ok(),
+            "Backtick inside single quotes should be allowed: {:?}",
+            result.err()
+        );
+    }
+
+    #[test]
+    fn test_unquoted_backtick_substitution_is_blocked() {
+        // Unquoted backtick is command substitution — must be blocked
+        let result = check_shell_mode_blocklist("echo `rm -rf /`");
+        assert!(
+            result.is_err(),
+            "Unquoted backtick substitution should be blocked"
+        );
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+    }
+
+    #[test]
+    fn test_backtick_after_closing_quote_is_blocked() {
+        // Backtick outside the quoted region should still be blocked
+        let result = check_shell_mode_blocklist(r#"echo "safe" `whoami`"#);
+        assert!(
+            result.is_err(),
+            "Backtick after closing quote should be blocked"
+        );
+    }
+
+    #[test]
+    fn test_backtick_before_opening_quote_is_blocked() {
+        let result = check_shell_mode_blocklist(r#"`whoami` "safe""#);
+        assert!(
+            result.is_err(),
+            "Backtick before opening quote should be blocked"
+        );
+    }
+
+    #[test]
+    fn test_multiple_backticks_inside_quotes_allowed() {
+        let result = check_shell_mode_blocklist(r#"echo "a`b`c`d""#);
+        assert!(
+            result.is_ok(),
+            "Multiple backticks inside double quotes should be allowed: {:?}",
+            result.err()
+        );
+    }
+
+    #[test]
+    fn test_escaped_quote_does_not_close_double_quotes() {
+        // The \" inside double quotes is an escape — the backtick is still inside quotes
+        let result = check_shell_mode_blocklist(r#"echo "he said \"it`s\" fine""#);
+        assert!(
+            result.is_ok(),
+            "Backtick inside double quotes with escaped quotes should be allowed: {:?}",
+            result.err()
+        );
+    }
+
+    #[test]
+    fn test_contains_unquoted_basic() {
+        // Direct unit tests for the helper
+        assert!(contains_unquoted("echo `whoami`", "`"));
+        assert!(!contains_unquoted(r#"echo "file`name""#, "`"));
+        assert!(!contains_unquoted("echo 'it`s fine'", "`"));
+        assert!(contains_unquoted("echo hello", "echo"));
+        assert!(!contains_unquoted("echo 'echo test'", "echo test"));
+        assert!(!contains_unquoted("", "`"));
+        assert!(!contains_unquoted("anything", ""));
     }
 
     #[test]
