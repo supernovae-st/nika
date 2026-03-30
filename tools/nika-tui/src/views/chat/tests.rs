@@ -1371,7 +1371,7 @@ fn test_chat_view_has_current_provider_id() {
     assert!(!view.provider.id.is_empty());
     // Should be one of the known providers, or "none" if no API keys available
     let valid_providers = [
-        "claude", "openai", "mistral", "groq", "deepseek", "gemini", "xai", "none",
+        "anthropic", "openai", "mistral", "groq", "deepseek", "gemini", "xai", "none",
     ];
     assert!(
         valid_providers.contains(&view.provider.id.as_str()),
@@ -1385,7 +1385,7 @@ fn test_provider_id_matches_model() {
     let view = ChatView::new();
     // Provider ID should match the model's provider
     match view.provider.id.as_str() {
-        "claude" => assert!(view.provider.model.starts_with("claude")),
+        "anthropic" => assert!(view.provider.model.starts_with("claude")),
         "openai" => assert!(view.provider.model.starts_with("gpt")),
         "mistral" => assert!(view.provider.model.starts_with("mistral")),
         "groq" => {
@@ -1394,6 +1394,8 @@ fn test_provider_id_matches_model() {
             )
         }
         "deepseek" => assert!(view.provider.model.starts_with("deepseek")),
+        "gemini" => assert!(view.provider.model.starts_with("gemini")),
+        "xai" => assert!(view.provider.model.starts_with("grok")),
         "none" => assert!(view.provider.model == "No API Key"), // CI without keys
         _ => panic!("Unknown provider: {}", view.provider.id),
     }

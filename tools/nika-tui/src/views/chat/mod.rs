@@ -332,9 +332,7 @@ impl ChatView {
             .find(|p| std::env::var(p.env_var).is_ok_and(|v| !v.is_empty()))
             .map(|p| {
                 let model = default_model_for_provider(p.id).unwrap_or("unknown");
-                // Use first alias as provider_id (e.g., "claude" for anthropic)
-                let id = p.aliases.first().copied().unwrap_or(p.id);
-                (model.to_string(), p.name.to_string(), id.to_string())
+                (model.to_string(), p.name.to_string(), p.id.to_string())
             })
             .unwrap_or_else(|| {
                 ("No API Key".to_string(), "None".to_string(), "none".to_string())
