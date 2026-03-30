@@ -55,3 +55,7 @@ tools/nika/target-*/
 
 # Generated files
 generated/
+
+# Binary media (podcast episodes, rendered reports)
+docs/podcast/
+docs/reports/
