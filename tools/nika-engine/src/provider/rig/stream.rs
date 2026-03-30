@@ -151,6 +151,8 @@ pub struct StreamResult {
     pub ttft_ms: Option<u64>,
     /// API request ID from response headers (None if not available)
     pub request_id: Option<String>,
+    /// Why the model stopped generating (extracted from provider response)
+    pub finish_reason: Option<nika_event::FinishReason>,
 }
 
 impl StreamResult {
@@ -217,6 +219,22 @@ where
                         result.output_tokens = usage.output_tokens;
                         result.total_tokens = usage.total_tokens;
                         result.cached_input_tokens = usage.cached_input_tokens;
+                    }
+                    // Extract finish_reason from the serialized provider response.
+                    // Anthropic uses "stop_reason", OpenAI uses "finish_reason".
+                    if let Ok(json) = serde_json::to_value(&response) {
+                        let reason = json
+                            .get("stop_reason")
+                            .or_else(|| {
+                                json.get("choices")
+                                    .and_then(|c| c.get(0))
+                                    .and_then(|c| c.get("finish_reason"))
+                            })
+                            .and_then(|v| v.as_str());
+                        if let Some(r) = reason {
+                            result.finish_reason =
+                                Some(nika_event::FinishReason::from(r));
+                        }
                     }
                 }
                 _ => {}
