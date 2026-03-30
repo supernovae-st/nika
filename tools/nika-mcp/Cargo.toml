@@ -13,7 +13,6 @@ nika-core = { workspace = true }
 nika-event = { workspace = true }
 rmcp = { workspace = true }
 tokio = { workspace = true }
-tokio-util = { workspace = true }
 backon = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -26,7 +25,6 @@ jsonschema = { workspace = true }
 shellexpand = { workspace = true }
 schemars = { workspace = true }
 rustc-hash = { workspace = true }
-regex = { workspace = true }
 dirs = { workspace = true }
 
 [dev-dependencies]

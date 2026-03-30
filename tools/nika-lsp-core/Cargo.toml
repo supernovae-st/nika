@@ -15,8 +15,6 @@ ropey = { workspace = true }
 dashmap = { workspace = true }
 rustc-hash = { workspace = true }
 tracing = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
 tree-sitter = { workspace = true }
 tree-sitter-yaml = { workspace = true }
 

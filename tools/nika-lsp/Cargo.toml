@@ -31,10 +31,8 @@ tokio = { workspace = true, features = ["full"] }
 
 # Concurrent data structures
 dashmap = { workspace = true }
-parking_lot = { workspace = true }
 
 # Serialization
-serde = { workspace = true }
 serde_json = { workspace = true }
 
 # Nika core (catalogs, AST types)
@@ -52,9 +50,6 @@ ropey = { workspace = true }
 # Logging
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
-
-# Error handling
-thiserror = { workspace = true }
 
 # Template validation
 regex = { workspace = true }

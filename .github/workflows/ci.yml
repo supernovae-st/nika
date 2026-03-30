@@ -245,11 +245,11 @@ jobs:
 
       - name: cargo deny (licenses + bans + sources)
         working-directory: tools/nika
-        run: cargo deny check 2>&1 || true
+        run: cargo deny check
 
       - name: cargo machete (unused deps)
-        working-directory: tools/nika
-        run: cargo machete 2>&1 || true
+        working-directory: tools
+        run: cargo machete
 
   # ─────────────────────────────────────────────────────────────────────────────
   # Semver: breaking change detection

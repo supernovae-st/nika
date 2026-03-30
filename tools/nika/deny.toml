@@ -5,8 +5,11 @@
 version = 2
 db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
-# No advisories to ignore after rustls migration (v0.15.1)
-ignore = []
+ignore = [
+    # Transitive deps — unmaintained but no replacement available
+    "RUSTSEC-2021-0153", # encoding: unmaintained (transitive via feed-rs)
+    "RUSTSEC-2024-0436", # paste: unmaintained (transitive via rig-core)
+]
 
 [licenses]
 version = 2
@@ -23,11 +26,14 @@ allow = [
     "BSL-1.0",
     "Unicode-3.0",
     "AGPL-3.0-or-later",
+    "AGPL-3.0",          # deprecated SPDX ID used by dssim-core
     # TLS/Cryptography licenses
     "OpenSSL",           # aws-lc-sys (rustls TLS backend)
     "CDLA-Permissive-2.0", # webpki-root-certs (TLS root certificates)
     # Public domain equivalents
     "CC0-1.0",           # notify crate (file watching for TUI)
+    # Academic/OSI-approved
+    "NCSA",              # libfuzzer-sys (University of Illinois)
 ]
 confidence-threshold = 0.8
 
