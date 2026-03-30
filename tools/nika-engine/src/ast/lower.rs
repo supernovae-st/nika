@@ -113,7 +113,12 @@ fn lower_task(task: AnalyzedTask, table: &TaskTable) -> Result<Task, NikaError> 
         .routing
         .as_ref()
         .filter(|r| r.fallback.len() > 1)
-        .map(|r| r.fallback.iter().map(|s| nika_core::ProviderName::parse(s)).collect());
+        .map(|r| {
+            r.fallback
+                .iter()
+                .map(|s| nika_core::ProviderName::parse(s))
+                .collect()
+        });
     let action = lower_action(
         &task.action,
         &task.provider,
@@ -692,7 +697,9 @@ pub fn unlower(workflow: Workflow) -> Result<AnalyzedWorkflow, NikaError> {
 /// During lower → unlower round-trip, provider/model are stored inside
 /// InferParams/AgentParams. This extracts them so the Runner can pass them
 /// back through lower_action() at the TaskExecutor boundary.
-fn extract_provider_model(action: &TaskAction) -> (Option<nika_core::ProviderName>, Option<String>) {
+fn extract_provider_model(
+    action: &TaskAction,
+) -> (Option<nika_core::ProviderName>, Option<String>) {
     match action {
         TaskAction::Infer { infer } => (infer.provider.clone(), infer.model.clone()),
         TaskAction::Agent { agent } => (agent.provider.clone(), agent.model.clone()),

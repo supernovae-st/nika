@@ -227,14 +227,17 @@ impl ArtifactWriter {
         // SEC-3/4: Fail-closed — canonicalize errors are treated as escapes, not ignored.
         let final_path = validate_artifact_path(&self.artifact_dir, Path::new(&resolved_path))?;
         if let Some(parent) = final_path.parent() {
-            let canonical_parent = parent.canonicalize().map_err(|e| NikaError::ArtifactPathError {
-                path: final_path.display().to_string(),
-                reason: format!(
-                    "Cannot canonicalize parent '{}' (fail-closed): {}",
-                    parent.display(),
-                    e
-                ),
-            })?;
+            let canonical_parent =
+                parent
+                    .canonicalize()
+                    .map_err(|e| NikaError::ArtifactPathError {
+                        path: final_path.display().to_string(),
+                        reason: format!(
+                            "Cannot canonicalize parent '{}' (fail-closed): {}",
+                            parent.display(),
+                            e
+                        ),
+                    })?;
             let canonical_base =
                 self.artifact_dir
                     .canonicalize()
@@ -323,14 +326,17 @@ impl ArtifactWriter {
         // SEC-3/4: Fail-closed — canonicalize errors are treated as escapes, not ignored.
         let final_path = validate_artifact_path(&self.artifact_dir, Path::new(&resolved_path))?;
         if let Some(parent) = final_path.parent() {
-            let canonical_parent = parent.canonicalize().map_err(|e| NikaError::ArtifactPathError {
-                path: final_path.display().to_string(),
-                reason: format!(
-                    "Cannot canonicalize parent '{}' (fail-closed): {}",
-                    parent.display(),
-                    e
-                ),
-            })?;
+            let canonical_parent =
+                parent
+                    .canonicalize()
+                    .map_err(|e| NikaError::ArtifactPathError {
+                        path: final_path.display().to_string(),
+                        reason: format!(
+                            "Cannot canonicalize parent '{}' (fail-closed): {}",
+                            parent.display(),
+                            e
+                        ),
+                    })?;
             let canonical_base =
                 self.artifact_dir
                     .canonicalize()

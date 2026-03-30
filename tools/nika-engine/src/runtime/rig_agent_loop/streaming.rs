@@ -134,9 +134,10 @@ impl RigAgentLoop {
                         }
                         // Send token to TUI for real-time display
                         if let Some(ref tx) = self.stream_tx {
-                            stream_send!(tx,crate::provider::rig::StreamChunk::Token(
-                                text.text.clone(),
-                            ));
+                            stream_send!(
+                                tx,
+                                crate::provider::rig::StreamChunk::Token(text.text.clone(),)
+                            );
                         }
                         // Approximate token count: ~4 chars per token
                         let delta = (text.text.len() as u64 / 4).max(1);
@@ -154,9 +155,10 @@ impl RigAgentLoop {
                     StreamedAssistantContent::ReasoningDelta { reasoning, .. } => {
                         // Send thinking content to TUI
                         if let Some(ref tx) = self.stream_tx {
-                            stream_send!(tx,crate::provider::rig::StreamChunk::Thinking(
-                                reasoning.clone(),
-                            ));
+                            stream_send!(
+                                tx,
+                                crate::provider::rig::StreamChunk::Thinking(reasoning.clone(),)
+                            );
                         }
                         thinking_parts.push(reasoning);
                     }
@@ -166,7 +168,8 @@ impl RigAgentLoop {
                             if let ReasoningContent::Text { text, .. } = block {
                                 // Send thinking to TUI
                                 if let Some(ref tx) = self.stream_tx {
-                                    stream_send!(tx,
+                                    stream_send!(
+                                        tx,
                                         crate::provider::rig::StreamChunk::Thinking(text.clone()),
                                     );
                                 }
@@ -182,10 +185,13 @@ impl RigAgentLoop {
                             cached_input_tokens = usage.cached_input_tokens;
                             // Send final metrics to TUI
                             if let Some(ref tx) = self.stream_tx {
-                                stream_send!(tx,crate::provider::rig::StreamChunk::Metrics {
-                                    input_tokens: usage.input_tokens,
-                                    output_tokens: usage.output_tokens,
-                                });
+                                stream_send!(
+                                    tx,
+                                    crate::provider::rig::StreamChunk::Metrics {
+                                        input_tokens: usage.input_tokens,
+                                        output_tokens: usage.output_tokens,
+                                    }
+                                );
                             }
                         }
                     }
@@ -289,7 +295,11 @@ impl RigAgentLoop {
 
             // Inject stop_sequences via additional_params (provider-specific key)
             if let Some(stop_params) = Self::stop_sequences_params(
-                self.params.provider.as_ref().map(|p| p.as_str()).unwrap_or(""),
+                self.params
+                    .provider
+                    .as_ref()
+                    .map(|p| p.as_str())
+                    .unwrap_or(""),
                 &self.params.stop_sequences,
             ) {
                 builder = builder.additional_params(stop_params);
@@ -441,7 +451,11 @@ impl RigAgentLoop {
 
         // Inject stop_sequences via additional_params (provider-specific key)
         if let Some(stop_params) = Self::stop_sequences_params(
-            self.params.provider.as_ref().map(|p| p.as_str()).unwrap_or(""),
+            self.params
+                .provider
+                .as_ref()
+                .map(|p| p.as_str())
+                .unwrap_or(""),
             &self.params.stop_sequences,
         ) {
             builder = builder.additional_params(stop_params);
@@ -487,10 +501,13 @@ impl RigAgentLoop {
                         "Agent stream timed out waiting for chunk"
                     );
                     if let Some(ref tx) = self.stream_tx {
-                        stream_send!(tx,crate::provider::rig::StreamChunk::Error(format!(
-                            "Stream timeout: no chunk received for {}s",
-                            STREAM_CHUNK_TIMEOUT.as_secs()
-                        )));
+                        stream_send!(
+                            tx,
+                            crate::provider::rig::StreamChunk::Error(format!(
+                                "Stream timeout: no chunk received for {}s",
+                                STREAM_CHUNK_TIMEOUT.as_secs()
+                            ))
+                        );
                     }
                     return Err(NikaError::Timeout {
                         operation: format!("agent streaming (task: {})", self.task_id),
@@ -510,9 +527,10 @@ impl RigAgentLoop {
                             tui_ttft_ms = Some(tui_stream_start.elapsed().as_millis() as u64);
                         }
                         if let Some(ref tx) = self.stream_tx {
-                            stream_send!(tx,crate::provider::rig::StreamChunk::Token(
-                                text.text.clone(),
-                            ));
+                            stream_send!(
+                                tx,
+                                crate::provider::rig::StreamChunk::Token(text.text.clone(),)
+                            );
                         }
                         // StreamingDelta for live progress
                         let delta = (text.text.len() as u64 / 4).max(1);
@@ -542,11 +560,14 @@ impl RigAgentLoop {
 
                         // Send McpCallStart to TUI
                         if let Some(ref tx) = self.stream_tx {
-                            stream_send!(tx,crate::provider::rig::StreamChunk::McpCallStart {
-                                tool: tool_name.clone(),
-                                server: "agent".to_string(),
-                                params: args_string,
-                            });
+                            stream_send!(
+                                tx,
+                                crate::provider::rig::StreamChunk::McpCallStart {
+                                    tool: tool_name.clone(),
+                                    server: "agent".to_string(),
+                                    params: args_string,
+                                }
+                            );
                         }
 
                         // Log event for observability
@@ -575,9 +596,10 @@ impl RigAgentLoop {
                             .collect::<Vec<_>>()
                             .join("");
                         if let Some(ref tx) = self.stream_tx {
-                            stream_send!(tx,crate::provider::rig::StreamChunk::Thinking(
-                                reasoning_str.clone(),
-                            ));
+                            stream_send!(
+                                tx,
+                                crate::provider::rig::StreamChunk::Thinking(reasoning_str.clone(),)
+                            );
                         }
                         match &mut thinking_text {
                             Some(t) => t.push_str(&reasoning_str),
@@ -599,10 +621,13 @@ impl RigAgentLoop {
 
                         // Send metrics to TUI
                         if let Some(ref tx) = self.stream_tx {
-                            stream_send!(tx,crate::provider::rig::StreamChunk::Metrics {
-                                input_tokens: usage.input_tokens,
-                                output_tokens: usage.output_tokens,
-                            });
+                            stream_send!(
+                                tx,
+                                crate::provider::rig::StreamChunk::Metrics {
+                                    input_tokens: usage.input_tokens,
+                                    output_tokens: usage.output_tokens,
+                                }
+                            );
                         }
                     }
 

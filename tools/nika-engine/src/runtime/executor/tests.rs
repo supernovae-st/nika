@@ -2440,7 +2440,10 @@ async fn test_agent_provider_fallback_to_mock() {
             guardrails: vec![],
             limits: None,
             base_url: None,
-            provider_chain: Some(vec![nika_core::ProviderName::Custom("nonexistent_fake".to_string()), nika_core::ProviderName::Mock]),
+            provider_chain: Some(vec![
+                nika_core::ProviderName::Custom("nonexistent_fake".to_string()),
+                nika_core::ProviderName::Mock,
+            ]),
         },
     };
 
