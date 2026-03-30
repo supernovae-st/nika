@@ -5436,7 +5436,7 @@ mod tests {
         spec.max_retries = Some(2);
         spec.enable_retry = Some(true);
 
-        let callback: InferCallback = Arc::new(move |_prompt: String| {
+        let callback: InferCallback = Arc::new(move |_prompt: String, _max_tokens: Option<u32>| {
             Box::pin(async move { Ok(r#"{"name": "Fixed", "age": 42}"#.to_string()) })
         });
 
@@ -5479,7 +5479,7 @@ mod tests {
 
         let call_count = Arc::new(std::sync::atomic::AtomicU32::new(0));
         let call_count_clone = Arc::clone(&call_count);
-        let callback: InferCallback = Arc::new(move |_prompt: String| {
+        let callback: InferCallback = Arc::new(move |_prompt: String, _max_tokens: Option<u32>| {
             call_count_clone.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             Box::pin(async move { Ok(r#"{"name": "Still Wrong"}"#.to_string()) })
         });
@@ -5518,7 +5518,7 @@ mod tests {
         spec.enable_retry = Some(false);
         spec.enable_repair = Some(true);
 
-        let callback: InferCallback = Arc::new(move |_prompt: String| {
+        let callback: InferCallback = Arc::new(move |_prompt: String, _max_tokens: Option<u32>| {
             Box::pin(async move { Ok(r#"{"valid": true}"#.to_string()) })
         });
 

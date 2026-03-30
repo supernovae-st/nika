@@ -30,7 +30,7 @@
 //! let result = engine.validate("task-1", raw_output).await?;
 //!
 //! // With inference callback for full Layer 3 & 4 support
-//! let callback: InferCallback = Arc::new(move |prompt: String| {
+//! let callback: InferCallback = Arc::new(move |prompt: String, max_tokens: Option<u32>| {
 //!     let provider = provider.clone();
 //!     Box::pin(async move {
 //!         provider.infer(&prompt, None).await
@@ -61,9 +61,14 @@ use super::output::{extract_json, format_validation_errors, validate_schema_ref}
 /// - Layer 3: Retry with validation error feedback
 /// - Layer 4: Repair call to fix invalid JSON
 ///
-/// The callback receives the prompt and returns the LLM response.
+/// The callback receives the prompt and an optional `max_tokens` override.
+/// When `max_tokens` is `Some`, the callback should respect that limit instead
+/// of falling back to the hardcoded default (8192). This ensures that tasks
+/// with `max_tokens: 16000` (or similar) propagate correctly through L3/L4 retries.
 pub type InferCallback = Arc<
-    dyn Fn(String) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send>> + Send + Sync,
+    dyn Fn(String, Option<u32>) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send>>
+        + Send
+        + Sync,
 >;
 
 /// Layer names for event tracking
@@ -134,6 +139,11 @@ pub struct StructuredOutputEngine {
     provider_name: Option<String>,
     /// Model name for telemetry (e.g., "claude-3-haiku-20240307")
     model_name: Option<String>,
+    /// Task-level max_tokens to propagate to L3/L4 retry callbacks.
+    ///
+    /// When set, the engine passes this to the `InferCallback` so retries
+    /// respect the task's configured limit instead of the provider default (8192).
+    max_tokens: Option<u32>,
 }
 
 impl StructuredOutputEngine {
@@ -149,6 +159,7 @@ impl StructuredOutputEngine {
             original_prompt: None,
             provider_name: None,
             model_name: None,
+            max_tokens: None,
         }
     }
 
@@ -160,7 +171,7 @@ impl StructuredOutputEngine {
     /// # Example
     ///
     /// ```rust,ignore
-    /// let callback: InferCallback = Arc::new(move |prompt: String| {
+    /// let callback: InferCallback = Arc::new(move |prompt: String, max_tokens: Option<u32>| {
     ///     let provider = provider.clone();
     ///     Box::pin(async move {
     ///         provider.infer(&prompt, None).await
@@ -195,6 +206,16 @@ impl StructuredOutputEngine {
     pub fn with_provider_context(mut self, provider: String, model: String) -> Self {
         self.provider_name = Some(provider);
         self.model_name = Some(model);
+        self
+    }
+
+    /// Set the task-level max_tokens for L3/L4 retry callbacks.
+    ///
+    /// When set, the engine passes this value to the `InferCallback` so
+    /// retries and repairs respect the task's configured token limit
+    /// instead of falling back to the provider default (8192).
+    pub fn with_max_tokens(mut self, max_tokens: Option<u32>) -> Self {
+        self.max_tokens = max_tokens;
         self
     }
 
@@ -539,7 +560,7 @@ impl StructuredOutputEngine {
 
         // Actually call the LLM with the retry prompt
         let infer_start = Instant::now();
-        let new_output = match infer_fn(retry_prompt).await {
+        let new_output = match infer_fn(retry_prompt, self.max_tokens).await {
             Ok(output) => {
                 let elapsed = infer_start.elapsed();
                 let in_tok = estimate_tokens(prompt_len);
@@ -703,7 +724,7 @@ impl StructuredOutputEngine {
 
         // Call the LLM to repair the JSON
         let infer_start = Instant::now();
-        let repaired_output = match infer_fn(repair_prompt).await {
+        let repaired_output = match infer_fn(repair_prompt, self.max_tokens).await {
             Ok(output) => {
                 let elapsed = infer_start.elapsed();
                 let in_tok = estimate_tokens(prompt_len);
@@ -1449,7 +1470,7 @@ Hope this helps!"#;
         let call_count_clone = call_count.clone();
 
         // Mock callback that returns valid JSON on second call
-        let callback: InferCallback = Arc::new(move |_prompt: String| {
+        let callback: InferCallback = Arc::new(move |_prompt: String, _max_tokens: Option<u32>| {
             let count = call_count_clone.clone();
             Box::pin(async move {
                 let n = count.fetch_add(1, Ordering::SeqCst);
@@ -1531,7 +1552,7 @@ Hope this helps!"#;
         let call_count_clone = call_count.clone();
 
         // Mock callback that returns repaired JSON
-        let callback: InferCallback = Arc::new(move |prompt: String| {
+        let callback: InferCallback = Arc::new(move |prompt: String, _max_tokens: Option<u32>| {
             let count = call_count_clone.clone();
             Box::pin(async move {
                 count.fetch_add(1, Ordering::SeqCst);
@@ -1609,7 +1630,7 @@ Hope this helps!"#;
         let call_count_clone = call_count.clone();
 
         // Mock callback that always returns invalid JSON
-        let callback: InferCallback = Arc::new(move |_prompt: String| {
+        let callback: InferCallback = Arc::new(move |_prompt: String, _max_tokens: Option<u32>| {
             let count = call_count_clone.clone();
             Box::pin(async move {
                 count.fetch_add(1, Ordering::SeqCst);
@@ -1646,7 +1667,7 @@ Hope this helps!"#;
         // - Layer 3 retries all fail (return invalid JSON)
         // - Layer 4 repair succeeds (return valid JSON)
         // Note: Detect Layer 4 by "JSON repair assistant" which is unique to repair prompt
-        let callback: InferCallback = Arc::new(move |prompt: String| {
+        let callback: InferCallback = Arc::new(move |prompt: String, _max_tokens: Option<u32>| {
             let count = call_count_clone.clone();
             Box::pin(async move {
                 let n = count.fetch_add(1, Ordering::SeqCst);
@@ -1692,7 +1713,7 @@ Hope this helps!"#;
         let captured_prompt = Arc::new(std::sync::Mutex::new(String::new()));
         let captured_prompt_clone = captured_prompt.clone();
 
-        let callback: InferCallback = Arc::new(move |prompt: String| {
+        let callback: InferCallback = Arc::new(move |prompt: String, _max_tokens: Option<u32>| {
             let captured = captured_prompt_clone.clone();
             Box::pin(async move {
                 *captured.lock().unwrap() = prompt.clone();
