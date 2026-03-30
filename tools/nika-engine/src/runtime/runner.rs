@@ -686,6 +686,11 @@ impl Runner {
             }
             attempts += 1;
 
+            // Delay between structured output retry attempts to avoid rate limiting
+            if attempts > 1 {
+                tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+            }
+
             // Create action for this attempt
             let action = TaskAction::Infer {
                 infer: current_infer.clone(),
