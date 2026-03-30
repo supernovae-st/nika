@@ -41,6 +41,30 @@ pub fn default_model_for_provider(provider: &str) -> Option<&'static str> {
         .map(|(_, model)| *model)
 }
 
+/// Cheapest available model per provider (for compression, repair, etc.).
+///
+/// These are small/fast models that minimize cost for auxiliary tasks.
+/// Falls back to [`default_model_for_provider`] when no cheap alternative exists.
+pub static PROVIDER_CHEAP_MODELS: &[(&str, &str)] = &[
+    ("anthropic", "claude-haiku-4-5"),
+    ("openai", "gpt-4.1-mini"),
+    ("gemini", "gemini-2.0-flash"),
+    ("groq", "llama-3.3-70b-versatile"),
+    ("deepseek", "deepseek-chat"),
+    ("mistral", "mistral-small-latest"),
+];
+
+/// Get the cheapest model for a provider (for compression/repair tasks).
+///
+/// Returns `None` for unknown providers or providers without a cheap alternative.
+pub fn cheap_model_for_provider(provider: &str) -> Option<&'static str> {
+    let canonical = find_provider(provider).map(|p| p.id).unwrap_or(provider);
+    PROVIDER_CHEAP_MODELS
+        .iter()
+        .find(|(id, _)| *id == canonical)
+        .map(|(_, model)| *model)
+}
+
 /// The result of resolving a model — carries provenance so cost tracking
 /// and events always know exactly which model is in use and why.
 #[derive(Debug, Clone, PartialEq, Eq)]
