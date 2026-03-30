@@ -324,35 +324,28 @@ impl TaskExecutor {
                 endpoint_url: None,
             });
 
-            let mock_response = serde_json::json!({
-                "mock": true,
-                "task_id": task_id.as_ref(),
-                "name": "mock_value",
-                "age": 25,
-                "value": 42,
-                "result": "mock_result",
-                "status": "success",
-                "message": "Mock response generated",
-                "items": ["item1", "item2", "item3"],
-                "keywords": ["mock", "test", "nika"],
-                "key_phrases": ["mock response", "test workflow"],
-                "content": format!("Mock content for task {}", task_id),
-                "prompt_len": prompt.len(),
-                "vision_info": vision_info,
-                "user": {
-                    "name": "Mock User",
-                    "email": "mock@example.com",
-                    "address": {
-                        "street": "123 Mock St",
-                        "city": "Mockville",
-                        "country": "Mockland"
+            // If structured output is configured, generate schema-conforming JSON
+            // so E2E tests can validate the entire structured output pipeline.
+            let mock_response = if let Some(policy) = output_policy {
+                if let Some(schema_ref) = &policy.schema {
+                    let schema_value = match schema_ref {
+                        crate::ast::output::SchemaRef::Inline(v) => v.clone(),
+                        crate::ast::output::SchemaRef::File(_) => {
+                            // Fall back to generic mock for file schemas
+                            serde_json::Value::Null
+                        }
+                    };
+                    if !schema_value.is_null() {
+                        crate::runtime::mock_json::generate_mock_json(&schema_value)
+                    } else {
+                        Self::generic_mock_json(task_id, &prompt, &vision_info)
                     }
-                },
-                "metadata": {
-                    "created_at": "2024-01-15T14:30:00Z",
-                    "version": 1
+                } else {
+                    Self::generic_mock_json(task_id, &prompt, &vision_info)
                 }
-            });
+            } else {
+                Self::generic_mock_json(task_id, &prompt, &vision_info)
+            };
             let mock_response_str = mock_response.to_string();
             self.event_log.emit(EventKind::ProviderResponded {
                 task_id: Arc::clone(task_id),
@@ -1456,6 +1449,43 @@ impl TaskExecutor {
 
     /// Run guardrails configured on an infer task against the output.
     ///
+    /// Generate the generic mock JSON response (used when no structured schema).
+    fn generic_mock_json(
+        task_id: &Arc<str>,
+        prompt: &str,
+        vision_info: &serde_json::Value,
+    ) -> serde_json::Value {
+        serde_json::json!({
+            "mock": true,
+            "task_id": task_id.as_ref(),
+            "name": "mock_value",
+            "age": 25,
+            "value": 42,
+            "result": "mock_result",
+            "status": "success",
+            "message": "Mock response generated",
+            "items": ["item1", "item2", "item3"],
+            "keywords": ["mock", "test", "nika"],
+            "key_phrases": ["mock response", "test workflow"],
+            "content": format!("Mock content for task {}", task_id),
+            "prompt_len": prompt.len(),
+            "vision_info": vision_info,
+            "user": {
+                "name": "Mock User",
+                "email": "mock@example.com",
+                "address": {
+                    "street": "123 Mock St",
+                    "city": "Mockville",
+                    "country": "Mockland"
+                }
+            },
+            "metadata": {
+                "created_at": "2024-01-15T14:30:00Z",
+                "version": 1
+            }
+        })
+    }
+
     /// Emits GuardrailPassed/GuardrailFailed events and returns an error
     /// if any guardrail with `on_failure: fail` triggers.
     fn check_infer_guardrails(
