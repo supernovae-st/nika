@@ -391,6 +391,23 @@ impl ToolCallResult {
     pub fn media_blocks(&self) -> Vec<&ContentBlock> {
         self.content.iter().filter(|b| !b.is_text()).collect()
     }
+
+    /// Estimate total content size in bytes across all content blocks.
+    pub fn content_size_bytes(&self) -> usize {
+        self.content
+            .iter()
+            .map(|block| match block {
+                ContentBlock::Text { text } => text.len(),
+                ContentBlock::Image { data, .. } => data.len(),
+                ContentBlock::Audio { data, .. } => data.len(),
+                ContentBlock::Resource(rc) => {
+                    rc.text.as_ref().map(|t| t.len()).unwrap_or(0)
+                        + rc.blob.as_ref().map(|b| b.len()).unwrap_or(0)
+                }
+                ContentBlock::ResourceLink { .. } => 128, // Small metadata
+            })
+            .sum()
+    }
 }
 
 /// Content block in MCP tool results.
