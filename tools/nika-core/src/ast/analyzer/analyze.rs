@@ -942,6 +942,26 @@ fn analyze_task(
         ));
     }
 
+    // Error if concurrency: 0 (must be >= 1) — check both standalone and for_each
+    let concurrency_check = raw
+        .concurrency
+        .as_ref()
+        .or_else(|| {
+            raw.for_each
+                .as_ref()
+                .and_then(|fe| fe.value.concurrency.as_ref())
+        });
+    if let Some(concurrency) = concurrency_check {
+        if concurrency.value == 0 {
+            ctx.add_error(AnalyzeError::new(
+                AnalyzeErrorKind::InvalidValue,
+                concurrency.span,
+                "concurrency: 0 is invalid — must be >= 1 (use 1 for sequential execution)"
+                    .to_string(),
+            ));
+        }
+    }
+
     // Warn if timeout: 0 on any action (would cause immediate timeout)
     if let Some(ref action) = raw.action {
         let timeout_zero = match action {
@@ -3358,6 +3378,54 @@ tasks:
                 .iter()
                 .any(|e| e.message.contains("context_budget")),
             "Should reject 250000: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_concurrency_zero_rejected() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: test
+tasks:
+  - id: loop_task
+    for_each: ["a", "b", "c"]
+    concurrency: 0
+    infer: "process {{with.item}}"
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = analyze(raw);
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| e.message.contains("concurrency: 0 is invalid")),
+            "Should reject concurrency: 0: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_concurrency_one_accepted() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: test
+tasks:
+  - id: loop_task
+    for_each: ["a", "b"]
+    concurrency: 1
+    infer: "process {{with.item}}"
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = analyze(raw);
+        assert!(
+            !result
+                .errors
+                .iter()
+                .any(|e| e.message.contains("concurrency")),
+            "concurrency: 1 should be valid: {:?}",
             result.errors
         );
     }
