@@ -417,7 +417,7 @@ impl RunContext {
         match jsonpath::resolve(&output, remaining) {
             Ok(v) => v,
             Err(e) => {
-                tracing::debug!(path = %remaining, error = %e, "JSONPath resolution failed for task output");
+                tracing::warn!(path = %remaining, error = %e, "JSONPath resolution failed for task output");
                 None
             }
         }
@@ -485,7 +485,7 @@ impl RunContext {
                     match jsonpath::resolve(value, &remaining) {
                         Ok(v) => v,
                         Err(e) => {
-                            tracing::debug!(path = %remaining, error = %e, "JSONPath resolution failed for context file");
+                            tracing::warn!(path = %remaining, error = %e, "JSONPath resolution failed for context file");
                             None
                         }
                     }
@@ -503,7 +503,7 @@ impl RunContext {
                     match jsonpath::resolve(session, &remaining) {
                         Ok(v) => v,
                         Err(e) => {
-                            tracing::debug!(path = %remaining, error = %e, "JSONPath resolution failed for session");
+                            tracing::warn!(path = %remaining, error = %e, "JSONPath resolution failed for session");
                             None
                         }
                     }
@@ -520,7 +520,7 @@ impl RunContext {
                     match jsonpath::resolve(value, &remaining) {
                         Ok(v) => v,
                         Err(e) => {
-                            tracing::debug!(path = %remaining, error = %e, "JSONPath resolution failed for context shorthand");
+                            tracing::warn!(path = %remaining, error = %e, "JSONPath resolution failed for context shorthand");
                             None
                         }
                     }
@@ -602,7 +602,7 @@ impl RunContext {
             match jsonpath::resolve(&default_value, &remaining) {
                 Ok(v) => v,
                 Err(e) => {
-                    tracing::debug!(path = %remaining, error = %e, "JSONPath resolution failed for input default");
+                    tracing::warn!(path = %remaining, error = %e, "JSONPath resolution failed for input default");
                     None
                 }
             }

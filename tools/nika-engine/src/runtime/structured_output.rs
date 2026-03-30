@@ -306,6 +306,9 @@ impl StructuredOutputEngine {
             );
         }
 
+        // ERR-2: Accumulate errors from each layer for better diagnostics
+        let mut layer_errors: Vec<String> = Vec::new();
+
         // Layer 2: Extract + Validate
         // Extract JSON from the raw output and validate against the schema.
         // This always runs — it's the core post-processing validation step.
@@ -315,14 +318,20 @@ impl StructuredOutputEngine {
                 .try_layer_2(&task_id, raw_output, &schema, total_attempts)
                 .await;
 
-            if let Ok(value) = layer_result {
-                self.emit_success(&task_id, 2, LAYER_2_NAME, total_attempts);
-                return Ok(StructuredOutputResult {
-                    value,
-                    layer: 2,
-                    layer_name: LAYER_2_NAME.to_string(),
-                    total_attempts,
-                });
+            match layer_result {
+                Ok(value) => {
+                    self.emit_success(&task_id, 2, LAYER_2_NAME, total_attempts);
+                    return Ok(StructuredOutputResult {
+                        value,
+                        layer: 2,
+                        layer_name: LAYER_2_NAME.to_string(),
+                        total_attempts,
+                    });
+                }
+                Err(e) => {
+                    tracing::debug!(task = %task_id, error = %e, "Layer 2 (extract+validate) failed");
+                    layer_errors.push(format!("L2: {e}"));
+                }
             }
         }
 
@@ -343,14 +352,20 @@ impl StructuredOutputEngine {
                     current_output = output;
                 }
 
-                if let Ok(value) = layer_result {
-                    self.emit_success(&task_id, 3, LAYER_3_NAME, total_attempts);
-                    return Ok(StructuredOutputResult {
-                        value,
-                        layer: 3,
-                        layer_name: LAYER_3_NAME.to_string(),
-                        total_attempts,
-                    });
+                match layer_result {
+                    Ok(value) => {
+                        self.emit_success(&task_id, 3, LAYER_3_NAME, total_attempts);
+                        return Ok(StructuredOutputResult {
+                            value,
+                            layer: 3,
+                            layer_name: LAYER_3_NAME.to_string(),
+                            total_attempts,
+                        });
+                    }
+                    Err(e) => {
+                        tracing::debug!(task = %task_id, retry, error = %e, "Layer 3 (retry) failed");
+                        layer_errors.push(format!("L3 retry {retry}: {e}"));
+                    }
                 }
             }
         }
@@ -362,23 +377,31 @@ impl StructuredOutputEngine {
                 .try_layer_4(&task_id, &current_output, &schema, total_attempts)
                 .await;
 
-            if let Ok(value) = layer_result {
-                self.emit_success(&task_id, 4, LAYER_4_NAME, total_attempts);
-                return Ok(StructuredOutputResult {
-                    value,
-                    layer: 4,
-                    layer_name: LAYER_4_NAME.to_string(),
-                    total_attempts,
-                });
+            match layer_result {
+                Ok(value) => {
+                    self.emit_success(&task_id, 4, LAYER_4_NAME, total_attempts);
+                    return Ok(StructuredOutputResult {
+                        value,
+                        layer: 4,
+                        layer_name: LAYER_4_NAME.to_string(),
+                        total_attempts,
+                    });
+                }
+                Err(e) => {
+                    tracing::debug!(task = %task_id, error = %e, "Layer 4 (repair) failed");
+                    layer_errors.push(format!("L4: {e}"));
+                }
             }
         }
 
-        // All layers failed — use latest output for error reporting
-        let errors = self.collect_validation_errors(&current_output, &schema);
+        // All layers failed — include accumulated errors for diagnostics
+        let validation_errors = self.collect_validation_errors(&current_output, &schema);
+        let mut all_errors = layer_errors;
+        all_errors.extend(validation_errors);
         Err(NikaError::StructuredOutputAllLayersFailed {
             task_id: task_id.to_string(),
             attempts: total_attempts,
-            final_errors: errors,
+            final_errors: all_errors,
         })
     }
 
