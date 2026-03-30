@@ -51,7 +51,7 @@ fn test_rig_provider_claude_returns_claude_variant() {
     std::env::set_var("ANTHROPIC_API_KEY", "test-key-for-unit-test");
     let provider = RigProvider::claude();
 
-    assert_eq!(provider.name(), "claude");
+    assert_eq!(provider.name(), "anthropic");
     assert!(matches!(provider, RigProvider::Claude(_)));
 }
 
@@ -166,7 +166,7 @@ fn test_rig_provider_auto_detects_claude() {
 
     let provider = RigProvider::auto();
     assert!(provider.is_some());
-    assert_eq!(provider.unwrap().name(), "claude");
+    assert_eq!(provider.unwrap().name(), "anthropic");
 }
 
 #[test]
@@ -282,7 +282,7 @@ fn test_auto_priority_claude_over_openai() {
 
     // Then: Should select Claude (higher priority)
     assert!(provider.is_some());
-    assert_eq!(provider.unwrap().name(), "claude");
+    assert_eq!(provider.unwrap().name(), "anthropic");
 }
 
 #[test]

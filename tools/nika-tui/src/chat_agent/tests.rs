@@ -119,7 +119,7 @@ async fn test_chat_agent_creation() {
         Ok(a) => {
             // Verify the agent has a valid provider
             let valid_providers = [
-                "claude", "openai", "mistral", "groq", "deepseek", "gemini", "xai",
+                "anthropic", "openai", "mistral", "groq", "deepseek", "gemini", "xai",
             ];
             assert!(
                 valid_providers.contains(&a.provider_name()),
@@ -152,7 +152,7 @@ fn test_chat_agent_initial_state() {
     // 1. Claude, 2. OpenAI, 3. Mistral, 4. Groq, 5. DeepSeek, 6. Gemini, 7. xAI
     // Due to parallel tests and user env, any provider may be selected
     let valid_providers = [
-        "claude", "openai", "mistral", "groq", "deepseek", "gemini", "xai",
+        "anthropic", "openai", "mistral", "groq", "deepseek", "gemini", "xai",
     ];
     assert!(
         valid_providers.contains(&agent.provider_name()),
@@ -172,7 +172,7 @@ fn test_chat_agent_with_claude_fallback() {
     let agent = ChatAgent::new().expect("Should create agent");
     // Provider will be openai if OPENAI_API_KEY is set (by parallel test),
     // or claude if only ANTHROPIC_API_KEY is set
-    assert!(agent.provider_name() == "openai" || agent.provider_name() == "claude");
+    assert!(agent.provider_name() == "openai" || agent.provider_name() == "anthropic");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -204,7 +204,7 @@ fn test_set_provider_claude() {
     if std::env::var("ANTHROPIC_API_KEY").is_ok() {
         let result = agent.set_provider(ModelProvider::Claude);
         assert!(result.is_ok(), "Should succeed: {:?}", result.err());
-        assert_eq!(agent.provider_name(), "claude");
+        assert_eq!(agent.provider_name(), "anthropic");
     }
 }
 

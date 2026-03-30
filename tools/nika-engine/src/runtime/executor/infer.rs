@@ -420,10 +420,10 @@ impl TaskExecutor {
             }
         }
 
-        // EMIT: ProviderCalled
+        // EMIT: ProviderCalled (use canonical provider name, not YAML alias)
         self.event_log.emit(EventKind::ProviderCalled {
             task_id: Arc::clone(task_id),
-            provider: provider_name.to_string(),
+            provider: provider.name().to_string(),
             model: model_id.clone(),
             prompt_len: prompt.len(),
             endpoint_url: resolved_base_url.clone(),
