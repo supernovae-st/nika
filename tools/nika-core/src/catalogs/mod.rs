@@ -12,6 +12,7 @@ pub mod lsp_types;
 pub mod mcp_aliases;
 pub mod models;
 pub mod providers;
+pub mod resolver;
 
 // Re-export main types for convenient access
 pub use cost::{
@@ -29,4 +30,8 @@ pub use models::{
 pub use providers::{
     find_provider, provider_to_env_var, providers_by_category, validate_key_format, Provider,
     ProviderCategory, KNOWN_PROVIDERS,
+};
+pub use resolver::{
+    default_model_for_provider, ModelCompatibility, ModelResolver, ModelSource, ResolvedModel,
+    PROVIDER_DEFAULTS,
 };

@@ -308,14 +308,9 @@ impl App {
             ViewAction::ChatModelSwitch(provider) => {
                 // Update ChatView state so warning bar + status bar reflect the new provider
                 let provider_id = provider.command_name().to_string();
-                let default_model = match &provider {
-                    p if p.command_name() == "claude" => "claude-sonnet-4-6",
-                    p if p.command_name() == "openai" => "gpt-4o",
-                    p if p.command_name() == "mistral" => "mistral-large-latest",
-                    p if p.command_name() == "groq" => "llama-3.3-70b-versatile",
-                    p if p.command_name() == "deepseek" => "deepseek-chat",
-                    _ => provider.command_name(),
-                };
+                let default_model =
+                    nika_core::catalogs::default_model_for_provider(provider.command_name())
+                        .unwrap_or(provider.command_name());
                 self.command_view.chat.set_model(default_model);
                 self.command_view.chat.set_provider(provider.name());
                 self.command_view.chat.provider.id = provider_id;

@@ -1278,10 +1278,13 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     let raw_output = task_result.output_str();
                     let compressor =
                         crate::runtime::record_compress::RecordCompressor::new(event_log.clone());
+                    let compressor_model =
+                        nika_core::catalogs::default_model_for_provider(executor.default_provider())
+                            .unwrap_or("claude-haiku-4-5");
                     let llm = crate::runtime::executor_compressor::ExecutorCompressorLlm::new(
                         &executor,
                         executor.default_provider(),
-                        "claude-haiku-4-5",
+                        compressor_model,
                     );
                     let record = compressor
                         .compress(&task_id, &raw_output, record_spec, &llm)

@@ -34,6 +34,9 @@ fetch-extract = ["nika-engine/fetch-extract"]
 # Engine crate (all engine logic — NOT nika to avoid circular dep)
 nika-engine = { workspace = true }
 
+# Core crate (catalogs, types — pure data, no I/O)
+nika-core = { workspace = true }
+
 # LSP core (for TUI completion/analysis)
 nika-lsp-core = { workspace = true }
 

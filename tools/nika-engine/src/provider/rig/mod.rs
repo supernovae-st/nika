@@ -425,23 +425,13 @@ impl RigProvider {
     /// | Gemini | gemini-2.0-flash | Latest stable |
     /// | Native | (loaded model) | Uses pre-loaded GGUF model |
     pub fn default_model(&self) -> &str {
-        match self {
-            // Note: rig-core's CLAUDE_3_5_SONNET constant is outdated
-            // Using explicit model name for stability
-            RigProvider::Claude(_) => "claude-sonnet-4-6",
-            RigProvider::OpenAI(_) => openai::GPT_4O,
-            RigProvider::Mistral(_) => mistral::MISTRAL_LARGE,
-            RigProvider::Groq(_) => "llama-3.3-70b-versatile",
-            RigProvider::DeepSeek(_) => "deepseek-chat",
-            RigProvider::Gemini(_) => "gemini-2.0-flash",
-            RigProvider::XAi(_) => "grok-3-fast",
-            RigProvider::OpenAiCompat { default_model, .. } => {
-                default_model.as_deref().unwrap_or("gpt-3.5-turbo")
-            }
-            // Native uses whatever model is loaded, no default
-            #[cfg(feature = "native-inference")]
-            RigProvider::Native(_) => "native-model",
+        // Custom endpoints have their own default model, not from the global catalog
+        if let RigProvider::OpenAiCompat { default_model, .. } = self {
+            return default_model.as_deref().unwrap_or("gpt-3.5-turbo");
         }
+        // Delegate to single source of truth (nika-core ModelResolver catalog)
+        nika_core::catalogs::default_model_for_provider(self.name())
+            .unwrap_or("claude-sonnet-4-6")
     }
 
     /// Simple text completion (infer) using rig-core
@@ -614,7 +604,7 @@ impl RigProvider {
         }
 
         let model_id = model.unwrap_or_else(|| self.default_model());
-        let max_tok = max_tokens.map(u64::from).unwrap_or(8192);
+        let max_tok = max_tokens.map(|v| v.max(16)).map(u64::from).unwrap_or(8192);
 
         let message = Message::User {
             content: OneOrMany::many(user_content).map_err(|_| {
@@ -716,7 +706,7 @@ impl RigProvider {
         }
 
         let model_id = model.unwrap_or_else(|| self.default_model());
-        let max_tok = max_tokens.map(u64::from).unwrap_or(8192);
+        let max_tok = max_tokens.map(|v| v.max(16)).map(u64::from).unwrap_or(8192);
 
         let message = Message::User {
             content: OneOrMany::many(user_content).map_err(|_| {
@@ -807,7 +797,7 @@ impl RigProvider {
         const TOOLS_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
 
         let model_id = model.unwrap_or_else(|| self.default_model());
-        let max_tok = max_tokens.map(|v| v as u64).unwrap_or(8192);
+        let max_tok = max_tokens.map(|v| v.max(16) as u64).unwrap_or(8192);
 
         macro_rules! build_agent_with_tools {
             ($client:expr) => {{
@@ -880,7 +870,8 @@ impl RigProvider {
             .model
             .as_deref()
             .unwrap_or_else(|| self.default_model());
-        let max_tokens = options.max_tokens.unwrap_or(8192);
+        // Clamp to 16 minimum — OpenAI rejects < 16, no provider benefits from < 16
+        let max_tokens = options.max_tokens.unwrap_or(8192).max(16);
 
         // Strip temperature for reasoning models (BUG 5 / NIKA-031)
         let effective_temperature = if options.temperature.is_some() && is_reasoning_model(model_id)
@@ -1393,7 +1384,7 @@ impl RigProvider {
             .model
             .as_deref()
             .unwrap_or_else(|| self.default_model());
-        let max_tokens = options.max_tokens.unwrap_or(8192);
+        let max_tokens = options.max_tokens.unwrap_or(8192).max(16);
         let mut response_parts: Vec<String> = Vec::new();
         let mut result = StreamResult::default();
 
