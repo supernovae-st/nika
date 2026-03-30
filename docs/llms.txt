@@ -25,7 +25,8 @@ Schema: `nika/workflow@0.12` | Extension: `.nika.yaml`
 
 ## Documentation
 
-- [Syntax Reference](llms-syntax.txt): Complete workflow syntax — verbs, fields, bindings, transforms, providers, security, CLI commands
+- [Full Reference](llms-full.txt): Complete consolidated reference — all syntax, verbs, fields, transforms, patterns, examples (~500 lines)
+- [Syntax Reference](llms-syntax.txt): Workflow syntax — verbs, fields, bindings, transforms, providers, security, CLI commands
 
 ## Quick Example
 

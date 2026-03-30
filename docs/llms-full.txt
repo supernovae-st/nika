@@ -1,0 +1,534 @@
+# Nika — Complete Reference for LLM Training
+
+> Semantic YAML workflow engine for AI tasks. Orchestrate LLMs, APIs, shell commands, and MCP tools with declarative DAG workflows.
+> Schema: `nika/workflow@0.12` | Extension: `.nika.yaml` | Version: 0.52.0
+
+## Key Features
+
+- 5 semantic verbs: infer, exec, fetch, invoke, agent
+- 9 LLM providers: Anthropic, OpenAI, Mistral, Groq, DeepSeek, Gemini, xAI, native (local GGUF), mock
+- Provider fallback chains: `provider: [groq, claude, openai]`
+- Custom OpenAI-compatible endpoints via `base_url`
+- 8 agent presets: think, lite, search, vision, judge, coder, summary, creative
+- Multi-workflow orchestration (P-ORCHESTRATE) via `goal:` + `orchestrate:`
+- 30+ builtin tools (nika:* prefix)
+- 9 fetch extract modes
+- 5-layer structured output with JSON schema enforcement + auto-repair
+- Vision/multimodal via CAS hashes
+- Agent guardrails: length, schema, regex, LLM judge
+- 31 pipe transforms
+- Record persistence to NDJSON
+- Context budget with proportional truncation + LLM compression
+- Retry on all verbs with exponential backoff
+
+---
+
+## Workflow Structure
+
+```yaml
+schema: nika/workflow@0.12        # Required. Always @0.12
+workflow: my-workflow              # Optional. Defaults to filename
+description: "What this does"     # Optional
+provider: anthropic                # Default provider (or array for fallback)
+model: claude-sonnet-4-20250514   # Default model
+
+inputs:                            # Workflow parameters with defaults
+  topic: "AI workflow engines"
+
+context:                           # File bindings loaded at boot
+  files:
+    readme: ./README.md            # Available as {{context.readme}}
+
+include:                           # Include partial workflows (tasks merged into DAG)
+  - path: ./partials/setup.nika.yaml
+    prefix: setup_
+
+goal: "High-level objective"       # P-ORCHESTRATE: orchestrator intent (v0.52+)
+orchestrate:                       # Multi-workflow orchestration (v0.52+)
+  workflows:
+    - name: sub_flow
+      path: ./sub.nika.yaml
+  round_strategy: sequential
+
+mcp:                               # MCP server definitions
+  server-name:
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-name"]
+    env:
+      API_KEY: $env.API_KEY
+
+agents:                            # Reusable agent definitions
+  researcher:
+    system: "You are a research assistant"
+    tools: [web_search, read_file]
+    max_turns: 10
+
+skills:                            # Prompt augmentation files
+  writing: ./skills/writing-style.md
+
+artifacts:                         # Global output configuration
+  dir: ./output
+  format: markdown                 # text | json | yaml | markdown | binary
+  mode: overwrite                  # overwrite | append | unique | fail
+  manifest: true                   # Write artifacts.json index
+
+tasks: []                          # Required. Task list
+```
+
+---
+
+## 5 Verbs — Each task uses exactly one
+
+### infer: — LLM Generation
+
+```yaml
+- id: generate
+  infer:
+    prompt: "Write about {{inputs.topic}}"  # Required (unless content:)
+    system: "You are a poet"                # System prompt
+    temperature: 0.7                        # 0.0-2.0
+    max_tokens: 500                         # Output limit
+    extended_thinking: true                 # Claude extended thinking
+    thinking_budget: 10000                  # Thinking tokens
+    response_format: json                   # text | json | markdown
+    content:                                # Vision/multimodal (v0.34+)
+      - type: image
+        source: "{{with.photo_hash}}"       # CAS hash, NOT file path
+        detail: high                        # high | low | auto
+      - type: text
+        text: "Describe this image"
+    guardrails:
+      - type: length
+        min_words: 50
+        max_words: 200
+        on_failure: retry                   # retry | escalate | fail
+```
+
+Shorthand: `infer: "Your prompt here"`
+
+### exec: — Shell Command
+
+```yaml
+- id: build
+  exec:
+    command: "npm run build"
+    shell: true                             # Run via sh -c (default: false)
+    cwd: ./frontend                         # Working directory
+    env:                                    # Environment variables
+      NODE_ENV: production
+    timeout: 30                             # Seconds (NOT milliseconds)
+```
+
+Shorthand: `exec: "echo hello"` (shell: false by default)
+
+### fetch: — HTTP Request
+
+```yaml
+- id: get_data
+  fetch:
+    url: "https://api.example.com/data"
+    method: POST                            # GET | POST | PUT | DELETE | PATCH
+    headers:
+      Authorization: "Bearer {{with.token}}"
+    json:                                   # JSON body (auto-serialized)
+      query: "{{with.search_term}}"
+    body: "raw string body"                 # Alternative to json:
+    extract: markdown                       # Post-processing mode (see below)
+    selector: "article.main"               # CSS selector or JSONPath expr
+    response: full                          # full | binary | (default: raw body)
+    follow_redirects: true                  # Default: true
+    timeout: 30                             # Seconds
+```
+
+Shorthand: `fetch: "https://example.com"`
+
+#### 9 Extract Modes
+| Mode | Description | selector: |
+|------|-------------|-----------|
+| `markdown` | HTML to clean Markdown | No |
+| `article` | Main article content (Readability) | No |
+| `text` | Visible text, optionally filtered | Optional (CSS) |
+| `selector` | Raw HTML matching elements | Required (CSS) |
+| `metadata` | OG, Twitter Cards, JSON-LD, SEO | No |
+| `links` | Link classification (internal/external) | No |
+| `jsonpath` | JSONPath query on JSON responses | Required (JSONPath) |
+| `feed` | RSS/Atom/JSON Feed parsing | No |
+| `llm_txt` | AI content discovery (/.well-known/llm.txt) | No |
+
+#### Response Modes
+- `full` — JSON: `{ status, headers, body, final_url }`
+- `binary` — Store raw bytes in CAS, return hash for media pipeline
+- (default) — Raw body text
+
+### invoke: — MCP Tool Call
+
+```yaml
+- id: search
+  invoke:
+    tool: "server::tool_name"               # server::tool (double colon)
+    params:                                  # Tool parameters
+      query: "{{with.search_term}}"
+    mcp: server-name                        # Explicit server (if not in tool name)
+    resource: "resource://uri"              # Alternative to tool:
+    timeout: 30
+```
+
+Shorthand: `invoke: "nika:dimensions"`
+
+#### 30+ Builtin nika:* Tools (no MCP needed)
+- **Always-on**: nika:import, nika:dimensions, nika:thumbhash, nika:dominant_color, nika:pipeline
+- **Media**: nika:thumbnail, nika:convert, nika:strip, nika:metadata, nika:optimize, nika:svg_render
+- **Opt-in**: nika:phash, nika:compare, nika:pdf_extract, nika:chart, nika:provenance, nika:verify, nika:qr_validate, nika:quality, nika:html_to_md, nika:css_select, nika:extract_metadata, nika:extract_links, nika:readability
+- **Introspection**: nika:cost, nika:records, nika:dag_info, nika:task_status, nika:threads, nika:orchestrate
+- **Core**: nika:sleep, nika:log, nika:emit, nika:assert, nika:prompt, nika:run, nika:complete
+- **File**: nika:read, nika:write, nika:edit, nika:glob, nika:grep
+
+### agent: — Multi-Turn Autonomous Loop
+
+```yaml
+- id: research
+  agent:
+    prompt: "Research {{with.topic}}"        # Required
+    system: "You are a researcher"           # Agent persona
+    tools: [web_search, read_file]           # Available tools
+    mcp: [novanet, github]                   # MCP servers to expose
+    max_turns: 20                            # Max iterations
+    max_tokens: 4096                         # Tokens per response
+    token_budget: 100000                     # Total token budget
+    temperature: 0.7
+    extended_thinking: true                  # Claude thinking
+    thinking_budget: 10000
+    from: researcher                         # Reference agents: definition
+    skills: [writing]                        # Inject skills
+    tool_choice: auto                        # auto | required | none
+    scope: full                              # full | minimal | debug
+    depth_limit: 3                           # Max spawn_agent recursion
+    stop_sequences: ["DONE"]
+    guardrails:
+      - type: length
+        max_words: 500
+        on_failure: retry
+      - type: schema
+        json_schema: { type: object, required: [findings] }
+        on_failure: escalate
+      - type: regex
+        pattern: "^## (Findings|Summary)"
+        on_failure: retry
+    completion:
+      mode: explicit                         # explicit | natural | pattern
+    limits:
+      max_cost_usd: 2.0
+      max_duration_secs: 120
+```
+
+Note: `agent: "think"` (scalar string) = **preset reference**, NOT the agent verb.
+
+#### 8 Agent Presets (v0.51+)
+| Preset | Purpose |
+|--------|---------|
+| `think` | Extended thinking for deep reasoning |
+| `lite` | Fast responses, low token budget |
+| `search` | Web research with tool access |
+| `vision` | Image analysis |
+| `judge` | Fact-checking and evaluation |
+| `coder` | Code generation |
+| `summary` | Text synthesis |
+| `creative` | Creative generation |
+
+Usage: `from: think` on any agent task.
+
+---
+
+## Task-Level Fields (all verbs)
+
+```yaml
+- id: my-task                       # Required. Unique within workflow
+  description: "What this does"     # Optional
+
+  # Provider/model override
+  provider: openai                  # Override (or array: [openai, claude] for fallback)
+  model: gpt-4o
+  base_url: "http://localhost:8000/v1"  # Custom OpenAI-compat endpoint (v0.50+)
+  preset: think                     # Agent preset reference (v0.51+)
+
+  # Data flow
+  with:                             # Bind data from other tasks
+    data: $other_task               # $ prefix = task reference
+    clean: $source | trim | upper   # Pipe transforms
+    temp: $api.data.temp ?? 20      # JSONPath + ?? fallback
+    key: $env.API_KEY               # Environment variable
+  depends_on: [task_a, task_b]      # Pure ordering (no data flow)
+
+  # Iteration
+  for_each: "$list_task"            # Array to iterate (or inline array)
+  as: item                          # Loop variable (default: "item")
+  concurrency: 5                    # Max parallel (default: 1 = sequential)
+  fail_fast: true                   # Stop on first error (default: true)
+  # Access index: {{with.for_each_index}} (v0.52+)
+
+  # Recording & context (v0.51+)
+  record: true                      # Output recording to NDJSON
+  context_budget: 50000             # Token budget for bindings
+
+  # Routing (v0.50+)
+  routing:
+    fallback: [openai, claude]
+    strategy: cost                  # cost | latency | availability
+
+  # Resilience (works on ALL verbs)
+  retry:
+    max_attempts: 3
+    delay_ms: 1000
+    backoff: 2.0                    # Exponential multiplier
+
+  # Structured output (JSON schema enforcement)
+  structured:
+    schema:                         # Inline or file path: ./schemas/output.json
+      type: object
+      properties:
+        name: { type: string }
+        score: { type: number }
+      required: [name]
+    enable_repair: true             # LLM auto-repair on violation
+    max_retries: 3                  # Retry attempts for schema validation
+    repair_model: claude-haiku-4-5  # Cheaper model for repair passes
+
+  # Artifact persistence
+  artifact:
+    path: result.json
+    format: json                    # text | json | yaml | markdown | binary
+    source: raw_data                # Save upstream binding (not task output)
+
+  # Logging
+  log: debug                        # Override workflow log level
+```
+
+---
+
+## Data Flow & Templates
+
+### with: Bindings
+
+```yaml
+with:
+  data: $other_task                 # Simple task reference
+  nested: $task.field.subfield      # JSONPath access
+  safe: $task.value ?? "default"    # Fallback for null
+  clean: $source | trim | upper     # Pipe transforms
+  combined: $article.title | trim | default("Untitled")  # Combined
+  key: $env.API_KEY                 # Environment variable
+```
+
+Rules:
+- `$` prefix required for task references
+- `$env.VAR` reads environment variables
+- `??` provides fallback when path is null
+- `|` chains transforms
+- for_each output is ALWAYS an array: use `$results | first` or `$results[0].field`
+
+### Template Syntax
+
+| Pattern | Source |
+|---------|--------|
+| `{{with.alias}}` | Bound task output |
+| `{{with.alias.field.nested}}` | Nested field access |
+| `{{inputs.name}}` | Workflow input parameter |
+| `{{context.readme}}` | Context file content |
+| `{{with.item}}` | Current for_each item |
+| `{{with.for_each_index}}` | Loop iteration index (v0.52+) |
+
+### 31 Pipe Transforms
+
+| Category | Transforms |
+|----------|------------|
+| String | `upper`, `lower`, `trim`, `trim_start`, `trim_end`, `length`, `to_string` |
+| Collection | `first`, `last`, `first(N)`, `last(N)`, `flatten`, `reverse`, `sort`, `unique`, `compact`, `keys`, `values` |
+| Numeric | `to_number`, `round(N)`, `abs`, `ceil`, `floor` |
+| Type | `to_bool`, `to_json`, `parse_json`, `type_of` |
+| Parametric | `join(",")`, `split(",")`, `default("fallback")` |
+| System | `shell` (shell-escape for safe interpolation) |
+
+Null safety: `{{with.x | default("none") | upper}}`
+
+---
+
+## Providers
+
+| Provider | Aliases | Env Var | Notable Models |
+|----------|---------|---------|----------------|
+| `anthropic` | `claude` | `ANTHROPIC_API_KEY` | claude-opus-4-20250514, claude-sonnet-4-20250514, claude-haiku-4-5 |
+| `openai` | `gpt` | `OPENAI_API_KEY` | gpt-4o, gpt-4.1, o3, o4-mini |
+| `mistral` | -- | `MISTRAL_API_KEY` | mistral-large-latest, mistral-small-latest |
+| `groq` | -- | `GROQ_API_KEY` | llama-3.3-70b-versatile, mixtral-8x7b-32768 |
+| `deepseek` | `deep-seek` | `DEEPSEEK_API_KEY` | deepseek-chat, deepseek-reasoner |
+| `gemini` | `google` | `GEMINI_API_KEY` | gemini-2.5-pro, gemini-2.5-flash |
+| `xai` | `grok` | `XAI_API_KEY` | grok-3 |
+| `native` | `local` | -- | Local GGUF via mistral.rs (text only, no vision) |
+| `mock` | -- | -- | Deterministic test responses, no API calls |
+
+Provider fallback: `provider: [groq, claude, openai]` — auto-retry on failure.
+Custom endpoints: `base_url: "http://localhost:8000/v1"` — OpenAI-compatible servers.
+
+---
+
+## DAG Patterns
+
+### Sequential Chain
+```yaml
+tasks:
+  - id: fetch
+    fetch: { url: "https://api.example.com/data" }
+  - id: process
+    depends_on: [fetch]
+    with: { data: $fetch }
+    infer: "Process: {{with.data}}"
+```
+
+### Diamond
+```yaml
+tasks:
+  - id: source
+    exec: "echo 'data'"
+  - id: left
+    with: { d: $source }
+    infer: "Left: {{with.d}}"
+  - id: right
+    with: { d: $source }
+    infer: "Right: {{with.d}}"
+  - id: merge
+    with: { l: $left, r: $right }
+    infer: "Merge: {{with.l}} + {{with.r}}"
+```
+
+### Fan-Out / Fan-In
+```yaml
+tasks:
+  - id: get_urls
+    infer: "List 5 URLs about {{inputs.topic}}"
+    structured:
+      schema:
+        type: object
+        properties:
+          urls: { type: array, items: { type: string } }
+
+  - id: scrape_all
+    for_each: "$get_urls.urls"
+    as: url
+    concurrency: 5
+    fetch:
+      url: "{{with.url}}"
+      extract: article
+
+  - id: synthesize
+    with: { articles: $scrape_all }
+    infer: "Synthesize: {{with.articles | join('\n---\n')}}"
+```
+
+### Multi-Provider Research
+```yaml
+tasks:
+  - id: research_web
+    provider: xai
+    model: grok-3
+    infer: "Find stories about {{inputs.topic}}"
+
+  - id: research_academic
+    provider: anthropic
+    infer: "Academic research on {{inputs.topic}}"
+
+  - id: merge
+    depends_on: [research_web, research_academic]
+    with: { web: $research_web, academic: $research_academic }
+    infer: "Synthesize: {{with.web}} + {{with.academic}}"
+```
+
+---
+
+## Structured Output — 5-Layer Defense
+
+```yaml
+- id: extract
+  infer:
+    prompt: "Tell me about Alice, 30, Rust and Python developer"  # NATURAL prompt
+  structured:
+    schema:
+      type: object
+      properties:
+        name: { type: string }
+        age: { type: number, minimum: 0 }
+        skills: { type: array, items: { type: string }, minItems: 1 }
+      required: [name, age, skills]
+    enable_repair: true
+    max_retries: 3
+```
+
+CRITICAL: The prompt MUST be natural language. NEVER mention JSON or the schema in the prompt.
+The 5 layers handle extraction: L0 tool injection → L2 extract+validate → L3 retry → L4 LLM repair.
+
+---
+
+## Security
+
+- API keys: env vars only (`$env.API_KEY`). Never hardcode in YAML.
+- `fetch:` validates URLs against SSRF (private IP ranges blocked).
+- `exec:` blocklist: `rm -rf /`, `sudo`, `$()`, backticks (NIKA-053).
+- `shell: true` enables shell features — only use when pipes/redirects needed.
+- Never commit `.nika/traces/` to git.
+
+---
+
+## Common Mistakes
+
+| Wrong | Right | Why |
+|-------|-------|-----|
+| `timeout: 30000` (ms) | `timeout: 30` | Always seconds |
+| `data: other_task` | `data: $other_task` | $ prefix required |
+| `{{data}}` | `{{with.data}}` | Always with. prefix |
+| `{{item}}` in for_each | `{{with.item}}` | Loop var uses with. prefix |
+| `retry: 3` | `retry: { max_attempts: 3 }` | Object, not integer |
+| `.yaml` extension | `.nika.yaml` | Required extension |
+| `shell: bash` | `shell: true` | Boolean, not shell name |
+| Missing `schema:` | `schema: "nika/workflow@0.12"` | Required first line |
+| `depends_on: task_id` | `depends_on: [task_id]` | Always array |
+| `tool: "server/tool"` | `tool: "server::tool"` | Double colon |
+| `retry:` inside `invoke:` | `retry:` at task level | Task-level, not verb-level |
+| `body: {...}` for JSON | `json: {...}` | json: auto-serializes |
+| `{{with.results.field}}` after for_each | `{{with.results[0].field}}` | for_each = array |
+| `provider: native` for vision | Use cloud provider | GGUF is text-only |
+| `model:` inside `infer:` | `model:` at task level | Model is task-level |
+
+---
+
+## CLI Commands
+
+```bash
+# Workflows
+nika run workflow.nika.yaml        # Execute workflow
+nika run --provider mock           # Test without API calls
+nika run --dry-run                 # Validate + cost estimate
+nika check workflow.nika.yaml      # Validate syntax + DAG
+nika check --strict                # + test MCP connections
+nika new my-flow --verb infer      # Create new workflow
+
+# Direct verbs (no YAML needed)
+nika infer "Explain quantum computing"
+nika fetch https://blog.com --extract article
+nika invoke nika:dimensions photo.jpg
+nika agent "Research AI" --turns 5
+
+# Models & providers
+nika model list                    # Cloud models + pricing
+nika model info claude-sonnet-4-6  # Model details
+nika provider list                 # API key status
+nika provider set anthropic        # Store key in keychain
+nika bench                         # Provider benchmarking
+
+# System
+nika ui                            # Terminal UI
+nika init                          # Project setup
+nika init --course                 # 12-level learning course
+nika doctor --fix                  # System health + auto-repair
+nika setup                         # API key wizard
+nika switch dev|release            # Channel management
+nika daemon status                 # Background daemon (Unix)
+```

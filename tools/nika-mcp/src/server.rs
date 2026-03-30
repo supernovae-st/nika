@@ -271,21 +271,28 @@ fn validate_workflow_path(user_path: &str) -> Result<std::path::PathBuf, String>
 const SCHEMA_REF: &str = r#"# Nika Workflow Schema (v0.12)
 
 ## 5 Verbs
-- infer: { prompt, system, temperature, max_tokens, content, extended_thinking }
-- exec: { command, shell, cwd, env, timeout_ms }
-- fetch: { url, method, headers, body/json, extract, selector, response }
-- invoke: { tool, mcp, params, resource }
-- agent: { prompt, tools, max_turns, system, mcp, guardrails, completion }
+- infer: { prompt, system, temperature, max_tokens, content, extended_thinking, thinking_budget, response_format, guardrails }
+- exec: { command, shell, cwd, env, timeout }
+- fetch: { url, method, headers, body/json, extract, selector, response, follow_redirects, timeout }
+- invoke: { tool, mcp, params, resource, timeout }
+- agent: { prompt, system, tools, mcp, max_turns, max_tokens, token_budget, from, skills, guardrails, completion, limits, extended_thinking }
 
 ## Task Fields
-id, description, provider, model, with, depends_on, output, for_each, as, concurrency, fail_fast, retry, timeout, structured, artifact, log
+id, description, provider, model, base_url, preset, with, depends_on, output, for_each, as, concurrency, fail_fast, retry, timeout, structured, artifact, record, context_budget, routing, log
+
+## Workflow Fields
+schema, workflow, description, provider, model, inputs, context, include, mcp, agents, skills, artifacts, goal, orchestrate, log, tasks
 
 ## Bindings
 with: { alias: $task_id } → {{with.alias}}
-Transforms: upper, lower, trim, length, first, last, keys, values, flatten, sort, unique, to_json, parse_json, join(sep), split(sep), default(val)
+Transforms: upper, lower, trim, trim_start, trim_end, length, to_string, first, last, first(N), last(N), flatten, reverse, sort, unique, compact, keys, values, to_number, round(N), abs, ceil, floor, to_bool, to_json, parse_json, type_of, join(sep), split(sep), default(val), shell
 
 ## Extract Modes (fetch:)
 markdown, article, text, selector, metadata, links, jsonpath, feed, llm_txt
+
+## Providers
+anthropic (claude), openai (gpt), mistral, groq, deepseek (deep-seek), gemini (google), xai (grok), native (local), mock
+Fallback: provider: [groq, claude, openai]
 "#;
 
 #[cfg(test)]
