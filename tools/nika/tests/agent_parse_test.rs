@@ -25,7 +25,7 @@ max_turns: 10
     let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
 
     assert!(params.prompt.contains("homepage hero"));
-    assert_eq!(params.provider, Some("claude".to_string()));
+    assert_eq!(params.provider, Some(nika_core::ProviderName::Anthropic));
     assert_eq!(params.model, Some("claude-sonnet-4-6".to_string()));
     assert_eq!(params.mcp, vec!["novanet"]);
     assert_eq!(params.max_turns, Some(10));

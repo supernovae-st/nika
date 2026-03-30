@@ -84,7 +84,7 @@ impl RigAgentLoop {
     /// ```
     pub async fn chat_continue(&mut self, prompt: &str) -> Result<RigAgentLoopResult, NikaError> {
         // Use configured provider first, fallback to env-var auto-detection
-        let provider = self.params.provider.as_deref();
+        let provider = self.params.provider.as_ref().map(|p| p.as_str());
         match provider {
             Some(name) => {
                 // Resolve alias to canonical provider ID via core catalog
@@ -276,7 +276,7 @@ impl RigAgentLoop {
         }
 
         if let Some(stop_params) = Self::stop_sequences_params(
-            self.params.provider.as_deref().unwrap_or(""),
+            self.params.provider.as_ref().map(|p| p.as_str()).unwrap_or(""),
             &self.params.stop_sequences,
         ) {
             builder = builder.additional_params(stop_params);
@@ -330,7 +330,7 @@ impl RigAgentLoop {
         let est_input = prompt.chars().count().div_ceil(4) as u64;
         let est_output = response.chars().count().div_ceil(4) as u64;
         let provider_kind = crate::provider::cost::ProviderKind::parse(
-            self.params.provider.as_deref().unwrap_or(""),
+            self.params.provider.as_ref().map(|p| p.as_str()).unwrap_or(""),
         );
         let cost = provider_kind
             .map(|pk| crate::provider::cost::calculate_cost(pk, model_name, est_input, est_output))

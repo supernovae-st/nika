@@ -609,7 +609,7 @@ impl Runner {
         // Build InferParams directly from analyzed types
         let infer_params = InferParams {
             prompt: infer_action.prompt.clone(),
-            provider: task.provider.as_ref().map(|p| p.to_string()),
+            provider: task.provider.clone(),
             model: task.model.clone(),
             temperature: infer_action.temperature,
             max_tokens: infer_action.max_tokens,
@@ -956,29 +956,28 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
         // Resolve preset: merge agent preset values as fallback for provider/model
         // Precedence: task-level > preset > workflow-default
-        let task_provider_str = task.provider.as_ref().map(|p| p.to_string());
         let (effective_provider, effective_model) = if let Some(ref preset_name) = task.preset {
             if let Some(agent) = executor.get_preset(preset_name) {
                 crate::runtime::preset::resolve_provider_model(
-                    &task_provider_str,
+                    &task.provider,
                     &task.model,
                     agent,
                 )
             } else {
-                (task_provider_str, task.model.clone())
+                (task.provider.clone(), task.model.clone())
             }
         } else {
-            (task_provider_str, task.model.clone())
+            (task.provider.clone(), task.model.clone())
         };
 
         // Resolve base_url: task-level override takes precedence over workflow default
         let resolved_base_url = task.base_url.clone().or(workflow_base_url);
         // Extract provider fallback chain from routing config
-        let provider_chain = task
+        let provider_chain: Option<Vec<nika_core::ProviderName>> = task
             .routing
             .as_ref()
             .filter(|r| r.fallback.len() > 1)
-            .map(|r| r.fallback.clone());
+            .map(|r| r.fallback.iter().map(|s| nika_core::ProviderName::parse(s)).collect());
         let mut lowered_action = lower_action(
             &task.action,
             &effective_provider,

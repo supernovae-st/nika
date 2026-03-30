@@ -154,14 +154,14 @@ impl TaskExecutor {
             Some(m) => Some(template_resolve(m, bindings, datastore)?.into_owned()),
             None => None,
         };
-        let resolved_provider = match &infer.provider {
-            Some(p) => Some(template_resolve(p, bindings, datastore)?.into_owned()),
+        let resolved_provider: Option<String> = match &infer.provider {
+            Some(p) => Some(template_resolve(p.as_str(), bindings, datastore)?.into_owned()),
             None => None,
         };
 
         // Build provider chain: explicit chain > single provider > workflow default
         let effective_chain: Vec<String> = if let Some(ref chain) = infer.provider_chain {
-            chain.clone()
+            chain.iter().map(|p| p.to_string()).collect()
         } else {
             vec![resolved_provider
                 .clone()

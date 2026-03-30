@@ -22,6 +22,7 @@
 //!   command: "echo hello"
 //! ```
 
+use nika_core::ProviderName;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -57,7 +58,7 @@ pub enum ResponseFormat {
 pub struct InferParams {
     pub prompt: String,
     /// Override provider for this task
-    pub provider: Option<String>,
+    pub provider: Option<ProviderName>,
     /// Override model for this task
     pub model: Option<String>,
     /// Temperature for sampling (0.0 = deterministic, 2.0 = maximum randomness)
@@ -81,7 +82,7 @@ pub struct InferParams {
     pub base_url: Option<String>,
     /// Provider fallback chain: try providers in order until one succeeds.
     /// Set from `provider: [groq, anthropic]` or `routing.fallback`.
-    pub provider_chain: Option<Vec<String>>,
+    pub provider_chain: Option<Vec<ProviderName>>,
 }
 
 impl<'de> Deserialize<'de> for InferParams {
@@ -149,7 +150,7 @@ impl<'de> Deserialize<'de> for InferParams {
                 guardrails,
             } => Ok(InferParams {
                 prompt,
-                provider,
+                provider: provider.map(ProviderName::from),
                 model,
                 temperature,
                 max_tokens,
@@ -502,7 +503,7 @@ infer:
         match action {
             TaskAction::Infer { infer } => {
                 assert_eq!(infer.prompt, "Generate a headline");
-                assert_eq!(infer.provider, Some("claude".to_string()));
+                assert_eq!(infer.provider, Some(ProviderName::Anthropic));
                 assert_eq!(infer.model, Some("claude-sonnet-4-6".to_string()));
             }
             _ => panic!("Expected TaskAction::Infer"),
@@ -554,7 +555,7 @@ infer:
         let action: TaskAction = serde_yaml::from_str(yaml).unwrap();
         match action {
             TaskAction::Infer { infer } => {
-                assert_eq!(infer.provider, Some("openai".to_string()));
+                assert_eq!(infer.provider, Some(ProviderName::OpenAI));
                 assert!(infer.model.is_none());
             }
             _ => panic!("Expected TaskAction::Infer"),
@@ -774,7 +775,7 @@ infer:
         match action {
             TaskAction::Infer { infer } => {
                 assert_eq!(infer.prompt, "Write a haiku");
-                assert_eq!(infer.provider, Some("openai".to_string()));
+                assert_eq!(infer.provider, Some(ProviderName::OpenAI));
                 assert_eq!(infer.model, Some("gpt-4o".to_string()));
                 assert_eq!(infer.temperature, Some(0.7));
                 assert_eq!(infer.max_tokens, Some(50));
@@ -1313,7 +1314,7 @@ agent:
         let action: TaskAction = serde_yaml::from_str(yaml).unwrap();
         match action {
             TaskAction::Agent { agent } => {
-                assert_eq!(agent.provider, Some("claude".to_string()));
+                assert_eq!(agent.provider, Some(ProviderName::Anthropic));
                 assert_eq!(agent.model, Some("claude-sonnet-4-6".to_string()));
             }
             _ => panic!("Expected TaskAction::Agent"),
@@ -1344,7 +1345,7 @@ agent:
                     agent.system,
                     Some("You are a web content expert".to_string())
                 );
-                assert_eq!(agent.provider, Some("claude".to_string()));
+                assert_eq!(agent.provider, Some(ProviderName::Anthropic));
                 assert_eq!(agent.model, Some("claude-sonnet-4-6".to_string()));
                 assert_eq!(agent.mcp.len(), 1);
                 assert_eq!(agent.max_turns, Some(10));
@@ -1572,7 +1573,7 @@ fetch:
         let action = TaskAction::Infer {
             infer: InferParams {
                 prompt: "test".to_string(),
-                provider: Some("claude".to_string()),
+                provider: Some(ProviderName::Anthropic),
                 model: Some("claude-sonnet-4-6".to_string()),
                 ..Default::default()
             },

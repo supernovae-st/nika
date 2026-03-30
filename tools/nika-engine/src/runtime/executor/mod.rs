@@ -481,10 +481,10 @@ impl TaskExecutor {
             let mut action_clone = action.clone();
             match &mut action_clone {
                 TaskAction::Infer { infer } => {
-                    infer.provider = Some(provider_name.clone());
+                    infer.provider = Some(nika_core::ProviderName::parse(provider_name));
                 }
                 TaskAction::Agent { agent } => {
-                    agent.provider = Some(provider_name.clone());
+                    agent.provider = Some(nika_core::ProviderName::parse(provider_name));
                 }
                 _ => {}
             }

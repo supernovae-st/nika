@@ -13,13 +13,13 @@ use crate::runtime::resolver::ResolvedAgent;
 ///
 /// Precedence: task-level > preset > (caller handles workflow-default).
 pub fn resolve_provider_model(
-    task_provider: &Option<String>,
+    task_provider: &Option<nika_core::ProviderName>,
     task_model: &Option<String>,
     preset: &ResolvedAgent,
-) -> (Option<String>, Option<String>) {
+) -> (Option<nika_core::ProviderName>, Option<String>) {
     let provider = task_provider
         .clone()
-        .or_else(|| Some(preset.provider.clone()));
+        .or_else(|| Some(nika_core::ProviderName::parse(&preset.provider)));
     let model = task_model.clone().or_else(|| preset.model.clone());
     (provider, model)
 }
@@ -106,7 +106,7 @@ mod tests {
     fn test_preset_provides_provider_when_task_has_none() {
         let preset = make_preset();
         let (provider, model) = resolve_provider_model(&None, &None, &preset);
-        assert_eq!(provider.as_deref(), Some("anthropic"));
+        assert_eq!(provider.as_ref().map(|p| p.as_str()), Some("anthropic"));
         assert_eq!(model.as_deref(), Some("claude-sonnet-4-6"));
     }
 
@@ -114,19 +114,20 @@ mod tests {
     fn test_task_provider_overrides_preset() {
         let preset = make_preset();
         let (provider, model) = resolve_provider_model(
-            &Some("openai".to_string()),
+            &Some(nika_core::ProviderName::OpenAI),
             &Some("gpt-4o".to_string()),
             &preset,
         );
-        assert_eq!(provider.as_deref(), Some("openai"));
+        assert_eq!(provider.as_ref().map(|p| p.as_str()), Some("openai"));
         assert_eq!(model.as_deref(), Some("gpt-4o"));
     }
 
     #[test]
     fn test_partial_override_provider_only() {
         let preset = make_preset();
-        let (provider, model) = resolve_provider_model(&Some("openai".to_string()), &None, &preset);
-        assert_eq!(provider.as_deref(), Some("openai"));
+        let (provider, model) =
+            resolve_provider_model(&Some(nika_core::ProviderName::OpenAI), &None, &preset);
+        assert_eq!(provider.as_ref().map(|p| p.as_str()), Some("openai"));
         assert_eq!(
             model.as_deref(),
             Some("claude-sonnet-4-6"),

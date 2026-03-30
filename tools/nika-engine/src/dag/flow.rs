@@ -1416,7 +1416,7 @@ mod tests {
         let workflow = Workflow {
             schema: "nika/workflow@0.12".to_string(),
             name: None,
-            provider: "test".to_string(),
+            provider: nika_core::ProviderName::Mock,
             model: None,
             mcp: None,
             context: None,
@@ -1486,7 +1486,7 @@ mod tests {
         let workflow = Workflow {
             schema: "nika/workflow@0.12".to_string(),
             name: None,
-            provider: "test".to_string(),
+            provider: nika_core::ProviderName::Mock,
             model: None,
             mcp: None,
             context: None,
@@ -1582,7 +1582,7 @@ mod tests {
         let workflow = Workflow {
             schema: "nika/workflow@0.12".to_string(),
             name: None,
-            provider: "test".to_string(),
+            provider: nika_core::ProviderName::Mock,
             model: None,
             mcp: None,
             context: None,

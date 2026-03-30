@@ -273,7 +273,7 @@ async fn test_run_auto_explicit_claude_provider() {
 
     let params = AgentParams {
         prompt: "Test with explicit Claude provider".to_string(),
-        provider: Some("claude".to_string()),
+        provider: Some(nika_core::ProviderName::Anthropic),
         max_turns: Some(1),
         ..Default::default()
     };
@@ -315,7 +315,7 @@ async fn test_run_auto_explicit_openai_provider() {
 
     let params = AgentParams {
         prompt: "Test with explicit OpenAI provider".to_string(),
-        provider: Some("openai".to_string()),
+        provider: Some(nika_core::ProviderName::OpenAI),
         max_turns: Some(1),
         ..Default::default()
     };
@@ -352,7 +352,9 @@ async fn test_run_auto_invalid_provider_name() {
 
     let params = AgentParams {
         prompt: "Test with invalid provider".to_string(),
-        provider: Some("invalid_provider".to_string()),
+        provider: Some(nika_core::ProviderName::Custom(
+            "invalid_provider".to_string(),
+        )),
         max_turns: Some(1),
         ..Default::default()
     };
@@ -397,7 +399,7 @@ async fn test_run_auto_provider_aliases() {
     // Test "anthropic" alias
     let params_anthropic = AgentParams {
         prompt: "Test anthropic alias".to_string(),
-        provider: Some("anthropic".to_string()),
+        provider: Some(nika_core::ProviderName::Anthropic),
         max_turns: Some(1),
         ..Default::default()
     };
@@ -422,7 +424,7 @@ async fn test_run_auto_provider_aliases() {
     // Test "gpt" alias
     let params_gpt = AgentParams {
         prompt: "Test gpt alias".to_string(),
-        provider: Some("gpt".to_string()),
+        provider: Some(nika_core::ProviderName::OpenAI),
         max_turns: Some(1),
         ..Default::default()
     };
@@ -450,7 +452,7 @@ async fn test_run_auto_provider_case_insensitive() {
     for provider_name in ["CLAUDE", "Claude", "OPENAI", "OpenAI", "GPT", "Anthropic"] {
         let params = AgentParams {
             prompt: format!("Test case: {provider_name}"),
-            provider: Some(provider_name.to_string()),
+            provider: Some(nika_core::ProviderName::parse(provider_name)),
             max_turns: Some(1),
             ..Default::default()
         };

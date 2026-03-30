@@ -2537,9 +2537,7 @@ async fn validate_workflow(file: &str, quiet: bool) -> Result<(), NikaError> {
     {
         let mut providers_used: std::collections::HashSet<String> =
             std::collections::HashSet::new();
-        if !workflow.provider.is_empty() {
-            providers_used.insert(workflow.provider.clone());
-        }
+        providers_used.insert(workflow.provider.to_string());
 
         // Collect per-task providers from analyzed AST
         if let Ok(analyzed) = parse_analyzed(&yaml) {

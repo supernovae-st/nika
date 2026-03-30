@@ -20,7 +20,7 @@ pub struct WorkflowMeta {
     task_table: TaskTable,
 
     /// Default provider for the workflow.
-    provider: Option<String>,
+    provider: Option<nika_core::ProviderName>,
 
     /// Default model for the workflow.
     model: Option<String>,
@@ -31,7 +31,7 @@ impl WorkflowMeta {
     pub fn from_workflow(wf: &AnalyzedWorkflow) -> Arc<Self> {
         Arc::new(Self {
             task_table: wf.task_table.clone(),
-            provider: wf.provider.as_ref().map(|p| p.to_string()),
+            provider: wf.provider.clone(),
             model: wf.model.clone(),
         })
     }
@@ -51,7 +51,12 @@ impl WorkflowMeta {
 
     /// Default provider for the workflow.
     pub fn provider(&self) -> Option<&str> {
-        self.provider.as_deref()
+        self.provider.as_ref().map(|p| p.as_str())
+    }
+
+    /// Default provider for the workflow (typed).
+    pub fn provider_name(&self) -> Option<&nika_core::ProviderName> {
+        self.provider.as_ref()
     }
 
     /// Default model for the workflow.

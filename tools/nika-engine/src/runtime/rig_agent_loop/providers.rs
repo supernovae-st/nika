@@ -165,7 +165,7 @@ impl RigAgentLoop {
     pub async fn run_auto(&mut self) -> Result<RigAgentLoopResult, NikaError> {
         // Check explicit provider from params
         if let Some(ref provider_name) = self.params.provider {
-            let resolved = crate::core::find_provider(provider_name).ok_or_else(|| {
+            let resolved = crate::core::find_provider(provider_name.as_str()).ok_or_else(|| {
                 NikaError::AgentValidationError {
                     reason: format!(
                         "Unknown provider: '{}'. Use 'claude', 'openai', 'mistral', 'groq', 'deepseek', 'gemini', or 'xai'.",
@@ -318,7 +318,7 @@ impl RigAgentLoop {
         // In auto-detect mode, params.provider may be None even though we know the provider.
         if self.params.provider.is_none() {
             if let Some(ref pk) = provider_kind {
-                self.params.provider = Some(pk.to_provider_id().to_string());
+                self.params.provider = Some(nika_core::ProviderName::parse(pk.to_provider_id()));
             }
         }
 

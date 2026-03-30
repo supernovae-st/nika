@@ -89,7 +89,7 @@ pub struct SpawnAgentTool {
     /// Parent's model name — propagated to child agents
     parent_model: Option<String>,
     /// Parent's provider name — propagated to child agents
-    parent_provider: Option<String>,
+    parent_provider: Option<nika_core::ProviderName>,
     /// Parent's temperature setting — propagated to child agents
     parent_temperature: Option<f32>,
     /// Parent's tools list — propagated to child agents
@@ -166,7 +166,7 @@ impl SpawnAgentTool {
     pub fn with_parent_config(
         mut self,
         model: Option<String>,
-        provider: Option<String>,
+        provider: Option<nika_core::ProviderName>,
         temperature: Option<f32>,
         tools: Vec<String>,
     ) -> Self {

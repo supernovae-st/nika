@@ -97,6 +97,7 @@ tower-lsp-server = { workspace = true, optional = true }
 nika-daemon = { workspace = true }
 
 [dev-dependencies]
+nika-core = { workspace = true }
 tempfile = { workspace = true }
 proptest = { workspace = true }
 insta = { workspace = true }

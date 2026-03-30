@@ -49,7 +49,7 @@ impl CompressorLlm for ExecutorCompressorLlm<'_> {
         let action = TaskAction::Infer {
             infer: InferParams {
                 prompt: prompt.to_string(),
-                provider: Some(self.provider.clone()),
+                provider: Some(nika_core::ProviderName::parse(&self.provider)),
                 model: Some(self.model.clone()),
                 temperature: Some(0.0), // Deterministic for compression
                 max_tokens: Some(2000),

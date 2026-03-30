@@ -125,17 +125,22 @@ impl TaskExecutor {
             Some(m) => Some(template_resolve(m, bindings, datastore)?.into_owned()),
             None => None,
         };
-        let resolved_provider = match &resolved_agent.provider {
-            Some(p) => Some(template_resolve(p, bindings, datastore)?.into_owned()),
+        let resolved_provider: Option<nika_core::ProviderName> = match &resolved_agent.provider {
+            Some(p) => {
+                // Template-resolve the provider string, then parse into ProviderName
+                let resolved_str = template_resolve(p.as_str(), bindings, datastore)?.into_owned();
+                Some(nika_core::ProviderName::parse(&resolved_str))
+            }
             None => None,
         };
 
         // Build provider chain: explicit chain > single provider > workflow default
         let effective_chain: Vec<String> = if let Some(ref chain) = resolved_agent.provider_chain {
-            chain.clone()
+            chain.iter().map(|p| p.to_string()).collect()
         } else {
             vec![resolved_provider
-                .clone()
+                .as_ref()
+                .map(|p| p.to_string())
                 .unwrap_or_else(|| self.default_provider.to_string())]
         };
 
@@ -224,7 +229,7 @@ impl TaskExecutor {
 
         // Ensure resolved_agent has provider + model set for run_auto() dispatch
         let resolved_agent = AgentParams {
-            provider: Some(provider_name.clone()),
+            provider: Some(nika_core::ProviderName::parse(&provider_name)),
             model: resolved_model.or_else(|| self.default_model.as_ref().map(|m| m.to_string())),
             ..resolved_agent
         };

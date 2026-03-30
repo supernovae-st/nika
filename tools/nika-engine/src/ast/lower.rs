@@ -87,9 +87,7 @@ pub fn lower(analyzed: AnalyzedWorkflow) -> Result<Workflow, NikaError> {
     Ok(Workflow {
         schema: schema_version.as_str().to_string(),
         name,
-        provider: provider
-            .map(|p| p.to_string())
-            .unwrap_or_else(|| "anthropic".to_string()),
+        provider: provider.unwrap_or(nika_core::ProviderName::Anthropic),
         model,
         mcp,
         context,
@@ -111,15 +109,14 @@ fn lower_task(task: AnalyzedTask, table: &TaskTable) -> Result<Task, NikaError> 
     let depends_on = task_dep_names(&task.depends_on, &task.implicit_deps, table)?;
     let (for_each, for_each_as, fe_concurrency, fe_fail_fast) = lower_for_each(task.for_each);
     // Extract provider_chain from routing.fallback if present
-    let provider_chain = task
+    let provider_chain: Option<Vec<nika_core::ProviderName>> = task
         .routing
         .as_ref()
         .filter(|r| r.fallback.len() > 1)
-        .map(|r| r.fallback.clone());
-    let provider_str = task.provider.as_ref().map(|p| p.to_string());
+        .map(|r| r.fallback.iter().map(|s| nika_core::ProviderName::parse(s)).collect());
     let action = lower_action(
         &task.action,
-        &provider_str,
+        &task.provider,
         &task.model,
         &task.retry,
         &task.base_url,
@@ -161,11 +158,11 @@ fn lower_task(task: AnalyzedTask, table: &TaskTable) -> Result<Task, NikaError> 
 
 pub(crate) fn lower_action(
     action: &AnalyzedTaskAction,
-    provider: &Option<String>,
+    provider: &Option<nika_core::ProviderName>,
     model: &Option<String>,
     retry: &Option<AnalyzedRetry>,
     base_url: &Option<String>,
-    provider_chain: &Option<Vec<String>>,
+    provider_chain: &Option<Vec<nika_core::ProviderName>>,
 ) -> TaskAction {
     match action {
         AnalyzedTaskAction::Infer(a) => TaskAction::Infer {
@@ -200,10 +197,10 @@ pub(crate) fn lower_action(
 
 fn lower_infer(
     infer: AnalyzedInferAction,
-    provider: Option<String>,
+    provider: Option<nika_core::ProviderName>,
     model: Option<String>,
     base_url: Option<String>,
-    provider_chain: Option<Vec<String>>,
+    provider_chain: Option<Vec<nika_core::ProviderName>>,
 ) -> InferParams {
     use crate::ast::action::ResponseFormat;
 
@@ -283,10 +280,10 @@ fn lower_invoke(invoke: AnalyzedInvokeAction) -> InvokeParams {
 
 fn lower_agent(
     agent: AnalyzedAgentAction,
-    provider: Option<String>,
+    provider: Option<nika_core::ProviderName>,
     model: Option<String>,
     base_url: Option<String>,
-    provider_chain: Option<Vec<String>>,
+    provider_chain: Option<Vec<nika_core::ProviderName>>,
 ) -> AgentParams {
     // Parse tool_choice string to ToolChoice enum
     let tool_choice = agent
@@ -610,7 +607,7 @@ pub fn unlower(workflow: Workflow) -> Result<AnalyzedWorkflow, NikaError> {
             name: task.id.clone(),
             description: None,
             action,
-            provider: task_provider.map(nika_core::ProviderName::from),
+            provider: task_provider,
             model: task_model,
             base_url: None,
             with_spec,
@@ -666,7 +663,7 @@ pub fn unlower(workflow: Workflow) -> Result<AnalyzedWorkflow, NikaError> {
         name: workflow.name,
         description: None,
         goal: None,
-        provider: Some(nika_core::ProviderName::from(workflow.provider)),
+        provider: Some(workflow.provider),
         model: workflow.model,
         base_url: None,
         task_table,
@@ -695,7 +692,7 @@ pub fn unlower(workflow: Workflow) -> Result<AnalyzedWorkflow, NikaError> {
 /// During lower → unlower round-trip, provider/model are stored inside
 /// InferParams/AgentParams. This extracts them so the Runner can pass them
 /// back through lower_action() at the TaskExecutor boundary.
-fn extract_provider_model(action: &TaskAction) -> (Option<String>, Option<String>) {
+fn extract_provider_model(action: &TaskAction) -> (Option<nika_core::ProviderName>, Option<String>) {
     match action {
         TaskAction::Infer { infer } => (infer.provider.clone(), infer.model.clone()),
         TaskAction::Agent { agent } => (agent.provider.clone(), agent.model.clone()),
@@ -942,7 +939,7 @@ mod tests {
         let wf = dummy_workflow();
         let lowered = lower(wf).unwrap();
         assert_eq!(lowered.schema, "nika/workflow@0.12");
-        assert_eq!(lowered.provider, "anthropic");
+        assert_eq!(lowered.provider, nika_core::ProviderName::Anthropic);
         assert!(lowered.tasks.is_empty());
         assert!(lowered.mcp.is_none());
         assert!(lowered.inputs.is_none());
@@ -954,7 +951,7 @@ mod tests {
         wf.provider = Some(nika_core::ProviderName::OpenAI);
         wf.model = Some("gpt-4o".to_string());
         let lowered = lower(wf).unwrap();
-        assert_eq!(lowered.provider, "openai");
+        assert_eq!(lowered.provider, nika_core::ProviderName::OpenAI);
         assert_eq!(lowered.model.as_deref(), Some("gpt-4o"));
     }
 
@@ -1010,7 +1007,7 @@ mod tests {
                 assert_eq!(infer.system.as_deref(), Some("You are helpful"));
                 assert_eq!(infer.temperature, Some(0.7));
                 assert_eq!(infer.max_tokens, Some(100));
-                assert_eq!(infer.provider.as_deref(), Some("mistral"));
+                assert_eq!(infer.provider, Some(nika_core::ProviderName::Mistral));
                 assert_eq!(infer.model.as_deref(), Some("mistral-large"));
                 assert_eq!(infer.extended_thinking, Some(true));
                 assert_eq!(infer.thinking_budget, Some(8192));
@@ -1160,7 +1157,7 @@ mod tests {
                 assert_eq!(agent.tools, vec!["nika:read", "nika:write"]);
                 assert_eq!(agent.max_turns, Some(10));
                 assert_eq!(agent.max_tokens, Some(4096));
-                assert_eq!(agent.provider.as_deref(), Some("anthropic"));
+                assert_eq!(agent.provider, Some(nika_core::ProviderName::Anthropic));
                 assert_eq!(agent.skills.as_deref(), Some(&["writing".to_string()][..]));
             }
             _ => panic!("expected Agent action"),
@@ -1909,7 +1906,8 @@ mod tests {
         };
         let lowered = lower(wf).unwrap();
         assert_eq!(
-            lowered.provider, "anthropic",
+            lowered.provider,
+            nika_core::ProviderName::Anthropic,
             "None provider should default to anthropic (canonical)"
         );
         let unlowered = unlower(lowered).unwrap();
