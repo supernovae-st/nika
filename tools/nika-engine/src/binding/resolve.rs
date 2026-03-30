@@ -437,13 +437,6 @@ impl ResolvedBindings {
     /// `"[REDACTED:$env]"` to prevent secret leakage in trace files.
     /// Also applies the standard API key regex pattern to all string values.
     pub fn to_value_redacted(&self) -> Value {
-        use std::sync::LazyLock;
-        static SECRET_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
-            regex::Regex::new(
-                r"(?i)(sk-[a-zA-Z0-9_-]{10,}|Bearer\s+[a-zA-Z0-9_.\-]{10,}|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|xox[bp]-[a-zA-Z0-9\-]+|AKIA[A-Z0-9]{16}|gsk_[a-zA-Z0-9]{20,}|AIza[a-zA-Z0-9_\-]{30,}|xai-[a-zA-Z0-9]{20,})"
-            ).expect("SECRET_RE is a valid regex")
-        });
-
         let mut map = serde_json::Map::new();
         for (alias, binding) in &self.bindings {
             if self.env_sourced.contains(alias) {
@@ -451,12 +444,8 @@ impl ResolvedBindings {
                 continue;
             }
             match binding {
-                LazyBinding::Resolved(Value::String(s)) => {
-                    let redacted = SECRET_RE.replace_all(s, "[REDACTED]");
-                    map.insert(alias.clone(), Value::String(redacted.into_owned()));
-                }
                 LazyBinding::Resolved(v) => {
-                    map.insert(alias.clone(), v.clone());
+                    map.insert(alias.clone(), redact_value_recursive(v));
                 }
                 LazyBinding::Pending { path, default: _ } => {
                     map.insert(
@@ -481,6 +470,36 @@ impl ResolvedBindings {
 // ═══════════════════════════════════════════════════════════════
 // String-path resolution: BindingEntry (simple path bindings)
 // ═══════════════════════════════════════════════════════════════
+
+/// Recursively redact secret patterns from a JSON value.
+///
+/// Walks objects and arrays, applying `redact_secrets` to every string leaf.
+/// Bounded to 16 levels of nesting to prevent stack overflow on adversarial input.
+fn redact_value_recursive(value: &Value) -> Value {
+    redact_value_inner(value, 0)
+}
+
+fn redact_value_inner(value: &Value, depth: u32) -> Value {
+    if depth > 16 {
+        return value.clone();
+    }
+    match value {
+        Value::String(s) => Value::String(crate::util::redact_secrets(s)),
+        Value::Array(arr) => Value::Array(
+            arr.iter()
+                .map(|v| redact_value_inner(v, depth + 1))
+                .collect(),
+        ),
+        Value::Object(map) => {
+            let redacted: serde_json::Map<String, Value> = map
+                .iter()
+                .map(|(k, v)| (k.clone(), redact_value_inner(v, depth + 1)))
+                .collect();
+            Value::Object(redacted)
+        }
+        other => other.clone(),
+    }
+}
 
 /// Resolve a single BindingEntry to a Value
 ///
@@ -2469,6 +2488,61 @@ mod tests {
             val
         );
         assert!(!val.contains("sk-proj-"), "API key leaked: {}", val);
+    }
+
+    #[test]
+    fn to_value_redacted_recurses_into_nested_objects() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.bindings.insert(
+            "config".to_string(),
+            LazyBinding::Resolved(json!({
+                "provider": "openai",
+                "auth": {
+                    "key": "sk-proj-abcdefghij1234567890",
+                    "endpoint": "https://api.openai.com"
+                },
+                "db": "postgres://admin:s3cret@db.example.com:5432/prod"
+            })),
+        );
+
+        let redacted = bindings.to_value_redacted();
+        let config = &redacted["config"];
+        // Nested object string should be redacted
+        assert!(
+            config["auth"]["key"]
+                .as_str()
+                .unwrap()
+                .contains("[REDACTED]"),
+            "Nested API key not redacted: {}",
+            config["auth"]["key"]
+        );
+        // Safe string should be preserved
+        assert_eq!(config["provider"], json!("openai"));
+        // DB URI should be redacted
+        assert!(
+            config["db"].as_str().unwrap().contains("[REDACTED]"),
+            "DB URI not redacted: {}",
+            config["db"]
+        );
+    }
+
+    #[test]
+    fn to_value_redacted_recurses_into_arrays() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.bindings.insert(
+            "keys".to_string(),
+            LazyBinding::Resolved(json!([
+                "safe-value",
+                "sk-proj-abcdefghij1234567890",
+                {"token": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"}
+            ])),
+        );
+
+        let redacted = bindings.to_value_redacted();
+        let keys = redacted["keys"].as_array().unwrap();
+        assert_eq!(keys[0], json!("safe-value"));
+        assert!(keys[1].as_str().unwrap().contains("[REDACTED]"));
+        assert!(keys[2]["token"].as_str().unwrap().contains("[REDACTED]"));
     }
 
     #[test]

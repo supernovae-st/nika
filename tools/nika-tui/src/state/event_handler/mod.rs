@@ -471,6 +471,7 @@ impl TuiState {
             // ═══════════════════════════════════════════
             EventKind::ExecCompleted { .. }
             | EventKind::FetchRetry { .. }
+            | EventKind::FetchExhausted { .. }
             | EventKind::TaskRetry { .. }
             | EventKind::PolicyBlocked { .. }
             | EventKind::BootPhaseCompleted { .. }

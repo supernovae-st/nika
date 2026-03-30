@@ -1207,6 +1207,23 @@ impl LiveRenderer {
                 ));
             }
 
+            // ── Fetch exhausted (always show) ───────────────────
+            EventKind::FetchExhausted {
+                url,
+                attempts,
+                last_status,
+                reason,
+                ..
+            } => {
+                let status_str = last_status
+                    .map(|s| format!(" (HTTP {})", s))
+                    .unwrap_or_default();
+                self.log(&format!(
+                    "  \x1b[31m✗\x1b[0m fetch exhausted after {} attempts{}: {} — {}",
+                    attempts, status_str, url, reason,
+                ));
+            }
+
             // ── Task retry (always show) ────────────────────────
             EventKind::TaskRetry {
                 task_id,
