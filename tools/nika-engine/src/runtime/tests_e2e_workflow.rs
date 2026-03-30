@@ -1027,3 +1027,87 @@ tasks:
         .unwrap_or_else(|e| panic!("step2 should be valid JSON: {e}\nGot: {step2_output}"));
     assert_eq!(parsed2["mock"], true, "step2 should be a mock response");
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// 10. FETCH VERB (tests 44-46)
+// ═══════════════════════════════════════════════════════════════════
+
+/// Fetch to an unreachable IP (TEST-NET-1, RFC 5737) with a short timeout
+/// fails the workflow. 192.0.2.1 passes SSRF checks (not private) but the
+/// connection will time out because the range is non-routable.
+#[tokio::test]
+async fn e2e_fetch_invalid_url_fails() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: bad_fetch
+    fetch:
+      url: "http://192.0.2.1:1/nonexistent"
+      timeout: 2
+"#;
+    let workflow = parse_analyzed(yaml).unwrap();
+    let mut runner = Runner::new(workflow).unwrap().quiet();
+    let result = runner.run().await;
+    assert!(result.is_err(), "Fetch to unreachable IP should fail the workflow");
+}
+
+/// Data chain: exec produces HTML string, then infer with mock processes it.
+/// Tests that non-HTTP data can flow through a fetch-like pipeline pattern
+/// (exec as data source instead of fetch, wired into infer via with: binding).
+#[tokio::test]
+async fn e2e_fetch_data_chain_exec_to_infer() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: source
+    exec: "echo '<html><body><p>Hello world</p></body></html>'"
+  - id: analyze
+    depends_on: [source]
+    with:
+      html: $source
+    infer:
+      prompt: "Analyze this HTML: {{with.html}}"
+"#;
+    let output = run_and_get(yaml, "analyze").await;
+    assert!(!output.is_empty(), "Should produce analysis output");
+    // Mock provider returns JSON — verify it's a valid mock response
+    let parsed: serde_json::Value = serde_json::from_str(&output)
+        .unwrap_or_else(|e| panic!("Should be valid JSON: {e}\nGot: {output}"));
+    assert_eq!(parsed["mock"], true, "Should be a mock response");
+}
+
+/// SSRF protection blocks fetch to localhost (127.0.0.1).
+/// Nika's policy enforcer blocks private/loopback IP ranges at the
+/// string-level check (before any DNS resolution or HTTP request).
+#[tokio::test]
+async fn e2e_fetch_ssrf_blocked() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: ssrf
+    fetch:
+      url: "http://127.0.0.1:9999/secret"
+"#;
+    let workflow = parse_analyzed(yaml).unwrap();
+    let event_log = EventLog::new();
+    let mut runner = Runner::with_event_log(workflow, event_log.clone()).unwrap().quiet();
+    let result = runner.run().await;
+    assert!(result.is_err(), "SSRF to localhost should be blocked");
+
+    // Verify the failure is a policy violation, not a connection error
+    let events = event_log.events();
+    let has_policy_blocked = events.iter().any(|e| {
+        matches!(
+            &e.kind,
+            crate::event::EventKind::PolicyBlocked { verb, .. }
+            if verb == "fetch"
+        )
+    });
+    assert!(
+        has_policy_blocked,
+        "Should emit PolicyBlocked event for SSRF-blocked fetch"
+    );
+}
