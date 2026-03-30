@@ -733,7 +733,10 @@ fn resolve_with_entry_traced(
     // Step 1+2: Dispatch by source and navigate segments
     let raw_value = resolve_binding_path_traced(&entry.source, alias, datastore, task_id, events)?;
 
-    // Step 3: Apply transforms
+    // Step 3: Apply transforms.
+    // For null values: attempt transforms so `default()` in the chain can fire.
+    // If a non-default transform fails on null (NullInput), fall through to
+    // the entry-level default in Step 4.
     let transformed = match (&raw_value, &entry.transform) {
         (Some(v), Some(expr)) if !v.is_null() => {
             let result = expr.apply(v).map_err(|e| NikaError::PathNotFound {
@@ -746,6 +749,24 @@ fn resolve_with_entry_traced(
                 transform_chain: format!("{:?}", expr),
             });
             Some(result)
+        }
+        (Some(v), Some(expr)) if v.is_null() => {
+            // Null value: try transforms (default() handles null).
+            // If transform fails on null input, skip to Step 4 default.
+            match expr.apply(v) {
+                Ok(result) => {
+                    events.push(EventKind::BindingTransformApplied {
+                        task_id: Arc::clone(task_id),
+                        alias: alias.to_string(),
+                        transform_chain: format!("{:?}", expr),
+                    });
+                    Some(result)
+                }
+                Err(e) => {
+                    tracing::debug!(path = %path_str, error = %e, "Transform failed on null value — falling through to default");
+                    raw_value
+                }
+            }
         }
         _ => raw_value,
     };
@@ -2347,6 +2368,29 @@ mod tests {
         // Null goes through transform pipeline as-is (transform skipped for null),
         // then default kicks in
         let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+        assert_eq!(bindings.get("name"), Some(&json!("DEFAULT")));
+    }
+
+    #[test]
+    fn with_spec_traced_transform_with_default_on_null() {
+        // CQ-11: traced and untraced must behave identically for null+transform+default
+        let store = RunContext::new();
+        store.insert(
+            Arc::from("step1"),
+            TaskResult::success(json!({"name": null}), Duration::from_secs(1)),
+        );
+
+        let mut spec = WithSpec::default();
+        let mut entry =
+            WithEntry::with_default(BindingPath::parse("$step1.name").unwrap(), json!("DEFAULT"));
+        entry.transform = Some(TransformExpr::parse("upper").unwrap());
+        spec.insert("name".to_string(), entry);
+
+        let task_id: Arc<str> = Arc::from("test_traced");
+        let (bindings, _events) =
+            ResolvedBindings::from_with_spec_traced(Some(&spec), &store, &task_id).unwrap();
+
+        // Must match untraced behavior: null → transform fails → default kicks in
         assert_eq!(bindings.get("name"), Some(&json!("DEFAULT")));
     }
 
