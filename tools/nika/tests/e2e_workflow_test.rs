@@ -1149,3 +1149,131 @@ tasks:
         "for_each + structured should succeed: {result:?}"
     );
 }
+
+// =============================================================================
+// Session 2B E2E Tests
+// =============================================================================
+
+/// E2E: Infer guardrail with max_words:3 triggers on mock's long response.
+/// Mock response has ~50 words, so max_words:3 should cause a guardrail failure.
+#[tokio::test]
+async fn e2e_guardrail_length_violation_fails() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: short
+    infer:
+      prompt: "Say something"
+      guardrails:
+        - type: length
+          max_words: 3
+          on_failure: fail
+"#;
+    let result = run_workflow(yaml).await;
+    assert!(
+        result.is_err(),
+        "Guardrail max_words:3 should fail on mock's long response: {result:?}"
+    );
+    let err = result.unwrap_err();
+    assert!(
+        err.contains("guardrail") || err.contains("NIKA-112") || err.contains("length"),
+        "Error should mention guardrail: {err}"
+    );
+}
+
+/// E2E: Infer guardrail with max_words:1000 passes on mock's short response.
+#[tokio::test]
+async fn e2e_guardrail_length_passes() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: ok
+    infer:
+      prompt: "Say something"
+      guardrails:
+        - type: length
+          max_words: 1000
+          on_failure: fail
+"#;
+    let result = run_workflow(yaml).await;
+    assert!(
+        result.is_ok(),
+        "Guardrail max_words:1000 should pass: {result:?}"
+    );
+}
+
+/// E2E: Real provider structured output — OpenAI (skip if no key).
+/// Validates complex schema with nested objects, enums, arrays, and constraints.
+#[tokio::test]
+async fn e2e_structured_openai_complex() {
+    if std::env::var("OPENAI_API_KEY").is_err() {
+        eprintln!("SKIP: OPENAI_API_KEY not set");
+        return;
+    }
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: openai
+model: gpt-4.1-nano
+tasks:
+  - id: extract
+    infer: "Tell me about Paris, the capital of France, a European city with about 2 million people"
+    structured:
+      schema:
+        type: object
+        properties:
+          city: { type: string }
+          country: { type: string }
+          population: { type: integer, minimum: 0 }
+          continent: { type: string, enum: [Europe, Asia, Africa, Americas, Oceania] }
+          landmarks:
+            type: array
+            items: { type: string }
+            minItems: 1
+        required: [city, country, population, continent, landmarks]
+      max_retries: 2
+"#;
+    let result = run_workflow(yaml).await;
+    assert!(
+        result.is_ok(),
+        "OpenAI structured should succeed: {result:?}"
+    );
+    let output = result.unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&output).expect("Should be valid JSON");
+    assert_eq!(parsed["continent"], "Europe");
+    assert!(parsed["population"].as_i64().unwrap_or(0) > 0);
+    assert!(!parsed["landmarks"].as_array().unwrap().is_empty());
+}
+
+/// E2E: Real provider structured output — xAI Grok (skip if no key).
+#[tokio::test]
+async fn e2e_structured_xai_complex() {
+    if std::env::var("XAI_API_KEY").is_err() {
+        eprintln!("SKIP: XAI_API_KEY not set");
+        return;
+    }
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: xai
+model: grok-3-fast
+tasks:
+  - id: extract
+    infer: "Tell me about Tokyo, the capital of Japan"
+    structured:
+      schema:
+        type: object
+        properties:
+          city: { type: string }
+          country: { type: string }
+          population: { type: integer, minimum: 0 }
+        required: [city, country, population]
+      max_retries: 2
+"#;
+    let result = run_workflow(yaml).await;
+    assert!(result.is_ok(), "xAI structured should succeed: {result:?}");
+    let output = result.unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&output).expect("Should be valid JSON");
+    assert!(parsed["city"].is_string());
+    assert!(parsed["population"].as_i64().unwrap_or(0) > 0);
+}
