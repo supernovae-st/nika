@@ -2411,8 +2411,13 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             let mut for_each_results: IndexMap<Arc<str>, Vec<(usize, TaskResult)>> =
                 IndexMap::new();
 
+            // Clamp max_duration_secs to prevent Instant overflow (max ~292 years)
+            let clamped_duration = self.workflow.max_duration_secs.min(604_800); // Cap at 1 week
             let timeout_deadline = tokio::time::Instant::now()
-                + std::time::Duration::from_secs(self.workflow.max_duration_secs);
+                + std::time::Duration::from_secs(clamped_duration);
+            // Hoist the sleep future to avoid re-creating it on every select! iteration
+            let timeout_sleep = tokio::time::sleep_until(timeout_deadline);
+            tokio::pin!(timeout_sleep);
 
             // Wait for all spawned tasks to complete (with cancellation support)
             loop {
@@ -2444,8 +2449,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         }
                         .into());
                     }
-                    // Global workflow timeout
-                    _ = tokio::time::sleep_until(timeout_deadline) => {
+                    // Global workflow timeout (pinned future, not re-created per iteration)
+                    _ = &mut timeout_sleep => {
                         join_set.abort_all();
 
                         let duration = workflow_start.elapsed();
