@@ -1230,6 +1230,14 @@ mod tests {
     }
 
     #[test]
+    fn apply_default_preserves_whitespace_only_string() {
+        let result = TransformOp::Default(json!("FALLBACK"))
+            .apply(&json!("  "))
+            .unwrap();
+        assert_eq!(result, json!("  "), "whitespace-only strings are NOT empty");
+    }
+
+    #[test]
     fn apply_typeof() {
         assert_eq!(
             TransformOp::TypeOf.apply(&json!(42)).unwrap(),
