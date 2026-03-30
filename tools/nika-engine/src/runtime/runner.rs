@@ -920,7 +920,6 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     store_id: task_id,
                     result: TaskResult::failed(e.to_string(), duration),
                     for_each_info,
-
                 };
             }
         };
@@ -1171,7 +1170,6 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                         store_id: task_id,
                                         result: TaskResult::failed(e.to_string(), duration),
                                         for_each_info,
-                    
                                     };
                                 }
                             }
@@ -1494,7 +1492,12 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     .workflow
                     .tasks
                     .iter()
-                    .map(|t| (Arc::from(t.name.as_str()), depths.get(t.name.as_str()).copied().unwrap_or(0)))
+                    .map(|t| {
+                        (
+                            Arc::from(t.name.as_str()),
+                            depths.get(t.name.as_str()).copied().unwrap_or(0),
+                        )
+                    })
                     .collect();
                 renderer.set_task_layers(task_layers);
             }
@@ -2245,7 +2248,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                                 .to_string(),
                                         ),
                                         for_each_info: Some((parent_task_id, idx)),
-                    
+
                                     };
                                 }
 
@@ -2260,7 +2263,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                                 "Cancelled while waiting for semaphore".to_string(),
                                             ),
                                             for_each_info: Some((parent_task_id, idx)),
-                        
+
                                         };
                                     }
 
@@ -2281,7 +2284,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                                         std::time::Duration::ZERO,
                                                     ),
                                                     for_each_info: Some((parent_task_id, idx)),
-                                
+
                                                 };
                                             }
                                         }
@@ -2296,7 +2299,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                             "Cancelled after semaphore acquire".to_string(),
                                         ),
                                         for_each_info: Some((parent_task_id, idx)),
-                    
+
                                     };
                                 }
 
