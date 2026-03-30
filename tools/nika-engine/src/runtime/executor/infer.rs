@@ -654,7 +654,8 @@ impl TaskExecutor {
             // Claude requires max_tokens > thinking_budget
             let effective_max_tokens = if infer.extended_thinking == Some(true) {
                 let budget = infer.thinking_budget.unwrap_or(4096);
-                Some(infer.max_tokens.unwrap_or((budget as u32) + 8192))
+                let budget_u32 = u32::try_from(budget).unwrap_or(u32::MAX);
+                Some(infer.max_tokens.unwrap_or(budget_u32.saturating_add(8192)))
             } else {
                 infer.max_tokens
             };
