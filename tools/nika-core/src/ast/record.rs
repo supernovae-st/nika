@@ -4,7 +4,6 @@
 //! ```yaml
 //! record:
 //!   compress: true
-//!   retain: [stats, findings]
 //!   max_tokens: 300
 //!   confidence_threshold: 0.7
 //! ```
@@ -23,10 +22,6 @@ pub struct RecordSpec {
     #[serde(default)]
     pub compress: bool,
 
-    /// Fields to retain in the compressed Record (e.g., ["stats", "findings"]).
-    #[serde(default)]
-    pub retain: Vec<String>,
-
     /// Maximum tokens for the compressed summary.
     #[serde(default = "default_max_tokens")]
     pub max_tokens: u32,
@@ -40,7 +35,6 @@ impl Default for RecordSpec {
     fn default() -> Self {
         Self {
             compress: false,
-            retain: vec![],
             max_tokens: default_max_tokens(),
             confidence_threshold: 0.0,
         }
@@ -86,7 +80,6 @@ mod tests {
         let spec = RecordSpec::shorthand_true();
         assert!(spec.compress);
         assert_eq!(spec.max_tokens, 500);
-        assert!(spec.retain.is_empty());
     }
 
     #[test]
@@ -130,10 +123,9 @@ mod tests {
 
     #[test]
     fn test_deserialize_full_form() {
-        let json = r#"{"compress": true, "retain": ["stats"], "max_tokens": 300, "confidence_threshold": 0.7}"#;
+        let json = r#"{"compress": true, "max_tokens": 300, "confidence_threshold": 0.7}"#;
         let spec: RecordSpec = serde_json::from_str(json).unwrap();
         assert!(spec.compress);
-        assert_eq!(spec.retain, vec!["stats"]);
         assert_eq!(spec.max_tokens, 300);
         assert!((spec.confidence_threshold - 0.7).abs() < f64::EPSILON);
     }
@@ -150,7 +142,6 @@ mod tests {
     fn test_serialization_roundtrip() {
         let spec = RecordSpec {
             compress: true,
-            retain: vec!["a".into(), "b".into()],
             max_tokens: 200,
             confidence_threshold: 0.5,
         };
