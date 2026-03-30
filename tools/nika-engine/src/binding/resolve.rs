@@ -565,10 +565,13 @@ fn resolve_with_entry(
         }
         (Some(v), Some(expr)) if v.is_null() => {
             // Null value: try transforms (default() handles null).
-            // If transform fails with NullInput, skip to Step 4 default.
+            // If transform fails on null input, skip to Step 4 default.
             match expr.apply(v) {
                 Ok(result) => Some(result),
-                Err(_) => raw_value, // NullInput → let Step 4 handle it
+                Err(e) => {
+                    tracing::debug!(path = %path_str, error = %e, "Transform failed on null value — falling through to default");
+                    raw_value
+                }
             }
         }
         _ => raw_value,

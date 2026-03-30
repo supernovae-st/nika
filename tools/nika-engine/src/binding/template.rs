@@ -471,8 +471,9 @@ pub fn resolve_with<'a>(
                 // Leave context/inputs refs for Pass 2 — re-emit as {{...}}
                 result.push_str(&format!("{{{{{}}}}}", content.trim()));
             }
-            Err(_) => {
-                // Malformed expression — re-emit literally
+            Err(e) => {
+                // Malformed expression — re-emit literally with warning
+                tracing::warn!(expression = %content.trim(), error = %e, "Malformed template expression — passing through literally");
                 result.push_str(m.as_str());
             }
         }
@@ -1097,8 +1098,9 @@ pub fn resolve<'a>(
                 // Leave context/inputs refs for Pass 2 — re-emit as {{...}}
                 result.push_str(&format!("{{{{{}}}}}", content.trim()));
             }
-            Err(_) => {
-                // Malformed expression — re-emit literally
+            Err(e) => {
+                // Malformed expression — re-emit literally with warning
+                tracing::warn!(expression = %content.trim(), error = %e, "Malformed template expression — passing through literally");
                 result.push_str(m.as_str());
             }
         }
