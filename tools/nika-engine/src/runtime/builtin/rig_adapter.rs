@@ -116,12 +116,17 @@ impl ToolDyn for NikaBuiltinToolAdapter {
                 });
             }
 
-            // Emit additional events for nika:log and nika:emit
-            if let Ok(ref result_str) = result {
-                if let Some(ref event_log) = self.event_log {
-                    match self.tool.name() {
-                        "log" => {
-                            // Parse the response to extract level and message
+            // Emit additional events for specific tools
+            if let Some(ref event_log) = self.event_log {
+                let is_orchestrator = self
+                    .task_id
+                    .as_ref()
+                    .map(|id| id.as_ref() == crate::runtime::orchestrate::ORCHESTRATOR_TASK_ID)
+                    .unwrap_or(false);
+
+                match self.tool.name() {
+                    "log" => {
+                        if let Ok(ref result_str) = result {
                             if let Ok(response) =
                                 serde_json::from_str::<serde_json::Value>(result_str)
                             {
@@ -136,8 +141,9 @@ impl ToolDyn for NikaBuiltinToolAdapter {
                                 });
                             }
                         }
-                        "emit" => {
-                            // Parse the response to extract name and payload
+                    }
+                    "emit" => {
+                        if let Ok(ref result_str) = result {
                             if let Ok(response) =
                                 serde_json::from_str::<serde_json::Value>(result_str)
                             {
@@ -151,8 +157,69 @@ impl ToolDyn for NikaBuiltinToolAdapter {
                                 });
                             }
                         }
-                        _ => {}
                     }
+                    // Orchestrator events: only emit when called from __orchestrator__ task
+                    "run" if is_orchestrator => {
+                        let round = event_log
+                            .events()
+                            .iter()
+                            .filter(|e| {
+                                matches!(&e.kind, EventKind::OrchestratorSubWorkflow { .. })
+                            })
+                            .count() as u32
+                            + 1;
+                        match &result {
+                            Ok(ref result_str) => {
+                                let task_count = serde_json::from_str::<serde_json::Value>(
+                                    result_str,
+                                )
+                                .ok()
+                                .and_then(|v| v["output"]["result"].as_str().map(|s| s.len()))
+                                .unwrap_or(0);
+                                event_log.emit(EventKind::OrchestratorSubWorkflow {
+                                    round,
+                                    yaml_hash: format!("round-{}", round),
+                                    task_count,
+                                });
+                            }
+                            Err(ref e) => {
+                                event_log.emit(EventKind::OrchestratorFailed {
+                                    round,
+                                    reason: e.to_string(),
+                                });
+                            }
+                        }
+                    }
+                    // Emit OrchestratorRound when orchestrator calls nika:complete
+                    "complete" if is_orchestrator => {
+                        let round = event_log
+                            .events()
+                            .iter()
+                            .filter(|e| {
+                                matches!(&e.kind, EventKind::OrchestratorRound { .. })
+                            })
+                            .count() as u32
+                            + 1;
+                        let cost_usd: f64 = event_log
+                            .events()
+                            .iter()
+                            .filter_map(|e| match &e.kind {
+                                EventKind::ProviderResponded { cost_usd, .. } => Some(cost_usd),
+                                _ => None,
+                            })
+                            .sum();
+                        let records_count = event_log
+                            .events()
+                            .iter()
+                            .filter(|e| matches!(&e.kind, EventKind::TaskCompleted { .. }))
+                            .count();
+                        event_log.emit(EventKind::OrchestratorRound {
+                            round,
+                            records_count,
+                            cost_usd,
+                        });
+                    }
+                    _ => {}
                 }
             }
 

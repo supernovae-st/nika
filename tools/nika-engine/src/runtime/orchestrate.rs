@@ -17,7 +17,7 @@ use nika_core::source::Span;
 pub const ORCHESTRATOR_TASK_ID: &str = "__orchestrator__";
 
 /// Build the orchestrator system prompt from goal and task descriptions.
-fn build_system_prompt(goal: &str, tasks: &[AnalyzedTask]) -> String {
+fn build_system_prompt(goal: &str, tasks: &[AnalyzedTask], confidence_target: f64) -> String {
     let mut prompt = String::with_capacity(1024);
     prompt.push_str("You are a workflow orchestrator. Your goal:\n\n");
     prompt.push_str(goal);
@@ -32,13 +32,16 @@ fn build_system_prompt(goal: &str, tasks: &[AnalyzedTask]) -> String {
     }
 
     prompt.push_str("\n## Instructions\n\n");
-    prompt.push_str(
+    prompt.push_str(&format!(
         "1. Review the completed task results using nika:records\n\
          2. Assess whether the goal has been achieved\n\
          3. If results are insufficient, use nika:run to execute additional sub-workflows\n\
          4. Use nika:cost to track spending against your budget\n\
-         5. When the goal is met, call nika:complete with your final assessment\n",
-    );
+         5. When the goal is met, call nika:complete with your final assessment\n\n\
+         ## Confidence Threshold\n\n\
+         Your confidence must reach at least {confidence_target:.2} before calling nika:complete.\n\
+         If your confidence is below this threshold, continue working to improve results.\n",
+    ));
 
     prompt
 }
@@ -76,7 +79,7 @@ pub fn wrap_as_orchestrator(mut workflow: AnalyzedWorkflow) -> AnalyzedWorkflow 
     let task_names: Vec<_> = workflow.tasks.iter().map(|t| t.name.clone()).collect();
 
     // Build the orchestrator agent
-    let system = build_system_prompt(&goal, &workflow.tasks);
+    let system = build_system_prompt(&goal, &workflow.tasks, config.confidence_target);
     let prompt = build_agent_prompt(&goal, &task_names);
 
     let limits = config.max_cost_usd.map(|max| nika_core::ast::LimitsConfig {
@@ -269,7 +272,7 @@ mod tests {
     #[test]
     fn system_prompt_includes_goal_and_tasks() {
         let workflow = make_test_workflow(Some("Write a report on AI"));
-        let system = build_system_prompt("Write a report on AI", &workflow.tasks);
+        let system = build_system_prompt("Write a report on AI", &workflow.tasks, 0.85);
 
         assert!(system.contains("Write a report on AI"));
         assert!(system.contains("research"));
