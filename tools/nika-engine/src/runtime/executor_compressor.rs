@@ -69,15 +69,19 @@ impl CompressorLlm for ExecutorCompressorLlm<'_> {
 
 /// Resolve the cheapest model for record compression.
 ///
-/// Preference: haiku for Anthropic, mini for OpenAI, else default.
+/// Uses ModelResolver's centralized catalog: cheap model for known providers,
+/// falls back to provider default, then to workflow default model.
 fn resolve_cheap_model(provider: &str, default_model: &str) -> (String, String) {
-    let lower = provider.to_lowercase();
-    match lower.as_str() {
-        "anthropic" | "claude" => ("anthropic".to_string(), "claude-haiku-4-5".to_string()),
-        "openai" | "gpt" => ("openai".to_string(), "gpt-4.1-mini".to_string()),
-        "mock" => ("mock".to_string(), "mock".to_string()),
-        _ => (provider.to_string(), default_model.to_string()),
-    }
+    use nika_core::catalogs::resolver::{cheap_model_for_provider, default_model_for_provider};
+    use nika_core::catalogs::providers::find_provider;
+
+    let canonical = find_provider(provider)
+        .map(|p| p.id)
+        .unwrap_or(provider);
+    let model = cheap_model_for_provider(provider)
+        .or_else(|| default_model_for_provider(provider))
+        .unwrap_or(default_model);
+    (canonical.to_string(), model.to_string())
 }
 
 #[cfg(test)]
@@ -102,13 +106,20 @@ mod tests {
     fn test_resolve_cheap_model_mock() {
         let (p, m) = resolve_cheap_model("mock", "test");
         assert_eq!(p, "mock");
-        assert_eq!(m, "mock");
+        assert_eq!(m, "mock-model"); // From PROVIDER_DEFAULTS catalog
     }
 
     #[test]
-    fn test_resolve_cheap_model_unknown_uses_default() {
+    fn test_resolve_cheap_model_groq_uses_catalog() {
         let (p, m) = resolve_cheap_model("groq", "mixtral-8x7b");
         assert_eq!(p, "groq");
-        assert_eq!(m, "mixtral-8x7b");
+        assert_eq!(m, "llama-3.3-70b-versatile"); // From PROVIDER_CHEAP_MODELS catalog
+    }
+
+    #[test]
+    fn test_resolve_cheap_model_alias_resolves() {
+        let (p, m) = resolve_cheap_model("claude", "fallback");
+        assert_eq!(p, "anthropic"); // Alias resolved to canonical
+        assert_eq!(m, "claude-haiku-4-5");
     }
 }

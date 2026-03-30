@@ -32,6 +32,6 @@ pub use providers::{
     ProviderCategory, KNOWN_PROVIDERS,
 };
 pub use resolver::{
-    default_model_for_provider, ModelCompatibility, ModelResolver, ModelSource, ResolvedModel,
-    PROVIDER_DEFAULTS,
+    cheap_model_for_provider, default_model_for_provider, ModelCompatibility, ModelResolver,
+    ModelSource, ResolvedModel, PROVIDER_CHEAP_MODELS, PROVIDER_DEFAULTS,
 };
