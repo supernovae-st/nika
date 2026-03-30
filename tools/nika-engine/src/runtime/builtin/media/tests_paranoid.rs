@@ -112,9 +112,18 @@ mod tests {
                 &ctx,
             )
             .await;
-        // Float should be rejected or truncated — either error or success
-        // Key: must NOT panic
-        let _ = result;
+        // Float width must be handled gracefully — either rejected or truncated
+        assert!(
+            result.is_ok() || result.is_err(),
+            "float width must not panic"
+        );
+        if let Err(e) = &result {
+            let msg = e.to_string();
+            assert!(
+                msg.contains("NIKA-") || msg.contains("invalid") || msg.contains("type"),
+                "rejection must have a clear error, got: {msg}"
+            );
+        }
     }
 
     #[cfg(feature = "media-thumbnail")]
@@ -231,9 +240,13 @@ mod tests {
   <!ENTITY lol2 "&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;">
 ]>
 <svg xmlns="http://www.w3.org/2000/svg"><text>&lol2;</text></svg>"#;
-        // sanitize_svg doesn't catch XML entities (usvg handles this),
-        // but let's make sure it doesn't crash
-        let _ = sanitize_svg(svg);
+        // sanitize_svg is a text-level filter — it does NOT expand entities.
+        // Defense against billion laughs is at the usvg rendering layer.
+        let result = sanitize_svg(svg);
+        assert!(
+            result.is_ok(),
+            "sanitizer should pass-through (entity defense is at usvg layer)"
+        );
     }
 
     #[test]
