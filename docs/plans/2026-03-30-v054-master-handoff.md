@@ -1,28 +1,48 @@
-# v0.54 Master Handoff — 20-Agent Deep Audit Results
+# v0.54 Master Handoff — 20-Agent Audit + Post-v0.53 Analysis
 
-> **Date:** 2026-03-30 | **From:** v0.53.0 release session | **For:** Next session(s)
+> **Date:** 2026-03-30 | **From:** v0.53.0 release + hardening session | **For:** Next session(s)
+> **Commits analyzed:** v0.52.0..HEAD = 221 files, +17,287 / -1,475 lines
 
-## What Was Done (v0.53.0)
+## Session Summary
 
-- **13 commits**, 9,011 tests, 0 failures
+### Phase 1: v0.53.0 Release (13 commits)
 - 3 CRITICAL + 3 HIGH + 3 MEDIUM bug fixes
 - 2 security patches (trace redaction, shell escape warning)
 - 5 stale BUG PROVEN tests removed (-209 LOC)
-- GitHub Release created: https://github.com/supernovae-st/nika/releases/tag/v0.53.0
-- CI: 6 pipelines triggered (CI, SAST, Release, CodeQL, Validate, Release-plz)
+- GitHub Release: https://github.com/supernovae-st/nika/releases/tag/v0.53.0
 
-## CI Status
+### Phase 2: 20-Agent Deep Audit (1.5M tokens, 37min)
+- 5 P0 + 13 P1 + 12 P2 bugs found across 356K LOC
+- 644 workflows scanned (99.5% valid)
+- Media pipeline: ZERO issues. DashMap: ZERO races. Error codes: 158 unique, 0 dupes.
 
-| Pipeline | Status |
-|----------|--------|
-| CI (cargo nextest + clippy + fmt) | Running |
-| SAST (geiger + CodeQL + Semgrep) | Running |
-| Release (7 targets + Docker + npm + crates.io) | Running |
-| Validate Nika Workflows | Running |
-| CodeQL | Running |
-| Release-plz | Running |
+### Phase 3: Post-v0.53 Commits (8 commits from parallel session)
+- Orthogonal hardening: telemetry, orchestration, error classification, cancellation
+- **0/25 handoff items addressed** — these are complementary fixes, not handoff closures
+- **Zero regressions** to v0.53 fixes (verified line-by-line)
+- CI RED on rustfmt → fixed with `cargo fmt --all`
 
-**Known:** Previous CI run failed on rustfmt (nightly edition diff). Fixed with `cargo fmt --all` commit.
+## Post-v0.53 Commits (8 fixes from parallel session)
+
+| Commit | What It Does | Impact | Handoff Overlap |
+|--------|-------------|--------|-----------------|
+| `75f6503` fix(telemetry): propagate finish_reason | StreamResult now carries finish_reason from provider. Enables downstream to distinguish stop vs length vs tool_use. | Observability | None |
+| `90fb66c` fix(orchestrate): emit missing events | OrchestratorSubWorkflow, OrchestratorFailed, OrchestratorRound events + confidence_target enforcement in runner summary. | Orchestration completeness | None |
+| `917eebe` fix(provider): replace 4 unreachable!() | DeepSeek/Native vision arms now return VisionNotSupported error instead of panic. | Safety (was flagged by audit) | None |
+| `4383d05` fix(runtime): skip retry for permanent errors | 401/403/unauthorized skip retry. Command-not-found, permission-denied skip retry. Prevents futile retry storms. | Correctness | None |
+| `e655119` fix(runtime): wire CancellationToken | exec and fetch verbs now check cancellation token. Long exec commands abort on workflow cancel. Fetch retry loop checks before each attempt. | Reliability | None |
+| `44463dc` fix(test): add assertions to 4 security tests | 4 tests in media/tests_paranoid.rs and tests_security.rs were asserting nothing. Now validate actual behavior. | Test quality | None |
+| `57c1c3c` fix(provider): canonical provider names | Telemetry events use "anthropic" not "claude". Consistent across all event consumers. | Consistency | Partial TUI-1 |
+| `d3d13f0` fix(error): FallbackChainExhausted mapping | Mapped to correct NikaError variant instead of generic catch-all. | Error clarity | None |
+
+### New Capabilities Unlocked
+- **Cancellation**: exec/fetch verbs now respect CancellationToken → workflow abort is immediate
+- **Permanent error skip**: 401/403 don't waste retry budget → faster failure for auth issues
+- **Orchestration observability**: Full event trail for multi-workflow orchestration rounds
+
+### Confirmed Fixed by Parallel Session (removing from wave2 backlog)
+- 4x unreachable!() in vision provider (was in audit findings)
+- Empty security test assertions (was a test quality gap)
 
 ---
 
@@ -85,17 +105,20 @@
 
 ---
 
-## What Works Perfectly (verified by 20 agents)
+## What Works Perfectly (verified by 20+3 agents)
 
-- **Media pipeline**: CAS atomic writes, decode_image_safe, SVG sanitization, 100MB limits
-- **DashMap usage**: Zero race conditions, no locks held across await
-- **Cancellation propagation**: 3-point check, per-parent fail_fast tokens
+- **Media pipeline**: CAS O_EXCL atomic writes, decode_image_safe mandatory, SVG sanitization, 100MB unified limits, MIME table curated
+- **DashMap usage**: Zero race conditions, no locks held across await, correct clone-and-drop pattern
+- **Cancellation propagation**: 3-point check, per-parent fail_fast tokens, **now wired into exec+fetch verbs**
 - **Error codes**: 158 unique NIKA-XXX codes, no duplicates, 43% with FixSuggestion
-- **CI pipeline**: 8 workflows, 7 release targets, cargo-deny + audit + geiger + CodeQL + Semgrep
-- **Secrets architecture**: Unix socket 0o600, env→daemon→error consistent, no keychain popups
-- **LSP**: Full completions, hover, diagnostics, no panics in production code
-- **Token counting**: All sites now use saturating_add
-- **Keyboard shortcuts**: No conflicts in TUI
+- **CI pipeline**: 8 workflows, 7 release targets, cargo nextest (not cargo test), cargo-deny + audit + geiger + CodeQL + Semgrep
+- **Secrets architecture**: Unix socket 0o600, env→daemon→error consistent, no keychain popups, NIKA_NO_DAEMON works
+- **LSP**: Full completions (schemas, verbs, models, transforms, task IDs), hover docs, real-time diagnostics, zero panics in production
+- **Token counting**: All sites now use saturating_add (verified all 3 remaining sites fixed in v0.53)
+- **Keyboard shortcuts**: No conflicts in TUI, vim-style nav, no overlap
+- **Workflows**: 644 .nika.yaml files, 99.5% valid, 502 showcase across 8 categories
+- **Provider fixes**: Gemini dispatch, whitespace keys, NaturalCompletion, unreachable!() — all confirmed fixed
+- **Retry classification**: Permanent errors (401/403) skip retry, transient errors retry correctly
 
 ---
 
@@ -185,8 +208,54 @@ These wave2 bugs are NOW FIXED:
 | Docs consistency | 56K | 34s | 1 CRIT (Dockerfile) |
 | AST analyzer | 85K | 2m25s | 2 MED gaps |
 | Secrets + daemon | 74K | 48s | 1 MED pattern gap |
-| Real workflows | - | - | (pending) |
+| Real workflows | 71K | 10m23s | 644 files, 99.5% valid, 0 deprecated |
 | Performance | 84K | 2m21s | 2 HIGH, 2 MED |
 | LSP | 56K | 53s | 1 LOW (no ModelResolver) |
 | CI pipeline | 50K | 47s | Clean, 8 workflows |
 | **TOTAL** | **~1.5M** | **~37min** | **5 P0 + 13 P1 + 12 P2** |
+
+---
+
+## Post-v0.53 Verification (3 additional agents)
+
+| Agent | Result |
+|-------|--------|
+| Deep commit analysis (8 commits) | All orthogonal to handoff. No new P0 bugs. 2 audit items resolved. |
+| Regression check | **ZERO regressions** to v0.53 fixes. All 10 check points intact. |
+| Handoff cross-reference | 0/25 items fully addressed. 2 partially touched (FETCH-2, TUI-1). |
+
+## Codebase Health Snapshot
+
+```
+Version:           v0.53.0 + 9 post-release commits
+Total LOC:         356K (Rust)
+Test count:        9,011+ (all green locally, CI pending fmt fix)
+Crates:            12 (nika, nika-engine, nika-core, nika-tui, nika-mcp, nika-media, nika-daemon, nika-cli, nika-event, nika-init, nika-lsp-core, nika-lsp)
+Workflows:         644 (.nika.yaml)
+Error codes:       158 (NIKA-000 to NIKA-324)
+Providers:         7 cloud + 1 native + 1 mock
+Builtin tools:     30+ (nika:*)
+Feature flags:     12 (all utilized)
+Dead code:         ~50 LOC (14 #[allow(dead_code)] annotations, all justified)
+CI pipelines:      8 (CI, LSP, PR Lint, Release-plz, Release, SAST, Stale, Validate)
+Release targets:   7 (macOS x2, Linux x2, musl x2, Windows x1)
+```
+
+## Quick Start for Next Session
+
+```bash
+cd /Users/thibaut/dev/supernovae/nika
+
+# Read the handoff
+cat docs/plans/2026-03-30-v054-master-handoff.md
+
+# Start Sprint 1: Security P0 (~2h)
+# 1. exec.rs:83 — redact tracing::warn
+# 2. resolve.rs:458 — recursive JSON redaction
+# 3. exec.rs:46 — extend BINDING_RE to context
+# 4. fetch.rs:466 — emit FetchFailed event
+# 5. fetch.rs:417 — parse Retry-After header
+
+# Verify
+cargo test --workspace --lib
+```
