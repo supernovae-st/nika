@@ -555,12 +555,12 @@ impl BootSequence {
         }
     }
 
-    /// Phase 4: Load secrets from env vars + keychain
+    /// Phase 4: Load secrets from env vars + daemon IPC
     async fn phase_secrets_loading(&self, ctx: &mut BootContext) -> PhaseResult {
         let start = Instant::now();
         let warnings = vec![];
 
-        // Load secrets from env vars (+ keychain if NIKA_KEYCHAIN_BOOT=1)
+        // Load secrets: env vars → daemon IPC → error (no direct keychain)
         let result = crate::secrets::load_from_daemon_or_fallback().await;
 
         let message = format!(
