@@ -931,7 +931,7 @@ tasks:
 }
 
 /// Structured output with a schema that does NOT match mock output fails with
-/// NIKA-061 (schema validation). This proves the 5-layer defense actually validates
+/// NIKA-060 (schema validation via make_task_result). This proves the engine validates
 /// output against the declared schema — even for mock provider.
 #[tokio::test]
 async fn e2e_structured_output_schema_mismatch_fails() {
@@ -956,7 +956,7 @@ tasks:
     let result = runner.run().await;
     assert!(result.is_err(), "Schema mismatch should fail the workflow");
 
-    // Verify the failure is NIKA-061 (schema validation), not a random error
+    // Verify the failure is NIKA-060 (schema validation), not a random error
     let events = event_log.events();
     let task_failed = events.iter().find(|e| {
         matches!(
