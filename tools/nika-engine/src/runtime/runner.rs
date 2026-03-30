@@ -194,6 +194,13 @@ impl Runner {
         workflow: AnalyzedWorkflow,
         event_log: EventLog,
     ) -> Result<Self, NikaError> {
+        // P-ORCHESTRATE: If workflow has a goal, wrap it as an orchestrator agent
+        let workflow = if workflow.goal.is_some() {
+            crate::runtime::orchestrate::wrap_as_orchestrator(workflow)
+        } else {
+            workflow
+        };
+
         let flow_graph = Dag::from_analyzed(&workflow).map_err(|e| NikaError::ValidationError {
             reason: format!("DAG construction failed: {e}"),
         })?;

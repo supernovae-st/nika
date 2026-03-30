@@ -105,9 +105,12 @@ pub(crate) fn redact_for_event(s: &str) -> String {
     /// - `ghp_...` / `gho_...` (GitHub)
     /// - `xoxb-...` / `xoxp-...` (Slack)
     /// - `AKIA...` (AWS access key)
+    /// - `gsk_...` (Groq)
+    /// - `AIza...` (Google/Gemini)
+    /// - `xai-...` (xAI/Grok)
     static SECRET_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
         regex::Regex::new(
-            r"(?i)(sk-[a-zA-Z0-9_-]{10,}|Bearer\s+[a-zA-Z0-9_.\-]{10,}|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|xox[bp]-[a-zA-Z0-9\-]+|AKIA[A-Z0-9]{16})"
+            r"(?i)(sk-[a-zA-Z0-9_-]{10,}|Bearer\s+[a-zA-Z0-9_.\-]{10,}|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|xox[bp]-[a-zA-Z0-9\-]+|AKIA[A-Z0-9]{16}|gsk_[a-zA-Z0-9]{20,}|AIza[a-zA-Z0-9_\-]{30,}|xai-[a-zA-Z0-9]{20,})"
         ).expect("SECRET_RE is a valid regex")
     });
 
