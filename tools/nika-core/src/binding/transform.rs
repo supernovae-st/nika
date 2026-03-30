@@ -464,10 +464,10 @@ impl TransformOp {
 
             // ── Utility ──────────────────────────────────────
             TransformOp::Default(default_val) => {
-                if value.is_null() {
-                    Ok(default_val.clone())
-                } else {
-                    Ok(value.clone())
+                match value {
+                    Value::Null => Ok(default_val.clone()),
+                    Value::String(s) if s.is_empty() => Ok(default_val.clone()),
+                    _ => Ok(value.clone()),
                 }
             }
             TransformOp::TypeOf => {
@@ -1219,6 +1219,14 @@ mod tests {
             .apply(&json!("hello"))
             .unwrap();
         assert_eq!(result, json!("hello"));
+    }
+
+    #[test]
+    fn apply_default_with_empty_string() {
+        let result = TransformOp::Default(json!("FALLBACK"))
+            .apply(&json!(""))
+            .unwrap();
+        assert_eq!(result, json!("FALLBACK"));
     }
 
     #[test]
