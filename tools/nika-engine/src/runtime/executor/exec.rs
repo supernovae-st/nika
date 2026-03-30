@@ -37,6 +37,29 @@ impl TaskExecutor {
         let is_shell = params.shell == Some(true);
         crate::runtime::security::validate_exec_command_with_shell(&resolved_cmd, false)?;
 
+        // SECURITY WARNING: detect unescaped template bindings in shell: true commands.
+        // Emits a warning for each {{with.*}} or {{inputs.*}} that lacks |shell transform,
+        // since the resolved value could contain shell metacharacters.
+        if is_shell {
+            use std::sync::LazyLock;
+            static BINDING_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
+                regex::Regex::new(
+                    r"\{\{(with|inputs)\.[^}]+\}\}"
+                ).expect("valid regex")
+            });
+            for cap in BINDING_RE.find_iter(&params.command) {
+                let m = cap.as_str();
+                if !m.contains("| shell") && !m.contains("|shell") {
+                    tracing::warn!(
+                        task_id = %task_id,
+                        binding = %m,
+                        "shell: true command contains unescaped template binding — \
+                         consider using {{{{...|shell}}}} to prevent injection"
+                    );
+                }
+            }
+        }
+
         // SHELL MODE: check raw template (pre-resolution) for shell metacharacters ($(), backticks).
         // This prevents false positives when task output data contains shell metacharacters
         // that were safely injected via {{with.alias | shell}} templates. The user's YAML
