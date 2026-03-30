@@ -189,6 +189,13 @@ pub enum NikaError {
     )]
     TaskCancelled { task_id: String, reason: String },
 
+    #[error("[NIKA-028] Semaphore closed unexpectedly for task '{task_id}'")]
+    #[diagnostic(
+        code(nika::semaphore_closed),
+        help("The concurrency semaphore was closed before the task could acquire a permit. This is an internal error.")
+    )]
+    SemaphoreClosed { task_id: String },
+
     // ═══════════════════════════════════════════
     // PROVIDER ERRORS (030-039)
     // ═══════════════════════════════════════════
@@ -988,6 +995,7 @@ impl NikaError {
             Self::DuplicateTaskId { .. } => "NIKA-022",
             Self::DependencyChainFailed { .. } => "NIKA-026",
             Self::TaskCancelled { .. } => "NIKA-027",
+            Self::SemaphoreClosed { .. } => "NIKA-028",
             // Provider errors
             Self::ProviderNotConfigured { .. } => "NIKA-030",
             Self::ProviderApiError { .. } => "NIKA-031",
@@ -1383,6 +1391,9 @@ impl FixSuggestion for NikaError {
             NikaError::TaskCancelled { .. } => {
                 Some("Task was cancelled. Check workflow execution logs.")
             }
+            NikaError::SemaphoreClosed { .. } => {
+                Some("Internal error — concurrency semaphore closed unexpectedly. Please report this bug.")
+            }
             // Duplicate task ID
             NikaError::DuplicateTaskId { .. } => {
                 Some("Each task must have a unique ID. Rename one of the duplicate tasks.")
@@ -1464,6 +1475,7 @@ pub fn fix_suggestion_for_code(code: &str) -> Option<&'static str> {
         "NIKA-022" => Some("Each task must have a unique ID"),
         "NIKA-026" => Some("Fix the root task failure, then re-run"),
         "NIKA-027" => Some("Task was cancelled due to upstream failure"),
+        "NIKA-028" => Some("Internal error — concurrency semaphore closed unexpectedly"),
         "NIKA-033" => Some("Check configuration value is valid"),
         "NIKA-035" => Some("Check endpoint name matches a [endpoints.NAME] in config.toml"),
         "NIKA-036" => Some("Check the endpoint URL is reachable and the API key is correct"),
