@@ -25,6 +25,7 @@ use crate::error::NikaError;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WriteParams {
     /// Absolute path for the new file
+    #[serde(alias = "path")]
     pub file_path: String,
 
     /// Content to write
@@ -394,5 +395,13 @@ mod tests {
 
         assert!(!result.is_error);
         assert!(result.content.contains("Created file"));
+    }
+
+    #[test]
+    fn write_params_accepts_path_alias() {
+        let json = r#"{"path": "/tmp/test.txt", "content": "hello"}"#;
+        let params: WriteParams = serde_json::from_str(json).unwrap();
+        assert_eq!(params.file_path, "/tmp/test.txt");
+        assert_eq!(params.content, "hello");
     }
 }
