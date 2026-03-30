@@ -62,6 +62,12 @@ pub(crate) fn is_ssrf_blocked(host: &str) -> bool {
             if let Some(mapped) = v6.to_ipv4_mapped() {
                 return is_blocked_v4(mapped);
             }
+            // IPv4-compatible IPv6 (::a.b.c.d, deprecated RFC 4291) — extract inner v4.
+            // Catches bypass attempts like ::127.0.0.1, ::169.254.169.254.
+            // to_ipv4() covers both mapped and compatible; mapped is handled above.
+            if let Some(compat) = v6.to_ipv4() {
+                return is_blocked_v4(compat);
+            }
             false
         }
     }
@@ -764,6 +770,47 @@ mod tests {
             .is_blocked());
         // Unrelated domain must be blocked
         assert!(enforcer2.check_fetch("https://other.com/api").is_blocked());
+    }
+
+    // =========================================================================
+    // SEC-1: IPv4-compatible IPv6 bypass (::a.b.c.d, deprecated RFC 4291)
+    // =========================================================================
+
+    #[test]
+    fn test_ssrf_blocks_ipv4_compatible_ipv6() {
+        let enforcer = PolicyEnforcer::default();
+
+        // ::127.0.0.1 (IPv4-compatible loopback) — must be blocked
+        assert!(
+            enforcer
+                .check_fetch("http://[::127.0.0.1]:8080/x")
+                .is_blocked(),
+            "IPv4-compatible loopback ::127.0.0.1 must be blocked"
+        );
+
+        // ::169.254.169.254 (IPv4-compatible AWS metadata)
+        assert!(
+            enforcer
+                .check_fetch("http://[::169.254.169.254]/meta")
+                .is_blocked(),
+            "IPv4-compatible AWS metadata ::169.254.169.254 must be blocked"
+        );
+
+        // ::10.0.0.1 (IPv4-compatible private)
+        assert!(
+            enforcer
+                .check_fetch("http://[::10.0.0.1]/admin")
+                .is_blocked(),
+            "IPv4-compatible private ::10.0.0.1 must be blocked"
+        );
+
+        // ::192.168.1.1 (IPv4-compatible private)
+        assert!(
+            enforcer
+                .check_fetch("http://[::192.168.1.1]/x")
+                .is_blocked(),
+            "IPv4-compatible private ::192.168.1.1 must be blocked"
+        );
     }
 
     // =========================================================================
