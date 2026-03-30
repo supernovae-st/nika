@@ -207,9 +207,9 @@ impl RunStats {
                 cost_usd,
                 ..
             } => {
-                self.total_input_tokens += input_tokens;
-                self.total_output_tokens += output_tokens;
-                self.total_cache_tokens += cache_read_tokens;
+                self.total_input_tokens = self.total_input_tokens.saturating_add(*input_tokens);
+                self.total_output_tokens = self.total_output_tokens.saturating_add(*output_tokens);
+                self.total_cache_tokens = self.total_cache_tokens.saturating_add(*cache_read_tokens);
                 self.total_cost += cost_usd;
                 if let Some(t) = ttft_ms {
                     self.ttft_values.push(*t);
