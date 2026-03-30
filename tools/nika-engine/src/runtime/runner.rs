@@ -401,58 +401,54 @@ impl Runner {
         &self.event_log
     }
 
-    /// Get tasks that are ready to run (all dependencies satisfied)
+    /// Get tasks that are ready to run (all dependencies satisfied).
     ///
-    /// Also detects and marks tasks whose dependencies have failed.
-    /// These tasks are marked as DependencyFailed and stored in the datastore.
-    fn get_ready_tasks(&self) -> Vec<&AnalyzedTask> {
-        self.workflow
-            .tasks
-            .iter()
-            .filter(|task| {
-                // Skip if already done
-                if self.datastore.contains(&task.name) {
-                    return false;
-                }
+    /// Only checks tasks at `pending_indices`. Indices of tasks that are now
+    /// stored in the datastore (completed, failed, or dependency-failed) are
+    /// removed from `pending_indices` so subsequent calls skip them entirely.
+    /// This reduces per-iteration work from O(total_tasks) to O(remaining_tasks).
+    fn get_ready_tasks(&self, pending_indices: &mut Vec<usize>) -> Vec<&AnalyzedTask> {
+        let mut ready = Vec::new();
+        pending_indices.retain(|&idx| {
+            let task = &self.workflow.tasks[idx];
 
-                // Check all dependencies
-                let deps = self.flow_graph.get_dependencies(&task.name);
-                for dep in deps.iter() {
-                    // Check if dependency has completed
-                    if let Some(succeeded) = self.datastore.is_completed_successfully(dep.as_ref())
-                    {
-                        // If dependency failed, mark this task as DependencyFailed
-                        if !succeeded {
-                            // Store DependencyFailed result for this task
-                            self.datastore.insert(
-                                intern(&task.name),
-                                TaskResult::dependency_failed(dep.as_ref()),
-                            );
+            // Already in datastore → remove from pending set
+            if self.datastore.contains(&task.name) {
+                return false;
+            }
 
-                            // Emit event for observability
-                            self.event_log.emit(EventKind::TaskSkipped {
-                                task_id: Arc::from(task.name.as_str()),
-                                reason: format!("dependency '{}' failed", dep.as_ref()),
-                            });
-
-                            debug!(
-                                task_id = %task.name,
-                                dependency = %dep.as_ref(),
-                                "Task blocked due to failed dependency"
-                            );
-
-                            return false;
-                        }
-                    } else {
-                        // Dependency hasn't completed yet - task not ready
-                        return false;
+            // Check all dependencies
+            let deps = self.flow_graph.get_dependencies(&task.name);
+            for dep in deps.iter() {
+                if let Some(succeeded) = self.datastore.is_completed_successfully(dep.as_ref()) {
+                    if !succeeded {
+                        // Dependency failed → mark this task as DependencyFailed
+                        self.datastore.insert(
+                            intern(&task.name),
+                            TaskResult::dependency_failed(dep.as_ref()),
+                        );
+                        self.event_log.emit(EventKind::TaskSkipped {
+                            task_id: Arc::from(task.name.as_str()),
+                            reason: format!("dependency '{}' failed", dep.as_ref()),
+                        });
+                        debug!(
+                            task_id = %task.name,
+                            dependency = %dep.as_ref(),
+                            "Task blocked due to failed dependency"
+                        );
+                        return false; // Remove from pending
                     }
+                } else {
+                    // Dependency hasn't completed yet — keep in pending, not ready
+                    return true;
                 }
+            }
 
-                // All dependencies succeeded - task is ready
-                true
-            })
-            .collect()
+            // All dependencies succeeded — task is ready
+            ready.push(task);
+            false // Remove from pending (will be dispatched)
+        });
+        ready
     }
 
     /// Check if all tasks are done (completed, failed, or blocked by dependency failure)
@@ -1577,6 +1573,10 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             renderer.init_tasks(&task_ids, &task_deps);
         }
 
+        // Pending task indices — shrinks as tasks complete, so get_ready_tasks()
+        // only checks remaining tasks instead of rescanning the full task list.
+        let mut pending_indices: Vec<usize> = (0..self.workflow.tasks.len()).collect();
+
         loop {
             // Check for cancellation at start of each loop iteration
             if self.cancel_token.is_cancelled() {
@@ -1637,7 +1637,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
             let mut renderer = self.cli_renderer.take();
 
-            let ready = self.get_ready_tasks();
+            let ready = self.get_ready_tasks(&mut pending_indices);
 
             // Check for completion or deadlock
             if ready.is_empty() {
@@ -3450,6 +3450,11 @@ mod tests {
     // UNIT TESTS FOR RUNNER INTERNAL METHODS
     // ═══════════════════════════════════════════════════════════════
 
+    /// Helper: create a fresh pending_indices vec for all tasks in the runner.
+    fn fresh_pending(runner: &Runner) -> Vec<usize> {
+        (0..runner.workflow.tasks.len()).collect()
+    }
+
     #[test]
     fn get_ready_tasks_returns_tasks_with_no_deps() {
         // Two independent tasks - both should be ready
@@ -3458,8 +3463,9 @@ mod tests {
             vec![], // No flows = no dependencies
         );
         let runner = Runner::new(workflow).unwrap();
+        let mut pending = fresh_pending(&runner);
 
-        let ready = runner.get_ready_tasks();
+        let ready = runner.get_ready_tasks(&mut pending);
         assert_eq!(ready.len(), 2, "Both tasks should be ready");
 
         let names: Vec<&str> = ready.iter().map(|t| t.name.as_str()).collect();
@@ -3475,8 +3481,9 @@ mod tests {
             vec![("a", "b"), ("b", "c")],
         );
         let runner = Runner::new(workflow).unwrap();
+        let mut pending = fresh_pending(&runner);
 
-        let ready = runner.get_ready_tasks();
+        let ready = runner.get_ready_tasks(&mut pending);
         assert_eq!(ready.len(), 1, "Only first task should be ready");
         assert_eq!(ready[0].name, "a", "Task 'a' should be ready");
     }
@@ -3485,9 +3492,10 @@ mod tests {
     fn get_ready_tasks_excludes_completed_tasks() {
         let workflow = create_exec_workflow(vec![("only", "echo x")], vec![]);
         let runner = Runner::new(workflow).unwrap();
+        let mut pending = fresh_pending(&runner);
 
         // Initially task is ready
-        let ready = runner.get_ready_tasks();
+        let ready = runner.get_ready_tasks(&mut pending);
         assert_eq!(ready.len(), 1);
 
         // Mark task as done
@@ -3496,8 +3504,8 @@ mod tests {
             TaskResult::success_str("done", std::time::Duration::ZERO),
         );
 
-        // Now no tasks should be ready
-        let ready = runner.get_ready_tasks();
+        // Now no tasks should be ready (was already removed from pending on dispatch)
+        let ready = runner.get_ready_tasks(&mut pending);
         assert_eq!(ready.len(), 0, "Completed task should not be ready");
     }
 
@@ -5092,8 +5100,9 @@ mod tests {
     fn test_get_ready_tasks_no_deps() {
         let workflow = create_exec_workflow(vec![("a", "echo a"), ("b", "echo b")], vec![]);
         let runner = Runner::new(workflow).unwrap();
+        let mut pending = fresh_pending(&runner);
 
-        let ready = runner.get_ready_tasks();
+        let ready = runner.get_ready_tasks(&mut pending);
         assert_eq!(ready.len(), 2, "Tasks with no deps should all be ready");
     }
 
@@ -5102,8 +5111,9 @@ mod tests {
         let workflow =
             create_exec_workflow(vec![("a", "echo a"), ("b", "echo b")], vec![("a", "b")]);
         let runner = Runner::new(workflow).unwrap();
+        let mut pending = fresh_pending(&runner);
 
-        let ready = runner.get_ready_tasks();
+        let ready = runner.get_ready_tasks(&mut pending);
         assert_eq!(ready.len(), 1);
         assert_eq!(ready[0].name, "a", "Only root task should be ready");
     }
@@ -5113,13 +5123,14 @@ mod tests {
         let workflow =
             create_exec_workflow(vec![("a", "echo a"), ("b", "echo b")], vec![("a", "b")]);
         let runner = Runner::new(workflow).unwrap();
+        let mut pending = fresh_pending(&runner);
 
         runner.datastore.insert(
             intern("a"),
             TaskResult::success(json!("ok"), Duration::from_millis(10)),
         );
 
-        let ready = runner.get_ready_tasks();
+        let ready = runner.get_ready_tasks(&mut pending);
         assert_eq!(ready.len(), 1);
         assert_eq!(ready[0].name, "b", "b should be ready after a succeeds");
     }
@@ -5128,13 +5139,14 @@ mod tests {
     fn test_get_ready_tasks_skips_already_done() {
         let workflow = create_exec_workflow(vec![("a", "echo a"), ("b", "echo b")], vec![]);
         let runner = Runner::new(workflow).unwrap();
+        let mut pending = fresh_pending(&runner);
 
         runner.datastore.insert(
             intern("a"),
             TaskResult::success(json!("ok"), Duration::from_millis(10)),
         );
 
-        let ready = runner.get_ready_tasks();
+        let ready = runner.get_ready_tasks(&mut pending);
         assert_eq!(ready.len(), 1);
         assert_eq!(ready[0].name, "b", "Completed task should not be returned");
     }
@@ -5147,6 +5159,7 @@ mod tests {
             vec![("a", "b"), ("b", "c")],
         );
         let runner = Runner::new(workflow).unwrap();
+        let mut pending = fresh_pending(&runner);
 
         // Mark a as failed
         runner.datastore.insert(
@@ -5154,8 +5167,8 @@ mod tests {
             TaskResult::failed("boom".to_string(), Duration::from_millis(10)),
         );
 
-        // First call: b should be marked as DependencyFailed
-        let ready = runner.get_ready_tasks();
+        // Single call cascades: b marked DependencyFailed, then c sees b failed too
+        let ready = runner.get_ready_tasks(&mut pending);
         assert!(ready.is_empty(), "No tasks should be ready when dep failed");
 
         // Verify b was stored as DependencyFailed
@@ -5170,10 +5183,7 @@ mod tests {
             "b should record a as the failed dependency"
         );
 
-        // Second call: c should now also be marked as DependencyFailed
-        let ready = runner.get_ready_tasks();
-        assert!(ready.is_empty());
-
+        // c should also be marked as DependencyFailed (cascaded in same pass)
         let c_result = runner.datastore.get("c").expect("c should be in store");
         assert!(
             c_result.is_dependency_failed(),
@@ -5200,6 +5210,7 @@ mod tests {
             vec![("a", "b"), ("a", "c")],
         );
         let runner = Runner::new(workflow).unwrap();
+        let mut pending = fresh_pending(&runner);
 
         // Mark a as failed
         runner.datastore.insert(
@@ -5207,7 +5218,7 @@ mod tests {
             TaskResult::failed("oops".to_string(), Duration::from_millis(10)),
         );
 
-        let ready = runner.get_ready_tasks();
+        let ready = runner.get_ready_tasks(&mut pending);
         assert_eq!(ready.len(), 1, "Only d should be ready");
         assert_eq!(ready[0].name, "d");
 
@@ -5221,6 +5232,7 @@ mod tests {
         let workflow =
             create_exec_workflow(vec![("a", "echo a"), ("b", "echo b")], vec![("a", "b")]);
         let runner = Runner::new(workflow).unwrap();
+        let mut pending = fresh_pending(&runner);
 
         runner.datastore.insert(
             intern("a"),
@@ -5228,7 +5240,7 @@ mod tests {
         );
 
         // Trigger dependency failure propagation
-        let _ = runner.get_ready_tasks();
+        let _ = runner.get_ready_tasks(&mut pending);
 
         // Check that a TaskSkipped event was emitted for b
         let events = runner.event_log.events();
