@@ -562,7 +562,12 @@ impl TaskExecutor {
                                             spec,
                                             Arc::new(self.event_log.clone()),
                                         )
-                                        .with_infer_callback(l0_infer_callback.clone());
+                                        .with_infer_callback(l0_infer_callback.clone())
+                                        .with_original_prompt(prompt.to_string())
+                                        .with_provider_context(
+                                            provider_name.to_string(),
+                                            model.unwrap_or_else(|| provider.default_model()).to_string(),
+                                        );
 
                                         match engine
                                             .validate(task_id.as_ref(), &stream_result.text)
@@ -742,7 +747,12 @@ impl TaskExecutor {
                                             spec,
                                             Arc::new(self.event_log.clone()),
                                         )
-                                        .with_infer_callback(l0_infer_callback.clone());
+                                        .with_infer_callback(l0_infer_callback.clone())
+                                        .with_original_prompt(prompt.to_string())
+                                        .with_provider_context(
+                                            provider_name.to_string(),
+                                            model.unwrap_or_else(|| provider.default_model()).to_string(),
+                                        );
 
                                         match engine.validate(task_id.as_ref(), &tool_result).await
                                         {
@@ -1048,7 +1058,7 @@ impl TaskExecutor {
                             .with_original_prompt(prompt.to_string())
                             .with_provider_context(
                                 provider_name.to_string(),
-                                model.unwrap_or("unknown").to_string(),
+                                model.unwrap_or_else(|| provider.default_model()).to_string(),
                             );
 
                     // Wire repair_model: use a different (cheaper) model for Layer 4 repair
