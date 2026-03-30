@@ -556,206 +556,21 @@ impl TaskExecutor {
                     // Skip Layer 0b when Layer 0a was already attempted to avoid
                     // double API calls and double billing.
                     if !layer_0a_attempted {
-                        if let Ok(schema_value) = schema_value {
-                            let submit_tool =
-                                crate::runtime::submit_tool::DynamicSubmitTool::new(schema_value);
-                            let tools: Vec<Box<dyn rig::tool::ToolDyn>> =
-                                vec![Box::new(submit_tool)];
-
-                            debug!(
-                                task_id = %task_id,
-                                "Layer 0b: attempting tool injection via DynamicSubmitTool"
-                            );
-
-                            self.event_log.emit(EventKind::StructuredOutputAttempt {
-                                task_id: Arc::clone(task_id),
-                                layer: 0,
-                                layer_name: "tool_injection".to_string(),
-                                attempt: 1,
-                                success: false, // Will be updated on success
-                                error: None,
-                            });
-
-                            match provider
-                                .infer_with_tools(
-                                    &prompt,
-                                    tools,
-                                    model,
-                                    infer.max_tokens,
-                                    resolved_system.as_deref(),
-                                )
-                                .await
-                            {
-                                Ok(tool_result) => {
-                                    debug!(
-                                        task_id = %task_id,
-                                        result_len = tool_result.len(),
-                                        "Layer 0: tool injection succeeded"
-                                    );
-
-                                    // Still validate through the engine as safety net
-                                    if let Some(spec) = policy.to_structured_spec() {
-                                        let mut engine = StructuredOutputEngine::new(
-                                            spec,
-                                            Arc::new(self.event_log.clone()),
-                                        )
-                                        .with_infer_callback(l0_infer_callback.clone())
-                                        .with_original_prompt(prompt.to_string())
-                                        .with_provider_context(
-                                            provider_name.to_string(),
-                                            model.unwrap_or_else(|| provider.default_model()).to_string(),
-                                        );
-
-                                        match engine.validate(task_id.as_ref(), &tool_result).await
-                                        {
-                                            Ok(result) => {
-                                                // Emit success ONLY after validation passes
-                                                self.event_log.emit(
-                                                    EventKind::StructuredOutputAttempt {
-                                                        task_id: Arc::clone(task_id),
-                                                        layer: 0,
-                                                        layer_name: "tool_injection".to_string(),
-                                                        attempt: 1,
-                                                        success: true,
-                                                        error: None,
-                                                    },
-                                                );
-                                                let result_str = super::verbs::strip_think_tags(
-                                                    &result.value.to_string(),
-                                                );
-                                                let est_in = estimate_tokens(prompt.len());
-                                                let est_out = estimate_tokens(result_str.len());
-                                                let cost = provider
-                                                    .cost_provider_kind()
-                                                    .map(|pk| {
-                                                        crate::provider::cost::calculate_cost_with_cache(
-                                                            pk,
-                                                            model.unwrap_or_else(|| provider.default_model()),
-                                                            est_in,
-                                                            est_out,
-                                                            0, // No cache info for non-streaming
-                                                        )
-                                                    })
-                                                    .unwrap_or(0.0);
-                                                self.event_log.emit(EventKind::ProviderResponded {
-                                                    task_id: Arc::clone(task_id),
-                                                    request_id: None,
-                                                    input_tokens: est_in,
-                                                    output_tokens: est_out,
-                                                    cache_read_tokens: 0,
-                                                    ttft_ms: None,
-                                                    finish_reason: nika_event::FinishReason::Stop,
-                                                    cost_usd: if cost.is_finite() {
-                                                        cost
-                                                    } else {
-                                                        0.0
-                                                    },
-                                                });
-                                                debug!(
-                                                    task_id = %task_id,
-                                                    layer = result.layer,
-                                                    "Layer 0 + validation succeeded"
-                                                );
-                                                // Adjust token reservation before early return
-                                                self.policy_enforcer.write().adjust_reservation(
-                                                    estimated_tokens,
-                                                    est_in + est_out,
-                                                );
-                                                return Ok(result_str);
-                                            }
-                                            Err(e) => {
-                                                // Emit failure when validation rejects tool output
-                                                self.event_log.emit(
-                                                    EventKind::StructuredOutputAttempt {
-                                                        task_id: Arc::clone(task_id),
-                                                        layer: 0,
-                                                        layer_name: "tool_injection".to_string(),
-                                                        attempt: 1,
-                                                        success: false,
-                                                        error: Some(e.to_string()),
-                                                    },
-                                                );
-                                                debug!(
-                                                    task_id = %task_id,
-                                                    error = %e,
-                                                    "Layer 0 result failed validation, falling through"
-                                                );
-                                            }
-                                        }
-                                    } else {
-                                        // No spec — tool injection result used as-is
-                                        self.event_log.emit(EventKind::StructuredOutputAttempt {
-                                            task_id: Arc::clone(task_id),
-                                            layer: 0,
-                                            layer_name: "tool_injection".to_string(),
-                                            attempt: 1,
-                                            success: true,
-                                            error: None,
-                                        });
-                                        let est_in = estimate_tokens(prompt.len());
-                                        let est_out = estimate_tokens(tool_result.len());
-                                        let cost = provider
-                                            .cost_provider_kind()
-                                            .map(|pk| {
-                                                crate::provider::cost::calculate_cost_with_cache(
-                                                    pk,
-                                                    model.unwrap_or_else(|| {
-                                                        provider.default_model()
-                                                    }),
-                                                    est_in,
-                                                    est_out,
-                                                    0, // No cache info for non-streaming
-                                                )
-                                            })
-                                            .unwrap_or(0.0);
-                                        self.event_log.emit(EventKind::ProviderResponded {
-                                            task_id: Arc::clone(task_id),
-                                            request_id: None,
-                                            input_tokens: est_in,
-                                            output_tokens: est_out,
-                                            cache_read_tokens: 0,
-                                            ttft_ms: None,
-                                            finish_reason: nika_event::FinishReason::Stop,
-                                            cost_usd: if cost.is_finite() { cost } else { 0.0 },
-                                        });
-                                        // Adjust token reservation before early return
-                                        self.policy_enforcer
-                                            .write()
-                                            .adjust_reservation(estimated_tokens, est_in + est_out);
-                                        return Ok(tool_result);
-                                    }
-                                }
-                                Err(e) => {
-                                    // BUG 10: MaxTurnError(0) is an expected skip, not a real error.
-                                    // This happens when the provider doesn't support tool_choice
-                                    // or when structured output uses a fast-path bypass.
-                                    let err_str = e.to_string();
-                                    let is_expected_skip = err_str.contains("MaxTurnError")
-                                        || err_str.contains("max turn limit: 0");
-                                    let error_msg = if is_expected_skip {
-                                        "tool injection skipped (not supported by provider)"
-                                            .to_string()
-                                    } else {
-                                        err_str
-                                    };
-
-                                    debug!(
-                                        task_id = %task_id,
-                                        error = %error_msg,
-                                        skipped = is_expected_skip,
-                                        "Layer 0 {}, falling through to streaming",
-                                        if is_expected_skip { "skipped" } else { "failed" }
-                                    );
-                                    self.event_log.emit(EventKind::StructuredOutputAttempt {
-                                        task_id: Arc::clone(task_id),
-                                        layer: 0,
-                                        layer_name: "tool_injection".to_string(),
-                                        attempt: 1,
-                                        success: false,
-                                        error: Some(error_msg),
-                                    });
-                                    // Fall through to streaming path
-                                }
+                        if let Ok(ref sv) = schema_value {
+                            if let Some(result) = self.try_layer_0b_tool_injection(
+                                &provider,
+                                model,
+                                &prompt,
+                                infer,
+                                policy,
+                                sv,
+                                &l0_infer_callback,
+                                task_id,
+                                provider_name,
+                                &resolved_system,
+                                estimated_tokens,
+                            ).await? {
+                                return Ok(result);
                             }
                         }
                     } // end !layer_0a_attempted guard
@@ -1132,6 +947,232 @@ impl TaskExecutor {
         }
 
         Ok((true, None))
+    }
+
+    /// Layer 0b: tool injection via DynamicSubmitTool.
+    ///
+    /// Forces the LLM to call `submit_result()` with schema-compliant JSON by
+    /// injecting a tool whose parameters match the target schema. If it succeeds
+    /// the result is still validated through `StructuredOutputEngine` as a safety
+    /// net (L2-L4 are available via the `l0_infer_callback`).
+    ///
+    /// Returns:
+    /// - `Ok(Some(json))` — tool injection succeeded and validated
+    /// - `Ok(None)` — failed or not supported, fall through to streaming
+    #[allow(clippy::too_many_arguments)]
+    async fn try_layer_0b_tool_injection(
+        &self,
+        provider: &RigProvider,
+        model: Option<&str>,
+        prompt: &str,
+        infer: &InferParams,
+        policy: &OutputPolicy,
+        schema_value: &Value,
+        l0_infer_callback: &InferCallback,
+        task_id: &Arc<str>,
+        provider_name: &str,
+        resolved_system: &Option<String>,
+        estimated_tokens: u64,
+    ) -> Result<Option<String>, NikaError> {
+        let submit_tool =
+            crate::runtime::submit_tool::DynamicSubmitTool::new(schema_value.clone());
+        let tools: Vec<Box<dyn rig::tool::ToolDyn>> = vec![Box::new(submit_tool)];
+
+        debug!(
+            task_id = %task_id,
+            "Layer 0b: attempting tool injection via DynamicSubmitTool"
+        );
+
+        self.event_log.emit(EventKind::StructuredOutputAttempt {
+            task_id: Arc::clone(task_id),
+            layer: 0,
+            layer_name: "tool_injection".to_string(),
+            attempt: 1,
+            success: false, // Will be updated on success
+            error: None,
+        });
+
+        match provider
+            .infer_with_tools(
+                prompt,
+                tools,
+                model,
+                infer.max_tokens,
+                resolved_system.as_deref(),
+            )
+            .await
+        {
+            Ok(tool_result) => {
+                debug!(
+                    task_id = %task_id,
+                    result_len = tool_result.len(),
+                    "Layer 0: tool injection succeeded"
+                );
+
+                // Still validate through the engine as safety net
+                if let Some(spec) = policy.to_structured_spec() {
+                    let mut engine = StructuredOutputEngine::new(
+                        spec,
+                        Arc::new(self.event_log.clone()),
+                    )
+                    .with_infer_callback(l0_infer_callback.clone())
+                    .with_original_prompt(prompt.to_string())
+                    .with_provider_context(
+                        provider_name.to_string(),
+                        model
+                            .unwrap_or_else(|| provider.default_model())
+                            .to_string(),
+                    );
+
+                    match engine.validate(task_id.as_ref(), &tool_result).await {
+                        Ok(result) => {
+                            // Emit success ONLY after validation passes
+                            self.event_log.emit(
+                                EventKind::StructuredOutputAttempt {
+                                    task_id: Arc::clone(task_id),
+                                    layer: 0,
+                                    layer_name: "tool_injection".to_string(),
+                                    attempt: 1,
+                                    success: true,
+                                    error: None,
+                                },
+                            );
+                            let result_str = super::verbs::strip_think_tags(
+                                &result.value.to_string(),
+                            );
+                            let est_in = estimate_tokens(prompt.len());
+                            let est_out = estimate_tokens(result_str.len());
+                            let cost = provider
+                                .cost_provider_kind()
+                                .map(|pk| {
+                                    crate::provider::cost::calculate_cost_with_cache(
+                                        pk,
+                                        model.unwrap_or_else(|| provider.default_model()),
+                                        est_in,
+                                        est_out,
+                                        0, // No cache info for non-streaming
+                                    )
+                                })
+                                .unwrap_or(0.0);
+                            self.event_log.emit(EventKind::ProviderResponded {
+                                task_id: Arc::clone(task_id),
+                                request_id: None,
+                                input_tokens: est_in,
+                                output_tokens: est_out,
+                                cache_read_tokens: 0,
+                                ttft_ms: None,
+                                finish_reason: nika_event::FinishReason::Stop,
+                                cost_usd: if cost.is_finite() {
+                                    cost
+                                } else {
+                                    0.0
+                                },
+                            });
+                            debug!(
+                                task_id = %task_id,
+                                layer = result.layer,
+                                "Layer 0 + validation succeeded"
+                            );
+                            // Adjust token reservation before early return
+                            self.policy_enforcer.write().adjust_reservation(
+                                estimated_tokens,
+                                est_in + est_out,
+                            );
+                            return Ok(Some(result_str));
+                        }
+                        Err(e) => {
+                            // Emit failure when validation rejects tool output
+                            self.event_log.emit(
+                                EventKind::StructuredOutputAttempt {
+                                    task_id: Arc::clone(task_id),
+                                    layer: 0,
+                                    layer_name: "tool_injection".to_string(),
+                                    attempt: 1,
+                                    success: false,
+                                    error: Some(e.to_string()),
+                                },
+                            );
+                            debug!(
+                                task_id = %task_id,
+                                error = %e,
+                                "Layer 0 result failed validation, falling through"
+                            );
+                        }
+                    }
+                } else {
+                    // No spec — tool injection result used as-is
+                    self.event_log.emit(EventKind::StructuredOutputAttempt {
+                        task_id: Arc::clone(task_id),
+                        layer: 0,
+                        layer_name: "tool_injection".to_string(),
+                        attempt: 1,
+                        success: true,
+                        error: None,
+                    });
+                    let est_in = estimate_tokens(prompt.len());
+                    let est_out = estimate_tokens(tool_result.len());
+                    let cost = provider
+                        .cost_provider_kind()
+                        .map(|pk| {
+                            crate::provider::cost::calculate_cost_with_cache(
+                                pk,
+                                model.unwrap_or_else(|| provider.default_model()),
+                                est_in,
+                                est_out,
+                                0, // No cache info for non-streaming
+                            )
+                        })
+                        .unwrap_or(0.0);
+                    self.event_log.emit(EventKind::ProviderResponded {
+                        task_id: Arc::clone(task_id),
+                        request_id: None,
+                        input_tokens: est_in,
+                        output_tokens: est_out,
+                        cache_read_tokens: 0,
+                        ttft_ms: None,
+                        finish_reason: nika_event::FinishReason::Stop,
+                        cost_usd: if cost.is_finite() { cost } else { 0.0 },
+                    });
+                    // Adjust token reservation before early return
+                    self.policy_enforcer
+                        .write()
+                        .adjust_reservation(estimated_tokens, est_in + est_out);
+                    return Ok(Some(tool_result));
+                }
+            }
+            Err(e) => {
+                // BUG 10: MaxTurnError(0) is an expected skip, not a real error.
+                // This happens when the provider doesn't support tool_choice
+                // or when structured output uses a fast-path bypass.
+                let err_str = e.to_string();
+                let is_expected_skip = err_str.contains("MaxTurnError")
+                    || err_str.contains("max turn limit: 0");
+                let error_msg = if is_expected_skip {
+                    "tool injection skipped (not supported by provider)".to_string()
+                } else {
+                    err_str
+                };
+
+                debug!(
+                    task_id = %task_id,
+                    error = %error_msg,
+                    skipped = is_expected_skip,
+                    "Layer 0 {}, falling through to streaming",
+                    if is_expected_skip { "skipped" } else { "failed" }
+                );
+                self.event_log.emit(EventKind::StructuredOutputAttempt {
+                    task_id: Arc::clone(task_id),
+                    layer: 0,
+                    layer_name: "tool_injection".to_string(),
+                    attempt: 1,
+                    success: false,
+                    error: Some(error_msg),
+                });
+                // Fall through to streaming path
+            }
+        }
+
+        Ok(None)
     }
 
     /// Vision inference: resolve content parts, base64-encode CAS images, call provider.
