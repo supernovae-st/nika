@@ -430,8 +430,7 @@ impl RigProvider {
             return default_model.as_deref().unwrap_or("gpt-3.5-turbo");
         }
         // Delegate to single source of truth (nika-core ModelResolver catalog)
-        nika_core::catalogs::default_model_for_provider(self.name())
-            .unwrap_or("claude-sonnet-4-6")
+        nika_core::catalogs::default_model_for_provider(self.name()).unwrap_or("claude-sonnet-4-6")
     }
 
     /// Simple text completion (infer) using rig-core

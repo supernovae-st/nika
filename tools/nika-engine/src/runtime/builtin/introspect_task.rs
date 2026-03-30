@@ -138,7 +138,9 @@ impl BuiltinTool for TaskStatusTool {
                             cost_usd: cost,
                             ..
                         } if task_id.as_ref() == tid => {
-                            tokens = tokens.saturating_add(*input_tokens).saturating_add(*output_tokens);
+                            tokens = tokens
+                                .saturating_add(*input_tokens)
+                                .saturating_add(*output_tokens);
                             cost_usd += cost;
                         }
                         _ => {}

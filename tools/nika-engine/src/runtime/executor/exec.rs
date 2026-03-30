@@ -43,9 +43,7 @@ impl TaskExecutor {
         if is_shell {
             use std::sync::LazyLock;
             static BINDING_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
-                regex::Regex::new(
-                    r"\{\{(with|inputs)\.[^}]+\}\}"
-                ).expect("valid regex")
+                regex::Regex::new(r"\{\{(with|inputs)\.[^}]+\}\}").expect("valid regex")
             });
             for cap in BINDING_RE.find_iter(&params.command) {
                 let m = cap.as_str();

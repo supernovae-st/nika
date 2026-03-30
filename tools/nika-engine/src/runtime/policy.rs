@@ -113,7 +113,10 @@ pub(crate) async fn resolve_and_pin_ssrf(host: &str) -> Result<Vec<std::net::Soc
                         resolved_ip = %ip_str,
                         "DNS rebinding SSRF blocked: hostname resolved to private IP"
                     );
-                    return Err(format!("DNS rebinding SSRF: '{}' resolved to blocked IP {}", host, ip_str));
+                    return Err(format!(
+                        "DNS rebinding SSRF: '{}' resolved to blocked IP {}",
+                        host, ip_str
+                    ));
                 }
             }
             Ok(addrs)

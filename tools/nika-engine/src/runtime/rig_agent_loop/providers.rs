@@ -363,7 +363,8 @@ impl RigAgentLoop {
 
         total_input_tokens = total_input_tokens.saturating_add(result.input_tokens);
         total_output_tokens = total_output_tokens.saturating_add(result.output_tokens);
-        total_cached_input_tokens = total_cached_input_tokens.saturating_add(result.cached_input_tokens);
+        total_cached_input_tokens =
+            total_cached_input_tokens.saturating_add(result.cached_input_tokens);
 
         // Record turn in limit tracker
         let turn_cost = provider_kind
@@ -526,7 +527,8 @@ impl RigAgentLoop {
 
             total_input_tokens = total_input_tokens.saturating_add(result.input_tokens);
             total_output_tokens = total_output_tokens.saturating_add(result.output_tokens);
-            total_cached_input_tokens = total_cached_input_tokens.saturating_add(result.cached_input_tokens);
+            total_cached_input_tokens =
+                total_cached_input_tokens.saturating_add(result.cached_input_tokens);
 
             // Record retry turn in limit tracker
             let retry_cost = provider_kind
@@ -655,7 +657,8 @@ impl RigAgentLoop {
 
             total_input_tokens = total_input_tokens.saturating_add(result.input_tokens);
             total_output_tokens = total_output_tokens.saturating_add(result.output_tokens);
-            total_cached_input_tokens = total_cached_input_tokens.saturating_add(result.cached_input_tokens);
+            total_cached_input_tokens =
+                total_cached_input_tokens.saturating_add(result.cached_input_tokens);
 
             // Record guardrail retry turn in limit tracker
             let gr_cost = provider_kind

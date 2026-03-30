@@ -1371,7 +1371,14 @@ fn test_chat_view_has_current_provider_id() {
     assert!(!view.provider.id.is_empty());
     // Should be one of the known providers, or "none" if no API keys available
     let valid_providers = [
-        "anthropic", "openai", "mistral", "groq", "deepseek", "gemini", "xai", "none",
+        "anthropic",
+        "openai",
+        "mistral",
+        "groq",
+        "deepseek",
+        "gemini",
+        "xai",
+        "none",
     ];
     assert!(
         valid_providers.contains(&view.provider.id.as_str()),

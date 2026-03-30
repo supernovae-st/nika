@@ -950,14 +950,11 @@ fn analyze_task(
     }
 
     // Error if concurrency: 0 (must be >= 1) — check both standalone and for_each
-    let concurrency_check = raw
-        .concurrency
-        .as_ref()
-        .or_else(|| {
-            raw.for_each
-                .as_ref()
-                .and_then(|fe| fe.value.concurrency.as_ref())
-        });
+    let concurrency_check = raw.concurrency.as_ref().or_else(|| {
+        raw.for_each
+            .as_ref()
+            .and_then(|fe| fe.value.concurrency.as_ref())
+    });
     if let Some(concurrency) = concurrency_check {
         if concurrency.value == 0 {
             ctx.add_error(AnalyzeError::new(

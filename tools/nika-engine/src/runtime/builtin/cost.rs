@@ -102,16 +102,21 @@ impl BuiltinTool for CostTool {
                         ..
                     } = &event.kind
                     {
-                        response.total_input_tokens = response.total_input_tokens.saturating_add(*input_tokens);
-                        response.total_output_tokens = response.total_output_tokens.saturating_add(*output_tokens);
-                        response.total_cache_read_tokens = response.total_cache_read_tokens.saturating_add(*cache_read_tokens);
+                        response.total_input_tokens =
+                            response.total_input_tokens.saturating_add(*input_tokens);
+                        response.total_output_tokens =
+                            response.total_output_tokens.saturating_add(*output_tokens);
+                        response.total_cache_read_tokens = response
+                            .total_cache_read_tokens
+                            .saturating_add(*cache_read_tokens);
                         response.total_cost_usd += cost_usd;
                         response.calls += 1;
 
                         let entry = response.per_task.entry(task_id.to_string()).or_default();
                         entry.input_tokens = entry.input_tokens.saturating_add(*input_tokens);
                         entry.output_tokens = entry.output_tokens.saturating_add(*output_tokens);
-                        entry.cache_read_tokens = entry.cache_read_tokens.saturating_add(*cache_read_tokens);
+                        entry.cache_read_tokens =
+                            entry.cache_read_tokens.saturating_add(*cache_read_tokens);
                         entry.cost_usd += cost_usd;
                         entry.calls += 1;
                     }

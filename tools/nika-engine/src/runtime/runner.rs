@@ -1290,9 +1290,10 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     let raw_output = task_result.output_str();
                     let compressor =
                         crate::runtime::record_compress::RecordCompressor::new(event_log.clone());
-                    let compressor_model =
-                        nika_core::catalogs::default_model_for_provider(executor.default_provider())
-                            .unwrap_or("claude-haiku-4-5");
+                    let compressor_model = nika_core::catalogs::default_model_for_provider(
+                        executor.default_provider(),
+                    )
+                    .unwrap_or("claude-haiku-4-5");
                     let llm = crate::runtime::executor_compressor::ExecutorCompressorLlm::new(
                         &executor,
                         executor.default_provider(),
@@ -2413,8 +2414,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
             // Clamp max_duration_secs to prevent Instant overflow (max ~292 years)
             let clamped_duration = self.workflow.max_duration_secs.min(604_800); // Cap at 1 week
-            let timeout_deadline = tokio::time::Instant::now()
-                + std::time::Duration::from_secs(clamped_duration);
+            let timeout_deadline =
+                tokio::time::Instant::now() + std::time::Duration::from_secs(clamped_duration);
             // Hoist the sleep future to avoid re-creating it on every select! iteration
             let timeout_sleep = tokio::time::sleep_until(timeout_deadline);
             tokio::pin!(timeout_sleep);
@@ -2746,7 +2747,12 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         ..
                     } = &e.kind
                     {
-                        (tokens.saturating_add(*input_tokens).saturating_add(*output_tokens), cost + cost_usd)
+                        (
+                            tokens
+                                .saturating_add(*input_tokens)
+                                .saturating_add(*output_tokens),
+                            cost + cost_usd,
+                        )
                     } else {
                         (tokens, cost)
                     }

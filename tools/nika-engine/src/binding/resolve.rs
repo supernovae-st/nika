@@ -2463,7 +2463,11 @@ mod tests {
 
         let redacted = bindings.to_value_redacted();
         let val = redacted["header"].as_str().unwrap();
-        assert!(val.contains("[REDACTED]"), "API key pattern not masked: {}", val);
+        assert!(
+            val.contains("[REDACTED]"),
+            "API key pattern not masked: {}",
+            val
+        );
         assert!(!val.contains("sk-proj-"), "API key leaked: {}", val);
     }
 

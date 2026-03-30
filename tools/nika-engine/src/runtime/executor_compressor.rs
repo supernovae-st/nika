@@ -72,12 +72,10 @@ impl CompressorLlm for ExecutorCompressorLlm<'_> {
 /// Uses ModelResolver's centralized catalog: cheap model for known providers,
 /// falls back to provider default, then to workflow default model.
 fn resolve_cheap_model(provider: &str, default_model: &str) -> (String, String) {
-    use nika_core::catalogs::resolver::{cheap_model_for_provider, default_model_for_provider};
     use nika_core::catalogs::providers::find_provider;
+    use nika_core::catalogs::resolver::{cheap_model_for_provider, default_model_for_provider};
 
-    let canonical = find_provider(provider)
-        .map(|p| p.id)
-        .unwrap_or(provider);
+    let canonical = find_provider(provider).map(|p| p.id).unwrap_or(provider);
     let model = cheap_model_for_provider(provider)
         .or_else(|| default_model_for_provider(provider))
         .unwrap_or(default_model);

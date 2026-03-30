@@ -57,18 +57,20 @@ fn generate_mock_object(schema: &Value) -> Value {
 }
 
 fn generate_mock_array(schema: &Value) -> Value {
-    let min_items = schema
-        .get("minItems")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(1) as usize;
+    let min_items = schema.get("minItems").and_then(|v| v.as_u64()).unwrap_or(1) as usize;
     let max_items = schema
         .get("maxItems")
         .and_then(|v| v.as_u64())
         .unwrap_or(20) as usize;
     let count = min_items.max(1).min(max_items); // Respect minItems, cap at maxItems or 20
 
-    let item_schema = schema.get("items").cloned().unwrap_or(json!({"type": "string"}));
-    let items: Vec<Value> = (0..count).map(|_| generate_mock_json(&item_schema)).collect();
+    let item_schema = schema
+        .get("items")
+        .cloned()
+        .unwrap_or(json!({"type": "string"}));
+    let items: Vec<Value> = (0..count)
+        .map(|_| generate_mock_json(&item_schema))
+        .collect();
     Value::Array(items)
 }
 
@@ -100,7 +102,10 @@ fn generate_mock_number(schema: &Value) -> Value {
     };
 
     // Return integer if schema type is "integer"
-    let type_str = schema.get("type").and_then(|t| t.as_str()).unwrap_or("number");
+    let type_str = schema
+        .get("type")
+        .and_then(|t| t.as_str())
+        .unwrap_or("number");
     if type_str == "integer" {
         json!(value as i64)
     } else {
