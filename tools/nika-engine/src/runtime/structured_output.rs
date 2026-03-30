@@ -306,7 +306,33 @@ impl StructuredOutputEngine {
     /// Validate raw output through the 4-layer defense system
     ///
     /// Returns the validated JSON value and metadata about which layer succeeded.
+    /// Enforces a 600s aggregate timeout across all layers to prevent runaway retries.
     pub async fn validate(
+        &mut self,
+        task_id: &str,
+        raw_output: &str,
+    ) -> Result<StructuredOutputResult, NikaError> {
+        const AGGREGATE_TIMEOUT_SECS: u64 = 600;
+        match tokio::time::timeout(
+            std::time::Duration::from_secs(AGGREGATE_TIMEOUT_SECS),
+            self.validate_inner(task_id, raw_output),
+        )
+        .await
+        {
+            Ok(result) => result,
+            Err(_elapsed) => Err(NikaError::StructuredOutputAllLayersFailed {
+                task_id: task_id.to_string(),
+                attempts: 0,
+                final_errors: vec![format!(
+                    "Structured output validation timed out after {}s",
+                    AGGREGATE_TIMEOUT_SECS
+                )],
+            }),
+        }
+    }
+
+    /// Inner validation logic — called by validate() with timeout wrapper.
+    async fn validate_inner(
         &mut self,
         task_id: &str,
         raw_output: &str,
