@@ -112,6 +112,8 @@ pub struct ResolvedBindings {
     /// Without this, templates like `{{with.img.media[0].hash}}` and
     /// binary artifact `source: img` cannot resolve media paths.
     source_tasks: FxHashMap<String, String>,
+    /// Aliases whose values were resolved from $env — must be masked in traces.
+    env_sourced: rustc_hash::FxHashSet<String>,
 }
 
 impl ResolvedBindings {
@@ -154,6 +156,11 @@ impl ResolvedBindings {
                 resolved
                     .source_tasks
                     .insert(alias.clone(), task_id.to_string());
+            }
+
+            // Track env-sourced bindings for secret masking in traces
+            if task_id.starts_with("env.") {
+                resolved.env_sourced.insert(alias.clone());
             }
 
             if entry.is_lazy() {
@@ -209,6 +216,11 @@ impl ResolvedBindings {
                     .insert(alias.clone(), task_id.to_string());
             }
 
+            // Track env-sourced bindings for secret masking in traces
+            if matches!(&entry.source.source, BindingSource::Env(_)) {
+                bindings.env_sourced.insert(alias.clone());
+            }
+
             if entry.is_lazy() {
                 bindings.bindings.insert(
                     alias.clone(),
@@ -249,6 +261,11 @@ impl ResolvedBindings {
         for (alias, entry) in spec {
             if let Some(tid) = entry.source.task_id() {
                 bindings.source_tasks.insert(alias.clone(), tid.to_string());
+            }
+
+            // Track env-sourced bindings for secret masking in traces
+            if matches!(&entry.source.source, BindingSource::Env(_)) {
+                bindings.env_sourced.insert(alias.clone());
             }
 
             if entry.is_lazy() {
@@ -404,6 +421,52 @@ impl ResolvedBindings {
                     source, default: _, ..
                 } => {
                     // Represent pending with typed path
+                    map.insert(
+                        alias.clone(),
+                        serde_json::json!({"__lazy__": true, "path": source.to_string()}),
+                    );
+                }
+            }
+        }
+        Value::Object(map)
+    }
+
+    /// Serialize context to JSON Value with env-sourced secrets masked.
+    ///
+    /// Same as `to_value()` but replaces env-sourced binding values with
+    /// `"[REDACTED:$env]"` to prevent secret leakage in trace files.
+    /// Also applies the standard API key regex pattern to all string values.
+    pub fn to_value_redacted(&self) -> Value {
+        use std::sync::LazyLock;
+        static SECRET_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
+            regex::Regex::new(
+                r"(?i)(sk-[a-zA-Z0-9_-]{10,}|Bearer\s+[a-zA-Z0-9_.\-]{10,}|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|xox[bp]-[a-zA-Z0-9\-]+|AKIA[A-Z0-9]{16}|gsk_[a-zA-Z0-9]{20,}|AIza[a-zA-Z0-9_\-]{30,}|xai-[a-zA-Z0-9]{20,})"
+            ).expect("SECRET_RE is a valid regex")
+        });
+
+        let mut map = serde_json::Map::new();
+        for (alias, binding) in &self.bindings {
+            if self.env_sourced.contains(alias) {
+                map.insert(alias.clone(), Value::String("[REDACTED:$env]".to_string()));
+                continue;
+            }
+            match binding {
+                LazyBinding::Resolved(Value::String(s)) => {
+                    let redacted = SECRET_RE.replace_all(s, "[REDACTED]");
+                    map.insert(alias.clone(), Value::String(redacted.into_owned()));
+                }
+                LazyBinding::Resolved(v) => {
+                    map.insert(alias.clone(), v.clone());
+                }
+                LazyBinding::Pending { path, default: _ } => {
+                    map.insert(
+                        alias.clone(),
+                        serde_json::json!({"__lazy__": true, "path": path}),
+                    );
+                }
+                LazyBinding::PendingWithEntry {
+                    source, default: _, ..
+                } => {
                     map.insert(
                         alias.clone(),
                         serde_json::json!({"__lazy__": true, "path": source.to_string()}),
@@ -2369,6 +2432,39 @@ mod tests {
         // then default kicks in
         let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
         assert_eq!(bindings.get("name"), Some(&json!("DEFAULT")));
+    }
+
+    #[test]
+    fn to_value_redacted_masks_env_sourced_bindings() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.bindings.insert(
+            "token".to_string(),
+            LazyBinding::Resolved(json!("super-secret-123")),
+        );
+        bindings.env_sourced.insert("token".to_string());
+        bindings.bindings.insert(
+            "name".to_string(),
+            LazyBinding::Resolved(json!("safe-value")),
+        );
+
+        let redacted = bindings.to_value_redacted();
+        assert_eq!(redacted["token"], json!("[REDACTED:$env]"));
+        assert_eq!(redacted["name"], json!("safe-value"));
+    }
+
+    #[test]
+    fn to_value_redacted_also_catches_api_key_patterns() {
+        let mut bindings = ResolvedBindings::new();
+        // Not env-sourced but contains API key pattern
+        bindings.bindings.insert(
+            "header".to_string(),
+            LazyBinding::Resolved(json!("Bearer sk-proj-abcdefghij1234567890")),
+        );
+
+        let redacted = bindings.to_value_redacted();
+        let val = redacted["header"].as_str().unwrap();
+        assert!(val.contains("[REDACTED]"), "API key pattern not masked: {}", val);
+        assert!(!val.contains("sk-proj-"), "API key leaked: {}", val);
     }
 
     #[test]
