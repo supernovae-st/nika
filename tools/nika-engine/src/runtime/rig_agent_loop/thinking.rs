@@ -185,7 +185,9 @@ impl RigAgentLoop {
             if completion_config.mode == CompletionMode::Explicit {
                 tracing::debug!(
                     task_id = %self.task_id,
-                    "Agent ended turn without calling nika:complete (mode: explicit)"
+                    "Agent ended turn without calling nika:complete (mode: explicit) \
+                     — returning LowConfidence(0.0) to trigger retry. \
+                     This is expected: the agent will get another turn to call nika:complete."
                 );
                 return RigAgentStatus::LowConfidence(0.0);
             }
