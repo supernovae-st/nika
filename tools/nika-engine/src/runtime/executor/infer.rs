@@ -609,7 +609,7 @@ impl TaskExecutor {
         // Otherwise fall back to infer_stream.
         // We discard the stream chunks (no TUI display in executor mode) but keep the StreamResult metrics.
         let infer_start = Instant::now();
-        let (tx, _rx) = mpsc::channel::<StreamChunk>(64);
+        let (tx, _rx) = mpsc::channel::<StreamChunk>(1); // Buffer=1: receiver is unused (no TUI)
         let has_llm_options = infer.temperature.is_some()
             || infer.max_tokens.is_some()
             || resolved_system.is_some()
@@ -813,7 +813,7 @@ impl TaskExecutor {
         );
 
         let rf_params = build_response_format_params(schema_value);
-        let (tx_rf, _rx_rf) = mpsc::channel::<StreamChunk>(64);
+        let (tx_rf, _rx_rf) = mpsc::channel::<StreamChunk>(1); // Buffer=1: receiver is unused
         let rf_options = InferOptions {
             model: Some(model_id.to_string()),
             temperature: infer.temperature,
