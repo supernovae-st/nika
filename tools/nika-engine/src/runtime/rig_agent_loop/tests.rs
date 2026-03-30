@@ -1636,107 +1636,11 @@ fn wave2_max_turns_reached_never_produced() {
     }
 }
 
-// ---- FIXED: Token overflow in run_generic_provider_impl ----
-// Previously used `+=` which panics in debug on overflow.
-// Now uses `saturating_add` — clamps at u64::MAX instead of panicking.
-#[test]
-fn token_accumulation_saturating_add_prevents_overflow() {
-    // Simulate the saturating_add pattern from providers.rs
-    let mut total_input_tokens: u64 = u64::MAX - 10;
-    let result_tokens: u64 = 100;
-
-    // saturating_add clamps at u64::MAX instead of panicking or wrapping
-    total_input_tokens = total_input_tokens.saturating_add(result_tokens);
-    assert_eq!(
-        total_input_tokens,
-        u64::MAX,
-        "saturating_add should clamp at u64::MAX"
-    );
-
-    // Multiple saturating additions stay at MAX
-    total_input_tokens = total_input_tokens.saturating_add(1_000_000);
-    assert_eq!(total_input_tokens, u64::MAX);
-}
-
-#[test]
-fn token_accumulation_normal_values_unaffected() {
-    // Normal usage is unchanged — saturating_add behaves like += for small values
-    let mut total: u64 = 0;
-    total = total.saturating_add(1000);
-    total = total.saturating_add(2000);
-    total = total.saturating_add(3000);
-    assert_eq!(total, 6000);
-}
-
-// ---- BUG: Tools consumed on single use via std::mem::take ----
-// In providers.rs line 110 (run_claude) and line 187 (run_openai) and line 372 (generic):
-//   let tools = std::mem::take(&mut self.tools);
-// After the first call, self.tools is empty Vec. A second call runs with zero tools silently.
-//
-// FIX: Either document this as "single-use" and prevent second calls (add a `consumed` flag),
-// or clone tools instead of taking them.
-#[test]
-fn wave2_tools_consumed_after_first_take() {
-    let params = AgentParams {
-        prompt: "Test".to_string(),
-        tools: vec!["nika:log".to_string()],
-        ..Default::default()
-    };
-    let event_log = EventLog::new();
-    let mcp_clients = FxHashMap::default();
-    let mut agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
-
-    // Agent should have tools (at minimum nika:log)
-    let initial_count = agent.tool_count();
-    assert!(
-        initial_count > 0,
-        "Agent should have at least 1 tool after construction"
-    );
-
-    // Simulate what run_claude/run_openai/run_generic_provider_impl do:
-    // `let tools = std::mem::take(&mut self.tools);`
-    let taken_tools = std::mem::take(&mut agent.tools);
-    assert_eq!(taken_tools.len(), initial_count);
-
-    // BUG: After taking, tools is empty. A second run_* call would have zero tools.
-    let second_count = agent.tool_count();
-    assert_eq!(
-        second_count, 0,
-        "BUG PROVEN: After std::mem::take, tools is empty. \
-         A second run_claude()/run_openai() call would silently run with zero tools. \
-         Initial: {}, After take: {}",
-        initial_count, second_count
-    );
-}
-
-// ---- BUG: run_claude and run_openai total_tokens overflow ----
-// In providers.rs lines 161 and 237:
-//   total_tokens: (result.input_tokens + result.output_tokens) as u64,
-// This performs u32 + u32 which can overflow before cast to u64.
-//
-// FIX: Use (result.input_tokens as u64) + (result.output_tokens as u64)
-#[test]
-fn wave2_streaming_result_token_overflow() {
-    // StreamingResult is pub(super) so we test the arithmetic directly.
-    // The type uses u32 for input_tokens and output_tokens.
-    let input_tokens: u32 = u32::MAX; // 4_294_967_295
-    let output_tokens: u32 = u32::MAX; // 4_294_967_295
-
-    // The buggy code pattern from providers.rs:
-    //   total_tokens: (result.input_tokens + result.output_tokens) as u64
-    // This overflows u32 before widening to u64
-    let buggy = input_tokens.wrapping_add(output_tokens) as u64;
-
-    // Correct: widen first, then add
-    let correct = (input_tokens as u64) + (output_tokens as u64);
-
-    assert_ne!(
-        buggy, correct,
-        "BUG PROVEN: u32 token addition overflows before u64 cast. \
-         Buggy: {}, Correct: {}",
-        buggy, correct
-    );
-}
+// NOTE: Removed stale BUG PROVEN tests (v0.53):
+// - token_accumulation_saturating_add_prevents_overflow: tested stdlib, not nika code
+// - token_accumulation_normal_values_unaffected: same
+// - wave2_tools_consumed_after_first_take: mem::take removed from production
+// - wave2_streaming_result_token_overflow: production now uses saturating_add
 
 // ---- BUG: max_tokens hardcoded to 8192 ignoring params.effective_max_tokens() ----
 // In streaming.rs line 60: `let request = request_builder.max_tokens(8192).build();`
