@@ -1423,6 +1423,9 @@ pub fn parse(source: &str, file_id: FileId) -> Result<RawWorkflow, ParseError> {
         None => None,
     };
 
+    // Parse global workflow timeout
+    workflow.max_duration_secs = get_u64_field(file_id, map, "max_duration_secs")?;
+
     // Parse tasks
     workflow.tasks = parse_tasks(file_id, map)?;
 
@@ -1446,6 +1449,7 @@ pub fn parse(source: &str, file_id: FileId) -> Result<RawWorkflow, ParseError> {
         "skills",
         "orchestrate",
         "routing",
+        "max_duration_secs",
         "tasks",
     ];
     for (key, _) in map.iter() {

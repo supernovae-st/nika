@@ -243,6 +243,16 @@ pub enum NikaError {
         last_error: String,
     },
 
+    /// Workflow exceeded its max_duration_secs timeout (NIKA-038)
+    #[error(
+        "Workflow timed out after {duration_secs}s ({} tasks still running)",
+        running_tasks.len()
+    )]
+    WorkflowTimeout {
+        duration_secs: u64,
+        running_tasks: Vec<String>,
+    },
+
     // ═══════════════════════════════════════════
     // TEMPLATE/BINDING ERRORS (040-049)
     // ═══════════════════════════════════════════
@@ -986,6 +996,7 @@ impl NikaError {
             Self::EndpointNotFound { .. } => "NIKA-035",
             Self::EndpointConnectionFailed { .. } => "NIKA-036",
             Self::FallbackChainExhausted { .. } => "NIKA-037",
+            Self::WorkflowTimeout { .. } => "NIKA-038",
             // Binding/Template errors
             Self::Execution(_) => "NIKA-096",
             Self::TemplateError { .. } => "NIKA-041",
@@ -1394,6 +1405,9 @@ impl FixSuggestion for NikaError {
             }
             NikaError::FallbackChainExhausted { .. } => {
                 Some("Add more providers to routing.fallback or check provider health")
+            }
+            NikaError::WorkflowTimeout { .. } => {
+                Some("Increase max_duration_secs in workflow header or optimize slow tasks")
             }
             // Record compression errors
             NikaError::RecordCompressionFailed { .. } => {

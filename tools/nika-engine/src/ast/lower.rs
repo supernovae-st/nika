@@ -58,6 +58,7 @@ pub fn lower(analyzed: AnalyzedWorkflow) -> Result<Workflow, NikaError> {
         skills_map: _,
         orchestrate: _,
         routing: _,
+        max_duration_secs: _,
         span: _,
     } = analyzed;
 
@@ -688,6 +689,7 @@ pub fn unlower(workflow: Workflow) -> Result<AnalyzedWorkflow, NikaError> {
             .unwrap_or_default(),
         orchestrate: None,
         routing: None,
+        max_duration_secs: 3600,
         span: Span::dummy(),
     })
 }

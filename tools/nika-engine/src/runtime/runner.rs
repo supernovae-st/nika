@@ -2401,6 +2401,9 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             let mut for_each_results: IndexMap<Arc<str>, Vec<(usize, TaskResult)>> =
                 IndexMap::new();
 
+            let timeout_deadline = tokio::time::Instant::now()
+                + std::time::Duration::from_secs(self.workflow.max_duration_secs);
+
             // Wait for all spawned tasks to complete (with cancellation support)
             loop {
                 tokio::select! {
@@ -2430,6 +2433,33 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             phase: "during execution".to_string(),
                         }
                         .into());
+                    }
+                    // Global workflow timeout
+                    _ = tokio::time::sleep_until(timeout_deadline) => {
+                        join_set.abort_all();
+
+                        let duration = workflow_start.elapsed();
+                        let running_tasks: Vec<Arc<str>> = self
+                            .workflow
+                            .tasks
+                            .iter()
+                            .filter(|t| !self.datastore.contains(&t.name))
+                            .map(|t| Arc::from(t.name.as_str()))
+                            .collect();
+
+                        self.event_log.emit(EventKind::WorkflowAborted {
+                            reason: format!(
+                                "Workflow exceeded max_duration_secs ({} seconds)",
+                                self.workflow.max_duration_secs
+                            ),
+                            duration_ms: duration.as_millis() as u64,
+                            running_tasks: running_tasks.clone(),
+                        });
+                        self.write_trace();
+                        return Err(NikaError::WorkflowTimeout {
+                            duration_secs: self.workflow.max_duration_secs,
+                            running_tasks: running_tasks.iter().map(|t| t.to_string()).collect(),
+                        });
                     }
                     // Wait for next task result
                     result = join_set.join_next() => {
@@ -2757,6 +2787,7 @@ mod tests {
             skills_map: std::collections::HashMap::new(),
             orchestrate: None,
             routing: None,
+            max_duration_secs: 3600,
             span: Span::dummy(),
         }
     }
@@ -2902,6 +2933,7 @@ mod tests {
             skills_map: std::collections::HashMap::new(),
             orchestrate: None,
             routing: None,
+            max_duration_secs: 3600,
             span: Span::dummy(),
         }
     }
@@ -3056,6 +3088,7 @@ mod tests {
             skills_map: std::collections::HashMap::new(),
             orchestrate: None,
             routing: None,
+            max_duration_secs: 3600,
             span: Span::dummy(),
         }
     }
@@ -3807,6 +3840,7 @@ mod tests {
             skills_map: std::collections::HashMap::new(),
             orchestrate: None,
             routing: None,
+            max_duration_secs: 3600,
             span: Span::dummy(),
         }
     }
@@ -5973,6 +6007,7 @@ mod tests {
             skills_map: std::collections::HashMap::new(),
             orchestrate: None,
             routing: None,
+            max_duration_secs: 3600,
             span: Span::dummy(),
         }
     }
@@ -6271,6 +6306,7 @@ mod tests {
             skills_map: std::collections::HashMap::new(),
             orchestrate: None,
             routing: None,
+            max_duration_secs: 3600,
             span: Span::dummy(),
         };
 
@@ -6485,6 +6521,7 @@ mod tests {
             skills_map: std::collections::HashMap::new(),
             orchestrate: None,
             routing: None,
+            max_duration_secs: 3600,
             span: Span::dummy(),
         };
 
@@ -6598,6 +6635,7 @@ mod tests {
             skills_map: std::collections::HashMap::new(),
             orchestrate: None,
             routing: None,
+            max_duration_secs: 3600,
             span: Span::dummy(),
         };
 
@@ -6716,6 +6754,7 @@ mod tests {
             skills_map: std::collections::HashMap::new(),
             orchestrate: None,
             routing: None,
+            max_duration_secs: 3600,
             span: Span::dummy(),
         }
     }
@@ -6943,6 +6982,7 @@ mod tests {
             skills_map: std::collections::HashMap::new(),
             orchestrate: None,
             routing: None,
+            max_duration_secs: 3600,
             span: Span::dummy(),
         };
 
@@ -7066,6 +7106,7 @@ mod tests {
             include: vec![],
             orchestrate: None,
             routing: None,
+            max_duration_secs: 3600,
             span: Span::dummy(),
         };
 
