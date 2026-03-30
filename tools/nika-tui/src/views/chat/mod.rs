@@ -324,58 +324,21 @@ pub struct ChatView {
 
 impl ChatView {
     pub fn new() -> Self {
-        // Detect initial model and provider from environment
-        let (initial_model, provider_name, provider_id) =
-            if std::env::var("ANTHROPIC_API_KEY").is_ok_and(|v| !v.is_empty()) {
-                (
-                    "claude-sonnet-4-6".to_string(),
-                    "Anthropic Claude".to_string(),
-                    "claude".to_string(),
-                )
-            } else if std::env::var("OPENAI_API_KEY").is_ok_and(|v| !v.is_empty()) {
-                (
-                    "gpt-4o".to_string(),
-                    "OpenAI".to_string(),
-                    "openai".to_string(),
-                )
-            } else if std::env::var("MISTRAL_API_KEY").is_ok_and(|v| !v.is_empty()) {
-                (
-                    "mistral-large-latest".to_string(),
-                    "Mistral AI".to_string(),
-                    "mistral".to_string(),
-                )
-            } else if std::env::var("GROQ_API_KEY").is_ok_and(|v| !v.is_empty()) {
-                (
-                    "llama-3.3-70b-versatile".to_string(),
-                    "Groq".to_string(),
-                    "groq".to_string(),
-                )
-            } else if std::env::var("DEEPSEEK_API_KEY").is_ok_and(|v| !v.is_empty()) {
-                (
-                    "deepseek-chat".to_string(),
-                    "DeepSeek".to_string(),
-                    "deepseek".to_string(),
-                )
-            } else if std::env::var("GEMINI_API_KEY").is_ok_and(|v| !v.is_empty()) {
-                (
-                    "gemini-2.5-flash".to_string(),
-                    "Google Gemini".to_string(),
-                    "gemini".to_string(),
-                )
-            } else if std::env::var("XAI_API_KEY").is_ok_and(|v| !v.is_empty()) {
-                (
-                    "grok-3-fast".to_string(),
-                    "xAI".to_string(),
-                    "xai".to_string(),
-                )
-            } else {
-                // No API key found - will show error on inference attempt
-                (
-                    "No API Key".to_string(),
-                    "None".to_string(),
-                    "none".to_string(),
-                )
-            };
+        // Detect initial model and provider from environment via catalog
+        use nika_core::catalogs::{default_model_for_provider, providers::KNOWN_PROVIDERS};
+        let (initial_model, provider_name, provider_id) = KNOWN_PROVIDERS
+            .iter()
+            .filter(|p| p.requires_key)
+            .find(|p| std::env::var(p.env_var).is_ok_and(|v| !v.is_empty()))
+            .map(|p| {
+                let model = default_model_for_provider(p.id).unwrap_or("unknown");
+                // Use first alias as provider_id (e.g., "claude" for anthropic)
+                let id = p.aliases.first().copied().unwrap_or(p.id);
+                (model.to_string(), p.name.to_string(), id.to_string())
+            })
+            .unwrap_or_else(|| {
+                ("No API Key".to_string(), "None".to_string(), "none".to_string())
+            });
 
         // Initialize session context with detected MCP servers
         let mut session_context = SessionContext::new();
