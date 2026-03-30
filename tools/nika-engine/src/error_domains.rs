@@ -80,11 +80,9 @@ impl From<ProviderError> for NikaError {
             ProviderError::FallbackChainExhausted {
                 last_provider,
                 last_error,
-            } => NikaError::ProviderApiError {
-                message: format!(
-                    "[NIKA-037] Fallback chain exhausted — all providers failed. Last: {}. Error: {}",
-                    last_provider, last_error
-                ),
+            } => NikaError::FallbackChainExhausted {
+                providers: last_provider,
+                last_error,
             },
         }
     }
