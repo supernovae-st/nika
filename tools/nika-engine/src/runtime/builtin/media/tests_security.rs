@@ -222,15 +222,17 @@ mod tests {
 <svg xmlns="http://www.w3.org/2000/svg">
   <text>&x4;</text>
 </svg>"#;
-        // This should either be rejected by sanitize_svg or handled safely by usvg.
-        // The sanitizer does not explicitly check for DOCTYPE/ENTITY, but usvg's
-        // parser should refuse entity expansion. We verify no panic and no
-        // unbounded allocation.
+        // sanitize_svg is a text-level filter — it does NOT expand entities.
+        // The real defense against billion laughs is at the usvg rendering layer
+        // (resources_dir=None, entity limits). This test verifies no panic/OOM
+        // at the sanitizer level.
         let result = sanitize_svg(svg);
-        // The sanitizer itself might pass (it checks for script/foreignObject/etc.),
-        // but that's okay -- the usvg parser will refuse the entities.
-        // What matters: no panic, no OOM.
-        let _ = result;
+        // Sanitizer lets it through (no forbidden patterns like <script>).
+        // Defense is at the render layer.
+        assert!(
+            result.is_ok(),
+            "sanitizer should pass-through (entity defense is at usvg layer)"
+        );
     }
 
     /// SSRF via xlink:href to localhost.
@@ -303,12 +305,14 @@ mod tests {
       <style>@import url("https://evil.com/exfil.css");</style>
       <rect width="100" height="100"/>
     </svg>"#;
-        // The sanitizer does not currently block CSS @import.
-        // This test documents the behavior -- the SVG renderer's
-        // resources_dir=None is the defense layer here.
-        let _result = sanitize_svg(svg);
-        // This is a known gap: CSS @import is not sanitized at the text level.
-        // Defense is provided by usvg::Options::resources_dir = None.
+        // CSS @import is not blocked at text level — defense is
+        // usvg::Options::resources_dir = None at render time.
+        // Document the actual behavior so changes are detected.
+        let result = sanitize_svg(svg);
+        assert!(
+            result.is_ok(),
+            "CSS @import is allowed by sanitizer (renderer blocks loading)"
+        );
     }
 
     /// Deeply nested SVG within SVG (stack exhaustion attempt).
