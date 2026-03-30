@@ -612,16 +612,14 @@ impl App {
     fn apply_chat_config(command_view: &mut CommandView, config: &TuiConfig) {
         // Wire chat.default_provider and chat.default_model
         if let Some(ref provider_id) = config.chat.default_provider {
-            let (model, display_name) = match provider_id.as_str() {
-                "claude" | "anthropic" => ("claude-sonnet-4-6", "Anthropic Claude"),
-                "openai" => ("gpt-4o", "OpenAI"),
-                "mistral" => ("mistral-large-latest", "Mistral AI"),
-                "groq" => ("llama-3.3-70b-versatile", "Groq"),
-                "deepseek" => ("deepseek-chat", "DeepSeek"),
-                _ => (provider_id.as_str(), provider_id.as_str()),
-            };
+            use nika_core::catalogs::{default_model_for_provider, find_provider};
+            let catalog_model =
+                default_model_for_provider(provider_id).unwrap_or(provider_id.as_str());
+            let display_name = find_provider(provider_id)
+                .map(|p| p.name)
+                .unwrap_or(provider_id.as_str());
             // Only override if user hasn't set a model override too
-            let model = config.chat.default_model.as_deref().unwrap_or(model);
+            let model = config.chat.default_model.as_deref().unwrap_or(catalog_model);
             command_view.chat.set_model(model);
             command_view.chat.set_provider(display_name);
             command_view.chat.provider.id = provider_id.clone();
