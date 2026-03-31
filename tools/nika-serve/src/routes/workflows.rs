@@ -87,15 +87,9 @@ pub async fn run_workflow(
         )));
     }
 
-    // Check queue depth via atomic counter (race-free, no DB queries)
+    // Atomic check-and-increment via CAS loop (race-free, no DB queries)
     let max_queued = state.config.max_concurrent * 3;
-    let current = state.active_jobs.load(std::sync::atomic::Ordering::Relaxed);
-    if current >= max_queued {
-        return Err(ServeError::QueueFull(current));
-    }
-    state
-        .active_jobs
-        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    try_acquire_job_slot(&state.active_jobs, max_queued)?;
 
     // Generate job ID — full 128-bit UUID in simple (no-hyphen) format
     let job_id = uuid::Uuid::new_v4().simple().to_string();
@@ -201,6 +195,33 @@ pub async fn cancel_job(
 // VALIDATION
 // ═══════════════════════════════════════════════════════════════════════════
 
+/// Atomic check-and-increment for job queue depth.
+///
+/// Uses a CAS loop to guarantee that `active_jobs` never exceeds `max_queued`,
+/// even under concurrent access. Returns `Ok(())` if a slot was acquired,
+/// or `Err(ServeError::QueueFull)` if the queue is full.
+fn try_acquire_job_slot(
+    active_jobs: &std::sync::atomic::AtomicUsize,
+    max_queued: usize,
+) -> Result<(), ServeError> {
+    use std::sync::atomic::Ordering;
+    loop {
+        let current = active_jobs.load(Ordering::Acquire);
+        if current >= max_queued {
+            return Err(ServeError::QueueFull(current));
+        }
+        match active_jobs.compare_exchange(
+            current,
+            current + 1,
+            Ordering::AcqRel,
+            Ordering::Acquire,
+        ) {
+            Ok(_) => return Ok(()),
+            Err(_) => continue, // Another thread won the race, retry
+        }
+    }
+}
+
 /// Reject workflow paths that attempt directory traversal.
 fn validate_workflow_path(workflow: &str) -> Result<(), ServeError> {
     if workflow.contains("..") || workflow.starts_with('/') || workflow.starts_with('\\') {
@@ -240,6 +261,49 @@ mod tests {
     fn accepts_valid_paths() {
         assert!(validate_workflow_path("pipeline.nika.yaml").is_ok());
         assert!(validate_workflow_path("subdir/flow.nika.yaml").is_ok());
+    }
+
+    /// Verify that the CAS-based queue check never exceeds max_queued
+    /// under high contention (100 threads racing to acquire a slot).
+    #[test]
+    fn cas_queue_check_never_exceeds_max() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
+
+        let active_jobs = Arc::new(AtomicUsize::new(0));
+        let max_queued: usize = 3;
+        let num_threads = 100;
+        let accepted = Arc::new(AtomicUsize::new(0));
+
+        let mut handles = Vec::new();
+        for _ in 0..num_threads {
+            let jobs = Arc::clone(&active_jobs);
+            let acc = Arc::clone(&accepted);
+            handles.push(std::thread::spawn(move || {
+                match super::try_acquire_job_slot(&jobs, max_queued) {
+                    Ok(()) => {
+                        acc.fetch_add(1, Ordering::Relaxed);
+                    }
+                    Err(_) => {}
+                }
+            }));
+        }
+
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        let final_accepted = accepted.load(Ordering::SeqCst);
+        let final_count = active_jobs.load(Ordering::SeqCst);
+
+        assert_eq!(
+            final_accepted, max_queued,
+            "exactly max_queued={max_queued} should be accepted, got {final_accepted}"
+        );
+        assert_eq!(
+            final_count, max_queued,
+            "active_jobs counter must equal max_queued={max_queued}, got {final_count}"
+        );
     }
 
     #[test]
