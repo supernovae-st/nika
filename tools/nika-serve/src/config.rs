@@ -31,6 +31,10 @@ pub struct ServeConfig {
 
     /// Bearer token for API authentication (constant-time comparison).
     pub auth_token: String,
+
+    /// Optional CORS allowed origin (e.g. `https://jungo.supernovae.studio`).
+    /// When `None`, no CORS headers are sent (default — most secure).
+    pub cors_origin: Option<String>,
 }
 
 impl ServeConfig {
@@ -42,6 +46,14 @@ impl ServeConfig {
     pub fn from_env() -> Result<Self, ServeError> {
         let auth_token = std::env::var("NIKA_SERVE_TOKEN")
             .map_err(|_| ServeError::Config("NIKA_SERVE_TOKEN must be set".into()))?;
+
+        if auth_token.len() < 16 {
+            return Err(ServeError::Config(
+                "NIKA_SERVE_TOKEN must be at least 16 characters".into(),
+            ));
+        }
+
+        let cors_origin = std::env::var("NIKA_SERVE_CORS_ORIGIN").ok();
 
         let bind: SocketAddr = std::env::var("NIKA_SERVE_BIND")
             .unwrap_or_else(|_| "0.0.0.0:3000".into())
@@ -74,6 +86,7 @@ impl ServeConfig {
             max_output_bytes: 1024 * 1024, // 1 MB
             db_path,
             auth_token,
+            cors_origin,
         })
     }
 }
