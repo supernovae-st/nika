@@ -344,11 +344,17 @@ impl TaskExecutor {
                     let schema_value = match schema_ref {
                         crate::ast::output::SchemaRef::Inline(v) => v.clone(),
                         crate::ast::output::SchemaRef::File(path) => {
-                            // Try to load file schema for mock (best-effort)
-                            match tokio::fs::read_to_string(path).await {
-                                Ok(content) => serde_json::from_str(&content)
-                                    .unwrap_or(serde_json::Value::Null),
-                                Err(_) => serde_json::Value::Null,
+                            // Try to load file schema for mock (best-effort).
+                            // Basic path traversal guard even in mock mode.
+                            if path.contains("..") {
+                                tracing::warn!(path = %path, "mock: schema path contains '..' — skipping");
+                                serde_json::Value::Null
+                            } else {
+                                match tokio::fs::read_to_string(path).await {
+                                    Ok(content) => serde_json::from_str(&content)
+                                        .unwrap_or(serde_json::Value::Null),
+                                    Err(_) => serde_json::Value::Null,
+                                }
                             }
                         }
                     };
