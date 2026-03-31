@@ -181,7 +181,7 @@ impl DaemonServer {
         // Signal systemd readiness (Linux only, no-op if NOTIFY_SOCKET is unset)
         #[cfg(target_os = "linux")]
         {
-            let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Ready]);
+            let _ = sd_notify::notify(&[sd_notify::NotifyState::Ready]);
         }
 
         let mut shutdown_rx = self.shutdown_rx;
