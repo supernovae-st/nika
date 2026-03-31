@@ -22,11 +22,12 @@ name = "nika"
 path = "src/main.rs"
 
 [features]
-default = ["tui", "lsp", "nika-engine/default"]
+default = ["tui", "lsp", "serve", "nika-engine/default"]
 # Only 1 feature remains opt-in:
 #   - media-provenance (C2PA): heavy dep (openssl, crypto) + legal/compliance use case
 # Everything else is default via nika-engine/default.
 tui = ["dep:nika-tui"]
+serve = ["dep:nika-serve"]
 integration = []  # Enable integration tests with real MCP servers
 
 # Forwarded features to nika-engine and nika-cli
@@ -59,6 +60,9 @@ nika-cli = { workspace = true }
 
 # TUI crate (feature-gated)
 nika-tui = { workspace = true, optional = true }
+
+# HTTP API server (feature-gated)
+nika-serve = { workspace = true, optional = true }
 
 # CLI
 clap = { workspace = true }
