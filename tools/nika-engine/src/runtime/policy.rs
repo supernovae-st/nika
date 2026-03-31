@@ -424,6 +424,17 @@ impl PolicyEnforcer {
         self.token_budget.used
     }
 
+    /// Add a host to the allowed_hosts list (for auto-allowing custom endpoints).
+    ///
+    /// Returns `true` if the host was added (not already present), `false` if duplicate.
+    pub fn add_allowed_host(&mut self, host: &str) -> bool {
+        if self.config.allowed_hosts.contains(&host.to_string()) {
+            return false;
+        }
+        self.config.allowed_hosts.push(host.to_string());
+        true
+    }
+
     /// Check if an agent tool call is allowed.
     ///
     /// Enforces:
@@ -964,5 +975,100 @@ mod tests {
             .check_tool_call("my_dangerous_tool_v2")
             .is_blocked());
         assert!(enforcer.check_tool_call("safe_tool").is_allowed());
+    }
+
+    // ════════════════════════════════════════════════════════
+    // add_allowed_host + custom endpoint auto-allow
+    // ════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_add_allowed_host_adds_new() {
+        let mut enforcer = PolicyEnforcer::default();
+        assert!(enforcer.add_allowed_host("10.0.1.42"));
+        // Verify it's now allowed
+        assert!(
+            enforcer
+                .check_fetch("http://10.0.1.42:8000/v1/chat")
+                .is_allowed(),
+            "Custom endpoint IP should be allowed after add_allowed_host"
+        );
+    }
+
+    #[test]
+    fn test_add_allowed_host_deduplicates() {
+        let mut enforcer = PolicyEnforcer::default();
+        assert!(enforcer.add_allowed_host("10.0.1.42"));
+        assert!(
+            !enforcer.add_allowed_host("10.0.1.42"),
+            "Duplicate host should return false"
+        );
+    }
+
+    #[test]
+    fn test_custom_endpoint_ip_auto_allowed_in_policy() {
+        // Simulate what with_policy does: extract hosts from custom endpoints
+        let mut policy = PolicyConfig::default();
+        let endpoints: std::collections::HashMap<String, crate::provider::endpoints::ResolvedEndpoint> = {
+            let mut map = std::collections::HashMap::new();
+            map.insert(
+                "h100".to_string(),
+                crate::provider::endpoints::ResolvedEndpoint {
+                    base_url: "http://10.0.1.42:8000/v1".to_string(),
+                    api_key: "test".to_string(),
+                    default_model: None,
+                    timeout_secs: 300,
+                    hourly_rate: None,
+                    currency: "USD".to_string(),
+                },
+            );
+            map.insert(
+                "ollama".to_string(),
+                crate::provider::endpoints::ResolvedEndpoint {
+                    base_url: "http://192.168.1.100:11434/v1".to_string(),
+                    api_key: "ollama".to_string(),
+                    default_model: None,
+                    timeout_secs: 300,
+                    hourly_rate: None,
+                    currency: "USD".to_string(),
+                },
+            );
+            map
+        };
+
+        // Extract hosts from endpoints (same logic as with_policy)
+        for (_name, ep) in &endpoints {
+            if let Ok(url) = url::Url::parse(&ep.base_url) {
+                if let Some(host) = url.host_str() {
+                    let host_str = host.to_string();
+                    if !policy.allowed_hosts.contains(&host_str) {
+                        policy.allowed_hosts.push(host_str);
+                    }
+                }
+            }
+        }
+
+        let enforcer = PolicyEnforcer::new(policy);
+
+        // Both custom endpoint IPs should be allowed
+        assert!(
+            enforcer
+                .check_fetch("http://10.0.1.42:8000/v1/chat")
+                .is_allowed(),
+            "h100 endpoint IP should be auto-allowed"
+        );
+        assert!(
+            enforcer
+                .check_fetch("http://192.168.1.100:11434/v1/chat")
+                .is_allowed(),
+            "ollama endpoint IP should be auto-allowed"
+        );
+
+        // Other private IPs should still be blocked
+        assert!(
+            enforcer
+                .check_fetch("http://10.0.2.99:9090/api")
+                .is_blocked(),
+            "Non-endpoint private IPs should still be blocked"
+        );
     }
 }

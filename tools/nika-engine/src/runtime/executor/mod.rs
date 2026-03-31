@@ -158,7 +158,29 @@ impl TaskExecutor {
             .build()
             .expect("HTTP client build with default TLS is infallible");
 
-        let policy_enforcer = PolicyEnforcer::new(policy_config.unwrap_or_default());
+        // Auto-allow custom endpoint hosts in SSRF policy.
+        // Users who configure custom endpoints (e.g. http://10.0.1.42:8000/v1)
+        // explicitly trust those hosts — add them to allowed_hosts so fetch:
+        // from those hosts is not blocked by SSRF protection.
+        let mut policy = policy_config.unwrap_or_default();
+        if let Some(ref endpoints) = custom_endpoints {
+            for (name, ep) in endpoints {
+                if let Ok(url) = url::Url::parse(&ep.base_url) {
+                    if let Some(host) = url.host_str() {
+                        let host_str = host.to_string();
+                        if !policy.allowed_hosts.contains(&host_str) {
+                            debug!(
+                                endpoint = %name,
+                                host = %host_str,
+                                "Auto-allowing custom endpoint host in SSRF policy"
+                            );
+                            policy.allowed_hosts.push(host_str);
+                        }
+                    }
+                }
+            }
+        }
+        let policy_enforcer = PolicyEnforcer::new(policy);
 
         // Create ToolContext for file tools
         let working_dir = std::env::current_dir().unwrap_or_else(|_| {
@@ -237,10 +259,28 @@ impl TaskExecutor {
     ///
     /// Preserves all existing state (policy, permission mode, MCP connections,
     /// HTTP client pool, CAS store). Only swaps the endpoint map.
+    /// Also auto-allows endpoint hosts in the SSRF policy.
     pub fn set_custom_endpoints(
         &mut self,
         endpoints: crate::provider::endpoints::CustomEndpointMap,
     ) {
+        // Auto-allow custom endpoint hosts in SSRF policy
+        let mut enforcer = self.policy_enforcer.write();
+        for (name, ep) in &endpoints {
+            if let Ok(url) = url::Url::parse(&ep.base_url) {
+                if let Some(host) = url.host_str() {
+                    let host_str = host.to_string();
+                    if enforcer.add_allowed_host(&host_str) {
+                        debug!(
+                            endpoint = %name,
+                            host = %host_str,
+                            "Auto-allowing custom endpoint host in SSRF policy"
+                        );
+                    }
+                }
+            }
+        }
+        drop(enforcer);
         self.custom_endpoints = Arc::new(endpoints);
     }
 
