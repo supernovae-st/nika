@@ -490,9 +490,7 @@ impl TaskExecutor {
                         } else {
                             None
                         }
-                        .unwrap_or_else(|| {
-                            safe_backoff_delay(backoff_ms, multiplier, attempt - 1)
-                        });
+                        .unwrap_or_else(|| safe_backoff_delay(backoff_ms, multiplier, attempt - 1));
 
                         // EMIT: FetchRetry
                         self.event_log.emit(EventKind::FetchRetry {
@@ -777,8 +775,7 @@ impl TaskExecutor {
                     // Network errors are retryable
                     if attempt < effective_max_attempts {
                         // Exponential backoff calculation
-                        let delay_ms =
-                            safe_backoff_delay(backoff_ms, multiplier, attempt - 1);
+                        let delay_ms = safe_backoff_delay(backoff_ms, multiplier, attempt - 1);
 
                         // EMIT: FetchRetry
                         self.event_log.emit(EventKind::FetchRetry {
