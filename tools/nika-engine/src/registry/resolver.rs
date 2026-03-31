@@ -9,6 +9,7 @@
 
 use std::path::PathBuf;
 use std::sync::{Arc, LazyLock};
+use std::time::Instant;
 
 use dashmap::DashMap;
 use semver::Version;
@@ -17,14 +18,18 @@ use thiserror::Error;
 use super::lockfile::Lockfile;
 use super::types::Manifest;
 
+/// Cache entry TTL (5 minutes).
+const CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(300);
+
 /// Global package resolution cache
 ///
 /// Thread-safe cache using DashMap to avoid repeated filesystem lookups.
-/// Uses Arc<ResolvedPackage> to minimize memory overhead on cache hits.
+/// Entries expire after 5 minutes to pick up newly installed packages.
 ///
 /// Key: package reference (e.g., "@workflows/seo-audit@1.2.0")
-/// Value: Arc-wrapped ResolvedPackage (cheap to clone, ~8 bytes per ref)
-static PACKAGE_CACHE: LazyLock<DashMap<String, Arc<ResolvedPackage>>> = LazyLock::new(DashMap::new);
+/// Value: (ResolvedPackage, insertion time) for TTL expiration
+static PACKAGE_CACHE: LazyLock<DashMap<String, (Arc<ResolvedPackage>, Instant)>> =
+    LazyLock::new(DashMap::new);
 
 /// Errors that can occur during package resolution.
 #[derive(Error, Debug)]
@@ -188,7 +193,7 @@ pub fn clear_cache() {
 /// resolver::invalidate_package("@workflows/seo-audit");
 /// ```
 pub fn invalidate_package(name: &str) {
-    PACKAGE_CACHE.retain(|key, _| !key.starts_with(name));
+    PACKAGE_CACHE.retain(|key, _value| !key.starts_with(name));
 }
 
 /// Get cache statistics
@@ -218,18 +223,22 @@ pub fn cache_stats() -> (usize, usize) {
 /// println!("Version: {}", pkg.version);
 /// ```
 pub fn resolve_package_path(reference: &str) -> Result<ResolvedPackage, ResolverError> {
-    // Check cache first
-    // Arc clone is cheap (~8 bytes + atomic increment)
+    // Check cache first (with TTL expiration)
     if let Some(cached) = PACKAGE_CACHE.get(reference) {
-        return Ok(Arc::unwrap_or_clone(Arc::clone(cached.value())));
+        let (pkg, inserted_at) = cached.value();
+        if inserted_at.elapsed() < CACHE_TTL {
+            return Ok(Arc::unwrap_or_clone(Arc::clone(pkg)));
+        }
+        // TTL expired — drop ref before removing
+        drop(cached);
+        PACKAGE_CACHE.remove(reference);
     }
 
     // Cache miss - resolve and cache
     let resolved = resolve_package_path_uncached(reference)?;
     let arc_resolved = Arc::new(resolved);
 
-    // Cache the Arc-wrapped result
-    PACKAGE_CACHE.insert(reference.to_string(), Arc::clone(&arc_resolved));
+    PACKAGE_CACHE.insert(reference.to_string(), (Arc::clone(&arc_resolved), Instant::now()));
 
     Ok(Arc::unwrap_or_clone(arc_resolved))
 }
