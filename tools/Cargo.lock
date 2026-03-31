@@ -5690,7 +5690,9 @@ dependencies = [
 name = "nika-serve"
 version = "0.56.2"
 dependencies = [
+ "async-stream",
  "axum",
+ "futures-util",
  "nika-storage",
  "nix 0.31.2",
  "serde",
@@ -5699,6 +5701,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
+ "tokio-stream",
  "tower",
  "tower-http",
  "tracing",

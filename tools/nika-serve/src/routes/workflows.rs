@@ -3,9 +3,9 @@
 //! - `POST /v1/run`           -- Submit a workflow for execution
 //! - `GET  /v1/status/{id}`   -- Poll job status
 //! - `POST /v1/cancel/{id}`   -- Cancel a running job (ERRATA-3)
+//! - `GET  /v1/events/{id}`   -- SSE streaming (see `events.rs`)
 //!
-//! TODO(v0.57): Add SSE streaming endpoint (/v1/events/{id})
-//! TODO(v0.57): Add idempotency keys (Idempotency-Key header)
+//! TODO(v0.58): Add idempotency keys (Idempotency-Key header)
 
 use axum::extract::{Path, State};
 use axum::Json;
@@ -184,6 +184,13 @@ pub async fn cancel_job(
             Some("cancelled by API".into()),
         )
         .await?;
+
+    // Emit SSE event: cancelled
+    let tx = state.event_bus.sender(&id).await;
+    let _ = tx.send(crate::events::ServeEvent::Cancelled {
+        job_id: id.clone(),
+    });
+    state.event_bus.remove(&id).await;
 
     Ok(Json(json!({
         "job_id": id,

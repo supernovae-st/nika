@@ -140,6 +140,7 @@ pub fn spawn_worker(
     let semaphore = Arc::clone(&state.semaphore);
     let workers = Arc::clone(&state.workers);
     let active_jobs = Arc::clone(&state.active_jobs);
+    let event_bus = state.event_bus.clone();
     let shutdown_rx = state.shutdown.clone();
     let id = job_id.clone();
     let child_pid = Arc::new(AtomicU32::new(0));
@@ -170,6 +171,12 @@ pub fn spawn_worker(
             return;
         }
 
+        // Emit SSE event: started
+        let tx = event_bus.sender(&id).await;
+        let _ = tx.send(crate::events::ServeEvent::Started {
+            job_id: id.clone(),
+        });
+
         let max_output_bytes = config.max_output_bytes;
         let mut ctx = ExecutionContext {
             config,
@@ -196,6 +203,10 @@ pub fn spawn_worker(
                 if let Err(e) = storage.complete_job(&id, truncated).await {
                     error!(job_id = %id, error = %e, "failed to mark job completed");
                 }
+                let _ = tx.send(crate::events::ServeEvent::Completed {
+                    job_id: id.clone(),
+                    output: Some(truncated.to_string()),
+                });
                 info!(job_id = %id, "job completed");
             }
             Err(msg) => {
@@ -203,9 +214,16 @@ pub fn spawn_worker(
                 if let Err(e) = storage.fail_job(&id, truncated).await {
                     error!(job_id = %id, error = %e, "failed to mark job failed");
                 }
+                let _ = tx.send(crate::events::ServeEvent::Failed {
+                    job_id: id.clone(),
+                    error: Some(truncated.to_string()),
+                });
                 warn!(job_id = %id, error = %msg, "job failed");
             }
         }
+
+        // Cleanup event bus channel
+        event_bus.remove(&id).await;
 
         guard.completed = true;
     });

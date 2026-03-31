@@ -21,6 +21,7 @@
 pub mod auth;
 pub mod config;
 pub mod error;
+pub mod events;
 pub mod executor;
 pub mod request_id;
 pub mod routes;
@@ -81,6 +82,7 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
         shutdown: shutdown_rx,
         workers: Arc::new(Mutex::new(HashMap::new())),
         active_jobs: Arc::new(AtomicUsize::new(0)),
+        event_bus: events::EventBus::default(),
     };
 
     // Build router with middleware
@@ -316,6 +318,7 @@ mod tests {
             shutdown: shutdown_rx,
             workers: Arc::new(Mutex::new(HashMap::new())),
             active_jobs: Arc::new(AtomicUsize::new(0)),
+        event_bus: events::EventBus::default(),
         };
 
         let app = routes::build_router(state.clone())
