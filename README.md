@@ -8,7 +8,7 @@
 [![CI](https://github.com/supernovae-st/nika/actions/workflows/ci.yml/badge.svg?style=flat-square)](https://github.com/supernovae-st/nika/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/supernovae-st/nika/graph/badge.svg?style=flat-square)](https://codecov.io/gh/supernovae-st/nika)
 [![License](https://img.shields.io/badge/AGPL--3.0--or--later-22c55e?style=flat-square&logo=gnu&logoColor=white)](LICENSE)
-[![Tests](https://img.shields.io/badge/8%2C400%2B_tests-10b981?style=flat-square)](https://github.com/supernovae-st/nika/actions)
+[![Tests](https://img.shields.io/badge/9%2C000%2B_tests-10b981?style=flat-square)](https://github.com/supernovae-st/nika/actions)
 [![Docker](https://img.shields.io/docker/pulls/supernovae/nika?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/r/supernovae/nika)
 
 [Quick Start](#quick-start) | [How It Works](#how-it-works) | [Use Cases](#use-cases) | [Documentation](#documentation)
@@ -443,7 +443,7 @@ tasks:
       prompt: "Found {{with.count}} users. First: {{with.name}}"
 ```
 
-### Pipe Transforms (27 available)
+### Pipe Transforms (38 available)
 
 ```yaml
 with:
@@ -479,18 +479,19 @@ with:
 
 ## Providers
 
-Seven cloud providers via [rig-core](https://github.com/0xPlaygrounds/rig) plus local inference via [mistral.rs](https://github.com/EricLBuehler/mistral.rs):
+Seven cloud providers via [rig-core](https://github.com/0xPlaygrounds/rig), local inference via [mistral.rs](https://github.com/EricLBuehler/mistral.rs), and a mock provider for testing:
 
 | Provider | Env Variable | Example Models |
 |:---------|:-------------|:---------------|
-| **Claude** | `ANTHROPIC_API_KEY` | opus-4, sonnet-4, haiku-3.5 |
-| **OpenAI** | `OPENAI_API_KEY` | gpt-4o, gpt-4-turbo, o1 |
-| **Mistral** | `MISTRAL_API_KEY` | mistral-large, codestral |
-| **Groq** | `GROQ_API_KEY` | mixtral-8x7b, llama-3 |
+| **Claude** | `ANTHROPIC_API_KEY` | claude-opus-4, claude-sonnet-4, claude-haiku-4.5 |
+| **OpenAI** | `OPENAI_API_KEY` | gpt-4o, gpt-4.1, o3, o4-mini |
+| **Mistral** | `MISTRAL_API_KEY` | mistral-large-latest, mistral-small-latest |
+| **Groq** | `GROQ_API_KEY` | llama-3.3-70b-versatile, mixtral-8x7b |
 | **DeepSeek** | `DEEPSEEK_API_KEY` | deepseek-chat, deepseek-reasoner |
-| **Gemini** | `GEMINI_API_KEY` | gemini-2.0, gemini-1.5 |
-| **xAI** | `XAI_API_KEY` | grok-3, grok-2 |
+| **Gemini** | `GEMINI_API_KEY` | gemini-2.5-pro, gemini-2.5-flash |
+| **xAI** | `XAI_API_KEY` | grok-3 |
 | **Native** | *(local)* | Any GGUF model via mistral.rs |
+| **Mock** | *(none)* | Deterministic test responses -- no API calls |
 
 ```yaml
 # Per-workflow default
@@ -528,19 +529,19 @@ Five-layer defense for guaranteed JSON schema compliance:
 
 ```yaml
 - id: extract
-  infer:
-    prompt: "Extract entities from: {{with.text}}"
-    output:
-      format: json
-      schema:
-        type: object
-        required: [entities]
-        properties:
-          entities:
-            type: array
-            items:
-              type: object
-              required: [name, type, confidence]
+  infer: "Extract entities from: {{with.text}}"
+  structured:
+    schema:
+      type: object
+      required: [entities]
+      properties:
+        entities:
+          type: array
+          items:
+            type: object
+            required: [name, type, confidence]
+    enable_repair: true
+    max_retries: 3
 ```
 
 | Layer | Strategy | When |
@@ -671,7 +672,7 @@ Three views for the complete workflow lifecycle:
 
 ```
 +-----------------------------------------------------------------------------+
-| Nika Studio                                                  v0.52.0        |
+| Nika Studio                                                  v0.54.0        |
 |-----------------------------------------------------------------------------|
 | +- Files ----------+ +- Editor ------------------------------------------+ |
 | | > workflows/     | |  1 | schema: "nika/workflow@0.12"                 | |
@@ -805,7 +806,7 @@ flowchart TD
     DAG --> INF & EXC & FET & INV & AGT
 
     subgraph Backends
-        PROV["7 Cloud + Local LLMs"]:::external
+        PROV["7 Cloud + Local + Mock"]:::external
         MCPS["MCP Server Pool"]:::external
         BUILT["43 Builtin Tools"]:::success
         CAS["CAS Media Store"]:::data
@@ -835,26 +836,28 @@ Inspired by rustc, the AST passes through three distinct phases with increasing 
 - **Event Sourcing** -- 41 event types emitted as NDJSON traces with full replay capability
 - **Zero Cypher** -- Nika never talks to databases directly; all graph access goes through MCP
 
-### 10 Workspace Crates
+### 12 Workspace Crates
 
 ```
 nika/tools/
 ├── nika/               Binary entry point (2k LOC) .... cargo install nika
-├── nika-engine/        Embeddable runtime (162k LOC) .. cargo add nika-engine
+├── nika-engine/        Embeddable runtime (135k LOC) .. cargo add nika-engine
 │   ├── runtime/        DAG execution + 5 verb implementations
-│   ├── provider/       8 LLM providers (rig-core + mistral.rs)
+│   ├── provider/       9 providers (rig-core + mistral.rs + mock)
 │   ├── dag/            Graph validation + execution ordering
-│   ├── binding/        Templates, transforms, JSONPath
+│   ├── binding/        Templates, 38 transforms, JSONPath
 │   ├── tools/          File tools (read, write, edit, glob, grep)
-│   └── builtin/        43 builtin tools (file, media, web)
-├── nika-core/          AST, types, catalogs (30k LOC) -- zero I/O
+│   └── builtin/        24 builtin tools (file, media, web)
+├── nika-core/          AST, types, catalogs (23k LOC) -- zero I/O
 ├── nika-event/         EventLog, TraceWriter (4k LOC)
-├── nika-mcp/           MCP client, rmcp adapter (7.5k LOC)
-├── nika-media/         CAS store, media processor (3.5k LOC)
-├── nika-cli/           CLI subcommands (5.5k LOC)
+├── nika-mcp/           MCP client, rmcp adapter (9k LOC)
+├── nika-media/         CAS store, media processor (13k LOC)
+├── nika-daemon/        Background daemon (5k LOC) -- secrets, jobs, watch, cache
+├── nika-init/          Project scaffolding (21k LOC) -- init wizard + course
+├── nika-cli/           CLI subcommands (8k LOC)
 ├── nika-tui/           Terminal UI with ratatui (86k LOC)
 ├── nika-lsp-core/      Protocol-agnostic LSP intelligence (9k LOC)
-└── nika-lsp/           Standalone LSP server binary (2k LOC)
+└── nika-lsp/           Standalone LSP server binary (2.5k LOC)
 ```
 
 To embed Nika's engine in your own Rust application without pulling in TUI or CLI dependencies:
@@ -969,7 +972,7 @@ cargo install --path tools/nika
 ### Verify
 
 ```bash
-nika --version       # nika 0.52.0
+nika --version       # nika 0.54.0
 nika doctor          # Full system health check
 ```
 
@@ -1195,8 +1198,8 @@ Nika uses structured error codes (`NIKA-XXX`) for every failure mode:
 git clone https://github.com/supernovae-st/nika.git
 cd nika
 
-cargo build                       # Build all 10 crates
-cargo test --lib                  # Run 7900+ tests (safe, no keychain popups)
+cargo build                       # Build all 12 crates
+cargo test --workspace --lib      # Run 9000+ tests (safe, no keychain popups)
 cargo clippy -- -D warnings       # Zero warnings policy
 ```
 
@@ -1236,7 +1239,7 @@ flowchart LR
     subgraph Nika ["Nika (Body)"]
         WF[YAML Workflows]:::body
         VERBS[5 Verbs + DAG]:::body
-        PROVIDERS[8 LLM Providers]:::body
+        PROVIDERS[9 Providers]:::body
         TOOLS[43 Builtin Tools]:::body
     end
 
@@ -1250,9 +1253,9 @@ flowchart LR
 
 <div align="center">
 
-**Nika v0.52.0** | Schema `nika/workflow@0.12` | Rust 1.86+ | AGPL-3.0-or-later
+**Nika v0.54.0** | Schema `nika/workflow@0.12` | Rust 1.86+ | AGPL-3.0-or-later
 
-310k+ LOC across 12 crates | 8,888+ tests | 0 clippy warnings
+356k+ LOC across 12 crates | 9,057 tests | 0 clippy warnings
 
 [SuperNovae Studio](https://supernovae.studio) | [QR Code AI](https://qrcode-ai.com) | [GitHub](https://github.com/supernovae-st/nika)
 
