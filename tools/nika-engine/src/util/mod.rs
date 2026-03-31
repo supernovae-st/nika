@@ -28,9 +28,28 @@ pub use interner::intern;
 pub fn redact_secrets(s: &str) -> String {
     use std::sync::LazyLock;
     static SECRET_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
-        regex::Regex::new(
-            r#"(?i)(sk-[a-zA-Z0-9_-]{10,}|Bearer\s+[a-zA-Z0-9_.\-]{10,}|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|xox[bp]-[a-zA-Z0-9\-]+|AKIA[A-Z0-9]{16}|gsk_[a-zA-Z0-9]{20,}|AIza[a-zA-Z0-9_\-]{30,}|xai-[a-zA-Z0-9]{20,}|sk_live_[a-zA-Z0-9]{20,}|rk_live_[a-zA-Z0-9]{20,}|whsec_[a-zA-Z0-9]{20,}|AC[a-f0-9]{32}|(?:mongodb(?:\+srv)?|postgres(?:ql)?|mysql|redis)://[^\s,;'"]+)"#
-        ).expect("SECRET_RE is a valid regex")
+        regex::Regex::new(concat!(
+            r#"(?i)("#,
+            r#"sk-[a-zA-Z0-9_-]{10,}"#,                       // OpenAI / Anthropic
+            r#"|Bearer\s+[a-zA-Z0-9_.\-]{10,}"#,              // Bearer tokens
+            r#"|ghp_[a-zA-Z0-9]{36}"#,                         // GitHub PAT
+            r#"|gho_[a-zA-Z0-9]{36}"#,                         // GitHub OAuth
+            r#"|gh[udr]_[a-zA-Z0-9]{36}"#,                     // GitHub user/device/refresh
+            r#"|xox[bp]-[a-zA-Z0-9\-]+"#,                      // Slack
+            r#"|AKIA[A-Z0-9]{16}"#,                             // AWS access key
+            r#"|ASIA[A-Z0-9]{16}"#,                             // AWS temp credentials (STS)
+            r#"|gsk_[a-zA-Z0-9]{20,}"#,                         // Groq
+            r#"|AIza[a-zA-Z0-9_\-]{30,}"#,                      // Google API
+            r#"|xai-[a-zA-Z0-9]{20,}"#,                         // xAI
+            r#"|sk_live_[a-zA-Z0-9]{20,}"#,                     // Stripe live
+            r#"|rk_live_[a-zA-Z0-9]{20,}"#,                     // Rokt
+            r#"|whsec_[a-zA-Z0-9]{20,}"#,                       // Webhook secret
+            r#"|SG\.[a-zA-Z0-9_-]{20,}"#,                       // SendGrid
+            r#"|AC[a-f0-9]{32}"#,                                // Twilio SID
+            r#"|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"#, // JWT
+            r#"|(?:mongodb(?:\+srv)?|postgres(?:ql)?|mysql|redis)://[^\s,;'"#, r#"']+"#, // DB URIs
+            r#")"#,
+        )).expect("SECRET_RE is a valid regex")
     });
     SECRET_RE.replace_all(s, "[REDACTED]").into_owned()
 }
@@ -153,6 +172,73 @@ mod tests {
             result.contains("[REDACTED]"),
             "Webhook secret not redacted: {result}"
         );
+    }
+
+    #[test]
+    fn redact_secrets_aws_temp_creds() {
+        let input = "ASIAVYXYZEXAMPLE12345";
+        let result = redact_secrets(input);
+        assert!(
+            result.contains("[REDACTED]"),
+            "AWS temp creds not redacted: {result}"
+        );
+        assert!(!result.contains("ASIAVYXYZ"));
+    }
+
+    #[test]
+    fn redact_secrets_github_user_token() {
+        let input = format!("token: ghu_{}", "A".repeat(36));
+        let result = redact_secrets(&input);
+        assert!(
+            result.contains("[REDACTED]"),
+            "GitHub user token not redacted: {result}"
+        );
+    }
+
+    #[test]
+    fn redact_secrets_github_device_token() {
+        let input = format!("token: ghd_{}", "B".repeat(36));
+        let result = redact_secrets(&input);
+        assert!(
+            result.contains("[REDACTED]"),
+            "GitHub device token not redacted: {result}"
+        );
+    }
+
+    #[test]
+    fn redact_secrets_sendgrid() {
+        let input = "SG.abcdefghij1234567890_-ABCD";
+        let result = redact_secrets(input);
+        assert!(
+            result.contains("[REDACTED]"),
+            "SendGrid key not redacted: {result}"
+        );
+    }
+
+    #[test]
+    fn redact_secrets_jwt() {
+        let input = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.abc123def456";
+        let result = redact_secrets(input);
+        assert!(
+            result.contains("[REDACTED]"),
+            "JWT not redacted: {result}"
+        );
+        assert!(!result.contains("eyJhbGci"));
+    }
+
+    #[test]
+    fn redact_secrets_is_idempotent() {
+        let inputs = [
+            "key=sk-proj-abc123def456ghi789jkl",
+            "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij",
+            "postgres://user:pass@host:5432/db",
+            "AKIAIOSFODNN7EXAMPLE",
+        ];
+        for input in inputs {
+            let once = redact_secrets(input);
+            let twice = redact_secrets(&once);
+            assert_eq!(once, twice, "NOT idempotent for: {input:?}");
+        }
     }
 }
 
