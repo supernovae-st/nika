@@ -566,6 +566,15 @@ fn resolve_entry(
         }
     }
 
+    // Warn if binding to a failed task — output may be partial/null
+    if datastore.is_failed(task_id) {
+        tracing::warn!(
+            task_id = %task_id,
+            alias = %alias,
+            "Binding to output of failed task — value may be null or partial"
+        );
+    }
+
     // Resolve the value from task output
     let value = match datastore.get_output(task_id) {
         Some(output) => {
@@ -702,6 +711,15 @@ fn resolve_binding_path(
 ) -> Result<Option<Value>, NikaError> {
     match &binding_path.source {
         BindingSource::Task(task_id) => {
+            // Warn if binding to a failed task — output may be partial/null
+            if datastore.is_failed(task_id) {
+                tracing::warn!(
+                    task_id = %task_id,
+                    alias = %alias,
+                    "Binding to output of failed task — value may be null or partial"
+                );
+            }
+
             // Intercept media paths: segments starting with Field("media")
             // Media data lives in TaskResult.media (side-channel), not in
             // TaskResult.output. Delegate to resolve_path() which handles both.
@@ -3339,5 +3357,73 @@ mod tests {
         // But still resolves correctly via get_resolved
         let value = bindings.get_resolved("lazy_hash", &store).unwrap();
         assert_eq!(value, json!("blake3:abc123def456"));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Failed task binding warning tests
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn binding_to_failed_task_returns_null_error() {
+        // A failed task has Value::Null output — binding without default should
+        // return NullValue error (and the warning is emitted before the error).
+        let store = RunContext::new();
+        store.insert(
+            Arc::from("broken"),
+            TaskResult::failed("something went wrong", Duration::from_secs(1)),
+        );
+
+        let entry = BindingEntry::new("broken");
+        let result = resolve_entry(&entry, "data", &store);
+        assert!(result.is_err());
+        assert!(
+            matches!(&result.unwrap_err(), NikaError::NullValue { path, .. } if path == "broken")
+        );
+    }
+
+    #[test]
+    fn binding_to_failed_task_uses_default() {
+        // With a default, binding to failed task resolves to the default value
+        let store = RunContext::new();
+        store.insert(
+            Arc::from("broken"),
+            TaskResult::failed("something went wrong", Duration::from_secs(1)),
+        );
+
+        let entry = BindingEntry {
+            path: "broken".to_string(),
+            default: Some(json!("fallback")),
+            lazy: false,
+        };
+        let result = resolve_entry(&entry, "data", &store);
+        assert_eq!(result.unwrap(), json!("fallback"));
+    }
+
+    #[test]
+    fn binding_to_failed_task_typed_path() {
+        let store = RunContext::new();
+        store.insert(
+            Arc::from("broken"),
+            TaskResult::failed("oops", Duration::from_secs(1)),
+        );
+
+        // Typed path: resolve_with_entry via from_with_spec
+        let entry = WithEntry {
+            source: BindingPath {
+                source: BindingSource::Task(Arc::from("broken")),
+                segments: vec![],
+            },
+            binding_type: BindingType::Any,
+            default: Some(json!("fallback")),
+            lazy: false,
+            transform: None,
+        };
+
+        let mut spec = WithSpec::default();
+        spec.insert("data".to_string(), entry);
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+        // Should resolve — either the failed task output or the default
+        assert!(bindings.get("data").is_some());
     }
 }
