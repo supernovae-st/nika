@@ -7,6 +7,23 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+- **NIKA-028 error code** — Semaphore failures now use dedicated NIKA-028 instead of reusing NIKA-026 (dependency chain failed)
+- **for_each cancelled item reporting** — Error summary now includes "N item(s) cancelled" when fail_fast=false
+- **Pipe parser quote tracking** — Auto-close quotes at `)` boundary; `filter(it's) | upper` no longer breaks the parser
+- **Shell transform null handling** — `| shell` on null input returns NullInput error instead of string `'null'`
+- **Artifact path collision detection** — Analyzer warns when two tasks write to the same static artifact path
+- **`use:` keyword rejection** — Parser suggests `with:` when `use:` is found at task level
+- **`max_retries:` keyword rejection** — Parser suggests `retry: { max_attempts: N }` when found at task level
+- **Mock provider file schemas** — `provider: mock` now loads SchemaRef::File schemas for structured output
+- **Mock JSON depth limit** — `generate_mock_json()` capped at 32 levels to prevent stack overflow on recursive schemas
+- **Stale "dead variant" test** — Replaced incorrect test claiming limit variants are dead code (they're returned by check_limits())
+
+### Changed
+- **`get_ready_tasks()` optimized** — O(remaining) instead of O(total_tasks) per iteration via pending_indices tracking
+- **Broadcast channel capacity** — Increased from 1024 to 4096 events for heavy for_each workflows
+- **Dockerfile VERSION** — Updated from 0.52.0 to 0.54.0
+
 ---
 
 ## [0.54.0](https://github.com/supernovae-st/nika/releases/tag/v0.54.0) - 2026-03-31
