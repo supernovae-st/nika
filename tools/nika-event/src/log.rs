@@ -607,6 +607,13 @@ pub enum EventKind {
         /// Total attempts across all layers before success
         total_attempts: u32,
     },
+    /// Structured output validation timed out
+    ///
+    /// Emitted when the aggregate timeout (600s) is exceeded across all layers.
+    StructuredOutputTimeout {
+        task_id: Arc<str>,
+        timeout_secs: u64,
+    },
 
     // ═══════════════════════════════════════════
     // VISION EVENTS
@@ -1065,6 +1072,7 @@ impl EventKind {
             | Self::MediaStoreFailed { task_id, .. }
             | Self::StructuredOutputAttempt { task_id, .. }
             | Self::StructuredOutputSuccess { task_id, .. }
+            | Self::StructuredOutputTimeout { task_id, .. }
             | Self::HttpRequest { task_id, .. }
             | Self::HttpResponse { task_id, .. }
             | Self::GuardrailPassed { task_id, .. }

@@ -1076,6 +1076,15 @@ impl LiveRenderer {
                 // Stats handled by apply_event()
             }
 
+            EventKind::StructuredOutputTimeout { timeout_secs, .. } => {
+                self.log(&format!(
+                    "{} {} structured output timed out after {}s",
+                    self.ts(),
+                    "⏱".red(),
+                    timeout_secs
+                ));
+            }
+
             // ── Vision ────────────────────────────────────────────
             EventKind::VisionContentResolved {
                 image_count,

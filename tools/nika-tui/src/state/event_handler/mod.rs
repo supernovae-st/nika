@@ -352,6 +352,10 @@ impl TuiState {
                 );
             }
 
+            EventKind::StructuredOutputTimeout { .. } => {
+                // Timeout is reflected via TaskFailed in the TUI
+            }
+
             // ═══════════════════════════════════════════
             // GUARDRAIL EVENTS
             // ═══════════════════════════════════════════
