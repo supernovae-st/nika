@@ -195,9 +195,29 @@ fn merge_raw_workflow(
     imported: RawWorkflow,
     prefix: Option<&str>,
 ) -> Result<(), NikaError> {
+    // Collect existing task IDs for duplicate detection (owned to avoid borrow conflict)
+    let existing_ids: std::collections::HashSet<String> = main
+        .tasks
+        .value
+        .iter()
+        .map(|t| t.value.id.value.clone())
+        .collect();
+
     // Merge tasks with prefix
     for spanned_task in imported.tasks.value {
         let prefixed = prefix_raw_task(spanned_task, prefix);
+        // Check for collision
+        if existing_ids.contains(prefixed.value.id.value.as_str()) {
+            let new_id = &prefixed.value.id.value;
+            return Err(NikaError::ValidationError {
+                reason: format!(
+                    "Include conflict: task '{}' already exists in workflow. \
+                     Use 'prefix:' to namespace included tasks.",
+                    new_id
+                ),
+            });
+        }
+
         main.tasks.value.push(prefixed);
     }
 
@@ -1133,5 +1153,45 @@ tasks:
         assert!(ids.contains(&"a_u_util"));
         assert!(ids.contains(&"b_b_task"));
         assert!(ids.contains(&"b_v_util"));
+    }
+
+    // ─── merge_raw_workflow duplicate detection ─────────────────
+
+    #[test]
+    fn merge_rejects_duplicate_task_id_without_prefix() {
+        let mut main = RawWorkflow {
+            tasks: Spanned::dummy(vec![Spanned::dummy(RawTask::new("init"))]),
+            ..Default::default()
+        };
+
+        let imported = RawWorkflow {
+            tasks: Spanned::dummy(vec![Spanned::dummy(RawTask::new("init"))]),
+            ..Default::default()
+        };
+
+        let result = merge_raw_workflow(&mut main, imported, None);
+        assert!(result.is_err(), "should reject duplicate task ID 'init'");
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("init"),
+            "error should name the duplicate: {err}"
+        );
+    }
+
+    #[test]
+    fn merge_allows_duplicate_task_id_with_prefix() {
+        let mut main = RawWorkflow {
+            tasks: Spanned::dummy(vec![Spanned::dummy(RawTask::new("init"))]),
+            ..Default::default()
+        };
+
+        let imported = RawWorkflow {
+            tasks: Spanned::dummy(vec![Spanned::dummy(RawTask::new("init"))]),
+            ..Default::default()
+        };
+
+        // With prefix "setup_", the ID becomes "setup_init" → no conflict
+        let result = merge_raw_workflow(&mut main, imported, Some("setup_"));
+        assert!(result.is_ok());
     }
 }
