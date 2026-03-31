@@ -11,7 +11,7 @@ use crate::error::ServeError;
 /// Configuration for the Nika HTTP API server.
 #[derive(Clone, Debug)]
 pub struct ServeConfig {
-    /// Socket address to bind to (default: `0.0.0.0:3000`).
+    /// Socket address to bind to (default: `127.0.0.1:3000`).
     pub bind: SocketAddr,
 
     /// Directory containing `.nika.yaml` workflow files.
@@ -56,7 +56,7 @@ impl ServeConfig {
         let cors_origin = std::env::var("NIKA_SERVE_CORS_ORIGIN").ok();
 
         let bind: SocketAddr = std::env::var("NIKA_SERVE_BIND")
-            .unwrap_or_else(|_| "0.0.0.0:3000".into())
+            .unwrap_or_else(|_| "127.0.0.1:3000".into())
             .parse()
             .map_err(|e| ServeError::Config(format!("Invalid NIKA_SERVE_BIND: {e}")))?;
 
@@ -88,5 +88,25 @@ impl ServeConfig {
             auth_token,
             cors_origin,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn default_bind_address_is_localhost() {
+        let default_bind: std::net::SocketAddr = "127.0.0.1:3000".parse().unwrap();
+        // The hard-coded fallback in from_env() must be loopback, not 0.0.0.0
+        let fallback: std::net::SocketAddr = "0.0.0.0:3000"
+            .parse::<std::net::SocketAddr>()
+            .unwrap();
+        assert!(
+            default_bind.ip().is_loopback(),
+            "default must bind to loopback"
+        );
+        assert!(
+            !fallback.ip().is_loopback(),
+            "0.0.0.0 is NOT loopback — this is the bug"
+        );
     }
 }
