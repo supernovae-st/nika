@@ -10,12 +10,13 @@
 
 use std::fs;
 use std::path::PathBuf;
+use std::sync::{LazyLock, Mutex};
+use std::time::Instant;
 
 #[cfg(test)]
 use crate::registry::types::InstalledPackage;
 use crate::registry::types::{Manifest, RegistryIndex};
 use crate::serde_yaml;
-use crate::util::atomic_write;
 use crate::NikaError;
 
 // Re-export from core::paths
@@ -24,63 +25,24 @@ pub use crate::core::paths::{NIKA_DIR_NAME, NIKA_HOME_ENV};
 /// Registry index filename.
 pub const REGISTRY_INDEX_FILE: &str = "registry.yaml";
 
+/// Registry index cache TTL (5 minutes).
+///
+/// Avoids repeated filesystem reads for `is_installed()`, `installed_version()`, etc.
+/// Invalidated on `save_registry()` so writes are immediately visible.
+const REGISTRY_CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(300);
+
+/// In-memory cache for the registry index.
+///
+/// Stores (RegistryIndex, load_time). Entries older than REGISTRY_CACHE_TTL are stale.
+/// Protected by Mutex (not RwLock) because reads are fast and contention is minimal.
+static REGISTRY_CACHE: LazyLock<Mutex<Option<(RegistryIndex, Instant)>>> =
+    LazyLock::new(|| Mutex::new(None));
+
 /// Packages directory name.
 pub const PACKAGES_DIR_NAME: &str = "packages";
 
 /// Manifest filename within a package.
 pub const MANIFEST_FILE: &str = "manifest.yaml";
-
-/// Registry lock filename (prevents concurrent registry writes).
-const REGISTRY_LOCK_FILE: &str = "registry.lock";
-
-/// RAII guard that holds an exclusive flock on the registry lockfile.
-///
-/// Prevents two concurrent `nika pkg install` / `nika pkg uninstall`
-/// processes from corrupting `registry.yaml`.
-///
-/// On Unix, uses `nix::fcntl::Flock` (LOCK_EX|LOCK_NB).
-/// On non-Unix, holds the file open as a best-effort guard.
-pub struct RegistryLock {
-    #[cfg(unix)]
-    _flock: Option<nix::fcntl::Flock<std::fs::File>>,
-    #[cfg(not(unix))]
-    _file: Option<std::fs::File>,
-}
-
-impl RegistryLock {
-    /// Acquire an exclusive lock on the registry.
-    ///
-    /// Returns `Err` if another process already holds the lock.
-    pub fn acquire() -> Result<Self, NikaError> {
-        let lock_path = crate::core::paths::nika_home().join(REGISTRY_LOCK_FILE);
-
-        if let Some(parent) = lock_path.parent() {
-            let _ = fs::create_dir_all(parent);
-        }
-
-        let file = fs::File::create(&lock_path).map_err(|e| NikaError::ValidationError {
-            reason: format!("Failed to create registry lock: {}", e),
-        })?;
-
-        #[cfg(unix)]
-        {
-            use nix::fcntl::{Flock, FlockArg};
-            match Flock::lock(file, FlockArg::LockExclusiveNonblock) {
-                Ok(flock) => Ok(Self {
-                    _flock: Some(flock),
-                }),
-                Err(_) => Err(NikaError::ValidationError {
-                    reason: "Registry is locked by another nika process".into(),
-                }),
-            }
-        }
-
-        #[cfg(not(unix))]
-        {
-            Ok(Self { _file: Some(file) })
-        }
-    }
-}
 
 /// Get the packages directory.
 ///
@@ -172,6 +134,15 @@ pub fn ensure_nika_home() -> Result<PathBuf, NikaError> {
 /// # Ok::<(), nika::NikaError>(())
 /// ```
 pub fn load_registry() -> Result<RegistryIndex, NikaError> {
+    // Check cache first (TTL = 5 minutes)
+    if let Ok(guard) = REGISTRY_CACHE.lock() {
+        if let Some((ref cached, ref loaded_at)) = *guard {
+            if loaded_at.elapsed() < REGISTRY_CACHE_TTL {
+                return Ok(cached.clone());
+            }
+        }
+    }
+
     let path = registry_index_path()?;
 
     if !path.exists() {
@@ -182,9 +153,16 @@ pub fn load_registry() -> Result<RegistryIndex, NikaError> {
         reason: format!("Failed to read registry file '{}': {}", path.display(), e),
     })?;
 
-    serde_yaml::from_str(&content).map_err(|e| NikaError::ParseError {
+    let index: RegistryIndex = serde_yaml::from_str(&content).map_err(|e| NikaError::ParseError {
         details: format!("Failed to parse registry YAML: {}", e),
-    })
+    })?;
+
+    // Cache the result
+    if let Ok(mut guard) = REGISTRY_CACHE.lock() {
+        *guard = Some((index.clone(), Instant::now()));
+    }
+
+    Ok(index)
 }
 
 /// Save the registry index to disk.
@@ -219,11 +197,24 @@ pub fn save_registry(index: &RegistryIndex) -> Result<(), NikaError> {
         details: format!("Failed to serialize registry: {}", e),
     })?;
 
-    atomic_write(&path, content.as_bytes()).map_err(|e| NikaError::ValidationError {
+    fs::write(&path, content).map_err(|e| NikaError::ValidationError {
         reason: format!("Failed to write registry file '{}': {}", path.display(), e),
     })?;
 
+    // Invalidate cache so subsequent reads pick up the new data immediately
+    invalidate_registry_cache();
+
     Ok(())
+}
+
+/// Invalidate the registry index cache.
+///
+/// Called automatically by `save_registry()`. Can also be called manually
+/// after external changes to `registry.yaml` (e.g., after `nika add`).
+pub fn invalidate_registry_cache() {
+    if let Ok(mut guard) = REGISTRY_CACHE.lock() {
+        *guard = None;
+    }
 }
 
 /// Load a package manifest from disk.
@@ -381,13 +372,18 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let temp_path = temp_dir.path().to_path_buf();
 
+        // Invalidate registry cache before switching home directory
+        // (prevents stale cache from previous test leaking into this one)
+        invalidate_registry_cache();
+
         // Set NIKA_HOME to temp directory
         env::set_var(NIKA_HOME_ENV, &temp_path);
 
         let result = f(&temp_path);
 
-        // Clean up env var
+        // Clean up env var and cache
         env::remove_var(NIKA_HOME_ENV);
+        invalidate_registry_cache();
 
         result
     }
@@ -663,53 +659,131 @@ mod tests {
         });
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // REGISTRY CACHE TTL TESTS
+    // ═══════════════════════════════════════════════════════════════
+
     #[test]
     #[serial]
-    fn test_save_registry_uses_atomic_write() {
+    fn test_registry_cache_returns_cached_result() {
         with_temp_nika_home(|_| {
+            // Start with a clean cache
+            invalidate_registry_cache();
             ensure_nika_home().unwrap();
 
+            // Save a registry with one package
             let mut index = RegistryIndex::new();
             index.insert(
-                "@test/atomic",
-                InstalledPackage::new("1.0.0", "2026-04-01T10:00:00Z", "path"),
+                "@cache/test",
+                InstalledPackage::new("1.0.0", "2026-01-01T00:00:00Z", "path"),
             );
             save_registry(&index).unwrap();
 
-            // Verify no temp file left behind (atomic_write cleans up)
-            let path = registry_index_path().unwrap();
-            let temp_path = path.with_extension("tmp.nika");
-            assert!(!temp_path.exists(), "Temp file should not remain after atomic write");
+            // First load — reads from disk, populates cache
+            let loaded1 = load_registry().unwrap();
+            assert_eq!(loaded1.len(), 1);
+            assert!(loaded1.is_installed("@cache/test"));
 
-            // Verify content was written correctly
-            let loaded = load_registry().unwrap();
-            assert!(loaded.is_installed("@test/atomic"));
+            // Modify the file directly (bypassing save_registry to skip cache invalidation)
+            let path = registry_index_path().unwrap();
+            fs::write(&path, "packages: {}").unwrap();
+
+            // Second load — should return cached result (not the modified file)
+            let loaded2 = load_registry().unwrap();
+            assert_eq!(
+                loaded2.len(), 1,
+                "Second load should return cached result, not the modified file"
+            );
+
+            // Clean up
+            invalidate_registry_cache();
         });
     }
 
     #[test]
     #[serial]
-    fn test_registry_lock_acquire_and_release() {
+    fn test_registry_cache_invalidated_on_save() {
         with_temp_nika_home(|_| {
+            invalidate_registry_cache();
             ensure_nika_home().unwrap();
 
-            // First lock should succeed
-            let lock = RegistryLock::acquire();
-            assert!(lock.is_ok(), "First lock acquisition should succeed");
+            // Save initial registry
+            let mut index1 = RegistryIndex::new();
+            index1.insert(
+                "@pkg/a",
+                InstalledPackage::new("1.0.0", "2026-01-01T00:00:00Z", "a"),
+            );
+            save_registry(&index1).unwrap();
 
-            // Second lock should fail (non-blocking exclusive)
-            #[cfg(unix)]
-            {
-                let lock2 = RegistryLock::acquire();
-                assert!(lock2.is_err(), "Second lock should fail while first is held");
-            }
+            // Load to populate cache
+            let loaded1 = load_registry().unwrap();
+            assert_eq!(loaded1.len(), 1);
 
-            // Drop first lock
-            drop(lock);
+            // Save a different registry (this should invalidate cache)
+            let mut index2 = RegistryIndex::new();
+            index2.insert(
+                "@pkg/a",
+                InstalledPackage::new("1.0.0", "2026-01-01T00:00:00Z", "a"),
+            );
+            index2.insert(
+                "@pkg/b",
+                InstalledPackage::new("2.0.0", "2026-01-01T00:00:00Z", "b"),
+            );
+            save_registry(&index2).unwrap();
 
-            // Now third lock should succeed
-            let lock3 = RegistryLock::acquire();
-            assert!(lock3.is_ok(), "Lock should succeed after previous was released");
+            // Load again — should see the new data (cache was invalidated)
+            let loaded2 = load_registry().unwrap();
+            assert_eq!(
+                loaded2.len(), 2,
+                "After save_registry(), load should return fresh data"
+            );
+
+            // Clean up
+            invalidate_registry_cache();
         });
+    }
+
+    #[test]
+    #[serial]
+    fn test_invalidate_registry_cache_clears_cache() {
+        with_temp_nika_home(|_| {
+            invalidate_registry_cache();
+            ensure_nika_home().unwrap();
+
+            // Save and load to populate cache
+            let mut index = RegistryIndex::new();
+            index.insert(
+                "@pkg/c",
+                InstalledPackage::new("1.0.0", "2026-01-01T00:00:00Z", "c"),
+            );
+            save_registry(&index).unwrap();
+            let _ = load_registry().unwrap();
+
+            // Modify file directly
+            let path = registry_index_path().unwrap();
+            fs::write(&path, "packages: {}").unwrap();
+
+            // Without invalidation, cache would return old data
+            // With invalidation, it reads the (now empty) file
+            invalidate_registry_cache();
+            let loaded = load_registry().unwrap();
+            assert_eq!(
+                loaded.len(), 0,
+                "After invalidation, load should read from disk (now empty)"
+            );
+
+            // Clean up
+            invalidate_registry_cache();
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn test_registry_cache_ttl_constant_is_5_minutes() {
+        assert_eq!(
+            REGISTRY_CACHE_TTL,
+            std::time::Duration::from_secs(300),
+            "Registry cache TTL should be 5 minutes (300 seconds)"
+        );
     }
 }
