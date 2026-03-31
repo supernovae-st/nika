@@ -141,6 +141,7 @@ pub fn spawn_worker(
     let workers = Arc::clone(&state.workers);
     let active_jobs = Arc::clone(&state.active_jobs);
     let event_bus = state.event_bus.clone();
+    let webhook_config = crate::webhook::WebhookConfig::from_env();
     let shutdown_rx = state.shutdown.clone();
     let id = job_id.clone();
     let child_pid = Arc::new(AtomicU32::new(0));
@@ -212,6 +213,9 @@ pub fn spawn_worker(
                     "completed",
                     job_start.elapsed().as_secs_f64(),
                 );
+                if let Some(ref wh) = webhook_config {
+                    crate::webhook::notify(wh, &id, "completed", Some(truncated));
+                }
                 info!(job_id = %id, "job completed");
             }
             Err(msg) => {
@@ -224,6 +228,9 @@ pub fn spawn_worker(
                     error: Some(truncated.to_string()),
                 });
                 crate::metrics::record_job_completed("failed", job_start.elapsed().as_secs_f64());
+                if let Some(ref wh) = webhook_config {
+                    crate::webhook::notify(wh, &id, "failed", Some(truncated));
+                }
                 warn!(job_id = %id, error = %msg, "job failed");
             }
         }
