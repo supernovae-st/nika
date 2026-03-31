@@ -1,0 +1,145 @@
+//! Per-token rate limiting middleware using `governor`.
+//!
+//! Each unique Bearer token gets its own rate limiter bucket.
+//! Default: 10 requests/second with burst capacity of 30.
+//!
+//! Response headers:
+//! - `X-RateLimit-Limit`: max requests per second
+//! - `X-RateLimit-Remaining`: approximate remaining burst capacity
+//! - `Retry-After`: seconds until a token is available (only on 429)
+
+use std::num::NonZeroU32;
+use std::sync::Arc;
+
+use axum::extract::State;
+use axum::http::{HeaderValue, Request, StatusCode};
+use axum::middleware::Next;
+use axum::response::{IntoResponse, Response};
+use governor::clock::DefaultClock;
+use governor::state::keyed::DashMapStateStore;
+use governor::{Quota, RateLimiter};
+
+/// Per-token rate limiter type.
+pub type KeyedRateLimiter = RateLimiter<String, DashMapStateStore<String>, DefaultClock>;
+
+/// Default: 10 requests per second, burst of 30.
+const RATE_PER_SECOND: u32 = 10;
+const BURST_SIZE: u32 = 30;
+
+/// Create a new per-token rate limiter.
+pub fn new_rate_limiter() -> Arc<KeyedRateLimiter> {
+    let quota = Quota::per_second(NonZeroU32::new(RATE_PER_SECOND).unwrap())
+        .allow_burst(NonZeroU32::new(BURST_SIZE).unwrap());
+    Arc::new(RateLimiter::dashmap(quota))
+}
+
+/// Rate limiting middleware.
+///
+/// Extracts the Bearer token from the Authorization header and applies
+/// per-token rate limiting. Unauthenticated requests (e.g., /health)
+/// pass through without rate limiting.
+pub async fn rate_limit_middleware(
+    State(limiter): State<Arc<KeyedRateLimiter>>,
+    req: Request<axum::body::Body>,
+    next: Next,
+) -> Response {
+    // Extract token from Authorization header (if present)
+    let token = req
+        .headers()
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.strip_prefix("Bearer "))
+        .map(|s| s.to_string());
+
+    // No token = no rate limiting (unauthenticated requests like /health)
+    let Some(key) = token else {
+        return next.run(req).await;
+    };
+
+    match limiter.check_key(&key) {
+        Ok(_) => {
+            let mut resp = next.run(req).await;
+            // Add rate limit headers
+            let headers = resp.headers_mut();
+            let _ = headers.insert(
+                "x-ratelimit-limit",
+                HeaderValue::from_static("10"),
+            );
+            // Approximate remaining (governor doesn't expose exact count easily)
+            let _ = headers.insert(
+                "x-ratelimit-remaining",
+                HeaderValue::from_static("ok"),
+            );
+            resp
+        }
+        Err(not_until) => {
+            let wait = not_until.wait_time_from(governor::clock::Clock::now(
+                &governor::clock::DefaultClock::default(),
+            ));
+            let retry_after = wait.as_secs().max(1);
+
+            let mut resp = (
+                StatusCode::TOO_MANY_REQUESTS,
+                axum::Json(serde_json::json!({
+                    "error": "rate limit exceeded",
+                    "retry_after": retry_after,
+                })),
+            )
+                .into_response();
+
+            let headers = resp.headers_mut();
+            let _ = headers.insert(
+                "retry-after",
+                HeaderValue::from_str(&retry_after.to_string()).unwrap_or(HeaderValue::from_static("1")),
+            );
+            let _ = headers.insert(
+                "x-ratelimit-limit",
+                HeaderValue::from_static("10"),
+            );
+            let _ = headers.insert(
+                "x-ratelimit-remaining",
+                HeaderValue::from_static("0"),
+            );
+
+            resp
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rate_limiter_allows_burst() {
+        let limiter = new_rate_limiter();
+        let key = "test-token".to_string();
+
+        // Should allow BURST_SIZE requests immediately
+        for i in 0..BURST_SIZE {
+            assert!(
+                limiter.check_key(&key).is_ok(),
+                "request {i} should be allowed within burst"
+            );
+        }
+
+        // Next request should be rate limited
+        assert!(
+            limiter.check_key(&key).is_err(),
+            "request after burst should be rate limited"
+        );
+    }
+
+    #[test]
+    fn rate_limiter_separate_keys() {
+        let limiter = new_rate_limiter();
+
+        // Exhaust quota for token A
+        for _ in 0..BURST_SIZE {
+            limiter.check_key(&"token-a".to_string()).unwrap();
+        }
+
+        // Token B should still have full quota
+        assert!(limiter.check_key(&"token-b".to_string()).is_ok());
+    }
+}
