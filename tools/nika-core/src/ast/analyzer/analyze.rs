@@ -1728,7 +1728,8 @@ fn detect_cycles_dfs(
 /// For_each tasks are also skipped since each iteration may produce unique paths.
 fn detect_artifact_collisions(workflow: &AnalyzedWorkflow, ctx: &mut AnalyzerContext) {
     use crate::ast::artifact::{ArtifactMode, ArtifactSpec};
-    let mut seen: HashMap<String, (String, crate::source::Span)> = HashMap::new();
+    // (path → (task_name, is_safe_mode)) where safe = append or unique
+    let mut seen: HashMap<String, (String, bool)> = HashMap::new();
 
     for task in &workflow.tasks {
         // Skip for_each tasks — their artifact paths are per-iteration
@@ -1748,27 +1749,31 @@ fn detect_artifact_collisions(workflow: &AnalyzedWorkflow, ctx: &mut AnalyzerCon
             if path.contains("{{") {
                 continue;
             }
-            // Append and Unique modes intentionally allow duplicate paths
-            if matches!(out.mode, Some(ArtifactMode::Append | ArtifactMode::Unique)) {
-                continue;
-            }
-            if let Some((prev_task, _prev_span)) = seen.get(path) {
-                ctx.warnings.push(AnalyzeError {
-                    kind: AnalyzeErrorKind::InvalidValue,
-                    span: task.span,
-                    message: format!(
-                        "Artifact path '{}' in task '{}' collides with task '{}' — \
-                         the second write will overwrite the first",
-                        path, task.name, prev_task
-                    ),
-                    suggestion: Some(
-                        "Use mode: append, mode: unique, or mode: fail to handle duplicates"
-                            .to_string(),
-                    ),
-                    note: None,
-                });
+            let is_safe_mode =
+                matches!(out.mode, Some(ArtifactMode::Append | ArtifactMode::Unique));
+            if let Some((prev_task, prev_safe)) = seen.get(path) {
+                // Warn only when at least one side uses overwrite/fail (destructive)
+                if !is_safe_mode || !prev_safe {
+                    ctx.warnings.push(AnalyzeError {
+                        kind: AnalyzeErrorKind::InvalidValue,
+                        span: task.span,
+                        message: format!(
+                            "Artifact path '{}' in task '{}' collides with task '{}' — \
+                             the second write will overwrite the first",
+                            path, task.name, prev_task
+                        ),
+                        suggestion: Some(
+                            "Use mode: append, mode: unique, or mode: fail to handle duplicates"
+                                .to_string(),
+                        ),
+                        note: None,
+                    });
+                }
             } else {
-                seen.insert(path.to_string(), (task.name.clone(), task.span));
+                seen.insert(
+                    path.to_string(),
+                    (task.name.clone(), is_safe_mode),
+                );
             }
         }
     }
@@ -3514,6 +3519,106 @@ tasks:
                 .any(|e| e.message.contains("concurrency: 0 is invalid")),
             "Should reject concurrency: 0 inside for_each object form: {:?}",
             result.errors
+        );
+    }
+
+    // =========================================================================
+    // Artifact collision detection tests
+    // =========================================================================
+
+    #[test]
+    fn artifact_collision_same_static_path_warns() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: a
+    infer: "test"
+    artifact:
+      path: output.md
+  - id: b
+    infer: "test"
+    artifact:
+      path: output.md
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = analyze(raw);
+        assert!(
+            result.warnings.iter().any(|w| w.message.contains("collides")),
+            "Should warn on duplicate static artifact path: {:?}",
+            result.warnings
+        );
+    }
+
+    #[test]
+    fn artifact_collision_append_mode_no_warning() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: a
+    infer: "test"
+    artifact:
+      path: log.txt
+      mode: append
+  - id: b
+    infer: "test"
+    artifact:
+      path: log.txt
+      mode: append
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = analyze(raw);
+        assert!(
+            !result.warnings.iter().any(|w| w.message.contains("collides")),
+            "Should NOT warn when both tasks use mode: append: {:?}",
+            result.warnings
+        );
+    }
+
+    #[test]
+    fn artifact_collision_template_path_skipped() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: a
+    infer: "test"
+    artifact:
+      path: "{{with.name}}.md"
+  - id: b
+    infer: "test"
+    artifact:
+      path: "{{with.name}}.md"
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = analyze(raw);
+        assert!(
+            !result.warnings.iter().any(|w| w.message.contains("collides")),
+            "Should NOT warn on template paths: {:?}",
+            result.warnings
+        );
+    }
+
+    #[test]
+    fn artifact_collision_mixed_mode_warns() {
+        // One append + one overwrite on same path = real collision
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: a
+    infer: "test"
+    artifact:
+      path: output.md
+      mode: append
+  - id: b
+    infer: "test"
+    artifact:
+      path: output.md
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = analyze(raw);
+        assert!(
+            result.warnings.iter().any(|w| w.message.contains("collides")),
+            "Should warn when append collides with overwrite: {:?}",
+            result.warnings
         );
     }
 }
