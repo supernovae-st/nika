@@ -46,6 +46,10 @@ mimalloc = { version = "0.1", default-features = false }
 # Rate limiting
 governor = { version = "0.10", default-features = false, features = ["std", "dashmap"] }
 
+# Metrics
+metrics = "0.24"
+metrics-exporter-prometheus = { version = "0.18", default-features = false }
+
 # Async
 tokio = { version = "1.49", features = ["rt-multi-thread", "macros", "process", "sync", "time", "fs", "signal"] }
 tokio-util = "0.7"

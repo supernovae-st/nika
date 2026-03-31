@@ -29,8 +29,6 @@ struct SchemaCacheEntry {
     mtime: std::time::SystemTime,
 }
 
-static SCHEMA_CACHE: LazyLock<DashMap<Arc<str>, SchemaCacheEntry>> = LazyLock::new(DashMap::new);
-
 /// Global compiled validator cache: blake3 hash of schema JSON → compiled validator.
 /// Uses blake3 for cryptographic collision resistance (replaces DefaultHasher u64).
 /// Avoids recompiling the same JSON Schema on every validation call (10-50ms each).
@@ -250,13 +248,7 @@ pub async fn validate_schema(value: &Value, schema_path: &str) -> Result<(), Nik
         if SCHEMA_CACHE.len() >= CACHE_MAX_ENTRIES {
             SCHEMA_CACHE.clear();
         }
-        SCHEMA_CACHE.insert(
-            Arc::from(schema_path),
-            SchemaCacheEntry {
-                schema: Arc::clone(&schema),
-                mtime: current_mtime.unwrap_or(std::time::SystemTime::UNIX_EPOCH),
-            },
-        );
+        SCHEMA_CACHE.insert(Arc::from(schema_path), Arc::clone(&schema));
         schema
     };
 
