@@ -7,10 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════╗
-║  NIKA v0.54.0 — SECURITY HARDENING + AUDIT FIXES                           ║
-║  10 bug fixes | 5 new events | 91 E2E workflows | 9,057 tests             ║
+║  NIKA v0.55.0 — VPS PRODUCTION HARDENING                                   ║
+║  17 fixes | NikaVault crypto | vLLM compat | daemon hardening | 9,086 tests║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
+
+## [0.55.0] — 2026-03-31
+
+### Security
+- **NikaVault encrypted secrets store** — XChaCha20Poly1305 (AEAD) + Argon2i KDF via `orion` crate. Replaces OS keychain dependency. Machine fingerprint (machine-id + username) or `NIKA_VAULT_PASSPHRASE` for CI/Docker. File permissions 0o600. Cross-platform: Linux, macOS, Windows.
+- **SSRF auto-allow for custom endpoints** — Private IPs (10.x, 192.168.x) from `[endpoints.*]` config are automatically added to `allowed_hosts`, preventing fetch verb from blocking legitimate vLLM/Ollama servers on private networks.
+- **Socket cleanup Drop guard** — Unix socket file now cleaned up on any exit path (success, error, panic) via RAII guard, preventing "daemon already running" errors after crashes.
+
+### Added
+- **`<think>` tag extraction** — Qwen3.5 and other reasoning models return thinking content in `<think>...</think>` tags. Now extracted and separated from actual response for clean output. Case-insensitive, multi-block support.
+- **Provider retry with exponential backoff** — Transient HTTP errors (500, 502, 503, 429, timeout) retry automatically with backoff [0s, 1s, 3s, 10s]. Permanent errors (401, 403) fail immediately. Independent of task-level `retry:` config.
+- **systemd Type=notify** — Daemon signals readiness via `sd-notify` after full initialization (socket bound, storage opened, token written). Replaces `Type=simple`.
+- **systemd EnvironmentFile** — Unit template loads `~/.nika/.env` for secrets injection.
+- **Pending job drain** — When a running job completes, pending jobs are automatically started if slots are available. Uses `Notify`-based background drain loop.
+
+### Fixed
+- **systemd Restart=always** — Daemon exits 0 on SIGTERM, so `Restart=on-failure` never triggered restart. Changed to `Restart=always`.
+- **timeout_secs propagation** — Custom endpoint `timeout_secs` from `config.toml` was parsed but never passed to the HTTP client. Now stored in `OpenAiCompat` variant and used for all infer/vision/stream timeouts.
+- **Signal handler panic** — SIGTERM/SIGINT handlers used `.expect()` which panics in restricted environments. Replaced with `.ok()` + graceful `pending()` fallback.
+- **SQLite failure now fatal** — Storage open errors were silently swallowed, disabling jobs. Now propagated so systemd can restart the daemon.
+- **`nika provider set` uses NikaVault** — On headless Linux, OS keyring fails (no D-Bus). Now writes to encrypted vault file instead.
+- **Vault fallback without daemon** — With `NIKA_NO_DAEMON=1` or dead daemon, secrets resolve from vault file directly (env → daemon → vault → None).
+- **Connection drain on shutdown** — Active IPC connections are now tracked and drained with 5-second timeout on graceful shutdown.
+- **`$env.VAR` resolution order** — Documented guarantee that daemon/vault secrets are pre-loaded into process env before workflow binding resolution.
+
+### Changed
+- **Secrets resolution order** — env var → daemon IPC → NikaVault → None (was: env var → daemon → None).
+- **NikaVault in nika-core** — Vault implementation lives in `nika-core` (shared by daemon + engine without circular deps).
+- **9,086 tests** — Up from 9,057 (+29 new tests for vault, think tags, retry, SSRF policy).
+
+### Dependencies
+- **Added**: `orion 0.17` (XChaCha20Poly1305 + Argon2i), `whoami 1` (username), `sd-notify 0.5` (systemd readiness).
 
 ## [0.54.0] — 2026-03-31
 
