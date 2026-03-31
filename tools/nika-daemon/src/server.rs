@@ -66,6 +66,19 @@ struct ServerState {
     auth_token: String,
 }
 
+/// Drop guard that cleans up socket and token files on exit (success or error).
+struct SocketGuard {
+    socket_path: PathBuf,
+    token_path: PathBuf,
+}
+
+impl Drop for SocketGuard {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.socket_path);
+        let _ = std::fs::remove_file(&self.token_path);
+    }
+}
+
 /// The daemon server.
 pub struct DaemonServer {
     config: DaemonConfig,
@@ -109,6 +122,12 @@ impl DaemonServer {
         }
 
         let listener = UnixListener::bind(socket_path)?;
+
+        // Guard ensures socket + token are cleaned up on any exit path (success, error, panic)
+        let _socket_guard = SocketGuard {
+            socket_path: socket_path.clone(),
+            token_path: crate::daemon_token_path(),
+        };
 
         // Set socket permissions to owner-only (0o600)
         #[cfg(unix)]
@@ -198,9 +217,7 @@ impl DaemonServer {
             }
         }
 
-        // Cleanup socket + auth token
-        let _ = tokio::fs::remove_file(socket_path).await;
-        let _ = tokio::fs::remove_file(crate::daemon_token_path()).await;
+        // SocketGuard handles cleanup on drop (socket + token files)
         info!("daemon stopped");
         Ok(())
     }
