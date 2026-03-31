@@ -29,6 +29,11 @@ const MAX_BINARY_RESPONSE_SIZE: u64 = 100 * 1024 * 1024;
 /// Maximum backoff delay: 5 minutes (300,000 ms).
 const MAX_BACKOFF_MS: u64 = 300_000;
 
+/// Check if a content-type string indicates HTML (soft 404 detection for llm_txt).
+fn is_html_content_type(ct: &str) -> bool {
+    ct.to_ascii_lowercase().contains("text/html")
+}
+
 /// Safe exponential backoff that handles Infinity/NaN/overflow.
 ///
 /// Returns a delay in milliseconds, guaranteed to be in `[1, MAX_BACKOFF_MS]`.
@@ -714,6 +719,16 @@ impl TaskExecutor {
                                     continue;
                                 }
                                 if resp.status().is_success() {
+                                    // Skip HTML responses (soft 404)
+                                    let ct = resp
+                                        .headers()
+                                        .get(reqwest::header::CONTENT_TYPE)
+                                        .and_then(|v| v.to_str().ok())
+                                        .unwrap_or("");
+                                    if is_html_content_type(ct) {
+                                        tracing::debug!(url = %llm_url, "llm_txt: skipping HTML response (soft 404)");
+                                        continue;
+                                    }
                                     if let Ok(body) = read_body_with_limit(resp, 1_048_576).await {
                                         if !body.trim().is_empty() {
                                             return Ok(serde_json::json!({
@@ -930,5 +945,19 @@ mod tests {
         // 100 * 2.0^0 = 100
         let delay = safe_backoff_delay(100, 2.0, 0);
         assert_eq!(delay, 100);
+    }
+
+    #[test]
+    fn is_html_content_type_detects_html() {
+        assert!(is_html_content_type("text/html"));
+        assert!(is_html_content_type("text/html; charset=utf-8"));
+        assert!(is_html_content_type("TEXT/HTML"));
+    }
+
+    #[test]
+    fn is_html_content_type_allows_plaintext() {
+        assert!(!is_html_content_type("text/plain"));
+        assert!(!is_html_content_type("text/markdown"));
+        assert!(!is_html_content_type("application/json"));
     }
 }
