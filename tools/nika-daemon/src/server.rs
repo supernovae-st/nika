@@ -176,6 +176,12 @@ impl DaemonServer {
             auth_token,
         });
 
+        // Signal systemd readiness (Linux only, no-op if NOTIFY_SOCKET is unset)
+        #[cfg(target_os = "linux")]
+        {
+            let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Ready]);
+        }
+
         let mut shutdown_rx = self.shutdown_rx;
         // H1 fix: enforce max_connections via semaphore
         let conn_semaphore = Arc::new(Semaphore::new(self.config.max_connections));

@@ -178,6 +178,7 @@ notify = "8"
 
 # Unix
 nix = { version = "0.31", features = ["signal", "process", "fs", "net"] }
+sd-notify = "0.5"
 
 # Media
 mime = "0.3"

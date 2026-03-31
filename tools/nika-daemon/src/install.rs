@@ -195,7 +195,7 @@ Description=Nika Workflow Daemon
 After=default.target
 
 [Service]
-Type=simple
+Type=notify
 ExecStart={exe} daemon start --foreground
 Restart=always
 RestartSec=5
@@ -315,6 +315,10 @@ mod tests {
         assert!(
             unit.contains("RestartSec=5"),
             "must have RestartSec=5"
+        );
+        assert!(
+            unit.contains("Type=notify"),
+            "must use Type=notify for sd_notify readiness signal"
         );
     }
 }
