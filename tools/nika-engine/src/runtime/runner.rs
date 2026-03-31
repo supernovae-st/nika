@@ -2237,6 +2237,23 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             .max(1) as usize;
                         let fail_fast = fe.map(|f| f.fail_fast).or(task.fail_fast).unwrap_or(true);
 
+                        // Guard against unbounded for_each arrays that could OOM
+                        const MAX_FOR_EACH_ITEMS: usize = 10_000;
+                        if items.len() > MAX_FOR_EACH_ITEMS {
+                            let err_msg = format!(
+                                "for_each has {} items, exceeding limit of {} — \
+                                 reduce the array size or split into batches",
+                                items.len(),
+                                MAX_FOR_EACH_ITEMS
+                            );
+                            self.emit_scheduling_failure(&task.name, &err_msg, "NIKA-026");
+                            self.datastore.insert(
+                                intern(&task.name),
+                                TaskResult::failed(err_msg, std::time::Duration::ZERO),
+                            );
+                            continue;
+                        }
+
                         debug!(
                             task_id = %task.name,
                             items = items.len(),
