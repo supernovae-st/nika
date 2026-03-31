@@ -49,59 +49,85 @@ use std::path::PathBuf;
 // RAII Lockfile Guard
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// RAII guard that removes a lockfile on drop.
+/// RAII guard that holds an exclusive `flock` on a lockfile.
 ///
 /// The media store lockfile (`.nika-run.lock`) prevents `nika media clean` from
-/// garbage-collecting blobs that are still in use by a running workflow. Without
-/// this guard, any early return via `?`, `return Err(...)`, or panic would leave
-/// a stale lockfile that permanently blocks GC until manually deleted.
+/// garbage-collecting blobs that are still in use by a running workflow.
 ///
-/// The guard writes the lockfile on creation and removes it when dropped,
-/// covering **all** exit paths: normal completion, error propagation, and
-/// unwinding panics.
+/// On Unix, uses nix `Flock` (LOCK_EX|LOCK_NB) — dropping releases the lock.
+/// On non-Unix, falls back to PID file.
 struct LockfileGuard {
     path: PathBuf,
+    /// Unix: nix::fcntl::Flock wrapping the file (drop releases flock).
+    #[cfg(unix)]
+    _flock: Option<nix::fcntl::Flock<std::fs::File>>,
+    /// Non-Unix: held open to keep the file.
+    #[cfg(not(unix))]
+    _file: Option<std::fs::File>,
 }
 
 impl LockfileGuard {
-    /// Create the lockfile and return a guard that will remove it on drop.
+    /// Try to acquire an exclusive flock on the lockfile (non-blocking).
     ///
-    /// Logs warnings on failure but does not block execution — lockfile is
-    /// best-effort protection against concurrent runs, not a hard requirement.
-    ///
-    /// NOTE: With `panic = "abort"` (release profile), panics bypass Drop.
-    /// The lockfile includes a timestamp — callers should treat locks older
-    /// than 10 minutes as stale.
+    /// Best-effort: if locking fails, logs a warning and continues.
+    /// The PID is written for debugging but the lock is the real guard.
     fn create(path: PathBuf) -> Self {
-        // Check for stale lockfile (>10min = likely from panic=abort crash)
-        if path.exists() {
-            if let Ok(metadata) = path.metadata() {
-                if let Ok(modified) = metadata.modified() {
-                    if modified.elapsed().unwrap_or_default() > std::time::Duration::from_secs(600)
-                    {
-                        tracing::warn!("Removing stale lockfile (>10min old)");
-                        if let Err(e) = std::fs::remove_file(&path) {
-                            tracing::debug!(error = %e, "Failed to remove stale lockfile");
-                        }
-                    }
-                }
-            }
-        }
-
         if let Some(parent) = path.parent() {
             if let Err(e) = std::fs::create_dir_all(parent) {
                 tracing::warn!(path = %parent.display(), error = %e, "Failed to create lockfile directory");
             }
         }
-        if let Err(e) = std::fs::write(&path, format!("pid:{}", std::process::id())) {
-            tracing::warn!(path = %path.display(), error = %e, "Failed to write lockfile — concurrent runs may conflict");
+
+        let file = match std::fs::File::create(&path) {
+            Ok(f) => f,
+            Err(e) => {
+                tracing::warn!(path = %path.display(), error = %e, "Failed to create lockfile");
+                #[cfg(unix)]
+                return Self { path, _flock: None };
+                #[cfg(not(unix))]
+                return Self { path, _file: None };
+            }
+        };
+
+        // Write PID for debugging (lock is the real protection)
+        {
+            use std::io::Write;
+            let _ = (&file).write_all(format!("pid:{}", std::process::id()).as_bytes());
         }
-        Self { path }
+
+        #[cfg(unix)]
+        {
+            use nix::fcntl::{Flock, FlockArg};
+            match Flock::lock(file, FlockArg::LockExclusiveNonblock) {
+                Ok(flock) => {
+                    tracing::debug!(path = %path.display(), "Acquired exclusive lockfile");
+                    Self { path, _flock: Some(flock) }
+                }
+                Err(err) => {
+                    let errno = err.1;
+                    if errno == nix::errno::Errno::EWOULDBLOCK {
+                        tracing::warn!(
+                            path = %path.display(),
+                            "Another nika process holds the lockfile — concurrent runs may conflict"
+                        );
+                    } else {
+                        tracing::warn!(path = %path.display(), error = %errno, "Failed to flock lockfile");
+                    }
+                    Self { path, _flock: None }
+                }
+            }
+        }
+
+        #[cfg(not(unix))]
+        {
+            Self { path, _file: Some(file) }
+        }
     }
 }
 
 impl Drop for LockfileGuard {
     fn drop(&mut self) {
+        // Flock/File drop releases the lock automatically. Remove the file for cleanliness.
         let _ = std::fs::remove_file(&self.path);
     }
 }
