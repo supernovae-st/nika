@@ -777,6 +777,10 @@ fn resolve_binding_path(
         }
 
         BindingSource::Env(var_name) => {
+            // NOTE: daemon/vault secrets are pre-loaded into the process env
+            // by `load_from_daemon_or_fallback()` during boot (before any task
+            // execution), so `std::env::var` sees them here.
+            //
             // Warn on secret-pattern vars for audit trail, but allow access.
             // Users explicitly reference $env.VAR in their YAML — that's an opt-in.
             const SECRET_PATTERNS: &[&str] =
