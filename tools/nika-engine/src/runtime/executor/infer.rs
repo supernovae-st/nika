@@ -695,9 +695,19 @@ impl TaskExecutor {
                 })?
         };
 
-        // Strip <think>...</think> blocks from reasoning models (Qwen, DeepSeek-R1)
+        // Extract <think>...</think> blocks from reasoning models (Qwen, DeepSeek-R1)
+        // Captures thinking content for observability, strips tags from output.
         let mut stream_result = stream_result;
-        stream_result.text = super::verbs::strip_think_tags(&stream_result.text);
+        let (thinking_content, clean_text) =
+            super::verbs::extract_thinking_tags(&stream_result.text);
+        stream_result.text = clean_text;
+        if let Some(ref thinking) = thinking_content {
+            debug!(
+                task_id = %task_id,
+                thinking_len = thinking.len(),
+                "Extracted <think> content from OpenAI-compat response"
+            );
+        }
 
         // Adjust reservation with actual token count
         let actual_tokens = stream_result.input_tokens + stream_result.output_tokens;

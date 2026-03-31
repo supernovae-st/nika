@@ -128,22 +128,28 @@ pub(crate) fn detect_image_media_type(
     }
 }
 
-/// Strip `<think>...</think>` and `<thinking>...</thinking>` blocks from LLM responses.
+/// Extract `<think>...</think>` and `<thinking>...</thinking>` blocks from LLM responses.
 ///
-/// Reasoning models (Qwen, DeepSeek-R1) emit thinking blocks that should
-/// not appear in the final task output. Case-insensitive to handle
-/// `<Think>`, `<THINK>`, `<thinking>`, etc. Applied to ALL providers.
-pub(crate) fn strip_think_tags(text: &str) -> String {
+/// Reasoning models (Qwen, DeepSeek-R1) emit thinking blocks wrapped in these tags.
+/// This function extracts the thinking content for observability and returns the
+/// cleaned text without think tags. Case-insensitive to handle `<Think>`, `<THINK>`,
+/// `<thinking>`, etc.
+///
+/// Returns `(thinking_content, clean_text)`:
+/// - `thinking_content`: `Some(String)` if non-empty thinking blocks were found, `None` otherwise.
+/// - `clean_text`: The original text with all think/thinking tags and their contents removed.
+pub(crate) fn extract_thinking_tags(text: &str) -> (Option<String>, String) {
     let lower = text.to_lowercase();
 
     // Fast path: no think tags at all (case-insensitive check)
     if !lower.contains("<think") {
-        return text.to_string();
+        return (None, text.to_string());
     }
 
     // Iterate using char_indices on the ORIGINAL text to stay on char boundaries.
     // Compare against lowercase on-the-fly for case-insensitive tag matching.
     let mut result = String::with_capacity(text.len());
+    let mut thinking_parts: Vec<String> = Vec::new();
     let mut chars = text.char_indices().peekable();
 
     while let Some(&(i, _)) = chars.peek() {
@@ -173,6 +179,12 @@ pub(crate) fn strip_think_tags(text: &str) -> String {
             let search_region = &text[after_open..];
             let search_lower = search_region.to_lowercase();
             if let Some(close_pos_in_lower) = search_lower.find(&close_tag.to_lowercase()) {
+                // Extract the thinking content (original case preserved)
+                let thinking_content = &search_region[..close_pos_in_lower];
+                let trimmed = thinking_content.trim();
+                if !trimmed.is_empty() {
+                    thinking_parts.push(trimmed.to_string());
+                }
                 // Map the position back to the original text by counting chars
                 let chars_to_skip = search_region[..close_pos_in_lower].chars().count();
                 let close_tag_chars = close_tag.chars().count();
@@ -180,7 +192,12 @@ pub(crate) fn strip_think_tags(text: &str) -> String {
                     chars.next();
                 }
             } else {
-                // Unclosed tag — strip everything from here
+                // Unclosed tag — extract everything after the open tag as thinking
+                let unclosed_content = &text[after_open..];
+                let trimmed = unclosed_content.trim();
+                if !trimmed.is_empty() {
+                    thinking_parts.push(trimmed.to_string());
+                }
                 break;
             }
             continue;
@@ -191,12 +208,89 @@ pub(crate) fn strip_think_tags(text: &str) -> String {
         result.push(ch);
     }
 
-    result.trim().to_string()
+    let thinking = if thinking_parts.is_empty() {
+        None
+    } else {
+        Some(thinking_parts.join("\n\n"))
+    };
+
+    (thinking, result.trim().to_string())
+}
+
+/// Strip `<think>...</think>` and `<thinking>...</thinking>` blocks from LLM responses.
+///
+/// Reasoning models (Qwen, DeepSeek-R1) emit thinking blocks that should
+/// not appear in the final task output. Case-insensitive to handle
+/// `<Think>`, `<THINK>`, `<thinking>`, etc. Applied to ALL providers.
+///
+/// This is a convenience wrapper around [`extract_thinking_tags`] that discards
+/// the extracted thinking content and returns only the cleaned text.
+pub(crate) fn strip_think_tags(text: &str) -> String {
+    let (_thinking, clean) = extract_thinking_tags(text);
+    clean
 }
 
 #[cfg(test)]
 mod tests {
-    use super::strip_think_tags;
+    use super::{extract_thinking_tags, strip_think_tags};
+
+    // ========================================================================
+    // extract_thinking_tags tests
+    // ========================================================================
+
+    #[test]
+    fn extract_simple() {
+        let (t, c) = extract_thinking_tags("<think>reasoning</think>answer");
+        assert_eq!(t.unwrap(), "reasoning");
+        assert_eq!(c, "answer");
+    }
+
+    #[test]
+    fn extract_no_tags() {
+        let (t, c) = extract_thinking_tags("just text");
+        assert!(t.is_none());
+        assert_eq!(c, "just text");
+    }
+
+    #[test]
+    fn extract_empty_think() {
+        let (t, c) = extract_thinking_tags("<think></think>answer");
+        assert!(t.is_none());
+        assert_eq!(c, "answer");
+    }
+
+    #[test]
+    fn extract_multiple_blocks() {
+        let (t, c) = extract_thinking_tags("<think>first</think>A<think>second</think>B");
+        assert_eq!(t.unwrap(), "first\n\nsecond");
+        assert_eq!(c, "AB");
+    }
+
+    #[test]
+    fn extract_thinking_variant() {
+        let (t, c) =
+            extract_thinking_tags("<thinking>DeepSeek reasoning</thinking>The answer.");
+        assert_eq!(t.unwrap(), "DeepSeek reasoning");
+        assert_eq!(c, "The answer.");
+    }
+
+    #[test]
+    fn extract_case_insensitive() {
+        let (t, c) = extract_thinking_tags("<THINK>loud reasoning</THINK>Result");
+        assert_eq!(t.unwrap(), "loud reasoning");
+        assert_eq!(c, "Result");
+    }
+
+    #[test]
+    fn extract_unclosed_tag() {
+        let (t, c) = extract_thinking_tags("<think>thinking forever...");
+        assert_eq!(t.unwrap(), "thinking forever...");
+        assert_eq!(c, "");
+    }
+
+    // ========================================================================
+    // strip_think_tags tests (backward compatibility)
+    // ========================================================================
 
     #[test]
     fn strip_think_tags_no_tags() {
