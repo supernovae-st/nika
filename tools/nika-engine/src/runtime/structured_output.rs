@@ -320,14 +320,20 @@ impl StructuredOutputEngine {
         .await
         {
             Ok(result) => result,
-            Err(_elapsed) => Err(NikaError::StructuredOutputAllLayersFailed {
-                task_id: task_id.to_string(),
-                attempts: 0,
-                final_errors: vec![format!(
-                    "Structured output validation timed out after {}s",
-                    AGGREGATE_TIMEOUT_SECS
-                )],
-            }),
+            Err(_elapsed) => {
+                self.log.emit(EventKind::StructuredOutputTimeout {
+                    task_id: Arc::from(task_id),
+                    timeout_secs: AGGREGATE_TIMEOUT_SECS,
+                });
+                Err(NikaError::StructuredOutputAllLayersFailed {
+                    task_id: task_id.to_string(),
+                    attempts: 0,
+                    final_errors: vec![format!(
+                        "Structured output validation timed out after {}s",
+                        AGGREGATE_TIMEOUT_SECS
+                    )],
+                })
+            }
         }
     }
 
