@@ -165,3 +165,4 @@ image = { workspace = true }
 
 [target.'cfg(unix)'.dependencies]
 nika-daemon = { workspace = true }
+nix = { workspace = true }
