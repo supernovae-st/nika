@@ -152,6 +152,10 @@ enum DbCommand {
         reason: String,
         reply: oneshot::Sender<StorageResult<u64>>,
     },
+    DeleteOldJobs {
+        max_age_secs: u64,
+        reply: oneshot::Sender<StorageResult<u64>>,
+    },
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -351,6 +355,22 @@ impl Storage {
             .map_err(|_| StorageError::ChannelClosed)?;
         rx.await.map_err(|_| StorageError::ChannelClosed)?
     }
+
+    /// Delete completed/failed/cancelled jobs older than `max_age_secs`.
+    ///
+    /// Also deletes associated job_history entries.
+    /// Returns the number of jobs deleted.
+    pub async fn delete_old_jobs(&self, max_age_secs: u64) -> StorageResult<u64> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(DbCommand::DeleteOldJobs {
+                max_age_secs,
+                reply,
+            })
+            .await
+            .map_err(|_| StorageError::ChannelClosed)?;
+        rx.await.map_err(|_| StorageError::ChannelClosed)?
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -420,6 +440,12 @@ fn run_db_loop(conn: Connection, mut rx: mpsc::Receiver<DbCommand>) {
             }
             DbCommand::ResetStaleRunning { reason, reply } => {
                 let _ = reply.send(do_reset_stale_running(&conn, &reason));
+            }
+            DbCommand::DeleteOldJobs {
+                max_age_secs,
+                reply,
+            } => {
+                let _ = reply.send(do_delete_old_jobs(&conn, max_age_secs));
             }
         }
     }
@@ -646,6 +672,35 @@ fn do_reset_stale_running(conn: &Connection, reason: &str) -> StorageResult<u64>
         params![reason, now],
     )?;
     Ok(affected as u64)
+}
+
+fn do_delete_old_jobs(conn: &Connection, max_age_secs: u64) -> StorageResult<u64> {
+    let cutoff = chrono::Utc::now() - chrono::Duration::seconds(max_age_secs as i64);
+    let cutoff_str = cutoff.to_rfc3339();
+
+    // Delete history entries for old terminal jobs first (FK-safe)
+    conn.execute(
+        "DELETE FROM job_history WHERE job_id IN (
+            SELECT id FROM jobs
+            WHERE state IN ('completed', 'failed', 'cancelled')
+            AND created_at < ?1
+        )",
+        params![cutoff_str],
+    )?;
+
+    // Delete the jobs themselves
+    let deleted = conn.execute(
+        "DELETE FROM jobs
+         WHERE state IN ('completed', 'failed', 'cancelled')
+         AND created_at < ?1",
+        params![cutoff_str],
+    )?;
+
+    if deleted > 0 {
+        info!(count = deleted, "garbage collected old jobs");
+    }
+
+    Ok(deleted as u64)
 }
 
 fn row_to_job(row: &rusqlite::Row) -> rusqlite::Result<Job> {
@@ -1053,6 +1108,41 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(affected, 0);
+    }
+
+    #[tokio::test]
+    async fn delete_old_jobs_removes_terminal_jobs() {
+        let storage = Storage::open_memory().unwrap();
+
+        // Create and complete some jobs
+        storage.create_job("gc1", "a.nika.yaml").await.unwrap();
+        storage.complete_job("gc1", "done").await.unwrap();
+        storage.create_job("gc2", "b.nika.yaml").await.unwrap();
+        storage.fail_job("gc2", "boom").await.unwrap();
+        storage.create_job("gc3", "c.nika.yaml").await.unwrap(); // stays pending
+
+        // Delete jobs older than 0 seconds (everything is "old")
+        let deleted = storage.delete_old_jobs(0).await.unwrap();
+        assert_eq!(deleted, 2, "should delete completed + failed but not pending");
+
+        // Verify pending job still exists
+        let gc3 = storage.get_job("gc3").await.unwrap();
+        assert!(gc3.is_some(), "pending job should survive GC");
+
+        // Verify completed/failed jobs are gone
+        let gc1 = storage.get_job("gc1").await.unwrap();
+        assert!(gc1.is_none(), "completed job should be deleted");
+    }
+
+    #[tokio::test]
+    async fn delete_old_jobs_respects_age() {
+        let storage = Storage::open_memory().unwrap();
+        storage.create_job("age1", "a.nika.yaml").await.unwrap();
+        storage.complete_job("age1", "done").await.unwrap();
+
+        // Delete only jobs older than 1 hour — newly created job should survive
+        let deleted = storage.delete_old_jobs(3600).await.unwrap();
+        assert_eq!(deleted, 0, "recent job should not be deleted");
     }
 
     #[test]

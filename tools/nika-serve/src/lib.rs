@@ -119,6 +119,21 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
 
     info!(bind = %config.bind, max_concurrent = config.max_concurrent, "nika serve starting");
 
+    // Spawn background job GC (every hour, delete terminal jobs > 7 days)
+    let gc_storage = state.storage.clone();
+    tokio::spawn(async move {
+        const GC_INTERVAL: std::time::Duration = std::time::Duration::from_secs(3600);
+        const MAX_AGE_SECS: u64 = 7 * 24 * 3600; // 7 days
+        loop {
+            tokio::time::sleep(GC_INTERVAL).await;
+            match gc_storage.delete_old_jobs(MAX_AGE_SECS).await {
+                Ok(0) => {}
+                Ok(n) => info!(count = n, "job GC: deleted old jobs"),
+                Err(e) => tracing::warn!(error = %e, "job GC failed"),
+            }
+        }
+    });
+
     // Graceful shutdown signal
     let shutdown_signal = async {
         // ERRATA-18: If signal setup fails, use pending (never completes => manual kill only)
