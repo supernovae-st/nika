@@ -75,8 +75,8 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
         executor: match config.executor_mode {
             config::ExecutorMode::Subprocess => executor::Executor::Subprocess,
             config::ExecutorMode::Embedded => {
-                tracing::warn!("embedded executor not yet implemented, falling back to subprocess");
-                executor::Executor::Subprocess
+                info!("using embedded executor (in-process Runner)");
+                executor::Executor::Embedded
             }
         },
         semaphore: Arc::new(Semaphore::new(config.max_concurrent)),
