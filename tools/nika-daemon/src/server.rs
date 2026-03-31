@@ -56,7 +56,7 @@ struct ActiveWatch {
 struct ServerState {
     started_at: Instant,
     secret_service: SecretService,
-    job_service: Option<JobService>,
+    job_service: JobService,
     cache_service: CacheService,
     event_bus: EventBus,
     active_watch: tokio::sync::Mutex<Option<ActiveWatch>>,
@@ -139,21 +139,19 @@ impl DaemonServer {
 
         info!(path = %socket_path.display(), "daemon listening");
 
-        // Initialize job storage
+        // Initialize job storage — fatal on failure so systemd Restart=always
+        // will restart the daemon (SQLite is required for jobs + cron).
         let db_path = crate::daemon_dir().join("jobs.db");
-        let job_service = match Storage::open(&db_path) {
-            Ok(storage) => {
-                info!(path = %db_path.display(), "job storage opened");
-                let svc = JobService::new(storage);
-                // Spawn cron scheduler — fires due cron jobs every minute.
-                tokio::spawn(crate::services::jobs::run_cron_scheduler(svc.clone()));
-                Some(svc)
-            }
-            Err(e) => {
-                warn!(error = %e, "failed to open job storage — jobs disabled");
-                None
-            }
-        };
+        let storage = Storage::open(&db_path).map_err(|e| {
+            DaemonError::Lifecycle(format!(
+                "failed to open job storage at {}: {e}",
+                db_path.display()
+            ))
+        })?;
+        info!(path = %db_path.display(), "job storage opened");
+        let job_service = JobService::new(storage);
+        // Spawn cron scheduler — fires due cron jobs every minute.
+        tokio::spawn(crate::services::jobs::run_cron_scheduler(job_service.clone()));
 
         let event_bus = EventBus::new();
         event_bus.publish(crate::events::DaemonEvent::DaemonStarted {
@@ -386,10 +384,7 @@ async fn route_request(request: DaemonRequest, state: &Arc<ServerState>) -> Daem
         },
 
         DaemonRequest::Status => {
-            let mut services = vec!["secrets".to_string(), "cache".into()];
-            if state.job_service.is_some() {
-                services.push("jobs".into());
-            }
+            let services = vec!["secrets".to_string(), "cache".into(), "jobs".into()];
             DaemonResponse::StatusInfo {
                 pid: std::process::id(),
                 uptime_secs: state.started_at.elapsed().as_secs(),
@@ -475,138 +470,103 @@ async fn route_request(request: DaemonRequest, state: &Arc<ServerState>) -> Daem
             args,
             cron,
             max_retries,
-        } => match &state.job_service {
-            Some(svc) => match svc
-                .submit(
-                    &workflow,
-                    name.as_deref(),
-                    args.as_deref(),
-                    cron.as_deref(),
-                    max_retries.unwrap_or(0),
-                )
-                .await
-            {
-                Ok(id) => DaemonResponse::JobCreated { id },
-                Err(e) => DaemonResponse::Error {
-                    code: "JOB-001".into(),
-                    message: e.to_string(),
-                },
-            },
-            None => DaemonResponse::Error {
-                code: "JOB-000".into(),
-                message: "job service not available".into(),
+        } => match state
+            .job_service
+            .submit(
+                &workflow,
+                name.as_deref(),
+                args.as_deref(),
+                cron.as_deref(),
+                max_retries.unwrap_or(0),
+            )
+            .await
+        {
+            Ok(id) => DaemonResponse::JobCreated { id },
+            Err(e) => DaemonResponse::Error {
+                code: "JOB-001".into(),
+                message: e.to_string(),
             },
         },
 
-        DaemonRequest::JobList { state: filter } => match &state.job_service {
-            Some(svc) => {
-                let job_state = filter.map(|s| JobState::parse(&s));
-                match svc.list_jobs(job_state).await {
-                    Ok(jobs) => {
-                        let json_jobs: Vec<serde_json::Value> = jobs
-                            .iter()
-                            .filter_map(|j| match serde_json::to_value(j) {
-                                Ok(v) => Some(v),
-                                Err(e) => {
-                                    warn!(error = %e, "failed to serialize job");
-                                    None
-                                }
-                            })
-                            .collect();
-                        DaemonResponse::JobList { jobs: json_jobs }
-                    }
-                    Err(e) => DaemonResponse::Error {
-                        code: "JOB-002".into(),
-                        message: e.to_string(),
-                    },
-                }
-            }
-            None => DaemonResponse::Error {
-                code: "JOB-000".into(),
-                message: "job service not available".into(),
-            },
-        },
-
-        DaemonRequest::JobStatus { id } => match &state.job_service {
-            Some(svc) => match svc.get_job(&id).await {
-                Ok(Some(job)) => match serde_json::to_value(&job) {
-                    Ok(v) => DaemonResponse::JobDetail { job: v },
-                    Err(e) => {
-                        warn!(error = %e, id, "failed to serialize job");
-                        DaemonResponse::Error {
-                            code: "JOB-002".into(),
-                            message: format!("failed to serialize job: {e}"),
-                        }
-                    }
-                },
-                Ok(None) => DaemonResponse::Error {
-                    code: "JOB-004".into(),
-                    message: format!("job not found: {id}"),
-                },
-                Err(e) => DaemonResponse::Error {
-                    code: "JOB-002".into(),
-                    message: e.to_string(),
-                },
-            },
-            None => DaemonResponse::Error {
-                code: "JOB-000".into(),
-                message: "job service not available".into(),
-            },
-        },
-
-        DaemonRequest::JobCancel { id } => match &state.job_service {
-            Some(svc) => match svc.cancel(&id).await {
-                Ok(()) => DaemonResponse::Ok,
-                Err(e) => DaemonResponse::Error {
-                    code: "JOB-003".into(),
-                    message: e.to_string(),
-                },
-            },
-            None => DaemonResponse::Error {
-                code: "JOB-000".into(),
-                message: "job service not available".into(),
-            },
-        },
-
-        DaemonRequest::JobRetry { id } => match &state.job_service {
-            Some(svc) => match svc.retry(&id).await {
-                Ok(new_id) => DaemonResponse::JobCreated { id: new_id },
-                Err(e) => DaemonResponse::Error {
-                    code: "JOB-005".into(),
-                    message: e.to_string(),
-                },
-            },
-            None => DaemonResponse::Error {
-                code: "JOB-000".into(),
-                message: "job service not available".into(),
-            },
-        },
-
-        DaemonRequest::JobHistory { id } => match &state.job_service {
-            Some(svc) => match svc.get_history(&id).await {
-                Ok(events) => {
-                    let json_events: Vec<serde_json::Value> = events
+        DaemonRequest::JobList { state: filter } => {
+            let job_state = filter.map(|s| JobState::parse(&s));
+            match state.job_service.list_jobs(job_state).await {
+                Ok(jobs) => {
+                    let json_jobs: Vec<serde_json::Value> = jobs
                         .iter()
-                        .filter_map(|e| match serde_json::to_value(e) {
+                        .filter_map(|j| match serde_json::to_value(j) {
                             Ok(v) => Some(v),
-                            Err(err) => {
-                                warn!(error = %err, "failed to serialize job history event");
+                            Err(e) => {
+                                warn!(error = %e, "failed to serialize job");
                                 None
                             }
                         })
                         .collect();
-                    DaemonResponse::JobHistoryList {
-                        events: json_events,
-                    }
+                    DaemonResponse::JobList { jobs: json_jobs }
                 }
                 Err(e) => DaemonResponse::Error {
-                    code: "JOB-006".into(),
+                    code: "JOB-002".into(),
                     message: e.to_string(),
                 },
+            }
+        }
+
+        DaemonRequest::JobStatus { id } => match state.job_service.get_job(&id).await {
+            Ok(Some(job)) => match serde_json::to_value(&job) {
+                Ok(v) => DaemonResponse::JobDetail { job: v },
+                Err(e) => {
+                    warn!(error = %e, id, "failed to serialize job");
+                    DaemonResponse::Error {
+                        code: "JOB-002".into(),
+                        message: format!("failed to serialize job: {e}"),
+                    }
+                }
             },
-            None => DaemonResponse::Error {
-                code: "JOB-000".into(),
-                message: "job service not available".into(),
+            Ok(None) => DaemonResponse::Error {
+                code: "JOB-004".into(),
+                message: format!("job not found: {id}"),
+            },
+            Err(e) => DaemonResponse::Error {
+                code: "JOB-002".into(),
+                message: e.to_string(),
+            },
+        },
+
+        DaemonRequest::JobCancel { id } => match state.job_service.cancel(&id).await {
+            Ok(()) => DaemonResponse::Ok,
+            Err(e) => DaemonResponse::Error {
+                code: "JOB-003".into(),
+                message: e.to_string(),
+            },
+        },
+
+        DaemonRequest::JobRetry { id } => match state.job_service.retry(&id).await {
+            Ok(new_id) => DaemonResponse::JobCreated { id: new_id },
+            Err(e) => DaemonResponse::Error {
+                code: "JOB-005".into(),
+                message: e.to_string(),
+            },
+        },
+
+        DaemonRequest::JobHistory { id } => match state.job_service.get_history(&id).await {
+            Ok(events) => {
+                let json_events: Vec<serde_json::Value> = events
+                    .iter()
+                    .filter_map(|e| match serde_json::to_value(e) {
+                        Ok(v) => Some(v),
+                        Err(err) => {
+                            warn!(error = %err, "failed to serialize job history event");
+                            None
+                        }
+                    })
+                    .collect();
+                DaemonResponse::JobHistoryList {
+                    events: json_events,
+                }
+            }
+            Err(e) => DaemonResponse::Error {
+                code: "JOB-006".into(),
+                message: e.to_string(),
             },
         },
 
@@ -809,30 +769,26 @@ async fn route_request(request: DaemonRequest, state: &Arc<ServerState>) -> Daem
         },
 
         DaemonRequest::GetWorkflowHistory { workflow } => {
-            if let Some(ref job_service) = state.job_service {
-                match job_service.list_jobs_for_workflow(&workflow).await {
-                    Ok(jobs) => {
-                        let runs = jobs
-                            .into_iter()
-                            .map(|j| nika_core::catalogs::WorkflowRunInfo {
-                                job_id: j.id,
-                                state: j.state.as_str().to_string(),
-                                workflow: j.workflow,
-                                created_at: j.created_at,
-                                started_at: j.started_at,
-                                completed_at: j.completed_at,
-                                exit_code: j.exit_code,
-                            })
-                            .collect();
-                        DaemonResponse::WorkflowHistoryResult { runs }
-                    }
-                    Err(e) => DaemonResponse::Error {
-                        code: "JOB-007".into(),
-                        message: format!("Failed to query workflow history: {}", e),
-                    },
+            match state.job_service.list_jobs_for_workflow(&workflow).await {
+                Ok(jobs) => {
+                    let runs = jobs
+                        .into_iter()
+                        .map(|j| nika_core::catalogs::WorkflowRunInfo {
+                            job_id: j.id,
+                            state: j.state.as_str().to_string(),
+                            workflow: j.workflow,
+                            created_at: j.created_at,
+                            started_at: j.started_at,
+                            completed_at: j.completed_at,
+                            exit_code: j.exit_code,
+                        })
+                        .collect();
+                    DaemonResponse::WorkflowHistoryResult { runs }
                 }
-            } else {
-                DaemonResponse::WorkflowHistoryResult { runs: vec![] }
+                Err(e) => DaemonResponse::Error {
+                    code: "JOB-007".into(),
+                    message: format!("Failed to query workflow history: {}", e),
+                },
             }
         }
 
@@ -845,11 +801,7 @@ async fn route_request(request: DaemonRequest, state: &Arc<ServerState>) -> Daem
             } else {
                 0.0
             };
-            let active_jobs = if let Some(ref js) = state.job_service {
-                js.running_count().await
-            } else {
-                0
-            };
+            let active_jobs = state.job_service.running_count().await;
             let watch_active = state.active_watch.lock().await.is_some();
             DaemonResponse::DaemonCapabilitiesResult {
                 capabilities: nika_core::catalogs::DaemonCapabilities {
