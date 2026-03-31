@@ -251,6 +251,12 @@ pub struct RunContext {
     /// Workspace root for CAS store path resolution.
     /// Set by Runner at workflow start. Defaults to current_dir().
     workspace_root: Arc<RwLock<PathBuf>>,
+
+    /// Optional NikaVault for `$vault.SERVICE.FIELD` bindings.
+    ///
+    /// Set by the runner at workflow start. When `None`, vault bindings
+    /// return a clear error ("vault not configured").
+    vault: Option<Arc<nika_core::vault::NikaVault>>,
 }
 
 impl Default for RunContext {
@@ -270,6 +276,7 @@ impl Default for RunContext {
                 crate::media::MediaBudget::with_max_per_run(max)
             }),
             workspace_root: Arc::new(RwLock::new(workspace_root)),
+            vault: None,
         }
     }
 }
@@ -420,6 +427,30 @@ impl RunContext {
     /// Get the workspace root path (cloned).
     pub fn workspace_root(&self) -> PathBuf {
         self.workspace_root.read().clone()
+    }
+
+    /// Set the NikaVault for `$vault.SERVICE.FIELD` bindings.
+    pub fn set_vault(&mut self, vault: Arc<nika_core::vault::NikaVault>) {
+        self.vault = Some(vault);
+    }
+
+    /// Get a credential field from the vault.
+    ///
+    /// Returns `Ok(Some(value))` if the service/field exists.
+    /// Returns `Ok(None)` if no vault is configured or field not found.
+    /// Returns `Err` if vault I/O or crypto fails.
+    pub fn vault_get_credential(
+        &self,
+        service: &str,
+        field: &str,
+    ) -> Result<Option<String>, nika_core::vault::VaultError> {
+        let vault = match &self.vault {
+            Some(v) => v,
+            None => return Ok(None),
+        };
+        vault
+            .get_credential(service, field)
+            .map(|opt| opt.map(|s| secrecy::ExposeSecret::expose_secret(&s).to_string()))
     }
 
     /// Resolve a dot-separated path (e.g., "weather.summary")

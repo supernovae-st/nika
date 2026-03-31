@@ -28,11 +28,62 @@ pub enum VaultError {
     Json(#[from] serde_json::Error),
 }
 
+/// A single vault entry — either a simple API key string (v1 compat)
+/// or a multi-field credential (v2).
+///
+/// Uses `#[serde(untagged)]` so a plain JSON string deserializes as `Key`
+/// and a JSON object deserializes as `Credential`. This gives seamless
+/// v1 → v2 migration: existing vault files with string values just work.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(untagged)]
+pub enum VaultEntry {
+    /// Simple API key (v1 backward compat)
+    Key(String),
+    /// Multi-field credential (v2)
+    Credential {
+        /// Named fields (e.g., "api_key", "secret", "org_id")
+        fields: BTreeMap<String, String>,
+        /// Optional service URL (e.g., "https://api.stripe.com")
+        #[serde(skip_serializing_if = "Option::is_none")]
+        service_url: Option<String>,
+        /// Optional category (e.g., "payment", "llm", "storage")
+        #[serde(skip_serializing_if = "Option::is_none")]
+        category: Option<String>,
+        /// ISO 8601 timestamp when the credential was stored
+        #[serde(skip_serializing_if = "Option::is_none")]
+        created_at: Option<String>,
+        /// ISO 8601 timestamp when the credential expires
+        #[serde(skip_serializing_if = "Option::is_none")]
+        expires_at: Option<String>,
+    },
+}
+
+impl VaultEntry {
+    /// Get the primary key value (for backward compat).
+    ///
+    /// - `Key(s)` → returns `s`
+    /// - `Credential { fields, .. }` → returns the first field value (alphabetical)
+    fn primary_value(&self) -> Option<&str> {
+        match self {
+            VaultEntry::Key(s) => Some(s.as_str()),
+            VaultEntry::Credential { fields, .. } => {
+                fields.values().next().map(|s| s.as_str())
+            }
+        }
+    }
+}
+
 /// Internal plaintext structure stored inside the encrypted vault.
+///
+/// v1: `secrets` contained `BTreeMap<String, String>` (plain keys).
+/// v2: `secrets` contains `BTreeMap<String, VaultEntry>` (keys or credentials).
+///
+/// Thanks to `VaultEntry`'s `#[serde(untagged)]`, v1 payloads deserialize
+/// transparently — each `String` becomes `VaultEntry::Key(s)`.
 #[derive(Serialize, Deserialize, Default)]
 struct VaultPayload {
     version: u32,
-    secrets: BTreeMap<String, String>,
+    secrets: BTreeMap<String, VaultEntry>,
 }
 
 /// Encrypted local file store for API secrets.
@@ -53,24 +104,26 @@ impl NikaVault {
     }
 
     /// Get a secret by provider name.
+    ///
+    /// For `VaultEntry::Key(s)`, returns the key string.
+    /// For `VaultEntry::Credential { fields, .. }`, returns the first field value.
     pub fn get(&self, provider: &str) -> Result<Option<SecretString>, VaultError> {
         let payload = match self.read_payload()? {
             Some(p) => p,
             None => return Ok(None),
         };
-        Ok(payload
-            .secrets
-            .get(provider)
-            .map(|s| SecretString::from(s.clone())))
+        Ok(payload.secrets.get(provider).and_then(|entry| {
+            entry.primary_value().map(|s| SecretString::from(s.to_owned()))
+        }))
     }
 
-    /// Store a secret for a provider (creates or updates).
+    /// Store a simple secret for a provider (creates or updates).
     pub fn set(&self, provider: &str, secret: &str) -> Result<(), VaultError> {
         let mut payload = self.read_payload()?.unwrap_or_default();
-        payload.version = 1;
+        payload.version = 2;
         payload
             .secrets
-            .insert(provider.to_string(), secret.to_string());
+            .insert(provider.to_string(), VaultEntry::Key(secret.to_string()));
         self.write_payload(&payload)
     }
 
@@ -87,10 +140,79 @@ impl NikaVault {
         Ok(existed)
     }
 
-    /// List all provider names that have stored secrets.
+    /// List all service/provider names that have stored secrets.
     pub fn list(&self) -> Result<Vec<String>, VaultError> {
         let payload = self.read_payload()?.unwrap_or_default();
         Ok(payload.secrets.keys().cloned().collect())
+    }
+
+    // ── Credential API (v2) ─────────────────────────────────────────
+
+    /// Get a specific field from a credential.
+    ///
+    /// - For `VaultEntry::Key(s)`: the field "key" returns the value; all other
+    ///   fields return `None`.
+    /// - For `VaultEntry::Credential { fields, .. }`: looks up the field by name.
+    pub fn get_credential(
+        &self,
+        service: &str,
+        field: &str,
+    ) -> Result<Option<SecretString>, VaultError> {
+        let payload = match self.read_payload()? {
+            Some(p) => p,
+            None => return Ok(None),
+        };
+        let entry = match payload.secrets.get(service) {
+            Some(e) => e,
+            None => return Ok(None),
+        };
+        match entry {
+            VaultEntry::Key(s) => {
+                // Backward compat: simple keys expose themselves as "key"
+                if field == "key" {
+                    Ok(Some(SecretString::from(s.clone())))
+                } else {
+                    Ok(None)
+                }
+            }
+            VaultEntry::Credential { fields, .. } => Ok(fields
+                .get(field)
+                .map(|s| SecretString::from(s.clone()))),
+        }
+    }
+
+    /// Store a multi-field credential for a service.
+    ///
+    /// Replaces any existing entry (Key or Credential) for this service.
+    pub fn set_credential(
+        &self,
+        service: &str,
+        fields: BTreeMap<String, String>,
+        service_url: Option<String>,
+        category: Option<String>,
+    ) -> Result<(), VaultError> {
+        let mut payload = self.read_payload()?.unwrap_or_default();
+        payload.version = 2;
+        payload.secrets.insert(
+            service.to_string(),
+            VaultEntry::Credential {
+                fields,
+                service_url,
+                category,
+                created_at: Some(chrono::Utc::now().to_rfc3339()),
+                expires_at: None,
+            },
+        );
+        self.write_payload(&payload)
+    }
+
+    /// Get the raw `VaultEntry` for a service (for introspection).
+    pub fn get_entry(&self, service: &str) -> Result<Option<VaultEntry>, VaultError> {
+        let payload = match self.read_payload()? {
+            Some(p) => p,
+            None => return Ok(None),
+        };
+        Ok(payload.secrets.get(service).cloned())
     }
 
     // ── Internal ────────────────────────────────────────────────────────
@@ -349,5 +471,245 @@ mod tests {
             vault.get("gemini").unwrap().unwrap().expose_secret(),
             "sk-3"
         );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // v2: VaultEntry + Credential API
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    #[serial]
+    fn backward_compat_key_still_works() {
+        // v2 must still handle simple Key entries identically to v1
+        let (_dir, vault) = test_vault();
+        vault.set("anthropic", "sk-ant-test").unwrap();
+
+        // get() returns the key value
+        let s = vault.get("anthropic").unwrap().unwrap();
+        assert_eq!(s.expose_secret(), "sk-ant-test");
+
+        // get_credential with "key" field returns the value
+        let s2 = vault.get_credential("anthropic", "key").unwrap().unwrap();
+        assert_eq!(s2.expose_secret(), "sk-ant-test");
+
+        // get_credential with any other field returns None
+        assert!(vault
+            .get_credential("anthropic", "secret")
+            .unwrap()
+            .is_none());
+
+        // get_entry returns Key variant
+        let entry = vault.get_entry("anthropic").unwrap().unwrap();
+        assert!(matches!(entry, VaultEntry::Key(ref s) if s == "sk-ant-test"));
+    }
+
+    #[test]
+    #[serial]
+    fn credential_set_and_get() {
+        let (_dir, vault) = test_vault();
+
+        let mut fields = BTreeMap::new();
+        fields.insert("api_key".to_string(), "sk_live_123".to_string());
+        fields.insert("secret".to_string(), "whsec_456".to_string());
+        fields.insert("org_id".to_string(), "org_789".to_string());
+
+        vault
+            .set_credential(
+                "stripe",
+                fields,
+                Some("https://api.stripe.com".to_string()),
+                Some("payment".to_string()),
+            )
+            .unwrap();
+
+        // get_credential retrieves individual fields
+        let api_key = vault.get_credential("stripe", "api_key").unwrap().unwrap();
+        assert_eq!(api_key.expose_secret(), "sk_live_123");
+
+        let secret = vault.get_credential("stripe", "secret").unwrap().unwrap();
+        assert_eq!(secret.expose_secret(), "whsec_456");
+
+        let org_id = vault.get_credential("stripe", "org_id").unwrap().unwrap();
+        assert_eq!(org_id.expose_secret(), "org_789");
+
+        // Missing field returns None
+        assert!(vault
+            .get_credential("stripe", "nonexistent")
+            .unwrap()
+            .is_none());
+
+        // get_entry returns Credential variant with metadata
+        let entry = vault.get_entry("stripe").unwrap().unwrap();
+        match entry {
+            VaultEntry::Credential {
+                fields,
+                service_url,
+                category,
+                created_at,
+                ..
+            } => {
+                assert_eq!(fields.len(), 3);
+                assert_eq!(service_url.as_deref(), Some("https://api.stripe.com"));
+                assert_eq!(category.as_deref(), Some("payment"));
+                assert!(created_at.is_some(), "created_at should be auto-set");
+            }
+            VaultEntry::Key(_) => panic!("Expected Credential, got Key"),
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn credential_get_returns_primary_for_simple_get() {
+        // get() on a Credential returns the first field value (alphabetical)
+        let (_dir, vault) = test_vault();
+
+        let mut fields = BTreeMap::new();
+        fields.insert("api_key".to_string(), "sk_live_first".to_string());
+        fields.insert("secret".to_string(), "whsec_second".to_string());
+
+        vault
+            .set_credential("stripe", fields, None, None)
+            .unwrap();
+
+        // get() returns the first field (alphabetical: "api_key")
+        let s = vault.get("stripe").unwrap().unwrap();
+        assert_eq!(s.expose_secret(), "sk_live_first");
+    }
+
+    #[test]
+    #[serial]
+    fn credential_list_services() {
+        let (_dir, vault) = test_vault();
+
+        // Mix of Key and Credential entries
+        vault.set("anthropic", "sk-ant").unwrap();
+
+        let mut fields = BTreeMap::new();
+        fields.insert("api_key".to_string(), "sk_live".to_string());
+        vault
+            .set_credential("stripe", fields, None, None)
+            .unwrap();
+
+        let mut list = vault.list().unwrap();
+        list.sort();
+        assert_eq!(list, vec!["anthropic", "stripe"]);
+    }
+
+    #[test]
+    #[serial]
+    fn credential_delete() {
+        let (_dir, vault) = test_vault();
+
+        let mut fields = BTreeMap::new();
+        fields.insert("api_key".to_string(), "sk_live".to_string());
+        vault
+            .set_credential("stripe", fields, None, None)
+            .unwrap();
+
+        // Credential exists
+        assert!(vault.get_credential("stripe", "api_key").unwrap().is_some());
+
+        // Delete it
+        assert!(vault.delete("stripe").unwrap());
+
+        // Gone
+        assert!(vault.get_credential("stripe", "api_key").unwrap().is_none());
+        assert!(vault.get("stripe").unwrap().is_none());
+
+        // Double delete returns false
+        assert!(!vault.delete("stripe").unwrap());
+    }
+
+    #[test]
+    #[serial]
+    fn credential_overwrite_key_with_credential() {
+        let (_dir, vault) = test_vault();
+
+        // Start with a simple Key
+        vault.set("stripe", "old-key").unwrap();
+        assert_eq!(
+            vault.get("stripe").unwrap().unwrap().expose_secret(),
+            "old-key"
+        );
+
+        // Overwrite with a Credential
+        let mut fields = BTreeMap::new();
+        fields.insert("api_key".to_string(), "sk_live_new".to_string());
+        vault
+            .set_credential("stripe", fields, None, None)
+            .unwrap();
+
+        // Old key is gone; credential fields accessible
+        let val = vault.get_credential("stripe", "api_key").unwrap().unwrap();
+        assert_eq!(val.expose_secret(), "sk_live_new");
+    }
+
+    #[test]
+    #[serial]
+    fn credential_overwrite_credential_with_key() {
+        let (_dir, vault) = test_vault();
+
+        // Start with a Credential
+        let mut fields = BTreeMap::new();
+        fields.insert("api_key".to_string(), "sk_live".to_string());
+        vault
+            .set_credential("stripe", fields, None, None)
+            .unwrap();
+
+        // Overwrite with a simple Key
+        vault.set("stripe", "simple-key").unwrap();
+
+        // Credential fields gone; simple key accessible
+        assert_eq!(
+            vault.get("stripe").unwrap().unwrap().expose_secret(),
+            "simple-key"
+        );
+        assert!(vault
+            .get_credential("stripe", "api_key")
+            .unwrap()
+            .is_none());
+    }
+
+    #[test]
+    fn vault_entry_serde_roundtrip_key() {
+        let entry = VaultEntry::Key("sk-test".to_string());
+        let json = serde_json::to_string(&entry).unwrap();
+        let deserialized: VaultEntry = serde_json::from_str(&json).unwrap();
+        assert_eq!(entry, deserialized);
+    }
+
+    #[test]
+    fn vault_entry_serde_roundtrip_credential() {
+        let mut fields = BTreeMap::new();
+        fields.insert("api_key".to_string(), "sk_live".to_string());
+        fields.insert("secret".to_string(), "whsec_456".to_string());
+
+        let entry = VaultEntry::Credential {
+            fields,
+            service_url: Some("https://api.stripe.com".to_string()),
+            category: Some("payment".to_string()),
+            created_at: Some("2026-03-31T12:00:00Z".to_string()),
+            expires_at: None,
+        };
+        let json = serde_json::to_string(&entry).unwrap();
+        let deserialized: VaultEntry = serde_json::from_str(&json).unwrap();
+        assert_eq!(entry, deserialized);
+    }
+
+    #[test]
+    fn vault_entry_deserialize_plain_string_as_key() {
+        // Crucial for v1 compat: a bare JSON string becomes VaultEntry::Key
+        let deserialized: VaultEntry = serde_json::from_str(r#""sk-ant-test""#).unwrap();
+        assert_eq!(deserialized, VaultEntry::Key("sk-ant-test".to_string()));
+    }
+
+    #[test]
+    #[serial]
+    fn credential_nonexistent_service() {
+        let (_dir, vault) = test_vault();
+        assert!(vault
+            .get_credential("nonexistent", "key")
+            .unwrap()
+            .is_none());
     }
 }

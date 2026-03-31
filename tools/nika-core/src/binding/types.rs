@@ -66,6 +66,13 @@ pub enum BindingSource {
     Input(Arc<str>),
     /// Environment variable: $env.API_URL
     Env(Arc<str>),
+    /// Vault credential: $vault.SERVICE.FIELD
+    Vault {
+        /// Service name (e.g., "stripe", "anthropic")
+        service: Arc<str>,
+        /// Field name (e.g., "api_key", "secret")
+        field: Arc<str>,
+    },
     /// Loop variable: $item (from for_each as:)
     LoopVar(Arc<str>),
 }
@@ -126,6 +133,7 @@ impl std::error::Error for BindingPathError {}
 const RESERVED_CONTEXT: &str = "context";
 const RESERVED_INPUTS: &str = "inputs";
 const RESERVED_ENV: &str = "env";
+const RESERVED_VAULT: &str = "vault";
 
 impl BindingPath {
     /// Parse a binding path string like `$task_id.field[0].name`
@@ -233,6 +241,49 @@ impl BindingPath {
                 let var_name = tokens_to_dotted_string(&tokens[1..]);
                 Ok(BindingPath {
                     source: BindingSource::Env(Arc::from(var_name.as_str())),
+                    segments: vec![],
+                })
+            }
+            RESERVED_VAULT => {
+                // $vault.stripe.secret → Vault { service: "stripe", field: "secret" }
+                if tokens.len() < 3 {
+                    return Err(BindingPathError {
+                        input: trimmed.to_string(),
+                        reason:
+                            "'$vault' requires service and field (e.g., '$vault.stripe.secret')"
+                                .to_string(),
+                    });
+                }
+                let service = match &tokens[1] {
+                    PathToken::Field(name) => name.clone(),
+                    PathToken::Index(_) => {
+                        return Err(BindingPathError {
+                            input: trimmed.to_string(),
+                            reason: "vault service name cannot be an array index".to_string(),
+                        });
+                    }
+                };
+                let field = match &tokens[2] {
+                    PathToken::Field(name) => name.clone(),
+                    PathToken::Index(_) => {
+                        return Err(BindingPathError {
+                            input: trimmed.to_string(),
+                            reason: "vault field name cannot be an array index".to_string(),
+                        });
+                    }
+                };
+                if tokens.len() > 3 {
+                    return Err(BindingPathError {
+                        input: trimmed.to_string(),
+                        reason: "'$vault' paths have exactly two segments: $vault.SERVICE.FIELD"
+                            .to_string(),
+                    });
+                }
+                Ok(BindingPath {
+                    source: BindingSource::Vault {
+                        service: Arc::from(service.as_str()),
+                        field: Arc::from(field.as_str()),
+                    },
                     segments: vec![],
                 })
             }
@@ -373,6 +424,9 @@ impl fmt::Display for BindingSource {
             BindingSource::Context(path) => write!(f, "context.{}", path),
             BindingSource::Input(path) => write!(f, "inputs.{}", path),
             BindingSource::Env(var) => write!(f, "env.{}", var),
+            BindingSource::Vault { service, field } => {
+                write!(f, "vault.{}.{}", service, field)
+            }
             BindingSource::LoopVar(name) => write!(f, "{}", name),
         }
     }
@@ -405,6 +459,11 @@ impl BindingSource {
     /// Returns true if this is a task reference
     pub fn is_task(&self) -> bool {
         matches!(self, BindingSource::Task(_))
+    }
+
+    /// Returns true if this is a vault credential reference
+    pub fn is_vault(&self) -> bool {
+        matches!(self, BindingSource::Vault { .. })
     }
 }
 
@@ -709,6 +768,13 @@ mod tests {
         assert!(!BindingSource::Context(Arc::from("x")).is_task());
         assert!(!BindingSource::Input(Arc::from("x")).is_task());
         assert!(!BindingSource::Env(Arc::from("x")).is_task());
+        assert!(
+            !BindingSource::Vault {
+                service: Arc::from("s"),
+                field: Arc::from("f")
+            }
+            .is_task()
+        );
         assert!(!BindingSource::LoopVar(Arc::from("x")).is_task());
     }
 
@@ -759,6 +825,82 @@ mod tests {
     fn binding_type_invalid_deserialize() {
         let result = serde_json::from_str::<BindingType>(r#""unknown""#);
         assert!(result.is_err());
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // BindingPath::parse — Vault references ($vault.SERVICE.FIELD)
+    // ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn parse_vault_binding() {
+        let bp = BindingPath::parse("$vault.stripe.secret").unwrap();
+        assert_eq!(
+            bp.source,
+            BindingSource::Vault {
+                service: Arc::from("stripe"),
+                field: Arc::from("secret"),
+            }
+        );
+        assert!(bp.segments.is_empty());
+    }
+
+    #[test]
+    fn parse_vault_binding_with_underscore() {
+        let bp = BindingPath::parse("$vault.my_service.api_key").unwrap();
+        assert_eq!(
+            bp.source,
+            BindingSource::Vault {
+                service: Arc::from("my_service"),
+                field: Arc::from("api_key"),
+            }
+        );
+    }
+
+    #[test]
+    fn parse_vault_without_field_errors() {
+        let err = BindingPath::parse("$vault.stripe").unwrap_err();
+        assert!(err.reason.contains("requires service and field"));
+    }
+
+    #[test]
+    fn parse_vault_without_subpath_errors() {
+        let err = BindingPath::parse("$vault").unwrap_err();
+        assert!(err.reason.contains("requires service and field"));
+    }
+
+    #[test]
+    fn parse_vault_too_many_segments_errors() {
+        let err = BindingPath::parse("$vault.stripe.secret.extra").unwrap_err();
+        assert!(err.reason.contains("exactly two segments"));
+    }
+
+    #[test]
+    fn is_task_ref_false_for_vault() {
+        let bp = BindingPath::parse("$vault.stripe.key").unwrap();
+        assert!(!bp.is_task_ref());
+    }
+
+    #[test]
+    fn display_roundtrip_vault() {
+        let original = "$vault.stripe.secret";
+        let bp = BindingPath::parse(original).unwrap();
+        let displayed = bp.to_string();
+        assert_eq!(displayed, original);
+        let reparsed = BindingPath::parse(&displayed).unwrap();
+        assert_eq!(bp, reparsed);
+    }
+
+    #[test]
+    fn vault_source_is_vault() {
+        assert!(
+            BindingSource::Vault {
+                service: Arc::from("s"),
+                field: Arc::from("f")
+            }
+            .is_vault()
+        );
+        assert!(!BindingSource::Task(Arc::from("x")).is_vault());
+        assert!(!BindingSource::Env(Arc::from("x")).is_vault());
     }
 
     // ─────────────────────────────────────────────────────────────
