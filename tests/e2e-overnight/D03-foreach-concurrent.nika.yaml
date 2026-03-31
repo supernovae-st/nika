@@ -16,3 +16,10 @@ tasks:
     exec:
       command: "echo {{with.results | length}}_items"
       shell: true
+  - id: check_count
+    depends_on: [verify]
+    with:
+      results: $process
+    exec:
+      command: "test '{{with.results | length}}' = '5' && echo PASS || exit 1"
+      shell: true

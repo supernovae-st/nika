@@ -30,3 +30,10 @@ tasks:
     exec:
       command: "echo step_e_after_{{with.prev | trim}}"
       shell: true
+  - id: check_chain
+    depends_on: [step_e]
+    with:
+      final: $step_e
+    exec:
+      command: "echo '{{with.final | trim | shell}}' | grep -q step_a && echo PASS || exit 1"
+      shell: true
