@@ -498,7 +498,12 @@ impl TuiState {
             | EventKind::OrchestratorSubWorkflow { .. }
             | EventKind::OrchestratorCompleted { .. }
             | EventKind::OrchestratorFailed { .. }
-            | EventKind::SecurityScanFinding { .. } => {
+            | EventKind::SecurityScanFinding { .. }
+            | EventKind::ForEachItemStarted { .. }
+            | EventKind::ForEachItemCompleted { .. }
+            | EventKind::ForEachItemFailed { .. }
+            | EventKind::TaskCancelled { .. }
+            | EventKind::FallbackChainExhausted { .. } => {
                 // Observability events: captured in trace NDJSON but don't
                 // require TUI state mutations -- the TUI tracks task-level
                 // status via TaskStarted/TaskCompleted/TaskFailed.

@@ -2293,6 +2293,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             let var_name = var_name.clone();
                             let semaphore = Arc::clone(&semaphore);
                             let cancel = cancel.clone();
+                            let for_each_total = items.len();
                             let workflow_artifacts = workflow_artifacts.clone();
                             let artifact_base_path = artifact_base_path.clone();
                             let workflow_base_url = workflow_base_url.clone();
@@ -2362,19 +2363,45 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                     };
                                 }
 
+                                event_log.emit(EventKind::ForEachItemStarted {
+                                    task_id: Arc::clone(&parent_task_id),
+                                    index: idx,
+                                    total: for_each_total,
+                                });
+
+                                let item_start = std::time::Instant::now();
                                 let result = Self::execute_task_iteration(
                                     task,
                                     Arc::clone(&task_id),
                                     Arc::clone(&parent_task_id),
                                     datastore,
                                     executor,
-                                    event_log,
+                                    event_log.clone(),
                                     Some((var_name, item, idx)),
                                     workflow_artifacts,
                                     artifact_base_path,
                                     workflow_base_url,
                                 )
                                 .await;
+
+                                let item_duration_ms = item_start.elapsed().as_millis() as u64;
+                                if result.result.is_success() {
+                                    event_log.emit(EventKind::ForEachItemCompleted {
+                                        task_id: Arc::clone(&parent_task_id),
+                                        index: idx,
+                                        duration_ms: item_duration_ms,
+                                    });
+                                } else {
+                                    let err = match &result.result.status {
+                                        crate::store::TaskOutcome::Failed(e) => e.clone(),
+                                        _ => "iteration failed".to_string(),
+                                    };
+                                    event_log.emit(EventKind::ForEachItemFailed {
+                                        task_id: Arc::clone(&parent_task_id),
+                                        index: idx,
+                                        error: err,
+                                    });
+                                }
 
                                 // If failed and fail_fast, signal cancellation
                                 if !result.result.is_success() && fail_fast {
