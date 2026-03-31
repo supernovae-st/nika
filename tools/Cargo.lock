@@ -5322,7 +5322,7 @@ dependencies = [
 
 [[package]]
 name = "nika"
-version = "0.55.0"
+version = "0.56.0"
 dependencies = [
  "clap",
  "clap_complete",
@@ -5365,7 +5365,7 @@ dependencies = [
 
 [[package]]
 name = "nika-cli"
-version = "0.55.0"
+version = "0.56.0"
 dependencies = [
  "chrono",
  "clap",
@@ -5395,7 +5395,7 @@ dependencies = [
 
 [[package]]
 name = "nika-core"
-version = "0.55.0"
+version = "0.56.0"
 dependencies = [
  "chrono",
  "indexmap 2.13.0",
@@ -5424,7 +5424,7 @@ dependencies = [
 
 [[package]]
 name = "nika-daemon"
-version = "0.55.0"
+version = "0.56.0"
 dependencies = [
  "blake3",
  "chrono",
@@ -5451,7 +5451,7 @@ dependencies = [
 
 [[package]]
 name = "nika-engine"
-version = "0.55.0"
+version = "0.56.0"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -5528,7 +5528,7 @@ dependencies = [
 
 [[package]]
 name = "nika-event"
-version = "0.55.0"
+version = "0.56.0"
 dependencies = [
  "chrono",
  "parking_lot",
@@ -5545,7 +5545,7 @@ dependencies = [
 
 [[package]]
 name = "nika-init"
-version = "0.55.0"
+version = "0.56.0"
 dependencies = [
  "serde",
  "serde-saphyr 0.0.20",
@@ -5557,7 +5557,7 @@ dependencies = [
 
 [[package]]
 name = "nika-lsp"
-version = "0.55.0"
+version = "0.56.0"
 dependencies = [
  "dashmap",
  "libc",
@@ -5577,7 +5577,7 @@ dependencies = [
 
 [[package]]
 name = "nika-lsp-core"
-version = "0.55.0"
+version = "0.56.0"
 dependencies = [
  "dashmap",
  "insta",
@@ -5595,7 +5595,7 @@ dependencies = [
 
 [[package]]
 name = "nika-mcp"
-version = "0.55.0"
+version = "0.56.0"
 dependencies = [
  "backon",
  "dashmap",
@@ -5621,7 +5621,7 @@ dependencies = [
 
 [[package]]
 name = "nika-media"
-version = "0.55.0"
+version = "0.56.0"
 dependencies = [
  "base64 0.22.1",
  "blake3",
@@ -5672,7 +5672,7 @@ dependencies = [
 
 [[package]]
 name = "nika-serve"
-version = "0.55.0"
+version = "0.56.0"
 dependencies = [
  "axum",
  "chrono",
@@ -5692,7 +5692,7 @@ dependencies = [
 
 [[package]]
 name = "nika-storage"
-version = "0.55.0"
+version = "0.56.0"
 dependencies = [
  "chrono",
  "rusqlite",
@@ -5707,7 +5707,7 @@ dependencies = [
 
 [[package]]
 name = "nika-tui"
-version = "0.55.0"
+version = "0.56.0"
 dependencies = [
  "arboard",
  "camino",
