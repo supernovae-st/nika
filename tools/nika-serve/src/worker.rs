@@ -45,7 +45,11 @@ fn kill_process_group(pid: u32, signal: nix::sys::signal::Signal) {
     let _ = kill(Pid::from_raw(-(pid as i32)), signal);
 }
 
-/// Read from an async reader with a byte limit.
+/// Read from an async reader until EOF with a byte limit.
+///
+/// Reads in a loop until EOF (or `max_bytes` reached) so the pipe stays open
+/// for the full lifetime of the child process. A single `read()` would close
+/// the pipe after the first chunk, causing SIGPIPE / "Broken pipe" in the child.
 async fn read_limited(
     reader: Option<impl tokio::io::AsyncRead + Unpin>,
     max_bytes: usize,
@@ -54,8 +58,26 @@ async fn read_limited(
         return String::new();
     };
     let mut buf = vec![0u8; max_bytes];
-    let n = r.read(&mut buf).await.unwrap_or(0);
-    String::from_utf8_lossy(&buf[..n]).into_owned()
+    let mut total = 0;
+    loop {
+        if total >= max_bytes {
+            // Drain remaining data so the child doesn't get SIGPIPE
+            let mut drain = [0u8; 8192];
+            loop {
+                match r.read(&mut drain).await {
+                    Ok(0) | Err(_) => break,
+                    Ok(_) => continue,
+                }
+            }
+            break;
+        }
+        match r.read(&mut buf[total..]).await {
+            Ok(0) => break,   // EOF
+            Ok(n) => total += n,
+            Err(_) => break,
+        }
+    }
+    String::from_utf8_lossy(&buf[..total]).into_owned()
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
