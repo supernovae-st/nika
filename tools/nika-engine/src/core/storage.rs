@@ -324,7 +324,9 @@ impl HuggingFaceStorage {
         if let Some(ref lfs) = file_info.lfs {
             if checksum != lfs.sha256 {
                 // Delete corrupted file
-                let _ = fs::remove_file(&file_path).await;
+                if let Err(e) = fs::remove_file(&file_path).await {
+                    tracing::debug!(path = %file_path.display(), error = %e, "cleanup: failed to remove corrupted file");
+                }
                 return Err(StorageError::ChecksumMismatch {
                     path: file_path,
                     expected: lfs.sha256.clone(),
