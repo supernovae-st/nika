@@ -1343,6 +1343,24 @@ impl LiveRenderer {
                 }
             }
 
+            EventKind::BindingVaultResolved {
+                service,
+                field,
+                found,
+                ..
+            } => {
+                if self.detail.show_sub_events() {
+                    let status = if *found { "found" } else { "NOT FOUND" };
+                    self.log(&format!(
+                        "  {} $vault.{}.{} → {}",
+                        "vault".dimmed(),
+                        service,
+                        field,
+                        status
+                    ));
+                }
+            }
+
             // ── Decompose ────────────────────────────────────────
             EventKind::DecomposeStarted {
                 task_id, strategy, ..
