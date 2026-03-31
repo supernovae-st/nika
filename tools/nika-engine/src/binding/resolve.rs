@@ -60,6 +60,7 @@ use super::{BindingEntry, BindingSpec, WithEntry, WithSpec};
 /// instead of raw `String` path. This enables typed source dispatch and transform
 /// application during lazy resolution.
 #[derive(Debug, Clone)]
+#[allow(clippy::large_enum_variant)]
 pub enum LazyBinding {
     /// Already resolved to a concrete value (eager bindings)
     Resolved(Value),
@@ -216,8 +217,11 @@ impl ResolvedBindings {
                     .insert(alias.clone(), task_id.to_string());
             }
 
-            // Track env-sourced bindings for secret masking in traces
-            if matches!(&entry.source.source, BindingSource::Env(_)) {
+            // Track env-sourced and vault-sourced bindings for secret masking in traces
+            if matches!(
+                &entry.source.source,
+                BindingSource::Env(_) | BindingSource::Vault { .. }
+            ) {
                 bindings.env_sourced.insert(alias.clone());
             }
 
@@ -263,8 +267,11 @@ impl ResolvedBindings {
                 bindings.source_tasks.insert(alias.clone(), tid.to_string());
             }
 
-            // Track env-sourced bindings for secret masking in traces
-            if matches!(&entry.source.source, BindingSource::Env(_)) {
+            // Track env-sourced and vault-sourced bindings for secret masking in traces
+            if matches!(
+                &entry.source.source,
+                BindingSource::Env(_) | BindingSource::Vault { .. }
+            ) {
                 bindings.env_sourced.insert(alias.clone());
             }
 
@@ -813,6 +820,26 @@ fn resolve_binding_path(
             }
         }
 
+        BindingSource::Vault { service, field } => {
+            // $vault.SERVICE.FIELD → read from NikaVault encrypted store
+            // Vault values are ALWAYS secrets — they are marked for redaction
+            // by the caller (env_sourced / vault_sourced).
+            tracing::debug!(
+                service = %service,
+                field = %field,
+                "Resolving $vault binding"
+            );
+            match datastore.vault_get_credential(service, field) {
+                Ok(Some(val)) => Ok(Some(Value::String(val))),
+                Ok(None) => Ok(None),
+                Err(e) => Err(NikaError::VaultAccess {
+                    service: service.to_string(),
+                    field: field.to_string(),
+                    reason: e.to_string(),
+                }),
+            }
+        }
+
         BindingSource::LoopVar(name) => {
             // Loop variables should be pre-resolved by the executor before reaching here.
             // If we get here, it means the loop variable wasn't set.
@@ -923,7 +950,7 @@ fn resolve_with_entry_traced(
     Ok(value)
 }
 
-/// Same as resolve_binding_path but collects env var resolution events
+/// Same as resolve_binding_path but collects env var / vault resolution events
 fn resolve_binding_path_traced(
     binding_path: &BindingPath,
     alias: &str,
@@ -940,6 +967,17 @@ fn resolve_binding_path_traced(
             events.push(EventKind::BindingEnvResolved {
                 task_id: Arc::clone(task_id),
                 var_name: var_name.to_string(),
+                found,
+            });
+            Ok(result)
+        }
+        BindingSource::Vault { service, field } => {
+            let result = resolve_binding_path(binding_path, alias, datastore)?;
+            let found = result.is_some();
+            events.push(EventKind::BindingVaultResolved {
+                task_id: Arc::clone(task_id),
+                service: service.to_string(),
+                field: field.to_string(),
                 found,
             });
             Ok(result)
@@ -3440,6 +3478,206 @@ mod tests {
         assert!(
             !redacted.contains("real-secret"),
             "raw secret must not appear: {redacted}"
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // $vault.SERVICE.FIELD binding tests
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    #[serial]
+    fn vault_binding_parses_correctly() {
+        // Parsing $vault.stripe.secret should produce BindingSource::Vault
+        let bp = BindingPath::parse("$vault.stripe.secret").unwrap();
+        assert_eq!(
+            bp.source,
+            BindingSource::Vault {
+                service: Arc::from("stripe"),
+                field: Arc::from("secret"),
+            }
+        );
+        assert!(bp.segments.is_empty());
+    }
+
+    #[test]
+    #[serial]
+    fn vault_binding_resolves_value() {
+        // Set up a vault with credentials in a temp dir
+        std::env::set_var("NIKA_VAULT_PASSPHRASE", "test-only");
+        let dir = tempfile::TempDir::new().unwrap();
+        let vault = nika_core::vault::NikaVault::new(dir.path());
+
+        let mut fields = std::collections::BTreeMap::new();
+        fields.insert("api_key".to_string(), "sk_live_test123".to_string());
+        fields.insert("secret".to_string(), "whsec_test456".to_string());
+        vault
+            .set_credential("stripe", fields, None, None)
+            .unwrap();
+
+        // Attach vault to RunContext
+        let mut store = RunContext::new();
+        store.set_vault(Arc::new(vault));
+
+        // Build WithSpec with $vault.stripe.secret
+        let path = BindingPath::parse("$vault.stripe.secret").unwrap();
+        let entry = WithEntry {
+            source: path,
+            binding_type: BindingType::Any,
+            default: None,
+            lazy: false,
+            transform: None,
+        };
+        let mut spec = WithSpec::default();
+        spec.insert("stripe_secret".to_string(), entry);
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+        assert_eq!(
+            bindings.get("stripe_secret"),
+            Some(&json!("whsec_test456"))
+        );
+    }
+
+    #[test]
+    #[serial]
+    fn vault_binding_not_found_errors() {
+        // Vault has no "nonexistent" service
+        std::env::set_var("NIKA_VAULT_PASSPHRASE", "test-only");
+        let dir = tempfile::TempDir::new().unwrap();
+        let vault = nika_core::vault::NikaVault::new(dir.path());
+
+        let mut store = RunContext::new();
+        store.set_vault(Arc::new(vault));
+
+        let path = BindingPath::parse("$vault.nonexistent.key").unwrap();
+        let entry = WithEntry {
+            source: path,
+            binding_type: BindingType::Any,
+            default: None,
+            lazy: false,
+            transform: None,
+        };
+        let mut spec = WithSpec::default();
+        spec.insert("missing".to_string(), entry);
+
+        // Should error because value is None with no default
+        let result = ResolvedBindings::from_with_spec(Some(&spec), &store);
+        assert!(result.is_err(), "Should error on missing vault credential");
+    }
+
+    #[test]
+    #[serial]
+    fn vault_binding_with_default() {
+        // When vault credential is missing, the ?? default should apply
+        std::env::set_var("NIKA_VAULT_PASSPHRASE", "test-only");
+        let dir = tempfile::TempDir::new().unwrap();
+        let vault = nika_core::vault::NikaVault::new(dir.path());
+
+        let mut store = RunContext::new();
+        store.set_vault(Arc::new(vault));
+
+        let path = BindingPath::parse("$vault.missing_service.api_key").unwrap();
+        let entry = WithEntry {
+            source: path,
+            binding_type: BindingType::Any,
+            default: Some(json!("fallback-key")),
+            lazy: false,
+            transform: None,
+        };
+        let mut spec = WithSpec::default();
+        spec.insert("key".to_string(), entry);
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+        assert_eq!(bindings.get("key"), Some(&json!("fallback-key")));
+    }
+
+    #[test]
+    #[serial]
+    fn vault_binding_is_redacted_in_traces() {
+        // Vault-sourced bindings must be redacted in to_value_redacted()
+        std::env::set_var("NIKA_VAULT_PASSPHRASE", "test-only");
+        let dir = tempfile::TempDir::new().unwrap();
+        let vault = nika_core::vault::NikaVault::new(dir.path());
+        vault.set("anthropic", "sk-ant-secret").unwrap();
+
+        let mut store = RunContext::new();
+        store.set_vault(Arc::new(vault));
+
+        let path = BindingPath::parse("$vault.anthropic.key").unwrap();
+        let entry = WithEntry {
+            source: path,
+            binding_type: BindingType::Any,
+            default: None,
+            lazy: false,
+            transform: None,
+        };
+        let mut spec = WithSpec::default();
+        spec.insert("api_key".to_string(), entry);
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+
+        // The redacted version should not contain the secret
+        let redacted = bindings.to_value_redacted();
+        let redacted_map = redacted.as_object().unwrap();
+        let val = redacted_map.get("api_key").unwrap();
+        assert_eq!(
+            val,
+            &json!("[REDACTED:$env]"),
+            "Vault-sourced binding should be redacted"
+        );
+    }
+
+    #[test]
+    #[serial]
+    fn vault_binding_simple_key_via_key_field() {
+        // A simple Key("sk-ant-test") is accessible as $vault.anthropic.key
+        std::env::set_var("NIKA_VAULT_PASSPHRASE", "test-only");
+        let dir = tempfile::TempDir::new().unwrap();
+        let vault = nika_core::vault::NikaVault::new(dir.path());
+        vault.set("anthropic", "sk-ant-test-12345").unwrap();
+
+        let mut store = RunContext::new();
+        store.set_vault(Arc::new(vault));
+
+        let path = BindingPath::parse("$vault.anthropic.key").unwrap();
+        let entry = WithEntry {
+            source: path,
+            binding_type: BindingType::Any,
+            default: None,
+            lazy: false,
+            transform: None,
+        };
+        let mut spec = WithSpec::default();
+        spec.insert("api_key".to_string(), entry);
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+        assert_eq!(
+            bindings.get("api_key"),
+            Some(&json!("sk-ant-test-12345"))
+        );
+    }
+
+    #[test]
+    fn vault_binding_no_vault_configured() {
+        // When no vault is set on RunContext, $vault bindings should get None
+        let store = RunContext::new();
+
+        let path = BindingPath::parse("$vault.stripe.secret").unwrap();
+        let entry = WithEntry {
+            source: path,
+            binding_type: BindingType::Any,
+            default: Some(json!("no-vault-fallback")),
+            lazy: false,
+            transform: None,
+        };
+        let mut spec = WithSpec::default();
+        spec.insert("secret".to_string(), entry);
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+        assert_eq!(
+            bindings.get("secret"),
+            Some(&json!("no-vault-fallback")),
+            "When no vault configured, should fall through to default"
         );
     }
 }
