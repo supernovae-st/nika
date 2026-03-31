@@ -981,10 +981,10 @@ fn analyze_task(
             _ => None,
         };
         if let Some(t) = timeout_zero {
-            ctx.add_warning(AnalyzeError::new(
+            ctx.add_error(AnalyzeError::new(
                 AnalyzeErrorKind::InvalidValue,
                 t.span,
-                "timeout: 0 will cause immediate timeout — remove or set a positive value"
+                "timeout: 0 will cause immediate timeout — use at least 1 second"
                     .to_string(),
             ));
         }
