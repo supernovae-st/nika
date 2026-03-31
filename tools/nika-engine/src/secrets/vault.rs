@@ -3,4 +3,6 @@
 //! The vault implementation lives in nika-core so both nika-engine and nika-daemon
 //! can use it without circular dependencies.
 
-pub use nika_core::vault::{DopplerBackend, NikaVault, VaultBackend, VaultError};
+pub use nika_core::vault::{
+    AuditEntry, DopplerBackend, NikaVault, VaultAuditLog, VaultBackend, VaultError,
+};
