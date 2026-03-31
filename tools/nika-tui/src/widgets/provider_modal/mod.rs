@@ -15,10 +15,10 @@ mod tabs;
 
 pub use components::*;
 pub use handler::*;
+pub use loader::*;
 pub use nika_engine::secrets::{
     mask_api_key, migrate_env_to_vault, validate_key_format, KeyringError, MigrationReport,
 };
-pub use loader::*;
 
 // Re-export provider_env_var from unified providers module
 pub use crate::providers::env_var as provider_env_var;

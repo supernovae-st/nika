@@ -1022,10 +1022,7 @@ pub enum EventKind {
     // CANCELLATION
     // ═══════════════════════════════════════════
     /// Task was cancelled (not failed) due to workflow abort or fail_fast.
-    TaskCancelled {
-        task_id: Arc<str>,
-        reason: String,
-    },
+    TaskCancelled { task_id: Arc<str>, reason: String },
 
     // ═══════════════════════════════════════════
     // FALLBACK

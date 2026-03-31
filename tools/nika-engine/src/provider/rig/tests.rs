@@ -1398,7 +1398,8 @@ fn test_openai_compat_default_model_cached() {
 
     // Without default model → fallback
     let provider2 =
-        RigProvider::openai_compat("h100", "http://localhost:8000/v1", "test-key", None, 300).unwrap();
+        RigProvider::openai_compat("h100", "http://localhost:8000/v1", "test-key", None, 300)
+            .unwrap();
     assert_eq!(provider2.default_model(), "gpt-3.5-turbo");
 }
 

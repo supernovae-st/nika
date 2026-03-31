@@ -101,7 +101,10 @@ impl LockfileGuard {
             match Flock::lock(file, FlockArg::LockExclusiveNonblock) {
                 Ok(flock) => {
                     tracing::debug!(path = %path.display(), "Acquired exclusive lockfile");
-                    Self { path, _flock: Some(flock) }
+                    Self {
+                        path,
+                        _flock: Some(flock),
+                    }
                 }
                 Err(err) => {
                     let errno = err.1;
@@ -120,7 +123,10 @@ impl LockfileGuard {
 
         #[cfg(not(unix))]
         {
-            Self { path, _file: Some(file) }
+            Self {
+                path,
+                _file: Some(file),
+            }
         }
     }
 }

@@ -1742,12 +1742,22 @@ fn test_scope_minimal_reduces_tool_count() {
     };
     let log = EventLog::new();
 
-    let minimal_agent =
-        RigAgentLoop::new("t1".into(), minimal_params, log.clone(), FxHashMap::default(), None)
-            .unwrap();
-    let full_agent =
-        RigAgentLoop::new("t2".into(), full_params, log.clone(), FxHashMap::default(), None)
-            .unwrap();
+    let minimal_agent = RigAgentLoop::new(
+        "t1".into(),
+        minimal_params,
+        log.clone(),
+        FxHashMap::default(),
+        None,
+    )
+    .unwrap();
+    let full_agent = RigAgentLoop::new(
+        "t2".into(),
+        full_params,
+        log.clone(),
+        FxHashMap::default(),
+        None,
+    )
+    .unwrap();
 
     // minimal scope should have fewer tools than full scope
     assert!(
@@ -1778,12 +1788,22 @@ fn test_scope_debug_adds_introspection_tools() {
     };
     let log = EventLog::new();
 
-    let debug_agent =
-        RigAgentLoop::new("t1".into(), debug_params, log.clone(), FxHashMap::default(), None)
-            .unwrap();
-    let full_agent =
-        RigAgentLoop::new("t2".into(), full_params, log.clone(), FxHashMap::default(), None)
-            .unwrap();
+    let debug_agent = RigAgentLoop::new(
+        "t1".into(),
+        debug_params,
+        log.clone(),
+        FxHashMap::default(),
+        None,
+    )
+    .unwrap();
+    let full_agent = RigAgentLoop::new(
+        "t2".into(),
+        full_params,
+        log.clone(),
+        FxHashMap::default(),
+        None,
+    )
+    .unwrap();
 
     // debug scope should have MORE tools than full (introspection tools added)
     assert!(
@@ -1809,11 +1829,22 @@ fn test_scope_default_is_full() {
     };
     let log = EventLog::new();
 
-    let default_agent =
-        RigAgentLoop::new("t1".into(), no_scope, log.clone(), FxHashMap::default(), None).unwrap();
-    let full_agent =
-        RigAgentLoop::new("t2".into(), full_scope, log.clone(), FxHashMap::default(), None)
-            .unwrap();
+    let default_agent = RigAgentLoop::new(
+        "t1".into(),
+        no_scope,
+        log.clone(),
+        FxHashMap::default(),
+        None,
+    )
+    .unwrap();
+    let full_agent = RigAgentLoop::new(
+        "t2".into(),
+        full_scope,
+        log.clone(),
+        FxHashMap::default(),
+        None,
+    )
+    .unwrap();
 
     assert_eq!(
         default_agent.tool_count(),

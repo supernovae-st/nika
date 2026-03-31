@@ -300,10 +300,7 @@ mod tests {
     fn systemd_unit_has_restart_always_and_env_file() {
         let exe = std::path::Path::new("/usr/local/bin/nika");
         let unit = super::systemd_unit_template(exe);
-        assert!(
-            unit.contains("Restart=always"),
-            "must have Restart=always"
-        );
+        assert!(unit.contains("Restart=always"), "must have Restart=always");
         assert!(
             !unit.contains("Restart=on-failure"),
             "must NOT have Restart=on-failure"
@@ -312,10 +309,7 @@ mod tests {
             unit.contains("EnvironmentFile=-%h/.nika/.env"),
             "must have EnvironmentFile for secrets"
         );
-        assert!(
-            unit.contains("RestartSec=5"),
-            "must have RestartSec=5"
-        );
+        assert!(unit.contains("RestartSec=5"), "must have RestartSec=5");
         assert!(
             unit.contains("Type=notify"),
             "must use Type=notify for sd_notify readiness signal"

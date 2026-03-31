@@ -22,15 +22,15 @@ use super::verbs::coerce_json_types;
 /// Recursively redact secrets from a JSON value for safe event logging.
 fn redact_value(value: &serde_json::Value) -> serde_json::Value {
     match value {
-        serde_json::Value::String(s) => {
-            serde_json::Value::String(crate::util::redact_secrets(s))
-        }
+        serde_json::Value::String(s) => serde_json::Value::String(crate::util::redact_secrets(s)),
         serde_json::Value::Array(arr) => {
             serde_json::Value::Array(arr.iter().map(redact_value).collect())
         }
-        serde_json::Value::Object(map) => {
-            serde_json::Value::Object(map.iter().map(|(k, v)| (k.clone(), redact_value(v))).collect())
-        }
+        serde_json::Value::Object(map) => serde_json::Value::Object(
+            map.iter()
+                .map(|(k, v)| (k.clone(), redact_value(v)))
+                .collect(),
+        ),
         other => other.clone(),
     }
 }

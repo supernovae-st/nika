@@ -50,7 +50,10 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
     // Reset any jobs stuck in "running" from a previous crash (ERRATA-10)
     let reset_count = storage.reset_stale_running("Server restarted").await?;
     if reset_count > 0 {
-        info!(count = reset_count, "reset stale running jobs from previous session");
+        info!(
+            count = reset_count,
+            "reset stale running jobs from previous session"
+        );
     }
 
     // Shutdown channel
@@ -143,9 +146,7 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
 }
 
 /// Wait for all active workers to complete, with a 30-second timeout.
-async fn drain_workers(
-    workers: Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>>,
-) {
+async fn drain_workers(workers: Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>>) {
     let handles: Vec<_> = {
         let mut map = workers.lock().await;
         map.drain().collect()
@@ -155,7 +156,10 @@ async fn drain_workers(
         return;
     }
 
-    info!(count = handles.len(), "waiting for active workers to complete");
+    info!(
+        count = handles.len(),
+        "waiting for active workers to complete"
+    );
 
     let drain_future = async {
         for (id, handle) in handles {
@@ -186,8 +190,7 @@ mod tests {
 
     /// Build a test app with an in-memory storage backend.
     async fn test_app() -> (axum::Router, AppState) {
-        let storage = nika_storage::Storage::open_memory()
-            .expect("open in-memory storage");
+        let storage = nika_storage::Storage::open_memory().expect("open in-memory storage");
         let (_, shutdown_rx) = tokio::sync::watch::channel(false);
 
         let config = ServeConfig {
@@ -275,9 +278,7 @@ mod tests {
             .uri("/v1/run")
             .header("content-type", "application/json")
             .header("authorization", "Bearer test-token-123")
-            .body(Body::from(
-                r#"{"workflow":"../../etc/passwd"}"#,
-            ))
+            .body(Body::from(r#"{"workflow":"../../etc/passwd"}"#))
             .unwrap();
         let resp = app.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
@@ -303,9 +304,7 @@ mod tests {
             .uri("/v1/run")
             .header("content-type", "application/json")
             .header("authorization", "Bearer test-token-123")
-            .body(Body::from(
-                r#"{"workflow":"nonexistent.nika.yaml"}"#,
-            ))
+            .body(Body::from(r#"{"workflow":"nonexistent.nika.yaml"}"#))
             .unwrap();
         let resp = app.oneshot(req).await.unwrap();
         // Should be 400 (InvalidWorkflow -- file not found) since the

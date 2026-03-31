@@ -151,7 +151,9 @@ impl DaemonServer {
         info!(path = %db_path.display(), "job storage opened");
         let job_service = JobService::new(storage);
         // Spawn cron scheduler — fires due cron jobs every minute.
-        tokio::spawn(crate::services::jobs::run_cron_scheduler(job_service.clone()));
+        tokio::spawn(crate::services::jobs::run_cron_scheduler(
+            job_service.clone(),
+        ));
 
         let event_bus = EventBus::new();
         event_bus.publish(crate::events::DaemonEvent::DaemonStarted {

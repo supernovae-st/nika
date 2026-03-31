@@ -238,7 +238,10 @@ pub fn resolve_package_path(reference: &str) -> Result<ResolvedPackage, Resolver
     let resolved = resolve_package_path_uncached(reference)?;
     let arc_resolved = Arc::new(resolved);
 
-    PACKAGE_CACHE.insert(reference.to_string(), (Arc::clone(&arc_resolved), Instant::now()));
+    PACKAGE_CACHE.insert(
+        reference.to_string(),
+        (Arc::clone(&arc_resolved), Instant::now()),
+    );
 
     Ok(Arc::unwrap_or_clone(arc_resolved))
 }

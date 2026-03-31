@@ -30,26 +30,28 @@ pub fn redact_secrets(s: &str) -> String {
     static SECRET_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
         regex::Regex::new(concat!(
             r#"(?i)("#,
-            r#"sk-[a-zA-Z0-9_-]{10,}"#,                       // OpenAI / Anthropic
-            r#"|Bearer\s+[a-zA-Z0-9_.\-]{10,}"#,              // Bearer tokens
-            r#"|ghp_[a-zA-Z0-9]{36}"#,                         // GitHub PAT
-            r#"|gho_[a-zA-Z0-9]{36}"#,                         // GitHub OAuth
-            r#"|gh[udr]_[a-zA-Z0-9]{36}"#,                     // GitHub user/device/refresh
-            r#"|xox[bp]-[a-zA-Z0-9\-]+"#,                      // Slack
-            r#"|AKIA[A-Z0-9]{16}"#,                             // AWS access key
-            r#"|ASIA[A-Z0-9]{16}"#,                             // AWS temp credentials (STS)
-            r#"|gsk_[a-zA-Z0-9]{20,}"#,                         // Groq
-            r#"|AIza[a-zA-Z0-9_\-]{30,}"#,                      // Google API
-            r#"|xai-[a-zA-Z0-9]{20,}"#,                         // xAI
-            r#"|sk_live_[a-zA-Z0-9]{20,}"#,                     // Stripe live
-            r#"|rk_live_[a-zA-Z0-9]{20,}"#,                     // Rokt
-            r#"|whsec_[a-zA-Z0-9]{20,}"#,                       // Webhook secret
-            r#"|SG\.[a-zA-Z0-9_-]{20,}"#,                       // SendGrid
-            r#"|AC[a-f0-9]{32}"#,                                // Twilio SID
+            r#"sk-[a-zA-Z0-9_-]{10,}"#,          // OpenAI / Anthropic
+            r#"|Bearer\s+[a-zA-Z0-9_.\-]{10,}"#, // Bearer tokens
+            r#"|ghp_[a-zA-Z0-9]{36}"#,           // GitHub PAT
+            r#"|gho_[a-zA-Z0-9]{36}"#,           // GitHub OAuth
+            r#"|gh[udr]_[a-zA-Z0-9]{36}"#,       // GitHub user/device/refresh
+            r#"|xox[bp]-[a-zA-Z0-9\-]+"#,        // Slack
+            r#"|AKIA[A-Z0-9]{16}"#,              // AWS access key
+            r#"|ASIA[A-Z0-9]{16}"#,              // AWS temp credentials (STS)
+            r#"|gsk_[a-zA-Z0-9]{20,}"#,          // Groq
+            r#"|AIza[a-zA-Z0-9_\-]{30,}"#,       // Google API
+            r#"|xai-[a-zA-Z0-9]{20,}"#,          // xAI
+            r#"|sk_live_[a-zA-Z0-9]{20,}"#,      // Stripe live
+            r#"|rk_live_[a-zA-Z0-9]{20,}"#,      // Rokt
+            r#"|whsec_[a-zA-Z0-9]{20,}"#,        // Webhook secret
+            r#"|SG\.[a-zA-Z0-9_-]{20,}"#,        // SendGrid
+            r#"|AC[a-f0-9]{32}"#,                // Twilio SID
             r#"|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"#, // JWT
-            r#"|(?:mongodb(?:\+srv)?|postgres(?:ql)?|mysql|redis)://[^\s,;'"#, r#"']+"#, // DB URIs
+            r#"|(?:mongodb(?:\+srv)?|postgres(?:ql)?|mysql|redis)://[^\s,;'"#,
+            r#"']+"#, // DB URIs
             r#")"#,
-        )).expect("SECRET_RE is a valid regex")
+        ))
+        .expect("SECRET_RE is a valid regex")
     });
     SECRET_RE.replace_all(s, "[REDACTED]").into_owned()
 }
@@ -219,10 +221,7 @@ mod tests {
     fn redact_secrets_jwt() {
         let input = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.abc123def456";
         let result = redact_secrets(input);
-        assert!(
-            result.contains("[REDACTED]"),
-            "JWT not redacted: {result}"
-        );
+        assert!(result.contains("[REDACTED]"), "JWT not redacted: {result}");
         assert!(!result.contains("eyJhbGci"));
     }
 

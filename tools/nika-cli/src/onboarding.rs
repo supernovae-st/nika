@@ -127,9 +127,11 @@ pub async fn run_onboarding_wizard() -> Result<bool, NikaError> {
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|| dirs::home_dir().unwrap().join(".nika"));
     let vault = nika_core::vault::NikaVault::new(&nika_home.join("secrets"));
-    vault.set(&provider, &api_key).map_err(|e| NikaError::ConfigError {
-        reason: format!("Failed to store key in vault: {e}"),
-    })?;
+    vault
+        .set(&provider, &api_key)
+        .map_err(|e| NikaError::ConfigError {
+            reason: format!("Failed to store key in vault: {e}"),
+        })?;
 
     use nika_engine::core::provider_to_env_var;
     let env_var = provider_to_env_var(&provider).unwrap_or("UNKNOWN_API_KEY");

@@ -244,9 +244,7 @@ impl ChatView {
                         return ViewAction::None;
                     }
                     // Save to vault
-                    let nika_home = dirs::home_dir()
-                        .unwrap_or_default()
-                        .join(".nika");
+                    let nika_home = dirs::home_dir().unwrap_or_default().join(".nika");
                     let vault = nika_core::vault::NikaVault::new(&nika_home.join("secrets"));
                     match vault.set(provider, key.as_str()) {
                         Ok(()) => {
@@ -270,9 +268,7 @@ impl ChatView {
                         return ViewAction::None;
                     }
                     // Save silently (no verification trigger)
-                    let nika_home = dirs::home_dir()
-                        .unwrap_or_default()
-                        .join(".nika");
+                    let nika_home = dirs::home_dir().unwrap_or_default().join(".nika");
                     let vault = nika_core::vault::NikaVault::new(&nika_home.join("secrets"));
                     match vault.set(provider, key.as_str()) {
                         Ok(()) => {

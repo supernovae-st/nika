@@ -106,10 +106,7 @@ pub async fn run_workflow(
     let job_id = &uuid::Uuid::new_v4().to_string()[..12];
 
     // Persist job
-    state
-        .storage
-        .create_job(job_id, &req.workflow)
-        .await?;
+    state.storage.create_job(job_id, &req.workflow).await?;
 
     info!(job_id, workflow = %req.workflow, "job created");
 
@@ -186,7 +183,12 @@ pub async fn cancel_job(
     // Mark cancelled in storage
     state
         .storage
-        .update_state(&id, nika_storage::JobState::Cancelled, None, Some("cancelled by API".into()))
+        .update_state(
+            &id,
+            nika_storage::JobState::Cancelled,
+            None,
+            Some("cancelled by API".into()),
+        )
         .await?;
 
     Ok(Json(json!({

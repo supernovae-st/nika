@@ -45,8 +45,8 @@ const COLOR_STATUS_ERROR: Color = Color::Rgb(239, 68, 68); // Red-500
 
 use crate::providers::{env_var as provider_env_var, icons::provider_icon, llm_provider_ids};
 
-use nika_engine::secrets::mask_api_key;
 use super::super::state::ApiKeyState;
+use nika_engine::secrets::mask_api_key;
 
 /// Provider key entry for display
 #[derive(Debug, Clone)]
@@ -89,9 +89,7 @@ impl ProviderKeyEntry {
 
         // Priority 2: Check vault (skip in test mode to avoid I/O)
         if !cfg!(test) {
-            let nika_home = dirs::home_dir()
-                .unwrap_or_default()
-                .join(".nika");
+            let nika_home = dirs::home_dir().unwrap_or_default().join(".nika");
             let vault = nika_core::vault::NikaVault::new(&nika_home.join("secrets"));
             if let Ok(Some(secret)) = vault.get(provider) {
                 use secrecy::ExposeSecret;
@@ -233,7 +231,7 @@ impl Widget for KeysTab<'_> {
                 ApiKeyState::Saving { masked } => format!("{} Saving...", masked),
                 ApiKeyState::Testing { masked } => format!("{} Testing...", masked),
                 ApiKeyState::Configured { masked } => format!("{} (env)", masked), // Clarify source
-                ApiKeyState::Stored { masked } => format!("{} (vault)", masked), // Vault
+                ApiKeyState::Stored { masked } => format!("{} (vault)", masked),   // Vault
                 ApiKeyState::Verified { masked, latency_ms } => {
                     format!("{} ({}ms)", masked, latency_ms)
                 }

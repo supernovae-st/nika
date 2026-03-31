@@ -35,12 +35,11 @@ impl IntoResponse for ServeError {
             Self::PathTraversal => (StatusCode::BAD_REQUEST, self.to_string()),
             Self::QueueFull(_) => (StatusCode::SERVICE_UNAVAILABLE, self.to_string()),
             Self::InvalidWorkflow(_) => (StatusCode::BAD_REQUEST, self.to_string()),
-            Self::Config(_) => {
-                (StatusCode::INTERNAL_SERVER_ERROR, "Configuration error".into())
-            }
-            Self::Storage(_) => {
-                (StatusCode::INTERNAL_SERVER_ERROR, "Storage error".into())
-            }
+            Self::Config(_) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Configuration error".into(),
+            ),
+            Self::Storage(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Storage error".into()),
             Self::Internal(e) => {
                 tracing::error!(error = %e, "internal error");
                 (StatusCode::INTERNAL_SERVER_ERROR, "Internal error".into())
