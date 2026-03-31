@@ -26,6 +26,7 @@ pub use nika_cli::schema;
 pub use nika_cli::showcase;
 pub use nika_cli::switch;
 pub use nika_cli::trace;
+pub use nika_cli::vault;
 pub use nika_cli::verbs;
 pub use nika_cli::workflow;
 
