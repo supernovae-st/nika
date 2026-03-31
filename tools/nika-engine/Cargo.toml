@@ -82,10 +82,6 @@ sha2 = { workspace = true }
 
 # Secure credential storage
 secrecy = { workspace = true }
-zeroize = { workspace = true }
-orion = { workspace = true }
-whoami = { workspace = true }
-
 
 # Native inference via mistral.rs
 mistralrs = { version = "0.7", optional = true }

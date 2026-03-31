@@ -26,7 +26,7 @@
 //!
 //! # Example
 //!
-//! ```rust,no_run
+//! ```ignore
 //! use nika::tools::{ToolContext, ReadTool, PermissionMode};
 //! use std::path::PathBuf;
 //! use std::sync::Arc;

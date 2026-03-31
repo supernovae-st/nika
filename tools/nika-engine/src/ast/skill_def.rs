@@ -52,7 +52,7 @@ use crate::error::NikaError;
 /// # Examples
 /// ```
 /// use std::path::{Path, PathBuf};
-/// use nika::ast::skill_def::resolve_skill_path;
+/// use nika_engine::ast::skill_def::resolve_skill_path;
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// // Local relative path (resolved against base_dir)
@@ -136,7 +136,7 @@ fn validate_skill_path_boundary(
 ///
 /// # Examples
 /// ```
-/// use nika::ast::skill_def::is_pkg_uri;
+/// use nika_engine::ast::skill_def::is_pkg_uri;
 ///
 /// assert!(is_pkg_uri("pkg:@supernovae/skills@1.0.0/rust.md"));
 /// assert!(is_pkg_uri("pkg:skills/seo.md"));

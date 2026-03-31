@@ -48,9 +48,6 @@ uuid = { workspace = true }
 # Paths
 dirs = { workspace = true }
 
-# Storage (SQLite for jobs + cache persistence)
-rusqlite = { workspace = true }
-
 # File watching
 notify = { workspace = true }
 globset = { workspace = true }

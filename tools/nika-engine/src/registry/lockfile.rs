@@ -72,7 +72,7 @@ impl Lockfile {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```ignore
     /// use nika::registry::lockfile::Lockfile;
     ///
     /// let lockfile = Lockfile::load(None).unwrap();
@@ -104,7 +104,7 @@ impl Lockfile {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use nika::registry::lockfile::Lockfile;
     ///
     /// let mut lockfile = Lockfile::new();

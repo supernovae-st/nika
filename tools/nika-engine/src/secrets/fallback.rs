@@ -91,10 +91,13 @@ pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
 
         // 3. Try vault directly (works even without daemon)
         {
+            #[cfg(unix)]
             let nika_home = nika_daemon::daemon_dir()
                 .parent()
                 .map(|p| p.to_path_buf())
-                .unwrap_or_else(|| dirs::home_dir().unwrap().join(".nika"));
+                .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".nika"));
+            #[cfg(not(unix))]
+            let nika_home = dirs::home_dir().unwrap_or_default().join(".nika");
             let vault = nika_core::vault::NikaVault::new(&nika_home.join("secrets"));
             if let Ok(Some(secret)) = vault.get(provider_id) {
                 let val = secret.expose_secret().to_string();
@@ -132,10 +135,13 @@ pub async fn get_secret(provider: &str) -> Option<SecretString> {
     }
 
     // 3. Try vault directly (works even without daemon)
+    #[cfg(unix)]
     let nika_home = nika_daemon::daemon_dir()
         .parent()
         .map(|p| p.to_path_buf())
-        .unwrap_or_else(|| dirs::home_dir().unwrap().join(".nika"));
+        .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".nika"));
+    #[cfg(not(unix))]
+    let nika_home = dirs::home_dir().unwrap_or_default().join(".nika");
     let vault = nika_core::vault::NikaVault::new(&nika_home.join("secrets"));
     if let Ok(Some(secret)) = vault.get(provider) {
         let val = secret.expose_secret().to_string();
@@ -170,10 +176,13 @@ pub async fn has_secret(provider: &str) -> bool {
     }
 
     // 3. Try vault directly
+    #[cfg(unix)]
     let nika_home = nika_daemon::daemon_dir()
         .parent()
         .map(|p| p.to_path_buf())
-        .unwrap_or_else(|| dirs::home_dir().unwrap().join(".nika"));
+        .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".nika"));
+    #[cfg(not(unix))]
+    let nika_home = dirs::home_dir().unwrap_or_default().join(".nika");
     let vault = nika_core::vault::NikaVault::new(&nika_home.join("secrets"));
     if let Ok(Some(_)) = vault.get(provider) {
         return true;
