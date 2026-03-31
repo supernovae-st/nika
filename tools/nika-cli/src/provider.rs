@@ -434,11 +434,18 @@ pub async fn handle_provider_command(
                     // Fall through to direct keyring
                 }
             }
-            NikaKeyring::set(&provider, &api_key).map_err(|e| NikaError::ConfigError {
-                reason: format!("Failed to store key: {e}"),
-            })?;
+            {
+                let nika_home = nika_daemon::daemon_dir()
+                    .parent()
+                    .map(|p| p.to_path_buf())
+                    .unwrap_or_else(|| dirs::home_dir().unwrap().join(".nika"));
+                let vault = nika_core::vault::NikaVault::new(&nika_home.join("secrets"));
+                vault.set(&provider, &api_key).map_err(|e| NikaError::ConfigError {
+                    reason: format!("Failed to store key: {e}"),
+                })?;
+            }
             println!(
-                "  {} API key for {} stored in system keychain",
+                "  {} API key for {} stored in encrypted vault",
                 StatusIcon::Ok,
                 provider.bold()
             );
@@ -505,16 +512,23 @@ pub async fn handle_provider_command(
                     // Fall through to direct keyring
                 }
             }
-            match NikaKeyring::delete(&provider) {
-                Ok(()) => println!(
-                    "  {} API key for {} deleted from keychain",
-                    StatusIcon::Ok,
-                    provider.bold()
-                ),
-                Err(e) => {
-                    return Err(NikaError::ConfigError {
-                        reason: format!("Failed to delete key: {e}"),
-                    })
+            {
+                let nika_home = nika_daemon::daemon_dir()
+                    .parent()
+                    .map(|p| p.to_path_buf())
+                    .unwrap_or_else(|| dirs::home_dir().unwrap().join(".nika"));
+                let vault = nika_core::vault::NikaVault::new(&nika_home.join("secrets"));
+                match vault.delete(&provider) {
+                    Ok(_) => println!(
+                        "  {} API key for {} deleted from vault",
+                        StatusIcon::Ok,
+                        provider.bold()
+                    ),
+                    Err(e) => {
+                        return Err(NikaError::ConfigError {
+                            reason: format!("Failed to delete key: {e}"),
+                        })
+                    }
                 }
             }
             Ok(())
