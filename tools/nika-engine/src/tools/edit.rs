@@ -176,7 +176,9 @@ impl EditTool {
             // Async cleanup to avoid blocking the executor
             let temp_clone = temp_path.clone();
             tokio::spawn(async move {
-                let _ = fs::remove_file(temp_clone).await;
+                if let Err(e) = fs::remove_file(&temp_clone).await {
+                    tracing::debug!(path = %temp_clone.display(), error = %e, "cleanup: failed to remove temp file");
+                }
             });
             return Err(NikaError::ToolError {
                 code: ToolErrorCode::EditFailed.code(),
