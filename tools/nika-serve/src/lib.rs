@@ -26,6 +26,7 @@ pub mod state;
 pub mod worker;
 
 use std::collections::HashMap;
+use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 
 use axum::middleware;
@@ -66,6 +67,7 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
         semaphore: Arc::new(Semaphore::new(config.max_concurrent)),
         shutdown: shutdown_rx,
         workers: Arc::new(Mutex::new(HashMap::new())),
+        active_jobs: Arc::new(AtomicUsize::new(0)),
     };
 
     // Build router with middleware
@@ -155,7 +157,8 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
 }
 
 /// Wait for all active workers to complete, with a 30-second timeout.
-async fn drain_workers(workers: Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>>) {
+/// After timeout, abort remaining worker tasks (FIX-8).
+async fn drain_workers(workers: Arc<Mutex<HashMap<String, state::WorkerHandle>>>) {
     let handles: Vec<_> = {
         let mut map = workers.lock().await;
         map.drain().collect()
@@ -165,15 +168,23 @@ async fn drain_workers(workers: Arc<Mutex<HashMap<String, tokio::task::JoinHandl
         return;
     }
 
+    let ids: Vec<String> = handles.iter().map(|(id, _)| id.clone()).collect();
+    let join_handles: Vec<tokio::task::JoinHandle<()>> =
+        handles.into_iter().map(|(_, wh)| wh.join).collect();
+
     info!(
-        count = handles.len(),
+        count = join_handles.len(),
         "waiting for active workers to complete"
     );
 
+    // Collect abort handles before consuming JoinHandles
+    let abort_handles: Vec<tokio::task::AbortHandle> =
+        join_handles.iter().map(|h| h.abort_handle()).collect();
+
     let drain_future = async {
-        for (id, handle) in handles {
+        for (i, handle) in join_handles.into_iter().enumerate() {
             if let Err(e) = handle.await {
-                tracing::warn!(job_id = %id, error = %e, "worker panicked during drain");
+                tracing::warn!(job_id = %ids[i], error = %e, "worker panicked during drain");
             }
         }
     };
@@ -182,7 +193,13 @@ async fn drain_workers(workers: Arc<Mutex<HashMap<String, tokio::task::JoinHandl
         .await
         .is_err()
     {
-        tracing::warn!("drain timeout (30s) -- some workers may still be running");
+        tracing::warn!("drain timeout (30s) -- aborting remaining workers");
+        for (i, ah) in abort_handles.into_iter().enumerate() {
+            if !ah.is_finished() {
+                tracing::warn!(job_id = %ids[i], "aborting worker");
+                ah.abort();
+            }
+        }
     }
 }
 
@@ -219,6 +236,7 @@ mod tests {
             semaphore: Arc::new(Semaphore::new(4)),
             shutdown: shutdown_rx,
             workers: Arc::new(Mutex::new(HashMap::new())),
+            active_jobs: Arc::new(AtomicUsize::new(0)),
         };
 
         let app = routes::build_router(state.clone())
