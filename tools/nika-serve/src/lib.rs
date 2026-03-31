@@ -22,6 +22,7 @@ pub mod auth;
 pub mod config;
 pub mod error;
 pub mod executor;
+pub mod request_id;
 pub mod routes;
 pub mod state;
 pub mod worker;
@@ -86,7 +87,8 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
         .layer(TimeoutLayer::with_status_code(
             axum::http::StatusCode::GATEWAY_TIMEOUT,
             std::time::Duration::from_secs(30),
-        ));
+        ))
+        .layer(middleware::from_fn(request_id::request_id_middleware));
 
     // CORS layer — only when explicitly configured (default: no CORS headers)
     if let Some(origin) = &config.cors_origin {
@@ -303,7 +305,8 @@ mod tests {
             .layer(TimeoutLayer::with_status_code(
                 axum::http::StatusCode::GATEWAY_TIMEOUT,
                 std::time::Duration::from_secs(30),
-            ));
+            ))
+            .layer(middleware::from_fn(request_id::request_id_middleware));
 
         (app, state)
     }
@@ -414,5 +417,34 @@ mod tests {
             .unwrap();
         let resp = app.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn request_id_generated_when_absent() {
+        let (app, _state) = test_app().await;
+        let req = Request::get("/health").body(Body::empty()).unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        let id = resp
+            .headers()
+            .get("x-request-id")
+            .expect("x-request-id header must be present");
+        let id_str = id.to_str().unwrap();
+        assert_eq!(id_str.len(), 32, "generated ID should be 32 hex chars");
+        assert!(id_str.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[tokio::test]
+    async fn request_id_echoed_when_provided() {
+        let (app, _state) = test_app().await;
+        let req = Request::get("/health")
+            .header("x-request-id", "my-custom-id-123")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        let id = resp
+            .headers()
+            .get("x-request-id")
+            .expect("x-request-id header must be present");
+        assert_eq!(id.to_str().unwrap(), "my-custom-id-123");
     }
 }
