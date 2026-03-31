@@ -117,6 +117,8 @@ infer = "0.19"
 secrecy = "0.10"
 zeroize = "1.8"
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
+orion = "0.17"
+whoami = "1"
 
 # Shell
 shlex = "1.3"
