@@ -1,5 +1,8 @@
 //! Nika CLI - DAG workflow runner
 
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 mod cli;
 
 use clap::{ArgAction, CommandFactory, Parser, Subcommand, ValueEnum};

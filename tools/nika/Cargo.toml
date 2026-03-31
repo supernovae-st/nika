@@ -52,6 +52,9 @@ fetch-extract = ["nika-engine/fetch-extract"]
 lsp = ["dep:tower-lsp-server", "tokio/io-std", "tokio/io-util", "nika-engine/lsp", "nika-cli/lsp"]
 
 [dependencies]
+# Allocator (faster than system allocator for concurrent workloads)
+mimalloc = { workspace = true }
+
 # Engine crate (all engine logic lives here now)
 nika-engine = { workspace = true }
 

@@ -40,6 +40,9 @@ nika-storage = { path = "nika-storage", version = "0.56.2" }
 nika-serve = { path = "nika-serve", version = "0.56.2" }
 nika-lsp-core = { path = "nika-lsp-core", version = "0.56.2" }
 
+# Allocator
+mimalloc = { version = "0.1", default-features = false }
+
 # Async
 tokio = { version = "1.49", features = ["rt-multi-thread", "macros", "process", "sync", "time", "fs", "signal"] }
 tokio-util = "0.7"
