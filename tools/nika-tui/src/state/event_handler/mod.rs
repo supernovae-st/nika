@@ -485,6 +485,7 @@ impl TuiState {
             | EventKind::BindingDefaultApplied { .. }
             | EventKind::BindingTransformApplied { .. }
             | EventKind::BindingEnvResolved { .. }
+            | EventKind::BindingVaultResolved { .. }
             | EventKind::DecomposeStarted { .. }
             | EventKind::DecomposeCompleted { .. }
             | EventKind::ForEachStarted { .. }

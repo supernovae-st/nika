@@ -371,6 +371,13 @@ pub enum NikaError {
     #[error("[NIKA-072] Null value at path '{path}' (strict mode)")]
     NullValue { path: String, alias: String },
 
+    #[error("[NIKA-075] Vault access failed for $vault.{service}.{field}: {reason}")]
+    VaultAccess {
+        service: String,
+        field: String,
+        reason: String,
+    },
+
     #[error("[NIKA-073] Cannot traverse '{segment}' on {value_type} (expected object/array)")]
     InvalidTraversal {
         segment: String,
@@ -1029,6 +1036,7 @@ impl NikaError {
             // With block errors
             Self::UnknownAlias { .. } => "NIKA-071",
             Self::NullValue { .. } => "NIKA-072",
+            Self::VaultAccess { .. } => "NIKA-075",
             Self::InvalidTraversal { .. } => "NIKA-073",
             Self::TemplateParse { .. } => "NIKA-074",
             // DAG validation errors
@@ -1229,6 +1237,9 @@ impl FixSuggestion for NikaError {
             }
             NikaError::NullValue { .. } => {
                 Some("Provide a default value or ensure non-null output")
+            }
+            NikaError::VaultAccess { .. } => {
+                Some("Check: nika provider set <service> or use ?? default. Run: nika doctor --fix")
             }
             NikaError::InvalidTraversal { .. } => {
                 Some("Check the path - accessing field on non-object")

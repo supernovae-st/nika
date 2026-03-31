@@ -843,6 +843,17 @@ pub enum EventKind {
         found: bool,
     },
 
+    /// Vault credential resolved via $vault.SERVICE.FIELD binding
+    BindingVaultResolved {
+        task_id: Arc<str>,
+        /// Service name
+        service: String,
+        /// Field name
+        field: String,
+        /// Whether the credential field was found
+        found: bool,
+    },
+
     // ═══════════════════════════════════════════
     // DAG ORCHESTRATION EVENTS
     // ═══════════════════════════════════════════
@@ -1086,6 +1097,7 @@ impl EventKind {
             | Self::BindingDefaultApplied { task_id, .. }
             | Self::BindingTransformApplied { task_id, .. }
             | Self::BindingEnvResolved { task_id, .. }
+            | Self::BindingVaultResolved { task_id, .. }
             | Self::DecomposeStarted { task_id, .. }
             | Self::DecomposeCompleted { task_id, .. }
             | Self::ForEachStarted { task_id, .. }
