@@ -1037,7 +1037,7 @@ mod tests {
         };
 
         // Extract hosts from endpoints (same logic as with_policy)
-        for (_name, ep) in &endpoints {
+        for ep in endpoints.values() {
             if let Ok(url) = url::Url::parse(&ep.base_url) {
                 if let Some(host) = url.host_str() {
                     let host_str = host.to_string();
