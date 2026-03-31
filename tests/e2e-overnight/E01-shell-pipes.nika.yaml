@@ -8,3 +8,10 @@ tasks:
     exec:
       command: "echo 'hello world' | wc -w"
       shell: true
+  - id: check
+    depends_on: [pipe_test]
+    with:
+      count: $pipe_test
+    exec:
+      command: "test '{{with.count | trim}}' = '2' && echo PASS || exit 1"
+      shell: true
