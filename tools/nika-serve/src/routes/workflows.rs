@@ -279,14 +279,14 @@ mod tests {
         for _ in 0..num_threads {
             let jobs = Arc::clone(&active_jobs);
             let acc = Arc::clone(&accepted);
-            handles.push(std::thread::spawn(move || {
-                match super::try_acquire_job_slot(&jobs, max_queued) {
+            handles.push(std::thread::spawn(
+                move || match super::try_acquire_job_slot(&jobs, max_queued) {
                     Ok(()) => {
                         acc.fetch_add(1, Ordering::Relaxed);
                     }
                     Err(_) => {}
-                }
-            }));
+                },
+            ));
         }
 
         for h in handles {
