@@ -760,9 +760,17 @@ impl TaskExecutor {
                         None => None,
                     };
                     if let Some(ref repair_model_name) = resolved_repair_model {
-                        let repair_callback =
-                            Self::make_infer_callback(&provider, Some(repair_model_name));
-                        engine = engine.with_repair_callback(repair_callback);
+                        let trimmed = repair_model_name.trim();
+                        if trimmed.is_empty() {
+                            tracing::warn!(
+                                task_id = %task_id,
+                                "repair_model resolved to empty string, using default model for repair"
+                            );
+                        } else {
+                            let repair_callback =
+                                Self::make_infer_callback(&provider, Some(trimmed));
+                            engine = engine.with_repair_callback(repair_callback);
+                        }
                     }
 
                     // Validate through defense system (Layers 1-3)
