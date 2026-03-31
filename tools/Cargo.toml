@@ -12,6 +12,7 @@ members = [
     "nika-mcp",
     "nika-media",
     "nika-storage",
+    "nika-serve",
     "nika-lsp-core",
     "nika-lsp",
 ]
@@ -36,6 +37,7 @@ nika-mcp = { path = "nika-mcp", version = "0.55.0" }
 nika-media = { path = "nika-media", version = "0.55.0" }
 nika-daemon = { path = "nika-daemon", version = "0.55.0" }
 nika-storage = { path = "nika-storage", version = "0.55.0" }
+nika-serve = { path = "nika-serve", version = "0.55.0" }
 nika-lsp-core = { path = "nika-lsp-core", version = "0.55.0" }
 
 # Async
@@ -66,6 +68,10 @@ miette = { version = "7.6", features = ["fancy"] }
 # HTTP
 reqwest = { version = "0.13", default-features = false, features = ["json", "stream", "rustls", "gzip", "brotli", "deflate"] }
 url = "2"
+axum = { version = "0.8", features = ["json", "macros"] }
+tower = { version = "0.5", features = ["timeout", "limit"] }
+tower-http = { version = "0.6", features = ["trace", "limit", "cors"] }
+subtle = "2"
 
 # Crypto
 sha2 = "0.10"

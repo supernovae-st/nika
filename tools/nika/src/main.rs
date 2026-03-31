@@ -637,6 +637,39 @@ enum Commands {
         action: cli::daemon::DaemonAction,
     },
 
+    /// Start HTTP API server for remote workflow execution
+    ///
+    /// Exposes a REST API for submitting, monitoring, and cancelling
+    /// workflow jobs. Authentication via Bearer token.
+    ///
+    /// Examples:
+    ///   NIKA_SERVE_TOKEN=secret nika serve
+    ///   NIKA_SERVE_TOKEN=secret nika serve --bind 0.0.0.0:8080
+    ///   NIKA_SERVE_TOKEN=secret nika serve --workflows ./pipelines --concurrency 4
+    #[cfg(feature = "serve")]
+    #[command(next_help_heading = "SYSTEM")]
+    Serve {
+        /// Socket address to bind (default: 0.0.0.0:3000, env: NIKA_SERVE_BIND)
+        #[arg(short, long, value_name = "ADDR")]
+        bind: Option<String>,
+
+        /// Directory containing .nika.yaml workflows (env: NIKA_SERVE_WORKFLOWS)
+        #[arg(short, long, value_name = "DIR")]
+        workflows: Option<String>,
+
+        /// Max concurrent workflow executions (env: NIKA_SERVE_MAX_CONCURRENT)
+        #[arg(short, long, default_value = "6")]
+        concurrency: usize,
+
+        /// Per-job timeout in seconds (env: NIKA_SERVE_TIMEOUT)
+        #[arg(short, long, default_value = "300")]
+        timeout: u64,
+
+        /// SQLite database path for job persistence (env: NIKA_SERVE_DB)
+        #[arg(long, value_name = "PATH")]
+        db: Option<String>,
+    },
+
     /// Configure API keys and providers (interactive first-run wizard)
     #[command(next_help_heading = "SYSTEM")]
     Setup,
@@ -1280,6 +1313,41 @@ async fn main() {
             cli::daemon::handle_daemon_command(action, quiet).await
         }
 
+        #[cfg(feature = "serve")]
+        Some(Commands::Serve {
+            bind,
+            workflows,
+            concurrency,
+            timeout,
+            db,
+        }) => {
+            // CLI args override env vars, which override defaults
+            if let Some(b) = &bind {
+                std::env::set_var("NIKA_SERVE_BIND", b);
+            }
+            if let Some(w) = &workflows {
+                std::env::set_var("NIKA_SERVE_WORKFLOWS", w);
+            }
+            std::env::set_var("NIKA_SERVE_MAX_CONCURRENT", concurrency.to_string());
+            std::env::set_var("NIKA_SERVE_TIMEOUT", timeout.to_string());
+            if let Some(d) = &db {
+                std::env::set_var("NIKA_SERVE_DB", d);
+            }
+
+            match nika_serve::config::ServeConfig::from_env() {
+                Ok(config) => {
+                    nika_serve::run_server(config)
+                        .await
+                        .map_err(|e| nika::NikaError::ConfigError {
+                            reason: format!("serve error: {e}"),
+                        })
+                }
+                Err(e) => Err(nika::NikaError::ConfigError {
+                    reason: format!("serve config: {e}"),
+                }),
+            }
+        }
+
         #[cfg(unix)]
         Some(Commands::Job { action }) => cli::jobs::handle_job_command(action, quiet).await,
 
@@ -1359,6 +1427,9 @@ fn should_skip_auto_setup(cmd: &Option<Commands>) -> bool {
         Some(Commands::Cache { .. }) => true,
         #[cfg(unix)]
         Some(Commands::Job { .. }) => true,
+        // Serve is a long-running server process — no interactive setup.
+        #[cfg(feature = "serve")]
+        Some(Commands::Serve { .. }) => true,
         // Doctor and TUI are NOT skipped — both are major user entry points.
         // Auto-setup runs before command dispatch, so output doesn't interfere.
         _ => false,
