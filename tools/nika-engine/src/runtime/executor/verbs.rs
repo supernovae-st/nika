@@ -82,9 +82,9 @@ pub(crate) fn coerce_json_types(value: &mut serde_json::Value) {
                 *value = Value::Bool(true);
             } else if s == "false" {
                 *value = Value::Bool(false);
-            } else if s == "null" {
-                *value = Value::Null;
             }
+            // Note: "null" is NOT coerced to Value::Null — the string "null" is
+            // a valid data value and should be preserved as-is.
         }
         _ => {}
     }
@@ -357,10 +357,11 @@ mod tests {
     }
 
     #[test]
-    fn coerce_json_types_null() {
+    fn coerce_preserves_null_string() {
+        // "null" should remain as string, NOT be coerced to Value::Null
         let mut v = serde_json::json!("null");
         coerce_json_types(&mut v);
-        assert_eq!(v, serde_json::Value::Null);
+        assert_eq!(v, serde_json::json!("null"));
     }
 
     #[test]
