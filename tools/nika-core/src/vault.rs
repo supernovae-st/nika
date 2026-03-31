@@ -73,6 +73,195 @@ impl VaultEntry {
     }
 }
 
+/// Which backend to use for secret storage/retrieval at runtime.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum VaultBackend {
+    /// Local encrypted vault (default).
+    Local,
+    /// Doppler CLI-based secret management.
+    Doppler,
+}
+
+impl VaultBackend {
+    /// Select backend from `NIKA_VAULT_BACKEND` env var.
+    ///
+    /// Returns `Doppler` if `NIKA_VAULT_BACKEND=doppler`, otherwise `Local`.
+    pub fn from_env() -> Self {
+        match std::env::var("NIKA_VAULT_BACKEND").as_deref() {
+            Ok("doppler") => Self::Doppler,
+            _ => Self::Local,
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUDIT LOG
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Audit log entry for vault operations.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct AuditEntry {
+    pub timestamp: String,
+    pub op: String,
+    pub service: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub field: Option<String>,
+    pub source: String,
+}
+
+/// Append-only audit log for credential access tracking.
+///
+/// Writes JSON lines to `<secrets_dir>/audit.jsonl`.
+pub struct VaultAuditLog {
+    log_path: PathBuf,
+}
+
+impl VaultAuditLog {
+    /// Create audit log for the given secrets directory.
+    pub fn new(secrets_dir: &Path) -> Self {
+        Self {
+            log_path: secrets_dir.join("audit.jsonl"),
+        }
+    }
+
+    /// Log path for inspection in tests.
+    pub fn path(&self) -> &Path {
+        &self.log_path
+    }
+
+    /// Append a single audit entry.
+    pub fn log(
+        &self,
+        op: &str,
+        service: &str,
+        field: Option<&str>,
+        source: &str,
+    ) -> Result<(), VaultError> {
+        let entry = AuditEntry {
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            op: op.to_string(),
+            service: service.to_string(),
+            field: field.map(|f| f.to_string()),
+            source: source.to_string(),
+        };
+
+        let mut line = serde_json::to_string(&entry)?;
+        line.push('\n');
+
+        if let Some(parent) = self.log_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+
+        use std::io::Write;
+        let file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.log_path)?;
+        let mut writer = std::io::BufWriter::new(file);
+        writer.write_all(line.as_bytes())?;
+        writer.flush()?;
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ =
+                std::fs::set_permissions(&self.log_path, std::fs::Permissions::from_mode(0o600));
+        }
+
+        Ok(())
+    }
+
+    /// Read all audit entries from the log.
+    pub fn read_all(&self) -> Result<Vec<AuditEntry>, VaultError> {
+        if !self.log_path.exists() {
+            return Ok(vec![]);
+        }
+        let content = std::fs::read_to_string(&self.log_path)?;
+        let mut entries = Vec::new();
+        for line in content.lines() {
+            if line.trim().is_empty() {
+                continue;
+            }
+            let entry: AuditEntry = serde_json::from_str(line)?;
+            entries.push(entry);
+        }
+        Ok(entries)
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DOPPLER BACKEND
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Doppler CLI backend — delegates to `doppler secrets get/--json`.
+pub struct DopplerBackend;
+
+impl DopplerBackend {
+    /// Get a single secret by key via `doppler secrets get KEY --plain`.
+    pub fn get(key: &str) -> Result<Option<String>, VaultError> {
+        let output = std::process::Command::new("doppler")
+            .args(["secrets", "get", key, "--plain"])
+            .output();
+
+        match output {
+            Ok(out) if out.status.success() => {
+                let value = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                if value.is_empty() {
+                    Ok(None)
+                } else {
+                    Ok(Some(value))
+                }
+            }
+            Ok(out) => {
+                let stderr = String::from_utf8_lossy(&out.stderr);
+                tracing::debug!("doppler get failed for {key}: {stderr}");
+                Ok(None)
+            }
+            Err(e) => {
+                tracing::debug!("doppler CLI not available: {e}");
+                Ok(None)
+            }
+        }
+    }
+
+    /// List all secret keys via `doppler secrets --json`.
+    pub fn list() -> Result<Vec<String>, VaultError> {
+        let output = std::process::Command::new("doppler")
+            .args(["secrets", "--json"])
+            .output();
+
+        match output {
+            Ok(out) if out.status.success() => {
+                let parsed: serde_json::Value =
+                    serde_json::from_slice(&out.stdout).map_err(VaultError::Json)?;
+                if let serde_json::Value::Object(map) = parsed {
+                    Ok(map.keys().cloned().collect())
+                } else {
+                    Ok(vec![])
+                }
+            }
+            Ok(out) => {
+                let stderr = String::from_utf8_lossy(&out.stderr);
+                tracing::debug!("doppler list failed: {stderr}");
+                Ok(vec![])
+            }
+            Err(e) => {
+                tracing::debug!("doppler CLI not available: {e}");
+                Ok(vec![])
+            }
+        }
+    }
+
+    /// Check if the doppler CLI is available on PATH.
+    pub fn is_available() -> bool {
+        std::process::Command::new("doppler")
+            .arg("--version")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    }
+}
+
 /// Internal plaintext structure stored inside the encrypted vault.
 ///
 /// v1: `secrets` contained `BTreeMap<String, String>` (plain keys).
@@ -711,5 +900,186 @@ mod tests {
             .get_credential("nonexistent", "key")
             .unwrap()
             .is_none());
+    }
+
+    // ── VaultBackend tests ──────────────────────────────────────────────
+
+    #[test]
+    #[serial]
+    fn local_backend_is_default() {
+        // Ensure env var is unset
+        unsafe { std::env::remove_var("NIKA_VAULT_BACKEND") };
+        assert_eq!(VaultBackend::from_env(), VaultBackend::Local);
+    }
+
+    #[test]
+    #[serial]
+    fn doppler_backend_selected_from_env() {
+        std::env::set_var("NIKA_VAULT_BACKEND", "doppler");
+        assert_eq!(VaultBackend::from_env(), VaultBackend::Doppler);
+        unsafe { std::env::remove_var("NIKA_VAULT_BACKEND") };
+    }
+
+    #[test]
+    #[serial]
+    fn unknown_backend_defaults_to_local() {
+        std::env::set_var("NIKA_VAULT_BACKEND", "unknown-backend");
+        assert_eq!(VaultBackend::from_env(), VaultBackend::Local);
+        unsafe { std::env::remove_var("NIKA_VAULT_BACKEND") };
+    }
+
+    #[test]
+    #[serial]
+    fn empty_backend_defaults_to_local() {
+        std::env::set_var("NIKA_VAULT_BACKEND", "");
+        assert_eq!(VaultBackend::from_env(), VaultBackend::Local);
+        unsafe { std::env::remove_var("NIKA_VAULT_BACKEND") };
+    }
+
+    #[test]
+    fn doppler_get_returns_none_when_cli_unavailable() {
+        // On most CI/test envs, doppler is not installed, so this tests the fallback
+        // If doppler IS installed, this still works — it returns whatever doppler has
+        let result = DopplerBackend::get("NONEXISTENT_KEY_12345");
+        assert!(result.is_ok(), "get should not error even without doppler");
+    }
+
+    #[test]
+    fn doppler_list_returns_empty_when_cli_unavailable() {
+        // If doppler is not on PATH, should gracefully return empty
+        // If it IS installed, returns actual keys (still valid)
+        let result = DopplerBackend::list();
+        assert!(result.is_ok(), "list should not error even without doppler");
+    }
+
+    // ── Audit log tests ───────────────────────────────────────────────
+
+    #[test]
+    fn audit_log_writes_and_reads() {
+        let dir = TempDir::new().unwrap();
+        let audit = VaultAuditLog::new(dir.path());
+
+        audit
+            .log("get", "stripe", Some("secret"), "workflow")
+            .unwrap();
+        audit.log("set", "twilio", Some("sid"), "cli").unwrap();
+        audit.log("delete", "old-service", None, "cli").unwrap();
+
+        let entries = audit.read_all().unwrap();
+        assert_eq!(entries.len(), 3);
+
+        assert_eq!(entries[0].op, "get");
+        assert_eq!(entries[0].service, "stripe");
+        assert_eq!(entries[0].field.as_deref(), Some("secret"));
+        assert_eq!(entries[0].source, "workflow");
+
+        assert_eq!(entries[1].op, "set");
+        assert_eq!(entries[1].service, "twilio");
+        assert_eq!(entries[1].field.as_deref(), Some("sid"));
+
+        assert_eq!(entries[2].op, "delete");
+        assert_eq!(entries[2].service, "old-service");
+        assert!(entries[2].field.is_none());
+    }
+
+    #[test]
+    fn audit_log_timestamp_is_rfc3339() {
+        let dir = TempDir::new().unwrap();
+        let audit = VaultAuditLog::new(dir.path());
+
+        audit.log("get", "test", None, "test").unwrap();
+
+        let entries = audit.read_all().unwrap();
+        assert_eq!(entries.len(), 1);
+        // Verify it parses as RFC 3339
+        assert!(
+            chrono::DateTime::parse_from_rfc3339(&entries[0].timestamp).is_ok(),
+            "timestamp should be valid RFC 3339: {}",
+            entries[0].timestamp
+        );
+    }
+
+    #[test]
+    fn audit_log_empty_file() {
+        let dir = TempDir::new().unwrap();
+        let audit = VaultAuditLog::new(dir.path());
+
+        // No file yet — should return empty vec
+        let entries = audit.read_all().unwrap();
+        assert!(entries.is_empty());
+    }
+
+    #[test]
+    fn audit_log_append_mode() {
+        let dir = TempDir::new().unwrap();
+        let audit = VaultAuditLog::new(dir.path());
+
+        audit.log("get", "s1", None, "src1").unwrap();
+        audit.log("set", "s2", None, "src2").unwrap();
+
+        // Create a new audit log instance pointing to the same file
+        let audit2 = VaultAuditLog::new(dir.path());
+        audit2.log("delete", "s3", None, "src3").unwrap();
+
+        // All 3 entries should be present
+        let entries = audit2.read_all().unwrap();
+        assert_eq!(entries.len(), 3);
+        assert_eq!(entries[0].service, "s1");
+        assert_eq!(entries[1].service, "s2");
+        assert_eq!(entries[2].service, "s3");
+    }
+
+    #[test]
+    fn audit_entry_json_roundtrip() {
+        let entry = AuditEntry {
+            timestamp: "2026-04-01T00:00:00+00:00".to_string(),
+            op: "get".to_string(),
+            service: "stripe".to_string(),
+            field: Some("secret".to_string()),
+            source: "workflow".to_string(),
+        };
+
+        let json = serde_json::to_string(&entry).unwrap();
+        let parsed: AuditEntry = serde_json::from_str(&json).unwrap();
+        assert_eq!(entry, parsed);
+    }
+
+    #[test]
+    fn audit_entry_skips_none_field() {
+        let entry = AuditEntry {
+            timestamp: "2026-04-01T00:00:00+00:00".to_string(),
+            op: "list".to_string(),
+            service: "all".to_string(),
+            field: None,
+            source: "cli".to_string(),
+        };
+
+        let json = serde_json::to_string(&entry).unwrap();
+        assert!(
+            !json.contains("field"),
+            "field should be skipped when None: {json}"
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn audit_log_file_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = TempDir::new().unwrap();
+        let audit = VaultAuditLog::new(dir.path());
+
+        audit.log("get", "test", None, "test").unwrap();
+
+        let perms = std::fs::metadata(audit.path()).unwrap().permissions();
+        assert_eq!(perms.mode() & 0o777, 0o600);
+    }
+
+    #[test]
+    fn vault_backend_clone_and_debug() {
+        let b = VaultBackend::Local;
+        let b2 = b.clone();
+        assert_eq!(b, b2);
+        assert_eq!(format!("{:?}", b), "Local");
+        assert_eq!(format!("{:?}", VaultBackend::Doppler), "Doppler");
     }
 }

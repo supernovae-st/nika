@@ -21,13 +21,9 @@ use crate::store::TaskResult;
 /// Maximum number of entries in each cache before eviction.
 const CACHE_MAX_ENTRIES: usize = 512;
 
-/// Global schema cache: path → parsed JSON schema
+/// Global schema cache: path → parsed JSON schema.
 /// Avoids re-reading and re-parsing schema files on repeated validations.
-/// Cache entry with mtime for staleness detection (M14 fix).
-struct SchemaCacheEntry {
-    schema: Arc<Value>,
-    mtime: std::time::SystemTime,
-}
+static SCHEMA_CACHE: LazyLock<DashMap<Arc<str>, Arc<Value>>> = LazyLock::new(DashMap::new);
 
 /// Global compiled validator cache: blake3 hash of schema JSON → compiled validator.
 /// Uses blake3 for cryptographic collision resistance (replaces DefaultHasher u64).
@@ -213,16 +209,9 @@ pub async fn validate_schema(value: &Value, schema_path: &str) -> Result<(), Nik
         .ok()
         .and_then(|m| m.modified().ok());
 
-    // Try cache first (fast path) — invalidate if mtime changed
+    // Try cache first (fast path)
     let schema = if let Some(cached) = SCHEMA_CACHE.get(schema_path) {
-        let stale = current_mtime.map(|mt| mt != cached.mtime).unwrap_or(false);
-        if stale {
-            drop(cached); // Release guard before remove
-            SCHEMA_CACHE.remove(schema_path);
-            None
-        } else {
-            Some(Arc::clone(&cached.schema))
-        }
+        Some(Arc::clone(cached.value()))
     } else {
         None
     };
