@@ -7,7 +7,7 @@
 
 use crate::core::{ProviderCategory, KNOWN_PROVIDERS};
 use crate::secrets::result::SecretsLoadResult;
-use secrecy::SecretString;
+use secrecy::{ExposeSecret, SecretString};
 use tracing::{debug, info, trace};
 
 /// Check if the daemon is running (socket file exists).
@@ -77,11 +77,23 @@ pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
             }
         }
 
-        // 3. No env var, no daemon → not found.
-        // Direct keyring access is DISABLED to prevent macOS Keychain popups.
-        // Users should either:
-        //   a) Set env vars (export PROVIDER_API_KEY=...)
-        //   b) Run `nika daemon install && nika daemon start` for daemon-managed secrets
+        // 3. Try vault directly (works even without daemon)
+        {
+            let nika_home = nika_daemon::daemon_dir()
+                .parent()
+                .map(|p| p.to_path_buf())
+                .unwrap_or_else(|| dirs::home_dir().unwrap().join(".nika"));
+            let vault = nika_core::vault::NikaVault::new(&nika_home.join("secrets"));
+            if let Ok(Some(secret)) = vault.get(provider_id) {
+                let val = secret.expose_secret().to_string();
+                // SAFETY: called during sequential boot before spawning workflow tasks
+                unsafe { std::env::set_var(env_var, &val) };
+                debug!("{}: loaded from vault", provider_id);
+                result.from_env.push(provider_id.to_string());
+                continue;
+            }
+        }
+
         result.not_found.push(provider_id.to_string());
     }
     info!("Secrets: {}", result.summary());
@@ -107,7 +119,21 @@ pub async fn get_secret(provider: &str) -> Option<SecretString> {
         }
     }
 
-    // 3. No env, no daemon → None. Direct keyring disabled (prevents popups).
+    // 3. Try vault directly (works even without daemon)
+    let nika_home = nika_daemon::daemon_dir()
+        .parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| dirs::home_dir().unwrap().join(".nika"));
+    let vault = nika_core::vault::NikaVault::new(&nika_home.join("secrets"));
+    if let Ok(Some(secret)) = vault.get(provider) {
+        let val = secret.expose_secret().to_string();
+        // Inject into process env for caching
+        // SAFETY: called during boot before spawning workflow tasks
+        unsafe { std::env::set_var(env_var, &val) };
+        debug!("{}: loaded from vault", provider);
+        return Some(SecretString::from(val));
+    }
+
     None
 }
 
@@ -131,7 +157,16 @@ pub async fn has_secret(provider: &str) -> bool {
         }
     }
 
-    // 3. No env, no daemon → false. Direct keyring disabled (prevents popups).
+    // 3. Try vault directly
+    let nika_home = nika_daemon::daemon_dir()
+        .parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| dirs::home_dir().unwrap().join(".nika"));
+    let vault = nika_core::vault::NikaVault::new(&nika_home.join("secrets"));
+    if let Ok(Some(_)) = vault.get(provider) {
+        return true;
+    }
+
     false
 }
 
