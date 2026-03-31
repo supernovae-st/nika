@@ -63,17 +63,29 @@ impl App {
 
         let tx = self.stream_chunk_tx.clone();
         use nika_core::catalogs::default_model_for_provider;
-        let provider_ids: Vec<(&str, String)> = [
-            "claude", "openai", "mistral", "groq", "deepseek", "gemini", "xai",
-        ]
-        .iter()
-        .map(|&id| {
-            let model = default_model_for_provider(id)
-                .unwrap_or("unknown")
-                .to_string();
-            (id, model)
-        })
-        .collect();
+        use nika_core::provider_name::ProviderName;
+
+        /// Cloud providers that require API key verification.
+        const CLOUD_PROVIDERS: &[ProviderName] = &[
+            ProviderName::Anthropic,
+            ProviderName::OpenAI,
+            ProviderName::Mistral,
+            ProviderName::Groq,
+            ProviderName::DeepSeek,
+            ProviderName::Gemini,
+            ProviderName::XAi,
+        ];
+
+        let provider_ids: Vec<(&str, String)> = CLOUD_PROVIDERS
+            .iter()
+            .map(|p| {
+                let id = p.as_str();
+                let model = default_model_for_provider(id)
+                    .unwrap_or("unknown")
+                    .to_string();
+                (id, model)
+            })
+            .collect();
         let cache = Arc::clone(&self.verification_cache);
 
         // Check cache and send events for cached providers, mark uncached as verifying
