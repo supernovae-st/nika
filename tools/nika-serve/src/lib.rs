@@ -31,7 +31,7 @@ use std::sync::Arc;
 use axum::middleware;
 use tokio::net::TcpListener;
 use tokio::sync::{Mutex, Semaphore};
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::CorsLayer;
 use tower_http::limit::RequestBodyLimitLayer;
 use tracing::info;
 
@@ -68,20 +68,29 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
         workers: Arc::new(Mutex::new(HashMap::new())),
     };
 
-    // CORS layer (ERRATA-6)
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
-
     // Build router with middleware
-    let app = routes::build_router(state.clone())
+    let mut app = routes::build_router(state.clone())
         .layer(middleware::from_fn_with_state(
             state.clone(),
             auth::require_auth,
         ))
-        .layer(cors)
         .layer(RequestBodyLimitLayer::new(10 * 1024 * 1024)); // 10 MB body limit
+
+    // CORS layer — only when explicitly configured (default: no CORS headers)
+    if let Some(origin) = &config.cors_origin {
+        let cors = CorsLayer::new()
+            .allow_origin(
+                origin
+                    .parse::<axum::http::HeaderValue>()
+                    .expect("invalid CORS origin"),
+            )
+            .allow_methods([axum::http::Method::GET, axum::http::Method::POST])
+            .allow_headers([
+                axum::http::header::AUTHORIZATION,
+                axum::http::header::CONTENT_TYPE,
+            ]);
+        app = app.layer(cors);
+    }
 
     // Bind listener
     let listener = TcpListener::bind(config.bind)
@@ -200,7 +209,8 @@ mod tests {
             job_timeout_secs: 60,
             max_output_bytes: 1024,
             db_path: std::path::PathBuf::from(":memory:"),
-            auth_token: "test-token-123".into(),
+            auth_token: "test-token-1234567".into(), // >=16 chars
+            cors_origin: None,
         };
 
         let state = AppState {
@@ -211,17 +221,11 @@ mod tests {
             workers: Arc::new(Mutex::new(HashMap::new())),
         };
 
-        let cors = CorsLayer::new()
-            .allow_origin(Any)
-            .allow_methods(Any)
-            .allow_headers(Any);
-
         let app = routes::build_router(state.clone())
             .layer(middleware::from_fn_with_state(
                 state.clone(),
                 auth::require_auth,
-            ))
-            .layer(cors);
+            ));
 
         (app, state)
     }
@@ -277,7 +281,7 @@ mod tests {
             .method("POST")
             .uri("/v1/run")
             .header("content-type", "application/json")
-            .header("authorization", "Bearer test-token-123")
+            .header("authorization", "Bearer test-token-1234567")
             .body(Body::from(r#"{"workflow":"../../etc/passwd"}"#))
             .unwrap();
         let resp = app.oneshot(req).await.unwrap();
@@ -288,7 +292,7 @@ mod tests {
     async fn nonexistent_job_404() {
         let (app, _state) = test_app().await;
         let req = Request::get("/v1/status/nope")
-            .header("authorization", "Bearer test-token-123")
+            .header("authorization", "Bearer test-token-1234567")
             .body(Body::empty())
             .unwrap();
         let resp = app.oneshot(req).await.unwrap();
@@ -303,7 +307,7 @@ mod tests {
             .method("POST")
             .uri("/v1/run")
             .header("content-type", "application/json")
-            .header("authorization", "Bearer test-token-123")
+            .header("authorization", "Bearer test-token-1234567")
             .body(Body::from(r#"{"workflow":"nonexistent.nika.yaml"}"#))
             .unwrap();
         let resp = app.oneshot(req).await.unwrap();
@@ -318,7 +322,7 @@ mod tests {
         let req = Request::builder()
             .method("POST")
             .uri("/v1/cancel/nonexistent")
-            .header("authorization", "Bearer test-token-123")
+            .header("authorization", "Bearer test-token-1234567")
             .body(Body::empty())
             .unwrap();
         let resp = app.oneshot(req).await.unwrap();
