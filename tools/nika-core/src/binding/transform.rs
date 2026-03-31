@@ -1943,7 +1943,11 @@ mod proptest_tests {
     fn pipe_split_unquoted_apostrophe_in_parens() {
         // "filter(it's)" should NOT break the pipe parser
         let parts = split_pipe_respecting_parens("join(it's) | upper");
-        assert_eq!(parts.len(), 2, "apostrophe inside parens must not break split");
+        assert_eq!(
+            parts.len(),
+            2,
+            "apostrophe inside parens must not break split"
+        );
         assert_eq!(parts[0].trim(), "join(it's)");
         assert_eq!(parts[1].trim(), "upper");
     }
