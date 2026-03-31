@@ -136,7 +136,7 @@ jobs:
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             artifact: nika-windows-x64
-          # === Docker targets (musl static, no keychain) ===
+          # === Docker targets (musl static) ===
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
             artifact: nika-linux-musl-x64
@@ -181,7 +181,7 @@ jobs:
       # Build commands based on target type
       # Working directory is tools/nika (the binary crate), NOT tools/ (workspace root).
       # Building from the crate directory avoids compiling workspace-only members
-      # (like nika-daemon) that are not in the nika binary's dependency graph.
+      # Members not in the binary's dependency graph are excluded automatically.
       - name: Build (native, full features)
         if: "!matrix.cross && !matrix.docker"
         working-directory: tools/nika
@@ -192,10 +192,10 @@ jobs:
         working-directory: tools/nika
         run: cargo build --release --target ${{ matrix.target }} --no-default-features
 
-      - name: Build (cross, full features minus keychain)
+      - name: Build (cross, full features)
         if: matrix.cross && !matrix.docker
         working-directory: tools/nika
-        run: cross build --release --target ${{ matrix.target }} --no-default-features --features tui,nika-daemon,media-core,lsp
+        run: cross build --release --target ${{ matrix.target }} --no-default-features --features tui,serve,media-core,lsp
 
       - name: Build (cross, musl static)
         if: matrix.cross && matrix.docker
