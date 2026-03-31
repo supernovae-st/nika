@@ -89,9 +89,7 @@ pub async fn run_workflow(
 
     // Check queue depth via atomic counter (race-free, no DB queries)
     let max_queued = state.config.max_concurrent * 3;
-    let current = state
-        .active_jobs
-        .load(std::sync::atomic::Ordering::Relaxed);
+    let current = state.active_jobs.load(std::sync::atomic::Ordering::Relaxed);
     if current >= max_queued {
         return Err(ServeError::QueueFull(current));
     }
@@ -169,9 +167,7 @@ pub async fn cancel_job(
 
     // Kill subprocess + abort the worker task (FIX-12: SIGTERM subprocess PID)
     if let Some(handle) = state.workers.lock().await.remove(&id) {
-        let pid = handle
-            .child_pid
-            .load(std::sync::atomic::Ordering::Relaxed);
+        let pid = handle.child_pid.load(std::sync::atomic::Ordering::Relaxed);
         if pid > 0 {
             #[cfg(unix)]
             {

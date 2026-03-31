@@ -201,8 +201,7 @@ async fn run_subprocess(
     child_pid: &Arc<AtomicU32>,
     shutdown_rx: &mut tokio::sync::watch::Receiver<bool>,
 ) -> Result<String, String> {
-    let exe =
-        std::env::current_exe().map_err(|e| format!("failed to resolve current_exe: {e}"))?;
+    let exe = std::env::current_exe().map_err(|e| format!("failed to resolve current_exe: {e}"))?;
 
     let workflow_path = config.workflows_dir.join(workflow);
 
