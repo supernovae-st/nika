@@ -102,25 +102,43 @@ impl InvokeParams {
         }
 
         match (&self.tool, &self.resource) {
-            (Some(tool), Some(_)) if !tool.trim().is_empty() => Err(NikaError::ValidationError {
-                reason: "'tool' and 'resource' are mutually exclusive - specify only one".into(),
-            }),
-            (Some(tool), None) if tool.trim().is_empty() => Err(NikaError::ValidationError {
-                reason: "'tool' name cannot be empty".into(),
-            }),
-            (None, Some(resource)) if resource.trim().is_empty() => {
-                Err(NikaError::ValidationError {
-                    reason: "'resource' URI cannot be empty".into(),
-                })
+            (Some(tool), Some(_)) if !tool.trim().is_empty() => {
+                return Err(NikaError::ValidationError {
+                    reason: "'tool' and 'resource' are mutually exclusive - specify only one"
+                        .into(),
+                });
             }
-            (Some(_), Some(_)) => Err(NikaError::ValidationError {
-                reason: "'tool' and 'resource' are mutually exclusive - specify only one".into(),
-            }),
-            (None, None) => Err(NikaError::ValidationError {
-                reason: "either 'tool' or 'resource' must be specified".into(),
-            }),
-            _ => Ok(()),
+            (Some(tool), None) if tool.trim().is_empty() => {
+                return Err(NikaError::ValidationError {
+                    reason: "'tool' name cannot be empty".into(),
+                });
+            }
+            (None, Some(resource)) if resource.trim().is_empty() => {
+                return Err(NikaError::ValidationError {
+                    reason: "'resource' URI cannot be empty".into(),
+                });
+            }
+            (Some(_), Some(_)) => {
+                return Err(NikaError::ValidationError {
+                    reason: "'tool' and 'resource' are mutually exclusive - specify only one"
+                        .into(),
+                });
+            }
+            (None, None) => {
+                return Err(NikaError::ValidationError {
+                    reason: "either 'tool' or 'resource' must be specified".into(),
+                });
+            }
+            _ => {}
         }
+
+        if self.timeout == Some(0) {
+            return Err(NikaError::ValidationError {
+                reason: "invoke timeout must be greater than 0 seconds".into(),
+            });
+        }
+
+        Ok(())
     }
 
     /// Returns `true` if this is a tool call (has `tool` set).
@@ -436,5 +454,33 @@ tool: novanet_context
 "#;
         let params: InvokeParams = serde_yaml::from_str(yaml).unwrap();
         assert_eq!(params.timeout, None);
+    }
+
+    #[test]
+    fn validate_err_timeout_zero() {
+        let params = InvokeParams {
+            mcp: None,
+            tool: Some("nika:sleep".to_string()),
+            params: None,
+            resource: None,
+            timeout: Some(0),
+        };
+        let err = params.validate().unwrap_err();
+        assert!(
+            err.to_string().contains("timeout"),
+            "should reject timeout=0: {err}"
+        );
+    }
+
+    #[test]
+    fn validate_ok_timeout_positive() {
+        let params = InvokeParams {
+            mcp: Some("server".to_string()),
+            tool: Some("server::tool".to_string()),
+            params: None,
+            resource: None,
+            timeout: Some(5),
+        };
+        assert!(params.validate().is_ok());
     }
 }
