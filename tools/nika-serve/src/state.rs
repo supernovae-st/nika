@@ -8,6 +8,7 @@ use tokio::sync::{Mutex, Semaphore};
 use tokio::task::JoinHandle;
 
 use crate::config::ServeConfig;
+use crate::executor::Executor;
 
 /// Handle for a running worker, storing the task handle and subprocess PID.
 pub struct WorkerHandle {
@@ -26,6 +27,9 @@ pub struct AppState {
 
     /// Immutable server configuration.
     pub config: Arc<ServeConfig>,
+
+    /// Workflow execution backend (subprocess or embedded).
+    pub executor: Executor,
 
     /// Cross-workflow concurrency limiter for `nika serve`.
     /// (The Runner inside nika-engine has its own per-run semaphore for
