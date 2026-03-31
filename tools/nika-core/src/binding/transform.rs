@@ -221,6 +221,15 @@ impl TransformExpr {
 
 impl TransformOp {
     /// Apply this single transform to a JSON value.
+    ///
+    /// # Null handling
+    ///
+    /// Two strategies exist:
+    /// - **Propagating**: `length`, `keys`, `values`, `to_string`, `to_json`,
+    ///   `type_of` return `Value::Null` on null input (marked `// propagating`).
+    /// - **Strict**: `upper`, `trim`, `first`, `last`, etc. return `NIKA-153`
+    ///   error on null input. Users should chain `| default("fallback")` before
+    ///   strict transforms if null is possible.
     pub fn apply(&self, value: &Value) -> Result<Value, TransformError> {
         match self {
             // ── String ───────────────────────────────────────
@@ -281,7 +290,8 @@ impl TransformOp {
                 }
                 Value::Object(_) => {
                     // Serialize object to JSON string and truncate to N characters
-                    let json = serde_json::to_string(value).unwrap_or_default();
+                    // serde_json::Value is always serializable — unwrap is safe
+                    let json = serde_json::to_string(value).expect("Value is serializable");
                     let truncated: String = json.chars().take(*n).collect();
                     Ok(Value::String(truncated))
                 }
@@ -427,7 +437,8 @@ impl TransformOp {
             TransformOp::ToJson => match value {
                 Value::Null => Ok(Value::Null), // propagating
                 _ => Ok(Value::String(
-                    serde_json::to_string(value).unwrap_or_default(),
+                    // serde_json::Value is always serializable — unwrap is safe
+                    serde_json::to_string(value).expect("Value is serializable"),
                 )),
             },
             TransformOp::ParseJson => match value {
