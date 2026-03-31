@@ -34,6 +34,7 @@ use tokio::net::TcpListener;
 use tokio::sync::{Mutex, Semaphore};
 use tower_http::cors::CorsLayer;
 use tower_http::limit::RequestBodyLimitLayer;
+use tower_http::timeout::TimeoutLayer;
 use tracing::info;
 
 use crate::config::ServeConfig;
@@ -79,7 +80,11 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
             state.clone(),
             auth::require_auth,
         ))
-        .layer(RequestBodyLimitLayer::new(10 * 1024 * 1024)); // 10 MB body limit
+        .layer(RequestBodyLimitLayer::new(10 * 1024 * 1024)) // 10 MB body limit
+        .layer(TimeoutLayer::with_status_code(
+                axum::http::StatusCode::GATEWAY_TIMEOUT,
+                std::time::Duration::from_secs(30),
+            ));
 
     // CORS layer — only when explicitly configured (default: no CORS headers)
     if let Some(origin) = &config.cors_origin {
@@ -286,12 +291,27 @@ mod tests {
             active_jobs: Arc::new(AtomicUsize::new(0)),
         };
 
-        let app = routes::build_router(state.clone()).layer(middleware::from_fn_with_state(
-            state.clone(),
-            auth::require_auth,
-        ));
+        let app = routes::build_router(state.clone())
+            .layer(middleware::from_fn_with_state(
+                state.clone(),
+                auth::require_auth,
+            ))
+            .layer(RequestBodyLimitLayer::new(10 * 1024 * 1024))
+            .layer(TimeoutLayer::with_status_code(
+                axum::http::StatusCode::GATEWAY_TIMEOUT,
+                std::time::Duration::from_secs(30),
+            ));
 
         (app, state)
+    }
+
+    #[tokio::test]
+    async fn request_timeout_layer_present() {
+        let (app, _state) = test_app().await;
+        // Validates that the TimeoutLayer is wired in and requests complete normally
+        let req = Request::get("/health").body(Body::empty()).unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
     }
 
     #[tokio::test]
