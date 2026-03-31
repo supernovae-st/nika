@@ -326,6 +326,18 @@ pub struct RetryConfig {
     pub multiplier: f64,
 }
 
+impl RetryConfig {
+    /// Validate retry configuration.
+    pub fn validate(&self) -> Result<(), NikaError> {
+        if self.max_attempts == 0 {
+            return Err(NikaError::ValidationError {
+                reason: "retry.max_attempts must be at least 1".into(),
+            });
+        }
+        Ok(())
+    }
+}
+
 fn default_max_attempts() -> u32 {
     3
 }
@@ -1798,5 +1810,31 @@ fetch:
             }
             _ => panic!("Expected TaskAction::Fetch"),
         }
+    }
+
+    // ═══════════════════════════════════════════
+    // RetryConfig validation
+    // ═══════════════════════════════════════════
+
+    #[test]
+    fn retry_max_attempts_zero_rejected() {
+        let config = RetryConfig {
+            max_attempts: 0,
+            ..Default::default()
+        };
+        let err = config.validate().unwrap_err();
+        assert!(
+            err.to_string().contains("max_attempts"),
+            "should reject max_attempts=0: {err}"
+        );
+    }
+
+    #[test]
+    fn retry_max_attempts_positive_ok() {
+        let config = RetryConfig {
+            max_attempts: 1,
+            ..Default::default()
+        };
+        assert!(config.validate().is_ok());
     }
 }
