@@ -222,15 +222,31 @@ pub fn send_sigterm(_pid: u32) -> DaemonResult<()> {
 pub async fn wait_for_shutdown_signal() {
     use tokio::signal::unix::{signal, SignalKind};
 
-    let mut sigterm = signal(SignalKind::terminate()).expect("SIGTERM handler");
-    let mut sigint = signal(SignalKind::interrupt()).expect("SIGINT handler");
+    // Use .ok() instead of .expect() — signal setup can fail in restricted
+    // environments (containers, sandboxes). With Restart=always, systemd
+    // handles termination directly if signal handlers can't be registered.
+    let sigterm = signal(SignalKind::terminate()).ok();
+    let sigint = signal(SignalKind::interrupt()).ok();
+
+    if sigterm.is_none() && sigint.is_none() {
+        warn!("no signal handlers could be registered — daemon will rely on systemd for shutdown");
+    }
+
+    async fn wait_for_signal(mut sig: Option<tokio::signal::unix::Signal>) {
+        match sig.as_mut() {
+            Some(s) => {
+                s.recv().await;
+            }
+            None => std::future::pending::<()>().await,
+        }
+    }
 
     tokio::select! {
         biased;
-        _ = sigterm.recv() => {
+        _ = wait_for_signal(sigterm) => {
             info!("received SIGTERM");
         }
-        _ = sigint.recv() => {
+        _ = wait_for_signal(sigint) => {
             info!("received SIGINT");
         }
     }
@@ -238,7 +254,10 @@ pub async fn wait_for_shutdown_signal() {
 
 #[cfg(not(unix))]
 pub async fn wait_for_shutdown_signal() {
-    tokio::signal::ctrl_c().await.expect("Ctrl-C handler");
+    if let Err(e) = tokio::signal::ctrl_c().await {
+        warn!(error = %e, "Ctrl-C handler failed — daemon will rely on OS for shutdown");
+        std::future::pending::<()>().await;
+    }
     info!("received Ctrl-C");
 }
 
