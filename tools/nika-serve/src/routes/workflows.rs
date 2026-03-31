@@ -87,20 +87,17 @@ pub async fn run_workflow(
         )));
     }
 
-    // Check queue depth (reject if too many pending)
-    let pending = state
-        .storage
-        .list_jobs(Some(nika_storage::JobState::Pending))
-        .await?;
-    let running = state
-        .storage
-        .list_jobs(Some(nika_storage::JobState::Running))
-        .await?;
-    let active = pending.len() + running.len();
-    // Allow 3x the concurrency limit as queue depth before rejecting
-    if active >= state.config.max_concurrent * 3 {
-        return Err(ServeError::QueueFull(active));
+    // Check queue depth via atomic counter (race-free, no DB queries)
+    let max_queued = state.config.max_concurrent * 3;
+    let current = state
+        .active_jobs
+        .load(std::sync::atomic::Ordering::Relaxed);
+    if current >= max_queued {
+        return Err(ServeError::QueueFull(current));
     }
+    state
+        .active_jobs
+        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
     // Generate job ID — full 128-bit UUID in simple (no-hyphen) format
     let job_id = uuid::Uuid::new_v4().simple().to_string();
@@ -111,12 +108,8 @@ pub async fn run_workflow(
     info!(job_id = %job_id, workflow = %req.workflow, "job created");
 
     // Spawn worker + track handle (ERRATA-9)
-    let handle = worker::spawn_worker(&state, job_id.clone(), req.workflow);
-    state
-        .workers
-        .lock()
-        .await
-        .insert(job_id.clone(), handle);
+    let wh = worker::spawn_worker(&state, job_id.clone(), req.workflow, req.inputs);
+    state.workers.lock().await.insert(job_id.clone(), wh);
 
     Ok(Json(RunResponse {
         job_id,
@@ -174,9 +167,20 @@ pub async fn cancel_job(
         })));
     }
 
-    // Abort the worker task (kills subprocess via kill_on_drop)
+    // Kill subprocess + abort the worker task (FIX-12: SIGTERM subprocess PID)
     if let Some(handle) = state.workers.lock().await.remove(&id) {
-        handle.abort();
+        let pid = handle
+            .child_pid
+            .load(std::sync::atomic::Ordering::Relaxed);
+        if pid > 0 {
+            #[cfg(unix)]
+            {
+                use nix::sys::signal::{kill, Signal};
+                use nix::unistd::Pid;
+                let _ = kill(Pid::from_raw(-(pid as i32)), Signal::SIGTERM);
+            }
+        }
+        handle.join.abort();
         info!(job_id = %id, "worker task aborted");
     }
 
