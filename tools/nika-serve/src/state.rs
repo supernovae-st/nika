@@ -1,12 +1,20 @@
 //! Shared application state injected into all Axum handlers.
 
 use std::collections::HashMap;
+use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 
 use tokio::sync::{Mutex, Semaphore};
 use tokio::task::JoinHandle;
 
 use crate::config::ServeConfig;
+
+/// Handle for a running worker, storing the task handle and subprocess PID.
+pub struct WorkerHandle {
+    pub join: JoinHandle<()>,
+    /// PID of the child process (set by worker after spawn, 0 if not yet spawned).
+    pub child_pid: Arc<std::sync::atomic::AtomicU32>,
+}
 
 /// Shared state for the Nika HTTP API server.
 ///
@@ -28,7 +36,10 @@ pub struct AppState {
     /// Shutdown signal receiver. When `true`, the server is draining.
     pub shutdown: tokio::sync::watch::Receiver<bool>,
 
-    /// Active worker `JoinHandle`s keyed by job ID (ERRATA-9).
+    /// Active worker handles keyed by job ID (ERRATA-9).
     /// Used for cancel + graceful drain at shutdown.
-    pub workers: Arc<Mutex<HashMap<String, JoinHandle<()>>>>,
+    pub workers: Arc<Mutex<HashMap<String, WorkerHandle>>>,
+
+    /// Atomic counter of active jobs (pending + running) for race-free queue depth check.
+    pub active_jobs: Arc<AtomicUsize>,
 }
