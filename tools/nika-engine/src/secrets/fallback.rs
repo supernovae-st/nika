@@ -60,6 +60,8 @@ pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
     #[cfg(not(unix))]
     let daemon: Option<()> = None;
 
+    let backend = nika_core::vault::VaultBackend::from_env();
+
     for provider in KNOWN_PROVIDERS
         .iter()
         .filter(|p| p.category == ProviderCategory::Llm)
@@ -77,7 +79,19 @@ pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
             continue;
         }
 
-        // 2. Try daemon IPC (if available) — Unix only
+        // 2. If Doppler backend: try doppler before daemon/vault
+        if backend == nika_core::vault::VaultBackend::Doppler {
+            if let Ok(Some(val)) = nika_core::vault::DopplerBackend::get(env_var) {
+                // SAFETY: called during sequential boot before spawning workflow tasks
+                unsafe { std::env::set_var(env_var, &val) };
+                debug!("{}: loaded from doppler", provider_id);
+                result.from_env.push(provider_id.to_string());
+                continue;
+            }
+            // Fall through to local sources on Doppler failure
+        }
+
+        // 3. Try daemon IPC (if available) — Unix only
         #[cfg(unix)]
         if let Some(ref client) = daemon {
             if let Ok(Some(secret)) = client.get_secret(provider_id).await {
@@ -89,7 +103,7 @@ pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
             }
         }
 
-        // 3. Try vault directly (works even without daemon)
+        // 4. Try vault directly (works even without daemon)
         {
             #[cfg(unix)]
             let nika_home = nika_daemon::daemon_dir()
@@ -117,15 +131,28 @@ pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
 
 pub async fn get_secret(provider: &str) -> Option<SecretString> {
     let env_var = provider_env_var(provider);
+    let backend = nika_core::vault::VaultBackend::from_env();
 
-    // 1. Check env
+    // 1. Check env (always first, regardless of backend)
     if let Ok(value) = std::env::var(env_var) {
         if !value.is_empty() {
             return Some(SecretString::from(value));
         }
     }
 
-    // 2. Try daemon
+    // 2. If Doppler backend: try doppler before daemon/vault
+    if backend == nika_core::vault::VaultBackend::Doppler {
+        if let Ok(Some(val)) = nika_core::vault::DopplerBackend::get(env_var) {
+            // SAFETY: called during boot before spawning workflow tasks
+            unsafe { std::env::set_var(env_var, &val) };
+            debug!("{}: loaded from doppler", provider);
+            return Some(SecretString::from(val));
+        }
+        // Fall through to local vault on Doppler failure
+        debug!("{}: doppler fallback to local vault", provider);
+    }
+
+    // 3. Try daemon (local backend path)
     #[cfg(unix)]
     if daemon_available() {
         let client = nika_daemon::DaemonClient::default_path();
@@ -134,7 +161,7 @@ pub async fn get_secret(provider: &str) -> Option<SecretString> {
         }
     }
 
-    // 3. Try vault directly (works even without daemon)
+    // 4. Try vault directly (works even without daemon)
     #[cfg(unix)]
     let nika_home = nika_daemon::daemon_dir()
         .parent()
@@ -157,6 +184,7 @@ pub async fn get_secret(provider: &str) -> Option<SecretString> {
 
 pub async fn has_secret(provider: &str) -> bool {
     let env_var = provider_env_var(provider);
+    let backend = nika_core::vault::VaultBackend::from_env();
 
     // 1. Check env
     if std::env::var(env_var)
@@ -166,7 +194,14 @@ pub async fn has_secret(provider: &str) -> bool {
         return true;
     }
 
-    // 2. Try daemon
+    // 2. If Doppler backend: try doppler
+    if backend == nika_core::vault::VaultBackend::Doppler {
+        if let Ok(Some(_)) = nika_core::vault::DopplerBackend::get(env_var) {
+            return true;
+        }
+    }
+
+    // 3. Try daemon
     #[cfg(unix)]
     if daemon_available() {
         let client = nika_daemon::DaemonClient::default_path();
@@ -175,7 +210,7 @@ pub async fn has_secret(provider: &str) -> bool {
         }
     }
 
-    // 3. Try vault directly
+    // 4. Try vault directly
     #[cfg(unix)]
     let nika_home = nika_daemon::daemon_dir()
         .parent()

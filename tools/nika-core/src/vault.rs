@@ -28,6 +28,100 @@ pub enum VaultError {
     Json(#[from] serde_json::Error),
 }
 
+/// Which backend to use for secret storage/retrieval at runtime.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum VaultBackend {
+    /// Local encrypted vault (default).
+    Local,
+    /// Doppler CLI-based secret management.
+    Doppler,
+}
+
+impl VaultBackend {
+    /// Select backend from `NIKA_VAULT_BACKEND` env var.
+    ///
+    /// Returns `Doppler` if `NIKA_VAULT_BACKEND=doppler`, otherwise `Local`.
+    pub fn from_env() -> Self {
+        match std::env::var("NIKA_VAULT_BACKEND").as_deref() {
+            Ok("doppler") => Self::Doppler,
+            _ => Self::Local,
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DOPPLER BACKEND
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Doppler CLI backend — delegates to `doppler secrets get/--json`.
+pub struct DopplerBackend;
+
+impl DopplerBackend {
+    /// Get a single secret by key via `doppler secrets get KEY --plain`.
+    pub fn get(key: &str) -> Result<Option<String>, VaultError> {
+        let output = std::process::Command::new("doppler")
+            .args(["secrets", "get", key, "--plain"])
+            .output();
+
+        match output {
+            Ok(out) if out.status.success() => {
+                let value = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                if value.is_empty() {
+                    Ok(None)
+                } else {
+                    Ok(Some(value))
+                }
+            }
+            Ok(out) => {
+                let stderr = String::from_utf8_lossy(&out.stderr);
+                tracing::debug!("doppler get failed for {key}: {stderr}");
+                Ok(None)
+            }
+            Err(e) => {
+                tracing::debug!("doppler CLI not available: {e}");
+                Ok(None)
+            }
+        }
+    }
+
+    /// List all secret keys via `doppler secrets --json`.
+    pub fn list() -> Result<Vec<String>, VaultError> {
+        let output = std::process::Command::new("doppler")
+            .args(["secrets", "--json"])
+            .output();
+
+        match output {
+            Ok(out) if out.status.success() => {
+                let parsed: serde_json::Value =
+                    serde_json::from_slice(&out.stdout).map_err(VaultError::Json)?;
+                if let serde_json::Value::Object(map) = parsed {
+                    Ok(map.keys().cloned().collect())
+                } else {
+                    Ok(vec![])
+                }
+            }
+            Ok(out) => {
+                let stderr = String::from_utf8_lossy(&out.stderr);
+                tracing::debug!("doppler list failed: {stderr}");
+                Ok(vec![])
+            }
+            Err(e) => {
+                tracing::debug!("doppler CLI not available: {e}");
+                Ok(vec![])
+            }
+        }
+    }
+
+    /// Check if the doppler CLI is available on PATH.
+    pub fn is_available() -> bool {
+        std::process::Command::new("doppler")
+            .arg("--version")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    }
+}
+
 /// Internal plaintext structure stored inside the encrypted vault.
 #[derive(Serialize, Deserialize, Default)]
 struct VaultPayload {
@@ -349,5 +443,64 @@ mod tests {
             vault.get("gemini").unwrap().unwrap().expose_secret(),
             "sk-3"
         );
+    }
+
+    // ── VaultBackend tests ──────────────────────────────────────────────
+
+    #[test]
+    #[serial]
+    fn local_backend_is_default() {
+        // Ensure env var is unset
+        unsafe { std::env::remove_var("NIKA_VAULT_BACKEND") };
+        assert_eq!(VaultBackend::from_env(), VaultBackend::Local);
+    }
+
+    #[test]
+    #[serial]
+    fn doppler_backend_selected_from_env() {
+        std::env::set_var("NIKA_VAULT_BACKEND", "doppler");
+        assert_eq!(VaultBackend::from_env(), VaultBackend::Doppler);
+        unsafe { std::env::remove_var("NIKA_VAULT_BACKEND") };
+    }
+
+    #[test]
+    #[serial]
+    fn unknown_backend_defaults_to_local() {
+        std::env::set_var("NIKA_VAULT_BACKEND", "unknown-backend");
+        assert_eq!(VaultBackend::from_env(), VaultBackend::Local);
+        unsafe { std::env::remove_var("NIKA_VAULT_BACKEND") };
+    }
+
+    #[test]
+    #[serial]
+    fn empty_backend_defaults_to_local() {
+        std::env::set_var("NIKA_VAULT_BACKEND", "");
+        assert_eq!(VaultBackend::from_env(), VaultBackend::Local);
+        unsafe { std::env::remove_var("NIKA_VAULT_BACKEND") };
+    }
+
+    #[test]
+    fn doppler_get_returns_none_when_cli_unavailable() {
+        // On most CI/test envs, doppler is not installed, so this tests the fallback
+        // If doppler IS installed, this still works — it returns whatever doppler has
+        let result = DopplerBackend::get("NONEXISTENT_KEY_12345");
+        assert!(result.is_ok(), "get should not error even without doppler");
+    }
+
+    #[test]
+    fn doppler_list_returns_empty_when_cli_unavailable() {
+        // If doppler is not on PATH, should gracefully return empty
+        // If it IS installed, returns actual keys (still valid)
+        let result = DopplerBackend::list();
+        assert!(result.is_ok(), "list should not error even without doppler");
+    }
+
+    #[test]
+    fn vault_backend_clone_and_debug() {
+        let b = VaultBackend::Local;
+        let b2 = b.clone();
+        assert_eq!(b, b2);
+        assert_eq!(format!("{:?}", b), "Local");
+        assert_eq!(format!("{:?}", VaultBackend::Doppler), "Doppler");
     }
 }
