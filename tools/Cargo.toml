@@ -11,6 +11,7 @@ members = [
     "nika-event",
     "nika-mcp",
     "nika-media",
+    "nika-storage",
     "nika-lsp-core",
     "nika-lsp",
 ]
@@ -34,6 +35,7 @@ nika-event = { path = "nika-event", version = "0.55.0" }
 nika-mcp = { path = "nika-mcp", version = "0.55.0" }
 nika-media = { path = "nika-media", version = "0.55.0" }
 nika-daemon = { path = "nika-daemon", version = "0.55.0" }
+nika-storage = { path = "nika-storage", version = "0.55.0" }
 nika-lsp-core = { path = "nika-lsp-core", version = "0.55.0" }
 
 # Async

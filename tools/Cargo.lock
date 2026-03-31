@@ -5362,6 +5362,7 @@ dependencies = [
  "dirs",
  "globset",
  "nika-core",
+ "nika-storage",
  "nix 0.31.2",
  "notify",
  "rusqlite",
@@ -5596,6 +5597,21 @@ dependencies = [
  "url",
  "usvg",
  "zstd",
+]
+
+[[package]]
+name = "nika-storage"
+version = "0.55.0"
+dependencies = [
+ "chrono",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "uuid 1.23.0",
 ]
 
 [[package]]
