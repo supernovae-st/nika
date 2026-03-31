@@ -16,7 +16,7 @@
 //! | POST   | `/v1/cancel/{id}` | Cancel running job        |
 //!
 //! TODO(v0.57): Job GC -- cleanup completed/failed jobs > 7 days
-//! TODO(v0.57): [serve] section in config.toml
+//! TODO(v0.57): \[serve\] section in config.toml
 
 pub mod auth;
 pub mod config;
