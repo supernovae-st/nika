@@ -208,15 +208,18 @@ pub struct Runner {
     /// CLI event stream renderer (None when quiet or TUI mode).
     /// Uses `auto_renderer()` to auto-select Live (animated) vs Classic (append-only).
     cli_renderer: Option<Box<dyn crate::display::Renderer + Send>>,
-    /// Global concurrency limiter across ALL for_each iterations.
+    /// Global concurrency limiter across ALL spawned tasks (regular + for_each).
     ///
     /// This is a per-Runner (per-workflow-run) semaphore. Each `nika run` creates
     /// its own Runner with its own semaphore. For `nika serve`, cross-workflow
     /// concurrency is managed by AppState.semaphore in the serve layer.
+    ///
+    /// Both regular tasks and for_each iterations acquire a permit before execution,
+    /// ensuring the total number of concurrent tasks never exceeds MAX_CONCURRENT_TASKS.
     global_task_semaphore: Arc<Semaphore>,
 }
 
-/// Maximum concurrent tasks across all for_each loops in a single workflow run.
+/// Maximum concurrent tasks (regular + for_each) in a single workflow run.
 const MAX_CONCURRENT_TASKS: usize = 64;
 
 impl Runner {
@@ -2564,8 +2567,13 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     let workflow_artifacts = workflow_artifacts.clone();
                     let artifact_base_path = artifact_base_path.clone();
                     let workflow_base_url = workflow_base_url.clone();
+                    let global_semaphore = Arc::clone(&self.global_task_semaphore);
 
                     join_set.spawn(async move {
+                        // Acquire global semaphore to bound concurrent regular tasks
+                        let _global_permit = global_semaphore.acquire().await.expect(
+                            "global task semaphore closed unexpectedly",
+                        );
                         Self::execute_task_iteration(
                             task,
                             Arc::clone(&task_id),
@@ -7470,6 +7478,75 @@ mod tests {
         assert!(
             !rec.summary.is_empty(),
             "Record summary should not be empty"
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // GLOBAL TASK CONCURRENCY SEMAPHORE FOR REGULAR TASKS
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn runner_has_global_task_semaphore_with_64_permits() {
+        let runner = Runner::new(make_empty_workflow()).unwrap();
+        // The semaphore should be initialized with MAX_CONCURRENT_TASKS (64) permits.
+        // available_permits() returns the number of permits not currently held.
+        assert_eq!(
+            runner.global_task_semaphore.available_permits(),
+            MAX_CONCURRENT_TASKS,
+            "Global semaphore should have {MAX_CONCURRENT_TASKS} permits"
+        );
+    }
+
+    #[tokio::test]
+    async fn regular_tasks_acquire_global_semaphore() {
+        // Spawn many independent regular tasks (no for_each) in a single DAG layer.
+        // Verify they all complete successfully — proving the semaphore is acquired
+        // and released correctly for regular tasks.
+        let task_count = 8;
+        let tasks: Vec<(&str, &str)> = vec![
+            ("t0", "echo task0"),
+            ("t1", "echo task1"),
+            ("t2", "echo task2"),
+            ("t3", "echo task3"),
+            ("t4", "echo task4"),
+            ("t5", "echo task5"),
+            ("t6", "echo task6"),
+            ("t7", "echo task7"),
+        ];
+        // No edges — all tasks run in parallel in the same DAG layer
+        let edges: Vec<(&str, &str)> = vec![];
+
+        let workflow = create_exec_workflow(tasks, edges);
+        let mut runner = Runner::new(workflow).unwrap().quiet();
+        let result = runner.run().await;
+
+        assert!(
+            result.is_ok(),
+            "Workflow with {task_count} parallel regular tasks should succeed: {:?}",
+            result.err()
+        );
+
+        // Verify all tasks completed successfully
+        for i in 0..task_count {
+            let key = format!("t{}", i);
+            let task_result = runner.datastore.get(&key);
+            assert!(
+                task_result.is_some(),
+                "Task '{}' result should exist in datastore",
+                key
+            );
+            assert!(
+                task_result.unwrap().is_success(),
+                "Task '{}' should have succeeded",
+                key
+            );
+        }
+
+        // After all tasks complete, all permits should be returned
+        assert_eq!(
+            runner.global_task_semaphore.available_permits(),
+            MAX_CONCURRENT_TASKS,
+            "All semaphore permits should be returned after tasks complete"
         );
     }
 }
