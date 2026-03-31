@@ -1346,6 +1346,13 @@ async fn main() {
                         .into(),
                     auth_token,
                     cors_origin: std::env::var("NIKA_SERVE_CORS_ORIGIN").ok(),
+                    executor_mode: match std::env::var("NIKA_SERVE_EXECUTOR")
+                        .as_deref()
+                        .unwrap_or("subprocess")
+                    {
+                        "embedded" => nika_serve::config::ExecutorMode::Embedded,
+                        _ => nika_serve::config::ExecutorMode::Subprocess,
+                    },
                 })
             })() {
                 Ok(config) => nika_serve::run_server(config)

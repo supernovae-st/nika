@@ -8,6 +8,16 @@ use std::path::PathBuf;
 
 use crate::error::ServeError;
 
+/// Execution mode for workflow processing.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum ExecutorMode {
+    /// V1: spawn `nika run <workflow>` as a subprocess (default).
+    #[default]
+    Subprocess,
+    /// V2: run workflow in-process via embedded nika-engine Runner.
+    Embedded,
+}
+
 /// Configuration for the Nika HTTP API server.
 #[derive(Clone, Debug)]
 pub struct ServeConfig {
@@ -35,6 +45,9 @@ pub struct ServeConfig {
     /// Optional CORS allowed origin (e.g. `https://jungo.supernovae.studio`).
     /// When `None`, no CORS headers are sent (default — most secure).
     pub cors_origin: Option<String>,
+
+    /// Execution backend (subprocess or embedded).
+    pub executor_mode: ExecutorMode,
 }
 
 impl ServeConfig {
@@ -78,6 +91,14 @@ impl ServeConfig {
             .unwrap_or_else(|_| ".nika/serve.db".into())
             .into();
 
+        let executor_mode = match std::env::var("NIKA_SERVE_EXECUTOR")
+            .as_deref()
+            .unwrap_or("subprocess")
+        {
+            "embedded" => ExecutorMode::Embedded,
+            _ => ExecutorMode::Subprocess,
+        };
+
         Ok(Self {
             bind,
             workflows_dir,
@@ -87,6 +108,7 @@ impl ServeConfig {
             db_path,
             auth_token,
             cors_origin,
+            executor_mode,
         })
     }
 }

@@ -70,7 +70,13 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
     let state = AppState {
         storage,
         config: Arc::new(config.clone()),
-        executor: executor::Executor::Subprocess,
+        executor: match config.executor_mode {
+            config::ExecutorMode::Subprocess => executor::Executor::Subprocess,
+            config::ExecutorMode::Embedded => {
+                tracing::warn!("embedded executor not yet implemented, falling back to subprocess");
+                executor::Executor::Subprocess
+            }
+        },
         semaphore: Arc::new(Semaphore::new(config.max_concurrent)),
         shutdown: shutdown_rx,
         workers: Arc::new(Mutex::new(HashMap::new())),
@@ -284,6 +290,7 @@ mod tests {
             db_path: std::path::PathBuf::from(":memory:"),
             auth_token: "test-token-1234567".into(), // >=16 chars
             cors_origin: None,
+            executor_mode: config::ExecutorMode::Subprocess,
         };
 
         let state = AppState {
