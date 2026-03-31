@@ -30,6 +30,36 @@ use super::verbs::{
 use super::TaskExecutor;
 use crate::error_domains::ProviderError;
 
+/// Check whether a provider error is transient and worth retrying.
+///
+/// Returns `true` for HTTP 500, 502, 503, 429 (rate limit), timeouts, and
+/// connection errors. Returns `false` for permanent errors (401, 403, 404,
+/// invalid API key, etc.).
+pub(super) fn is_retryable_provider_error(err: &NikaError) -> bool {
+    let msg = err.to_string().to_lowercase();
+    // Permanent errors — never retry
+    if msg.contains("401")
+        || msg.contains("403")
+        || msg.contains("404")
+        || msg.contains("unauthorized")
+        || msg.contains("forbidden")
+        || msg.contains("invalid api key")
+        || msg.contains("invalid_api_key")
+        || msg.contains("authentication")
+    {
+        return false;
+    }
+    // Transient errors — retry
+    msg.contains("500")
+        || msg.contains("502")
+        || msg.contains("503")
+        || msg.contains("429")
+        || msg.contains("timeout")
+        || msg.contains("timed out")
+        || msg.contains("connection")
+        || msg.contains("rate limit")
+}
+
 impl TaskExecutor {
     /// Build an [`InferCallback`] that calls `provider.infer()` with optional model override.
     ///
@@ -631,69 +661,111 @@ impl TaskExecutor {
         // Otherwise fall back to infer_stream.
         // We discard the stream chunks (no TUI display in executor mode) but keep the StreamResult metrics.
         let infer_start = Instant::now();
-        let (tx, _rx) = mpsc::channel::<StreamChunk>(1); // Buffer=1: receiver is unused (no TUI)
         let has_llm_options = infer.temperature.is_some()
             || infer.max_tokens.is_some()
             || resolved_system.is_some()
             || infer.extended_thinking == Some(true);
 
-        let stream_result = if has_llm_options {
-            // Build additional_params for extended thinking (Claude-specific)
-            let additional_params = if infer.extended_thinking == Some(true) {
-                let budget = infer.thinking_budget.unwrap_or(4096);
-                // Extended thinking requires temperature=1 (Anthropic constraint)
-                if let Some(temp) = infer.temperature {
-                    if (temp - 1.0).abs() > f64::EPSILON {
-                        tracing::warn!(
-                            temperature = temp,
-                            "Ignoring temperature={temp} — extended thinking requires temperature=1.0"
-                        );
-                    }
+        // Build options once (reused across retry attempts)
+        let additional_params = if infer.extended_thinking == Some(true) {
+            let budget = infer.thinking_budget.unwrap_or(4096);
+            if let Some(temp) = infer.temperature {
+                if (temp - 1.0).abs() > f64::EPSILON {
+                    tracing::warn!(
+                        temperature = temp,
+                        "Ignoring temperature={temp} — extended thinking requires temperature=1.0"
+                    );
                 }
-                Some(serde_json::json!({
-                    "thinking": { "type": "enabled", "budget_tokens": budget }
-                }))
-            } else {
-                None
-            };
+            }
+            Some(serde_json::json!({
+                "thinking": { "type": "enabled", "budget_tokens": budget }
+            }))
+        } else {
+            None
+        };
 
-            // Compute effective max_tokens: when extended_thinking is on,
-            // Claude requires max_tokens > thinking_budget
-            let effective_max_tokens = if infer.extended_thinking == Some(true) {
-                let budget = infer.thinking_budget.unwrap_or(4096);
-                let budget_u32 = u32::try_from(budget).unwrap_or(u32::MAX);
-                Some(infer.max_tokens.unwrap_or(budget_u32.saturating_add(8192)))
-            } else {
-                infer.max_tokens
-            };
+        let effective_max_tokens = if infer.extended_thinking == Some(true) {
+            let budget = infer.thinking_budget.unwrap_or(4096);
+            let budget_u32 = u32::try_from(budget).unwrap_or(u32::MAX);
+            Some(infer.max_tokens.unwrap_or(budget_u32.saturating_add(8192)))
+        } else {
+            infer.max_tokens
+        };
 
-            // Use InferOptions for temperature, max_tokens, system prompt (resolved)
-            let options = InferOptions {
+        let options = if has_llm_options {
+            Some(InferOptions {
                 model: model.map(|s| s.to_string()),
                 temperature: if infer.extended_thinking == Some(true) {
-                    Some(1.0) // Extended thinking requires temperature=1
+                    Some(1.0)
                 } else {
                     infer.temperature
                 },
                 max_tokens: effective_max_tokens,
                 system: resolved_system.clone(),
                 additional_params,
-            };
-            provider
-                .infer_stream_with_options(&prompt, tx, &options)
-                .await
-                .map_err(|e| ProviderError::ApiError {
-                    message: e.to_string(),
-                })?
+            })
         } else {
-            // Fallback: use original infer_stream
-            provider
-                .infer_stream(&prompt, tx, model, None)
-                .await
-                .map_err(|e| ProviderError::ApiError {
-                    message: e.to_string(),
-                })?
+            None
         };
+
+        // Retry loop for transient HTTP errors (500, 502, 503, 429, timeout).
+        // Backoff schedule: 0s, 1s, 3s, 10s (4 attempts max).
+        // This is a default safety net — if the task has its own retry: config,
+        // the task-level retry in runner.rs handles broader retry logic.
+        const BACKOFF_DELAYS_MS: [u64; 3] = [1_000, 3_000, 10_000];
+        const MAX_PROVIDER_ATTEMPTS: usize = 4;
+
+        let mut last_error: Option<NikaError> = None;
+        let mut stream_result = None;
+
+        for attempt in 0..MAX_PROVIDER_ATTEMPTS {
+            if attempt > 0 {
+                let delay_ms = BACKOFF_DELAYS_MS[attempt - 1];
+                warn!(
+                    task_id = %task_id,
+                    attempt = attempt + 1,
+                    max_attempts = MAX_PROVIDER_ATTEMPTS,
+                    delay_ms,
+                    error = %last_error.as_ref().unwrap(),
+                    "Transient provider error, retrying after {}ms...",
+                    delay_ms
+                );
+                tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+            }
+
+            let (tx, _rx) = mpsc::channel::<StreamChunk>(1);
+            let call_result = if let Some(ref opts) = options {
+                provider
+                    .infer_stream_with_options(&prompt, tx, opts)
+                    .await
+                    .map_err(|e| NikaError::from(ProviderError::ApiError {
+                        message: e.to_string(),
+                    }))
+            } else {
+                provider
+                    .infer_stream(&prompt, tx, model, None)
+                    .await
+                    .map_err(|e| NikaError::from(ProviderError::ApiError {
+                        message: e.to_string(),
+                    }))
+            };
+
+            match call_result {
+                Ok(result) => {
+                    stream_result = Some(result);
+                    break;
+                }
+                Err(e) => {
+                    if is_retryable_provider_error(&e) && attempt + 1 < MAX_PROVIDER_ATTEMPTS {
+                        last_error = Some(e);
+                        continue;
+                    }
+                    return Err(e);
+                }
+            }
+        }
+
+        let stream_result = stream_result.expect("retry loop must produce a result or return Err");
 
         // Extract <think>...</think> blocks from reasoning models (Qwen, DeepSeek-R1)
         // Captures thinking content for observability, strips tags from output.
