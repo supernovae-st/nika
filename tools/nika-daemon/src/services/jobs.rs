@@ -29,15 +29,28 @@ pub struct JobService {
     storage: Storage,
     /// Running job PIDs: job_id → child PID
     running: Arc<Mutex<HashMap<String, u32>>>,
+    /// Notify channel to trigger pending job drain after a slot frees up.
+    drain_tx: Arc<tokio::sync::Notify>,
 }
 
 impl JobService {
     /// Create a new job service.
     pub fn new(storage: Storage) -> Self {
-        Self {
+        let drain_tx = Arc::new(tokio::sync::Notify::new());
+        let svc = Self {
             storage,
             running: Arc::new(Mutex::new(HashMap::new())),
-        }
+            drain_tx,
+        };
+        // Spawn background drain loop that starts pending jobs when slots free up
+        let drain_svc = svc.clone();
+        tokio::spawn(async move {
+            loop {
+                drain_svc.drain_tx.notified().await;
+                drain_svc.drain_pending_once().await;
+            }
+        });
+        svc
     }
 
     /// Submit a new job.
@@ -188,6 +201,7 @@ impl JobService {
         let storage = self.storage.clone();
         let running = Arc::clone(&self.running);
         let job_id = job_id.to_string();
+        let drain_tx = Arc::clone(&self.drain_tx);
 
         tokio::spawn(async move {
             let result = wait_for_child(child, &job_id).await;
@@ -201,6 +215,8 @@ impl JobService {
                 .as_ref()
                 .is_some_and(|j| j.state == JobState::Cancelled)
             {
+                // Signal drain loop to try starting next pending job
+                drain_tx.notify_one();
                 return; // Already cancelled — don't overwrite with Failed
             }
 
@@ -257,6 +273,9 @@ impl JobService {
                     }
                 }
             }
+
+            // Signal drain loop to try starting next pending job
+            drain_tx.notify_one();
         });
 
         Ok(())
@@ -362,6 +381,25 @@ impl JobService {
     /// List recent jobs for a specific workflow file.
     pub async fn list_jobs_for_workflow(&self, workflow: &str) -> DaemonResult<Vec<Job>> {
         self.storage.list_jobs_for_workflow(workflow).await
+    }
+
+    /// Try to start the next pending job from the queue.
+    ///
+    /// Called by the drain loop when a running slot frees up.
+    async fn drain_pending_once(&self) {
+        match self.storage.list_jobs(Some(JobState::Pending)).await {
+            Ok(pending) => {
+                if let Some(next) = pending.first() {
+                    debug!(job_id = %next.id, "auto-starting next pending job");
+                    if let Err(e) = self.start_job(&next.id).await {
+                        warn!(job_id = %next.id, error = %e, "failed to auto-start pending job");
+                    }
+                }
+            }
+            Err(e) => {
+                warn!(error = %e, "failed to query pending jobs for drain");
+            }
+        }
     }
 }
 
