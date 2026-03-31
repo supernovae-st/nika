@@ -1721,3 +1721,127 @@ fn wave2_max_tokens_hardcoded_ignores_params() {
         user_configured, hardcoded_value
     );
 }
+
+// ═══════════════════════════════════════════════════════════════
+// Agent scope tests
+// ═══════════════════════════════════════════════════════════════
+
+#[test]
+fn test_scope_minimal_reduces_tool_count() {
+    let minimal_params = AgentParams {
+        prompt: "Hello".to_string(),
+        scope: Some("minimal".to_string()),
+        ..Default::default()
+    };
+    let full_params = AgentParams {
+        prompt: "Hello".to_string(),
+        scope: Some("full".to_string()),
+        ..Default::default()
+    };
+    let log = EventLog::new();
+
+    let minimal_agent =
+        RigAgentLoop::new("t1".into(), minimal_params, log.clone(), FxHashMap::default(), None)
+            .unwrap();
+    let full_agent =
+        RigAgentLoop::new("t2".into(), full_params, log.clone(), FxHashMap::default(), None)
+            .unwrap();
+
+    // minimal scope should have fewer tools than full scope
+    assert!(
+        minimal_agent.tool_count() < full_agent.tool_count(),
+        "minimal ({}) should have fewer tools than full ({})",
+        minimal_agent.tool_count(),
+        full_agent.tool_count()
+    );
+    // minimal should have exactly 3 tools: spawn_agent + complete + log
+    assert_eq!(
+        minimal_agent.tool_count(),
+        3,
+        "minimal scope should have exactly 3 tools (spawn_agent + complete + log)"
+    );
+}
+
+#[test]
+fn test_scope_debug_adds_introspection_tools() {
+    let debug_params = AgentParams {
+        prompt: "Hello".to_string(),
+        scope: Some("debug".to_string()),
+        ..Default::default()
+    };
+    let full_params = AgentParams {
+        prompt: "Hello".to_string(),
+        scope: Some("full".to_string()),
+        ..Default::default()
+    };
+    let log = EventLog::new();
+
+    let debug_agent =
+        RigAgentLoop::new("t1".into(), debug_params, log.clone(), FxHashMap::default(), None)
+            .unwrap();
+    let full_agent =
+        RigAgentLoop::new("t2".into(), full_params, log.clone(), FxHashMap::default(), None)
+            .unwrap();
+
+    // debug scope should have MORE tools than full (introspection tools added)
+    assert!(
+        debug_agent.tool_count() > full_agent.tool_count(),
+        "debug ({}) should have more tools than full ({})",
+        debug_agent.tool_count(),
+        full_agent.tool_count()
+    );
+}
+
+#[test]
+fn test_scope_default_is_full() {
+    // No scope specified should behave like "full"
+    let no_scope = AgentParams {
+        prompt: "Hello".to_string(),
+        scope: None,
+        ..Default::default()
+    };
+    let full_scope = AgentParams {
+        prompt: "Hello".to_string(),
+        scope: Some("full".to_string()),
+        ..Default::default()
+    };
+    let log = EventLog::new();
+
+    let default_agent =
+        RigAgentLoop::new("t1".into(), no_scope, log.clone(), FxHashMap::default(), None).unwrap();
+    let full_agent =
+        RigAgentLoop::new("t2".into(), full_scope, log.clone(), FxHashMap::default(), None)
+            .unwrap();
+
+    assert_eq!(
+        default_agent.tool_count(),
+        full_agent.tool_count(),
+        "default scope should match full scope tool count"
+    );
+}
+
+#[test]
+fn test_scope_explicit_tools_override_scope() {
+    // Even with minimal scope, explicit tools: list should take priority
+    let params = AgentParams {
+        prompt: "Hello".to_string(),
+        scope: Some("minimal".to_string()),
+        tools: vec![
+            "nika:sleep".to_string(),
+            "nika:assert".to_string(),
+            "nika:complete".to_string(),
+        ],
+        ..Default::default()
+    };
+    let log = EventLog::new();
+
+    let agent =
+        RigAgentLoop::new("t1".into(), params, log.clone(), FxHashMap::default(), None).unwrap();
+
+    // Should have exactly 4 tools (spawn_agent + 3 explicit nika:* tools)
+    assert_eq!(
+        agent.tool_count(),
+        4,
+        "explicit tools list should override minimal scope (3 + spawn_agent)"
+    );
+}

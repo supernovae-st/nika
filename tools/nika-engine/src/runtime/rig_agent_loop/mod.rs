@@ -295,19 +295,19 @@ impl RigAgentLoop {
             tools.push(Arc::new(spawn_tool));
         }
 
-        // TODO(scope): AgentParams.scope (full/minimal/debug) is parsed but not yet implemented.
-        // When implemented, scope should define preset tool sets:
-        //   - "full": all core + file + media tools (current default)
-        //   - "minimal": only nika:complete + nika:log (for simple Q&A agents)
-        //   - "debug": all tools + nika:assert + verbose logging
-        // For now, tool filtering is controlled via the explicit `tools:` list.
+        // Agent scope controls which preset tool set is available.
+        // Explicit `tools:` list ALWAYS takes priority over scope.
+        // Scope only matters when no explicit nika:* tools are listed.
+        //
+        //   - "full" (default): all core + file tools
+        //   - "minimal": only nika:complete + nika:log (simple Q&A agents)
+        //   - "debug": all core + file + introspection tools
+        let scope = params.scope.as_deref().unwrap_or("full");
 
         // Add builtin nika:* tools
-        // If params.tools is non-empty, only add tools that are explicitly requested.
-        // If params.tools is empty, add all core tools.
         use super::builtin::{
-            AssertTool, CompleteTool, EmitTool, LogTool, NikaBuiltinToolAdapter, PromptTool,
-            RunTool, SleepTool,
+            AssertTool, CompleteTool, CostTool, DagInfoTool, EmitTool, LogTool,
+            NikaBuiltinToolAdapter, PromptTool, RunTool, SleepTool, TaskStatusTool, ThreadsTool,
         };
 
         // Create Arc wrappers for sharing with builtin tools
@@ -327,54 +327,91 @@ impl RigAgentLoop {
             .map(|t| t.as_str())
             .collect();
 
-        // Helper: check if a tool should be added
-        // If no nika:* tools requested, add all core tools
-        // Otherwise, only add if explicitly requested
-        let should_add = |name: &str| -> bool {
-            if requested_nika_tools.is_empty() {
-                true // No filter specified, add all
-            } else {
+        // Determine if explicit tool filtering is active
+        let has_explicit_filter = !requested_nika_tools.is_empty();
+
+        // Helper: check if a tool should be added based on scope + explicit filter
+        let should_add_core = |name: &str| -> bool {
+            if has_explicit_filter {
                 let full_name = format!("nika:{}", name);
-                requested_nika_tools.contains(&full_name.as_str())
+                return requested_nika_tools.contains(&full_name.as_str());
+            }
+            // No explicit filter — use scope
+            match scope {
+                "minimal" => matches!(name, "complete" | "log"),
+                _ => true, // "full" and "debug" get all core tools
             }
         };
 
-        // Core builtin tools (only add if requested or no filter)
-        if should_add("sleep") {
+        // Core builtin tools (filtered by scope or explicit list)
+        if should_add_core("sleep") {
             tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(SleepTool))));
         }
-        if should_add("log") {
+        if should_add_core("log") {
             tools.push(Arc::new(
                 NikaBuiltinToolAdapter::new(Arc::new(LogTool))
                     .with_event_log(Arc::clone(&event_log_arc), Arc::clone(&task_id_arc)),
             ));
         }
-        if should_add("emit") {
+        if should_add_core("emit") {
             tools.push(Arc::new(
                 NikaBuiltinToolAdapter::new(Arc::new(EmitTool))
                     .with_event_log(Arc::clone(&event_log_arc), Arc::clone(&task_id_arc)),
             ));
         }
-        if should_add("assert") {
+        if should_add_core("assert") {
             tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(AssertTool))));
         }
-        if should_add("prompt") {
+        if should_add_core("prompt") {
             tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
                 PromptTool::default(),
             ))));
         }
-        if should_add("run") {
+        if should_add_core("run") {
             tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(RunTool))));
         }
-        if should_add("complete") {
+        if should_add_core("complete") {
             tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
                 CompleteTool,
             ))));
         }
 
-        // Add file tools (nika:read, nika:write, nika:edit, nika:glob, nika:grep)
-        // File tools require a ToolContext for security boundaries
-        // Only add if explicitly requested in params.tools
+        // Introspection tools — available in "debug" scope or when explicitly requested
+        let add_introspection = scope == "debug" && !has_explicit_filter;
+        let should_add_introspect = |name: &str| -> bool {
+            if has_explicit_filter {
+                let full_name = format!("nika:{}", name);
+                return requested_nika_tools.contains(&full_name.as_str());
+            }
+            add_introspection
+        };
+
+        if should_add_introspect("dag_info") {
+            tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
+                DagInfoTool::new(event_log.clone()),
+            ))));
+        }
+        if should_add_introspect("task_status") {
+            // TaskStatusTool needs a RunContext — create a minimal one for the agent
+            let agent_ctx = Arc::new(crate::store::RunContext::new());
+            tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
+                TaskStatusTool::new(event_log.clone(), agent_ctx),
+            ))));
+        }
+        if should_add_introspect("threads") {
+            tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
+                ThreadsTool::new(event_log.clone()),
+            ))));
+        }
+        if should_add_introspect("cost") {
+            tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
+                CostTool::new(event_log.clone()),
+            ))));
+        }
+
+        // File tools (nika:read, nika:write, nika:edit, nika:glob, nika:grep)
+        // Available in "full" and "debug" scopes, or when explicitly requested.
+        // NOT available in "minimal" scope (unless explicitly listed).
         let file_tools_requested: Vec<&str> = requested_nika_tools
             .iter()
             .filter(|t| {
@@ -386,35 +423,45 @@ impl RigAgentLoop {
             .copied()
             .collect();
 
-        if all_builtins_requested || !file_tools_requested.is_empty() {
-            // Create ToolContext with current working directory and Plan mode
-            // (default safe mode — callers opt into YoloMode explicitly)
+        let add_file_tools = all_builtins_requested
+            || !file_tools_requested.is_empty()
+            || (scope != "minimal" && !has_explicit_filter);
+
+        if add_file_tools {
             let working_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
             let tool_ctx = Arc::new(ToolContext::new(working_dir, PermissionMode::Plan));
 
             use super::builtin::FileToolAdapter;
 
-            if all_builtins_requested || file_tools_requested.contains(&"nika:read") {
+            let should_add_file = |name: &str| -> bool {
+                if has_explicit_filter {
+                    return all_builtins_requested || file_tools_requested.contains(&name);
+                }
+                // No explicit filter — scope controls (full/debug get all file tools)
+                scope != "minimal"
+            };
+
+            if should_add_file("nika:read") {
                 tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
                     FileToolAdapter::new(ReadTool::new(Arc::clone(&tool_ctx))),
                 ))));
             }
-            if all_builtins_requested || file_tools_requested.contains(&"nika:write") {
+            if should_add_file("nika:write") {
                 tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
                     FileToolAdapter::new(WriteTool::new(Arc::clone(&tool_ctx))),
                 ))));
             }
-            if all_builtins_requested || file_tools_requested.contains(&"nika:edit") {
+            if should_add_file("nika:edit") {
                 tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
                     FileToolAdapter::new(EditTool::new(Arc::clone(&tool_ctx))),
                 ))));
             }
-            if all_builtins_requested || file_tools_requested.contains(&"nika:glob") {
+            if should_add_file("nika:glob") {
                 tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
                     FileToolAdapter::new(GlobTool::new(Arc::clone(&tool_ctx))),
                 ))));
             }
-            if all_builtins_requested || file_tools_requested.contains(&"nika:grep") {
+            if should_add_file("nika:grep") {
                 tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
                     FileToolAdapter::new(GrepTool::new(tool_ctx)),
                 ))));
