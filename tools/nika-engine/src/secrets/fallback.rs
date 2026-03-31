@@ -18,6 +18,18 @@ pub fn daemon_available() -> bool {
     false
 }
 
+/// Load secrets into the process environment from daemon IPC or vault.
+///
+/// **Call order guarantee**: this function MUST be called before any workflow
+/// task execution so that `$env.VAR` bindings (resolved via `std::env::var`)
+/// can see daemon/vault secrets. The call sites that enforce this:
+///
+/// - `main.rs` — called before `resolve_workflow_path` / task execution
+/// - `boot.rs` — phase 4 (SecretsLoading), before MCP startup (phase 5)
+///   and provider validation (phase 6)
+///
+/// Secrets are injected via `std::env::set_var`, making them visible to
+/// `$env.VAR` binding resolution in `binding/resolve.rs`.
 pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
     let mut result = SecretsLoadResult::default();
 
