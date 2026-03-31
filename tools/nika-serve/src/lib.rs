@@ -286,11 +286,10 @@ mod tests {
             active_jobs: Arc::new(AtomicUsize::new(0)),
         };
 
-        let app = routes::build_router(state.clone())
-            .layer(middleware::from_fn_with_state(
-                state.clone(),
-                auth::require_auth,
-            ));
+        let app = routes::build_router(state.clone()).layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth::require_auth,
+        ));
 
         (app, state)
     }
