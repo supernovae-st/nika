@@ -881,12 +881,14 @@ fn resolve_with_entry_traced(
         Some(_null) => {
             match &entry.default {
                 Some(d) => {
-                    // EMIT: BindingDefaultApplied
+                    // EMIT: BindingDefaultApplied (redact secrets in event log)
                     events.push(EventKind::BindingDefaultApplied {
                         task_id: Arc::clone(task_id),
                         alias: alias.to_string(),
                         path: path_str.clone(),
-                        default_value: d.clone(),
+                        default_value: Value::String(
+                            crate::util::redact_secrets(&d.to_string()),
+                        ),
                     });
                     d.clone()
                 }
@@ -901,12 +903,14 @@ fn resolve_with_entry_traced(
         None => {
             match &entry.default {
                 Some(d) => {
-                    // EMIT: BindingDefaultApplied
+                    // EMIT: BindingDefaultApplied (redact secrets in event log)
                     events.push(EventKind::BindingDefaultApplied {
                         task_id: Arc::clone(task_id),
                         alias: alias.to_string(),
                         path: path_str.clone(),
-                        default_value: d.clone(),
+                        default_value: Value::String(
+                            crate::util::redact_secrets(&d.to_string()),
+                        ),
                     });
                     d.clone()
                 }
@@ -3425,5 +3429,21 @@ mod tests {
         let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
         // Should resolve — either the failed task output or the default
         assert!(bindings.get("data").is_some());
+    }
+
+    #[test]
+    fn redact_secrets_in_binding_default() {
+        use crate::util::redact_secrets;
+
+        let secret = "sk-ant-api03-real-secret-key-here-1234567890";
+        let redacted = redact_secrets(secret);
+        assert!(
+            redacted.contains("[REDACTED]"),
+            "secret should be redacted: {redacted}"
+        );
+        assert!(
+            !redacted.contains("real-secret"),
+            "raw secret must not appear: {redacted}"
+        );
     }
 }
