@@ -8,6 +8,7 @@ use tokio::sync::{Mutex, Semaphore};
 use tokio::task::JoinHandle;
 
 use crate::config::ServeConfig;
+use crate::events::EventBus;
 use crate::executor::Executor;
 
 /// Handle for a running worker, storing the task handle and subprocess PID.
@@ -46,4 +47,7 @@ pub struct AppState {
 
     /// Atomic counter of active jobs (pending + running) for race-free queue depth check.
     pub active_jobs: Arc<AtomicUsize>,
+
+    /// Per-job event broadcast for SSE streaming.
+    pub event_bus: EventBus,
 }

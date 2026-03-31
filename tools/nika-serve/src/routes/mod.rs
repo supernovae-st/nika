@@ -1,7 +1,4 @@
 //! Route construction for the Nika HTTP API.
-//!
-//! TODO(v0.57): Add X-Request-Id header middleware
-//! TODO(v0.57): Add SSE streaming endpoint (/v1/events/{id})
 
 pub mod health;
 pub mod workflows;
@@ -18,5 +15,6 @@ pub fn build_router(state: AppState) -> Router {
         .route("/v1/run", post(workflows::run_workflow))
         .route("/v1/status/{id}", get(workflows::get_status))
         .route("/v1/cancel/{id}", post(workflows::cancel_job))
+        .route("/v1/events/{id}", get(crate::events::stream_events))
         .with_state(state)
 }

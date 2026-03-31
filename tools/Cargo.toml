@@ -46,6 +46,9 @@ mimalloc = { version = "0.1", default-features = false }
 # Async
 tokio = { version = "1.49", features = ["rt-multi-thread", "macros", "process", "sync", "time", "fs", "signal"] }
 tokio-util = "0.7"
+tokio-stream = "0.1"
+futures-util = "0.3"
+async-stream = "0.3"
 async-trait = "0.1"
 backon = "1.3"
 
