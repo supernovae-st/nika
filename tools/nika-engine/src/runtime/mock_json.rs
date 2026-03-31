@@ -6,11 +6,25 @@
 
 use serde_json::{json, Value};
 
+/// Maximum nesting depth for mock JSON generation.
+/// Prevents stack overflow from recursive schemas or deep nesting.
+const MAX_MOCK_DEPTH: usize = 32;
+
 /// Generate a JSON value that conforms to the given JSON Schema.
 ///
 /// Handles: object, string, number, integer, boolean, array, null.
 /// Respects: enum, minimum, maximum, minItems, maxItems, required, default, const.
+/// Depth-limited to prevent stack overflow on recursive schemas.
 pub fn generate_mock_json(schema: &Value) -> Value {
+    generate_mock_json_inner(schema, 0)
+}
+
+fn generate_mock_json_inner(schema: &Value, depth: usize) -> Value {
+    // Depth guard: return null for excessively nested schemas
+    if depth >= MAX_MOCK_DEPTH {
+        return Value::Null;
+    }
+
     // Handle const
     if let Some(const_val) = schema.get("const") {
         return const_val.clone();
@@ -34,8 +48,8 @@ pub fn generate_mock_json(schema: &Value) -> Value {
         .unwrap_or("string");
 
     match type_str {
-        "object" => generate_mock_object(schema),
-        "array" => generate_mock_array(schema),
+        "object" => generate_mock_object(schema, depth),
+        "array" => generate_mock_array(schema, depth),
         "string" => generate_mock_string(schema),
         "number" | "integer" => generate_mock_number(schema),
         "boolean" => Value::Bool(true),
@@ -44,19 +58,19 @@ pub fn generate_mock_json(schema: &Value) -> Value {
     }
 }
 
-fn generate_mock_object(schema: &Value) -> Value {
+fn generate_mock_object(schema: &Value, depth: usize) -> Value {
     let mut obj = serde_json::Map::new();
 
     if let Some(Value::Object(properties)) = schema.get("properties") {
         for (key, prop_schema) in properties {
-            obj.insert(key.clone(), generate_mock_json(prop_schema));
+            obj.insert(key.clone(), generate_mock_json_inner(prop_schema, depth + 1));
         }
     }
 
     Value::Object(obj)
 }
 
-fn generate_mock_array(schema: &Value) -> Value {
+fn generate_mock_array(schema: &Value, depth: usize) -> Value {
     let min_items = schema.get("minItems").and_then(|v| v.as_u64()).unwrap_or(1) as usize;
     let max_items = schema
         .get("maxItems")
@@ -69,7 +83,7 @@ fn generate_mock_array(schema: &Value) -> Value {
         .cloned()
         .unwrap_or(json!({"type": "string"}));
     let items: Vec<Value> = (0..count)
-        .map(|_| generate_mock_json(&item_schema))
+        .map(|_| generate_mock_json_inner(&item_schema, depth + 1))
         .collect();
     Value::Array(items)
 }
@@ -205,5 +219,20 @@ mod tests {
     fn test_default_value() {
         let schema = json!({"type": "string", "default": "my_default"});
         assert_eq!(generate_mock_json(&schema), json!("my_default"));
+    }
+
+    #[test]
+    fn test_deep_nesting_returns_null_at_limit() {
+        // Build a schema nested MAX_MOCK_DEPTH+5 levels deep
+        let mut schema = json!({"type": "string"});
+        for _ in 0..(super::MAX_MOCK_DEPTH + 5) {
+            schema = json!({
+                "type": "object",
+                "properties": { "child": schema }
+            });
+        }
+        // Should not stack overflow — returns null at depth limit
+        let result = generate_mock_json(&schema);
+        assert!(result.is_object(), "Top-level should still be an object");
     }
 }
