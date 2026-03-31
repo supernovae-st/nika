@@ -165,7 +165,7 @@ pub fn validate_document(
             if let Some(ref provider_spanned) = raw_workflow.provider {
                 let provider_str = provider_spanned.value.as_str();
 
-                // Check daemon first (covers keychain + env), fallback to env-only check
+                // Check daemon first (covers vault + env), fallback to env-only check
                 let has_key = if let Some(dp) = daemon_providers {
                     if let Some(info) = dp.iter().find(|p| p.id == provider_str) {
                         info.has_key

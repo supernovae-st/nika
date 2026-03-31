@@ -18,7 +18,6 @@ default = ["media-core", "fetch-extract", "fetch-article", "fetch-feed", "media-
 #   - media-provenance (C2PA): heavy dep (openssl, crypto) + legal/compliance use case
 #   - lsp: editor-specific, not needed for engine users
 # Everything else is default.
-native-keychain = ["dep:keyring"]  # OS keychain support
 native-inference = ["dep:mistralrs", "dep:async-stream", "dep:image"]  # Native LLM inference via mistral.rs
 lsp = ["dep:tower-lsp-server", "dep:nika-lsp-core", "tokio/io-std", "tokio/io-util"]  # Language Server Protocol support
 
@@ -82,7 +81,6 @@ url = { workspace = true }
 sha2 = { workspace = true }
 
 # Secure credential storage
-keyring = { workspace = true, optional = true }
 secrecy = { workspace = true }
 zeroize = { workspace = true }
 orion = { workspace = true }

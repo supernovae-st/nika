@@ -137,12 +137,12 @@ default = "claude"
 
     // Migrate API keys if requested
     if migrate_keys {
-        use nika_engine::secrets::migrate_env_to_keyring;
+        use nika_engine::secrets::migrate_env_to_vault;
         println!(
             "{}",
             "Migrating API keys from environment variables...".cyan()
         );
-        let report = migrate_env_to_keyring();
+        let report = migrate_env_to_vault();
         println!("{}", report.summary());
 
         if report.migrated > 0 {

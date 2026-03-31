@@ -45,7 +45,7 @@ const COLOR_STATUS_ERROR: Color = Color::Rgb(239, 68, 68); // Red-500
 
 use crate::providers::{env_var as provider_env_var, icons::provider_icon, llm_provider_ids};
 
-use super::super::keyring::{mask_api_key, NikaKeyring};
+use nika_engine::secrets::mask_api_key;
 use super::super::state::ApiKeyState;
 
 /// Provider key entry for display
@@ -72,35 +72,36 @@ impl ProviderKeyEntry {
             .collect()
     }
 
-    /// Detect key state from keyring (priority) or environment
+    /// Detect key state from vault or environment variable.
     ///
-    /// Keyring is checked FIRST (only when NIKA_KEYCHAIN_BOOT=1), env var is fallback.
-    /// Returns Stored for keyring keys, Configured for env var keys.
+    /// Checks env var first (fast), then vault. Returns Stored for vault keys,
+    /// Configured for env var keys.
     fn detect_state(provider: &str) -> ApiKeyState {
-        // Check if keychain access is allowed during boot
-        let keychain_allowed = std::env::var("NIKA_KEYCHAIN_BOOT")
-            .map(|v| matches!(v.as_str(), "1" | "true" | "yes"))
-            .unwrap_or(false);
-
-        // Priority 1: Check keyring (only when keychain boot is allowed and not in test mode)
-        // Use Stored variant to indicate secure keyring storage
-        if keychain_allowed && !cfg!(test) {
-            if let Ok(key) = NikaKeyring::get(provider) {
-                return ApiKeyState::Stored {
+        // Priority 1: Check env var (fast, no I/O)
+        let env_var = provider_env_var(provider);
+        if let Ok(key) = std::env::var(env_var) {
+            if !key.is_empty() {
+                return ApiKeyState::Configured {
                     masked: mask_api_key(&key),
                 };
             }
         }
 
-        // Priority 2: Check env var fallback
-        // Use Configured variant to indicate session-based env var
-        let env_var = provider_env_var(provider);
-        match std::env::var(env_var) {
-            Ok(key) if !key.is_empty() => ApiKeyState::Configured {
-                masked: mask_api_key(&key),
-            },
-            _ => ApiKeyState::NotConfigured,
+        // Priority 2: Check vault (skip in test mode to avoid I/O)
+        if !cfg!(test) {
+            let nika_home = dirs::home_dir()
+                .unwrap_or_default()
+                .join(".nika");
+            let vault = nika_core::vault::NikaVault::new(&nika_home.join("secrets"));
+            if let Ok(Some(secret)) = vault.get(provider) {
+                use secrecy::ExposeSecret;
+                return ApiKeyState::Stored {
+                    masked: mask_api_key(secret.expose_secret()),
+                };
+            }
         }
+
+        ApiKeyState::NotConfigured
     }
 
     /// Get display name (title case)
@@ -221,7 +222,7 @@ impl Widget for KeysTab<'_> {
                 ApiKeyState::Saving { .. } => ("⏳", COLOR_STATUS_SAVING),
                 ApiKeyState::Testing { .. } => ("⠹", COLOR_STATUS_TESTING),
                 ApiKeyState::Configured { .. } => ("●", COLOR_STATUS_SUCCESS),
-                ApiKeyState::Stored { .. } => ("🔐", COLOR_STATUS_SUCCESS), // Keyring
+                ApiKeyState::Stored { .. } => ("🔐", COLOR_STATUS_SUCCESS), // Vault
                 ApiKeyState::Verified { .. } => ("✓", COLOR_STATUS_SUCCESS),
                 ApiKeyState::Invalid { .. } => ("✗", COLOR_STATUS_ERROR),
             };
@@ -232,7 +233,7 @@ impl Widget for KeysTab<'_> {
                 ApiKeyState::Saving { masked } => format!("{} Saving...", masked),
                 ApiKeyState::Testing { masked } => format!("{} Testing...", masked),
                 ApiKeyState::Configured { masked } => format!("{} (env)", masked), // Clarify source
-                ApiKeyState::Stored { masked } => format!("{} (keyring)", masked), // Keyring
+                ApiKeyState::Stored { masked } => format!("{} (vault)", masked), // Vault
                 ApiKeyState::Verified { masked, latency_ms } => {
                     format!("{} ({}ms)", masked, latency_ms)
                 }
@@ -361,18 +362,18 @@ mod tests {
         );
     }
 
-    // ─── Bug 15: detect_state must not access keychain without NIKA_KEYCHAIN_BOOT ────
+    // ─── Bug 15: detect_state must not access vault in test mode ────
 
     #[test]
-    fn test_detect_state_skips_keyring_without_keychain_boot() {
-        // In test mode, detect_state should never try keychain access.
+    fn test_detect_state_skips_vault_in_test_mode() {
+        // In test mode, detect_state should never try vault access.
         // It should only check env vars.
         let state = ProviderKeyEntry::detect_state("anthropic");
-        // Without an env var set, it should be NotConfigured (not Stored from keychain)
-        // This test verifies no keychain popup is triggered
+        // Without an env var set, it should be NotConfigured (not Stored from vault)
+        // This test verifies no vault I/O is triggered
         assert!(
             !matches!(state, ApiKeyState::Stored { .. }),
-            "detect_state must not access keychain in test mode"
+            "detect_state must not access vault in test mode"
         );
     }
 

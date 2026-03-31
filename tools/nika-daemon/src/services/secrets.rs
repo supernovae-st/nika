@@ -5,7 +5,7 @@
 //! 1. Environment variable (zero overhead)
 //! 2. NikaVault encrypted file store (~/.nika/secrets/vault.enc)
 //!
-//! The keychain feature is still compiled but superseded by NikaVault.
+//! All secret storage uses NikaVault encrypted file store.
 
 use crate::protocol::{ProviderSecretInfo, SecretSource};
 use nika_core::vault::NikaVault;
@@ -96,7 +96,7 @@ impl SecretService {
             let source = if get_from_env(provider).is_some() {
                 SecretSource::Env
             } else if vault_providers.iter().any(|p| p == provider) {
-                SecretSource::Keychain // Reuse Keychain variant for vault
+                SecretSource::Vault
             } else {
                 SecretSource::NotFound
             };

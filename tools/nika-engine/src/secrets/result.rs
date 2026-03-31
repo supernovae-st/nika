@@ -3,7 +3,7 @@
 /// Result of loading secrets.
 #[derive(Debug, Clone, Default)]
 pub struct SecretsLoadResult {
-    /// Providers loaded from env vars / keyring.
+    /// Providers loaded from env vars / vault / daemon.
     pub from_env: Vec<String>,
     /// Providers with no key found.
     pub not_found: Vec<String>,

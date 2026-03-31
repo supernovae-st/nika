@@ -1,5 +1,5 @@
 # Cross-compilation configuration for Nika
-# Required for building on Linux ARM64 with keyring support
+# Required for building on Linux ARM64
 
 [target.aarch64-unknown-linux-gnu]
 # Use custom Dockerfile with libdbus-1-dev pre-installed

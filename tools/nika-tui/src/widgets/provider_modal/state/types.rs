@@ -123,13 +123,13 @@ pub enum ApiKeyState {
     /// No key configured
     #[default]
     NotConfigured,
-    /// Key is being saved to keyring
+    /// Key is being saved to vault
     Saving { masked: String },
     /// Key is stored, now testing
     Testing { masked: String },
     /// Key from environment variable (session-based, ephemeral)
     Configured { masked: String },
-    /// Key from system keyring (persisted, secure)
+    /// Key from encrypted vault (persisted, secure)
     Stored { masked: String },
     /// Key verified working with latency
     Verified { masked: String, latency_ms: u64 },

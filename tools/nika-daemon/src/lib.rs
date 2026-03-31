@@ -1,7 +1,7 @@
 //! Nika native daemon — background services for secrets, jobs, watch, and cache.
 //!
 //! The daemon is Nika's optional background brain. `nika run` works without it,
-//! but the daemon adds persistent features: keychain secrets, job scheduling,
+//! but the daemon adds persistent features: vault secrets, job scheduling,
 //! file watching, and LLM response caching.
 //!
 //! ## Architecture

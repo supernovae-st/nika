@@ -3,12 +3,11 @@
 //! Rich tabbed modal for provider management:
 //! - Cloud providers with cards and sparklines
 //! - Native local models via mistral.rs
-//! - API key management via system keychain
+//! - API key management via encrypted vault
 //! - Configuration preferences
 
 mod components;
 mod handler;
-mod keyring;
 mod loader;
 mod provider_checker;
 mod state;
@@ -16,9 +15,8 @@ mod tabs;
 
 pub use components::*;
 pub use handler::*;
-pub use keyring::{
-    mask_api_key, migrate_env_to_keyring, validate_key_format, KeyringError, MigrationReport,
-    NikaKeyring,
+pub use nika_engine::secrets::{
+    mask_api_key, migrate_env_to_vault, validate_key_format, KeyringError, MigrationReport,
 };
 pub use loader::*;
 

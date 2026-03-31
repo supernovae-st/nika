@@ -50,7 +50,7 @@ pub enum SettingsSection {
     #[default]
     Providers, // LLM + MCP status summary
     McpServers,  // Active MCP servers
-    Secrets,     // Daemon status + keychain info
+    Secrets,     // Daemon status + vault info
     Packages,    // Installed packages (future)
     Preferences, // Theme + shortcuts merged
 }
@@ -116,7 +116,7 @@ pub struct SecretsInfo {
     /// Source description (e.g., "env vars")
     pub source: String,
     /// Number of configured entries
-    pub keychain_count: usize,
+    pub vault_count: usize,
 }
 
 /// Settings view state (5 sections for SPN integration)
@@ -154,7 +154,7 @@ impl SettingsView {
             active_mcp_servers: Vec::new(),
             secrets_info: SecretsInfo {
                 source: "checking...".to_string(),
-                keychain_count: 0,
+                vault_count: 0,
             },
             installed_packages: Vec::new(),
         }
@@ -190,7 +190,7 @@ impl SettingsView {
     pub fn update_secrets_info(&mut self, source: &str, count: usize) {
         self.secrets_info = SecretsInfo {
             source: source.to_string(),
-            keychain_count: count,
+            vault_count: count,
         };
     }
 
@@ -226,7 +226,7 @@ impl SettingsView {
 
         self.update_provider_counts(llm_count, mcp_count);
 
-        // Secrets source: env vars + optional keyring
+        // Secrets source: env vars + vault
         self.update_secrets_info("env vars", llm_count + mcp_count);
 
         // MCP servers: Will be updated when a workflow is loaded
@@ -382,9 +382,9 @@ impl View for SettingsView {
                     .fg(theme.text_muted)
                     .add_modifier(Modifier::BOLD),
             ),
-            Span::styled("  │  Keychain: ", Style::default().fg(theme.text_muted)),
+            Span::styled("  │  Vault: ", Style::default().fg(theme.text_muted)),
             Span::styled(
-                format!("{} entries", self.secrets_info.keychain_count),
+                format!("{} keys", self.secrets_info.vault_count),
                 Style::default().fg(theme.text_primary),
             ),
         ])];
@@ -653,7 +653,7 @@ mod tests {
         let mut view = SettingsView::new();
         view.update_secrets_info("env vars", 5);
         assert_eq!(view.secrets_info.source, "env vars");
-        assert_eq!(view.secrets_info.keychain_count, 5);
+        assert_eq!(view.secrets_info.vault_count, 5);
     }
 
     #[test]
@@ -801,7 +801,7 @@ mod tests {
     fn test_secrets_info_default() {
         let info = SecretsInfo::default();
         assert!(info.source.is_empty());
-        assert_eq!(info.keychain_count, 0);
+        assert_eq!(info.vault_count, 0);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════

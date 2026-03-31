@@ -13,7 +13,7 @@ pub enum ProviderAction {
     /// List all providers and their status
     List,
 
-    /// Set API key for a provider (stored in system keychain)
+    /// Set API key for a provider (stored in encrypted vault)
     ///
     /// Prefer interactive mode (no key argument) — the key is masked during input.
     /// Passing the key as an argument exposes it in the process list (ps aux).
@@ -40,7 +40,7 @@ pub enum ProviderAction {
         provider: String,
     },
 
-    /// Migrate API keys from environment variables to keychain
+    /// Migrate API keys from environment variables to vault
     Migrate,
 
     /// Test connection to a provider
@@ -95,14 +95,35 @@ fn provider_description(id: &str) -> &'static str {
         .unwrap_or("")
 }
 
+/// Get vault instance for secret operations.
+fn get_vault() -> nika_core::vault::NikaVault {
+    let nika_home = nika_daemon::daemon_dir()
+        .parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| dirs::home_dir().unwrap().join(".nika"));
+    nika_core::vault::NikaVault::new(&nika_home.join("secrets"))
+}
+
+/// Check if a provider has a key in env or vault.
+fn has_key_env_or_vault(provider: &str, env_var: &str) -> bool {
+    // Check env var first
+    if std::env::var(env_var)
+        .map(|v| !v.is_empty())
+        .unwrap_or(false)
+    {
+        return true;
+    }
+    // Check vault
+    get_vault().get(provider).ok().flatten().is_some()
+}
+
 pub async fn handle_provider_command(
     action: ProviderAction,
     _quiet: bool,
 ) -> Result<(), NikaError> {
     use nika_engine::core::provider_to_env_var;
-    use nika_engine::secrets::{
-        mask_api_key, migrate_env_to_keyring, validate_key_format, NikaKeyring,
-    };
+    use nika_engine::secrets::{mask_api_key, migrate_env_to_vault, validate_key_format};
+    use secrecy::ExposeSecret;
 
     let all_providers = llm_provider_ids();
 
@@ -124,9 +145,11 @@ pub async fn handle_provider_command(
             #[cfg(not(unix))]
             let daemon_client: Option<()> = None;
 
+            let vault = get_vault();
+
             for provider in &all_providers {
                 let env_var = provider_to_env_var(provider).unwrap_or("UNKNOWN_API_KEY");
-                // Check env var FIRST to avoid unnecessary keychain/daemon access
+                // Check env var FIRST
                 let has_env = std::env::var(env_var)
                     .map(|v| !v.is_empty())
                     .unwrap_or(false);
@@ -134,7 +157,7 @@ pub async fn handle_provider_command(
                     configured += 1;
                     continue;
                 }
-                // Try daemon IPC, fall back to direct keychain
+                // Try daemon IPC
                 #[cfg(unix)]
                 {
                     if let Some(ref client) = daemon_client {
@@ -144,12 +167,11 @@ pub async fn handle_provider_command(
                                 continue;
                             }
                         }
-                        // Daemon returned false or errored — skip keychain
-                        // (daemon already proxies keychain, no point double-checking)
                         continue;
                     }
                 }
-                if NikaKeyring::exists(provider) {
+                // Try vault directly
+                if vault.get(provider).ok().flatten().is_some() {
                     configured += 1;
                 }
             }
@@ -169,13 +191,13 @@ pub async fn handle_provider_command(
             println!();
             for (i, provider) in all_providers.iter().enumerate() {
                 let env_var = provider_to_env_var(provider).unwrap_or("UNKNOWN_API_KEY");
-                // Check env var FIRST to minimize keychain/daemon access
+                // Check env var FIRST
                 let has_env = std::env::var(env_var)
                     .map(|v| !v.is_empty())
                     .unwrap_or(false);
 
-                // Determine source: env > daemon > keychain
-                let (has_daemon, has_keychain) = if has_env {
+                // Determine source: env > daemon > vault
+                let (has_daemon, has_vault) = if has_env {
                     (false, false)
                 } else {
                     #[cfg(unix)]
@@ -185,26 +207,24 @@ pub async fn handle_provider_command(
                                 if exists {
                                     (true, false)
                                 } else {
-                                    (false, false)
+                                    (false, vault.get(provider).ok().flatten().is_some())
                                 }
                             } else {
-                                // Daemon errored — fall back to direct keychain
-                                (false, NikaKeyring::exists(provider))
+                                (false, vault.get(provider).ok().flatten().is_some())
                             }
                         } else {
-                            // No daemon available — direct keychain
-                            (false, NikaKeyring::exists(provider))
+                            (false, vault.get(provider).ok().flatten().is_some())
                         }
                     }
                     #[cfg(not(unix))]
                     {
-                        (false, NikaKeyring::exists(provider))
+                        (false, vault.get(provider).ok().flatten().is_some())
                     }
                 };
 
                 let is_last = i == all_providers.len() - 1;
                 let connector = tree_connector(is_last).dimmed();
-                let (icon, source, masked) = match (has_env, has_daemon, has_keychain) {
+                let (icon, source, masked) = match (has_env, has_daemon, has_vault) {
                     (true, _, _) => {
                         let m = std::env::var(env_var)
                             .ok()
@@ -233,8 +253,13 @@ pub async fn handle_provider_command(
                         (StatusIcon::Ok, "daemon", m)
                     }
                     (_, _, true) => {
-                        let m = NikaKeyring::get_masked(provider).unwrap_or_default();
-                        (StatusIcon::Ok, "keychain", m)
+                        let m = vault
+                            .get(provider)
+                            .ok()
+                            .flatten()
+                            .map(|s| mask_api_key(s.expose_secret()))
+                            .unwrap_or_default();
+                        (StatusIcon::Ok, "vault", m)
                     }
                     _ => (StatusIcon::Fail, "", String::new()),
                 };
@@ -404,7 +429,7 @@ pub async fn handle_provider_command(
             if let Err(e) = validate_key_format(&provider, &api_key) {
                 return Err(NikaError::ValidationError { reason: e });
             }
-            // Try daemon IPC first (faster, avoids keychain popup)
+            // Try daemon IPC first (faster)
             #[cfg(unix)]
             {
                 let sock = nika_daemon::daemon_socket_path();
@@ -431,15 +456,11 @@ pub async fn handle_provider_command(
                         }
                         return Ok(());
                     }
-                    // Fall through to direct keyring
+                    // Fall through to direct vault
                 }
             }
             {
-                let nika_home = nika_daemon::daemon_dir()
-                    .parent()
-                    .map(|p| p.to_path_buf())
-                    .unwrap_or_else(|| dirs::home_dir().unwrap().join(".nika"));
-                let vault = nika_core::vault::NikaVault::new(&nika_home.join("secrets"));
+                let vault = get_vault();
                 vault.set(&provider, &api_key).map_err(|e| NikaError::ConfigError {
                     reason: format!("Failed to store key: {e}"),
                 })?;
@@ -466,30 +487,40 @@ pub async fn handle_provider_command(
 
         ProviderAction::Get { provider } => {
             let env_var = provider_to_env_var(&provider).unwrap_or("UNKNOWN_API_KEY");
-            match NikaKeyring::get_masked(&provider) {
-                Some(masked) => println!(
-                    "  {} {}: {} {}",
-                    StatusIcon::Ok,
-                    provider.bold(),
-                    masked,
-                    "(keychain)".dimmed()
-                ),
-                None => match std::env::var(env_var) {
-                    Ok(key) if !key.is_empty() => println!(
+            // Check env var first
+            match std::env::var(env_var) {
+                Ok(key) if !key.is_empty() => {
+                    println!(
                         "  {} {}: {} {}",
                         StatusIcon::Ok,
                         provider.bold(),
                         mask_api_key(&key),
                         "(env)".dimmed()
-                    ),
-                    _ => {
-                        println!(
-                            "{}",
-                            status_line(StatusIcon::Fail, &format!("{provider}: not configured"))
-                        );
-                        println!("{}", hint(&format!("nika provider set {provider}")));
+                    );
+                }
+                _ => {
+                    // Check vault
+                    let vault = get_vault();
+                    match vault.get(&provider) {
+                        Ok(Some(secret)) => println!(
+                            "  {} {}: {} {}",
+                            StatusIcon::Ok,
+                            provider.bold(),
+                            mask_api_key(secret.expose_secret()),
+                            "(vault)".dimmed()
+                        ),
+                        _ => {
+                            println!(
+                                "{}",
+                                status_line(
+                                    StatusIcon::Fail,
+                                    &format!("{provider}: not configured")
+                                )
+                            );
+                            println!("{}", hint(&format!("nika provider set {provider}")));
+                        }
                     }
-                },
+                }
             }
             Ok(())
         }
@@ -509,15 +540,11 @@ pub async fn handle_provider_command(
                         );
                         return Ok(());
                     }
-                    // Fall through to direct keyring
+                    // Fall through to direct vault
                 }
             }
             {
-                let nika_home = nika_daemon::daemon_dir()
-                    .parent()
-                    .map(|p| p.to_path_buf())
-                    .unwrap_or_else(|| dirs::home_dir().unwrap().join(".nika"));
-                let vault = nika_core::vault::NikaVault::new(&nika_home.join("secrets"));
+                let vault = get_vault();
                 match vault.delete(&provider) {
                     Ok(_) => println!(
                         "  {} API key for {} deleted from vault",
@@ -539,7 +566,7 @@ pub async fn handle_provider_command(
                 "{}",
                 "Migrating API keys from environment variables...".cyan()
             );
-            let report = migrate_env_to_keyring();
+            let report = migrate_env_to_vault();
             println!();
             println!("{}", report.summary());
             Ok(())
@@ -549,10 +576,8 @@ pub async fn handle_provider_command(
             if quiet {
                 // Quiet mode: no output, exit code only
                 use nika_engine::core::provider_to_env_var;
-                use nika_engine::secrets::NikaKeyring;
                 let env_var = provider_to_env_var(&provider).unwrap_or("UNKNOWN_API_KEY");
-                let has_key = NikaKeyring::exists(&provider)
-                    || std::env::var(env_var).is_ok_and(|v| !v.is_empty());
+                let has_key = has_key_env_or_vault(&provider, env_var);
                 if !has_key && provider != "native" {
                     std::process::exit(1);
                 }
@@ -569,10 +594,8 @@ pub async fn handle_provider_command(
 
 async fn test_provider_connection(provider: &str) {
     use nika_engine::core::provider_to_env_var;
-    use nika_engine::secrets::NikaKeyring;
     let env_var = provider_to_env_var(provider).unwrap_or("UNKNOWN_API_KEY");
-    let has_key =
-        NikaKeyring::exists(provider) || std::env::var(env_var).is_ok_and(|v| !v.is_empty());
+    let has_key = has_key_env_or_vault(provider, env_var);
     if !has_key && provider != "native" {
         println!(
             "{}",

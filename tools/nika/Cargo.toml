@@ -22,7 +22,7 @@ name = "nika"
 path = "src/main.rs"
 
 [features]
-default = ["tui", "lsp", "native-keychain", "nika-engine/default"]
+default = ["tui", "lsp", "nika-engine/default"]
 # Only 1 feature remains opt-in:
 #   - media-provenance (C2PA): heavy dep (openssl, crypto) + legal/compliance use case
 # Everything else is default via nika-engine/default.
@@ -30,7 +30,6 @@ tui = ["dep:nika-tui"]
 integration = []  # Enable integration tests with real MCP servers
 
 # Forwarded features to nika-engine and nika-cli
-native-keychain = ["nika-engine/native-keychain"]
 native-inference = ["nika-engine/native-inference", "nika-cli/native-inference", "nika-tui?/native-inference"]
 media-core = ["nika-engine/media-core", "nika-cli/media-core"]
 media-thumbnail = ["nika-engine/media-thumbnail", "nika-cli/media-thumbnail"]

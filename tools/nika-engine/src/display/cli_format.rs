@@ -161,7 +161,7 @@ pub fn key_value_width(label: &str, value: &str, width: usize) -> String {
 /// Format a status line with icon and message.
 ///
 /// ```text
-///     ✓ anthropic    sk-ant-a... (keychain)
+///     ✓ anthropic    sk-ant-a... (vault)
 ///     ✗ mistral      → nika provider set mistral
 /// ```
 pub fn status_line(icon: StatusIcon, message: &str) -> String {

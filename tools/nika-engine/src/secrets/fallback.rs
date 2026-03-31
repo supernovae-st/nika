@@ -1,9 +1,9 @@
-//! Secrets management -- env vars + optional daemon IPC + optional keyring.
+//! Secrets management -- env vars + daemon IPC + NikaVault.
 //!
 //! Resolution order for each provider:
 //! 1. Environment variable (always checked first, zero overhead)
-//! 2. Daemon IPC (if daemon socket exists — keychain access via daemon, Unix only)
-//! 3. Direct keyring (if native-keychain feature enabled and NIKA_SKIP_KEYCHAIN is not set)
+//! 2. Daemon IPC (if daemon socket exists, Unix only)
+//! 3. NikaVault encrypted file store (~/.nika/secrets/vault.enc)
 
 use crate::core::{ProviderCategory, KNOWN_PROVIDERS};
 use crate::secrets::result::SecretsLoadResult;

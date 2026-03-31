@@ -11,15 +11,10 @@ publish = true
 
 [features]
 default = []
-# OS keychain support (macOS Keychain, Linux Secret Service, Windows Credential Manager)
-keychain = ["dep:keyring"]
 
 [dependencies]
 # Internal (lightweight — no nika-engine dependency to avoid circular deps)
 nika-core = { workspace = true }
-
-# Keychain (optional — behind keychain feature)
-keyring = { workspace = true, optional = true }
 
 # Async runtime
 tokio = { workspace = true, features = ["net", "signal", "process", "fs", "io-util", "rt-multi-thread", "macros", "sync", "time"] }

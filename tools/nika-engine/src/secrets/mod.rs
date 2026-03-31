@@ -1,14 +1,13 @@
-//! Secrets management -- env vars + optional keyring.
+//! Secrets management -- env vars + daemon IPC + NikaVault.
 
 mod fallback;
-pub mod keyring;
+pub mod key_utils;
 mod result;
 pub mod vault;
 
 pub use fallback::{daemon_available, get_secret, has_secret, load_from_daemon_or_fallback};
-pub use keyring::{
-    mask_api_key, migrate_env_to_keyring, validate_key_format, KeyringError, MigrationReport,
-    NikaKeyring,
+pub use key_utils::{
+    mask_api_key, migrate_env_to_vault, validate_key_format, KeyringError, MigrationReport,
 };
 pub use result::SecretsLoadResult;
 
