@@ -80,7 +80,9 @@ impl LockfileGuard {
                     if modified.elapsed().unwrap_or_default() > std::time::Duration::from_secs(600)
                     {
                         tracing::warn!("Removing stale lockfile (>10min old)");
-                        let _ = std::fs::remove_file(&path);
+                        if let Err(e) = std::fs::remove_file(&path) {
+                            tracing::debug!(error = %e, "Failed to remove stale lockfile");
+                        }
                     }
                 }
             }
