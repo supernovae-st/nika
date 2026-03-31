@@ -6786,14 +6786,13 @@ fn u06_fetch_validate_empty_url_err() {
 
 #[test]
 fn u07_fetch_validate_zero_timeout_err() {
+    // timeout: 0 is rejected at analysis time (not runtime validation)
     let yaml = wrap("fetch:\n  url: \"https://example.com\"\n  timeout: 0");
-    let w = ok(&yaml);
-    match &w.tasks[0].action {
-        TaskAction::Fetch { fetch } => {
-            assert!(fetch.validate().is_err());
-        }
-        _ => panic!("expected Fetch"),
-    }
+    let e = err(&yaml);
+    assert!(
+        e.to_string().contains("timeout: 0"),
+        "Expected timeout error, got: {e}"
+    );
 }
 
 #[test]
@@ -6834,14 +6833,13 @@ fn u10_exec_validate_empty_command_err() {
 
 #[test]
 fn u11_exec_validate_zero_timeout_err() {
+    // timeout: 0 is rejected at analysis time (not runtime validation)
     let yaml = wrap("exec:\n  command: \"echo hi\"\n  timeout: 0");
-    let w = ok(&yaml);
-    match &w.tasks[0].action {
-        TaskAction::Exec { exec } => {
-            assert!(exec.validate().is_err());
-        }
-        _ => panic!("expected Exec"),
-    }
+    let e = err(&yaml);
+    assert!(
+        e.to_string().contains("timeout: 0"),
+        "Expected timeout error, got: {e}"
+    );
 }
 
 #[test]
