@@ -1622,26 +1622,30 @@ fn wave2_determine_status_detects_completion_but_mistral_ignores_it() {
 // ChatAgentLoop methods (add_to_history, push_message, turn_count)
 // on RigAgentLoop which doesn't have them. Broken audit tests.
 
-// ---- BUG: MaxTurnsReached is a dead variant ----
-// RigAgentStatus::MaxTurnsReached exists as a variant but is NEVER returned by
-// determine_status() or any other code path. The variant exists on types.rs line 31,
-// is_limit_reached() checks for it, but nothing ever produces it.
-//
-// FIX: Either remove the dead variant, or wire it up in the agent loop to check
-// actual turn count against max_turns.
+// ---- Limit variants produced by check_limits(), not determine_status() ----
+// MaxTurnsReached, TokenBudgetExceeded, CostLimitReached, DurationLimitReached
+// are NOT dead code — they are returned by limit_tracker.check_limits() in
+// providers.rs:387-390. determine_status() handles output-based status, while
+// check_limits() handles resource-based status. Both paths are active.
 #[test]
-fn wave2_max_turns_reached_never_produced() {
-    // MaxTurnsReached variant exists and has methods
-    let status = RigAgentStatus::MaxTurnsReached;
-    assert!(
-        status.is_limit_reached(),
-        "MaxTurnsReached should be a limit"
-    );
-    assert_eq!(status.as_canonical_str(), "max_turns");
-    assert!(!status.is_completed());
+fn limit_variants_have_correct_semantics() {
+    let limit_variants = vec![
+        (RigAgentStatus::MaxTurnsReached, "max_turns"),
+        (RigAgentStatus::TokenBudgetExceeded, "max_tokens"),
+        (RigAgentStatus::CostLimitReached, "max_cost"),
+        (RigAgentStatus::DurationLimitReached, "max_duration"),
+    ];
+    for (variant, expected_str) in &limit_variants {
+        assert!(variant.is_limit_reached(), "{} should be a limit", expected_str);
+        assert!(!variant.is_completed(), "{} should not be completed", expected_str);
+        assert_eq!(variant.as_canonical_str(), *expected_str);
+    }
+}
 
-    // Verify determine_status never returns MaxTurnsReached
-    // by testing every possible output pattern
+#[test]
+fn determine_status_returns_output_based_status_not_limits() {
+    // determine_status() handles output patterns (ExplicitCompletion, NaturalCompletion,
+    // LowConfidence), NOT resource limits. Limit statuses come from check_limits().
     let params = AgentParams {
         prompt: "Test".to_string(),
         ..Default::default()
@@ -1651,52 +1655,14 @@ fn wave2_max_turns_reached_never_produced() {
     let agent =
         RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
 
-    // Test various outputs - none should return MaxTurnsReached
-    let test_outputs = vec![
-        "",
-        "Hello world",
-        "max_turns exceeded",
-        "Maximum turns reached",
-        "Too many iterations",
-    ];
+    // determine_status returns NaturalCompletion or LowConfidence, never limit variants
+    let status = agent.determine_status("Hello world");
+    assert!(!status.is_limit_reached(), "Output-based status should not be a limit");
 
-    for output in &test_outputs {
-        let status = agent.determine_status(output);
-        assert_ne!(
-            status,
-            RigAgentStatus::MaxTurnsReached,
-            "determine_status should never return MaxTurnsReached"
-        );
-    }
-
-    // Also check with completion marker - it returns ExplicitCompletion, not MaxTurnsReached
     use crate::runtime::builtin::COMPLETION_MARKER;
     let output_with_marker = format!("Done {}", COMPLETION_MARKER);
     let status = agent.determine_status(&output_with_marker);
-    assert_ne!(
-        status,
-        RigAgentStatus::MaxTurnsReached,
-        "Even with completion marker, MaxTurnsReached is never produced"
-    );
-
-    // BUG PROVEN: MaxTurnsReached is dead code. The variant exists, has utility methods
-    // (is_limit_reached, as_canonical_str), but is never returned by any code path.
-    // Similarly, TokenBudgetExceeded, CostLimitReached, DurationLimitReached, and
-    // PartialCompletion are never produced by determine_status().
-    //
-    // Explicitly assert the dead variants exist but are unreachable:
-    let dead_variants = vec![
-        RigAgentStatus::MaxTurnsReached,
-        RigAgentStatus::TokenBudgetExceeded,
-        RigAgentStatus::CostLimitReached,
-        RigAgentStatus::DurationLimitReached,
-        RigAgentStatus::PartialCompletion,
-    ];
-    for variant in &dead_variants {
-        // These variants exist and have string representations...
-        let _ = variant.as_canonical_str();
-        // ...but they are never produced. This test documents the dead code.
-    }
+    assert!(status.is_completed(), "Completion marker should yield completed status");
 }
 
 // NOTE: Removed stale BUG PROVEN tests (v0.53):
