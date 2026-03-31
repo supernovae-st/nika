@@ -320,7 +320,7 @@ impl RigAgentLoop {
         });
 
         // Check guardrails and override status on terminal actions
-        let guardrail_result = self.check_guardrails(&response);
+        let guardrail_result = self.check_guardrails(&response).await;
         let guardrails_passed = guardrail_result.is_passed();
         let status = if guardrail_result.should_fail() {
             RigAgentStatus::Failed

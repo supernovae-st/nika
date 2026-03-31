@@ -16,7 +16,7 @@ use serde_json;
 use tokio::time::timeout;
 
 use crate::ast::guardrails::{
-    escalation_required, has_llm_guardrails, immediate_failures, run_sync_guardrails,
+    escalation_required, immediate_failures, run_sync_guardrails,
 };
 use crate::error::NikaError;
 use crate::event::{AgentTurnMetadata, EventKind};
@@ -49,26 +49,22 @@ impl RigAgentLoop {
     /// - `FailedImmediate`: Some failed with `on_failure: fail`
     ///
     /// Priority: Immediate > Escalate > Retry
-    pub fn check_guardrails(&self, output: &str) -> GuardrailCheckResult {
+    pub async fn check_guardrails(&self, output: &str) -> GuardrailCheckResult {
         if self.params.guardrails.is_empty() {
             return GuardrailCheckResult::AllPassed;
         }
 
-        // Reject LLM guardrails — async judge not yet implemented
-        if has_llm_guardrails(&self.params.guardrails) {
-            let task_id: Arc<str> = Arc::from(self.task_id.as_str());
-            self.event_log.emit(EventKind::GuardrailFailed {
-                task_id,
-                guardrail_type: nika_event::GuardrailType::Llm,
-                description: "LLM judge guardrail".to_string(),
-                message: "type: llm guardrails are not yet implemented — \
-                          use type: regex, type: length, or type: schema instead"
-                    .to_string(),
-            });
-            return GuardrailCheckResult::FailedImmediate;
+        // Run sync guardrails first (length, schema, regex)
+        let mut results = run_sync_guardrails(&self.params.guardrails, output);
+
+        // Run LLM guardrails (async judge calls)
+        for guardrail in &self.params.guardrails {
+            if let crate::ast::guardrails::GuardrailConfig::Llm(llm_g) = guardrail {
+                let result = self.run_llm_guardrail(llm_g, output).await;
+                results.push(result);
+            }
         }
 
-        let results = run_sync_guardrails(&self.params.guardrails, output);
         let mut all_passed = true;
 
         // PERF: Hoist Arc allocation outside loops to avoid
@@ -142,6 +138,100 @@ impl RigAgentLoop {
             })
             .collect();
         GuardrailCheckResult::FailedRetry(failure_messages)
+    }
+
+    /// Run a single LLM guardrail by calling a judge LLM
+    async fn run_llm_guardrail(
+        &self,
+        llm_g: &crate::ast::guardrails::LlmGuardrail,
+        output: &str,
+    ) -> crate::ast::guardrails::GuardrailResult {
+        use crate::ast::guardrails::GuardrailResult;
+        use crate::provider::rig::RigProvider;
+
+        let id = llm_g.id.clone().unwrap_or_else(|| "llm".to_string());
+
+        // Determine provider: use agent's provider or default
+        let provider_name = self
+            .params
+            .provider
+            .as_ref()
+            .map(|p| p.to_string())
+            .unwrap_or_else(|| "anthropic".to_string());
+
+        let provider = match RigProvider::from_name(&provider_name) {
+            Ok(p) => p,
+            Err(e) => {
+                tracing::warn!(
+                    task_id = %self.task_id,
+                    error = %e,
+                    "LLM guardrail: failed to create provider, treating as failure"
+                );
+                return GuardrailResult::failed_with_action(
+                    id,
+                    "llm",
+                    format!("LLM guardrail provider error: {e}"),
+                    llm_g.on_failure,
+                );
+            }
+        };
+
+        // Build the judge prompt
+        let judge_prompt = llm_g.build_judge_prompt(output);
+
+        // Determine model: guardrail-specific model > agent model > provider default
+        let model = llm_g
+            .model
+            .as_deref()
+            .or(self.params.model.as_deref());
+
+        // Call the judge LLM with a timeout
+        let judge_timeout = std::time::Duration::from_secs(30);
+        let judge_result = tokio::time::timeout(
+            judge_timeout,
+            provider.infer(&judge_prompt, model, Some(llm_g.max_tokens as u64)),
+        )
+        .await;
+
+        match judge_result {
+            Ok(Ok(response)) => {
+                tracing::debug!(
+                    task_id = %self.task_id,
+                    guardrail_id = %id,
+                    judge_response = %response.chars().take(200).collect::<String>(),
+                    "LLM guardrail judge responded"
+                );
+                llm_g.check_judge_response(&response)
+            }
+            Ok(Err(e)) => {
+                tracing::warn!(
+                    task_id = %self.task_id,
+                    guardrail_id = %id,
+                    error = %e,
+                    "LLM guardrail judge call failed"
+                );
+                GuardrailResult::failed_with_action(
+                    id,
+                    "llm",
+                    format!("LLM judge call failed: {e}"),
+                    llm_g.on_failure,
+                )
+            }
+            Err(_) => {
+                tracing::warn!(
+                    task_id = %self.task_id,
+                    guardrail_id = %id,
+                    "LLM guardrail judge timed out after {}s",
+                    judge_timeout.as_secs()
+                );
+                GuardrailResult::failed_with_action(
+                    id,
+                    "llm",
+                    format!("LLM judge timed out after {}s", judge_timeout.as_secs()),
+                    llm_g.on_failure,
+                )
+            }
+        }
     }
 
     /// Determine agent status based on output content
@@ -502,7 +592,7 @@ impl RigAgentLoop {
         });
 
         // Check guardrails
-        let guardrail_result = self.check_guardrails(&response);
+        let guardrail_result = self.check_guardrails(&response).await;
         let guardrails_passed = guardrail_result.is_passed();
 
         // Override status based on guardrail outcome

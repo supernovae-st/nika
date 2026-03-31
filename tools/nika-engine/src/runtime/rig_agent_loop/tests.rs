@@ -1156,8 +1156,8 @@ fn test_guardrail_check_result_failed_immediate() {
     assert!(result.should_fail());
 }
 
-#[test]
-fn test_check_guardrails_empty_returns_all_passed() {
+#[tokio::test]
+async fn test_check_guardrails_empty_returns_all_passed() {
     let params = AgentParams {
         prompt: "Test".to_string(),
         guardrails: vec![], // No guardrails
@@ -1169,12 +1169,12 @@ fn test_check_guardrails_empty_returns_all_passed() {
     let agent =
         RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
 
-    let result = agent.check_guardrails("Any output");
+    let result = agent.check_guardrails("Any output").await;
     assert_eq!(result, GuardrailCheckResult::AllPassed);
 }
 
-#[test]
-fn test_check_guardrails_passing() {
+#[tokio::test]
+async fn test_check_guardrails_passing() {
     use crate::ast::guardrails::{GuardrailConfig, LengthGuardrail, OnFailure};
 
     let params = AgentParams {
@@ -1197,12 +1197,12 @@ fn test_check_guardrails_passing() {
         RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
 
     // Output has 4 words, within bounds
-    let result = agent.check_guardrails("This is a test");
+    let result = agent.check_guardrails("This is a test").await;
     assert_eq!(result, GuardrailCheckResult::AllPassed);
 }
 
-#[test]
-fn test_check_guardrails_failed_retry() {
+#[tokio::test]
+async fn test_check_guardrails_failed_retry() {
     use crate::ast::guardrails::{GuardrailConfig, LengthGuardrail, OnFailure};
 
     let params = AgentParams {
@@ -1225,7 +1225,7 @@ fn test_check_guardrails_failed_retry() {
         RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
 
     // Output has only 4 words
-    let result = agent.check_guardrails("This is a test");
+    let result = agent.check_guardrails("This is a test").await;
     assert!(result.should_retry(), "Expected FailedRetry");
     assert!(
         !result.failure_messages().is_empty(),
@@ -1237,8 +1237,8 @@ fn test_check_guardrails_failed_retry() {
     );
 }
 
-#[test]
-fn test_check_guardrails_failed_escalate() {
+#[tokio::test]
+async fn test_check_guardrails_failed_escalate() {
     use crate::ast::guardrails::{GuardrailConfig, LengthGuardrail, OnFailure};
 
     let params = AgentParams {
@@ -1261,12 +1261,12 @@ fn test_check_guardrails_failed_escalate() {
         RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
 
     // Output has only 4 words
-    let result = agent.check_guardrails("This is a test");
+    let result = agent.check_guardrails("This is a test").await;
     assert_eq!(result, GuardrailCheckResult::FailedEscalate);
 }
 
-#[test]
-fn test_check_guardrails_failed_immediate() {
+#[tokio::test]
+async fn test_check_guardrails_failed_immediate() {
     use crate::ast::guardrails::{GuardrailConfig, LengthGuardrail, OnFailure};
 
     let params = AgentParams {
@@ -1289,12 +1289,12 @@ fn test_check_guardrails_failed_immediate() {
         RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
 
     // Output has only 4 words
-    let result = agent.check_guardrails("This is a test");
+    let result = agent.check_guardrails("This is a test").await;
     assert_eq!(result, GuardrailCheckResult::FailedImmediate);
 }
 
-#[test]
-fn test_check_guardrails_priority_immediate_over_escalate() {
+#[tokio::test]
+async fn test_check_guardrails_priority_immediate_over_escalate() {
     use crate::ast::guardrails::{GuardrailConfig, LengthGuardrail, OnFailure};
 
     let params = AgentParams {
@@ -1329,12 +1329,12 @@ fn test_check_guardrails_priority_immediate_over_escalate() {
 
     // Output has only 4 words, both guardrails fail
     // But Fail has higher priority than Escalate
-    let result = agent.check_guardrails("This is a test");
+    let result = agent.check_guardrails("This is a test").await;
     assert_eq!(result, GuardrailCheckResult::FailedImmediate);
 }
 
-#[test]
-fn test_check_guardrails_priority_escalate_over_retry() {
+#[tokio::test]
+async fn test_check_guardrails_priority_escalate_over_retry() {
     use crate::ast::guardrails::{GuardrailConfig, LengthGuardrail, OnFailure};
 
     let params = AgentParams {
@@ -1369,12 +1369,12 @@ fn test_check_guardrails_priority_escalate_over_retry() {
 
     // Output has only 4 words, both guardrails fail
     // But Escalate has higher priority than Retry
-    let result = agent.check_guardrails("This is a test");
+    let result = agent.check_guardrails("This is a test").await;
     assert_eq!(result, GuardrailCheckResult::FailedEscalate);
 }
 
-#[test]
-fn test_check_guardrails_emits_escalation_event() {
+#[tokio::test]
+async fn test_check_guardrails_emits_escalation_event() {
     use crate::ast::guardrails::{GuardrailConfig, LengthGuardrail, OnFailure};
 
     let params = AgentParams {
@@ -1403,7 +1403,7 @@ fn test_check_guardrails_emits_escalation_event() {
     .unwrap();
 
     // Output has only 4 words
-    let result = agent.check_guardrails("This is a test");
+    let result = agent.check_guardrails("This is a test").await;
     assert_eq!(result, GuardrailCheckResult::FailedEscalate);
 
     // Verify events were emitted
@@ -1426,10 +1426,12 @@ fn test_check_guardrails_emits_escalation_event() {
     assert!(has_escalation, "Should have GuardrailEscalation event");
 }
 
-#[test]
-fn test_check_guardrails_llm_type_returns_immediate_failure() {
+#[tokio::test]
+async fn test_check_guardrails_llm_type_fails_without_api_key() {
     use crate::ast::guardrails::{GuardrailConfig, LlmGuardrail};
 
+    // Use Default which sets judge_prompt="" — validation isn't checked here,
+    // and the provider error happens before judge_prompt is used
     let params = AgentParams {
         prompt: "Test".to_string(),
         guardrails: vec![GuardrailConfig::Llm(LlmGuardrail::default())],
@@ -1447,12 +1449,12 @@ fn test_check_guardrails_llm_type_returns_immediate_failure() {
     )
     .unwrap();
 
-    // LLM guardrails should fail immediately (not silently skip)
-    let result = agent.check_guardrails("Any output");
-    assert_eq!(
-        result,
-        GuardrailCheckResult::FailedImmediate,
-        "LLM guardrails should fail immediately (not yet implemented)"
+    // Without API keys, LLM guardrail should fail (provider error) with retry action
+    let result = agent.check_guardrails("Any output").await;
+    assert!(
+        matches!(result, GuardrailCheckResult::FailedRetry(_)),
+        "LLM guardrail without API key should fail with retry, got {:?}",
+        result
     );
 
     // Verify a GuardrailFailed event was emitted
