@@ -256,7 +256,7 @@ impl ResolvedBindings {
         };
 
         let mut bindings = Self::new();
-        let mut events = Vec::new();
+        let mut events = Vec::with_capacity(spec.len());
 
         for (alias, entry) in spec {
             if let Some(tid) = entry.source.task_id() {

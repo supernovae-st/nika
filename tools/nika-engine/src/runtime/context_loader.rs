@@ -103,23 +103,30 @@ pub async fn load_context(
     // Load session if specified
     if let Some(session_path) = &config.session {
         let full_path = base_path.join(session_path);
-        // Security: Validate session path stays within project
-        if full_path.exists() {
-            validate_path_boundary(base_path, &full_path)?;
-            let content = tokio::fs::read_to_string(&full_path).await.map_err(|e| {
-                NikaError::ContextLoadError {
+        // Read directly — no separate exists() check to avoid TOCTOU race.
+        // Validate path boundary AFTER successful read (canonicalize needs the file to exist).
+        match tokio::fs::read_to_string(&full_path).await {
+            Ok(content) => {
+                // Security: validate the canonical path is within project boundary
+                validate_path_boundary(base_path, &full_path)?;
+                let session: Value =
+                    serde_json::from_str(&content).map_err(|e| NikaError::ContextLoadError {
+                        alias: "session".to_string(),
+                        path: full_path.display().to_string(),
+                        reason: format!("Invalid JSON: {}", e),
+                    })?;
+                context.session = Some(session);
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                // Session file doesn't exist — skip silently (optional context)
+            }
+            Err(e) => {
+                return Err(NikaError::ContextLoadError {
                     alias: "session".to_string(),
                     path: full_path.display().to_string(),
                     reason: e.to_string(),
-                }
-            })?;
-            let session: Value =
-                serde_json::from_str(&content).map_err(|e| NikaError::ContextLoadError {
-                    alias: "session".to_string(),
-                    path: full_path.display().to_string(),
-                    reason: format!("Invalid JSON: {}", e),
-                })?;
-            context.session = Some(session);
+                });
+            }
         }
     }
 
