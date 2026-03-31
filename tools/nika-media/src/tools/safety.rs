@@ -118,6 +118,14 @@ pub fn sanitize_svg(input: &str) -> Result<&str, MediaToolError> {
         }
     }
 
+    // Block DOCTYPE declarations (XML bomb / entity expansion attack)
+    if lower.contains("<!doctype") || lower.contains("<!entity") {
+        return Err(security_violation(
+            "svg_render",
+            "SVG contains DOCTYPE or ENTITY declaration (not allowed for security)",
+        ));
+    }
+
     // Block href/xlink:href with external URLs (SSRF via SVG rendering).
     // Covers both SVG 1.1 (xlink:href) and SVG 2 (plain href) on image/use elements.
     // Allow internal fragment references like href="#icon".
@@ -272,6 +280,43 @@ mod tests {
         let err = sanitize_svg(svg).unwrap_err();
         assert!(err.to_string().contains("NIKA-297"));
         assert!(err.to_string().contains("data:text/xml"));
+    }
+
+    #[test]
+    fn sanitize_svg_rejects_doctype() {
+        let svg = r#"<?xml version="1.0"?>
+<!DOCTYPE svg [
+  <!ENTITY lol "lol">
+  <!ENTITY lol2 "&lol;&lol;&lol;&lol;&lol;">
+]>
+<svg xmlns="http://www.w3.org/2000/svg">
+  <text>&lol2;</text>
+</svg>"#;
+        let result = sanitize_svg(svg);
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("DOCTYPE") || err.contains("ENTITY"),
+            "error should mention DOCTYPE/ENTITY: {err}"
+        );
+    }
+
+    #[test]
+    fn sanitize_svg_rejects_entity_declaration() {
+        let svg = r#"<svg xmlns="http://www.w3.org/2000/svg">
+<!ENTITY xxe SYSTEM "file:///etc/passwd">
+<text>&xxe;</text>
+</svg>"#;
+        let result = sanitize_svg(svg);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn sanitize_svg_allows_normal_svg() {
+        let svg = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <circle cx="50" cy="50" r="40" fill="blue"/>
+</svg>"#;
+        assert!(sanitize_svg(svg).is_ok());
     }
 
     // ═══════════════════════════════════════════
