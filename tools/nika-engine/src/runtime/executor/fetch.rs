@@ -185,6 +185,34 @@ impl TaskExecutor {
                     "fetch: using no-redirect client (follow_redirects=false)"
                 );
                 builder = builder.redirect(reqwest::redirect::Policy::none());
+            } else {
+                // Apply SSRF redirect policy to DNS-pinned clients.
+                // Without this, redirects bypass the DNS pinning (the pinned
+                // addresses only bind to the initial host, not redirect targets).
+                builder = builder.redirect(reqwest::redirect::Policy::custom(|attempt| {
+                    use crate::runtime::policy::is_ssrf_blocked;
+                    if attempt.previous().len() >= super::REDIRECT_LIMIT {
+                        attempt.stop()
+                    } else {
+                        let blocked = attempt.url().host_str().and_then(|host| {
+                            let h = host.to_lowercase();
+                            let h_normalized = h.trim_start_matches('[').trim_end_matches(']');
+                            if is_ssrf_blocked(h_normalized) {
+                                Some(h)
+                            } else {
+                                None
+                            }
+                        });
+                        if let Some(host) = blocked {
+                            attempt.error(std::io::Error::new(
+                                std::io::ErrorKind::PermissionDenied,
+                                format!("SSRF protection: redirect to '{}' blocked", host),
+                            ))
+                        } else {
+                            attempt.follow()
+                        }
+                    }
+                }));
             }
             // DNS pinning: force reqwest to use our pre-validated IPs
             if let Some(ref host) = pinned_host {
