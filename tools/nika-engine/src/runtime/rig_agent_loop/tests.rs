@@ -1636,8 +1636,16 @@ fn limit_variants_have_correct_semantics() {
         (RigAgentStatus::DurationLimitReached, "max_duration"),
     ];
     for (variant, expected_str) in &limit_variants {
-        assert!(variant.is_limit_reached(), "{} should be a limit", expected_str);
-        assert!(!variant.is_completed(), "{} should not be completed", expected_str);
+        assert!(
+            variant.is_limit_reached(),
+            "{} should be a limit",
+            expected_str
+        );
+        assert!(
+            !variant.is_completed(),
+            "{} should not be completed",
+            expected_str
+        );
         assert_eq!(variant.as_canonical_str(), *expected_str);
     }
 }
@@ -1657,12 +1665,18 @@ fn determine_status_returns_output_based_status_not_limits() {
 
     // determine_status returns NaturalCompletion or LowConfidence, never limit variants
     let status = agent.determine_status("Hello world");
-    assert!(!status.is_limit_reached(), "Output-based status should not be a limit");
+    assert!(
+        !status.is_limit_reached(),
+        "Output-based status should not be a limit"
+    );
 
     use crate::runtime::builtin::COMPLETION_MARKER;
     let output_with_marker = format!("Done {}", COMPLETION_MARKER);
     let status = agent.determine_status(&output_with_marker);
-    assert!(status.is_completed(), "Completion marker should yield completed status");
+    assert!(
+        status.is_completed(),
+        "Completion marker should yield completed status"
+    );
 }
 
 // NOTE: Removed stale BUG PROVEN tests (v0.53):

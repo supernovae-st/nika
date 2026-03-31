@@ -63,7 +63,10 @@ fn generate_mock_object(schema: &Value, depth: usize) -> Value {
 
     if let Some(Value::Object(properties)) = schema.get("properties") {
         for (key, prop_schema) in properties {
-            obj.insert(key.clone(), generate_mock_json_inner(prop_schema, depth + 1));
+            obj.insert(
+                key.clone(),
+                generate_mock_json_inner(prop_schema, depth + 1),
+            );
         }
     }
 

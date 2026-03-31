@@ -2631,8 +2631,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         .filter(|(_, r)| !r.is_success() && !r.is_skipped())
                         .filter_map(|(idx, r)| r.error().map(|e| format!("[{}]: {}", idx, e)))
                         .collect();
-                    let skipped_count =
-                        results.iter().filter(|(_, r)| r.is_skipped()).count();
+                    let skipped_count = results.iter().filter(|(_, r)| r.is_skipped()).count();
                     // Include skipped/cancelled count in error summary
                     let error_msg = match (errors.is_empty(), skipped_count) {
                         (true, 0) => "for_each: unknown failure".to_string(),
@@ -2643,8 +2642,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         }
                     };
                     // Preserve partial results in output even on failure
-                    let mut result = TaskResult::failed(error_msg, total_duration)
-                        .with_media(merged_media);
+                    let mut result =
+                        TaskResult::failed(error_msg, total_duration).with_media(merged_media);
                     result.output = Arc::new(Value::Array(outputs));
                     result
                 };
