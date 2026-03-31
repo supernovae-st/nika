@@ -67,8 +67,8 @@ if git diff --cached --name-only | grep -q "\.nika\.yaml$"; then
 
   cd "$NIKA_DIR"
 
-  # Get list of changed .nika.yaml files
-  CHANGED_WORKFLOWS=$(git diff --cached --name-only | grep "\.nika\.yaml$" || true)
+  # Get list of changed .nika.yaml files (skip test directories — may be intentionally invalid)
+  CHANGED_WORKFLOWS=$(git diff --cached --name-only | grep "\.nika\.yaml$" | grep -v "^tests/" | grep -v "edge-case" || true)
 
   for workflow in $CHANGED_WORKFLOWS; do
     if [ -f "../../$workflow" ]; then
