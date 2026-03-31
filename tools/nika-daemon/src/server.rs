@@ -179,8 +179,12 @@ impl DaemonServer {
         let mut shutdown_rx = self.shutdown_rx;
         // H1 fix: enforce max_connections via semaphore
         let conn_semaphore = Arc::new(Semaphore::new(self.config.max_connections));
+        let mut connection_handles: Vec<tokio::task::JoinHandle<()>> = Vec::new();
 
         loop {
+            // Periodically clean up completed handles to prevent memory buildup
+            connection_handles.retain(|h| !h.is_finished());
+
             tokio::select! {
                 biased;
 
@@ -196,7 +200,7 @@ impl DaemonServer {
                         Ok((stream, _addr)) => {
                             let state = Arc::clone(&state);
                             let sem = Arc::clone(&conn_semaphore);
-                            tokio::spawn(async move {
+                            let handle = tokio::spawn(async move {
                                 let _permit = match sem.acquire().await {
                                     Ok(p) => p,
                                     Err(_) => return, // Semaphore closed
@@ -206,6 +210,7 @@ impl DaemonServer {
                                 }
                                 // Permit dropped here → slot released
                             });
+                            connection_handles.push(handle);
                         }
                         Err(e) => {
                             warn!(error = %e, "accept failed");
@@ -213,6 +218,22 @@ impl DaemonServer {
                     }
                 }
             }
+        }
+
+        // Drain active connections with a 5s timeout before exiting
+        let active = connection_handles
+            .iter()
+            .filter(|h| !h.is_finished())
+            .count();
+        if active > 0 {
+            info!(count = active, "draining active connections");
+            let drain_timeout = std::time::Duration::from_secs(5);
+            let _ = tokio::time::timeout(drain_timeout, async {
+                for handle in connection_handles {
+                    let _ = handle.await;
+                }
+            })
+            .await;
         }
 
         // SocketGuard handles cleanup on drop (socket + token files)
