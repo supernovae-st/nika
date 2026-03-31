@@ -304,7 +304,21 @@ impl TransformOp {
                     let taken: Vec<Value> = arr.iter().skip(skip).cloned().collect();
                     Ok(Value::Array(taken))
                 }
-                _ => Err(type_mismatch("last", "array", value)),
+                Value::String(s) => {
+                    // Last N characters (Unicode-safe)
+                    let chars: Vec<char> = s.chars().collect();
+                    let skip = chars.len().saturating_sub(*n);
+                    let truncated: String = chars[skip..].iter().collect();
+                    Ok(Value::String(truncated))
+                }
+                Value::Object(_) => {
+                    let json = serde_json::to_string(value).expect("Value is serializable");
+                    let chars: Vec<char> = json.chars().collect();
+                    let skip = chars.len().saturating_sub(*n);
+                    let truncated: String = chars[skip..].iter().collect();
+                    Ok(Value::String(truncated))
+                }
+                _ => Err(type_mismatch("last", "array, string, or object", value)),
             },
             TransformOp::Keys => match value {
                 Value::Null => Ok(Value::Null), // propagating
@@ -1464,6 +1478,39 @@ mod tests {
     fn last_n_larger_than_array() {
         let result = TransformOp::LastN(10).apply(&json!([1, 2, 3])).unwrap();
         assert_eq!(result, json!([1, 2, 3]));
+    }
+
+    #[test]
+    fn last_n_string() {
+        let result = TransformOp::LastN(5).apply(&json!("hello world")).unwrap();
+        assert_eq!(result, json!("world"));
+    }
+
+    #[test]
+    fn last_n_string_unicode() {
+        let result = TransformOp::LastN(2).apply(&json!("日本語")).unwrap();
+        assert_eq!(result, json!("本語"));
+    }
+
+    #[test]
+    fn last_n_string_exceeds_length() {
+        let result = TransformOp::LastN(100).apply(&json!("short")).unwrap();
+        assert_eq!(result, json!("short"));
+    }
+
+    #[test]
+    fn last_n_empty_string() {
+        let result = TransformOp::LastN(5).apply(&json!("")).unwrap();
+        assert_eq!(result, json!(""));
+    }
+
+    #[test]
+    fn last_n_object() {
+        let obj = json!({"a": 1});
+        let result = TransformOp::LastN(5).apply(&obj).unwrap();
+        // Last 5 chars of JSON serialization
+        assert!(result.is_string());
+        assert!(result.as_str().unwrap().len() <= 5);
     }
 
     #[test]
