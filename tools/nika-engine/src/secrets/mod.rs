@@ -3,6 +3,7 @@
 mod fallback;
 pub mod keyring;
 mod result;
+pub mod vault;
 
 pub use fallback::{daemon_available, get_secret, has_secret, load_from_daemon_or_fallback};
 pub use keyring::{

@@ -85,6 +85,8 @@ sha2 = { workspace = true }
 keyring = { workspace = true, optional = true }
 secrecy = { workspace = true }
 zeroize = { workspace = true }
+orion = { workspace = true }
+whoami = { workspace = true }
 
 
 # Native inference via mistral.rs
