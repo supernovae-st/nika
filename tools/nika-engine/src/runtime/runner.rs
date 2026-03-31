@@ -1090,7 +1090,13 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     )
                     .await
             } else {
-                // Task-level retry loop with exponential backoff
+                // Task-level retry loop with exponential backoff.
+                //
+                // RETRY COMPOUNDING: This retry wraps the ENTIRE verb execution,
+                // including structured output validation retries (max_retries in
+                // structured: block). Worst case: max_attempts × max_retries total
+                // LLM calls. Example: retry: { max_attempts: 3 } + structured:
+                // { max_retries: 2 } = up to 9 LLM calls per task.
                 let delay_ms = task_retry.map_or(1000u64, |r| r.delay_ms);
                 let backoff = task_retry.map_or(1.0f64, |r| r.backoff.unwrap_or(1.0));
                 let mut last_err: Option<NikaError> = None;
