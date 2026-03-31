@@ -23,6 +23,7 @@ pub mod config;
 pub mod error;
 pub mod events;
 pub mod executor;
+pub mod rate_limit;
 pub mod request_id;
 pub mod routes;
 pub mod state;
@@ -85,11 +86,19 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
         event_bus: events::EventBus::default(),
     };
 
+    // Per-token rate limiter (10 req/s, burst 30)
+    let limiter = rate_limit::new_rate_limiter();
+
     // Build router with middleware
+    // Order (innermost → outermost): auth → rate-limit → body-limit → timeout → request-id
     let mut app = routes::build_router(state.clone())
         .layer(middleware::from_fn_with_state(
             state.clone(),
             auth::require_auth,
+        ))
+        .layer(middleware::from_fn_with_state(
+            limiter,
+            rate_limit::rate_limit_middleware,
         ))
         .layer(RequestBodyLimitLayer::new(10 * 1024 * 1024)) // 10 MB body limit
         .layer(TimeoutLayer::with_status_code(
@@ -321,10 +330,15 @@ mod tests {
         event_bus: events::EventBus::default(),
         };
 
+        let limiter = rate_limit::new_rate_limiter();
         let app = routes::build_router(state.clone())
             .layer(middleware::from_fn_with_state(
                 state.clone(),
                 auth::require_auth,
+            ))
+            .layer(middleware::from_fn_with_state(
+                limiter,
+                rate_limit::rate_limit_middleware,
             ))
             .layer(RequestBodyLimitLayer::new(10 * 1024 * 1024))
             .layer(TimeoutLayer::with_status_code(

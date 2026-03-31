@@ -43,6 +43,9 @@ nika-lsp-core = { path = "nika-lsp-core", version = "0.56.2" }
 # Allocator
 mimalloc = { version = "0.1", default-features = false }
 
+# Rate limiting
+governor = { version = "0.10", default-features = false, features = ["std", "dashmap"] }
+
 # Async
 tokio = { version = "1.49", features = ["rt-multi-thread", "macros", "process", "sync", "time", "fs", "signal"] }
 tokio-util = "0.7"
