@@ -35,7 +35,7 @@ impl TaskExecutor {
 
         // SECURITY CHECK: validate resolved command for control characters and general blocklist
         let is_shell = params.shell == Some(true);
-        crate::runtime::security::validate_exec_command_with_shell(&resolved_cmd, false)?;
+        crate::runtime::security::validate_exec_command_with_shell(&resolved_cmd, is_shell)?;
 
         // SECURITY WARNING: detect unescaped template bindings in shell: true commands.
         // Emits a warning for each {{with.*}} or {{inputs.*}} that lacks |shell transform,
