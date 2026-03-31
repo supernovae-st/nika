@@ -113,17 +113,8 @@ pub fn migrate_env_to_vault() -> MigrationReport {
         match std::env::var(env_var) {
             Ok(key) if !key.is_empty() => {
                 // Check if already in vault
-                if vault
-                    .get(provider)
-                    .ok()
-                    .flatten()
-                    .is_some()
-                {
-                    println!(
-                        "  ├── {}: Found → {}",
-                        env_var,
-                        "Already in vault".yellow()
-                    );
+                if vault.get(provider).ok().flatten().is_some() {
+                    println!("  ├── {}: Found → {}", env_var, "Already in vault".yellow());
                     report.skipped += 1;
                     continue;
                 }

@@ -888,9 +888,7 @@ mod tests {
 
         // :: (IPv6 unspecified, equivalent to 0.0.0.0)
         assert!(
-            enforcer
-                .check_fetch("http://[::]:8080/admin")
-                .is_blocked(),
+            enforcer.check_fetch("http://[::]:8080/admin").is_blocked(),
             "IPv6 unspecified [::] must be blocked"
         );
     }
@@ -1008,7 +1006,10 @@ mod tests {
     fn test_custom_endpoint_ip_auto_allowed_in_policy() {
         // Simulate what with_policy does: extract hosts from custom endpoints
         let mut policy = PolicyConfig::default();
-        let endpoints: std::collections::HashMap<String, crate::provider::endpoints::ResolvedEndpoint> = {
+        let endpoints: std::collections::HashMap<
+            String,
+            crate::provider::endpoints::ResolvedEndpoint,
+        > = {
             let mut map = std::collections::HashMap::new();
             map.insert(
                 "h100".to_string(),

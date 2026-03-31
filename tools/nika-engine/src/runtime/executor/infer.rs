@@ -738,16 +738,20 @@ impl TaskExecutor {
                 provider
                     .infer_stream_with_options(&prompt, tx, opts)
                     .await
-                    .map_err(|e| NikaError::from(ProviderError::ApiError {
-                        message: e.to_string(),
-                    }))
+                    .map_err(|e| {
+                        NikaError::from(ProviderError::ApiError {
+                            message: e.to_string(),
+                        })
+                    })
             } else {
                 provider
                     .infer_stream(&prompt, tx, model, None)
                     .await
-                    .map_err(|e| NikaError::from(ProviderError::ApiError {
-                        message: e.to_string(),
-                    }))
+                    .map_err(|e| {
+                        NikaError::from(ProviderError::ApiError {
+                            message: e.to_string(),
+                        })
+                    })
             };
 
             match call_result {

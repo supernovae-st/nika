@@ -113,8 +113,7 @@ async fn remove_worker(
 /// The subprocess inherits the parent environment minus secrets
 /// (`NIKA_SERVE_TOKEN`, `NIKA_SERVE_DB`) to prevent accidental leakage.
 async fn run_subprocess(config: &ServeConfig, workflow: &str) -> Result<String, String> {
-    let exe = std::env::current_exe()
-        .map_err(|e| format!("failed to resolve current_exe: {e}"))?;
+    let exe = std::env::current_exe().map_err(|e| format!("failed to resolve current_exe: {e}"))?;
 
     let workflow_path = config.workflows_dir.join(workflow);
 
@@ -137,8 +136,7 @@ async fn run_subprocess(config: &ServeConfig, workflow: &str) -> Result<String, 
         #[allow(unsafe_code)]
         unsafe {
             cmd.pre_exec(|| {
-                nix::unistd::setsid()
-                    .map_err(std::io::Error::other)?;
+                nix::unistd::setsid().map_err(std::io::Error::other)?;
                 Ok(())
             });
         }
@@ -214,7 +212,7 @@ mod tests {
     #[test]
     fn safe_truncate_emoji() {
         let s = "hello \u{1f680}!"; // rocket emoji is 4 bytes
-        // "hello " = 6, rocket = 4, "!" = 1 => 11 bytes
+                                    // "hello " = 6, rocket = 4, "!" = 1 => 11 bytes
         assert_eq!(safe_truncate(s, 7), "hello "); // can't fit 4-byte rocket at pos 6
         assert_eq!(safe_truncate(s, 10), "hello \u{1f680}");
     }

@@ -461,9 +461,11 @@ pub async fn handle_provider_command(
             }
             {
                 let vault = get_vault();
-                vault.set(&provider, &api_key).map_err(|e| NikaError::ConfigError {
-                    reason: format!("Failed to store key: {e}"),
-                })?;
+                vault
+                    .set(&provider, &api_key)
+                    .map_err(|e| NikaError::ConfigError {
+                        reason: format!("Failed to store key: {e}"),
+                    })?;
             }
             println!(
                 "  {} API key for {} stored in encrypted vault",

@@ -984,8 +984,7 @@ fn analyze_task(
             ctx.add_error(AnalyzeError::new(
                 AnalyzeErrorKind::InvalidValue,
                 t.span,
-                "timeout: 0 will cause immediate timeout — use at least 1 second"
-                    .to_string(),
+                "timeout: 0 will cause immediate timeout — use at least 1 second".to_string(),
             ));
         }
     }
@@ -1770,10 +1769,7 @@ fn detect_artifact_collisions(workflow: &AnalyzedWorkflow, ctx: &mut AnalyzerCon
                     });
                 }
             } else {
-                seen.insert(
-                    path.to_string(),
-                    (task.name.clone(), is_safe_mode),
-                );
+                seen.insert(path.to_string(), (task.name.clone(), is_safe_mode));
             }
         }
     }
@@ -3543,7 +3539,10 @@ tasks:
         let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
         let result = analyze(raw);
         assert!(
-            result.warnings.iter().any(|w| w.message.contains("collides")),
+            result
+                .warnings
+                .iter()
+                .any(|w| w.message.contains("collides")),
             "Should warn on duplicate static artifact path: {:?}",
             result.warnings
         );
@@ -3568,7 +3567,10 @@ tasks:
         let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
         let result = analyze(raw);
         assert!(
-            !result.warnings.iter().any(|w| w.message.contains("collides")),
+            !result
+                .warnings
+                .iter()
+                .any(|w| w.message.contains("collides")),
             "Should NOT warn when both tasks use mode: append: {:?}",
             result.warnings
         );
@@ -3591,7 +3593,10 @@ tasks:
         let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
         let result = analyze(raw);
         assert!(
-            !result.warnings.iter().any(|w| w.message.contains("collides")),
+            !result
+                .warnings
+                .iter()
+                .any(|w| w.message.contains("collides")),
             "Should NOT warn on template paths: {:?}",
             result.warnings
         );
@@ -3616,7 +3621,10 @@ tasks:
         let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
         let result = analyze(raw);
         assert!(
-            result.warnings.iter().any(|w| w.message.contains("collides")),
+            result
+                .warnings
+                .iter()
+                .any(|w| w.message.contains("collides")),
             "Should warn when append collides with overwrite: {:?}",
             result.warnings
         );

@@ -15,9 +15,7 @@ use rig::streaming::StreamedAssistantContent;
 use serde_json;
 use tokio::time::timeout;
 
-use crate::ast::guardrails::{
-    escalation_required, immediate_failures, run_sync_guardrails,
-};
+use crate::ast::guardrails::{escalation_required, immediate_failures, run_sync_guardrails};
 use crate::error::NikaError;
 use crate::event::{AgentTurnMetadata, EventKind};
 use crate::util::STREAM_CHUNK_TIMEOUT;
@@ -180,10 +178,7 @@ impl RigAgentLoop {
         let judge_prompt = llm_g.build_judge_prompt(output);
 
         // Determine model: guardrail-specific model > agent model > provider default
-        let model = llm_g
-            .model
-            .as_deref()
-            .or(self.params.model.as_deref());
+        let model = llm_g.model.as_deref().or(self.params.model.as_deref());
 
         // Call the judge LLM with a timeout
         let judge_timeout = std::time::Duration::from_secs(30);

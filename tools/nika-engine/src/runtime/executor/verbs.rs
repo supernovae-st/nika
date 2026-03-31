@@ -268,8 +268,7 @@ mod tests {
 
     #[test]
     fn extract_thinking_variant() {
-        let (t, c) =
-            extract_thinking_tags("<thinking>DeepSeek reasoning</thinking>The answer.");
+        let (t, c) = extract_thinking_tags("<thinking>DeepSeek reasoning</thinking>The answer.");
         assert_eq!(t.unwrap(), "DeepSeek reasoning");
         assert_eq!(c, "The answer.");
     }
