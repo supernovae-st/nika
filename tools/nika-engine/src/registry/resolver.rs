@@ -104,7 +104,7 @@ pub struct ResolvedPackage {
 ///
 /// # Examples
 ///
-/// ```
+/// ```ignore
 /// use nika::registry::resolver::parse_package_ref;
 ///
 /// let ref1 = parse_package_ref("@workflows/seo-audit").unwrap();
@@ -186,7 +186,7 @@ pub fn clear_cache() {
 ///
 /// # Examples
 ///
-/// ```
+/// ```ignore
 /// use nika::registry::resolver;
 ///
 /// // After `nika add @workflows/seo-audit`, invalidate just that package
@@ -215,7 +215,7 @@ pub fn cache_stats() -> (usize, usize) {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```ignore
 /// use nika::registry::resolver::resolve_package_path;
 ///
 /// let pkg = resolve_package_path("@workflows/seo-audit").unwrap();

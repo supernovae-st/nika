@@ -18,7 +18,7 @@
 //! # Examples
 //!
 //! ```
-//! use nika::ast::pkg_resolver::PkgUri;
+//! use nika_engine::ast::pkg_resolver::PkgUri;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let uri = PkgUri::parse("pkg:@supernovae/skills@1.0.0/rust.md")?;

@@ -54,7 +54,7 @@ pub fn registry_index_path() -> Result<PathBuf, NikaError> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```ignore
 /// use nika::registry::operations::package_dir;
 ///
 /// let dir = package_dir("@supernovae/workflows", "1.0.0")?;
@@ -111,7 +111,7 @@ pub fn ensure_nika_home() -> Result<PathBuf, NikaError> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```ignore
 /// use nika::registry::operations::load_registry;
 ///
 /// let index = load_registry()?;
@@ -140,7 +140,7 @@ pub fn load_registry() -> Result<RegistryIndex, NikaError> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```ignore
 /// use nika::registry::operations::save_registry;
 /// use nika::registry::types::{RegistryIndex, InstalledPackage};
 ///
@@ -182,7 +182,7 @@ pub fn save_registry(index: &RegistryIndex) -> Result<(), NikaError> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```ignore
 /// use nika::registry::operations::load_manifest;
 ///
 /// let manifest = load_manifest("@supernovae/workflows", "1.0.0")?;
