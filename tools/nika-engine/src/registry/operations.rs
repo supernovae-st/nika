@@ -10,6 +10,8 @@
 
 use std::fs;
 use std::path::PathBuf;
+use std::sync::{LazyLock, Mutex};
+use std::time::Instant;
 
 #[cfg(test)]
 use crate::registry::types::InstalledPackage;
@@ -22,6 +24,19 @@ pub use crate::core::paths::{NIKA_DIR_NAME, NIKA_HOME_ENV};
 
 /// Registry index filename.
 pub const REGISTRY_INDEX_FILE: &str = "registry.yaml";
+
+/// Registry index cache TTL (5 minutes).
+///
+/// Avoids repeated filesystem reads for `is_installed()`, `installed_version()`, etc.
+/// Invalidated on `save_registry()` so writes are immediately visible.
+const REGISTRY_CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(300);
+
+/// In-memory cache for the registry index.
+///
+/// Stores (RegistryIndex, load_time). Entries older than REGISTRY_CACHE_TTL are stale.
+/// Protected by Mutex (not RwLock) because reads are fast and contention is minimal.
+static REGISTRY_CACHE: LazyLock<Mutex<Option<(RegistryIndex, Instant)>>> =
+    LazyLock::new(|| Mutex::new(None));
 
 /// Packages directory name.
 pub const PACKAGES_DIR_NAME: &str = "packages";
@@ -119,6 +134,15 @@ pub fn ensure_nika_home() -> Result<PathBuf, NikaError> {
 /// # Ok::<(), nika::NikaError>(())
 /// ```
 pub fn load_registry() -> Result<RegistryIndex, NikaError> {
+    // Check cache first (TTL = 5 minutes)
+    if let Ok(guard) = REGISTRY_CACHE.lock() {
+        if let Some((ref cached, ref loaded_at)) = *guard {
+            if loaded_at.elapsed() < REGISTRY_CACHE_TTL {
+                return Ok(cached.clone());
+            }
+        }
+    }
+
     let path = registry_index_path()?;
 
     if !path.exists() {
@@ -129,9 +153,16 @@ pub fn load_registry() -> Result<RegistryIndex, NikaError> {
         reason: format!("Failed to read registry file '{}': {}", path.display(), e),
     })?;
 
-    serde_yaml::from_str(&content).map_err(|e| NikaError::ParseError {
+    let index: RegistryIndex = serde_yaml::from_str(&content).map_err(|e| NikaError::ParseError {
         details: format!("Failed to parse registry YAML: {}", e),
-    })
+    })?;
+
+    // Cache the result
+    if let Ok(mut guard) = REGISTRY_CACHE.lock() {
+        *guard = Some((index.clone(), Instant::now()));
+    }
+
+    Ok(index)
 }
 
 /// Save the registry index to disk.
@@ -170,7 +201,20 @@ pub fn save_registry(index: &RegistryIndex) -> Result<(), NikaError> {
         reason: format!("Failed to write registry file '{}': {}", path.display(), e),
     })?;
 
+    // Invalidate cache so subsequent reads pick up the new data immediately
+    invalidate_registry_cache();
+
     Ok(())
+}
+
+/// Invalidate the registry index cache.
+///
+/// Called automatically by `save_registry()`. Can also be called manually
+/// after external changes to `registry.yaml` (e.g., after `nika add`).
+pub fn invalidate_registry_cache() {
+    if let Ok(mut guard) = REGISTRY_CACHE.lock() {
+        *guard = None;
+    }
 }
 
 /// Load a package manifest from disk.
@@ -328,13 +372,18 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let temp_path = temp_dir.path().to_path_buf();
 
+        // Invalidate registry cache before switching home directory
+        // (prevents stale cache from previous test leaking into this one)
+        invalidate_registry_cache();
+
         // Set NIKA_HOME to temp directory
         env::set_var(NIKA_HOME_ENV, &temp_path);
 
         let result = f(&temp_path);
 
-        // Clean up env var
+        // Clean up env var and cache
         env::remove_var(NIKA_HOME_ENV);
+        invalidate_registry_cache();
 
         result
     }
@@ -608,5 +657,133 @@ mod tests {
             let result = resolve_skill_path("@test/pkg", "1.0.0", "skills/nonexistent.md");
             assert!(result.is_err());
         });
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // REGISTRY CACHE TTL TESTS
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    #[serial]
+    fn test_registry_cache_returns_cached_result() {
+        with_temp_nika_home(|_| {
+            // Start with a clean cache
+            invalidate_registry_cache();
+            ensure_nika_home().unwrap();
+
+            // Save a registry with one package
+            let mut index = RegistryIndex::new();
+            index.insert(
+                "@cache/test",
+                InstalledPackage::new("1.0.0", "2026-01-01T00:00:00Z", "path"),
+            );
+            save_registry(&index).unwrap();
+
+            // First load — reads from disk, populates cache
+            let loaded1 = load_registry().unwrap();
+            assert_eq!(loaded1.len(), 1);
+            assert!(loaded1.is_installed("@cache/test"));
+
+            // Modify the file directly (bypassing save_registry to skip cache invalidation)
+            let path = registry_index_path().unwrap();
+            fs::write(&path, "packages: {}").unwrap();
+
+            // Second load — should return cached result (not the modified file)
+            let loaded2 = load_registry().unwrap();
+            assert_eq!(
+                loaded2.len(), 1,
+                "Second load should return cached result, not the modified file"
+            );
+
+            // Clean up
+            invalidate_registry_cache();
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn test_registry_cache_invalidated_on_save() {
+        with_temp_nika_home(|_| {
+            invalidate_registry_cache();
+            ensure_nika_home().unwrap();
+
+            // Save initial registry
+            let mut index1 = RegistryIndex::new();
+            index1.insert(
+                "@pkg/a",
+                InstalledPackage::new("1.0.0", "2026-01-01T00:00:00Z", "a"),
+            );
+            save_registry(&index1).unwrap();
+
+            // Load to populate cache
+            let loaded1 = load_registry().unwrap();
+            assert_eq!(loaded1.len(), 1);
+
+            // Save a different registry (this should invalidate cache)
+            let mut index2 = RegistryIndex::new();
+            index2.insert(
+                "@pkg/a",
+                InstalledPackage::new("1.0.0", "2026-01-01T00:00:00Z", "a"),
+            );
+            index2.insert(
+                "@pkg/b",
+                InstalledPackage::new("2.0.0", "2026-01-01T00:00:00Z", "b"),
+            );
+            save_registry(&index2).unwrap();
+
+            // Load again — should see the new data (cache was invalidated)
+            let loaded2 = load_registry().unwrap();
+            assert_eq!(
+                loaded2.len(), 2,
+                "After save_registry(), load should return fresh data"
+            );
+
+            // Clean up
+            invalidate_registry_cache();
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn test_invalidate_registry_cache_clears_cache() {
+        with_temp_nika_home(|_| {
+            invalidate_registry_cache();
+            ensure_nika_home().unwrap();
+
+            // Save and load to populate cache
+            let mut index = RegistryIndex::new();
+            index.insert(
+                "@pkg/c",
+                InstalledPackage::new("1.0.0", "2026-01-01T00:00:00Z", "c"),
+            );
+            save_registry(&index).unwrap();
+            let _ = load_registry().unwrap();
+
+            // Modify file directly
+            let path = registry_index_path().unwrap();
+            fs::write(&path, "packages: {}").unwrap();
+
+            // Without invalidation, cache would return old data
+            // With invalidation, it reads the (now empty) file
+            invalidate_registry_cache();
+            let loaded = load_registry().unwrap();
+            assert_eq!(
+                loaded.len(), 0,
+                "After invalidation, load should read from disk (now empty)"
+            );
+
+            // Clean up
+            invalidate_registry_cache();
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn test_registry_cache_ttl_constant_is_5_minutes() {
+        assert_eq!(
+            REGISTRY_CACHE_TTL,
+            std::time::Duration::from_secs(300),
+            "Registry cache TTL should be 5 minutes (300 seconds)"
+        );
     }
 }
