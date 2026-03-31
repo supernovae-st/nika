@@ -216,6 +216,71 @@ mod tests {
         }
     }
 
+    #[test]
+    #[serial]
+    fn test_doppler_backend_selected_from_env() {
+        use nika_core::vault::VaultBackend;
+        std::env::set_var("NIKA_VAULT_BACKEND", "doppler");
+        assert_eq!(VaultBackend::from_env(), VaultBackend::Doppler);
+        unsafe { std::env::remove_var("NIKA_VAULT_BACKEND") };
+    }
+
+    #[test]
+    #[serial]
+    fn test_local_backend_is_default() {
+        use nika_core::vault::VaultBackend;
+        unsafe { std::env::remove_var("NIKA_VAULT_BACKEND") };
+        assert_eq!(VaultBackend::from_env(), VaultBackend::Local);
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_doppler_fallback_to_local_on_error() {
+        // When NIKA_VAULT_BACKEND=doppler but doppler CLI is not installed,
+        // the system should fall through to the local vault without erroring.
+        let dir = tempfile::tempdir().unwrap();
+        let orig_home = std::env::var("NIKA_HOME").ok();
+        let orig_no_daemon = std::env::var("NIKA_NO_DAEMON").ok();
+        let orig_backend = std::env::var("NIKA_VAULT_BACKEND").ok();
+        let orig_key = std::env::var("ANTHROPIC_API_KEY").ok();
+
+        std::env::set_var("NIKA_HOME", dir.path());
+        std::env::set_var("NIKA_NO_DAEMON", "1");
+        std::env::set_var("NIKA_VAULT_BACKEND", "doppler");
+        unsafe { std::env::remove_var("ANTHROPIC_API_KEY") };
+
+        // has_secret should not panic or error — it should gracefully return false
+        let exists = has_secret("anthropic").await;
+        assert!(
+            !exists,
+            "has_secret should return false when doppler unavailable and no local vault"
+        );
+
+        // get_secret should return None gracefully
+        let secret = get_secret("anthropic").await;
+        assert!(
+            secret.is_none(),
+            "get_secret should return None when doppler unavailable and no local vault"
+        );
+
+        match orig_home {
+            Some(v) => std::env::set_var("NIKA_HOME", v),
+            None => unsafe { std::env::remove_var("NIKA_HOME") },
+        }
+        match orig_no_daemon {
+            Some(v) => std::env::set_var("NIKA_NO_DAEMON", v),
+            None => unsafe { std::env::remove_var("NIKA_NO_DAEMON") },
+        }
+        match orig_backend {
+            Some(v) => std::env::set_var("NIKA_VAULT_BACKEND", v),
+            None => unsafe { std::env::remove_var("NIKA_VAULT_BACKEND") },
+        }
+        match orig_key {
+            Some(v) => std::env::set_var("ANTHROPIC_API_KEY", v),
+            None => unsafe { std::env::remove_var("ANTHROPIC_API_KEY") },
+        }
+    }
+
     #[tokio::test]
     #[serial]
     async fn test_load_result_env_provider_detected() {
