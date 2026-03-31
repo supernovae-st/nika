@@ -26,6 +26,21 @@ const MAX_TEXT_RESPONSE_SIZE: u64 = 50 * 1024 * 1024;
 /// Maximum response size for binary CAS storage (100 MB).
 const MAX_BINARY_RESPONSE_SIZE: u64 = 100 * 1024 * 1024;
 
+/// Maximum backoff delay: 5 minutes (300,000 ms).
+const MAX_BACKOFF_MS: u64 = 300_000;
+
+/// Safe exponential backoff that handles Infinity/NaN/overflow.
+///
+/// Returns a delay in milliseconds, guaranteed to be in `[1, MAX_BACKOFF_MS]`.
+fn safe_backoff_delay(base_ms: u64, multiplier: f64, exp: u32) -> u64 {
+    let factor = multiplier.powi(exp.min(30) as i32);
+    if factor.is_infinite() || factor.is_nan() || factor > MAX_BACKOFF_MS as f64 {
+        return MAX_BACKOFF_MS;
+    }
+    let raw = base_ms.saturating_mul(factor as u64);
+    raw.clamp(1, MAX_BACKOFF_MS)
+}
+
 /// Read an HTTP response body with a streaming size limit.
 ///
 /// Replaces `response.text().await` which buffers the entire body in memory.
@@ -471,9 +486,7 @@ impl TaskExecutor {
                             None
                         }
                         .unwrap_or_else(|| {
-                            let exp = (attempt - 1).min(30) as i32;
-                            backoff_ms
-                                .saturating_mul(multiplier.powi(exp).min(u64::MAX as f64) as u64)
+                            safe_backoff_delay(backoff_ms, multiplier, attempt - 1)
                         });
 
                         // EMIT: FetchRetry
@@ -749,9 +762,8 @@ impl TaskExecutor {
                     // Network errors are retryable
                     if attempt < effective_max_attempts {
                         // Exponential backoff calculation
-                        let exp = (attempt - 1).min(30) as i32;
-                        let delay_ms = backoff_ms
-                            .saturating_mul(multiplier.powi(exp).min(u64::MAX as f64) as u64);
+                        let delay_ms =
+                            safe_backoff_delay(backoff_ms, multiplier, attempt - 1);
 
                         // EMIT: FetchRetry
                         self.event_log.emit(EventKind::FetchRetry {
@@ -885,5 +897,38 @@ mod tests {
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert(reqwest::header::RETRY_AFTER, " 5 ".parse().unwrap());
         assert_eq!(parse_retry_after(&headers), Some(5_000));
+    }
+
+    #[test]
+    fn backoff_large_exponent_does_not_produce_zero() {
+        for exp in 0..=30u32 {
+            let delay = safe_backoff_delay(100, 2.5, exp);
+            assert!(delay > 0, "delay must never be 0 at exp={exp}");
+            assert!(
+                delay <= MAX_BACKOFF_MS,
+                "delay must be capped at {MAX_BACKOFF_MS}, got {delay} at exp={exp}"
+            );
+        }
+    }
+
+    #[test]
+    fn backoff_infinity_capped_at_max() {
+        // 10^30 overflows f64 → Infinity → (as u64) == 0 in Rust
+        let delay = safe_backoff_delay(100, 10.0, 30);
+        assert_eq!(delay, MAX_BACKOFF_MS, "Infinity should be capped");
+    }
+
+    #[test]
+    fn backoff_normal_case() {
+        // 100 * 2.0^2 = 400
+        let delay = safe_backoff_delay(100, 2.0, 2);
+        assert_eq!(delay, 400);
+    }
+
+    #[test]
+    fn backoff_zero_exponent() {
+        // 100 * 2.0^0 = 100
+        let delay = safe_backoff_delay(100, 2.0, 0);
+        assert_eq!(delay, 100);
     }
 }
