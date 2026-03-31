@@ -475,6 +475,13 @@ enum Commands {
         action: cli::provider::ProviderAction,
     },
 
+    /// Manage encrypted credential vault (multi-field, import/export)
+    #[command(next_help_heading = "SYSTEM")]
+    Vault {
+        #[command(subcommand)]
+        action: cli::vault::VaultAction,
+    },
+
     /// Manage MCP server connections
     #[command(next_help_heading = "MODELS & PROVIDERS")]
     Mcp {
@@ -1237,6 +1244,8 @@ async fn main() {
         Some(Commands::Provider { action }) => {
             cli::provider::handle_provider_command(action, quiet).await
         }
+
+        Some(Commands::Vault { action }) => cli::vault::handle_vault_command(action, quiet).await,
 
         Some(Commands::Setup) => cli::onboarding::handle_setup_command(quiet).await,
 
