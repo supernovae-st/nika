@@ -5173,7 +5173,11 @@ mod tests {
             TaskResult::failed("boom".to_string(), Duration::from_millis(10)),
         );
 
-        // Single call cascades: b marked DependencyFailed, then c sees b failed too
+        // Single call cascades when tasks are in topological order (a, b, c):
+        // retain processes indices in order, so b is marked DependencyFailed and
+        // stored in the datastore before c is checked. c then sees b's failure
+        // and cascades in the same pass. This is an optimization, not a guarantee —
+        // reverse task order would require two passes (see reverse-order test below).
         let ready = runner.get_ready_tasks(&mut pending);
         assert!(ready.is_empty(), "No tasks should be ready when dep failed");
 
@@ -5189,7 +5193,7 @@ mod tests {
             "b should record a as the failed dependency"
         );
 
-        // c should also be marked as DependencyFailed (cascaded in same pass)
+        // c cascaded in the same pass (topological order)
         let c_result = runner.datastore.get("c").expect("c should be in store");
         assert!(
             c_result.is_dependency_failed(),
@@ -5199,6 +5203,38 @@ mod tests {
             c_result.failed_dependency(),
             Some("b"),
             "c should record b as the failed dependency"
+        );
+    }
+
+    #[test]
+    fn test_dependency_failure_cascade_reverse_order() {
+        // Same chain a → b → c, but tasks declared in reverse order.
+        // Cascade needs two passes: first marks b (since a is failed),
+        // second marks c (since b is now failed).
+        let workflow = create_exec_workflow(
+            vec![("c", "echo c"), ("b", "echo b"), ("a", "echo a")],
+            vec![("a", "b"), ("b", "c")],
+        );
+        let runner = Runner::new(workflow).unwrap();
+        let mut pending = fresh_pending(&runner);
+
+        runner.datastore.insert(
+            intern("a"),
+            TaskResult::failed("boom".to_string(), Duration::from_millis(10)),
+        );
+
+        // First pass: c is checked first but b hasn't failed yet → c stays pending.
+        // b is checked next → a failed → b marked DependencyFailed.
+        let ready = runner.get_ready_tasks(&mut pending);
+        assert!(ready.is_empty());
+        assert!(runner.datastore.get("b").unwrap().is_dependency_failed());
+
+        // Second pass: c is checked → b now failed → c marked DependencyFailed.
+        let ready = runner.get_ready_tasks(&mut pending);
+        assert!(ready.is_empty());
+        assert!(
+            runner.datastore.get("c").unwrap().is_dependency_failed(),
+            "c should cascade on second pass when tasks are in reverse order"
         );
     }
 
