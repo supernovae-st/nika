@@ -61,7 +61,7 @@ impl RigAgentLoop {
         });
 
         // Check guardrails
-        let guardrail_result = self.check_guardrails(&response_text);
+        let guardrail_result = self.check_guardrails(&response_text).await;
         let guardrails_passed = guardrail_result.is_passed();
 
         // Override status based on guardrail outcome
@@ -569,7 +569,7 @@ impl RigAgentLoop {
         // Check guardrails with retry loop for `on_failure: retry`
         let max_guardrail_retries: u32 = 2;
         let mut guardrail_retry_count: u32 = 0;
-        let mut guardrail_result = self.check_guardrails(&result.response);
+        let mut guardrail_result = self.check_guardrails(&result.response).await;
 
         while guardrail_result.should_retry() && guardrail_retry_count < max_guardrail_retries {
             guardrail_retry_count += 1;
@@ -677,7 +677,7 @@ impl RigAgentLoop {
 
             // Re-determine status and re-check guardrails
             status = self.determine_status(&result.response);
-            guardrail_result = self.check_guardrails(&result.response);
+            guardrail_result = self.check_guardrails(&result.response).await;
         }
 
         // After guardrail retries exhausted, if still failing with retry -> accept anyway
