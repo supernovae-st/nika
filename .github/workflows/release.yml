@@ -312,7 +312,7 @@ jobs:
   docker-publish:
     name: Publish Docker Image
     needs: build
-    if: ${{ !inputs.dry_run }}
+    if: ${{ !inputs.dry_run && !cancelled() }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -425,7 +425,7 @@ jobs:
   release:
     name: Create Release
     needs: [build, docker-publish]
-    if: ${{ !inputs.dry_run }}
+    if: ${{ !inputs.dry_run && !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -579,7 +579,7 @@ jobs:
   update-homebrew:
     name: Update Homebrew Formula
     needs: release
-    if: ${{ !inputs.dry_run }}
+    if: ${{ !inputs.dry_run && !cancelled() && needs.release.result == 'success' }}
     runs-on: ubuntu-latest
     env:
       HAS_HOMEBREW_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
@@ -605,7 +605,7 @@ jobs:
   vscode-publish:
     name: Publish VS Code Extension
     needs: release
-    if: ${{ !inputs.dry_run }}
+    if: ${{ !inputs.dry_run && !cancelled() && needs.release.result == 'success' }}
     runs-on: ubuntu-latest
     env:
       HAS_OVSX_PAT: ${{ secrets.OVSX_PAT != '' }}
@@ -677,7 +677,7 @@ jobs:
   npm-publish:
     name: Publish npm Packages
     needs: release
-    if: ${{ !inputs.dry_run }}
+    if: ${{ !inputs.dry_run && !cancelled() && needs.release.result == 'success' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -769,7 +769,7 @@ jobs:
   crates-publish:
     name: Publish to crates.io
     needs: release
-    if: ${{ !inputs.dry_run }}
+    if: ${{ !inputs.dry_run && !cancelled() && needs.release.result == 'success' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -822,7 +822,7 @@ jobs:
   update-scoop:
     name: Update Scoop Bucket
     needs: release
-    if: ${{ !inputs.dry_run }}
+    if: ${{ !inputs.dry_run && !cancelled() && needs.release.result == 'success' }}
     runs-on: ubuntu-latest
     env:
       HAS_HOMEBREW_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
@@ -917,7 +917,7 @@ jobs:
   update-aur:
     name: Publish to AUR
     needs: release
-    if: ${{ !inputs.dry_run }}
+    if: ${{ !inputs.dry_run && !cancelled() && needs.release.result == 'success' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -965,7 +965,7 @@ jobs:
   smoke-test:
     name: Post-publish Smoke Test
     needs: [npm-publish, crates-publish, vscode-publish]
-    if: ${{ !inputs.dry_run }}
+    if: ${{ !inputs.dry_run && !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - name: Wait for registry propagation
