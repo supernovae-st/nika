@@ -1321,30 +1321,37 @@ async fn main() {
             timeout,
             db,
         }) => {
-            // CLI args override env vars, which override defaults
-            if let Some(b) = &bind {
-                std::env::set_var("NIKA_SERVE_BIND", b);
-            }
-            if let Some(w) = &workflows {
-                std::env::set_var("NIKA_SERVE_WORKFLOWS", w);
-            }
-            std::env::set_var("NIKA_SERVE_MAX_CONCURRENT", concurrency.to_string());
-            std::env::set_var("NIKA_SERVE_TIMEOUT", timeout.to_string());
-            if let Some(d) = &db {
-                std::env::set_var("NIKA_SERVE_DB", d);
-            }
-
-            match nika_serve::config::ServeConfig::from_env() {
-                Ok(config) => {
-                    nika_serve::run_server(config)
-                        .await
-                        .map_err(|e| nika::NikaError::ConfigError {
-                            reason: format!("serve error: {e}"),
-                        })
-                }
-                Err(e) => Err(nika::NikaError::ConfigError {
-                    reason: format!("serve config: {e}"),
-                }),
+            // Build ServeConfig directly from CLI args + env (no deprecated set_var)
+            let mk = |reason: String| nika::NikaError::ConfigError { reason };
+            match (|| -> Result<nika_serve::config::ServeConfig, nika::NikaError> {
+                let bind_addr = bind
+                    .or_else(|| std::env::var("NIKA_SERVE_BIND").ok())
+                    .unwrap_or_else(|| "0.0.0.0:3000".into())
+                    .parse()
+                    .map_err(|e| mk(format!("invalid bind address: {e}")))?;
+                let auth_token = std::env::var("NIKA_SERVE_TOKEN")
+                    .map_err(|_| mk("NIKA_SERVE_TOKEN env var must be set".into()))?;
+                Ok(nika_serve::config::ServeConfig {
+                    bind: bind_addr,
+                    workflows_dir: workflows
+                        .or_else(|| std::env::var("NIKA_SERVE_WORKFLOWS").ok())
+                        .unwrap_or_else(|| "./workflows".into())
+                        .into(),
+                    max_concurrent: concurrency,
+                    job_timeout_secs: timeout,
+                    max_output_bytes: 1024 * 1024,
+                    db_path: db
+                        .or_else(|| std::env::var("NIKA_SERVE_DB").ok())
+                        .unwrap_or_else(|| ".nika/serve.db".into())
+                        .into(),
+                    auth_token,
+                    cors_origin: std::env::var("NIKA_SERVE_CORS_ORIGIN").ok(),
+                })
+            })() {
+                Ok(config) => nika_serve::run_server(config)
+                    .await
+                    .map_err(|e| mk(format!("serve error: {e}"))),
+                Err(e) => Err(e),
             }
         }
 
