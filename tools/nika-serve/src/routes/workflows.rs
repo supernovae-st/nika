@@ -102,24 +102,24 @@ pub async fn run_workflow(
         return Err(ServeError::QueueFull(active));
     }
 
-    // Generate job ID (ERRATA-14: 12 chars minimum to avoid collision at ~65K jobs)
-    let job_id = &uuid::Uuid::new_v4().to_string()[..12];
+    // Generate job ID — full 128-bit UUID in simple (no-hyphen) format
+    let job_id = uuid::Uuid::new_v4().simple().to_string();
 
     // Persist job
-    state.storage.create_job(job_id, &req.workflow).await?;
+    state.storage.create_job(&job_id, &req.workflow).await?;
 
-    info!(job_id, workflow = %req.workflow, "job created");
+    info!(job_id = %job_id, workflow = %req.workflow, "job created");
 
     // Spawn worker + track handle (ERRATA-9)
-    let handle = worker::spawn_worker(&state, job_id.to_string(), req.workflow);
+    let handle = worker::spawn_worker(&state, job_id.clone(), req.workflow);
     state
         .workers
         .lock()
         .await
-        .insert(job_id.to_string(), handle);
+        .insert(job_id.clone(), handle);
 
     Ok(Json(RunResponse {
-        job_id: job_id.to_string(),
+        job_id,
         status: "pending".into(),
     }))
 }
@@ -240,5 +240,13 @@ mod tests {
     fn accepts_valid_paths() {
         assert!(validate_workflow_path("pipeline.nika.yaml").is_ok());
         assert!(validate_workflow_path("subdir/flow.nika.yaml").is_ok());
+    }
+
+    #[test]
+    fn job_id_is_full_uuid_no_hyphens() {
+        let id = uuid::Uuid::new_v4().simple().to_string();
+        assert_eq!(id.len(), 32, "simple UUID should be 32 hex chars");
+        assert!(!id.contains('-'), "simple UUID must not contain hyphens");
+        assert!(id.chars().all(|c| c.is_ascii_hexdigit()));
     }
 }
