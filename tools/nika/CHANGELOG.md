@@ -9,20 +9,26 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 - **NIKA-028 error code** — Semaphore failures now use dedicated NIKA-028 instead of reusing NIKA-026 (dependency chain failed)
-- **for_each cancelled item reporting** — Error summary now includes "N item(s) cancelled" when fail_fast=false
+- **for_each cancelled item reporting** — Error summary now includes "N item(s) cancelled" when fail_fast=false; handles edge case when all items are cancelled
 - **Pipe parser quote tracking** — Auto-close quotes at `)` boundary; `filter(it's) | upper` no longer breaks the parser
 - **Shell transform null handling** — `| shell` on null input returns NullInput error instead of string `'null'`
 - **Artifact path collision detection** — Analyzer warns when two tasks write to the same static artifact path
 - **`use:` keyword rejection** — Parser suggests `with:` when `use:` is found at task level
 - **`max_retries:` keyword rejection** — Parser suggests `retry: { max_attempts: N }` when found at task level
-- **Mock provider file schemas** — `provider: mock` now loads SchemaRef::File schemas for structured output
+- **Mock provider file schemas** — `provider: mock` now loads SchemaRef::File schemas for structured output, with path traversal guard
 - **Mock JSON depth limit** — `generate_mock_json()` capped at 32 levels to prevent stack overflow on recursive schemas
+- **Empty `repair_model` handling** — Warn and skip instead of passing empty string to provider API
+- **TOCTOU race in session context** — Eliminated exists() check before read; validates boundary after read
+- **Silent cleanup errors** — File removal failures in write.rs, edit.rs, storage.rs, runner.rs now log at debug level
 - **Stale "dead variant" test** — Replaced incorrect test claiming limit variants are dead code (they're returned by check_limits())
+- **Cascade contract documented** — `is_completed_successfully()` contract: DependencyFailed must return Some(false) for single-pass propagation
 
 ### Changed
-- **`get_ready_tasks()` optimized** — O(remaining) instead of O(total_tasks) per iteration via pending_indices tracking
+- **`get_ready_tasks()` optimized** — O(remaining) instead of O(total_tasks) per iteration via pending_indices tracking; dependency failure cascades in single pass
 - **Broadcast channel capacity** — Increased from 1024 to 4096 events for heavy for_each workflows
 - **Dockerfile VERSION** — Updated from 0.52.0 to 0.54.0
+- **Retry compounding documented** — Task-level retry × structured max_retries = worst-case N×M LLM calls
+- **`Vec::with_capacity`** — Pre-allocate events vec in binding resolve hot path
 
 ---
 
