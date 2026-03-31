@@ -16,6 +16,7 @@ use tokio::sync::Mutex;
 use tracing::{debug, error, info, warn};
 
 use crate::config::ServeConfig;
+use crate::executor::ExecutionContext;
 use crate::state::{AppState, WorkerHandle};
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -113,10 +114,11 @@ pub fn spawn_worker(
 ) -> WorkerHandle {
     let storage = state.storage.clone();
     let config = Arc::clone(&state.config);
+    let executor = state.executor.clone();
     let semaphore = Arc::clone(&state.semaphore);
     let workers = Arc::clone(&state.workers);
     let active_jobs = Arc::clone(&state.active_jobs);
-    let mut shutdown_rx = state.shutdown.clone();
+    let shutdown_rx = state.shutdown.clone();
     let id = job_id.clone();
     let child_pid = Arc::new(AtomicU32::new(0));
     let child_pid_clone = Arc::clone(&child_pid);
@@ -146,14 +148,14 @@ pub fn spawn_worker(
             return;
         }
 
-        let result = run_subprocess(
-            &config,
-            &workflow,
-            inputs.as_ref(),
-            &child_pid_clone,
-            &mut shutdown_rx,
-        )
-        .await;
+        let max_output_bytes = config.max_output_bytes;
+        let mut ctx = ExecutionContext {
+            config,
+            shutdown_rx,
+            child_pid: child_pid_clone,
+        };
+
+        let result = executor.execute(&workflow, inputs.as_ref(), &mut ctx).await;
 
         // FIX-13: Check if job was cancelled while we were running
         let current_state = storage.get_job(&id).await.ok().flatten();
@@ -168,14 +170,14 @@ pub fn spawn_worker(
 
         match result {
             Ok(output) => {
-                let truncated = safe_truncate(&output, config.max_output_bytes);
+                let truncated = safe_truncate(&output, max_output_bytes);
                 if let Err(e) = storage.complete_job(&id, truncated).await {
                     error!(job_id = %id, error = %e, "failed to mark job completed");
                 }
                 info!(job_id = %id, "job completed");
             }
             Err(msg) => {
-                let truncated = safe_truncate(&msg, config.max_output_bytes);
+                let truncated = safe_truncate(&msg, max_output_bytes);
                 if let Err(e) = storage.fail_job(&id, truncated).await {
                     error!(job_id = %id, error = %e, "failed to mark job failed");
                 }
@@ -200,7 +202,7 @@ pub fn spawn_worker(
 /// FIX-5: Races subprocess against shutdown signal.
 /// FIX-11: Passes inputs as --input key=value args.
 /// FIX-15: Adds -y --no-interactive flags.
-async fn run_subprocess(
+pub(crate) async fn run_subprocess(
     config: &ServeConfig,
     workflow: &str,
     inputs: Option<&serde_json::Value>,

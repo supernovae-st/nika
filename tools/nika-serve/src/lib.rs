@@ -21,6 +21,7 @@
 pub mod auth;
 pub mod config;
 pub mod error;
+pub mod executor;
 pub mod routes;
 pub mod state;
 pub mod worker;
@@ -68,6 +69,7 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
     let state = AppState {
         storage,
         config: Arc::new(config.clone()),
+        executor: executor::Executor::Subprocess,
         semaphore: Arc::new(Semaphore::new(config.max_concurrent)),
         shutdown: shutdown_rx,
         workers: Arc::new(Mutex::new(HashMap::new())),
@@ -285,6 +287,7 @@ mod tests {
         let state = AppState {
             storage,
             config: Arc::new(config.clone()),
+            executor: executor::Executor::Subprocess,
             semaphore: Arc::new(Semaphore::new(4)),
             shutdown: shutdown_rx,
             workers: Arc::new(Mutex::new(HashMap::new())),
