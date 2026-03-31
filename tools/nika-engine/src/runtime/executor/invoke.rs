@@ -18,6 +18,22 @@ use crate::store::RunContext;
 use crate::util::INVOKE_TASK_DEADLINE;
 
 use super::verbs::coerce_json_types;
+
+/// Recursively redact secrets from a JSON value for safe event logging.
+fn redact_value(value: &serde_json::Value) -> serde_json::Value {
+    match value {
+        serde_json::Value::String(s) => {
+            serde_json::Value::String(crate::util::redact_secrets(s))
+        }
+        serde_json::Value::Array(arr) => {
+            serde_json::Value::Array(arr.iter().map(redact_value).collect())
+        }
+        serde_json::Value::Object(map) => {
+            serde_json::Value::Object(map.iter().map(|(k, v)| (k.clone(), redact_value(v))).collect())
+        }
+        other => other.clone(),
+    }
+}
 use super::TaskExecutor;
 
 impl TaskExecutor {
@@ -163,13 +179,14 @@ impl TaskExecutor {
                             duration_ms,
                             cached: false,
                             is_error: false,
-                            response: Some(Arc::new(result_value.clone())),
+                            response: Some(Arc::new(redact_value(&result_value))),
                         });
 
                         return Ok(result_value.to_string());
                     }
                     Err(e) => {
                         // EMIT: McpResponse event for builtin tool (error)
+                        let err_val = serde_json::json!({"error": e.to_string()});
                         self.event_log.emit(EventKind::McpResponse {
                             task_id: Arc::clone(task_id),
                             call_id,
@@ -177,7 +194,7 @@ impl TaskExecutor {
                             duration_ms,
                             cached: false,
                             is_error: true,
-                            response: Some(Arc::new(serde_json::json!({"error": e.to_string()}))),
+                            response: Some(Arc::new(redact_value(&err_val))),
                         });
 
                         return Err(e);
@@ -227,6 +244,7 @@ impl TaskExecutor {
                     // Emit response event before returning error
                     let duration_ms = start_time.elapsed().as_millis() as u64;
                     let error_text = tool_result.text();
+                    let err_val = serde_json::json!({"error": error_text.clone()});
                     self.event_log.emit(EventKind::McpResponse {
                         task_id: Arc::clone(task_id),
                         call_id: call_id.clone(),
@@ -234,7 +252,7 @@ impl TaskExecutor {
                         duration_ms,
                         cached: false,
                         is_error: true,
-                        response: Some(Arc::new(serde_json::json!({"error": error_text.clone()}))),
+                        response: Some(Arc::new(redact_value(&err_val))),
                     });
                     return Err(NikaError::McpToolError {
                         tool: tool.clone(),
@@ -482,7 +500,7 @@ impl TaskExecutor {
 
         let (result, _client, was_cached) = mcp_result;
 
-        // EMIT: McpResponse event (with full response for TUI display)
+        // EMIT: McpResponse event (with redacted response for TUI display)
         // is_error is always false here -- error cases return early with their own McpResponse
         let duration_ms = start_time.elapsed().as_millis() as u64;
         self.event_log.emit(EventKind::McpResponse {
@@ -492,7 +510,7 @@ impl TaskExecutor {
             duration_ms,
             cached: was_cached,
             is_error: false,
-            response: Some(Arc::new(result.clone())),
+            response: Some(Arc::new(redact_value(&result))),
         });
 
         // Return JSON string representation
