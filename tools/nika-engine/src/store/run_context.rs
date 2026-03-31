@@ -241,7 +241,7 @@ pub struct RunContext {
     /// Read (and drained) by the runner after building TaskResult.
     media_staging: Arc<DashMap<Arc<str>, Vec<crate::media::MediaRef>, FxBuildHasher>>,
 
-    /// Compressed records: task_id → Arc<Record> (zero-copy reads)
+    /// Compressed records: task_id → `Arc<Record>` (zero-copy reads)
     records: Arc<DashMap<Arc<str>, Arc<crate::runtime::record::Record>, FxBuildHasher>>,
 
     /// Shared per-run media budget (500MB default).
