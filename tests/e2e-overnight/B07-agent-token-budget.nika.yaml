@@ -1,0 +1,15 @@
+schema: "nika/workflow@0.12"
+workflow: b07-agent-token-budget
+description: "Agent with token budget limit"
+provider: openai
+model: gpt-4o-mini
+
+tasks:
+  - id: explainer
+    agent:
+      prompt: "Explain quantum computing step by step."
+      tools: []
+      max_turns: 3
+      token_budget: 2000
+      completion:
+        mode: natural

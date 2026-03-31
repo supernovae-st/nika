@@ -1,0 +1,23 @@
+schema: "nika/workflow@0.12"
+workflow: h05-seo-audit
+provider: gemini
+model: gemini-2.0-flash
+tasks:
+  - id: fetch_meta
+    fetch:
+      url: "https://github.com"
+      extract: metadata
+      timeout: 20
+  - id: analyze
+    depends_on: [fetch_meta]
+    with:
+      meta: $fetch_meta
+    infer: "Analyze these website metadata tags and give an SEO score. What's good, what's missing? {{with.meta | to_json}}"
+    structured:
+      schema:
+        type: object
+        properties:
+          score: { type: integer, minimum: 0, maximum: 100 }
+          strengths: { type: array, items: { type: string } }
+          weaknesses: { type: array, items: { type: string } }
+        required: [score, strengths, weaknesses]

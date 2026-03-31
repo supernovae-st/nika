@@ -1,0 +1,10 @@
+schema: "nika/workflow@0.12"
+workflow: e08-timeout
+description: "Exec timeout test — sleep exceeds timeout"
+provider: mock
+
+tasks:
+  - id: slow_task
+    exec:
+      command: "sleep 10"
+      timeout: 2

@@ -1,0 +1,33 @@
+schema: "nika/workflow@0.12"
+workflow: n08-native-artifact
+description: "Native: structured output written to artifact"
+provider: native
+model: mistral:7b
+
+artifacts:
+  dir: ./tests/e2e-overnight/output
+
+tasks:
+  - id: generate
+    infer:
+      prompt: "Describe three benefits of local AI inference"
+      temperature: 0
+    structured:
+      schema:
+        type: object
+        properties:
+          benefits:
+            type: array
+            items:
+              type: object
+              properties:
+                title: { type: string }
+                description: { type: string }
+              required: [title, description]
+            minItems: 3
+            maxItems: 3
+        required: [benefits]
+      max_retries: 3
+    artifact:
+      path: native-benefits.json
+      format: json

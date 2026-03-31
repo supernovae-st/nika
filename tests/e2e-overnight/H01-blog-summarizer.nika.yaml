@@ -1,0 +1,29 @@
+schema: "nika/workflow@0.12"
+workflow: h01-blog-summarizer
+description: "Real-world: scrape blog → summarize → structured output"
+provider: openai
+model: gpt-4o-mini
+
+tasks:
+  - id: scrape
+    fetch:
+      url: "https://httpbin.org/html"
+      extract: markdown
+      timeout: 15
+
+  - id: summarize
+    depends_on: [scrape]
+    with:
+      content: $scrape
+    infer: "Summarize this content, identifying the main topic and 3 key points: {{with.content}}"
+    structured:
+      schema:
+        type: object
+        properties:
+          topic: { type: string }
+          key_points:
+            type: array
+            items: { type: string }
+            minItems: 1
+            maxItems: 5
+        required: [topic, key_points]

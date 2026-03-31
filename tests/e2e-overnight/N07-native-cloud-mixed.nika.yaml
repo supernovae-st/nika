@@ -1,0 +1,20 @@
+schema: "nika/workflow@0.12"
+workflow: n07-native-cloud-mixed
+description: "Native: mixed pipeline native + cloud"
+
+tasks:
+  - id: local_draft
+    provider: native
+    model: llama3.2:1b
+    infer:
+      prompt: "Write a 2-sentence draft about workflow automation"
+      max_tokens: 100
+      temperature: 0.3
+
+  - id: cloud_refine
+    provider: openai
+    model: gpt-4o-mini
+    depends_on: [local_draft]
+    with:
+      draft: $local_draft
+    infer: "Improve this draft to be more professional: {{with.draft}}"

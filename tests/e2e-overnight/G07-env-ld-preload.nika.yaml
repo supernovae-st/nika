@@ -1,0 +1,12 @@
+schema: "nika/workflow@0.12"
+workflow: g07-env-ld-preload
+description: "SECURITY: LD_PRELOAD env var injection — MUST FAIL or be stripped"
+provider: mock
+
+tasks:
+  - id: preload
+    exec:
+      command: "echo test"
+      shell: true
+      env:
+        LD_PRELOAD: "/tmp/evil.so"

@@ -1,0 +1,20 @@
+schema: "nika/workflow@0.12"
+workflow: g06-newline-injection
+description: "SECURITY: Newline injection via inputs — MUST FAIL with NIKA-053"
+provider: mock
+
+inputs:
+  user_cmd: "echo safe"
+
+tasks:
+  - id: setup
+    exec:
+      command: "printf 'echo safe\\necho INJECTED'"
+      shell: true
+  - id: inject
+    depends_on: [setup]
+    with:
+      cmd: $setup
+    exec:
+      command: "{{with.cmd}}"
+      shell: true

@@ -1,0 +1,11 @@
+schema: "nika/workflow@0.12"
+workflow: c08-fetch-llm-txt
+description: "Fetch extract: llm_txt discovery"
+provider: mock
+
+tasks:
+  - id: fetch_llm
+    fetch:
+      url: "https://docs.anthropic.com"
+      extract: llm_txt
+      timeout: 25

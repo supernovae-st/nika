@@ -1,0 +1,5 @@
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: greet
+    infer: "Say hello"

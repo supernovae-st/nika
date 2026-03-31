@@ -1,0 +1,22 @@
+schema: "nika/workflow@0.12"
+workflow: f09-chart-pie
+description: "Media: generate pie chart"
+provider: mock
+
+artifacts:
+  dir: ./tests/e2e-overnight/output
+
+tasks:
+  - id: chart
+    invoke:
+      tool: "nika:chart"
+      params:
+        type: pie
+        title: "Market Share"
+        series:
+          - name: "Companies"
+            data: [45, 25, 15, 10, 5]
+        labels: ["Apple", "Samsung", "Xiaomi", "Oppo", "Other"]
+    artifact:
+      path: chart-pie.png
+      format: binary

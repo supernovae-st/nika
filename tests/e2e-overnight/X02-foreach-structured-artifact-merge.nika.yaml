@@ -1,0 +1,32 @@
+schema: "nika/workflow@0.12"
+workflow: x02-foreach-structured-merge
+description: "Combo: for_each structured → merge → artifact"
+provider: xai
+model: grok-3-fast
+
+artifacts:
+  dir: ./tests/e2e-overnight/output
+
+tasks:
+  - id: analyze_langs
+    for_each: ["Rust", "Python", "Go"]
+    as: lang
+    concurrency: 1
+    infer: "Describe {{with.lang}} — its main use case and year it was created"
+    structured:
+      schema:
+        type: object
+        properties:
+          language: { type: string }
+          use_case: { type: string }
+          year: { type: integer, minimum: 1970 }
+        required: [language, use_case, year]
+
+  - id: merge
+    depends_on: [analyze_langs]
+    with:
+      langs: $analyze_langs
+    infer: "Here are analyses of 3 programming languages: {{with.langs | to_json}}. Write a 2-sentence comparison."
+    artifact:
+      path: lang-comparison.md
+      format: markdown

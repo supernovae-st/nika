@@ -1,0 +1,10 @@
+schema: "nika/workflow@0.12"
+workflow: g01-ssrf-private-ip
+description: "SECURITY: SSRF attempt on private IP — MUST FAIL"
+provider: mock
+
+tasks:
+  - id: ssrf_attempt
+    fetch:
+      url: "http://169.254.169.254/latest/meta-data/"
+      timeout: 5

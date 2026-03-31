@@ -1,0 +1,24 @@
+schema: "nika/workflow@0.12"
+workflow: a03-array-structured
+description: "Structured output: array with constraints"
+provider: gemini
+model: gemini-2.0-flash
+
+tasks:
+  - id: extract
+    infer: "List some programming languages that are good for systems programming, with their year of creation"
+    structured:
+      schema:
+        type: object
+        properties:
+          languages:
+            type: array
+            items:
+              type: object
+              properties:
+                name: { type: string }
+                year: { type: integer }
+              required: [name, year]
+            minItems: 3
+            maxItems: 3
+        required: [languages]

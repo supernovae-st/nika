@@ -1,0 +1,15 @@
+schema: "nika/workflow@0.12"
+workflow: n04-native-foreach
+description: "Native: for_each with 3 items"
+provider: native
+model: llama3.2:1b
+
+tasks:
+  - id: process
+    for_each: ["Rust", "Python", "Go"]
+    as: lang
+    concurrency: 1
+    infer:
+      prompt: "In exactly one sentence, what is {{with.lang}} best known for?"
+      max_tokens: 50
+      temperature: 0

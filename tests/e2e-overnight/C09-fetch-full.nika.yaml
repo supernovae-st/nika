@@ -1,0 +1,11 @@
+schema: "nika/workflow@0.12"
+workflow: c09-fetch-full
+description: "Fetch response: full (headers + status + body)"
+provider: mock
+
+tasks:
+  - id: fetch_full
+    fetch:
+      url: "https://httpbin.org/get"
+      response: full
+      timeout: 15

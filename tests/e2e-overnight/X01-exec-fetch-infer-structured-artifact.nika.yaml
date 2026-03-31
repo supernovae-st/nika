@@ -1,0 +1,37 @@
+schema: "nika/workflow@0.12"
+workflow: x01-five-verb-combo
+description: "Combo: exec + fetch + infer + structured + artifact"
+provider: openai
+model: gpt-4o-mini
+
+artifacts:
+  dir: ./tests/e2e-overnight/output
+
+tasks:
+  - id: get_date
+    exec: "date +%Y-%m-%d"
+
+  - id: fetch_data
+    fetch:
+      url: "https://jsonplaceholder.typicode.com/posts/1"
+      extract: jsonpath
+      selector: "$.title"
+      timeout: 15
+
+  - id: analyze
+    depends_on: [get_date, fetch_data]
+    with:
+      date: $get_date
+      title: $fetch_data
+    infer: "On {{with.date | trim}}, I found this post title: '{{with.title}}'. Analyze its topic and sentiment."
+    structured:
+      schema:
+        type: object
+        properties:
+          topic: { type: string }
+          sentiment: { type: string, enum: [positive, negative, neutral] }
+          word_count: { type: integer, minimum: 1 }
+        required: [topic, sentiment, word_count]
+    artifact:
+      path: combo-analysis.json
+      format: json

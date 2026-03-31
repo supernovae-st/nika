@@ -1,0 +1,16 @@
+schema: "nika/workflow@0.12"
+workflow: e04-glob-read
+description: "nika:glob + nika:read builtin tools"
+provider: mock
+
+tasks:
+  - id: find_files
+    invoke:
+      tool: "nika:glob"
+      params:
+        pattern: "tests/e2e-overnight/fixtures/*.png"
+  - id: read_context
+    invoke:
+      tool: "nika:read"
+      params:
+        file_path: "tests/e2e-overnight/context/readme.txt"

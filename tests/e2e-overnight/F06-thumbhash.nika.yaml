@@ -1,0 +1,19 @@
+schema: "nika/workflow@0.12"
+workflow: f06-thumbhash
+description: "Media: compute thumbhash"
+provider: mock
+
+tasks:
+  - id: import_img
+    invoke:
+      tool: "nika:import"
+      params:
+        path: "tests/e2e-overnight/fixtures/red-10x10.png"
+  - id: hash
+    depends_on: [import_img]
+    with:
+      img: $import_img
+    invoke:
+      tool: "nika:thumbhash"
+      params:
+        hash: "{{with.img.hash}}"

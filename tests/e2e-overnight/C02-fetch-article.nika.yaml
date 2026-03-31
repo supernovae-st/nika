@@ -1,0 +1,11 @@
+schema: "nika/workflow@0.12"
+workflow: c02-fetch-article
+description: "Fetch extract: article (Readability)"
+provider: mock
+
+tasks:
+  - id: fetch_article
+    fetch:
+      url: "https://en.wikipedia.org/wiki/Workflow"
+      extract: article
+      timeout: 20

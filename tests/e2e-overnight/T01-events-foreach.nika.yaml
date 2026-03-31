@@ -1,0 +1,17 @@
+schema: "nika/workflow@0.12"
+workflow: t01-events-foreach
+provider: openai
+model: gpt-4o-mini
+tasks:
+  - id: process
+    for_each: ["alpha", "beta"]
+    as: item
+    concurrency: 1
+    infer: "Say the word {{with.item}}"
+  - id: check
+    depends_on: [process]
+    with:
+      results: $process
+    exec:
+      command: "echo 'processed={{with.results | length}}_items'"
+      shell: true

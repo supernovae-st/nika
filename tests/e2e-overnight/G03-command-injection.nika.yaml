@@ -1,0 +1,10 @@
+schema: "nika/workflow@0.12"
+workflow: g03-command-injection
+description: "SECURITY: Command injection via $() — MUST FAIL"
+provider: mock
+
+tasks:
+  - id: injection
+    exec:
+      command: "echo $(whoami)"
+      shell: true

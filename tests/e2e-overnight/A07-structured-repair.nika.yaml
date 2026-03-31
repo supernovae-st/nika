@@ -1,0 +1,19 @@
+schema: "nika/workflow@0.12"
+workflow: a07-structured-repair
+provider: openai
+model: gpt-4o-mini
+tasks:
+  - id: extract
+    infer: "Write a creative sentence about a fictional product and describe it vividly"
+    structured:
+      schema:
+        type: object
+        properties:
+          product_name: { type: string, minLength: 2 }
+          price: { type: number, minimum: 0.01 }
+          in_stock: { type: boolean }
+        required: [product_name, price, in_stock]
+        additionalProperties: false
+      enable_repair: true
+      max_retries: 3
+      repair_model: gpt-4o-mini

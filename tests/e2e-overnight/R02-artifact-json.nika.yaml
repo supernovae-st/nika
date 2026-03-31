@@ -1,0 +1,29 @@
+schema: "nika/workflow@0.12"
+workflow: r02-artifact-json
+description: "Artifact: write structured JSON"
+provider: openai
+model: gpt-4o-mini
+
+artifacts:
+  dir: ./tests/e2e-overnight/output
+
+tasks:
+  - id: data
+    infer: "List 3 famous scientists with their fields and birth years"
+    structured:
+      schema:
+        type: object
+        properties:
+          scientists:
+            type: array
+            items:
+              type: object
+              properties:
+                name: { type: string }
+                field: { type: string }
+                birth_year: { type: integer }
+              required: [name, field, birth_year]
+        required: [scientists]
+    artifact:
+      path: scientists.json
+      format: json

@@ -1,0 +1,14 @@
+schema: "nika/workflow@0.12"
+workflow: b01-agent-basic
+description: "Agent with nika:log + nika:complete (explicit completion)"
+provider: openai
+model: gpt-4o-mini
+
+tasks:
+  - id: helper
+    agent:
+      prompt: "You are a helper. Log 'hello' using nika:log, then complete with nika:complete."
+      tools: ["nika:log", "nika:complete"]
+      max_turns: 5
+      completion:
+        mode: explicit

@@ -1,0 +1,24 @@
+schema: "nika/workflow@0.12"
+workflow: f07-chart-bar
+description: "Media: generate bar chart from JSON data"
+provider: mock
+
+artifacts:
+  dir: ./tests/e2e-overnight/output
+
+tasks:
+  - id: chart
+    invoke:
+      tool: "nika:chart"
+      params:
+        type: bar
+        title: "Quarterly Revenue"
+        width: 800
+        height: 500
+        series:
+          - name: "Revenue"
+            data: [50000, 75000, 90000, 120000]
+        labels: ["Q1", "Q2", "Q3", "Q4"]
+    artifact:
+      path: chart-bar.png
+      format: binary

@@ -1,0 +1,8 @@
+schema: "nika/workflow@0.12"
+workflow: m03-provider-fallback
+description: "Tests provider fallback: anthropic fails (no credits), falls back to openai"
+tasks:
+  - id: with_fallback
+    provider: [anthropic, openai]
+    model: gpt-4o-mini
+    infer: "Say hello in one word"

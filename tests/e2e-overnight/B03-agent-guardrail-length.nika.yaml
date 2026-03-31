@@ -1,0 +1,18 @@
+schema: "nika/workflow@0.12"
+workflow: b03-agent-guardrail-length
+description: "Agent with length guardrail"
+provider: gemini
+model: gemini-2.0-flash
+
+tasks:
+  - id: writer
+    agent:
+      prompt: "Write a paragraph about Rust programming."
+      tools: []
+      max_turns: 3
+      completion:
+        mode: natural
+      guardrails:
+        - type: length
+          min_words: 20
+          on_failure: retry

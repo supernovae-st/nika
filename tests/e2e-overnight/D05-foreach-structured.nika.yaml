@@ -1,0 +1,25 @@
+schema: "nika/workflow@0.12"
+workflow: d05-foreach-structured
+provider: openai
+model: gpt-4o-mini
+tasks:
+  - id: analyze
+    for_each: ["Rust", "Python", "TypeScript"]
+    as: lang
+    concurrency: 1
+    infer: "Tell me about the programming language {{with.lang}} — who created it and in what year"
+    structured:
+      schema:
+        type: object
+        properties:
+          language: { type: string }
+          creator: { type: string }
+          year: { type: integer, minimum: 1950 }
+        required: [language, creator, year]
+  - id: summary
+    depends_on: [analyze]
+    with:
+      langs: $analyze
+    exec:
+      command: "echo '{{with.langs | length}} languages analyzed'"
+      shell: true

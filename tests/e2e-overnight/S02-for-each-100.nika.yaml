@@ -1,0 +1,18 @@
+schema: "nika/workflow@0.12"
+workflow: s02-for-each-100
+description: "Stress: for_each with 20 items, concurrency 5"
+provider: mock
+
+tasks:
+  - id: process
+    for_each: ["a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t"]
+    as: item
+    concurrency: 5
+    exec: "echo item_{{with.item}}"
+  - id: count
+    depends_on: [process]
+    with:
+      results: $process
+    exec:
+      command: "echo {{with.results | length}}"
+      shell: true

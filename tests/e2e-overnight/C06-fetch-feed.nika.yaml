@@ -1,0 +1,11 @@
+schema: "nika/workflow@0.12"
+workflow: c06-fetch-feed
+description: "Fetch extract: RSS feed"
+provider: mock
+
+tasks:
+  - id: fetch_feed
+    fetch:
+      url: "https://hnrss.org/frontpage"
+      extract: feed
+      timeout: 15

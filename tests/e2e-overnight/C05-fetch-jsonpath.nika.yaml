@@ -1,0 +1,12 @@
+schema: "nika/workflow@0.12"
+workflow: c05-fetch-jsonpath
+description: "Fetch extract: jsonpath"
+provider: mock
+
+tasks:
+  - id: fetch_users
+    fetch:
+      url: "https://jsonplaceholder.typicode.com/users"
+      extract: jsonpath
+      selector: "$[0].name"
+      timeout: 15

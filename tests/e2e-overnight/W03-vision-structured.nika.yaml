@@ -1,0 +1,35 @@
+schema: "nika/workflow@0.12"
+workflow: w03-vision-structured
+description: "Vision: image → structured color analysis"
+provider: openai
+model: gpt-4o-mini
+
+tasks:
+  - id: import_img
+    invoke:
+      tool: "nika:import"
+      params:
+        path: "tests/e2e-overnight/fixtures/red-10x10.png"
+
+  - id: analyze
+    depends_on: [import_img]
+    with:
+      img: $import_img
+    infer:
+      content:
+        - type: text
+          text: "Analyze this image — what is the dominant color and how many distinct colors do you see?"
+        - type: image
+          source: "{{with.img.hash}}"
+          detail: high
+      temperature: 0
+    structured:
+      schema:
+        type: object
+        properties:
+          dominant_color: { type: string }
+          color_count: { type: integer, minimum: 1 }
+          is_solid: { type: boolean }
+        required: [dominant_color, color_count, is_solid]
+      enable_repair: true
+      max_retries: 2

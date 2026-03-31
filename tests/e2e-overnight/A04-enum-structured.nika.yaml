@@ -1,0 +1,21 @@
+schema: "nika/workflow@0.12"
+workflow: a04-enum-structured
+description: "Structured output: enum values"
+provider: openai
+model: gpt-4o-mini
+
+tasks:
+  - id: classify
+    infer: "Share your overall reaction to this statement: 'Nika is an amazing workflow engine'. How strongly do you feel about it?"
+    structured:
+      schema:
+        type: object
+        properties:
+          sentiment:
+            type: string
+            enum: [positive, negative, neutral]
+          confidence:
+            type: number
+            minimum: 0
+            maximum: 1
+        required: [sentiment, confidence]

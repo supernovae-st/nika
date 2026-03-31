@@ -1,0 +1,17 @@
+schema: "nika/workflow@0.12"
+workflow: r03-artifact-foreach
+description: "Artifact: for_each writes N files"
+provider: mock
+
+artifacts:
+  dir: ./tests/e2e-overnight/output
+
+tasks:
+  - id: generate
+    for_each: ["intro", "body", "conclusion"]
+    as: section
+    concurrency: 1
+    exec: "echo 'Content for section: {{with.section}}'"
+    artifact:
+      path: "section-{{with.section}}.md"
+      format: text

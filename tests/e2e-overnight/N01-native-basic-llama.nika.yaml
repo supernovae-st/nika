@@ -1,0 +1,12 @@
+schema: "nika/workflow@0.12"
+workflow: n01-native-basic-llama
+description: "Native: basic infer with llama3.2:1b"
+provider: native
+model: llama3.2:1b
+
+tasks:
+  - id: hello
+    infer:
+      prompt: "Say 'Hello from Nika native provider' in one sentence"
+      max_tokens: 100
+      temperature: 0.1

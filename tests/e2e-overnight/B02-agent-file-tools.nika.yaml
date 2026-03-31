@@ -1,0 +1,14 @@
+schema: "nika/workflow@0.12"
+workflow: b02-agent-file-tools
+description: "Agent using file tools: glob + read"
+provider: xai
+model: grok-3-fast
+
+tasks:
+  - id: file_explorer
+    agent:
+      prompt: "List files in tests/e2e-overnight/fixtures/ using nika:glob, then read one file using nika:read. Complete when done."
+      tools: ["nika:glob", "nika:read", "nika:complete"]
+      max_turns: 5
+      completion:
+        mode: explicit

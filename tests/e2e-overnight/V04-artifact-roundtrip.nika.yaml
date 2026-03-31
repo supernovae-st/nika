@@ -1,0 +1,21 @@
+schema: "nika/workflow@0.12"
+workflow: v04-artifact-roundtrip
+description: "Verification: write artifact then read it back"
+provider: mock
+
+artifacts:
+  dir: ./tests/e2e-overnight/output
+
+tasks:
+  - id: write_artifact
+    exec: "echo 'Hello from V04 roundtrip test'"
+    artifact:
+      path: roundtrip.txt
+      format: text
+
+  - id: read_back
+    depends_on: [write_artifact]
+    invoke:
+      tool: "nika:read"
+      params:
+        file_path: "tests/e2e-overnight/output/roundtrip.txt"

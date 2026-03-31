@@ -1,0 +1,16 @@
+schema: "nika/workflow@0.12"
+workflow: e03-exec-infer-chain
+description: "Exec output feeds into infer prompt"
+provider: openai
+model: gpt-4o-mini
+
+tasks:
+  - id: list_files
+    exec:
+      command: "ls -la tests/e2e-overnight/fixtures/"
+      shell: true
+  - id: analyze
+    depends_on: [list_files]
+    with:
+      listing: $list_files
+    infer: "Describe what files you see in this directory listing: {{with.listing}}"

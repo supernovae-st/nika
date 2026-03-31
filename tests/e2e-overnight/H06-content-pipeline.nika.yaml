@@ -1,0 +1,30 @@
+schema: "nika/workflow@0.12"
+workflow: h06-content-pipeline
+provider: openai
+model: gpt-4o-mini
+tasks:
+  - id: outline
+    infer: "Create an outline for a short article about workflow automation. List 3 section titles"
+    structured:
+      schema:
+        type: object
+        properties:
+          sections:
+            type: array
+            items: { type: string }
+            minItems: 3
+            maxItems: 3
+        required: [sections]
+  - id: write_sections
+    depends_on: [outline]
+    with:
+      titles: $outline
+    for_each: "{{with.titles.sections}}"
+    as: title
+    concurrency: 1
+    infer: "Write a 2-sentence paragraph for the section titled: {{with.title}}"
+  - id: merge
+    depends_on: [write_sections]
+    with:
+      parts: $write_sections
+    infer: "Combine these paragraphs into a cohesive article, adding an intro and conclusion: {{with.parts | join('\n\n')}}"

@@ -1,0 +1,32 @@
+schema: "nika/workflow@0.12"
+workflow: d01-linear-chain
+description: "DAG: linear chain A→B→C→D→E"
+provider: mock
+
+tasks:
+  - id: step_a
+    exec: "echo step_a"
+  - id: step_b
+    depends_on: [step_a]
+    with: { prev: $step_a }
+    exec:
+      command: "echo step_b_after_{{with.prev | trim}}"
+      shell: true
+  - id: step_c
+    depends_on: [step_b]
+    with: { prev: $step_b }
+    exec:
+      command: "echo step_c_after_{{with.prev | trim}}"
+      shell: true
+  - id: step_d
+    depends_on: [step_c]
+    with: { prev: $step_c }
+    exec:
+      command: "echo step_d_after_{{with.prev | trim}}"
+      shell: true
+  - id: step_e
+    depends_on: [step_d]
+    with: { prev: $step_d }
+    exec:
+      command: "echo step_e_after_{{with.prev | trim}}"
+      shell: true

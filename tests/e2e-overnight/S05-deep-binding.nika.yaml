@@ -1,0 +1,17 @@
+schema: "nika/workflow@0.12"
+workflow: s05-deep-binding
+description: "Stress: Deep nested JSON binding access"
+provider: mock
+
+tasks:
+  - id: nested_data
+    exec:
+      command: "echo '{\"a\":{\"b\":{\"c\":{\"d\":{\"e\":{\"f\":\"deep_value\"}}}}}}'"
+      shell: true
+  - id: access
+    depends_on: [nested_data]
+    with:
+      data: $nested_data | parse_json
+    exec:
+      command: "echo {{with.data.a.b.c.d.e.f}}"
+      shell: true

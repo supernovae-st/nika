@@ -1,0 +1,19 @@
+schema: "nika/workflow@0.12"
+workflow: e05-log-assert
+description: "nika:log and nika:assert builtin tools"
+provider: mock
+
+tasks:
+  - id: do_log
+    invoke:
+      tool: "nika:log"
+      params:
+        message: "E2E test logging works"
+        level: "info"
+  - id: do_assert
+    depends_on: [do_log]
+    invoke:
+      tool: "nika:assert"
+      params:
+        condition: true
+        message: "Assertion passed"

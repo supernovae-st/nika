@@ -1,0 +1,28 @@
+schema: "nika/workflow@0.12"
+workflow: d02-diamond
+description: "DAG: diamond pattern A→(B,C)→D"
+provider: mock
+
+tasks:
+  - id: source
+    exec: "echo origin_data"
+  - id: branch_left
+    depends_on: [source]
+    with: { data: $source }
+    exec:
+      command: "echo left_{{with.data | trim}}"
+      shell: true
+  - id: branch_right
+    depends_on: [source]
+    with: { data: $source }
+    exec:
+      command: "echo right_{{with.data | trim}}"
+      shell: true
+  - id: merge
+    depends_on: [branch_left, branch_right]
+    with:
+      left: $branch_left
+      right: $branch_right
+    exec:
+      command: "echo merged_{{with.left | trim}}_{{with.right | trim}}"
+      shell: true

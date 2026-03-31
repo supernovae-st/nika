@@ -1,0 +1,14 @@
+schema: "nika/workflow@0.12"
+workflow: i02-context-files
+description: "Context file bindings"
+provider: mock
+
+context:
+  files:
+    readme: tests/e2e-overnight/context/readme.txt
+
+tasks:
+  - id: use_context
+    exec:
+      command: "echo '{{context.readme}}'"
+      shell: true
