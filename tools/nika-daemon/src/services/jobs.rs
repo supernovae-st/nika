@@ -360,17 +360,17 @@ impl JobService {
 
     /// Get a job by ID (delegates to storage).
     pub async fn get_job(&self, id: &str) -> DaemonResult<Option<Job>> {
-        self.storage.get_job(id).await
+        Ok(self.storage.get_job(id).await?)
     }
 
     /// List jobs, optionally filtered by state.
     pub async fn list_jobs(&self, state: Option<JobState>) -> DaemonResult<Vec<Job>> {
-        self.storage.list_jobs(state).await
+        Ok(self.storage.list_jobs(state).await?)
     }
 
     /// Get job history.
     pub async fn get_history(&self, job_id: &str) -> DaemonResult<Vec<JobHistoryEvent>> {
-        self.storage.get_history(job_id).await
+        Ok(self.storage.get_history(job_id).await?)
     }
 
     /// Get count of running jobs.
@@ -380,7 +380,7 @@ impl JobService {
 
     /// List recent jobs for a specific workflow file.
     pub async fn list_jobs_for_workflow(&self, workflow: &str) -> DaemonResult<Vec<Job>> {
-        self.storage.list_jobs_for_workflow(workflow).await
+        Ok(self.storage.list_jobs_for_workflow(workflow).await?)
     }
 
     /// Try to start the next pending job from the queue.

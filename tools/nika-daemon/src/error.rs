@@ -42,6 +42,12 @@ pub enum DaemonError {
 /// Result type alias for daemon operations.
 pub type DaemonResult<T> = std::result::Result<T, DaemonError>;
 
+impl From<nika_storage::StorageError> for DaemonError {
+    fn from(e: nika_storage::StorageError) -> Self {
+        DaemonError::Lifecycle(e.to_string())
+    }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // TESTS
 // ═══════════════════════════════════════════════════════════════════════════
