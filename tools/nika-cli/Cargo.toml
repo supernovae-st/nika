@@ -50,6 +50,9 @@ toml = { workspace = true }
 # Progress
 indicatif = { workspace = true }
 
+# Secrets
+secrecy = { workspace = true }
+
 # Utilities
 colored = { workspace = true }
 chrono = { workspace = true }

@@ -445,7 +445,7 @@ enum Commands {
         #[arg(short, long, default_value = "plan")]
         permission: String,
 
-        /// Migrate API keys from environment variables to system keychain
+        /// Migrate API keys from environment variables to encrypted vault
         #[arg(long)]
         migrate_keys: bool,
 
@@ -2151,7 +2151,7 @@ async fn run_workflow(
     no_live: bool,
     permission: &str,
 ) -> Result<(), NikaError> {
-    // Bootstrap secrets: env vars → daemon IPC → OS keychain.
+    // Bootstrap secrets: env vars → daemon IPC → vault.
     // Ensures keys stored via `nika provider set` are available without restarting the shell.
     let _ = nika::secrets::load_from_daemon_or_fallback().await;
 

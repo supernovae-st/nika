@@ -17,11 +17,11 @@ impl WizardView {
                     self.input_provider = None;
                 }
                 KeyCode::Enter => {
-                    // Would store API key here (via keyring)
+                    // Would store API key here (via vault)
                     // For now, just exit input mode
                     if let Some(idx) = self.input_provider {
                         if idx < self.providers.len() {
-                            // Mark as configured (in real impl, store to keychain)
+                            // Mark as configured (in real impl, store to vault)
                             self.providers[idx].configured = true;
                             self.state
                                 .provider_keys

@@ -86,7 +86,7 @@ pub fn run_machine_setup() -> Vec<SetupResult> {
         }
     }
 
-    // 5. Detect env var API keys and suggest keychain migration
+    // 5. Detect env var API keys and suggest vault migration
     let has_keys = detect_env_api_keys();
 
     // If no API key is configured at all, nudge the user toward setup
@@ -102,7 +102,7 @@ pub fn run_machine_setup() -> Vec<SetupResult> {
     results
 }
 
-/// Detect API keys in environment variables and hint about keychain migration.
+/// Detect API keys in environment variables and hint about vault migration.
 ///
 /// Returns `true` if at least one provider key was found.
 fn detect_env_api_keys() -> bool {
@@ -136,7 +136,7 @@ fn detect_env_api_keys() -> bool {
         println!(
             "    {} {}",
             "\u{2192}".dimmed(),
-            "nika init --migrate-keys to move them to the secure keychain".dimmed()
+            "nika init --migrate-keys to move them to the encrypted vault".dimmed()
         );
         return true;
     }
@@ -565,7 +565,7 @@ fn install_rule(
 
 /// Install daemon as system service and start it.
 /// LaunchAgent on macOS, systemd user service on Linux.
-/// Daemon provides: keychain secrets, LLM cache, job scheduling, file watch.
+/// Daemon provides: vault secrets, LLM cache, job scheduling, file watch.
 #[cfg(unix)]
 fn setup_daemon() -> SetupResult {
     // Install the service file (plist or systemd unit)
@@ -590,7 +590,7 @@ fn setup_daemon() -> SetupResult {
         name: "Daemon service".into(),
         success: true,
         message: if started {
-            "installed + started (keychain, cache, jobs)".into()
+            "installed + started (vault, cache, jobs)".into()
         } else {
             "installed (start manually: nika daemon start)".into()
         },

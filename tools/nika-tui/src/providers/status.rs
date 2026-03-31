@@ -7,8 +7,8 @@ use std::time::Instant;
 /// Source of an API key/secret
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KeySource {
-    /// Retrieved from OS keychain directly
-    OsKeychain,
+    /// Retrieved from encrypted vault
+    Vault,
     /// Retrieved from environment variable
     EnvVar,
     /// No key configured
@@ -19,7 +19,7 @@ impl KeySource {
     /// Get display label for the key source
     pub fn label(&self) -> &'static str {
         match self {
-            KeySource::OsKeychain => "keychain",
+            KeySource::Vault => "vault",
             KeySource::EnvVar => "env",
             KeySource::NotConfigured => "none",
         }
@@ -28,15 +28,15 @@ impl KeySource {
     /// Get icon for the key source
     pub fn icon(&self) -> &'static str {
         match self {
-            KeySource::OsKeychain => "🔑",
+            KeySource::Vault => "🔑",
             KeySource::EnvVar => "📦",
             KeySource::NotConfigured => "❌",
         }
     }
 
-    /// Is the key secure (keychain-based)?
+    /// Is the key secure (vault-based)?
     pub fn is_secure(&self) -> bool {
-        matches!(self, KeySource::OsKeychain)
+        matches!(self, KeySource::Vault)
     }
 }
 
@@ -169,7 +169,7 @@ mod tests {
 
     #[test]
     fn test_key_source_secure() {
-        assert!(KeySource::OsKeychain.is_secure());
+        assert!(KeySource::Vault.is_secure());
         assert!(!KeySource::EnvVar.is_secure());
         assert!(!KeySource::NotConfigured.is_secure());
     }

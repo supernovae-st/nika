@@ -46,7 +46,7 @@ pub enum DaemonRequest {
     /// List all provider secret status.
     ListSecrets,
 
-    /// Store a secret (API key) for a provider in the system keychain.
+    /// Store a secret (API key) for a provider in the encrypted vault.
     SetSecret {
         provider: String,
         key: String,
@@ -54,7 +54,7 @@ pub enum DaemonRequest {
         auth_token: Option<String>,
     },
 
-    /// Delete a secret (API key) for a provider from the system keychain.
+    /// Delete a secret (API key) for a provider from the encrypted vault.
     DeleteSecret {
         provider: String,
         /// Auth token for write operations.
@@ -383,8 +383,8 @@ pub struct ProviderSecretInfo {
 pub enum SecretSource {
     /// From an environment variable.
     Env,
-    /// From the system keychain.
-    Keychain,
+    /// From the encrypted vault.
+    Vault,
     /// Not found.
     NotFound,
 }
@@ -932,7 +932,7 @@ mod tests {
     fn provider_secret_info_roundtrip() {
         let info = ProviderSecretInfo {
             provider: "anthropic".into(),
-            source: SecretSource::Keychain,
+            source: SecretSource::Vault,
         };
         let json = serde_json::to_string(&info).unwrap();
         let decoded: ProviderSecretInfo = serde_json::from_str(&json).unwrap();
@@ -1063,7 +1063,7 @@ mod tests {
     fn secret_source_all_variants_roundtrip() {
         for source in [
             SecretSource::Env,
-            SecretSource::Keychain,
+            SecretSource::Vault,
             SecretSource::NotFound,
         ] {
             let json = serde_json::to_string(&source).unwrap();

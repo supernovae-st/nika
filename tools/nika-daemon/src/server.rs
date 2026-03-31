@@ -448,7 +448,7 @@ async fn route_request(request: DaemonRequest, state: &Arc<ServerState>) -> Daem
             if !validate_auth_token(&auth_token, &state.auth_token) {
                 return DaemonResponse::AuthRequired;
             }
-            // Validate provider name to prevent arbitrary keychain entries
+            // Validate provider name to prevent arbitrary vault entries
             if !is_known_provider(&provider) {
                 return DaemonResponse::Error {
                     code: "SECRET-004".into(),
@@ -459,7 +459,7 @@ async fn route_request(request: DaemonRequest, state: &Arc<ServerState>) -> Daem
                 Ok(true) => DaemonResponse::SecretStored,
                 Ok(false) => DaemonResponse::Error {
                     code: "SECRET-001".into(),
-                    message: "keychain not available (feature disabled)".into(),
+                    message: "vault not available".into(),
                 },
                 Err(e) => DaemonResponse::Error {
                     code: "SECRET-002".into(),
@@ -758,14 +758,14 @@ async fn route_request(request: DaemonRequest, state: &Arc<ServerState>) -> Daem
             for p in KNOWN_PROVIDERS {
                 let has_key = state.secret_service.has_secret(p.id).await;
                 let source = if has_key {
-                    // Check env first, then keychain
+                    // Check env first, then vault
                     if std::env::var(p.env_var)
                         .map(|v| !v.is_empty())
                         .unwrap_or(false)
                     {
                         KeySource::Env
                     } else {
-                        KeySource::Keychain
+                        KeySource::Vault
                     }
                 } else {
                     KeySource::NotFound

@@ -6,7 +6,7 @@
 //!
 //! 1. provider list returns all 13 providers (7 LLM + 6 MCP)
 //! 2. provider list shows status for each
-//! 3. provider set stores in keychain
+//! 3. provider set stores in vault
 //! 4. provider get retrieves masked
 //! 5. provider get returns error for unknown
 //! 6. provider test validates key format
@@ -18,7 +18,7 @@
 //! 12. openai key prefix validation (sk-)
 //! 13. mistral key prefix validation
 //! 14. provider env var fallback works
-//! 15. provider priority: keychain > env
+//! 15. provider priority: env > daemon > vault
 
 use super::common::{run_nika, KNOWN_PROVIDERS, LLM_PROVIDERS};
 
@@ -230,18 +230,19 @@ fn contract_provider_status_shows_detail() {
     );
 }
 
-/// Contract: Provider resolution priority - keychain over env var
+/// Contract: Provider resolution priority - env > daemon > vault
 #[test]
-fn contract_provider_priority_keychain_over_env() {
+fn contract_provider_priority_env_daemon_vault() {
     // This test documents the expected priority:
-    // 1. OS Keychain (opt-in via NIKA_KEYCHAIN_BOOT=1)
-    // 2. Environment variable
+    // 1. Environment variable
+    // 2. Daemon IPC
+    // 3. NikaVault encrypted store
 
     let output = run_nika(&["provider", "list"]);
     assert!(output.status.success());
 
     // The output should reflect the priority - we can't easily test this
-    // without modifying keychain state, but we document the contract
+    // without modifying vault state, but we document the contract
     let _stdout = String::from_utf8_lossy(&output.stdout);
 }
 

@@ -25,7 +25,7 @@ pub enum BootPhase {
     ConfigValidation,
     /// Phase 3: Loading memory files
     MemoryLoading,
-    /// Phase 4: Loading secrets from env vars + keychain
+    /// Phase 4: Loading secrets from env vars + vault
     SecretsLoading,
     /// Phase 5: Starting MCP servers
     McpStartup,
@@ -560,7 +560,7 @@ impl BootSequence {
         let start = Instant::now();
         let warnings = vec![];
 
-        // Load secrets: env vars → daemon IPC → error (no direct keychain)
+        // Load secrets: env vars → daemon IPC → vault → None
         let result = crate::secrets::load_from_daemon_or_fallback().await;
 
         let message = format!(

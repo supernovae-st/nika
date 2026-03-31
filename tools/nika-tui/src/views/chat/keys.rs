@@ -237,17 +237,21 @@ impl ChatView {
                     return ViewAction::DeleteNativeModel(model.clone());
                 }
                 ModalAction::SaveAndTestApiKey { provider, key } => {
-                    use nika_engine::secrets::{validate_key_format, NikaKeyring};
+                    use nika_engine::secrets::validate_key_format;
                     // Validate format first
                     if let Err(e) = validate_key_format(provider, key.as_str()) {
                         self.add_system_message(format!("❌ Invalid key format: {}", e));
                         return ViewAction::None;
                     }
-                    // Save to keyring
-                    match NikaKeyring::set(provider, key.as_str()) {
+                    // Save to vault
+                    let nika_home = dirs::home_dir()
+                        .unwrap_or_default()
+                        .join(".nika");
+                    let vault = nika_core::vault::NikaVault::new(&nika_home.join("secrets"));
+                    match vault.set(provider, key.as_str()) {
                         Ok(()) => {
                             self.add_system_message(format!(
-                                "✅ Saved {} API key to keychain",
+                                "✅ Saved {} API key to vault",
                                 provider
                             ));
                             // Trigger verification
@@ -259,17 +263,21 @@ impl ChatView {
                     }
                 }
                 ModalAction::SaveApiKey { provider, key } => {
-                    use nika_engine::secrets::{validate_key_format, NikaKeyring};
+                    use nika_engine::secrets::validate_key_format;
                     // Validate format first
                     if let Err(e) = validate_key_format(provider, key.as_str()) {
                         self.add_system_message(format!("❌ Invalid key format: {}", e));
                         return ViewAction::None;
                     }
                     // Save silently (no verification trigger)
-                    match NikaKeyring::set(provider, key.as_str()) {
+                    let nika_home = dirs::home_dir()
+                        .unwrap_or_default()
+                        .join(".nika");
+                    let vault = nika_core::vault::NikaVault::new(&nika_home.join("secrets"));
+                    match vault.set(provider, key.as_str()) {
                         Ok(()) => {
                             self.add_system_message(format!(
-                                "✅ Saved {} API key to keychain",
+                                "✅ Saved {} API key to vault",
                                 provider
                             ));
                             self.provider_modal.visible = false;

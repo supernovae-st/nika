@@ -15,8 +15,8 @@ use super::providers::ProviderCategory;
 pub enum KeySource {
     /// From an environment variable.
     Env,
-    /// From the system keychain (via daemon).
-    Keychain,
+    /// From the encrypted vault (via daemon).
+    Vault,
     /// Not found.
     NotFound,
 }
@@ -97,7 +97,7 @@ mod tests {
 
     #[test]
     fn key_source_all_variants() {
-        for source in [KeySource::Env, KeySource::Keychain, KeySource::NotFound] {
+        for source in [KeySource::Env, KeySource::Vault, KeySource::NotFound] {
             let json = serde_json::to_string(&source).unwrap();
             let back: KeySource = serde_json::from_str(&json).unwrap();
             assert_eq!(source, back);

@@ -89,6 +89,7 @@ infer = { workspace = true }
 signal-hook = { workspace = true }
 
 # Secret zeroization (API keys)
+secrecy = { workspace = true }
 zeroize = { workspace = true }
 
 # Logging
