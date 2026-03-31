@@ -176,7 +176,16 @@ pub struct Runner {
     /// CLI event stream renderer (None when quiet or TUI mode).
     /// Uses `auto_renderer()` to auto-select Live (animated) vs Classic (append-only).
     cli_renderer: Option<Box<dyn crate::display::Renderer + Send>>,
+    /// Global concurrency limiter across ALL for_each iterations.
+    ///
+    /// This is a per-Runner (per-workflow-run) semaphore. Each `nika run` creates
+    /// its own Runner with its own semaphore. For `nika serve`, cross-workflow
+    /// concurrency is managed by AppState.semaphore in the serve layer.
+    global_task_semaphore: Arc<Semaphore>,
 }
+
+/// Maximum concurrent tasks across all for_each loops in a single workflow run.
+const MAX_CONCURRENT_TASKS: usize = 64;
 
 impl Runner {
     pub fn new(workflow: AnalyzedWorkflow) -> Result<Self, NikaError> {
@@ -244,6 +253,7 @@ impl Runner {
             resolved_assets: ResolvedAssets::default(),
             trace_config: TraceConfig::default(),
             cli_renderer: None,
+            global_task_semaphore: Arc::new(Semaphore::new(MAX_CONCURRENT_TASKS)),
         })
     }
 
@@ -2336,6 +2346,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             let item = item.clone();
                             let var_name = var_name.clone();
                             let semaphore = Arc::clone(&semaphore);
+                            let global_semaphore = Arc::clone(&self.global_task_semaphore);
                             let cancel = cancel.clone();
                             let for_each_total = items.len();
                             let workflow_artifacts = workflow_artifacts.clone();
@@ -2343,7 +2354,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             let workflow_base_url = workflow_base_url.clone();
 
                             join_set.spawn(async move {
-                                // Check cancellation BEFORE acquiring semaphore
+                                // Check cancellation BEFORE acquiring semaphores
                                 if cancel.is_cancelled() {
                                     return IterationResult {
                                         store_id: task_id,
@@ -2356,7 +2367,38 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                     };
                                 }
 
-                                // Race semaphore acquisition against cancellation token
+                                // Acquire global semaphore first (cross-for_each limit)
+                                let _global_permit = tokio::select! {
+                                    biased;
+
+                                    _ = cancel.cancelled() => {
+                                        return IterationResult {
+                                            store_id: task_id,
+                                            result: TaskResult::skipped(
+                                                "Cancelled while waiting for global semaphore".to_string(),
+                                            ),
+                                            for_each_info: Some((parent_task_id, idx)),
+                                        };
+                                    }
+
+                                    permit = global_semaphore.acquire() => {
+                                        match permit {
+                                            Ok(p) => p,
+                                            Err(_) => {
+                                                return IterationResult {
+                                                    store_id: task_id,
+                                                    result: TaskResult::failed(
+                                                        "Global semaphore closed".to_string(),
+                                                        std::time::Duration::ZERO,
+                                                    ),
+                                                    for_each_info: Some((parent_task_id, idx)),
+                                                };
+                                            }
+                                        }
+                                    }
+                                };
+
+                                // Then acquire per-parent semaphore (per-for_each concurrency limit)
                                 let _permit = tokio::select! {
                                     biased;
 
