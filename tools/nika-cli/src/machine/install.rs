@@ -127,16 +127,16 @@ fn detect_env_api_keys() -> bool {
         .collect();
 
     if !found.is_empty() {
-        println!();
         println!(
-            "  {} API keys detected in env: {}",
-            "\u{1f511}".dimmed(),
-            found.join(", ").bold()
+            "    {} API keys: {}  {}",
+            StatusIcon::Ok,
+            found.join(", ").bold(),
+            "(from env)".dimmed()
         );
         println!(
-            "    {} {}",
-            "\u{2192}".dimmed(),
-            "nika init --migrate-keys to move them to the encrypted vault".dimmed()
+            "      {} encrypt at rest: {}",
+            "\u{21b3}".dimmed(),
+            "nika init --migrate-keys".cyan()
         );
         return true;
     }
