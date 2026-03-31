@@ -1,0 +1,33 @@
+cff-version: 1.2.0
+message: "If you use Nika in your research, please cite it as below."
+title: "Nika: Declarative Multi-Provider AI Workflow Orchestration"
+type: software
+authors:
+  - family-names: Mélen
+    given-names: Thibaut
+    email: thibaut@supernovae.studio
+    affiliation: SuperNovae Studio
+    orcid: ""
+repository-code: "https://github.com/supernovae-st/nika"
+url: "https://supernovae.studio"
+license: AGPL-3.0-or-later
+version: 0.55.0
+date-released: "2026-03-31"
+keywords:
+  - ai
+  - workflow-engine
+  - llm
+  - rust
+  - yaml
+  - declarative
+  - mcp
+  - structured-output
+abstract: >-
+  Nika is a declarative workflow engine for AI tasks written in Rust.
+  Workflows are expressed in versioned YAML files using five orthogonal
+  primitives: infer for LLM calls, exec for shell commands, fetch for
+  HTTP extraction, invoke for MCP tool calls, and agent for autonomous
+  multi-turn loops. Nika parses these into a typed AST, resolves a DAG
+  of task dependencies, and executes ready tasks in parallel via Tokio.
+  A 5-layer structured output defense ensures schema-validated JSON
+  across 7 cloud LLM providers and local GGUF models.

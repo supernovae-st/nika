@@ -161,6 +161,7 @@ pub fn spawn_worker(
         };
 
         info!(job_id = %id, workflow = %workflow, "worker started");
+        let job_start = std::time::Instant::now();
 
         // Mark running
         if let Err(e) = storage
@@ -207,6 +208,10 @@ pub fn spawn_worker(
                     job_id: id.clone(),
                     output: Some(truncated.to_string()),
                 });
+                crate::metrics::record_job_completed(
+                    "completed",
+                    job_start.elapsed().as_secs_f64(),
+                );
                 info!(job_id = %id, "job completed");
             }
             Err(msg) => {
@@ -218,6 +223,7 @@ pub fn spawn_worker(
                     job_id: id.clone(),
                     error: Some(truncated.to_string()),
                 });
+                crate::metrics::record_job_completed("failed", job_start.elapsed().as_secs_f64());
                 warn!(job_id = %id, error = %msg, "job failed");
             }
         }

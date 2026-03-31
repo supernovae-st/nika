@@ -18,3 +18,21 @@ pub fn build_router(state: AppState) -> Router {
         .route("/v1/events/{id}", get(crate::events::stream_events))
         .with_state(state)
 }
+
+/// Build the metrics router (separate — no auth required).
+pub fn build_metrics_router(handle: metrics_exporter_prometheus::PrometheusHandle) -> Router {
+    Router::new().route(
+        "/metrics",
+        get(move || {
+            let h = handle.clone();
+            async move {
+                let output = h.render();
+                (
+                    axum::http::StatusCode::OK,
+                    [("content-type", "text/plain; version=0.0.4")],
+                    output,
+                )
+            }
+        }),
+    )
+}

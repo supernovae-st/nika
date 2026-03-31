@@ -23,6 +23,7 @@ pub mod config;
 pub mod error;
 pub mod events;
 pub mod executor;
+pub mod metrics;
 pub mod rate_limit;
 pub mod request_id;
 pub mod routes;
@@ -86,6 +87,9 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
         event_bus: events::EventBus::default(),
     };
 
+    // Install Prometheus metrics recorder
+    let metrics_handle = metrics::install_recorder();
+
     // Per-token rate limiter (10 req/s, burst 30)
     let limiter = rate_limit::new_rate_limiter();
 
@@ -106,6 +110,11 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
             std::time::Duration::from_secs(30),
         ))
         .layer(middleware::from_fn(request_id::request_id_middleware));
+
+    // Merge /metrics endpoint (no auth required, like /health)
+    if let Some(handle) = metrics_handle {
+        app = app.merge(routes::build_metrics_router(handle));
+    }
 
     // CORS layer — only when explicitly configured (default: no CORS headers)
     if let Some(origin) = &config.cors_origin {
