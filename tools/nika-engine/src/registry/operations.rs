@@ -15,6 +15,7 @@ use std::path::PathBuf;
 use crate::registry::types::InstalledPackage;
 use crate::registry::types::{Manifest, RegistryIndex};
 use crate::serde_yaml;
+use crate::util::atomic_write;
 use crate::NikaError;
 
 // Re-export from core::paths
@@ -28,6 +29,58 @@ pub const PACKAGES_DIR_NAME: &str = "packages";
 
 /// Manifest filename within a package.
 pub const MANIFEST_FILE: &str = "manifest.yaml";
+
+/// Registry lock filename (prevents concurrent registry writes).
+const REGISTRY_LOCK_FILE: &str = "registry.lock";
+
+/// RAII guard that holds an exclusive flock on the registry lockfile.
+///
+/// Prevents two concurrent `nika pkg install` / `nika pkg uninstall`
+/// processes from corrupting `registry.yaml`.
+///
+/// On Unix, uses `nix::fcntl::Flock` (LOCK_EX|LOCK_NB).
+/// On non-Unix, holds the file open as a best-effort guard.
+pub struct RegistryLock {
+    #[cfg(unix)]
+    _flock: Option<nix::fcntl::Flock<std::fs::File>>,
+    #[cfg(not(unix))]
+    _file: Option<std::fs::File>,
+}
+
+impl RegistryLock {
+    /// Acquire an exclusive lock on the registry.
+    ///
+    /// Returns `Err` if another process already holds the lock.
+    pub fn acquire() -> Result<Self, NikaError> {
+        let lock_path = crate::core::paths::nika_home().join(REGISTRY_LOCK_FILE);
+
+        if let Some(parent) = lock_path.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+
+        let file = fs::File::create(&lock_path).map_err(|e| NikaError::ValidationError {
+            reason: format!("Failed to create registry lock: {}", e),
+        })?;
+
+        #[cfg(unix)]
+        {
+            use nix::fcntl::{Flock, FlockArg};
+            match Flock::lock(file, FlockArg::LockExclusiveNonblock) {
+                Ok(flock) => Ok(Self {
+                    _flock: Some(flock),
+                }),
+                Err(_) => Err(NikaError::ValidationError {
+                    reason: "Registry is locked by another nika process".into(),
+                }),
+            }
+        }
+
+        #[cfg(not(unix))]
+        {
+            Ok(Self { _file: Some(file) })
+        }
+    }
+}
 
 /// Get the packages directory.
 ///
@@ -166,7 +219,7 @@ pub fn save_registry(index: &RegistryIndex) -> Result<(), NikaError> {
         details: format!("Failed to serialize registry: {}", e),
     })?;
 
-    fs::write(&path, content).map_err(|e| NikaError::ValidationError {
+    atomic_write(&path, content.as_bytes()).map_err(|e| NikaError::ValidationError {
         reason: format!("Failed to write registry file '{}': {}", path.display(), e),
     })?;
 
@@ -607,6 +660,56 @@ mod tests {
 
             let result = resolve_skill_path("@test/pkg", "1.0.0", "skills/nonexistent.md");
             assert!(result.is_err());
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn test_save_registry_uses_atomic_write() {
+        with_temp_nika_home(|_| {
+            ensure_nika_home().unwrap();
+
+            let mut index = RegistryIndex::new();
+            index.insert(
+                "@test/atomic",
+                InstalledPackage::new("1.0.0", "2026-04-01T10:00:00Z", "path"),
+            );
+            save_registry(&index).unwrap();
+
+            // Verify no temp file left behind (atomic_write cleans up)
+            let path = registry_index_path().unwrap();
+            let temp_path = path.with_extension("tmp.nika");
+            assert!(!temp_path.exists(), "Temp file should not remain after atomic write");
+
+            // Verify content was written correctly
+            let loaded = load_registry().unwrap();
+            assert!(loaded.is_installed("@test/atomic"));
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn test_registry_lock_acquire_and_release() {
+        with_temp_nika_home(|_| {
+            ensure_nika_home().unwrap();
+
+            // First lock should succeed
+            let lock = RegistryLock::acquire();
+            assert!(lock.is_ok(), "First lock acquisition should succeed");
+
+            // Second lock should fail (non-blocking exclusive)
+            #[cfg(unix)]
+            {
+                let lock2 = RegistryLock::acquire();
+                assert!(lock2.is_err(), "Second lock should fail while first is held");
+            }
+
+            // Drop first lock
+            drop(lock);
+
+            // Now third lock should succeed
+            let lock3 = RegistryLock::acquire();
+            assert!(lock3.is_ok(), "Lock should succeed after previous was released");
         });
     }
 }
