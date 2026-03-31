@@ -184,6 +184,31 @@ fn uninstall_launchd() -> DaemonResult<()> {
 // LINUX SYSTEMD
 // ═══════════════════════════════════════════════════════════════════════════
 
+/// Generate the systemd unit template for the given executable path.
+///
+/// Extracted to allow testing on all platforms.
+#[cfg(any(target_os = "linux", test))]
+fn systemd_unit_template(exe: &std::path::Path) -> String {
+    format!(
+        r#"[Unit]
+Description=Nika Workflow Daemon
+After=default.target
+
+[Service]
+Type=simple
+ExecStart={exe} daemon start --foreground
+Restart=always
+RestartSec=5
+EnvironmentFile=-%h/.nika/.env
+Environment=RUST_LOG=info
+
+[Install]
+WantedBy=default.target
+"#,
+        exe = exe.display(),
+    )
+}
+
 #[cfg(target_os = "linux")]
 fn systemd_unit_path() -> PathBuf {
     dirs::home_dir()
@@ -200,23 +225,7 @@ fn install_systemd(exe: &std::path::Path) -> DaemonResult<()> {
         std::fs::create_dir_all(parent)?;
     }
 
-    let unit = format!(
-        r#"[Unit]
-Description=Nika Workflow Daemon
-After=default.target
-
-[Service]
-Type=simple
-ExecStart={exe} daemon start --foreground
-Restart=on-failure
-RestartSec=5
-Environment=RUST_LOG=info
-
-[Install]
-WantedBy=default.target
-"#,
-        exe = exe.display(),
-    );
+    let unit = systemd_unit_template(exe);
 
     std::fs::write(&unit_path, unit)?;
 
@@ -285,5 +294,27 @@ mod tests {
         let path = super::launchd_plist_path();
         assert!(path.to_string_lossy().contains("LaunchAgents"));
         assert!(path.to_string_lossy().contains("nika"));
+    }
+
+    #[test]
+    fn systemd_unit_has_restart_always_and_env_file() {
+        let exe = std::path::Path::new("/usr/local/bin/nika");
+        let unit = super::systemd_unit_template(exe);
+        assert!(
+            unit.contains("Restart=always"),
+            "must have Restart=always"
+        );
+        assert!(
+            !unit.contains("Restart=on-failure"),
+            "must NOT have Restart=on-failure"
+        );
+        assert!(
+            unit.contains("EnvironmentFile=-%h/.nika/.env"),
+            "must have EnvironmentFile for secrets"
+        );
+        assert!(
+            unit.contains("RestartSec=5"),
+            "must have RestartSec=5"
+        );
     }
 }
