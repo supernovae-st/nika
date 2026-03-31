@@ -66,6 +66,10 @@ dashmap = { workspace = true }
 [target.'cfg(unix)'.dependencies]
 nix = { workspace = true }
 
+# systemd Type=notify readiness (Linux only)
+[target.'cfg(target_os = "linux")'.dependencies]
+sd-notify = { workspace = true }
+
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "test-util"] }
 tempfile = { workspace = true }
