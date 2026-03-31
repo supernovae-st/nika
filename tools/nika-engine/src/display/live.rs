@@ -1547,6 +1547,34 @@ impl LiveRenderer {
                     description
                 ));
             }
+            // ForEachItem events — logged at debug level, tracked in progress bars
+            EventKind::ForEachItemStarted { .. }
+            | EventKind::ForEachItemCompleted { .. }
+            | EventKind::ForEachItemFailed { .. } => {}
+            // TaskCancelled — show distinct from TaskFailed
+            EventKind::TaskCancelled { task_id, reason } => {
+                self.log(&format!(
+                    "{} {} {}: cancelled: {}",
+                    self.ts(),
+                    "⊘".dimmed(),
+                    task_id,
+                    reason
+                ));
+            }
+            // FallbackChainExhausted
+            EventKind::FallbackChainExhausted {
+                task_id,
+                last_error,
+                ..
+            } => {
+                self.log(&format!(
+                    "{} {} {}: all providers exhausted: {}",
+                    self.ts(),
+                    "✗".red().bold(),
+                    task_id,
+                    last_error
+                ));
+            }
         }
     }
 

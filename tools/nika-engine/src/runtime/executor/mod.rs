@@ -544,6 +544,12 @@ impl TaskExecutor {
             details.join("; ")
         );
 
+        self.event_log.emit(EventKind::FallbackChainExhausted {
+            task_id: Arc::clone(task_id),
+            providers_tried: fallback_chain.clone(),
+            last_error: last_error.clone(),
+        });
+
         Err(NikaError::FallbackChainExhausted {
             providers: fallback_chain.join(", "),
             last_error,

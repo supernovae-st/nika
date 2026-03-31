@@ -986,6 +986,51 @@ pub enum EventKind {
         /// Human-readable description of the finding.
         description: String,
     },
+
+    // ═══════════════════════════════════════════
+    // FOR_EACH ITEM EVENTS
+    // ═══════════════════════════════════════════
+    /// A single for_each iteration started.
+    ForEachItemStarted {
+        task_id: Arc<str>,
+        /// 0-based index of this iteration
+        index: usize,
+        /// Total items in the for_each array
+        total: usize,
+    },
+    /// A single for_each iteration completed successfully.
+    ForEachItemCompleted {
+        task_id: Arc<str>,
+        index: usize,
+        duration_ms: u64,
+    },
+    /// A single for_each iteration failed.
+    ForEachItemFailed {
+        task_id: Arc<str>,
+        index: usize,
+        error: String,
+    },
+
+    // ═══════════════════════════════════════════
+    // CANCELLATION
+    // ═══════════════════════════════════════════
+    /// Task was cancelled (not failed) due to workflow abort or fail_fast.
+    TaskCancelled {
+        task_id: Arc<str>,
+        reason: String,
+    },
+
+    // ═══════════════════════════════════════════
+    // FALLBACK
+    // ═══════════════════════════════════════════
+    /// All providers in the fallback chain failed.
+    FallbackChainExhausted {
+        task_id: Arc<str>,
+        /// Providers that were tried
+        providers_tried: Vec<String>,
+        /// Error from the last provider
+        last_error: String,
+    },
 }
 
 impl EventKind {
@@ -1043,7 +1088,12 @@ impl EventKind {
             | Self::BuiltinToolInvoked { task_id, .. }
             | Self::StreamingDelta { task_id, .. }
             | Self::ExtractApplied { task_id, .. }
-            | Self::SecurityScanFinding { task_id, .. } => Some(task_id),
+            | Self::SecurityScanFinding { task_id, .. }
+            | Self::ForEachItemStarted { task_id, .. }
+            | Self::ForEachItemCompleted { task_id, .. }
+            | Self::ForEachItemFailed { task_id, .. }
+            | Self::TaskCancelled { task_id, .. }
+            | Self::FallbackChainExhausted { task_id, .. } => Some(task_id),
             // AgentSpawned uses parent_task_id as the primary task reference
             Self::AgentSpawned { parent_task_id, .. } => Some(parent_task_id),
             // Log and Custom may optionally have task_id
