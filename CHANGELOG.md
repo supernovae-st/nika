@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║  NIKA v0.54.0 — SECURITY HARDENING + AUDIT FIXES                           ║
+║  10 bug fixes | 5 new events | 91 E2E workflows | 9,057 tests             ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+```
+
 ## [0.54.0] — 2026-03-31
 
 ### Security
@@ -18,12 +25,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Sprint 2 P1** — Thread PolicyEnforcer through agent loop, parametric effective_max_tokens (replace 16x hardcoded 8192), 50 MB MCP resource size limit.
 
 ### Added
+- **5 new telemetry events** — `ForEachItemStarted`/`Completed`/`Failed` (per-iteration tracking), `TaskCancelled` (distinct from `TaskFailed`), `FallbackChainExhausted` (emitted when all providers in chain fail).
+- **for_each item count limit** — `MAX_FOR_EACH_ITEMS = 10,000` prevents OOM from unbounded arrays.
 - **91 overnight E2E test workflows** — Across 17 categories (infer, exec, fetch, invoke, structured, for_each, agent, transforms, security, vision, artifacts, orchestrate, retry, error-handling, multi-provider, pipelines, edge-cases).
 - **39 instruction→workflow training pairs** — For fine-tuning dataset.
 - **Artifact path collision detection** — AST analyzer detects duplicate artifact paths at analysis time, respects `append`/`unique` modes.
 - **JSON schema fields** — `goal` + `orchestrate` added to JSON schema.
 
 ### Fixed
+- **String "null" coercion removed** — `coerce_json_types()` no longer converts `"null"` string to `Value::Null`, preserving data integrity.
+- **Transform unwrap_or_default** — Replace silent `unwrap_or_default()` with explicit `expect()` in `FirstN` and `ToJson` transforms.
+- **timeout: 0 rejection** — Promoted from warning to analysis error — `timeout: 0` causes immediate timeout and is never intentional.
 - **for_each fail_fast=false** — Include cancelled items in error summary.
 - **NIKA-028 for semaphore failures** — Distinct error code instead of reusing NIKA-026.
 - **Cascade contract** — Address code review findings for error message clarity and cleanup logging.
