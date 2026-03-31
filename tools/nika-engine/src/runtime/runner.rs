@@ -2632,14 +2632,13 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     let skipped_count =
                         results.iter().filter(|(_, r)| r.is_skipped()).count();
                     // Include skipped/cancelled count in error summary
-                    let error_msg = if skipped_count > 0 {
-                        format!(
-                            "{}; {} item(s) cancelled",
-                            errors.join("; "),
-                            skipped_count
-                        )
-                    } else {
-                        errors.join("; ")
+                    let error_msg = match (errors.is_empty(), skipped_count) {
+                        (true, 0) => "for_each: unknown failure".to_string(),
+                        (true, n) => format!("{} item(s) cancelled", n),
+                        (false, 0) => errors.join("; "),
+                        (false, n) => {
+                            format!("{}; {} item(s) cancelled", errors.join("; "), n)
+                        }
                     };
                     // Preserve partial results in output even on failure
                     let mut result = TaskResult::failed(error_msg, total_duration)

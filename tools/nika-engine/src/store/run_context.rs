@@ -303,6 +303,12 @@ impl RunContext {
     ///
     /// Returns None if the task doesn't exist, Some(true) if succeeded, Some(false) if failed.
     /// Avoids O(T*D) TaskResult cloning in get_ready_tasks() hot path.
+    ///
+    /// CONTRACT: DependencyFailed results MUST return Some(false), not None.
+    /// This enables single-pass cascade propagation in get_ready_tasks() —
+    /// when task A fails and B depends on A, B is marked DependencyFailed
+    /// and stored in the same retain pass, so C (which depends on B) can
+    /// see B's result immediately without a second loop iteration.
     pub fn is_completed_successfully(&self, task_id: &str) -> Option<bool> {
         self.results.get(task_id).map(|r| r.value().is_success())
     }
