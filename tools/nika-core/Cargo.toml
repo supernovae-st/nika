@@ -24,8 +24,13 @@ smallvec = { workspace = true }
 xxhash-rust = { workspace = true }
 chrono = { workspace = true }
 regex = { workspace = true }
+orion = { workspace = true }
+whoami = { workspace = true }
+secrecy = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }
 insta = { workspace = true }
 proptest = { workspace = true }
+tempfile = { workspace = true }
+serial_test = { workspace = true }

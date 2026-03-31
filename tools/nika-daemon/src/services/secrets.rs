@@ -1,18 +1,16 @@
-//! Secrets service — env vars + optional keyring access.
+//! Secrets service — env vars + NikaVault encrypted store.
 //!
 //! The daemon's secrets service is the centralized provider of API keys.
 //! Resolution order:
 //! 1. Environment variable (zero overhead)
-//! 2. System keychain via keyring crate (if `keychain` feature enabled)
+//! 2. NikaVault encrypted file store (~/.nika/secrets/vault.enc)
 //!
-//! Keyring access is wrapped in `spawn_blocking` because the keyring crate
-//! is synchronous and not Send/Sync (research finding: must not call from async).
+//! The keychain feature is still compiled but superseded by NikaVault.
 
 use crate::protocol::{ProviderSecretInfo, SecretSource};
-use tracing::trace;
-
-#[cfg(feature = "keychain")]
-use tracing::debug;
+use nika_core::vault::NikaVault;
+use secrecy::ExposeSecret;
+use tracing::{debug, trace};
 
 /// Known LLM providers and their environment variable names.
 pub const PROVIDERS: &[(&str, &str)] = &[
@@ -26,33 +24,44 @@ pub const PROVIDERS: &[(&str, &str)] = &[
 ];
 
 /// The secrets service.
-#[derive(Default)]
 pub struct SecretService {
-    // Future: secret rotation, caching, etc.
+    vault: NikaVault,
+}
+
+impl Default for SecretService {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl SecretService {
-    /// Create a new secrets service.
+    /// Create a new secrets service with vault at `~/.nika/secrets/`.
     pub fn new() -> Self {
-        Self::default()
+        let secrets_dir = crate::daemon_dir().join("secrets");
+        Self {
+            vault: NikaVault::new(&secrets_dir),
+        }
     }
 
     /// Get a secret for a provider.
     ///
-    /// Checks env var first, then keychain (if feature enabled).
+    /// Resolution: env var → NikaVault → None
     pub async fn get_secret(&self, provider: &str) -> Option<String> {
-        // 1. Check env var
+        // 1. Check env var (zero overhead)
         if let Some(value) = get_from_env(provider) {
             trace!("{}: found in env", provider);
             return Some(value);
         }
 
-        // 2. Try keychain
-        #[cfg(feature = "keychain")]
-        {
-            if let Some(value) = get_from_keychain(provider).await {
-                debug!("{}: found in keychain", provider);
-                return Some(value);
+        // 2. Try encrypted vault
+        match self.vault.get(provider) {
+            Ok(Some(secret)) => {
+                debug!("{}: found in vault", provider);
+                return Some(secret.expose_secret().to_string());
+            }
+            Ok(None) => {}
+            Err(e) => {
+                debug!("{}: vault read error: {}", provider, e);
             }
         }
 
@@ -64,77 +73,32 @@ impl SecretService {
         self.get_secret(provider).await.is_some()
     }
 
-    /// Store a secret for a provider in the system keychain.
-    ///
-    /// Returns Ok(true) if stored, Ok(false) if keychain feature is disabled.
+    /// Store a secret for a provider in the encrypted vault.
     pub async fn set_secret(&self, provider: &str, key: &str) -> Result<bool, String> {
-        #[cfg(feature = "keychain")]
-        {
-            let provider = provider.to_string();
-            let key = key.to_string();
-            tokio::task::spawn_blocking(move || {
-                let entry = keyring::Entry::new("nika", &provider)
-                    .map_err(|e| format!("keyring access error: {e}"))?;
-                entry
-                    .set_password(&key)
-                    .map_err(|e| format!("keyring store error: {e}"))?;
-                Ok(true)
-            })
-            .await
-            .map_err(|e| format!("spawn_blocking error: {e}"))?
-        }
-        #[cfg(not(feature = "keychain"))]
-        {
-            let _ = (provider, key);
-            Ok(false)
-        }
+        self.vault
+            .set(provider, key)
+            .map_err(|e| format!("vault store error: {e}"))?;
+        Ok(true)
     }
 
-    /// Delete a secret for a provider from the system keychain.
-    ///
-    /// Returns Ok(true) if deleted, Ok(false) if keychain feature disabled or not found.
+    /// Delete a secret for a provider from the encrypted vault.
     pub async fn delete_secret(&self, provider: &str) -> Result<bool, String> {
-        #[cfg(feature = "keychain")]
-        {
-            let provider = provider.to_string();
-            tokio::task::spawn_blocking(move || {
-                let entry = keyring::Entry::new("nika", &provider)
-                    .map_err(|e| format!("keyring access error: {e}"))?;
-                match entry.delete_credential() {
-                    Ok(()) => Ok(true),
-                    Err(keyring::Error::NoEntry) => Ok(false),
-                    Err(e) => Err(format!("keyring delete error: {e}")),
-                }
-            })
-            .await
-            .map_err(|e| format!("spawn_blocking error: {e}"))?
-        }
-        #[cfg(not(feature = "keychain"))]
-        {
-            let _ = provider;
-            Ok(false)
-        }
+        self.vault
+            .delete(provider)
+            .map_err(|e| format!("vault delete error: {e}"))
     }
 
     /// List all provider secret status.
     pub async fn list_secrets(&self) -> Vec<ProviderSecretInfo> {
+        let vault_providers: Vec<String> = self.vault.list().unwrap_or_default();
         let mut result = Vec::with_capacity(PROVIDERS.len());
         for &(provider, _) in PROVIDERS {
             let source = if get_from_env(provider).is_some() {
                 SecretSource::Env
+            } else if vault_providers.iter().any(|p| p == provider) {
+                SecretSource::Keychain // Reuse Keychain variant for vault
             } else {
-                #[cfg(feature = "keychain")]
-                {
-                    if get_from_keychain(provider).await.is_some() {
-                        SecretSource::Keychain
-                    } else {
-                        SecretSource::NotFound
-                    }
-                }
-                #[cfg(not(feature = "keychain"))]
-                {
-                    SecretSource::NotFound
-                }
+                SecretSource::NotFound
             };
             result.push(ProviderSecretInfo {
                 provider: provider.to_string(),
@@ -148,22 +112,6 @@ impl SecretService {
 fn get_from_env(provider: &str) -> Option<String> {
     let env_var = provider_env_var(provider)?;
     std::env::var(env_var).ok().filter(|v| !v.is_empty())
-}
-
-/// Get a secret from the system keychain via spawn_blocking.
-///
-/// The keyring crate is synchronous and not Send/Sync, so we MUST
-/// run it on a dedicated blocking thread to avoid blocking the async runtime.
-#[cfg(feature = "keychain")]
-async fn get_from_keychain(provider: &str) -> Option<String> {
-    let provider = provider.to_string();
-    tokio::task::spawn_blocking(move || {
-        let entry = keyring::Entry::new("nika", &provider).ok()?;
-        entry.get_password().ok()
-    })
-    .await
-    .ok()
-    .flatten()
 }
 
 fn provider_env_var(provider: &str) -> Option<&'static str> {
@@ -181,6 +129,15 @@ fn provider_env_var(provider: &str) -> Option<&'static str> {
 mod tests {
     use super::*;
     use serial_test::serial;
+
+    /// Create a SecretService with vault pointing at a tempdir.
+    fn make_test_service() -> (tempfile::TempDir, SecretService) {
+        let dir = tempfile::TempDir::new().unwrap();
+        let svc = SecretService {
+            vault: NikaVault::new(dir.path()),
+        };
+        (dir, svc)
+    }
 
     #[test]
     fn provider_env_var_lookup() {
@@ -267,32 +224,38 @@ mod tests {
     // ── set_secret / delete_secret tests ─────────────────────────────
 
     #[tokio::test]
-    async fn set_secret_without_keychain_feature_returns_false() {
-        // Without keychain feature, set_secret returns Ok(false)
-        let svc = SecretService::new();
+    #[serial]
+    async fn set_secret_via_vault() {
+        std::env::set_var("NIKA_VAULT_PASSPHRASE", "test-daemon");
+        let (_dir, svc) = make_test_service();
         let result = svc.set_secret("anthropic", "sk-test").await;
         assert!(
             result.is_ok(),
-            "set_secret should return Ok(false) without keychain, got: {result:?}"
+            "set_secret should succeed via vault, got: {result:?}"
         );
-        assert!(
-            !result.unwrap(),
-            "should return false without keychain feature"
-        );
+        assert!(result.unwrap(), "should return true");
+        // Verify get returns it (clear env to force vault lookup)
+        let orig = std::env::var("ANTHROPIC_API_KEY").ok();
+        unsafe { std::env::remove_var("ANTHROPIC_API_KEY") };
+        let secret = svc.get_secret("anthropic").await;
+        assert_eq!(secret, Some("sk-test".to_string()));
+        if let Some(v) = orig {
+            std::env::set_var("ANTHROPIC_API_KEY", v);
+        }
     }
 
     #[tokio::test]
-    async fn delete_secret_without_keychain_feature_returns_false() {
-        let svc = SecretService::new();
+    #[serial]
+    async fn delete_secret_via_vault() {
+        std::env::set_var("NIKA_VAULT_PASSPHRASE", "test-daemon");
+        let (_dir, svc) = make_test_service();
+        svc.set_secret("anthropic", "sk-test").await.unwrap();
         let result = svc.delete_secret("anthropic").await;
         assert!(
             result.is_ok(),
-            "delete_secret should return Ok(false) without keychain, got: {result:?}"
+            "delete_secret should succeed via vault, got: {result:?}"
         );
-        assert!(
-            !result.unwrap(),
-            "should return false without keychain feature"
-        );
+        assert!(result.unwrap(), "should return true when deleted");
     }
 
     #[test]

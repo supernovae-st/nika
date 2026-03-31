@@ -15,7 +15,7 @@ default = []
 keychain = ["dep:keyring"]
 
 [dependencies]
-# Internal (lightweight — no nika-engine dependency)
+# Internal (lightweight — no nika-engine dependency to avoid circular deps)
 nika-core = { workspace = true }
 
 # Keychain (optional — behind keychain feature)
@@ -27,6 +27,9 @@ tokio = { workspace = true, features = ["net", "signal", "process", "fs", "io-ut
 # Serialization
 serde = { workspace = true }
 serde_json = { workspace = true }
+
+# Secrets
+secrecy = { workspace = true }
 
 # Errors
 thiserror = { workspace = true }
