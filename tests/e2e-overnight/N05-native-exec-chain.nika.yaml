@@ -1,0 +1,19 @@
+schema: "nika/workflow@0.12"
+workflow: n05-native-exec-chain
+description: "Native: exec output feeds native infer"
+provider: native
+model: llama3.2:1b
+
+tasks:
+  - id: system_info
+    exec:
+      command: "uname -s && nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo unknown"
+      shell: true
+  - id: analyze
+    depends_on: [system_info]
+    with:
+      info: $system_info
+    infer:
+      prompt: "Given this system info: {{with.info}}, write one sentence about this machine"
+      max_tokens: 80
+      temperature: 0.1

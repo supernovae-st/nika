@@ -1,0 +1,18 @@
+schema: "nika/workflow@0.12"
+workflow: t02-structured-retry
+provider: xai
+model: grok-3-fast
+tasks:
+  - id: extract
+    infer: "Tell me a short joke"
+    structured:
+      schema:
+        type: object
+        properties:
+          setup: { type: string, minLength: 5 }
+          punchline: { type: string, minLength: 5 }
+          funny_rating: { type: integer, minimum: 1, maximum: 10 }
+        required: [setup, punchline, funny_rating]
+        additionalProperties: false
+      enable_repair: true
+      max_retries: 3

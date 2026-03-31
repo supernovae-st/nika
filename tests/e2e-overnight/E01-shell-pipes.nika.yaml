@@ -1,0 +1,10 @@
+schema: "nika/workflow@0.12"
+workflow: e01-shell-pipes
+description: "Exec with shell pipes"
+provider: mock
+
+tasks:
+  - id: pipe_test
+    exec:
+      command: "echo 'hello world' | wc -w"
+      shell: true

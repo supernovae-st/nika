@@ -1,0 +1,31 @@
+schema: "nika/workflow@0.12"
+workflow: a02-nested-structured
+description: "Structured output: nested 3 levels"
+provider: xai
+model: grok-3-fast
+
+tasks:
+  - id: extract
+    infer: "Describe the company Apple — its CEO, the CEO's role start year, and headquarters city and country"
+    structured:
+      schema:
+        type: object
+        properties:
+          company:
+            type: object
+            properties:
+              name: { type: string }
+              ceo:
+                type: object
+                properties:
+                  name: { type: string }
+                  role_since: { type: integer }
+                required: [name, role_since]
+              headquarters:
+                type: object
+                properties:
+                  city: { type: string }
+                  country: { type: string }
+                required: [city, country]
+            required: [name, ceo, headquarters]
+        required: [company]

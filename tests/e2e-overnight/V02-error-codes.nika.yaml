@@ -1,0 +1,9 @@
+schema: "nika/workflow@0.12"
+workflow: v02-error-codes
+description: "This workflow tests that timeout error produces correct NIKA code — MUST FAIL"
+provider: mock
+tasks:
+  - id: timeout_test
+    exec:
+      command: "sleep 5"
+      timeout: 1

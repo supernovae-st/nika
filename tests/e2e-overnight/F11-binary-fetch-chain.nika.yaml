@@ -1,0 +1,33 @@
+schema: "nika/workflow@0.12"
+workflow: f11-binary-fetch-chain
+description: "Media: fetch binary PNG → CAS → dimensions + color"
+provider: mock
+
+tasks:
+  - id: fetch_image
+    fetch:
+      url: "https://httpbin.org/image/png"
+      response: binary
+      timeout: 20
+    retry:
+      max_attempts: 3
+      delay_ms: 1000
+      backoff: 2.0
+
+  - id: dimensions
+    depends_on: [fetch_image]
+    with:
+      hash: $fetch_image.hash
+    invoke:
+      tool: "nika:dimensions"
+      params:
+        hash: "{{with.hash}}"
+
+  - id: color
+    depends_on: [fetch_image]
+    with:
+      hash: $fetch_image.hash
+    invoke:
+      tool: "nika:dominant_color"
+      params:
+        hash: "{{with.hash}}"

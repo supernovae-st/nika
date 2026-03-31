@@ -1,0 +1,10 @@
+schema: "nika/workflow@0.12"
+workflow: g05-ipv6-ssrf
+description: "SECURITY: IPv6 unspecified SSRF — MUST FAIL"
+provider: mock
+
+tasks:
+  - id: ipv6_ssrf
+    fetch:
+      url: "http://[::]:8080/admin"
+      timeout: 5

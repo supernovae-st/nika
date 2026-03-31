@@ -1,0 +1,16 @@
+schema: "nika/workflow@0.12"
+workflow: e02-env-cwd
+description: "Exec with env vars and cwd"
+provider: mock
+
+tasks:
+  - id: env_test
+    exec:
+      command: "echo $MY_VAR"
+      shell: true
+      env:
+        MY_VAR: "nika_test_value"
+  - id: cwd_test
+    exec:
+      command: "pwd"
+      cwd: "./tests/e2e-overnight/fixtures"

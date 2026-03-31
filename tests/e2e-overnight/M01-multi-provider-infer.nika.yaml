@@ -1,0 +1,29 @@
+schema: "nika/workflow@0.12"
+workflow: m01-multi-provider-infer
+description: "Multi-provider parity: same prompt on 3 cloud providers"
+
+tasks:
+  - id: openai_response
+    provider: openai
+    model: gpt-4o-mini
+    infer: "In exactly one sentence, explain what a workflow engine does"
+
+  - id: xai_response
+    provider: xai
+    model: grok-3-fast
+    infer: "In exactly one sentence, explain what a workflow engine does"
+
+  - id: gemini_response
+    provider: gemini
+    model: gemini-2.0-flash
+    infer: "In exactly one sentence, explain what a workflow engine does"
+
+  - id: compare
+    depends_on: [openai_response, xai_response, gemini_response]
+    with:
+      openai: $openai_response
+      xai: $xai_response
+      gemini: $gemini_response
+    exec:
+      command: "echo 'OpenAI: {{with.openai | trim | length}} chars | xAI: {{with.xai | trim | length}} chars | Gemini: {{with.gemini | trim | length}} chars'"
+      shell: true

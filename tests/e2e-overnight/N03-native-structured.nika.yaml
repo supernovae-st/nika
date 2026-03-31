@@ -1,0 +1,20 @@
+schema: "nika/workflow@0.12"
+workflow: n03-native-structured
+description: "Native: structured output with mistral"
+provider: native
+model: mistral:7b
+
+tasks:
+  - id: extract
+    infer:
+      prompt: "Tell me about Paris — the city name, country, and a famous landmark"
+      temperature: 0
+    structured:
+      schema:
+        type: object
+        properties:
+          city: { type: string }
+          country: { type: string }
+          landmark: { type: string }
+        required: [city, country, landmark]
+      max_retries: 3

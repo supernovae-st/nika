@@ -1,0 +1,34 @@
+schema: "nika/workflow@0.12"
+workflow: h02-api-analysis
+description: "Real-world: fetch JSON API, structured analysis, artifact"
+provider: xai
+model: grok-3-fast
+
+artifacts:
+  dir: ./tests/e2e-overnight/output
+
+tasks:
+  - id: fetch_posts
+    fetch:
+      url: "https://jsonplaceholder.typicode.com/posts?_limit=5"
+      extract: jsonpath
+      selector: "$[*].title"
+      timeout: 15
+
+  - id: analyze
+    depends_on: [fetch_posts]
+    with:
+      titles: $fetch_posts
+    infer: "Analyze these blog post titles and identify common themes: {{with.titles}}"
+    structured:
+      schema:
+        type: object
+        properties:
+          themes:
+            type: array
+            items: { type: string }
+          count: { type: integer }
+        required: [themes, count]
+    artifact:
+      path: analysis.json
+      format: json

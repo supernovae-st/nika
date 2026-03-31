@@ -1,0 +1,43 @@
+schema: "nika/workflow@0.12"
+workflow: a10-parity-test
+description: "Structured output parity: same schema on 3 providers"
+
+tasks:
+  - id: openai_extract
+    provider: openai
+    model: gpt-4o-mini
+    infer: "Name one European capital city, its country, and approximate population"
+    structured:
+      schema:
+        type: object
+        properties:
+          city: { type: string }
+          country: { type: string }
+          population: { type: integer }
+        required: [city, country, population]
+
+  - id: xai_extract
+    provider: xai
+    model: grok-3-fast
+    infer: "Name one European capital city, its country, and approximate population"
+    structured:
+      schema:
+        type: object
+        properties:
+          city: { type: string }
+          country: { type: string }
+          population: { type: integer }
+        required: [city, country, population]
+
+  - id: gemini_extract
+    provider: gemini
+    model: gemini-2.0-flash
+    infer: "Name one European capital city, its country, and approximate population"
+    structured:
+      schema:
+        type: object
+        properties:
+          city: { type: string }
+          country: { type: string }
+          population: { type: integer }
+        required: [city, country, population]

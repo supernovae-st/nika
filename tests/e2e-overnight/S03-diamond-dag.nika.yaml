@@ -1,0 +1,42 @@
+schema: "nika/workflow@0.12"
+workflow: s03-diamond-dag
+description: "Stress: Diamond DAG pattern with 10 tasks"
+provider: mock
+
+tasks:
+  - id: root
+    exec: "echo root"
+  - id: left_a
+    depends_on: [root]
+    with: { parent: $root }
+    exec: "echo left_a_{{with.parent | trim}}"
+  - id: left_b
+    depends_on: [root]
+    with: { parent: $root }
+    exec: "echo left_b_{{with.parent | trim}}"
+  - id: right_a
+    depends_on: [root]
+    with: { parent: $root }
+    exec: "echo right_a_{{with.parent | trim}}"
+  - id: right_b
+    depends_on: [root]
+    with: { parent: $root }
+    exec: "echo right_b_{{with.parent | trim}}"
+  - id: mid_left
+    depends_on: [left_a, left_b]
+    with:
+      a: $left_a
+      b: $left_b
+    exec: "echo mid_left"
+  - id: mid_right
+    depends_on: [right_a, right_b]
+    with:
+      a: $right_a
+      b: $right_b
+    exec: "echo mid_right"
+  - id: merge
+    depends_on: [mid_left, mid_right]
+    with:
+      left: $mid_left
+      right: $mid_right
+    exec: "echo merged_{{with.left | trim}}_{{with.right | trim}}"

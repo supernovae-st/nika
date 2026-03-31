@@ -1,0 +1,17 @@
+schema: "nika/workflow@0.12"
+workflow: d06-transforms-chain
+description: "Deep chain with multiple transforms"
+provider: mock
+
+tasks:
+  - id: raw_data
+    exec:
+      command: "echo '[\"rust\", \"python\", \"JAVASCRIPT\", \"  go  \", \"rust\", \"TypeScript\"]'"
+      shell: true
+  - id: process
+    depends_on: [raw_data]
+    with:
+      items: $raw_data
+    exec:
+      command: "echo '{{with.items | parse_json | unique | sort | join(\", \") | lower | trim}}'"
+      shell: true

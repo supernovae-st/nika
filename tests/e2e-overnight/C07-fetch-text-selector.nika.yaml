@@ -1,0 +1,12 @@
+schema: "nika/workflow@0.12"
+workflow: c07-fetch-text-selector
+description: "Fetch extract: text with CSS selector"
+provider: mock
+
+tasks:
+  - id: fetch_text
+    fetch:
+      url: "https://httpbin.org/html"
+      extract: text
+      selector: "h1"
+      timeout: 20

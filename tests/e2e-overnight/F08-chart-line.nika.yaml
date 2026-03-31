@@ -1,0 +1,24 @@
+schema: "nika/workflow@0.12"
+workflow: f08-chart-line
+description: "Media: generate line chart"
+provider: mock
+
+artifacts:
+  dir: ./tests/e2e-overnight/output
+
+tasks:
+  - id: chart
+    invoke:
+      tool: "nika:chart"
+      params:
+        type: line
+        title: "Monthly Growth"
+        series:
+          - name: "Users"
+            data: [100, 250, 400, 600, 900, 1200]
+          - name: "Revenue"
+            data: [10, 25, 50, 80, 120, 180]
+        labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun"]
+    artifact:
+      path: chart-line.png
+      format: binary

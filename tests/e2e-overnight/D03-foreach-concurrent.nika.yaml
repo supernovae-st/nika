@@ -1,0 +1,18 @@
+schema: "nika/workflow@0.12"
+workflow: d03-foreach-concurrent
+description: "for_each with concurrency=3"
+provider: mock
+
+tasks:
+  - id: process
+    for_each: ["alpha", "beta", "gamma", "delta", "epsilon"]
+    as: item
+    concurrency: 3
+    exec: "echo processed_{{with.item}}"
+  - id: verify
+    depends_on: [process]
+    with:
+      results: $process
+    exec:
+      command: "echo {{with.results | length}}_items"
+      shell: true

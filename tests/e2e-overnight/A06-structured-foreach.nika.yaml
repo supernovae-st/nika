@@ -1,0 +1,20 @@
+schema: "nika/workflow@0.12"
+workflow: a06-structured-foreach
+provider: gemini
+model: gemini-2.0-flash
+tasks:
+  - id: process
+    for_each: ["Paris", "Tokyo", "New York"]
+    as: city
+    concurrency: 1
+    infer: "Tell me about {{with.city}} — its country and approximate population in millions"
+    structured:
+      schema:
+        type: object
+        properties:
+          city: { type: string }
+          country: { type: string }
+          population_millions: { type: number, minimum: 0 }
+        required: [city, country, population_millions]
+      enable_repair: true
+      max_retries: 2

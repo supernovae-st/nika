@@ -1,0 +1,14 @@
+schema: "nika/workflow@0.12"
+workflow: d07-foreach-artifact
+provider: mock
+artifacts:
+  dir: ./tests/e2e-overnight/output
+tasks:
+  - id: generate
+    for_each: ["chapter1", "chapter2", "chapter3"]
+    as: chapter
+    concurrency: 1
+    exec: "echo 'Content of {{with.chapter}}'"
+    artifact:
+      path: "{{with.chapter}}.md"
+      format: text

@@ -1,0 +1,11 @@
+schema: "nika/workflow@0.12"
+workflow: c01-fetch-markdown
+description: "Fetch extract: markdown"
+provider: mock
+
+tasks:
+  - id: fetch_md
+    fetch:
+      url: "https://httpbin.org/html"
+      extract: markdown
+      timeout: 15

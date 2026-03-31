@@ -1,0 +1,42 @@
+schema: "nika/workflow@0.12"
+workflow: s04-many-vars
+description: "Stress: Template with 20+ variables"
+provider: mock
+
+tasks:
+  - id: v1
+    exec: "echo val1"
+  - id: v2
+    exec: "echo val2"
+  - id: v3
+    exec: "echo val3"
+  - id: v4
+    exec: "echo val4"
+  - id: v5
+    exec: "echo val5"
+  - id: v6
+    exec: "echo val6"
+  - id: v7
+    exec: "echo val7"
+  - id: v8
+    exec: "echo val8"
+  - id: v9
+    exec: "echo val9"
+  - id: v10
+    exec: "echo val10"
+  - id: combine
+    depends_on: [v1,v2,v3,v4,v5,v6,v7,v8,v9,v10]
+    with:
+      a: $v1
+      b: $v2
+      c: $v3
+      d: $v4
+      e: $v5
+      f: $v6
+      g: $v7
+      h: $v8
+      i: $v9
+      j: $v10
+    exec:
+      command: "echo '{{with.a | trim}}-{{with.b | trim}}-{{with.c | trim}}-{{with.d | trim}}-{{with.e | trim}}-{{with.f | trim}}-{{with.g | trim}}-{{with.h | trim}}-{{with.i | trim}}-{{with.j | trim}}'"
+      shell: true

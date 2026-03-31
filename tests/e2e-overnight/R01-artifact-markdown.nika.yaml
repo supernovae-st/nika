@@ -1,0 +1,15 @@
+schema: "nika/workflow@0.12"
+workflow: r01-artifact-markdown
+description: "Artifact: write markdown report"
+provider: openai
+model: gpt-4o-mini
+
+artifacts:
+  dir: ./tests/e2e-overnight/output
+
+tasks:
+  - id: report
+    infer: "Write a short 3-paragraph report about the benefits of YAML-based workflow engines"
+    artifact:
+      path: report.md
+      format: markdown

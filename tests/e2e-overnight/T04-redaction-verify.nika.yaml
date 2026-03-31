@@ -1,0 +1,21 @@
+schema: "nika/workflow@0.12"
+workflow: t04-redaction-verify
+description: "Telemetry: verify secret not leaked in task output"
+provider: mock
+
+tasks:
+  - id: echo_secret
+    exec:
+      command: "echo secret_value_here"
+      shell: true
+      env:
+        MY_SECRET: "sk-proj-test1234567890abcdef"
+  - id: check_output
+    depends_on: [echo_secret]
+    with:
+      output: $echo_secret
+    invoke:
+      tool: "nika:log"
+      params:
+        message: "Output was: {{with.output | trim}}"
+        level: "info"

@@ -1,0 +1,10 @@
+schema: "nika/workflow@0.12"
+workflow: g04-shell-blocklist
+description: "SECURITY: sudo blocklist — MUST FAIL"
+provider: mock
+
+tasks:
+  - id: sudo_attempt
+    exec:
+      command: "sudo ls /root"
+      shell: true

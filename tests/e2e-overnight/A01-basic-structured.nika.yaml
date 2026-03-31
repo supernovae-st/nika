@@ -1,0 +1,17 @@
+schema: "nika/workflow@0.12"
+workflow: a01-basic-structured
+description: "Structured output: basic object"
+provider: openai
+model: gpt-4o-mini
+
+tasks:
+  - id: extract
+    infer: "Tell me about Marie Curie — her full name, birth year, and main scientific field"
+    structured:
+      schema:
+        type: object
+        properties:
+          name: { type: string }
+          birth_year: { type: integer }
+          field: { type: string }
+        required: [name, birth_year, field]

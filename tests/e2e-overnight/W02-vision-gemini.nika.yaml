@@ -1,0 +1,26 @@
+schema: "nika/workflow@0.12"
+workflow: w02-vision-gemini
+description: "Vision: import image → Gemini vision analysis"
+provider: gemini
+model: gemini-2.0-flash
+
+tasks:
+  - id: import_img
+    invoke:
+      tool: "nika:import"
+      params:
+        path: "tests/e2e-overnight/fixtures/red-10x10.png"
+
+  - id: describe
+    depends_on: [import_img]
+    with:
+      img: $import_img
+    infer:
+      content:
+        - type: text
+          text: "What color is this small image? Answer in one word."
+        - type: image
+          source: "{{with.img.hash}}"
+          detail: low
+      max_tokens: 50
+      temperature: 0

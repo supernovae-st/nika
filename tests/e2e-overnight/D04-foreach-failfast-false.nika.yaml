@@ -1,0 +1,14 @@
+schema: "nika/workflow@0.12"
+workflow: d04-foreach-failfast-false
+description: "for_each with fail_fast=false — continues after failure"
+provider: mock
+
+tasks:
+  - id: process
+    for_each: ["good1", "bad_item", "good2"]
+    as: item
+    concurrency: 1
+    fail_fast: false
+    exec:
+      command: "[ '{{with.item}}' != 'bad_item' ] && echo ok_{{with.item}} || (echo failing && exit 1)"
+      shell: true

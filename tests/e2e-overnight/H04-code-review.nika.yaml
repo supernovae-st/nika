@@ -1,0 +1,32 @@
+schema: "nika/workflow@0.12"
+workflow: h04-code-review
+provider: xai
+model: grok-3-fast
+tasks:
+  - id: read_code
+    invoke:
+      tool: "nika:read"
+      params:
+        file_path: "tests/e2e-overnight/fixtures/red-10x10.png"
+  - id: read_script
+    exec:
+      command: "head -30 tests/e2e-overnight/run-smoke.sh"
+      shell: true
+  - id: review
+    depends_on: [read_script]
+    with:
+      code: $read_script
+    infer: "Review this shell script for potential issues. Be concise, max 3 points: {{with.code}}"
+    structured:
+      schema:
+        type: object
+        properties:
+          issues:
+            type: array
+            items:
+              type: object
+              properties:
+                severity: { type: string, enum: [high, medium, low] }
+                description: { type: string }
+              required: [severity, description]
+        required: [issues]

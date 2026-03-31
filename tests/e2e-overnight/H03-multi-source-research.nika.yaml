@@ -1,0 +1,38 @@
+schema: "nika/workflow@0.12"
+workflow: h03-multi-source-research
+description: "Real-world: 3 URLs fetched, then merged into summary"
+provider: gemini
+model: gemini-2.0-flash
+
+tasks:
+  - id: fetch_html
+    fetch:
+      url: "https://httpbin.org/html"
+      extract: markdown
+      timeout: 15
+
+  - id: fetch_post
+    fetch:
+      url: "https://jsonplaceholder.typicode.com/posts/1"
+      extract: jsonpath
+      selector: "$.title"
+      timeout: 15
+
+  - id: fetch_origin
+    fetch:
+      url: "https://httpbin.org/get"
+      extract: jsonpath
+      selector: "$.origin"
+      timeout: 15
+
+  - id: combine
+    depends_on: [fetch_html, fetch_post, fetch_origin]
+    with:
+      html: $fetch_html
+      title: $fetch_post
+      ip: $fetch_origin
+    infer: |
+      Combine these 3 data sources into a summary.
+      HTML content: {{with.html | first(200)}}.
+      Post title: {{with.title}}.
+      Origin IP: {{with.ip}}.

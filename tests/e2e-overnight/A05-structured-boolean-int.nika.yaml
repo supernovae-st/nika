@@ -1,0 +1,17 @@
+schema: "nika/workflow@0.12"
+workflow: a05-structured-boolean-int
+provider: xai
+model: grok-3-fast
+tasks:
+  - id: extract
+    infer: "Is the Earth flat? Rate your confidence from 1 to 10 on this question"
+    structured:
+      schema:
+        type: object
+        properties:
+          is_flat: { type: boolean }
+          confidence: { type: integer, minimum: 1, maximum: 10 }
+          explanation: { type: string }
+        required: [is_flat, confidence, explanation]
+      enable_repair: true
+      max_retries: 2

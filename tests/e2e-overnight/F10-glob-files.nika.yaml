@@ -1,0 +1,18 @@
+schema: "nika/workflow@0.12"
+workflow: f10-glob-files
+description: "Media: glob Rust source files"
+provider: mock
+
+tasks:
+  - id: find_rs
+    invoke:
+      tool: "nika:glob"
+      params:
+        pattern: "tools/nika-core/src/ast/*.rs"
+  - id: count
+    depends_on: [find_rs]
+    with:
+      files: $find_rs
+    exec:
+      command: "echo '{{with.files | length}} rust files found'"
+      shell: true

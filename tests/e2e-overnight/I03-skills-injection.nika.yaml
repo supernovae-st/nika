@@ -1,0 +1,16 @@
+schema: "nika/workflow@0.12"
+workflow: i03-skills-injection
+description: "Skills injection in agent"
+provider: openai
+model: gpt-4o-mini
+
+skills:
+  writer: tests/e2e-overnight/skills/concise-writer.md
+
+tasks:
+  - id: write_with_skill
+    agent:
+      prompt: "Write about workflow automation."
+      skills: [writer]
+      tools: ["nika:complete"]
+      max_turns: 3

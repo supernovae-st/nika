@@ -1,0 +1,11 @@
+schema: "nika/workflow@0.12"
+workflow: c04-fetch-links
+description: "Fetch extract: links"
+provider: mock
+
+tasks:
+  - id: fetch_links
+    fetch:
+      url: "https://httpbin.org/links/5/0"
+      extract: links
+      timeout: 20

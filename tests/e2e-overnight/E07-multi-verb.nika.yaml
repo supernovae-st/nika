@@ -1,0 +1,20 @@
+schema: "nika/workflow@0.12"
+workflow: e07-multi-verb
+description: "Multi-verb pipeline: exec + fetch + infer"
+provider: openai
+model: gpt-4o-mini
+
+tasks:
+  - id: get_date
+    exec: "date +%Y-%m-%d"
+  - id: fetch_example
+    fetch:
+      url: "https://httpbin.org/get"
+      extract: jsonpath
+      selector: "$.origin"
+  - id: summarize
+    depends_on: [get_date, fetch_example]
+    with:
+      date: $get_date
+      ip: $fetch_example
+    infer: "Today is {{with.date}} and my IP appears to be {{with.ip}}. Write a fun one-liner about this."

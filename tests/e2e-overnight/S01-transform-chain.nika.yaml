@@ -1,0 +1,15 @@
+schema: "nika/workflow@0.12"
+workflow: s01-transform-chain
+description: "Stress: 10 chained transforms"
+provider: mock
+
+tasks:
+  - id: data
+    exec: "echo 'Nika,Rust,Workflow,Engine,YAML,DAG,MCP,Provider,Agent,Fetch'"
+  - id: transform
+    depends_on: [data]
+    with:
+      raw: $data
+    exec:
+      command: "echo '{{with.raw | trim | split(\",\") | sort | unique | join(\" | \") | upper | length}}'"
+      shell: true

@@ -1,0 +1,12 @@
+schema: "nika/workflow@0.12"
+workflow: n02-native-basic-mistral
+description: "Native: basic infer with mistral:7b"
+provider: native
+model: mistral:7b
+
+tasks:
+  - id: hello
+    infer:
+      prompt: "Say 'Hello from Mistral native' in one sentence"
+      max_tokens: 100
+      temperature: 0.1

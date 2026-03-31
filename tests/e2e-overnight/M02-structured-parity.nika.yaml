@@ -1,0 +1,48 @@
+schema: "nika/workflow@0.12"
+workflow: m02-structured-parity
+tasks:
+  - id: openai_result
+    provider: openai
+    model: gpt-4o-mini
+    infer: "Name a famous scientist, their field, and birth year"
+    structured:
+      schema:
+        type: object
+        properties:
+          name: { type: string }
+          field: { type: string }
+          birth_year: { type: integer }
+        required: [name, field, birth_year]
+  - id: xai_result
+    provider: xai
+    model: grok-3-fast
+    infer: "Name a famous scientist, their field, and birth year"
+    structured:
+      schema:
+        type: object
+        properties:
+          name: { type: string }
+          field: { type: string }
+          birth_year: { type: integer }
+        required: [name, field, birth_year]
+  - id: gemini_result
+    provider: gemini
+    model: gemini-2.0-flash
+    infer: "Name a famous scientist, their field, and birth year"
+    structured:
+      schema:
+        type: object
+        properties:
+          name: { type: string }
+          field: { type: string }
+          birth_year: { type: integer }
+        required: [name, field, birth_year]
+  - id: compare
+    depends_on: [openai_result, xai_result, gemini_result]
+    with:
+      o: $openai_result
+      x: $xai_result
+      g: $gemini_result
+    exec:
+      command: "echo 'OpenAI={{with.o.name}} xAI={{with.x.name}} Gemini={{with.g.name}}'"
+      shell: true

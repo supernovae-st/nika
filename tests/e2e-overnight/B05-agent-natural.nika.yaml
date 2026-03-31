@@ -1,0 +1,13 @@
+schema: "nika/workflow@0.12"
+workflow: b05-agent-natural
+description: "Agent with natural completion mode"
+provider: xai
+model: grok-3-fast
+
+tasks:
+  - id: answer
+    agent:
+      prompt: "Answer in one sentence: what is a workflow engine?"
+      max_turns: 3
+      completion:
+        mode: natural

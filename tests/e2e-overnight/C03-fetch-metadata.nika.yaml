@@ -1,0 +1,11 @@
+schema: "nika/workflow@0.12"
+workflow: c03-fetch-metadata
+description: "Fetch extract: metadata (OG tags)"
+provider: mock
+
+tasks:
+  - id: fetch_meta
+    fetch:
+      url: "https://github.com/anthropics/anthropic-sdk-python"
+      extract: metadata
+      timeout: 20
