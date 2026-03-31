@@ -343,9 +343,13 @@ impl TaskExecutor {
                 if let Some(schema_ref) = &policy.schema {
                     let schema_value = match schema_ref {
                         crate::ast::output::SchemaRef::Inline(v) => v.clone(),
-                        crate::ast::output::SchemaRef::File(_) => {
-                            // Fall back to generic mock for file schemas
-                            serde_json::Value::Null
+                        crate::ast::output::SchemaRef::File(path) => {
+                            // Try to load file schema for mock (best-effort)
+                            match tokio::fs::read_to_string(path).await {
+                                Ok(content) => serde_json::from_str(&content)
+                                    .unwrap_or(serde_json::Value::Null),
+                                Err(_) => serde_json::Value::Null,
+                            }
                         }
                     };
                     if !schema_value.is_null() {
