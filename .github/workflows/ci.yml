@@ -307,9 +307,18 @@ jobs:
         working-directory: tools
         run: |
           FAILED=0
+          # 1. Gate tests (tools/nika/examples/) — internal test workflows
           while IFS= read -r -d '' f; do
             ./target/release/nika check "$f" || FAILED=1
           done < <(find nika/examples -name "*.nika.yaml" -print0)
+          # 2. User examples (repo root examples/)
+          while IFS= read -r -d '' f; do
+            ./target/release/nika check "$f" || FAILED=1
+          done < <(find ../examples -name "*.nika.yaml" -print0)
+          # 3. Test workflows (best-effort, some need API keys)
+          while IFS= read -r -d '' f; do
+            ./target/release/nika check "$f" 2>/dev/null || true
+          done < <(find ../tests -name "*.nika.yaml" -print0)
           [ "$FAILED" -eq 0 ] || exit 1
 
   # ─────────────────────────────────────────────────────────────────────────────
