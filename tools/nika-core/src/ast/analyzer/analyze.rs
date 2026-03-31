@@ -1727,7 +1727,7 @@ fn detect_cycles_dfs(
 /// Paths containing `{{` are templates resolved at runtime and cannot be checked statically.
 /// For_each tasks are also skipped since each iteration may produce unique paths.
 fn detect_artifact_collisions(workflow: &AnalyzedWorkflow, ctx: &mut AnalyzerContext) {
-    use crate::ast::artifact::ArtifactSpec;
+    use crate::ast::artifact::{ArtifactMode, ArtifactSpec};
     let mut seen: HashMap<String, (String, crate::source::Span)> = HashMap::new();
 
     for task in &workflow.tasks {
@@ -1736,15 +1736,20 @@ fn detect_artifact_collisions(workflow: &AnalyzedWorkflow, ctx: &mut AnalyzerCon
             continue;
         }
 
-        let paths: Vec<&str> = match task.artifact.as_ref() {
-            Some(ArtifactSpec::Single(out)) => vec![out.path.as_str()],
-            Some(ArtifactSpec::Multiple(outs)) => outs.iter().map(|o| o.path.as_str()).collect(),
+        let outputs: Vec<&crate::ast::artifact::ArtifactOutput> = match task.artifact.as_ref() {
+            Some(ArtifactSpec::Single(out)) => vec![out],
+            Some(ArtifactSpec::Multiple(outs)) => outs.iter().collect(),
             _ => continue,
         };
 
-        for path in paths {
+        for out in outputs {
+            let path = out.path.as_str();
             // Skip template paths — can't check statically
             if path.contains("{{") {
+                continue;
+            }
+            // Append and Unique modes intentionally allow duplicate paths
+            if matches!(out.mode, Some(ArtifactMode::Append | ArtifactMode::Unique)) {
                 continue;
             }
             if let Some((prev_task, _prev_span)) = seen.get(path) {
@@ -1756,7 +1761,10 @@ fn detect_artifact_collisions(workflow: &AnalyzedWorkflow, ctx: &mut AnalyzerCon
                          the second write will overwrite the first",
                         path, task.name, prev_task
                     ),
-                    suggestion: None,
+                    suggestion: Some(
+                        "Use mode: append, mode: unique, or mode: fail to handle duplicates"
+                            .to_string(),
+                    ),
                     note: None,
                 });
             } else {
