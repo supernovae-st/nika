@@ -45,6 +45,9 @@ use crate::state::AppState;
 /// This is the main entry point called from `nika serve`.
 /// Blocks until the server receives a shutdown signal (SIGTERM/SIGINT).
 pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
+    // FIX-14: Prevent two nika serve instances sharing the same DB
+    let _db_lock = acquire_db_lock(&config.db_path)?;
+
     // Open SQLite storage
     let storage = nika_storage::Storage::open(&config.db_path)?;
 
@@ -201,6 +204,50 @@ async fn drain_workers(workers: Arc<Mutex<HashMap<String, state::WorkerHandle>>>
             }
         }
     }
+}
+
+/// Opaque lock handle — held for the lifetime of the server.
+struct DbLock {
+    #[cfg(unix)]
+    _flock: nix::fcntl::Flock<std::fs::File>,
+    #[cfg(not(unix))]
+    _file: std::fs::File,
+}
+
+/// Acquire an exclusive file lock on the database path to prevent two
+/// `nika serve` instances from writing to the same SQLite file (FIX-14).
+///
+/// Returns the lock handle — the lock is held as long as it's alive.
+fn acquire_db_lock(db_path: &std::path::Path) -> Result<DbLock, ServeError> {
+    let lock_path = db_path.with_extension("lock");
+
+    // Ensure parent directory exists
+    if let Some(parent) = lock_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+
+    let lock_file = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(false)
+        .open(&lock_path)
+        .map_err(|e| ServeError::Config(format!("failed to open lock file: {e}")))?;
+
+    #[cfg(unix)]
+    {
+        use nix::fcntl::{Flock, FlockArg};
+        let flock = Flock::lock(lock_file, FlockArg::LockExclusiveNonblock).map_err(|_| {
+            ServeError::Config(
+                "Another nika serve instance is using this database. \
+                 Use a different --db path or stop the other instance."
+                    .into(),
+            )
+        })?;
+        Ok(DbLock { _flock: flock })
+    }
+
+    #[cfg(not(unix))]
+    Ok(DbLock { _file: lock_file })
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
