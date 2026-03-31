@@ -82,9 +82,9 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
         ))
         .layer(RequestBodyLimitLayer::new(10 * 1024 * 1024)) // 10 MB body limit
         .layer(TimeoutLayer::with_status_code(
-                axum::http::StatusCode::GATEWAY_TIMEOUT,
-                std::time::Duration::from_secs(30),
-            ));
+            axum::http::StatusCode::GATEWAY_TIMEOUT,
+            std::time::Duration::from_secs(30),
+        ));
 
     // CORS layer — only when explicitly configured (default: no CORS headers)
     if let Some(origin) = &config.cors_origin {

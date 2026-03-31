@@ -886,9 +886,7 @@ fn resolve_with_entry_traced(
                         task_id: Arc::clone(task_id),
                         alias: alias.to_string(),
                         path: path_str.clone(),
-                        default_value: Value::String(
-                            crate::util::redact_secrets(&d.to_string()),
-                        ),
+                        default_value: Value::String(crate::util::redact_secrets(&d.to_string())),
                     });
                     d.clone()
                 }
@@ -908,9 +906,7 @@ fn resolve_with_entry_traced(
                         task_id: Arc::clone(task_id),
                         alias: alias.to_string(),
                         path: path_str.clone(),
-                        default_value: Value::String(
-                            crate::util::redact_secrets(&d.to_string()),
-                        ),
+                        default_value: Value::String(crate::util::redact_secrets(&d.to_string())),
                     });
                     d.clone()
                 }

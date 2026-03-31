@@ -97,9 +97,8 @@ mod tests {
     fn default_bind_address_is_localhost() {
         let default_bind: std::net::SocketAddr = "127.0.0.1:3000".parse().unwrap();
         // The hard-coded fallback in from_env() must be loopback, not 0.0.0.0
-        let fallback: std::net::SocketAddr = "0.0.0.0:3000"
-            .parse::<std::net::SocketAddr>()
-            .unwrap();
+        let fallback: std::net::SocketAddr =
+            "0.0.0.0:3000".parse::<std::net::SocketAddr>().unwrap();
         assert!(
             default_bind.ip().is_loopback(),
             "default must bind to loopback"

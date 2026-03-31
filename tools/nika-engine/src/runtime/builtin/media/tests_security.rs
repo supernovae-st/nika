@@ -222,16 +222,12 @@ mod tests {
 <svg xmlns="http://www.w3.org/2000/svg">
   <text>&x4;</text>
 </svg>"#;
-        // sanitize_svg is a text-level filter — it does NOT expand entities.
-        // The real defense against billion laughs is at the usvg rendering layer
-        // (resources_dir=None, entity limits). This test verifies no panic/OOM
-        // at the sanitizer level.
+        // Defense in depth: sanitizer now blocks DOCTYPE/ENTITY declarations
+        // before they reach the usvg rendering layer.
         let result = sanitize_svg(svg);
-        // Sanitizer lets it through (no forbidden patterns like <script>).
-        // Defense is at the render layer.
         assert!(
-            result.is_ok(),
-            "sanitizer should pass-through (entity defense is at usvg layer)"
+            result.is_err(),
+            "sanitizer should block DOCTYPE/ENTITY declarations"
         );
     }
 
