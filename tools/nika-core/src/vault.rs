@@ -50,6 +50,101 @@ impl VaultBackend {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// AUDIT LOG
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Audit log entry for vault operations.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct AuditEntry {
+    pub timestamp: String,
+    pub op: String,
+    pub service: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub field: Option<String>,
+    pub source: String,
+}
+
+/// Append-only audit log for credential access tracking.
+///
+/// Writes JSON lines to `<secrets_dir>/audit.jsonl`.
+pub struct VaultAuditLog {
+    log_path: PathBuf,
+}
+
+impl VaultAuditLog {
+    /// Create audit log for the given secrets directory.
+    pub fn new(secrets_dir: &Path) -> Self {
+        Self {
+            log_path: secrets_dir.join("audit.jsonl"),
+        }
+    }
+
+    /// Log path for inspection in tests.
+    pub fn path(&self) -> &Path {
+        &self.log_path
+    }
+
+    /// Append a single audit entry.
+    pub fn log(
+        &self,
+        op: &str,
+        service: &str,
+        field: Option<&str>,
+        source: &str,
+    ) -> Result<(), VaultError> {
+        let entry = AuditEntry {
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            op: op.to_string(),
+            service: service.to_string(),
+            field: field.map(|f| f.to_string()),
+            source: source.to_string(),
+        };
+
+        let mut line = serde_json::to_string(&entry)?;
+        line.push('\n');
+
+        if let Some(parent) = self.log_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+
+        use std::io::Write;
+        let file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.log_path)?;
+        let mut writer = std::io::BufWriter::new(file);
+        writer.write_all(line.as_bytes())?;
+        writer.flush()?;
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ =
+                std::fs::set_permissions(&self.log_path, std::fs::Permissions::from_mode(0o600));
+        }
+
+        Ok(())
+    }
+
+    /// Read all audit entries from the log.
+    pub fn read_all(&self) -> Result<Vec<AuditEntry>, VaultError> {
+        if !self.log_path.exists() {
+            return Ok(vec![]);
+        }
+        let content = std::fs::read_to_string(&self.log_path)?;
+        let mut entries = Vec::new();
+        for line in content.lines() {
+            if line.trim().is_empty() {
+                continue;
+            }
+            let entry: AuditEntry = serde_json::from_str(line)?;
+            entries.push(entry);
+        }
+        Ok(entries)
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // DOPPLER BACKEND
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -493,6 +588,128 @@ mod tests {
         // If it IS installed, returns actual keys (still valid)
         let result = DopplerBackend::list();
         assert!(result.is_ok(), "list should not error even without doppler");
+    }
+
+    // ── Audit log tests ───────────────────────────────────────────────
+
+    #[test]
+    fn audit_log_writes_and_reads() {
+        let dir = TempDir::new().unwrap();
+        let audit = VaultAuditLog::new(dir.path());
+
+        audit
+            .log("get", "stripe", Some("secret"), "workflow")
+            .unwrap();
+        audit.log("set", "twilio", Some("sid"), "cli").unwrap();
+        audit.log("delete", "old-service", None, "cli").unwrap();
+
+        let entries = audit.read_all().unwrap();
+        assert_eq!(entries.len(), 3);
+
+        assert_eq!(entries[0].op, "get");
+        assert_eq!(entries[0].service, "stripe");
+        assert_eq!(entries[0].field.as_deref(), Some("secret"));
+        assert_eq!(entries[0].source, "workflow");
+
+        assert_eq!(entries[1].op, "set");
+        assert_eq!(entries[1].service, "twilio");
+        assert_eq!(entries[1].field.as_deref(), Some("sid"));
+
+        assert_eq!(entries[2].op, "delete");
+        assert_eq!(entries[2].service, "old-service");
+        assert!(entries[2].field.is_none());
+    }
+
+    #[test]
+    fn audit_log_timestamp_is_rfc3339() {
+        let dir = TempDir::new().unwrap();
+        let audit = VaultAuditLog::new(dir.path());
+
+        audit.log("get", "test", None, "test").unwrap();
+
+        let entries = audit.read_all().unwrap();
+        assert_eq!(entries.len(), 1);
+        // Verify it parses as RFC 3339
+        assert!(
+            chrono::DateTime::parse_from_rfc3339(&entries[0].timestamp).is_ok(),
+            "timestamp should be valid RFC 3339: {}",
+            entries[0].timestamp
+        );
+    }
+
+    #[test]
+    fn audit_log_empty_file() {
+        let dir = TempDir::new().unwrap();
+        let audit = VaultAuditLog::new(dir.path());
+
+        // No file yet — should return empty vec
+        let entries = audit.read_all().unwrap();
+        assert!(entries.is_empty());
+    }
+
+    #[test]
+    fn audit_log_append_mode() {
+        let dir = TempDir::new().unwrap();
+        let audit = VaultAuditLog::new(dir.path());
+
+        audit.log("get", "s1", None, "src1").unwrap();
+        audit.log("set", "s2", None, "src2").unwrap();
+
+        // Create a new audit log instance pointing to the same file
+        let audit2 = VaultAuditLog::new(dir.path());
+        audit2.log("delete", "s3", None, "src3").unwrap();
+
+        // All 3 entries should be present
+        let entries = audit2.read_all().unwrap();
+        assert_eq!(entries.len(), 3);
+        assert_eq!(entries[0].service, "s1");
+        assert_eq!(entries[1].service, "s2");
+        assert_eq!(entries[2].service, "s3");
+    }
+
+    #[test]
+    fn audit_entry_json_roundtrip() {
+        let entry = AuditEntry {
+            timestamp: "2026-04-01T00:00:00+00:00".to_string(),
+            op: "get".to_string(),
+            service: "stripe".to_string(),
+            field: Some("secret".to_string()),
+            source: "workflow".to_string(),
+        };
+
+        let json = serde_json::to_string(&entry).unwrap();
+        let parsed: AuditEntry = serde_json::from_str(&json).unwrap();
+        assert_eq!(entry, parsed);
+    }
+
+    #[test]
+    fn audit_entry_skips_none_field() {
+        let entry = AuditEntry {
+            timestamp: "2026-04-01T00:00:00+00:00".to_string(),
+            op: "list".to_string(),
+            service: "all".to_string(),
+            field: None,
+            source: "cli".to_string(),
+        };
+
+        let json = serde_json::to_string(&entry).unwrap();
+        assert!(
+            !json.contains("field"),
+            "field should be skipped when None: {json}"
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn audit_log_file_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = TempDir::new().unwrap();
+        let audit = VaultAuditLog::new(dir.path());
+
+        audit.log("get", "test", None, "test").unwrap();
+
+        let perms = std::fs::metadata(audit.path()).unwrap().permissions();
+        assert_eq!(perms.mode() & 0o777, 0o600);
     }
 
     #[test]
