@@ -71,6 +71,9 @@ struct WorkerGuard {
     active_jobs: Arc<std::sync::atomic::AtomicUsize>,
     job_id: String,
     completed: bool,
+    /// Whether the active_jobs counter was incremented for this guard.
+    /// Only decrement on drop if this is true.
+    incremented: bool,
 }
 
 impl Drop for WorkerGuard {
@@ -83,8 +86,10 @@ impl Drop for WorkerGuard {
                 let _ = storage.fail_job(&id, "Worker crashed unexpectedly").await;
             });
         }
-        // Always decrement active job counter
-        self.active_jobs.fetch_sub(1, Ordering::Relaxed);
+        // Only decrement if we successfully incremented
+        if self.incremented {
+            self.active_jobs.fetch_sub(1, Ordering::Relaxed);
+        }
         // Always remove from worker map
         let workers = self.workers.clone();
         let id = self.job_id.clone();
@@ -127,6 +132,7 @@ pub fn spawn_worker(
             active_jobs,
             job_id: id.clone(),
             completed: false,
+            incremented: true, // Counter was incremented by try_acquire_job_slot
         };
 
         info!(job_id = %id, workflow = %workflow, "worker started");
@@ -370,5 +376,55 @@ mod tests {
         let data = "hello world, this is a long string";
         let truncated = safe_truncate(data, 5);
         assert_eq!(truncated, "hello");
+    }
+
+    #[tokio::test]
+    async fn worker_guard_no_decrement_when_not_incremented() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let counter = Arc::new(AtomicUsize::new(5));
+
+        {
+            let _guard = WorkerGuard {
+                storage: nika_storage::Storage::open_memory().unwrap(),
+                workers: Arc::new(Mutex::new(std::collections::HashMap::new())),
+                active_jobs: counter.clone(),
+                job_id: "test-job".into(),
+                completed: true,
+                incremented: false, // Never incremented
+            };
+            // Guard drops here
+        }
+
+        // Counter should NOT have been decremented
+        assert_eq!(
+            counter.load(Ordering::SeqCst),
+            5,
+            "counter must not change when incremented=false"
+        );
+    }
+
+    #[tokio::test]
+    async fn worker_guard_decrements_when_incremented() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let counter = Arc::new(AtomicUsize::new(5));
+
+        {
+            let _guard = WorkerGuard {
+                storage: nika_storage::Storage::open_memory().unwrap(),
+                workers: Arc::new(Mutex::new(std::collections::HashMap::new())),
+                active_jobs: counter.clone(),
+                job_id: "test-job-2".into(),
+                completed: true,
+                incremented: true,
+            };
+        }
+
+        assert_eq!(
+            counter.load(Ordering::SeqCst),
+            4,
+            "counter must decrement when incremented=true"
+        );
     }
 }
