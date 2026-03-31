@@ -936,6 +936,20 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             .as_ref()
             .map(|(_, _, idx)| (Arc::clone(&parent_task_id), *idx));
 
+        // Check cancellation before binding resolution (which is synchronous
+        // and could involve deep JSON path traversal on large outputs)
+        if executor.is_cancelled() {
+            event_log.emit(EventKind::TaskCancelled {
+                task_id: Arc::clone(&task_id),
+                reason: "Cancelled before binding resolution".to_string(),
+            });
+            return IterationResult {
+                store_id: task_id,
+                result: TaskResult::skipped("Cancelled before binding resolution"),
+                for_each_info,
+            };
+        }
+
         // Build bindings from with: spec (always present in AnalyzedTask)
         let (mut bindings, binding_events) = match ResolvedBindings::from_with_spec_traced(
             Some(&task.with_spec),
@@ -1865,6 +1879,19 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     let items_str = &for_each.items;
 
                     if for_each.is_binding() {
+                        // Check cancellation before synchronous binding resolution
+                        if self.cancel_token.is_cancelled() {
+                            self.event_log.emit(EventKind::TaskCancelled {
+                                task_id: Arc::from(task.name.as_str()),
+                                reason: "Cancelled before for_each binding resolution".to_string(),
+                            });
+                            self.datastore.insert(
+                                intern(&task.name),
+                                TaskResult::skipped("Cancelled before for_each binding resolution"),
+                            );
+                            continue;
+                        }
+
                         // Binding reference ($alias, {{with.alias}}, {{inputs.xxx}})
                         let bindings = match ResolvedBindings::from_with_spec(
                             Some(&task.with_spec),
