@@ -7,10 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════╗
-║  NIKA v0.55.0 — VPS PRODUCTION HARDENING                                   ║
-║  17 fixes | NikaVault crypto | vLLM compat | daemon hardening | 9,086 tests║
+║  NIKA v0.55.1 — RUNTIME STABILIZATION                                      ║
+║  7 fixes | LLM guardrails | agent scope | SSRF hardening | 9,093 tests     ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
+
+## [Unreleased] — 2026-03-31
+
+### Security
+- **SSRF redirect re-pinning** — DNS-pinned fetch clients now apply the same SSRF redirect policy as the shared client. Previously, HTTP redirects from pinned connections bypassed the IP blocklist check.
+
+### Added
+- **Agent scope presets** — `scope: full|minimal|debug` controls which builtin tools an agent receives. `minimal` = only `nika:complete` + `nika:log` (simple Q&A agents). `debug` = all tools + introspection tools (`nika:dag_info`, `nika:task_status`, `nika:threads`, `nika:cost`). Explicit `tools:` list always overrides scope.
+- **LLM guardrails (type: llm)** — `type: llm` guardrails now call a judge LLM instead of returning a hard error. Sends `judge_prompt` + agent output to the configured provider, checks response against `pass_pattern` regex. Supports guardrail-specific `model:` override and 30s timeout. Provider errors respect `on_failure:` action.
+- **StructuredOutputTimeout event** — New `EventKind::StructuredOutputTimeout` emitted when the 600s aggregate structured output validation times out. Displayed in live renderer and handled by TUI.
+- **Failed task binding warning** — `tracing::warn` emitted when `with:` bindings reference a failed task's output, alerting that the value may be null or partial. Covers both legacy and typed resolution paths.
+
+### Fixed
+- **Cancellation before binding resolution** — Cancel token checked before synchronous binding resolution in `execute_task_iteration` and `for_each` binding paths. Prevents long JSON path traversal from blocking workflow cancellation.
+
+### Changed
+- **TUI ProviderName migration** — Provider verification uses typed `ProviderName` enum instead of hardcoded string array, keeping TUI in sync with the provider catalog.
+- **9,093 tests** — Up from 9,086 (+7 new tests for scope wiring, failed task bindings, LLM guardrails).
 
 ## [0.55.0] — 2026-03-31
 
