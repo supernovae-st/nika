@@ -59,3 +59,4 @@ generated/
 # Binary media (podcast episodes, rendered reports)
 docs/podcast/
 docs/reports/
+tests/e2e-overnight/output/

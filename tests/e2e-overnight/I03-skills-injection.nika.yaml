@@ -5,7 +5,7 @@ provider: openai
 model: gpt-4o-mini
 
 skills:
-  writer: tests/e2e-overnight/skills/concise-writer.md
+  writer: ./skills/concise-writer.md
 
 tasks:
   - id: write_with_skill
