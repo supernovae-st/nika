@@ -400,6 +400,7 @@ impl TaskExecutor {
                 base_url,
                 &api_key,
                 resolved_model.as_deref(),
+                300, // inline base_url uses default timeout
             )?
         } else {
             self.get_rig_provider(provider_name)?

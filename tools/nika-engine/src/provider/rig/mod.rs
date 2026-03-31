@@ -140,6 +140,8 @@ pub enum RigProvider {
         default_model: Option<String>,
         /// Pre-computed name for `name()` — avoids Box::leak on every call
         cached_name: String,
+        /// Request timeout in seconds (from config.toml endpoint or default 300)
+        timeout_secs: u64,
     },
     /// Native local provider - GGUF models via mistral.rs
     /// Requires `native-inference` feature and explicit model loading.
@@ -204,6 +206,7 @@ impl RigProvider {
                 &ep.base_url,
                 &ep.api_key,
                 ep.default_model.as_deref(),
+                ep.timeout_secs,
             );
         }
 
@@ -261,6 +264,7 @@ impl RigProvider {
         base_url: &str,
         api_key: &str,
         default_model: Option<&str>,
+        timeout_secs: u64,
     ) -> Result<Self, crate::error::NikaError> {
         use crate::provider::endpoints::validate_endpoint_url;
         validate_endpoint_url(base_url)
@@ -280,6 +284,7 @@ impl RigProvider {
             endpoint_name: name_str,
             default_model: default_model.map(|s| s.to_string()),
             cached_name,
+            timeout_secs,
         })
     }
 
@@ -540,15 +545,20 @@ impl RigProvider {
                     })?
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
-            RigProvider::OpenAiCompat { client, .. } => {
+            RigProvider::OpenAiCompat {
+                client,
+                timeout_secs,
+                ..
+            } => {
+                let compat_timeout = std::time::Duration::from_secs(*timeout_secs);
                 let agent = client
                     .agent(model_id)
                     .max_tokens(effective_max_tokens)
                     .build();
-                timeout(INFER_TIMEOUT, agent.prompt(prompt))
+                timeout(compat_timeout, agent.prompt(prompt))
                     .await
                     .map_err(|_| RigInferError::Timeout {
-                        duration_ms: INFER_TIMEOUT.as_millis() as u64,
+                        duration_ms: compat_timeout.as_millis() as u64,
                     })?
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
@@ -664,7 +674,24 @@ impl RigProvider {
             RigProvider::Groq(client) => vision_prompt!(client),
             RigProvider::Gemini(client) => vision_prompt!(client),
             RigProvider::XAi(client) => vision_prompt!(client),
-            RigProvider::OpenAiCompat { client, .. } => vision_prompt!(client),
+            RigProvider::OpenAiCompat {
+                client,
+                timeout_secs,
+                ..
+            } => {
+                let compat_timeout = std::time::Duration::from_secs(*timeout_secs);
+                let mut builder = client.agent(model_id).max_tokens(max_tok);
+                if let Some(sys) = system {
+                    builder = builder.preamble(sys);
+                }
+                let agent = builder.build();
+                timeout(compat_timeout, agent.prompt(message))
+                    .await
+                    .map_err(|_| RigInferError::Timeout {
+                        duration_ms: compat_timeout.as_millis() as u64,
+                    })?
+                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
+            }
             // DeepSeek and Native are handled above via early returns.
             // These arms exist for exhaustiveness in case the early returns are refactored.
             RigProvider::DeepSeek(_) => Err(RigInferError::VisionNotSupported(
@@ -776,8 +803,16 @@ impl RigProvider {
             }};
         }
 
+        // Use endpoint-specific timeout for OpenAiCompat, default for others
+        let effective_timeout = match self {
+            RigProvider::OpenAiCompat { timeout_secs, .. } => {
+                std::time::Duration::from_secs(*timeout_secs)
+            }
+            _ => VISION_STREAM_TIMEOUT,
+        };
+
         // Apply overall timeout to prevent slow-drip streams running forever
-        timeout(VISION_STREAM_TIMEOUT, async {
+        timeout(effective_timeout, async {
             match self {
                 RigProvider::Claude(client) => vision_stream!(client, true),
                 RigProvider::OpenAI(client) => vision_stream!(client, false),
@@ -804,7 +839,7 @@ impl RigProvider {
         })
         .await
         .map_err(|_| RigInferError::Timeout {
-            duration_ms: VISION_STREAM_TIMEOUT.as_millis() as u64,
+            duration_ms: effective_timeout.as_millis() as u64,
         })??;
 
         result.text = response_parts.join("");
@@ -859,7 +894,14 @@ impl RigProvider {
             }};
         }
 
-        let result = timeout(TOOLS_TIMEOUT, async {
+        let effective_timeout = match self {
+            RigProvider::OpenAiCompat { timeout_secs, .. } => {
+                std::time::Duration::from_secs(*timeout_secs)
+            }
+            _ => TOOLS_TIMEOUT,
+        };
+
+        let result = timeout(effective_timeout, async {
             match self {
                 RigProvider::Claude(client) => build_agent_with_tools!(client),
                 RigProvider::OpenAI(client) => build_agent_with_tools!(client),
@@ -877,7 +919,7 @@ impl RigProvider {
         })
         .await
         .map_err(|_| RigInferError::Timeout {
-            duration_ms: TOOLS_TIMEOUT.as_millis() as u64,
+            duration_ms: effective_timeout.as_millis() as u64,
         })?;
         result
     }
@@ -962,7 +1004,30 @@ impl RigProvider {
             RigProvider::DeepSeek(client) => build_and_prompt!(client),
             RigProvider::Gemini(client) => build_and_prompt!(client),
             RigProvider::XAi(client) => build_and_prompt!(client),
-            RigProvider::OpenAiCompat { client, .. } => build_and_prompt!(client),
+            RigProvider::OpenAiCompat {
+                client,
+                timeout_secs,
+                ..
+            } => {
+                let compat_timeout = std::time::Duration::from_secs(*timeout_secs);
+                let mut builder = client.agent(model_id).max_tokens(max_tokens as u64);
+                if let Some(system) = &options.system {
+                    builder = builder.preamble(system);
+                }
+                if let Some(temp) = effective_temperature {
+                    builder = builder.temperature(temp);
+                }
+                if let Some(ref params) = options.additional_params {
+                    builder = builder.additional_params(params.clone());
+                }
+                let agent = builder.build();
+                timeout(compat_timeout, agent.prompt(&user_prompt))
+                    .await
+                    .map_err(|_| RigInferError::Timeout {
+                        duration_ms: compat_timeout.as_millis() as u64,
+                    })?
+                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
+            }
             #[cfg(feature = "native-inference")]
             RigProvider::Native(runtime) => {
                 // Native inference uses ChatOptions from native module
@@ -1157,18 +1222,26 @@ impl RigProvider {
         model: Option<&str>,
         max_tokens: Option<u64>,
     ) -> Result<StreamResult, RigInferError> {
-        // Overall timeout for entire streaming operation (10 min).
+        // Overall timeout for entire streaming operation (10 min default).
         // Individual chunks have their own 60s timeout in consume_rig_stream,
         // but a slow stream (1 chunk every 59s) would never hit that.
         const STREAM_TOTAL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(600);
 
+        // Use endpoint-specific timeout for OpenAiCompat (doubled for streaming headroom)
+        let effective_timeout = match self {
+            RigProvider::OpenAiCompat { timeout_secs, .. } => {
+                std::time::Duration::from_secs((*timeout_secs).max(60) * 2)
+            }
+            _ => STREAM_TOTAL_TIMEOUT,
+        };
+
         timeout(
-            STREAM_TOTAL_TIMEOUT,
+            effective_timeout,
             self.infer_stream_inner(prompt, tx, model, max_tokens),
         )
         .await
         .map_err(|_| RigInferError::Timeout {
-            duration_ms: STREAM_TOTAL_TIMEOUT.as_millis() as u64,
+            duration_ms: effective_timeout.as_millis() as u64,
         })?
     }
 
