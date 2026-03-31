@@ -2582,3 +2582,106 @@ async fn test_agent_single_provider_mock() {
         result.err()
     );
 }
+
+// ═══════════════════════════════════════════════════════════════
+// is_retryable_provider_error TESTS
+// ═══════════════════════════════════════════════════════════════
+
+#[test]
+fn test_is_retryable_500() {
+    let err = NikaError::ProviderApiError {
+        message: "HTTP 500 Internal Server Error".to_string(),
+    };
+    assert!(
+        super::infer::is_retryable_provider_error(&err),
+        "500 should be retryable"
+    );
+}
+
+#[test]
+fn test_is_retryable_502() {
+    let err = NikaError::ProviderApiError {
+        message: "HTTP 502 Bad Gateway".to_string(),
+    };
+    assert!(
+        super::infer::is_retryable_provider_error(&err),
+        "502 should be retryable"
+    );
+}
+
+#[test]
+fn test_is_retryable_503() {
+    let err = NikaError::ProviderApiError {
+        message: "HTTP 503 Service Unavailable".to_string(),
+    };
+    assert!(
+        super::infer::is_retryable_provider_error(&err),
+        "503 should be retryable"
+    );
+}
+
+#[test]
+fn test_is_retryable_429() {
+    let err = NikaError::ProviderApiError {
+        message: "HTTP 429 Too Many Requests".to_string(),
+    };
+    assert!(
+        super::infer::is_retryable_provider_error(&err),
+        "429 should be retryable"
+    );
+}
+
+#[test]
+fn test_is_retryable_timeout() {
+    let err = NikaError::ProviderApiError {
+        message: "request timed out after 30s".to_string(),
+    };
+    assert!(
+        super::infer::is_retryable_provider_error(&err),
+        "timeout should be retryable"
+    );
+}
+
+#[test]
+fn test_is_retryable_connection() {
+    let err = NikaError::ProviderApiError {
+        message: "connection refused".to_string(),
+    };
+    assert!(
+        super::infer::is_retryable_provider_error(&err),
+        "connection error should be retryable"
+    );
+}
+
+#[test]
+fn test_is_not_retryable_401() {
+    let err = NikaError::ProviderApiError {
+        message: "HTTP 401 Unauthorized".to_string(),
+    };
+    assert!(
+        !super::infer::is_retryable_provider_error(&err),
+        "401 should NOT be retryable"
+    );
+}
+
+#[test]
+fn test_is_not_retryable_403() {
+    let err = NikaError::ProviderApiError {
+        message: "HTTP 403 Forbidden".to_string(),
+    };
+    assert!(
+        !super::infer::is_retryable_provider_error(&err),
+        "403 should NOT be retryable"
+    );
+}
+
+#[test]
+fn test_is_not_retryable_invalid_api_key() {
+    let err = NikaError::ProviderApiError {
+        message: "Invalid API key provided".to_string(),
+    };
+    assert!(
+        !super::infer::is_retryable_provider_error(&err),
+        "invalid API key should NOT be retryable"
+    );
+}
