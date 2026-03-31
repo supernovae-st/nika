@@ -5,6 +5,95 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.54.0] — 2026-03-31
+
+### Security
+- **SECRET_RE hardening** — 4 new patterns (Stripe restricted keys, Twilio auth tokens, database URIs, generic `secret=`). 7 new tests.
+- **IPv6 SSRF bypass** — Block unspecified address `[::]` in SSRF check.
+- **Exec shell validation** — Pass `is_shell` flag to `validate_exec_command_with_shell` for accurate blocklist matching.
+- **TOCTOU race in session context** — Eliminate race condition in session context loading.
+- **Path traversal guard** — Block `../` in mock file schema loading paths.
+- **Secret redaction in MCP events** — Redact secrets in MCP response events.
+- **Sprint 1 P0** — Secret redaction in resolved commands, recursive JSON redaction, FetchExhausted event at all 4 retry-exhaustion paths, Retry-After header parsing (capped at 5 min).
+- **Sprint 2 P1** — Thread PolicyEnforcer through agent loop, parametric effective_max_tokens (replace 16x hardcoded 8192), 50 MB MCP resource size limit.
+
+### Added
+- **91 overnight E2E test workflows** — Across 17 categories (infer, exec, fetch, invoke, structured, for_each, agent, transforms, security, vision, artifacts, orchestrate, retry, error-handling, multi-provider, pipelines, edge-cases).
+- **39 instruction→workflow training pairs** — For fine-tuning dataset.
+- **Artifact path collision detection** — AST analyzer detects duplicate artifact paths at analysis time, respects `append`/`unique` modes.
+- **JSON schema fields** — `goal` + `orchestrate` added to JSON schema.
+
+### Fixed
+- **for_each fail_fast=false** — Include cancelled items in error summary.
+- **NIKA-028 for semaphore failures** — Distinct error code instead of reusing NIKA-026.
+- **Cascade contract** — Address code review findings for error message clarity and cleanup logging.
+- **Permanent error retry skip** — Skip retry for 401, 403, and command-not-found errors.
+- **CancellationToken wiring** — Wire cancel tokens into exec and fetch verbs for proper shutdown.
+- **Parser guardrails** — Reject `use:` and `max_retries:` at task level with helpful migration suggestions.
+- **Mock provider depth limit** — Prevent stack overflow in `generate_mock_json()`.
+- **Mock file-based schemas** — Load file-based schemas for structured output in mock provider.
+- **Shell transform null safety** — Return `NullInput` error on null instead of literal `'null'` string.
+- **Pipe parser quote handling** — Auto-close quotes at parenthesis boundary.
+- **Structured output repair_model** — Warn and skip empty `repair_model` instead of using empty string.
+- **Telemetry finish_reason** — Propagate `finish_reason` from provider through `StreamResult`.
+- **Orchestrate events** — Emit missing events + enforce `confidence_target`.
+- **Provider unreachable!()** — Replace 4 `unreachable!()` with proper error returns.
+- **Canonical provider names** — Use canonical names in telemetry.
+- **FallbackChainExhausted** — Map to correct `NikaError` variant.
+- **Test assertions** — Add real assertions to 4 security tests that asserted nothing; replace incorrect "dead variant" test with correct limit semantics tests.
+- **Cascade order-dependence** — Document + add reverse-order test.
+
+### Changed
+- **Broadcast channel capacity** — 1024 → 4096 for high-throughput workflows.
+- **DAG scheduler** — `get_ready_tasks()` optimized from O(n²) to O(remaining).
+- **Cleanup logging** — Errors logged at debug level instead of silent swallow.
+- **Retry compounding** — Document task × structured retry interaction.
+
+## [0.53.0] — 2026-03-30
+
+### Security
+- **DNS resolution pinning** — Wire DNS-pinned addresses to reqwest, closing SSRF TOCTOU gap.
+- **NIKA-053 backtick detection** — Quote-aware backtick detection in exec security check.
+- **Secret redaction** — Redact env-sourced secrets and API keys in trace events.
+- **Shell template warning** — Warn on unescaped template bindings in `shell: true` commands.
+- **50 MB limits** — MCP tool results + task output size limits to prevent OOM.
+- **Output scanner** — Wire output scanner + fix empty provider chain panic.
+
+### Added
+- **ModelResolver** — Centralized model routing (`refactor(core)`), wired into infer (9 fallback sites eliminated), agent, compressor. No more hardcoded model names.
+- **ProviderName migration** — Complete typed enum migration across 33 files (`Option<String>` → `Option<ProviderName>`).
+- **Global workflow timeout** — `max_duration_secs` field at workflow level.
+- **Structured output hardening** — 600s aggregate timeout on validation engine; L0 safety-net context + retry delay; propagate max_tokens through InferCallback for L3/L4 retries; extract L0a/L0b into methods.
+- **Orchestration events** — Emit `OrchestratorStarted` + `OrchestratorCompleted` events; wire `wrap_as_orchestrator` + security fixes.
+- **Mock provider enhancements** — Schema-conforming JSON for structured output; `NIKA_MOCK_FAIL_COUNT` env var for retry testing.
+- **41 E2E test workflows** — Structured output, fetch, invoke, retry, transforms, provider fallback, artifacts, for_each+structured, guardrails, adversarial data flow traps.
+- **4 daemon tests** — Auto-start + secrets resolution.
+
+### Fixed
+- **Fetch exhausted retries** — Return error on exhausted 5xx retries instead of empty success.
+- **Thinking budget overflow** — Safe `u64→u32` conversion with `try_from`.
+- **Token accumulation** — `saturating_add` at all token count sites (cost, display, orchestrate, agent).
+- **Agent fallback** — Pass actual chain index to ModelResolver for correct fallback substitution.
+- **Concurrency:0 rejection** — Analyzer rejects `concurrency: 0` with clear error.
+- **Binding alignment** — Align traced resolution with untraced for null+transform paths.
+- **Transform fixes** — `default()` treats empty strings as needing fallback; respect parentheses when splitting pipe chain; return null for NaN/Infinity in round/ceil/floor/abs.
+- **JSON fence stripping** — Harden for uppercase markers and Windows CRLF.
+- **TUI canonical provider** — Use canonical provider ID instead of first alias.
+- **Streaming** — Log `try_send` failures at debug level (9 sites); reduce abandoned channel buffer 64→1.
+- **Low confidence debug** — Add debug log for `LowConfidence(0.0)` in explicit completion mode.
+- **Tool path alias** — Accept `path` alias for `nika:write` `file_path` param.
+- **NIKA-204** — Improve path error with actionable suggestion.
+- **Examples** — Use `inputs:` instead of shell `${}`, add `extract: article`.
+- **5 stale tests removed** — BUG PROVEN tests for bugs already fixed in production.
+
+### Changed
+- **TUI refactor** — 4 views migrated to `default_model_for_provider` from catalog.
+- **Structured output refactor** — Extract `InferCallback` factory method, L0a/L0b methods.
+- **Secrets display** — Provider list shows source (env, daemon, or keychain).
+- **CI hardened** — `cargo-deny` and `machete` hard fail (removed `|| true`).
+- **6 dead workspace dependencies removed.**
+- **Workspace version** — Bumped all 12 crates from 0.52.0 to 0.53.0.
+
 ## [0.52.0] — 2026-03-30
 
 ### Security
