@@ -90,17 +90,6 @@ impl WriteTool {
             });
         }
 
-        // Fail if file already exists (use Edit for modifications)
-        if path.exists() {
-            return Err(NikaError::ToolError {
-                code: ToolErrorCode::FileAlreadyExists.code(),
-                message: format!(
-                    "File already exists: {}. Use the Edit tool to modify existing files.",
-                    params.file_path
-                ),
-            });
-        }
-
         // Create parent directories if needed (idempotent, no TOCTOU race)
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)
@@ -111,15 +100,28 @@ impl WriteTool {
                 })?;
         }
 
-        // Atomic write: temp file + rename
-        let temp_path = path.with_extension("tmp.nika");
-
-        // Write to temp file
-        let mut file = fs::File::create(&temp_path)
+        // Atomic create-if-not-exists using create_new(true).
+        // This is a single syscall — no TOCTOU window between exists check and creation.
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true) // Fails atomically if file exists
+            .open(&path)
             .await
-            .map_err(|e| NikaError::ToolError {
-                code: ToolErrorCode::WriteFailed.code(),
-                message: format!("Failed to create temp file: {}", e),
+            .map_err(|e| {
+                if e.kind() == std::io::ErrorKind::AlreadyExists {
+                    NikaError::ToolError {
+                        code: ToolErrorCode::FileAlreadyExists.code(),
+                        message: format!(
+                            "File already exists: {}. Use the Edit tool to modify existing files.",
+                            params.file_path
+                        ),
+                    }
+                } else {
+                    NikaError::ToolError {
+                        code: ToolErrorCode::WriteFailed.code(),
+                        message: format!("Failed to create file: {}", e),
+                    }
+                }
             })?;
 
         file.write_all(params.content.as_bytes())
@@ -129,31 +131,10 @@ impl WriteTool {
                 message: format!("Failed to write content: {}", e),
             })?;
 
-        file.flush().await.map_err(|e| NikaError::ToolError {
-            code: ToolErrorCode::WriteFailed.code(),
-            message: format!("Failed to flush file: {}", e),
-        })?;
-
-        // Ensure data hits disk before rename (durability)
         file.sync_all().await.map_err(|e| NikaError::ToolError {
             code: ToolErrorCode::WriteFailed.code(),
             message: format!("Failed to sync file: {}", e),
         })?;
-
-        // Atomic rename with async cleanup on error
-        if let Err(e) = fs::rename(&temp_path, &path).await {
-            // Async cleanup to avoid blocking the executor
-            let temp_clone = temp_path.clone();
-            tokio::spawn(async move {
-                if let Err(e) = fs::remove_file(&temp_clone).await {
-                    tracing::debug!(path = %temp_clone.display(), error = %e, "cleanup: failed to remove temp file");
-                }
-            });
-            return Err(NikaError::ToolError {
-                code: ToolErrorCode::WriteFailed.code(),
-                message: format!("Failed to finalize file: {}", e),
-            });
-        }
 
         let bytes_written = params.content.len();
         let lines_written = params.content.lines().count();
@@ -397,6 +378,40 @@ mod tests {
 
         assert!(!result.is_error);
         assert!(result.content.contains("Created file"));
+    }
+
+    #[tokio::test]
+    async fn test_write_atomic_preserves_existing_content() {
+        let (temp_dir, ctx) = setup_test().await;
+        let file_path = temp_dir
+            .path()
+            .join("precious.txt")
+            .to_string_lossy()
+            .to_string();
+
+        // Pre-create file with precious content
+        fs::write(&file_path, "precious data").await.unwrap();
+
+        let tool = WriteTool::new(ctx);
+        let result = tool
+            .execute(WriteParams {
+                file_path: file_path.clone(),
+                content: "replacement".to_string(),
+            })
+            .await;
+
+        assert!(result.is_err(), "should reject existing file");
+
+        // Original content MUST be preserved
+        let content = fs::read_to_string(&file_path).await.unwrap();
+        assert_eq!(
+            content, "precious data",
+            "original content must not be corrupted"
+        );
+
+        // No temp file should be left behind
+        let temp = std::path::Path::new(&file_path).with_extension("tmp.nika");
+        assert!(!temp.exists(), "no temp file should remain");
     }
 
     #[test]
