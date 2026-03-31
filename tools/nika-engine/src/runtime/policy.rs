@@ -46,6 +46,10 @@ pub(crate) fn is_ssrf_blocked(host: &str) -> bool {
     match ip {
         IpAddr::V4(v4) => is_blocked_v4(v4),
         IpAddr::V6(v6) => {
+            // IPv6 unspecified (::) — equivalent to 0.0.0.0
+            if v6 == Ipv6Addr::UNSPECIFIED {
+                return true;
+            }
             // IPv6 loopback
             if v6 == Ipv6Addr::LOCALHOST {
                 return true;
@@ -869,6 +873,14 @@ mod tests {
                 .check_fetch("http://[::192.168.1.1]/x")
                 .is_blocked(),
             "IPv4-compatible private ::192.168.1.1 must be blocked"
+        );
+
+        // :: (IPv6 unspecified, equivalent to 0.0.0.0)
+        assert!(
+            enforcer
+                .check_fetch("http://[::]:8080/admin")
+                .is_blocked(),
+            "IPv6 unspecified [::] must be blocked"
         );
     }
 
