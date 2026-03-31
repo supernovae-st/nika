@@ -3,8 +3,8 @@
 //! Defines the execution backend for `nika serve`, allowing runtime selection
 //! between different execution strategies:
 //!
-//! - [`SubprocessExecutor`]: V1 — spawns `nika run <workflow>` as a child process.
-//! - `EmbeddedExecutor` (v0.57): V2 — runs the workflow in-process via nika-engine Runner.
+//! - `Subprocess`: V1 — spawns `nika run <workflow>` as a child process.
+//! - `Embedded`: V2 — runs the workflow in-process via nika-engine Runner.
 
 use std::sync::atomic::AtomicU32;
 use std::sync::Arc;
@@ -16,7 +16,7 @@ pub struct ExecutionContext {
     pub config: Arc<ServeConfig>,
     pub shutdown_rx: tokio::sync::watch::Receiver<bool>,
     /// For subprocess executor: stores the child PID for cancel (SIGTERM).
-    /// Embedded executor can ignore this (set to 0).
+    /// Embedded executor ignores this.
     pub child_pid: Arc<AtomicU32>,
 }
 
@@ -28,6 +28,8 @@ pub struct ExecutionContext {
 pub enum Executor {
     /// V1: spawn `nika run <workflow>` as a child process.
     Subprocess,
+    /// V2: run workflow in-process via nika-engine Runner.
+    Embedded,
 }
 
 impl Executor {
@@ -49,6 +51,75 @@ impl Executor {
                 )
                 .await
             }
+            Self::Embedded => {
+                run_embedded(&ctx.config, workflow, inputs, &mut ctx.shutdown_rx).await
+            }
+        }
+    }
+}
+
+/// Execute a workflow in-process using nika-engine Runner.
+///
+/// Parses the workflow YAML, creates a Runner, and executes within the
+/// current process. Supports graceful cancellation via the shutdown signal.
+async fn run_embedded(
+    config: &ServeConfig,
+    workflow: &str,
+    inputs: Option<&serde_json::Value>,
+    shutdown_rx: &mut tokio::sync::watch::Receiver<bool>,
+) -> Result<String, String> {
+    let workflow_path = config.workflows_dir.join(workflow);
+
+    // Read workflow file
+    let yaml = tokio::fs::read_to_string(&workflow_path)
+        .await
+        .map_err(|e| format!("failed to read workflow: {e}"))?;
+
+    let base_path = workflow_path
+        .parent()
+        .unwrap_or(std::path::Path::new("."))
+        .to_path_buf();
+
+    // Parse workflow (Phase 1 + Phase 2)
+    let mut analyzed = nika_engine::ast::parse_analyzed_with_includes(&yaml, &base_path)
+        .map_err(|e| format!("workflow parse error: {e}"))?;
+
+    // Apply inputs (override workflow defaults)
+    if let Some(obj) = inputs.and_then(|v| v.as_object()) {
+        for (key, value) in obj {
+            analyzed.inputs.insert(key.clone(), value.clone());
+        }
+    }
+
+    // Create Runner
+    let cancel_token = tokio_util::sync::CancellationToken::new();
+    let cancel_clone = cancel_token.clone();
+
+    let mut runner = nika_engine::runtime::Runner::new(analyzed)
+        .map_err(|e| format!("runner init error: {e}"))?
+        .quiet()
+        .with_base_path(base_path)
+        .with_cancel_token(cancel_token);
+
+    let timeout = std::time::Duration::from_secs(config.job_timeout_secs);
+
+    // Execute with timeout + shutdown signal
+    tokio::select! {
+        result = async {
+            tokio::time::timeout(timeout, runner.run()).await
+        } => {
+            match result {
+                Ok(Ok(output)) => Ok(output),
+                Ok(Err(e)) => Err(format!("workflow failed: {e}")),
+                Err(_) => {
+                    cancel_clone.cancel();
+                    Err(format!("timeout after {}s", config.job_timeout_secs))
+                }
+            }
+        }
+        _ = shutdown_rx.changed() => {
+            cancel_clone.cancel();
+            Err("server shutting down".into())
         }
     }
 }
@@ -62,6 +133,11 @@ mod tests {
     fn executor_is_send_sync() {
         fn assert_send_sync<T: Send + Sync>() {}
         assert_send_sync::<Executor>();
+    }
+
+    #[test]
+    fn executor_embedded_variant_exists() {
+        let _exec = Executor::Embedded;
     }
 
     #[test]
