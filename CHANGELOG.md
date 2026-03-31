@@ -7,17 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════╗
-║  NIKA v0.55.1 — RUNTIME STABILIZATION                                      ║
-║  7 fixes | LLM guardrails | agent scope | SSRF hardening | 9,093 tests     ║
+║  NIKA v0.56.0 — HTTP API + SERVE HARDENING                                 ║
+║  nika serve | nika-storage | 16 security fixes | 9,109 tests               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
 
 ## [Unreleased] — 2026-03-31
 
 ### Security
+- **CORS origin configurable** — `CorsLayer::allow_origin(Any)` replaced with opt-in `NIKA_SERVE_CORS_ORIGIN`. No CORS headers sent by default, preventing CSRF via browser requests.
+- **Auth token minimum length** — `NIKA_SERVE_TOKEN` must be at least 16 characters. Empty or short tokens are rejected at startup.
+- **env_clear allowlist** — Worker subprocess uses `env_clear()` + explicit allowlist (PATH, HOME, API keys, NIKA_* vars) instead of `env_remove` denylist. New server secrets won't leak to subprocesses.
+- **Database instance lock** — `flock()` on `<db>.lock` prevents two `nika serve` instances from corrupting the same SQLite database.
+
+### Fixed
+- **UUID job ID collision** — Job IDs used 12 chars from hyphenated UUID (44 bits, collision at ~4.2M jobs). Now uses full 128-bit UUID in simple format (32 hex chars).
+- **Worker panic cleanup (WorkerGuard)** — Drop guard marks job as failed, decrements atomic counter, and removes from worker map even on panic between `acquire()` and `complete_job()`.
+- **Race-free queue depth** — Replaced two separate DB queries (list pending + list running) with `AtomicUsize` counter. Prevents 20 concurrent requests from all passing the check.
+- **Bounded subprocess output** — `wait_with_output()` (unbounded RAM) replaced with piped reads capped at `max_output_bytes`. Prevents OOM from verbose workflows.
+- **Shutdown kills workers** — `tokio::select!` races subprocess against shutdown signal. Workers receive SIGTERM on server shutdown instead of running until 30s drain timeout.
+- **Cancel kills subprocess** — `handle.abort()` only killed the tokio task, not the child process. Now stores child PID in `WorkerHandle` and sends SIGTERM/SIGKILL to the process group.
+- **Cancel race protection** — Worker checks if job was cancelled before writing complete/fail status, preventing a completed job from being overwritten as cancelled.
+- **Drain timeout abort** — After 30s drain, remaining worker handles are aborted (not just dropped/detached).
+- **Windows compile fix** — `child.kill()` in `#[cfg(not(unix))]` block referenced moved child. Restructured to use piped reads + `child.wait()`.
+- **Inputs passed to subprocess** — `RunRequest.inputs` was accepted but silently ignored. Now forwarded as `--input key=value` CLI args.
+- **Non-interactive subprocess** — Added `-y --no-interactive` flags to match daemon behavior, preventing interactive prompts from hanging the subprocess.
+- **Construct ServeConfig directly** — Replaced deprecated `std::env::set_var()` calls with direct `ServeConfig` construction from CLI args.
+- **9,109 tests** — Up from 9,093 (+16 tests for serve hardening).
+
+## [0.56.0] — 2026-03-31
+
+### Security
 - **SSRF redirect re-pinning** — DNS-pinned fetch clients now apply the same SSRF redirect policy as the shared client. Previously, HTTP redirects from pinned connections bypassed the IP blocklist check.
 
 ### Added
+- **`nika serve` HTTP API** — New `nika-serve` crate with Axum 0.8 server. REST API for workflow execution: `POST /v1/run`, `GET /v1/status/{id}`, `POST /v1/cancel/{id}`. Bearer token auth with constant-time comparison. Subprocess-based execution with process-group isolation.
+- **`nika-storage` crate** — Extracted SQLite storage layer from `nika-daemon`. Dedicated OS thread with mpsc channel (rusqlite is Send but not Sync). WAL mode, schema migrations, shared by daemon and serve.
 - **Agent scope presets** — `scope: full|minimal|debug` controls which builtin tools an agent receives. `minimal` = only `nika:complete` + `nika:log` (simple Q&A agents). `debug` = all tools + introspection tools (`nika:dag_info`, `nika:task_status`, `nika:threads`, `nika:cost`). Explicit `tools:` list always overrides scope.
 - **LLM guardrails (type: llm)** — `type: llm` guardrails now call a judge LLM instead of returning a hard error. Sends `judge_prompt` + agent output to the configured provider, checks response against `pass_pattern` regex. Supports guardrail-specific `model:` override and 30s timeout. Provider errors respect `on_failure:` action.
 - **StructuredOutputTimeout event** — New `EventKind::StructuredOutputTimeout` emitted when the 600s aggregate structured output validation times out. Displayed in live renderer and handled by TUI.
@@ -25,10 +50,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **Cancellation before binding resolution** — Cancel token checked before synchronous binding resolution in `execute_task_iteration` and `for_each` binding paths. Prevents long JSON path traversal from blocking workflow cancellation.
+- **Keyring crate removed** — NikaVault replaces OS keychain. No more macOS Keychain popups.
+- **Package resolver cache TTL** — 5-minute TTL on package resolver cache prevents stale results.
+- **Run lockfile uses flock** — Exclusive run lockfile uses `flock()` instead of file existence check.
+- **Global task concurrency semaphore** — Max 64 concurrent tasks across all workflows to prevent fork bombs.
+- **INTERNER DashMap removed** — Global string interner replaced with plain `Arc::from` for simplicity.
 
 ### Changed
 - **TUI ProviderName migration** — Provider verification uses typed `ProviderName` enum instead of hardcoded string array, keeping TUI in sync with the provider catalog.
 - **9,093 tests** — Up from 9,086 (+7 new tests for scope wiring, failed task bindings, LLM guardrails).
+
+### Dependencies
+- **Added**: `axum 0.8`, `tower-http 0.6`, `subtle 2` (constant-time auth), `nika-storage` crate.
+- **Removed**: `keyring` crate (replaced by NikaVault).
 
 ## [0.55.0] — 2026-03-31
 
