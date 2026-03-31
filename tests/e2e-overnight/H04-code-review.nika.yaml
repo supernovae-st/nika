@@ -3,11 +3,6 @@ workflow: h04-code-review
 provider: xai
 model: grok-3-fast
 tasks:
-  - id: read_code
-    invoke:
-      tool: "nika:read"
-      params:
-        file_path: "tests/e2e-overnight/fixtures/red-10x10.png"
   - id: read_script
     exec:
       command: "head -30 tests/e2e-overnight/run-smoke.sh"
