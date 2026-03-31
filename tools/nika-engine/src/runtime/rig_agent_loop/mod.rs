@@ -286,6 +286,12 @@ impl RigAgentLoop {
                 params.temperature,
                 params.tools.clone(),
             );
+            // Propagate security policies to child agents
+            let spawn_tool = if let Some(ref enforcer) = policy_enforcer {
+                spawn_tool.with_policy(Arc::clone(enforcer))
+            } else {
+                spawn_tool
+            };
             tools.push(Arc::new(spawn_tool));
         }
 

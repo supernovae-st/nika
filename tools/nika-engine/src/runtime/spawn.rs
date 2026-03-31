@@ -94,6 +94,8 @@ pub struct SpawnAgentTool {
     parent_temperature: Option<f32>,
     /// Parent's tools list — propagated to child agents
     parent_tools: Vec<String>,
+    /// Policy enforcer — propagated to child agents for security checks
+    policy_enforcer: Option<Arc<parking_lot::RwLock<crate::runtime::policy::PolicyEnforcer>>>,
 }
 
 impl SpawnAgentTool {
@@ -122,6 +124,7 @@ impl SpawnAgentTool {
             parent_provider: None,
             parent_temperature: None,
             parent_tools: Vec::new(),
+            policy_enforcer: None,
         }
     }
 
@@ -156,7 +159,20 @@ impl SpawnAgentTool {
             parent_provider: None,
             parent_temperature: None,
             parent_tools: Vec::new(),
+            policy_enforcer: None,
         }
+    }
+
+    /// Set the policy enforcer to propagate to child agents.
+    ///
+    /// Without this, child agents bypass security policies (exec blocklist,
+    /// network restrictions, etc.) — a privilege escalation vector.
+    pub fn with_policy(
+        mut self,
+        enforcer: Arc<parking_lot::RwLock<crate::runtime::policy::PolicyEnforcer>>,
+    ) -> Self {
+        self.policy_enforcer = Some(enforcer);
+        self
     }
 
     /// Set parent configuration to propagate to child agents.
@@ -286,7 +302,7 @@ impl SpawnAgentTool {
             child_params,
             self.event_log.clone(),
             self.mcp_clients.clone(),
-            None, // TODO: propagate policy_enforcer from parent
+            self.policy_enforcer.clone(),
         )
         .map_err(|e| SpawnAgentError::ExecutionFailed(e.to_string()))?;
 
