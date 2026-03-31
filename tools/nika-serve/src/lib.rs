@@ -28,6 +28,7 @@ pub mod rate_limit;
 pub mod request_id;
 pub mod routes;
 pub mod state;
+pub mod webhook;
 pub mod worker;
 
 use std::collections::HashMap;

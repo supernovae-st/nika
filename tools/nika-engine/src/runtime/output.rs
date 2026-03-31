@@ -203,12 +203,6 @@ pub async fn make_task_result(
 ///
 /// Schema files are cached after first load to avoid repeated file I/O.
 pub async fn validate_schema(value: &Value, schema_path: &str) -> Result<(), NikaError> {
-    // Check file mtime for cache invalidation (M14 fix: stale data detection)
-    let current_mtime = tokio::fs::metadata(schema_path)
-        .await
-        .ok()
-        .and_then(|m| m.modified().ok());
-
     // Try cache first (fast path)
     let schema = if let Some(cached) = SCHEMA_CACHE.get(schema_path) {
         Some(Arc::clone(cached.value()))

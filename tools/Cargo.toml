@@ -88,6 +88,7 @@ subtle = "2"
 
 # Crypto
 sha2 = "0.10"
+hmac = "0.12"
 blake3 = { version = "1.8", features = ["mmap"] }
 
 # Concurrency
