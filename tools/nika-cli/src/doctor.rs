@@ -729,7 +729,9 @@ fn check_editor_integration() -> Vec<DiagnosticCheck> {
                     let ext_version = extensions.lines().find_map(|l| {
                         let trimmed = l.trim().to_lowercase();
                         if trimmed.starts_with("supernovae.nika-lang@") {
-                            trimmed.strip_prefix("supernovae.nika-lang@").map(|v| v.to_string())
+                            trimmed
+                                .strip_prefix("supernovae.nika-lang@")
+                                .map(|v| v.to_string())
                         } else {
                             None
                         }
