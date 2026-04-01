@@ -291,7 +291,8 @@ impl RigAgentLoop {
                 params.provider.clone(),
                 params.temperature,
                 params.tools.clone(),
-            );
+            )
+            .with_workflow_base_dir(workflow_base_dir.clone());
             // Propagate security policies to child agents
             let spawn_tool = if let Some(ref enforcer) = policy_enforcer {
                 spawn_tool.with_policy(Arc::clone(enforcer))
@@ -434,9 +435,11 @@ impl RigAgentLoop {
             || (scope != "minimal" && !has_explicit_filter);
 
         if add_file_tools {
-            let working_dir = workflow_base_dir
-                .clone()
-                .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+            // Agent file tools (glob, read, grep) use the process cwd (project root)
+            // so they can see all project files — same as invoke: nika:glob.
+            // workflow_base_dir is only used for spawn tool propagation (line 295).
+            let working_dir =
+                std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/tmp"));
             let tool_ctx = Arc::new(ToolContext::new(working_dir, PermissionMode::Plan));
 
             use super::builtin::FileToolAdapter;
