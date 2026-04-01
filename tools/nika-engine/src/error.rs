@@ -559,7 +559,7 @@ pub enum NikaError {
     #[error("[NIKA-165] Policy violation: {reason}")]
     #[diagnostic(
         code(nika::policy_violation),
-        help("Check .nika/config.toml [policy] section or use --allow flag")
+        help("Check nika.toml [policy] section or use --allow flag")
     )]
     PolicyViolation { reason: String },
 
@@ -1361,7 +1361,7 @@ impl FixSuggestion for NikaError {
             ),
             // Policy errors
             NikaError::PolicyViolation { .. } => Some(
-                "This action was blocked by security policy. Check .nika/config.toml policy section.",
+                "This action was blocked by security policy. Check nika.toml [policy] section.",
             ),
             NikaError::BootFailed { .. } => {
                 Some("Boot sequence failed. Run 'nika doctor' to diagnose.")

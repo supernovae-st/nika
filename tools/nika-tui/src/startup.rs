@@ -200,7 +200,18 @@ pub fn load_config_graceful() -> ConfigReport {
 
 /// Load config from a specific base directory (for testing)
 pub fn load_config_graceful_in(base_dir: Option<&std::path::Path>) -> ConfigReport {
-    let config_path = base_dir.map(|dir| dir.join(NIKA_DIR).join("config.toml"));
+    // Try nika.toml first (new standard), then .nika/config.toml (legacy)
+    let config_path = base_dir.and_then(|dir| {
+        let nika_toml = dir.join("nika.toml");
+        if nika_toml.exists() {
+            return Some(nika_toml);
+        }
+        let legacy = dir.join(NIKA_DIR).join("config.toml");
+        if legacy.exists() {
+            return Some(legacy);
+        }
+        None
+    });
 
     let mut report = ConfigReport::default();
 
@@ -503,9 +514,32 @@ mod tests {
     }
 
     #[test]
-    fn test_load_config_graceful_with_file() {
+    fn test_load_config_graceful_with_nika_toml() {
         let temp = TempDir::new().unwrap();
-        // Create .nika/config.toml
+        // Create nika.toml (new standard)
+        std::fs::write(
+            temp.path().join("nika.toml"),
+            "[project]\nname = \"test\"\n",
+        )
+        .unwrap();
+
+        let report = load_config_graceful_in(Some(temp.path()));
+
+        assert!(report.is_ok());
+        assert_eq!(report.source, ConfigSource::File);
+        assert!(report.config_path.is_some());
+        // Should find nika.toml, not .nika/config.toml
+        assert!(report
+            .config_path
+            .as_ref()
+            .unwrap()
+            .ends_with("nika.toml"));
+    }
+
+    #[test]
+    fn test_load_config_graceful_legacy_fallback() {
+        let temp = TempDir::new().unwrap();
+        // Create .nika/config.toml (legacy — no nika.toml)
         std::fs::create_dir(temp.path().join(".nika")).unwrap();
         std::fs::write(
             temp.path().join(".nika/config.toml"),
@@ -523,9 +557,8 @@ mod tests {
     #[test]
     fn test_load_config_graceful_empty_file() {
         let temp = TempDir::new().unwrap();
-        // Create empty .nika/config.toml
-        std::fs::create_dir(temp.path().join(".nika")).unwrap();
-        std::fs::write(temp.path().join(".nika/config.toml"), "").unwrap();
+        // Create empty nika.toml
+        std::fs::write(temp.path().join("nika.toml"), "").unwrap();
 
         let report = load_config_graceful_in(Some(temp.path()));
 

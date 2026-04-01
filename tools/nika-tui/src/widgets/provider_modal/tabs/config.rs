@@ -95,7 +95,7 @@ impl ConfigTab {
             ConfigEntry::new("MCP Timeout", "30s", "Timeout for MCP operations"),
             ConfigEntry::readonly(
                 "Config Path",
-                "~/.nika/config.toml",
+                "nika.toml",
                 "Configuration file location",
             ),
         ];

@@ -99,11 +99,41 @@ pub struct PhaseResult {
     pub warnings: Vec<String>,
 }
 
+/// Which configuration source was used during boot.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ConfigSource {
+    /// nika.toml found (new standard)
+    NikaToml,
+    /// .nika/config.toml found (legacy fallback)
+    DotNika,
+    /// Nothing found, using built-in defaults
+    Defaults,
+}
+
+/// CLI overrides that take highest precedence.
+#[derive(Debug, Clone, Default)]
+pub struct CliOverrides {
+    pub provider: Option<String>,
+    pub model: Option<String>,
+}
+
+/// [project] section in nika.toml.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ProjectConfig {
+    pub name: String,
+    #[serde(default)]
+    pub description: Option<String>,
+}
+
 /// Boot context - accumulated state during boot
 #[derive(Debug, Clone, Default)]
 pub struct BootContext {
     /// Root .nika/ directory
     pub nika_dir: Option<PathBuf>,
+    /// Project root directory (parent of nika.toml or .nika/)
+    pub project_root: Option<PathBuf>,
+    /// Which config source was used
+    pub config_source: Option<ConfigSource>,
     /// Parsed configuration
     pub config: Option<BootstrapConfig>,
     /// Loaded memory context
@@ -120,9 +150,15 @@ pub struct BootContext {
     pub total_duration: Duration,
 }
 
-/// Nika configuration from config.toml
+/// Nika configuration from nika.toml (project) or config.toml (legacy/user)
+///
+/// NOTE: No `#[serde(deny_unknown_fields)]` — unknown sections (future
+/// `[packages]`, `[memory]`, etc.) are silently ignored for forward compat.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct BootstrapConfig {
+    /// [project] section (nika.toml only)
+    #[serde(default)]
+    pub project: Option<ProjectConfig>,
     #[serde(default)]
     pub tools: ToolsConfig,
     #[serde(default)]
@@ -305,6 +341,8 @@ impl Default for PolicyConfig {
 pub struct BootSequence {
     start_dir: PathBuf,
     verbose: bool,
+    user_config_dir: Option<PathBuf>,
+    cli_overrides: Option<CliOverrides>,
 }
 
 impl BootSequence {
@@ -313,12 +351,26 @@ impl BootSequence {
         Self {
             start_dir: start_dir.as_ref().to_path_buf(),
             verbose: false,
+            user_config_dir: None,
+            cli_overrides: None,
         }
     }
 
     /// Enable verbose output
     pub fn with_verbose(mut self, verbose: bool) -> Self {
         self.verbose = verbose;
+        self
+    }
+
+    /// Set user-level config directory (default: ~/.nika/)
+    pub fn with_user_config_dir(mut self, dir: &Path) -> Self {
+        self.user_config_dir = Some(dir.to_path_buf());
+        self
+    }
+
+    /// Set CLI overrides (highest precedence)
+    pub fn with_cli_overrides(mut self, overrides: CliOverrides) -> Self {
+        self.cli_overrides = Some(overrides);
         self
     }
 
@@ -409,12 +461,35 @@ impl BootSequence {
         let start = Instant::now();
         let mut warnings = vec![];
 
-        // Search for .nika/ directory
+        // Pass 1: Walk up looking for nika.toml (primary — new standard)
+        let mut dir = self.start_dir.as_path();
+        loop {
+            if dir.join("nika.toml").exists() {
+                ctx.project_root = Some(dir.to_path_buf());
+                ctx.nika_dir = Some(dir.join(".nika"));
+                ctx.config_source = Some(ConfigSource::NikaToml);
+                return PhaseResult {
+                    phase: BootPhase::ConfigDiscovery,
+                    success: true,
+                    duration: start.elapsed(),
+                    message: Some(format!("Found nika.toml at {}", dir.display())),
+                    warnings,
+                };
+            }
+            match dir.parent() {
+                Some(parent) => dir = parent,
+                None => break,
+            }
+        }
+
+        // Pass 2: Walk up looking for .nika/ directory (legacy fallback)
         let mut dir = self.start_dir.as_path();
         loop {
             let nika_dir = dir.join(".nika");
             if nika_dir.exists() && nika_dir.is_dir() {
+                ctx.project_root = Some(dir.to_path_buf());
                 ctx.nika_dir = Some(nika_dir);
+                ctx.config_source = Some(ConfigSource::DotNika);
                 return PhaseResult {
                     phase: BootPhase::ConfigDiscovery,
                     success: true,
@@ -423,16 +498,17 @@ impl BootSequence {
                     warnings,
                 };
             }
-
             match dir.parent() {
                 Some(parent) => dir = parent,
                 None => break,
             }
         }
 
-        // Not found - use current directory
-        warnings.push("No .nika/ directory found, using defaults".into());
+        // Nothing found — use current directory with defaults
+        warnings.push("No nika.toml or .nika/ found, using defaults".into());
+        ctx.project_root = Some(self.start_dir.to_path_buf());
         ctx.nika_dir = Some(self.start_dir.join(".nika"));
+        ctx.config_source = Some(ConfigSource::Defaults);
 
         PhaseResult {
             phase: BootPhase::ConfigDiscovery,
@@ -447,71 +523,98 @@ impl BootSequence {
         let start = Instant::now();
         let mut warnings = vec![];
 
-        let nika_dir = match &ctx.nika_dir {
-            Some(dir) => dir.clone(),
-            None => {
-                return PhaseResult {
-                    phase: BootPhase::ConfigValidation,
-                    success: false,
-                    duration: start.elapsed(),
-                    message: Some("No .nika directory".into()),
-                    warnings,
-                };
+        // Determine config file path based on discovery source
+        let config_path = match ctx.config_source {
+            Some(ConfigSource::NikaToml) => {
+                ctx.project_root.as_ref().map(|r| r.join("nika.toml"))
             }
+            Some(ConfigSource::DotNika) => ctx.nika_dir.as_ref().map(|d| d.join("config.toml")),
+            _ => None,
         };
 
-        let config_path = nika_dir.join("config.toml");
-        if !config_path.exists() {
-            // Use defaults
-            ctx.config = Some(BootstrapConfig::default());
-            warnings.push("config.toml not found, using defaults".into());
-            return PhaseResult {
-                phase: BootPhase::ConfigValidation,
-                success: true,
-                duration: start.elapsed(),
-                message: Some("Using default configuration".into()),
-                warnings,
-            };
-        }
+        // Load project config from discovered file
+        let mut config = if let Some(ref path) = config_path {
+            if path.exists() {
+                match tokio::fs::read_to_string(path).await {
+                    Ok(content) => match toml::from_str::<BootstrapConfig>(&content) {
+                        Ok(c) => c,
+                        Err(e) => {
+                            let msg =
+                                format!("Config parse error in {}: {}", path.display(), e);
+                            tracing::error!("{}", msg);
+                            warnings.push(msg);
+                            BootstrapConfig::default()
+                        }
+                    },
+                    Err(e) => {
+                        warnings.push(format!("Config read error: {}", e));
+                        BootstrapConfig::default()
+                    }
+                }
+            } else {
+                warnings.push(format!("{} not found, using defaults", path.display()));
+                BootstrapConfig::default()
+            }
+        } else {
+            BootstrapConfig::default()
+        };
 
-        // Parse config
-        match tokio::fs::read_to_string(&config_path).await {
-            Ok(content) => match toml::from_str::<BootstrapConfig>(&content) {
-                Ok(config) => {
-                    ctx.config = Some(config);
-                    PhaseResult {
-                        phase: BootPhase::ConfigValidation,
-                        success: true,
-                        duration: start.elapsed(),
-                        message: Some("Configuration loaded".into()),
-                        warnings,
+        // Merge user-level config (~/.nika/config.toml) as base layer
+        if let Some(ref user_dir) = self.user_config_dir {
+            let user_config_path = user_dir.join("config.toml");
+            if user_config_path.exists() {
+                if let Ok(content) = tokio::fs::read_to_string(&user_config_path).await {
+                    if let Ok(user_config) = toml::from_str::<BootstrapConfig>(&content) {
+                        // User config fills in gaps — project config wins for set fields
+                        Self::merge_config_layers(&mut config, &user_config);
                     }
-                }
-                Err(e) => {
-                    let msg = format!("Config parse error in {}: {}", config_path.display(), e);
-                    tracing::error!("{}", msg);
-                    warnings.push(msg);
-                    ctx.config = Some(BootstrapConfig::default());
-                    PhaseResult {
-                        phase: BootPhase::ConfigValidation,
-                        success: true, // Proceed with defaults
-                        duration: start.elapsed(),
-                        message: Some("Using defaults due to parse error".into()),
-                        warnings,
-                    }
-                }
-            },
-            Err(e) => {
-                warnings.push(format!("Config read error: {}", e));
-                ctx.config = Some(BootstrapConfig::default());
-                PhaseResult {
-                    phase: BootPhase::ConfigValidation,
-                    success: true,
-                    duration: start.elapsed(),
-                    message: Some("Using defaults due to read error".into()),
-                    warnings,
                 }
             }
+        }
+
+        // Apply CLI overrides (highest precedence)
+        if let Some(ref overrides) = self.cli_overrides {
+            if let Some(ref provider) = overrides.provider {
+                config.provider.default = provider.clone();
+            }
+            if let Some(ref model) = overrides.model {
+                config.provider.model = Some(model.clone());
+            }
+        }
+
+        let msg = match ctx.config_source {
+            Some(ConfigSource::NikaToml) => "Configuration loaded from nika.toml",
+            Some(ConfigSource::DotNika) => "Configuration loaded from .nika/config.toml",
+            _ => "Using default configuration",
+        };
+
+        ctx.config = Some(config);
+
+        PhaseResult {
+            phase: BootPhase::ConfigValidation,
+            success: true,
+            duration: start.elapsed(),
+            message: Some(msg.into()),
+            warnings,
+        }
+    }
+
+    /// Merge user config into project config — user fills gaps, project wins.
+    fn merge_config_layers(project: &mut BootstrapConfig, user: &BootstrapConfig) {
+        // Provider: project wins if explicitly set, otherwise use user's
+        if project.provider.model.is_none() {
+            project.provider.model = user.provider.model.clone();
+        }
+        // Only override provider.default if project didn't set it
+        // (we can't tell if project set "anthropic" explicitly or got default,
+        //  so user config only fills in model for now)
+
+        // Tools: if project has default "plan", user's preference wins
+        if project.tools.permission == "plan" && user.tools.permission != "plan" {
+            project.tools.permission = user.tools.permission.clone();
+        }
+        if project.tools.working_dir.is_none() {
+            project.tools.working_dir = user.tools.working_dir.clone();
         }
     }
 
@@ -709,7 +812,10 @@ mod tests {
         let ctx = boot.run(None).await.unwrap();
 
         assert!(ctx.is_ready());
-        assert!(ctx.all_warnings().iter().any(|w| w.contains("No .nika/")));
+        assert!(ctx
+            .all_warnings()
+            .iter()
+            .any(|w| w.contains("No nika.toml") || w.contains("No .nika/")));
     }
 
     #[tokio::test]
@@ -795,6 +901,258 @@ default = "openai"
             None => unsafe { std::env::remove_var(key) },
         }
     }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Phase 1: nika.toml Foundation Tests (TDD RED)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // Test 1: Walk up to find nika.toml (primary discovery)
+    #[tokio::test]
+    async fn config_discovery_finds_nika_toml_walking_up() {
+        let temp = tempdir().unwrap();
+        // nika.toml at root
+        std::fs::write(
+            temp.path().join("nika.toml"),
+            "[project]\nname = \"test-project\"\n",
+        )
+        .unwrap();
+        // Start from nested subdir
+        let subdir = temp.path().join("src").join("deep");
+        std::fs::create_dir_all(&subdir).unwrap();
+
+        let boot = BootSequence::new(&subdir);
+        let ctx = boot.run(None).await.unwrap();
+
+        assert!(ctx.is_ready());
+        assert_eq!(ctx.project_root, Some(temp.path().to_path_buf()));
+        assert_eq!(ctx.config_source, Some(ConfigSource::NikaToml));
+    }
+
+    // Test 2: Fallback to .nika/ when no nika.toml
+    #[tokio::test]
+    async fn config_discovery_fallback_to_dot_nika() {
+        let temp = tempdir().unwrap();
+        let nika_dir = temp.path().join(".nika");
+        std::fs::create_dir_all(&nika_dir).unwrap();
+        std::fs::write(
+            nika_dir.join("config.toml"),
+            "[provider]\ndefault = \"openai\"\n",
+        )
+        .unwrap();
+
+        let boot = BootSequence::new(temp.path());
+        let ctx = boot.run(None).await.unwrap();
+
+        assert!(ctx.is_ready());
+        assert_eq!(ctx.config_source, Some(ConfigSource::DotNika));
+    }
+
+    // Test 3: Neither nika.toml nor .nika/ → defaults
+    #[tokio::test]
+    async fn config_discovery_neither_uses_defaults() {
+        let temp = tempdir().unwrap();
+
+        let boot = BootSequence::new(temp.path());
+        let ctx = boot.run(None).await.unwrap();
+
+        assert!(ctx.is_ready());
+        assert_eq!(ctx.config_source, Some(ConfigSource::Defaults));
+        let config = ctx.config.unwrap();
+        assert_eq!(config.provider.default, "anthropic");
+    }
+
+    // Test 4: Full nika.toml parsing with all sections
+    #[tokio::test]
+    async fn nika_toml_parsing_all_sections() {
+        let temp = tempdir().unwrap();
+        let toml_content = r#"
+[project]
+name = "my-workflow-project"
+description = "Test project"
+
+[provider]
+default = "gemini"
+model = "gemini-2.5-pro"
+
+[tools]
+permission = "yolo"
+
+[policy]
+allow_exec = false
+max_token_spend = 50000
+
+[trace]
+retention_days = 14
+max_traces = 200
+"#;
+        std::fs::write(temp.path().join("nika.toml"), toml_content).unwrap();
+
+        let boot = BootSequence::new(temp.path());
+        let ctx = boot.run(None).await.unwrap();
+
+        let config = ctx.config.unwrap();
+        assert_eq!(config.project.as_ref().unwrap().name, "my-workflow-project");
+        assert_eq!(
+            config.project.as_ref().unwrap().description.as_deref(),
+            Some("Test project")
+        );
+        assert_eq!(config.provider.default, "gemini");
+        assert_eq!(config.provider.model.as_deref(), Some("gemini-2.5-pro"));
+        assert_eq!(config.tools.permission, "yolo");
+        assert!(!config.policy.allow_exec);
+        assert_eq!(config.policy.max_token_spend, Some(50000));
+        assert_eq!(config.trace.retention_days, 14);
+        assert_eq!(config.trace.max_traces, 200);
+    }
+
+    // Test 5: Minimal nika.toml with [project] only
+    #[tokio::test]
+    async fn nika_toml_minimal_project_only() {
+        let temp = tempdir().unwrap();
+        std::fs::write(
+            temp.path().join("nika.toml"),
+            "[project]\nname = \"minimal\"\n",
+        )
+        .unwrap();
+
+        let boot = BootSequence::new(temp.path());
+        let ctx = boot.run(None).await.unwrap();
+
+        let config = ctx.config.unwrap();
+        assert_eq!(config.project.as_ref().unwrap().name, "minimal");
+        // Rest should be defaults
+        assert_eq!(config.provider.default, "anthropic");
+        assert_eq!(config.tools.permission, "plan");
+    }
+
+    // Test 6: Unknown sections ignored (forward-compatible)
+    #[tokio::test]
+    async fn nika_toml_unknown_sections_ignored() {
+        let temp = tempdir().unwrap();
+        let toml_content = r#"
+[project]
+name = "forward-compat"
+
+[banana]
+color = "yellow"
+
+[future_section]
+key = "value"
+"#;
+        std::fs::write(temp.path().join("nika.toml"), toml_content).unwrap();
+
+        let boot = BootSequence::new(temp.path());
+        let ctx = boot.run(None).await.unwrap();
+
+        assert!(ctx.is_ready());
+        let config = ctx.config.unwrap();
+        assert_eq!(config.project.as_ref().unwrap().name, "forward-compat");
+    }
+
+    // Test 7: User defaults merge under project config
+    #[tokio::test]
+    async fn user_defaults_merge_under_project_config() {
+        let temp = tempdir().unwrap();
+        // Project nika.toml: only sets provider
+        std::fs::write(
+            temp.path().join("nika.toml"),
+            "[project]\nname = \"proj\"\n\n[provider]\ndefault = \"gemini\"\n",
+        )
+        .unwrap();
+
+        // User config: sets model and tools
+        let user_dir = temp.path().join("user-nika");
+        std::fs::create_dir_all(&user_dir).unwrap();
+        std::fs::write(
+            user_dir.join("config.toml"),
+            "[provider]\nmodel = \"user-model\"\n\n[tools]\npermission = \"deny\"\n",
+        )
+        .unwrap();
+
+        let boot = BootSequence::new(temp.path()).with_user_config_dir(&user_dir);
+        let ctx = boot.run(None).await.unwrap();
+
+        let config = ctx.config.unwrap();
+        // Project wins for provider.default
+        assert_eq!(config.provider.default, "gemini");
+        // User fills in missing provider.model
+        assert_eq!(config.provider.model.as_deref(), Some("user-model"));
+        // User fills in tools.permission (project didn't set it)
+        assert_eq!(config.tools.permission, "deny");
+    }
+
+    // Test 8: CLI overrides win over everything
+    #[tokio::test]
+    async fn cli_flags_override_nika_toml() {
+        let temp = tempdir().unwrap();
+        std::fs::write(
+            temp.path().join("nika.toml"),
+            "[project]\nname = \"proj\"\n\n[provider]\ndefault = \"gemini\"\nmodel = \"gemini-2.5-pro\"\n",
+        )
+        .unwrap();
+
+        let overrides = CliOverrides {
+            provider: Some("anthropic".to_string()),
+            model: Some("claude-opus-4-20250514".to_string()),
+        };
+        let boot = BootSequence::new(temp.path()).with_cli_overrides(overrides);
+        let ctx = boot.run(None).await.unwrap();
+
+        let config = ctx.config.unwrap();
+        assert_eq!(config.provider.default, "anthropic");
+        assert_eq!(
+            config.provider.model.as_deref(),
+            Some("claude-opus-4-20250514")
+        );
+    }
+
+    // Test 9: project_root is parent of nika.toml, nika_dir is .nika/ inside it
+    #[tokio::test]
+    async fn project_root_is_parent_of_nika_toml() {
+        let temp = tempdir().unwrap();
+        std::fs::write(
+            temp.path().join("nika.toml"),
+            "[project]\nname = \"test\"\n",
+        )
+        .unwrap();
+        // Also create .nika/ for runtime
+        std::fs::create_dir_all(temp.path().join(".nika")).unwrap();
+
+        let boot = BootSequence::new(temp.path());
+        let ctx = boot.run(None).await.unwrap();
+
+        assert_eq!(ctx.project_root, Some(temp.path().to_path_buf()));
+        assert_eq!(ctx.nika_dir, Some(temp.path().join(".nika")));
+    }
+
+    // Test 10: config_source enum set correctly for all 3 cases
+    #[tokio::test]
+    async fn boot_context_has_config_source() {
+        // Case A: nika.toml
+        let temp = tempdir().unwrap();
+        std::fs::write(
+            temp.path().join("nika.toml"),
+            "[project]\nname = \"a\"\n",
+        )
+        .unwrap();
+        let ctx = BootSequence::new(temp.path()).run(None).await.unwrap();
+        assert_eq!(ctx.config_source, Some(ConfigSource::NikaToml));
+
+        // Case B: .nika/ only
+        let temp2 = tempdir().unwrap();
+        let nika_dir = temp2.path().join(".nika");
+        std::fs::create_dir_all(&nika_dir).unwrap();
+        std::fs::write(nika_dir.join("config.toml"), "").unwrap();
+        let ctx2 = BootSequence::new(temp2.path()).run(None).await.unwrap();
+        assert_eq!(ctx2.config_source, Some(ConfigSource::DotNika));
+
+        // Case C: nothing
+        let temp3 = tempdir().unwrap();
+        let ctx3 = BootSequence::new(temp3.path()).run(None).await.unwrap();
+        assert_eq!(ctx3.config_source, Some(ConfigSource::Defaults));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
 
     #[test]
     fn test_boot_context_summary() {

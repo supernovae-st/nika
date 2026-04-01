@@ -25,12 +25,14 @@
 //!
 //! ```text
 //! project/
-//! ├── .nika/               # Project-specific Nika config
-//! │   ├── config.toml      # Project settings
-//! │   ├── mcp.yaml         # Project MCP servers
-//! │   └── sessions/        # Editor sessions
-//! ├── nika.yaml            # Package manifest (dependencies)
-//! └── nika.lock            # Lockfile (exact versions)
+//! ├── nika.toml             # Project config (versioned, committed)
+//! ├── .nika/                # Runtime state (gitignored)
+//! │   ├── traces/           # Execution traces
+//! │   ├── cache/            # LLM response cache
+//! │   ├── media/store/      # CAS blobs
+//! │   └── sessions/         # Editor sessions
+//! ├── *.nika.yaml           # Workflows (anywhere in project)
+//! └── artifacts/            # Output dir (configurable)
 //! ```
 //!
 
