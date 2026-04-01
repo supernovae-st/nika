@@ -1203,7 +1203,7 @@ mod tests {
     async fn test_resolve_artifact_dir_default() {
         let base = PathBuf::from("/project");
         let dir = resolve_artifact_dir(None, &base).await;
-        assert_eq!(dir, PathBuf::from("/project/.nika/artifacts"));
+        assert_eq!(dir, PathBuf::from("/project/./artifacts"));
     }
 
     #[tokio::test]
@@ -2242,7 +2242,7 @@ mod tests {
     async fn test_binary_mode_fail_rejects_existing_file() {
         let (base, media_refs, bindings, datastore) = setup_binary_mode_fixtures();
         // Pre-create the target so fail mode triggers
-        let target = base.path().join(".nika/artifacts/output.bin");
+        let target = base.path().join("./artifacts/output.bin");
         std::fs::create_dir_all(target.parent().unwrap()).unwrap();
         std::fs::write(&target, b"existing data").unwrap();
         let spec = ArtifactSpec::Single(ArtifactOutput {
