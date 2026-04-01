@@ -651,7 +651,11 @@ async fn wiremock_fetch_404_returns_error() {
     let result = executor
         .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
-    assert!(result.is_err(), "404 should return error, got: {:?}", result.ok());
+    assert!(
+        result.is_err(),
+        "404 should return error, got: {:?}",
+        result.ok()
+    );
     let err = result.unwrap_err().to_string();
     assert!(err.contains("404"), "Error should mention 404: {err}");
 }
