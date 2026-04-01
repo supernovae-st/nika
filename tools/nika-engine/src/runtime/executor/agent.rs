@@ -253,12 +253,15 @@ impl TaskExecutor {
         }
 
         // Create rig-based agent loop (with policy enforcement for tool calls)
+        // Pass workflow_base_dir so agent's builtin file tools (glob, read, etc.)
+        // operate in the workflow's directory, not the process cwd.
         let agent_loop = RigAgentLoop::new(
             task_id.to_string(),
             resolved_agent,
             self.event_log.clone(),
             mcp_clients,
             Some(Arc::clone(&self.policy_enforcer)),
+            Some(self.workflow_base_dir.clone()),
         )?;
 
         // Wire skill injection if the agent has skills and the workflow defines a skills map

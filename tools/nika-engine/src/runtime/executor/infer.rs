@@ -150,8 +150,10 @@ impl TaskExecutor {
         // Pre-read file-based from_example for prompt injection.
         // Fail fast if the file is missing or contains invalid JSON — continuing
         // would waste an API call that L2 validation will reject anyway.
+        // SECURITY: reject paths with traversal patterns before reading.
         let cached_example = if let Some(policy) = output_policy {
             if let Some(SchemaRef::File(ref path)) = policy.from_example {
+                Self::validate_schema_path(path)?;
                 let content =
                     tokio::fs::read_to_string(path)
                         .await
@@ -174,6 +176,7 @@ impl TaskExecutor {
         // Same rationale: a missing/invalid schema file will waste an API call.
         if let Some(policy) = output_policy {
             if let Some(SchemaRef::File(ref path)) = policy.schema {
+                Self::validate_schema_path(path)?;
                 if policy.is_structured() && !tokio::fs::try_exists(path).await.unwrap_or(false) {
                     return Err(NikaError::SchemaFailed {
                         details: format!("Schema file '{}' does not exist", path,),
@@ -1648,6 +1651,23 @@ impl TaskExecutor {
                 "version": 1
             }
         })
+    }
+
+    /// SECURITY: Validate schema/from_example file paths against directory traversal.
+    /// Rejects `..` components to prevent escaping the workflow directory
+    /// (e.g., `../../.env`, `../../../etc/passwd`).
+    fn validate_schema_path(path: &str) -> Result<(), NikaError> {
+        let p = std::path::Path::new(path);
+        if p.components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
+        {
+            return Err(NikaError::SchemaFailed {
+                details: format!(
+                    "Path traversal ('..') not allowed in schema/from_example: '{path}'"
+                ),
+            });
+        }
+        Ok(())
     }
 
     /// Emits GuardrailPassed/GuardrailFailed events and returns an error

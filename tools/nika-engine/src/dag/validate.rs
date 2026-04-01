@@ -40,7 +40,14 @@ pub fn validate_with_bindings(
 
     for task in &workflow.tasks {
         if !task.with_spec.is_empty() {
-            validate_with_spec(&task.name, &task.with_spec, &all_task_ids, flow_graph)?;
+            let loop_var = task.for_each.as_ref().map(|fe| fe.as_var.as_str());
+            validate_with_spec(
+                &task.name,
+                &task.with_spec,
+                &all_task_ids,
+                flow_graph,
+                loop_var,
+            )?;
         }
 
         validate_template_refs(task)?;
@@ -158,12 +165,27 @@ fn validate_with_spec(
     with_spec: &WithSpec,
     all_task_ids: &FxHashSet<&str>,
     flow_graph: &Dag,
+    loop_var: Option<&str>,
 ) -> Result<(), NikaError> {
     for (alias, entry) in with_spec {
         // Skip non-task bindings (Context/Input/Env/LoopVar return None)
         let Some(from_task) = entry.task_id() else {
             continue;
         };
+
+        // E11: detect for_each loop variable used as task reference in with:
+        if let Some(var) = loop_var {
+            if from_task == var {
+                return Err(NikaError::WithUnknownTask {
+                    alias: alias.to_string(),
+                    from_task: format!(
+                        "{from_task} (this is a for_each loop variable, not a task — \
+                         access it as {{{{with.{var}}}}} in templates instead)"
+                    ),
+                    task_id: task_id.to_string(),
+                });
+            }
+        }
 
         // Validate the source task ID format (snake_case)
         validate_task_id(from_task)?;
@@ -231,7 +253,12 @@ pub fn validate_bindings(workflow: &Workflow, flow_graph: &Dag) -> Result<(), Ni
 
     for task in &workflow.tasks {
         if let Some(ref with_spec) = task.with_spec {
-            validate_with_spec(&task.id, with_spec, &all_task_ids, flow_graph)?;
+            let loop_var = if task.for_each.is_some() {
+                task.for_each_as.as_deref().or(Some("item"))
+            } else {
+                None
+            };
+            validate_with_spec(&task.id, with_spec, &all_task_ids, flow_graph, loop_var)?;
         }
         validate_template_refs_with(task)?;
     }

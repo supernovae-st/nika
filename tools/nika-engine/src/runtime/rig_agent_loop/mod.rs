@@ -219,6 +219,11 @@ impl RigAgentLoop {
 
     /// Create a new rig-based agent loop
     ///
+    /// # Arguments
+    /// * `workflow_base_dir` - Working directory for builtin file tools (glob, read, etc.).
+    ///   When `Some`, file tools operate relative to this directory (the workflow file's parent).
+    ///   When `None`, falls back to `std::env::current_dir()`.
+    ///
     /// # Errors
     /// - NIKA-113: Empty prompt
     /// - NIKA-113: Invalid max_turns (0 or > 100)
@@ -228,6 +233,7 @@ impl RigAgentLoop {
         event_log: EventLog,
         mcp_clients: FxHashMap<String, Arc<McpClient>>,
         policy_enforcer: Option<Arc<parking_lot::RwLock<crate::runtime::policy::PolicyEnforcer>>>,
+        workflow_base_dir: Option<PathBuf>,
     ) -> Result<Self, NikaError> {
         // Validate params
         if params.prompt.is_empty() {
@@ -428,7 +434,9 @@ impl RigAgentLoop {
             || (scope != "minimal" && !has_explicit_filter);
 
         if add_file_tools {
-            let working_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+            let working_dir = workflow_base_dir
+                .clone()
+                .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
             let tool_ctx = Arc::new(ToolContext::new(working_dir, PermissionMode::Plan));
 
             use super::builtin::FileToolAdapter;

@@ -242,7 +242,14 @@ fn test_rig_agent_loop_creation_valid() {
     let log = EventLog::new();
     let mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
 
-    let result = RigAgentLoop::new("chat-test".to_string(), params, log, mcp_clients, None);
+    let result = RigAgentLoop::new(
+        "chat-test".to_string(),
+        params,
+        log,
+        mcp_clients,
+        None,
+        None,
+    );
     assert!(
         result.is_ok(),
         "Should create RigAgentLoop with valid params"
@@ -255,7 +262,14 @@ fn test_rig_agent_loop_empty_prompt_fails() {
     let log = EventLog::new();
     let mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
 
-    let result = RigAgentLoop::new("chat-test".to_string(), params, log, mcp_clients, None);
+    let result = RigAgentLoop::new(
+        "chat-test".to_string(),
+        params,
+        log,
+        mcp_clients,
+        None,
+        None,
+    );
     assert!(result.is_err(), "Should fail with empty prompt");
 }
 
@@ -272,7 +286,14 @@ fn test_rig_agent_loop_with_depth_limit() {
     let log = EventLog::new();
     let mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
 
-    let result = RigAgentLoop::new("orchestrator".to_string(), params, log, mcp_clients, None);
+    let result = RigAgentLoop::new(
+        "orchestrator".to_string(),
+        params,
+        log,
+        mcp_clients,
+        None,
+        None,
+    );
     assert!(result.is_ok());
 }
 
@@ -297,6 +318,7 @@ async fn test_mock_conversation_flow() {
         params,
         log.clone(),
         mcp_clients,
+        None,
         None,
     )
     .expect("Failed to create agent");
@@ -324,6 +346,7 @@ async fn test_mock_multi_turn_conversation() {
         params,
         log.clone(),
         mcp_clients,
+        None,
         None,
     )
     .expect("Failed to create agent");
@@ -359,6 +382,7 @@ async fn test_mock_agent_event_log_integration() {
         params,
         log.clone(),
         mcp_clients,
+        None,
         None,
     )
     .expect("Failed to create agent");
@@ -491,7 +515,14 @@ fn test_agent_zero_max_turns_fails() {
     let log = EventLog::new();
     let mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
 
-    let result = RigAgentLoop::new("zero-turns".to_string(), params, log, mcp_clients, None);
+    let result = RigAgentLoop::new(
+        "zero-turns".to_string(),
+        params,
+        log,
+        mcp_clients,
+        None,
+        None,
+    );
     assert!(result.is_err(), "Should fail with zero max_turns");
 }
 
@@ -510,7 +541,14 @@ fn test_agent_excessive_depth_limit() {
 
     // RigAgentLoop::new only validates prompt and max_turns, not depth_limit
     // depth_limit validation happens via AgentParams::validate() at runtime
-    let result = RigAgentLoop::new("deep-agent".to_string(), params, log, mcp_clients, None);
+    let result = RigAgentLoop::new(
+        "deep-agent".to_string(),
+        params,
+        log,
+        mcp_clients,
+        None,
+        None,
+    );
     assert!(
         result.is_ok(),
         "RigAgentLoop::new should accept excessive depth_limit: {:?}",

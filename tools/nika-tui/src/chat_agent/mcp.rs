@@ -285,7 +285,8 @@ impl ChatAgent {
 
         // Create and run the agent loop
         let task_id = format!("chat-agent-{}", uuid::Uuid::new_v4());
-        let mut agent_loop = RigAgentLoop::new(task_id, params, event_log, mcp_clients, None)?;
+        let mut agent_loop =
+            RigAgentLoop::new(task_id, params, event_log, mcp_clients, None, None)?;
 
         let result = agent_loop.run_auto().await?;
 

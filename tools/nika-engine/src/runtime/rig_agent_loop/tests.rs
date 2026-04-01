@@ -81,8 +81,15 @@ fn test_check_completion_signal() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     // Should detect completion marker
     let response_with_marker = format!(
@@ -107,8 +114,15 @@ fn test_determine_status_explicit_completion() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     // Explicit completion has highest priority
     let response = format!(r#"Result: {{"marker": "{}"}}"#, COMPLETION_MARKER);
@@ -127,8 +141,15 @@ fn test_determine_status_natural_completion() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     // Natural completion (no marker, no stop condition)
     assert_eq!(
@@ -148,8 +169,15 @@ fn test_determine_status_explicit_over_natural() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     // When marker present, explicit completion wins over natural
     let response = format!("Result with marker: {}", COMPLETION_MARKER);
@@ -179,8 +207,15 @@ fn test_explicit_mode_returns_low_confidence_without_nika_complete() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     // Agent output without COMPLETION_MARKER — simulate natural end-of-turn
     let output_without_complete = "Here is my analysis of the data. The results look good.";
@@ -209,8 +244,15 @@ fn test_natural_mode_returns_natural_completion_without_nika_complete() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     let output_without_complete = "Here is my analysis of the data. The results look good.";
     let status = agent.determine_status(output_without_complete);
@@ -254,8 +296,15 @@ fn test_determine_status_high_confidence() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     // Completion response with confidence >= threshold
     let response = format!(
@@ -290,8 +339,15 @@ fn test_determine_status_low_confidence() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     // Completion response with confidence < threshold
     let response = format!(
@@ -326,8 +382,15 @@ fn test_determine_status_no_confidence_defaults_to_explicit() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     // Completion response without confidence
     let response = format!(
@@ -372,8 +435,15 @@ fn test_get_confidence_threshold_default() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     // Default threshold is 0.8
     assert_eq!(agent.get_confidence_threshold(), 0.8);
@@ -398,8 +468,15 @@ fn test_get_confidence_threshold_custom() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     assert_eq!(agent.get_confidence_threshold(), 0.9);
 }
@@ -417,8 +494,15 @@ fn test_should_retry_returns_false_for_non_low_confidence() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     // Non-LowConfidence statuses should not retry
     assert!(!agent.should_retry(&RigAgentStatus::NaturalCompletion, 0));
@@ -454,8 +538,15 @@ fn test_should_retry_with_retry_action() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     // Should retry when under max_retries
     assert!(agent.should_retry(&RigAgentStatus::LowConfidence(0.5), 0));
@@ -494,8 +585,15 @@ fn test_should_retry_with_accept_action() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     // Accept action should never retry
     assert!(!agent.should_retry(&RigAgentStatus::LowConfidence(0.5), 0));
@@ -528,8 +626,15 @@ fn test_should_retry_with_escalate_action() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     // Escalate action should never retry
     assert!(!agent.should_retry(&RigAgentStatus::LowConfidence(0.5), 0));
@@ -544,8 +649,15 @@ fn test_should_retry_without_confidence_config() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     // Without config, should not retry (no on_low config)
     assert!(!agent.should_retry(&RigAgentStatus::LowConfidence(0.5), 0));
@@ -570,8 +682,15 @@ fn test_get_retry_feedback_default() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     let feedback = agent.get_retry_feedback(0.5);
     assert!(feedback.contains("RETRY"));
@@ -606,8 +725,15 @@ fn test_get_retry_feedback_custom() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     let feedback = agent.get_retry_feedback(0.6);
     assert!(feedback.contains("RETRY"));
@@ -642,8 +768,15 @@ fn test_get_low_confidence_config_present() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     let config = agent.get_low_confidence_config().unwrap();
     assert_eq!(config.action, LowConfidenceAction::Retry);
@@ -660,8 +793,15 @@ fn test_get_low_confidence_config_absent() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     assert!(agent.get_low_confidence_config().is_none());
 }
@@ -690,8 +830,15 @@ fn test_apply_routing_without_config_uses_threshold() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     // High confidence (>= threshold)
     let status = agent.apply_routing(0.85);
@@ -749,8 +896,15 @@ fn test_apply_routing_with_high_medium_low_routes() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     // High confidence route (>= 0.85)
     let status = agent.apply_routing(0.92);
@@ -816,8 +970,15 @@ fn test_apply_routing_retry_action() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     // Low confidence with Retry action
     let status = agent.apply_routing(0.5);
@@ -839,8 +1000,15 @@ fn test_route_action_to_status_all_variants() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     assert!(matches!(
         agent.route_action_to_status(&RouteAction::Accept, 0.9),
@@ -902,8 +1070,15 @@ fn test_get_confidence_routing_present() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     let routing = agent.get_confidence_routing();
     assert!(routing.is_some());
@@ -923,8 +1098,15 @@ fn test_get_confidence_routing_absent() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     assert!(agent.get_confidence_routing().is_none());
 }
@@ -984,8 +1166,15 @@ fn test_determine_status_with_routing() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     // Medium confidence -> FlaggedForReview
     let response = format!(
@@ -1033,6 +1222,7 @@ fn test_agent_loop_with_extended_thinking_creates_successfully() {
         event_log,
         mcp_clients,
         None,
+        None,
     );
 
     assert!(
@@ -1057,6 +1247,7 @@ fn test_agent_loop_extended_thinking_false_creates_successfully() {
         event_log,
         mcp_clients,
         None,
+        None,
     );
 
     assert!(
@@ -1080,6 +1271,7 @@ fn test_agent_loop_extended_thinking_none_creates_successfully() {
         params,
         event_log,
         mcp_clients,
+        None,
         None,
     );
 
@@ -1106,6 +1298,7 @@ fn test_agent_loop_with_system_prompt_and_thinking() {
         params,
         event_log,
         mcp_clients,
+        None,
         None,
     );
 
@@ -1166,8 +1359,15 @@ async fn test_check_guardrails_empty_returns_all_passed() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     let result = agent.check_guardrails("Any output").await;
     assert_eq!(result, GuardrailCheckResult::AllPassed);
@@ -1193,8 +1393,15 @@ async fn test_check_guardrails_passing() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     // Output has 4 words, within bounds
     let result = agent.check_guardrails("This is a test").await;
@@ -1221,8 +1428,15 @@ async fn test_check_guardrails_failed_retry() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     // Output has only 4 words
     let result = agent.check_guardrails("This is a test").await;
@@ -1257,8 +1471,15 @@ async fn test_check_guardrails_failed_escalate() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     // Output has only 4 words
     let result = agent.check_guardrails("This is a test").await;
@@ -1285,8 +1506,15 @@ async fn test_check_guardrails_failed_immediate() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     // Output has only 4 words
     let result = agent.check_guardrails("This is a test").await;
@@ -1324,8 +1552,15 @@ async fn test_check_guardrails_priority_immediate_over_escalate() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     // Output has only 4 words, both guardrails fail
     // But Fail has higher priority than Escalate
@@ -1364,8 +1599,15 @@ async fn test_check_guardrails_priority_escalate_over_retry() {
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
 
-    let agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     // Output has only 4 words, both guardrails fail
     // But Escalate has higher priority than Retry
@@ -1398,6 +1640,7 @@ async fn test_check_guardrails_emits_escalation_event() {
         params,
         event_log.clone(),
         mcp_clients,
+        None,
         None,
     )
     .unwrap();
@@ -1445,6 +1688,7 @@ async fn test_check_guardrails_llm_type_fails_without_api_key() {
         params,
         event_log.clone(),
         mcp_clients,
+        None,
         None,
     )
     .unwrap();
@@ -1506,8 +1750,15 @@ async fn wave2_chat_continue_missing_gemini_dispatch() {
     };
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
-    let mut agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let mut agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     let result = agent.chat_continue("Hello").await;
 
@@ -1589,8 +1840,15 @@ fn wave2_determine_status_detects_completion_but_mistral_ignores_it() {
     };
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
-    let agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     // A response containing the completion marker should be ExplicitCompletion
     let response_with_marker = format!("Task done. {}", COMPLETION_MARKER);
@@ -1662,8 +1920,15 @@ fn determine_status_returns_output_based_status_not_limits() {
     };
     let event_log = EventLog::new();
     let mcp_clients = FxHashMap::default();
-    let agent =
-        RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients, None).unwrap();
+    let agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
 
     // determine_status returns NaturalCompletion or LowConfidence, never limit variants
     let status = agent.determine_status("Hello world");
@@ -1748,6 +2013,7 @@ fn test_scope_minimal_reduces_tool_count() {
         log.clone(),
         FxHashMap::default(),
         None,
+        None,
     )
     .unwrap();
     let full_agent = RigAgentLoop::new(
@@ -1755,6 +2021,7 @@ fn test_scope_minimal_reduces_tool_count() {
         full_params,
         log.clone(),
         FxHashMap::default(),
+        None,
         None,
     )
     .unwrap();
@@ -1794,6 +2061,7 @@ fn test_scope_debug_adds_introspection_tools() {
         log.clone(),
         FxHashMap::default(),
         None,
+        None,
     )
     .unwrap();
     let full_agent = RigAgentLoop::new(
@@ -1801,6 +2069,7 @@ fn test_scope_debug_adds_introspection_tools() {
         full_params,
         log.clone(),
         FxHashMap::default(),
+        None,
         None,
     )
     .unwrap();
@@ -1835,6 +2104,7 @@ fn test_scope_default_is_full() {
         log.clone(),
         FxHashMap::default(),
         None,
+        None,
     )
     .unwrap();
     let full_agent = RigAgentLoop::new(
@@ -1842,6 +2112,7 @@ fn test_scope_default_is_full() {
         full_scope,
         log.clone(),
         FxHashMap::default(),
+        None,
         None,
     )
     .unwrap();
@@ -1868,8 +2139,15 @@ fn test_scope_explicit_tools_override_scope() {
     };
     let log = EventLog::new();
 
-    let agent =
-        RigAgentLoop::new("t1".into(), params, log.clone(), FxHashMap::default(), None).unwrap();
+    let agent = RigAgentLoop::new(
+        "t1".into(),
+        params,
+        log.clone(),
+        FxHashMap::default(),
+        None,
+        None,
+    )
+    .unwrap();
 
     // Should have exactly 4 tools (spawn_agent + 3 explicit nika:* tools)
     assert_eq!(

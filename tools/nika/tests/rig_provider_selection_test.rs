@@ -97,6 +97,7 @@ fn create_test_agent() -> RigAgentLoop {
         event_log,
         mcp_clients,
         None,
+        None,
     )
     .expect("Should create RigAgentLoop")
 }
@@ -292,6 +293,7 @@ async fn test_run_auto_explicit_claude_provider() {
         event_log,
         mcp_clients,
         None,
+        None,
     )
     .expect("Should create agent");
 
@@ -340,6 +342,7 @@ async fn test_run_auto_explicit_openai_provider() {
         event_log,
         mcp_clients,
         None,
+        None,
     )
     .expect("Should create agent");
 
@@ -384,6 +387,7 @@ async fn test_run_auto_invalid_provider_name() {
         params,
         event_log,
         mcp_clients,
+        None,
         None,
     )
     .expect("Should create agent");
@@ -435,6 +439,7 @@ async fn test_run_auto_provider_aliases() {
         event_log,
         mcp_clients,
         None,
+        None,
     )
     .expect("Should create agent");
 
@@ -460,6 +465,7 @@ async fn test_run_auto_provider_aliases() {
         params_gpt,
         event_log,
         mcp_clients,
+        None,
         None,
     )
     .expect("Should create agent");
@@ -494,6 +500,7 @@ async fn test_run_auto_provider_case_insensitive() {
             params,
             event_log,
             mcp_clients,
+            None,
             None,
         )
         .expect("Should create agent");
