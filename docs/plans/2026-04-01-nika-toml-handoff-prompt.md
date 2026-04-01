@@ -59,6 +59,7 @@ Created by: nika setup                  Created by: nika init
 ├── registry.yaml                       │   ├── cache/
 ├── memory.grafeo  ← future             │   ├── sessions/
 └── memory-meta.db ← future             │   └── serve.db
+                                        ├── .mcp.json     ← MCP servers (convention Claude Code)
                                         ├── *.nika.yaml   ← workflows (anywhere)
                                         ├── artifacts/    ← output (configurable)
                                         ├── AGENTS.md
@@ -103,9 +104,7 @@ workflows = "."
 max_concurrent = 6
 timeout = 300
 
-[mcp.novanet]
-command = "cargo run -- mcp"
-env = { NEO4J_URI = "bolt://localhost:7687" }
+# MCP config is NOT in nika.toml — see .mcp.json (separate file, convention standard)
 
 [packages]
 # "@supernovae/seo-audit" = "^1.0"
@@ -459,27 +458,51 @@ args = ["-y"]
 env = { NEO4J_URI = "bolt://localhost:7687" }
 ```
 
-Add to BootstrapConfig:
-```rust
-#[serde(default)]
-pub mcp: HashMap<String, McpServerConfig>,
+**DESIGN CHANGE (security audit):** MCP config is NOT in nika.toml. It uses `.mcp.json` at project root, following the Claude Code / Cursor convention.
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct McpServerConfig {
-    pub command: String,
-    #[serde(default)]
-    pub args: Vec<String>,
-    #[serde(default)]
-    pub env: HashMap<String, String>,
+**Why:** Putting MCP commands (`command = "cargo run -- mcp"`) in versioned nika.toml = arbitrary code execution via `git clone` + `nika run`. This was flagged as CRITICAL in the security audit. The `.mcp.json` convention is already understood by developers (same trust model as Claude Code).
+
+### Project MCP: `.mcp.json` (versioned, at project root)
+
+```json
+{
+  "mcpServers": {
+    "novanet": {
+      "command": "cargo",
+      "args": ["run", "--manifest-path", "../novanet/Cargo.toml", "--", "mcp"],
+      "env": {
+        "NEO4J_URI": "bolt://localhost:7687"
+      }
+    }
+  }
 }
 ```
 
-In boot.rs Phase 5 (MCP Startup): read from nika.toml [mcp.*] first, fallback to .nika/mcp.yaml.
+### User MCP: `~/.nika/mcp.yaml` (user-scoped, never committed — keeps current format)
+
+### Boot Phase 5 changes:
+1. Look for `.mcp.json` at project root (from `find_project_root`)
+2. Parse with `serde_json::from_str` (not TOML)
+3. Merge with global `~/.nika/mcp.yaml`
+4. Fallback: legacy `.nika/mcp.yaml` (project-level, for migration)
+
+### Files to modify:
+- `tools/nika-mcp/src/nika_config.rs` (942 lines) — add `.mcp.json` reader alongside YAML
+- `tools/nika-engine/src/runtime/boot.rs` — Phase 5 reads `.mcp.json` from project_root
+- `tools/nika-cli/src/init.rs` — optionally create `.mcp.json` during init
+
+### TDD Tests:
+| # | Test | Asserts |
+|---|---|---|
+| 40 | `mcp_json_parsed_correctly` | .mcp.json with mcpServers map |
+| 41 | `mcp_json_with_env_field` | env vars passed to server |
+| 42 | `mcp_json_preferred_over_legacy_yaml` | .mcp.json wins over .nika/mcp.yaml |
+| 43 | `mcp_fallback_to_global_yaml` | No .mcp.json -> read ~/.nika/mcp.yaml |
 
 ### Commit
 
 ```
-feat(mcp): read [mcp.*] server config from nika.toml
+feat(mcp): read .mcp.json (Claude Code convention) for project MCP servers
 ```
 
 ---
@@ -774,6 +797,92 @@ These v0.59 plan issues were implemented BEFORE our nika.toml work begins:
 9. **Course content** — `nika-init/src/course/missions.rs` line 1144 and 1160 reference `.nika/config.toml`. Update to `nika.toml`.
 
 10. **Tests that create `.nika/config.toml`** — boot.rs tests, paths.rs tests, startup.rs tests all create `.nika/config.toml` in tempdir. Update them to create `nika.toml` instead (or test both for fallback behavior).
+
+## Security Findings (from rust-security audit)
+
+### RESOLVED: MCP commands no longer in nika.toml
+
+The CRITICAL finding (MCP commands = arbitrary code execution from versioned config) is resolved by moving MCP config to `.mcp.json` (separate file, Claude Code convention). This follows the same trust model developers already accept.
+
+### HIGH — Policy weakening via git commit
+
+`[policy] allow_exec = true, blocked_commands = []` in versioned nika.toml can disable security guardrails. **Mitigation:** Policy from nika.toml can only RESTRICT further than user defaults, never RELAX. User-level `~/.nika/config.toml` sets the security floor. Implementation: during merge, take the MORE restrictive value for security fields (`allow_exec = project AND user`, blocked_commands = project UNION user).
+
+### HIGH — Secret detection in config values
+
+Nothing prevents `[serve] auth_token = "sk-ant-XXX"` in versioned nika.toml. **Mitigation:** Add `validate_no_secrets_in_config()` using existing `SECRET_RE` patterns from `util/mod.rs`. Run during `nika check` and `nika init`. Emit NIKA-XXX error (not warning) when secret-like values found.
+
+### MEDIUM — Walk-up depth limit
+
+Cap walk-up at 20 levels or stop at `$HOME`. Prevents hijacking via `/Users/nika.toml` or `/tmp/nika.toml` on shared systems.
+
+### MEDIUM — Path traversal in config values
+
+`[artifacts] dir = "../../../etc/"` is not validated. **Mitigation:** Reject absolute paths and paths that escape project root after normalization. Reuse `normalize_path()` from security.rs.
+
+### LOW — TOML file size limit
+
+Check file size before parsing: reject nika.toml > 1 MB.
+
+## Architecture Findings (from rust-architect audit)
+
+### HIGH — Three config systems with overlapping schemas
+
+`NikaConfig` (engine/config.rs, ~/.config/nika/), `BootstrapConfig` (boot.rs, nika.toml), and `NikaMcpConfig` (mcp_config.rs, mcp.yaml) are independent systems. `nika infer` reads `NikaConfig` directly (bypasses boot), while `nika run` uses `BootstrapConfig`. They can return different provider/model defaults.
+
+**For this sprint:** Do NOT unify. Document the duality. Ensure `nika infer` respects nika.toml by calling `find_project_root` and reading nika.toml in verbs.rs. Full unification is a separate sprint.
+
+### MEDIUM — merge_config_layers cannot detect explicit vs default values
+
+If nika.toml has no `[provider]` section, serde fills `default = "anthropic"`. The merge logic cannot tell this from an explicit `default = "anthropic"`. User-level `openai` default gets overridden by the serde default.
+
+**For this sprint:** Option-wrap fields that participate in merging. `None` = not set (use parent), `Some(x)` = explicitly set.
+
+### MEDIUM — Walk-up logic duplicated in 3 files
+
+boot.rs, config.rs, nika-mcp/nika_config.rs all have walk-up loops. **Fix:** Extract `find_project_root_from()` to `nika-core` (zero-dep crate, all crates depend on it). Use NIKA_PROJECT_CONFIG constant.
+
+### LOW — syntect too heavy, use colored + regex instead
+
+Avoid syntect (15-30s added to clean builds). For TOML/JSON highlighting in CLI output, use colored + simple regex patterns. Tree-sitter is already in the dep tree if richer highlighting needed later.
+
+## Rust Code Quality Findings (from rust-pro audit)
+
+### P0 — Add NIKA_PROJECT_CONFIG constant
+
+`"nika.toml"` is hardcoded as string literal in 3+ files. Add to paths.rs:
+```rust
+pub const NIKA_PROJECT_CONFIG: &str = "nika.toml";
+```
+
+### P0 — Single find_project_root in nika-core
+
+Three implementations of walk-up logic. Extract to `nika-core` or `nika-engine/core/paths.rs`.
+
+### P1 — Atomic config writes
+
+`fs::write` truncates then writes. If process crashes mid-write, config is corrupted. Use:
+```rust
+let tmp = config_path.with_extension("toml.tmp");
+fs::write(&tmp, new_content)?;
+fs::rename(&tmp, &config_path)?;
+```
+
+### P1 — Remove async from sync boot phases
+
+4 of 7 boot phases are `async fn` with zero `.await` calls. Unnecessary Future state machine allocation.
+
+### P2 — 2 unnecessary PhaseResult clones
+
+Reorder emit/push/check to avoid cloning phase results in phases 1-2.
+
+### P2 — PhaseResult name collision
+
+`boot::PhaseResult` and `display::check::PhaseResult` are different structs with same name. Rename to `BootPhaseResult`.
+
+### P2 — Option-wrap BootstrapConfig for merge correctness
+
+All fields use serde defaults. Cannot distinguish "not set" from "set to default value". Wrap mergeable fields in `Option<T>`.
 
 ---
 
