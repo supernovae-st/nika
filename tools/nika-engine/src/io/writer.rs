@@ -67,6 +67,9 @@ pub struct WriteResult {
     pub size: u64,
     /// Format used for output
     pub format: OutputFormat,
+    /// BLAKE3 content hash (hex-encoded with `blake3:` prefix).
+    /// Present for text/json/markdown artifacts; binary artifacts use CAS hashes instead.
+    pub checksum: Option<String>,
 }
 
 /// Request to write an artifact
@@ -269,10 +272,13 @@ impl ArtifactWriter {
                 reason: format!("Atomic write failed: {}", e),
             })?;
 
+        let checksum = format!("blake3:{}", blake3::hash(request.content.as_bytes()).to_hex());
+
         Ok(WriteResult {
             path: final_path,
             size: content_size,
             format: request.format,
+            checksum: Some(checksum),
         })
     }
 
@@ -396,6 +402,7 @@ impl ArtifactWriter {
             path: final_path,
             size,
             format: OutputFormat::Binary,
+            checksum: None, // Binary checksums use CAS hashes from MediaRef
         })
     }
 
