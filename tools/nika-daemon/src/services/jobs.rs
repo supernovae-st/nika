@@ -286,7 +286,7 @@ impl JobService {
         // Kill the process and release the slot, then drop the lock before storage I/O.
         {
             let mut running = self.running.lock().await;
-            if let Some(&pid) = running.get(job_id) {
+            if let Some(pid) = running.get(job_id).copied() {
                 #[cfg(unix)]
                 {
                     let _ = nix::sys::signal::kill(
