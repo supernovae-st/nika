@@ -150,6 +150,24 @@ pub struct BootContext {
     pub total_duration: Duration,
 }
 
+/// MCP server configuration from [mcp.*] sections in nika.toml.
+///
+/// Example:
+/// ```toml
+/// [mcp.novanet]
+/// command = "cargo run -- mcp"
+/// args = ["--verbose"]
+/// env = { RUST_LOG = "debug" }
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct McpServerConfig {
+    pub command: String,
+    #[serde(default)]
+    pub args: Vec<String>,
+    #[serde(default)]
+    pub env: HashMap<String, String>,
+}
+
 /// Nika configuration from nika.toml (project) or config.toml (legacy/user)
 ///
 /// NOTE: No `#[serde(deny_unknown_fields)]` — unknown sections (future
@@ -171,6 +189,9 @@ pub struct BootstrapConfig {
     pub trace: TraceConfig,
     #[serde(default)]
     pub policy: PolicyConfig,
+    /// [mcp.*] sections — named MCP server configurations
+    #[serde(default)]
+    pub mcp: HashMap<String, McpServerConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -525,9 +546,7 @@ impl BootSequence {
 
         // Determine config file path based on discovery source
         let config_path = match ctx.config_source {
-            Some(ConfigSource::NikaToml) => {
-                ctx.project_root.as_ref().map(|r| r.join("nika.toml"))
-            }
+            Some(ConfigSource::NikaToml) => ctx.project_root.as_ref().map(|r| r.join("nika.toml")),
             Some(ConfigSource::DotNika) => ctx.nika_dir.as_ref().map(|d| d.join("config.toml")),
             _ => None,
         };
@@ -539,8 +558,7 @@ impl BootSequence {
                     Ok(content) => match toml::from_str::<BootstrapConfig>(&content) {
                         Ok(c) => c,
                         Err(e) => {
-                            let msg =
-                                format!("Config parse error in {}: {}", path.display(), e);
+                            let msg = format!("Config parse error in {}: {}", path.display(), e);
                             tracing::error!("{}", msg);
                             warnings.push(msg);
                             BootstrapConfig::default()
@@ -1130,11 +1148,7 @@ key = "value"
     async fn boot_context_has_config_source() {
         // Case A: nika.toml
         let temp = tempdir().unwrap();
-        std::fs::write(
-            temp.path().join("nika.toml"),
-            "[project]\nname = \"a\"\n",
-        )
-        .unwrap();
+        std::fs::write(temp.path().join("nika.toml"), "[project]\nname = \"a\"\n").unwrap();
         let ctx = BootSequence::new(temp.path()).run(None).await.unwrap();
         assert_eq!(ctx.config_source, Some(ConfigSource::NikaToml));
 
@@ -1150,6 +1164,92 @@ key = "value"
         let temp3 = tempdir().unwrap();
         let ctx3 = BootSequence::new(temp3.path()).run(None).await.unwrap();
         assert_eq!(ctx3.config_source, Some(ConfigSource::Defaults));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Phase 6: [mcp.*] Server Config Tests
+    // ═══════════════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn nika_toml_mcp_section_parsed() {
+        let temp = tempdir().unwrap();
+        let toml_content = r#"
+[project]
+name = "mcp-test"
+
+[mcp.novanet]
+command = "cargo run -- mcp"
+args = ["--verbose", "--port", "3001"]
+
+[mcp.novanet.env]
+RUST_LOG = "debug"
+NEO4J_URI = "bolt://localhost:7687"
+
+[mcp.filesystem]
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+"#;
+        std::fs::write(temp.path().join("nika.toml"), toml_content).unwrap();
+
+        let boot = BootSequence::new(temp.path());
+        let ctx = boot.run(None).await.unwrap();
+
+        let config = ctx.config.unwrap();
+        assert_eq!(
+            config.mcp.len(),
+            2,
+            "Expected 2 MCP servers, got: {:?}",
+            config.mcp.keys().collect::<Vec<_>>()
+        );
+
+        // Verify novanet server
+        let novanet = config
+            .mcp
+            .get("novanet")
+            .expect("novanet MCP config missing");
+        assert_eq!(novanet.command, "cargo run -- mcp");
+        assert_eq!(novanet.args, vec!["--verbose", "--port", "3001"]);
+        assert_eq!(
+            novanet.env.get("RUST_LOG").map(|s| s.as_str()),
+            Some("debug")
+        );
+        assert_eq!(
+            novanet.env.get("NEO4J_URI").map(|s| s.as_str()),
+            Some("bolt://localhost:7687")
+        );
+
+        // Verify filesystem server
+        let fs = config
+            .mcp
+            .get("filesystem")
+            .expect("filesystem MCP config missing");
+        assert_eq!(fs.command, "npx");
+        assert_eq!(fs.args.len(), 3);
+        assert!(fs.env.is_empty(), "filesystem should have no env vars");
+    }
+
+    #[tokio::test]
+    async fn nika_toml_mcp_empty_is_ok() {
+        let temp = tempdir().unwrap();
+        let toml_content = r#"
+[project]
+name = "no-mcp"
+
+[provider]
+default = "anthropic"
+"#;
+        std::fs::write(temp.path().join("nika.toml"), toml_content).unwrap();
+
+        let boot = BootSequence::new(temp.path());
+        let ctx = boot.run(None).await.unwrap();
+
+        let config = ctx.config.unwrap();
+        assert!(
+            config.mcp.is_empty(),
+            "No [mcp.*] sections should yield empty HashMap"
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════════════
