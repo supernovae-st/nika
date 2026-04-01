@@ -58,7 +58,7 @@ pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
         None
     };
     #[cfg(not(unix))]
-    let daemon: Option<()> = None;
+    let _daemon: Option<()> = None;
 
     let backend = nika_core::vault::VaultBackend::from_env();
 
