@@ -842,7 +842,9 @@ impl TaskExecutor {
             }
         }
 
-        let stream_result = stream_result.expect("retry loop must produce a result or return Err");
+        let stream_result = stream_result.ok_or_else(|| NikaError::ProviderApiError {
+            message: "retry loop exited without producing a result".to_string(),
+        })?;
 
         // Extract <think>...</think> blocks from reasoning models (Qwen, DeepSeek-R1)
         // Captures thinking content for observability, strips tags from output.
