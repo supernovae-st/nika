@@ -295,7 +295,11 @@ async fn resolve_agent(
             // Check built-in presets first (think, lite, search, vision, judge, coder, summary, creative)
             let presets = default_presets();
             if let Some(preset) = presets.get(from.as_str()) {
-                debug!(agent = name, preset = from, "Resolved agent from built-in preset");
+                debug!(
+                    agent = name,
+                    preset = from,
+                    "Resolved agent from built-in preset"
+                );
                 return Ok(preset.clone());
             }
 
