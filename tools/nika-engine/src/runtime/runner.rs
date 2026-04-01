@@ -940,7 +940,10 @@ Please provide a corrected JSON response that strictly matches the schema."#,
     /// Returns true for transient errors (429, 5xx, timeout, connection failures).
     /// Returns false for permanent errors (401, 403, 404, validation, DAG, schema,
     /// security, command-not-found, permission-denied).
-    fn is_retryable(error: &NikaError) -> bool {
+    ///
+    /// This is the single source of truth for retryability — used by both the
+    /// task-level retry loop (runner) and the provider-level retry loop (infer).
+    pub(crate) fn is_retryable(error: &NikaError) -> bool {
         match error {
             // Provider API errors: only retry transient HTTP failures
             NikaError::ProviderApiError { message } => {
