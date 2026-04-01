@@ -718,29 +718,51 @@ fn check_editor_integration() -> Vec<DiagnosticCheck> {
                 format!("{name} {version} detected"),
             ));
 
-            // Check if nika-lang extension is installed
+            // Check if nika-lang extension is installed + version
             match std::process::Command::new(bin)
-                .args(["--list-extensions"])
+                .args(["--list-extensions", "--show-versions"])
                 .output()
             {
                 Ok(output) if output.status.success() => {
                     let extensions = String::from_utf8_lossy(&output.stdout);
-                    if extensions.lines().any(|l| {
+                    // Format: "publisher.extension@version"
+                    let ext_version = extensions.lines().find_map(|l| {
                         let trimmed = l.trim().to_lowercase();
-                        trimmed == "supernovae.nika-lang"
-                    }) {
-                        checks.push(DiagnosticCheck::pass(
-                            "Extension",
-                            "nika-lang extension installed",
-                        ));
-                    } else {
-                        checks.push(DiagnosticCheck::warn(
-                            "Extension",
-                            "nika-lang extension not installed",
-                            format!(
-                                "Install with: {short_cmd} --install-extension supernovae.nika-lang"
-                            ),
-                        ));
+                        if trimmed.starts_with("supernovae.nika-lang@") {
+                            trimmed.strip_prefix("supernovae.nika-lang@").map(|v| v.to_string())
+                        } else {
+                            None
+                        }
+                    });
+                    match ext_version {
+                        Some(ext_ver) => {
+                            let cli_ver = env!("CARGO_PKG_VERSION");
+                            if is_version_outdated(&ext_ver, cli_ver) {
+                                checks.push(DiagnosticCheck::warn(
+                                    "Extension",
+                                    format!(
+                                        "nika-lang extension v{ext_ver} is outdated (CLI is v{cli_ver})"
+                                    ),
+                                    format!(
+                                        "Update with: {short_cmd} --install-extension supernovae.nika-lang --force"
+                                    ),
+                                ));
+                            } else {
+                                checks.push(DiagnosticCheck::pass(
+                                    "Extension",
+                                    format!("nika-lang extension v{ext_ver}"),
+                                ));
+                            }
+                        }
+                        None => {
+                            checks.push(DiagnosticCheck::warn(
+                                "Extension",
+                                "nika-lang extension not installed",
+                                format!(
+                                    "Install with: {short_cmd} --install-extension supernovae.nika-lang"
+                                ),
+                            ));
+                        }
                     }
                 }
                 _ => {
@@ -1142,9 +1164,44 @@ fn output_doctor_json(checks: &[DiagnosticCheck]) -> Result<(), NikaError> {
     Ok(())
 }
 
+/// Returns true if extension version is significantly behind the CLI version.
+/// Compares major.minor — patch differences are OK.
+fn is_version_outdated(ext_ver: &str, cli_ver: &str) -> bool {
+    let parse = |v: &str| -> (u32, u32) {
+        let parts: Vec<&str> = v.split('.').collect();
+        let major = parts.first().and_then(|s| s.parse().ok()).unwrap_or(0);
+        let minor = parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(0);
+        (major, minor)
+    };
+    let (ext_major, ext_minor) = parse(ext_ver);
+    let (cli_major, cli_minor) = parse(cli_ver);
+    // Outdated if extension's major.minor is lower than CLI's
+    (ext_major, ext_minor) < (cli_major, cli_minor)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn version_outdated_detects_minor_gap() {
+        assert!(is_version_outdated("0.42.0", "0.58.0"));
+        assert!(is_version_outdated("0.51.0", "0.58.0"));
+        assert!(is_version_outdated("0.57.0", "0.58.0"));
+    }
+
+    #[test]
+    fn version_outdated_same_minor_is_ok() {
+        assert!(!is_version_outdated("0.58.0", "0.58.0"));
+        assert!(!is_version_outdated("0.58.1", "0.58.0"));
+        assert!(!is_version_outdated("0.58.3", "0.58.0"));
+    }
+
+    #[test]
+    fn version_outdated_major_gap() {
+        assert!(is_version_outdated("0.99.0", "1.0.0"));
+        assert!(!is_version_outdated("1.0.0", "0.99.0"));
+    }
 
     #[test]
     fn diagnostic_pass_creates_pass_status() {
