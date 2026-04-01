@@ -213,6 +213,14 @@ impl TransformExpr {
     pub fn is_empty(&self) -> bool {
         self.ops.is_empty()
     }
+
+    /// Returns true if the chain contains a `default()` transform.
+    ///
+    /// Used by binding resolution to allow `$env.MISSING | default("x")`
+    /// even when the source returns `None` (missing, not null).
+    pub fn has_default(&self) -> bool {
+        self.ops.iter().any(|op| matches!(op, TransformOp::Default(_)))
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -2091,5 +2099,27 @@ mod proptest_tests {
         // Apostrophe at top level (no parens) should not break splitting
         let parts = split_pipe_respecting_parens("it's a test | upper");
         assert_eq!(parts.len(), 2);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // has_default() tests
+    // ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn has_default_true_for_default_transform() {
+        let expr = TransformExpr::parse("default(\"x\")").unwrap();
+        assert!(expr.has_default());
+    }
+
+    #[test]
+    fn has_default_true_in_chain() {
+        let expr = TransformExpr::parse("default(\"x\") | upper").unwrap();
+        assert!(expr.has_default());
+    }
+
+    #[test]
+    fn has_default_false_without_default() {
+        let expr = TransformExpr::parse("upper | trim").unwrap();
+        assert!(!expr.has_default());
     }
 }

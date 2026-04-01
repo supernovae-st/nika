@@ -672,6 +672,16 @@ fn resolve_with_entry(
                 }
             }
         }
+        // Missing source with a transform chain containing default() —
+        // apply transforms on null so default() can fire.
+        // e.g. $env.MISSING | default("fallback") | upper → "FALLBACK"
+        (None, Some(expr)) if expr.has_default() => match expr.apply(&Value::Null) {
+            Ok(result) => Some(result),
+            Err(e) => {
+                tracing::debug!(path = %path_str, error = %e, "Transform with default() failed on missing value");
+                None // fall through to Step 4 PathNotFound
+            }
+        },
         _ => raw_value,
     };
 
@@ -2340,6 +2350,60 @@ mod tests {
 
         let result = ResolvedBindings::from_with_spec(Some(&spec), &store);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn with_spec_env_missing_transform_default_fires() {
+        // $env.MISSING | default("fallback") should resolve to "fallback"
+        use nika_core::binding::transform::TransformExpr;
+
+        let store = RunContext::new();
+        let mut entry = WithEntry::simple(
+            BindingPath::parse("$env.NIKA_NONEXISTENT_TRANSFORM_DEFAULT_TEST").unwrap(),
+        );
+        entry.transform = Some(TransformExpr::parse("default(\"fallback\")").unwrap());
+
+        let mut spec = WithSpec::default();
+        spec.insert("val".to_string(), entry);
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+        assert_eq!(bindings.get("val"), Some(&json!("fallback")));
+    }
+
+    #[test]
+    fn with_spec_env_missing_transform_default_then_upper() {
+        // $env.MISSING | default("fallback") | upper → "FALLBACK"
+        use nika_core::binding::transform::TransformExpr;
+
+        let store = RunContext::new();
+        let mut entry = WithEntry::simple(
+            BindingPath::parse("$env.NIKA_NONEXISTENT_CHAIN_TEST").unwrap(),
+        );
+        entry.transform = Some(TransformExpr::parse("default(\"hello\") | upper").unwrap());
+
+        let mut spec = WithSpec::default();
+        spec.insert("val".to_string(), entry);
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+        assert_eq!(bindings.get("val"), Some(&json!("HELLO")));
+    }
+
+    #[test]
+    fn with_spec_env_missing_transform_no_default_still_errors() {
+        // $env.MISSING | upper should still fail (no default in chain)
+        use nika_core::binding::transform::TransformExpr;
+
+        let store = RunContext::new();
+        let mut entry = WithEntry::simple(
+            BindingPath::parse("$env.NIKA_NONEXISTENT_UPPER_TEST").unwrap(),
+        );
+        entry.transform = Some(TransformExpr::parse("upper").unwrap());
+
+        let mut spec = WithSpec::default();
+        spec.insert("val".to_string(), entry);
+
+        let result = ResolvedBindings::from_with_spec(Some(&spec), &store);
+        assert!(result.is_err(), "Missing env with non-default transform should error");
     }
 
     // ═══════════════════════════════════════════════════════════════
