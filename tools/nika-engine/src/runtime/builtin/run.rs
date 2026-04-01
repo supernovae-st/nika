@@ -234,6 +234,8 @@ impl BuiltinTool for RunTool {
             let timeout_duration = Duration::from_secs(timeout_secs);
 
             // Get YAML content: either inline or from file
+            // B08: track workflow file directory for base_path propagation
+            let mut workflow_dir: Option<std::path::PathBuf> = None;
             let yaml_content = if let Some(ref inline_yaml) = params.yaml_content {
                 // Inline YAML: validate minimum structure
                 if !inline_yaml.contains("schema:") {
@@ -262,6 +264,8 @@ impl BuiltinTool for RunTool {
                                 params.workflow, e
                             ),
                         })?;
+
+                workflow_dir = canonical_path.parent().map(|p| p.to_path_buf());
 
                 tracing::debug!(
                     target: "nika_run",
@@ -306,6 +310,10 @@ impl BuiltinTool for RunTool {
 
             // Create runner and inject context if provided
             let mut runner = Runner::new(workflow)?.quiet();
+            // B08 fix: propagate base_path from workflow file location
+            if let Some(dir) = workflow_dir {
+                runner = runner.with_base_path(dir);
+            }
 
             // Inject parent context into child workflow's datastore
             if let Some(context) = params.get_context()? {

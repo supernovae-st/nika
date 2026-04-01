@@ -45,8 +45,8 @@ pub type ResolvedSkills = FxHashMap<String, String>;
 pub struct ResolvedAgent {
     /// System prompt for the agent
     pub system: String,
-    /// Provider to use (claude, openai, etc.)
-    pub provider: String,
+    /// Provider to use (None = inherit from workflow default)
+    pub provider: Option<String>,
     /// Model to use (optional)
     pub model: Option<String>,
     /// Maximum turns for the agent (optional)
@@ -111,7 +111,7 @@ pub fn default_presets() -> ResolvedAgents {
         "think".to_string(),
         ResolvedAgent {
             system: "You are a deep reasoning assistant. Think step by step through complex problems. Show your reasoning process.".to_string(),
-            provider: "anthropic".to_string(),
+            provider: None,
             model: Some("claude-sonnet-4-20250514".to_string()),
             max_turns: Some(5),
             temperature: Some(0.3),
@@ -123,7 +123,7 @@ pub fn default_presets() -> ResolvedAgents {
         "lite".to_string(),
         ResolvedAgent {
             system: "You are a fast, concise assistant. Give brief, direct answers.".to_string(),
-            provider: "anthropic".to_string(),
+            provider: None,
             model: Some("claude-haiku-4-5".to_string()),
             max_turns: Some(3),
             temperature: Some(0.5),
@@ -135,7 +135,7 @@ pub fn default_presets() -> ResolvedAgents {
         "search".to_string(),
         ResolvedAgent {
             system: "You are a research assistant with web search capabilities. Find accurate, up-to-date information. Cite sources.".to_string(),
-            provider: "anthropic".to_string(),
+            provider: None,
             model: Some("claude-sonnet-4-20250514".to_string()),
             max_turns: Some(10),
             temperature: Some(0.3),
@@ -147,7 +147,7 @@ pub fn default_presets() -> ResolvedAgents {
         "vision".to_string(),
         ResolvedAgent {
             system: "You are a vision analysis assistant. Describe images in detail, identify objects, read text, and analyze visual content.".to_string(),
-            provider: "anthropic".to_string(),
+            provider: None,
             model: Some("claude-sonnet-4-20250514".to_string()),
             max_turns: Some(3),
             temperature: Some(0.3),
@@ -159,7 +159,7 @@ pub fn default_presets() -> ResolvedAgents {
         "judge".to_string(),
         ResolvedAgent {
             system: "You are an impartial judge. Evaluate the quality, accuracy, and completeness of content. Provide a structured assessment with PASS or FAIL verdict.".to_string(),
-            provider: "anthropic".to_string(),
+            provider: None,
             model: Some("claude-sonnet-4-20250514".to_string()),
             max_turns: Some(3),
             temperature: Some(0.1),
@@ -171,7 +171,7 @@ pub fn default_presets() -> ResolvedAgents {
         "coder".to_string(),
         ResolvedAgent {
             system: "You are an expert programmer. Write clean, efficient, well-tested code. Follow best practices and explain your approach.".to_string(),
-            provider: "anthropic".to_string(),
+            provider: None,
             model: Some("claude-sonnet-4-20250514".to_string()),
             max_turns: Some(8),
             temperature: Some(0.2),
@@ -183,7 +183,7 @@ pub fn default_presets() -> ResolvedAgents {
         "summary".to_string(),
         ResolvedAgent {
             system: "You are a summarization specialist. Extract key points, themes, and insights from text. Be concise but comprehensive.".to_string(),
-            provider: "anthropic".to_string(),
+            provider: None,
             model: Some("claude-haiku-4-5".to_string()),
             max_turns: Some(3),
             temperature: Some(0.3),
@@ -195,7 +195,7 @@ pub fn default_presets() -> ResolvedAgents {
         "creative".to_string(),
         ResolvedAgent {
             system: "You are a creative writing assistant. Generate imaginative, engaging content with vivid language and original ideas.".to_string(),
-            provider: "anthropic".to_string(),
+            provider: None,
             model: Some("claude-sonnet-4-20250514".to_string()),
             max_turns: Some(5),
             temperature: Some(0.9),
@@ -337,7 +337,7 @@ async fn resolve_agent(
 
             Ok(ResolvedAgent {
                 system: loaded.system,
-                provider: loaded.provider.unwrap_or_else(|| "anthropic".to_string()),
+                provider: loaded.provider,
                 model: loaded.model,
                 max_turns: loaded.max_turns,
                 temperature: loaded.temperature,
@@ -395,19 +395,14 @@ async fn resolve_agent(
 struct ExternalAgentFile {
     /// System prompt for the agent
     system: String,
-    /// Provider to use (claude, openai, etc.)
-    #[serde(default = "default_provider")]
-    provider: String,
+    /// Provider to use (None = inherit from workflow default)
+    provider: Option<String>,
     /// Model to use (optional)
     model: Option<String>,
     /// Maximum turns for the agent (optional)
     max_turns: Option<u32>,
     /// Temperature for generation (optional)
     temperature: Option<f32>,
-}
-
-fn default_provider() -> String {
-    "claude".to_string()
 }
 
 /// Load a skill file content.
@@ -504,7 +499,7 @@ mod tests {
             "test_agent".to_string(),
             AgentDef::Inline {
                 system: "You are a test agent.".to_string(),
-                provider: "openai".to_string(),
+                provider: Some("openai".to_string()),
                 model: Some("gpt-4o".to_string()),
                 max_turns: Some(5),
                 temperature: Some(0.7),
@@ -534,7 +529,7 @@ mod tests {
         assert_eq!(assets.agents.len(), 9, "8 defaults + 1 user-defined");
         let agent = assets.get_agent("test_agent").unwrap();
         assert_eq!(agent.system, "You are a test agent.");
-        assert_eq!(agent.provider, "openai");
+        assert_eq!(agent.provider, Some("openai".to_string()));
         assert_eq!(agent.model, Some("gpt-4o".to_string()));
         assert_eq!(agent.max_turns, Some(5));
         assert_eq!(agent.temperature, Some(0.7));
@@ -586,7 +581,7 @@ temperature: 0.5
         assert_eq!(assets.agents.len(), 9, "8 defaults + 1 user-defined");
         let agent = assets.get_agent("ext_agent").unwrap();
         assert_eq!(agent.system, "You are an external agent.");
-        assert_eq!(agent.provider, "mistral");
+        assert_eq!(agent.provider, Some("mistral".to_string()));
         assert_eq!(agent.model, Some("mistral-large-latest".to_string()));
         assert_eq!(agent.max_turns, Some(10));
         assert_eq!(agent.temperature, Some(0.5));
@@ -736,7 +731,7 @@ system: "You are a researcher."
             "writer".to_string(),
             AgentDef::Inline {
                 system: "You are a writer.".to_string(),
-                provider: "claude".to_string(),
+                provider: Some("claude".to_string()),
                 model: None,
                 max_turns: None,
                 temperature: None,
@@ -829,7 +824,7 @@ system: "You are an agent with defaults."
 
         let agent = assets.get_agent("minimal").unwrap();
         assert_eq!(agent.system, "You are an agent with defaults.");
-        assert_eq!(agent.provider, "claude"); // default
+        assert_eq!(agent.provider, None); // no default — inherits from workflow
         assert!(agent.model.is_none());
         assert!(agent.max_turns.is_none());
         assert!(agent.temperature.is_none());
@@ -839,7 +834,7 @@ system: "You are an agent with defaults."
     fn test_resolved_agent_clone() {
         let agent = ResolvedAgent {
             system: "Test".to_string(),
-            provider: "claude".to_string(),
+            provider: Some("claude".to_string()),
             model: None,
             max_turns: None,
             temperature: None,
@@ -858,7 +853,7 @@ system: "You are an agent with defaults."
             "test".to_string(),
             ResolvedAgent {
                 system: "Test system".to_string(),
-                provider: "claude".to_string(),
+                provider: Some("claude".to_string()),
                 model: None,
                 max_turns: None,
                 temperature: None,

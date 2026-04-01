@@ -324,6 +324,12 @@ pub struct AnalyzedAgentAction {
     /// System prompt (agent persona)
     pub system: Option<String>,
 
+    /// Agent-level provider override (preserved from agent: block)
+    pub provider: Option<crate::ProviderName>,
+
+    /// Agent-level model override (preserved from agent: block)
+    pub model: Option<String>,
+
     /// Temperature for LLM sampling
     pub temperature: Option<f64>,
 
@@ -431,7 +437,7 @@ impl Default for AnalyzedForEach {
         Self {
             items: String::new(),
             as_var: "item".to_string(),
-            concurrency: Some(1), // Default to sequential
+            concurrency: None, // None = not specified, inherits from task/workflow level
             fail_fast: true,
             span: Span::dummy(),
         }
@@ -585,7 +591,7 @@ mod tests {
     fn test_analyzed_for_each_default() {
         let for_each = AnalyzedForEach::default();
         assert_eq!(for_each.as_var, "item");
-        assert_eq!(for_each.concurrency, Some(1)); // Sequential by default
+        assert_eq!(for_each.concurrency, None); // None = unspecified, inherits
         assert!(for_each.fail_fast);
     }
 

@@ -1213,6 +1213,11 @@ fn analyze_agent(raw: &RawAgentAction, ctx: &mut AnalyzerContext) -> AnalyzedAge
             .map(|s| s.value.iter().map(|v| v.value.clone()).collect())
             .unwrap_or_default(),
         system: raw.system.as_ref().map(|s| s.value.clone()),
+        provider: raw
+            .provider
+            .as_ref()
+            .map(|s| crate::ProviderName::parse(&s.value)),
+        model: raw.model.as_ref().map(|s| s.value.clone()),
         temperature: raw.temperature.as_ref().map(|s| s.value),
         token_budget: raw.token_budget.as_ref().map(|s| s.value),
         extended_thinking: raw.extended_thinking.as_ref().map(|s| s.value),
@@ -1349,7 +1354,7 @@ fn analyze_for_each(raw: &crate::ast::raw::RawForEach, span: Span) -> AnalyzedFo
             .as_ref()
             .map(|s| s.value.clone())
             .unwrap_or_else(|| "item".to_string()),
-        concurrency: Some(raw.concurrency.as_ref().map(|s| s.value).unwrap_or(1)),
+        concurrency: raw.concurrency.as_ref().map(|s| s.value),
         fail_fast: raw.fail_fast.as_ref().map(|s| s.value).unwrap_or(true),
         span,
     }

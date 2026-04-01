@@ -329,7 +329,7 @@ impl TransformOp {
                 _ => Err(type_mismatch("keys", "object", value)),
             },
             TransformOp::Values => match value {
-                Value::Null => Err(TransformError::NullInput { op: "values" }),
+                Value::Null => Ok(Value::Null), // propagating (symmetric with keys)
                 Value::Object(obj) => {
                     let vals: Vec<Value> = obj.values().cloned().collect();
                     Ok(Value::Array(vals))
@@ -1907,7 +1907,7 @@ mod proptest_tests {
                 Just("upper".to_string()), Just("lower".to_string()),
                 Just("trim".to_string()), Just("trim_start".to_string()),
                 Just("trim_end".to_string()), Just("first".to_string()),
-                Just("last".to_string()), Just("values".to_string()),
+                Just("last".to_string()),
                 Just("flatten".to_string()), Just("reverse".to_string()),
                 Just("sort".to_string()), Just("unique".to_string()),
                 Just("compact".to_string()), Just("to_number".to_string()),
@@ -1931,6 +1931,7 @@ mod proptest_tests {
         fn null_on_propagating_transform_returns_ok(
             op_name in prop_oneof![
                 Just("length".to_string()), Just("keys".to_string()),
+                Just("values".to_string()),
                 Just("to_string".to_string()), Just("to_json".to_string()),
                 Just("type_of".to_string()),
             ]

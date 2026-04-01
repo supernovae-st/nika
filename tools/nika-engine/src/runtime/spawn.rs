@@ -96,6 +96,8 @@ pub struct SpawnAgentTool {
     parent_tools: Vec<String>,
     /// Policy enforcer — propagated to child agents for security checks
     policy_enforcer: Option<Arc<parking_lot::RwLock<crate::runtime::policy::PolicyEnforcer>>>,
+    /// Workflow base directory — propagated to child agents for file tool consistency (B07 fix)
+    workflow_base_dir: Option<std::path::PathBuf>,
 }
 
 impl SpawnAgentTool {
@@ -125,6 +127,7 @@ impl SpawnAgentTool {
             parent_temperature: None,
             parent_tools: Vec::new(),
             policy_enforcer: None,
+            workflow_base_dir: None,
         }
     }
 
@@ -160,6 +163,7 @@ impl SpawnAgentTool {
             parent_temperature: None,
             parent_tools: Vec::new(),
             policy_enforcer: None,
+            workflow_base_dir: None,
         }
     }
 
@@ -172,6 +176,12 @@ impl SpawnAgentTool {
         enforcer: Arc<parking_lot::RwLock<crate::runtime::policy::PolicyEnforcer>>,
     ) -> Self {
         self.policy_enforcer = Some(enforcer);
+        self
+    }
+
+    /// Set workflow base directory for child agent file tools (B07 fix).
+    pub fn with_workflow_base_dir(mut self, dir: Option<std::path::PathBuf>) -> Self {
+        self.workflow_base_dir = dir;
         self
     }
 
@@ -296,15 +306,14 @@ impl SpawnAgentTool {
             ..Default::default()
         };
 
-        // Create child RigAgentLoop (inherits parent policy — spawned agents are also sandboxed)
-        // TODO: propagate workflow_base_dir from parent for file tool consistency
+        // Create child RigAgentLoop (inherits parent policy + workflow_base_dir)
         let mut child_loop = super::RigAgentLoop::new(
             params.task_id.clone(),
             child_params,
             self.event_log.clone(),
             self.mcp_clients.clone(),
             self.policy_enforcer.clone(),
-            None,
+            self.workflow_base_dir.clone(),
         )
         .map_err(|e| SpawnAgentError::ExecutionFailed(e.to_string()))?;
 

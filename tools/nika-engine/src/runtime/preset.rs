@@ -17,9 +17,12 @@ pub fn resolve_provider_model(
     task_model: &Option<String>,
     preset: &ResolvedAgent,
 ) -> (Option<nika_core::ProviderName>, Option<String>) {
-    let provider = task_provider
-        .clone()
-        .or_else(|| Some(nika_core::ProviderName::parse(&preset.provider)));
+    let provider = task_provider.clone().or_else(|| {
+        preset
+            .provider
+            .as_ref()
+            .map(|p| nika_core::ProviderName::parse(p))
+    });
     let model = task_model.clone().or_else(|| preset.model.clone());
     (provider, model)
 }
@@ -63,7 +66,7 @@ mod tests {
     fn make_preset() -> ResolvedAgent {
         ResolvedAgent {
             system: "You are a deep thinker.".to_string(),
-            provider: "anthropic".to_string(),
+            provider: Some("anthropic".to_string()),
             model: Some("claude-sonnet-4-6".to_string()),
             max_turns: Some(10),
             temperature: Some(0.3),
