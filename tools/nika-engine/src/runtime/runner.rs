@@ -540,17 +540,17 @@ impl Runner {
         // Use deepest terminal task instead of arbitrary selection
         if let Some(deepest_task) = self.flow_graph.get_deepest_final_task() {
             if let Some(result) = self.datastore.get(deepest_task.as_ref()) {
-                if result.is_success() {
+                if result.is_usable() {
                     return Some(result.output_str().into_owned());
                 }
             }
         }
 
-        // Fallback: Try any successful final task
+        // Fallback: Try any usable final task (includes partial success)
         let final_tasks = self.flow_graph.get_final_tasks();
         for task_id in final_tasks {
             if let Some(result) = self.datastore.get(&task_id) {
-                if result.is_success() {
+                if result.is_usable() {
                     return Some(result.output_str().into_owned());
                 }
             }
@@ -3016,6 +3016,12 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     .collect();
 
                 // Create aggregated result with JSON array + merged media
+                let succeeded_count =
+                    results.iter().filter(|(_, r)| r.is_success()).count() as u32;
+                let failed_count = results
+                    .iter()
+                    .filter(|(_, r)| !r.is_success() && !r.is_skipped())
+                    .count() as u32;
                 let aggregated_result = if all_success {
                     TaskResult::success(Value::Array(outputs), total_duration)
                         .with_media(merged_media)
@@ -3036,11 +3042,29 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             format!("{}; {} item(s) cancelled", errors.join("; "), n)
                         }
                     };
-                    // Preserve partial results in output even on failure
-                    let mut result =
-                        TaskResult::failed(error_msg, total_duration).with_media(merged_media);
-                    result.output = Arc::new(Value::Array(outputs));
-                    result
+
+                    // fail_fast parents have cancel tokens; non-fail_fast don't
+                    let is_fail_fast = for_each_cancel_tokens.contains_key(&parent_id);
+                    if succeeded_count > 0 && !is_fail_fast {
+                        // Partial success: some iterations succeeded, output is usable.
+                        // Only when fail_fast=false — user explicitly opted into partial results.
+                        TaskResult {
+                            output: Arc::new(Value::Array(outputs)),
+                            duration: total_duration,
+                            status: crate::store::TaskOutcome::PartialSuccess {
+                                error_summary: error_msg,
+                                succeeded: succeeded_count,
+                                failed: failed_count,
+                            },
+                            media: merged_media,
+                        }
+                    } else {
+                        // Total failure: no iterations succeeded
+                        let mut result =
+                            TaskResult::failed(error_msg, total_duration).with_media(merged_media);
+                        result.output = Arc::new(Value::Array(outputs));
+                        result
+                    }
                 };
 
                 // Emit ForEachCompleted before storing (parent_id is consumed by insert)

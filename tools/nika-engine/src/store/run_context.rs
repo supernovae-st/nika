@@ -23,6 +23,13 @@ use crate::binding::jsonpath;
 #[derive(Debug, Clone)]
 pub enum TaskOutcome {
     Success,
+    /// Partial success: some for_each iterations succeeded, some failed.
+    /// Downstream tasks can still use the output (nulls for failed iterations).
+    PartialSuccess {
+        error_summary: String,
+        succeeded: u32,
+        failed: u32,
+    },
     Failed(String),
     /// Task cannot run because a dependency failed
     DependencyFailed {
@@ -115,9 +122,20 @@ impl TaskResult {
         self
     }
 
-    /// Check if task succeeded
+    /// Check if task succeeded (strict — excludes partial success)
     pub fn is_success(&self) -> bool {
         matches!(self.status, TaskOutcome::Success)
+    }
+
+    /// Check if task output is usable by downstream tasks.
+    ///
+    /// Returns true for both Success and PartialSuccess. Used for dependency
+    /// gating: downstream tasks can run if the upstream produced usable output.
+    pub fn is_usable(&self) -> bool {
+        matches!(
+            self.status,
+            TaskOutcome::Success | TaskOutcome::PartialSuccess { .. }
+        )
     }
 
     /// Check if task failed due to a dependency failure
@@ -142,6 +160,7 @@ impl TaskResult {
     pub fn error(&self) -> Option<&str> {
         match &self.status {
             TaskOutcome::Failed(e) => Some(e),
+            TaskOutcome::PartialSuccess { error_summary, .. } => Some(error_summary),
             TaskOutcome::DependencyFailed { dependency } => Some(dependency),
             TaskOutcome::Skipped { reason } => Some(reason),
             TaskOutcome::Success => None,
@@ -317,7 +336,7 @@ impl RunContext {
     /// and stored in the same retain pass, so C (which depends on B) can
     /// see B's result immediately without a second loop iteration.
     pub fn is_completed_successfully(&self, task_id: &str) -> Option<bool> {
-        self.results.get(task_id).map(|r| r.value().is_success())
+        self.results.get(task_id).map(|r| r.value().is_usable())
     }
 
     /// Iterate over all task results (cloned).
