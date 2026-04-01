@@ -1082,6 +1082,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)] // Uses unix-specific PermissionsExt::from_mode()
     #[tokio::test]
     async fn test_write_binary_read_only_source_works() {
         // Edge case: source file is read-only — copy should still work

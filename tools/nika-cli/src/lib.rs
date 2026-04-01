@@ -1,3 +1,6 @@
+// CLI uses unix-only daemon features; suppress unused warnings on Windows CI.
+#![cfg_attr(not(unix), allow(unused_variables, unused_imports))]
+
 //! CLI subcommand handlers for Nika
 //!
 //! Each module handles one `nika <subcommand>` group.

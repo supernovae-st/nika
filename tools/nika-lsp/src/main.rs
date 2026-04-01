@@ -1,3 +1,6 @@
+// LSP depends on unix-only daemon features; suppress unused warnings on Windows CI.
+#![cfg_attr(not(unix), allow(unused_variables, unused_imports))]
+
 //! Nika Language Server
 //!
 //! LSP server for Nika workflow files (.nika.yaml).

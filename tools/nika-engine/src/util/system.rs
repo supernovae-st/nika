@@ -125,6 +125,7 @@ mod tests {
 
     #[test]
     fn test_get_total_ram_bytes() {
+        #[allow(unused_variables)]
         let bytes = get_total_ram_bytes();
         // On macOS/Linux, this should succeed
         #[cfg(any(target_os = "macos", target_os = "linux"))]
