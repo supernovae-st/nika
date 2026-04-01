@@ -1,11 +1,19 @@
 # Handoff Plan — v0.59 Known Issues
 
-> 7 issues from v0.58 deep audit. Ordered by priority. Each with root cause, exact code location, fix plan, and verification steps.
+> 7 functional issues + 4 security findings from v0.58 deep audit.
+> Analyzed by 8 specialized agents (rust-pro, rust-architect, rust-security).
+> Each with root cause, exact code locations, fix plan, and verification steps.
+>
+> **FIXED in this session**: path traversal in from_example/schema (HIGH security)
 
 ## Priority Order
 
 | # | Issue | Severity | Effort | Type |
 |---|-------|----------|--------|------|
+| S1 | ~~from_example/schema path traversal~~ | ~~HIGH~~ | ~~S~~ | ~~FIXED~~ |
+| S2 | $env.* unrestricted access | MEDIUM | M | Security |
+| S3 | Trace secret redaction gaps | MEDIUM | M | Security |
+| S4 | Shell blocklist bypass via quoting | LOW | S | Security |
 | 1 | fetch 404 returns exit 0 | HIGH | S | Bug |
 | 2 | fail_fast:false partial results | HIGH | M | Logic |
 | 3 | $env.MISSING before default() | HIGH | M | Binding |
@@ -13,6 +21,46 @@
 | 5 | {{skills.NAME}} not resolved | MEDIUM | M | Feature Gap |
 | 6 | NikaError god enum (103 variants) | LOW | L | Tech Debt |
 | 7 | runner.rs run() 1580 lines | LOW | L | Refactor |
+
+## Security Findings (from rust-security agent)
+
+### S1: from_example/schema path traversal — FIXED
+
+`from_example: "../../.env"` could read arbitrary files. Now blocked by `..` component validation in `infer.rs` and `structured_output.rs`.
+
+### S2: $env.* unrestricted access (MEDIUM)
+
+**File**: `resolve.rs:804-821`
+`$env.*` reads ANY env var (ANTHROPIC_API_KEY, SSH_AUTH_SOCK, AWS_SECRET_ACCESS_KEY). Combined with `fetch:`, secrets can be exfiltrated to external servers. Mitigating factor: workflow author = user who runs it (only a risk for untrusted YAML execution).
+
+**Recommendation**: Consider env var allowlist for `$env` access, or block known sensitive vars at binding resolution level.
+
+### S3: Trace secret redaction gaps (MEDIUM)
+
+**Files**: `resolve.rs:446-474`, `util/mod.rs:23+`
+Pattern-based redaction misses custom API keys (ElevenLabs, xAI, webhook secrets). Env-sourced bindings are tracked but value-based redaction only works for known patterns.
+
+**Recommendation**: Track env-sourced values and redact them wherever they appear in traces (value-based, not just pattern-based).
+
+### S4: Shell blocklist bypass via quoting (LOW)
+
+**File**: `security.rs:358-388`
+`su""do rm -rf /` in `shell: true` could bypass the `sudo` pattern. NFKC normalization handles Unicode but not shell quoting.
+
+**Recommendation**: Strip or normalize shell quoting before blocklist comparison.
+
+### Positive Security Findings
+
+- SSRF: defense-in-depth with DNS pinning (prevents rebinding) — EXCELLENT
+- Template injection: 3-pass isolation with trusted path sets — EXCELLENT
+- CRLF header injection: blocked
+- Response size limits: streaming byte counting (50MB text / 100MB binary)
+- Unicode NFKC normalization: prevents confusable bypass
+- Shell hardcoded to `sh -c`, not user-configurable
+- `cwd` traversal: properly blocked via canonicalization
+- Library injection env vars: blocked
+- `kill_on_drop(true)`: prevents orphaned processes
+- `unsafe_code = "deny"` workspace-wide
 
 ---
 
@@ -94,6 +142,44 @@ The issue is in `get_ready_tasks()` (runner.rs:457-499): line 473 checks `is_com
 ### Files
 - `tools/nika-engine/src/runtime/runner.rs` — aggregation (2786-2811) + ready check (457-499)
 - `tools/nika-engine/src/store/run_context.rs` — TaskOutcome enum (22-37)
+
+### Recommended Approach (from rust-architect analysis)
+
+**Option C: `TaskOutcome::PartialSuccess` + `is_usable()` helper**
+
+Instead of changing every `is_success()` caller, add a dual-purpose method:
+
+```rust
+pub enum TaskOutcome {
+    Success,
+    PartialSuccess { error_summary: String, succeeded: u32, failed: u32 },
+    Failed(String),
+    DependencyFailed { dependency: String },
+    Skipped { reason: String },
+}
+
+impl TaskResult {
+    /// Returns true for Success OR PartialSuccess.
+    /// Use for dependency gating (should downstream tasks run?).
+    pub fn is_usable(&self) -> bool {
+        matches!(self.status, TaskOutcome::Success | TaskOutcome::PartialSuccess { .. })
+    }
+    /// Returns true ONLY for full Success.
+    /// Use for strict checks (artifacts, records, workflow success).
+    pub fn is_success(&self) -> bool {
+        matches!(self.status, TaskOutcome::Success)
+    }
+}
+```
+
+**Surgical changes needed** (~5-6 lines):
+1. `run_context.rs`: Add `PartialSuccess` variant + `is_usable()` method
+2. `runner.rs:470`: Change `is_completed_successfully` to call `is_usable()`
+3. `runner.rs:2786-2811`: Use `PartialSuccess` when `!fail_fast && any_success`
+
+**Key detail**: `result.output` is ALREADY set with partial data at line 2809. Downstream tasks CAN access `$parent.items[0]` once the dependency gate opens.
+
+**Output array for failed iterations**: `Value::Null` (preserves index alignment).
 
 ### Fix Plan
 
@@ -286,20 +372,50 @@ nika workflow graph multi-step.nika.yaml | grep -c "→"
 
 ### Fix Plan
 
-**Option A — Add `Skills` to BindingSource** (recommended):
+**Recommended: Option C — Thin Skills Resolution via Template Only** (from rust-architect)
 
-**Step 1** — Add variant to enum:
+`{{skills.NAME}}` should resolve from a dedicated skills store, reusing the `LoadedContext` infrastructure. No new `BindingSource` variant needed — skills in `with:` blocks (`$skills.pirate`) makes no semantic sense.
+
+**Why NOT Option A (BindingSource::Skills)**: Adds a variant that propagates through every match on BindingSource across 6+ files. Skills in `with:` blocks is not a valid use case — skills are prompt text, not data.
+
+**Changes needed (~60 lines across 3 files)**:
+
+**Step 1** — `run_context.rs`: Add `skills: FxHashMap<String, Value>` field + `resolve_skills_path()`:
 ```rust
-pub enum BindingSource {
-    Task(Arc<str>),
-    Context(Arc<str>),
-    Input(Arc<str>),
-    Env(Arc<str>),
-    Vault(Arc<str>),
-    LoopVar(Arc<str>),
-    Skills(Arc<str>),  // NEW
+pub fn resolve_skills_path(&self, skill_name: &str) -> Option<Value> {
+    self.skills.get(skill_name).cloned()
 }
 ```
+
+**Step 2** — `template.rs`: Add `Skills { path, transforms }` to `TemplateExpr` + `strip_prefix("skills.")` in parser + resolution pass:
+```rust
+// In parse_template_expr():
+if let Some(rest) = expr.strip_prefix("skills.") {
+    return TemplateExpr::Skills { path: rest.to_string(), transforms };
+}
+
+// In resolve_with() — add pass 4:
+TemplateExpr::Skills { path, transforms } => {
+    if let Some(val) = ctx.resolve_skills_path(&path) {
+        apply_transforms(val, transforms)
+    } else {
+        warn!("Unknown skill: {path}");
+        String::new()
+    }
+}
+```
+
+**Step 3** — `runner.rs`: Load skills into RunContext at workflow start (reuse SkillInjector):
+```rust
+if !self.workflow.skills_map.is_empty() {
+    for (alias, path) in &self.workflow.skills_map {
+        let content = tokio::fs::read_to_string(base_path.join(path)).await?;
+        self.datastore.set_skill(alias, Value::String(content));
+    }
+}
+```
+
+**NOT changed**: resolve.rs, types.rs, agent.rs (agent injection still works via existing path)
 
 **Step 2** — In resolve.rs `resolve_binding_path()`, add the Skills case:
 ```rust
