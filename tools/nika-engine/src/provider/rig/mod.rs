@@ -220,6 +220,82 @@ impl RigProvider {
         Self::from_name(name)
     }
 
+    /// Create a RigProvider by name with an explicit API key.
+    ///
+    /// Avoids `unsafe { std::env::set_var() }` — constructs the rig-core client
+    /// directly with the provided key instead of reading from the environment.
+    pub fn from_name_with_key(
+        name: &str,
+        api_key: &str,
+    ) -> Result<Self, crate::error::NikaError> {
+        let provider = crate::core::find_provider(name).ok_or(ProviderError::NotConfigured {
+            provider: name.to_string(),
+        })?;
+
+        match provider.id {
+            "anthropic" => anthropic::Client::new(api_key)
+                .map(RigProvider::Claude)
+                .map_err(|e| {
+                    ProviderError::InvalidConfig {
+                        message: format!("failed to build anthropic client: {e}"),
+                    }
+                    .into()
+                }),
+            "openai" => openai::Client::new(api_key)
+                .map(RigProvider::OpenAI)
+                .map_err(|e| {
+                    ProviderError::InvalidConfig {
+                        message: format!("failed to build openai client: {e}"),
+                    }
+                    .into()
+                }),
+            "mistral" => mistral::Client::new(api_key)
+                .map(RigProvider::Mistral)
+                .map_err(|e| {
+                    ProviderError::InvalidConfig {
+                        message: format!("failed to build mistral client: {e}"),
+                    }
+                    .into()
+                }),
+            "groq" => groq::Client::new(api_key)
+                .map(RigProvider::Groq)
+                .map_err(|e| {
+                    ProviderError::InvalidConfig {
+                        message: format!("failed to build groq client: {e}"),
+                    }
+                    .into()
+                }),
+            "deepseek" => deepseek::Client::new(api_key)
+                .map(RigProvider::DeepSeek)
+                .map_err(|e| {
+                    ProviderError::InvalidConfig {
+                        message: format!("failed to build deepseek client: {e}"),
+                    }
+                    .into()
+                }),
+            "gemini" => gemini::Client::new(api_key)
+                .map(RigProvider::Gemini)
+                .map_err(|e| {
+                    ProviderError::InvalidConfig {
+                        message: format!("failed to build gemini client: {e}"),
+                    }
+                    .into()
+                }),
+            "xai" => xai::Client::new(api_key)
+                .map(RigProvider::XAi)
+                .map_err(|e| {
+                    ProviderError::InvalidConfig {
+                        message: format!("failed to build xai client: {e}"),
+                    }
+                    .into()
+                }),
+            _ => Err(ProviderError::NotConfigured {
+                provider: name.to_string(),
+            }
+            .into()),
+        }
+    }
+
     /// Create a Claude provider from environment variable ANTHROPIC_API_KEY
     pub fn claude() -> Self {
         let client = anthropic::Client::from_env();
@@ -453,6 +529,7 @@ impl RigProvider {
     /// from the raw JSON response. This avoids deserialization failures with vLLM, Ollama,
     /// and other servers that add non-standard fields (annotations, reasoning, stop_reason).
     #[allow(clippy::too_many_arguments)]
+    /// Returns `(content, prompt_tokens, completion_tokens)`.
     async fn raw_openai_compat_infer(
         http_client: &reqwest::Client,
         base_url: &str,
@@ -462,7 +539,7 @@ impl RigProvider {
         max_tokens: u64,
         temperature: Option<f64>,
         timeout: std::time::Duration,
-    ) -> Result<String, RigInferError> {
+    ) -> Result<(String, u64, u64), RigInferError> {
         let url = format!("{}/chat/completions", base_url.trim_end_matches('/'));
         let mut body = serde_json::json!({
             "model": model,
@@ -508,7 +585,17 @@ impl RigProvider {
         let json: serde_json::Value = serde_json::from_str(&body_text)
             .map_err(|e| RigInferError::PromptError(format!("invalid JSON response: {e}")))?;
 
-        json["choices"]
+        // T15: Extract token usage from response
+        let prompt_tokens = json
+            .pointer("/usage/prompt_tokens")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+        let completion_tokens = json
+            .pointer("/usage/completion_tokens")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+
+        let content = json["choices"]
             .get(0)
             .and_then(|c| c["message"]["content"].as_str())
             .map(|s| s.to_string())
@@ -516,7 +603,9 @@ impl RigProvider {
                 RigInferError::PromptError(
                     "no content in response choices[0].message.content".into(),
                 )
-            })
+            })?;
+
+        Ok((content, prompt_tokens, completion_tokens))
     }
 
     /// Simple text completion (infer) using rig-core
@@ -635,17 +724,24 @@ impl RigProvider {
             } => {
                 let compat_timeout = std::time::Duration::from_secs(*timeout_secs);
                 let messages = vec![serde_json::json!({"role": "user", "content": prompt})];
-                Self::raw_openai_compat_infer(
-                    http_client,
-                    raw_base_url,
-                    raw_api_key,
-                    model_id,
-                    messages,
-                    effective_max_tokens,
-                    None,
-                    compat_timeout,
-                )
-                .await
+                let (content, prompt_tokens, completion_tokens) =
+                    Self::raw_openai_compat_infer(
+                        http_client,
+                        raw_base_url,
+                        raw_api_key,
+                        model_id,
+                        messages,
+                        effective_max_tokens,
+                        None,
+                        compat_timeout,
+                    )
+                    .await?;
+                tracing::debug!(
+                    prompt_tokens,
+                    completion_tokens,
+                    "OpenAiCompat infer usage"
+                );
+                Ok(content)
             }
             #[cfg(feature = "native-inference")]
             RigProvider::Native(runtime) => {
@@ -995,7 +1091,116 @@ impl RigProvider {
                 RigProvider::DeepSeek(client) => build_agent_with_tools!(client),
                 RigProvider::Gemini(client) => build_agent_with_tools!(client),
                 RigProvider::XAi(client) => build_agent_with_tools!(client),
-                RigProvider::OpenAiCompat { client, .. } => build_agent_with_tools!(client),
+                RigProvider::OpenAiCompat {
+                    raw_base_url,
+                    raw_api_key,
+                    http_client,
+                    ..
+                } => {
+                    // Bypass rig-core agent.prompt() to avoid deserialization
+                    // failures with vLLM/Ollama non-standard response fields.
+                    // Convert ToolDyn definitions to OpenAI tool format, send raw
+                    // HTTP, and extract tool_calls[0].function.arguments.
+                    let mut openai_tools = Vec::new();
+                    for tool in &tools {
+                        let def = tool.definition(String::new()).await;
+                        openai_tools.push(serde_json::json!({
+                            "type": "function",
+                            "function": {
+                                "name": def.name,
+                                "description": def.description,
+                                "parameters": def.parameters,
+                            }
+                        }));
+                    }
+
+                    let mut messages = Vec::new();
+                    if let Some(sys) = system {
+                        messages
+                            .push(serde_json::json!({"role": "system", "content": sys}));
+                    }
+                    messages
+                        .push(serde_json::json!({"role": "user", "content": prompt}));
+
+                    let url = format!(
+                        "{}/chat/completions",
+                        raw_base_url.trim_end_matches('/')
+                    );
+                    let body = serde_json::json!({
+                        "model": model_id,
+                        "messages": messages,
+                        "max_tokens": max_tok,
+                        "tools": openai_tools,
+                        "tool_choice": "required",
+                    });
+
+                    let mut req = http_client
+                        .post(&url)
+                        .json(&body)
+                        .timeout(effective_timeout);
+                    if !raw_api_key.is_empty() {
+                        req = req.bearer_auth(raw_api_key);
+                    }
+
+                    let resp = req.send().await.map_err(|e| {
+                        if e.is_timeout() {
+                            RigInferError::Timeout {
+                                duration_ms: effective_timeout.as_millis() as u64,
+                            }
+                        } else {
+                            RigInferError::PromptError(format!("HTTP error: {e}"))
+                        }
+                    })?;
+
+                    let status = resp.status();
+                    let body_text = resp.text().await.map_err(|e| {
+                        RigInferError::PromptError(format!(
+                            "failed to read response body: {e}"
+                        ))
+                    })?;
+
+                    if !status.is_success() {
+                        let truncated = if body_text.len() > 500 {
+                            format!("{}...(truncated)", &body_text[..500])
+                        } else {
+                            body_text
+                        };
+                        return Err(RigInferError::PromptError(format!(
+                            "HTTP {status}: {truncated}"
+                        )));
+                    }
+
+                    let json: serde_json::Value =
+                        serde_json::from_str(&body_text).map_err(|e| {
+                            RigInferError::PromptError(format!(
+                                "invalid JSON response: {e}"
+                            ))
+                        })?;
+
+                    // Primary: extract tool call arguments
+                    let arguments = json["choices"]
+                        .get(0)
+                        .and_then(|c| c["message"]["tool_calls"].get(0))
+                        .and_then(|tc| tc["function"]["arguments"].as_str())
+                        .map(|s| s.to_string());
+
+                    if let Some(args) = arguments {
+                        Ok(args)
+                    } else {
+                        // Fallback: content field (some vLLM models respond
+                        // with JSON in content instead of tool calls)
+                        json["choices"]
+                            .get(0)
+                            .and_then(|c| c["message"]["content"].as_str())
+                            .map(|s| s.to_string())
+                            .ok_or_else(|| {
+                                RigInferError::PromptError(
+                                    "no tool_calls or content in response"
+                                        .into(),
+                                )
+                            })
+                    }
+                }
                 #[cfg(feature = "native-inference")]
                 RigProvider::Native(_) => Err(RigInferError::PromptError(
                     "Native inference does not support tool-based structured output".to_string(),
@@ -1102,17 +1307,24 @@ impl RigProvider {
                     messages.push(serde_json::json!({"role": "system", "content": system}));
                 }
                 messages.push(serde_json::json!({"role": "user", "content": user_prompt}));
-                Self::raw_openai_compat_infer(
-                    http_client,
-                    raw_base_url,
-                    raw_api_key,
-                    model_id,
-                    messages,
-                    max_tokens as u64,
-                    effective_temperature,
-                    compat_timeout,
-                )
-                .await
+                let (content, prompt_tokens, completion_tokens) =
+                    Self::raw_openai_compat_infer(
+                        http_client,
+                        raw_base_url,
+                        raw_api_key,
+                        model_id,
+                        messages,
+                        max_tokens as u64,
+                        effective_temperature,
+                        compat_timeout,
+                    )
+                    .await?;
+                tracing::debug!(
+                    prompt_tokens,
+                    completion_tokens,
+                    "OpenAiCompat infer_with_options usage"
+                );
+                Ok(content)
             }
             #[cfg(feature = "native-inference")]
             RigProvider::Native(runtime) => {
@@ -1593,13 +1805,21 @@ impl RigProvider {
     ) -> Result<StreamResult, RigInferError> {
         const STREAM_TOTAL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(600);
 
+        // T16: Use endpoint-specific timeout for OpenAiCompat (doubled for streaming headroom)
+        let effective_timeout = match self {
+            RigProvider::OpenAiCompat { timeout_secs, .. } => {
+                std::time::Duration::from_secs((*timeout_secs).max(60) * 2)
+            }
+            _ => STREAM_TOTAL_TIMEOUT,
+        };
+
         timeout(
-            STREAM_TOTAL_TIMEOUT,
+            effective_timeout,
             self.infer_stream_with_options_inner(prompt, tx, options),
         )
         .await
         .map_err(|_| RigInferError::Timeout {
-            duration_ms: STREAM_TOTAL_TIMEOUT.as_millis() as u64,
+            duration_ms: effective_timeout.as_millis() as u64,
         })?
     }
 
