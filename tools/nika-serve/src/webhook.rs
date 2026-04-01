@@ -149,15 +149,43 @@ fn check_resolved_ip(ip: std::net::IpAddr) -> Result<(), String> {
     }
 }
 
-/// Compute HMAC-SHA256 signature for a payload.
-pub fn sign(secret: &str, body: &[u8]) -> String {
+/// Compute HMAC-SHA256 signature with timestamp for replay protection.
+///
+/// Returns a Stripe-style `t=<timestamp>,v1=<hex>` signature where the signed
+/// payload is `"{timestamp}.{body}"`. This binds the signature to a specific
+/// point in time, preventing replay attacks.
+pub fn sign_v2(secret: &str, body: &[u8], timestamp: u64) -> String {
+    let mut signed_payload = format!("{timestamp}.").into_bytes();
+    signed_payload.extend_from_slice(body);
     let mut mac =
         HmacSha256::new_from_slice(secret.as_bytes()).expect("HMAC accepts any key length");
-    mac.update(body);
-    let result = mac.finalize();
-    let bytes = result.into_bytes();
-    let hex: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
-    format!("sha256={hex}")
+    mac.update(&signed_payload);
+    let hex: String = mac.finalize().into_bytes().iter().map(|b| format!("{b:02x}")).collect();
+    format!("t={timestamp},v1={hex}")
+}
+
+/// Verify a webhook signature with replay protection.
+///
+/// Parses the `t=<timestamp>,v1=<hex>` format, checks the timestamp is within
+/// `tolerance_secs` of `now`, and performs constant-time comparison of the
+/// expected vs actual signature.
+pub fn verify(secret: &str, body: &[u8], signature: &str, now: u64, tolerance_secs: u64) -> bool {
+    let parts: Vec<&str> = signature.splitn(2, ',').collect();
+    let (ts_part, _sig_part) = match parts.as_slice() {
+        [t, s] => (*t, *s),
+        _ => return false,
+    };
+    let ts: u64 = match ts_part.strip_prefix("t=").and_then(|s| s.parse().ok()) {
+        Some(t) => t,
+        None => return false,
+    };
+    if now.abs_diff(ts) > tolerance_secs {
+        return false;
+    }
+    let expected = sign_v2(secret, body, ts);
+    // Constant-time comparison to prevent timing attacks
+    use subtle::ConstantTimeEq;
+    expected.as_bytes().ct_eq(signature.as_bytes()).into()
 }
 
 /// Send a webhook notification for a completed job.
@@ -179,7 +207,11 @@ pub fn notify(config: &WebhookConfig, job_id: &str, status: &str, output: Option
     let body_bytes = serde_json::to_vec(&body).unwrap_or_default();
 
     tokio::spawn(async move {
-        let signature = sign(&secret, &body_bytes);
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let signature = sign_v2(&secret, &body_bytes, timestamp);
 
         match client
             .post(&url)
@@ -292,28 +324,58 @@ mod tests {
     use super::*;
 
     #[test]
-    fn sign_produces_sha256_prefix() {
-        let sig = sign("my-secret", b"hello world");
+    fn sign_v2_produces_timestamped_format() {
+        let sig = sign_v2("my-secret", b"hello world", 1711929600);
         assert!(
-            sig.starts_with("sha256="),
-            "signature must start with sha256="
+            sig.starts_with("t=1711929600,v1="),
+            "signature must start with t=<ts>,v1="
         );
-        // sha256= prefix + 64 hex chars
-        assert_eq!(sig.len(), 7 + 64);
+        // t=1711929600,v1= prefix (16 chars) + 64 hex chars
+        assert_eq!(sig.len(), "t=1711929600,v1=".len() + 64);
     }
 
     #[test]
-    fn sign_deterministic() {
-        let a = sign("key", b"data");
-        let b = sign("key", b"data");
-        assert_eq!(a, b, "same key+data must produce same signature");
+    fn sign_v2_deterministic() {
+        let a = sign_v2("key", b"data", 1000);
+        let b = sign_v2("key", b"data", 1000);
+        assert_eq!(a, b, "same key+data+timestamp must produce same signature");
     }
 
     #[test]
-    fn sign_different_keys_produce_different_sigs() {
-        let a = sign("key1", b"data");
-        let b = sign("key2", b"data");
+    fn sign_v2_different_keys_produce_different_sigs() {
+        let a = sign_v2("key1", b"data", 1000);
+        let b = sign_v2("key2", b"data", 1000);
         assert_ne!(a, b);
+    }
+
+    #[test]
+    fn sign_v2_includes_timestamp() {
+        let sig = sign_v2("secret", b"body", 1711929600);
+        assert!(sig.starts_with("t=1711929600,v1="));
+    }
+
+    #[test]
+    fn sign_v2_different_timestamps_differ() {
+        let a = sign_v2("key", b"data", 1000);
+        let b = sign_v2("key", b"data", 2000);
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn verify_valid_signature() {
+        let sig = sign_v2("secret", b"hello", 1000);
+        assert!(verify("secret", b"hello", &sig, 1005, 300));
+    }
+
+    #[test]
+    fn verify_rejects_expired() {
+        let sig = sign_v2("secret", b"hello", 1000);
+        assert!(!verify("secret", b"hello", &sig, 1600, 300));
+    }
+
+    #[test]
+    fn verify_rejects_wrong_sig() {
+        assert!(!verify("secret", b"body", "t=1000,v1=deadbeef", 1005, 300));
     }
 
     #[test]
