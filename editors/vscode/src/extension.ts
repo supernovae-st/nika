@@ -482,6 +482,9 @@ function startClient(context: ExtensionContext, overridePath?: string): void {
       statusBarItem.backgroundColor = undefined;
     }
 
+    // Check for version mismatch between extension and LSP server
+    checkVersionMismatch(context);
+
     // Poll daemon status every 30s
     const statusInterval = setInterval(async () => {
       if (!client || !client.isRunning()) {
@@ -536,6 +539,47 @@ function log(level: string, msg: string): void {
   if (outputChannel) {
     outputChannel.appendLine(`[${new Date().toISOString()}] [${level}] ${msg}`);
   }
+}
+
+/** Compare extension version with LSP server version and warn on mismatch. */
+function checkVersionMismatch(context: ExtensionContext): void {
+  const extVersion = context.extension.packageJSON.version as string;
+  const serverPath = getNikaPath();
+
+  execFile(serverPath, ['--version'], { timeout: 5000 }, (error, stdout) => {
+    if (error) { return; }
+    // Output format: "nika 0.58.0" or "0.58.0-dev (abc1234, built 2h ago)"
+    const match = stdout.match(/(\d+\.\d+)\.\d+/);
+    if (!match) { return; }
+
+    const serverMajorMinor = match[1]; // e.g. "0.58"
+    const extMatch = extVersion.match(/(\d+\.\d+)\.\d+/);
+    if (!extMatch) { return; }
+    const extMajorMinor = extMatch[1]; // e.g. "0.42"
+
+    if (extMajorMinor !== serverMajorMinor) {
+      log('WARN', `Version mismatch: extension v${extVersion}, server v${stdout.trim()}`);
+      const extParts = extMajorMinor.split('.').map(Number);
+      const srvParts = serverMajorMinor.split('.').map(Number);
+      // Only warn if extension is BEHIND the server (not ahead, which is dev)
+      if (extParts[0] < srvParts[0] || (extParts[0] === srvParts[0] && extParts[1] < srvParts[1])) {
+        window.showWarningMessage(
+          `Nika extension v${extVersion} is outdated (server is v${serverMajorMinor}.x). ` +
+          `Update for the best experience.`,
+          'Update Extension',
+        ).then((choice) => {
+          if (choice === 'Update Extension') {
+            commands.executeCommand(
+              'workbench.extensions.installExtension',
+              'supernovae.nika-lang',
+            );
+          }
+        });
+      }
+    } else {
+      log('INFO', `Version match: extension v${extVersion}, server v${stdout.trim()}`);
+    }
+  });
 }
 
 export function activate(context: ExtensionContext): void {
