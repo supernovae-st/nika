@@ -9,12 +9,21 @@ use axum::Router;
 use crate::state::AppState;
 
 /// Build the full API router with all v1 routes.
+///
+/// SSE route (`/v1/events/{id}`) is returned separately via `build_sse_router`
+/// so it can be excluded from the 30s TimeoutLayer (SSE streams are long-lived).
 pub fn build_router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health::health))
         .route("/v1/run", post(workflows::run_workflow))
         .route("/v1/status/{id}", get(workflows::get_status))
         .route("/v1/cancel/{id}", post(workflows::cancel_job))
+        .with_state(state)
+}
+
+/// Build the SSE router (long-lived connections, NO TimeoutLayer).
+pub fn build_sse_router(state: AppState) -> Router {
+    Router::new()
         .route("/v1/events/{id}", get(crate::events::stream_events))
         .with_state(state)
 }

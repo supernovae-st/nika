@@ -109,14 +109,15 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
     let limiter = rate_limit::new_rate_limiter();
 
     // Build router with middleware
+    // SSE route is separate — long-lived streams must NOT have the 30s TimeoutLayer (C1).
     // Order (innermost → outermost): auth → rate-limit → body-limit → timeout → request-id
-    let mut app = routes::build_router(state.clone())
+    let api_routes = routes::build_router(state.clone())
         .layer(middleware::from_fn_with_state(
             state.clone(),
             auth::require_auth,
         ))
         .layer(middleware::from_fn_with_state(
-            limiter,
+            limiter.clone(),
             rate_limit::rate_limit_middleware,
         ))
         .layer(RequestBodyLimitLayer::new(10 * 1024 * 1024)) // 10 MB body limit
@@ -125,6 +126,20 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
             std::time::Duration::from_secs(30),
         ))
         .layer(middleware::from_fn(request_id::request_id_middleware));
+
+    // SSE router: same auth + rate-limit + request-id, but NO TimeoutLayer (C1)
+    let sse_routes = routes::build_sse_router(state.clone())
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth::require_auth,
+        ))
+        .layer(middleware::from_fn_with_state(
+            limiter,
+            rate_limit::rate_limit_middleware,
+        ))
+        .layer(middleware::from_fn(request_id::request_id_middleware));
+
+    let mut app = api_routes.merge(sse_routes);
 
     // Merge /metrics endpoint (behind auth — metrics can leak sensitive info)
     if let Some(handle) = metrics_handle {
