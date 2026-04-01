@@ -132,7 +132,7 @@ impl SchemaVersion {
             Self::V05 => Some("@0.6 adds agents: definitions and skills:"),
             Self::V06 => Some("@0.7 adds log: config and catch: error handling"),
             Self::V07 => Some("@0.8 adds fetch: verb improvements"),
-            Self::V08 => Some("@0.9 adds context: files and include:"),
+            Self::V08 => Some("@0.9 adds context: files"),
             Self::V09 => Some("@0.10 adds inputs: with defaults and artifacts:"),
             Self::V10 => Some("@0.11 adds with: bindings replacing include:"),
             Self::V11 => Some("@0.12 adds depends_on:, include:, and ?? fallback operator"),

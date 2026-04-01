@@ -26,7 +26,7 @@ fn print_banner() {
     let l2 = "Semantic YAML workflow engine for AI tasks";
     let l2_pad = inner - l2.len();
 
-    let l3 = "5 verbs \u{00B7} 9 providers \u{00B7} 24 builtin tools";
+    let l3 = "5 verbs \u{00B7} 9 providers \u{00B7} 30+ builtin tools";
     let l3_pad = inner - l3.len();
 
     println!();
@@ -146,7 +146,7 @@ fn get_example(name: &str) -> &'static str {
         "features" => "nika features",
         "completion" => "nika completion zsh",
         "trace" => "nika trace list",
-        "schema" => "nika schema list",
+        "schema" => "nika schema version",
         _ => "",
     }
 }
@@ -345,9 +345,9 @@ fn topic_verbs() {
         "\u{229B}",
         "green",
         "invoke:",
-        "MCP tool calls & 24 builtin tools",
+        "MCP tool calls & 30+ builtin tools",
         &[
-            "24 builtin tools (nika:*) + any MCP server tool.",
+            "30+ builtin tools (nika:*) + any MCP server tool.",
             "Double-colon separator for MCP: server::tool_name",
         ],
         &[
@@ -485,7 +485,7 @@ fn topic_templates() {
     binding("{{context.readme}}", "File context");
     println!();
 
-    println!("  {} (31 available)", "PIPE TRANSFORMS".bold());
+    println!("  {} (29 available)", "PIPE TRANSFORMS".bold());
     transform(
         "String:",
         "upper, lower, trim, trim_start, trim_end, length, to_string",
