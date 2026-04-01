@@ -87,23 +87,26 @@ pub async fn run_workflow(
         )));
     }
 
-    // Validate input keys before acquiring a slot (BUG-6)
+    // Validate inputs: must be object, keys alphanumeric+underscore, bounded size
     if let Some(inputs) = &req.inputs {
-        if let Some(obj) = inputs.as_object() {
-            for key in obj.keys() {
-                if !key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
-                    || key.is_empty()
-                {
-                    return Err(ServeError::InvalidWorkflow(format!(
-                        "invalid input key: {key}"
-                    )));
-                }
+        // M5: Reject non-object inputs (arrays, strings, etc.)
+        let obj = inputs.as_object().ok_or_else(|| {
+            ServeError::InvalidWorkflow("inputs must be a JSON object".into())
+        })?;
+        for key in obj.keys() {
+            if key.is_empty()
+                || key.len() > 128 // M6: key length limit
+                || !key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+            {
+                return Err(ServeError::InvalidWorkflow(format!(
+                    "invalid input key: {key}"
+                )));
             }
-            if obj.len() > 64 {
-                return Err(ServeError::InvalidWorkflow(
-                    "too many inputs (max 64)".into(),
-                ));
-            }
+        }
+        if obj.len() > 64 {
+            return Err(ServeError::InvalidWorkflow(
+                "too many inputs (max 64)".into(),
+            ));
         }
     }
 
