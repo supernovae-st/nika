@@ -202,22 +202,31 @@ impl TuiConfig {
         Ok(())
     }
 
-    /// Get the configuration file path
+    /// Get the configuration file path.
+    ///
+    /// Priority: nika.toml (new standard) > .nika/config.toml (legacy fallback)
     pub fn config_path() -> Result<PathBuf, ConfigError> {
-        // Try .nika/config.toml in current directory first
+        // Try nika.toml in current directory first (new standard)
+        let nika_toml = PathBuf::from("nika.toml");
+        if nika_toml.exists() {
+            return Ok(nika_toml);
+        }
+
+        // Fallback: .nika/config.toml (legacy)
         let local = PathBuf::from(".nika/config.toml");
         if local.parent().map(|p| p.exists()).unwrap_or(false) {
             return Ok(local);
         }
 
-        // Try to create .nika directory
+        // Try to create .nika directory for TUI state
         let nika_dir = PathBuf::from(".nika");
         if !nika_dir.exists() {
             std::fs::create_dir_all(&nika_dir).ok();
         }
 
         if nika_dir.exists() {
-            return Ok(nika_dir.join("config.toml"));
+            // Return nika.toml as the preferred path for new configs
+            return Ok(PathBuf::from("nika.toml"));
         }
 
         Err(ConfigError::NoDirFound)

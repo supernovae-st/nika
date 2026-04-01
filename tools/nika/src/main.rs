@@ -447,7 +447,7 @@ enum Commands {
         yes: bool,
     },
 
-    /// Create .nika/config.toml (provider + permissions)
+    /// Initialize a Nika project (nika.toml + .nika/ + starter workflow)
     #[command(next_help_heading = "PROJECT")]
     Init {
         /// Permission mode: deny, plan, accept-edits, accept-all

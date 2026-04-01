@@ -1141,7 +1141,7 @@ static MISSION_10_OPEN_PROTOCOL: &str = r#"```
 - MCP (Model Context Protocol) integration
 - Connecting to external MCP servers
 - The `invoke:` verb with external tools
-- MCP server configuration in `.nika/config.toml`
+- MCP server configuration in `nika.toml`
 - NovaNet integration (Nika's brain)
 
 ## Concepts
@@ -1157,7 +1157,7 @@ This means you can connect to thousands of tools without writing adapters.
 
 ### Connecting to MCP Servers
 
-Configure servers in your `.nika/config.toml`:
+Configure servers in your `nika.toml`:
 
 ```toml
 [[mcp.servers]]

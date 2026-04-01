@@ -163,7 +163,7 @@ impl App {
 
         let state = TuiState::new(&workflow_path.display().to_string());
 
-        // Load TUI configuration from .nika/config.toml
+        // Load TUI configuration from nika.toml (or .nika/config.toml fallback)
         let config = TuiConfig::load_or_default();
 
         // Initialize views
@@ -243,7 +243,7 @@ impl App {
         let workflow_path = standalone_state.root.clone();
         let state = TuiState::new("Standalone Mode");
 
-        // Load TUI configuration from .nika/config.toml
+        // Load TUI configuration from nika.toml (or .nika/config.toml fallback)
         let config = TuiConfig::load_or_default();
 
         // Initialize views

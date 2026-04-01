@@ -522,21 +522,32 @@ async fn check_mcp_connectivity() -> Vec<DiagnosticCheck> {
                 format!("{count} workflow(s) use MCP (invoke: with mcp: config)"),
             ));
 
-            // Step 3: Check MCP config in .nika/config.toml
-            if let Ok(nika_dir) = find_nika_dir() {
-                let config_path = nika_dir.join("config.toml");
+            // Step 3: Check MCP config in nika.toml or .nika/config.toml
+            {
+                let current = std::env::current_dir().unwrap_or_default();
+                let project = crate::config::find_project_root_from(&current)
+                    .unwrap_or(crate::config::ProjectRoot {
+                        root: current,
+                        source: crate::config::ProjectRootSource::Fallback,
+                    });
+                let config_path = match project.source {
+                    crate::config::ProjectRootSource::NikaToml => {
+                        project.root.join("nika.toml")
+                    }
+                    _ => project.root.join(".nika").join("config.toml"),
+                };
                 if config_path.exists() {
                     if let Ok(content) = fs::read_to_string(&config_path) {
                         if content.contains("[mcp]") || content.contains("mcp.") {
                             checks.push(DiagnosticCheck::pass(
                                 "MCP",
-                                "MCP configuration found in config.toml",
+                                "MCP configuration found in nika.toml",
                             ));
                         } else {
                             checks.push(DiagnosticCheck::warn(
                                 "MCP",
-                                "Workflows use MCP but no [mcp] section in config.toml",
-                                "Add MCP server config to .nika/config.toml",
+                                "Workflows use MCP but no [mcp] section in nika.toml",
+                                "Add MCP server config to nika.toml",
                             ));
                         }
                     }

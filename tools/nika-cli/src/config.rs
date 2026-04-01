@@ -2,10 +2,74 @@
 
 use clap::Subcommand;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use nika_engine::display::{section_header, separator, StatusIcon};
 use nika_engine::error::NikaError;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Project root discovery
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Result of project root discovery.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ProjectRoot {
+    pub root: PathBuf,
+    pub source: ProjectRootSource,
+}
+
+/// How the project root was determined.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProjectRootSource {
+    /// Found nika.toml (new standard)
+    NikaToml,
+    /// Found .nika/ directory (legacy fallback)
+    DotNika,
+    /// Nothing found, using start directory
+    Fallback,
+}
+
+/// Walk up from `start` to find project root.
+///
+/// Priority: nika.toml (primary) > .nika/ (legacy fallback) > start_dir
+pub fn find_project_root_from(start: &Path) -> Result<ProjectRoot, NikaError> {
+    // Pass 1: walk up looking for nika.toml
+    let mut dir = start;
+    loop {
+        if dir.join("nika.toml").exists() {
+            return Ok(ProjectRoot {
+                root: dir.to_path_buf(),
+                source: ProjectRootSource::NikaToml,
+            });
+        }
+        match dir.parent() {
+            Some(p) => dir = p,
+            None => break,
+        }
+    }
+
+    // Pass 2: walk up looking for .nika/
+    let mut dir = start;
+    loop {
+        let nika_dir = dir.join(".nika");
+        if nika_dir.exists() && nika_dir.is_dir() {
+            return Ok(ProjectRoot {
+                root: dir.to_path_buf(),
+                source: ProjectRootSource::DotNika,
+            });
+        }
+        match dir.parent() {
+            Some(p) => dir = p,
+            None => break,
+        }
+    }
+
+    // Nothing found
+    Ok(ProjectRoot {
+        root: start.to_path_buf(),
+        source: ProjectRootSource::Fallback,
+    })
+}
 
 /// Configuration management actions
 #[derive(Subcommand)]
@@ -46,9 +110,14 @@ pub enum ConfigAction {
 }
 
 pub fn handle_config_command(action: ConfigAction, quiet: bool) -> Result<(), NikaError> {
-    // Find .nika directory
-    let nika_dir = find_nika_dir()?;
-    let config_path = nika_dir.join("config.toml");
+    let current = std::env::current_dir()?;
+    let project = find_project_root_from(&current)?;
+
+    // Determine config path based on discovery
+    let config_path = match project.source {
+        ProjectRootSource::NikaToml => project.root.join("nika.toml"),
+        _ => project.root.join(".nika").join("config.toml"),
+    };
 
     match action {
         ConfigAction::Path => {
@@ -286,6 +355,66 @@ pub fn find_nika_dir() -> Result<PathBuf, NikaError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::tempdir;
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Phase 1: nika.toml project root discovery (TDD RED)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // Test 11: find_project_root_from() finds nika.toml in current dir
+    #[test]
+    fn find_project_root_nika_toml_in_current_dir() {
+        let temp = tempdir().unwrap();
+        std::fs::write(
+            temp.path().join("nika.toml"),
+            "[project]\nname = \"test\"\n",
+        )
+        .unwrap();
+
+        let result = find_project_root_from(temp.path()).unwrap();
+        assert_eq!(result.root, temp.path());
+        assert_eq!(result.source, ProjectRootSource::NikaToml);
+    }
+
+    // Test 12: find_project_root_from() finds nika.toml 3 levels up
+    #[test]
+    fn find_project_root_nika_toml_3_levels_up() {
+        let temp = tempdir().unwrap();
+        std::fs::write(
+            temp.path().join("nika.toml"),
+            "[project]\nname = \"root\"\n",
+        )
+        .unwrap();
+        let deep = temp.path().join("a").join("b").join("c");
+        std::fs::create_dir_all(&deep).unwrap();
+
+        let result = find_project_root_from(&deep).unwrap();
+        assert_eq!(result.root, temp.path());
+        assert_eq!(result.source, ProjectRootSource::NikaToml);
+    }
+
+    // Test 13: Fallback to .nika/ parent when no nika.toml
+    #[test]
+    fn find_project_root_fallback_dot_nika() {
+        let temp = tempdir().unwrap();
+        std::fs::create_dir_all(temp.path().join(".nika")).unwrap();
+
+        let result = find_project_root_from(temp.path()).unwrap();
+        assert_eq!(result.root, temp.path());
+        assert_eq!(result.source, ProjectRootSource::DotNika);
+    }
+
+    // Test 14: Returns start dir + Fallback source when nothing found
+    #[test]
+    fn find_project_root_returns_start_dir() {
+        let temp = tempdir().unwrap();
+
+        let result = find_project_root_from(temp.path()).unwrap();
+        assert_eq!(result.root, temp.path());
+        assert_eq!(result.source, ProjectRootSource::Fallback);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
 
     #[test]
     fn parse_bool_true() {
