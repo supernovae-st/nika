@@ -277,6 +277,12 @@ enum Commands {
         /// Read context from stdin (prepended to prompt)
         #[arg(long)]
         stdin: bool,
+        /// Skip interactive prompts (for scripts/CI/VPS)
+        #[arg(long)]
+        no_interactive: bool,
+        /// Suppress non-essential output
+        #[arg(short, long)]
+        quiet: bool,
     },
 
     /// Fetch a URL with smart extraction (9 modes)
@@ -1123,6 +1129,8 @@ async fn main() {
             json,
             from_example,
             stdin,
+            no_interactive: _,
+            quiet: verb_quiet,
         }) => {
             cli::verbs::handle_infer(
                 prompt,
@@ -1134,7 +1142,7 @@ async fn main() {
                 json,
                 from_example,
                 stdin,
-                quiet,
+                quiet || verb_quiet,
             )
             .await
         }
