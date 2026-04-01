@@ -152,12 +152,18 @@ impl ServeConfig {
             .unwrap_or_else(|_| ".nika/serve.db".into())
             .into();
 
-        let executor_mode = match std::env::var("NIKA_SERVE_EXECUTOR")
-            .as_deref()
-            .unwrap_or("embedded")
-        {
+        let executor_raw = std::env::var("NIKA_SERVE_EXECUTOR")
+            .unwrap_or_else(|_| "embedded".into());
+        let executor_mode = match executor_raw.as_str() {
+            "embedded" => ExecutorMode::Embedded,
             "subprocess" => ExecutorMode::Subprocess,
-            _ => ExecutorMode::Embedded,
+            other => {
+                tracing::warn!(
+                    value = other,
+                    "unknown NIKA_SERVE_EXECUTOR value, defaulting to embedded"
+                );
+                ExecutorMode::Embedded
+            }
         };
 
         Ok(Self {
