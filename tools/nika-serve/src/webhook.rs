@@ -22,9 +22,16 @@ pub struct WebhookConfig {
 impl WebhookConfig {
     /// Load webhook config from environment variables.
     ///
-    /// Returns `None` if `NIKA_WEBHOOK_URL` is not set.
+    /// Returns `None` if `NIKA_WEBHOOK_URL` is not set or fails SSRF validation.
     pub fn from_env() -> Option<Self> {
         let url = std::env::var("NIKA_WEBHOOK_URL").ok()?;
+
+        // SSRF validation: block private/link-local/metadata IPs
+        if let Err(reason) = validate_webhook_url(&url) {
+            warn!(url = %url, "NIKA_WEBHOOK_URL blocked: {reason}");
+            return None;
+        }
+
         let secret = std::env::var("NIKA_WEBHOOK_SECRET").unwrap_or_default();
         if secret.is_empty() {
             warn!("NIKA_WEBHOOK_URL is set but NIKA_WEBHOOK_SECRET is empty — signatures will be weak");
@@ -85,6 +92,63 @@ pub fn notify(config: &WebhookConfig, job_id: &str, status: &str, output: Option
     });
 }
 
+/// Validate webhook URL against SSRF (private IPs, metadata endpoints).
+///
+/// Extracts the host from the URL using simple parsing (no `url` crate dependency).
+fn validate_webhook_url(url_str: &str) -> Result<(), String> {
+    // Basic scheme check
+    if !url_str.starts_with("http://") && !url_str.starts_with("https://") {
+        return Err("unsupported scheme — only http/https allowed".into());
+    }
+
+    // Extract host: strip scheme, take everything before first / or :port
+    let after_scheme = url_str
+        .strip_prefix("https://")
+        .or_else(|| url_str.strip_prefix("http://"))
+        .unwrap_or(url_str);
+    let host = after_scheme
+        .split('/')
+        .next()
+        .unwrap_or(after_scheme)
+        .split(':')
+        .next()
+        .unwrap_or(after_scheme)
+        .to_lowercase();
+
+    if host.is_empty() {
+        return Err("URL has no host".into());
+    }
+
+    // Block cloud metadata endpoints
+    if host == "169.254.169.254" || host == "metadata.google.internal" {
+        return Err("blocked metadata endpoint".into());
+    }
+
+    if let Ok(ip) = host.parse::<std::net::Ipv4Addr>() {
+        let o = ip.octets();
+        if o[0] == 169 && o[1] == 254 {
+            return Err("blocked link-local address".into());
+        }
+        if o[0] == 127 {
+            return Err("blocked loopback address".into());
+        }
+        if o[0] == 10
+            || (o[0] == 172 && (16..=31).contains(&o[1]))
+            || (o[0] == 192 && o[1] == 168)
+        {
+            return Err("blocked private IP range".into());
+        }
+    }
+
+    if let Ok(ip6) = host.parse::<std::net::Ipv6Addr>() {
+        if ip6.is_loopback() {
+            return Err("blocked IPv6 loopback".into());
+        }
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -119,5 +183,25 @@ mod tests {
         // No NIKA_WEBHOOK_URL set — should return None
         std::env::remove_var("NIKA_WEBHOOK_URL");
         assert!(WebhookConfig::from_env().is_none());
+    }
+
+    #[test]
+    fn ssrf_blocks_metadata() {
+        assert!(validate_webhook_url("http://169.254.169.254/latest/meta-data/").is_err());
+        assert!(validate_webhook_url("http://metadata.google.internal/").is_err());
+    }
+
+    #[test]
+    fn ssrf_blocks_private_ips() {
+        assert!(validate_webhook_url("http://10.0.0.1/hook").is_err());
+        assert!(validate_webhook_url("http://172.16.0.1/hook").is_err());
+        assert!(validate_webhook_url("http://192.168.1.1/hook").is_err());
+        assert!(validate_webhook_url("http://127.0.0.1/hook").is_err());
+    }
+
+    #[test]
+    fn ssrf_allows_public_urls() {
+        assert!(validate_webhook_url("https://hooks.slack.com/services/xxx").is_ok());
+        assert!(validate_webhook_url("https://api.example.com/webhook").is_ok());
     }
 }
