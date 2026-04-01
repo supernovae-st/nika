@@ -10,7 +10,6 @@
 [![License](https://img.shields.io/badge/AGPL--3.0--or--later-22c55e?style=flat-square&logo=gnu&logoColor=white)](LICENSE)
 [![Tests](https://img.shields.io/badge/9%2C000%2B_tests-10b981?style=flat-square)](https://github.com/supernovae-st/nika/actions)
 [![Docker](https://img.shields.io/docker/pulls/supernovae/nika?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/r/supernovae/nika)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.PLACEHOLDER.svg)](https://zenodo.org/doi/10.5281/zenodo.PLACEHOLDER)
 [![SWH](https://archive.softwareheritage.org/badge/origin/https://github.com/supernovae-st/nika/)](https://archive.softwareheritage.org/browse/origin/?origin_url=https://github.com/supernovae-st/nika)
 [![Cite](https://img.shields.io/badge/cite-CITATION.cff-blue?style=flat-square)](CITATION.cff)
 
@@ -189,11 +188,13 @@ tasks:
 ## Quick Start
 
 ```bash
-# Install Nika
-cargo install nika          # or: brew install supernovae-st/tap/nika
+# Install Nika (pick one)
+cargo install nika                       # from crates.io
+brew install supernovae-st/tap/nika      # macOS / Linux
+npx @supernovae/nika                     # run without installing
 
-# Set your API key (pick any provider you like)
-export ANTHROPIC_API_KEY=... # or OPENAI_API_KEY, MISTRAL_API_KEY, etc.
+# Configure your LLM provider (interactive wizard)
+nika setup
 
 # Run any .nika.yaml file
 nika run my-recipe.nika.yaml
@@ -204,6 +205,7 @@ Want to explore? Scaffold a project with examples:
 ```bash
 nika init                   # 5 starter recipes (one per verb)
 nika init --course          # 44 hands-on exercises across 12 levels
+nika doctor                 # verify your setup
 ```
 
 ---
@@ -958,6 +960,13 @@ cargo install nika
 brew install supernovae-st/tap/nika
 ```
 
+### npm
+
+```bash
+npm install -g @supernovae/nika    # global install
+npx @supernovae/nika               # or run directly
+```
+
 ### Docker
 
 ```bash
@@ -975,7 +984,7 @@ cargo install --path tools/nika
 ### Verify
 
 ```bash
-nika --version       # nika 0.54.0
+nika --version       # nika 0.58.0
 nika doctor          # Full system health check
 ```
 
@@ -1221,6 +1230,21 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for full guidelines.
 
 ---
 
+## Troubleshooting
+
+| Problem | Fix |
+|---------|-----|
+| Missing API key | `nika setup` (interactive wizard) or `nika provider set anthropic <key>` |
+| Extension outdated | `code --install-extension supernovae.nika-lang --force` |
+| Daemon not running | `nika daemon start` (auto-starts on macOS/Linux) |
+| LSP not working | `nika doctor` to diagnose, then `nika doctor --fix` |
+| Workflow validation | `nika check workflow.nika.yaml --strict` |
+| Full health check | `nika doctor --full` |
+
+For detailed diagnostics, run `nika doctor --format json` or check the [User Guide](docs/content/user-guide/getting-started.md).
+
+---
+
 ## Ecosystem
 
 Nika is the workflow engine of the **SuperNovae** ecosystem:
@@ -1256,9 +1280,9 @@ flowchart LR
 
 <div align="center">
 
-**Nika v0.54.0** | Schema `nika/workflow@0.12` | Rust 1.86+ | AGPL-3.0-or-later
+**Nika v0.58.0** | Schema `nika/workflow@0.12` | Rust 1.86+ | AGPL-3.0-or-later
 
-356k+ LOC across 12 crates | 9,057 tests | 0 clippy warnings
+356k+ LOC across 12 crates | 9,000+ tests | 0 clippy warnings
 
 [SuperNovae Studio](https://supernovae.studio) | [QR Code AI](https://qrcode-ai.com) | [GitHub](https://github.com/supernovae-st/nika)
 
