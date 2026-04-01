@@ -182,9 +182,8 @@ async fn test_fetch_invalid_scheme_returns_error() {
 }
 
 #[tokio::test]
-async fn test_fetch_non_2xx_status_returns_body_not_error() {
-    // NOTE: Current implementation returns body regardless of status code
-    // This test documents the current behavior
+async fn test_fetch_non_2xx_status_returns_error() {
+    // Non-2xx responses return errors (unless response: full)
 
     // Arrange
     let executor = mock_executor();
@@ -201,22 +200,18 @@ async fn test_fetch_non_2xx_status_returns_body_not_error() {
         .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
-    // Assert - current behavior: returns body text regardless of status
-    // This documents current behavior; a future change might return an error for non-2xx
+    // Assert — 500 is retryable, exhausted retries → error
     assert!(
-        result.is_ok(),
-        "Current impl returns body for any HTTP response: {:?}",
-        result.err()
-    );
-    let body = result.unwrap();
-    assert!(
-        body.contains("Internal Server Error"),
-        "Body should contain server response: {body}"
+        result.is_err(),
+        "500 should return error, got: {:?}",
+        result.ok()
     );
 }
 
 #[tokio::test]
-async fn test_fetch_404_returns_body() {
+async fn test_fetch_404_returns_error() {
+    // 404 is a client error — should fail (unless response: full)
+
     // Arrange
     let executor = mock_executor();
     let task_id: Arc<str> = Arc::from("fetch_404");
@@ -232,9 +227,14 @@ async fn test_fetch_404_returns_body() {
         .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
-    // Assert
-    assert!(result.is_ok(), "404 returns body: {:?}", result.err());
-    assert_eq!(result.unwrap(), "Not Found");
+    // Assert — 404 should fail
+    assert!(
+        result.is_err(),
+        "404 should return error, got: {:?}",
+        result.ok()
+    );
+    let err = result.unwrap_err().to_string();
+    assert!(err.contains("404"), "Error should mention 404: {err}");
 }
 
 #[tokio::test]

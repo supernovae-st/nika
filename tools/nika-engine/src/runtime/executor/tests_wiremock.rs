@@ -636,7 +636,7 @@ async fn wiremock_fetch_post_with_body_emits_has_body_true() {
 // ═══════════════════════════════════════════════════════════════
 
 #[tokio::test]
-async fn wiremock_fetch_404_returns_body() {
+async fn wiremock_fetch_404_returns_error() {
     let server = MockServer::start().await;
     Mock::given(method("GET"))
         .and(path("/missing"))
@@ -650,9 +650,10 @@ async fn wiremock_fetch_404_returns_body() {
     let action = TaskAction::Fetch { fetch: params };
     let result = executor
         .execute(&task_id, &action, &bindings, &datastore, None)
-        .await
-        .unwrap();
-    assert_eq!(result, "not found");
+        .await;
+    assert!(result.is_err(), "404 should return error, got: {:?}", result.ok());
+    let err = result.unwrap_err().to_string();
+    assert!(err.contains("404"), "Error should mention 404: {err}");
 }
 
 #[tokio::test]

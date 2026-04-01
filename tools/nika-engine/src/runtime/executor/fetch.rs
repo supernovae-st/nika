@@ -554,7 +554,24 @@ impl TaskExecutor {
                         return Err(NikaError::FetchError { reason });
                     }
 
-                    // Success or non-retryable error status
+                    // Fail on client errors (4xx) unless response: full
+                    // (response: full includes status in JSON — user can inspect it)
+                    // (response: binary already fails on non-2xx at line ~597)
+                    if !response.status().is_success()
+                        && !response.status().is_redirection()
+                        && fetch.response != Some(nika_core::ast::extract::ResponseMode::Full)
+                    {
+                        let status = response.status();
+                        let final_url = response.url().to_string();
+                        return Err(NikaError::FetchError {
+                            reason: format!(
+                                "HTTP {} {} for URL: {}",
+                                status.as_u16(),
+                                status.canonical_reason().unwrap_or("Unknown"),
+                                final_url
+                            ),
+                        });
+                    }
 
                     // Check response mode BEFORE consuming the body
                     if fetch.response == Some(nika_core::ast::extract::ResponseMode::Full) {

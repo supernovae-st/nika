@@ -250,14 +250,18 @@ async fn test_fetch_500_error_returns_body() {
         .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
-    // Assert - current behavior: returns body regardless of status code
-    // This documents current behavior; a future change might return an error for non-2xx
-    assert!(result.is_ok(), "500 returns body: {:?}", result.err());
-    assert_eq!(result.unwrap(), "Internal Server Error");
+    // Assert — 500 is retryable, exhausted retries → error
+    assert!(
+        result.is_err(),
+        "500 should return error, got: {:?}",
+        result.ok()
+    );
 }
 
 #[tokio::test]
-async fn test_fetch_404_error_returns_body() {
+async fn test_fetch_404_returns_error() {
+    // 404 client error returns Err (unless response: full)
+
     // Arrange
     let mock_server = MockServer::start().await;
 
@@ -283,15 +287,20 @@ async fn test_fetch_404_error_returns_body() {
         .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
-    // Assert
-    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
-    let body = result.unwrap();
-    let parsed: serde_json::Value = serde_json::from_str(&body).unwrap();
-    assert_eq!(parsed["code"], 404);
+    // Assert — 404 now fails
+    assert!(
+        result.is_err(),
+        "404 should return error, got: {:?}",
+        result.ok()
+    );
+    let err = result.unwrap_err().to_string();
+    assert!(err.contains("404"), "Error should mention 404: {err}");
 }
 
 #[tokio::test]
-async fn test_fetch_401_unauthorized() {
+async fn test_fetch_401_returns_error() {
+    // 401 client error returns Err
+
     // Arrange
     let mock_server = MockServer::start().await;
 
@@ -318,10 +327,14 @@ async fn test_fetch_401_unauthorized() {
         .execute(&task_id, &action, &bindings, &datastore, None)
         .await;
 
-    // Assert
-    assert!(result.is_ok(), "Should succeed: {:?}", result.err());
-    let body = result.unwrap();
-    assert!(body.contains("Unauthorized"));
+    // Assert — 401 now fails
+    assert!(
+        result.is_err(),
+        "401 should return error, got: {:?}",
+        result.ok()
+    );
+    let err = result.unwrap_err().to_string();
+    assert!(err.contains("401"), "Error should mention 401: {err}");
 }
 
 // =============================================================================
