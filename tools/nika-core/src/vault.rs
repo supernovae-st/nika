@@ -66,9 +66,7 @@ impl VaultEntry {
     fn primary_value(&self) -> Option<&str> {
         match self {
             VaultEntry::Key(s) => Some(s.as_str()),
-            VaultEntry::Credential { fields, .. } => {
-                fields.values().next().map(|s| s.as_str())
-            }
+            VaultEntry::Credential { fields, .. } => fields.values().next().map(|s| s.as_str()),
         }
     }
 }
@@ -302,7 +300,9 @@ impl NikaVault {
             None => return Ok(None),
         };
         Ok(payload.secrets.get(provider).and_then(|entry| {
-            entry.primary_value().map(|s| SecretString::from(s.to_owned()))
+            entry
+                .primary_value()
+                .map(|s| SecretString::from(s.to_owned()))
         }))
     }
 
@@ -364,9 +364,9 @@ impl NikaVault {
                     Ok(None)
                 }
             }
-            VaultEntry::Credential { fields, .. } => Ok(fields
-                .get(field)
-                .map(|s| SecretString::from(s.clone()))),
+            VaultEntry::Credential { fields, .. } => {
+                Ok(fields.get(field).map(|s| SecretString::from(s.clone())))
+            }
         }
     }
 
@@ -756,9 +756,7 @@ mod tests {
         fields.insert("api_key".to_string(), "sk_live_first".to_string());
         fields.insert("secret".to_string(), "whsec_second".to_string());
 
-        vault
-            .set_credential("stripe", fields, None, None)
-            .unwrap();
+        vault.set_credential("stripe", fields, None, None).unwrap();
 
         // get() returns the first field (alphabetical: "api_key")
         let s = vault.get("stripe").unwrap().unwrap();
@@ -775,9 +773,7 @@ mod tests {
 
         let mut fields = BTreeMap::new();
         fields.insert("api_key".to_string(), "sk_live".to_string());
-        vault
-            .set_credential("stripe", fields, None, None)
-            .unwrap();
+        vault.set_credential("stripe", fields, None, None).unwrap();
 
         let mut list = vault.list().unwrap();
         list.sort();
@@ -791,9 +787,7 @@ mod tests {
 
         let mut fields = BTreeMap::new();
         fields.insert("api_key".to_string(), "sk_live".to_string());
-        vault
-            .set_credential("stripe", fields, None, None)
-            .unwrap();
+        vault.set_credential("stripe", fields, None, None).unwrap();
 
         // Credential exists
         assert!(vault.get_credential("stripe", "api_key").unwrap().is_some());
@@ -824,9 +818,7 @@ mod tests {
         // Overwrite with a Credential
         let mut fields = BTreeMap::new();
         fields.insert("api_key".to_string(), "sk_live_new".to_string());
-        vault
-            .set_credential("stripe", fields, None, None)
-            .unwrap();
+        vault.set_credential("stripe", fields, None, None).unwrap();
 
         // Old key is gone; credential fields accessible
         let val = vault.get_credential("stripe", "api_key").unwrap().unwrap();
@@ -841,9 +833,7 @@ mod tests {
         // Start with a Credential
         let mut fields = BTreeMap::new();
         fields.insert("api_key".to_string(), "sk_live".to_string());
-        vault
-            .set_credential("stripe", fields, None, None)
-            .unwrap();
+        vault.set_credential("stripe", fields, None, None).unwrap();
 
         // Overwrite with a simple Key
         vault.set("stripe", "simple-key").unwrap();
@@ -853,10 +843,7 @@ mod tests {
             vault.get("stripe").unwrap().unwrap().expose_secret(),
             "simple-key"
         );
-        assert!(vault
-            .get_credential("stripe", "api_key")
-            .unwrap()
-            .is_none());
+        assert!(vault.get_credential("stripe", "api_key").unwrap().is_none());
     }
 
     #[test]

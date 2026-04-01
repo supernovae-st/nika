@@ -74,6 +74,8 @@ pub struct BuildMeta {
     pub built_at: String,
     #[serde(default)]
     pub status: String,
+    #[serde(default)]
+    pub repo_dir: String,
 }
 
 #[derive(Debug)]
@@ -396,6 +398,9 @@ fn render_status(nika_dir: &Path, _quiet: bool) -> Result<(), NikaError> {
     let release = detect_release();
     let dev = detect_dev();
     let current = active_channel(nika_dir);
+    let has_repo = find_repo_root().is_ok();
+    let has_dev = dev.is_some();
+    let has_release = release.is_some();
 
     println!();
     println!(
@@ -404,16 +409,121 @@ fn render_status(nika_dir: &Path, _quiet: bool) -> Result<(), NikaError> {
         "  N I K A  ".custom_color(SOL_CYAN).bold(),
         "}{".custom_color(SOL_CYAN),
     );
+    println!(
+        "    {}",
+        "Switch between stable (Homebrew) and dev (local build) channels.".custom_color(SOL_DIM),
+    );
+    println!(
+        "    {}",
+        "The active channel determines which nika binary runs when you type `nika`."
+            .custom_color(SOL_DIM),
+    );
     println!();
 
     // Release line
+    println!(
+        "    {}",
+        "stable — installed via Homebrew, updated with `brew upgrade`".custom_color(SOL_DIM),
+    );
     print_channel_line("release", &release, &current);
 
-    // Connector
-    println!("               {}", "│".custom_color(SOL_DIM));
+    // Only show connector + dev line if dev exists or we're in the repo
+    if has_dev || has_repo {
+        println!("               {}", "│".custom_color(SOL_DIM));
+        println!(
+            "    {}",
+            "dev — built from source, auto-rebuilds on commit".custom_color(SOL_DIM),
+        );
+        print_channel_line("dev", &dev, &current);
+    }
+    println!();
 
-    // Dev line
-    print_channel_line("dev", &dev, &current);
+    // Staleness check for dev channel
+    if current == "dev" {
+        if let Ok(repo_dir) = find_repo_root() {
+            let head = current_git_hash(&repo_dir);
+            let builds_dir = nika_dir.join("builds");
+            let meta = read_build_meta(&builds_dir);
+            if !meta.hash.is_empty() && meta.hash != head {
+                println!(
+                    "    {} binary is {} ({}→{})",
+                    "⚠".custom_color(SOL_YELLOW),
+                    "stale".custom_color(SOL_YELLOW).bold(),
+                    meta.hash.custom_color(SOL_DIM),
+                    head.custom_color(SOL_MAGENTA),
+                );
+                println!(
+                    "      {} {}",
+                    "↳".custom_color(SOL_DIM),
+                    "nika switch dev".bold().cyan(),
+                );
+                println!();
+            }
+        }
+    }
+
+    // Context-aware help
+    match (has_dev, has_release, has_repo) {
+        // Developer with both channels (you, Thibaut)
+        (true, true, _) => {
+            let other = if current == "dev" { "release" } else { "dev" };
+            println!(
+                "    {} {}  {}",
+                "↳".custom_color(SOL_DIM),
+                format!("nika switch {other}").cyan(),
+                format!("switch to {other}").custom_color(SOL_DIM),
+            );
+            if current == "dev" && has_repo {
+                println!(
+                    "    {} {}  {}",
+                    "↳".custom_color(SOL_DIM),
+                    "nika switch dev".cyan(),
+                    "rebuild if stale".custom_color(SOL_DIM),
+                );
+            }
+        }
+        // Contributor: has Homebrew + repo, but no dev build yet
+        (false, true, true) => {
+            println!(
+                "    {} {}",
+                "💡".custom_color(SOL_DIM),
+                "Nika repo detected — build from source to test your changes:"
+                    .custom_color(SOL_DIM),
+            );
+            println!(
+                "    {} {}  {}",
+                "↳".custom_color(SOL_DIM),
+                "nika switch --setup".cyan(),
+                "build dev channel from source".custom_color(SOL_DIM),
+            );
+        }
+        // Regular user: Homebrew only, no repo
+        (false, true, false) => {
+            println!(
+                "    {} {}",
+                "↳".custom_color(SOL_DIM),
+                "brew upgrade nika".cyan(),
+            );
+        }
+        // Developer without Homebrew
+        (true, false, true) => {
+            println!(
+                "    {} {}  {}",
+                "↳".custom_color(SOL_DIM),
+                "nika switch dev".cyan(),
+                "rebuild from source".custom_color(SOL_DIM),
+            );
+        }
+        // Source-only, no build yet
+        (false, false, true) => {
+            println!(
+                "    {} {}",
+                "↳".custom_color(SOL_DIM),
+                "nika switch --setup".cyan(),
+            );
+        }
+        _ => {}
+    }
     println!();
 
     Ok(())
@@ -713,6 +823,7 @@ fn write_build_meta(builds_dir: &Path, repo_dir: &Path) -> Result<(), NikaError>
         hash,
         built_at: Utc::now().to_rfc3339(),
         status: "ok".into(),
+        repo_dir: repo_dir.to_string_lossy().to_string(),
     };
     let json = serde_json::to_string_pretty(&meta)
         .map_err(|e| NikaError::Execution(format!("Failed to serialize build meta: {e}")))?;
@@ -819,19 +930,31 @@ fn nika_home() -> Result<PathBuf, NikaError> {
 }
 
 fn find_repo_root() -> Result<PathBuf, NikaError> {
+    // 1. Try git from current directory
     let output = Command::new("git")
         .args(["rev-parse", "--show-toplevel"])
         .output()
         .map_err(|e| NikaError::Execution(format!("git not found: {e}")))?;
 
-    if !output.status.success() {
-        return Err(NikaError::ValidationError {
-            reason: "Not inside a git repository. Run from the nika repo.".into(),
-        });
+    if output.status.success() {
+        let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        return Ok(PathBuf::from(path));
     }
 
-    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    Ok(PathBuf::from(path))
+    // 2. Fallback: read saved repo_dir from last build meta
+    if let Ok(nika_dir) = nika_home() {
+        let meta = read_build_meta(&nika_dir.join("builds"));
+        if !meta.repo_dir.is_empty() {
+            let saved = PathBuf::from(&meta.repo_dir);
+            if saved.join(".git").exists() {
+                return Ok(saved);
+            }
+        }
+    }
+
+    Err(NikaError::ValidationError {
+        reason: "Not inside a git repository and no previous build found. Run from the nika repo or run `nika switch --setup` first.".into(),
+    })
 }
 
 fn current_git_hash(repo_dir: &Path) -> String {

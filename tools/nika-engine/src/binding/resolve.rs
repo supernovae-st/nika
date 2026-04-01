@@ -3511,9 +3511,7 @@ mod tests {
         let mut fields = std::collections::BTreeMap::new();
         fields.insert("api_key".to_string(), "sk_live_test123".to_string());
         fields.insert("secret".to_string(), "whsec_test456".to_string());
-        vault
-            .set_credential("stripe", fields, None, None)
-            .unwrap();
+        vault.set_credential("stripe", fields, None, None).unwrap();
 
         // Attach vault to RunContext
         let mut store = RunContext::new();
@@ -3532,10 +3530,7 @@ mod tests {
         spec.insert("stripe_secret".to_string(), entry);
 
         let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
-        assert_eq!(
-            bindings.get("stripe_secret"),
-            Some(&json!("whsec_test456"))
-        );
+        assert_eq!(bindings.get("stripe_secret"), Some(&json!("whsec_test456")));
     }
 
     #[test]
@@ -3651,10 +3646,7 @@ mod tests {
         spec.insert("api_key".to_string(), entry);
 
         let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
-        assert_eq!(
-            bindings.get("api_key"),
-            Some(&json!("sk-ant-test-12345"))
-        );
+        assert_eq!(bindings.get("api_key"), Some(&json!("sk-ant-test-12345")));
     }
 
     #[test]

@@ -72,7 +72,7 @@ async fn read_limited(
             break;
         }
         match r.read(&mut buf[total..]).await {
-            Ok(0) => break,   // EOF
+            Ok(0) => break, // EOF
             Ok(n) => total += n,
             Err(_) => break,
         }
@@ -175,9 +175,7 @@ pub fn spawn_worker(
 
         // Emit SSE event: started
         let tx = event_bus.sender(&id).await;
-        let _ = tx.send(crate::events::ServeEvent::Started {
-            job_id: id.clone(),
-        });
+        let _ = tx.send(crate::events::ServeEvent::Started { job_id: id.clone() });
 
         let max_output_bytes = config.max_output_bytes;
         let mut ctx = ExecutionContext {

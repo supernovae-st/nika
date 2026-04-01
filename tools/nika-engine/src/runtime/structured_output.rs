@@ -307,13 +307,16 @@ impl StructuredOutputEngine {
     ///
     /// Returns the validated JSON value and metadata about which layer succeeded.
     /// Enforces a 600s aggregate timeout across all layers to prevent runaway retries.
+    ///
+    /// When `from_example` is set, the validated output is reordered to match the
+    /// key order of the original example — so the output looks like a filled-in template.
     pub async fn validate(
         &mut self,
         task_id: &str,
         raw_output: &str,
     ) -> Result<StructuredOutputResult, NikaError> {
         const AGGREGATE_TIMEOUT_SECS: u64 = 600;
-        match tokio::time::timeout(
+        let result = match tokio::time::timeout(
             std::time::Duration::from_secs(AGGREGATE_TIMEOUT_SECS),
             self.validate_inner(task_id, raw_output),
         )
@@ -334,7 +337,29 @@ impl StructuredOutputEngine {
                     )],
                 })
             }
+        };
+
+        // Post-processing: reorder keys to match from_example source order
+        match result {
+            Ok(mut res) => {
+                if let Some(example) = self.resolve_example() {
+                    res.value = reorder_keys_like_example(&res.value, example);
+                }
+                Ok(res)
+            }
+            err => err,
         }
+    }
+
+    /// Resolve the example value from either cached (file) or inline spec.
+    fn resolve_example(&self) -> Option<&Value> {
+        if let Some(ref cached) = self.cached_example {
+            return Some(cached);
+        }
+        if let Some(SchemaRef::Inline(ref v)) = self.spec.from_example {
+            return Some(v);
+        }
+        None
     }
 
     /// Inner validation logic — called by validate() with timeout wrapper.
@@ -1047,6 +1072,52 @@ pub async fn validate_structured_output(
     });
 
     Ok(json_value)
+}
+
+/// Reorder keys in `output` to match the key order of `example`.
+///
+/// When `from_example` is used, the LLM output should look like a filled-in
+/// template — same key order, same structure. This function recursively
+/// reorders object keys to match the example, and handles nested objects/arrays.
+///
+/// Keys in `output` not present in `example` are appended at the end.
+fn reorder_keys_like_example(output: &Value, example: &Value) -> Value {
+    match (output, example) {
+        (Value::Object(out_map), Value::Object(ex_map)) => {
+            let mut ordered = serde_json::Map::with_capacity(out_map.len());
+
+            // First: keys from example, in example order
+            for key in ex_map.keys() {
+                if let Some(out_val) = out_map.get(key) {
+                    let ex_val = &ex_map[key];
+                    ordered.insert(key.clone(), reorder_keys_like_example(out_val, ex_val));
+                }
+            }
+
+            // Then: extra keys from output not in example (preserve their order)
+            for (key, val) in out_map {
+                if !ex_map.contains_key(key) {
+                    ordered.insert(key.clone(), val.clone());
+                }
+            }
+
+            Value::Object(ordered)
+        }
+        (Value::Array(out_arr), Value::Array(ex_arr)) => {
+            // Reorder each element using the first example element as template
+            if let Some(ex_first) = ex_arr.first() {
+                Value::Array(
+                    out_arr
+                        .iter()
+                        .map(|item| reorder_keys_like_example(item, ex_first))
+                        .collect(),
+                )
+            } else {
+                output.clone()
+            }
+        }
+        _ => output.clone(),
+    }
 }
 
 #[cfg(test)]
@@ -1775,5 +1846,63 @@ Hope this helps!"#;
             prompt.contains("invalid"),
             "Retry prompt should include the invalid output"
         );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // REORDER KEYS TESTS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn reorder_keys_matches_example_order() {
+        let example = serde_json::json!({
+            "name": "Example",
+            "language": "Rust",
+            "category": "CLI",
+            "stars": 1000
+        });
+        // LLM output has keys in alphabetical order (typical)
+        let output = serde_json::json!({
+            "category": "CLI",
+            "language": "TypeScript",
+            "name": "Real Project",
+            "stars": 5000
+        });
+        let reordered = reorder_keys_like_example(&output, &example);
+        let keys: Vec<&String> = reordered.as_object().unwrap().keys().collect();
+        assert_eq!(keys, vec!["name", "language", "category", "stars"]);
+    }
+
+    #[test]
+    fn reorder_keys_preserves_extra_keys() {
+        let example = serde_json::json!({ "name": "x", "age": 0 });
+        let output = serde_json::json!({ "age": 30, "extra": true, "name": "Alice" });
+        let reordered = reorder_keys_like_example(&output, &example);
+        let keys: Vec<&String> = reordered.as_object().unwrap().keys().collect();
+        // name, age from example order, then extra appended
+        assert_eq!(keys, vec!["name", "age", "extra"]);
+    }
+
+    #[test]
+    fn reorder_keys_recursive_nested_objects() {
+        let example = serde_json::json!({
+            "user": { "first": "x", "last": "y" },
+            "score": 0
+        });
+        let output = serde_json::json!({
+            "score": 42,
+            "user": { "last": "Doe", "first": "John" }
+        });
+        let reordered = reorder_keys_like_example(&output, &example);
+        let top_keys: Vec<&String> = reordered.as_object().unwrap().keys().collect();
+        assert_eq!(top_keys, vec!["user", "score"]);
+        let user_keys: Vec<&String> = reordered["user"].as_object().unwrap().keys().collect();
+        assert_eq!(user_keys, vec!["first", "last"]);
+    }
+
+    #[test]
+    fn reorder_keys_noop_for_non_objects() {
+        let example = serde_json::json!("hello");
+        let output = serde_json::json!("world");
+        assert_eq!(reorder_keys_like_example(&output, &example), output);
     }
 }

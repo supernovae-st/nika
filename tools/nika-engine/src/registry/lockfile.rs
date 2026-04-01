@@ -328,11 +328,7 @@ mod tests {
         let lockfile_path = dir.path().join("nika.lock");
 
         let mut lockfile = Lockfile::new();
-        lockfile.upsert(
-            "@workflows/test".to_string(),
-            "1.0.0".to_string(),
-            None,
-        );
+        lockfile.upsert("@workflows/test".to_string(), "1.0.0".to_string(), None);
 
         lockfile.save(Some(&lockfile_path)).unwrap();
 
@@ -352,8 +348,9 @@ mod tests {
 
         // Pre-create the flock file and hold an exclusive lock on it
         let flock_file = std::fs::File::create(&flock_path).unwrap();
-        let flock = nix::fcntl::Flock::lock(flock_file, nix::fcntl::FlockArg::LockExclusiveNonblock)
-            .expect("should acquire flock on new file");
+        let flock =
+            nix::fcntl::Flock::lock(flock_file, nix::fcntl::FlockArg::LockExclusiveNonblock)
+                .expect("should acquire flock on new file");
 
         // Now try to save — it should still succeed because save() uses
         // blocking flock (LOCK_EX), not non-blocking. But we verify it goes
@@ -415,7 +412,8 @@ mod tests {
         // One of the two writes won — the file should have exactly 1 package
         // (atomic write ensures no partial/mixed content)
         assert_eq!(
-            loaded.packages.len(), 1,
+            loaded.packages.len(),
+            1,
             "Lockfile should have exactly 1 package (last writer wins with atomic write)"
         );
     }

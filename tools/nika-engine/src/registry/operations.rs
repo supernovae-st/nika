@@ -153,9 +153,10 @@ pub fn load_registry() -> Result<RegistryIndex, NikaError> {
         reason: format!("Failed to read registry file '{}': {}", path.display(), e),
     })?;
 
-    let index: RegistryIndex = serde_yaml::from_str(&content).map_err(|e| NikaError::ParseError {
-        details: format!("Failed to parse registry YAML: {}", e),
-    })?;
+    let index: RegistryIndex =
+        serde_yaml::from_str(&content).map_err(|e| NikaError::ParseError {
+            details: format!("Failed to parse registry YAML: {}", e),
+        })?;
 
     // Cache the result
     if let Ok(mut guard) = REGISTRY_CACHE.lock() {
@@ -691,7 +692,8 @@ mod tests {
             // Second load — should return cached result (not the modified file)
             let loaded2 = load_registry().unwrap();
             assert_eq!(
-                loaded2.len(), 1,
+                loaded2.len(),
+                1,
                 "Second load should return cached result, not the modified file"
             );
 
@@ -734,7 +736,8 @@ mod tests {
             // Load again — should see the new data (cache was invalidated)
             let loaded2 = load_registry().unwrap();
             assert_eq!(
-                loaded2.len(), 2,
+                loaded2.len(),
+                2,
                 "After save_registry(), load should return fresh data"
             );
 
@@ -768,7 +771,8 @@ mod tests {
             invalidate_registry_cache();
             let loaded = load_registry().unwrap();
             assert_eq!(
-                loaded.len(), 0,
+                loaded.len(),
+                0,
                 "After invalidation, load should read from disk (now empty)"
             );
 

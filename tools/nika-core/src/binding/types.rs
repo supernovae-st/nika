@@ -768,13 +768,11 @@ mod tests {
         assert!(!BindingSource::Context(Arc::from("x")).is_task());
         assert!(!BindingSource::Input(Arc::from("x")).is_task());
         assert!(!BindingSource::Env(Arc::from("x")).is_task());
-        assert!(
-            !BindingSource::Vault {
-                service: Arc::from("s"),
-                field: Arc::from("f")
-            }
-            .is_task()
-        );
+        assert!(!BindingSource::Vault {
+            service: Arc::from("s"),
+            field: Arc::from("f")
+        }
+        .is_task());
         assert!(!BindingSource::LoopVar(Arc::from("x")).is_task());
     }
 
@@ -892,13 +890,11 @@ mod tests {
 
     #[test]
     fn vault_source_is_vault() {
-        assert!(
-            BindingSource::Vault {
-                service: Arc::from("s"),
-                field: Arc::from("f")
-            }
-            .is_vault()
-        );
+        assert!(BindingSource::Vault {
+            service: Arc::from("s"),
+            field: Arc::from("f")
+        }
+        .is_vault());
         assert!(!BindingSource::Task(Arc::from("x")).is_vault());
         assert!(!BindingSource::Env(Arc::from("x")).is_vault());
     }
