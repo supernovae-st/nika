@@ -492,6 +492,13 @@ enum Commands {
         action: cli::mcp::McpAction,
     },
 
+    /// Discover builtin tools (nika:*) and their parameter schemas
+    #[command(next_help_heading = "SYSTEM")]
+    Tools {
+        #[command(subcommand)]
+        action: cli::tools_cmd::ToolsAction,
+    },
+
     /// Manage LLM models — cloud pricing + local GGUF
     ///
     /// `nika model` (no subcommand) lists all cloud models with pricing.
@@ -1249,6 +1256,11 @@ async fn main() {
         }
 
         Some(Commands::Vault { action }) => cli::vault::handle_vault_command(action, quiet).await,
+
+        Some(Commands::Tools { action }) => {
+            cli::tools_cmd::handle_tools_command(action);
+            Ok(())
+        }
 
         Some(Commands::Setup) => cli::onboarding::handle_setup_command(quiet).await,
 

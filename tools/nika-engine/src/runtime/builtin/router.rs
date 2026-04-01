@@ -148,6 +148,11 @@ impl BuiltinToolRouter {
         self.tools.keys().copied().collect()
     }
 
+    /// Get a reference to a tool by name (without nika: prefix).
+    pub fn get_tool(&self, name: &str) -> Option<&dyn BuiltinTool> {
+        self.tools.get(name).map(|t| t.as_ref())
+    }
+
     /// Register a builtin tool.
     pub fn register<T: BuiltinTool + 'static>(&mut self, tool: T) {
         self.tools.insert(tool.name(), Arc::new(tool));
