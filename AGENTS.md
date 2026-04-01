@@ -12,6 +12,26 @@ Semantic YAML workflow engine for AI tasks. Schema `nika/workflow@0.12` | [QR Co
 | `invoke:` | MCP tool call |
 | `agent:` | Multi-turn loop |
 
+## Project Structure — The .git Principle
+
+Nika imposes ZERO directory names. Only `nika.toml` + `.nika/` are Nika's territory.
+
+```
+project/
+├── nika.toml                 ← Config (versioned, root marker)
+├── .nika/                    ← Runtime only (gitignored)
+├── *.nika.yaml               ← Workflows — anywhere in project
+├── artifacts/                ← Default output dir (configurable)
+├── AGENTS.md                 ← AI context (nika init)
+└── (user's own structure)    ← No imposed dirs
+```
+
+- **Root detection**: walk up from CWD to find `nika.toml`
+- **Workflow discovery**: by `*.nika.yaml` extension (recursive scan)
+- **Skills/context**: referenced by path in each workflow, not by convention dir
+- **MCP config**: `[mcp.*]` sections in `nika.toml` (versioned, team-shared)
+- **Secrets**: NikaVault only (`~/.nika/secrets/vault.enc`), never in `nika.toml`
+
 ## Workflow Syntax
 
 `with:` for bindings, `{{with.alias}}` for templates, `.nika.yaml` extension.
