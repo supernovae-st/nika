@@ -552,6 +552,11 @@
               "type": "array",
               "description": "Guardrails for validating infer output (v0.12+)",
               "items": { "$ref": "#/$defs/GuardrailConfig" }
+            },
+            "provider_chain": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Fallback provider chain — try providers in order (v0.12+)"
             }
           }
         }
