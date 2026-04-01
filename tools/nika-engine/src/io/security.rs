@@ -17,7 +17,7 @@
 //! use nika::io::security::validate_artifact_path;
 //! use std::path::Path;
 //!
-//! let artifacts_dir = Path::new("/project/.nika/artifacts");
+//! let artifacts_dir = Path::new("/project/artifacts");
 //! validate_artifact_path(artifacts_dir, Path::new("task1/output.json"))?;
 //! ```
 
@@ -25,8 +25,12 @@ use std::path::{Path, PathBuf};
 
 use crate::error::NikaError;
 
-/// Default artifact output directory relative to workflow
-pub const DEFAULT_ARTIFACT_DIR: &str = ".nika/artifacts";
+/// Default artifact output directory relative to project root.
+///
+/// Changed from ".nika/artifacts" to "./artifacts" in v0.59.0
+/// so artifacts are visible (not hidden inside .nika/).
+/// Configurable via `[artifacts] dir` in nika.toml.
+pub const DEFAULT_ARTIFACT_DIR: &str = "./artifacts";
 
 /// Maximum path length to prevent resource exhaustion attacks
 const MAX_PATH_LENGTH: usize = 4096;
