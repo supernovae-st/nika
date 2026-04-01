@@ -142,9 +142,27 @@ All phases ───────────────────────
 3. **Dispatch Phases 2, 3, 5, 9 as parallel subagents** (all small, independent after Phase 1)
 4. **Phase 6** after Phase 1 (medium, touches MCP subsystem)
 5. **Phases 0, 8** after Phase 1 (UX work, can be parallel)
-6. **Phase 7** last (docs, after everything else)
+6. **Phase 10** after Phase 1 (CLI UX polish — verbs + config list + comfy-table)
+7. **Phase 7** LAST (docs, after everything else)
 
 Each phase = 1 commit. `1 fix = 1 commit` rule.
+
+```
+Phase 1 (nika.toml) ─┬──> Phase 2 (working_dir)
+                      ├──> Phase 3 (serve)
+                      ├──> Phase 5 (doctor)
+                      ├──> Phase 6 (MCP)
+                      ├──> Phase 0 (welcome)
+                      ├──> Phase 8 (init wizard)
+                      ├──> Phase 9 (artifacts)
+                      └──> Phase 10 (CLI UX polish)
+
+Phase 4 (clean) ──────────> (independent)
+
+All phases ───────────────> Phase 7 (docs)
+```
+
+Total: 11 phases, 50 TDD tests, 40+ files, ~12K lines affected.
 
 ---
 
@@ -759,6 +777,136 @@ These v0.59 plan issues were implemented BEFORE our nika.toml work begins:
 
 ---
 
+## PHASE 10: CLI UX Polish — Inline Verbs + Command Consistency
+
+> This phase can run independently or after Phase 1. It covers the inline CLI experience
+> for all 5 verbs and fixes the 10 inconsistencies found in the 26-command audit.
+
+### The Problem
+
+The display system has a two-tier quality gap:
+- `nika run` (workflow execution): LiveRenderer, spinners, sparklines, timeline — excellent
+- `nika infer/fetch/invoke/agent` (inline verbs): raw println, no spinner, no progress — minimal
+
+All 4 inline verb handlers live in ONE file: `tools/nika-cli/src/verbs.rs` (635 lines).
+They share the same minimal pattern: `print_header()` then `println!("{output}")` then `print_footer()`.
+
+Current verb display:
+```
+  [dim]|--[/dim] claude-sonnet-4-6 via anthropic
+  The LLM response goes here as raw text
+  [dim]|__[/dim] 523ms [dim]|[/dim] 1200 tokens [dim]|[/dim] $0.0045
+```
+
+### Design Principles for Inline Verbs
+
+1. TTY = rich, pipe = raw. Already implemented via `is_terminal()` check. Preserve this.
+2. No streaming in this sprint. Streaming infer/agent is a separate project (needs tokio channels). Instead: add spinner during inference, dump result at once.
+3. Pretty-print JSON. When output is JSON (structured, invoke, fetch metadata), pretty-print with syntax colors on TTY.
+4. Show TTFT. Extract from EventLog `ProviderResponded` event. Show in footer.
+5. Spinner during LLM calls. Use existing indicatif braille spinner for infer/agent while waiting.
+6. Cost always visible. Use cost color from colors.rs (green cheap, yellow moderate, red expensive).
+
+### Verb Improvements
+
+#### `nika infer` (verbs.rs:180)
+
+Improvements:
+- Add indicatif spinner before `run_infer()` call, clear after
+- Add verb icon (magenta infer star) to header
+- Pretty-print JSON via `serde_json::to_string_pretty()` + colorize keys/values when structured
+- Extract TTFT from EventLog (ProviderResponded.ttft_ms) and show in footer
+- Use `textwrap::wrap()` for text output at terminal width
+- Show structured output layer info (L0/L2/L3/L4) from EventLog
+- Footer format: `TTFT 187ms | 523ms total | 1.2k tokens | $0.004 | L0 tool-injected`
+
+#### `nika fetch` (verbs.rs:309)
+
+Improvements:
+- Add verb icon (cyan comet) to header
+- Show HTTP status code in header line
+- Show compression ratio (extracted bytes / original bytes) in footer
+- For JSON extract modes (metadata, jsonpath, feed): pretty-print with colors
+- For links mode: use comfy-table for tabular display (type, count, examples)
+
+#### `nika invoke` (verbs.rs:414)
+
+Improvements:
+- Add verb icon (green circled asterisk) + file context in header
+- Detect JSON output, format as key-value pairs (top-level fields) on TTY
+- Truncate to top N fields with "+N more" hint for complex results
+- `--json` flag bypasses formatting, gives raw JSON (for piping)
+- Show tool description in header from BuiltinToolRouter metadata
+
+#### `nika agent` (verbs.rs:540)
+
+Improvements:
+- Add verb icon (red propeller) to header
+- Subscribe to EventLog events DURING execution (not just after)
+- Print tool calls as they happen (ToolCall + ToolResult events)
+- Show turn separators with turn number
+- Show tool name + brief result for each invocation
+- Final turn labeled "(final)"
+- Footer: actual turn count (not max), total tokens across all turns
+
+### `nika config list` — Upgrade from Raw TOML Dump
+
+Since we rewrite config loading (Phase 1), upgrade the display:
+- Parse nika.toml into BootstrapConfig struct
+- Display each section with [section] header (bold)
+- Key-value pairs with key_value_width() helper
+- Provider: show key status (check/cross icon)
+- MCP: show connection status
+- File path in subtitle
+
+### Command Consistency Fixes (touch ONLY when already modifying the file)
+
+| Command | File | Fix | When |
+|---|---|---|---|
+| `config list` | config.rs | Pretty-print nika.toml with section colors | Phase 1 |
+| `provider list` | provider.rs | Use section_header() consistently | If touching |
+| `model list` | model_cloud.rs | Switch double-line to single-line separator | Optional |
+| `invoke --list` | verbs.rs | Add StatusIcon for tiers | Phase 10 |
+| `features` | main.rs | Use section_header() | Optional |
+| `trace list` | trace.rs | Add --json flag | Optional |
+| `new` | new_cmd.rs | Show created file summary panel | Phase 8 |
+
+### Display Style Guide (add as doc comment in display module)
+
+```
+HEADERS: section_header() for lists, panel() for major ops (init, run, bench)
+SEPARATOR: single dash line. Never double-line except bench.
+ICONS: StatusIcon enum (Ok, Fail, Warn, Info, Skip) + verb icons (infer star, exec helm, fetch comet, invoke circled-asterisk, agent propeller)
+COLORS: green=success/fast/cheap, yellow=warning/medium, red=error/slow/expensive, cyan=info/links, magenta=infer, dimmed=secondary
+LAYOUT: 2-space indent, key_value_width() for labels, tree_connector() for hierarchy, comfy-table for tables
+OUTPUT MODES: TTY=rich, pipe=raw, --json=machine, --quiet=minimal
+FOOTER: TTFT Xms | Yms | Z tokens | $cost | extra_info (cost uses semantic color)
+```
+
+### Files to Modify (Phase 10)
+
+| File | Changes |
+|---|---|
+| `nika-cli/src/verbs.rs` (635 lines) | Spinner, pretty-print, TTFT, verb icons, agent turns |
+| `nika-cli/src/config.rs` (332 lines) | config list structured display (touched in Phase 1) |
+| `nika-engine/src/display/cli_format.rs` (299 lines) | Add verb_header(), verb_footer() helpers |
+| `nika-engine/src/display/colors.rs` (150 lines) | Add json_highlight() for pretty JSON |
+| Cargo.toml (workspace) | Add comfy-table = "7", textwrap = "0.16" |
+
+### TDD Tests (Phase 10)
+
+| # | Test | Asserts |
+|---|---|---|
+| 44 | `verb_header_includes_icon` | Correct icon per verb type |
+| 45 | `verb_footer_shows_ttft` | TTFT extracted from EventLog |
+| 46 | `json_output_pretty_printed_on_tty` | Indented, keys colored |
+| 47 | `json_output_raw_when_piped` | No ANSI, no indentation |
+| 48 | `config_list_shows_sections` | [project], [provider], [tools] sections |
+| 49 | `config_list_shows_provider_status` | Check/cross for key presence |
+| 50 | `invoke_result_formatted_as_kv` | JSON to key-value pairs on TTY |
+
+---
+
 ## Build Notes
 
 If you encounter linker errors or temp dir issues, run `cargo clean` in `tools/` first. The build cache can get corrupted across sessions.
@@ -770,13 +918,15 @@ cd tools && cargo clean && cargo test --workspace --lib
 ## Success Criteria
 
 After all phases:
-- [ ] `cd tools && cargo test --workspace --lib` passes (2153 existing tests + 43 new)
+- [ ] `cd tools && cargo test --workspace --lib` passes (2153 existing + 50 new tests)
 - [ ] `nika init` creates `nika.toml` (not `.nika/config.toml`)
 - [ ] `nika run hello.nika.yaml` works in a fresh project
 - [ ] `nika doctor` detects nika.toml and reports project root
 - [ ] `nika doctor` detects legacy `.nika/config.toml` and suggests migration
-- [ ] `nika clean` removes traces + cache + media
-- [ ] `nika config list` shows nika.toml contents
-- [ ] `nika` (no args) shows contextual welcome
-- [ ] No grep hits for ".nika/config.toml" in user-facing messages (only internal/legacy fallback code)
-- [ ] 10 commits, each with tests, each passing CI
+- [ ] `nika clean` removes traces + cache + media with size summary
+- [ ] `nika config list` shows structured nika.toml (not raw TOML dump)
+- [ ] `nika` (no args) shows contextual welcome (3 modes)
+- [ ] `nika infer` shows spinner + TTFT + verb icon
+- [ ] `nika invoke` pretty-prints JSON results as key-value on TTY
+- [ ] No grep hits for ".nika/config.toml" in user-facing messages
+- [ ] 11 commits (Phases 0-10), each with tests, each passing CI
