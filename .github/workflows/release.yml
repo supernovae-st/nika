@@ -664,12 +664,39 @@ jobs:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
         run: npx vsce publish --no-git-tag-version -p "$VSCE_PAT"
 
+      - name: Warn if VS Code Marketplace PAT is missing
+        if: env.HAS_VSCE_PAT != 'true'
+        run: echo "::warning::VSCE_PAT secret is missing — VS Code Marketplace publish was SKIPPED. Extension will NOT be updated for users."
+
       - name: Publish to Open VSX (VSCodium/Cursor/Gitpod)
         if: env.HAS_OVSX_PAT == 'true'
         env:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
         run: npx ovsx publish --no-git-tag-version -p "$OVSX_PAT"
         continue-on-error: true
+
+      - name: Warn if Open VSX PAT is missing
+        if: env.HAS_OVSX_PAT != 'true'
+        run: echo "::warning::OVSX_PAT secret is missing — Open VSX publish was SKIPPED (Cursor/VSCodium users won't get the update)."
+
+      - name: Verify extension version on Marketplace
+        if: env.HAS_VSCE_PAT == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          echo "Waiting for marketplace propagation..."
+          sleep 10
+          PUBLISHED=$(npx vsce show supernovae.nika-lang --json 2>/dev/null | node -e "
+            let d=''; process.stdin.on('data',c=>d+=c); process.stdin.on('end',()=>{
+              try { console.log(JSON.parse(d).versions[0].version); } catch { console.log('unknown'); }
+            })
+          " 2>/dev/null || echo "unknown")
+          echo "Published version: ${PUBLISHED} (expected: ${VERSION})"
+          if [ "${PUBLISHED}" = "${VERSION}" ]; then
+            echo "Extension v${VERSION} confirmed on Marketplace"
+          else
+            echo "::warning::Extension may not have propagated yet (found: ${PUBLISHED}, expected: ${VERSION}). Check manually."
+          fi
 
   # ─────────────────────────────────────────────────────────────────────────────
   # Publish npm Packages (platform binaries + main wrapper)
