@@ -20,6 +20,14 @@ struct NikaTomlServe {
     max_concurrent: Option<usize>,
     #[serde(default)]
     timeout: Option<u64>,
+    #[serde(default)]
+    rate_limit: Option<u64>,
+    #[serde(default)]
+    rate_burst: Option<u32>,
+    #[serde(default)]
+    gc_retention: Option<u64>,
+    #[serde(default)]
+    gc_interval: Option<u64>,
 }
 
 /// Minimal nika.toml shape — only [serve] section.
@@ -95,6 +103,18 @@ pub struct ServeConfig {
 
     /// Execution backend (subprocess or embedded).
     pub executor_mode: ExecutorMode,
+
+    /// Rate limit: requests per second per token (default: 10).
+    pub rate_per_second: u64,
+
+    /// Rate limit: burst capacity per token (default: 30).
+    pub rate_burst: u32,
+
+    /// Job GC: retention period in seconds (default: 7 days).
+    pub gc_retention_secs: u64,
+
+    /// Job GC: interval between GC runs in seconds (default: 1 hour).
+    pub gc_interval_secs: u64,
 }
 
 impl ServeConfig {
@@ -168,6 +188,30 @@ impl ServeConfig {
             }
         };
 
+        let rate_per_second = std::env::var("NIKA_SERVE_RATE_LIMIT")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .or(toml.rate_limit)
+            .unwrap_or(10);
+
+        let rate_burst = std::env::var("NIKA_SERVE_RATE_BURST")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .or(toml.rate_burst)
+            .unwrap_or(30);
+
+        let gc_retention_secs = std::env::var("NIKA_SERVE_GC_RETENTION")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .or(toml.gc_retention)
+            .unwrap_or(7 * 24 * 3600);
+
+        let gc_interval_secs = std::env::var("NIKA_SERVE_GC_INTERVAL")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .or(toml.gc_interval)
+            .unwrap_or(3600);
+
         Ok(Self {
             bind,
             workflows_dir,
@@ -178,6 +222,10 @@ impl ServeConfig {
             auth_token,
             cors_origin,
             executor_mode,
+            rate_per_second,
+            rate_burst,
+            gc_retention_secs,
+            gc_interval_secs,
         })
     }
 }

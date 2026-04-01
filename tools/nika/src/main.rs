@@ -1516,6 +1516,22 @@ async fn main() {
                         "embedded" => nika_serve::config::ExecutorMode::Embedded,
                         _ => nika_serve::config::ExecutorMode::Subprocess,
                     },
+                    rate_per_second: std::env::var("NIKA_SERVE_RATE_LIMIT")
+                        .ok()
+                        .and_then(|s| s.parse().ok())
+                        .unwrap_or(10),
+                    rate_burst: std::env::var("NIKA_SERVE_RATE_BURST")
+                        .ok()
+                        .and_then(|s| s.parse().ok())
+                        .unwrap_or(30),
+                    gc_retention_secs: std::env::var("NIKA_SERVE_GC_RETENTION")
+                        .ok()
+                        .and_then(|s| s.parse().ok())
+                        .unwrap_or(7 * 24 * 3600),
+                    gc_interval_secs: std::env::var("NIKA_SERVE_GC_INTERVAL")
+                        .ok()
+                        .and_then(|s| s.parse().ok())
+                        .unwrap_or(3600),
                 })
             })() {
                 Ok(config) => nika_serve::run_server(config)
