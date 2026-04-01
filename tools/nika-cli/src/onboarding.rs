@@ -21,14 +21,48 @@ const ONBOARDING_PROVIDERS: &[(&str, &str)] = &[
 
 pub fn has_any_provider_key() -> bool {
     use nika_engine::core::{ProviderCategory, KNOWN_PROVIDERS};
-    KNOWN_PROVIDERS
+
+    // Check env vars first (fast path)
+    let has_env = KNOWN_PROVIDERS
         .iter()
         .filter(|p| p.category == ProviderCategory::Llm)
         .any(|p| {
             std::env::var(p.env_var)
                 .map(|v| !v.is_empty())
                 .unwrap_or(false)
+        });
+    if has_env {
+        return true;
+    }
+
+    // Check NikaVault (keys stored via `nika provider set`)
+    let nika_home = std::env::var("NIKA_HOME")
+        .ok()
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| {
+            dirs::home_dir()
+                .unwrap_or_default()
+                .join(".nika")
+        });
+    let vault = nika_core::vault::NikaVault::new(&nika_home.join("secrets"));
+    let vault_providers = ["anthropic", "openai", "xai", "gemini", "mistral", "groq", "deepseek"];
+    use secrecy::ExposeSecret;
+    vault_providers
+        .iter()
+        .any(|p| {
+            vault
+                .get(p)
+                .ok()
+                .flatten()
+                .is_some_and(|k| !k.expose_secret().is_empty())
         })
+}
+
+/// Check if onboarding should be skipped entirely (VPS/Docker/CI).
+pub fn skip_onboarding() -> bool {
+    std::env::var("NIKA_NO_ONBOARDING")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false)
 }
 
 pub async fn run_onboarding_wizard() -> Result<bool, NikaError> {
