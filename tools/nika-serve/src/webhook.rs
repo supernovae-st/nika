@@ -68,7 +68,11 @@ pub fn notify(config: &WebhookConfig, job_id: &str, status: &str, output: Option
     tokio::spawn(async move {
         let signature = sign(&secret, &body_bytes);
 
-        let client = reqwest::Client::new();
+        // M2: Disable redirects to prevent SSRF via 302 → internal IP
+        let client = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new());
         match client
             .post(&url)
             .header("content-type", "application/json")
@@ -166,10 +170,7 @@ fn check_ipv4(ip: std::net::Ipv4Addr) -> Result<(), String> {
     if o[0] == 169 && o[1] == 254 {
         return Err("blocked link-local address".into());
     }
-    if o[0] == 10
-        || (o[0] == 172 && (16..=31).contains(&o[1]))
-        || (o[0] == 192 && o[1] == 168)
-    {
+    if o[0] == 10 || (o[0] == 172 && (16..=31).contains(&o[1])) || (o[0] == 192 && o[1] == 168) {
         return Err("blocked private IP range".into());
     }
     if o[0] == 0 {
