@@ -17,16 +17,18 @@ type HmacSha256 = Hmac<Sha256>;
 pub struct WebhookConfig {
     pub url: String,
     pub secret: String,
+    /// Pre-built HTTP client with pinned DNS to prevent DNS rebinding (M1).
+    pub client: reqwest::Client,
 }
 
 impl WebhookConfig {
     /// Load webhook config from environment variables.
     ///
     /// Returns `None` if `NIKA_WEBHOOK_URL` is not set or fails SSRF validation.
+    /// Sync version — validates URL string only (no DNS pinning).
     pub fn from_env() -> Option<Self> {
         let url = std::env::var("NIKA_WEBHOOK_URL").ok()?;
 
-        // SSRF validation: block private/link-local/metadata IPs
         if let Err(reason) = validate_webhook_url(&url) {
             warn!(url = %url, "NIKA_WEBHOOK_URL blocked: {reason}");
             return None;
@@ -36,7 +38,108 @@ impl WebhookConfig {
         if secret.is_empty() {
             warn!("NIKA_WEBHOOK_URL is set but NIKA_WEBHOOK_SECRET is empty — signatures will be weak");
         }
-        Some(Self { url, secret })
+
+        let client = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new());
+
+        Some(Self { url, secret, client })
+    }
+
+    /// Async version that resolves DNS and validates the resolved IP.
+    /// Pins the resolved IP in the client to prevent DNS rebinding (M1).
+    pub async fn resolve_and_pin(&mut self) {
+        let host = extract_host(&self.url);
+        if host.is_empty() {
+            return;
+        }
+
+        // Skip DNS resolution for IP literals (already validated by SSRF checks)
+        if host.parse::<std::net::Ipv4Addr>().is_ok()
+            || host.parse::<std::net::Ipv6Addr>().is_ok()
+        {
+            return;
+        }
+
+        // Determine port from URL scheme
+        let port = if self.url.starts_with("https://") {
+            443
+        } else {
+            80
+        };
+
+        match tokio::net::lookup_host(format!("{host}:{port}")).await {
+            Ok(addrs) => {
+                let addrs: Vec<std::net::SocketAddr> = addrs.collect();
+                // Validate all resolved IPs against SSRF
+                for addr in &addrs {
+                    if let Err(reason) = check_resolved_ip(addr.ip()) {
+                        warn!(
+                            url = %self.url,
+                            ip = %addr.ip(),
+                            "webhook DNS resolved to blocked IP: {reason}"
+                        );
+                        // Poison the config — clear URL so notify() becomes a no-op
+                        self.url.clear();
+                        return;
+                    }
+                }
+                // Pin the first resolved IP in the client
+                if let Some(first) = addrs.first() {
+                    if let Ok(pinned) = reqwest::Client::builder()
+                        .redirect(reqwest::redirect::Policy::none())
+                        .resolve(&host, *first)
+                        .build()
+                    {
+                        debug!(host = %host, ip = %first.ip(), "webhook DNS pinned");
+                        self.client = pinned;
+                    }
+                }
+            }
+            Err(e) => {
+                warn!(url = %self.url, error = %e, "webhook DNS resolution failed");
+            }
+        }
+    }
+}
+
+/// Extract the host from a URL (after SSRF-safe parsing).
+fn extract_host(url_str: &str) -> String {
+    let after_scheme = url_str
+        .strip_prefix("https://")
+        .or_else(|| url_str.strip_prefix("http://"))
+        .unwrap_or(url_str);
+    let authority = after_scheme.split('/').next().unwrap_or(after_scheme);
+    let authority = authority.rsplit('@').next().unwrap_or(authority);
+    if authority.starts_with('[') {
+        authority
+            .strip_prefix('[')
+            .and_then(|s| s.split(']').next())
+            .unwrap_or(authority)
+    } else {
+        authority.split(':').next().unwrap_or(authority)
+    }
+    .to_lowercase()
+}
+
+/// Validate a resolved IP address against private/loopback/link-local ranges.
+fn check_resolved_ip(ip: std::net::IpAddr) -> Result<(), String> {
+    match ip {
+        std::net::IpAddr::V4(v4) => check_ipv4(v4),
+        std::net::IpAddr::V6(v6) => {
+            if v6.is_loopback() {
+                return Err("blocked IPv6 loopback".into());
+            }
+            if let Some(v4) = v6.to_ipv4_mapped() {
+                return check_ipv4(v4);
+            }
+            let segments = v6.segments();
+            if segments[0] & 0xffc0 == 0xfe80 {
+                return Err("blocked IPv6 link-local".into());
+            }
+            Ok(())
+        }
     }
 }
 
@@ -56,8 +159,12 @@ pub fn sign(secret: &str, body: &[u8]) -> String {
 /// Non-blocking: spawns a tokio task to send the request.
 /// Failures are logged but do not affect job status.
 pub fn notify(config: &WebhookConfig, job_id: &str, status: &str, output: Option<&str>) {
+    if config.url.is_empty() {
+        return; // Poisoned by resolve_and_pin (DNS resolved to private IP)
+    }
     let url = config.url.clone();
     let secret = config.secret.clone();
+    let client = config.client.clone();
     let body = serde_json::json!({
         "job_id": job_id,
         "status": status,
@@ -68,11 +175,6 @@ pub fn notify(config: &WebhookConfig, job_id: &str, status: &str, output: Option
     tokio::spawn(async move {
         let signature = sign(&secret, &body_bytes);
 
-        // M2: Disable redirects to prevent SSRF via 302 → internal IP
-        let client = reqwest::Client::builder()
-            .redirect(reqwest::redirect::Policy::none())
-            .build()
-            .unwrap_or_else(|_| reqwest::Client::new());
         match client
             .post(&url)
             .header("content-type", "application/json")

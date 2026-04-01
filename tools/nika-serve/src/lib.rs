@@ -71,8 +71,14 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
 
     // Build shared state
-    // Load webhook config once at startup (BUG-8)
-    let webhook_config = crate::webhook::WebhookConfig::from_env();
+    // Load webhook config once at startup (BUG-8) + resolve DNS and pin IP (M1)
+    let webhook_config = match crate::webhook::WebhookConfig::from_env() {
+        Some(mut wh) => {
+            wh.resolve_and_pin().await;
+            Some(wh)
+        }
+        None => None,
+    };
 
     let exec = match config.executor_mode {
         config::ExecutorMode::Subprocess => executor::Executor::Subprocess,
