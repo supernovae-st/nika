@@ -93,11 +93,7 @@ impl ConfigTab {
                 "Persist editor state on exit",
             ),
             ConfigEntry::new("MCP Timeout", "30s", "Timeout for MCP operations"),
-            ConfigEntry::readonly(
-                "Config Path",
-                "nika.toml",
-                "Configuration file location",
-            ),
+            ConfigEntry::readonly("Config Path", "nika.toml", "Configuration file location"),
         ];
         Self {
             entries,

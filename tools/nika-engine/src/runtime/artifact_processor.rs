@@ -152,9 +152,7 @@ pub async fn process_task_artifacts(
                     let format_str = output_spec
                         .format
                         .map(|f| format!("{:?}", f).to_lowercase())
-                        .unwrap_or_else(|| {
-                            format!("{:?}", write_result.format).to_lowercase()
-                        });
+                        .unwrap_or_else(|| format!("{:?}", write_result.format).to_lowercase());
                     log.emit(EventKind::ArtifactWritten {
                         task_id: Arc::from(task_id),
                         path: write_result.path.display().to_string(),

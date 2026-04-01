@@ -39,30 +39,41 @@ pub fn has_any_provider_key() -> bool {
     let nika_home = std::env::var("NIKA_HOME")
         .ok()
         .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| {
-            dirs::home_dir()
-                .unwrap_or_default()
-                .join(".nika")
-        });
+        .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".nika"));
     let vault = nika_core::vault::NikaVault::new(&nika_home.join("secrets"));
-    let vault_providers = ["anthropic", "openai", "xai", "gemini", "mistral", "groq", "deepseek"];
+    let vault_providers = [
+        "anthropic",
+        "openai",
+        "xai",
+        "gemini",
+        "mistral",
+        "groq",
+        "deepseek",
+    ];
     use secrecy::ExposeSecret;
-    vault_providers
-        .iter()
-        .any(|p| {
-            vault
-                .get(p)
-                .ok()
-                .flatten()
-                .is_some_and(|k| !k.expose_secret().is_empty())
-        })
+    vault_providers.iter().any(|p| {
+        vault
+            .get(p)
+            .ok()
+            .flatten()
+            .is_some_and(|k| !k.expose_secret().is_empty())
+    })
+}
+
+/// In-process flag set by `--no-interactive` (avoids unsafe set_var).
+static NO_ONBOARDING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Mark onboarding as skipped (safe alternative to `set_var("NIKA_NO_ONBOARDING", "1")`).
+pub fn set_no_onboarding() {
+    NO_ONBOARDING.store(true, std::sync::atomic::Ordering::Relaxed);
 }
 
 /// Check if onboarding should be skipped entirely (VPS/Docker/CI).
 pub fn skip_onboarding() -> bool {
-    std::env::var("NIKA_NO_ONBOARDING")
-        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-        .unwrap_or(false)
+    NO_ONBOARDING.load(std::sync::atomic::Ordering::Relaxed)
+        || std::env::var("NIKA_NO_ONBOARDING")
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false)
 }
 
 pub async fn run_onboarding_wizard() -> Result<bool, NikaError> {

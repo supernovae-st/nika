@@ -218,7 +218,11 @@ pub fn print_report(report: &CleanReport, quiet: bool) {
         println!(
             "  {} {} {}",
             icon,
-            if report.dry_run { "Would free" } else { "Freed" },
+            if report.dry_run {
+                "Would free"
+            } else {
+                "Freed"
+            },
             format_bytes(total)
         );
     } else {

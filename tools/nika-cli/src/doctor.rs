@@ -492,17 +492,12 @@ fn check_project_structure(start: &std::path::Path) -> Vec<DiagnosticCheck> {
     let gitignore_path = root.join(".gitignore");
     if gitignore_path.exists() {
         let content = fs::read_to_string(&gitignore_path).unwrap_or_default();
-        let has_nika_ignore = content
-            .lines()
-            .any(|line| {
-                let trimmed = line.trim();
-                trimmed == ".nika/" || trimmed == ".nika" || trimmed == "/.nika/" || trimmed == "/.nika"
-            });
+        let has_nika_ignore = content.lines().any(|line| {
+            let trimmed = line.trim();
+            trimmed == ".nika/" || trimmed == ".nika" || trimmed == "/.nika/" || trimmed == "/.nika"
+        });
         if has_nika_ignore {
-            checks.push(DiagnosticCheck::pass(
-                ".gitignore",
-                ".nika/ is gitignored",
-            ));
+            checks.push(DiagnosticCheck::pass(".gitignore", ".nika/ is gitignored"));
         } else {
             checks.push(DiagnosticCheck::warn(
                 ".gitignore",
@@ -522,19 +517,15 @@ fn check_project_structure(start: &std::path::Path) -> Vec<DiagnosticCheck> {
     let artifacts_dir = read_artifacts_dir(root);
     if gitignore_path.exists() {
         let content = fs::read_to_string(&gitignore_path).unwrap_or_default();
-        let has_artifacts_ignore = content
-            .lines()
-            .any(|line| {
-                let trimmed = line.trim();
-                // Match the dir with or without leading / and trailing /
-                let dir_name = artifacts_dir
-                    .strip_prefix("./")
-                    .unwrap_or(&artifacts_dir);
-                trimmed == dir_name
-                    || trimmed == format!("{}/", dir_name)
-                    || trimmed == format!("/{}", dir_name)
-                    || trimmed == format!("/{}/", dir_name)
-            });
+        let has_artifacts_ignore = content.lines().any(|line| {
+            let trimmed = line.trim();
+            // Match the dir with or without leading / and trailing /
+            let dir_name = artifacts_dir.strip_prefix("./").unwrap_or(&artifacts_dir);
+            trimmed == dir_name
+                || trimmed == format!("{}/", dir_name)
+                || trimmed == format!("/{}", dir_name)
+                || trimmed == format!("/{}/", dir_name)
+        });
         if has_artifacts_ignore {
             checks.push(DiagnosticCheck::pass(
                 ".gitignore",
@@ -554,7 +545,10 @@ fn check_project_structure(start: &std::path::Path) -> Vec<DiagnosticCheck> {
     if legacy_config.exists() {
         checks.push(DiagnosticCheck::warn(
             "Legacy config",
-            format!("Found legacy .nika/config.toml at {}", legacy_config.display()),
+            format!(
+                "Found legacy .nika/config.toml at {}",
+                legacy_config.display()
+            ),
             "Migrate to nika.toml with 'nika init' (new project root marker)",
         ));
     }
@@ -611,10 +605,7 @@ fn count_workflows_recursive(root: &std::path::Path) -> usize {
             if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
                 if path.is_dir() {
                     // Skip hidden dirs, node_modules, target, .nika
-                    if !name.starts_with('.')
-                        && name != "node_modules"
-                        && name != "target"
-                    {
+                    if !name.starts_with('.') && name != "node_modules" && name != "target" {
                         stack.push(path);
                     }
                 } else if name.ends_with(".nika.yaml") {
@@ -718,15 +709,14 @@ async fn check_mcp_connectivity() -> Vec<DiagnosticCheck> {
             // Step 3: Check MCP config in nika.toml or .nika/config.toml
             {
                 let current = std::env::current_dir().unwrap_or_default();
-                let project = crate::config::find_project_root_from(&current)
-                    .unwrap_or(crate::config::ProjectRoot {
+                let project = crate::config::find_project_root_from(&current).unwrap_or(
+                    crate::config::ProjectRoot {
                         root: current,
                         source: crate::config::ProjectRootSource::Fallback,
-                    });
+                    },
+                );
                 let config_path = match project.source {
-                    crate::config::ProjectRootSource::NikaToml => {
-                        project.root.join("nika.toml")
-                    }
+                    crate::config::ProjectRootSource::NikaToml => project.root.join("nika.toml"),
                     _ => project.root.join(".nika").join("config.toml"),
                 };
                 if config_path.exists() {
@@ -1531,11 +1521,7 @@ mod tests {
         )
         .unwrap();
         // Also create .gitignore with .nika/ and artifacts/ to avoid extra warnings
-        std::fs::write(
-            temp.path().join(".gitignore"),
-            ".nika/\nartifacts/\n",
-        )
-        .unwrap();
+        std::fs::write(temp.path().join(".gitignore"), ".nika/\nartifacts/\n").unwrap();
 
         let checks = check_project_structure(temp.path());
 
@@ -1548,7 +1534,9 @@ mod tests {
             toml_check.message
         );
         assert!(
-            toml_check.message.contains(&temp.path().display().to_string()),
+            toml_check
+                .message
+                .contains(&temp.path().display().to_string()),
             "Expected temp path in message, got: {}",
             toml_check.message
         );
@@ -1568,10 +1556,7 @@ mod tests {
 
         let checks = check_project_structure(temp.path());
 
-        let gitignore_checks: Vec<_> = checks
-            .iter()
-            .filter(|c| c.name == ".gitignore")
-            .collect();
+        let gitignore_checks: Vec<_> = checks.iter().filter(|c| c.name == ".gitignore").collect();
         // Should have a warning about .nika/ missing
         let nika_warn = gitignore_checks
             .iter()
@@ -1598,10 +1583,7 @@ mod tests {
 
         let checks = check_project_structure(temp.path());
 
-        let gitignore_checks: Vec<_> = checks
-            .iter()
-            .filter(|c| c.name == ".gitignore")
-            .collect();
+        let gitignore_checks: Vec<_> = checks.iter().filter(|c| c.name == ".gitignore").collect();
         // Should have a warning about artifacts/ missing
         let artifacts_warn = gitignore_checks
             .iter()
@@ -1619,11 +1601,7 @@ mod tests {
             "[project]\nname = \"test\"\n",
         )
         .unwrap();
-        std::fs::write(
-            temp.path().join(".gitignore"),
-            ".nika/\nartifacts/\n",
-        )
-        .unwrap();
+        std::fs::write(temp.path().join(".gitignore"), ".nika/\nartifacts/\n").unwrap();
         // Create legacy .nika/config.toml
         let nika_dir = temp.path().join(".nika");
         std::fs::create_dir_all(&nika_dir).unwrap();
@@ -1660,15 +1638,14 @@ mod tests {
             "[project]\nname = \"test\"\n",
         )
         .unwrap();
-        std::fs::write(
-            temp.path().join(".gitignore"),
-            ".nika/\nartifacts/\n",
-        )
-        .unwrap();
+        std::fs::write(temp.path().join(".gitignore"), ".nika/\nartifacts/\n").unwrap();
 
         // Create workflows at various depths
-        std::fs::write(temp.path().join("root.nika.yaml"), "schema: 'nika/workflow@0.12'\n")
-            .unwrap();
+        std::fs::write(
+            temp.path().join("root.nika.yaml"),
+            "schema: 'nika/workflow@0.12'\n",
+        )
+        .unwrap();
         let sub = temp.path().join("flows");
         std::fs::create_dir_all(&sub).unwrap();
         std::fs::write(sub.join("a.nika.yaml"), "schema: 'nika/workflow@0.12'\n").unwrap();

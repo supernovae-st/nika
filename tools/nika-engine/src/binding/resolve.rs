@@ -2397,9 +2397,8 @@ mod tests {
         use nika_core::binding::transform::TransformExpr;
 
         let store = RunContext::new();
-        let mut entry = WithEntry::simple(
-            BindingPath::parse("$env.NIKA_NONEXISTENT_CHAIN_TEST").unwrap(),
-        );
+        let mut entry =
+            WithEntry::simple(BindingPath::parse("$env.NIKA_NONEXISTENT_CHAIN_TEST").unwrap());
         entry.transform = Some(TransformExpr::parse("default(\"hello\") | upper").unwrap());
 
         let mut spec = WithSpec::default();
@@ -2415,16 +2414,18 @@ mod tests {
         use nika_core::binding::transform::TransformExpr;
 
         let store = RunContext::new();
-        let mut entry = WithEntry::simple(
-            BindingPath::parse("$env.NIKA_NONEXISTENT_UPPER_TEST").unwrap(),
-        );
+        let mut entry =
+            WithEntry::simple(BindingPath::parse("$env.NIKA_NONEXISTENT_UPPER_TEST").unwrap());
         entry.transform = Some(TransformExpr::parse("upper").unwrap());
 
         let mut spec = WithSpec::default();
         spec.insert("val".to_string(), entry);
 
         let result = ResolvedBindings::from_with_spec(Some(&spec), &store);
-        assert!(result.is_err(), "Missing env with non-default transform should error");
+        assert!(
+            result.is_err(),
+            "Missing env with non-default transform should error"
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════
