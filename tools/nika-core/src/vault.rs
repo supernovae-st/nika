@@ -277,16 +277,21 @@ struct VaultPayload {
 pub struct NikaVault {
     vault_path: PathBuf,
     salt_path: PathBuf,
+    /// Optional audit log for credential access tracking.
+    audit: Option<VaultAuditLog>,
 }
 
 impl NikaVault {
     /// Create a new vault pointed at the given secrets directory.
     ///
     /// Does NOT create files — they are created lazily on first `set()`.
+    /// Initializes an audit log in the same directory for access tracking.
     pub fn new(secrets_dir: &Path) -> Self {
+        let audit = Some(VaultAuditLog::new(secrets_dir));
         Self {
             vault_path: secrets_dir.join("vault.enc"),
             salt_path: secrets_dir.join("vault.salt"),
+            audit,
         }
     }
 
@@ -295,6 +300,9 @@ impl NikaVault {
     /// For `VaultEntry::Key(s)`, returns the key string.
     /// For `VaultEntry::Credential { fields, .. }`, returns the first field value.
     pub fn get(&self, provider: &str) -> Result<Option<SecretString>, VaultError> {
+        if let Some(ref audit) = self.audit {
+            let _ = audit.log("get", provider, None, "runtime");
+        }
         let payload = match self.read_payload()? {
             Some(p) => p,
             None => return Ok(None),
@@ -313,7 +321,11 @@ impl NikaVault {
         payload
             .secrets
             .insert(provider.to_string(), VaultEntry::Key(secret.to_string()));
-        self.write_payload(&payload)
+        self.write_payload(&payload)?;
+        if let Some(ref audit) = self.audit {
+            let _ = audit.log("set", provider, None, "cli");
+        }
+        Ok(())
     }
 
     /// Delete a secret. Returns true if it existed.
@@ -325,6 +337,9 @@ impl NikaVault {
         let existed = payload.secrets.remove(provider).is_some();
         if existed {
             self.write_payload(&payload)?;
+            if let Some(ref audit) = self.audit {
+                let _ = audit.log("delete", provider, None, "cli");
+            }
         }
         Ok(existed)
     }
@@ -347,6 +362,9 @@ impl NikaVault {
         service: &str,
         field: &str,
     ) -> Result<Option<SecretString>, VaultError> {
+        if let Some(ref audit) = self.audit {
+            let _ = audit.log("get_credential", service, Some(field), "runtime");
+        }
         let payload = match self.read_payload()? {
             Some(p) => p,
             None => return Ok(None),
@@ -392,7 +410,11 @@ impl NikaVault {
                 expires_at: None,
             },
         );
-        self.write_payload(&payload)
+        self.write_payload(&payload)?;
+        if let Some(ref audit) = self.audit {
+            let _ = audit.log("set_credential", service, None, "cli");
+        }
+        Ok(())
     }
 
     /// Get the raw `VaultEntry` for a service (for introspection).
