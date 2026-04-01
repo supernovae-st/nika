@@ -1484,14 +1484,39 @@ fn validate_task_refs(
                         if task_table.get_id(dep_task_name).is_none()
                             && !ctx.is_included_task(dep_task_name)
                         {
-                            let all_names: Vec<&str> =
-                                all_task_names.iter().map(|s| s.as_str()).collect();
-                            let suggestion = find_similar(dep_task_name, &all_names, 0.6);
-                            ctx.add_error(AnalyzeError::unknown_task(
-                                value_spanned.span,
-                                dep_task_name,
-                                suggestion.as_deref(),
-                            ));
+                            // Check if this is a for_each loop variable
+                            let is_loop_var = raw.for_each.as_ref().is_some_and(|fe| {
+                                fe.value
+                                    .as_var
+                                    .as_ref()
+                                    .is_some_and(|v| v.value == dep_task_name)
+                            });
+
+                            if is_loop_var {
+                                let mut err = AnalyzeError::new(
+                                    AnalyzeErrorKind::UnknownTask,
+                                    value_spanned.span,
+                                    format!(
+                                        "'{}' is a for_each loop variable, not a task reference. \
+                                         Access it as {{{{with.{}}}}} in templates",
+                                        dep_task_name, dep_task_name
+                                    ),
+                                );
+                                err = err.with_suggestion(format!(
+                                    "remove '${}' from with: — loop variables are auto-injected",
+                                    dep_task_name
+                                ));
+                                ctx.add_error(err);
+                            } else {
+                                let all_names: Vec<&str> =
+                                    all_task_names.iter().map(|s| s.as_str()).collect();
+                                let suggestion = find_similar(dep_task_name, &all_names, 0.6);
+                                ctx.add_error(AnalyzeError::unknown_task(
+                                    value_spanned.span,
+                                    dep_task_name,
+                                    suggestion.as_deref(),
+                                ));
+                            }
                         }
                     }
                 }
