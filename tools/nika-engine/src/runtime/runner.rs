@@ -1509,6 +1509,25 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 .executor
                 .clone()
                 .with_skills(self.workflow.skills_map.clone(), base_path.clone());
+
+            // Also load skills files into LoadedContext for {{skills.NAME}} template resolution
+            let mut skills_loaded: rustc_hash::FxHashMap<String, serde_json::Value> =
+                rustc_hash::FxHashMap::default();
+            for (alias, path) in &self.workflow.skills_map {
+                let full_path = base_path.join(path);
+                match tokio::fs::read_to_string(&full_path).await {
+                    Ok(content) => {
+                        skills_loaded.insert(alias.clone(), serde_json::Value::String(content));
+                    }
+                    Err(e) => {
+                        tracing::warn!(skill = %alias, path = %full_path.display(), error = %e, "Failed to load skill file for template resolution");
+                    }
+                }
+            }
+            if !skills_loaded.is_empty() {
+                self.datastore.set_skills(skills_loaded);
+            }
+
             debug!(
                 skills_count = self.workflow.skills_map.len(),
                 "Wired skills mapping into executor"

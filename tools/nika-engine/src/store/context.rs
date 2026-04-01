@@ -19,6 +19,11 @@ pub struct LoadedContext {
 
     /// Loaded session data (if any)
     pub session: Option<Value>,
+
+    /// Loaded skills by alias (from `skills:` block)
+    ///
+    /// Available as `{{skills.NAME}}` in templates.
+    pub skills: FxHashMap<String, Value>,
 }
 
 impl LoadedContext {
@@ -37,9 +42,14 @@ impl LoadedContext {
         self.session.as_ref()
     }
 
+    /// Get a skill by alias
+    pub fn get_skill(&self, alias: &str) -> Option<&Value> {
+        self.skills.get(alias)
+    }
+
     /// Check if context is empty
     pub fn is_empty(&self) -> bool {
-        self.files.is_empty() && self.session.is_none()
+        self.files.is_empty() && self.session.is_none() && self.skills.is_empty()
     }
 
     /// Get number of loaded files

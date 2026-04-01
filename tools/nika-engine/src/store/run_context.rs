@@ -546,6 +546,11 @@ impl RunContext {
         *self.context.write() = context;
     }
 
+    /// Set loaded skills (from `skills:` block) for `{{skills.NAME}}` template resolution.
+    pub fn set_skills(&self, skills: rustc_hash::FxHashMap<String, Value>) {
+        self.context.write().skills = skills;
+    }
+
     /// Get a context file by alias
     ///
     /// Returns the loaded value for `{{context.files.alias}}` bindings.
@@ -715,6 +720,33 @@ impl RunContext {
                 Ok(v) => v,
                 Err(e) => {
                     tracing::warn!(path = %remaining, error = %e, "JSONPath resolution failed for input default");
+                    None
+                }
+            }
+        }
+    }
+
+    /// Resolve a `skills.*` path to its value.
+    ///
+    /// Path format: `skills.<alias>` or `skills.<alias>.<field>`
+    pub fn resolve_skills_path(&self, path: &str) -> Option<Value> {
+        let parts: Vec<&str> = path.split('.').collect();
+        if parts.is_empty() {
+            return None;
+        }
+
+        let alias = parts[0];
+        let context = self.context.read();
+        let value = context.get_skill(alias)?;
+
+        if parts.len() == 1 {
+            Some(value.clone())
+        } else {
+            let remaining = parts[1..].join(".");
+            match jsonpath::resolve(value, &remaining) {
+                Ok(v) => v,
+                Err(e) => {
+                    tracing::warn!(path = %remaining, error = %e, "JSONPath resolution failed for skill");
                     None
                 }
             }
