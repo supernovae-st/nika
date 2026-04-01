@@ -97,10 +97,13 @@ fn provider_description(id: &str) -> &'static str {
 
 /// Get vault instance for secret operations.
 fn get_vault() -> nika_core::vault::NikaVault {
+    #[cfg(unix)]
     let nika_home = nika_daemon::daemon_dir()
         .parent()
         .map(|p| p.to_path_buf())
         .unwrap_or_else(|| dirs::home_dir().unwrap().join(".nika"));
+    #[cfg(not(unix))]
+    let nika_home = dirs::home_dir().unwrap_or_default().join(".nika");
     nika_core::vault::NikaVault::new(&nika_home.join("secrets"))
 }
 
