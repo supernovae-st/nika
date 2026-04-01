@@ -743,27 +743,56 @@ impl TaskExecutor {
             || infer.extended_thinking == Some(true);
 
         // Build options once (reused across retry attempts)
+        // Provider-aware extended thinking: Claude uses thinking block, OpenAI reasoning
+        // models use max_completion_tokens + reasoning_effort.
+        let is_openai_reasoning = provider_name == "openai"
+            && model
+                .map(|m| m.starts_with("o1") || m.starts_with("o3") || m.starts_with("o4"))
+                .unwrap_or(false);
+
         let additional_params = if infer.extended_thinking == Some(true) {
             let budget = infer.thinking_budget.unwrap_or(4096);
-            if let Some(temp) = infer.temperature {
-                if (temp - 1.0).abs() > f64::EPSILON {
-                    tracing::warn!(
-                        temperature = temp,
-                        "Ignoring temperature={temp} — extended thinking requires temperature=1.0"
-                    );
+            if is_openai_reasoning {
+                // OpenAI reasoning models: use reasoning_effort + max_completion_tokens
+                Some(serde_json::json!({
+                    "reasoning_effort": "high",
+                    "max_completion_tokens": infer.max_tokens.unwrap_or(budget.min(16384) as u32)
+                }))
+            } else if provider_name == "anthropic" {
+                // Claude: native thinking block
+                if let Some(temp) = infer.temperature {
+                    if (temp - 1.0).abs() > f64::EPSILON {
+                        tracing::warn!(
+                            temperature = temp,
+                            "Ignoring temperature={temp} — extended thinking requires temperature=1.0"
+                        );
+                    }
                 }
+                Some(serde_json::json!({
+                    "thinking": { "type": "enabled", "budget_tokens": budget }
+                }))
+            } else {
+                tracing::warn!(
+                    provider = provider_name,
+                    "extended_thinking is not supported on {provider_name} — ignoring"
+                );
+                None
             }
-            Some(serde_json::json!({
-                "thinking": { "type": "enabled", "budget_tokens": budget }
-            }))
         } else {
             None
         };
 
         let effective_max_tokens = if infer.extended_thinking == Some(true) {
-            let budget = infer.thinking_budget.unwrap_or(4096);
-            let budget_u32 = u32::try_from(budget).unwrap_or(u32::MAX);
-            Some(infer.max_tokens.unwrap_or(budget_u32.saturating_add(8192)))
+            if is_openai_reasoning {
+                // OpenAI: don't set max_tokens — use max_completion_tokens in additional_params
+                None
+            } else if provider_name == "anthropic" {
+                let budget = infer.thinking_budget.unwrap_or(4096);
+                let budget_u32 = u32::try_from(budget).unwrap_or(u32::MAX);
+                Some(infer.max_tokens.unwrap_or(budget_u32.saturating_add(8192)))
+            } else {
+                infer.max_tokens
+            }
         } else {
             infer.max_tokens
         };
