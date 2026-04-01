@@ -147,11 +147,19 @@ pub async fn process_task_artifacts(
                     } else {
                         None
                     };
+                    // Use original ArtifactFormat for the event, not internal OutputFormat.
+                    // This preserves "markdown" instead of collapsing to "text".
+                    let format_str = output_spec
+                        .format
+                        .map(|f| format!("{:?}", f).to_lowercase())
+                        .unwrap_or_else(|| {
+                            format!("{:?}", write_result.format).to_lowercase()
+                        });
                     log.emit(EventKind::ArtifactWritten {
                         task_id: Arc::from(task_id),
                         path: write_result.path.display().to_string(),
                         size: write_result.size,
-                        format: format!("{:?}", write_result.format).to_lowercase(),
+                        format: format_str,
                         checksum,
                     });
                 }
