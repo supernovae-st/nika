@@ -94,26 +94,35 @@ pub fn notify(config: &WebhookConfig, job_id: &str, status: &str, output: Option
 
 /// Validate webhook URL against SSRF (private IPs, metadata endpoints).
 ///
-/// Extracts the host from the URL using simple parsing (no `url` crate dependency).
+/// Handles: userinfo (`user@host`), IPv6 brackets (`[::1]`), IPv6-mapped IPv4.
 fn validate_webhook_url(url_str: &str) -> Result<(), String> {
     // Basic scheme check
     if !url_str.starts_with("http://") && !url_str.starts_with("https://") {
         return Err("unsupported scheme — only http/https allowed".into());
     }
 
-    // Extract host: strip scheme, take everything before first / or :port
+    // Extract authority: strip scheme, take everything before first /path
     let after_scheme = url_str
         .strip_prefix("https://")
         .or_else(|| url_str.strip_prefix("http://"))
         .unwrap_or(url_str);
-    let host = after_scheme
-        .split('/')
-        .next()
-        .unwrap_or(after_scheme)
-        .split(':')
-        .next()
-        .unwrap_or(after_scheme)
-        .to_lowercase();
+    let authority = after_scheme.split('/').next().unwrap_or(after_scheme);
+
+    // C3: Strip userinfo (user:pass@host) — reqwest follows the real host
+    let authority = authority.rsplit('@').next().unwrap_or(authority);
+
+    // C2: Handle IPv6 bracket notation [::1]:port
+    let host = if authority.starts_with('[') {
+        // Extract content between [ and ]
+        authority
+            .strip_prefix('[')
+            .and_then(|s| s.split(']').next())
+            .unwrap_or(authority)
+    } else {
+        // Strip :port for non-bracketed hosts
+        authority.split(':').next().unwrap_or(authority)
+    }
+    .to_lowercase();
 
     if host.is_empty() {
         return Err("URL has no host".into());
@@ -124,28 +133,48 @@ fn validate_webhook_url(url_str: &str) -> Result<(), String> {
         return Err("blocked metadata endpoint".into());
     }
 
+    // Check IPv4
     if let Ok(ip) = host.parse::<std::net::Ipv4Addr>() {
-        let o = ip.octets();
-        if o[0] == 169 && o[1] == 254 {
-            return Err("blocked link-local address".into());
-        }
-        if o[0] == 127 {
-            return Err("blocked loopback address".into());
-        }
-        if o[0] == 10
-            || (o[0] == 172 && (16..=31).contains(&o[1]))
-            || (o[0] == 192 && o[1] == 168)
-        {
-            return Err("blocked private IP range".into());
-        }
+        return check_ipv4(ip);
     }
 
+    // Check IPv6 (including mapped IPv4)
     if let Ok(ip6) = host.parse::<std::net::Ipv6Addr>() {
         if ip6.is_loopback() {
             return Err("blocked IPv6 loopback".into());
         }
+        // H1: Check IPv6-mapped IPv4 (::ffff:10.0.0.1)
+        if let Some(ip4) = ip6.to_ipv4_mapped() {
+            return check_ipv4(ip4);
+        }
+        // Block link-local IPv6 (fe80::/10)
+        let segments = ip6.segments();
+        if segments[0] & 0xffc0 == 0xfe80 {
+            return Err("blocked IPv6 link-local".into());
+        }
     }
 
+    Ok(())
+}
+
+/// Check an IPv4 address against private/loopback/link-local ranges.
+fn check_ipv4(ip: std::net::Ipv4Addr) -> Result<(), String> {
+    let o = ip.octets();
+    if o[0] == 127 {
+        return Err("blocked loopback address".into());
+    }
+    if o[0] == 169 && o[1] == 254 {
+        return Err("blocked link-local address".into());
+    }
+    if o[0] == 10
+        || (o[0] == 172 && (16..=31).contains(&o[1]))
+        || (o[0] == 192 && o[1] == 168)
+    {
+        return Err("blocked private IP range".into());
+    }
+    if o[0] == 0 {
+        return Err("blocked unspecified address".into());
+    }
     Ok(())
 }
 
@@ -200,8 +229,32 @@ mod tests {
     }
 
     #[test]
+    fn ssrf_blocks_ipv6_bracket_bypass() {
+        // C2: bracketed IPv6 must be parsed and checked
+        assert!(validate_webhook_url("http://[::1]/hook").is_err());
+        assert!(validate_webhook_url("http://[::1]:8080/hook").is_err());
+    }
+
+    #[test]
+    fn ssrf_blocks_userinfo_bypass() {
+        // C3: userinfo@host — reqwest follows the real host
+        assert!(validate_webhook_url("http://public@169.254.169.254/meta").is_err());
+        assert!(validate_webhook_url("http://user:pass@10.0.0.1/hook").is_err());
+        assert!(validate_webhook_url("http://safe.com@127.0.0.1/hook").is_err());
+    }
+
+    #[test]
+    fn ssrf_blocks_ipv6_mapped_ipv4() {
+        // H1: ::ffff:10.0.0.1 maps to private IPv4
+        assert!(validate_webhook_url("http://[::ffff:127.0.0.1]/hook").is_err());
+        assert!(validate_webhook_url("http://[::ffff:10.0.0.1]/hook").is_err());
+        assert!(validate_webhook_url("http://[::ffff:169.254.169.254]/meta").is_err());
+    }
+
+    #[test]
     fn ssrf_allows_public_urls() {
         assert!(validate_webhook_url("https://hooks.slack.com/services/xxx").is_ok());
         assert!(validate_webhook_url("https://api.example.com/webhook").is_ok());
+        assert!(validate_webhook_url("https://api.example.com:8443/hook").is_ok());
     }
 }
