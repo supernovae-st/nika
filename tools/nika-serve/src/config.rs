@@ -1,12 +1,59 @@
-//! Server configuration loaded from environment variables.
+//! Server configuration loaded from nika.toml [serve] section + environment variables.
 //!
-//! All fields have sensible defaults except `auth_token` which is mandatory.
+//! Merge order: env vars > nika.toml [serve] > hardcoded defaults.
+//! `auth_token` is ALWAYS from env (secrets never in nika.toml).
 //! ERRATA-13: `from_env()` returns `Result`, never panics.
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
 use crate::error::ServeError;
+
+/// [serve] section from nika.toml (deserialized, all optional).
+#[derive(Debug, Default, serde::Deserialize)]
+struct NikaTomlServe {
+    #[serde(default)]
+    bind: Option<String>,
+    #[serde(default)]
+    workflows: Option<String>,
+    #[serde(default)]
+    max_concurrent: Option<usize>,
+    #[serde(default)]
+    timeout: Option<u64>,
+}
+
+/// Minimal nika.toml shape — only [serve] section.
+#[derive(Debug, Default, serde::Deserialize)]
+struct NikaTomlPartial {
+    #[serde(default)]
+    serve: Option<NikaTomlServe>,
+}
+
+/// Try to read [serve] from nika.toml by walking up from cwd.
+fn load_serve_from_nika_toml() -> NikaTomlServe {
+    let cwd = match std::env::current_dir() {
+        Ok(d) => d,
+        Err(_) => return NikaTomlServe::default(),
+    };
+    // Walk up looking for nika.toml
+    let mut dir = cwd.as_path();
+    loop {
+        let path = dir.join("nika.toml");
+        if path.exists() {
+            if let Ok(content) = std::fs::read_to_string(&path) {
+                if let Ok(parsed) = toml::from_str::<NikaTomlPartial>(&content) {
+                    return parsed.serve.unwrap_or_default();
+                }
+            }
+            return NikaTomlServe::default();
+        }
+        match dir.parent() {
+            Some(p) => dir = p,
+            None => break,
+        }
+    }
+    NikaTomlServe::default()
+}
 
 /// Execution mode for workflow processing.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -51,12 +98,17 @@ pub struct ServeConfig {
 }
 
 impl ServeConfig {
-    /// Build configuration from environment variables.
+    /// Build configuration from nika.toml [serve] section + environment variables.
     ///
-    /// Required: `NIKA_SERVE_TOKEN`
+    /// Merge: env vars > nika.toml [serve] > hardcoded defaults.
+    /// Required: `NIKA_SERVE_TOKEN` (always from env — secrets never in nika.toml)
     /// Optional: `NIKA_SERVE_BIND`, `NIKA_SERVE_WORKFLOWS`, `NIKA_SERVE_MAX_CONCURRENT`,
     ///           `NIKA_SERVE_TIMEOUT`, `NIKA_SERVE_DB`
     pub fn from_env() -> Result<Self, ServeError> {
+        // Layer 1: Read nika.toml [serve] as base
+        let toml = load_serve_from_nika_toml();
+
+        // auth_token: always from env (secrets never in nika.toml)
         let auth_token = std::env::var("NIKA_SERVE_TOKEN")
             .map_err(|_| ServeError::Config("NIKA_SERVE_TOKEN must be set".into()))?;
 
@@ -68,23 +120,32 @@ impl ServeConfig {
 
         let cors_origin = std::env::var("NIKA_SERVE_CORS_ORIGIN").ok();
 
-        let bind: SocketAddr = std::env::var("NIKA_SERVE_BIND")
-            .unwrap_or_else(|_| "127.0.0.1:3000".into())
+        // Layer 2: env var > nika.toml > default
+        let bind_str = std::env::var("NIKA_SERVE_BIND")
+            .ok()
+            .or(toml.bind)
+            .unwrap_or_else(|| "127.0.0.1:3000".into());
+        let bind: SocketAddr = bind_str
             .parse()
-            .map_err(|e| ServeError::Config(format!("Invalid NIKA_SERVE_BIND: {e}")))?;
+            .map_err(|e| ServeError::Config(format!("Invalid bind address: {e}")))?;
 
         let max_concurrent = std::env::var("NIKA_SERVE_MAX_CONCURRENT")
             .ok()
             .and_then(|s| s.parse().ok())
+            .or(toml.max_concurrent)
             .unwrap_or(6);
 
         let job_timeout_secs = std::env::var("NIKA_SERVE_TIMEOUT")
             .ok()
             .and_then(|s| s.parse().ok())
+            .or(toml.timeout)
             .unwrap_or(300);
 
+        // Default changed from "./workflows" to "." (recursive scan from project root)
         let workflows_dir: PathBuf = std::env::var("NIKA_SERVE_WORKFLOWS")
-            .unwrap_or_else(|_| "./workflows".into())
+            .ok()
+            .or(toml.workflows)
+            .unwrap_or_else(|| ".".into())
             .into();
 
         let db_path: PathBuf = std::env::var("NIKA_SERVE_DB")
@@ -115,10 +176,11 @@ impl ServeConfig {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
     fn default_bind_address_is_localhost() {
         let default_bind: std::net::SocketAddr = "127.0.0.1:3000".parse().unwrap();
-        // The hard-coded fallback in from_env() must be loopback, not 0.0.0.0
         let fallback: std::net::SocketAddr =
             "0.0.0.0:3000".parse::<std::net::SocketAddr>().unwrap();
         assert!(
@@ -128,6 +190,48 @@ mod tests {
         assert!(
             !fallback.ip().is_loopback(),
             "0.0.0.0 is NOT loopback — this is the bug"
+        );
+    }
+
+    // Phase 3 TDD tests
+
+    #[test]
+    fn serve_config_parses_toml_section() {
+        let toml_content = r#"
+[serve]
+bind = "0.0.0.0:8080"
+workflows = "./my-workflows"
+max_concurrent = 12
+timeout = 600
+"#;
+        let parsed: NikaTomlPartial = toml::from_str(toml_content).unwrap();
+        let serve = parsed.serve.unwrap();
+        assert_eq!(serve.bind.as_deref(), Some("0.0.0.0:8080"));
+        assert_eq!(serve.workflows.as_deref(), Some("./my-workflows"));
+        assert_eq!(serve.max_concurrent, Some(12));
+        assert_eq!(serve.timeout, Some(600));
+    }
+
+    #[test]
+    fn serve_config_missing_section_uses_defaults() {
+        let toml_content = r#"
+[project]
+name = "no-serve"
+"#;
+        let parsed: NikaTomlPartial = toml::from_str(toml_content).unwrap();
+        assert!(parsed.serve.is_none());
+        let serve = parsed.serve.unwrap_or_default();
+        assert!(serve.bind.is_none());
+        assert!(serve.workflows.is_none());
+    }
+
+    #[test]
+    fn serve_config_workflows_default_is_dot() {
+        // When no env var and no nika.toml, workflows defaults to "."
+        let default = NikaTomlServe::default();
+        assert!(
+            default.workflows.is_none(),
+            "TOML default should be None (falls through to \".\" in from_env)"
         );
     }
 }
