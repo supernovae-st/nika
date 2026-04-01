@@ -18,7 +18,7 @@ Use these superpowers skills IN ORDER:
 3. `/spn-powers:verification-before-completion` — After each phase: `cd tools && cargo test --workspace --lib`, verify output
 4. `/spn-powers:requesting-code-review` — After Phase 1 (critical path), request code review before continuing
 
-**Testing command: ALWAYS `cd tools && cd tools && cargo test --workspace --lib`** (never without `--lib` — triggers macOS Keychain popups). The Cargo workspace root is at `tools/Cargo.toml`, NOT at the repo root. Current test count: **2153 tests passing** (as of 2026-04-01).
+**Testing command: ALWAYS `cd tools && cargo test --workspace --lib`** (never without `--lib` — triggers macOS Keychain popups). The Cargo workspace root is at `tools/Cargo.toml`, NOT at the repo root. Current test count: **2153 tests passing** (as of 2026-04-01).
 
 **Working directory:** Always `cd` to `tools/` before running cargo commands. The repo root has no Cargo.toml.
 
@@ -157,11 +157,12 @@ Each phase = 1 commit. `1 fix = 1 commit` rule.
 | 1 | boot.rs | `tools/nika-engine/src/runtime/boot.rs` | 826 | Phase 1+2 rewrite, new types |
 | 2 | config.rs | `tools/nika-cli/src/config.rs` | 332 | `find_nika_dir()` -> `find_project_root_from()` |
 | 3 | init.rs | `tools/nika-cli/src/init.rs` | 187 | Create nika.toml, not .nika/config.toml |
-| 4 | paths.rs | `tools/nika-engine/src/core/paths.rs` | 538 | GLOBAL_CONFIG const, path functions |
+| 4 | paths.rs | `tools/nika-engine/src/core/paths.rs` | 549 | GLOBAL_CONFIG const, path functions |
 | 5 | tui config | `tools/nika-tui/src/config.rs` | 200 | Hardcoded path fix |
 | 6 | tui startup | `tools/nika-tui/src/startup.rs` | 500 | Test fixtures |
-| 7 | error.rs | `tools/nika-engine/src/error.rs` | 2796 | Error messages (grep "config.toml") |
+| 7 | error.rs | `tools/nika-engine/src/error.rs` | 2797 | Error messages (grep "config.toml") |
 | 8 | error_domains | `tools/nika-engine/src/error_domains.rs` | ? | NIKA-035 message |
+| 9 | main.rs | `tools/nika/src/main.rs` | 4045 | CLI enum, onboarding, check --strict |
 
 ### New Types to Add (in boot.rs)
 
@@ -695,23 +696,42 @@ Recent example: `nika tools list` added in commit `824dbc038` — new file `tool
 
 ## Recent Changes to Account For (since plan was written)
 
-These commits landed AFTER the plan was drafted. The handoff agent must be aware:
+### v0.58.1 released — 3 of our v0.59 issues already FIXED
+
+These v0.59 plan issues were implemented BEFORE our nika.toml work begins:
+
+| Issue | Commit | Status |
+|---|---|---|
+| fetch 404 returns exit 0 | `0f92a2ad3` | **FIXED** — 4xx now errors (except response: full) |
+| fail_fast:false partial results blocked | `3f770efcd` | **FIXED** — partial results unblock downstream |
+| $env.MISSING fails before default() | `891489a16` | **FIXED** — default() now fires |
+| {{skills.NAME}} not resolved | `cef6f6b0c` | **FIXED** — template resolution added |
+
+**These 4 issues are NO LONGER part of the nika.toml plan.** They are done.
+
+### New commits impacting our plan
 
 1. **`824dbc038` — `nika tools list` + `nika tools info`** — New CLI subcommand. Added `tools/nika-cli/src/tools_cmd.rs`. Shows how to register new commands (model for `nika clean`).
 
-2. **`15a147c76` — Agent file tools use project root** — `rig_agent_loop/mod.rs` now uses process cwd (project root) instead of workflow_base_dir for agent file tools. This is ALIGNED with our Phase 2 (working_dir). The fix already partially implements the "project root" concept for agents.
+2. **`15a147c76` — Agent file tools use project root** — `rig_agent_loop/mod.rs` now uses process cwd (project root) instead of workflow_base_dir for agent file tools. ALIGNED with our Phase 2.
 
-3. **`92206a7da` — Strip markdown fences from yaml/json artifacts** — Artifact processing changed. Phase 9 (artifact dir) must account for this.
+3. **`eba8c8771` — Serve default executor switched to embedded** — `ExecutorMode::Embedded` is now the default (was `Subprocess`). Phase 3 (serve reads nika.toml) must account for this.
 
-4. **`8d622a68c` — Provider-aware extended thinking** — OpenAI reasoning models get different thinking params. Not directly relevant but shows provider dispatch complexity.
+4. **`46f6e2400` — Default to first configured provider** — No longer hardcoded anthropic. The runtime picks the first provider with an API key. Affects Phase 1 (BootstrapConfig defaults).
 
-5. **`09136014d` — Path traversal blocked in from_example/schema** — Security hardening in structured output. Shows the security-first approach for path handling.
+5. **`ebc201514` — Onboarding checks vault + NIKA_NO_ONBOARDING** — New `skip_onboarding()` function. Affects Phase 0 (smart welcome) and Phase 8 (init wizard).
 
-6. **Path resolution rule (E09/E19)** — Documented in `nika-bugs-and-patterns.md`: all relative paths resolve from PROJECT ROOT (where `nika run` is invoked), NOT from workflow file location. This is the EXISTING behavior and aligns with our `working_dir = "project"` default.
+6. **`945173167` — `--no-interactive` and `--quiet` for nika infer** — CLI args pattern. main.rs now at **4045 lines** (was 3200).
 
-7. **Exec stderr (E29)** — `exec:` captures stdout ONLY. stderr discarded by design. Use `2>&1` redirect. Documented in rules.
+7. **`ed0b7e0cf` — Shell quoting stripped before blocklist check** — Security fix for NIKA-053. Not directly relevant but shows security patterns.
 
-8. **`| shell` transform (E30)** — Always use `{{with.data | shell}}` in `shell: true` exec tasks for safety.
+8. **5 serve fixes** — metrics auth, SSE validation, shutdown signaling, env allowlist, active_jobs decrement. Phase 3 must read the current serve/config.rs (133 lines).
+
+### Rules documented since plan
+
+- **Path resolution (E09/E19)** — All relative paths resolve from PROJECT ROOT (where `nika run` is invoked). Aligns with `working_dir = "project"` default.
+- **Exec stderr (E29)** — stdout ONLY. stderr discarded by design. Use `2>&1`.
+- **`| shell` transform (E30)** — Always use in `shell: true` exec tasks.
 
 ## Critical Pitfalls
 
@@ -722,6 +742,8 @@ These commits landed AFTER the plan was drafted. The handoff agent must be aware
 3. **`paths.rs` line 60** has `pub const GLOBAL_CONFIG: &str = "config.toml"`. This is for `~/.nika/config.toml` (user-level). It stays as-is. Don't rename it to "nika.toml" — that's the project-level name.
 
 4. **boot.rs Phase 1** currently walks up for `.nika/` dir. The new Phase 1 must walk up for `nika.toml` FIRST, then `.nika/` as fallback. Two separate loops (don't try to combine them — nika.toml and .nika/ could be at different levels).
+
+4b. **Default provider is no longer hardcoded anthropic** (commit `46f6e2400`). The runtime picks the first configured provider. The `BootstrapConfig::default()` still says `"anthropic"` as the TOML default, but the runtime may override. TDD test 3 should expect `"anthropic"` from the default config struct, not from what the runtime actually uses.
 
 5. **init.rs line 41** checks `nika_dir.join("config.toml").exists()` for idempotency. Change to check `cwd.join("nika.toml").exists()`.
 
@@ -736,6 +758,14 @@ These commits landed AFTER the plan was drafted. The handoff agent must be aware
 10. **Tests that create `.nika/config.toml`** — boot.rs tests, paths.rs tests, startup.rs tests all create `.nika/config.toml` in tempdir. Update them to create `nika.toml` instead (or test both for fallback behavior).
 
 ---
+
+## Build Notes
+
+If you encounter linker errors or temp dir issues, run `cargo clean` in `tools/` first. The build cache can get corrupted across sessions.
+
+```bash
+cd tools && cargo clean && cargo test --workspace --lib
+```
 
 ## Success Criteria
 
