@@ -683,6 +683,9 @@ fn format_output(output: &str, format: ArtifactFormat) -> Result<String, NikaErr
     match format {
         ArtifactFormat::Text | ArtifactFormat::Markdown => Ok(output.to_string()),
         ArtifactFormat::Json => {
+            // Strip markdown code fences that LLMs often wrap around JSON/YAML output
+            let cleaned = strip_code_fences(output);
+            let output = &cleaned;
             // Try to parse as JSON and pretty-print
             match serde_json::from_str::<serde_json::Value>(output) {
                 Ok(value) => serde_json::to_string_pretty(&value).map_err(|e| {
@@ -699,6 +702,9 @@ fn format_output(output: &str, format: ArtifactFormat) -> Result<String, NikaErr
             }
         }
         ArtifactFormat::Yaml => {
+            // Strip markdown code fences that LLMs often wrap around YAML output
+            let cleaned = strip_code_fences(output);
+            let output = &cleaned;
             // Try to parse as JSON first, then convert to YAML
             match serde_json::from_str::<serde_json::Value>(output) {
                 Ok(value) => {
@@ -722,6 +728,25 @@ fn format_output(output: &str, format: ArtifactFormat) -> Result<String, NikaErr
                     .to_string(),
             })
         }
+    }
+}
+
+/// Strip markdown code fences (```json ... ``` or ```yaml ... ```) from LLM output.
+fn strip_code_fences(s: &str) -> String {
+    let trimmed = s.trim();
+    if trimmed.starts_with("```") {
+        let after_fence = if let Some(newline_pos) = trimmed.find('\n') {
+            &trimmed[newline_pos + 1..]
+        } else {
+            return trimmed.to_string();
+        };
+        if let Some(stripped) = after_fence.strip_suffix("```") {
+            stripped.trim().to_string()
+        } else {
+            after_fence.trim().to_string()
+        }
+    } else {
+        trimmed.to_string()
     }
 }
 
