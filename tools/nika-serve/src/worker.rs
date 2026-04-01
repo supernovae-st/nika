@@ -141,7 +141,7 @@ pub fn spawn_worker(
     let workers = Arc::clone(&state.workers);
     let active_jobs = Arc::clone(&state.active_jobs);
     let event_bus = state.event_bus.clone();
-    let webhook_config = crate::webhook::WebhookConfig::from_env();
+    let webhook_config = state.webhook_config.clone();
     let shutdown_rx = state.shutdown.clone();
     let id = job_id.clone();
     let child_pid = Arc::new(AtomicU32::new(0));
