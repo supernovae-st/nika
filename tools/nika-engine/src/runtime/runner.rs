@@ -413,6 +413,24 @@ impl Runner {
         self
     }
 
+    /// Set the project root directory (parent of nika.toml).
+    ///
+    /// Used by `working_dir_mode = "project"` to set exec task cwd.
+    pub fn with_project_root(mut self, root: std::path::PathBuf) -> Self {
+        self.executor = self.executor.with_project_root(root);
+        self
+    }
+
+    /// Set the working directory mode from `[tools] working_dir` in nika.toml.
+    ///
+    /// - `"project"` → exec tasks default cwd to project_root
+    /// - `"workflow"` → exec tasks default cwd to workflow_base_dir
+    /// - `"none"` → no default cwd, inherit process cwd
+    pub fn with_working_dir_mode(mut self, mode: String) -> Self {
+        self.executor = self.executor.with_working_dir_mode(mode);
+        self
+    }
+
     pub fn with_cancel_token(mut self, token: CancellationToken) -> Self {
         self.executor = self.executor.with_cancel_token(token.clone());
         self.cancel_token = token;
