@@ -1123,7 +1123,10 @@ mod tests {
 
         // Delete jobs older than 0 seconds (everything is "old")
         let deleted = storage.delete_old_jobs(0).await.unwrap();
-        assert_eq!(deleted, 2, "should delete completed + failed but not pending");
+        assert_eq!(
+            deleted, 2,
+            "should delete completed + failed but not pending"
+        );
 
         // Verify pending job still exists
         let gc3 = storage.get_job("gc3").await.unwrap();

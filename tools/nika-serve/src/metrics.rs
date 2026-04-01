@@ -22,13 +22,16 @@ pub fn install_recorder() -> Option<PrometheusHandle> {
 }
 
 /// `GET /metrics` — render all recorded metrics in Prometheus text format.
-pub async fn metrics_handler(
-    handle: Option<axum::extract::State<PrometheusHandle>>,
-) -> Response {
+pub async fn metrics_handler(handle: Option<axum::extract::State<PrometheusHandle>>) -> Response {
     match handle {
         Some(axum::extract::State(h)) => {
             let output = h.render();
-            (StatusCode::OK, [("content-type", "text/plain; version=0.0.4")], output).into_response()
+            (
+                StatusCode::OK,
+                [("content-type", "text/plain; version=0.0.4")],
+                output,
+            )
+                .into_response()
         }
         None => (StatusCode::SERVICE_UNAVAILABLE, "metrics not initialized").into_response(),
     }

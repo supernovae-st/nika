@@ -187,9 +187,7 @@ pub async fn cancel_job(
 
     // Emit SSE event: cancelled
     let tx = state.event_bus.sender(&id).await;
-    let _ = tx.send(crate::events::ServeEvent::Cancelled {
-        job_id: id.clone(),
-    });
+    let _ = tx.send(crate::events::ServeEvent::Cancelled { job_id: id.clone() });
     state.event_bus.remove(&id).await;
 
     Ok(Json(json!({

@@ -35,8 +35,8 @@ impl WebhookConfig {
 
 /// Compute HMAC-SHA256 signature for a payload.
 pub fn sign(secret: &str, body: &[u8]) -> String {
-    let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
-        .expect("HMAC accepts any key length");
+    let mut mac =
+        HmacSha256::new_from_slice(secret.as_bytes()).expect("HMAC accepts any key length");
     mac.update(body);
     let result = mac.finalize();
     let bytes = result.into_bytes();
@@ -92,7 +92,10 @@ mod tests {
     #[test]
     fn sign_produces_sha256_prefix() {
         let sig = sign("my-secret", b"hello world");
-        assert!(sig.starts_with("sha256="), "signature must start with sha256=");
+        assert!(
+            sig.starts_with("sha256="),
+            "signature must start with sha256="
+        );
         // sha256= prefix + 64 hex chars
         assert_eq!(sig.len(), 7 + 64);
     }

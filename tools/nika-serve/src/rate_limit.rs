@@ -61,15 +61,9 @@ pub async fn rate_limit_middleware(
             let mut resp = next.run(req).await;
             // Add rate limit headers
             let headers = resp.headers_mut();
-            let _ = headers.insert(
-                "x-ratelimit-limit",
-                HeaderValue::from_static("10"),
-            );
+            let _ = headers.insert("x-ratelimit-limit", HeaderValue::from_static("10"));
             // Approximate remaining (governor doesn't expose exact count easily)
-            let _ = headers.insert(
-                "x-ratelimit-remaining",
-                HeaderValue::from_static("ok"),
-            );
+            let _ = headers.insert("x-ratelimit-remaining", HeaderValue::from_static("ok"));
             resp
         }
         Err(not_until) => {
@@ -90,16 +84,11 @@ pub async fn rate_limit_middleware(
             let headers = resp.headers_mut();
             let _ = headers.insert(
                 "retry-after",
-                HeaderValue::from_str(&retry_after.to_string()).unwrap_or(HeaderValue::from_static("1")),
+                HeaderValue::from_str(&retry_after.to_string())
+                    .unwrap_or(HeaderValue::from_static("1")),
             );
-            let _ = headers.insert(
-                "x-ratelimit-limit",
-                HeaderValue::from_static("10"),
-            );
-            let _ = headers.insert(
-                "x-ratelimit-remaining",
-                HeaderValue::from_static("0"),
-            );
+            let _ = headers.insert("x-ratelimit-limit", HeaderValue::from_static("10"));
+            let _ = headers.insert("x-ratelimit-remaining", HeaderValue::from_static("0"));
 
             resp
         }

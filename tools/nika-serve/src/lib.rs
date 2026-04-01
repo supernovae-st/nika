@@ -337,7 +337,7 @@ mod tests {
             shutdown: shutdown_rx,
             workers: Arc::new(Mutex::new(HashMap::new())),
             active_jobs: Arc::new(AtomicUsize::new(0)),
-        event_bus: events::EventBus::default(),
+            event_bus: events::EventBus::default(),
         };
 
         let limiter = rate_limit::new_rate_limiter();
