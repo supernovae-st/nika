@@ -11,10 +11,10 @@ use crate::error::ServeError;
 /// Execution mode for workflow processing.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum ExecutorMode {
-    /// V1: spawn `nika run <workflow>` as a subprocess (default).
-    #[default]
+    /// V1: spawn `nika run <workflow>` as a subprocess.
     Subprocess,
-    /// V2: run workflow in-process via embedded nika-engine Runner.
+    /// V2: run workflow in-process via embedded nika-engine Runner (default).
+    #[default]
     Embedded,
 }
 
@@ -93,10 +93,10 @@ impl ServeConfig {
 
         let executor_mode = match std::env::var("NIKA_SERVE_EXECUTOR")
             .as_deref()
-            .unwrap_or("subprocess")
+            .unwrap_or("embedded")
         {
-            "embedded" => ExecutorMode::Embedded,
-            _ => ExecutorMode::Subprocess,
+            "subprocess" => ExecutorMode::Subprocess,
+            _ => ExecutorMode::Embedded,
         };
 
         Ok(Self {
