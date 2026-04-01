@@ -20,6 +20,7 @@ pub mod model_cmd;
 #[cfg(feature = "native-inference")]
 pub mod model;
 
+pub mod clean;
 #[cfg(unix)]
 pub mod cache_cmd;
 pub mod config;
