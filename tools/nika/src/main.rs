@@ -1511,6 +1511,7 @@ async fn handle_result(result: Result<(), NikaError>) {
         // If MissingApiKey and TTY, offer onboarding wizard
         if matches!(e, NikaError::MissingApiKey { .. })
             && std::io::stdin().is_terminal()
+            && !cli::onboarding::skip_onboarding()
             && !cli::onboarding::has_any_provider_key()
         {
             if let Ok(true) = cli::onboarding::run_onboarding_wizard().await {
@@ -2289,7 +2290,8 @@ async fn run_workflow(
                 | nika::ast::analyzed::AnalyzedTaskAction::Agent(_)
         )
     });
-    if needs_llm && !cli::onboarding::has_any_provider_key() {
+    if needs_llm && !cli::onboarding::skip_onboarding() && !cli::onboarding::has_any_provider_key()
+    {
         let configured = cli::onboarding::run_onboarding_wizard().await?;
         if !configured {
             return Err(NikaError::ConfigError {
