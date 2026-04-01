@@ -34,10 +34,16 @@ impl WebhookConfig {
             return None;
         }
 
-        let secret = std::env::var("NIKA_WEBHOOK_SECRET").unwrap_or_default();
-        if secret.is_empty() {
-            warn!("NIKA_WEBHOOK_URL is set but NIKA_WEBHOOK_SECRET is empty — signatures will be weak");
-        }
+        let secret = match std::env::var("NIKA_WEBHOOK_SECRET") {
+            Ok(s) if !s.is_empty() => s,
+            _ => {
+                warn!(
+                    "NIKA_WEBHOOK_URL is set but NIKA_WEBHOOK_SECRET is missing or empty — \
+                     webhook delivery disabled. Set NIKA_WEBHOOK_SECRET to enable."
+                );
+                return None;
+            }
+        };
 
         let client = reqwest::Client::builder()
             .redirect(reqwest::redirect::Policy::none())
@@ -315,6 +321,15 @@ mod tests {
         // No NIKA_WEBHOOK_URL set — should return None
         std::env::remove_var("NIKA_WEBHOOK_URL");
         assert!(WebhookConfig::from_env().is_none());
+    }
+
+    #[test]
+    fn webhook_config_none_when_secret_missing() {
+        std::env::set_var("NIKA_WEBHOOK_URL", "https://hooks.example.com/test");
+        std::env::remove_var("NIKA_WEBHOOK_SECRET");
+        let config = WebhookConfig::from_env();
+        assert!(config.is_none(), "must refuse webhook without secret");
+        std::env::remove_var("NIKA_WEBHOOK_URL");
     }
 
     #[test]
