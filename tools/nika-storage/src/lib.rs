@@ -590,7 +590,8 @@ fn do_update_state(
         }
         JobState::Completed | JobState::Failed | JobState::Cancelled => {
             conn.execute(
-                "UPDATE jobs SET state = ?1, completed_at = ?2, exit_code = ?3, output = ?4 WHERE id = ?5",
+                "UPDATE jobs SET state = ?1, completed_at = ?2, exit_code = ?3, output = ?4 \
+                 WHERE id = ?5 AND state IN ('pending', 'running')",
                 params![state.as_str(), now, exit_code, output, id],
             )?;
         }
@@ -1146,6 +1147,25 @@ mod tests {
         // Delete only jobs older than 1 hour — newly created job should survive
         let deleted = storage.delete_old_jobs(3600).await.unwrap();
         assert_eq!(deleted, 0, "recent job should not be deleted");
+    }
+
+    #[tokio::test]
+    async fn complete_job_does_not_overwrite_cancelled() {
+        let storage = Storage::open_memory().unwrap();
+        let id = "race-1";
+        storage.create_job(id, "test.nika.yaml").await.unwrap();
+        storage
+            .update_state(id, JobState::Running, None, None)
+            .await
+            .unwrap();
+        storage
+            .update_state(id, JobState::Cancelled, None, Some("cancelled".into()))
+            .await
+            .unwrap();
+        // Try to complete after cancel — must be no-op
+        storage.complete_job(id, "late result").await.unwrap();
+        let job = storage.get_job(id).await.unwrap().unwrap();
+        assert_eq!(job.state, JobState::Cancelled);
     }
 
     #[test]
