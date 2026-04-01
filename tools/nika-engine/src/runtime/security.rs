@@ -360,9 +360,15 @@ pub fn check_blocklist(cmd: &str) -> Result<(), NikaError> {
     let normalized = normalize_for_blocklist(cmd);
     let lower = normalized.to_lowercase();
 
+    // SEC-3: Strip shell quoting characters before pattern matching.
+    // `su""do rm -rf /` → `sudo rm -rf /`, `s'u'd'o'` → `sudo`
+    // Also strip backslash-escapes: `su\do` → `sudo`
+    let dequoted: String = lower.chars().filter(|c| !matches!(c, '"' | '\'' | '\\')).collect();
+
     // SEC-2: Also check with the first token basename-resolved.
     // "/usr/bin/sudo rm -rf /" → "sudo rm -rf /" to catch absolute-path bypass.
     let basename_normalized = normalize_first_token_basename(&lower);
+    let basename_dequoted = normalize_first_token_basename(&dequoted);
 
     for pattern in BLOCKLIST {
         // Blocklist patterns are already clean ASCII — only lowercase them.
@@ -371,7 +377,10 @@ pub fn check_blocklist(cmd: &str) -> Result<(), NikaError> {
         // that rely on a trailing space to avoid false positives
         // (e.g. "su " must NOT match "successfully").
         let normalized_pattern = pattern.to_lowercase();
-        if lower.contains(&normalized_pattern) || basename_normalized.contains(&normalized_pattern)
+        if lower.contains(&normalized_pattern)
+            || basename_normalized.contains(&normalized_pattern)
+            || dequoted.contains(&normalized_pattern)
+            || basename_dequoted.contains(&normalized_pattern)
         {
             tracing::warn!(
                 command = %crate::util::redact_secrets(cmd),
@@ -1886,5 +1895,31 @@ mod tests {
         assert!(check_blocklist("/usr/bin/echo hello world").is_ok());
         assert!(check_blocklist("/usr/local/bin/jq '.data'").is_ok());
         assert!(check_blocklist("/usr/bin/ffmpeg -i input.mp3 output.wav").is_ok());
+    }
+
+    // SEC-3: Shell quoting bypass prevention
+    #[test]
+    fn test_blocklist_rejects_double_quote_bypass() {
+        assert!(check_blocklist(r#"su""do rm -rf /"#).is_err());
+        assert!(check_blocklist(r#"su"d"o rm -rf /"#).is_err());
+    }
+
+    #[test]
+    fn test_blocklist_rejects_single_quote_bypass() {
+        assert!(check_blocklist("su''do rm -rf /").is_err());
+        assert!(check_blocklist("s'u'd'o' rm").is_err());
+    }
+
+    #[test]
+    fn test_blocklist_rejects_backslash_bypass() {
+        assert!(check_blocklist(r"su\do rm -rf /").is_err());
+        assert!(check_blocklist(r"r\m -rf /").is_err());
+    }
+
+    #[test]
+    fn test_blocklist_safe_commands_with_quotes_still_allowed() {
+        // Commands with quotes that don't hide blocklisted patterns should work
+        assert!(check_blocklist(r#"echo "hello world""#).is_ok());
+        assert!(check_blocklist("jq '.data' file.json").is_ok());
     }
 }
