@@ -912,21 +912,20 @@ impl StructuredOutputEngine {
     /// Generate a retry prompt with validation feedback
     ///
     /// Used by Layer 3 to construct the re-prompt with error context.
-    /// Includes the schema so the LLM knows what to produce (especially
-    /// important when Layer 0 tool injection was used and the schema
-    /// was not in the original prompt text).
+    /// Includes the compiled schema so the LLM knows what to produce.
+    /// Uses `compiled_schema` (set by `load_schema()`) which correctly
+    /// handles all sources: inline schema, file schema, and from_example.
     pub fn generate_retry_prompt(
         &self,
         original_prompt: &str,
         invalid_output: &str,
         validation_errors: &str,
     ) -> String {
-        let schema_value = self.spec.schema.as_ref().and_then(|s| match s {
-            nika_core::ast::SchemaRef::Inline(v) => Some(v),
-            nika_core::ast::SchemaRef::File(_) => None,
-        });
-        let schema_str = schema_value
-            .and_then(|v| serde_json::to_string_pretty(v).ok())
+        // Use compiled_schema (works for all sources: inline, file, from_example)
+        let schema_str = self
+            .compiled_schema
+            .as_ref()
+            .and_then(|s| serde_json::to_string_pretty(s.as_ref()).ok())
             .unwrap_or_default();
 
         format!(
@@ -1070,6 +1069,21 @@ pub async fn validate_structured_output(
         layer_name: LAYER_2_NAME.to_string(),
         total_attempts: 1,
     });
+
+    // Apply key reordering for from_example (same as engine validate path)
+    if let Some(ref example_ref) = spec.from_example {
+        let example_value = match example_ref {
+            SchemaRef::Inline(v) => Some(v.clone()),
+            SchemaRef::File(_) => {
+                // File was already read above as example_value — but that's in a
+                // different scope. Re-read is acceptable here (standalone fn, rare path).
+                None
+            }
+        };
+        if let Some(ref ex) = example_value {
+            return Ok(reorder_keys_like_example(&json_value, ex));
+        }
+    }
 
     Ok(json_value)
 }

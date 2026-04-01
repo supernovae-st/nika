@@ -1538,9 +1538,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             if !has_observable_output && total_tasks > 1 {
                 println!(
                     "  {} {}\n",
-                    "⚠".yellow(),
-                    "No tasks have output: or artifact: config — results won't be persisted"
-                        .yellow()
+                    "ℹ".dimmed(),
+                    "Tip: add artifact: to tasks to persist results to files".dimmed()
                 );
             }
         }
