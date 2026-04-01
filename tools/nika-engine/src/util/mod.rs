@@ -20,10 +20,36 @@ pub use constants::{
 pub use fs::{atomic_write, check_preview_size, format_size};
 pub use interner::intern;
 
+/// Global registry of extra secret values for value-based redaction.
+///
+/// Populated at runtime with resolved `$env.*` binding values (e.g., custom API keys
+/// like `ELEVENLABS_API_KEY` that don't match known regex patterns).
+/// Checked by `redact_secrets()` after pattern-based redaction.
+static EXTRA_SECRETS: std::sync::LazyLock<std::sync::RwLock<Vec<String>>> =
+    std::sync::LazyLock::new(|| std::sync::RwLock::new(Vec::new()));
+
+/// Register extra secret values for value-based redaction.
+///
+/// Call this after resolving `$env.*` bindings to ensure custom API keys
+/// are redacted from traces even if they don't match known regex patterns.
+pub fn register_secrets(values: Vec<String>) {
+    if values.is_empty() {
+        return;
+    }
+    if let Ok(mut secrets) = EXTRA_SECRETS.write() {
+        for v in values {
+            if !secrets.contains(&v) {
+                secrets.push(v);
+            }
+        }
+    }
+}
+
 /// Redact known API key / secret patterns from a string.
 ///
 /// Matches common secret formats (OpenAI, Anthropic, GitHub, Slack, AWS, Groq,
 /// Google, xAI, Stripe, Twilio, database URIs) and replaces with `[REDACTED]`.
+/// Also redacts any values registered via `register_secrets()` (value-based redaction).
 /// Used by tracing, event logging, and security modules to avoid leaking secrets.
 pub fn redact_secrets(s: &str) -> String {
     use std::sync::LazyLock;
@@ -53,7 +79,18 @@ pub fn redact_secrets(s: &str) -> String {
         ))
         .expect("SECRET_RE is a valid regex")
     });
-    SECRET_RE.replace_all(s, "[REDACTED]").into_owned()
+    let mut result = SECRET_RE.replace_all(s, "[REDACTED]").into_owned();
+
+    // Value-based redaction: replace registered env-sourced secret values
+    if let Ok(secrets) = EXTRA_SECRETS.read() {
+        for secret in secrets.iter() {
+            if result.contains(secret.as_str()) {
+                result = result.replace(secret.as_str(), "[REDACTED]");
+            }
+        }
+    }
+
+    result
 }
 
 /// Truncate a string at a valid UTF-8 char boundary.

@@ -438,6 +438,27 @@ impl ResolvedBindings {
         Value::Object(map)
     }
 
+    /// Collect env-sourced secret values for value-based redaction in traces.
+    ///
+    /// Returns the actual string values of bindings resolved from `$env.*`.
+    /// The caller can use these to search-and-replace in trace output,
+    /// catching secrets that pattern-based redaction (`redact_secrets()`) misses
+    /// (e.g., custom API keys like `ELEVENLABS_API_KEY`).
+    pub fn env_sourced_values(&self) -> Vec<String> {
+        self.env_sourced
+            .iter()
+            .filter_map(|alias| {
+                self.bindings.get(alias).and_then(|b| match b {
+                    LazyBinding::Resolved(v) => match v {
+                        Value::String(s) if s.len() >= 8 => Some(s.clone()),
+                        _ => None,
+                    },
+                    _ => None,
+                })
+            })
+            .collect()
+    }
+
     /// Serialize context to JSON Value with env-sourced secrets masked.
     ///
     /// Same as `to_value()` but replaces env-sourced binding values with
