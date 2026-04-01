@@ -146,6 +146,8 @@ pub enum RigProvider {
         raw_base_url: String,
         /// Raw API key for direct HTTP calls
         raw_api_key: String,
+        /// M7: Shared HTTP client for raw calls (connection reuse)
+        http_client: reqwest::Client,
     },
     /// Native local provider - GGUF models via mistral.rs
     /// Requires `native-inference` feature and explicit model loading.
@@ -291,6 +293,7 @@ impl RigProvider {
             timeout_secs,
             raw_base_url: base_url.to_string(),
             raw_api_key: api_key.to_string(),
+            http_client: reqwest::Client::new(),
         })
     }
 
@@ -449,7 +452,9 @@ impl RigProvider {
     /// Bypasses rig-core deserialization entirely — extracts `choices[0].message.content`
     /// from the raw JSON response. This avoids deserialization failures with vLLM, Ollama,
     /// and other servers that add non-standard fields (annotations, reasoning, stop_reason).
+    #[allow(clippy::too_many_arguments)]
     async fn raw_openai_compat_infer(
+        http_client: &reqwest::Client,
         base_url: &str,
         api_key: &str,
         model: &str,
@@ -458,10 +463,7 @@ impl RigProvider {
         temperature: Option<f64>,
         timeout: std::time::Duration,
     ) -> Result<String, RigInferError> {
-        let url = format!(
-            "{}/chat/completions",
-            base_url.trim_end_matches('/')
-        );
+        let url = format!("{}/chat/completions", base_url.trim_end_matches('/'));
         let mut body = serde_json::json!({
             "model": model,
             "messages": messages,
@@ -471,8 +473,7 @@ impl RigProvider {
             body["temperature"] = serde_json::json!(temp);
         }
 
-        let client = reqwest::Client::new();
-        let mut req = client.post(&url).json(&body).timeout(timeout);
+        let mut req = http_client.post(&url).json(&body).timeout(timeout);
         if !api_key.is_empty() {
             req = req.bearer_auth(api_key);
         }
@@ -493,14 +494,19 @@ impl RigProvider {
         })?;
 
         if !status.is_success() {
+            // H2: Truncate error body to avoid leaking internal infra details
+            let truncated = if body_text.len() > 500 {
+                format!("{}...(truncated)", &body_text[..500])
+            } else {
+                body_text.clone()
+            };
             return Err(RigInferError::PromptError(format!(
-                "HTTP {status}: {body_text}"
+                "HTTP {status}: {truncated}"
             )));
         }
 
-        let json: serde_json::Value = serde_json::from_str(&body_text).map_err(|e| {
-            RigInferError::PromptError(format!("invalid JSON response: {e}"))
-        })?;
+        let json: serde_json::Value = serde_json::from_str(&body_text)
+            .map_err(|e| RigInferError::PromptError(format!("invalid JSON response: {e}")))?;
 
         json["choices"]
             .get(0)
@@ -624,11 +630,13 @@ impl RigProvider {
                 raw_base_url,
                 raw_api_key,
                 timeout_secs,
+                http_client,
                 ..
             } => {
                 let compat_timeout = std::time::Duration::from_secs(*timeout_secs);
                 let messages = vec![serde_json::json!({"role": "user", "content": prompt})];
                 Self::raw_openai_compat_infer(
+                    http_client,
                     raw_base_url,
                     raw_api_key,
                     model_id,
@@ -1085,6 +1093,7 @@ impl RigProvider {
                 raw_base_url,
                 raw_api_key,
                 timeout_secs,
+                http_client,
                 ..
             } => {
                 let compat_timeout = std::time::Duration::from_secs(*timeout_secs);
@@ -1094,6 +1103,7 @@ impl RigProvider {
                 }
                 messages.push(serde_json::json!({"role": "user", "content": user_prompt}));
                 Self::raw_openai_compat_infer(
+                    http_client,
                     raw_base_url,
                     raw_api_key,
                     model_id,
