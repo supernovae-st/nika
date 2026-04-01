@@ -80,13 +80,27 @@ impl EventBus {
 /// Subscribes to the event bus for the given job ID and streams events
 /// as they occur. Includes a keep-alive ping every 15 seconds.
 ///
-/// If the job doesn't exist, still opens a stream (the client may have
-/// connected before the job was created). If the job is already finished,
-/// the stream will end after replaying the terminal event from storage.
+/// Returns 404 if the job doesn't exist in storage and has no active
+/// event channel (BUG-5: prevents orphan channel creation).
 pub async fn stream_events(
     State(state): State<crate::state::AppState>,
     Path(job_id): Path<String>,
-) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, crate::error::ServeError> {
+    // BUG-5: Verify job exists before creating a channel
+    let has_channel = state.event_bus.channels.lock().await.contains_key(&job_id);
+    if !has_channel {
+        let job_exists = state
+            .storage
+            .get_job(&job_id)
+            .await
+            .ok()
+            .flatten()
+            .is_some();
+        if !job_exists {
+            return Err(crate::error::ServeError::NotFound);
+        }
+    }
+
     let rx = state.event_bus.subscribe(&job_id).await;
     let storage = state.storage.clone();
     let id = job_id.clone();
@@ -172,11 +186,11 @@ pub async fn stream_events(
         }
     };
 
-    Sse::new(stream).keep_alive(
+    Ok(Sse::new(stream).keep_alive(
         KeepAlive::new()
             .interval(Duration::from_secs(15))
             .text("ping"),
-    )
+    ))
 }
 
 #[cfg(test)]
