@@ -1438,27 +1438,28 @@ fn is_tui_mode(cli: &Cli) -> bool {
 }
 
 fn should_skip_auto_setup(cmd: &Option<Commands>) -> bool {
+    // Whitelist: only these commands trigger auto-setup.
+    // Everything else is headless, scriptable, or machine-internal.
+    // If you add a new command, it will NOT trigger setup by default — safe.
     match cmd {
+        // Bare `nika` (no subcommand) — interactive entry point.
         None => false,
-        // Machine-internal commands: no TTY, spawned by editors/scripts, must be fast.
-        #[cfg(feature = "lsp")]
-        Some(Commands::Lsp { .. }) => true,
-        Some(Commands::Completion { .. }) => true,
-        Some(Commands::Features) => true,
-        Some(Commands::Schema { .. }) => true,
-        // Background/low-level ops — no interactive setup output.
-        // NOTE: Daemon is NOT skipped — `nika daemon start` is the post-install
-        // entry point from install.sh and must trigger first-run setup silently.
+        // Doctor: checks health, auto-setup runs first so it can report accurately.
+        Some(Commands::Doctor { .. }) => false,
+        // Init: project setup — auto-setup ensures machine is ready first.
+        Some(Commands::Init { .. }) => false,
+        // Setup: explicit setup wizard — must trigger machine setup.
+        Some(Commands::Setup) => false,
+        // New: creating a workflow — user-facing, benefits from setup.
+        Some(Commands::New { .. }) => false,
+        // Daemon: `nika daemon start` is the post-install entry point
+        // from install.sh and must trigger first-run setup silently.
         #[cfg(unix)]
-        Some(Commands::Cache { .. }) => true,
-        #[cfg(unix)]
-        Some(Commands::Job { .. }) => true,
-        // Serve is a long-running server process — no interactive setup.
-        #[cfg(feature = "serve")]
-        Some(Commands::Serve { .. }) => true,
-        // Doctor and TUI are NOT skipped — both are major user entry points.
-        // Auto-setup runs before command dispatch, so output doesn't interfere.
-        _ => false,
+        Some(Commands::Daemon { .. }) => false,
+        // Everything else: headless, non-interactive, scriptable, or machine-internal.
+        // Run, Check, Infer, Fetch, Invoke, Agent, Bench, Serve, Lsp, Completion,
+        // Provider, Model, Config, Trace, Workflow, Pkg, Media, etc.
+        _ => true,
     }
 }
 
