@@ -2985,6 +2985,35 @@ async fn validate_workflow_strict(file: &str) -> Result<(), NikaError> {
     }
     let schemas_elapsed = t.elapsed();
 
+    // Phase 7: Provider API keys
+    let t = Instant::now();
+    let mut provider_warnings: Vec<String> = Vec::new();
+    {
+        let mut providers_used: std::collections::HashSet<String> =
+            std::collections::HashSet::new();
+        providers_used.insert(workflow.provider.to_string());
+
+        if let Ok(analyzed) = parse_analyzed(&yaml) {
+            for task in &analyzed.tasks {
+                if let Some(ref p) = task.provider {
+                    providers_used.insert(p.to_string());
+                }
+            }
+        }
+
+        for provider_name in &providers_used {
+            if let Some(provider) = nika::core::find_provider(provider_name) {
+                if provider.requires_key && !provider.has_env_key() {
+                    provider_warnings.push(format!(
+                        "{} not set (provider '{}' used in workflow)",
+                        provider.env_var, provider_name
+                    ));
+                }
+            }
+        }
+    }
+    let providers_elapsed = t.elapsed();
+
     // MCP parameter validation (strict mode)
     let invoke_tasks: Vec<_> = workflow
         .tasks
@@ -3214,6 +3243,27 @@ async fn validate_workflow_strict(file: &str) -> Result<(), NikaError> {
         errors: vec![],
         hints: vec![],
     });
+
+    // Phase 7: Provider API keys
+    if provider_warnings.is_empty() {
+        print_phase(&PhaseResult {
+            name: "providers",
+            passed: true,
+            detail: "all API keys present".to_string(),
+            duration_ms: providers_elapsed.as_millis() as u64,
+            errors: vec![],
+            hints: vec![],
+        });
+    } else {
+        print_phase(&PhaseResult {
+            name: "providers",
+            passed: false,
+            detail: format!("{} missing API key(s)", provider_warnings.len()),
+            duration_ms: providers_elapsed.as_millis() as u64,
+            errors: provider_warnings,
+            hints: vec!["Run 'nika provider set <name>' to configure API keys".to_string()],
+        });
+    }
 
     // MCP Validation section
     if !mcp_results.is_empty() {
