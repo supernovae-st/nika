@@ -73,7 +73,7 @@ pub async fn init_project(permission: &str, migrate_keys: bool) -> Result<(), Ni
 permission = "{}"
 
 [provider]
-default = "claude"
+default = "anthropic"
 # model = "claude-sonnet-4-6"
 "#,
         permission_mode

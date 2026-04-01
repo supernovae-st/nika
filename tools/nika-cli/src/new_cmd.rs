@@ -51,7 +51,7 @@ pub fn handle_new_command(
         .map(|p| {
             Provider::from_name(&p).ok_or_else(|| NikaError::ValidationError {
                 reason: format!(
-                    "Unknown provider: '{p}'. Valid: claude, openai, mistral, groq, deepseek, native"
+                    "Unknown provider: '{p}'. Valid: anthropic, openai, mistral, groq, deepseek, gemini, xai, native, mock"
                 ),
             })
         })

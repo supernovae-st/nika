@@ -175,7 +175,7 @@ enum Commands {
     #[cfg(feature = "tui")]
     #[command(next_help_heading = "INTERACTIVE", visible_alias = "c")]
     Chat {
-        /// LLM provider: claude, openai, mistral, groq, deepseek, native
+        /// LLM provider: anthropic, openai, mistral, groq, deepseek, gemini, xai, native
         #[arg(short, long, value_name = "NAME")]
         provider: Option<String>,
 
@@ -607,7 +607,7 @@ enum Commands {
         #[arg(long, value_name = "VERB")]
         verb: Option<String>,
 
-        /// LLM provider (claude, openai, mistral, groq, deepseek, native)
+        /// LLM provider (anthropic, openai, mistral, groq, deepseek, gemini, xai, native, mock)
         #[arg(short, long, value_name = "PROVIDER")]
         provider: Option<String>,
 
