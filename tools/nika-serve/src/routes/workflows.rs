@@ -87,6 +87,26 @@ pub async fn run_workflow(
         )));
     }
 
+    // Validate input keys before acquiring a slot (BUG-6)
+    if let Some(inputs) = &req.inputs {
+        if let Some(obj) = inputs.as_object() {
+            for key in obj.keys() {
+                if !key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+                    || key.is_empty()
+                {
+                    return Err(ServeError::InvalidWorkflow(format!(
+                        "invalid input key: {key}"
+                    )));
+                }
+            }
+            if obj.len() > 64 {
+                return Err(ServeError::InvalidWorkflow(
+                    "too many inputs (max 64)".into(),
+                ));
+            }
+        }
+    }
+
     // Atomic check-and-increment via CAS loop (race-free, no DB queries)
     let max_queued = state.config.max_concurrent * 3;
     try_acquire_job_slot(&state.active_jobs, max_queued)?;
@@ -94,8 +114,13 @@ pub async fn run_workflow(
     // Generate job ID — full 128-bit UUID in simple (no-hyphen) format
     let job_id = uuid::Uuid::new_v4().simple().to_string();
 
-    // Persist job
-    state.storage.create_job(&job_id, &req.workflow).await?;
+    // Persist job — decrement counter on failure (BUG-4)
+    if let Err(e) = state.storage.create_job(&job_id, &req.workflow).await {
+        state
+            .active_jobs
+            .fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+        return Err(e.into());
+    }
 
     info!(job_id = %job_id, workflow = %req.workflow, "job created");
 
