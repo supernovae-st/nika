@@ -110,15 +110,17 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
 
     // Build router with middleware
     // SSE route is separate — long-lived streams must NOT have the 30s TimeoutLayer (C1).
-    // Order (innermost → outermost): auth → rate-limit → body-limit → timeout → request-id
+    // M3: Auth runs BEFORE rate-limit so unauthenticated requests don't grow DashMap.
+    // Axum layers: outermost (added last) runs first in request path.
+    // Execution order: request-id → timeout → body-limit → auth → rate-limit → handler
     let api_routes = routes::build_router(state.clone())
-        .layer(middleware::from_fn_with_state(
-            state.clone(),
-            auth::require_auth,
-        ))
         .layer(middleware::from_fn_with_state(
             limiter.clone(),
             rate_limit::rate_limit_middleware,
+        ))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth::require_auth,
         ))
         .layer(RequestBodyLimitLayer::new(10 * 1024 * 1024)) // 10 MB body limit
         .layer(TimeoutLayer::with_status_code(
@@ -127,15 +129,15 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
         ))
         .layer(middleware::from_fn(request_id::request_id_middleware));
 
-    // SSE router: same auth + rate-limit + request-id, but NO TimeoutLayer (C1)
+    // SSE router: auth → rate-limit, NO TimeoutLayer (C1)
     let sse_routes = routes::build_sse_router(state.clone())
-        .layer(middleware::from_fn_with_state(
-            state.clone(),
-            auth::require_auth,
-        ))
         .layer(middleware::from_fn_with_state(
             limiter,
             rate_limit::rate_limit_middleware,
+        ))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth::require_auth,
         ))
         .layer(middleware::from_fn(request_id::request_id_middleware));
 
@@ -143,22 +145,18 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
 
     // Merge /metrics endpoint (behind auth — metrics can leak sensitive info)
     if let Some(handle) = metrics_handle {
-        app = app.merge(
-            routes::build_metrics_router(handle).layer(middleware::from_fn_with_state(
-                state.clone(),
-                auth::require_auth,
-            )),
-        );
+        app = app.merge(routes::build_metrics_router(handle).layer(
+            middleware::from_fn_with_state(state.clone(), auth::require_auth),
+        ));
     }
 
     // CORS layer — only when explicitly configured (default: no CORS headers)
     if let Some(origin) = &config.cors_origin {
+        let header_value = origin.parse::<axum::http::HeaderValue>().map_err(|e| {
+            ServeError::Config(format!("invalid NIKA_SERVE_CORS_ORIGIN '{origin}': {e}"))
+        })?;
         let cors = CorsLayer::new()
-            .allow_origin(
-                origin
-                    .parse::<axum::http::HeaderValue>()
-                    .expect("invalid CORS origin"),
-            )
+            .allow_origin(header_value)
             .allow_methods([axum::http::Method::GET, axum::http::Method::POST])
             .allow_headers([
                 axum::http::header::AUTHORIZATION,
@@ -270,10 +268,13 @@ async fn drain_workers(workers: Arc<Mutex<HashMap<String, state::WorkerHandle>>>
     let abort_handles: Vec<tokio::task::AbortHandle> =
         join_handles.iter().map(|h| h.abort_handle()).collect();
 
-    let drain_future = async {
-        for (i, handle) in join_handles.into_iter().enumerate() {
-            if let Err(e) = handle.await {
-                tracing::warn!(job_id = %ids[i], error = %e, "worker panicked during drain");
+    // H4: Drain all workers in parallel (not sequentially) so each gets the full 30s
+    let ids_clone = ids.clone();
+    let drain_future = async move {
+        let results = futures_util::future::join_all(join_handles).await;
+        for (i, result) in results.into_iter().enumerate() {
+            if let Err(e) = result {
+                tracing::warn!(job_id = %ids_clone[i], error = %e, "worker panicked during drain");
             }
         }
     };
