@@ -73,9 +73,9 @@ async fn read_body_with_limit(
         }
         buffer.extend_from_slice(&chunk);
     }
-    String::from_utf8(buffer).map_err(|e| NikaError::FetchError {
-        reason: format!("Response body is not valid UTF-8: {e}"),
-    })
+    // Use lossy conversion: non-UTF8 bytes (e.g., ISO-8859-1 pages) become
+    // replacement characters rather than failing the entire fetch.
+    Ok(String::from_utf8_lossy(&buffer).into_owned())
 }
 
 /// Read binary response body with a streaming size limit.

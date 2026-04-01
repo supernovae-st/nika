@@ -142,6 +142,10 @@ pub enum RigProvider {
         cached_name: String,
         /// Request timeout in seconds (from config.toml endpoint or default 300)
         timeout_secs: u64,
+        /// Raw base URL for direct HTTP calls (bypasses rig-core deserialization)
+        raw_base_url: String,
+        /// Raw API key for direct HTTP calls
+        raw_api_key: String,
     },
     /// Native local provider - GGUF models via mistral.rs
     /// Requires `native-inference` feature and explicit model loading.
@@ -285,6 +289,8 @@ impl RigProvider {
             default_model: default_model.map(|s| s.to_string()),
             cached_name,
             timeout_secs,
+            raw_base_url: base_url.to_string(),
+            raw_api_key: api_key.to_string(),
         })
     }
 
@@ -438,6 +444,75 @@ impl RigProvider {
         nika_core::catalogs::default_model_for_provider(self.name()).unwrap_or("claude-sonnet-4-6")
     }
 
+    /// Raw HTTP completion for OpenAI-compatible endpoints.
+    ///
+    /// Bypasses rig-core deserialization entirely — extracts `choices[0].message.content`
+    /// from the raw JSON response. This avoids deserialization failures with vLLM, Ollama,
+    /// and other servers that add non-standard fields (annotations, reasoning, stop_reason).
+    async fn raw_openai_compat_infer(
+        base_url: &str,
+        api_key: &str,
+        model: &str,
+        messages: Vec<serde_json::Value>,
+        max_tokens: u64,
+        temperature: Option<f64>,
+        timeout: std::time::Duration,
+    ) -> Result<String, RigInferError> {
+        let url = format!(
+            "{}/chat/completions",
+            base_url.trim_end_matches('/')
+        );
+        let mut body = serde_json::json!({
+            "model": model,
+            "messages": messages,
+            "max_tokens": max_tokens,
+        });
+        if let Some(temp) = temperature {
+            body["temperature"] = serde_json::json!(temp);
+        }
+
+        let client = reqwest::Client::new();
+        let mut req = client.post(&url).json(&body).timeout(timeout);
+        if !api_key.is_empty() {
+            req = req.bearer_auth(api_key);
+        }
+
+        let resp = req.send().await.map_err(|e| {
+            if e.is_timeout() {
+                RigInferError::Timeout {
+                    duration_ms: timeout.as_millis() as u64,
+                }
+            } else {
+                RigInferError::PromptError(format!("HTTP error: {e}"))
+            }
+        })?;
+
+        let status = resp.status();
+        let body_text = resp.text().await.map_err(|e| {
+            RigInferError::PromptError(format!("failed to read response body: {e}"))
+        })?;
+
+        if !status.is_success() {
+            return Err(RigInferError::PromptError(format!(
+                "HTTP {status}: {body_text}"
+            )));
+        }
+
+        let json: serde_json::Value = serde_json::from_str(&body_text).map_err(|e| {
+            RigInferError::PromptError(format!("invalid JSON response: {e}"))
+        })?;
+
+        json["choices"]
+            .get(0)
+            .and_then(|c| c["message"]["content"].as_str())
+            .map(|s| s.to_string())
+            .ok_or_else(|| {
+                RigInferError::PromptError(
+                    "no content in response choices[0].message.content".into(),
+                )
+            })
+    }
+
     /// Simple text completion (infer) using rig-core
     ///
     /// # Arguments
@@ -546,21 +621,23 @@ impl RigProvider {
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
             RigProvider::OpenAiCompat {
-                client,
+                raw_base_url,
+                raw_api_key,
                 timeout_secs,
                 ..
             } => {
                 let compat_timeout = std::time::Duration::from_secs(*timeout_secs);
-                let agent = client
-                    .agent(model_id)
-                    .max_tokens(effective_max_tokens)
-                    .build();
-                timeout(compat_timeout, agent.prompt(prompt))
-                    .await
-                    .map_err(|_| RigInferError::Timeout {
-                        duration_ms: compat_timeout.as_millis() as u64,
-                    })?
-                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
+                let messages = vec![serde_json::json!({"role": "user", "content": prompt})];
+                Self::raw_openai_compat_infer(
+                    raw_base_url,
+                    raw_api_key,
+                    model_id,
+                    messages,
+                    effective_max_tokens,
+                    None,
+                    compat_timeout,
+                )
+                .await
             }
             #[cfg(feature = "native-inference")]
             RigProvider::Native(runtime) => {
@@ -1005,28 +1082,27 @@ impl RigProvider {
             RigProvider::Gemini(client) => build_and_prompt!(client),
             RigProvider::XAi(client) => build_and_prompt!(client),
             RigProvider::OpenAiCompat {
-                client,
+                raw_base_url,
+                raw_api_key,
                 timeout_secs,
                 ..
             } => {
                 let compat_timeout = std::time::Duration::from_secs(*timeout_secs);
-                let mut builder = client.agent(model_id).max_tokens(max_tokens as u64);
+                let mut messages = Vec::new();
                 if let Some(system) = &options.system {
-                    builder = builder.preamble(system);
+                    messages.push(serde_json::json!({"role": "system", "content": system}));
                 }
-                if let Some(temp) = effective_temperature {
-                    builder = builder.temperature(temp);
-                }
-                if let Some(ref params) = options.additional_params {
-                    builder = builder.additional_params(params.clone());
-                }
-                let agent = builder.build();
-                timeout(compat_timeout, agent.prompt(&user_prompt))
-                    .await
-                    .map_err(|_| RigInferError::Timeout {
-                        duration_ms: compat_timeout.as_millis() as u64,
-                    })?
-                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
+                messages.push(serde_json::json!({"role": "user", "content": user_prompt}));
+                Self::raw_openai_compat_infer(
+                    raw_base_url,
+                    raw_api_key,
+                    model_id,
+                    messages,
+                    max_tokens as u64,
+                    effective_temperature,
+                    compat_timeout,
+                )
+                .await
             }
             #[cfg(feature = "native-inference")]
             RigProvider::Native(runtime) => {
