@@ -448,6 +448,16 @@ pub async fn handle_provider_command(
                             StatusIcon::Ok,
                             provider.bold()
                         );
+                        // CLI-10: Warn if env var will override
+                        if std::env::var(env_var_name).is_ok_and(|v| !v.is_empty() && v != api_key)
+                        {
+                            println!(
+                                "  {} {} found in environment — it will override the daemon key",
+                                StatusIcon::Warn,
+                                env_var_name.bold()
+                            );
+                            println!("{}", hint(&format!("Remove it: unset {env_var_name}")));
+                        }
                         if !no_test
                             && is_tty
                             && cliclack::confirm("Test connection now?")
@@ -475,6 +485,19 @@ pub async fn handle_provider_command(
                 StatusIcon::Ok,
                 provider.bold()
             );
+            // CLI-10: Warn if env var will override vault key
+            let env_var = provider_to_env_var(&provider).unwrap_or("UNKNOWN_API_KEY");
+            if std::env::var(env_var).is_ok_and(|v| !v.is_empty()) {
+                println!(
+                    "  {} {} found in environment — it will override the vault key at runtime",
+                    StatusIcon::Warn,
+                    env_var.bold()
+                );
+                println!(
+                    "{}",
+                    hint(&format!("Remove it: unset {env_var}"))
+                );
+            }
             if !no_test
                 && is_tty
                 && cliclack::confirm("Test connection now?")
