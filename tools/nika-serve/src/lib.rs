@@ -155,8 +155,9 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
         }
     });
 
-    // Graceful shutdown signal
-    let shutdown_signal = async {
+    // Graceful shutdown signal — notify workers IMMEDIATELY on signal,
+    // not after Axum finishes draining connections (BUG-3).
+    let shutdown_signal = async move {
         // ERRATA-18: If signal setup fails, use pending (never completes => manual kill only)
         #[cfg(unix)]
         {
@@ -190,6 +191,9 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
                 Err(_) => std::future::pending::<()>().await,
             }
         }
+
+        info!("shutdown signal received, notifying workers");
+        let _ = shutdown_tx.send(true);
     };
 
     // Serve with graceful shutdown
@@ -200,10 +204,7 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
 
     info!("server stopped, draining workers...");
 
-    // Signal shutdown to workers
-    let _ = shutdown_tx.send(true);
-
-    // Drain active workers with a 30s timeout
+    // Workers already notified via shutdown_tx in signal handler — just drain
     drain_workers(state.workers.clone()).await;
 
     info!("all workers drained, goodbye");
