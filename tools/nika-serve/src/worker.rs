@@ -287,11 +287,15 @@ pub(crate) async fn run_subprocess(
     let home = std::env::var("HOME").unwrap_or_default();
     let nika_vars: Vec<(String, String)> = std::env::vars()
         .filter(|(k, _)| {
-            k.ends_with("_API_KEY")
-                || k.ends_with("_KEY")
+            k == "ANTHROPIC_API_KEY"
+                || k == "OPENAI_API_KEY"
+                || k == "XAI_API_KEY"
+                || k == "GEMINI_API_KEY"
+                || k == "MISTRAL_API_KEY"
+                || k == "GROQ_API_KEY"
+                || k == "DEEPSEEK_API_KEY"
                 || k == "RUST_LOG"
                 || k == "NIKA_NO_DAEMON"
-                || k == "NIKA_VAULT_PASSPHRASE"
                 || k.starts_with("NIKA_ENDPOINT_")
         })
         .collect();
