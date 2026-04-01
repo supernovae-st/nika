@@ -798,14 +798,26 @@ Current verb display:
   [dim]|__[/dim] 523ms [dim]|[/dim] 1200 tokens [dim]|[/dim] $0.0045
 ```
 
+### Research Basis
+
+Report: `docs/research/2026-04-01-cli-ai-output-ux-patterns.md` (analyzed Ollama, llm, aichat, mods, httpie, xh, bat, glow, sgpt, gh copilot).
+
+Key findings:
+- `syntect` (v5.3) is THE library for JSON + Markdown highlighting (used by bat, aichat, xh) — one dep covers all needs
+- Streaming architecture (aichat 50ms batch) is gold standard but SEPARATE sprint — not in scope here
+- Thinking state: Ollama's "Thinking... / ...done thinking." grey+dimmed pattern is cleanest
+- Nika's metadata footer (tokens/cost/TTFT) is already best-in-class vs competition
+- TTY vs pipe: stdout = pure output, metadata on stderr — Nika already correct
+
 ### Design Principles for Inline Verbs
 
 1. TTY = rich, pipe = raw. Already implemented via `is_terminal()` check. Preserve this.
-2. No streaming in this sprint. Streaming infer/agent is a separate project (needs tokio channels). Instead: add spinner during inference, dump result at once.
-3. Pretty-print JSON. When output is JSON (structured, invoke, fetch metadata), pretty-print with syntax colors on TTY.
+2. No streaming in this sprint. Streaming infer/agent is a separate project (needs tokio channels, aichat-style 50ms batch architecture). Instead: add spinner during inference, dump result at once.
+3. Pretty-print JSON with syntect. When output is JSON (structured, invoke, fetch metadata), syntax-highlight with embedded Monokai theme on TTY.
 4. Show TTFT. Extract from EventLog `ProviderResponded` event. Show in footer.
 5. Spinner during LLM calls. Use existing indicatif braille spinner for infer/agent while waiting.
 6. Cost always visible. Use cost color from colors.rs (green cheap, yellow moderate, red expensive).
+7. Extended thinking indicator. When `extended_thinking: true`, show "Thinking..." (dimmed) during thinking phase, "...done thinking." when response starts (Ollama pattern).
 
 ### Verb Improvements
 
@@ -891,7 +903,7 @@ FOOTER: TTFT Xms | Yms | Z tokens | $cost | extra_info (cost uses semantic color
 | `nika-cli/src/config.rs` (332 lines) | config list structured display (touched in Phase 1) |
 | `nika-engine/src/display/cli_format.rs` (299 lines) | Add verb_header(), verb_footer() helpers |
 | `nika-engine/src/display/colors.rs` (150 lines) | Add json_highlight() for pretty JSON |
-| Cargo.toml (workspace) | Add comfy-table = "7", textwrap = "0.16" |
+| Cargo.toml (workspace) | Add comfy-table = "7", textwrap = "0.16", syntect = "5.3" |
 
 ### TDD Tests (Phase 10)
 
