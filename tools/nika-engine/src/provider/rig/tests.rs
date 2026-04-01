@@ -1465,3 +1465,369 @@ fn test_openai_compat_cost_not_zero() {
         "Cost should be non-zero for known model via OpenAiCompat"
     );
 }
+
+// =========================================================================
+// vLLM response handling: raw_openai_compat_infer
+// =========================================================================
+
+/// Verify that raw_openai_compat_infer extracts content from a vLLM response
+/// that includes non-standard fields (annotations, reasoning, stop_reason,
+/// token_ids, kv_transfer_params, etc.) which crash rig-core deserialization.
+#[tokio::test]
+async fn test_raw_openai_compat_infer_vllm_response() {
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    let server = MockServer::start().await;
+    let vllm_response = serde_json::json!({
+        "id": "chatcmpl-test",
+        "object": "chat.completion",
+        "created": 1712000000,
+        "model": "qwen3.5-27b",
+        "system_fingerprint": null,
+        "choices": [{
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "{\"name\":\"Rust\",\"category\":\"Systems\"}",
+                "refusal": null,
+                "annotations": null,
+                "audio": null,
+                "function_call": null,
+                "tool_calls": [],
+                "reasoning": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "stop_reason": null,
+            "token_ids": null
+        }],
+        "usage": {
+            "prompt_tokens": 80,
+            "total_tokens": 95,
+            "completion_tokens": 15,
+            "prompt_tokens_details": null
+        },
+        "service_tier": null,
+        "prompt_logprobs": null,
+        "prompt_token_ids": null,
+        "kv_transfer_params": null
+    });
+
+    Mock::given(method("POST"))
+        .and(path("/v1/chat/completions"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&vllm_response))
+        .mount(&server)
+        .await;
+
+    let http_client = reqwest::Client::new();
+    let messages = vec![serde_json::json!({"role": "user", "content": "test"})];
+    let base_url = format!("{}/v1", server.uri());
+    let result = RigProvider::raw_openai_compat_infer(
+        &http_client,
+        &base_url,
+        "",
+        "qwen3.5-27b",
+        messages,
+        100,
+        None,
+        std::time::Duration::from_secs(10),
+    )
+    .await;
+
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+    let (content, prompt_tokens, completion_tokens) = result.unwrap();
+    assert_eq!(content, "{\"name\":\"Rust\",\"category\":\"Systems\"}");
+    assert_eq!(prompt_tokens, 80);
+    assert_eq!(completion_tokens, 15);
+}
+
+/// Verify that raw_openai_compat_infer handles vLLM responses with
+/// <think>...</think> tags (Qwen reasoning) in content.
+#[tokio::test]
+async fn test_raw_openai_compat_infer_vllm_with_think_tags() {
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    let server = MockServer::start().await;
+    let vllm_response = serde_json::json!({
+        "id": "chatcmpl-think",
+        "object": "chat.completion",
+        "created": 1712000000,
+        "model": "qwen3.5-27b",
+        "choices": [{
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "<think>\nLet me think about this...\n</think>\n{\"name\":\"Python\"}",
+                "refusal": null,
+                "annotations": null,
+                "reasoning": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "stop_reason": null
+        }],
+        "usage": { "prompt_tokens": 50, "total_tokens": 80, "completion_tokens": 30 }
+    });
+
+    Mock::given(method("POST"))
+        .and(path("/v1/chat/completions"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&vllm_response))
+        .mount(&server)
+        .await;
+
+    let http_client = reqwest::Client::new();
+    let messages = vec![serde_json::json!({"role": "user", "content": "test"})];
+    let base_url = format!("{}/v1", server.uri());
+    let result = RigProvider::raw_openai_compat_infer(
+        &http_client,
+        &base_url,
+        "",
+        "qwen3.5-27b",
+        messages,
+        100,
+        None,
+        std::time::Duration::from_secs(10),
+    )
+    .await;
+
+    // raw_openai_compat_infer returns the raw content; strip_think_tags is
+    // applied by the caller (make_infer_callback).
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+    let (content, _, _) = result.unwrap();
+    assert!(content.contains("{\"name\":\"Python\"}"));
+}
+
+/// Verify that raw_openai_compat_infer returns an error for HTTP failures.
+#[tokio::test]
+async fn test_raw_openai_compat_infer_http_error() {
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/chat/completions"))
+        .respond_with(
+            ResponseTemplate::new(429).set_body_string("rate limited"),
+        )
+        .mount(&server)
+        .await;
+
+    let http_client = reqwest::Client::new();
+    let messages = vec![serde_json::json!({"role": "user", "content": "test"})];
+    let base_url = format!("{}/v1", server.uri());
+    let result = RigProvider::raw_openai_compat_infer(
+        &http_client,
+        &base_url,
+        "",
+        "qwen3.5-27b",
+        messages,
+        100,
+        None,
+        std::time::Duration::from_secs(10),
+    )
+    .await;
+
+    assert!(result.is_err());
+    let err = result.unwrap_err().to_string();
+    assert!(err.contains("429"), "Error should mention status: {err}");
+}
+
+/// Verify that raw_openai_compat_infer sends bearer auth when api_key is set.
+#[tokio::test]
+async fn test_raw_openai_compat_infer_sends_auth_header() {
+    use wiremock::matchers::{header, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    let server = MockServer::start().await;
+    let response = serde_json::json!({
+        "id": "chatcmpl-auth",
+        "object": "chat.completion",
+        "created": 1712000000,
+        "model": "qwen3.5-27b",
+        "choices": [{
+            "index": 0,
+            "message": { "role": "assistant", "content": "ok" },
+            "logprobs": null,
+            "finish_reason": "stop"
+        }],
+        "usage": { "prompt_tokens": 10, "total_tokens": 11, "completion_tokens": 1 }
+    });
+
+    Mock::given(method("POST"))
+        .and(path("/v1/chat/completions"))
+        .and(header("Authorization", "Bearer my-secret-key"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&response))
+        .mount(&server)
+        .await;
+
+    let http_client = reqwest::Client::new();
+    let messages = vec![serde_json::json!({"role": "user", "content": "test"})];
+    let base_url = format!("{}/v1", server.uri());
+    let result = RigProvider::raw_openai_compat_infer(
+        &http_client,
+        &base_url,
+        "my-secret-key",
+        "qwen3.5-27b",
+        messages,
+        100,
+        None,
+        std::time::Duration::from_secs(10),
+    )
+    .await;
+
+    assert!(result.is_ok(), "Auth should work: {:?}", result.err());
+    let (content, _, _) = result.unwrap();
+    assert_eq!(content, "ok");
+}
+
+/// Test infer_with_tools raw HTTP path for OpenAiCompat: extracts tool_calls
+/// arguments from vLLM response without going through rig-core deserialization.
+#[tokio::test]
+async fn test_openai_compat_infer_with_tools_raw_http() {
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    let server = MockServer::start().await;
+    let vllm_tool_response = serde_json::json!({
+        "id": "chatcmpl-tools",
+        "object": "chat.completion",
+        "created": 1712000000,
+        "model": "qwen3.5-27b",
+        "choices": [{
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": null,
+                "tool_calls": [{
+                    "id": "call_123",
+                    "type": "function",
+                    "function": {
+                        "name": "submit_result",
+                        "arguments": "{\"name\":\"Rust\",\"age\":30}"
+                    }
+                }],
+                "refusal": null,
+                "annotations": null,
+                "reasoning": null
+            },
+            "logprobs": null,
+            "finish_reason": "tool_calls",
+            "stop_reason": null,
+            "token_ids": null
+        }],
+        "usage": {
+            "prompt_tokens": 120,
+            "total_tokens": 150,
+            "completion_tokens": 30,
+            "prompt_tokens_details": null
+        },
+        "kv_transfer_params": null
+    });
+
+    Mock::given(method("POST"))
+        .and(path("/v1/chat/completions"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(&vllm_tool_response),
+        )
+        .mount(&server)
+        .await;
+
+    let provider = RigProvider::openai_compat(
+        "h100",
+        &format!("{}/v1", server.uri()),
+        "test-key",
+        Some("qwen3.5-27b"),
+        300,
+    )
+    .unwrap();
+
+    let schema = serde_json::json!({
+        "type": "object",
+        "properties": {
+            "name": { "type": "string" },
+            "age": { "type": "number" }
+        },
+        "required": ["name", "age"]
+    });
+    let submit_tool =
+        crate::runtime::submit_tool::DynamicSubmitTool::new(schema);
+    let tools: Vec<Box<dyn rig::tool::ToolDyn>> = vec![Box::new(submit_tool)];
+
+    let result = provider
+        .infer_with_tools("Extract info", tools, None, None, None)
+        .await;
+
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+    let json: serde_json::Value =
+        serde_json::from_str(&result.unwrap()).unwrap();
+    assert_eq!(json["name"], "Rust");
+    assert_eq!(json["age"], 30);
+}
+
+/// Test infer_with_tools fallback: when vLLM responds with content instead
+/// of tool_calls (some models don't support tool calling).
+#[tokio::test]
+async fn test_openai_compat_infer_with_tools_content_fallback() {
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    let server = MockServer::start().await;
+    let vllm_no_tools_response = serde_json::json!({
+        "id": "chatcmpl-notool",
+        "object": "chat.completion",
+        "created": 1712000000,
+        "model": "qwen3.5-27b",
+        "choices": [{
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "{\"name\":\"Python\",\"age\":25}",
+                "tool_calls": [],
+                "refusal": null,
+                "annotations": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "stop_reason": null
+        }],
+        "usage": { "prompt_tokens": 80, "total_tokens": 100, "completion_tokens": 20 }
+    });
+
+    Mock::given(method("POST"))
+        .and(path("/v1/chat/completions"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(&vllm_no_tools_response),
+        )
+        .mount(&server)
+        .await;
+
+    let provider = RigProvider::openai_compat(
+        "h100",
+        &format!("{}/v1", server.uri()),
+        "test-key",
+        Some("qwen3.5-27b"),
+        300,
+    )
+    .unwrap();
+
+    let schema = serde_json::json!({
+        "type": "object",
+        "properties": { "name": { "type": "string" } },
+        "required": ["name"]
+    });
+    let submit_tool =
+        crate::runtime::submit_tool::DynamicSubmitTool::new(schema);
+    let tools: Vec<Box<dyn rig::tool::ToolDyn>> = vec![Box::new(submit_tool)];
+
+    let result = provider
+        .infer_with_tools("Extract info", tools, None, None, None)
+        .await;
+
+    // Falls back to content field when tool_calls is empty
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+    let json: serde_json::Value =
+        serde_json::from_str(&result.unwrap()).unwrap();
+    assert_eq!(json["name"], "Python");
+}
