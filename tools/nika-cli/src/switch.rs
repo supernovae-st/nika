@@ -175,11 +175,10 @@ pub async fn do_setup(quiet: bool) -> Result<(), NikaError> {
 
     // 5. Create symlink — default to dev
     let channel = "dev";
-    let target = &dev_binary;
     let symlink_path = bin_dir.join("nika");
     let _ = std::fs::remove_file(&symlink_path);
     #[cfg(unix)]
-    std::os::unix::fs::symlink(target, &symlink_path)
+    std::os::unix::fs::symlink(&dev_binary, &symlink_path)
         .map_err(|e| NikaError::Execution(format!("Failed to create symlink: {e}")))?;
     std::fs::write(nika_dir.join("channel"), channel)
         .map_err(|e| NikaError::Execution(format!("Failed to write channel file: {e}")))?;
@@ -333,7 +332,8 @@ fn do_switch(nika_dir: &Path, target: &str, quiet: bool) -> Result<(), NikaError
         });
     }
 
-    // Resolve target binary
+    // Resolve + validate target binary (Unix: used for symlink; Windows: validation only)
+    #[allow(unused_variables)]
     let target_binary = match target {
         "dev" => {
             let p = bin_dir.join("nika-dev");

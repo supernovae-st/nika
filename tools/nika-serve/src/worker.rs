@@ -376,15 +376,14 @@ pub(crate) async fn run_subprocess(
 
         // FIX-5: Shutdown signal — kill subprocess and fail job
         _ = shutdown_rx.changed() => {
+            #[cfg(unix)]
             if let Some(pid) = child.id() {
-                #[cfg(unix)]
                 kill_process_group(pid, nix::sys::signal::Signal::SIGTERM);
                 tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-                #[cfg(unix)]
                 kill_process_group(pid, nix::sys::signal::Signal::SIGKILL);
-                #[cfg(not(unix))]
-                { let _ = child.kill().await; }
             }
+            #[cfg(not(unix))]
+            { let _ = child.kill().await; }
             Err("server shutting down".into())
         }
     }
