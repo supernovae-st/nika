@@ -143,7 +143,7 @@ pub async fn handle_provider_command(
                 }
             };
             #[cfg(not(unix))]
-            let daemon_client: Option<()> = None;
+            let _daemon_client: Option<()> = None;
 
             let vault = get_vault();
 

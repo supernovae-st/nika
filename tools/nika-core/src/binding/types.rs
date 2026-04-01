@@ -163,11 +163,14 @@ impl BindingPath {
         let rest = trimmed.strip_prefix('$').ok_or_else(|| {
             // E10: detect {{...}} template syntax and give a helpful suggestion
             let reason = if trimmed.starts_with("{{") || trimmed.contains("{{") {
-                "template syntax {{...}} is not valid in with: bindings. \
-                 Use binding syntax instead, e.g.: name: $task_id | transform"
+                "Template syntax {{...}} is not valid in with: bindings. \
+                 Use $task_id | transform syntax instead. \
+                 Example: data: $my_task | upper"
                     .to_string()
             } else {
-                "binding paths must start with '$'".to_string()
+                "with: binding paths must start with '$'. \
+                 Example: data: $task_id | transform"
+                    .to_string()
             };
             BindingPathError {
                 input: trimmed.to_string(),
@@ -949,7 +952,7 @@ mod tests {
         // E10: {{...}} in with: blocks should suggest $ syntax
         let err = BindingPath::parse("{{inputs.name | upper}}").unwrap_err();
         assert!(
-            err.reason.contains("template syntax"),
+            err.reason.to_lowercase().contains("template syntax"),
             "error should mention template syntax: {}",
             err.reason
         );
