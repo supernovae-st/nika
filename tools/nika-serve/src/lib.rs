@@ -111,8 +111,11 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
     // Install Prometheus metrics recorder
     let metrics_handle = metrics::install_recorder();
 
-    // Per-token rate limiter (10 req/s, burst 30)
-    let limiter = rate_limit::new_rate_limiter();
+    // Per-token rate limiter (configurable via env/nika.toml)
+    let limiter = rate_limit::new_rate_limiter_with(
+        config.rate_per_second as u32,
+        config.rate_burst,
+    );
 
     // Build router with middleware
     // SSE route is separate — long-lived streams must NOT have the 30s TimeoutLayer (C1).
@@ -180,14 +183,14 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
 
     info!(bind = %config.bind, max_concurrent = config.max_concurrent, "nika serve starting");
 
-    // Spawn background job GC (every hour, delete terminal jobs > 7 days)
+    // Spawn background job GC (configurable interval + retention)
     let gc_storage = state.storage.clone();
+    let gc_interval = std::time::Duration::from_secs(config.gc_interval_secs);
+    let gc_retention = config.gc_retention_secs;
     tokio::spawn(async move {
-        const GC_INTERVAL: std::time::Duration = std::time::Duration::from_secs(3600);
-        const MAX_AGE_SECS: u64 = 7 * 24 * 3600; // 7 days
         loop {
-            tokio::time::sleep(GC_INTERVAL).await;
-            match gc_storage.delete_old_jobs(MAX_AGE_SECS).await {
+            tokio::time::sleep(gc_interval).await;
+            match gc_storage.delete_old_jobs(gc_retention).await {
                 Ok(0) => {}
                 Ok(n) => info!(count = n, "job GC: deleted old jobs"),
                 Err(e) => tracing::warn!(error = %e, "job GC failed"),
@@ -371,6 +374,10 @@ mod tests {
             auth_token: "test-token-1234567890abcdef1234567".into(), // >=32 chars
             cors_origin: None,
             executor_mode: config::ExecutorMode::Embedded,
+            rate_per_second: 10,
+            rate_burst: 30,
+            gc_retention_secs: 7 * 24 * 3600,
+            gc_interval_secs: 3600,
         };
 
         let state = AppState {

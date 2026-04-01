@@ -153,6 +153,10 @@ mod tests {
             auth_token: "test-token-1234567890abcdef1234567".into(),
             cors_origin: None,
             executor_mode: crate::config::ExecutorMode::Embedded,
+            rate_per_second: 10,
+            rate_burst: 30,
+            gc_retention_secs: 7 * 24 * 3600,
+            gc_interval_secs: 3600,
         });
 
         let ctx = ExecutionContext {
