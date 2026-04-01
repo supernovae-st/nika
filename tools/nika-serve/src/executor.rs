@@ -152,7 +152,7 @@ mod tests {
             db_path: std::path::PathBuf::from(":memory:"),
             auth_token: "test-token-1234567".into(),
             cors_origin: None,
-            executor_mode: crate::config::ExecutorMode::Subprocess,
+            executor_mode: crate::config::ExecutorMode::Embedded,
         });
 
         let ctx = ExecutionContext {
