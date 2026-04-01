@@ -138,6 +138,23 @@ impl Drop for LockfileGuard {
     }
 }
 
+/// Detect the first LLM provider with an API key in the environment.
+///
+/// Returns the provider name (e.g. "openai") or falls back to "anthropic"
+/// if no provider key is found (the error will be caught later).
+fn detect_first_configured_provider() -> &'static str {
+    use nika_core::catalogs::{ProviderCategory, KNOWN_PROVIDERS};
+    for p in KNOWN_PROVIDERS {
+        if p.category != ProviderCategory::Llm {
+            continue;
+        }
+        if p.has_env_key() {
+            return p.id;
+        }
+    }
+    "anthropic" // fallback — will produce a clear MissingApiKey error
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Helper Functions
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -259,7 +276,7 @@ impl Runner {
             .provider
             .as_ref()
             .map(|p| p.as_str())
-            .unwrap_or("anthropic");
+            .unwrap_or_else(|| detect_first_configured_provider());
 
         let mut executor = TaskExecutor::new(
             provider,
