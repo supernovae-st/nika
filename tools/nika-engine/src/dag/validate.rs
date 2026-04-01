@@ -60,9 +60,10 @@ pub fn validate_with_bindings(
 fn validate_template_refs(task: &AnalyzedTask) -> Result<(), NikaError> {
     let mut declared_aliases: FxHashSet<String> = task.with_spec.keys().cloned().collect();
 
-    // Add for_each loop variable to declared aliases
+    // Add for_each loop variable and index to declared aliases
     if let Some(ref for_each) = task.for_each {
         declared_aliases.insert(for_each.as_var.clone());
+        declared_aliases.insert("for_each_index".to_string());
     }
 
     // Extract templates from the task action and validate each
@@ -274,13 +275,14 @@ fn validate_template_refs_with(task: &crate::ast::Task) -> Result<(), NikaError>
         .map(|w| w.keys().cloned().collect())
         .unwrap_or_default();
 
-    // Add for_each loop variable
+    // Add for_each loop variable and index
     if task.for_each.is_some() {
         let as_var = task
             .for_each_as
             .clone()
             .unwrap_or_else(|| "item".to_string());
         declared_aliases.insert(as_var);
+        declared_aliases.insert("for_each_index".to_string());
     }
 
     let templates = extract_task_templates(&task.action);
