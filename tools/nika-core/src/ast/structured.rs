@@ -58,11 +58,6 @@ pub struct StructuredOutputSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub from_example: Option<SchemaRef>,
 
-    /// Enable Layer 1: rig Extractor (Rust type extraction)
-    /// Default: true
-    #[serde(default)]
-    pub enable_extractor: Option<bool>,
-
     /// Enable Layer 0: Tool injection (DynamicSubmitTool)
     /// When true, injects a synthetic submit_result tool for provider-side
     /// schema enforcement before falling through to post-processing layers.
@@ -103,7 +98,6 @@ impl StructuredOutputSpec {
         Self {
             schema: Some(schema),
             from_example: None,
-            enable_extractor: None,
             enable_tool_injection: None,
             enable_retry: None,
             enable_repair: None,
@@ -125,7 +119,6 @@ impl StructuredOutputSpec {
         Self {
             schema: None,
             from_example: Some(SchemaRef::File(path.into())),
-            enable_extractor: None,
             enable_tool_injection: None,
             enable_retry: None,
             enable_repair: None,
@@ -143,7 +136,6 @@ impl StructuredOutputSpec {
         Self {
             schema: None,
             from_example: Some(SchemaRef::Inline(example)),
-            enable_extractor: None,
             enable_tool_injection: None,
             enable_retry: None,
             enable_repair: None,
@@ -237,7 +229,6 @@ impl<'de> Deserialize<'de> for StructuredOutputSpec {
             {
                 let mut schema: Option<SchemaRef> = None;
                 let mut from_example: Option<SchemaRef> = None;
-                let mut enable_extractor: Option<bool> = None;
                 let mut enable_tool_injection: Option<bool> = None;
                 let mut enable_retry: Option<bool> = None;
                 let mut enable_repair: Option<bool> = None;
@@ -253,8 +244,9 @@ impl<'de> Deserialize<'de> for StructuredOutputSpec {
                         "from_example" => {
                             from_example = Some(map.next_value()?);
                         }
+                        // enable_extractor: accepted for backward compat but ignored (L1 was never implemented)
                         "enable_extractor" => {
-                            enable_extractor = Some(map.next_value()?);
+                            let _: serde_json::Value = map.next_value()?;
                         }
                         "enable_tool_injection" => {
                             enable_tool_injection = Some(map.next_value()?);
@@ -290,7 +282,6 @@ impl<'de> Deserialize<'de> for StructuredOutputSpec {
                 Ok(StructuredOutputSpec {
                     schema,
                     from_example,
-                    enable_extractor,
                     enable_tool_injection,
                     enable_retry,
                     enable_repair,
@@ -393,7 +384,7 @@ enable_retry: true
 enable_repair: false
 "#;
         let spec: StructuredOutputSpec = serde_yaml::from_str(yaml).unwrap();
-        assert_eq!(spec.enable_extractor, Some(false));
+        // enable_extractor is silently ignored (L1 was never implemented)
         assert_eq!(spec.enable_tool_injection, Some(false));
         assert_eq!(spec.enable_retry, Some(true));
         assert_eq!(spec.enable_repair, Some(false));

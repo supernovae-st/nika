@@ -2532,7 +2532,7 @@ fn h12_structured_all_toggles() {
     );
     let w = ok(&yaml);
     let spec = w.tasks[0].structured.as_ref().unwrap();
-    assert_eq!(spec.enable_extractor, Some(false));
+    // enable_extractor removed (L1 was never implemented) — silently ignored in YAML
     assert_eq!(spec.enable_tool_injection, Some(false));
     assert_eq!(spec.enable_retry, Some(true));
     assert_eq!(spec.enable_repair, Some(false));
@@ -7208,7 +7208,7 @@ fn w09_structured_all_layers_disabled() {
     );
     let w = ok(&yaml);
     let spec = w.tasks[0].structured.as_ref().unwrap();
-    assert_eq!(spec.enable_extractor, Some(false));
+    // enable_extractor removed (L1 was never implemented) — silently ignored in YAML
     assert_eq!(spec.enable_tool_injection, Some(false));
     assert_eq!(spec.enable_retry, Some(false));
     assert_eq!(spec.enable_repair, Some(false));
@@ -7524,7 +7524,7 @@ fn y07_structured_enable_all() {
     );
     let w = ok(&yaml);
     let spec = w.tasks[0].structured.as_ref().unwrap();
-    assert_eq!(spec.enable_extractor, Some(true));
+    // enable_extractor removed (L1 was never implemented) — silently ignored in YAML
     assert_eq!(spec.enable_tool_injection, Some(true));
     assert_eq!(spec.enable_retry, Some(true));
     assert_eq!(spec.enable_repair, Some(true));
@@ -9864,7 +9864,7 @@ tasks:
     // Verify deeply nested structured spec
     let spec = t.structured.as_ref().unwrap();
     assert_eq!(spec.enable_repair, Some(true));
-    assert_eq!(spec.enable_extractor, Some(true));
+    // enable_extractor removed (L1 was never implemented) — silently ignored in YAML
     assert_eq!(spec.enable_tool_injection, Some(true));
     assert_eq!(spec.enable_retry, Some(true));
     assert_eq!(spec.max_retries, Some(5));
