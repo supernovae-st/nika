@@ -261,8 +261,8 @@
             },
             {
               "type": "string",
-              "pattern": "^\\$[a-z][a-z0-9_.]*$",
-              "description": "Binding reference to an array (e.g., $locales, $inputs.items) (v0.22+ supports $inputs.*)"
+              "pattern": "^\\$[a-zA-Z_][a-zA-Z0-9_.]*\\s*(\\|\\s*[a-z_]+(\\([^)]*\\))?)*\\s*(\\?\\?\\s*.+)?$",
+              "description": "Binding reference to an array (e.g., $locales, $inputs.items, $task | parse_json, $task ?? fallback)"
             },
             {
               "type": "string",
