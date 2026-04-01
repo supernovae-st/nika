@@ -66,21 +66,35 @@ Pattern-based redaction misses custom API keys (ElevenLabs, xAI, webhook secrets
 
 ## 1. fetch 404 returns exit 0 silently
 
-### Root Cause
-`fetch.rs:481-556` treats ALL non-retryable HTTP statuses (404, 403, 401) as valid responses. Only `response: binary` mode checks for non-success status (line 597). Regular text responses return the 404 HTML error page as "success output".
+### Root Cause (confirmed by rust-pro deep analysis)
+`fetch.rs:557` — Comment says "Success or non-retryable error status" but code makes NO distinction between 200 and 404. The decision tree:
+- 5xx / 429 → retry → `Err(FetchError)` if max attempts reached
+- **ALL other statuses (1xx, 2xx, 3xx, 4xx)** → fall through to response handling as "success"
+
+**Mode-specific behavior on 404:**
+- `response: binary` — ALREADY fails (line 597 `is_success()` check). Correct.
+- `response: full` — Returns `{"status": 404, "body": "..."}`. Status visible. Arguably correct.
+- Default (no response) — Returns 404 HTML as task output. **BUG.**
+- `extract: metadata` on 404 → parses error page HTML for OG tags. Returns garbage.
+- `extract: article` on 404 → runs Readability on error page. Returns error text as "article".
+- `extract: jsonpath` on 404 → HTML body fails `serde_json::from_str`. Returns NIKA-046. Correct.
+
+**No double retry risk**: runner.rs:1137-1138 explicitly skips task-level retry for fetch verbs.
+
+**Existing test asserts buggy behavior**: `wiremock_fetch_404_returns_body` (line 639) — must be updated.
 
 ### File
 `tools/nika-engine/src/runtime/executor/fetch.rs`
 
-### Fix Plan
+### Fix Plan (layered, per response mode)
 
-**Step 1** — Add 4xx status check after the retry block (~line 556):
+**Step 1** — Add 4xx status check after the retry block (~line 557):
 
 ```rust
-// After the retry logic, before extraction:
+// After retry logic, before response mode handling:
 if !response.status().is_success() && !response.status().is_redirection() {
     let status = response.status();
-    // Only error if response: full is NOT set (full mode intentionally returns all statuses)
+    // response: full explicitly wants all statuses — don't fail
     if fetch.response != Some(ResponseMode::Full) {
         return Err(NikaError::FetchError {
             reason: format!(
@@ -94,7 +108,13 @@ if !response.status().is_success() && !response.status().is_redirection() {
 }
 ```
 
-**Step 2** — `response: full` mode already returns status/headers/body — leave it as-is (users explicitly want the full response including errors).
+**Step 2** — `response: full` is correct as-is. `response: binary` is correct as-is.
+
+**Step 3** — Update test `wiremock_fetch_404_returns_body` to assert error instead of body.
+
+### What would break
+- `follow_redirects: false` with 3xx → would now fail. Add exception for 3xx when `follow_redirects: false`.
+- APIs returning useful JSON on 4xx → broken. **Consider**: add `allow_error_status: true` flag later if needed.
 
 **Step 3** — For `nika fetch` CLI command, the error propagates through handle_result → exit(1).
 
@@ -264,34 +284,74 @@ Expected: `consume` runs with 3 results (2 valid + 1 null/error placeholder).
 
 ## 3. $env.MISSING fails before default() can apply
 
-### Root Cause
-`resolve.rs:804-821` — `resolve_binding_path()` returns `Ok(None)` for missing env vars. But the error happens in `resolve_with_entry_traced()` around line 900-930 where `None` bindings trigger NIKA-052 BEFORE template transforms (including `default()`) are applied.
+### Root Cause (confirmed by rust-pro deep analysis — exact code flow)
 
-The resolution pipeline is:
-1. Parse `with:` block → extract `$env.VAR_NAME`
-2. Resolve binding → `Ok(None)` for missing var
-3. **FAIL: NIKA-052 "binding resolved to null"** ← HERE
-4. Never reaches template `{{with.val | default('fallback')}}`
+**Full pipeline for `with: { key: $env.MISSING | default("fallback") }`**:
 
-The `??` operator in bindings (`$env.VAR ?? "fallback"`) works because it's evaluated at step 2, not step 4.
+```
+1. BindingPath::parse("$env.MISSING") → source: Env("MISSING")
+2. TransformExpr::parse('default("fallback")') → ops: [Default("fallback")]
+3. resolve_binding_path() → std::env::var("MISSING") → Ok(None)  ← var not found
+4. Transform dispatch (resolve.rs:658-676):
+     match (&raw_value, &entry.transform):
+       (Some(v), Some(expr)) if !v.is_null() → apply transforms
+       (Some(v), Some(expr)) if v.is_null() → try apply, fallback
+       _ → raw_value  ← None + Some(transform) hits THIS ARM
+   → Transforms SKIPPED because raw_value is None
+5. Step 4 fallback: transformed is None, entry.default is None
+   → Err(PathNotFound) = NIKA-052
+```
+
+**Key insight**: The `_` catch-all arm at line 675 matches `(None, Some(_))`. The `default()` transform never fires because `None` is not `Some(Value::Null)`.
+
+**`??` works because** it's stored in `entry.default` (Step 5 fallback), NOT in the transform chain.
+
+**Affects ALL binding sources**: $env, $vault, $task (missing output) — all return `Ok(None)`.
 
 ### Files
-- `tools/nika-engine/src/binding/resolve.rs` — resolution pipeline
-- `tools/nika-core/src/binding/types.rs` — BindingSource enum
+- `tools/nika-engine/src/binding/resolve.rs:658-676` — transform dispatch
+- `tools/nika-core/src/binding/transform.rs:543` — default() transform impl
+- `tools/nika-core/src/binding/entry.rs:134` — `??` operator parsing
 
-### Fix Plan
+### Fix Plan (targeted — from rust-pro recommendation)
 
-**Step 1** — In `resolve_with_entry_traced()`, when a binding resolves to `None`, DON'T error immediately. Instead, store `Value::Null` in the binding map:
+**Better than changing resolve_binding_path semantics**: fix the transform dispatch to promote `None` → `Value::Null` when the chain contains `default()`.
 
+**Step 1** — Add `has_default()` to `TransformExpr` (nika-core/src/binding/transform.rs):
 ```rust
-// Around line 900-930 in resolve.rs
-match resolved {
-    Some(value) => bindings.insert(alias, value),
-    None => {
-        // Instead of NIKA-052 immediately, store null and let template transforms handle it
-        bindings.insert(alias, Value::Null);
-        debug!(alias = %alias, "Binding resolved to null — template default() may apply");
+impl TransformExpr {
+    pub fn has_default(&self) -> bool {
+        self.ops.iter().any(|op| matches!(op, TransformOp::Default(_)))
     }
+}
+```
+
+**Step 2** — Fix the match in resolve.rs:658-676:
+```rust
+let transformed = match (&raw_value, &entry.transform) {
+    (Some(v), Some(expr)) if !v.is_null() => { /* existing: apply */ }
+    (Some(v), Some(expr)) if v.is_null() => { /* existing: try apply */ }
+    // NEW: None + transform chain containing default() → promote to Null
+    (None, Some(expr)) if expr.has_default() => {
+        match expr.apply(&Value::Null) {
+            Ok(result) => Some(result),
+            Err(e) => {
+                tracing::debug!(path = %path_str, error = %e,
+                    "Transform failed on missing value");
+                None // Fall through to Step 4
+            }
+        }
+    }
+    _ => raw_value,  // Unchanged: None without default() → NIKA-052
+};
+```
+
+**What this preserves**:
+- `$env.MISSING` (no transforms) → still NIKA-052 (correct)
+- `$env.MISSING | upper` → still NIKA-052 (no default in chain)
+- `$env.MISSING | default("x") | upper` → "X" (default fires, then upper)
+- `$env.MISSING ?? "x"` → still works via entry.default (unchanged)
+- `$env.SET | default("x")` → still returns SET value (unchanged)
 }
 ```
 
@@ -449,43 +509,58 @@ tasks:
 
 ## 6. NikaError god enum (103 variants)
 
-### Root Cause
-All errors from all subsystems are in one enum in `error.rs` (2,796 lines, 103 variants). `error_domains.rs` has a partial migration (~25%): only `ProviderError` and `DagError` have sub-enums.
+### Root Cause (confirmed by rust-pro — exact variant count and migration status)
+103 variants in `error.rs` (2,796 lines). `error_domains.rs` has 4 scaffolded sub-enums but **ZERO production callsites** use them — the `From` impls exist but no code constructs domain errors yet.
 
-### Files
-- `tools/nika-engine/src/error.rs` — main enum
-- `tools/nika-engine/src/error_domains.rs` — domain sub-enums
+### Current migration status
+| Domain Enum | Scaffolded Variants | Completeness |
+|-------------|-------------------|--------------|
+| `ProviderError` | 7 of 8 | 87% (missing WorkflowTimeout) |
+| `DagError` | 3 of 6 | 50% (missing DependencyChainFailed, TaskCancelled) |
+| `ExecutionError` | 6 of 7 | 86% (missing InvokeParamError) |
+| `BindingError` | 3 of ~8 | 38% (missing 5 variants) |
 
-### Fix Plan (incremental, 6 phases)
+### Callsite hotspots (top 5 hardest)
+| Variant | Callsites | Notes |
+|---------|-----------|-------|
+| `ValidationError` | **75** | Used as catch-all across 20+ files. NEEDS AUDIT before migrating. |
+| `BuiltinToolError` | 32 | Concentrated in builtin/ |
+| `ToolError` | 30 | Concentrated in tools/ |
+| `TemplateParse` | 28 | Concentrated in template.rs (38 total binding domain) |
+| `InvalidPkgUri` | 26 | Self-contained in registry |
 
-Each phase is one domain, one PR, independently shippable:
+### Easiest wins (3 fewest callsites)
+| Domain | Variants | Callsites | Notes |
+|--------|----------|-----------|-------|
+| Course (310-314) | 5 | ~0 | Completely self-contained |
+| Record (320-324) | 5 | ~5 | Isolated in record_compress.rs |
+| StructuredOutput (300-303) | 4 | ~15 | Isolated in structured_output.rs |
 
-**Phase 1 — ExecutionError** (highest ROI):
-- Variants: TaskCancelled, ContextError, RuntimeDeadlock, DependencyChainFailed, OrchestratorError
-- ~8 variants → `ExecutionError` sub-enum
-- `From<ExecutionError> for NikaError` impl
+### Fix Plan (4 phases, reordered by effort/value)
 
-**Phase 2 — BindingError**:
-- Variants: TemplateError, BindingNotFound, BindingTypeMismatch, NullBindingValue, JsonPathError
-- ~10 variants → `BindingError` sub-enum
+**Phase 1 — Quick Wins (1-2 days, 4 domains)**:
+1. `CourseError` (310-314) — 5 variants, ~0 cross-cutting callsites
+2. `RecordError` (320-324) — 5 variants, isolated in 1 file
+3. `StructuredOutputError` (300-303) — 4 variants, isolated
+4. `ArtifactError` (280-285) — 4 variants, 53 callsites but all in artifact_processor.rs
 
-**Phase 3 — StructuredOutputError**:
-- Variants: SchemaFailed, StructuredOutputFailed, StructuredOutputTimeout, StructuredOutputValidationFailed
-- ~6 variants → `StructuredOutputError`
+**Phase 2 — Complete Existing Scaffolding (2-3 days)**:
+5. `DagError` — add 3 missing variants, ~10 callsites
+6. `ProviderError` — add WorkflowTimeout, ~20 callsites
+7. `ExecutionError` — add InvokeParamError, ~30 callsites
+8. `BindingError` — add 5 missing variants, ~50 callsites
 
-**Phase 4 — FetchError**:
-- Variants: FetchError, FetchTimeout, SsrfBlocked, ExtractError
-- ~5 variants → `FetchError`
+**Phase 3 — New Domains (3-5 days)**:
+9. `McpError` (100-110) — 11 variants
+10. `AgentError` (110-119) — 5 variants
+11. `OutputError` (060-069) — 3 variants
 
-**Phase 5 — MediaError**:
-- Variants: MediaToolError, MediaFormatError, MediaDependencyMissing, ArtifactWriteFailed, etc.
-- ~12 variants → `MediaError`
+**Phase 4 — Hard Cases (5-7 days, LAST)**:
+12. `ToolError` (200-213) — 83 callsites, sprawled across builtin system
+13. `ValidationError` split — 75 callsites, **REQUIRES AUDIT to reclassify each site**
 
-**Phase 6 — ToolError** (file tools + builtins):
-- Variants: FileNotFound, FileAlreadyExists, BuiltinToolError, ExecError
-- ~8 variants → `ToolError`
-
-**Remaining** ~50 variants stay in NikaError (workflow-level, config, MCP, agent, course, etc.).
+### miette::Diagnostic with #[error(transparent)]
+Partial support only. Existing `MediaError` pattern shows working approach: sub-enum has own `code()` method, and `NikaError::code()` delegates explicitly. This works but is manual.
 
 ### Migration pattern per phase:
 ```rust
@@ -523,7 +598,24 @@ The `run()` method (runner.rs:1421-3012) handles everything: initialization, DAG
 ### File
 `tools/nika-engine/src/runtime/runner.rs`
 
-### Fix Plan (6 extractions)
+### Fix Plan (from rust-pro — 4 phases, dependency-ordered)
+
+**The critical insight**: `resolve_for_each_items()` (S11f, 372 lines) MUST be extracted FIRST. It contains 4 duplicated binding resolution formats with ~70 lines of verbatim duplication. This is the single largest contributor to complexity.
+
+**Dependency graph**:
+```
+Phase 1 (leaf extractions, any order):
+  compute_dag_depths()  |  check_pre_flight()  |  aggregate_for_each_results()
+
+Phase 2 (critical path — MUST happen before main loop simplification):
+  resolve_for_each_items()  ← free function, 372 lines → ~50 lines
+
+Phase 3 (main loop cleanup, depends on Phase 2):
+  expand_decompose_items()  |  check_completion()  |  check_cancellation()
+
+Phase 4 (bookends, depends on Phase 1+3):
+  initialize_workflow_context()  |  finalize_workflow()  |  initialize_renderer()
+```
 
 Extract in this order (each is a standalone PR):
 
