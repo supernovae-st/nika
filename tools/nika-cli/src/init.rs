@@ -1,4 +1,4 @@
-//! Init subcommand handler — creates .nika/config.toml + AGENTS.md + starter workflow
+//! Init subcommand handler — creates nika.toml + .nika/ + AGENTS.md + starter workflow
 
 use std::fs;
 

@@ -1,4 +1,4 @@
-//! TUI Configuration — .nika/config.toml support
+//! TUI Configuration — nika.toml support (with .nika/config.toml legacy fallback)
 //!
 //! Provides persistent configuration for TUI preferences:
 //! - Theme (dark, light, solarized)
