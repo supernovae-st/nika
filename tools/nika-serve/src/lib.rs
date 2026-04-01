@@ -133,7 +133,8 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
             axum::http::StatusCode::GATEWAY_TIMEOUT,
             std::time::Duration::from_secs(30),
         ))
-        .layer(middleware::from_fn(request_id::request_id_middleware));
+        .layer(middleware::from_fn(request_id::request_id_middleware))
+        .layer(middleware::from_fn(crate::metrics::http_metrics_middleware));
 
     // SSE router: auth → rate-limit, NO TimeoutLayer (C1)
     let sse_routes = routes::build_sse_router(state.clone())
@@ -145,7 +146,8 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
             state.clone(),
             auth::require_auth,
         ))
-        .layer(middleware::from_fn(request_id::request_id_middleware));
+        .layer(middleware::from_fn(request_id::request_id_middleware))
+        .layer(middleware::from_fn(crate::metrics::http_metrics_middleware));
 
     let mut app = api_routes.merge(sse_routes);
 
