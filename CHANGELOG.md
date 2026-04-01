@@ -12,6 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
 
+## [0.58.1] — 2026-04-01
+
+### Fixed
+- **fetch 4xx/5xx error handling** — Non-success HTTP status codes now properly fail the task (unless `response: full`)
+- **wiremock test reliability** — Cleaned up test assertions and patterns
+- **LSP unused import** — Fixed compiler warning in nika-lsp
+- **DAG flow edge case** — Fixed edge case in dependency resolution
+
 ## [Unreleased] — 2026-03-31
 
 ### Security
