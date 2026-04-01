@@ -1958,7 +1958,211 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             }
                         };
 
-                        if let Some(alias) = items_str.strip_prefix('$') {
+                        if items_str.starts_with('$') && items_str.contains('|') {
+                            // Pipe transform expression: $task | transform or $task.path | transform
+                            // Parse using the full WithEntry parser which handles path + transforms + defaults.
+                            match crate::binding::parse_with_entry(items_str) {
+                                Ok(entry) => {
+                                    // Resolve the raw value from the binding source
+                                    let raw_value = match &entry.source.source {
+                                        crate::binding::BindingSource::Task(task_id) => {
+                                            match self.datastore.get_output(task_id) {
+                                                Some(output) => {
+                                                    // Auto-parse JSON strings (same as plain $ path)
+                                                    let working = crate::binding::jsonpath::try_parse_json_str(&output)
+                                                        .unwrap_or_else(|| output.as_ref().clone());
+
+                                                    // Navigate path segments
+                                                    let mut value_ref = &working;
+                                                    let mut ok = true;
+                                                    for seg in &entry.source.segments {
+                                                        let next = match seg {
+                                                            crate::binding::PathSegment::Field(
+                                                                f,
+                                                            ) => value_ref.get(f.as_ref()),
+                                                            crate::binding::PathSegment::Index(
+                                                                i,
+                                                            ) => value_ref.get(*i),
+                                                        };
+                                                        match next {
+                                                            Some(v) => value_ref = v,
+                                                            None => {
+                                                                let err_msg = format!(
+                                                                    "for_each binding '{}': path segment '{:?}' not found",
+                                                                    items_str, seg
+                                                                );
+                                                                self.emit_scheduling_failure(
+                                                                    &task.name, &err_msg,
+                                                                    "NIKA-026",
+                                                                );
+                                                                self.datastore.insert(
+                                                                    intern(&task.name),
+                                                                    TaskResult::failed(
+                                                                        err_msg,
+                                                                        std::time::Duration::ZERO,
+                                                                    ),
+                                                                );
+                                                                ok = false;
+                                                                break;
+                                                            }
+                                                        }
+                                                    }
+                                                    if !ok {
+                                                        continue;
+                                                    }
+                                                    value_ref.clone()
+                                                }
+                                                None => {
+                                                    let err_msg = format!(
+                                                        "for_each binding '{}': task '{}' output not found",
+                                                        items_str, task_id
+                                                    );
+                                                    self.emit_scheduling_failure(
+                                                        &task.name, &err_msg, "NIKA-026",
+                                                    );
+                                                    self.datastore.insert(
+                                                        intern(&task.name),
+                                                        TaskResult::failed(
+                                                            err_msg,
+                                                            std::time::Duration::ZERO,
+                                                        ),
+                                                    );
+                                                    continue;
+                                                }
+                                            }
+                                        }
+                                        crate::binding::BindingSource::Input(sub_path) => {
+                                            let full_path = format!("inputs.{}", sub_path);
+                                            match self.datastore.resolve_input_path(&full_path) {
+                                                Some(v) => v,
+                                                None => {
+                                                    let err_msg = format!(
+                                                        "for_each binding '{}': input '{}' not found",
+                                                        items_str, full_path
+                                                    );
+                                                    self.emit_scheduling_failure(
+                                                        &task.name, &err_msg, "NIKA-026",
+                                                    );
+                                                    self.datastore.insert(
+                                                        intern(&task.name),
+                                                        TaskResult::failed(
+                                                            err_msg,
+                                                            std::time::Duration::ZERO,
+                                                        ),
+                                                    );
+                                                    continue;
+                                                }
+                                            }
+                                        }
+                                        crate::binding::BindingSource::Env(var) => {
+                                            match std::env::var(var.as_ref()) {
+                                                Ok(v) => Value::String(v),
+                                                Err(_) => {
+                                                    let err_msg = format!(
+                                                        "for_each binding '{}': env var '{}' not set",
+                                                        items_str, var
+                                                    );
+                                                    self.emit_scheduling_failure(
+                                                        &task.name, &err_msg, "NIKA-026",
+                                                    );
+                                                    self.datastore.insert(
+                                                        intern(&task.name),
+                                                        TaskResult::failed(
+                                                            err_msg,
+                                                            std::time::Duration::ZERO,
+                                                        ),
+                                                    );
+                                                    continue;
+                                                }
+                                            }
+                                        }
+                                        other => {
+                                            let err_msg = format!(
+                                                "for_each binding '{}': unsupported source type '{:?}'",
+                                                items_str, other
+                                            );
+                                            self.emit_scheduling_failure(
+                                                &task.name, &err_msg, "NIKA-026",
+                                            );
+                                            self.datastore.insert(
+                                                intern(&task.name),
+                                                TaskResult::failed(
+                                                    err_msg,
+                                                    std::time::Duration::ZERO,
+                                                ),
+                                            );
+                                            continue;
+                                        }
+                                    };
+
+                                    // Apply transforms
+                                    let transformed = if let Some(ref expr) = entry.transform {
+                                        match expr.apply(&raw_value) {
+                                            Ok(v) => v,
+                                            Err(e) => {
+                                                let err_msg = format!(
+                                                    "for_each binding '{}' transform failed: {}",
+                                                    items_str, e
+                                                );
+                                                self.emit_scheduling_failure(
+                                                    &task.name, &err_msg, "NIKA-026",
+                                                );
+                                                self.datastore.insert(
+                                                    intern(&task.name),
+                                                    TaskResult::failed(
+                                                        err_msg,
+                                                        std::time::Duration::ZERO,
+                                                    ),
+                                                );
+                                                continue;
+                                            }
+                                        }
+                                    } else {
+                                        raw_value
+                                    };
+
+                                    // Apply default if transformed value is null
+                                    let final_value = if transformed.is_null() {
+                                        entry.default.unwrap_or(transformed)
+                                    } else {
+                                        transformed
+                                    };
+
+                                    match value_to_array(&final_value) {
+                                        Some(items) => Some(items),
+                                        None => {
+                                            let err_msg = format!(
+                                                "for_each binding '{}' resolved to non-array value after transforms",
+                                                items_str
+                                            );
+                                            self.emit_scheduling_failure(
+                                                &task.name, &err_msg, "NIKA-026",
+                                            );
+                                            self.datastore.insert(
+                                                intern(&task.name),
+                                                TaskResult::failed(
+                                                    err_msg,
+                                                    std::time::Duration::ZERO,
+                                                ),
+                                            );
+                                            continue;
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    let err_msg = format!(
+                                        "for_each items '{}' parse error: {}",
+                                        items_str, e
+                                    );
+                                    self.emit_scheduling_failure(&task.name, &err_msg, "NIKA-026");
+                                    self.datastore.insert(
+                                        intern(&task.name),
+                                        TaskResult::failed(err_msg, std::time::Duration::ZERO),
+                                    );
+                                    continue;
+                                }
+                            }
+                        } else if let Some(alias) = items_str.strip_prefix('$') {
                             // Check for $inputs.xxx format first (workflow inputs)
                             if alias.starts_with("inputs.") {
                                 match self.datastore.resolve_input_path(alias) {
@@ -4195,6 +4399,87 @@ mod tests {
         assert!(
             task_result.unwrap().is_success(),
             "step2 should succeed — JSON string array should be parsed"
+        );
+    }
+
+    #[tokio::test]
+    async fn for_each_dollar_binding_with_pipe_transform() {
+        // Step1 outputs a raw JSON string (not auto-parsed because it's a plain string value).
+        // Step2 uses `$step1 | parse_json` to parse + iterate.
+        let workflow = create_two_step_for_each_workflow(
+            r#"echo '["alpha","beta","gamma"]'"#,
+            true,
+            "$step1 | parse_json",
+            "echo {{with.item}}",
+        );
+
+        let mut runner = Runner::new(workflow).unwrap();
+        let result = runner.run().await;
+        assert!(
+            result.is_ok(),
+            "Workflow should complete: {:?}",
+            result.err()
+        );
+
+        let task_result = runner.datastore.get("step2");
+        assert!(task_result.is_some(), "step2 result should exist");
+        assert!(
+            task_result.unwrap().is_success(),
+            "step2 should succeed — pipe transform parse_json should produce iterable array"
+        );
+    }
+
+    #[tokio::test]
+    async fn for_each_dollar_binding_with_chained_pipe_transforms() {
+        // Step1 outputs a JSON string. Step2 uses `$step1 | parse_json | reverse` to
+        // parse and reverse the array before iterating.
+        let workflow = create_two_step_for_each_workflow(
+            r#"echo '["x","y","z"]'"#,
+            true,
+            "$step1 | parse_json | reverse",
+            "echo {{with.item}}",
+        );
+
+        let mut runner = Runner::new(workflow).unwrap();
+        let result = runner.run().await;
+        assert!(
+            result.is_ok(),
+            "Workflow should complete: {:?}",
+            result.err()
+        );
+
+        let task_result = runner.datastore.get("step2");
+        assert!(task_result.is_some(), "step2 result should exist");
+        assert!(
+            task_result.unwrap().is_success(),
+            "step2 should succeed — chained pipe transforms should produce iterable array"
+        );
+    }
+
+    #[tokio::test]
+    async fn for_each_dollar_binding_with_path_and_pipe_transform() {
+        // Step1 outputs a JSON object. Step2 uses `$step1.data | sort` to
+        // access a nested path AND apply a transform.
+        let workflow = create_two_step_for_each_workflow(
+            r#"echo '{"data":["cherry","apple","banana"]}'"#,
+            true,
+            "$step1.data | sort",
+            "echo {{with.item}}",
+        );
+
+        let mut runner = Runner::new(workflow).unwrap();
+        let result = runner.run().await;
+        assert!(
+            result.is_ok(),
+            "Workflow should complete: {:?}",
+            result.err()
+        );
+
+        let task_result = runner.datastore.get("step2");
+        assert!(task_result.is_some(), "step2 result should exist");
+        assert!(
+            task_result.unwrap().is_success(),
+            "step2 should succeed — path + pipe transform should produce iterable array"
         );
     }
 

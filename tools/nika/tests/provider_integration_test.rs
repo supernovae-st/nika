@@ -123,6 +123,7 @@ async fn test_integration_claude_agent_simple() {
         log.clone(),
         FxHashMap::default(),
         None,
+        None,
     )
     .expect("Failed to create agent");
 
@@ -163,6 +164,7 @@ async fn test_integration_claude_extended_thinking() {
         log.clone(),
         FxHashMap::default(),
         None,
+        None,
     )
     .expect("Failed to create agent");
 
@@ -202,6 +204,7 @@ async fn test_integration_claude_token_tracking() {
         params,
         log.clone(),
         FxHashMap::default(),
+        None,
         None,
     )
     .expect("Failed to create agent");
@@ -261,6 +264,7 @@ async fn test_integration_openai_agent_simple() {
         log.clone(),
         FxHashMap::default(),
         None,
+        None,
     )
     .expect("Failed to create agent");
 
@@ -316,6 +320,7 @@ async fn test_integration_provider_auto_detection() {
         log.clone(),
         FxHashMap::default(),
         None,
+        None,
     )
     .expect("Failed to create agent");
 
@@ -345,6 +350,7 @@ async fn test_integration_both_providers_available() {
         params,
         log.clone(),
         FxHashMap::default(),
+        None,
         None,
     )
     .expect("Failed to create agent");
@@ -387,6 +393,7 @@ async fn test_provider_no_key_error() {
         log,
         FxHashMap::default(),
         None,
+        None,
     );
 
     // Agent creation should succeed even without keys
@@ -408,6 +415,7 @@ async fn test_mock_provider_always_works() {
         params,
         log.clone(),
         FxHashMap::default(),
+        None,
         None,
     )
     .expect("Failed to create agent");

@@ -230,6 +230,21 @@ impl StructuredOutputEngine {
 
     /// Load and cache the schema for validation.
     /// Returns an `Arc<Value>` for cheap cloning across async boundaries.
+    /// SECURITY: reject path traversal in schema/from_example file paths.
+    fn validate_schema_file_path(path: &str) -> Result<(), NikaError> {
+        let p = std::path::Path::new(path);
+        if p.components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
+        {
+            return Err(NikaError::SchemaFailed {
+                details: format!(
+                    "Path traversal ('..') not allowed in schema/from_example: '{path}'"
+                ),
+            });
+        }
+        Ok(())
+    }
+
     pub async fn load_schema(&mut self) -> Result<Arc<Value>, NikaError> {
         if self.compiled_schema.is_none() {
             let schema = if let Some(ref example_ref) = self.spec.from_example {
@@ -237,6 +252,8 @@ impl StructuredOutputEngine {
                 let example_value = match example_ref {
                     SchemaRef::Inline(v) => v.clone(),
                     SchemaRef::File(path) => {
+                        // SECURITY: reject path traversal before reading
+                        Self::validate_schema_file_path(path)?;
                         let content = tokio::fs::read_to_string(path).await.map_err(|e| {
                             NikaError::SchemaFailed {
                                 details: format!("Failed to read example '{}': {}", path, e),

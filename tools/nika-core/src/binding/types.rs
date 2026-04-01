@@ -160,9 +160,19 @@ impl BindingPath {
         let trimmed = input.trim();
 
         // Must start with $
-        let rest = trimmed.strip_prefix('$').ok_or_else(|| BindingPathError {
-            input: trimmed.to_string(),
-            reason: "binding paths must start with '$'".to_string(),
+        let rest = trimmed.strip_prefix('$').ok_or_else(|| {
+            // E10: detect {{...}} template syntax and give a helpful suggestion
+            let reason = if trimmed.starts_with("{{") || trimmed.contains("{{") {
+                "template syntax {{...}} is not valid in with: bindings. \
+                 Use binding syntax instead, e.g.: name: $task_id | transform"
+                    .to_string()
+            } else {
+                "binding paths must start with '$'".to_string()
+            };
+            BindingPathError {
+                input: trimmed.to_string(),
+                reason,
+            }
         })?;
 
         if rest.is_empty() {
@@ -932,6 +942,22 @@ mod tests {
         };
         assert!(err.to_string().contains("NIKA-150"));
         assert!(err.to_string().contains("step1"));
+    }
+
+    #[test]
+    fn template_syntax_in_binding_gives_helpful_error() {
+        // E10: {{...}} in with: blocks should suggest $ syntax
+        let err = BindingPath::parse("{{inputs.name | upper}}").unwrap_err();
+        assert!(
+            err.reason.contains("template syntax"),
+            "error should mention template syntax: {}",
+            err.reason
+        );
+        assert!(
+            err.reason.contains("$task_id"),
+            "error should suggest $ syntax: {}",
+            err.reason
+        );
     }
 
     #[test]

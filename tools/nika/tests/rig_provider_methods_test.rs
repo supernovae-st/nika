@@ -41,6 +41,7 @@ fn create_agent_loop(prompt: &str) -> RigAgentLoop {
         event_log,
         mcp_clients,
         None,
+        None,
     )
     .expect("Should create agent loop with valid params")
 }
@@ -62,6 +63,7 @@ fn create_agent_loop_with_model(prompt: &str, model: &str) -> RigAgentLoop {
         params,
         event_log,
         mcp_clients,
+        None,
         None,
     )
     .expect("Should create agent loop with valid params")
@@ -103,6 +105,7 @@ fn test_agent_loop_creation_for_mistral_valid() {
         event_log,
         mcp_clients,
         None,
+        None,
     );
     assert!(result.is_ok(), "Should create agent loop for Mistral");
 }
@@ -126,6 +129,7 @@ fn test_agent_loop_creation_for_groq_valid() {
         event_log,
         mcp_clients,
         None,
+        None,
     );
     assert!(result.is_ok(), "Should create agent loop for Groq");
 }
@@ -148,6 +152,7 @@ fn test_agent_loop_creation_for_deepseek_valid() {
         params,
         event_log,
         mcp_clients,
+        None,
         None,
     );
     assert!(result.is_ok(), "Should create agent loop for DeepSeek");
@@ -210,6 +215,7 @@ async fn test_run_mistral_emits_events() {
         params,
         event_log.clone(),
         mcp_clients,
+        None,
         None,
     )
     .unwrap();
@@ -275,6 +281,7 @@ async fn test_run_groq_emits_events() {
         event_log.clone(),
         mcp_clients,
         None,
+        None,
     )
     .unwrap();
 
@@ -338,6 +345,7 @@ async fn test_run_deepseek_emits_events() {
         params,
         event_log.clone(),
         mcp_clients,
+        None,
         None,
     )
     .unwrap();

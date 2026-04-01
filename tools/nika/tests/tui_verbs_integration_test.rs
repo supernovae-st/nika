@@ -357,9 +357,15 @@ mod agent_tests {
         let event_log = EventLog::new();
         let mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
 
-        let mut agent =
-            RigAgentLoop::new("test-agent".into(), params, event_log, mcp_clients, None)
-                .expect("Failed to create agent");
+        let mut agent = RigAgentLoop::new(
+            "test-agent".into(),
+            params,
+            event_log,
+            mcp_clients,
+            None,
+            None,
+        )
+        .expect("Failed to create agent");
 
         let result = agent.run_auto().await;
         assert!(result.is_ok(), "Agent failed: {:?}", result.err());
@@ -399,6 +405,7 @@ mod agent_tests {
             params,
             event_log,
             mcp_clients,
+            None,
             None,
         )
         .expect("Failed to create agent");

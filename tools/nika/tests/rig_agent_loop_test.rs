@@ -35,6 +35,7 @@ fn test_rig_agent_loop_creation_with_valid_params() {
         event_log,
         mcp_clients,
         None,
+        None,
     );
 
     // Assert
@@ -58,6 +59,7 @@ fn test_rig_agent_loop_creation_with_empty_prompt_fails() {
         params,
         event_log,
         mcp_clients,
+        None,
         None,
     );
 
@@ -89,6 +91,7 @@ fn test_rig_agent_loop_creation_with_zero_max_turns_fails() {
         event_log,
         mcp_clients,
         None,
+        None,
     );
 
     // Assert
@@ -116,6 +119,7 @@ async fn test_rig_agent_loop_runs_to_natural_completion() {
         params,
         event_log.clone(),
         mcp_clients,
+        None,
         None,
     )
     .unwrap();
@@ -151,6 +155,7 @@ async fn test_rig_agent_loop_respects_max_turns() {
         event_log.clone(),
         mcp_clients,
         None,
+        None,
     )
     .unwrap();
 
@@ -180,6 +185,7 @@ async fn test_rig_agent_loop_emits_events() {
         params,
         event_log.clone(),
         mcp_clients,
+        None,
         None,
     )
     .unwrap();
@@ -232,6 +238,7 @@ async fn test_rig_agent_loop_with_mock_mcp_client() {
         event_log.clone(),
         mcp_clients,
         None,
+        None,
     )
     .unwrap();
 
@@ -261,6 +268,7 @@ async fn test_rig_agent_loop_builds_tool_definitions_from_mcp() {
         params,
         event_log.clone(),
         mcp_clients,
+        None,
         None,
     )
     .unwrap();
@@ -400,6 +408,7 @@ async fn test_workflow_multi_locale_generation_pattern() {
             event_log,
             mcp_clients,
             None,
+            None,
         )
         .unwrap();
 
@@ -440,6 +449,7 @@ fn test_workflow_mcp_server_not_found_error() {
         event_log,
         mcp_clients,
         None,
+        None,
     );
 
     // Assert: Should fail with McpNotConnected error
@@ -475,6 +485,7 @@ async fn test_workflow_multiple_mcp_servers() {
         event_log,
         mcp_clients,
         None,
+        None,
     )
     .unwrap();
 
@@ -501,7 +512,14 @@ fn test_workflow_max_turns_validation() {
     let event_log = EventLog::new();
     let mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
 
-    let result = RigAgentLoop::new("test_max".to_string(), params, event_log, mcp_clients, None);
+    let result = RigAgentLoop::new(
+        "test_max".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    );
 
     assert!(result.is_err(), "max_turns > 100 should fail");
 }
@@ -581,6 +599,7 @@ async fn test_workflow_event_log_captures_agent_lifecycle() {
         event_log.clone(),
         mcp_clients,
         None,
+        None,
     )
     .unwrap();
 
@@ -649,6 +668,7 @@ Focus on high-quality, SEO-optimized French content.
         event_log,
         mcp_clients,
         None,
+        None,
     )
     .unwrap();
 
@@ -692,6 +712,7 @@ async fn test_uc002_multi_locale_pipeline() {
             params,
             event_log,
             mcp_clients,
+            None,
             None,
         )
         .unwrap();
@@ -752,6 +773,7 @@ Steps:
         params,
         event_log,
         mcp_clients,
+        None,
         None,
     )
     .unwrap();

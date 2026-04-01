@@ -460,10 +460,12 @@ impl TransformOp {
                 Value::String(s) => {
                     // Strip markdown code blocks: ```json\n...\n``` or ```\n...\n```
                     let cleaned = strip_markdown_code_block(s);
-                    serde_json::from_str(&cleaned).map_err(|_| TransformError::TypeMismatch {
+                    // Strip UTF-8 BOM and NUL bytes that exec output may contain
+                    let cleaned = strip_bom_and_control_chars(&cleaned);
+                    serde_json::from_str(&cleaned).map_err(|e| TransformError::TypeMismatch {
                         op: "parse_json",
                         expected: "valid JSON string",
-                        got: format!("\"{}\"", truncate(s, 50)),
+                        got: format!("{} (input: \"{}\")", e, truncate(s, 80)),
                     })
                 }
                 // Idempotent: already-parsed values pass through unchanged.
@@ -803,6 +805,20 @@ fn strip_markdown_code_block(s: &str) -> String {
         }
     } else {
         trimmed.to_string()
+    }
+}
+
+/// Strip UTF-8 BOM and NUL bytes from a string.
+///
+/// Exec output may contain a BOM (`\u{FEFF}`) or stray NUL bytes that break
+/// JSON parsing. This is safe to call on any string — it only removes
+/// characters that are never valid in JSON content.
+fn strip_bom_and_control_chars(s: &str) -> String {
+    let s = s.strip_prefix('\u{FEFF}').unwrap_or(s);
+    if s.contains('\0') {
+        s.replace('\0', "")
+    } else {
+        s.to_string()
     }
 }
 
@@ -1217,6 +1233,58 @@ mod tests {
     fn apply_parse_json() {
         let result = TransformOp::ParseJson.apply(&json!(r#"{"a":1}"#)).unwrap();
         assert_eq!(result, json!({"a": 1}));
+    }
+
+    #[test]
+    fn apply_parse_json_unicode() {
+        // E17: CJK, accents, emoji, RTL — must survive parse_json roundtrip
+        let input = r#"{"fr":"Café crème à Paris","ja":"東京タワー","ar":"مرحبا بالعالم","emoji":"🦋🚀✨"}"#;
+        let result = TransformOp::ParseJson
+            .apply(&Value::String(input.to_string()))
+            .unwrap();
+        assert_eq!(result["fr"], "Café crème à Paris");
+        assert_eq!(result["ja"], "東京タワー");
+        assert_eq!(result["ar"], "مرحبا بالعالم");
+        assert_eq!(result["emoji"], "🦋🚀✨");
+    }
+
+    #[test]
+    fn apply_parse_json_with_bom() {
+        // E17: UTF-8 BOM at start of exec output
+        let input = "\u{FEFF}{\"a\":1}";
+        let result = TransformOp::ParseJson
+            .apply(&Value::String(input.to_string()))
+            .unwrap();
+        assert_eq!(result, json!({"a": 1}));
+    }
+
+    #[test]
+    fn apply_parse_json_with_nul() {
+        // E17: stray NUL byte in exec output
+        let input = "{\"a\":1}\0";
+        let result = TransformOp::ParseJson
+            .apply(&Value::String(input.to_string()))
+            .unwrap();
+        assert_eq!(result, json!({"a": 1}));
+    }
+
+    #[test]
+    fn apply_parse_json_error_includes_detail() {
+        // E17: error message should include serde's actual error
+        let err = TransformOp::ParseJson
+            .apply(&json!("not json"))
+            .unwrap_err();
+        match err {
+            TransformError::TypeMismatch { got, .. } => {
+                // Should contain serde error detail, not just truncated input
+                assert!(
+                    got.contains("expected"),
+                    "error should include serde detail: {}",
+                    got
+                );
+            }
+            _ => panic!("expected TypeMismatch"),
+        }
     }
 
     // ─────────────────────────────────────────────────────────────

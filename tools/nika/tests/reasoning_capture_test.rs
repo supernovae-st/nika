@@ -77,6 +77,7 @@ fn test_rig_agent_loop_creation_with_extended_thinking() {
         event_log,
         mcp_clients,
         None,
+        None,
     );
 
     assert!(
@@ -102,6 +103,7 @@ async fn test_rig_agent_loop_mock_completes_with_thinking_enabled() {
         params,
         event_log.clone(),
         mcp_clients,
+        None,
         None,
     )
     .unwrap();
@@ -135,6 +137,7 @@ async fn test_agent_turn_events_emitted_with_thinking_param() {
         params,
         event_log.clone(),
         mcp_clients,
+        None,
         None,
     )
     .unwrap();
@@ -335,6 +338,7 @@ Consider:
         event_log.clone(),
         mcp_clients,
         None,
+        None,
     )
     .unwrap();
 
@@ -366,6 +370,7 @@ async fn test_reasoning_capture_with_mcp_tools() {
         params,
         event_log.clone(),
         mcp_clients,
+        None,
         None,
     )
     .unwrap();
