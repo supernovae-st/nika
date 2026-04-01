@@ -2570,10 +2570,19 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
                     join_set.spawn(async move {
                         // Acquire global semaphore to bound concurrent regular tasks
-                        let _global_permit = global_semaphore
-                            .acquire()
-                            .await
-                            .expect("global task semaphore closed unexpectedly");
+                        let _global_permit = match global_semaphore.acquire().await {
+                            Ok(permit) => permit,
+                            Err(_) => {
+                                return IterationResult {
+                                    store_id: task_id,
+                                    result: crate::store::TaskResult::failed(
+                                        "global task semaphore closed unexpectedly",
+                                        std::time::Duration::ZERO,
+                                    ),
+                                    for_each_info: None,
+                                };
+                            }
+                        };
                         Self::execute_task_iteration(
                             task,
                             Arc::clone(&task_id),

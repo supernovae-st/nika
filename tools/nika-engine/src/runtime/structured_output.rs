@@ -1074,10 +1074,11 @@ pub async fn validate_structured_output(
     if let Some(ref example_ref) = spec.from_example {
         let example_value = match example_ref {
             SchemaRef::Inline(v) => Some(v.clone()),
-            SchemaRef::File(_) => {
-                // File was already read above as example_value — but that's in a
-                // different scope. Re-read is acceptable here (standalone fn, rare path).
-                None
+            SchemaRef::File(path) => {
+                // Re-read the example file for key reordering (standalone fn, rare path).
+                std::fs::read_to_string(path)
+                    .ok()
+                    .and_then(|c| serde_json::from_str(&c).ok())
             }
         };
         if let Some(ref ex) = example_value {
