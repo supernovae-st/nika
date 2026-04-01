@@ -98,7 +98,6 @@ struct TrackedTask {
 /// runtime.load(PathBuf::new(), config).await?;
 /// assert!(runtime.supports_vision());
 /// ```
-#[allow(dead_code)] // Fields used only with inference feature
 pub struct NativeRuntime {
     /// The loaded model (None if no model is loaded).
     #[cfg(feature = "native-inference")]
