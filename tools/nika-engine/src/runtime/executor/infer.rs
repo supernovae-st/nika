@@ -147,33 +147,40 @@ impl TaskExecutor {
             });
         }
 
-        // Pre-read file-based from_example for prompt injection
+        // Pre-read file-based from_example for prompt injection.
+        // Fail fast if the file is missing or contains invalid JSON — continuing
+        // would waste an API call that L2 validation will reject anyway.
         let cached_example = if let Some(policy) = output_policy {
             if let Some(SchemaRef::File(ref path)) = policy.from_example {
-                match tokio::fs::read_to_string(path).await {
-                    Ok(content) => match serde_json::from_str(&content) {
-                        Ok(value) => Some(value),
-                        Err(e) => {
-                            warn!(
-                                task_id = %task_id,
-                                path = %path,
-                                error = %e,
-                                "from_example file contains invalid JSON, ignoring"
-                            );
-                            None
-                        }
-                    },
-                    Err(e) => {
-                        debug!(task_id = %task_id, "Failed to pre-read from_example '{}': {}", path, e);
-                        None
-                    }
-                }
+                let content =
+                    tokio::fs::read_to_string(path)
+                        .await
+                        .map_err(|e| NikaError::SchemaFailed {
+                            details: format!("Failed to read from_example '{}': {}", path, e),
+                        })?;
+                let value: Value =
+                    serde_json::from_str(&content).map_err(|e| NikaError::SchemaFailed {
+                        details: format!("Invalid JSON in from_example '{}': {}", path, e),
+                    })?;
+                Some(value)
             } else {
                 None
             }
         } else {
             None
         };
+
+        // Also fail fast for file-based schema: references.
+        // Same rationale: a missing/invalid schema file will waste an API call.
+        if let Some(policy) = output_policy {
+            if let Some(SchemaRef::File(ref path)) = policy.schema {
+                if policy.is_structured() && !tokio::fs::try_exists(path).await.unwrap_or(false) {
+                    return Err(NikaError::SchemaFailed {
+                        details: format!("Schema file '{}' does not exist", path,),
+                    });
+                }
+            }
+        }
 
         // Inject JSON schema instruction if output policy requires JSON with schema
         if let Some(schema_instruction) =
@@ -492,7 +499,7 @@ impl TaskExecutor {
         // Layer 0 uses text-only tool injection which ignores content: parts.
         // Vision must bypass structured output and go directly to infer_vision.
         if has_content {
-            return self
+            let vision_result = self
                 .run_infer_vision(
                     task_id,
                     infer,
@@ -505,7 +512,48 @@ impl TaskExecutor {
                     resolved_system.as_deref(),
                     estimated_tokens,
                 )
-                .await;
+                .await?;
+
+            // If structured output is configured, validate vision output through L2-L4
+            if let Some(policy) = output_policy {
+                if policy.is_structured() {
+                    if let Some(spec) = policy.to_structured_spec() {
+                        let infer_callback = Self::make_infer_callback(&provider, None);
+                        let mut engine = StructuredOutputEngine::new(
+                            spec.clone(),
+                            Arc::new(self.event_log.clone()),
+                        )
+                        .with_infer_callback(infer_callback)
+                        .with_original_prompt(prompt.to_string())
+                        .with_provider_context(provider_name.to_string(), model_id.clone())
+                        .with_max_tokens(infer.max_tokens);
+
+                        if let Some(ref repair_model) = spec.repair_model {
+                            let trimmed = repair_model.trim();
+                            if !trimmed.is_empty() {
+                                let repair_callback =
+                                    Self::make_infer_callback(&provider, Some(trimmed));
+                                engine = engine.with_repair_callback(repair_callback);
+                            }
+                        }
+
+                        match engine.validate(task_id.as_ref(), &vision_result).await {
+                            Ok(result) => {
+                                return Ok(result.value.to_string());
+                            }
+                            Err(e) => {
+                                tracing::warn!(
+                                    task = %task_id,
+                                    error = %e,
+                                    "Vision + structured: validation failed, returning raw output"
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+
+            return Ok(vision_result);
         }
 
         // ═══════════════════════════════════════════════════════════════════
@@ -516,18 +564,34 @@ impl TaskExecutor {
         // If it succeeds, we still validate the result. If it fails, we fall
         // through to streaming + post-processing (Layers 1-3).
         if let Some(policy) = output_policy {
-            if policy.is_structured() {
+            // Respect enable_tool_injection: false — skip L0 entirely
+            let should_inject_tool = policy
+                .source_structured_spec
+                .as_ref()
+                .map(|s| s.enable_tool_injection_or_default())
+                .unwrap_or(true);
+            if policy.is_structured() && should_inject_tool {
                 // FIX(A2): Resolve schema from EITHER `schema:` or `from_example:`.
                 // Previously only checked policy.schema, skipping Layer 0 tool injection
                 // entirely when users provided from_example instead of schema.
+                // Respect strict mode for from_example schema derivation
+                let use_strict = policy
+                    .source_structured_spec
+                    .as_ref()
+                    .and_then(|s| s.strict)
+                    .unwrap_or(false);
+                let derive_schema = if use_strict {
+                    crate::ast::structured::json_to_schema_strict as fn(&Value) -> Value
+                } else {
+                    crate::ast::structured::json_to_schema
+                };
+
                 let schema_value: Result<Value, NikaError> = if let Some(example_ref) =
                     &policy.from_example
                 {
                     // Derive JSON Schema from example (same as StructuredOutputEngine::load_schema)
                     match example_ref {
-                        crate::ast::output::SchemaRef::Inline(v) => {
-                            Ok(crate::ast::structured::json_to_schema(v))
-                        }
+                        crate::ast::output::SchemaRef::Inline(v) => Ok(derive_schema(v)),
                         crate::ast::output::SchemaRef::File(path) => {
                             tokio::fs::read_to_string(path)
                                 .await
@@ -544,7 +608,7 @@ impl TaskExecutor {
                                                 ),
                                             }
                                         })?;
-                                    Ok(crate::ast::structured::json_to_schema(&example))
+                                    Ok(derive_schema(&example))
                                 })
                         }
                     }

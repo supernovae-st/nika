@@ -613,7 +613,7 @@ impl TaskExecutor {
                     e.insert(provider.clone());
                     self.event_log.emit(EventKind::ProviderInitialized {
                         provider: name.to_string(),
-                        model: provider.default_model().to_string(),
+                        model: "ready".to_string(),
                         cached: false,
                     });
                     return Ok(provider);
@@ -633,7 +633,7 @@ impl TaskExecutor {
                 e.insert(provider.clone());
                 self.event_log.emit(EventKind::ProviderInitialized {
                     provider: canonical.to_string(),
-                    model: provider.default_model().to_string(),
+                    model: "ready".to_string(),
                     cached: false,
                 });
                 Ok(provider)
