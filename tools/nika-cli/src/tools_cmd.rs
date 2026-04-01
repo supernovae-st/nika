@@ -49,17 +49,16 @@ fn list_tools(router: &BuiltinToolRouter, json: bool) {
         let mut entries: Vec<serde_json::Value> = names
             .iter()
             .map(|name| {
-                let desc = router
-                    .get_tool(name)
-                    .map(|t| t.description())
-                    .unwrap_or("");
+                let desc = router.get_tool(name).map(|t| t.description()).unwrap_or("");
                 serde_json::json!({ "name": format!("nika:{}", name), "description": desc })
             })
             .collect();
 
         for (name, desc) in file_tools.iter().zip(file_descriptions.iter()) {
             if !names.contains(name) {
-                entries.push(serde_json::json!({ "name": format!("nika:{}", name), "description": desc }));
+                entries.push(
+                    serde_json::json!({ "name": format!("nika:{}", name), "description": desc }),
+                );
             }
         }
 
@@ -95,7 +94,10 @@ fn list_tools(router: &BuiltinToolRouter, json: bool) {
             println!("  {:<width$}  {}", padded, desc, width = max_name_len);
         }
 
-        println!("\n{} tools available. Use `nika tools info <name>` for param schema.", all.len());
+        println!(
+            "\n{} tools available. Use `nika tools info <name>` for param schema.",
+            all.len()
+        );
     }
 }
 
@@ -112,11 +114,31 @@ fn info_tool(router: &BuiltinToolRouter, name: &str) {
     } else {
         // Check file tools (not registered without context)
         let file_tools = [
-            ("read", "Read file with line numbers", r#"{"type":"object","properties":{"file_path":{"type":"string","description":"Absolute or relative path to read"}},"required":["file_path"],"additionalProperties":false}"#),
-            ("write", "Create or overwrite file", r#"{"type":"object","properties":{"file_path":{"type":"string","description":"Path to write"},"content":{"type":"string","description":"File content"}},"required":["file_path","content"],"additionalProperties":false}"#),
-            ("edit", "Modify file (old_string → new_string)", r#"{"type":"object","properties":{"file_path":{"type":"string","description":"Path to file"},"old_string":{"type":"string","description":"Text to find"},"new_string":{"type":"string","description":"Replacement text"}},"required":["file_path","old_string","new_string"],"additionalProperties":false}"#),
-            ("glob", "Find files by glob pattern", r#"{"type":"object","properties":{"pattern":{"type":"string","description":"Glob pattern (e.g. **/*.yaml)"}},"required":["pattern"],"additionalProperties":false}"#),
-            ("grep", "Search content with regex", r#"{"type":"object","properties":{"pattern":{"type":"string","description":"Regex pattern to search"},"path":{"type":"string","description":"Directory or file to search in"}},"required":["pattern"],"additionalProperties":false}"#),
+            (
+                "read",
+                "Read file with line numbers",
+                r#"{"type":"object","properties":{"file_path":{"type":"string","description":"Absolute or relative path to read"}},"required":["file_path"],"additionalProperties":false}"#,
+            ),
+            (
+                "write",
+                "Create or overwrite file",
+                r#"{"type":"object","properties":{"file_path":{"type":"string","description":"Path to write"},"content":{"type":"string","description":"File content"}},"required":["file_path","content"],"additionalProperties":false}"#,
+            ),
+            (
+                "edit",
+                "Modify file (old_string → new_string)",
+                r#"{"type":"object","properties":{"file_path":{"type":"string","description":"Path to file"},"old_string":{"type":"string","description":"Text to find"},"new_string":{"type":"string","description":"Replacement text"}},"required":["file_path","old_string","new_string"],"additionalProperties":false}"#,
+            ),
+            (
+                "glob",
+                "Find files by glob pattern",
+                r#"{"type":"object","properties":{"pattern":{"type":"string","description":"Glob pattern (e.g. **/*.yaml)"}},"required":["pattern"],"additionalProperties":false}"#,
+            ),
+            (
+                "grep",
+                "Search content with regex",
+                r#"{"type":"object","properties":{"pattern":{"type":"string","description":"Regex pattern to search"},"path":{"type":"string","description":"Directory or file to search in"}},"required":["pattern"],"additionalProperties":false}"#,
+            ),
         ];
 
         if let Some((_, desc, schema_str)) = file_tools.iter().find(|(n, _, _)| *n == clean_name) {
