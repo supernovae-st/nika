@@ -884,6 +884,40 @@ Reorder emit/push/check to avoid cloning phase results in phases 1-2.
 
 All fields use serde defaults. Cannot distinguish "not set" from "set to default value". Wrap mergeable fields in `Option<T>`.
 
+## Performance Findings (from rust-perf audit)
+
+### CRITICAL — BootSequence is dead code
+
+`BootSequence` (boot.rs, 826 lines) is NEVER called in production. `nika run` does ad-hoc boot in `main.rs:2415` (run_workflow). `nika infer` uses `one_shot_executor()` in verbs.rs which bypasses boot entirely. Only tests use BootSequence.
+
+**For this sprint:** Wire BootSequence into the actual code paths. Otherwise all the nika.toml discovery logic is dead code.
+
+### HIGH — 500ms daemon auto-start sleep
+
+`secrets/fallback.rs:38-51` has a `tokio::time::sleep(500ms)` after daemon auto-start. First `nika` command after reboot/crash pays 500ms penalty.
+
+**Mitigation:** Replace with 50ms polling loop (max 3 retries = 150ms). Or make daemon startup non-blocking (proceed, fall through to vault if IPC fails).
+
+### MEDIUM — Sync reads in async boot
+
+`tokio::fs::read_to_string` in boot.rs Phase 2 adds spawn_blocking overhead (~5us). No concurrent I/O during boot. Use `std::fs::read_to_string` instead.
+
+### LOW — Combine walk-up passes
+
+Two walk-up loops (nika.toml then .nika/) can be combined into one pass. Saves ~50us. Worth doing since we're rewriting the function anyway.
+
+### INFORMATIONAL — Verb overhead is fine
+
+`one_shot_executor()` costs ~2-8ms (reqwest client + TLS init). LLM calls are 500-5000ms. <1% overhead.
+
+### INFORMATIONAL — indicatif spinner is well-designed
+
+80ms tick via tokio task (not OS thread). No optimization needed.
+
+### NOTE — Skip daemon for mock-provider verbs
+
+`nika fetch` and `nika invoke` (mock provider) don't need secrets. Skip `load_from_daemon_or_fallback()` for these. Saves 0-500ms.
+
 ---
 
 ## PHASE 10: CLI UX Polish — Inline Verbs + Command Consistency
