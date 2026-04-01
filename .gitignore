@@ -35,7 +35,7 @@ node_modules/
 # VS Code extension build artifacts
 editors/vscode/out/
 editors/vscode/node_modules/
-editors/vscode/package-lock.json
+# package-lock.json tracked for CI reproducibility (npm ci)
 *.vsix
 
 # Test artifacts
