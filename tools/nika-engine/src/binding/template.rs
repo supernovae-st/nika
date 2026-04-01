@@ -134,6 +134,11 @@ pub enum TemplateExpr {
         path: String,
         transforms: Vec<String>,
     },
+    /// Direct skill reference: `"skills.pirate"` or `"skills.writing | trim"`
+    Skills {
+        path: String,
+        transforms: Vec<String>,
+    },
 }
 
 /// Parse the content inside `{{ ... }}` into a TemplateExpr.
@@ -199,6 +204,24 @@ pub fn parse_template_expr(content: &str) -> Result<TemplateExpr, NikaError> {
             });
         }
         return Ok(TemplateExpr::Input { path, transforms });
+    }
+    if let Some(rest) = trimmed.strip_prefix("skills.") {
+        if rest.is_empty() {
+            return Err(NikaError::TemplateParse {
+                position: 0,
+                details: format!("Empty skill path after 'skills.' in '{}'", content),
+            });
+        }
+        let parts: Vec<&str> = rest.split('|').map(str::trim).collect();
+        let path = parts[0].to_string();
+        let transforms: Vec<String> = parts[1..].iter().map(|s| s.to_string()).collect();
+        if path.is_empty() {
+            return Err(NikaError::TemplateParse {
+                position: 0,
+                details: format!("Empty skill path after 'skills.' in '{}'", content),
+            });
+        }
+        return Ok(TemplateExpr::Skills { path, transforms });
     }
 
     // Strip "with." prefix to get alias path
@@ -467,8 +490,12 @@ pub fn resolve_with<'a>(
                     }
                 }
             }
-            Ok(TemplateExpr::Context { .. } | TemplateExpr::Input { .. }) => {
-                // Leave context/inputs refs for Pass 2 — re-emit as {{...}}
+            Ok(
+                TemplateExpr::Context { .. }
+                | TemplateExpr::Input { .. }
+                | TemplateExpr::Skills { .. },
+            ) => {
+                // Leave context/inputs/skills refs for later passes — re-emit as {{...}}
                 result.push_str(&format!("{{{{{}}}}}", content.trim()));
             }
             Err(e) => {
@@ -498,8 +525,9 @@ pub fn resolve_with<'a>(
     // containing "{{context.files.x}}" triggers Pass 2 resolution.
     let has_context = template.contains("context.");
     let has_inputs = template.contains("inputs.");
+    let has_skills = template.contains("skills.");
 
-    if !has_context && !has_inputs {
+    if !has_context && !has_inputs && !has_skills {
         return Ok(Cow::Owned(result));
     }
 
@@ -668,6 +696,88 @@ pub fn resolve_with<'a>(
                 template: input_errors.join(", "),
                 reason: "Input binding(s) not resolved. Check your 'inputs:' block in workflow or provide defaults.".to_string(),
             }.into());
+        }
+
+        result.push_str(&intermediate[last_end..]);
+    }
+
+    // SECURITY: Collect trusted skills paths from the ORIGINAL template
+    if has_skills && result.contains("{{") {
+        let trusted_skills: std::collections::HashSet<String> = TEMPLATE_RE
+            .captures_iter(template)
+            .filter_map(|cap| {
+                let inner = cap[1].trim();
+                if let Ok(TemplateExpr::Skills { path, .. }) = parse_template_expr(inner) {
+                    Some(format!("skills.{}", path))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        let intermediate = std::mem::take(&mut result);
+        result = String::with_capacity(intermediate.len() + 64);
+        let mut last_end = 0;
+        let mut skills_errors: SmallVec<[String; 4]> = SmallVec::new();
+
+        for cap in TEMPLATE_RE.captures_iter(&intermediate) {
+            let m = cap.get(0).unwrap();
+            let inner = cap[1].trim();
+            let (path, transforms) = match parse_template_expr(inner) {
+                Ok(TemplateExpr::Skills { path, transforms }) => (path, transforms),
+                _ => continue,
+            };
+            let full_path = format!("skills.{}", path);
+            if !trusted_skills.contains(&full_path) {
+                tracing::warn!(
+                    path = %full_path,
+                    "Blocked injected skills reference in resolve_with (template injection attempt)"
+                );
+                continue;
+            }
+            result.push_str(&intermediate[last_end..m.start()]);
+            match datastore.resolve_skills_path(&path) {
+                Some(value) => {
+                    let replacement = if !transforms.is_empty() {
+                        let transform_str = transforms.join(" | ");
+                        let expr = TransformExpr::parse(&transform_str).map_err(|e| {
+                            NikaError::TemplateParse {
+                                position: m.start(),
+                                details: format!("Transform parse error: {}", e),
+                            }
+                        })?;
+                        let transformed =
+                            expr.apply(&value).map_err(|e| NikaError::TemplateParse {
+                                position: m.start(),
+                                details: format!("Transform apply error: {}", e),
+                            })?;
+                        if is_in_json_context(&intermediate, m.start()) {
+                            escape_for_json(&value_to_display(&transformed)).into_owned()
+                        } else {
+                            value_to_display(&transformed).into_owned()
+                        }
+                    } else if is_in_json_context(&intermediate, m.start()) {
+                        escape_for_json(&value_to_display(&value)).into_owned()
+                    } else {
+                        value_to_display(&value).into_owned()
+                    };
+                    result.push_str(&replacement);
+                }
+                None => {
+                    skills_errors.push(full_path);
+                }
+            }
+
+            last_end = m.end();
+        }
+
+        if !skills_errors.is_empty() {
+            return Err(BindingError::TemplateError {
+                template: skills_errors.join(", "),
+                reason: "Skill binding(s) not resolved. Check your 'skills:' block in workflow."
+                    .to_string(),
+            }
+            .into());
         }
 
         result.push_str(&intermediate[last_end..]);
@@ -899,7 +1009,7 @@ pub fn resolve<'a>(
     datastore: &RunContext,
 ) -> Result<Cow<'a, str>, NikaError> {
     // Early return with borrowed string (zero alloc)
-    // Fast check: must contain `{{` followed eventually by `with.`, `context.`, or `inputs.`
+    // Fast check: must contain `{{` followed eventually by `with.`, `context.`, `inputs.`, or `skills.`
     // Regex handles whitespace variations like `{{ with.` or `{{\twith.`
     if !template.contains("{{") {
         return Ok(Cow::Borrowed(template));
@@ -907,7 +1017,8 @@ pub fn resolve<'a>(
     let has_with = template.contains("with.");
     let has_context = template.contains("context.");
     let has_inputs = template.contains("inputs.");
-    if !has_with && !has_context && !has_inputs {
+    let has_skills = template.contains("skills.");
+    if !has_with && !has_context && !has_inputs && !has_skills {
         return Ok(Cow::Borrowed(template));
     }
 
@@ -1094,8 +1205,12 @@ pub fn resolve<'a>(
                     }
                 }
             }
-            Ok(TemplateExpr::Context { .. } | TemplateExpr::Input { .. }) => {
-                // Leave context/inputs refs for Pass 2 — re-emit as {{...}}
+            Ok(
+                TemplateExpr::Context { .. }
+                | TemplateExpr::Input { .. }
+                | TemplateExpr::Skills { .. },
+            ) => {
+                // Leave context/inputs/skills refs for later passes — re-emit as {{...}}
                 result.push_str(&format!("{{{{{}}}}}", content.trim()));
             }
             Err(e) => {
@@ -1307,8 +1422,90 @@ pub fn resolve<'a>(
 
         // Copy remaining segment
         result.push_str(&intermediate[last_end..]);
+    }
 
-        return Ok(Cow::Owned(result));
+    // ─────────────────────────────────────────────────────────────
+    // Pass 4: Resolve {{skills.name}}
+    // ─────────────────────────────────────────────────────────────
+    if has_skills && result.contains("skills.") {
+        let trusted_skills: std::collections::HashSet<String> = TEMPLATE_RE
+            .captures_iter(template)
+            .filter_map(|cap| {
+                let inner = cap[1].trim();
+                if let Ok(TemplateExpr::Skills { path, .. }) = parse_template_expr(inner) {
+                    Some(format!("skills.{}", path))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        let intermediate = std::mem::take(&mut result);
+        result = String::with_capacity(intermediate.len() + 64);
+        let mut last_end = 0;
+        let mut skills_errors: SmallVec<[String; 4]> = SmallVec::new();
+
+        for cap in TEMPLATE_RE.captures_iter(&intermediate) {
+            let m = cap.get(0).unwrap();
+            let inner = cap[1].trim();
+            let (path, transforms) = match parse_template_expr(inner) {
+                Ok(TemplateExpr::Skills { path, transforms }) => (path, transforms),
+                _ => continue,
+            };
+            let full_path = format!("skills.{}", path);
+            if !trusted_skills.contains(&full_path) {
+                tracing::warn!(
+                    path = %full_path,
+                    "Blocked injected skills reference (template injection attempt)"
+                );
+                continue;
+            }
+            result.push_str(&intermediate[last_end..m.start()]);
+            match datastore.resolve_skills_path(&path) {
+                Some(value) => {
+                    let replacement = if !transforms.is_empty() {
+                        let transform_str = transforms.join(" | ");
+                        let expr = TransformExpr::parse(&transform_str).map_err(|e| {
+                            NikaError::TemplateParse {
+                                position: m.start(),
+                                details: format!("Transform parse error: {}", e),
+                            }
+                        })?;
+                        let transformed =
+                            expr.apply(&value).map_err(|e| NikaError::TemplateParse {
+                                position: m.start(),
+                                details: format!("Transform apply error: {}", e),
+                            })?;
+                        if is_in_json_context(&intermediate, m.start()) {
+                            escape_for_json(&value_to_display(&transformed)).into_owned()
+                        } else {
+                            value_to_display(&transformed).into_owned()
+                        }
+                    } else if is_in_json_context(&intermediate, m.start()) {
+                        escape_for_json(&value_to_display(&value)).into_owned()
+                    } else {
+                        value_to_display(&value).into_owned()
+                    };
+                    result.push_str(&replacement);
+                }
+                None => {
+                    skills_errors.push(full_path);
+                }
+            }
+
+            last_end = m.end();
+        }
+
+        if !skills_errors.is_empty() {
+            return Err(BindingError::TemplateError {
+                template: skills_errors.join(", "),
+                reason: "Skill binding(s) not resolved. Check your 'skills:' block in workflow."
+                    .to_string(),
+            }
+            .into());
+        }
+
+        result.push_str(&intermediate[last_end..]);
     }
 
     Ok(Cow::Owned(result))
@@ -1333,7 +1530,8 @@ pub fn resolve_for_shell<'a>(
     let has_with = template.contains("with.");
     let has_context = template.contains("context.");
     let has_inputs = template.contains("inputs.");
-    if !has_with && !has_context && !has_inputs {
+    let has_skills = template.contains("skills.");
+    if !has_with && !has_context && !has_inputs && !has_skills {
         return Ok(Cow::Borrowed(template));
     }
 
