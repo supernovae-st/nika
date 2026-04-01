@@ -92,6 +92,8 @@ struct WorkerGuard {
     storage: nika_storage::Storage,
     workers: Arc<Mutex<std::collections::HashMap<String, WorkerHandle>>>,
     active_jobs: Arc<std::sync::atomic::AtomicUsize>,
+    /// H5: EventBus reference for cleanup on panic/early return
+    event_bus: crate::events::EventBus,
     job_id: String,
     completed: bool,
     /// Whether the active_jobs counter was incremented for this guard.
@@ -113,11 +115,13 @@ impl Drop for WorkerGuard {
         if self.incremented {
             self.active_jobs.fetch_sub(1, Ordering::Relaxed);
         }
-        // Always remove from worker map
+        // Always remove from worker map + cleanup event bus channel (H5)
         let workers = self.workers.clone();
+        let event_bus = self.event_bus.clone();
         let id = self.job_id.clone();
         tokio::spawn(async move {
             workers.lock().await.remove(&id);
+            event_bus.remove(&id).await;
         });
     }
 }
@@ -170,6 +174,7 @@ pub fn spawn_worker(
             storage: storage.clone(),
             workers: workers.clone(),
             active_jobs,
+            event_bus: event_bus.clone(),
             job_id: id.clone(),
             completed: false,
             incremented: true, // Counter was incremented by try_acquire_job_slot
@@ -459,6 +464,7 @@ mod tests {
                 storage: nika_storage::Storage::open_memory().unwrap(),
                 workers: Arc::new(Mutex::new(std::collections::HashMap::new())),
                 active_jobs: counter.clone(),
+                event_bus: crate::events::EventBus::default(),
                 job_id: "test-job".into(),
                 completed: true,
                 incremented: false, // Never incremented
@@ -485,6 +491,7 @@ mod tests {
                 storage: nika_storage::Storage::open_memory().unwrap(),
                 workers: Arc::new(Mutex::new(std::collections::HashMap::new())),
                 active_jobs: counter.clone(),
+                event_bus: crate::events::EventBus::default(),
                 job_id: "test-job-2".into(),
                 completed: true,
                 incremented: true,
