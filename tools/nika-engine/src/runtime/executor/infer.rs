@@ -30,35 +30,7 @@ use super::verbs::{
 use super::TaskExecutor;
 use crate::error_domains::ProviderError;
 
-/// Check whether a provider error is transient and worth retrying.
-///
-/// Returns `true` for HTTP 500, 502, 503, 429 (rate limit), timeouts, and
-/// connection errors. Returns `false` for permanent errors (401, 403, 404,
-/// invalid API key, etc.).
-pub(super) fn is_retryable_provider_error(err: &NikaError) -> bool {
-    let msg = err.to_string().to_lowercase();
-    // Permanent errors — never retry
-    if msg.contains("401")
-        || msg.contains("403")
-        || msg.contains("404")
-        || msg.contains("unauthorized")
-        || msg.contains("forbidden")
-        || msg.contains("invalid api key")
-        || msg.contains("invalid_api_key")
-        || msg.contains("authentication")
-    {
-        return false;
-    }
-    // Transient errors — retry
-    msg.contains("500")
-        || msg.contains("502")
-        || msg.contains("503")
-        || msg.contains("429")
-        || msg.contains("timeout")
-        || msg.contains("timed out")
-        || msg.contains("connection")
-        || msg.contains("rate limit")
-}
+use crate::runtime::Runner;
 
 impl TaskExecutor {
     /// Build an [`InferCallback`] that calls `provider.infer()` with optional model override.
@@ -543,7 +515,9 @@ impl TaskExecutor {
                             if !trimmed.is_empty() {
                                 let repair_callback =
                                     Self::make_infer_callback(&provider, Some(trimmed));
-                                engine = engine.with_repair_callback(repair_callback);
+                                engine = engine
+                                    .with_repair_callback(repair_callback)
+                                    .with_repair_model_name(trimmed.to_string());
                             }
                         }
 
@@ -865,7 +839,7 @@ impl TaskExecutor {
                     break;
                 }
                 Err(e) => {
-                    if is_retryable_provider_error(&e) && attempt + 1 < MAX_PROVIDER_ATTEMPTS {
+                    if Runner::is_retryable(&e) && attempt + 1 < MAX_PROVIDER_ATTEMPTS {
                         last_error = Some(e);
                         continue;
                     }
@@ -969,7 +943,9 @@ impl TaskExecutor {
                         } else {
                             let repair_callback =
                                 Self::make_infer_callback(&provider, Some(trimmed));
-                            engine = engine.with_repair_callback(repair_callback);
+                            engine = engine
+                                .with_repair_callback(repair_callback)
+                                .with_repair_model_name(trimmed.to_string());
                         }
                     }
 
