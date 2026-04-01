@@ -493,10 +493,7 @@ pub async fn handle_provider_command(
                     StatusIcon::Warn,
                     env_var.bold()
                 );
-                println!(
-                    "{}",
-                    hint(&format!("Remove it: unset {env_var}"))
-                );
+                println!("{}", hint(&format!("Remove it: unset {env_var}")));
             }
             if !no_test
                 && is_tty

@@ -529,11 +529,7 @@ mod tests {
         assert_eq!(report.source, ConfigSource::File);
         assert!(report.config_path.is_some());
         // Should find nika.toml, not .nika/config.toml
-        assert!(report
-            .config_path
-            .as_ref()
-            .unwrap()
-            .ends_with("nika.toml"));
+        assert!(report.config_path.as_ref().unwrap().ends_with("nika.toml"));
     }
 
     #[test]

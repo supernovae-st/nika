@@ -363,7 +363,10 @@ pub fn check_blocklist(cmd: &str) -> Result<(), NikaError> {
     // SEC-3: Strip shell quoting characters before pattern matching.
     // `su""do rm -rf /` → `sudo rm -rf /`, `s'u'd'o'` → `sudo`
     // Also strip backslash-escapes: `su\do` → `sudo`
-    let dequoted: String = lower.chars().filter(|c| !matches!(c, '"' | '\'' | '\\')).collect();
+    let dequoted: String = lower
+        .chars()
+        .filter(|c| !matches!(c, '"' | '\'' | '\\'))
+        .collect();
 
     // SEC-2: Also check with the first token basename-resolved.
     // "/usr/bin/sudo rm -rf /" → "sudo rm -rf /" to catch absolute-path bypass.

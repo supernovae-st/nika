@@ -219,7 +219,9 @@ impl TransformExpr {
     /// Used by binding resolution to allow `$env.MISSING | default("x")`
     /// even when the source returns `None` (missing, not null).
     pub fn has_default(&self) -> bool {
-        self.ops.iter().any(|op| matches!(op, TransformOp::Default(_)))
+        self.ops
+            .iter()
+            .any(|op| matches!(op, TransformOp::Default(_)))
     }
 }
 

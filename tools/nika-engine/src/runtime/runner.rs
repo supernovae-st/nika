@@ -3078,8 +3078,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     .collect();
 
                 // Create aggregated result with JSON array + merged media
-                let succeeded_count =
-                    results.iter().filter(|(_, r)| r.is_success()).count() as u32;
+                let succeeded_count = results.iter().filter(|(_, r)| r.is_success()).count() as u32;
                 let failed_count = results
                     .iter()
                     .filter(|(_, r)| !r.is_success() && !r.is_skipped())
