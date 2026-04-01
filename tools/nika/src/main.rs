@@ -1129,9 +1129,13 @@ async fn main() {
             json,
             from_example,
             stdin,
-            no_interactive: _,
+            no_interactive,
             quiet: verb_quiet,
         }) => {
+            if no_interactive {
+                // SAFETY: single-threaded CLI entry point, no concurrent env reads
+                unsafe { std::env::set_var("NIKA_NO_ONBOARDING", "1") };
+            }
             cli::verbs::handle_infer(
                 prompt,
                 provider,
