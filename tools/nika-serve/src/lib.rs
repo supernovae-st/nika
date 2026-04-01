@@ -71,21 +71,35 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
 
     // Build shared state
+    // Load webhook config once at startup (BUG-8)
+    let webhook_config = crate::webhook::WebhookConfig::from_env();
+
+    let exec = match config.executor_mode {
+        config::ExecutorMode::Subprocess => executor::Executor::Subprocess,
+        config::ExecutorMode::Embedded => {
+            info!("using embedded executor (in-process Runner)");
+            executor::Executor::Embedded
+        }
+    };
+
+    // BUG-9: Warn about crash isolation tradeoff
+    if config.executor_mode == config::ExecutorMode::Embedded {
+        tracing::warn!(
+            "embedded executor: workflow panics will crash the server. \
+             Set NIKA_SERVE_EXECUTOR=subprocess for untrusted workflows."
+        );
+    }
+
     let state = AppState {
         storage,
         config: Arc::new(config.clone()),
-        executor: match config.executor_mode {
-            config::ExecutorMode::Subprocess => executor::Executor::Subprocess,
-            config::ExecutorMode::Embedded => {
-                info!("using embedded executor (in-process Runner)");
-                executor::Executor::Embedded
-            }
-        },
+        executor: exec,
         semaphore: Arc::new(Semaphore::new(config.max_concurrent)),
         shutdown: shutdown_rx,
         workers: Arc::new(Mutex::new(HashMap::new())),
         active_jobs: Arc::new(AtomicUsize::new(0)),
         event_bus: events::EventBus::default(),
+        webhook_config,
     };
 
     // Install Prometheus metrics recorder
@@ -112,9 +126,14 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
         ))
         .layer(middleware::from_fn(request_id::request_id_middleware));
 
-    // Merge /metrics endpoint (no auth required, like /health)
+    // Merge /metrics endpoint (behind auth — metrics can leak sensitive info)
     if let Some(handle) = metrics_handle {
-        app = app.merge(routes::build_metrics_router(handle));
+        app = app.merge(
+            routes::build_metrics_router(handle).layer(middleware::from_fn_with_state(
+                state.clone(),
+                auth::require_auth,
+            )),
+        );
     }
 
     // CORS layer — only when explicitly configured (default: no CORS headers)
@@ -339,6 +358,7 @@ mod tests {
             workers: Arc::new(Mutex::new(HashMap::new())),
             active_jobs: Arc::new(AtomicUsize::new(0)),
             event_bus: events::EventBus::default(),
+            webhook_config: None,
         };
 
         let limiter = rate_limit::new_rate_limiter();

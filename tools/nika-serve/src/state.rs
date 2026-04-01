@@ -50,4 +50,7 @@ pub struct AppState {
 
     /// Per-job event broadcast for SSE streaming.
     pub event_bus: EventBus,
+
+    /// Webhook configuration, loaded once at startup (BUG-8).
+    pub webhook_config: Option<crate::webhook::WebhookConfig>,
 }
