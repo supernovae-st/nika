@@ -452,7 +452,7 @@ impl NikaVault {
         let kdf_salt = kdf::Salt::from_slice(&salt)
             .map_err(|e| VaultError::Crypto(format!("KDF salt: {e}")))?;
 
-        let derived = kdf::derive_key(&password, &kdf_salt, 3, 1 << 16, 32)
+        let derived = kdf::derive_key(&password, &kdf_salt, 6, 1 << 16, 32)
             .map_err(|e| VaultError::Crypto(format!("KDF derive: {e}")))?;
 
         orion::aead::SecretKey::from_slice(derived.unprotected_as_bytes())
