@@ -5452,6 +5452,7 @@ dependencies = [
  "cliclack",
  "colored",
  "dirs",
+ "filetime",
  "humantime",
  "image",
  "indicatif 0.18.4",

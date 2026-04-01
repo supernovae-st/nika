@@ -147,9 +147,23 @@ pub fn spawn_worker(
     let child_pid = Arc::new(AtomicU32::new(0));
     let child_pid_clone = Arc::clone(&child_pid);
 
+    let mut shutdown_rx_clone = shutdown_rx.clone();
+
     let join = tokio::spawn(async move {
-        // Acquire concurrency permit (blocks if max_concurrent workers are busy)
-        let _permit = semaphore.acquire().await;
+        // C4: Race semaphore acquire against shutdown to avoid blocking 30s on drain
+        let _permit = tokio::select! {
+            permit = semaphore.acquire() => permit,
+            _ = shutdown_rx_clone.changed() => {
+                info!(job_id = %id, "server shutting down, skipping pending job");
+                // Best-effort: mark job as failed in storage
+                let _ = storage.fail_job(&id, "server shutting down").await;
+                active_jobs.fetch_sub(1, Ordering::Relaxed);
+                let workers_clone = workers.clone();
+                let id_clone = id.clone();
+                tokio::spawn(async move { workers_clone.lock().await.remove(&id_clone); });
+                return;
+            }
+        };
 
         // Create guard AFTER acquire — ensures cleanup even on panic
         let mut guard = WorkerGuard {

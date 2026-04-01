@@ -498,6 +498,18 @@ enum Commands {
         action: cli::mcp::McpAction,
     },
 
+    /// Clean project runtime state (traces, cache, media orphans)
+    #[command(next_help_heading = "PROJECT")]
+    Clean {
+        /// Preview what would be removed without deleting
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Also remove serve.db and sessions
+        #[arg(long)]
+        all: bool,
+    },
+
     /// Discover builtin tools (nika:*) and their parameter schemas
     #[command(next_help_heading = "SYSTEM")]
     Tools {
@@ -1262,6 +1274,37 @@ async fn main() {
         Some(Commands::Course { action }) => cli::course::handle_course_command(action, quiet),
 
         Some(Commands::Trace { action }) => cli::trace::handle_trace_command(action, quiet),
+
+        Some(Commands::Clean { dry_run, all }) => {
+            let current = std::env::current_dir().map_err(NikaError::from);
+            match current.and_then(|cwd| cli::config::find_project_root_from(&cwd)) {
+                Ok(project) => {
+                    let nika_dir = project.root.join(".nika");
+                    if !nika_dir.exists() {
+                        println!(
+                            "{} No .nika/ directory found — nothing to clean",
+                            nika_engine::display::StatusIcon::Info
+                        );
+                        Ok(())
+                    } else {
+                        let opts = cli::clean::CleanOptions {
+                            dry_run,
+                            all,
+                            quiet,
+                        };
+                        let report = cli::clean::run_clean(&nika_dir, &opts);
+                        match report {
+                            Ok(r) => {
+                                cli::clean::print_report(&r, quiet);
+                                Ok(())
+                            }
+                            Err(e) => Err(e),
+                        }
+                    }
+                }
+                Err(e) => Err(e),
+            }
+        }
 
         Some(Commands::Provider { action }) => {
             cli::provider::handle_provider_command(action, quiet).await
