@@ -29,7 +29,7 @@ project/
 - **Root detection**: walk up from CWD to find `nika.toml`
 - **Workflow discovery**: by `*.nika.yaml` extension (recursive scan)
 - **Skills/context**: referenced by path in each workflow, not by convention dir
-- **MCP config**: `[mcp.*]` sections in `nika.toml` (versioned, team-shared)
+- **MCP config**: `.mcp.json` at project root (Claude Code convention, NOT in nika.toml)
 - **Secrets**: NikaVault only (`~/.nika/secrets/vault.enc`), never in `nika.toml`
 
 ## Workflow Syntax
