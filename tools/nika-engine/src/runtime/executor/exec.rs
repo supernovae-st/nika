@@ -119,8 +119,7 @@ impl TaskExecutor {
             // Strip sensitive env vars from child process
             crate::runtime::security::strip_sensitive_env_vars(&mut cmd);
 
-            // Set working directory if specified (with path traversal protection)
-            // Resolve templates in cwd (e.g. {{inputs.output_dir}}, {{with.dir}})
+            // Set working directory: explicit cwd (with security check) or default from config
             if let Some(ref cwd) = params.cwd {
                 let resolved_cwd = template_resolve(cwd, bindings, datastore)?;
                 let resolved = std::path::Path::new(resolved_cwd.as_ref())
@@ -143,6 +142,9 @@ impl TaskExecutor {
                     .into());
                 }
                 cmd.current_dir(resolved);
+            } else if let Some(default_cwd) = self.resolve_default_exec_cwd() {
+                // Apply default cwd from [tools] working_dir config
+                cmd.current_dir(default_cwd);
             }
 
             // Add environment variables if specified (validate first)
@@ -217,8 +219,7 @@ impl TaskExecutor {
             // Strip sensitive env vars from child process
             crate::runtime::security::strip_sensitive_env_vars(&mut cmd);
 
-            // Set working directory if specified (with path traversal protection)
-            // Resolve templates in cwd (e.g. {{inputs.output_dir}}, {{with.dir}})
+            // Set working directory: explicit cwd (with security check) or default from config
             if let Some(ref cwd) = params.cwd {
                 let resolved_cwd = template_resolve(cwd, bindings, datastore)?;
                 let resolved = std::path::Path::new(resolved_cwd.as_ref())
@@ -241,6 +242,9 @@ impl TaskExecutor {
                     .into());
                 }
                 cmd.current_dir(resolved);
+            } else if let Some(default_cwd) = self.resolve_default_exec_cwd() {
+                // Apply default cwd from [tools] working_dir config
+                cmd.current_dir(default_cwd);
             }
 
             // Add environment variables if specified (validate first)

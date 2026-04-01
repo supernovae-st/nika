@@ -1393,3 +1393,129 @@ tasks:
         "Should have 3 infer results (one per color), got: {output}"
     );
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// TOOLS.WORKING_DIR CONFIG — exec cwd resolution
+// ═══════════════════════════════════════════════════════════════════
+
+/// working_dir = "project" → exec task uses project_root as cwd
+#[tokio::test]
+async fn exec_working_dir_project() {
+    let project_dir = tempfile::tempdir().expect("tempdir");
+    let workflow_dir = project_dir.path().join("workflows");
+    std::fs::create_dir_all(&workflow_dir).unwrap();
+
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: where_am_i
+    exec:
+      command: "pwd"
+      shell: true
+"#;
+    let workflow = parse_analyzed(yaml).expect("YAML should parse");
+    let mut runner = Runner::new(workflow)
+        .unwrap()
+        .quiet()
+        .with_base_path(workflow_dir)
+        .with_project_root(project_dir.path().to_path_buf())
+        .with_working_dir_mode("project".to_string());
+    runner.run().await.expect("Workflow should succeed");
+
+    let result = runner
+        .datastore()
+        .get("where_am_i")
+        .expect("task result should exist");
+    assert!(result.is_success(), "task should succeed: {:?}", result);
+    let output = result.output_str().to_string();
+
+    // Canonicalize for macOS /private/var vs /var
+    let expected = project_dir.path().canonicalize().unwrap();
+    let actual = std::path::Path::new(output.trim()).canonicalize().unwrap();
+    assert_eq!(
+        actual, expected,
+        "working_dir=project should use project_root as cwd"
+    );
+}
+
+/// working_dir = "workflow" → exec task uses workflow_base_dir as cwd
+#[tokio::test]
+async fn exec_working_dir_workflow() {
+    let project_dir = tempfile::tempdir().expect("tempdir");
+    let workflow_dir = project_dir.path().join("workflows");
+    std::fs::create_dir_all(&workflow_dir).unwrap();
+
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: where_am_i
+    exec:
+      command: "pwd"
+      shell: true
+"#;
+    let workflow = parse_analyzed(yaml).expect("YAML should parse");
+    let mut runner = Runner::new(workflow)
+        .unwrap()
+        .quiet()
+        .with_base_path(workflow_dir.clone())
+        .with_project_root(project_dir.path().to_path_buf())
+        .with_working_dir_mode("workflow".to_string());
+    runner.run().await.expect("Workflow should succeed");
+
+    let result = runner
+        .datastore()
+        .get("where_am_i")
+        .expect("task result should exist");
+    assert!(result.is_success(), "task should succeed: {:?}", result);
+    let output = result.output_str().to_string();
+
+    let expected = workflow_dir.canonicalize().unwrap();
+    let actual = std::path::Path::new(output.trim()).canonicalize().unwrap();
+    assert_eq!(
+        actual, expected,
+        "working_dir=workflow should use workflow_base_dir as cwd"
+    );
+}
+
+/// working_dir = "none" → exec task inherits process cwd
+#[tokio::test]
+async fn exec_working_dir_none() {
+    let project_dir = tempfile::tempdir().expect("tempdir");
+    let workflow_dir = project_dir.path().join("workflows");
+    std::fs::create_dir_all(&workflow_dir).unwrap();
+
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: where_am_i
+    exec:
+      command: "pwd"
+      shell: true
+"#;
+    let workflow = parse_analyzed(yaml).expect("YAML should parse");
+    let mut runner = Runner::new(workflow)
+        .unwrap()
+        .quiet()
+        .with_base_path(workflow_dir)
+        .with_project_root(project_dir.path().to_path_buf())
+        .with_working_dir_mode("none".to_string());
+    runner.run().await.expect("Workflow should succeed");
+
+    let result = runner
+        .datastore()
+        .get("where_am_i")
+        .expect("task result should exist");
+    assert!(result.is_success(), "task should succeed: {:?}", result);
+    let output = result.output_str().to_string();
+
+    // Should be the process cwd, NOT the project_root or workflow_dir
+    let process_cwd = std::env::current_dir().unwrap().canonicalize().unwrap();
+    let actual = std::path::Path::new(output.trim()).canonicalize().unwrap();
+    assert_eq!(
+        actual, process_cwd,
+        "working_dir=none should inherit process cwd"
+    );
+}

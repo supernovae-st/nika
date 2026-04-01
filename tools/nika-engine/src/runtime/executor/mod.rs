@@ -91,6 +91,15 @@ pub struct TaskExecutor {
     skills_map: std::collections::HashMap<String, String>,
     /// Base directory for resolving relative skill paths
     workflow_base_dir: std::path::PathBuf,
+    /// Project root directory (parent of nika.toml), used by working_dir_mode "project"
+    project_root: Option<std::path::PathBuf>,
+    /// Working directory mode from `[tools] working_dir` in nika.toml.
+    ///
+    /// - `"project"` → exec tasks default to project_root as cwd
+    /// - `"workflow"` → exec tasks default to workflow_base_dir (parent of .nika.yaml)
+    /// - `"none"` → no default cwd, inherit process cwd
+    /// - `None` → same as "workflow" (backward compatible default)
+    working_dir_mode: Option<String>,
     /// Custom endpoints for OpenAI-compatible servers (vLLM, TGI, Ollama)
     custom_endpoints: Arc<crate::provider::endpoints::CustomEndpointMap>,
     /// Resolved agent presets from the workflow's `agents:` block
@@ -222,6 +231,8 @@ impl TaskExecutor {
             skill_injector: Arc::new(SkillInjector::new()),
             skills_map: std::collections::HashMap::new(),
             workflow_base_dir: working_dir,
+            project_root: None,
+            working_dir_mode: None,
             custom_endpoints: Arc::new(custom_endpoints.unwrap_or_default()),
             resolved_agents: Arc::new(rustc_hash::FxHashMap::default()),
         })
@@ -327,6 +338,39 @@ impl TaskExecutor {
         // B02 fix: update shared ToolContext so file tools see the correct base path
         self.tool_ctx.set_working_dir(path);
         self
+    }
+
+    /// Set the project root directory (parent of nika.toml).
+    ///
+    /// Used by `working_dir_mode = "project"` to set exec task cwd.
+    pub fn with_project_root(mut self, root: std::path::PathBuf) -> Self {
+        self.project_root = Some(root);
+        self
+    }
+
+    /// Set the working directory mode from `[tools] working_dir` in nika.toml.
+    ///
+    /// - `"project"` → exec tasks default cwd to project_root
+    /// - `"workflow"` → exec tasks default cwd to workflow_base_dir
+    /// - `"none"` → no default cwd, inherit process cwd
+    pub fn with_working_dir_mode(mut self, mode: String) -> Self {
+        self.working_dir_mode = Some(mode);
+        self
+    }
+
+    /// Resolve the effective default cwd for exec tasks based on working_dir_mode.
+    ///
+    /// Returns `None` when mode is "none" (inherit process cwd).
+    pub(super) fn resolve_default_exec_cwd(&self) -> Option<&std::path::Path> {
+        match self.working_dir_mode.as_deref() {
+            Some("project") => self
+                .project_root
+                .as_deref()
+                .or(Some(self.workflow_base_dir.as_path())),
+            Some("none") => None,
+            // "workflow" or None (default) → use workflow_base_dir
+            _ => Some(self.workflow_base_dir.as_path()),
+        }
     }
 
     /// Set the resolved agent presets from the workflow's `agents:` block.
