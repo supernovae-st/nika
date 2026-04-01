@@ -421,6 +421,11 @@ impl NikaVault {
     fn write_payload(&self, payload: &VaultPayload) -> Result<(), VaultError> {
         if let Some(parent) = self.vault_path.parent() {
             std::fs::create_dir_all(parent)?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700))?;
+            }
         }
         let plaintext = serde_json::to_vec(payload)?;
         let key = self.derive_key()?;
@@ -469,6 +474,11 @@ impl NikaVault {
         }
         if let Some(parent) = self.salt_path.parent() {
             std::fs::create_dir_all(parent)?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700))?;
+            }
         }
         let mut salt = vec![0u8; 16];
         orion::util::secure_rand_bytes(&mut salt)
@@ -1068,5 +1078,19 @@ mod tests {
         assert_eq!(b, b2);
         assert_eq!(format!("{:?}", b), "Local");
         assert_eq!(format!("{:?}", VaultBackend::Doppler), "Doppler");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    #[serial]
+    fn vault_secrets_dir_permissions_are_700() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let secrets = dir.path().join("secrets");
+        std::env::set_var("NIKA_VAULT_PASSPHRASE", "test-only");
+        let vault = NikaVault::new(&secrets);
+        vault.set("test", "key123").unwrap();
+        let mode = std::fs::metadata(&secrets).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o700, "secrets dir must be 0o700, got {mode:o}");
     }
 }
