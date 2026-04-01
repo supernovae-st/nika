@@ -25,6 +25,7 @@
 mod ast_integration;
 mod backend;
 mod completion;
+#[cfg(unix)]
 mod daemon_bridge;
 mod diagnostics;
 mod document;

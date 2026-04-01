@@ -244,6 +244,20 @@ impl Dag {
             .map_or(EMPTY, SmallVec::as_slice)
     }
 
+    /// Iterate over all DAG edges as (source, target) pairs.
+    ///
+    /// Includes both explicit (`depends_on`) and implicit (`with:` binding) edges,
+    /// deduplicated during construction.
+    pub fn edges(&self) -> Vec<(&str, &str)> {
+        let mut result = Vec::new();
+        for (src, successors) in &self.adjacency {
+            for tgt in successors {
+                result.push((src.as_ref(), tgt.as_ref()));
+            }
+        }
+        result
+    }
+
     /// Find tasks with no successors (final tasks)
     ///
     /// Returns `Arc<str>` for zero-cost cloning by caller.
@@ -783,6 +797,38 @@ mod tests {
         assert_eq!(deps.len(), 2, "Should have 2 dependencies (a + b)");
         assert!(deps.iter().any(|d| d.as_ref() == "a"));
         assert!(deps.iter().any(|d| d.as_ref() == "b"));
+    }
+
+    #[test]
+    fn test_edges_returns_all_deduplicated() {
+        // a -> c (depends_on), b -> c (implicit with:) — edges() returns both
+        let workflow = build_workflow(&[("a", &[], &[]), ("b", &[], &[]), ("c", &["a"], &["b"])]);
+        let dag = Dag::from_analyzed(&workflow).unwrap();
+
+        let edges = dag.edges();
+        assert_eq!(edges.len(), 2, "Should have 2 edges (a->c, b->c)");
+        assert!(edges.contains(&("a", "c")), "Should have a->c edge");
+        assert!(edges.contains(&("b", "c")), "Should have b->c edge");
+    }
+
+    #[test]
+    fn test_edges_no_duplicates_when_both_sources() {
+        // a -> b (both depends_on AND implicit) — edges() returns exactly 1
+        let workflow = build_workflow(&[("a", &[], &[]), ("b", &["a"], &["a"])]);
+        let dag = Dag::from_analyzed(&workflow).unwrap();
+
+        let edges = dag.edges();
+        assert_eq!(edges.len(), 1, "Should have exactly 1 edge (deduplicated)");
+        assert_eq!(edges[0], ("a", "b"));
+    }
+
+    #[test]
+    fn test_edges_empty_for_independent_tasks() {
+        let workflow = build_workflow(&[("a", &[], &[]), ("b", &[], &[])]);
+        let dag = Dag::from_analyzed(&workflow).unwrap();
+
+        let edges = dag.edges();
+        assert!(edges.is_empty(), "Independent tasks should have no edges");
     }
 
     // ═══════════════════════════════════════════════════════════════

@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use colored::Colorize;
 
 use nika_engine::ast::{parse_analyzed, parse_workflow};
+use nika_engine::dag::Dag;
 use nika_engine::error::NikaError;
 
 /// Workflow management actions
@@ -219,15 +220,17 @@ pub async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Res
                 });
             }
 
-            // Parse workflow
+            // Parse workflow and build DAG (includes both depends_on and with: edges)
             let content = std::fs::read_to_string(&file)?;
             let workflow = parse_workflow(&content)?;
+            let dag = Dag::from_workflow(&workflow)?;
+            let edges = dag.edges();
 
             // Generate graph based on format
             let graph_output = match format.as_str() {
-                "ascii" => generate_ascii_dag(&workflow),
-                "dot" => generate_dot_dag(&workflow),
-                "mermaid" => generate_mermaid_dag(&workflow),
+                "ascii" => generate_ascii_dag(&workflow, &edges),
+                "dot" => generate_dot_dag(&workflow, &edges),
+                "mermaid" => generate_mermaid_dag(&workflow, &edges),
                 _ => {
                     return Err(NikaError::ValidationError {
                         reason: format!("Unknown format '{format}'. Valid: ascii, dot, mermaid"),
@@ -470,7 +473,7 @@ pub async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Res
     }
 }
 
-fn generate_ascii_dag(workflow: &nika_engine::ast::Workflow) -> String {
+fn generate_ascii_dag(workflow: &nika_engine::ast::Workflow, edges: &[(&str, &str)]) -> String {
     let mut output = String::new();
     let name = "(unnamed)";
     output.push_str("┌─────────────────────────────────────────┐\n");
@@ -494,12 +497,11 @@ fn generate_ascii_dag(workflow: &nika_engine::ast::Workflow) -> String {
         output.push_str(&format!("{}{}│\n", line, " ".repeat(line_padding)));
     }
 
-    // Show flows (derived from task dependencies)
-    let edges = workflow.edges();
+    // Show flows (includes depends_on + implicit with: edges, deduplicated)
     if !edges.is_empty() {
         output.push_str("├─────────────────────────────────────────┤\n");
         output.push_str("│ Edges:                                  │\n");
-        for (source, target) in &edges {
+        for (source, target) in edges {
             let flow_str = format!("  {source} → {target}");
             let flow_padding = 39usize.saturating_sub(flow_str.len());
             output.push_str(&format!("│{}{}│\n", flow_str, " ".repeat(flow_padding)));
@@ -511,7 +513,7 @@ fn generate_ascii_dag(workflow: &nika_engine::ast::Workflow) -> String {
 }
 
 /// Generate DOT (Graphviz) DAG representation
-fn generate_dot_dag(workflow: &nika_engine::ast::Workflow) -> String {
+fn generate_dot_dag(workflow: &nika_engine::ast::Workflow, edges: &[(&str, &str)]) -> String {
     let mut output = String::new();
     let name = "workflow";
     output.push_str(&format!("digraph {name} {{\n"));
@@ -535,9 +537,9 @@ fn generate_dot_dag(workflow: &nika_engine::ast::Workflow) -> String {
         ));
     }
 
-    // Add edges (derived from task dependencies)
+    // Add edges (includes depends_on + implicit with: edges, deduplicated)
     output.push('\n');
-    for (source, target) in workflow.edges() {
+    for (source, target) in edges {
         output.push_str(&format!(
             "  {} -> {};\n",
             source.replace('-', "_"),
@@ -550,7 +552,7 @@ fn generate_dot_dag(workflow: &nika_engine::ast::Workflow) -> String {
 }
 
 /// Generate Mermaid DAG representation
-fn generate_mermaid_dag(workflow: &nika_engine::ast::Workflow) -> String {
+fn generate_mermaid_dag(workflow: &nika_engine::ast::Workflow, edges: &[(&str, &str)]) -> String {
     let mut output = String::new();
     output.push_str("```mermaid\ngraph LR\n");
 
@@ -580,9 +582,9 @@ fn generate_mermaid_dag(workflow: &nika_engine::ast::Workflow) -> String {
         ));
     }
 
-    // Add edges (derived from task dependencies)
+    // Add edges (includes depends_on + implicit with: edges, deduplicated)
     output.push('\n');
-    for (source, target) in workflow.edges() {
+    for (source, target) in edges {
         output.push_str(&format!(
             "  {} --> {}\n",
             source.replace('-', "_"),
