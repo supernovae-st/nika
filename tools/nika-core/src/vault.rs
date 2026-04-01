@@ -541,6 +541,12 @@ impl NikaVault {
 fn machine_fingerprint() -> Result<String, VaultError> {
     if let Ok(pass) = std::env::var("NIKA_VAULT_PASSPHRASE") {
         if !pass.is_empty() {
+            if pass.len() < 12 {
+                tracing::warn!(
+                    "NIKA_VAULT_PASSPHRASE is short ({} chars) — recommend 12+ for security",
+                    pass.len()
+                );
+            }
             return Ok(format!("nika-vault-v1:passphrase:{pass}"));
         }
     }
