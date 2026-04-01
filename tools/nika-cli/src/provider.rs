@@ -452,7 +452,7 @@ pub async fn handle_provider_command(
                                 .interact()
                                 .unwrap_or(false)
                         {
-                            test_provider_connection(&provider).await;
+                            let _ = test_provider_connection(&provider).await;
                         }
                         return Ok(());
                     }
@@ -482,7 +482,7 @@ pub async fn handle_provider_command(
                 let env_var = provider_to_env_var(&provider).unwrap_or("UNKNOWN_API_KEY");
                 // SAFETY: no concurrent tasks reading env vars at this point
                 unsafe { std::env::set_var(env_var, &api_key) };
-                test_provider_connection(&provider).await;
+                let _ = test_provider_connection(&provider).await;
             }
             Ok(())
         }
@@ -581,20 +581,22 @@ pub async fn handle_provider_command(
                 let env_var = provider_to_env_var(&provider).unwrap_or("UNKNOWN_API_KEY");
                 let has_key = has_key_env_or_vault(&provider, env_var);
                 if !has_key && provider != "native" {
-                    std::process::exit(1);
+                    return Err(NikaError::ProviderNotConfigured {
+                        provider: provider.clone(),
+                    });
                 }
-                if run_provider_test(&provider).await.is_err() {
-                    std::process::exit(1);
+                if let Err(msg) = run_provider_test(&provider).await {
+                    return Err(NikaError::ProviderApiError { message: msg });
                 }
             } else {
-                test_provider_connection(&provider).await;
+                test_provider_connection(&provider).await?;
             }
             Ok(())
         }
     }
 }
 
-async fn test_provider_connection(provider: &str) {
+async fn test_provider_connection(provider: &str) -> Result<(), NikaError> {
     use nika_engine::core::provider_to_env_var;
     let env_var = provider_to_env_var(provider).unwrap_or("UNKNOWN_API_KEY");
     let has_key = has_key_env_or_vault(provider, env_var);
@@ -604,24 +606,32 @@ async fn test_provider_connection(provider: &str) {
             status_line(StatusIcon::Fail, &format!("No API key for {provider}"))
         );
         println!("{}", hint(&format!("nika provider set {provider}")));
-        return;
+        return Err(NikaError::ProviderNotConfigured {
+            provider: provider.to_string(),
+        });
     }
     let use_spinner = std::io::stderr().is_terminal();
-    if use_spinner {
+    let result = if use_spinner {
         let spinner = cliclack::spinner();
         spinner.start(format!("Testing {provider}..."));
         let result = run_provider_test(provider).await;
-        match result {
+        match &result {
             Ok(msg) => spinner.stop(format!("{} {msg}", StatusIcon::Ok)),
             Err(msg) => spinner.stop(format!("{} {msg}", StatusIcon::Fail)),
         }
+        result
     } else {
         eprintln!("Testing {provider}...");
-        match run_provider_test(provider).await {
+        let result = run_provider_test(provider).await;
+        match &result {
             Ok(msg) => eprintln!("  {} {msg}", StatusIcon::Ok),
             Err(msg) => eprintln!("  {} {msg}", StatusIcon::Fail),
         }
-    }
+        result
+    };
+    result
+        .map(|_| ())
+        .map_err(|msg| NikaError::ProviderApiError { message: msg })
 }
 
 async fn run_provider_test(provider: &str) -> Result<String, String> {

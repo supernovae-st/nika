@@ -43,7 +43,7 @@ pub enum VaultEntry {
     Credential {
         /// Named fields (e.g., "api_key", "secret", "org_id")
         fields: BTreeMap<String, String>,
-        /// Optional service URL (e.g., "https://api.stripe.com")
+        /// Optional service URL (e.g., `https://api.stripe.com`)
         #[serde(skip_serializing_if = "Option::is_none")]
         service_url: Option<String>,
         /// Optional category (e.g., "payment", "llm", "storage")

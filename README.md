@@ -10,6 +10,7 @@
 [![License](https://img.shields.io/badge/AGPL--3.0--or--later-22c55e?style=flat-square&logo=gnu&logoColor=white)](LICENSE)
 [![Tests](https://img.shields.io/badge/9%2C000%2B_tests-10b981?style=flat-square)](https://github.com/supernovae-st/nika/actions)
 [![Docker](https://img.shields.io/docker/pulls/supernovae/nika?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/r/supernovae/nika)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19362013.svg)](https://zenodo.org/doi/10.5281/zenodo.19362013)
 [![SWH](https://archive.softwareheritage.org/badge/origin/https://github.com/supernovae-st/nika/)](https://archive.softwareheritage.org/browse/origin/?origin_url=https://github.com/supernovae-st/nika)
 [![Cite](https://img.shields.io/badge/cite-CITATION.cff-blue?style=flat-square)](CITATION.cff)
 
