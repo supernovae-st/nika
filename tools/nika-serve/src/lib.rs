@@ -368,7 +368,7 @@ mod tests {
             job_timeout_secs: 60,
             max_output_bytes: 1024,
             db_path: std::path::PathBuf::from(":memory:"),
-            auth_token: "test-token-1234567".into(), // >=16 chars
+            auth_token: "test-token-1234567890abcdef1234567".into(), // >=32 chars
             cors_origin: None,
             executor_mode: config::ExecutorMode::Embedded,
         };
@@ -465,7 +465,7 @@ mod tests {
             .method("POST")
             .uri("/v1/run")
             .header("content-type", "application/json")
-            .header("authorization", "Bearer test-token-1234567")
+            .header("authorization", "Bearer test-token-1234567890abcdef1234567")
             .body(Body::from(r#"{"workflow":"../../etc/passwd"}"#))
             .unwrap();
         let resp = app.oneshot(req).await.unwrap();
@@ -476,7 +476,7 @@ mod tests {
     async fn nonexistent_job_404() {
         let (app, _state) = test_app().await;
         let req = Request::get("/v1/status/nope")
-            .header("authorization", "Bearer test-token-1234567")
+            .header("authorization", "Bearer test-token-1234567890abcdef1234567")
             .body(Body::empty())
             .unwrap();
         let resp = app.oneshot(req).await.unwrap();
@@ -491,7 +491,7 @@ mod tests {
             .method("POST")
             .uri("/v1/run")
             .header("content-type", "application/json")
-            .header("authorization", "Bearer test-token-1234567")
+            .header("authorization", "Bearer test-token-1234567890abcdef1234567")
             .body(Body::from(r#"{"workflow":"nonexistent.nika.yaml"}"#))
             .unwrap();
         let resp = app.oneshot(req).await.unwrap();
@@ -506,7 +506,7 @@ mod tests {
         let req = Request::builder()
             .method("POST")
             .uri("/v1/cancel/nonexistent")
-            .header("authorization", "Bearer test-token-1234567")
+            .header("authorization", "Bearer test-token-1234567890abcdef1234567")
             .body(Body::empty())
             .unwrap();
         let resp = app.oneshot(req).await.unwrap();

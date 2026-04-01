@@ -112,9 +112,11 @@ impl ServeConfig {
         let auth_token = std::env::var("NIKA_SERVE_TOKEN")
             .map_err(|_| ServeError::Config("NIKA_SERVE_TOKEN must be set".into()))?;
 
-        if auth_token.len() < 16 {
+        if auth_token.len() < 32 {
             return Err(ServeError::Config(
-                "NIKA_SERVE_TOKEN must be at least 16 characters".into(),
+                "NIKA_SERVE_TOKEN must be at least 32 characters. \
+                 Generate one with: openssl rand -hex 32"
+                    .into(),
             ));
         }
 
