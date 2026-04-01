@@ -1230,8 +1230,7 @@ async fn main() {
             quiet: verb_quiet,
         }) => {
             if no_interactive {
-                // SAFETY: single-threaded CLI entry point, no concurrent env reads
-                unsafe { std::env::set_var("NIKA_NO_ONBOARDING", "1") };
+                cli::onboarding::set_no_onboarding();
             }
             cli::verbs::handle_infer(
                 prompt,

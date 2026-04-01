@@ -836,14 +836,39 @@ fn resolve_binding_path(
             // NOTE: daemon/vault secrets are pre-loaded into the process env
             // by `load_from_daemon_or_fallback()` during boot (before any task
             // execution), so `std::env::var` sees them here.
-            //
-            // Warn on secret-pattern vars for audit trail, but allow access.
-            // Users explicitly reference $env.VAR in their YAML — that's an opt-in.
+
+            // SEC-1: Block access to dangerous system/process env vars that
+            // could enable privilege escalation or secret exfiltration if a
+            // malicious workflow (e.g. from a package registry) references them.
+            const BLOCKED_ENV_VARS: &[&str] = &[
+                "SSH_AUTH_SOCK",
+                "GPG_AGENT_INFO",
+                "SUDO_ASKPASS",
+                "LD_PRELOAD",
+                "LD_LIBRARY_PATH",
+                "DYLD_INSERT_LIBRARIES",
+                "DYLD_LIBRARY_PATH",
+                "NIKA_VAULT_PASSPHRASE",
+                "NIKA_DAEMON_SOCKET",
+                "NIKA_DAEMON_TOKEN",
+            ];
+            let name_upper = var_name.to_uppercase();
+            if BLOCKED_ENV_VARS
+                .iter()
+                .any(|&blocked| name_upper == blocked)
+            {
+                tracing::warn!(var = %var_name, "Blocked access to restricted env var via $env binding");
+                return Ok(None);
+            }
+
+            // Audit trail: log all $env accesses at INFO for secret patterns,
+            // DEBUG for regular vars.
             const SECRET_PATTERNS: &[&str] =
                 &["KEY", "SECRET", "TOKEN", "PASSWORD", "CREDENTIAL", "AUTH"];
-            let name_upper = var_name.to_uppercase();
             if SECRET_PATTERNS.iter().any(|p| name_upper.contains(p)) {
-                tracing::debug!(var = %var_name, "Accessing secret-pattern env var via $env binding");
+                tracing::info!(var = %var_name, "Accessing secret-pattern env var via $env binding");
+            } else {
+                tracing::debug!(var = %var_name, "Accessing env var via $env binding");
             }
             match std::env::var(var_name.as_ref()) {
                 Ok(val) => Ok(Some(Value::String(val))),
@@ -2993,6 +3018,61 @@ mod tests {
         std::env::remove_var("NIKA_TEST_ELEVENLABS_API_KEY");
         std::env::remove_var("NIKA_TEST_MY_SECRET_TOKEN");
         std::env::remove_var("NIKA_TEST_CUSTOM_AUTH");
+    }
+
+    // SEC-1: $env blocklist — restricted vars return None (as if unset)
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn env_binding_blocks_restricted_vars() {
+        let store = RunContext::new();
+
+        // Set restricted env vars to known values
+        std::env::set_var("SSH_AUTH_SOCK", "/tmp/test-agent.sock");
+        std::env::set_var("NIKA_VAULT_PASSPHRASE", "super-secret");
+
+        let mut spec = WithSpec::default();
+        // SSH_AUTH_SOCK — process/system internal
+        let mut entry_ssh =
+            WithEntry::simple(BindingPath::parse("$env.SSH_AUTH_SOCK").unwrap());
+        entry_ssh.transform =
+            Some(TransformExpr::parse("default(\"blocked\")").unwrap());
+        spec.insert("ssh".to_string(), entry_ssh);
+        // NIKA_VAULT_PASSPHRASE — nika internal
+        let mut entry_vault =
+            WithEntry::simple(BindingPath::parse("$env.NIKA_VAULT_PASSPHRASE").unwrap());
+        entry_vault.transform =
+            Some(TransformExpr::parse("default(\"blocked\")").unwrap());
+        spec.insert("vault".to_string(), entry_vault);
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+
+        // Both should resolve to the default, not the actual value
+        assert_eq!(bindings.get("ssh"), Some(&json!("blocked")));
+        assert_eq!(bindings.get("vault"), Some(&json!("blocked")));
+
+        std::env::remove_var("SSH_AUTH_SOCK");
+        std::env::remove_var("NIKA_VAULT_PASSPHRASE");
+    }
+
+    #[test]
+    fn env_binding_blocks_case_sensitive() {
+        // Blocklist uses uppercase comparison
+        let store = RunContext::new();
+
+        std::env::set_var("LD_PRELOAD", "/tmp/evil.so");
+
+        let mut spec = WithSpec::default();
+        let mut entry =
+            WithEntry::simple(BindingPath::parse("$env.LD_PRELOAD").unwrap());
+        entry.transform =
+            Some(TransformExpr::parse("default(\"safe\")").unwrap());
+        spec.insert("ld".to_string(), entry);
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+        assert_eq!(bindings.get("ld"), Some(&json!("safe")));
+
+        std::env::remove_var("LD_PRELOAD");
     }
 
     #[test]
