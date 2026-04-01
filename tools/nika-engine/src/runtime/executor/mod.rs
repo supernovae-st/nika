@@ -320,8 +320,12 @@ impl TaskExecutor {
     /// Set the workflow base directory for exec `cwd:` security checks.
     ///
     /// Exec tasks with `cwd:` can only access paths under this directory.
+    /// Also updates the BuiltinToolRouter's ToolContext so invoke: nika:read/glob
+    /// use the workflow directory, not the process cwd (B02 fix).
     pub fn with_base_path(mut self, path: std::path::PathBuf) -> Self {
-        self.workflow_base_dir = path;
+        self.workflow_base_dir = path.clone();
+        // B02 fix: update shared ToolContext so file tools see the correct base path
+        self.tool_ctx.set_working_dir(path);
         self
     }
 

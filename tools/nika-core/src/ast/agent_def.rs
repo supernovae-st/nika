@@ -54,9 +54,8 @@ pub enum AgentDef {
         /// System prompt for the agent
         system: String,
 
-        /// Provider to use (claude, openai, etc.)
-        #[serde(default = "default_provider")]
-        provider: String,
+        /// Provider to use (None = inherit from workflow default)
+        provider: Option<String>,
 
         /// Model to use (optional, uses provider default if not specified)
         model: Option<String>,
@@ -78,10 +77,6 @@ pub enum AgentDef {
         #[serde(default)]
         skills: Option<Vec<String>>,
     },
-}
-
-fn default_provider() -> String {
-    "anthropic".to_string()
 }
 
 impl AgentDef {
@@ -180,7 +175,7 @@ system: "You are a helpful assistant."
         } = def
         {
             assert_eq!(system, "You are a helpful assistant.");
-            assert_eq!(provider, "anthropic"); // canonical default
+            assert_eq!(provider, None); // no default — inherits from workflow
             assert!(model.is_none());
             assert!(max_turns.is_none());
             assert!(temperature.is_none());
@@ -209,7 +204,7 @@ temperature: 0.7
         } = def
         {
             assert_eq!(system, "You are a translator.");
-            assert_eq!(provider, "openai");
+            assert_eq!(provider, Some("openai".to_string()));
             assert_eq!(model, Some("gpt-4o".to_string()));
             assert_eq!(max_turns, Some(5));
             assert_eq!(temperature, Some(0.7));
@@ -227,7 +222,7 @@ temperature: 0.7
         };
         let inline = AgentDef::Inline {
             system: "test".to_string(),
-            provider: "claude".to_string(),
+            provider: Some("claude".to_string()),
             model: None,
             max_turns: None,
             temperature: None,
@@ -257,7 +252,7 @@ temperature: 0.7
         };
         let inline = AgentDef::Inline {
             system: "test".to_string(),
-            provider: "claude".to_string(),
+            provider: Some("claude".to_string()),
             model: None,
             max_turns: None,
             temperature: None,
@@ -296,7 +291,7 @@ temperature: 0.7
     fn test_agent_def_skills_helper_returns_some() {
         let inline = AgentDef::Inline {
             system: "test".to_string(),
-            provider: "claude".to_string(),
+            provider: Some("claude".to_string()),
             model: None,
             max_turns: None,
             temperature: None,
@@ -311,7 +306,7 @@ temperature: 0.7
     fn test_agent_def_skills_helper_returns_none_for_no_skills() {
         let inline = AgentDef::Inline {
             system: "test".to_string(),
-            provider: "claude".to_string(),
+            provider: Some("claude".to_string()),
             model: None,
             max_turns: None,
             temperature: None,

@@ -438,8 +438,7 @@ impl RigAgentLoop {
             // Agent file tools (glob, read, grep) use the process cwd (project root)
             // so they can see all project files — same as invoke: nika:glob.
             // workflow_base_dir is only used for spawn tool propagation (line 295).
-            let working_dir =
-                std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/tmp"));
+            let working_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/tmp"));
             let tool_ctx = Arc::new(ToolContext::new(working_dir, PermissionMode::Plan));
 
             use super::builtin::FileToolAdapter;

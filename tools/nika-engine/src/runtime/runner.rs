@@ -1089,7 +1089,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 event_log.emit(crate::event::EventKind::PresetApplied {
                     task_id: Arc::clone(&task_id),
                     preset_name: preset_name.clone(),
-                    provider: Some(agent.provider.clone()),
+                    provider: agent.provider.clone(),
                     model: agent.model.clone(),
                 });
 
@@ -1958,7 +1958,9 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             }
                         };
 
-                        if items_str.starts_with('$') && items_str.contains('|') {
+                        if items_str.starts_with('$')
+                            && (items_str.contains('|') || items_str.contains("??"))
+                        {
                             // Pipe transform expression: $task | transform or $task.path | transform
                             // Parse using the full WithEntry parser which handles path + transforms + defaults.
                             match crate::binding::parse_with_entry(items_str) {
@@ -1966,11 +1968,23 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                     // Resolve the raw value from the binding source
                                     let raw_value = match &entry.source.source {
                                         crate::binding::BindingSource::Task(task_id) => {
-                                            match self.datastore.get_output(task_id) {
-                                                Some(output) => {
+                                            // B01 fix: resolve through with: bindings first,
+                                            // then fall back to direct datastore lookup
+                                            let resolved = bindings
+                                                .get_resolved(task_id, &self.datastore)
+                                                .or_else(|_| {
+                                                    self.datastore
+                                                        .get_output(task_id)
+                                                        .map(|arc| arc.as_ref().clone())
+                                                        .ok_or_else(|| NikaError::BindingNotFound {
+                                                            alias: task_id.to_string(),
+                                                        })
+                                                });
+                                            match resolved {
+                                                Ok(output) => {
                                                     // Auto-parse JSON strings (same as plain $ path)
                                                     let working = crate::binding::jsonpath::try_parse_json_str(&output)
-                                                        .unwrap_or_else(|| output.as_ref().clone());
+                                                        .unwrap_or_else(|| output.clone());
 
                                                     // Navigate path segments
                                                     let mut value_ref = &working;
@@ -2012,22 +2026,27 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                                     }
                                                     value_ref.clone()
                                                 }
-                                                None => {
-                                                    let err_msg = format!(
-                                                        "for_each binding '{}': task '{}' output not found",
-                                                        items_str, task_id
-                                                    );
-                                                    self.emit_scheduling_failure(
-                                                        &task.name, &err_msg, "NIKA-026",
-                                                    );
-                                                    self.datastore.insert(
-                                                        intern(&task.name),
-                                                        TaskResult::failed(
-                                                            err_msg,
-                                                            std::time::Duration::ZERO,
-                                                        ),
-                                                    );
-                                                    continue;
+                                                Err(_) => {
+                                                    // B10 fix: check ?? default before failing
+                                                    if let Some(ref default_val) = entry.default {
+                                                        default_val.clone()
+                                                    } else {
+                                                        let err_msg = format!(
+                                                            "for_each binding '{}': '{}' not found in with: bindings or task outputs",
+                                                            items_str, task_id
+                                                        );
+                                                        self.emit_scheduling_failure(
+                                                            &task.name, &err_msg, "NIKA-026",
+                                                        );
+                                                        self.datastore.insert(
+                                                            intern(&task.name),
+                                                            TaskResult::failed(
+                                                                err_msg,
+                                                                std::time::Duration::ZERO,
+                                                            ),
+                                                        );
+                                                        continue;
+                                                    }
                                                 }
                                             }
                                         }
@@ -2036,21 +2055,26 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                             match self.datastore.resolve_input_path(&full_path) {
                                                 Some(v) => v,
                                                 None => {
-                                                    let err_msg = format!(
-                                                        "for_each binding '{}': input '{}' not found",
-                                                        items_str, full_path
-                                                    );
-                                                    self.emit_scheduling_failure(
-                                                        &task.name, &err_msg, "NIKA-026",
-                                                    );
-                                                    self.datastore.insert(
-                                                        intern(&task.name),
-                                                        TaskResult::failed(
-                                                            err_msg,
-                                                            std::time::Duration::ZERO,
-                                                        ),
-                                                    );
-                                                    continue;
+                                                    // B10 fix: check ?? default before failing
+                                                    if let Some(ref default_val) = entry.default {
+                                                        default_val.clone()
+                                                    } else {
+                                                        let err_msg = format!(
+                                                            "for_each binding '{}': input '{}' not found",
+                                                            items_str, full_path
+                                                        );
+                                                        self.emit_scheduling_failure(
+                                                            &task.name, &err_msg, "NIKA-026",
+                                                        );
+                                                        self.datastore.insert(
+                                                            intern(&task.name),
+                                                            TaskResult::failed(
+                                                                err_msg,
+                                                                std::time::Duration::ZERO,
+                                                            ),
+                                                        );
+                                                        continue;
+                                                    }
                                                 }
                                             }
                                         }
@@ -2058,21 +2082,26 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                             match std::env::var(var.as_ref()) {
                                                 Ok(v) => Value::String(v),
                                                 Err(_) => {
-                                                    let err_msg = format!(
-                                                        "for_each binding '{}': env var '{}' not set",
-                                                        items_str, var
-                                                    );
-                                                    self.emit_scheduling_failure(
-                                                        &task.name, &err_msg, "NIKA-026",
-                                                    );
-                                                    self.datastore.insert(
-                                                        intern(&task.name),
-                                                        TaskResult::failed(
-                                                            err_msg,
-                                                            std::time::Duration::ZERO,
-                                                        ),
-                                                    );
-                                                    continue;
+                                                    // B10 fix: check ?? default before failing
+                                                    if let Some(ref default_val) = entry.default {
+                                                        default_val.clone()
+                                                    } else {
+                                                        let err_msg = format!(
+                                                            "for_each binding '{}': env var '{}' not set",
+                                                            items_str, var
+                                                        );
+                                                        self.emit_scheduling_failure(
+                                                            &task.name, &err_msg, "NIKA-026",
+                                                        );
+                                                        self.datastore.insert(
+                                                            intern(&task.name),
+                                                            TaskResult::failed(
+                                                                err_msg,
+                                                                std::time::Duration::ZERO,
+                                                            ),
+                                                        );
+                                                        continue;
+                                                    }
                                                 }
                                             }
                                         }
@@ -7370,7 +7399,7 @@ mod tests {
             preset_name.to_string(),
             AgentDef::Inline {
                 system: "You are helpful".to_string(),
-                provider: "mock".to_string(),
+                provider: Some("mock".to_string()),
                 model: Some("mock-fast".to_string()),
                 max_turns: None,
                 temperature: Some(0.3),
@@ -7587,7 +7616,7 @@ mod tests {
             "speed".to_string(),
             AgentDef::Inline {
                 system: "Be fast".to_string(),
-                provider: "mock".to_string(),
+                provider: Some("mock".to_string()),
                 model: Some("mock-fast".to_string()),
                 max_turns: None,
                 temperature: Some(0.1),
@@ -7598,7 +7627,7 @@ mod tests {
             "think".to_string(),
             AgentDef::Inline {
                 system: "Think deeply".to_string(),
-                provider: "mock".to_string(),
+                provider: Some("mock".to_string()),
                 model: Some("mock-slow".to_string()),
                 max_turns: None,
                 temperature: Some(0.7),

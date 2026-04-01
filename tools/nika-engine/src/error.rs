@@ -22,6 +22,7 @@
 //! - NIKA-140-151: AST analysis errors (Phase 2 analyzer)
 //! - NIKA-160-164: Parse errors (Phase 1 parser — ParseErrorKind in nika-core, DO NOT REUSE)
 //! - NIKA-165-169: Startup/Policy/Boot errors (165=Policy, 166=Boot, 167=Startup)
+//! - NIKA-170-179: Runtime errors (171=DecomposeTimeout)
 //!
 //! Extended ranges:
 //! - NIKA-200-209: File Tool errors (ToolErrorCode in src/tools/mod.rs)

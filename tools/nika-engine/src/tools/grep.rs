@@ -146,7 +146,7 @@ impl GrepTool {
         // Determine base path
         let base_path = match params.path {
             Some(ref p) => self.ctx.validate_path(p)?,
-            None => self.ctx.working_dir().to_path_buf(),
+            None => self.ctx.working_dir(),
         };
 
         // Build regex

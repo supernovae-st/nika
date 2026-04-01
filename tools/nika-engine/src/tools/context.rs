@@ -144,7 +144,8 @@ pub struct ToolContext {
     /// Working directory (security boundary)
     ///
     /// All file operations must be within this directory.
-    working_dir: PathBuf,
+    /// Mutable via RwLock so with_base_path() can update it after construction.
+    working_dir: RwLock<PathBuf>,
 
     /// Files that have been read (for edit validation)
     ///
@@ -170,7 +171,7 @@ impl ToolContext {
         // This ensures validate_path() comparisons work correctly
         let working_dir = working_dir.canonicalize().unwrap_or(working_dir);
         Self {
-            working_dir,
+            working_dir: RwLock::new(working_dir),
             read_files: RwLock::new(HashSet::new()),
             permission_mode: RwLock::new(permission_mode),
             event_tx: None,
@@ -184,8 +185,14 @@ impl ToolContext {
     }
 
     /// Get the working directory
-    pub fn working_dir(&self) -> &Path {
-        &self.working_dir
+    pub fn working_dir(&self) -> PathBuf {
+        self.working_dir.read().clone()
+    }
+
+    /// Update the working directory (B02 fix: called from with_base_path)
+    pub fn set_working_dir(&self, dir: PathBuf) {
+        let dir = dir.canonicalize().unwrap_or(dir);
+        *self.working_dir.write() = dir;
     }
 
     /// Get current permission mode
@@ -207,13 +214,14 @@ impl ToolContext {
     ///
     /// - `PathOutOfBounds` if path is outside working directory
     pub fn validate_path(&self, file_path: &str) -> Result<PathBuf, NikaError> {
+        let working_dir = self.working_dir.read().clone();
         let raw_path = PathBuf::from(file_path);
 
         // Resolve relative paths against working directory
         let path = if raw_path.is_absolute() {
             raw_path
         } else {
-            self.working_dir.join(&raw_path)
+            working_dir.join(&raw_path)
         };
 
         // Canonicalize to resolve .. and symlinks
@@ -229,14 +237,14 @@ impl ToolContext {
         };
 
         // Must be within working directory
-        if !normalized.starts_with(&self.working_dir) {
+        if !normalized.starts_with(&working_dir) {
             return Err(NikaError::ToolError {
                 code: ToolErrorCode::PathOutOfBounds.code(),
                 message: format!(
                     "Path '{}' is outside working directory '{}'. \
                      Use --workdir to change the base directory, or use an absolute path within it.",
                     file_path,
-                    self.working_dir.display()
+                    working_dir.display()
                 ),
             });
         }
@@ -366,7 +374,7 @@ impl ToolContext {
 impl std::fmt::Debug for ToolContext {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ToolContext")
-            .field("working_dir", &self.working_dir)
+            .field("working_dir", &*self.working_dir.read())
             .field("permission_mode", &self.permission_mode())
             .field("read_files_count", &self.read_files.read().len())
             .finish()
@@ -506,7 +514,8 @@ mod tests {
     #[test]
     fn test_validate_path_within_working_dir() {
         let ctx = test_context();
-        let working_dir = ctx.working_dir().to_string_lossy();
+        let wd = ctx.working_dir();
+        let working_dir = wd.to_string_lossy();
         let valid_path = format!("{}/src/main.rs", working_dir);
 
         let result = ctx.validate_path(&valid_path);
