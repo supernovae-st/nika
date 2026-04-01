@@ -142,11 +142,13 @@ pub async fn process_task_artifacts(
 
                 // Emit ArtifactWritten event if event_log provided
                 if let Some(log) = event_log {
-                    let checksum = if write_result.format == OutputFormat::Binary {
-                        resolve_binary_checksum(output_spec, media_refs)
-                    } else {
-                        None
-                    };
+                    let checksum = write_result.checksum.clone().or_else(|| {
+                        if write_result.format == OutputFormat::Binary {
+                            resolve_binary_checksum(output_spec, media_refs)
+                        } else {
+                            None
+                        }
+                    });
                     // Use original ArtifactFormat for the event, not internal OutputFormat.
                     // This preserves "markdown" instead of collapsing to "text".
                     let format_str = output_spec
@@ -382,6 +384,12 @@ async fn write_single_artifact(
         .with_format(output_format.clone());
 
     // Handle different write modes
+    // Compute BLAKE3 checksum for text content before writing
+    let checksum = Some(format!(
+        "blake3:{}",
+        blake3::hash(request.content.as_bytes()).to_hex()
+    ));
+
     match mode {
         ArtifactMode::Overwrite => writer.write(request).await,
         ArtifactMode::Append => {
@@ -397,6 +405,7 @@ async fn write_single_artifact(
                 path: resolved_path,
                 size: request.content.len() as u64,
                 format: output_format.clone(),
+                checksum,
             })
         }
         ArtifactMode::Unique => {
@@ -412,6 +421,7 @@ async fn write_single_artifact(
                 path: unique_path,
                 size: request.content.len() as u64,
                 format: output_format.clone(),
+                checksum,
             })
         }
         ArtifactMode::Fail => {
@@ -427,6 +437,7 @@ async fn write_single_artifact(
                 path: resolved_path,
                 size: request.content.len() as u64,
                 format: output_format.clone(),
+                checksum,
             })
         }
     }
