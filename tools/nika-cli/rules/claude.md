@@ -82,7 +82,7 @@ include:                           # Include partial workflows (tasks merged int
 - **Inputs**: `{{inputs.param}}` for workflow parameters
 - **Context files**: `{{context.readme}}` for loaded file content
 
-## Pipe Transforms (38 available)
+## Pipe Transforms (31 available)
 
 **String**: `upper`, `lower`, `trim`, `trim_start`, `trim_end`, `length`, `to_string`
 **Array**: `first`, `last`, `flatten`, `reverse`, `sort`, `unique`, `compact`, `keys`, `values`
