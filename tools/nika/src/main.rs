@@ -1024,26 +1024,111 @@ async fn main() {
     // Handle subcommands or default to help (terminal-first)
     let result = match cli.command {
         None => {
-            // Adaptive behavior based on context
             use cli::machine::MachineStatus;
+            // Auto-setup editors on first run
             match cli::machine::machine_setup_status() {
                 MachineStatus::NeverSetup | MachineStatus::NeedsUpdate => {
-                    // First time or upgrade: auto-setup editors, then demo
                     if !quiet {
                         cli::machine::run_machine_setup();
                     }
-                    run_demo(quiet, detail).await
                 }
-                MachineStatus::Ready => {
-                    if !Path::new(".nika").exists() {
-                        // No project here: run live demo
-                        run_demo(quiet, detail).await
+                MachineStatus::Ready => {}
+            }
+
+            // Smart welcome: adapt based on project + setup state
+            let has_project = Path::new("nika.toml").exists() || Path::new(".nika").exists();
+            let has_providers = !cli::onboarding::skip_onboarding();
+
+            if has_project {
+                // Mode 3: In a project — show contextual status
+                let project_root = cli::config::find_project_root_from(
+                    &std::env::current_dir().unwrap_or_default(),
+                )
+                .ok();
+                let version = env!("CARGO_PKG_VERSION");
+                let cwd = std::env::current_dir()
+                    .ok()
+                    .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
+                    .unwrap_or_default();
+
+                println!();
+                println!(
+                    "  {} v{}{}",
+                    "N I K A".bold(),
+                    version,
+                    if cwd.is_empty() {
+                        String::new()
                     } else {
-                        // Project exists: show beautiful custom help
-                        cli::help::print_help(&Cli::command());
-                        Ok(())
+                        format!("  {}", cwd.dimmed())
+                    }
+                );
+                println!();
+
+                // Show provider status
+                if has_providers {
+                    use nika::core::{ProviderCategory, KNOWN_PROVIDERS};
+                    let configured: Vec<&str> = KNOWN_PROVIDERS
+                        .iter()
+                        .filter(|p| p.category == ProviderCategory::Llm)
+                        .filter(|p| {
+                            std::env::var(p.env_var)
+                                .map(|v| !v.is_empty())
+                                .unwrap_or(false)
+                        })
+                        .map(|p| p.id)
+                        .collect();
+                    if !configured.is_empty() {
+                        println!("  Provider:   {}", configured.join(", ").cyan());
                     }
                 }
+
+                // Count workflows
+                let workflow_count = count_nika_workflows(Path::new("."));
+                if workflow_count > 0 {
+                    println!(
+                        "  Workflows:  {} file(s)",
+                        workflow_count.to_string().cyan()
+                    );
+                }
+
+                if let Some(ref proj) = project_root {
+                    let source = match proj.source {
+                        cli::config::ProjectRootSource::NikaToml => "nika.toml",
+                        cli::config::ProjectRootSource::DotNika => ".nika/",
+                        cli::config::ProjectRootSource::Fallback => "defaults",
+                    };
+                    println!("  Config:     {}", source.dimmed());
+                }
+
+                println!();
+                println!("    {}   Execute a workflow", "nika run <file>".bold());
+                println!("    {}           Open TUI", "nika ui".bold());
+                println!("    {}        System health", "nika doctor".bold());
+                println!();
+
+                Ok(())
+            } else if has_providers {
+                // Mode 2: Setup done, no project
+                let version = env!("CARGO_PKG_VERSION");
+                println!();
+                println!("  {} v{}", "N I K A".bold(), version);
+                println!();
+                println!("  Not in a project directory.");
+                println!();
+                println!(
+                    "    {}         Initialize a project here",
+                    "nika init".bold()
+                );
+                println!("    {}        Quick LLM call", "nika infer".bold());
+                println!(
+                    "    {}  Learn with 44 exercises",
+                    "nika init --course".bold()
+                );
+                println!();
+                Ok(())
+            } else {
+                // Mode 1: No setup, no project — run demo
+                run_demo(quiet, detail).await
             }
         }
 
@@ -1650,6 +1735,33 @@ async fn resolve_workflow_path(reference: &str) -> Result<PathBuf, NikaError> {
 }
 
 /// Run a built-in 8-task DAG demo — Nika's manifesto as a workflow.
+/// Count *.nika.yaml files recursively, skipping hidden dirs and common junk.
+fn count_nika_workflows(dir: &Path) -> usize {
+    fn walk(dir: &Path, count: &mut usize) {
+        let entries = match std::fs::read_dir(dir) {
+            Ok(e) => e,
+            Err(_) => return,
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+            if path.is_dir() {
+                // Skip hidden, node_modules, target
+                if name_str.starts_with('.') || name_str == "node_modules" || name_str == "target" {
+                    continue;
+                }
+                walk(&path, count);
+            } else if name_str.ends_with(".nika.yaml") {
+                *count += 1;
+            }
+        }
+    }
+    let mut count = 0;
+    walk(dir, &mut count);
+    count
+}
+
 ///
 /// Diamond pattern: start → [write, connect, track] → [build, run] → launch → celebrate
 /// 8 tasks, 4 layers, fan-out + fan-in, no API key needed.
