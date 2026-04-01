@@ -114,6 +114,7 @@ impl Drop for WorkerGuard {
         // Only decrement if we successfully incremented
         if self.incremented {
             self.active_jobs.fetch_sub(1, Ordering::Relaxed);
+            crate::metrics::record_active_jobs(self.active_jobs.load(Ordering::Relaxed));
         }
         // Always remove from worker map + cleanup event bus channel (H5)
         let workers = self.workers.clone();
@@ -162,6 +163,7 @@ pub fn spawn_worker(
                 // Best-effort: mark job as failed in storage
                 let _ = storage.fail_job(&id, "server shutting down").await;
                 active_jobs.fetch_sub(1, Ordering::Relaxed);
+                crate::metrics::record_active_jobs(active_jobs.load(Ordering::Relaxed));
                 let workers_clone = workers.clone();
                 let id_clone = id.clone();
                 tokio::spawn(async move { workers_clone.lock().await.remove(&id_clone); });

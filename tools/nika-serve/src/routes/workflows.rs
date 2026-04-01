@@ -113,6 +113,9 @@ pub async fn run_workflow(
     // Atomic check-and-increment via CAS loop (race-free, no DB queries)
     let max_queued = state.config.max_concurrent * 3;
     try_acquire_job_slot(&state.active_jobs, max_queued)?;
+    crate::metrics::record_active_jobs(
+        state.active_jobs.load(std::sync::atomic::Ordering::Relaxed),
+    );
 
     // Generate job ID — full 128-bit UUID in simple (no-hyphen) format
     let job_id = uuid::Uuid::new_v4().simple().to_string();
