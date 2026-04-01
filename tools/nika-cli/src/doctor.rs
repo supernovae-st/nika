@@ -7,7 +7,7 @@ use colored::Colorize;
 use nika_engine::display::{hint, section_header, status_line, StatusIcon};
 use nika_engine::error::NikaError;
 
-use crate::config::find_nika_dir;
+use crate::config::{find_nika_dir, find_project_root_from, ProjectRootSource};
 
 #[derive(Debug, Clone)]
 struct DiagnosticCheck {
@@ -84,6 +84,12 @@ pub async fn handle_doctor_command(
             .in_section("Core"),
     );
     checks.push(check_workflow_files().in_section("Core"));
+
+    // ─── Project ───────────────────────────────────────────────────────────
+    {
+        let cwd = std::env::current_dir().unwrap_or_default();
+        checks.extend(with_section(check_project_structure(&cwd), "Project"));
+    }
 
     // ─── Editor & LSP ──────────────────────────────────────────────────────
     checks.extend(with_section(check_lsp_available(), "Editor & LSP"));
@@ -431,6 +437,193 @@ fn check_workflow_files() -> DiagnosticCheck {
     } else {
         DiagnosticCheck::pass("Workflows", format!("{total} workflow files found"))
     }
+}
+
+// ─── Project structure checks (nika.toml migration, Phase 5) ─────────────────
+
+/// Check project structure from a given root directory.
+///
+/// Accepts a `Path` so that tests can pass a temp directory.
+fn check_project_structure(start: &std::path::Path) -> Vec<DiagnosticCheck> {
+    let mut checks = vec![];
+
+    // 1. Check nika.toml exists → show project root path, pass/fail
+    let project = match find_project_root_from(start) {
+        Ok(p) => p,
+        Err(_) => {
+            checks.push(DiagnosticCheck::fail(
+                "nika.toml",
+                "Cannot determine project root",
+                "Check filesystem permissions",
+            ));
+            return checks;
+        }
+    };
+
+    match project.source {
+        ProjectRootSource::NikaToml => {
+            checks.push(DiagnosticCheck::pass(
+                "nika.toml",
+                format!("Project root: {}", project.root.display()),
+            ));
+        }
+        ProjectRootSource::DotNika => {
+            checks.push(DiagnosticCheck::warn(
+                "nika.toml",
+                format!(
+                    "No nika.toml found (using legacy .nika/ at {})",
+                    project.root.display()
+                ),
+                "Run 'nika init' to create nika.toml",
+            ));
+        }
+        ProjectRootSource::Fallback => {
+            checks.push(DiagnosticCheck::fail(
+                "nika.toml",
+                "No nika.toml or .nika/ found",
+                "Run 'nika init' to initialize a Nika project",
+            ));
+        }
+    }
+
+    let root = &project.root;
+
+    // 2. Check .gitignore includes `.nika/`
+    let gitignore_path = root.join(".gitignore");
+    if gitignore_path.exists() {
+        let content = fs::read_to_string(&gitignore_path).unwrap_or_default();
+        let has_nika_ignore = content
+            .lines()
+            .any(|line| {
+                let trimmed = line.trim();
+                trimmed == ".nika/" || trimmed == ".nika" || trimmed == "/.nika/" || trimmed == "/.nika"
+            });
+        if has_nika_ignore {
+            checks.push(DiagnosticCheck::pass(
+                ".gitignore",
+                ".nika/ is gitignored",
+            ));
+        } else {
+            checks.push(DiagnosticCheck::warn(
+                ".gitignore",
+                ".nika/ is not in .gitignore (runtime data may be committed)",
+                "Add '.nika/' to .gitignore",
+            ));
+        }
+    } else {
+        checks.push(DiagnosticCheck::warn(
+            ".gitignore",
+            "No .gitignore found",
+            "Create .gitignore with '.nika/' and 'artifacts/' entries",
+        ));
+    }
+
+    // 3. Check .gitignore includes artifacts dir
+    let artifacts_dir = read_artifacts_dir(root);
+    if gitignore_path.exists() {
+        let content = fs::read_to_string(&gitignore_path).unwrap_or_default();
+        let has_artifacts_ignore = content
+            .lines()
+            .any(|line| {
+                let trimmed = line.trim();
+                // Match the dir with or without leading / and trailing /
+                let dir_name = artifacts_dir
+                    .strip_prefix("./")
+                    .unwrap_or(&artifacts_dir);
+                trimmed == dir_name
+                    || trimmed == format!("{}/", dir_name)
+                    || trimmed == format!("/{}", dir_name)
+                    || trimmed == format!("/{}/", dir_name)
+            });
+        if has_artifacts_ignore {
+            checks.push(DiagnosticCheck::pass(
+                ".gitignore",
+                format!("{artifacts_dir} is gitignored"),
+            ));
+        } else {
+            checks.push(DiagnosticCheck::warn(
+                ".gitignore",
+                format!("{artifacts_dir} is not in .gitignore (outputs may be committed)"),
+                format!("Add '{artifacts_dir}' to .gitignore"),
+            ));
+        }
+    }
+
+    // 4. Detect legacy `.nika/config.toml`
+    let legacy_config = root.join(".nika").join("config.toml");
+    if legacy_config.exists() {
+        checks.push(DiagnosticCheck::warn(
+            "Legacy config",
+            format!("Found legacy .nika/config.toml at {}", legacy_config.display()),
+            "Migrate to nika.toml with 'nika init' (new project root marker)",
+        ));
+    }
+
+    // 5. Count `*.nika.yaml` files recursively
+    let workflow_count = count_workflows_recursive(root);
+    if workflow_count == 0 {
+        checks.push(DiagnosticCheck::warn(
+            "Workflows",
+            "No *.nika.yaml files found",
+            "Create one with 'nika new my-flow --verb infer'",
+        ));
+    } else {
+        checks.push(DiagnosticCheck::pass(
+            "Workflows",
+            format!("{workflow_count} workflow(s) found (recursive scan)"),
+        ));
+    }
+
+    checks
+}
+
+/// Read the artifacts directory from nika.toml, defaulting to "artifacts".
+fn read_artifacts_dir(root: &std::path::Path) -> String {
+    let toml_path = root.join("nika.toml");
+    if toml_path.exists() {
+        if let Ok(content) = fs::read_to_string(&toml_path) {
+            if let Ok(value) = toml::from_str::<toml::Value>(&content) {
+                if let Some(dir) = value
+                    .get("artifacts")
+                    .and_then(|a| a.get("dir"))
+                    .and_then(|d| d.as_str())
+                {
+                    return dir.to_string();
+                }
+            }
+        }
+    }
+    "artifacts".to_string()
+}
+
+/// Recursively count *.nika.yaml files under `root`, skipping hidden dirs and
+/// common non-project directories.
+fn count_workflows_recursive(root: &std::path::Path) -> usize {
+    let mut count = 0;
+    let mut stack = vec![root.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        let entries = match fs::read_dir(&dir) {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        for entry in entries.filter_map(|e| e.ok()) {
+            let path = entry.path();
+            if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                if path.is_dir() {
+                    // Skip hidden dirs, node_modules, target, .nika
+                    if !name.starts_with('.')
+                        && name != "node_modules"
+                        && name != "target"
+                    {
+                        stack.push(path);
+                    }
+                } else if name.ends_with(".nika.yaml") {
+                    count += 1;
+                }
+            }
+        }
+    }
+    count
 }
 
 fn check_rust_version() -> DiagnosticCheck {
@@ -1322,5 +1515,184 @@ mod tests {
         assert_eq!(pass, 2);
         assert_eq!(warn, 1);
         assert_eq!(fail, 1);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Phase 5: Doctor project structure checks (TDD)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // Test 35: doctor detects nika.toml and reports project root
+    #[test]
+    fn doctor_detects_nika_toml() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            temp.path().join("nika.toml"),
+            "[project]\nname = \"test\"\n",
+        )
+        .unwrap();
+        // Also create .gitignore with .nika/ and artifacts/ to avoid extra warnings
+        std::fs::write(
+            temp.path().join(".gitignore"),
+            ".nika/\nartifacts/\n",
+        )
+        .unwrap();
+
+        let checks = check_project_structure(temp.path());
+
+        // First check should be nika.toml pass with project root
+        let toml_check = checks.iter().find(|c| c.name == "nika.toml").unwrap();
+        assert_eq!(toml_check.status, DiagnosticStatus::Pass);
+        assert!(
+            toml_check.message.contains("Project root:"),
+            "Expected 'Project root:' in message, got: {}",
+            toml_check.message
+        );
+        assert!(
+            toml_check.message.contains(&temp.path().display().to_string()),
+            "Expected temp path in message, got: {}",
+            toml_check.message
+        );
+    }
+
+    // Test 36: doctor warns when .gitignore is missing .nika/
+    #[test]
+    fn doctor_warns_gitignore_missing_nika() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            temp.path().join("nika.toml"),
+            "[project]\nname = \"test\"\n",
+        )
+        .unwrap();
+        // .gitignore exists but does NOT contain .nika/
+        std::fs::write(temp.path().join(".gitignore"), "node_modules/\n").unwrap();
+
+        let checks = check_project_structure(temp.path());
+
+        let gitignore_checks: Vec<_> = checks
+            .iter()
+            .filter(|c| c.name == ".gitignore")
+            .collect();
+        // Should have a warning about .nika/ missing
+        let nika_warn = gitignore_checks
+            .iter()
+            .find(|c| c.message.contains(".nika/"))
+            .expect("Expected a .gitignore check mentioning .nika/");
+        assert_eq!(nika_warn.status, DiagnosticStatus::Warn);
+        assert!(
+            nika_warn.suggestion.as_deref().unwrap().contains(".nika/"),
+            "Suggestion should mention .nika/"
+        );
+    }
+
+    // Test 37: doctor warns when .gitignore is missing artifacts/
+    #[test]
+    fn doctor_warns_gitignore_missing_artifacts() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            temp.path().join("nika.toml"),
+            "[project]\nname = \"test\"\n",
+        )
+        .unwrap();
+        // .gitignore has .nika/ but NOT artifacts/
+        std::fs::write(temp.path().join(".gitignore"), ".nika/\n").unwrap();
+
+        let checks = check_project_structure(temp.path());
+
+        let gitignore_checks: Vec<_> = checks
+            .iter()
+            .filter(|c| c.name == ".gitignore")
+            .collect();
+        // Should have a warning about artifacts/ missing
+        let artifacts_warn = gitignore_checks
+            .iter()
+            .find(|c| c.message.contains("artifacts"))
+            .expect("Expected a .gitignore check mentioning artifacts");
+        assert_eq!(artifacts_warn.status, DiagnosticStatus::Warn);
+    }
+
+    // Test 38: doctor detects legacy .nika/config.toml
+    #[test]
+    fn doctor_detects_legacy_config() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            temp.path().join("nika.toml"),
+            "[project]\nname = \"test\"\n",
+        )
+        .unwrap();
+        std::fs::write(
+            temp.path().join(".gitignore"),
+            ".nika/\nartifacts/\n",
+        )
+        .unwrap();
+        // Create legacy .nika/config.toml
+        let nika_dir = temp.path().join(".nika");
+        std::fs::create_dir_all(&nika_dir).unwrap();
+        std::fs::write(nika_dir.join("config.toml"), "[editor]\ntheme = \"dark\"\n").unwrap();
+
+        let checks = check_project_structure(temp.path());
+
+        let legacy_check = checks
+            .iter()
+            .find(|c| c.name == "Legacy config")
+            .expect("Expected a 'Legacy config' check");
+        assert_eq!(legacy_check.status, DiagnosticStatus::Warn);
+        assert!(
+            legacy_check.message.contains(".nika/config.toml"),
+            "Should mention .nika/config.toml, got: {}",
+            legacy_check.message
+        );
+        assert!(
+            legacy_check
+                .suggestion
+                .as_deref()
+                .unwrap()
+                .contains("nika init"),
+            "Should suggest nika init"
+        );
+    }
+
+    // Test 39: doctor counts *.nika.yaml files recursively
+    #[test]
+    fn doctor_counts_workflows() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            temp.path().join("nika.toml"),
+            "[project]\nname = \"test\"\n",
+        )
+        .unwrap();
+        std::fs::write(
+            temp.path().join(".gitignore"),
+            ".nika/\nartifacts/\n",
+        )
+        .unwrap();
+
+        // Create workflows at various depths
+        std::fs::write(temp.path().join("root.nika.yaml"), "schema: 'nika/workflow@0.12'\n")
+            .unwrap();
+        let sub = temp.path().join("flows");
+        std::fs::create_dir_all(&sub).unwrap();
+        std::fs::write(sub.join("a.nika.yaml"), "schema: 'nika/workflow@0.12'\n").unwrap();
+        std::fs::write(sub.join("b.nika.yaml"), "schema: 'nika/workflow@0.12'\n").unwrap();
+        let deep = temp.path().join("flows").join("nested");
+        std::fs::create_dir_all(&deep).unwrap();
+        std::fs::write(deep.join("c.nika.yaml"), "schema: 'nika/workflow@0.12'\n").unwrap();
+
+        // Should NOT count files in hidden dirs
+        let hidden = temp.path().join(".hidden");
+        std::fs::create_dir_all(&hidden).unwrap();
+        std::fs::write(hidden.join("skip.nika.yaml"), "").unwrap();
+
+        let checks = check_project_structure(temp.path());
+
+        let wf_check = checks
+            .iter()
+            .find(|c| c.name == "Workflows" && c.message.contains("recursive"))
+            .expect("Expected a recursive Workflows check");
+        assert_eq!(wf_check.status, DiagnosticStatus::Pass);
+        assert!(
+            wf_check.message.contains("4 workflow(s)"),
+            "Expected 4 workflows (skipping hidden dir), got: {}",
+            wf_check.message
+        );
     }
 }
