@@ -1055,6 +1055,14 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             event_log.emit(budget_event);
         }
 
+        // Register env-sourced secret values for value-based redaction in traces.
+        // This catches custom API keys (e.g., ELEVENLABS_API_KEY) that don't match
+        // the pattern-based regex in redact_secrets().
+        let env_secrets = bindings.env_sourced_values();
+        if !env_secrets.is_empty() {
+            crate::util::register_secrets(env_secrets);
+        }
+
         // EMIT: TaskStarted (with redacted env-sourced secrets)
         event_log.emit(EventKind::TaskStarted {
             task_id: Arc::clone(&task_id),
