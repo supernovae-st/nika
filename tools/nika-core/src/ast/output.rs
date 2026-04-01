@@ -117,7 +117,6 @@ impl OutputPolicy {
         Some(super::structured::StructuredOutputSpec {
             schema: self.schema.clone(),
             from_example: self.from_example.clone(),
-            enable_extractor: None,
             enable_tool_injection: None,
             enable_retry: Some(true),
             enable_repair: Some(true),
