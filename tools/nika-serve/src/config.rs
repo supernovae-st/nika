@@ -30,18 +30,41 @@ struct NikaTomlServe {
     gc_interval: Option<u64>,
 }
 
-/// Minimal nika.toml shape — only [serve] section.
+/// [tools] section from nika.toml (deserialized, all optional).
+#[derive(Debug, Default, serde::Deserialize)]
+struct NikaTomlTools {
+    #[serde(default)]
+    working_dir: Option<String>,
+}
+
+/// Minimal nika.toml shape — [serve] + [tools] sections.
 #[derive(Debug, Default, serde::Deserialize)]
 struct NikaTomlPartial {
     #[serde(default)]
     serve: Option<NikaTomlServe>,
+    #[serde(default)]
+    tools: Option<NikaTomlTools>,
 }
 
-/// Try to read [serve] from nika.toml by walking up from cwd.
-fn load_serve_from_nika_toml() -> NikaTomlServe {
+/// Result of nika.toml discovery: parsed config + project root path.
+struct NikaTomlDiscovery {
+    serve: NikaTomlServe,
+    tools: NikaTomlTools,
+    project_root: Option<PathBuf>,
+}
+
+/// Try to read nika.toml by walking up from cwd.
+/// Returns [serve] + [tools] sections and the project root path.
+fn load_nika_toml() -> NikaTomlDiscovery {
     let cwd = match std::env::current_dir() {
         Ok(d) => d,
-        Err(_) => return NikaTomlServe::default(),
+        Err(_) => {
+            return NikaTomlDiscovery {
+                serve: NikaTomlServe::default(),
+                tools: NikaTomlTools::default(),
+                project_root: None,
+            }
+        }
     };
     // Walk up looking for nika.toml
     let mut dir = cwd.as_path();
@@ -50,17 +73,29 @@ fn load_serve_from_nika_toml() -> NikaTomlServe {
         if path.exists() {
             if let Ok(content) = std::fs::read_to_string(&path) {
                 if let Ok(parsed) = toml::from_str::<NikaTomlPartial>(&content) {
-                    return parsed.serve.unwrap_or_default();
+                    return NikaTomlDiscovery {
+                        serve: parsed.serve.unwrap_or_default(),
+                        tools: parsed.tools.unwrap_or_default(),
+                        project_root: Some(dir.to_path_buf()),
+                    };
                 }
             }
-            return NikaTomlServe::default();
+            return NikaTomlDiscovery {
+                serve: NikaTomlServe::default(),
+                tools: NikaTomlTools::default(),
+                project_root: Some(dir.to_path_buf()),
+            };
         }
         match dir.parent() {
             Some(p) => dir = p,
             None => break,
         }
     }
-    NikaTomlServe::default()
+    NikaTomlDiscovery {
+        serve: NikaTomlServe::default(),
+        tools: NikaTomlTools::default(),
+        project_root: None,
+    }
 }
 
 /// Execution mode for workflow processing.
@@ -115,6 +150,12 @@ pub struct ServeConfig {
 
     /// Job GC: interval between GC runs in seconds (default: 1 hour).
     pub gc_interval_secs: u64,
+
+    /// Project root directory (parent of nika.toml), for `working_dir_mode = "project"`.
+    pub project_root: Option<PathBuf>,
+
+    /// Working directory mode from `[tools] working_dir` in nika.toml.
+    pub working_dir_mode: Option<String>,
 }
 
 impl ServeConfig {
@@ -125,8 +166,9 @@ impl ServeConfig {
     /// Optional: `NIKA_SERVE_BIND`, `NIKA_SERVE_WORKFLOWS`, `NIKA_SERVE_MAX_CONCURRENT`,
     ///           `NIKA_SERVE_TIMEOUT`, `NIKA_SERVE_DB`
     pub fn from_env() -> Result<Self, ServeError> {
-        // Layer 1: Read nika.toml [serve] as base
-        let toml = load_serve_from_nika_toml();
+        // Layer 1: Read nika.toml [serve] + [tools] as base
+        let discovery = load_nika_toml();
+        let toml = discovery.serve;
 
         // auth_token: always from env (secrets never in nika.toml)
         let auth_token = std::env::var("NIKA_SERVE_TOKEN")
@@ -226,6 +268,8 @@ impl ServeConfig {
             rate_burst,
             gc_retention_secs,
             gc_interval_secs,
+            project_root: discovery.project_root,
+            working_dir_mode: discovery.tools.working_dir,
         })
     }
 }

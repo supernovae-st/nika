@@ -445,6 +445,8 @@ mod tests {
             rate_burst: 30,
             gc_retention_secs: 7 * 24 * 3600,
             gc_interval_secs: 3600,
+            project_root: None,
+            working_dir_mode: None,
         };
 
         let state = AppState {

@@ -71,6 +71,15 @@ pub fn find_project_root_from(start: &Path) -> Result<ProjectRoot, NikaError> {
     })
 }
 
+/// Load `BootstrapConfig` from `nika.toml` at the given project root.
+///
+/// Returns `None` if the file doesn't exist or can't be parsed.
+pub fn load_project_config(root: &Path) -> Option<nika_engine::runtime::BootstrapConfig> {
+    let toml_path = root.join("nika.toml");
+    let content = fs::read_to_string(toml_path).ok()?;
+    toml::from_str(&content).ok()
+}
+
 /// Configuration management actions
 #[derive(Subcommand)]
 pub enum ConfigAction {

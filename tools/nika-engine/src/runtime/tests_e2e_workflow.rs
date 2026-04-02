@@ -1563,3 +1563,100 @@ tasks:
         "working_dir mode should propagate from Runner to TaskExecutor"
     );
 }
+
+/// working_dir = "project" → nika:read resolves paths from project root, not workflow dir
+#[tokio::test]
+async fn nika_read_respects_working_dir_project() {
+    let project_dir = tempfile::tempdir().expect("tempdir");
+    let workflow_dir = project_dir.path().join("workflows");
+    std::fs::create_dir_all(&workflow_dir).unwrap();
+
+    // Create a file at project root (NOT in workflows/)
+    let src_dir = project_dir.path().join("src");
+    std::fs::create_dir_all(&src_dir).unwrap();
+    std::fs::write(src_dir.join("data.txt"), "hello from project root").unwrap();
+
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: read_file
+    invoke:
+      tool: "nika:read"
+      params:
+        file_path: "./src/data.txt"
+"#;
+    let workflow = parse_analyzed(yaml).expect("YAML should parse");
+    let mut runner = Runner::new(workflow)
+        .unwrap()
+        .quiet()
+        .with_base_path(workflow_dir)
+        .with_project_root(project_dir.path().to_path_buf())
+        .with_working_dir_mode("project".to_string());
+    runner.run().await.expect("Workflow should succeed");
+
+    let result = runner
+        .datastore()
+        .get("read_file")
+        .expect("task result should exist");
+    assert!(
+        result.is_success(),
+        "nika:read should succeed when working_dir=project: {:?}",
+        result
+    );
+    let output = result.output_str();
+    assert!(
+        output.contains("hello from project root"),
+        "nika:read should read file from project root, got: {}",
+        output
+    );
+}
+
+/// working_dir = "workflow" (default) → nika:read resolves from workflow dir
+#[tokio::test]
+async fn nika_read_default_resolves_from_workflow_dir() {
+    let project_dir = tempfile::tempdir().expect("tempdir");
+    let workflow_dir = project_dir.path().join("workflows");
+    std::fs::create_dir_all(&workflow_dir).unwrap();
+
+    // Create a file in workflow dir
+    std::fs::write(workflow_dir.join("local.txt"), "workflow local file").unwrap();
+
+    // Create same-name file at project root (should NOT be read)
+    std::fs::write(project_dir.path().join("local.txt"), "project root file").unwrap();
+
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: read_file
+    invoke:
+      tool: "nika:read"
+      params:
+        file_path: "./local.txt"
+"#;
+    let workflow = parse_analyzed(yaml).expect("YAML should parse");
+    let mut runner = Runner::new(workflow)
+        .unwrap()
+        .quiet()
+        .with_base_path(workflow_dir)
+        .with_project_root(project_dir.path().to_path_buf())
+        .with_working_dir_mode("workflow".to_string());
+    runner.run().await.expect("Workflow should succeed");
+
+    let result = runner
+        .datastore()
+        .get("read_file")
+        .expect("task result should exist");
+    assert!(
+        result.is_success(),
+        "nika:read should succeed: {:?}",
+        result
+    );
+    let output = result.output_str();
+    assert!(
+        output.contains("workflow local file"),
+        "working_dir=workflow should read from workflow dir, got: {}",
+        output
+    );
+}

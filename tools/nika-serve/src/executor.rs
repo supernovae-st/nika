@@ -183,6 +183,15 @@ async fn run_embedded(
         .with_base_path(base_path)
         .with_cancel_token(cancel_token);
 
+    // Wire project root + working_dir mode from nika.toml so exec cwd,
+    // nika:read security boundary, and from_example paths resolve correctly.
+    if let Some(ref root) = config.project_root {
+        runner = runner.with_project_root(root.clone());
+    }
+    if let Some(ref wd) = config.working_dir_mode {
+        runner = runner.with_working_dir_mode(wd.clone());
+    }
+
     // Resume: load checkpoints from source job and inject as pre-computed results.
     // The Runner's DAG automatically skips tasks that already have outputs.
     if let (Some(source_job), Some(storage)) = (resume_from, storage) {
@@ -385,6 +394,8 @@ mod tests {
             rate_burst: 30,
             gc_retention_secs: 7 * 24 * 3600,
             gc_interval_secs: 3600,
+            project_root: None,
+            working_dir_mode: None,
         });
 
         let ctx = ExecutionContext {

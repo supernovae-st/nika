@@ -342,18 +342,30 @@ impl TaskExecutor {
 
     /// Set the project root directory (parent of nika.toml).
     ///
-    /// Used by `working_dir_mode = "project"` to set exec task cwd.
+    /// Used by `working_dir_mode = "project"` to set exec task cwd
+    /// and expand the ToolContext security boundary for nika:read/write/glob/grep.
     pub fn with_project_root(mut self, root: std::path::PathBuf) -> Self {
-        self.project_root = Some(root);
+        self.project_root = Some(root.clone());
+        // When working_dir_mode is already "project", update ToolContext security boundary
+        if self.working_dir_mode.as_deref() == Some("project") {
+            self.tool_ctx.set_working_dir(root);
+        }
         self
     }
 
     /// Set the working directory mode from `[tools] working_dir` in nika.toml.
     ///
-    /// - `"project"` → exec tasks default cwd to project_root
-    /// - `"workflow"` → exec tasks default cwd to workflow_base_dir
+    /// - `"project"` → exec tasks + file tools default to project_root
+    /// - `"workflow"` → exec tasks + file tools default to workflow_base_dir
     /// - `"none"` → no default cwd, inherit process cwd
     pub fn with_working_dir_mode(mut self, mode: String) -> Self {
+        // When mode is "project" and project_root is set, update ToolContext security boundary
+        // so nika:read/write/glob/grep resolve paths from project root, not workflow dir.
+        if mode == "project" {
+            if let Some(ref root) = self.project_root {
+                self.tool_ctx.set_working_dir(root.clone());
+            }
+        }
         self.working_dir_mode = Some(mode);
         self
     }

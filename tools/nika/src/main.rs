@@ -1561,6 +1561,17 @@ async fn main() {
                         .ok()
                         .and_then(|s| s.parse().ok())
                         .unwrap_or(3600),
+                    project_root: cli::config::find_project_root_from(
+                        &std::env::current_dir().unwrap_or_default(),
+                    )
+                    .ok()
+                    .map(|p| p.root),
+                    working_dir_mode: cli::config::find_project_root_from(
+                        &std::env::current_dir().unwrap_or_default(),
+                    )
+                    .ok()
+                    .and_then(|p| cli::config::load_project_config(&p.root))
+                    .and_then(|c| c.tools.working_dir),
                 })
             })() {
                 Ok(config) => nika_serve::run_server(config)
@@ -2692,6 +2703,23 @@ async fn run_workflow(
     let mut runner = Runner::new(workflow)?
         .with_base_path(base_path.to_path_buf())
         .with_permission_mode(perm_mode);
+
+    // Wire project root + working_dir mode from nika.toml so exec cwd,
+    // nika:read security boundary, and from_example paths resolve correctly
+    // when workflows live in subdirectories (e.g. workflows/*.nika.yaml).
+    if let Ok(project) =
+        cli::config::find_project_root_from(&std::env::current_dir().unwrap_or_default())
+    {
+        runner = runner.with_project_root(project.root.clone());
+        if project.source == cli::config::ProjectRootSource::NikaToml {
+            if let Some(bootstrap) = cli::config::load_project_config(&project.root) {
+                if let Some(wd) = bootstrap.tools.working_dir {
+                    runner = runner.with_working_dir_mode(wd);
+                }
+            }
+        }
+    }
+
     if !config.endpoints.is_empty() {
         if let Ok(resolved) = nika::provider::endpoints::resolve_endpoints(&config.endpoints) {
             runner.with_custom_endpoints(resolved);
