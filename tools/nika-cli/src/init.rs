@@ -271,6 +271,15 @@ default = "anthropic"
         fs::write(&starter_path, STARTER_WORKFLOW)?;
     }
 
+    // Create .mcp.json (Claude Code convention — empty by default)
+    let mcp_json_path = root.join(".mcp.json");
+    if !mcp_json_path.exists() {
+        fs::write(
+            &mcp_json_path,
+            "{\n  \"mcpServers\": {}\n}\n",
+        )?;
+    }
+
     // Create AGENTS.md
     let agents_md_path = root.join("AGENTS.md");
     if !agents_md_path.exists() {
@@ -463,6 +472,23 @@ mod tests {
         assert!(
             !temp.path().join(".nika").join("config.toml").exists(),
             "should NOT create legacy .nika/config.toml"
+        );
+    }
+
+    // Test 23: init creates .mcp.json (Claude Code convention)
+    #[tokio::test]
+    async fn init_creates_mcp_json() {
+        let temp = tempdir().unwrap();
+        init_project_at(temp.path(), "plan", false).await.unwrap();
+
+        let mcp_json = temp.path().join(".mcp.json");
+        assert!(mcp_json.exists(), ".mcp.json should be created");
+
+        let content = std::fs::read_to_string(&mcp_json).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
+        assert!(
+            parsed.get("mcpServers").is_some(),
+            "should have mcpServers key"
         );
     }
 }
