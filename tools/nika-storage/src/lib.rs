@@ -611,6 +611,7 @@ fn init_schema(conn: &Connection) -> StorageResult<()> {
     }
 
     // V1: jobs + job_history
+    if version < 1 {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS jobs (
             id TEXT PRIMARY KEY,
@@ -640,8 +641,10 @@ fn init_schema(conn: &Connection) -> StorageResult<()> {
         CREATE INDEX IF NOT EXISTS idx_job_history_job_id ON job_history(job_id);",
     )
     .map_err(|e| StorageError::Other(format!("create tables: {e}")))?;
+    }
 
     // V2: job_artifacts
+    if version < 2 {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS job_artifacts (
             job_id TEXT NOT NULL REFERENCES jobs(id),
@@ -657,8 +660,10 @@ fn init_schema(conn: &Connection) -> StorageResult<()> {
         CREATE INDEX IF NOT EXISTS idx_job_artifacts_job_id ON job_artifacts(job_id);",
     )
     .map_err(|e| StorageError::Other(format!("create job_artifacts table: {e}")))?;
+    }
 
     // V3: checkpoints
+    if version < 3 {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS checkpoints (
             job_id TEXT NOT NULL,
@@ -671,6 +676,7 @@ fn init_schema(conn: &Connection) -> StorageResult<()> {
         CREATE INDEX IF NOT EXISTS idx_checkpoints_job_id ON checkpoints(job_id);",
     )
     .map_err(|e| StorageError::Other(format!("create checkpoints table: {e}")))?;
+    }
 
     conn.pragma_update(None, "user_version", SCHEMA_VERSION)
         .map_err(|e| StorageError::Other(format!("set user_version: {e}")))?;
