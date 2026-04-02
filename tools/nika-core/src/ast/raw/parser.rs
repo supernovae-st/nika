@@ -1563,6 +1563,7 @@ fn parse_mcp_server(file_id: FileId, node: &Node) -> Result<Spanned<RawMcpServer
 
     let server = RawMcpServer {
         command: get_string_field(file_id, map, "command")?,
+        from: get_string_field(file_id, map, "from")?,
         args: parse_string_array(file_id, map, "args")?,
         env: parse_string_map(file_id, map, "env")?,
         cwd: get_string_field(file_id, map, "cwd")?,

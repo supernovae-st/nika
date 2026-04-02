@@ -17,6 +17,9 @@ pub struct RawMcpServer {
     /// Command to spawn the server
     pub command: Option<Spanned<String>>,
 
+    /// Reference source: "config", "project", "global" (resolve from config files)
+    pub from: Option<Spanned<String>>,
+
     /// Arguments for the command
     pub args: Option<Spanned<Vec<Spanned<String>>>>,
 
@@ -79,6 +82,19 @@ impl RawMcpServer {
             transport: Some(Spanned::dummy("sse".to_string())),
             ..Default::default()
         }
+    }
+
+    /// Create a new server config with a from: reference.
+    pub fn with_from(source: impl Into<String>) -> Self {
+        Self {
+            from: Some(Spanned::dummy(source.into())),
+            ..Default::default()
+        }
+    }
+
+    /// Check if this is a reference (has from: field).
+    pub fn is_reference(&self) -> bool {
+        self.from.is_some()
     }
 
     /// Check if this is an SSE server.
@@ -145,5 +161,38 @@ mod tests {
 
         let sse_server = RawMcpServer::with_url("http://localhost:8080");
         assert!(sse_server.is_sse());
+    }
+
+    #[test]
+    fn test_mcp_server_from_reference() {
+        let server = RawMcpServer::with_from("config");
+        assert!(server.is_reference());
+        assert!(server.command.is_none());
+        assert_eq!(server.from.as_ref().unwrap().value, "config");
+    }
+
+    #[test]
+    fn test_mcp_server_inline_is_not_reference() {
+        let server = RawMcpServer::with_command("npx");
+        assert!(!server.is_reference());
+        assert!(server.from.is_none());
+    }
+
+    #[test]
+    fn test_mcp_server_from_with_overrides() {
+        let mut server = RawMcpServer::with_from("config");
+        server.env = Some(Spanned::new(
+            {
+                let mut env = IndexMap::new();
+                env.insert(
+                    Spanned::new("KEY".to_string(), make_span(0, 3)),
+                    Spanned::new("val".to_string(), make_span(5, 8)),
+                );
+                env
+            },
+            make_span(0, 10),
+        ));
+        assert!(server.is_reference());
+        assert!(server.env.is_some());
     }
 }
