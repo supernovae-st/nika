@@ -848,10 +848,10 @@ jobs:
   # Publish @supernovae-st/nika-sdk (Node.js via napi-rs)
   # ─────────────────────────────────────────────────────────────────────────────
   sdk-npm-publish:
-    name: Publish Node.js SDK
+    name: Build Node.js SDK (${{ matrix.target }})
     needs: crates-publish
     if: ${{ !inputs.dry_run && !cancelled() && needs.crates-publish.result == 'success' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     continue-on-error: true
 
     strategy:
@@ -863,8 +863,6 @@ jobs:
           - target: aarch64-apple-darwin
             os: macos-latest
           - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
-          - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
           - target: x86_64-pc-windows-msvc
             os: windows-latest
@@ -894,7 +892,7 @@ jobs:
         run: napi build --release --target ${{ matrix.target }}
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sdk-npm-${{ matrix.target }}
           path: tools/nika-napi/*.node
@@ -902,7 +900,7 @@ jobs:
   sdk-npm-collect:
     name: Collect and Publish SDK npm
     needs: sdk-npm-publish
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && needs.sdk-npm-publish.result == 'success' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -918,10 +916,11 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       - name: Download all SDK artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: sdk-npm-*
           path: tools/nika-napi
+          merge-multiple: true
 
       - name: Install napi-rs CLI
         run: npm install -g @napi-rs/cli@3
@@ -940,10 +939,10 @@ jobs:
   # Publish nika-sdk (Python via maturin)
   # ─────────────────────────────────────────────────────────────────────────────
   sdk-pypi-publish:
-    name: Publish Python SDK
+    name: Build Python SDK (${{ matrix.os }}-${{ matrix.target }})
     needs: crates-publish
     if: ${{ !inputs.dry_run && !cancelled() && needs.crates-publish.result == 'success' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     continue-on-error: true
 
     strategy:
@@ -976,7 +975,7 @@ jobs:
           working-directory: tools/nika-py
 
       - name: Upload wheels
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sdk-pypi-${{ matrix.os }}-${{ matrix.target }}
           path: tools/nika-py/dist
@@ -984,12 +983,12 @@ jobs:
   sdk-pypi-collect:
     name: Collect and Publish SDK PyPI
     needs: sdk-pypi-publish
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && needs.sdk-pypi-publish.result == 'success' }}
     runs-on: ubuntu-latest
 
     steps:
       - name: Download all wheels
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: sdk-pypi-*
           path: dist

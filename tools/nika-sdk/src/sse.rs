@@ -43,7 +43,9 @@ pub(crate) fn parse_sse_block(block: &str) -> Vec<SseFrame> {
         } else if let Some(value) = line.strip_prefix("event:") {
             event_type = Some(value.trim().to_string());
         } else if let Some(value) = line.strip_prefix("data:") {
-            data_lines.push(value.trim_start_matches(' ').to_string());
+            // SSE spec: strip exactly ONE leading space after "data:"
+            let trimmed = value.strip_prefix(' ').unwrap_or(value);
+            data_lines.push(trimmed.to_string());
         }
         // Ignore unknown field names per SSE spec
     }
@@ -159,6 +161,29 @@ mod tests {
             assert!(data.contains('\n'));
         } else {
             panic!("expected Event frame");
+        }
+    }
+
+    #[test]
+    fn preserves_leading_spaces_after_first() {
+        // SSE spec: only ONE leading space is stripped, not all
+        let block = "event: task_complete\ndata:   indented content\n\n";
+        let frames = parse_sse_block(block);
+        assert_eq!(frames.len(), 1);
+        if let SseFrame::Event { data, .. } = &frames[0] {
+            assert_eq!(data, "  indented content"); // two spaces preserved
+        } else {
+            panic!("expected Event frame");
+        }
+    }
+
+    #[test]
+    fn no_space_after_colon() {
+        // SSE spec: if no space after "data:", no stripping
+        let block = "event: started\ndata:{\"type\":\"started\"}\n\n";
+        let frames = parse_sse_block(block);
+        if let SseFrame::Event { data, .. } = &frames[0] {
+            assert!(data.starts_with('{'));
         }
     }
 

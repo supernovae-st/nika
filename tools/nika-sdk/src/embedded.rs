@@ -21,6 +21,9 @@ struct JobState {
     status: String,
     workflow: String,
     output: Option<String>,
+    cancel_token: tokio_util::sync::CancellationToken,
+    /// Broadcast sender for engine events — subscribers get real task events.
+    event_tx: Option<tokio::sync::broadcast::Sender<Event>>,
 }
 
 pub(crate) struct EmbeddedTransport {
@@ -47,6 +50,7 @@ impl Transport for EmbeddedTransport {
 
         let base_path = PathBuf::from(&req.workflow)
             .parent()
+            .filter(|p| !p.as_os_str().is_empty())
             .unwrap_or_else(|| std::path::Path::new("."))
             .to_path_buf();
 
@@ -64,7 +68,7 @@ impl Transport for EmbeddedTransport {
             })?
             .quiet() // REQUIRED: makes Runner Send
             .with_base_path(base_path)
-            .with_cancel_token(cancel_token);
+            .with_cancel_token(cancel_token.clone());
 
         // Resume not supported in embedded mode yet
         if req.resume_from.is_some() {
@@ -83,6 +87,9 @@ impl Transport for EmbeddedTransport {
             }
         }
 
+        // Create SDK event broadcast channel
+        let (sdk_event_tx, _) = tokio::sync::broadcast::channel::<Event>(256);
+
         // Track the job
         {
             let mut jobs = self.jobs.lock().await;
@@ -92,15 +99,67 @@ impl Transport for EmbeddedTransport {
                     status: "running".into(),
                     workflow: req.workflow.clone(),
                     output: None,
+                    cancel_token,
+                    event_tx: Some(sdk_event_tx.clone()),
                 },
             );
         }
+
+        // Forward engine events → SDK events
+        let fwd_tx = sdk_event_tx;
+        let fwd_jid = job_id.clone();
+        tokio::spawn(async move {
+            let mut rx = event_rx;
+            loop {
+                match rx.recv().await {
+                    Ok(event) => {
+                        let sdk_event = match &event.kind {
+                            nika_event::EventKind::TaskStarted { task_id, verb, .. } => {
+                                Some(Event::TaskStart {
+                                    job_id: fwd_jid.clone(),
+                                    task_id: task_id.to_string(),
+                                    verb: verb.to_string(),
+                                })
+                            }
+                            nika_event::EventKind::TaskCompleted { task_id, duration_ms, .. } => {
+                                Some(Event::TaskComplete {
+                                    job_id: fwd_jid.clone(),
+                                    task_id: task_id.to_string(),
+                                    duration_ms: *duration_ms,
+                                })
+                            }
+                            nika_event::EventKind::TaskFailed { task_id, error, duration_ms, .. } => {
+                                Some(Event::TaskFailed {
+                                    job_id: fwd_jid.clone(),
+                                    task_id: task_id.to_string(),
+                                    error: error.clone(),
+                                    duration_ms: *duration_ms,
+                                })
+                            }
+                            nika_event::EventKind::ArtifactWritten { task_id, path, size, .. } => {
+                                Some(Event::ArtifactWritten {
+                                    job_id: fwd_jid.clone(),
+                                    task_id: task_id.to_string(),
+                                    path: path.clone(),
+                                    size: *size,
+                                })
+                            }
+                            _ => None,
+                        };
+                        if let Some(ev) = sdk_event {
+                            let _ = fwd_tx.send(ev);
+                        }
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                }
+            }
+        });
 
         // Run in background task — capture JoinHandle to detect panics
         let jobs = Arc::clone(&self.jobs);
         let jid = job_id.clone();
         let handle = tokio::spawn(async move {
-            let _event_rx = event_rx; // keep receiver alive during execution
             runner.run().await
         });
 
@@ -158,6 +217,7 @@ impl Transport for EmbeddedTransport {
         let state = jobs
             .get_mut(job_id)
             .ok_or_else(|| SdkError::NotFound(job_id.into()))?;
+        state.cancel_token.cancel(); // signal the Runner to stop
         state.status = "cancelled".into();
 
         Ok(JobInfo {
@@ -173,25 +233,44 @@ impl Transport for EmbeddedTransport {
     }
 
     async fn events(&self, job_id: &str) -> Result<EventStream, SdkError> {
-        // For embedded mode, poll job status until terminal
         let jobs = Arc::clone(&self.jobs);
         let jid = job_id.to_string();
 
-        // Verify job exists
-        {
+        // Subscribe to SDK event broadcast + verify job exists
+        let mut event_rx = {
             let jobs = jobs.lock().await;
-            if !jobs.contains_key(&jid) {
-                return Err(SdkError::NotFound(jid));
-            }
-        }
+            let state = jobs
+                .get(&jid)
+                .ok_or_else(|| SdkError::NotFound(jid.clone()))?;
+            state
+                .event_tx
+                .as_ref()
+                .map(|tx| tx.subscribe())
+                .ok_or_else(|| SdkError::StreamClosed)?
+        };
 
         let stream = async_stream::stream! {
             yield Ok(Event::Started { job_id: jid.clone() });
 
             loop {
-                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                // Try to receive a real task event with timeout
+                match tokio::time::timeout(
+                    std::time::Duration::from_millis(200),
+                    event_rx.recv(),
+                ).await {
+                    Ok(Ok(event)) => {
+                        yield Ok(event);
+                    }
+                    Ok(Err(tokio::sync::broadcast::error::RecvError::Lagged(_))) => continue,
+                    Ok(Err(tokio::sync::broadcast::error::RecvError::Closed)) => {
+                        // Engine finished — check terminal state
+                    }
+                    Err(_timeout) => {
+                        // No event in 200ms — check terminal state
+                    }
+                }
 
-                // Read state and drop the lock BEFORE yielding
+                // Check for terminal state
                 let terminal_event = {
                     let jobs = jobs.lock().await;
                     if let Some(state) = jobs.get(&jid) {
@@ -212,14 +291,11 @@ impl Transport for EmbeddedTransport {
                     } else {
                         Some(Err(SdkError::NotFound(jid.clone())))
                     }
-                }; // MutexGuard dropped here
+                };
 
-                match terminal_event {
-                    Some(event) => {
-                        yield event;
-                        return;
-                    }
-                    None => continue,
+                if let Some(event) = terminal_event {
+                    yield event;
+                    return;
                 }
             }
         };

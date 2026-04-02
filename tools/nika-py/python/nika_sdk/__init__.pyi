@@ -1,6 +1,6 @@
 """Type stubs for nika_sdk."""
 
-from typing import AsyncIterator, Optional
+from typing import Iterator, Optional
 
 class NikaError(Exception):
     """Base exception for Nika SDK errors."""
@@ -26,13 +26,14 @@ class ArtifactInfo:
     """Artifact metadata."""
     name: str
     size: int
+    format: Optional[str]
     content_type: str
     checksum: Optional[str]
 
-class EventStream(AsyncIterator[dict[str, object]]):
-    """Async iterator over job events — use with `async for event in stream`."""
-    def __aiter__(self) -> "EventStream": ...
-    async def __anext__(self) -> dict[str, object]: ...
+class EventStream(Iterator[dict[str, object]]):
+    """Blocking iterator over job events — use with `for event in stream`."""
+    def __iter__(self) -> "EventStream": ...
+    def __next__(self) -> dict[str, object]: ...
 
 class Job:
     """Handle to a submitted workflow job."""
@@ -48,7 +49,7 @@ class Job:
 
 class Client:
     """Nika SDK client — connects to a remote nika serve instance."""
-    def __init__(self, base_url: str, token: str) -> None: ...
+    def __init__(self, base_url: str, token: Optional[str] = None) -> None: ...
     def submit(
         self,
         workflow: str,
