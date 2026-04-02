@@ -3,6 +3,59 @@
 use nika_core::ast::extract::ExtractMode;
 
 use crate::error::NikaError;
+
+/// Parse HTTP `Link:` headers for hreflang alternate links.
+///
+/// Format: `<https://example.com/fr/>; rel="alternate"; hreflang="fr"`
+///
+/// Returns a vec of `{"lang": "fr", "href": "https://example.com/fr/"}` objects.
+pub(crate) fn parse_link_header_hreflang(link_values: &[String]) -> Vec<serde_json::Value> {
+    let mut results = Vec::new();
+    for value in link_values {
+        // A single Link header can have multiple comma-separated entries
+        for entry in value.split(',') {
+            let entry = entry.trim();
+            // Extract URL: <...>
+            let url = match (entry.find('<'), entry.find('>')) {
+                (Some(start), Some(end)) if start < end => &entry[start + 1..end],
+                _ => continue,
+            };
+            let params = &entry[entry.find('>').unwrap_or(0)..];
+            // Check rel="alternate"
+            let is_alternate = params
+                .split(';')
+                .any(|p| {
+                    let p = p.trim().to_lowercase();
+                    p == "rel=\"alternate\"" || p == "rel=alternate"
+                });
+            if !is_alternate {
+                continue;
+            }
+            // Extract hreflang="xx"
+            let hreflang = params.split(';').find_map(|p| {
+                let p = p.trim();
+                let lower = p.to_lowercase();
+                if lower.starts_with("hreflang=") {
+                    Some(
+                        p[9..]
+                            .trim_matches('"')
+                            .trim_matches('\'')
+                            .to_string(),
+                    )
+                } else {
+                    None
+                }
+            });
+            if let Some(lang) = hreflang {
+                results.push(serde_json::json!({
+                    "lang": lang,
+                    "href": url,
+                }));
+            }
+        }
+    }
+    results
+}
 #[cfg(not(all(
     feature = "fetch-markdown",
     feature = "fetch-html",
@@ -733,6 +786,49 @@ mod tests {
         assert_eq!(hreflang[1]["href"], "https://example.com/fr/page");
         // Already absolute stays unchanged
         assert_eq!(hreflang[2]["href"], "https://example.com/de/page");
+    }
+
+    #[test]
+    fn parse_link_header_hreflang_basic() {
+        let headers = vec![
+            r#"<https://example.com/en/>; rel="alternate"; hreflang="en""#.to_string(),
+            r#"<https://example.com/fr/>; rel="alternate"; hreflang="fr""#.to_string(),
+        ];
+        let result = parse_link_header_hreflang(&headers);
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0]["lang"], "en");
+        assert_eq!(result[0]["href"], "https://example.com/en/");
+        assert_eq!(result[1]["lang"], "fr");
+        assert_eq!(result[1]["href"], "https://example.com/fr/");
+    }
+
+    #[test]
+    fn parse_link_header_hreflang_ignores_non_alternate() {
+        let headers = vec![
+            r#"<https://example.com/style.css>; rel="stylesheet""#.to_string(),
+            r#"<https://example.com/fr/>; rel="alternate"; hreflang="fr""#.to_string(),
+        ];
+        let result = parse_link_header_hreflang(&headers);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0]["lang"], "fr");
+    }
+
+    #[test]
+    fn parse_link_header_hreflang_comma_separated() {
+        // Multiple entries in a single header value
+        let headers = vec![
+            r#"<https://example.com/en/>; rel="alternate"; hreflang="en", <https://example.com/de/>; rel="alternate"; hreflang="de""#.to_string(),
+        ];
+        let result = parse_link_header_hreflang(&headers);
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0]["lang"], "en");
+        assert_eq!(result[1]["lang"], "de");
+    }
+
+    #[test]
+    fn parse_link_header_hreflang_empty() {
+        let result = parse_link_header_hreflang(&[]);
+        assert!(result.is_empty());
     }
 
     #[cfg(feature = "fetch-html")]

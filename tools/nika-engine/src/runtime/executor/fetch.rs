@@ -576,6 +576,13 @@ impl TaskExecutor {
                     // Check response mode BEFORE consuming the body
                     if fetch.response == Some(nika_core::ast::extract::ResponseMode::Full) {
                         let status = response.status().as_u16();
+                        // HREFLANG-001: capture Link headers before collecting all headers
+                        let link_headers: Vec<String> = response
+                            .headers()
+                            .get_all("link")
+                            .iter()
+                            .filter_map(|v| v.to_str().ok().map(String::from))
+                            .collect();
                         let headers: serde_json::Map<String, serde_json::Value> = response
                             .headers()
                             .iter()
@@ -638,6 +645,9 @@ impl TaskExecutor {
                                     serde_json::json!({ "error": e.to_string() })
                                 }
                             };
+                            // HREFLANG-001: merge Link header hreflang into extracted metadata
+                            let extracted =
+                                merge_link_hreflang_value(extracted, fetch.extract, &link_headers);
                             return Ok(serde_json::json!({
                                 "status": status,
                                 "headers": headers,
@@ -816,6 +826,13 @@ impl TaskExecutor {
                     }
 
                     let response_url = response.url().to_string();
+                    // HREFLANG-001: capture Link headers before consuming response body
+                    let link_headers: Vec<String> = response
+                        .headers()
+                        .get_all("link")
+                        .iter()
+                        .filter_map(|v| v.to_str().ok().map(String::from))
+                        .collect();
                     let raw_body = read_body_with_limit(response, MAX_TEXT_RESPONSE_SIZE).await?;
                     // Resolve templates in selector (e.g. {{with.css_query}})
                     let resolved_selector = match &fetch.selector {
@@ -839,7 +856,8 @@ impl TaskExecutor {
                             output_len,
                         });
                     }
-                    return extract_result;
+                    // HREFLANG-001: merge Link header hreflang into metadata result
+                    return merge_link_hreflang(extract_result, fetch.extract, &link_headers);
                 }
                 Err(e) => {
                     // Network errors are retryable
@@ -912,6 +930,55 @@ impl TaskExecutor {
             reason: "HTTP request failed: unknown error".to_string(),
         }))
     }
+}
+
+/// HREFLANG-001: Merge Link header hreflang entries into a metadata extract result (String path).
+/// For non-metadata modes or empty link_headers, returns the original result unchanged.
+fn merge_link_hreflang(
+    result: Result<String, NikaError>,
+    extract_mode: Option<nika_core::ast::extract::ExtractMode>,
+    link_headers: &[String],
+) -> Result<String, NikaError> {
+    use nika_core::ast::extract::ExtractMode;
+    if !matches!(extract_mode, Some(ExtractMode::Metadata)) || link_headers.is_empty() {
+        return result;
+    }
+    let result_str = result?;
+    let mut parsed: serde_json::Value = serde_json::from_str(&result_str).unwrap_or_default();
+    let link_hreflang = super::extract::parse_link_header_hreflang(link_headers);
+    if !link_hreflang.is_empty() {
+        let hreflang = parsed
+            .as_object_mut()
+            .and_then(|obj| obj.entry("hreflang").or_insert(serde_json::json!([])).as_array_mut());
+        if let Some(arr) = hreflang {
+            arr.extend(link_hreflang);
+        }
+    }
+    Ok(parsed.to_string())
+}
+
+/// HREFLANG-001: Merge Link header hreflang into an already-parsed Value (response:full path).
+fn merge_link_hreflang_value(
+    mut extracted: serde_json::Value,
+    extract_mode: Option<nika_core::ast::extract::ExtractMode>,
+    link_headers: &[String],
+) -> serde_json::Value {
+    use nika_core::ast::extract::ExtractMode;
+    if !matches!(extract_mode, Some(ExtractMode::Metadata)) || link_headers.is_empty() {
+        return extracted;
+    }
+    let link_hreflang = super::extract::parse_link_header_hreflang(link_headers);
+    if !link_hreflang.is_empty() {
+        if let Some(obj) = extracted.as_object_mut() {
+            let arr = obj
+                .entry("hreflang")
+                .or_insert(serde_json::json!([]));
+            if let Some(vec) = arr.as_array_mut() {
+                vec.extend(link_hreflang);
+            }
+        }
+    }
+    extracted
 }
 
 /// Parse the `Retry-After` header from a 429 response.

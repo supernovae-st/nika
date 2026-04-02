@@ -508,6 +508,86 @@ async fn wiremock_fetch_extract_metadata_no_hreflang() {
 }
 
 #[tokio::test]
+async fn wiremock_fetch_extract_metadata_hreflang_from_link_header() {
+    // HREFLANG-001: hreflang from HTTP Link: header
+    let server = MockServer::start().await;
+    let html = r#"<html><head><title>Link Header Test</title></head><body></body></html>"#;
+    Mock::given(method("GET"))
+        .and(path("/link-hreflang"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_string(html)
+                .append_header(
+                    "Link",
+                    r#"<https://example.com/en/>; rel="alternate"; hreflang="en""#,
+                )
+                .append_header(
+                    "Link",
+                    r#"<https://example.com/fr/>; rel="alternate"; hreflang="fr""#,
+                ),
+        )
+        .mount(&server)
+        .await;
+
+    let (executor, bindings, datastore, _) = setup();
+    let task_id: Arc<str> = Arc::from("wm_link_hreflang");
+    let mut params = fetch_params(&format!("{}/link-hreflang", server.uri()), "GET");
+    params.extract = Some(nika_core::ast::extract::ExtractMode::Metadata);
+    let action = TaskAction::Fetch { fetch: params };
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await
+        .unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+    assert_eq!(parsed["title"], "Link Header Test");
+    let hreflang = parsed["hreflang"].as_array().expect("hreflang should be array");
+    assert_eq!(hreflang.len(), 2);
+    assert_eq!(hreflang[0]["lang"], "en");
+    assert_eq!(hreflang[0]["href"], "https://example.com/en/");
+    assert_eq!(hreflang[1]["lang"], "fr");
+    assert_eq!(hreflang[1]["href"], "https://example.com/fr/");
+}
+
+#[tokio::test]
+async fn wiremock_fetch_extract_metadata_hreflang_merges_html_and_link_header() {
+    // When both HTML and Link headers have hreflang, they should be merged
+    let server = MockServer::start().await;
+    let html = r#"<html><head>
+        <title>Merge Test</title>
+        <link rel="alternate" hreflang="en" href="https://example.com/en/">
+    </head><body></body></html>"#;
+    Mock::given(method("GET"))
+        .and(path("/merge-hreflang"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_string(html)
+                .append_header(
+                    "Link",
+                    r#"<https://example.com/de/>; rel="alternate"; hreflang="de""#,
+                ),
+        )
+        .mount(&server)
+        .await;
+
+    let (executor, bindings, datastore, _) = setup();
+    let task_id: Arc<str> = Arc::from("wm_merge_hreflang");
+    let mut params = fetch_params(&format!("{}/merge-hreflang", server.uri()), "GET");
+    params.extract = Some(nika_core::ast::extract::ExtractMode::Metadata);
+    let action = TaskAction::Fetch { fetch: params };
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await
+        .unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+    let hreflang = parsed["hreflang"].as_array().expect("hreflang should be array");
+    // Should have both: en from HTML + de from Link header
+    assert_eq!(hreflang.len(), 2);
+    let langs: Vec<&str> = hreflang.iter().map(|h| h["lang"].as_str().unwrap()).collect();
+    assert!(langs.contains(&"en"), "Missing 'en' from HTML: {langs:?}");
+    assert!(langs.contains(&"de"), "Missing 'de' from Link header: {langs:?}");
+}
+
+#[tokio::test]
 async fn wiremock_fetch_extract_jsonpath() {
     let server = MockServer::start().await;
     let json = r#"{"users": [{"name": "Alice"}, {"name": "Bob"}]}"#;
