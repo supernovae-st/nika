@@ -21,7 +21,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.58.1"
+version = "0.61.0"
 edition = "2021"
 authors = ["Thibaut MÉLEN <thibaut@supernovae.studio>", "SuperNovae Studio <contact@supernovae.studio>"]
 license = "AGPL-3.0-or-later"
@@ -30,19 +30,19 @@ rust-version = "1.86"
 
 [workspace.dependencies]
 # Internal crates
-nika-cli = { path = "nika-cli", version = "0.58.0" }
-nika-core = { path = "nika-core", version = "0.58.0" }
-nika-engine = { path = "nika-engine", version = "0.58.0", default-features = true }
-nika-init = { path = "nika-init", version = "0.58.0" }
-nika-tui = { path = "nika-tui", version = "0.58.0" }
-nika-event = { path = "nika-event", version = "0.58.0" }
-nika-mcp = { path = "nika-mcp", version = "0.58.0" }
-nika-media = { path = "nika-media", version = "0.58.0" }
-nika-daemon = { path = "nika-daemon", version = "0.58.0" }
-nika-storage = { path = "nika-storage", version = "0.58.0" }
-nika-serve = { path = "nika-serve", version = "0.58.0" }
-nika-lsp-core = { path = "nika-lsp-core", version = "0.58.0" }
-nika-sdk = { path = "nika-sdk", version = "0.58.0" }
+nika-cli = { path = "nika-cli", version = "0.61.0" }
+nika-core = { path = "nika-core", version = "0.61.0" }
+nika-engine = { path = "nika-engine", version = "0.61.0", default-features = true }
+nika-init = { path = "nika-init", version = "0.61.0" }
+nika-tui = { path = "nika-tui", version = "0.61.0" }
+nika-event = { path = "nika-event", version = "0.61.0" }
+nika-mcp = { path = "nika-mcp", version = "0.61.0" }
+nika-media = { path = "nika-media", version = "0.61.0" }
+nika-daemon = { path = "nika-daemon", version = "0.61.0" }
+nika-storage = { path = "nika-storage", version = "0.61.0" }
+nika-serve = { path = "nika-serve", version = "0.61.0" }
+nika-lsp-core = { path = "nika-lsp-core", version = "0.61.0" }
+nika-sdk = { path = "nika-sdk", version = "0.61.0" }
 
 # Allocator
 mimalloc = { version = "0.1", default-features = false }

@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════╗
+║  NIKA v0.61.0 — SDK + REVIEW HARDENING                                     ║
+║  nika-sdk | nika-napi | nika-py | 20 crates | 9,407 tests                  ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+```
+
+## [0.61.0] — 2026-04-02
+
+### Security
+- **Shell quoting before blocklist (NIKA-053)** — Strip quotes before matching, preventing bypass via `'sudo'`
+- **Value-based secret redaction** — Custom API keys from `$env` now redacted in traces
+- **Webhook SSRF hardening** — DNS pinning, redirect blocking, IPv6-mapped blocked
+- **Vault hardening** — 0o700 dirs, Argon2i 6 iterations, file locking, passphrase min 12 chars
+- **Serve auth hardening** — Token min 32 chars, X-Request-Id capped 128 chars, CORS validation
+
+### Added
+- **nika-sdk crate** — Rust SDK with remote (HTTP+SSE) and embedded (in-process) transports
+- **nika-napi crate** — Node.js SDK via napi-rs 3.x, AsyncGenerator streaming, discriminated TS unions
+- **nika-py crate** — Python SDK via PyO3 0.24, EventStream iterator, pythonize, `__eq__`, `.pyi` stubs
+- **nika.toml project config** — Walk-up discovery (like `.git`), 3-layer merge (defaults → file → env)
+- **.mcp.json support** — Claude Code convention at project root, `nika init` creates it
+- **Serve: artifact API** — List + download artifacts via `/v1/jobs/{id}/artifacts`
+- **Serve: typed SSE events** — Task-level streaming with structured event types
+- **Serve: checkpoint store** — Resume interrupted jobs from last checkpoint
+- **`{{skills.NAME}}` resolution** — Reference skill file content directly in templates
+- **BLAKE3 checksums** — Text/JSON/YAML/Markdown artifacts get integrity checksums
+- **ProviderAutoRetried event** — Trace event on transient infer retry with attempt + backoff
+- **Interactive init wizard** — cliclack prompts, `--yes` for non-interactive
+- **`nika clean`** — Umbrella command for trace + media + cache cleanup
+- **CI: SDK publish** — npm + PyPI pipelines with ARM Linux cross-compilation via zig
+- **nika check security phase** — Shell escape warnings with word-boundary regex
+
+### Fixed
+- **SdkError::Cancelled** — Distinct error variant for cancelled jobs
+- **SSE CRLF + buffer limit** — Handle `\r\n\r\n` frame boundaries, 1 MiB cap
+- **JobStatus enum** — Type-safe deserialization with `#[serde(other)]` forward compat
+- **Job reaping** — Embedded transport reaps terminal jobs above 1024 entries
+- **Artifact YAML validation** — `format: yaml` validated before write
+- **`nika:dag_info` task count** — Uses total DAG count including for_each expansion
+- **`nika:emit` data alias** — Accepts `data` as alias for `payload`
+- **Schema path resolution** — Aligned between `nika check` and `nika run`
+- **Provider chain in fallback** — Cleared on routing override
+- **`fail_fast:false` partial results** — Now unblock downstream tasks
+- **Serve: embedded executor default** — In-process instead of subprocess
+- **Serve: SSE timeout excluded** — SSE routes no longer hit 30s TimeoutLayer
+- **MCP: NIKA error tags** — Correct error codes in tool responses
+- **npm scope** — `@supernovae` → `@supernovae-st` across all references
+- **CI: npm version sync** — SDK package.json synced from release tag before publish
+
+### Changed
+- **MCP config consolidated** — `[mcp.*]` in nika.toml + `.mcp.json` at root
+- **Dead code removed** — Blanket `#[allow(dead_code)]` on NativeRuntime, dead fields cleaned
+- **9,407 tests** — Up from 9,109
+
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
 ║  NIKA v0.56.0 — HTTP API + SERVE HARDENING                                 ║
 ║  nika serve | nika-storage | 16 security fixes | 9,109 tests               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
