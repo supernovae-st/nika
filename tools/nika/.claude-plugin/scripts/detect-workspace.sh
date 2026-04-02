@@ -45,11 +45,14 @@ if [ -f ".nika/course-progress.toml" ]; then
   fi
 fi
 
-# Check for MCP config
+# Check for MCP config (.mcp.json preferred, .nika/mcp.yaml fallback)
 MCP_STATUS="no config"
-if [ -f ".nika/mcp.yaml" ]; then
+if [ -f ".mcp.json" ]; then
+  SERVER_COUNT=$(grep -c '"command"' .mcp.json 2>/dev/null || echo "0")
+  MCP_STATUS="$SERVER_COUNT server(s) (.mcp.json)"
+elif [ -f ".nika/mcp.yaml" ]; then
   SERVER_COUNT=$(grep -c '^  [a-z]' .nika/mcp.yaml 2>/dev/null || echo "0")
-  MCP_STATUS="$SERVER_COUNT server(s)"
+  MCP_STATUS="$SERVER_COUNT server(s) (.nika/mcp.yaml)"
 fi
 
 # ─── Report ────────────────────────────────────────────────────────────────

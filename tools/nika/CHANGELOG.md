@@ -34,7 +34,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Spinner during LLM calls** — Braille spinner for `nika infer` and `nika agent` while waiting.
 - **Pretty-print JSON on TTY** — All verb outputs auto-detect JSON and pretty-print on terminal.
 - **`nika config list` structured display** — Parsed sections with key-value layout, provider API key status (✓/⚠), MCP server listing.
-- **`[mcp.*]` in nika.toml** — MCP server config (command, args, env) in project config instead of separate mcp.yaml.
+- **`.mcp.json` at project root** — MCP server config following the Claude Code convention. Priority: `.mcp.json` > `.nika/mcp.yaml` > `~/.nika/mcp.yaml`. `nika init` creates `.mcp.json`, `nika mcp add/remove` writes to `.mcp.json` when present.
 - **`[serve]` in nika.toml** — Server config with env var override. Default workflows scan changed from `./workflows` to `.` (recursive).
 - **`[tools] working_dir`** — `project` (project root), `workflow` (YAML parent), `none` (process cwd) for exec task cwd.
 - **Doctor project checks** — Detects nika.toml, .gitignore gaps, legacy .nika/config.toml, workflow count.

@@ -209,10 +209,10 @@ fn contract_mcp_tools_lists_available() {
 /// Contract: MCP config respects three-level scope
 #[test]
 fn contract_mcp_config_scope() {
-    // Document the three-level scope:
-    // 1. Local (./.nika/local.yaml)
-    // 2. Team (./mcp.yaml)
-    // 3. Global (~/.nika/mcp.yaml)
+    // Document the three-level scope (priority order):
+    // 1. .mcp.json at project root (Claude Code convention — preferred)
+    // 2. .nika/mcp.yaml (legacy project fallback)
+    // 3. ~/.nika/mcp.yaml (global)
 
     // Check config location command
     let output = run_nika(&["config", "where"]);
