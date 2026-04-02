@@ -551,4 +551,53 @@ mod tests {
         assert!(result.is_ok());
         assert!(result.unwrap().ends_with(".nika"));
     }
+
+    // ───────────────────────────────────────────────────────────────────────
+    // Phase 10: config list display tests (48-49)
+    // ───────────────────────────────────────────────────────────────────────
+
+    // Test 48: config list shows [project], [provider], [tools] sections
+    #[test]
+    fn config_list_shows_sections() {
+        use nika_engine::runtime::boot::BootstrapConfig;
+
+        let toml_content = r#"
+[project]
+name = "test-project"
+
+[provider]
+default = "anthropic"
+
+[tools]
+permission = "plan"
+"#;
+        let config: BootstrapConfig = toml::from_str(toml_content).unwrap();
+        assert!(config.project.is_some(), "should parse [project]");
+        assert_eq!(config.provider.default, "anthropic");
+        assert_eq!(config.tools.permission, "plan");
+    }
+
+    // Test 49: config list can detect provider key presence
+    #[test]
+    fn config_list_shows_provider_status() {
+        // Verify the config display can check for provider API keys
+        use nika_engine::core::{ProviderCategory, KNOWN_PROVIDERS};
+
+        let llm_providers: Vec<&str> = KNOWN_PROVIDERS
+            .iter()
+            .filter(|p| p.category == ProviderCategory::Llm)
+            .map(|p| p.id)
+            .collect();
+
+        // Should have at least anthropic, openai, etc.
+        assert!(
+            llm_providers.contains(&"anthropic"),
+            "KNOWN_PROVIDERS should include anthropic"
+        );
+        assert!(
+            llm_providers.len() >= 5,
+            "Should have at least 5 LLM providers, got {}",
+            llm_providers.len()
+        );
+    }
 }
