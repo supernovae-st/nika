@@ -16,6 +16,8 @@ members = [
     "nika-lsp-core",
     "nika-lsp",
     "nika-sdk",
+    "nika-napi",
+    "nika-py",
 ]
 
 [workspace.package]

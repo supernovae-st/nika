@@ -1,0 +1,34 @@
+[package]
+name = "nika-napi"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Node.js SDK for the Nika workflow engine via napi-rs"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# SDK core (remote transport only)
+nika-sdk = { workspace = true, default-features = true }
+
+# napi-rs
+napi = { version = "3.8", features = ["noop", "async", "tokio_rt", "serde-json"] }
+napi-derive = "3.5"
+
+# Async
+tokio = { workspace = true, features = ["rt", "sync"] }
+futures-util = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[build-dependencies]
+napi-build = "2"
+
+[lints]
+workspace = true
