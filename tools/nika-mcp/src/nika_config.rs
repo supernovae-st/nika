@@ -162,6 +162,50 @@ impl NikaMcpServer {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// .mcp.json Types (Claude Code Convention)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Claude Code convention `.mcp.json` format.
+///
+/// This is the format used by Claude Code, Cursor, Windsurf, and VS Code
+/// for project-level MCP server configuration. Takes priority over the
+/// legacy `.nika/mcp.yaml` project config.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct McpJsonConfig {
+    /// MCP server definitions keyed by name.
+    #[serde(rename = "mcpServers")]
+    pub mcp_servers: HashMap<String, McpJsonServer>,
+}
+
+/// Individual MCP server in `.mcp.json` format.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct McpJsonServer {
+    /// Command to execute.
+    pub command: String,
+
+    /// Arguments to pass to the command.
+    #[serde(default)]
+    pub args: Vec<String>,
+
+    /// Environment variables for the server process.
+    #[serde(default)]
+    pub env: HashMap<String, String>,
+}
+
+impl From<McpJsonServer> for NikaMcpServer {
+    fn from(s: McpJsonServer) -> Self {
+        Self {
+            command: s.command,
+            args: s.args,
+            env: s.env,
+            description: None,
+            enabled: true,
+            source: Some(NikaMcpSource::Project),
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Configuration Manager
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -239,13 +283,54 @@ impl NikaMcpConfigManager {
         Self::load_from_path(&path).map(Some)
     }
 
-    /// Load and merge configurations (global + project).
+    /// Load `.mcp.json` from the project root (Claude Code convention).
     ///
-    /// Project servers override global servers with the same name.
+    /// Returns `None` if no project root is set or the file doesn't exist.
+    pub fn load_mcp_json(&self) -> Result<Option<McpJsonConfig>, McpError> {
+        let Some(root) = &self.project_root else {
+            return Ok(None);
+        };
+
+        let mcp_json_path = root.join(".mcp.json");
+        if !mcp_json_path.exists() {
+            return Ok(None);
+        }
+
+        let content =
+            std::fs::read_to_string(&mcp_json_path).map_err(|e| McpError::ConfigError {
+                reason: format!(
+                    "Failed to read .mcp.json at '{}': {}",
+                    mcp_json_path.display(),
+                    e
+                ),
+            })?;
+
+        let config: McpJsonConfig =
+            serde_json::from_str(&content).map_err(|e| McpError::ParseError {
+                details: format!(
+                    "Invalid .mcp.json at '{}': {}",
+                    mcp_json_path.display(),
+                    e
+                ),
+            })?;
+
+        Ok(Some(config))
+    }
+
+    /// Load and merge configurations.
+    ///
+    /// Priority: `.mcp.json` (project root) > `.nika/mcp.yaml` (project) > `~/.nika/mcp.yaml` (global).
+    /// `.mcp.json` and `.nika/mcp.yaml` are mutually exclusive — if `.mcp.json` exists, legacy YAML is ignored.
     pub fn load_merged(&self) -> Result<NikaMcpConfig, McpError> {
         let mut merged = self.load_global()?;
 
-        if let Some(project) = self.load_project()? {
+        // Try .mcp.json first (Claude Code convention)
+        if let Some(mcp_json) = self.load_mcp_json()? {
+            for (name, server) in mcp_json.mcp_servers {
+                merged.servers.insert(name, server.into());
+            }
+        } else if let Some(project) = self.load_project()? {
+            // Fallback: legacy .nika/mcp.yaml
             for (name, server) in project.servers {
                 merged.servers.insert(name, server);
             }
@@ -909,6 +994,155 @@ servers:
                 .get("NEO4J_PASSWORD"),
             Some(&"${NEO4J_PASSWORD}".to_string())
         );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // Tests for .mcp.json (Claude Code convention)
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_mcp_json_parsed_correctly() {
+        let temp = TempDir::new().unwrap();
+        let project_root = temp.path().join("project");
+        std::fs::create_dir_all(&project_root).unwrap();
+
+        // Write .mcp.json at project root (Claude Code convention)
+        let mcp_json = r#"{
+            "mcpServers": {
+                "novanet": {
+                    "command": "cargo",
+                    "args": ["run", "--manifest-path", "../novanet/Cargo.toml", "--", "mcp"],
+                    "env": {
+                        "NEO4J_URI": "bolt://localhost:7687"
+                    }
+                },
+                "github": {
+                    "command": "npx",
+                    "args": ["-y", "@anthropic/mcp-server-github"],
+                    "env": {
+                        "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+                    }
+                }
+            }
+        }"#;
+        std::fs::write(project_root.join(".mcp.json"), mcp_json).unwrap();
+
+        let global_path = temp.path().join("global_mcp.yaml");
+        std::fs::write(&global_path, "version: 1\nservers: {}\n").unwrap();
+
+        let mut manager = NikaMcpConfigManager::with_global_path(global_path);
+        manager.project_root = Some(project_root);
+
+        let mcp_json_config = manager.load_mcp_json().unwrap();
+        assert!(mcp_json_config.is_some());
+
+        let config = mcp_json_config.unwrap();
+        assert_eq!(config.mcp_servers.len(), 2);
+
+        let novanet = config.mcp_servers.get("novanet").unwrap();
+        assert_eq!(novanet.command, "cargo");
+        assert_eq!(novanet.args, vec!["run", "--manifest-path", "../novanet/Cargo.toml", "--", "mcp"]);
+        assert_eq!(novanet.env.get("NEO4J_URI"), Some(&"bolt://localhost:7687".to_string()));
+
+        let github = config.mcp_servers.get("github").unwrap();
+        assert_eq!(github.command, "npx");
+    }
+
+    #[test]
+    fn test_mcp_json_preferred_over_legacy_yaml() {
+        let temp = TempDir::new().unwrap();
+        let project_root = temp.path().join("project");
+        std::fs::create_dir_all(project_root.join(".nika")).unwrap();
+
+        // Write .mcp.json with server "neo4j" using command "new-cmd"
+        let mcp_json = r#"{
+            "mcpServers": {
+                "neo4j": {
+                    "command": "new-cmd",
+                    "args": ["--new"]
+                }
+            }
+        }"#;
+        std::fs::write(project_root.join(".mcp.json"), mcp_json).unwrap();
+
+        // Write legacy .nika/mcp.yaml with DIFFERENT server "neo4j" using command "old-cmd"
+        std::fs::write(
+            project_root.join(".nika/mcp.yaml"),
+            "version: 1\nservers:\n  neo4j:\n    command: old-cmd\n    args: [--old]\n    enabled: true\n",
+        ).unwrap();
+
+        let global_path = temp.path().join("global_mcp.yaml");
+        std::fs::write(&global_path, "version: 1\nservers: {}\n").unwrap();
+
+        let mut manager = NikaMcpConfigManager::with_global_path(global_path);
+        manager.project_root = Some(project_root);
+
+        let merged = manager.load_merged().unwrap();
+        let neo4j = merged.servers.get("neo4j").unwrap();
+
+        // .mcp.json MUST win over .nika/mcp.yaml
+        assert_eq!(neo4j.command, "new-cmd");
+        assert_eq!(neo4j.args, vec!["--new"]);
+    }
+
+    #[test]
+    fn test_mcp_json_merged_with_global_yaml() {
+        let temp = TempDir::new().unwrap();
+        let project_root = temp.path().join("project");
+        std::fs::create_dir_all(&project_root).unwrap();
+
+        // Global YAML has "perplexity"
+        let global_path = temp.path().join("global_mcp.yaml");
+        std::fs::write(
+            &global_path,
+            "version: 1\nservers:\n  perplexity:\n    command: npx\n    args: [\"-y\", \"@anthropic/mcp-server-perplexity\"]\n    enabled: true\n",
+        ).unwrap();
+
+        // .mcp.json has "neo4j"
+        let mcp_json = r#"{
+            "mcpServers": {
+                "neo4j": {
+                    "command": "npx",
+                    "args": ["-y", "@neo4j/mcp-server"]
+                }
+            }
+        }"#;
+        std::fs::write(project_root.join(".mcp.json"), mcp_json).unwrap();
+
+        let mut manager = NikaMcpConfigManager::with_global_path(global_path);
+        manager.project_root = Some(project_root);
+
+        let merged = manager.load_merged().unwrap();
+
+        // Both servers present: global perplexity + project neo4j
+        assert_eq!(merged.servers.len(), 2);
+        assert!(merged.servers.contains_key("perplexity"));
+        assert!(merged.servers.contains_key("neo4j"));
+    }
+
+    #[test]
+    fn test_mcp_json_fallback_to_yaml() {
+        let temp = TempDir::new().unwrap();
+        let project_root = temp.path().join("project");
+        std::fs::create_dir_all(project_root.join(".nika")).unwrap();
+
+        // NO .mcp.json — only legacy .nika/mcp.yaml
+        std::fs::write(
+            project_root.join(".nika/mcp.yaml"),
+            "version: 1\nservers:\n  neo4j:\n    command: legacy-cmd\n    enabled: true\n",
+        ).unwrap();
+
+        let global_path = temp.path().join("global_mcp.yaml");
+        std::fs::write(&global_path, "version: 1\nservers: {}\n").unwrap();
+
+        let mut manager = NikaMcpConfigManager::with_global_path(global_path);
+        manager.project_root = Some(project_root);
+
+        let merged = manager.load_merged().unwrap();
+        let neo4j = merged.servers.get("neo4j").unwrap();
+
+        // Falls back to .nika/mcp.yaml when no .mcp.json
+        assert_eq!(neo4j.command, "legacy-cmd");
     }
 
     #[test]
