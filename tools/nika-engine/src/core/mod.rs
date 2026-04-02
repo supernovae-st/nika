@@ -96,7 +96,7 @@ pub use mcp_config::{
     add_server_to_global, add_server_to_project, global_config_path, load_global_config,
     load_merged_config, load_project_config, project_config_path, remove_server_from_global,
     remove_server_from_project, save_global_config, save_project_config, server_from_npm_package,
-    McpConfig, McpConfigError, McpServer, McpSource,
+    McpConfig, McpConfigError, McpConfigResolver, McpResolveSource, McpServer, McpSource,
 };
 pub use models::{
     auto_select_quantization, detect_available_ram_gb, find_model, models_by_type, resolve_model,

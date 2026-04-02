@@ -392,6 +392,72 @@ pub fn load_merged_config() -> Result<McpConfig, McpConfigError> {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// RESOLVER (for from: references in workflows)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Resolves MCP server references from config files.
+///
+/// Loads config files once and caches them. Used by the lowering phase to
+/// resolve `from: config` / `from: project` / `from: global` references.
+#[derive(Debug, Clone, Default)]
+pub struct McpConfigResolver {
+    project: Option<McpConfig>,
+    global: Option<McpConfig>,
+}
+
+impl McpConfigResolver {
+    /// Create a resolver that loads configs from the standard paths.
+    pub fn from_environment() -> Self {
+        let project = load_project_config().ok().flatten();
+        let global = load_global_config().ok().flatten();
+        Self { project, global }
+    }
+
+    /// Create a resolver with explicit configs (for testing).
+    pub fn with_configs(project: Option<McpConfig>, global: Option<McpConfig>) -> Self {
+        Self { project, global }
+    }
+
+    /// Resolve a server by name from the specified source.
+    ///
+    /// Returns the McpServer if found, or None if the server doesn't exist
+    /// in the requested scope.
+    pub fn resolve(&self, name: &str, source: McpResolveSource) -> Option<&McpServer> {
+        match source {
+            McpResolveSource::Config => {
+                // Project > global
+                self.project
+                    .as_ref()
+                    .and_then(|c| c.servers.get(name))
+                    .or_else(|| self.global.as_ref().and_then(|c| c.servers.get(name)))
+            }
+            McpResolveSource::Project => {
+                self.project.as_ref().and_then(|c| c.servers.get(name))
+            }
+            McpResolveSource::Global => {
+                self.global.as_ref().and_then(|c| c.servers.get(name))
+            }
+        }
+    }
+
+    /// Check if the resolver has any config loaded.
+    pub fn has_configs(&self) -> bool {
+        self.project.is_some() || self.global.is_some()
+    }
+}
+
+/// Source for resolver lookups (mirrors McpFromSource from nika-core AST).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum McpResolveSource {
+    /// .mcp.json > .nika/mcp.yaml > ~/.nika/mcp.yaml
+    Config,
+    /// .mcp.json or .nika/mcp.yaml only
+    Project,
+    /// ~/.nika/mcp.yaml only
+    Global,
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // SERVER MANAGEMENT
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -668,5 +734,74 @@ mod tests {
         let result = load_config_from_path(Some(PathBuf::from("/nonexistent/path/mcp.yaml")));
         assert!(result.is_ok());
         assert!(result.unwrap().is_none());
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // McpConfigResolver tests
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    fn make_config(servers: Vec<(&str, &str)>) -> McpConfig {
+        let mut config = McpConfig::default();
+        config.version = 1;
+        for (name, cmd) in servers {
+            config.servers.insert(
+                name.to_string(),
+                McpServer {
+                    command: cmd.to_string(),
+                    args: vec![],
+                    env: HashMap::new(),
+                    description: None,
+                    enabled: true,
+                    source: None,
+                },
+            );
+        }
+        config
+    }
+
+    #[test]
+    fn test_resolver_config_project_over_global() {
+        let project = make_config(vec![("neo4j", "project-cmd")]);
+        let global = make_config(vec![("neo4j", "global-cmd"), ("perplexity", "pplx-cmd")]);
+        let resolver = McpConfigResolver::with_configs(Some(project), Some(global));
+
+        // Config source: project wins for neo4j
+        let neo4j = resolver.resolve("neo4j", McpResolveSource::Config).unwrap();
+        assert_eq!(neo4j.command, "project-cmd");
+
+        // Config source: perplexity only in global
+        let pplx = resolver.resolve("perplexity", McpResolveSource::Config).unwrap();
+        assert_eq!(pplx.command, "pplx-cmd");
+    }
+
+    #[test]
+    fn test_resolver_project_scope_only() {
+        let project = make_config(vec![("neo4j", "project-cmd")]);
+        let global = make_config(vec![("perplexity", "global-cmd")]);
+        let resolver = McpConfigResolver::with_configs(Some(project), Some(global));
+
+        // Project scope: neo4j found
+        assert!(resolver.resolve("neo4j", McpResolveSource::Project).is_some());
+        // Project scope: perplexity NOT found (it's global only)
+        assert!(resolver.resolve("perplexity", McpResolveSource::Project).is_none());
+    }
+
+    #[test]
+    fn test_resolver_global_scope_only() {
+        let project = make_config(vec![("neo4j", "project-cmd")]);
+        let global = make_config(vec![("perplexity", "global-cmd")]);
+        let resolver = McpConfigResolver::with_configs(Some(project), Some(global));
+
+        // Global scope: perplexity found
+        assert!(resolver.resolve("perplexity", McpResolveSource::Global).is_some());
+        // Global scope: neo4j NOT found (it's project only)
+        assert!(resolver.resolve("neo4j", McpResolveSource::Global).is_none());
+    }
+
+    #[test]
+    fn test_resolver_not_found() {
+        let resolver = McpConfigResolver::with_configs(None, None);
+        assert!(resolver.resolve("neo4j", McpResolveSource::Config).is_none());
+        assert!(!resolver.has_configs());
     }
 }
