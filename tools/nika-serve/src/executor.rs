@@ -35,6 +35,10 @@ pub struct ExecutionContext {
     /// For subprocess executor: stores the child PID for cancel (SIGTERM).
     /// Embedded executor ignores this.
     pub child_pid: Arc<AtomicU32>,
+    /// Job ID for event forwarding.
+    pub job_id: String,
+    /// SSE event sender for real-time task-level events (embedded executor only).
+    pub event_tx: Option<tokio::sync::broadcast::Sender<crate::events::ServeEvent>>,
 }
 
 /// Execution backend selector.
@@ -74,7 +78,15 @@ impl Executor {
                 })
             }
             Self::Embedded => {
-                run_embedded(&ctx.config, workflow, inputs, &mut ctx.shutdown_rx).await
+                run_embedded(
+                    &ctx.config,
+                    workflow,
+                    inputs,
+                    &mut ctx.shutdown_rx,
+                    &ctx.job_id,
+                    ctx.event_tx.as_ref(),
+                )
+                .await
             }
         }
     }
@@ -118,11 +130,14 @@ fn extract_artifacts(runner: &nika_engine::runtime::Runner) -> Vec<ArtifactInfo>
 ///
 /// Parses the workflow YAML, creates a Runner, and executes within the
 /// current process. Supports graceful cancellation via the shutdown signal.
+/// If `event_tx` is provided, forwards task-level events to SSE clients.
 async fn run_embedded(
     config: &ServeConfig,
     workflow: &str,
     inputs: Option<&serde_json::Value>,
     shutdown_rx: &mut tokio::sync::watch::Receiver<bool>,
+    job_id: &str,
+    event_tx: Option<&tokio::sync::broadcast::Sender<crate::events::ServeEvent>>,
 ) -> Result<ExecutionResult, String> {
     let workflow_path = config.workflows_dir.join(workflow);
 
@@ -147,15 +162,24 @@ async fn run_embedded(
         }
     }
 
-    // Create Runner
+    // Create Runner with broadcast-enabled event log for SSE forwarding
     let cancel_token = tokio_util::sync::CancellationToken::new();
     let cancel_clone = cancel_token.clone();
 
-    let mut runner = nika_engine::runtime::Runner::new(analyzed)
+    let (event_log, engine_event_rx) = nika_event::EventLog::new_with_broadcast();
+
+    let mut runner = nika_engine::runtime::Runner::with_event_log(analyzed, event_log)
         .map_err(|e| format!("runner init error: {e}"))?
         .quiet()
         .with_base_path(base_path)
         .with_cancel_token(cancel_token);
+
+    // Spawn event forwarder task: reads engine events and sends typed SSE events
+    if let Some(tx) = event_tx {
+        let tx = tx.clone();
+        let jid = job_id.to_string();
+        spawn_event_forwarder(engine_event_rx, tx, jid);
+    }
 
     let timeout_secs = config.job_timeout_secs;
     let timeout = std::time::Duration::from_secs(timeout_secs);
@@ -195,6 +219,75 @@ async fn run_embedded(
             Err("server shutting down".into())
         }
     }
+}
+
+/// Spawn a background task that forwards engine events to SSE event bus.
+///
+/// Filters for task-level events (start, complete, fail, artifact) and
+/// converts them to typed ServeEvents for real-time client streaming.
+fn spawn_event_forwarder(
+    mut rx: tokio::sync::broadcast::Receiver<nika_event::Event>,
+    tx: tokio::sync::broadcast::Sender<crate::events::ServeEvent>,
+    job_id: String,
+) {
+    tokio::spawn(async move {
+        loop {
+            match rx.recv().await {
+                Ok(event) => {
+                    let serve_event = match event.kind {
+                        nika_event::EventKind::TaskStarted {
+                            task_id, verb, ..
+                        } => Some(crate::events::ServeEvent::TaskStart {
+                            job_id: job_id.clone(),
+                            task_id: task_id.to_string(),
+                            verb: verb.to_string(),
+                        }),
+                        nika_event::EventKind::TaskCompleted {
+                            task_id,
+                            duration_ms,
+                            ..
+                        } => Some(crate::events::ServeEvent::TaskComplete {
+                            job_id: job_id.clone(),
+                            task_id: task_id.to_string(),
+                            duration_ms,
+                        }),
+                        nika_event::EventKind::TaskFailed {
+                            task_id,
+                            error,
+                            duration_ms,
+                            ..
+                        } => Some(crate::events::ServeEvent::TaskFailed {
+                            job_id: job_id.clone(),
+                            task_id: task_id.to_string(),
+                            error,
+                            duration_ms,
+                        }),
+                        nika_event::EventKind::ArtifactWritten {
+                            task_id,
+                            path,
+                            size,
+                            ..
+                        } => Some(crate::events::ServeEvent::ArtifactWritten {
+                            job_id: job_id.clone(),
+                            task_id: task_id.to_string(),
+                            path,
+                            size,
+                        }),
+                        _ => None, // Skip non-task events
+                    };
+                    if let Some(ev) = serve_event {
+                        // Best-effort: ignore send failures (no subscribers)
+                        let _ = tx.send(ev);
+                    }
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                    tracing::debug!(skipped = n, "event forwarder lagged");
+                    continue;
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+            }
+        }
+    });
 }
 
 #[cfg(test)]
@@ -253,6 +346,8 @@ mod tests {
             config,
             shutdown_rx: rx,
             child_pid: Arc::new(AtomicU32::new(0)),
+            job_id: "test-job".into(),
+            event_tx: None,
         };
 
         assert_eq!(ctx.child_pid.load(std::sync::atomic::Ordering::Relaxed), 0);

@@ -2,7 +2,7 @@
 //!
 //! - `EventBus`: per-job broadcast channels for publish/subscribe
 //! - `stream_events`: SSE endpoint handler for `/v1/events/{id}`
-//! - `ServeEvent`: event types pushed to subscribers
+//! - `ServeEvent`: typed event types pushed to subscribers
 
 use std::collections::HashMap;
 use std::convert::Infallible;
@@ -19,13 +19,50 @@ use tracing::debug;
 /// Capacity of each per-job broadcast channel.
 const CHANNEL_CAPACITY: usize = 64;
 
-/// Events published by the worker and streamed to SSE clients.
+/// Typed events published by the worker and streamed to SSE clients.
+///
+/// Each variant maps to a distinct SSE `event:` type, allowing clients
+/// to filter and handle events selectively.
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
 pub enum ServeEvent {
     /// Job has started executing.
     #[serde(rename = "started")]
     Started { job_id: String },
+
+    /// Individual task started within the workflow.
+    #[serde(rename = "task_start")]
+    TaskStart {
+        job_id: String,
+        task_id: String,
+        verb: String,
+    },
+
+    /// Individual task completed successfully.
+    #[serde(rename = "task_complete")]
+    TaskComplete {
+        job_id: String,
+        task_id: String,
+        duration_ms: u64,
+    },
+
+    /// Individual task failed.
+    #[serde(rename = "task_failed")]
+    TaskFailed {
+        job_id: String,
+        task_id: String,
+        error: String,
+        duration_ms: u64,
+    },
+
+    /// An artifact was written to disk.
+    #[serde(rename = "artifact_written")]
+    ArtifactWritten {
+        job_id: String,
+        task_id: String,
+        path: String,
+        size: u64,
+    },
 
     /// Job completed successfully.
     #[serde(rename = "completed")]
@@ -46,13 +83,37 @@ pub enum ServeEvent {
     Cancelled { job_id: String },
 }
 
+impl ServeEvent {
+    /// SSE event type name for the `event:` field.
+    pub fn event_type(&self) -> &'static str {
+        match self {
+            Self::Started { .. } => "started",
+            Self::TaskStart { .. } => "task_start",
+            Self::TaskComplete { .. } => "task_complete",
+            Self::TaskFailed { .. } => "task_failed",
+            Self::ArtifactWritten { .. } => "artifact_written",
+            Self::Completed { .. } => "completed",
+            Self::Failed { .. } => "failed",
+            Self::Cancelled { .. } => "cancelled",
+        }
+    }
+
+    /// Whether this is a terminal event (stream should end after).
+    pub fn is_terminal(&self) -> bool {
+        matches!(
+            self,
+            Self::Completed { .. } | Self::Failed { .. } | Self::Cancelled { .. }
+        )
+    }
+}
+
 /// Per-job broadcast event bus.
 ///
 /// Workers publish events, SSE clients subscribe.
 /// Channels are lazily created and cleaned up when the last sender drops.
 #[derive(Clone, Default)]
 pub struct EventBus {
-    channels: Arc<Mutex<HashMap<String, broadcast::Sender<ServeEvent>>>>,
+    pub(crate) channels: Arc<Mutex<HashMap<String, broadcast::Sender<ServeEvent>>>>,
 }
 
 impl EventBus {
@@ -152,18 +213,8 @@ pub async fn stream_events(
         loop {
             match rx.recv().await {
                 Ok(event) => {
-                    let event_type = match &event {
-                        ServeEvent::Started { .. } => "started",
-                        ServeEvent::Completed { .. } => "completed",
-                        ServeEvent::Failed { .. } => "failed",
-                        ServeEvent::Cancelled { .. } => "cancelled",
-                    };
-                    let is_terminal = matches!(
-                        event,
-                        ServeEvent::Completed { .. }
-                        | ServeEvent::Failed { .. }
-                        | ServeEvent::Cancelled { .. }
-                    );
+                    let event_type = event.event_type();
+                    let is_terminal = event.is_terminal();
 
                     if let Ok(data) = serde_json::to_string(&event) {
                         yield Ok(Event::default().event(event_type).data(data));
@@ -218,6 +269,92 @@ mod tests {
         assert!(json.contains(r#""output":"result data"#));
     }
 
+    #[test]
+    fn task_start_event_has_verb() {
+        let event = ServeEvent::TaskStart {
+            job_id: "j1".into(),
+            task_id: "step1".into(),
+            verb: "infer".into(),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains(r#""type":"task_start"#));
+        assert!(json.contains(r#""task_id":"step1"#));
+        assert!(json.contains(r#""verb":"infer"#));
+    }
+
+    #[test]
+    fn task_complete_event_has_duration() {
+        let event = ServeEvent::TaskComplete {
+            job_id: "j1".into(),
+            task_id: "step1".into(),
+            duration_ms: 1200,
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains(r#""type":"task_complete"#));
+        assert!(json.contains(r#""duration_ms":1200"#));
+    }
+
+    #[test]
+    fn artifact_written_event() {
+        let event = ServeEvent::ArtifactWritten {
+            job_id: "j1".into(),
+            task_id: "report".into(),
+            path: "output/report.md".into(),
+            size: 4096,
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains(r#""type":"artifact_written"#));
+        assert!(json.contains(r#""path":"output/report.md"#));
+        assert!(json.contains(r#""size":4096"#));
+    }
+
+    #[test]
+    fn event_type_returns_correct_name() {
+        assert_eq!(
+            ServeEvent::Started { job_id: "".into() }.event_type(),
+            "started"
+        );
+        assert_eq!(
+            ServeEvent::TaskStart {
+                job_id: "".into(),
+                task_id: "".into(),
+                verb: "".into()
+            }
+            .event_type(),
+            "task_start"
+        );
+        assert_eq!(
+            ServeEvent::Completed {
+                job_id: "".into(),
+                output: None
+            }
+            .event_type(),
+            "completed"
+        );
+    }
+
+    #[test]
+    fn terminal_events_detected() {
+        assert!(!ServeEvent::Started { job_id: "".into() }.is_terminal());
+        assert!(!ServeEvent::TaskStart {
+            job_id: "".into(),
+            task_id: "".into(),
+            verb: "".into()
+        }
+        .is_terminal());
+        assert!(ServeEvent::Completed {
+            job_id: "".into(),
+            output: None
+        }
+        .is_terminal());
+        assert!(ServeEvent::Failed {
+            job_id: "".into(),
+            error: None
+        }
+        .is_terminal());
+        assert!(ServeEvent::Cancelled { job_id: "".into() }.is_terminal());
+    }
+
     #[tokio::test]
     async fn event_bus_subscribe_and_receive() {
         let bus = EventBus::default();
@@ -232,6 +369,23 @@ mod tests {
 
         let event = rx.recv().await.unwrap();
         assert!(matches!(event, ServeEvent::Started { .. }));
+    }
+
+    #[tokio::test]
+    async fn event_bus_task_events_received() {
+        let bus = EventBus::default();
+        let mut rx = bus.subscribe("job-1").await;
+
+        let tx = bus.sender("job-1").await;
+        tx.send(ServeEvent::TaskStart {
+            job_id: "job-1".into(),
+            task_id: "step1".into(),
+            verb: "infer".into(),
+        })
+        .unwrap();
+
+        let event = rx.recv().await.unwrap();
+        assert!(matches!(event, ServeEvent::TaskStart { .. }));
     }
 
     #[tokio::test]

@@ -203,6 +203,8 @@ pub fn spawn_worker(
             config,
             shutdown_rx,
             child_pid: child_pid_clone,
+            job_id: id.clone(),
+            event_tx: Some(tx.clone()),
         };
 
         let result = executor.execute(&workflow, inputs.as_ref(), &mut ctx).await;
