@@ -587,9 +587,14 @@ impl TaskExecutor {
             match &mut action_clone {
                 TaskAction::Infer { infer } => {
                     infer.provider = Some(nika_core::ProviderName::parse(provider_name));
+                    // Clear provider_chain so run_infer uses only the overridden single
+                    // provider. Without this, run_infer ignores the override and uses the
+                    // original chain (which always starts with the first provider).
+                    infer.provider_chain = None;
                 }
                 TaskAction::Agent { agent } => {
                     agent.provider = Some(nika_core::ProviderName::parse(provider_name));
+                    agent.provider_chain = None;
                 }
                 _ => {}
             }
