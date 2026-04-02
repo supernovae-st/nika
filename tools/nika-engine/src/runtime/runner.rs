@@ -23,7 +23,7 @@ use crate::ast::analyzed::{
     AnalyzedOutput, AnalyzedTask, AnalyzedTaskAction, AnalyzedWorkflow,
     OutputFormat as AnalyzedOutputFormat,
 };
-use crate::ast::lower::{lower_action, lower_mcp_servers, lower_output};
+use crate::ast::lower::{lower_action, lower_mcp_servers_with_resolver, lower_output};
 use crate::ast::output::OutputPolicy;
 use crate::ast::{InferParams, TaskAction};
 use crate::binding::ResolvedBindings;
@@ -270,8 +270,10 @@ impl Runner {
         flow_graph.detect_cycles()?;
         let datastore = RunContext::new();
 
-        // Bridge MCP servers to old FxHashMap<String, McpConfigInline> for TaskExecutor
-        let mcp_configs = lower_mcp_servers(workflow.mcp_servers.clone());
+        // Resolve MCP servers: from: references resolved from .mcp.json / global
+        let resolver = crate::core::McpConfigResolver::from_environment();
+        let mcp_configs =
+            lower_mcp_servers_with_resolver(workflow.mcp_servers.clone(), Some(&resolver));
         let provider = workflow
             .provider
             .as_ref()
