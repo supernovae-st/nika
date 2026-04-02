@@ -608,9 +608,13 @@ impl TransformOp {
                         expected: "valid URL",
                         got: "invalid URL".to_string(),
                     })?;
-                    Ok(Value::String(
-                        parsed.host_str().unwrap_or_default().to_string(),
-                    ))
+                    let host = parsed.host_str().unwrap_or_default();
+                    // Strip IPv6 brackets: [::1] → ::1
+                    let host = host
+                        .strip_prefix('[')
+                        .and_then(|h| h.strip_suffix(']'))
+                        .unwrap_or(host);
+                    Ok(Value::String(host.to_string()))
                 }
                 _ => Err(type_mismatch("url_host", "string", value)),
             },
@@ -1536,8 +1540,8 @@ mod tests {
     #[test]
     fn url_host_ipv6() {
         let url = json!("https://[::1]:3000/api");
-        // url crate preserves IPv6 brackets in host_str()
-        assert_eq!(TransformOp::UrlHost.apply(&url).unwrap(), json!("[::1]"));
+        // URL-002: strip IPv6 brackets for cleaner output
+        assert_eq!(TransformOp::UrlHost.apply(&url).unwrap(), json!("::1"));
     }
 
     #[test]
