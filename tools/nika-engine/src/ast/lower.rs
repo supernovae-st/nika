@@ -447,27 +447,76 @@ fn unlower_retry(action: &TaskAction) -> Option<AnalyzedRetry> {
 pub(crate) fn lower_mcp_servers(
     servers: IndexMap<String, AnalyzedMcpServer>,
 ) -> Option<FxHashMap<String, McpConfigInline>> {
+    lower_mcp_servers_with_resolver(servers, None)
+}
+
+pub(crate) fn lower_mcp_servers_with_resolver(
+    servers: IndexMap<String, AnalyzedMcpServer>,
+    resolver: Option<&crate::core::McpConfigResolver>,
+) -> Option<FxHashMap<String, McpConfigInline>> {
+    use crate::core::{McpResolveSource};
+    use nika_core::ast::analyzed::McpFromSource;
+
     if servers.is_empty() {
         return None;
     }
-    let map: FxHashMap<String, McpConfigInline> = servers
-        .into_iter()
-        .filter_map(|(name, server)| match server.transport {
-            McpTransport::Stdio => Some((
-                name,
-                McpConfigInline {
-                    command: server.command.unwrap_or_default(),
-                    args: server.args,
-                    env: server.env.into_iter().collect(),
-                    cwd: server.cwd,
-                },
-            )),
-            McpTransport::Sse => {
-                tracing::warn!(server = %name, "SSE MCP server has no runtime equivalent and will be dropped during lowering");
-                None
+    let mut map = FxHashMap::default();
+
+    for (name, server) in servers {
+        if server.transport == McpTransport::Sse {
+            tracing::warn!(server = %name, "SSE MCP server dropped during lowering");
+            continue;
+        }
+
+        let config = if let Some(from_source) = &server.from {
+            // Resolve from: reference
+            let resolve_source = match from_source {
+                McpFromSource::Config => McpResolveSource::Config,
+                McpFromSource::Project => McpResolveSource::Project,
+                McpFromSource::Global => McpResolveSource::Global,
+            };
+
+            let Some(resolver) = resolver else {
+                tracing::warn!(server = %name, "from: used but no config resolver available");
+                continue;
+            };
+
+            let Some(base) = resolver.resolve(&name, resolve_source) else {
+                tracing::error!(server = %name, source = ?from_source, "MCP server not found in config");
+                continue;
+            };
+
+            // Deep merge: base from config, workflow fields override
+            let mut env: FxHashMap<String, String> =
+                base.env.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+            // Workflow env overrides base env
+            for (k, v) in &server.env {
+                env.insert(k.clone(), v.clone());
             }
-        })
-        .collect();
+
+            McpConfigInline {
+                command: base.command.clone(),
+                args: if server.args.is_empty() {
+                    base.args.clone()
+                } else {
+                    server.args
+                },
+                env,
+                cwd: server.cwd, // No cwd in config files, only workflow override
+            }
+        } else {
+            // Inline: use workflow fields directly (existing behavior)
+            McpConfigInline {
+                command: server.command.unwrap_or_default(),
+                args: server.args,
+                env: server.env.into_iter().collect(),
+                cwd: server.cwd,
+            }
+        };
+
+        map.insert(name, config);
+    }
+
     if map.is_empty() {
         None
     } else {
