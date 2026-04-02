@@ -1,5 +1,5 @@
 {
-  "name": "@supernovae/nika-darwin-arm64",
+  "name": "@supernovae-st/nika-darwin-arm64",
   "version": "0.46.1",
   "description": "Nika binary for macOS ARM64 (Apple Silicon)",
   "license": "AGPL-3.0-or-later",

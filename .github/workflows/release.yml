@@ -6,7 +6,7 @@
 #   build (7 targets) → docker-publish → release (GitHub)
 #                                           ├── update-homebrew
 #                                           ├── vscode-publish (Marketplace + Open VSX)
-#                                           ├── npm-publish (@supernovae/nika)
+#                                           ├── npm-publish (@supernovae-st/nika)
 #                                           └── crates-publish (10 crates in order)
 #
 # Secrets required: VSCE_PAT, NPM_TOKEN, CARGO_REGISTRY_TOKEN, HOMEBREW_TAP_TOKEN
@@ -498,7 +498,7 @@ jobs:
             echo "|---|--------|---------|"
             echo "| 🚀 | **Quick** | \`curl -fsSL https://raw.githubusercontent.com/supernovae-st/nika/main/install.sh \| sh\` |"
             echo "| 🍺 | **Homebrew** | \`brew install supernovae-st/tap/nika\` |"
-            echo "| 📦 | **npm** | \`npx @supernovae/nika\` |"
+            echo "| 📦 | **npm** | \`npx @supernovae-st/nika\` |"
             echo "| 🦀 | **Cargo** | \`cargo install nika\` |"
             echo "| 🐳 | **Docker** | \`docker run --rm ghcr.io/supernovae-st/nika:${VERSION}\` |"
             echo "| 💻 | **VS Code** | Search \"Nika\" or \`ext install supernovae.nika-lang\` |"
@@ -524,7 +524,7 @@ jobs:
             echo "| GitHub | [v${VERSION}](https://github.com/supernovae-st/nika/releases/tag/v${VERSION}) |"
             echo "| VS Code | [supernovae.nika-lang](https://marketplace.visualstudio.com/items?itemName=supernovae.nika-lang) |"
             echo "| Open VSX | [supernovae.nika-lang](https://open-vsx.org/extension/supernovae/nika-lang) |"
-            echo "| npm | [@supernovae/nika](https://www.npmjs.com/package/@supernovae/nika) |"
+            echo "| npm | [@supernovae-st/nika](https://www.npmjs.com/package/@supernovae-st/nika) |"
             echo "| crates.io | [nika](https://crates.io/crates/nika) |"
             echo "| Docker | [ghcr.io](https://github.com/supernovae-st/nika/pkgs/container/nika) · [Docker Hub](https://hub.docker.com/r/thibautmelen/nika) |"
             echo "| Homebrew | \`supernovae-st/tap/nika\` |"
@@ -772,7 +772,7 @@ jobs:
             cd ../..
           done
 
-      - name: Publish main @supernovae/nika package
+      - name: Publish main @supernovae-st/nika package
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
@@ -817,7 +817,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Publish order: leaf dependencies first (12 crates)
+          # Publish order: leaf dependencies first (13 crates)
           CRATES=(
             nika-core
             nika-event
@@ -826,6 +826,7 @@ jobs:
             nika-media
             nika-init
             nika-engine
+            nika-sdk
             nika-daemon
             nika-cli
             nika-tui
@@ -842,6 +843,165 @@ jobs:
             cd ../..
           done
           echo "=== All crates published ==="
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Publish @supernovae-st/nika-sdk (Node.js via napi-rs)
+  # ─────────────────────────────────────────────────────────────────────────────
+  sdk-npm-publish:
+    name: Publish Node.js SDK
+    needs: crates-publish
+    if: ${{ !inputs.dry_run && !cancelled() && needs.crates-publish.result == 'success' }}
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install napi-rs CLI
+        run: npm install -g @napi-rs/cli@3
+
+      - name: Build native module
+        working-directory: tools/nika-napi
+        run: napi build --release --target ${{ matrix.target }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdk-npm-${{ matrix.target }}
+          path: tools/nika-napi/*.node
+
+  sdk-npm-collect:
+    name: Collect and Publish SDK npm
+    needs: sdk-npm-publish
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Download all SDK artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: sdk-npm-*
+          path: tools/nika-napi
+
+      - name: Install napi-rs CLI
+        run: npm install -g @napi-rs/cli@3
+
+      - name: Prepare and publish
+        working-directory: tools/nika-napi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          napi create-npm-dirs
+          napi artifacts
+          napi prepublish --skip-gh-release
+          npm publish --access public
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Publish nika-sdk (Python via maturin)
+  # ─────────────────────────────────────────────────────────────────────────────
+  sdk-pypi-publish:
+    name: Publish Python SDK
+    needs: crates-publish
+    if: ${{ !inputs.dry_run && !cancelled() && needs.crates-publish.result == 'success' }}
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64
+            os: ubuntu-latest
+          - target: aarch64
+            os: ubuntu-latest
+          - target: x86_64
+            os: macos-latest
+          - target: aarch64
+            os: macos-latest
+          - target: x64
+            os: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist
+          manylinux: auto
+          working-directory: tools/nika-py
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdk-pypi-${{ matrix.os }}-${{ matrix.target }}
+          path: tools/nika-py/dist
+
+  sdk-pypi-collect:
+    name: Collect and Publish SDK PyPI
+    needs: sdk-pypi-publish
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all wheels
+        uses: actions/download-artifact@v4
+        with:
+          pattern: sdk-pypi-*
+          path: dist
+          merge-multiple: true
+
+      - name: Publish to PyPI
+        uses: PyO3/maturin-action@v1
+        env:
+          MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+        with:
+          command: upload
+          args: --non-interactive --skip-existing dist/*
 
   # ─────────────────────────────────────────────────────────────────────────────
   # Update Scoop Bucket (Windows)
@@ -1000,7 +1160,7 @@ jobs:
 
       - name: Test npm package
         run: |
-          npm info @supernovae/nika version 2>/dev/null && echo "✅ npm: package visible" || echo "⚠️ npm: not yet visible"
+          npm info @supernovae-st/nika version 2>/dev/null && echo "✅ npm: package visible" || echo "⚠️ npm: not yet visible"
         continue-on-error: true
 
       - name: Test crates.io
@@ -1126,4 +1286,4 @@ jobs:
           token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           format: html
           disable_web_page_preview: true
-          message: 🦋 <b>Nika ${{ steps.stats.outputs.version }}</b> — ${{ steps.stats.outputs.success_count }}/${{ steps.stats.outputs.total_count }} ✅ | <code>brew install supernovae-st/tap/nika</code> | <code>npx @supernovae/nika</code> | <code>cargo install nika</code>
+          message: 🦋 <b>Nika ${{ steps.stats.outputs.version }}</b> — ${{ steps.stats.outputs.success_count }}/${{ steps.stats.outputs.total_count }} ✅ | <code>brew install supernovae-st/tap/nika</code> | <code>npx @supernovae-st/nika</code> | <code>cargo install nika</code>

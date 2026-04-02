@@ -5,11 +5,11 @@ const { execFileSync } = require('child_process');
 const path = require('path');
 
 const PLATFORM_PACKAGES = {
-  'darwin-arm64': '@supernovae/nika-darwin-arm64',
-  'darwin-x64': '@supernovae/nika-darwin-x64',
-  'linux-x64': '@supernovae/nika-linux-x64',
-  'linux-arm64': '@supernovae/nika-linux-arm64',
-  'win32-x64': '@supernovae/nika-win32-x64',
+  'darwin-arm64': '@supernovae-st/nika-darwin-arm64',
+  'darwin-x64': '@supernovae-st/nika-darwin-x64',
+  'linux-x64': '@supernovae-st/nika-linux-x64',
+  'linux-arm64': '@supernovae-st/nika-linux-arm64',
+  'win32-x64': '@supernovae-st/nika-win32-x64',
 };
 
 function getBinaryPath() {
@@ -35,7 +35,7 @@ function getBinaryPath() {
     console.error(
       `Platform package ${pkg} not found.\n` +
       'This usually means your package manager did not install the optional dependency.\n' +
-      'Try: npm install @supernovae/nika --force\n' +
+      'Try: npm install @supernovae-st/nika --force\n' +
       'Or install directly: https://github.com/supernovae-st/nika/releases'
     );
     process.exit(1);

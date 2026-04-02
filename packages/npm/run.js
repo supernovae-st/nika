@@ -10,7 +10,7 @@ const binary = path.join(__dirname, 'bin', 'nika');
 if (!fs.existsSync(binary)) {
   console.error(
     'nika binary not found.\n' +
-    'Run: npm install @supernovae/nika\n'
+    'Run: npm install @supernovae-st/nika\n'
   );
   process.exit(1);
 }
