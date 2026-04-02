@@ -101,19 +101,33 @@ async fn run_embedded(
         .with_base_path(base_path)
         .with_cancel_token(cancel_token);
 
-    let timeout = std::time::Duration::from_secs(config.job_timeout_secs);
+    let timeout_secs = config.job_timeout_secs;
+    let timeout = std::time::Duration::from_secs(timeout_secs);
 
-    // Execute with timeout + shutdown signal
+    // BUG-9: Spawn runner in a separate task for panic isolation.
+    // With panic="unwind", panics in the workflow are caught at the task
+    // boundary and returned as JoinError instead of crashing the server.
+    let handle = tokio::spawn(async move {
+        tokio::time::timeout(timeout, runner.run()).await
+    });
+
     tokio::select! {
-        result = async {
-            tokio::time::timeout(timeout, runner.run()).await
-        } => {
+        result = handle => {
             match result {
-                Ok(Ok(output)) => Ok(output),
-                Ok(Err(e)) => Err(format!("workflow failed: {e}")),
-                Err(_) => {
+                Ok(Ok(Ok(output))) => Ok(output),
+                Ok(Ok(Err(e))) => Err(format!("workflow failed: {e}")),
+                Ok(Err(_)) => {
                     cancel_clone.cancel();
-                    Err(format!("timeout after {}s", config.job_timeout_secs))
+                    Err(format!("timeout after {timeout_secs}s"))
+                }
+                Err(join_err) => {
+                    cancel_clone.cancel();
+                    if join_err.is_panic() {
+                        tracing::error!("workflow panicked — isolated by task boundary");
+                        Err("workflow panicked".into())
+                    } else {
+                        Err(format!("task cancelled: {join_err}"))
+                    }
                 }
             }
         }

@@ -88,12 +88,8 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
         }
     };
 
-    // BUG-9: Warn about crash isolation tradeoff
     if config.executor_mode == config::ExecutorMode::Embedded {
-        tracing::warn!(
-            "embedded executor: workflow panics will crash the server. \
-             Set NIKA_SERVE_EXECUTOR=subprocess for untrusted workflows."
-        );
+        info!("panic isolation enabled: workflow panics are caught at task boundary");
     }
 
     let state = AppState {

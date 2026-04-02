@@ -236,7 +236,7 @@ unsafe_code = "deny"
 lto = "thin"
 codegen-units = 1
 strip = true
-panic = "abort"
+panic = "unwind"  # BUG-9: allow catch_unwind in nika-serve embedded executor
 
 [profile.dev]
 split-debuginfo = "unpacked"
