@@ -18,7 +18,7 @@ use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, info};
 
 /// Current schema version.
-const SCHEMA_VERSION: u32 = 2;
+const SCHEMA_VERSION: u32 = 3;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ERROR TYPES
@@ -108,6 +108,15 @@ pub struct JobHistoryEvent {
     pub details: Option<String>,
 }
 
+/// A checkpoint: a task's output saved during execution for resume.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct Checkpoint {
+    pub job_id: String,
+    pub task_id: String,
+    pub output: String,
+    pub created_at: String,
+}
+
 /// An artifact produced by a job.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct JobArtifact {
@@ -176,6 +185,20 @@ enum DbCommand {
     ListArtifacts {
         job_id: String,
         reply: oneshot::Sender<StorageResult<Vec<JobArtifact>>>,
+    },
+    SaveCheckpoint {
+        job_id: String,
+        task_id: String,
+        output: String,
+        reply: oneshot::Sender<StorageResult<()>>,
+    },
+    LoadCheckpoints {
+        job_id: String,
+        reply: oneshot::Sender<StorageResult<Vec<Checkpoint>>>,
+    },
+    DeleteCheckpoints {
+        job_id: String,
+        reply: oneshot::Sender<StorageResult<()>>,
     },
 }
 
@@ -395,6 +418,52 @@ impl Storage {
         rx.await.map_err(|_| StorageError::ChannelClosed)?
     }
 
+    /// Save a task checkpoint (upsert).
+    pub async fn save_checkpoint(
+        &self,
+        job_id: &str,
+        task_id: &str,
+        output: &str,
+    ) -> StorageResult<()> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(DbCommand::SaveCheckpoint {
+                job_id: job_id.to_string(),
+                task_id: task_id.to_string(),
+                output: output.to_string(),
+                reply,
+            })
+            .await
+            .map_err(|_| StorageError::ChannelClosed)?;
+        rx.await.map_err(|_| StorageError::ChannelClosed)?
+    }
+
+    /// Load all checkpoints for a job.
+    pub async fn load_checkpoints(&self, job_id: &str) -> StorageResult<Vec<Checkpoint>> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(DbCommand::LoadCheckpoints {
+                job_id: job_id.to_string(),
+                reply,
+            })
+            .await
+            .map_err(|_| StorageError::ChannelClosed)?;
+        rx.await.map_err(|_| StorageError::ChannelClosed)?
+    }
+
+    /// Delete all checkpoints for a job.
+    pub async fn delete_checkpoints(&self, job_id: &str) -> StorageResult<()> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(DbCommand::DeleteCheckpoints {
+                job_id: job_id.to_string(),
+                reply,
+            })
+            .await
+            .map_err(|_| StorageError::ChannelClosed)?;
+        rx.await.map_err(|_| StorageError::ChannelClosed)?
+    }
+
     /// List artifacts for a job.
     pub async fn list_artifacts(&self, job_id: &str) -> StorageResult<Vec<JobArtifact>> {
         let (reply, rx) = oneshot::channel();
@@ -509,6 +578,20 @@ fn run_db_loop(conn: Connection, mut rx: mpsc::Receiver<DbCommand>) {
             DbCommand::ListArtifacts { job_id, reply } => {
                 let _ = reply.send(do_list_artifacts(&conn, &job_id));
             }
+            DbCommand::SaveCheckpoint {
+                job_id,
+                task_id,
+                output,
+                reply,
+            } => {
+                let _ = reply.send(do_save_checkpoint(&conn, &job_id, &task_id, &output));
+            }
+            DbCommand::LoadCheckpoints { job_id, reply } => {
+                let _ = reply.send(do_load_checkpoints(&conn, &job_id));
+            }
+            DbCommand::DeleteCheckpoints { job_id, reply } => {
+                let _ = reply.send(do_delete_checkpoints(&conn, &job_id));
+            }
         }
     }
     debug!("database thread shutting down");
@@ -574,6 +657,20 @@ fn init_schema(conn: &Connection) -> StorageResult<()> {
         CREATE INDEX IF NOT EXISTS idx_job_artifacts_job_id ON job_artifacts(job_id);",
     )
     .map_err(|e| StorageError::Other(format!("create job_artifacts table: {e}")))?;
+
+    // V3: checkpoints
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS checkpoints (
+            job_id TEXT NOT NULL,
+            task_id TEXT NOT NULL,
+            output TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            PRIMARY KEY (job_id, task_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_checkpoints_job_id ON checkpoints(job_id);",
+    )
+    .map_err(|e| StorageError::Other(format!("create checkpoints table: {e}")))?;
 
     conn.pragma_update(None, "user_version", SCHEMA_VERSION)
         .map_err(|e| StorageError::Other(format!("set user_version: {e}")))?;
@@ -801,9 +898,61 @@ fn do_list_artifacts(conn: &Connection, job_id: &str) -> StorageResult<Vec<JobAr
     Ok(artifacts)
 }
 
+fn do_save_checkpoint(
+    conn: &Connection,
+    job_id: &str,
+    task_id: &str,
+    output: &str,
+) -> StorageResult<()> {
+    conn.execute(
+        "INSERT OR REPLACE INTO checkpoints (job_id, task_id, output, created_at)
+         VALUES (?1, ?2, ?3, ?4)",
+        params![job_id, task_id, output, chrono::Utc::now().to_rfc3339()],
+    )?;
+    Ok(())
+}
+
+fn do_load_checkpoints(conn: &Connection, job_id: &str) -> StorageResult<Vec<Checkpoint>> {
+    let mut stmt = conn.prepare_cached(
+        "SELECT job_id, task_id, output, created_at
+         FROM checkpoints WHERE job_id = ?1 ORDER BY created_at",
+    )?;
+    let rows = stmt.query_map(params![job_id], |row| {
+        Ok(Checkpoint {
+            job_id: row.get(0)?,
+            task_id: row.get(1)?,
+            output: row.get(2)?,
+            created_at: row.get(3)?,
+        })
+    })?;
+    let mut checkpoints = Vec::new();
+    for row in rows {
+        checkpoints.push(row?);
+    }
+    Ok(checkpoints)
+}
+
+fn do_delete_checkpoints(conn: &Connection, job_id: &str) -> StorageResult<()> {
+    conn.execute(
+        "DELETE FROM checkpoints WHERE job_id = ?1",
+        params![job_id],
+    )?;
+    Ok(())
+}
+
 fn do_delete_old_jobs(conn: &Connection, max_age_secs: u64) -> StorageResult<u64> {
     let cutoff = chrono::Utc::now() - chrono::Duration::seconds(max_age_secs as i64);
     let cutoff_str = cutoff.to_rfc3339();
+
+    // Delete checkpoints for old terminal jobs first (FK-safe)
+    conn.execute(
+        "DELETE FROM checkpoints WHERE job_id IN (
+            SELECT id FROM jobs
+            WHERE state IN ('completed', 'failed', 'cancelled')
+            AND created_at < ?1
+        )",
+        params![cutoff_str],
+    )?;
 
     // Delete artifacts for old terminal jobs first (FK-safe)
     conn.execute(

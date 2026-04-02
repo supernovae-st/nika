@@ -138,6 +138,7 @@ pub fn spawn_worker(
     job_id: String,
     workflow: String,
     inputs: Option<serde_json::Value>,
+    resume_from: Option<String>,
 ) -> WorkerHandle {
     let storage = state.storage.clone();
     let config = Arc::clone(&state.config);
@@ -205,6 +206,8 @@ pub fn spawn_worker(
             child_pid: child_pid_clone,
             job_id: id.clone(),
             event_tx: Some(tx.clone()),
+            storage: Some(storage.clone()),
+            resume_from,
         };
 
         let result = executor.execute(&workflow, inputs.as_ref(), &mut ctx).await;

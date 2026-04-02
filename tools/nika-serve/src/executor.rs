@@ -39,6 +39,10 @@ pub struct ExecutionContext {
     pub job_id: String,
     /// SSE event sender for real-time task-level events (embedded executor only).
     pub event_tx: Option<tokio::sync::broadcast::Sender<crate::events::ServeEvent>>,
+    /// Storage handle for checkpoint persistence during execution.
+    pub storage: Option<nika_storage::Storage>,
+    /// Job ID to resume from (load checkpoints from this source job).
+    pub resume_from: Option<String>,
 }
 
 /// Execution backend selector.
@@ -85,6 +89,8 @@ impl Executor {
                     &mut ctx.shutdown_rx,
                     &ctx.job_id,
                     ctx.event_tx.as_ref(),
+                    ctx.storage.as_ref(),
+                    ctx.resume_from.as_deref(),
                 )
                 .await
             }
@@ -131,6 +137,7 @@ fn extract_artifacts(runner: &nika_engine::runtime::Runner) -> Vec<ArtifactInfo>
 /// Parses the workflow YAML, creates a Runner, and executes within the
 /// current process. Supports graceful cancellation via the shutdown signal.
 /// If `event_tx` is provided, forwards task-level events to SSE clients.
+#[allow(clippy::too_many_arguments)]
 async fn run_embedded(
     config: &ServeConfig,
     workflow: &str,
@@ -138,6 +145,8 @@ async fn run_embedded(
     shutdown_rx: &mut tokio::sync::watch::Receiver<bool>,
     job_id: &str,
     event_tx: Option<&tokio::sync::broadcast::Sender<crate::events::ServeEvent>>,
+    storage: Option<&nika_storage::Storage>,
+    resume_from: Option<&str>,
 ) -> Result<ExecutionResult, String> {
     let workflow_path = config.workflows_dir.join(workflow);
 
@@ -174,11 +183,35 @@ async fn run_embedded(
         .with_base_path(base_path)
         .with_cancel_token(cancel_token);
 
-    // Spawn event forwarder task: reads engine events and sends typed SSE events
+    // Resume: load checkpoints from source job and inject as pre-computed results.
+    // The Runner's DAG automatically skips tasks that already have outputs.
+    if let (Some(source_job), Some(storage)) = (resume_from, storage) {
+        let checkpoints = storage
+            .load_checkpoints(source_job)
+            .await
+            .map_err(|e| format!("failed to load checkpoints: {e}"))?;
+        let count = checkpoints.len();
+        for cp in checkpoints {
+            if let Ok(value) = serde_json::from_str::<serde_json::Value>(&cp.output) {
+                runner = runner.with_initial_context(&cp.task_id, value);
+            }
+        }
+        if count > 0 {
+            tracing::info!(
+                source_job,
+                count,
+                "restored checkpoints — skipping completed tasks"
+            );
+        }
+    }
+
+    // Spawn event forwarder task: reads engine events, sends typed SSE events,
+    // and saves checkpoints for completed tasks.
     if let Some(tx) = event_tx {
         let tx = tx.clone();
         let jid = job_id.to_string();
-        spawn_event_forwarder(engine_event_rx, tx, jid);
+        let storage_clone = storage.cloned();
+        spawn_event_forwarder(engine_event_rx, tx, jid, storage_clone);
     }
 
     let timeout_secs = config.job_timeout_secs;
@@ -221,20 +254,24 @@ async fn run_embedded(
     }
 }
 
-/// Spawn a background task that forwards engine events to SSE event bus.
+/// Spawn a background task that forwards engine events to SSE event bus
+/// and saves checkpoints for completed tasks.
 ///
 /// Filters for task-level events (start, complete, fail, artifact) and
 /// converts them to typed ServeEvents for real-time client streaming.
+/// When storage is available, TaskCompleted events are persisted as
+/// checkpoints for resume functionality.
 fn spawn_event_forwarder(
     mut rx: tokio::sync::broadcast::Receiver<nika_event::Event>,
     tx: tokio::sync::broadcast::Sender<crate::events::ServeEvent>,
     job_id: String,
+    storage: Option<nika_storage::Storage>,
 ) {
     tokio::spawn(async move {
         loop {
             match rx.recv().await {
                 Ok(event) => {
-                    let serve_event = match event.kind {
+                    let serve_event = match &event.kind {
                         nika_event::EventKind::TaskStarted {
                             task_id, verb, ..
                         } => Some(crate::events::ServeEvent::TaskStart {
@@ -244,13 +281,23 @@ fn spawn_event_forwarder(
                         }),
                         nika_event::EventKind::TaskCompleted {
                             task_id,
+                            output,
                             duration_ms,
-                            ..
-                        } => Some(crate::events::ServeEvent::TaskComplete {
-                            job_id: job_id.clone(),
-                            task_id: task_id.to_string(),
-                            duration_ms,
-                        }),
+                        } => {
+                            // Save checkpoint for resume
+                            if let Some(ref storage) = storage {
+                                if let Ok(json) = serde_json::to_string(output.as_ref()) {
+                                    let _ = storage
+                                        .save_checkpoint(&job_id, task_id, &json)
+                                        .await;
+                                }
+                            }
+                            Some(crate::events::ServeEvent::TaskComplete {
+                                job_id: job_id.clone(),
+                                task_id: task_id.to_string(),
+                                duration_ms: *duration_ms,
+                            })
+                        }
                         nika_event::EventKind::TaskFailed {
                             task_id,
                             error,
@@ -259,8 +306,8 @@ fn spawn_event_forwarder(
                         } => Some(crate::events::ServeEvent::TaskFailed {
                             job_id: job_id.clone(),
                             task_id: task_id.to_string(),
-                            error,
-                            duration_ms,
+                            error: error.clone(),
+                            duration_ms: *duration_ms,
                         }),
                         nika_event::EventKind::ArtifactWritten {
                             task_id,
@@ -270,8 +317,8 @@ fn spawn_event_forwarder(
                         } => Some(crate::events::ServeEvent::ArtifactWritten {
                             job_id: job_id.clone(),
                             task_id: task_id.to_string(),
-                            path,
-                            size,
+                            path: path.clone(),
+                            size: *size,
                         }),
                         _ => None, // Skip non-task events
                     };
@@ -348,6 +395,8 @@ mod tests {
             child_pid: Arc::new(AtomicU32::new(0)),
             job_id: "test-job".into(),
             event_tx: None,
+            storage: None,
+            resume_from: None,
         };
 
         assert_eq!(ctx.child_pid.load(std::sync::atomic::Ordering::Relaxed), 0);
