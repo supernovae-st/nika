@@ -68,6 +68,18 @@ pub(crate) fn coerce_json_types(value: &mut serde_json::Value) {
             }
         }
         Value::String(s) => {
+            // Try JSON array/object first — template resolution turns `{{with.x | to_json}}`
+            // into a string like `["a","b"]` or `{"k":"v"}`. Parse back to native JSON
+            // so fetch: json: sends the correct type to APIs.
+            let trimmed = s.trim();
+            if (trimmed.starts_with('[') && trimmed.ends_with(']'))
+                || (trimmed.starts_with('{') && trimmed.ends_with('}'))
+            {
+                if let Ok(parsed) = serde_json::from_str::<Value>(s) {
+                    *value = parsed;
+                    return;
+                }
+            }
             if let Ok(n) = s.parse::<i64>() {
                 *value = Value::Number(n.into());
             } else if let Ok(n) = s.parse::<u64>() {
@@ -455,6 +467,45 @@ mod tests {
         let mut v = serde_json::json!("null");
         coerce_json_types(&mut v);
         assert_eq!(v, serde_json::json!("null"));
+    }
+
+    #[test]
+    fn coerce_json_string_to_array() {
+        // BUG-5: {{with.terms | to_json}} produces a JSON array as string
+        let mut v = serde_json::json!(r#"["hello","world"]"#);
+        coerce_json_types(&mut v);
+        assert!(v.is_array(), "JSON array string should be coerced to array");
+        assert_eq!(v, serde_json::json!(["hello", "world"]));
+    }
+
+    #[test]
+    fn coerce_json_string_to_object() {
+        let mut v = serde_json::json!(r#"{"key":"value","n":42}"#);
+        coerce_json_types(&mut v);
+        assert!(
+            v.is_object(),
+            "JSON object string should be coerced to object"
+        );
+        assert_eq!(v["key"], serde_json::json!("value"));
+        assert_eq!(v["n"], serde_json::json!(42));
+    }
+
+    #[test]
+    fn coerce_json_string_invalid_json_stays_string() {
+        // Strings that look like JSON but aren't should stay as strings
+        let mut v = serde_json::json!("[not valid json");
+        coerce_json_types(&mut v);
+        assert!(v.is_string(), "Invalid JSON should remain as string");
+    }
+
+    #[test]
+    fn coerce_json_nested_with_array_value() {
+        // Real use case: json: { texts: "{{with.terms | to_json}}" }
+        let mut v = serde_json::json!({"texts": "[\"bonjour\",\"merci\"]", "target": "fr"});
+        coerce_json_types(&mut v);
+        assert!(v["texts"].is_array(), "texts should be coerced to array");
+        assert_eq!(v["texts"], serde_json::json!(["bonjour", "merci"]));
+        assert_eq!(v["target"], serde_json::json!("fr")); // stays string
     }
 
     #[test]
