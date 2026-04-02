@@ -229,11 +229,26 @@ impl Transport for RemoteTransport {
 /// Map reqwest errors to SdkError with appropriate variants.
 fn map_reqwest_error(e: reqwest::Error) -> SdkError {
     if e.is_timeout() {
-        SdkError::Timeout(std::time::Duration::from_secs(30))
+        // Duration not available from reqwest error — report what we know
+        SdkError::Timeout(
+            e.url()
+                .and_then(|u| {
+                    if u.path().contains("/events/") {
+                        Some(std::time::Duration::from_secs(3600))
+                    } else {
+                        Some(std::time::Duration::from_secs(30))
+                    }
+                })
+                .unwrap_or(std::time::Duration::from_secs(30)),
+        )
     } else if e.is_connect() {
         SdkError::Connection(e.to_string())
     } else {
-        SdkError::Connection(e.to_string())
+        SdkError::Http {
+            status: e.status().map(|s| s.as_u16()).unwrap_or(0),
+            message: e.to_string(),
+            body: None,
+        }
     }
 }
 

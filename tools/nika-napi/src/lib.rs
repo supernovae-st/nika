@@ -209,6 +209,7 @@ pub struct JobResult {
 pub struct ArtifactInfo {
   pub name: String,
   pub size: f64,
+  pub format: Option<String>,
   pub content_type: String,
   pub checksum: Option<String>,
 }
@@ -417,8 +418,8 @@ pub struct Client {
 impl Client {
   /// Create a client connected to a remote `nika serve` instance.
   #[napi(constructor)]
-  pub fn new(url: String, token: String) -> Result<Self> {
-    let inner = nika_sdk::Client::remote(url, token).map_err(sdk_err)?;
+  pub fn new(url: String, token: Option<String>) -> Result<Self> {
+    let inner = nika_sdk::Client::remote(url, token.unwrap_or_default()).map_err(sdk_err)?;
     Ok(Self { inner })
   }
 

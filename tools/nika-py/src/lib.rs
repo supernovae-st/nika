@@ -138,6 +138,8 @@ pub struct ArtifactInfo {
   #[pyo3(get)]
   pub size: u64,
   #[pyo3(get)]
+  pub format: Option<String>,
+  #[pyo3(get)]
   pub content_type: String,
   #[pyo3(get)]
   pub checksum: Option<String>,
@@ -213,6 +215,7 @@ impl Job {
           .map(|a| ArtifactInfo {
             name: a.name().to_string(),
             size: a.size(),
+            format: a.info().format.clone(),
             content_type: a.content_type().to_string(),
             checksum: a.checksum().map(|s| s.to_string()),
           })
@@ -239,8 +242,9 @@ impl Job {
   /// Collect all events (sync, returns list of dicts).
   fn events(&self, py: Python<'_>) -> PyResult<PyObject> {
     let inner = Arc::clone(&self.inner);
-    py.allow_threads(|| {
-      let events = runtime().block_on(async {
+    // Collect Rust data with GIL released, then convert to Python objects
+    let events: Vec<nika_sdk::Event> = py.allow_threads(|| {
+      runtime().block_on(async {
         let mut stream = inner.events().await.map_err(sdk_err)?;
         let mut events = Vec::new();
         while let Some(event) = stream.next().await {
@@ -252,19 +256,17 @@ impl Job {
           }
         }
         Ok::<_, PyErr>(events)
-      })?;
-
-      Python::with_gil(|py| {
-        let list: Vec<PyObject> = events.into_iter().map(|e| event_to_dict(py, e)).collect();
-        Ok(list.into_pyobject(py)?.into())
       })
-    })
+    })?;
+    // Convert to Python dicts with GIL held (no with_gil needed — we already have py)
+    let list: Vec<PyObject> = events.into_iter().map(|e| event_to_dict(py, e)).collect();
+    Ok(list.into_pyobject(py)?.into())
   }
 
-  /// Stream events as an async iterator.
+  /// Stream events as a blocking iterator.
   ///
   /// ```python
-  /// async for event in job.stream_events():
+  /// for event in job.stream_events():
   ///     print(event["type"], event.get("task_id"))
   /// ```
   fn stream_events(&self, _py: Python<'_>) -> PyResult<EventStream> {
@@ -311,10 +313,13 @@ impl Job {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// EVENT STREAM (async for)
+// EVENT STREAM (sync iterator — GIL released during recv)
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// Async iterator over job events — use with `async for event in stream`.
+/// Blocking iterator over job events — use with `for event in stream`.
+///
+/// Releases the GIL while waiting for the next event, so other Python
+/// threads can run concurrently.
 #[pyclass]
 pub struct EventStream {
   receiver: std::sync::Mutex<Option<std::sync::mpsc::Receiver<std::result::Result<nika_sdk::Event, String>>>>,
@@ -322,24 +327,35 @@ pub struct EventStream {
 
 #[pymethods]
 impl EventStream {
-  fn __aiter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+  fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
     slf
   }
 
-  fn __anext__(&self, py: Python<'_>) -> PyResult<Option<PyObject>> {
-    let mut guard = self.receiver.lock().map_err(|_| NikaError::new_err("lock poisoned"))?;
-    let rx = guard
-      .as_ref()
-      .ok_or_else(|| NikaError::new_err("stream exhausted"))?;
-
-    match rx.recv() {
-      Ok(Ok(event)) => Ok(Some(event_to_dict(py, event))),
-      Ok(Err(e)) => Err(NikaError::new_err(e)),
-      Err(_) => {
-        // Channel closed — stream ended
-        *guard = None;
-        Ok(None) // raises StopAsyncIteration
+  fn __next__(&self, py: Python<'_>) -> PyResult<Option<PyObject>> {
+    // Take receiver out of Mutex, drop the guard before allow_threads
+    let rx = {
+      let mut guard = self.receiver.lock().map_err(|_| NikaError::new_err("lock poisoned"))?;
+      match guard.take() {
+        Some(rx) => rx,
+        None => return Ok(None), // StopIteration
       }
+    }; // MutexGuard dropped here
+
+    // Release GIL while blocking on recv — move rx into closure and return it
+    let (result, rx) = py.allow_threads(move || {
+      let result = rx.recv();
+      (result, rx)
+    });
+
+    match result {
+      Ok(Ok(event)) => {
+        // Put receiver back for next iteration
+        let mut guard = self.receiver.lock().map_err(|_| NikaError::new_err("lock poisoned"))?;
+        *guard = Some(rx);
+        Ok(Some(event_to_dict(py, event)))
+      }
+      Ok(Err(e)) => Err(NikaError::new_err(e)),
+      Err(_) => Ok(None), // channel closed — StopIteration
     }
   }
 
@@ -370,9 +386,9 @@ pub struct Client {
 impl Client {
   /// Create a client connected to a remote `nika serve` instance.
   #[new]
-  #[pyo3(signature = (base_url, token))]
-  fn new(base_url: String, token: String) -> PyResult<Self> {
-    let inner = nika_sdk::Client::remote(base_url, token).map_err(sdk_err)?;
+  #[pyo3(signature = (base_url, token=None))]
+  fn new(base_url: String, token: Option<String>) -> PyResult<Self> {
+    let inner = nika_sdk::Client::remote(base_url, token.unwrap_or_default()).map_err(sdk_err)?;
     Ok(Self { inner })
   }
 
@@ -661,6 +677,7 @@ mod tests {
     let info = ArtifactInfo {
       name: "report.md".into(),
       size: 4096,
+      format: Some("markdown".into()),
       content_type: "text/markdown".into(),
       checksum: None,
     };
