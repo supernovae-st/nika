@@ -461,6 +461,10 @@ enum Commands {
         /// Generate interactive course files (12 levels, 44 exercises)
         #[arg(long)]
         course: bool,
+
+        /// Skip interactive prompts (use defaults + CLI flags)
+        #[arg(short = 'y', long)]
+        yes: bool,
     },
 
     /// Interactive learning course
@@ -1347,11 +1351,13 @@ async fn main() {
             permission,
             migrate_keys,
             course,
+            yes,
         }) => {
             if course {
                 cli::init::init_course()
             } else {
-                cli::init::init_project(&permission, migrate_keys).await
+                let interactive = !yes && std::io::stdin().is_terminal();
+                cli::init::init_project(&permission, migrate_keys, interactive).await
             }
         }
 
