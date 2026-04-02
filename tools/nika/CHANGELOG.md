@@ -7,6 +7,39 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║  🦋 NIKA v0.59.0 — PROJECT STRUCTURE (nika.toml)                            ║
+║  The .git Principle: zero imposed dirs, one config file                      ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║                                                                               ║
+║  📁 nika.toml — versioned project config at root (replaces .nika/config.toml)║
+║  🧹 nika clean — umbrella cleanup (traces + cache + media)                   ║
+║  🎨 CLI UX — verb icons, TTFT, spinners, pretty JSON, smart welcome         ║
+║  🧙 nika init — interactive cliclack wizard + --yes for CI                   ║
+║  🔧 config list — structured display with API key status                     ║
+║                                                                               ║
+║  7 commits | 9,329 tests | 14 new features                                  ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+```
+
+### Added
+- **`nika.toml` project config** — Versioned project configuration at root. Walk-up discovery (nika.toml > .nika/ fallback > defaults). 3-layer merge: CLI flags > env vars > nika.toml > ~/.nika/config.toml > defaults.
+- **`nika init` interactive wizard** — cliclack prompts for project name + permission mode. `--yes` flag for non-interactive/CI use.
+- **`nika clean` umbrella command** — Removes traces, cache, and media orphans in one command. `--dry-run` preview, `--all` includes serve.db + sessions.
+- **Smart welcome screen** — `nika` (no args) shows contextual output: no-setup mode, setup-done mode, or in-project mode with provider/workflow status.
+- **Verb icons in CLI** — ✧ infer, ⎈ exec, ☄ fetch, ⊛ invoke, ❋ agent in verb headers.
+- **TTFT in verb footer** — Time-to-first-token extracted from EventLog, shown with token count and cost (green/yellow/red).
+- **Spinner during LLM calls** — Braille spinner for `nika infer` and `nika agent` while waiting.
+- **Pretty-print JSON on TTY** — All verb outputs auto-detect JSON and pretty-print on terminal.
+- **`nika config list` structured display** — Parsed sections with key-value layout, provider API key status (✓/⚠), MCP server listing.
+- **`[mcp.*]` in nika.toml** — MCP server config (command, args, env) in project config instead of separate mcp.yaml.
+- **`[serve]` in nika.toml** — Server config with env var override. Default workflows scan changed from `./workflows` to `.` (recursive).
+- **`[tools] working_dir`** — `project` (project root), `workflow` (YAML parent), `none` (process cwd) for exec task cwd.
+- **Doctor project checks** — Detects nika.toml, .gitignore gaps, legacy .nika/config.toml, workflow count.
+- **Artifact dir** — Default changed from `.nika/artifacts` to `./artifacts` (visible, gitignored). Configurable via `[artifacts] dir`.
+
 ### Fixed
 - **NIKA-028 error code** — Semaphore failures now use dedicated NIKA-028 instead of reusing NIKA-026 (dependency chain failed)
 - **for_each cancelled item reporting** — Error summary now includes "N item(s) cancelled" when fail_fast=false; handles edge case when all items are cancelled
