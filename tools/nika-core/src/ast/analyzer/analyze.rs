@@ -17,7 +17,7 @@ use crate::ast::analyzed::{
     AnalyzedAgentAction, AnalyzedContextFile, AnalyzedExecAction, AnalyzedFetchAction,
     AnalyzedForEach, AnalyzedIncludeSpec, AnalyzedInferAction, AnalyzedInvokeAction,
     AnalyzedMcpServer, AnalyzedOutput, AnalyzedRetry, AnalyzedTask, AnalyzedTaskAction,
-    AnalyzedWorkflow, HttpMethod, McpTransport, OutputFormat, TaskId, TaskTable,
+    AnalyzedWorkflow, HttpMethod, McpFromSource, McpTransport, OutputFormat, TaskId, TaskTable,
 };
 use crate::ast::raw::{
     RawAgentAction, RawExecAction, RawFetchAction, RawInferAction, RawInvokeAction, RawTask,
@@ -1279,6 +1279,52 @@ fn analyze_mcp_server(
     span: Span,
     ctx: &mut AnalyzerContext,
 ) -> AnalyzedMcpServer {
+    let has_command = raw
+        .command
+        .as_ref()
+        .map(|s| !s.value.trim().is_empty())
+        .unwrap_or(false);
+    let has_from = raw.from.is_some();
+
+    // Validate from: vs command: rules
+    let from_source = if has_from && has_command {
+        // NIKA-110: both from: and command: present
+        ctx.add_error(AnalyzeError::new(
+            AnalyzeErrorKind::InvalidValue,
+            span,
+            format!(
+                "MCP server '{}' has both 'from:' and 'command:' — use one or the other",
+                name
+            ),
+        ));
+        None
+    } else if has_from {
+        // Parse from: value
+        let from_val = raw.from.as_ref().unwrap().value.as_str();
+        match from_val {
+            "config" => Some(McpFromSource::Config),
+            "project" => Some(McpFromSource::Project),
+            "global" => Some(McpFromSource::Global),
+            other => {
+                // NIKA-109: unknown from: source
+                ctx.add_error(
+                    AnalyzeError::new(
+                        AnalyzeErrorKind::InvalidValue,
+                        raw.from.as_ref().unwrap().span,
+                        format!(
+                            "Unknown MCP source '{}' in from: field of server '{}'",
+                            other, name
+                        ),
+                    )
+                    .with_suggestion("valid sources: config, project, global"),
+                );
+                None
+            }
+        }
+    } else {
+        None // inline server (no from:)
+    };
+
     let transport = if raw.is_sse() {
         McpTransport::Sse
     } else {
@@ -1300,28 +1346,25 @@ fn analyze_mcp_server(
         );
     }
 
-    // Stdio servers require a non-empty command field
-    if transport == McpTransport::Stdio {
-        let has_command = raw
-            .command
-            .as_ref()
-            .map(|s| !s.value.trim().is_empty())
-            .unwrap_or(false);
-        if !has_command {
-            let error_span = raw.command.as_ref().map(|s| s.span).unwrap_or(span);
-            ctx.add_error(AnalyzeError::new(
+    // Stdio servers WITHOUT from: require a non-empty command field
+    if transport == McpTransport::Stdio && !has_from && !has_command {
+        let error_span = raw.command.as_ref().map(|s| s.span).unwrap_or(span);
+        ctx.add_error(
+            AnalyzeError::new(
                 AnalyzeErrorKind::MissingField,
                 error_span,
                 format!(
-                    "MCP server '{}' uses stdio transport but has no 'command' field",
+                    "MCP server '{}' missing 'command:' or 'from:' field",
                     name
                 ),
-            ));
-        }
+            )
+            .with_suggestion("add command: for inline or from: config to resolve from .mcp.json"),
+        );
     }
 
     AnalyzedMcpServer {
         name: name.to_string(),
+        from: from_source,
         command: raw.command.as_ref().map(|s| s.value.clone()),
         args: raw
             .args
