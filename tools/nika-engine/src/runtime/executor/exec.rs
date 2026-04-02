@@ -40,6 +40,8 @@ impl TaskExecutor {
         // SECURITY WARNING: detect unescaped template bindings in shell: true commands.
         // Emits a warning for each {{with.*}} or {{inputs.*}} that lacks |shell transform,
         // since the resolved value could contain shell metacharacters.
+        // Suppressed when the binding is inside single quotes (e.g. jq --arg x '{{inputs.url}}')
+        // because single-quoted strings are not interpreted by the shell.
         if is_shell {
             use std::sync::LazyLock;
             static BINDING_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
@@ -48,6 +50,10 @@ impl TaskExecutor {
             for cap in BINDING_RE.find_iter(&params.command) {
                 let m = cap.as_str();
                 if !m.contains("| shell") && !m.contains("|shell") {
+                    // Skip warning if binding is inside single quotes
+                    if is_inside_single_quotes(&params.command, cap.start()) {
+                        continue;
+                    }
                     tracing::warn!(
                         task_id = %task_id,
                         binding = %m,
@@ -313,5 +319,40 @@ impl TaskExecutor {
         }
 
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    }
+}
+
+/// Check if position `pos` in `cmd` falls inside single quotes.
+/// Single-quoted content in shell is not subject to metacharacter expansion,
+/// so template bindings inside single quotes are safe without `| shell`.
+fn is_inside_single_quotes(cmd: &str, pos: usize) -> bool {
+    let mut in_single = false;
+    for (i, c) in cmd.char_indices() {
+        if i == pos {
+            return in_single;
+        }
+        if c == '\'' && !in_single {
+            in_single = true;
+        } else if c == '\'' && in_single {
+            in_single = false;
+        }
+    }
+    false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn single_quote_detection() {
+        // Inside single quotes — safe, no warning
+        assert!(is_inside_single_quotes("jq --arg x '{{inputs.url}}' .", 12));
+        // Outside quotes — unsafe, should warn
+        assert!(!is_inside_single_quotes("echo {{inputs.url}}", 5));
+        // Inside double quotes — still unsafe for shell
+        assert!(!is_inside_single_quotes("echo \"{{inputs.url}}\"", 6));
+        // After closing single quote — unsafe
+        assert!(!is_inside_single_quotes("echo 'safe' {{inputs.url}}", 12));
     }
 }
