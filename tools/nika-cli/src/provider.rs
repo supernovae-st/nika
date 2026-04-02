@@ -43,6 +43,13 @@ pub enum ProviderAction {
     /// Migrate API keys from environment variables to vault
     Migrate,
 
+    /// Reset the encrypted vault (deletes all stored keys)
+    ///
+    /// Use when the vault is corrupted or was created with a different passphrase.
+    /// After reset, re-add your API keys with `nika provider set <provider>`.
+    #[command(name = "vault-reset")]
+    VaultReset,
+
     /// Test connection to a provider
     Test {
         /// Provider name
@@ -110,7 +117,7 @@ fn top_models_for_provider(provider: &str) -> &'static str {
 }
 
 /// Get vault instance for secret operations.
-fn get_vault() -> nika_core::vault::NikaVault {
+pub fn get_vault() -> nika_core::vault::NikaVault {
     #[cfg(unix)]
     let nika_home = nika_daemon::daemon_dir()
         .parent()
@@ -661,6 +668,33 @@ pub async fn handle_provider_command(
                 hint("Vault keys persist across reboots. Env vars don't.")
             );
             println!("{}", hint("Status:  nika provider list"));
+            Ok(())
+        }
+
+        ProviderAction::VaultReset => {
+            let vault = get_vault();
+            // Check if vault exists
+            if !vault.exists() {
+                println!("  {} No vault found — nothing to reset", StatusIcon::Info);
+                return Ok(());
+            }
+            // Confirm with user
+            if std::io::stdin().is_terminal() {
+                let confirm: bool =
+                    cliclack::confirm("This will delete ALL stored API keys. Continue?")
+                        .initial_value(false)
+                        .interact()
+                        .unwrap_or(false);
+                if !confirm {
+                    println!("  {} Cancelled", StatusIcon::Info);
+                    return Ok(());
+                }
+            }
+            vault.reset().map_err(|e| NikaError::ConfigError {
+                reason: format!("Failed to reset vault: {e}"),
+            })?;
+            println!("  {} Vault reset — all stored keys deleted", StatusIcon::Ok);
+            println!("{}", hint("Re-add your keys: nika provider set <provider>"));
             Ok(())
         }
 

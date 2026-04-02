@@ -156,7 +156,7 @@ const SHELL_MODE_BLOCKLIST: &[&str] = &[
 const SHELL_INJECTION_PATTERNS: &[&str] = &[
     // Command substitution — executes arbitrary commands inside $()
     "$(", // Backtick command substitution — legacy form of $()
-    "`", // Bash process substitution — executes commands via /dev/fd
+    "`",  // Bash process substitution — executes commands via /dev/fd
     "<(", // Here-string — feeds arbitrary input to interpreters
     "<<<",
 ];

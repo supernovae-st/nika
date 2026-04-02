@@ -78,6 +78,7 @@ pub async fn handle_doctor_command(
     // ─── Core ──────────────────────────────────────────────────────────────
     checks.extend(with_section(check_nika_directory(), "Core"));
     checks.push(check_config_file().in_section("Core"));
+    checks.push(check_vault_health().in_section("Core"));
     checks.extend(with_section(check_api_keys(), "Core"));
     checks.push(
         DiagnosticCheck::pass("Version", format!("nika {}", env!("CARGO_PKG_VERSION")))
@@ -253,6 +254,28 @@ fn check_config_file() -> DiagnosticCheck {
             "Config",
             format!("Cannot read config.toml: {e}"),
             "Check file permissions",
+        ),
+    }
+}
+
+fn check_vault_health() -> DiagnosticCheck {
+    let vault = crate::provider::get_vault();
+    if !vault.exists() {
+        return DiagnosticCheck::pass(
+            "Vault",
+            "No vault (keys stored via env vars or not yet set)",
+        );
+    }
+    match vault.health_check() {
+        Ok(true) => DiagnosticCheck::pass("Vault", "Encrypted vault is readable"),
+        Ok(false) => DiagnosticCheck::pass(
+            "Vault",
+            "No vault (keys stored via env vars or not yet set)",
+        ),
+        Err(e) => DiagnosticCheck::fail(
+            "Vault",
+            format!("Vault cannot be decrypted: {e}"),
+            "Run 'nika provider vault-reset' to start fresh, or set NIKA_VAULT_PASSPHRASE",
         ),
     }
 }

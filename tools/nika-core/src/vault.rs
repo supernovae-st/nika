@@ -436,6 +436,46 @@ impl NikaVault {
         Ok(payload.secrets.get(service).cloned())
     }
 
+    /// Check if vault.enc file exists on disk.
+    pub fn exists(&self) -> bool {
+        self.vault_path.exists()
+    }
+
+    /// Check if the vault exists and is readable with the current key.
+    ///
+    /// Returns:
+    /// - `Ok(true)` — vault exists and decrypts successfully
+    /// - `Ok(false)` — no vault file (nothing stored yet)
+    /// - `Err(VaultError::Crypto(...))` — vault exists but can't be decrypted
+    pub fn health_check(&self) -> Result<bool, VaultError> {
+        if !self.vault_path.exists() {
+            return Ok(false);
+        }
+        // Try to read/decrypt — if it fails, the key is wrong
+        self.read_payload()?;
+        Ok(true)
+    }
+
+    /// Delete vault files and start fresh.
+    ///
+    /// Removes `vault.enc`, `vault.salt`, and `audit.jsonl`.
+    /// The next `set()` call will create a new vault with the current key.
+    pub fn reset(&self) -> Result<(), VaultError> {
+        for path in [&self.vault_path, &self.salt_path] {
+            if path.exists() {
+                std::fs::remove_file(path)?;
+            }
+        }
+        // Also remove audit log for a clean start
+        if let Some(parent) = self.vault_path.parent() {
+            let audit_path = parent.join("audit.jsonl");
+            if audit_path.exists() {
+                let _ = std::fs::remove_file(audit_path);
+            }
+        }
+        Ok(())
+    }
+
     // ── Internal ────────────────────────────────────────────────────────
 
     /// Execute a closure with exclusive file lock on the vault.
@@ -476,8 +516,15 @@ impl NikaVault {
         }
         let ciphertext = std::fs::read(&self.vault_path)?;
         let key = self.derive_key()?;
-        let plaintext = aead::open(&key, &ciphertext)
-            .map_err(|e| VaultError::Crypto(format!("decrypt failed: {e}")))?;
+        let plaintext = aead::open(&key, &ciphertext).map_err(|e| {
+            VaultError::Crypto(format!(
+                "decrypt failed: {e}. \
+                 The vault was created with a different passphrase or machine. \
+                 Fix: (1) set NIKA_VAULT_PASSPHRASE to the original passphrase, \
+                 (2) run `nika vault reset` to start fresh, or \
+                 (3) use env vars (e.g. ANTHROPIC_API_KEY) instead."
+            ))
+        })?;
         let payload: VaultPayload = serde_json::from_slice(&plaintext)?;
         Ok(Some(payload))
     }
