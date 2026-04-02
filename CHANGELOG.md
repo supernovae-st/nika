@@ -7,10 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════╗
-║  NIKA v0.61.0 — SDK + REVIEW HARDENING                                     ║
-║  nika-sdk | nika-napi | nika-py | 20 crates | 9,407 tests                  ║
+║  NIKA v0.62.0 — SERVE WORKFLOW LISTING                                     ║
+║  GET /v1/workflows endpoint | 20 crates | 9,407 tests                      ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
+
+## [0.62.0] — 2026-04-02
+
+### Added
+- **Serve: GET /v1/workflows endpoint** — List available workflows via HTTP API
 
 ## [0.61.0] — 2026-04-02
 
