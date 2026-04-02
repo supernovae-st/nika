@@ -1,5 +1,6 @@
 //! Workflow execution endpoints.
 //!
+//! - `GET  /v1/workflows`     -- List available workflows
 //! - `POST /v1/run`           -- Submit a workflow for execution
 //! - `GET  /v1/status/{id}`   -- Poll job status
 //! - `POST /v1/cancel/{id}`   -- Cancel a running job (ERRATA-3)
@@ -238,6 +239,91 @@ pub async fn cancel_job(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// LIST WORKFLOWS
+// ═══════════════════════════════════════════════════════════════════════════
+
+#[derive(Serialize)]
+pub struct WorkflowInfo {
+    /// Filename relative to workflows_dir (e.g. "translate-locale.nika.yaml")
+    pub name: String,
+    /// File size in bytes
+    pub size: u64,
+}
+
+#[derive(Serialize)]
+pub struct ListWorkflowsResponse {
+    pub workflows: Vec<WorkflowInfo>,
+    pub count: usize,
+}
+
+/// `GET /v1/workflows` -- List available workflows.
+///
+/// Recursively scans `workflows_dir` for `.nika.yaml` files.
+/// Returns relative paths sorted alphabetically.
+pub async fn list_workflows(
+    State(state): State<AppState>,
+) -> Result<Json<ListWorkflowsResponse>, ServeError> {
+    let base = state.config.workflows_dir.canonicalize().map_err(|e| {
+        ServeError::Config(format!("workflows_dir canonicalize: {e}"))
+    })?;
+
+    let mut workflows = Vec::new();
+    collect_workflows(&base, &base, &mut workflows).await?;
+    workflows.sort_by(|a, b| a.name.cmp(&b.name));
+
+    let count = workflows.len();
+    Ok(Json(ListWorkflowsResponse { workflows, count }))
+}
+
+/// Recursively collect `.nika.yaml` files, skipping hidden directories.
+async fn collect_workflows(
+    base: &std::path::Path,
+    dir: &std::path::Path,
+    out: &mut Vec<WorkflowInfo>,
+) -> Result<(), ServeError> {
+    let mut entries = tokio::fs::read_dir(dir).await.map_err(|e| {
+        ServeError::Internal(Box::new(e))
+    })?;
+
+    while let Some(entry) = entries.next_entry().await.map_err(|e| {
+        ServeError::Internal(Box::new(e))
+    })? {
+        let path = entry.path();
+        let ft = entry.file_type().await.map_err(|e| {
+            ServeError::Internal(Box::new(e))
+        })?;
+
+        if ft.is_dir() {
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+            if !name_str.starts_with('.') {
+                Box::pin(collect_workflows(base, &path, out)).await?;
+            }
+        } else if ft.is_file() {
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+            if name_str.ends_with(".nika.yaml") {
+                let relative = path
+                    .strip_prefix(base)
+                    .unwrap_or(&path)
+                    .to_string_lossy()
+                    .to_string();
+
+                let metadata = tokio::fs::metadata(&path).await.map_err(|e| {
+                    ServeError::Internal(Box::new(e))
+                })?;
+
+                out.push(WorkflowInfo {
+                    name: relative,
+                    size: metadata.len(),
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // VALIDATION
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -347,6 +433,62 @@ mod tests {
             final_count, max_queued,
             "active_jobs counter must equal max_queued={max_queued}, got {final_count}"
         );
+    }
+
+    #[tokio::test]
+    async fn list_workflows_finds_nika_yaml() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::write(dir.path().join("hello.nika.yaml"), "schema: nika/workflow@0.12")
+            .unwrap();
+        std::fs::write(dir.path().join("test.nika.yaml"), "schema: nika/workflow@0.12")
+            .unwrap();
+        std::fs::write(dir.path().join("not-a-workflow.yaml"), "data: 1").unwrap();
+        std::fs::create_dir_all(dir.path().join("sub")).unwrap();
+        std::fs::write(
+            dir.path().join("sub/nested.nika.yaml"),
+            "schema: nika/workflow@0.12",
+        )
+        .unwrap();
+
+        let base = dir.path().canonicalize().unwrap();
+        let mut result = Vec::new();
+        collect_workflows(&base, &base, &mut result).await.unwrap();
+        result.sort_by(|a, b| a.name.cmp(&b.name));
+
+        assert_eq!(result.len(), 3);
+        assert_eq!(result[0].name, "hello.nika.yaml");
+        assert_eq!(result[1].name, "sub/nested.nika.yaml");
+        assert_eq!(result[2].name, "test.nika.yaml");
+        assert!(result.iter().all(|w| w.size > 0));
+    }
+
+    #[tokio::test]
+    async fn list_workflows_skips_hidden_dirs() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            dir.path().join("visible.nika.yaml"),
+            "schema: nika/workflow@0.12",
+        )
+        .unwrap();
+        std::fs::create_dir_all(dir.path().join(".nika")).unwrap();
+        std::fs::write(
+            dir.path().join(".nika/hidden.nika.yaml"),
+            "schema: nika/workflow@0.12",
+        )
+        .unwrap();
+        std::fs::create_dir_all(dir.path().join(".git")).unwrap();
+        std::fs::write(
+            dir.path().join(".git/hooks.nika.yaml"),
+            "schema: nika/workflow@0.12",
+        )
+        .unwrap();
+
+        let base = dir.path().canonicalize().unwrap();
+        let mut result = Vec::new();
+        collect_workflows(&base, &base, &mut result).await.unwrap();
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].name, "visible.nika.yaml");
     }
 
     #[test]
