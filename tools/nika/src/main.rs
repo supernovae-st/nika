@@ -319,6 +319,9 @@ enum Commands {
         /// Timeout in seconds
         #[arg(long)]
         timeout: Option<u64>,
+        /// Skip interactive prompts (for scripts/CI/VPS)
+        #[arg(long)]
+        no_interactive: bool,
     },
 
     /// Call a builtin nika:* tool or MCP server tool
@@ -346,6 +349,9 @@ enum Commands {
         /// List available builtin tools
         #[arg(long)]
         list: bool,
+        /// Skip interactive prompts (for scripts/CI/VPS)
+        #[arg(long)]
+        no_interactive: bool,
     },
 
     /// Run a multi-turn AI agent with tools
@@ -387,6 +393,9 @@ enum Commands {
         /// Read context from stdin
         #[arg(long)]
         stdin: bool,
+        /// Skip interactive prompts (for scripts/CI/VPS)
+        #[arg(long)]
+        no_interactive: bool,
     },
 
     /// Validate workflow syntax, DAG structure, and bindings
@@ -1261,7 +1270,11 @@ async fn main() {
             json_body,
             response,
             timeout,
+            no_interactive,
         }) => {
+            if no_interactive {
+                cli::onboarding::set_no_onboarding();
+            }
             cli::verbs::handle_fetch(
                 url, extract, selector, method, headers, body, json_body, response, timeout, quiet,
             )
@@ -1275,7 +1288,13 @@ async fn main() {
             mcp,
             timeout,
             list,
-        }) => cli::verbs::handle_invoke(tool, file, params, mcp, timeout, list, quiet).await,
+            no_interactive,
+        }) => {
+            if no_interactive {
+                cli::onboarding::set_no_onboarding();
+            }
+            cli::verbs::handle_invoke(tool, file, params, mcp, timeout, list, quiet).await
+        }
 
         Some(Commands::Agent {
             prompt,
@@ -1289,7 +1308,11 @@ async fn main() {
             max_tokens,
             temperature,
             stdin,
+            no_interactive,
         }) => {
+            if no_interactive {
+                cli::onboarding::set_no_onboarding();
+            }
             if list {
                 print_agent_presets();
                 Ok(())
