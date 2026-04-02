@@ -95,6 +95,20 @@ fn provider_description(id: &str) -> &'static str {
         .unwrap_or("")
 }
 
+/// Top models per provider for `provider list` display.
+fn top_models_for_provider(provider: &str) -> &'static str {
+    match provider {
+        "anthropic" => "claude-sonnet-4-6, claude-haiku-4-5",
+        "openai" => "gpt-4.1, gpt-4o, o4-mini",
+        "mistral" => "mistral-large, mistral-small",
+        "groq" => "llama-3.3-70b, mixtral-8x7b",
+        "deepseek" => "deepseek-chat, deepseek-reasoner",
+        "gemini" => "gemini-2.5-pro, gemini-2.5-flash",
+        "xai" => "grok-3, grok-3-mini",
+        _ => "",
+    }
+}
+
 /// Get vault instance for secret operations.
 fn get_vault() -> nika_core::vault::NikaVault {
     #[cfg(unix)]
@@ -275,16 +289,46 @@ pub async fn handle_provider_command(
                         format!("→ nika provider set {provider}").dimmed()
                     );
                 } else {
+                    let source_label = match source {
+                        "env" => format!("({source}) ⚠ lost on reboot"),
+                        _ => format!("({source})"),
+                    };
+                    let models = top_models_for_provider(provider);
+                    let model_hint = if models.is_empty() {
+                        String::new()
+                    } else {
+                        format!("  {}", models.dimmed())
+                    };
                     println!(
-                        "  {} {} {:12} {} {}",
+                        "  {} {} {:12} {} {}{}",
                         connector,
                         icon,
                         provider,
                         format!("[{masked}]").dimmed(),
-                        format!("({source})").dimmed()
+                        source_label.dimmed(),
+                        model_hint,
                     );
                 }
             }
+            // Always show mock + native
+            println!();
+            println!("  {} ({})", "Other".bold(), "always available".dimmed());
+            println!("{}", nika_engine::display::separator(50));
+            println!();
+            println!(
+                "  {} {} {:12} {}",
+                tree_connector(false).dimmed(),
+                StatusIcon::Ok,
+                "mock",
+                "deterministic test responses, no API key".dimmed()
+            );
+            println!(
+                "  {} {} {:12} {}",
+                tree_connector(true).dimmed(),
+                StatusIcon::Fail,
+                "native",
+                "local GGUF models → nika model pull <name>".dimmed()
+            );
             println!();
             println!(
                 "{}",
@@ -448,6 +492,7 @@ pub async fn handle_provider_command(
                             StatusIcon::Ok,
                             provider.bold()
                         );
+                        crate::onboarding::mark_onboarding_done();
                         // CLI-10: Warn if env var will override
                         if std::env::var(env_var_name).is_ok_and(|v| !v.is_empty() && v != api_key)
                         {
@@ -467,6 +512,12 @@ pub async fn handle_provider_command(
                         {
                             let _ = test_provider_connection(&provider).await;
                         }
+                        println!();
+                        println!(
+                            "{}",
+                            hint(&format!("Try it:  nika infer \"hello\" -p {provider}"))
+                        );
+                        println!("{}", hint("Status:  nika provider list"));
                         return Ok(());
                     }
                     // Fall through to direct vault
@@ -485,6 +536,7 @@ pub async fn handle_provider_command(
                 StatusIcon::Ok,
                 provider.bold()
             );
+            crate::onboarding::mark_onboarding_done();
             // CLI-10: Warn if env var will override vault key
             let env_var = provider_to_env_var(&provider).unwrap_or("UNKNOWN_API_KEY");
             if std::env::var(env_var).is_ok_and(|v| !v.is_empty()) {
@@ -507,6 +559,12 @@ pub async fn handle_provider_command(
                 unsafe { std::env::set_var(env_var, &api_key) };
                 let _ = test_provider_connection(&provider).await;
             }
+            println!();
+            println!(
+                "{}",
+                hint(&format!("Try it:  nika infer \"hello\" -p {provider}"))
+            );
+            println!("{}", hint("Status:  nika provider list"));
             Ok(())
         }
 
@@ -594,6 +652,15 @@ pub async fn handle_provider_command(
             let report = migrate_env_to_vault();
             println!();
             println!("{}", report.summary());
+            if report.migrated > 0 {
+                crate::onboarding::mark_onboarding_done();
+            }
+            println!();
+            println!(
+                "{}",
+                hint("Vault keys persist across reboots. Env vars don't.")
+            );
+            println!("{}", hint("Status:  nika provider list"));
             Ok(())
         }
 
