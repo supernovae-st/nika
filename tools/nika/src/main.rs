@@ -2494,13 +2494,22 @@ async fn run_workflow(
     let mut workflow = parse_analyzed_with_includes(&yaml, base_path)?;
 
     // Auto-onboarding: if workflow needs an LLM and no API keys are set, run the wizard.
-    let needs_llm = workflow.tasks.iter().any(|t| {
-        matches!(
-            t.action,
-            nika::ast::analyzed::AnalyzedTaskAction::Infer(_)
-                | nika::ast::analyzed::AnalyzedTaskAction::Agent(_)
-        )
-    });
+    // Skip for mock/native providers which don't need API keys.
+    let is_mock_or_native = provider_override
+        .as_deref()
+        .or(workflow.provider.as_ref().map(|p| p.as_str()))
+        .is_some_and(|p| {
+            let lower = p.to_lowercase();
+            lower == "mock" || lower == "native" || lower == "local"
+        });
+    let needs_llm = !is_mock_or_native
+        && workflow.tasks.iter().any(|t| {
+            matches!(
+                t.action,
+                nika::ast::analyzed::AnalyzedTaskAction::Infer(_)
+                    | nika::ast::analyzed::AnalyzedTaskAction::Agent(_)
+            )
+        });
     if needs_llm && !cli::onboarding::skip_onboarding() && !cli::onboarding::has_any_provider_key()
     {
         let configured = cli::onboarding::run_onboarding_wizard().await?;
