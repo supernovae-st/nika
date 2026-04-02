@@ -154,21 +154,103 @@ async fn read_stdin_content() -> Result<String, NikaError> {
 // VISUAL OUTPUT
 // ═══════════════════════════════════════════════════════════════════════════
 
-fn print_header(label: &str, is_tty: bool) {
+/// Print verb header with icon.
+fn print_verb_header(verb_name: &str, label: &str, is_tty: bool) {
     if is_tty {
-        eprintln!("\n  {} {}", "┌─".dimmed(), label.cyan());
+        let icon = nika_engine::display::icons::verb(verb_name);
+        eprintln!("\n  {} {} {}", "┌─".dimmed(), icon, label.cyan());
     }
 }
 
-fn print_footer(elapsed: std::time::Duration, extra: &str, is_tty: bool) {
+/// Print verb footer with timing, TTFT, tokens, and cost.
+fn print_verb_footer(
+    elapsed: std::time::Duration,
+    ttft_ms: Option<u64>,
+    tokens: u64,
+    cost: f64,
+    extra: &str,
+    is_tty: bool,
+) {
     if is_tty {
+        let mut parts = vec![];
+
+        // TTFT (if available)
+        if let Some(ttft) = ttft_ms {
+            parts.push(format!("TTFT {}ms", ttft));
+        }
+
+        // Total time
+        parts.push(format!("{}ms", elapsed.as_millis()));
+
+        // Tokens
+        if tokens > 0 {
+            parts.push(format!("{} tokens", tokens));
+        }
+
+        // Cost (green cheap, yellow moderate, red expensive)
+        if cost > 0.0 {
+            let cost_str = format!("${:.4}", cost);
+            let colored_cost = if cost < 0.01 {
+                cost_str.green()
+            } else if cost < 0.10 {
+                cost_str.yellow()
+            } else {
+                cost_str.red()
+            };
+            parts.push(format!("{}", colored_cost));
+        }
+
+        // Extra info
+        if !extra.is_empty() {
+            parts.push(extra.to_string());
+        }
+
         eprintln!(
             "  {} {}",
             "└─".dimmed(),
-            format!("{}ms{}", elapsed.as_millis(), extra).dimmed()
+            parts.join(" · ").dimmed()
         );
         eprintln!();
     }
+}
+
+/// Extract TTFT and token/cost info from EventLog.
+fn extract_llm_metrics(event_log: &EventLog) -> (Option<u64>, u64, f64) {
+    let events = event_log.events();
+    let mut ttft_ms = None;
+    let mut total_tokens = 0u64;
+    let mut total_cost = 0.0f64;
+    for event in &events {
+        if let nika_engine::event::EventKind::ProviderResponded {
+            input_tokens,
+            output_tokens,
+            cost_usd,
+            ttft_ms: event_ttft,
+            ..
+        } = &event.kind
+        {
+            total_tokens += input_tokens + output_tokens;
+            total_cost += cost_usd;
+            if ttft_ms.is_none() {
+                ttft_ms = *event_ttft;
+            }
+        }
+    }
+    (ttft_ms, total_tokens, total_cost)
+}
+
+/// Pretty-print JSON output on TTY (indented with colored keys).
+fn print_output(output: &str, is_tty: bool) {
+    if is_tty {
+        // Try to parse as JSON for pretty-printing
+        if let Ok(value) = serde_json::from_str::<serde_json::Value>(output) {
+            if let Ok(pretty) = serde_json::to_string_pretty(&value) {
+                println!("{pretty}");
+                return;
+            }
+        }
+    }
+    println!("{output}");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -253,14 +335,34 @@ pub async fn handle_infer(
         .as_deref()
         .unwrap_or_else(|| default_model_for_provider(&provider_name));
     if !quiet {
-        print_header(&format!("{} via {}", display_model, provider_name), is_tty);
+        print_verb_header(
+            "infer",
+            &format!("{} via {}", display_model, provider_name),
+            is_tty,
+        );
     }
 
-    // Execute
+    // Execute with spinner on TTY
     let (executor, event_log) = one_shot_executor(&provider_name, model_name.as_deref()).await?;
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
     let start = Instant::now();
+
+    let spinner = if is_tty && !quiet {
+        let sp = indicatif::ProgressBar::new_spinner();
+        sp.set_style(
+            indicatif::ProgressStyle::default_spinner()
+                .tick_strings(nika_engine::display::spinner::TICK_STRINGS)
+                .template("  {spinner} {msg}")
+                .unwrap(),
+        );
+        sp.set_message("Inferring...");
+        sp.enable_steady_tick(nika_engine::display::spinner::TICK_INTERVAL);
+        Some(sp)
+    } else {
+        None
+    };
+
     let output = executor
         .execute(
             &task_id,
@@ -272,33 +374,17 @@ pub async fn handle_infer(
         .await?;
     let elapsed = start.elapsed();
 
-    // Print output
-    println!("{output}");
+    if let Some(sp) = spinner {
+        sp.finish_and_clear();
+    }
 
-    // Cost footer (TTY only)
+    // Print output (pretty-print JSON on TTY)
+    print_output(&output, is_tty);
+
+    // Footer with TTFT, tokens, cost
     if !quiet {
-        let events = event_log.events();
-        let mut tokens = 0u64;
-        let mut cost = 0.0f64;
-        for event in events.iter().rev() {
-            if let nika_engine::event::EventKind::ProviderResponded {
-                input_tokens,
-                output_tokens,
-                cost_usd,
-                ..
-            } = &event.kind
-            {
-                tokens = input_tokens + output_tokens;
-                cost = *cost_usd;
-                break;
-            }
-        }
-        let extra = if tokens > 0 {
-            format!(" · {} tokens · ${:.4}", tokens, cost)
-        } else {
-            String::new()
-        };
-        print_footer(elapsed, &extra, is_tty);
+        let (ttft_ms, tokens, cost) = extract_llm_metrics(&event_log);
+        print_verb_footer(elapsed, ttft_ms, tokens, cost, "", is_tty);
     }
 
     Ok(())
@@ -387,7 +473,7 @@ pub async fn handle_fetch(
 
     let extract_label = extract.as_deref().unwrap_or("raw");
     if !quiet {
-        print_header(&format!("{} · {}", url, extract_label), is_tty);
+        print_verb_header("fetch", &format!("{} · {}", url, extract_label), is_tty);
     }
 
     // Fetch doesn't need a real LLM provider — use "mock"
@@ -400,11 +486,12 @@ pub async fn handle_fetch(
         .await?;
     let elapsed = start.elapsed();
 
-    println!("{output}");
+    // Pretty-print JSON on TTY (metadata, jsonpath, feed modes produce JSON)
+    print_output(&output, is_tty);
 
     if !quiet {
-        let extra = format!(" · {} bytes", output.len());
-        print_footer(elapsed, &extra, is_tty);
+        let extra = format!("{} bytes", output.len());
+        print_verb_footer(elapsed, None, 0, 0.0, &extra, is_tty);
     }
 
     Ok(())
@@ -514,7 +601,7 @@ pub async fn handle_invoke(
     let task_id: Arc<str> = Arc::from("cli");
 
     if !quiet {
-        print_header(&tool, is_tty);
+        print_verb_header("invoke", &tool, is_tty);
     }
 
     let (executor, _) = one_shot_executor("mock", None).await?;
@@ -526,10 +613,11 @@ pub async fn handle_invoke(
         .await?;
     let elapsed = start.elapsed();
 
-    println!("{output}");
+    // Pretty-print JSON results on TTY
+    print_output(&output, is_tty);
 
     if !quiet {
-        print_footer(elapsed, "", is_tty);
+        print_verb_footer(elapsed, None, 0, 0.0, "", is_tty);
     }
 
     Ok(())
@@ -587,7 +675,8 @@ pub async fn handle_agent(
         .as_deref()
         .unwrap_or_else(|| default_model_for_provider(&provider_name));
     if !quiet {
-        print_header(
+        print_verb_header(
+            "agent",
             &format!(
                 "agent · {} via {} · {} turns",
                 display_model, provider_name, turns
@@ -600,35 +689,37 @@ pub async fn handle_agent(
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
     let start = Instant::now();
+
+    let spinner = if is_tty && !quiet {
+        let sp = indicatif::ProgressBar::new_spinner();
+        sp.set_style(
+            indicatif::ProgressStyle::default_spinner()
+                .tick_strings(nika_engine::display::spinner::TICK_STRINGS)
+                .template("  {spinner} {msg}")
+                .unwrap(),
+        );
+        sp.set_message("Agent running...");
+        sp.enable_steady_tick(nika_engine::display::spinner::TICK_INTERVAL);
+        Some(sp)
+    } else {
+        None
+    };
+
     let output = executor
         .execute(&task_id, &action, &bindings, &datastore, None)
         .await?;
     let elapsed = start.elapsed();
 
-    println!("{output}");
+    if let Some(sp) = spinner {
+        sp.finish_and_clear();
+    }
+
+    // Pretty-print JSON on TTY
+    print_output(&output, is_tty);
 
     if !quiet {
-        let events = event_log.events();
-        let mut total_tokens = 0u64;
-        let mut total_cost = 0.0f64;
-        for event in &events {
-            if let nika_engine::event::EventKind::ProviderResponded {
-                input_tokens,
-                output_tokens,
-                cost_usd,
-                ..
-            } = &event.kind
-            {
-                total_tokens += input_tokens + output_tokens;
-                total_cost += cost_usd;
-            }
-        }
-        let extra = if total_tokens > 0 {
-            format!(" · {} tokens · ${:.4}", total_tokens, total_cost)
-        } else {
-            String::new()
-        };
-        print_footer(elapsed, &extra, is_tty);
+        let (ttft_ms, total_tokens, total_cost) = extract_llm_metrics(&event_log);
+        print_verb_footer(elapsed, ttft_ms, total_tokens, total_cost, "", is_tty);
     }
 
     Ok(())
@@ -983,5 +1074,48 @@ mod tests {
         );
 
         restore_provider_env(saved);
+    }
+
+    // ───────────────────────────────────────────────────────────────────────
+    // Phase 10: verb display utilities
+    // ───────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn extract_llm_metrics_from_empty_log() {
+        let log = EventLog::new();
+        let (ttft, tokens, cost) = extract_llm_metrics(&log);
+        assert_eq!(ttft, None);
+        assert_eq!(tokens, 0);
+        assert_eq!(cost, 0.0);
+    }
+
+    #[test]
+    fn extract_llm_metrics_from_provider_responded() {
+        let log = EventLog::new();
+        log.emit(nika_engine::event::EventKind::ProviderResponded {
+            task_id: "cli".into(),
+            request_id: Some("req-1".into()),
+            input_tokens: 100,
+            output_tokens: 50,
+            cache_read_tokens: 0,
+            ttft_ms: Some(187),
+            finish_reason: nika_engine::event::types::FinishReason::Stop,
+            cost_usd: 0.004,
+        });
+        let (ttft, tokens, cost) = extract_llm_metrics(&log);
+        assert_eq!(ttft, Some(187));
+        assert_eq!(tokens, 150);
+        assert!((cost - 0.004).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn print_output_pretty_prints_json_on_tty() {
+        // When is_tty=true, JSON should be pretty-printed
+        // We can't easily capture stdout, but verify no panic
+        let json = r#"{"name":"Alice","age":30}"#;
+        print_output(json, true);
+        print_output(json, false);
+        print_output("plain text", true);
+        print_output("plain text", false);
     }
 }
