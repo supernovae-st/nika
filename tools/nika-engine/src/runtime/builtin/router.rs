@@ -64,6 +64,13 @@ impl BuiltinToolRouter {
         tools.insert("run", Arc::new(RunTool));
         tools.insert("complete", Arc::new(CompleteTool));
 
+        // Register 4 data processing tools
+        use super::data_tools::{JsonMergeTool, JsonQueryTool, SetDiffTool, ZipTool};
+        tools.insert("json_merge", Arc::new(JsonMergeTool));
+        tools.insert("set_diff", Arc::new(SetDiffTool));
+        tools.insert("zip", Arc::new(ZipTool));
+        tools.insert("json_query", Arc::new(JsonQueryTool));
+
         Self { tools }
     }
 
@@ -287,11 +294,16 @@ mod tests {
         // new() does NOT include file tools
         assert!(!router.has_tool("read"));
         assert!(!router.has_tool("write"));
-        assert_eq!(router.tool_names().len(), 7); // 6 core + complete
+        // 7 core + 4 data tools
+        assert!(router.has_tool("json_merge"));
+        assert!(router.has_tool("set_diff"));
+        assert!(router.has_tool("zip"));
+        assert!(router.has_tool("json_query"));
+        assert_eq!(router.tool_names().len(), 11); // 7 core + 4 data
     }
 
     #[test]
-    fn test_router_with_file_tools_has_12_tools() {
+    fn test_router_with_file_tools_has_16_tools() {
         let (_temp, ctx) = setup_test_context();
         let router = BuiltinToolRouter::with_file_tools(ctx);
 
@@ -304,6 +316,12 @@ mod tests {
         assert!(router.has_tool("run"));
         assert!(router.has_tool("complete"));
 
+        // 4 data tools
+        assert!(router.has_tool("json_merge"));
+        assert!(router.has_tool("set_diff"));
+        assert!(router.has_tool("zip"));
+        assert!(router.has_tool("json_query"));
+
         // 5 file tools
         assert!(router.has_tool("read"));
         assert!(router.has_tool("write"));
@@ -311,7 +329,7 @@ mod tests {
         assert!(router.has_tool("glob"));
         assert!(router.has_tool("grep"));
 
-        assert_eq!(router.tool_names().len(), 12); // 7 core + 5 file
+        assert_eq!(router.tool_names().len(), 16); // 7 core + 4 data + 5 file
     }
 
     #[test]
@@ -395,8 +413,8 @@ mod tests {
     #[test]
     fn test_router_default() {
         let router = BuiltinToolRouter::default();
-        // Default router has all 7 core tools (6 original + complete)
-        assert_eq!(router.tool_names().len(), 7);
+        // Default router has 7 core + 4 data tools
+        assert_eq!(router.tool_names().len(), 11);
     }
 
     #[tokio::test]
