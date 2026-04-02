@@ -183,6 +183,9 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
 
     info!(bind = %config.bind, max_concurrent = config.max_concurrent, "nika serve starting");
 
+    // Startup banner (visible to the user, not just tracing logs)
+    print_startup_banner(&config);
+
     // Spawn background job GC (configurable interval + retention)
     let gc_storage = state.storage.clone();
     let gc_interval = std::time::Duration::from_secs(config.gc_interval_secs);
@@ -346,6 +349,67 @@ fn acquire_db_lock(db_path: &std::path::Path) -> Result<DbLock, ServeError> {
 
     #[cfg(not(unix))]
     Ok(DbLock { _file: lock_file })
+}
+
+/// Print a structured startup banner to stderr.
+fn print_startup_banner(config: &ServeConfig) {
+    use nika_engine::core::{provider_to_env_var, ProviderCategory, KNOWN_PROVIDERS};
+
+    let version = env!("CARGO_PKG_VERSION");
+    let executor = match config.executor_mode {
+        config::ExecutorMode::Subprocess => "subprocess",
+        config::ExecutorMode::Embedded => "embedded",
+    };
+    let workflow_count = std::fs::read_dir(&config.workflows_dir)
+        .map(|entries| {
+            entries
+                .filter_map(|e| e.ok())
+                .filter(|e| {
+                    e.file_name()
+                        .to_str()
+                        .is_some_and(|n| n.ends_with(".nika.yaml") || n.ends_with(".nika.yml"))
+                })
+                .count()
+        })
+        .unwrap_or(0);
+    let wf_dir = config.workflows_dir.display();
+    let mut configured = Vec::new();
+    let mut missing = Vec::new();
+    for p in KNOWN_PROVIDERS
+        .iter()
+        .filter(|p| p.category == ProviderCategory::Llm)
+    {
+        let env_var = provider_to_env_var(p.id).unwrap_or("UNKNOWN");
+        if std::env::var(env_var).is_ok_and(|v| !v.is_empty()) {
+            configured.push(p.id);
+        } else {
+            missing.push(p.id);
+        }
+    }
+    let providers_str = configured
+        .iter()
+        .map(|p| format!("{p} \u{2713}"))
+        .chain(missing.iter().take(3).map(|p| format!("{p} \u{2717}")))
+        .collect::<Vec<_>>()
+        .join("  ");
+    let token_len = config.auth_token.len();
+
+    eprintln!();
+    eprintln!("  \u{1f98b} Nika Serve v{version}");
+    eprintln!();
+    eprintln!("  \u{251c}\u{2500}\u{2500} Listening    http://{}", config.bind);
+    eprintln!(
+        "  \u{251c}\u{2500}\u{2500} Workflows    {wf_dir} ({workflow_count} file{})",
+        if workflow_count == 1 { "" } else { "s" }
+    );
+    eprintln!("  \u{251c}\u{2500}\u{2500} Executor     {executor}");
+    eprintln!("  \u{251c}\u{2500}\u{2500} Max jobs     {} concurrent", config.max_concurrent);
+    eprintln!("  \u{251c}\u{2500}\u{2500} Timeout      {}s per job", config.job_timeout_secs);
+    eprintln!("  \u{251c}\u{2500}\u{2500} Auth         Bearer token ({token_len} chars)");
+    eprintln!("  \u{2514}\u{2500}\u{2500} Providers    {providers_str}");
+    eprintln!();
+    eprintln!("  Ready. Ctrl+C to stop.");
+    eprintln!();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
