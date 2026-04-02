@@ -149,6 +149,11 @@ pub struct StructuredOutputEngine {
     /// When set, the engine passes this to the `InferCallback` so retries
     /// respect the task's configured limit instead of the provider default (8192).
     max_tokens: Option<u32>,
+    /// Workflow file directory for resolving relative schema/example file paths.
+    ///
+    /// When set, `SchemaRef::File` paths are resolved relative to this directory
+    /// (consistent with `nika check` behavior). Without this, paths resolve from CWD.
+    workflow_dir: Option<std::path::PathBuf>,
 }
 
 impl StructuredOutputEngine {
@@ -166,6 +171,7 @@ impl StructuredOutputEngine {
             model_name: None,
             repair_model_name: None,
             max_tokens: None,
+            workflow_dir: None,
         }
     }
 
@@ -235,6 +241,26 @@ impl StructuredOutputEngine {
         self
     }
 
+    /// Set the workflow directory for resolving relative schema file paths.
+    ///
+    /// When set, `SchemaRef::File` paths are joined to this directory,
+    /// matching `nika check` behavior (which resolves from the workflow file's parent).
+    pub fn with_workflow_dir(mut self, dir: std::path::PathBuf) -> Self {
+        self.workflow_dir = Some(dir);
+        self
+    }
+
+    /// Resolve a schema/example file path, joining it to `workflow_dir` if set.
+    fn resolve_file_path(&self, path: &str) -> std::path::PathBuf {
+        if let Some(ref dir) = self.workflow_dir {
+            let p = std::path::Path::new(path);
+            if p.is_relative() {
+                return dir.join(path);
+            }
+        }
+        std::path::PathBuf::from(path)
+    }
+
     /// Estimate cost using provider/model context (returns 0.0 if unknown)
     fn estimate_cost(&self, input_tokens: u64, output_tokens: u64) -> f64 {
         let provider = self.provider_name.as_deref().unwrap_or("");
@@ -270,11 +296,13 @@ impl StructuredOutputEngine {
                     SchemaRef::File(path) => {
                         // SECURITY: reject path traversal before reading
                         Self::validate_schema_file_path(path)?;
-                        let content = tokio::fs::read_to_string(path).await.map_err(|e| {
-                            NikaError::SchemaFailed {
-                                details: format!("Failed to read example '{}': {}", path, e),
-                            }
-                        })?;
+                        let resolved = self.resolve_file_path(path);
+                        let content =
+                            tokio::fs::read_to_string(&resolved)
+                                .await
+                                .map_err(|e| NikaError::SchemaFailed {
+                                    details: format!("Failed to read example '{}': {}", path, e),
+                                })?;
                         let parsed: Value = serde_json::from_str(&content).map_err(|e| {
                             NikaError::SchemaFailed {
                                 details: format!("Invalid JSON in example '{}': {}", path, e),
@@ -295,11 +323,14 @@ impl StructuredOutputEngine {
                 match self.spec.schema.as_ref() {
                     Some(SchemaRef::Inline(v)) => v.clone(),
                     Some(SchemaRef::File(path)) => {
-                        let content = tokio::fs::read_to_string(path).await.map_err(|e| {
-                            NikaError::SchemaFailed {
+                        // SECURITY: reject path traversal (same check as from_example)
+                        Self::validate_schema_file_path(path)?;
+                        let resolved = self.resolve_file_path(path);
+                        let content = tokio::fs::read_to_string(&resolved)
+                            .await
+                            .map_err(|e| NikaError::SchemaFailed {
                                 details: format!("Failed to read schema '{}': {}", path, e),
-                            }
-                        })?;
+                            })?;
                         serde_json::from_str(&content).map_err(|e| NikaError::SchemaFailed {
                             details: format!("Invalid JSON in schema '{}': {}", path, e),
                         })?
@@ -1284,6 +1315,47 @@ Hope this helps!"#;
 
         let result = engine.load_schema().await;
         assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
+    }
+
+    /// H1 fix: schema file paths resolve from workflow_dir, not CWD.
+    /// This ensures `nika check` and `nika run` behave identically.
+    #[tokio::test]
+    async fn load_schema_file_with_workflow_dir() {
+        let log = create_test_log();
+        let dir = tempfile::tempdir().unwrap();
+
+        // Write schema file into a subdirectory
+        let schemas_dir = dir.path().join("schemas");
+        std::fs::create_dir_all(&schemas_dir).unwrap();
+        let schema_path = schemas_dir.join("test.json");
+        std::fs::write(
+            &schema_path,
+            r#"{"type": "object", "properties": {"x": {"type": "number"}}}"#,
+        )
+        .unwrap();
+
+        // Spec uses relative path "schemas/test.json"
+        let spec = StructuredOutputSpec::with_file_schema("schemas/test.json");
+        let mut engine = StructuredOutputEngine::new(spec, log)
+            .with_workflow_dir(dir.path().to_path_buf());
+
+        let schema = engine.load_schema().await.unwrap();
+        assert_eq!(schema["type"], "object");
+        assert_eq!(schema["properties"]["x"]["type"], "number");
+    }
+
+    /// H1 fix: without workflow_dir, relative paths resolve from CWD (backward compat).
+    #[tokio::test]
+    async fn load_schema_file_relative_without_workflow_dir_fails() {
+        let log = create_test_log();
+        let spec = StructuredOutputSpec::with_file_schema("schemas/nonexistent.json");
+        let mut engine = StructuredOutputEngine::new(spec, log);
+
+        let result = engine.load_schema().await;
+        assert!(
+            result.is_err(),
+            "Relative path without workflow_dir should fail for nonexistent file"
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

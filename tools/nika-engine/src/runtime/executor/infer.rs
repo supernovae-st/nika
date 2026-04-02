@@ -508,7 +508,8 @@ impl TaskExecutor {
                         .with_infer_callback(infer_callback)
                         .with_original_prompt(prompt.to_string())
                         .with_provider_context(provider_name.to_string(), model_id.clone())
-                        .with_max_tokens(infer.max_tokens);
+                        .with_max_tokens(infer.max_tokens)
+                        .with_workflow_dir(self.workflow_base_dir.clone());
 
                         if let Some(ref repair_model) = spec.repair_model {
                             let trimmed = repair_model.trim();
@@ -771,14 +772,21 @@ impl TaskExecutor {
             infer.max_tokens
         };
 
-        let options = if has_llm_options {
+        // Auto-set temperature 0.0 for structured output when not explicitly specified.
+        // This ensures deterministic extraction across runs.
+        let is_structured = output_policy.is_some_and(|p| p.is_structured());
+        let effective_temperature = if infer.extended_thinking == Some(true) {
+            Some(1.0)
+        } else if infer.temperature.is_none() && is_structured {
+            Some(0.0)
+        } else {
+            infer.temperature
+        };
+
+        let options = if has_llm_options || effective_temperature.is_some() {
             Some(InferOptions {
                 model: model.map(|s| s.to_string()),
-                temperature: if infer.extended_thinking == Some(true) {
-                    Some(1.0)
-                } else {
-                    infer.temperature
-                },
+                temperature: effective_temperature,
                 max_tokens: effective_max_tokens,
                 system: resolved_system.clone(),
                 additional_params,
@@ -800,15 +808,23 @@ impl TaskExecutor {
         for attempt in 0..MAX_PROVIDER_ATTEMPTS {
             if attempt > 0 {
                 let delay_ms = BACKOFF_DELAYS_MS[attempt - 1];
+                let error_str = last_error.as_ref().unwrap().to_string();
                 warn!(
                     task_id = %task_id,
                     attempt = attempt + 1,
                     max_attempts = MAX_PROVIDER_ATTEMPTS,
                     delay_ms,
-                    error = %last_error.as_ref().unwrap(),
+                    error = %error_str,
                     "Transient provider error, retrying after {}ms...",
                     delay_ms
                 );
+                self.event_log.emit(EventKind::ProviderAutoRetried {
+                    task_id: Arc::clone(task_id),
+                    attempt: (attempt + 1) as u32,
+                    max_attempts: MAX_PROVIDER_ATTEMPTS as u32,
+                    delay_ms,
+                    error: error_str,
+                });
                 tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
             }
 
@@ -925,7 +941,8 @@ impl TaskExecutor {
                             .with_infer_callback(infer_callback)
                             .with_original_prompt(prompt.to_string())
                             .with_provider_context(provider_name.to_string(), model_id.clone())
-                            .with_max_tokens(infer.max_tokens);
+                            .with_max_tokens(infer.max_tokens)
+                            .with_workflow_dir(self.workflow_base_dir.clone());
 
                     // Wire repair_model: use a different (cheaper) model for Layer 4 repair
                     // Resolve templates (e.g. "{{inputs.fast_model}}")
