@@ -155,10 +155,103 @@ pub fn handle_config_command(action: ConfigAction, quiet: bool) -> Result<(), Ni
                 })?;
                 println!("{json}");
             } else {
-                println!("{}", section_header("Nika Configuration"));
-                println!("{}", separator(40));
+                use colored::Colorize;
+                use nika_engine::runtime::boot::BootstrapConfig;
+
+                let source_label = match project.source {
+                    ProjectRootSource::NikaToml => "nika.toml",
+                    ProjectRootSource::DotNika => ".nika/config.toml (legacy)",
+                    ProjectRootSource::Fallback => "defaults",
+                };
+                println!(
+                    "{}  {}",
+                    section_header("Nika Configuration"),
+                    config_path.display().to_string().dimmed()
+                );
+                println!("{}", separator(50));
+
+                // Parse into structured config for display
+                match toml::from_str::<BootstrapConfig>(&content) {
+                    Ok(config) => {
+                        // [project]
+                        if let Some(ref proj) = config.project {
+                            println!();
+                            println!("  {}", "[project]".bold());
+                            println!("    name          {}", proj.name.cyan());
+                            if let Some(ref desc) = proj.description {
+                                println!("    description   {}", desc);
+                            }
+                        }
+
+                        // [provider]
+                        println!();
+                        println!("  {}", "[provider]".bold());
+                        println!(
+                            "    default       {}",
+                            config.provider.default.cyan()
+                        );
+                        if let Some(ref m) = config.provider.model {
+                            println!("    model         {}", m.cyan());
+                        }
+
+                        // [tools]
+                        println!();
+                        println!("  {}", "[tools]".bold());
+                        println!("    permission    {}", config.tools.permission);
+                        if let Some(ref wd) = config.tools.working_dir {
+                            println!("    working_dir   {}", wd);
+                        }
+
+                        // [policy] (only if non-default)
+                        if !config.policy.allow_exec
+                            || !config.policy.allow_network
+                            || config.policy.max_token_spend.is_some()
+                        {
+                            println!();
+                            println!("  {}", "[policy]".bold());
+                            println!(
+                                "    allow_exec    {}",
+                                if config.policy.allow_exec {
+                                    format!("{}", StatusIcon::Ok)
+                                } else {
+                                    format!("{}", StatusIcon::Fail)
+                                }
+                            );
+                            println!(
+                                "    allow_network {}",
+                                if config.policy.allow_network {
+                                    format!("{}", StatusIcon::Ok)
+                                } else {
+                                    format!("{}", StatusIcon::Fail)
+                                }
+                            );
+                            if let Some(max) = config.policy.max_token_spend {
+                                println!("    max_tokens    {}", max);
+                            }
+                        }
+
+                        // [mcp.*]
+                        if !config.mcp.is_empty() {
+                            println!();
+                            println!("  {}", "[mcp]".bold());
+                            for (name, server) in &config.mcp {
+                                println!(
+                                    "    {}  {}",
+                                    name.cyan(),
+                                    server.command.dimmed()
+                                );
+                            }
+                        }
+                    }
+                    Err(_) => {
+                        // Fallback: raw TOML
+                        println!();
+                        println!("{content}");
+                    }
+                }
                 println!();
-                println!("{content}");
+                println!("  Source: {}", source_label.dimmed());
+                println!();
             }
             Ok(())
         }
