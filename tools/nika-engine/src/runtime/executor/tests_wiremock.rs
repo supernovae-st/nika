@@ -433,6 +433,56 @@ async fn wiremock_fetch_extract_metadata_hreflang() {
 }
 
 #[tokio::test]
+async fn wiremock_fetch_extract_metadata_hreflang_resolves_relative_urls() {
+    // HREFLANG-002: relative hreflang hrefs must be resolved against the page URL
+    let server = MockServer::start().await;
+    let html = r#"<html><head>
+        <title>Relative Hreflang</title>
+        <link rel="alternate" hreflang="en" href="/en/page">
+        <link rel="alternate" hreflang="fr" href="/fr/page">
+        <link rel="alternate" hreflang="de" href="../de/page">
+        <link rel="alternate" hreflang="ja" href="https://example.com/ja/page">
+    </head><body></body></html>"#;
+    Mock::given(method("GET"))
+        .and(path("/blog/article"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(html))
+        .mount(&server)
+        .await;
+
+    let (executor, bindings, datastore, _) = setup();
+    let task_id: Arc<str> = Arc::from("wm_hreflang_rel");
+    let mut params = fetch_params(&format!("{}/blog/article", server.uri()), "GET");
+    params.extract = Some(nika_core::ast::extract::ExtractMode::Metadata);
+    let action = TaskAction::Fetch { fetch: params };
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await
+        .unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+    let hreflang = parsed["hreflang"].as_array().expect("hreflang should be array");
+    assert_eq!(hreflang.len(), 4);
+    // Relative URLs must be resolved against the server base URL
+    let en_href = hreflang[0]["href"].as_str().unwrap();
+    assert!(
+        en_href.starts_with("http://") && en_href.ends_with("/en/page"),
+        "Expected absolute URL ending in /en/page, got: {en_href}"
+    );
+    let fr_href = hreflang[1]["href"].as_str().unwrap();
+    assert!(
+        fr_href.starts_with("http://") && fr_href.ends_with("/fr/page"),
+        "Expected absolute URL ending in /fr/page, got: {fr_href}"
+    );
+    // ../de/page resolved from /blog/article → /de/page
+    let de_href = hreflang[2]["href"].as_str().unwrap();
+    assert!(
+        de_href.starts_with("http://") && de_href.ends_with("/de/page"),
+        "Expected absolute URL ending in /de/page, got: {de_href}"
+    );
+    // Already absolute URL must be preserved as-is
+    assert_eq!(hreflang[3]["href"], "https://example.com/ja/page");
+}
+
+#[tokio::test]
 async fn wiremock_fetch_extract_metadata_no_hreflang() {
     let server = MockServer::start().await;
     let html = r#"<html><head><title>Simple</title></head><body></body></html>"#;

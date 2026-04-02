@@ -57,7 +57,7 @@ pub(crate) fn apply_extract_with_base(
         }
 
         #[cfg(feature = "fetch-html")]
-        ExtractMode::Metadata => extract_metadata_json(body),
+        ExtractMode::Metadata => extract_metadata_json(body, base_url),
 
         #[cfg(feature = "fetch-html")]
         ExtractMode::Links => extract_links_json(body, base_url),
@@ -202,7 +202,7 @@ fn extract_html_by_selector(html: &str, css: &str) -> Result<String, NikaError> 
 }
 
 #[cfg(feature = "fetch-html")]
-fn extract_metadata_json(html: &str) -> Result<String, NikaError> {
+fn extract_metadata_json(html: &str, base_url: Option<&str>) -> Result<String, NikaError> {
     let document = scraper::Html::parse_document(html);
     let mut meta = serde_json::Map::new();
 
@@ -326,16 +326,25 @@ fn extract_metadata_json(html: &str) -> Result<String, NikaError> {
     }
 
     // Hreflang alternate language links (link[rel=alternate][hreflang])
+    // HREFLANG-002: resolve relative hrefs against the fetched page URL
     let hreflang_sel =
         scraper::Selector::parse("link[rel=alternate][hreflang]").expect("static CSS selector");
+    let parsed_base = base_url.and_then(|u| url::Url::parse(u).ok());
     let hreflang: Vec<serde_json::Value> = document
         .select(&hreflang_sel)
         .filter_map(|el| {
             let lang = el.value().attr("hreflang")?;
             let href = el.value().attr("href")?;
+            let resolved = if let Some(ref base) = parsed_base {
+                base.join(href)
+                    .map(|u| u.to_string())
+                    .unwrap_or_else(|_| href.to_string())
+            } else {
+                href.to_string()
+            };
             Some(serde_json::json!({
                 "lang": lang,
-                "href": href,
+                "href": resolved,
             }))
         })
         .collect();
@@ -699,5 +708,49 @@ mod tests {
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         let links = parsed["links"].as_array().unwrap();
         assert_eq!(links[0]["url"], "/path");
+    }
+
+    #[cfg(feature = "fetch-html")]
+    #[test]
+    fn metadata_hreflang_resolves_relative_urls() {
+        let html = r#"<html><head>
+            <title>Multilang</title>
+            <link rel="alternate" hreflang="en" href="/en/page">
+            <link rel="alternate" hreflang="fr" href="../fr/page">
+            <link rel="alternate" hreflang="de" href="https://example.com/de/page">
+        </head><body></body></html>"#;
+        let result = apply_extract_with_base(
+            html,
+            Some(ExtractMode::Metadata),
+            None,
+            Some("https://example.com/blog/article"),
+        )
+        .unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        let hreflang = parsed["hreflang"].as_array().unwrap();
+        assert_eq!(hreflang.len(), 3);
+        assert_eq!(hreflang[0]["href"], "https://example.com/en/page");
+        assert_eq!(hreflang[1]["href"], "https://example.com/fr/page");
+        // Already absolute stays unchanged
+        assert_eq!(hreflang[2]["href"], "https://example.com/de/page");
+    }
+
+    #[cfg(feature = "fetch-html")]
+    #[test]
+    fn metadata_hreflang_no_base_keeps_raw() {
+        let html = r#"<html><head>
+            <title>No Base</title>
+            <link rel="alternate" hreflang="fr" href="/fr/page">
+        </head><body></body></html>"#;
+        let result = apply_extract_with_base(
+            html,
+            Some(ExtractMode::Metadata),
+            None,
+            None,
+        )
+        .unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        let hreflang = parsed["hreflang"].as_array().unwrap();
+        assert_eq!(hreflang[0]["href"], "/fr/page");
     }
 }
