@@ -233,6 +233,10 @@ async fn wiremock_fetch_response_full() {
     assert!(parsed["headers"].is_object());
     assert!(parsed["body"].as_str().unwrap().contains("key"));
     assert!(parsed["url"].as_str().unwrap().contains("/full"));
+    assert!(
+        parsed["elapsed_ms"].is_u64(),
+        "response:full must include elapsed_ms"
+    );
 }
 
 #[tokio::test]

@@ -599,11 +599,60 @@ impl TaskExecutor {
                             }
                         }
                         let body = read_body_with_limit(response, MAX_TEXT_RESPONSE_SIZE).await?;
+
+                        // ENG-015: When extract mode is also set, apply extraction and
+                        // include the result in an "extracted" field alongside the full response.
+                        if fetch.extract.is_some() {
+                            let resolved_selector = match &fetch.selector {
+                                Some(s) => {
+                                    Some(template_resolve(s, bindings, datastore)?.into_owned())
+                                }
+                                None => None,
+                            };
+                            let extract_result = super::extract::apply_extract(
+                                &body,
+                                fetch.extract,
+                                resolved_selector.as_deref(),
+                            );
+                            if let Some(mode) = fetch.extract {
+                                let output_len =
+                                    extract_result.as_ref().map(|s| s.len()).unwrap_or(0);
+                                self.event_log.emit(EventKind::ExtractApplied {
+                                    task_id: Arc::clone(task_id),
+                                    mode: mode.to_string(),
+                                    selector: fetch.selector.clone(),
+                                    input_len: body.len(),
+                                    output_len,
+                                });
+                            }
+                            let extracted = match extract_result {
+                                Ok(extracted_str) => {
+                                    // Try parsing as JSON; fall back to string
+                                    serde_json::from_str::<serde_json::Value>(&extracted_str)
+                                        .unwrap_or(serde_json::Value::String(extracted_str))
+                                }
+                                Err(e) => {
+                                    // Extract failed — include the error, don't fail the task
+                                    serde_json::json!({ "error": e.to_string() })
+                                }
+                            };
+                            return Ok(serde_json::json!({
+                                "status": status,
+                                "headers": headers,
+                                "body": body,
+                                "url": final_url,
+                                "elapsed_ms": elapsed_ms,
+                                "extracted": extracted,
+                            })
+                            .to_string());
+                        }
+
                         return Ok(serde_json::json!({
                             "status": status,
                             "headers": headers,
                             "body": body,
                             "url": final_url,
+                            "elapsed_ms": elapsed_ms,
                         })
                         .to_string());
                     }
