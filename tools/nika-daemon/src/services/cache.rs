@@ -59,8 +59,8 @@ pub struct CacheStats {
     pub total_cost_saved: f64,
 }
 
-/// The LLM response cache.
-pub struct CacheService {
+/// Inner state for the cache (shared via Arc for cheap cloning).
+struct CacheInner {
     /// Hot cache (in-memory).
     cache: DashMap<String, CacheEntry>,
     /// Stats counters.
@@ -69,14 +69,24 @@ pub struct CacheService {
     evictions: std::sync::atomic::AtomicU64,
 }
 
+/// The LLM response cache.
+///
+/// Cheaply cloneable via internal `Arc` — safe to share across tasks.
+#[derive(Clone)]
+pub struct CacheService {
+    inner: std::sync::Arc<CacheInner>,
+}
+
 impl CacheService {
     /// Create a new cache service.
     pub fn new() -> Self {
         Self {
-            cache: DashMap::with_capacity(256),
-            hits: std::sync::atomic::AtomicU64::new(0),
-            misses: std::sync::atomic::AtomicU64::new(0),
-            evictions: std::sync::atomic::AtomicU64::new(0),
+            inner: std::sync::Arc::new(CacheInner {
+                cache: DashMap::with_capacity(256),
+                hits: std::sync::atomic::AtomicU64::new(0),
+                misses: std::sync::atomic::AtomicU64::new(0),
+                evictions: std::sync::atomic::AtomicU64::new(0),
+            }),
         }
     }
 
@@ -131,10 +141,10 @@ impl CacheService {
     /// Get a cached response. Returns None on miss or expired entry.
     pub fn get(&self, key: &str) -> Option<CacheEntry> {
         // Lazy TTL check: clone value, drop guard, then check expiry
-        let entry = match self.cache.get(key) {
+        let entry = match self.inner.cache.get(key) {
             Some(guard) => guard.clone(),
             None => {
-                self.misses
+                self.inner.misses
                     .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 return None;
             }
@@ -143,20 +153,20 @@ impl CacheService {
         // Check TTL
         if entry.created_at.elapsed() > entry.ttl {
             // Expired — remove and count as miss
-            self.cache.remove(key);
-            self.evictions
+            self.inner.cache.remove(key);
+            self.inner.evictions
                 .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            self.misses
+            self.inner.misses
                 .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             trace!(key, "cache expired");
             return None;
         }
 
         // Increment hit count (non-blocking)
-        self.cache
+        self.inner.cache
             .entry(key.to_string())
             .and_modify(|e| e.hits += 1);
-        self.hits.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.inner.hits.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         debug!(key, "cache hit");
         Some(entry)
     }
@@ -174,7 +184,7 @@ impl CacheService {
             ttl,
         } = params;
         // Evict if at capacity
-        if self.cache.len() >= MAX_ENTRIES {
+        if self.inner.cache.len() >= MAX_ENTRIES {
             self.evict_oldest();
         }
 
@@ -191,61 +201,64 @@ impl CacheService {
             hits: 0,
         };
 
-        self.cache.insert(key.clone(), entry);
+        self.inner.cache.insert(key.clone(), entry);
         debug!(key, "cache set");
     }
 
     /// Clear all cache entries.
     pub fn clear(&self) {
-        let count = self.cache.len();
-        self.cache.clear();
+        let count = self.inner.cache.len();
+        self.inner.cache.clear();
         info!(count, "cache cleared");
     }
 
     /// Get cache statistics.
     pub fn stats(&self) -> CacheStats {
         let total_tokens_saved: u64 = self
-            .cache
+            .inner.cache
             .iter()
             .map(|e| (e.tokens_in + e.tokens_out) * e.hits)
             .sum();
 
-        let total_cost_saved: f64 = self.cache.iter().map(|e| e.cost * e.hits as f64).sum();
+        let total_cost_saved: f64 = self.inner.cache.iter().map(|e| e.cost * e.hits as f64).sum();
 
         CacheStats {
-            entries: self.cache.len(),
-            hits: self.hits.load(std::sync::atomic::Ordering::Relaxed),
-            misses: self.misses.load(std::sync::atomic::Ordering::Relaxed),
-            evictions: self.evictions.load(std::sync::atomic::Ordering::Relaxed),
+            entries: self.inner.cache.len(),
+            hits: self.inner.hits.load(std::sync::atomic::Ordering::Relaxed),
+            misses: self.inner.misses.load(std::sync::atomic::Ordering::Relaxed),
+            evictions: self.inner.evictions.load(std::sync::atomic::Ordering::Relaxed),
             total_tokens_saved,
             total_cost_saved,
         }
     }
 
     /// Remove expired entries (called periodically by reaper task).
-    pub fn cleanup_expired(&self) {
-        let before = self.cache.len();
-        self.cache
+    ///
+    /// Returns the number of evicted entries.
+    pub fn cleanup_expired(&self) -> usize {
+        let before = self.inner.cache.len();
+        self.inner.cache
             .retain(|_, entry| entry.created_at.elapsed() <= entry.ttl);
-        let evicted = before - self.cache.len();
+        let evicted = before - self.inner.cache.len();
         if evicted > 0 {
-            self.evictions
+            self.inner.evictions
                 .fetch_add(evicted as u64, std::sync::atomic::Ordering::Relaxed);
             debug!(evicted, "expired entries cleaned up");
         }
+        evicted
     }
 
     /// Evict the oldest entry by creation time.
     fn evict_oldest(&self) {
         let oldest_key = self
-            .cache
+            .inner.cache
             .iter()
             .min_by_key(|e| e.created_at)
             .map(|e| e.key.clone());
 
         if let Some(key) = oldest_key {
-            self.cache.remove(&key);
-            self.evictions
+            self.inner.cache.remove(&key);
+            self.inner.evictions
                 .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             trace!(key, "evicted oldest entry");
         }
@@ -367,7 +380,7 @@ mod tests {
             });
         }
 
-        assert_eq!(cache.cache.len(), MAX_ENTRIES);
+        assert_eq!(cache.inner.cache.len(), MAX_ENTRIES);
 
         // Add one more — should evict oldest
         cache.set(CacheSetParams {
@@ -381,7 +394,7 @@ mod tests {
             ttl: None,
         });
 
-        assert_eq!(cache.cache.len(), MAX_ENTRIES);
+        assert_eq!(cache.inner.cache.len(), MAX_ENTRIES);
         assert!(cache.get("overflow").is_some());
     }
 
@@ -402,7 +415,7 @@ mod tests {
         }
 
         cache.clear();
-        assert_eq!(cache.cache.len(), 0);
+        assert_eq!(cache.inner.cache.len(), 0);
     }
 
     #[test]

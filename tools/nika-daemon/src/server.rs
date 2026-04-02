@@ -167,11 +167,27 @@ impl DaemonServer {
             warn!(error = %e, "failed to write auth token file — secret writes will be rejected");
         }
 
+        let cache_service = CacheService::new();
+
+        // Periodic cache cleanup (every 5 minutes)
+        let cache_for_reaper = cache_service.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(300));
+            interval.tick().await; // skip first immediate tick
+            loop {
+                interval.tick().await;
+                let removed = cache_for_reaper.cleanup_expired();
+                if removed > 0 {
+                    tracing::debug!(removed, "cache reaper cleaned expired entries");
+                }
+            }
+        });
+
         let state = Arc::new(ServerState {
             started_at: Instant::now(),
             secret_service: SecretService::new(),
             job_service,
-            cache_service: CacheService::new(),
+            cache_service,
             event_bus,
             active_watch: tokio::sync::Mutex::new(None),
             shutdown_tx: self.shutdown_tx.clone(),

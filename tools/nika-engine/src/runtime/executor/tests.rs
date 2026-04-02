@@ -10,6 +10,7 @@ use crate::ast::decompose::{DecomposeSpec, DecomposeStrategy};
 use crate::ast::output::{OutputFormat, OutputPolicy, SchemaRef};
 use crate::ast::{AgentParams, ExecParams, FetchParams, InferParams, InvokeParams};
 use crate::event::EventKind;
+use crate::runtime::Runner;
 use crate::store::{RunContext, TaskResult};
 use serde_json::json;
 use std::time::Duration;
@@ -2584,7 +2585,7 @@ async fn test_agent_single_provider_mock() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// is_retryable_provider_error TESTS
+// is_retryable TESTS (consolidated in Runner, regression tests here)
 // ═══════════════════════════════════════════════════════════════
 
 #[test]
@@ -2593,7 +2594,7 @@ fn test_is_retryable_500() {
         message: "HTTP 500 Internal Server Error".to_string(),
     };
     assert!(
-        super::infer::is_retryable_provider_error(&err),
+        Runner::is_retryable(&err),
         "500 should be retryable"
     );
 }
@@ -2604,7 +2605,7 @@ fn test_is_retryable_502() {
         message: "HTTP 502 Bad Gateway".to_string(),
     };
     assert!(
-        super::infer::is_retryable_provider_error(&err),
+        Runner::is_retryable(&err),
         "502 should be retryable"
     );
 }
@@ -2615,7 +2616,7 @@ fn test_is_retryable_503() {
         message: "HTTP 503 Service Unavailable".to_string(),
     };
     assert!(
-        super::infer::is_retryable_provider_error(&err),
+        Runner::is_retryable(&err),
         "503 should be retryable"
     );
 }
@@ -2626,7 +2627,7 @@ fn test_is_retryable_429() {
         message: "HTTP 429 Too Many Requests".to_string(),
     };
     assert!(
-        super::infer::is_retryable_provider_error(&err),
+        Runner::is_retryable(&err),
         "429 should be retryable"
     );
 }
@@ -2637,7 +2638,7 @@ fn test_is_retryable_timeout() {
         message: "request timed out after 30s".to_string(),
     };
     assert!(
-        super::infer::is_retryable_provider_error(&err),
+        Runner::is_retryable(&err),
         "timeout should be retryable"
     );
 }
@@ -2648,7 +2649,7 @@ fn test_is_retryable_connection() {
         message: "connection refused".to_string(),
     };
     assert!(
-        super::infer::is_retryable_provider_error(&err),
+        Runner::is_retryable(&err),
         "connection error should be retryable"
     );
 }
@@ -2659,7 +2660,7 @@ fn test_is_not_retryable_401() {
         message: "HTTP 401 Unauthorized".to_string(),
     };
     assert!(
-        !super::infer::is_retryable_provider_error(&err),
+        !Runner::is_retryable(&err),
         "401 should NOT be retryable"
     );
 }
@@ -2670,7 +2671,7 @@ fn test_is_not_retryable_403() {
         message: "HTTP 403 Forbidden".to_string(),
     };
     assert!(
-        !super::infer::is_retryable_provider_error(&err),
+        !Runner::is_retryable(&err),
         "403 should NOT be retryable"
     );
 }
@@ -2681,7 +2682,7 @@ fn test_is_not_retryable_invalid_api_key() {
         message: "Invalid API key provided".to_string(),
     };
     assert!(
-        !super::infer::is_retryable_provider_error(&err),
+        !Runner::is_retryable(&err),
         "invalid API key should NOT be retryable"
     );
 }
