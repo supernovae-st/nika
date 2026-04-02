@@ -18,7 +18,7 @@ use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, info};
 
 /// Current schema version.
-const SCHEMA_VERSION: u32 = 1;
+const SCHEMA_VERSION: u32 = 2;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ERROR TYPES
@@ -108,6 +108,18 @@ pub struct JobHistoryEvent {
     pub details: Option<String>,
 }
 
+/// An artifact produced by a job.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct JobArtifact {
+    pub job_id: String,
+    pub name: String,
+    pub path: String,
+    pub size: u64,
+    pub format: String,
+    pub checksum: Option<String>,
+    pub content_type: String,
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // DATABASE COMMANDS (sent to the dedicated DB thread)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -155,6 +167,15 @@ enum DbCommand {
     DeleteOldJobs {
         max_age_secs: u64,
         reply: oneshot::Sender<StorageResult<u64>>,
+    },
+    AddArtifacts {
+        job_id: String,
+        artifacts: Vec<JobArtifact>,
+        reply: oneshot::Sender<StorageResult<()>>,
+    },
+    ListArtifacts {
+        job_id: String,
+        reply: oneshot::Sender<StorageResult<Vec<JobArtifact>>>,
     },
 }
 
@@ -356,6 +377,37 @@ impl Storage {
         rx.await.map_err(|_| StorageError::ChannelClosed)?
     }
 
+    /// Store artifacts produced by a job.
+    pub async fn add_artifacts(
+        &self,
+        job_id: &str,
+        artifacts: Vec<JobArtifact>,
+    ) -> StorageResult<()> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(DbCommand::AddArtifacts {
+                job_id: job_id.to_string(),
+                artifacts,
+                reply,
+            })
+            .await
+            .map_err(|_| StorageError::ChannelClosed)?;
+        rx.await.map_err(|_| StorageError::ChannelClosed)?
+    }
+
+    /// List artifacts for a job.
+    pub async fn list_artifacts(&self, job_id: &str) -> StorageResult<Vec<JobArtifact>> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(DbCommand::ListArtifacts {
+                job_id: job_id.to_string(),
+                reply,
+            })
+            .await
+            .map_err(|_| StorageError::ChannelClosed)?;
+        rx.await.map_err(|_| StorageError::ChannelClosed)?
+    }
+
     /// Delete completed/failed/cancelled jobs older than `max_age_secs`.
     ///
     /// Also deletes associated job_history entries.
@@ -447,6 +499,16 @@ fn run_db_loop(conn: Connection, mut rx: mpsc::Receiver<DbCommand>) {
             } => {
                 let _ = reply.send(do_delete_old_jobs(&conn, max_age_secs));
             }
+            DbCommand::AddArtifacts {
+                job_id,
+                artifacts,
+                reply,
+            } => {
+                let _ = reply.send(do_add_artifacts(&conn, &job_id, &artifacts));
+            }
+            DbCommand::ListArtifacts { job_id, reply } => {
+                let _ = reply.send(do_list_artifacts(&conn, &job_id));
+            }
         }
     }
     debug!("database thread shutting down");
@@ -465,6 +527,7 @@ fn init_schema(conn: &Connection) -> StorageResult<()> {
         return Ok(());
     }
 
+    // V1: jobs + job_history
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS jobs (
             id TEXT PRIMARY KEY,
@@ -494,6 +557,23 @@ fn init_schema(conn: &Connection) -> StorageResult<()> {
         CREATE INDEX IF NOT EXISTS idx_job_history_job_id ON job_history(job_id);",
     )
     .map_err(|e| StorageError::Other(format!("create tables: {e}")))?;
+
+    // V2: job_artifacts
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS job_artifacts (
+            job_id TEXT NOT NULL REFERENCES jobs(id),
+            name TEXT NOT NULL,
+            path TEXT NOT NULL,
+            size INTEGER NOT NULL DEFAULT 0,
+            format TEXT NOT NULL DEFAULT 'text',
+            checksum TEXT,
+            content_type TEXT NOT NULL DEFAULT 'application/octet-stream',
+            PRIMARY KEY (job_id, name)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_job_artifacts_job_id ON job_artifacts(job_id);",
+    )
+    .map_err(|e| StorageError::Other(format!("create job_artifacts table: {e}")))?;
 
     conn.pragma_update(None, "user_version", SCHEMA_VERSION)
         .map_err(|e| StorageError::Other(format!("set user_version: {e}")))?;
@@ -675,11 +755,67 @@ fn do_reset_stale_running(conn: &Connection, reason: &str) -> StorageResult<u64>
     Ok(affected as u64)
 }
 
+fn do_add_artifacts(
+    conn: &Connection,
+    job_id: &str,
+    artifacts: &[JobArtifact],
+) -> StorageResult<()> {
+    let mut stmt = conn.prepare_cached(
+        "INSERT OR REPLACE INTO job_artifacts (job_id, name, path, size, format, checksum, content_type)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+    )?;
+    for a in artifacts {
+        stmt.execute(params![
+            job_id,
+            a.name,
+            a.path,
+            a.size as i64,
+            a.format,
+            a.checksum,
+            a.content_type,
+        ])?;
+    }
+    Ok(())
+}
+
+fn do_list_artifacts(conn: &Connection, job_id: &str) -> StorageResult<Vec<JobArtifact>> {
+    let mut stmt = conn.prepare_cached(
+        "SELECT job_id, name, path, size, format, checksum, content_type
+         FROM job_artifacts WHERE job_id = ?1 ORDER BY name",
+    )?;
+    let rows = stmt.query_map(params![job_id], |row| {
+        Ok(JobArtifact {
+            job_id: row.get(0)?,
+            name: row.get(1)?,
+            path: row.get(2)?,
+            size: row.get::<_, i64>(3)? as u64,
+            format: row.get(4)?,
+            checksum: row.get(5)?,
+            content_type: row.get(6)?,
+        })
+    })?;
+    let mut artifacts = Vec::new();
+    for row in rows {
+        artifacts.push(row?);
+    }
+    Ok(artifacts)
+}
+
 fn do_delete_old_jobs(conn: &Connection, max_age_secs: u64) -> StorageResult<u64> {
     let cutoff = chrono::Utc::now() - chrono::Duration::seconds(max_age_secs as i64);
     let cutoff_str = cutoff.to_rfc3339();
 
-    // Delete history entries for old terminal jobs first (FK-safe)
+    // Delete artifacts for old terminal jobs first (FK-safe)
+    conn.execute(
+        "DELETE FROM job_artifacts WHERE job_id IN (
+            SELECT id FROM jobs
+            WHERE state IN ('completed', 'failed', 'cancelled')
+            AND created_at < ?1
+        )",
+        params![cutoff_str],
+    )?;
+
+    // Delete history entries for old terminal jobs (FK-safe)
     conn.execute(
         "DELETE FROM job_history WHERE job_id IN (
             SELECT id FROM jobs

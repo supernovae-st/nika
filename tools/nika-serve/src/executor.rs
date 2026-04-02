@@ -11,6 +11,23 @@ use std::sync::Arc;
 
 use crate::config::ServeConfig;
 
+/// Metadata for a single artifact produced by a workflow execution.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ArtifactInfo {
+    pub task_id: String,
+    pub name: String,
+    pub path: String,
+    pub size: u64,
+    pub format: String,
+    pub checksum: Option<String>,
+}
+
+/// Result of a workflow execution, including output and any produced artifacts.
+pub struct ExecutionResult {
+    pub output: String,
+    pub artifacts: Vec<ArtifactInfo>,
+}
+
 /// Context provided to an executor for a single job execution.
 pub struct ExecutionContext {
     pub config: Arc<ServeConfig>,
@@ -33,29 +50,68 @@ pub enum Executor {
 }
 
 impl Executor {
-    /// Execute a single workflow and return its output on success.
+    /// Execute a single workflow and return its output + artifacts on success.
     pub async fn execute(
         &self,
         workflow: &str,
         inputs: Option<&serde_json::Value>,
         ctx: &mut ExecutionContext,
-    ) -> Result<String, String> {
+    ) -> Result<ExecutionResult, String> {
         match self {
             Self::Subprocess => {
-                crate::worker::run_subprocess(
+                let output = crate::worker::run_subprocess(
                     &ctx.config,
                     workflow,
                     inputs,
                     &ctx.child_pid,
                     &mut ctx.shutdown_rx,
                 )
-                .await
+                .await?;
+                // Subprocess mode: no artifact metadata available
+                Ok(ExecutionResult {
+                    output,
+                    artifacts: vec![],
+                })
             }
             Self::Embedded => {
                 run_embedded(&ctx.config, workflow, inputs, &mut ctx.shutdown_rx).await
             }
         }
     }
+}
+
+/// Extract artifact metadata from runner event log after execution.
+fn extract_artifacts(runner: &nika_engine::runtime::Runner) -> Vec<ArtifactInfo> {
+    runner
+        .event_log()
+        .events()
+        .into_iter()
+        .filter_map(|event| {
+            if let nika_event::EventKind::ArtifactWritten {
+                task_id,
+                path,
+                size,
+                format,
+                checksum,
+            } = event.kind
+            {
+                let name = std::path::Path::new(&path)
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_else(|| path.clone());
+                Some(ArtifactInfo {
+                    task_id: task_id.to_string(),
+                    name,
+                    path,
+                    size,
+                    format,
+                    checksum,
+                })
+            } else {
+                None
+            }
+        })
+        .collect()
 }
 
 /// Execute a workflow in-process using nika-engine Runner.
@@ -67,7 +123,7 @@ async fn run_embedded(
     workflow: &str,
     inputs: Option<&serde_json::Value>,
     shutdown_rx: &mut tokio::sync::watch::Receiver<bool>,
-) -> Result<String, String> {
+) -> Result<ExecutionResult, String> {
     let workflow_path = config.workflows_dir.join(workflow);
 
     // Read workflow file
@@ -107,16 +163,19 @@ async fn run_embedded(
     // BUG-9: Spawn runner in a separate task for panic isolation.
     // With panic="unwind", panics in the workflow are caught at the task
     // boundary and returned as JoinError instead of crashing the server.
+    // After execution, extract artifact metadata from the event log.
     let handle = tokio::spawn(async move {
-        tokio::time::timeout(timeout, runner.run()).await
+        let run_result = tokio::time::timeout(timeout, runner.run()).await;
+        let artifacts = extract_artifacts(&runner);
+        (run_result, artifacts)
     });
 
     tokio::select! {
         result = handle => {
             match result {
-                Ok(Ok(Ok(output))) => Ok(output),
-                Ok(Ok(Err(e))) => Err(format!("workflow failed: {e}")),
-                Ok(Err(_)) => {
+                Ok((Ok(Ok(output)), artifacts)) => Ok(ExecutionResult { output, artifacts }),
+                Ok((Ok(Err(e)), _)) => Err(format!("workflow failed: {e}")),
+                Ok((Err(_), _)) => {
                     cancel_clone.cancel();
                     Err(format!("timeout after {timeout_secs}s"))
                 }
@@ -152,6 +211,23 @@ mod tests {
     #[test]
     fn executor_embedded_variant_exists() {
         let _exec = Executor::Embedded;
+    }
+
+    #[test]
+    fn execution_result_has_artifacts() {
+        let result = ExecutionResult {
+            output: "hello".into(),
+            artifacts: vec![ArtifactInfo {
+                task_id: "t1".into(),
+                name: "report.md".into(),
+                path: "/tmp/report.md".into(),
+                size: 1024,
+                format: "markdown".into(),
+                checksum: Some("abc123".into()),
+            }],
+        };
+        assert_eq!(result.artifacts.len(), 1);
+        assert_eq!(result.artifacts[0].name, "report.md");
     }
 
     #[test]
