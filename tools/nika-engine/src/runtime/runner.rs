@@ -1293,7 +1293,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             let mut engine = StructuredOutputEngine::new(
                                 structured_spec.clone(),
                                 Arc::new(event_log.clone()),
-                            );
+                            )
+                            .with_workflow_dir(base_path.clone());
                             match engine.validate(&task_id, &output).await {
                                 Ok(result) => {
                                     debug!(
