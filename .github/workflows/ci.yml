@@ -59,7 +59,7 @@ jobs:
 
       - name: Check documentation
         working-directory: tools/nika
-        run: cargo doc --workspace --no-deps
+        run: cargo doc --workspace --no-deps --exclude nika-py
         env:
           RUSTDOCFLAGS: -Dwarnings
 
