@@ -1,5 +1,5 @@
 {
-  "name": "@supernovae/nika",
+  "name": "@supernovae-st/nika",
   "version": "0.46.1",
   "description": "Semantic YAML workflow engine for AI tasks",
   "license": "AGPL-3.0-or-later",
@@ -31,10 +31,10 @@
     "node": ">=16"
   },
   "optionalDependencies": {
-    "@supernovae/nika-darwin-arm64": "0.46.1",
-    "@supernovae/nika-darwin-x64": "0.46.1",
-    "@supernovae/nika-linux-x64": "0.46.1",
-    "@supernovae/nika-linux-arm64": "0.46.1",
-    "@supernovae/nika-win32-x64": "0.46.1"
+    "@supernovae-st/nika-darwin-arm64": "0.46.1",
+    "@supernovae-st/nika-darwin-x64": "0.46.1",
+    "@supernovae-st/nika-linux-x64": "0.46.1",
+    "@supernovae-st/nika-linux-arm64": "0.46.1",
+    "@supernovae-st/nika-win32-x64": "0.46.1"
   }
 }

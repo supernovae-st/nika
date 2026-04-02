@@ -31,7 +31,7 @@ function getPlatformKey() {
 
 function followRedirects(url, callback) {
   const client = url.startsWith('https') ? https : http;
-  client.get(url, { headers: { 'User-Agent': 'npm-@supernovae/nika' } }, (res) => {
+  client.get(url, { headers: { 'User-Agent': 'npm-@supernovae-st/nika' } }, (res) => {
     if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
       followRedirects(res.headers.location, callback);
     } else if (res.statusCode !== 200) {
