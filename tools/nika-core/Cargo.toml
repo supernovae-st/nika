@@ -28,6 +28,7 @@ orion = { workspace = true }
 whoami = { workspace = true }
 fs2 = { workspace = true }
 secrecy = { workspace = true }
+url = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }

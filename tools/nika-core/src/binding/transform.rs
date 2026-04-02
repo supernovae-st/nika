@@ -66,6 +66,11 @@ pub enum TransformOp {
     Join(String),
     Split(String),
     Shell,
+
+    // -- URL --
+    UrlHost,
+    UrlPath,
+    UrlWithoutQuery,
 }
 
 /// A chain of transform operations: `sort | unique | first(3)`
@@ -593,6 +598,51 @@ impl TransformOp {
                     _ => Ok(Value::String(shell_escape(&value.to_string()))),
                 }
             }
+
+            // ── URL ──────────────────────────────────────────
+            TransformOp::UrlHost => match value {
+                Value::Null => Err(TransformError::NullInput { op: "url_host" }),
+                Value::String(s) => {
+                    let parsed = url::Url::parse(s).map_err(|_| TransformError::TypeMismatch {
+                        op: "url_host",
+                        expected: "valid URL",
+                        got: "invalid URL".to_string(),
+                    })?;
+                    Ok(Value::String(
+                        parsed.host_str().unwrap_or_default().to_string(),
+                    ))
+                }
+                _ => Err(type_mismatch("url_host", "string", value)),
+            },
+            TransformOp::UrlPath => match value {
+                Value::Null => Err(TransformError::NullInput { op: "url_path" }),
+                Value::String(s) => {
+                    let parsed = url::Url::parse(s).map_err(|_| TransformError::TypeMismatch {
+                        op: "url_path",
+                        expected: "valid URL",
+                        got: "invalid URL".to_string(),
+                    })?;
+                    Ok(Value::String(parsed.path().to_string()))
+                }
+                _ => Err(type_mismatch("url_path", "string", value)),
+            },
+            TransformOp::UrlWithoutQuery => match value {
+                Value::Null => Err(TransformError::NullInput {
+                    op: "url_without_query",
+                }),
+                Value::String(s) => {
+                    let mut parsed =
+                        url::Url::parse(s).map_err(|_| TransformError::TypeMismatch {
+                            op: "url_without_query",
+                            expected: "valid URL",
+                            got: "invalid URL".to_string(),
+                        })?;
+                    parsed.set_query(None);
+                    parsed.set_fragment(None);
+                    Ok(Value::String(parsed.to_string()))
+                }
+                _ => Err(type_mismatch("url_without_query", "string", value)),
+            },
         }
     }
 }
@@ -690,6 +740,9 @@ fn parse_single_op(input: &str, full_input: &str) -> Result<TransformOp, Transfo
             "floor" => Ok(TransformOp::Floor),
             "type_of" => Ok(TransformOp::TypeOf),
             "shell" => Ok(TransformOp::Shell),
+            "url_host" => Ok(TransformOp::UrlHost),
+            "url_path" => Ok(TransformOp::UrlPath),
+            "url_without_query" => Ok(TransformOp::UrlWithoutQuery),
             _ => Err(TransformParseError {
                 input: full_input.to_string(),
                 reason: format!("unknown transform: '{}'", trimmed),
@@ -873,6 +926,9 @@ impl fmt::Display for TransformOp {
             TransformOp::Join(sep) => write!(f, "join('{}')", sep),
             TransformOp::Split(sep) => write!(f, "split('{}')", sep),
             TransformOp::Shell => write!(f, "shell"),
+            TransformOp::UrlHost => write!(f, "url_host"),
+            TransformOp::UrlPath => write!(f, "url_path"),
+            TransformOp::UrlWithoutQuery => write!(f, "url_without_query"),
         }
     }
 }
@@ -1428,6 +1484,83 @@ mod tests {
     fn apply_shell_null_errors() {
         let err = TransformOp::Shell.apply(&Value::Null).unwrap_err();
         assert!(matches!(err, TransformError::NullInput { op: "shell" }));
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // URL transform tests
+    // ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn parse_url_transforms() {
+        assert_eq!(
+            TransformExpr::parse("url_host").unwrap().ops[0],
+            TransformOp::UrlHost
+        );
+        assert_eq!(
+            TransformExpr::parse("url_path").unwrap().ops[0],
+            TransformOp::UrlPath
+        );
+        assert_eq!(
+            TransformExpr::parse("url_without_query").unwrap().ops[0],
+            TransformOp::UrlWithoutQuery
+        );
+    }
+
+    #[test]
+    fn apply_url_host() {
+        let url = json!("https://blog.example.com:8080/posts/123?page=2#top");
+        assert_eq!(
+            TransformOp::UrlHost.apply(&url).unwrap(),
+            json!("blog.example.com")
+        );
+    }
+
+    #[test]
+    fn apply_url_path() {
+        let url = json!("https://example.com/posts/123?page=2");
+        assert_eq!(
+            TransformOp::UrlPath.apply(&url).unwrap(),
+            json!("/posts/123")
+        );
+    }
+
+    #[test]
+    fn apply_url_without_query() {
+        let url = json!("https://example.com/posts/123?page=2&sort=new#comments");
+        assert_eq!(
+            TransformOp::UrlWithoutQuery.apply(&url).unwrap(),
+            json!("https://example.com/posts/123")
+        );
+    }
+
+    #[test]
+    fn url_host_ipv6() {
+        let url = json!("https://[::1]:3000/api");
+        // url crate preserves IPv6 brackets in host_str()
+        assert_eq!(TransformOp::UrlHost.apply(&url).unwrap(), json!("[::1]"));
+    }
+
+    #[test]
+    fn url_transforms_invalid_url() {
+        let bad = json!("not a url");
+        assert!(TransformOp::UrlHost.apply(&bad).is_err());
+        assert!(TransformOp::UrlPath.apply(&bad).is_err());
+        assert!(TransformOp::UrlWithoutQuery.apply(&bad).is_err());
+    }
+
+    #[test]
+    fn url_transforms_null_errors() {
+        assert!(matches!(
+            TransformOp::UrlHost.apply(&Value::Null).unwrap_err(),
+            TransformError::NullInput { op: "url_host" }
+        ));
+    }
+
+    #[test]
+    fn url_pipeline_host_then_lower() {
+        let url = json!("https://EXAMPLE.COM/Page");
+        let expr = TransformExpr::parse("url_host | lower").unwrap();
+        assert_eq!(expr.apply(&url).unwrap(), json!("example.com"));
     }
 
     // ─────────────────────────────────────────────────────────────
