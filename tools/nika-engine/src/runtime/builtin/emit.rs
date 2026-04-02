@@ -28,6 +28,7 @@ use std::pin::Pin;
 
 /// Parameters for nika:emit tool.
 /// Supports both `payload` (JSON) and `payload_json` (string) for OpenAI compatibility.
+/// Also accepts `data` as an alias for `payload` (common user expectation).
 #[derive(Debug, Clone, Deserialize)]
 struct EmitParams {
     /// Event name/type.
@@ -38,10 +39,14 @@ struct EmitParams {
     /// Event payload as direct JSON (for Claude and other providers).
     #[serde(default)]
     payload: Option<Value>,
+    /// Alias for `payload` — many users pass `data` instead.
+    #[serde(default)]
+    data: Option<Value>,
 }
 
 impl EmitParams {
     /// Get the payload as a JSON Value, parsing from payload_json if needed.
+    /// Priority: payload_json > payload > data > null
     fn get_payload(&self) -> Result<Value, NikaError> {
         if let Some(ref json_str) = self.payload_json {
             serde_json::from_str(json_str).map_err(|e| NikaError::BuiltinInvalidParams {
@@ -49,6 +54,8 @@ impl EmitParams {
                 reason: format!("Invalid payload_json: {}", e),
             })
         } else if let Some(ref value) = self.payload {
+            Ok(value.clone())
+        } else if let Some(ref value) = self.data {
             Ok(value.clone())
         } else {
             Ok(Value::Null)
@@ -289,6 +296,40 @@ mod tests {
         let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
         assert_eq!(response["payload"][0], 1);
         assert_eq!(response["payload"][2], 3);
+    }
+
+    #[tokio::test]
+    async fn test_emit_with_data_alias() {
+        let tool = EmitTool;
+        let result = tool
+            .call(
+                r#"{"name": "pipeline_start", "data": {"workflow": "test", "timestamp": "now"}}"#
+                    .to_string(),
+            )
+            .await;
+
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
+        let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
+        assert_eq!(response["emitted"], true);
+        assert_eq!(response["name"], "pipeline_start");
+        assert_eq!(response["payload"]["workflow"], "test");
+        assert_eq!(response["payload"]["timestamp"], "now");
+    }
+
+    #[tokio::test]
+    async fn test_emit_payload_takes_priority_over_data() {
+        let tool = EmitTool;
+        let result = tool
+            .call(
+                r#"{"name": "event", "payload": {"from_payload": true}, "data": {"from_data": true}}"#
+                    .to_string(),
+            )
+            .await;
+
+        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
+        let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
+        assert_eq!(response["payload"]["from_payload"], true);
+        assert!(response["payload"]["from_data"].is_null());
     }
 
     #[tokio::test]
