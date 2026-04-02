@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Serve: GET /v1/workflows endpoint** — List available workflows via HTTP API
+- **@supernovae-st/nika-client** — Pure TypeScript HTTP client for nika serve (zero deps, 56 tests, SSE streaming, polling, retry). Separate repo: `supernovae-studio/nika-client`
 
 ## [0.61.0] — 2026-04-02
 
