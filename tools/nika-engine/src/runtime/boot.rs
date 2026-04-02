@@ -117,7 +117,7 @@ pub struct CliOverrides {
     pub model: Option<String>,
 }
 
-/// [project] section in nika.toml.
+/// `[project]` section in nika.toml.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ProjectConfig {
     pub name: String,
@@ -154,7 +154,7 @@ pub struct BootContext {
 /// `[packages]`, `[memory]`, etc.) are silently ignored for forward compat.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct BootstrapConfig {
-    /// [project] section (nika.toml only)
+    /// `[project]` section (nika.toml only)
     #[serde(default)]
     pub project: Option<ProjectConfig>,
     #[serde(default)]
