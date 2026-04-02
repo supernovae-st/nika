@@ -135,6 +135,9 @@ cliclack = "0.5"
 # File type detection
 infer = "0.19"
 
+# File locking
+fs2 = "0.4"
+
 # Secret management
 secrecy = "0.10"
 zeroize = "1.8"

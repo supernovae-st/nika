@@ -308,25 +308,32 @@ impl NikaVault {
 
     /// Store a simple secret for a provider (creates or updates).
     pub fn set(&self, provider: &str, secret: &str) -> Result<(), VaultError> {
-        let mut payload = self.read_payload()?.unwrap_or_default();
-        payload.version = 2;
-        payload
-            .secrets
-            .insert(provider.to_string(), VaultEntry::Key(secret.to_string()));
-        self.write_payload(&payload)
+        let provider = provider.to_string();
+        let secret = secret.to_string();
+        self.with_vault_lock(|vault| {
+            let mut payload = vault.read_payload()?.unwrap_or_default();
+            payload.version = 2;
+            payload
+                .secrets
+                .insert(provider.clone(), VaultEntry::Key(secret.clone()));
+            vault.write_payload(&payload)
+        })
     }
 
     /// Delete a secret. Returns true if it existed.
     pub fn delete(&self, provider: &str) -> Result<bool, VaultError> {
-        let mut payload = match self.read_payload()? {
-            Some(p) => p,
-            None => return Ok(false),
-        };
-        let existed = payload.secrets.remove(provider).is_some();
-        if existed {
-            self.write_payload(&payload)?;
-        }
-        Ok(existed)
+        let provider = provider.to_string();
+        self.with_vault_lock(|vault| {
+            let mut payload = match vault.read_payload()? {
+                Some(p) => p,
+                None => return Ok(false),
+            };
+            let existed = payload.secrets.remove(&provider).is_some();
+            if existed {
+                vault.write_payload(&payload)?;
+            }
+            Ok(existed)
+        })
     }
 
     /// List all service/provider names that have stored secrets.
@@ -380,19 +387,22 @@ impl NikaVault {
         service_url: Option<String>,
         category: Option<String>,
     ) -> Result<(), VaultError> {
-        let mut payload = self.read_payload()?.unwrap_or_default();
-        payload.version = 2;
-        payload.secrets.insert(
-            service.to_string(),
-            VaultEntry::Credential {
-                fields,
-                service_url,
-                category,
-                created_at: Some(chrono::Utc::now().to_rfc3339()),
-                expires_at: None,
-            },
-        );
-        self.write_payload(&payload)
+        let service = service.to_string();
+        self.with_vault_lock(|vault| {
+            let mut payload = vault.read_payload()?.unwrap_or_default();
+            payload.version = 2;
+            payload.secrets.insert(
+                service.clone(),
+                VaultEntry::Credential {
+                    fields: fields.clone(),
+                    service_url: service_url.clone(),
+                    category: category.clone(),
+                    created_at: Some(chrono::Utc::now().to_rfc3339()),
+                    expires_at: None,
+                },
+            );
+            vault.write_payload(&payload)
+        })
     }
 
     /// Get the raw `VaultEntry` for a service (for introspection).
@@ -405,6 +415,38 @@ impl NikaVault {
     }
 
     // ── Internal ────────────────────────────────────────────────────────
+
+    /// Execute a closure with exclusive file lock on the vault.
+    fn with_vault_lock<F, T>(&self, f: F) -> Result<T, VaultError>
+    where
+        F: FnOnce(&Self) -> Result<T, VaultError>,
+    {
+        use fs2::FileExt;
+
+        // Ensure parent dir exists
+        if let Some(parent) = self.vault_path.parent() {
+            std::fs::create_dir_all(parent)?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700))?;
+            }
+        }
+
+        let lock_path = self.vault_path.with_extension("lock");
+        let lock_file = std::fs::OpenOptions::new()
+            .create(true)
+            .truncate(true)
+            .write(true)
+            .open(&lock_path)?;
+        lock_file.lock_exclusive()?;
+
+        let result = f(self);
+
+        // Drop releases the lock (fs2 unlocks on close)
+        drop(lock_file);
+        result
+    }
 
     fn read_payload(&self) -> Result<Option<VaultPayload>, VaultError> {
         if !self.vault_path.exists() {
@@ -421,6 +463,11 @@ impl NikaVault {
     fn write_payload(&self, payload: &VaultPayload) -> Result<(), VaultError> {
         if let Some(parent) = self.vault_path.parent() {
             std::fs::create_dir_all(parent)?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700))?;
+            }
         }
         let plaintext = serde_json::to_vec(payload)?;
         let key = self.derive_key()?;
@@ -452,7 +499,7 @@ impl NikaVault {
         let kdf_salt = kdf::Salt::from_slice(&salt)
             .map_err(|e| VaultError::Crypto(format!("KDF salt: {e}")))?;
 
-        let derived = kdf::derive_key(&password, &kdf_salt, 3, 1 << 16, 32)
+        let derived = kdf::derive_key(&password, &kdf_salt, 6, 1 << 16, 32)
             .map_err(|e| VaultError::Crypto(format!("KDF derive: {e}")))?;
 
         orion::aead::SecretKey::from_slice(derived.unprotected_as_bytes())
@@ -469,6 +516,11 @@ impl NikaVault {
         }
         if let Some(parent) = self.salt_path.parent() {
             std::fs::create_dir_all(parent)?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700))?;
+            }
         }
         let mut salt = vec![0u8; 16];
         orion::util::secure_rand_bytes(&mut salt)
@@ -489,6 +541,12 @@ impl NikaVault {
 fn machine_fingerprint() -> Result<String, VaultError> {
     if let Ok(pass) = std::env::var("NIKA_VAULT_PASSPHRASE") {
         if !pass.is_empty() {
+            if pass.len() < 12 {
+                tracing::warn!(
+                    "NIKA_VAULT_PASSPHRASE is short ({} chars) — recommend 12+ for security",
+                    pass.len()
+                );
+            }
             return Ok(format!("nika-vault-v1:passphrase:{pass}"));
         }
     }
@@ -1068,5 +1126,49 @@ mod tests {
         assert_eq!(b, b2);
         assert_eq!(format!("{:?}", b), "Local");
         assert_eq!(format!("{:?}", VaultBackend::Doppler), "Doppler");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    #[serial]
+    fn vault_secrets_dir_permissions_are_700() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let secrets = dir.path().join("secrets");
+        std::env::set_var("NIKA_VAULT_PASSPHRASE", "test-only");
+        let vault = NikaVault::new(&secrets);
+        vault.set("test", "key123").unwrap();
+        let mode = std::fs::metadata(&secrets).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o700, "secrets dir must be 0o700, got {mode:o}");
+    }
+
+    #[test]
+    fn vault_concurrent_writes_dont_lose_data() {
+        let dir = tempfile::tempdir().unwrap();
+        let secrets = dir.path().join("secrets");
+
+        let handles: Vec<_> = (0..10)
+            .map(|i| {
+                let s = secrets.clone();
+                std::thread::spawn(move || {
+                    std::env::set_var("NIKA_VAULT_PASSPHRASE", "test-only");
+                    let v = NikaVault::new(&s);
+                    v.set(&format!("prov_{i}"), &format!("key_{i}")).unwrap();
+                })
+            })
+            .collect();
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        std::env::set_var("NIKA_VAULT_PASSPHRASE", "test-only");
+        let vault = NikaVault::new(&secrets);
+        let all = vault.list().unwrap();
+        assert_eq!(
+            all.len(),
+            10,
+            "all concurrent writes must survive: got {}",
+            all.len()
+        );
     }
 }

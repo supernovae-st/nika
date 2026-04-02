@@ -26,6 +26,7 @@ chrono = { workspace = true }
 regex = { workspace = true }
 orion = { workspace = true }
 whoami = { workspace = true }
+fs2 = { workspace = true }
 secrecy = { workspace = true }
 
 [dev-dependencies]
