@@ -419,7 +419,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Content hash fingerprinting to protect user-customized rules from overwrites
 - Auto-setup on first command (skipped in CI environments)
 - `install.sh` curl script for quick installation
-- `@supernovae/nika` npm wrapper package for cross-platform install
+- `@supernovae-st/nika` npm wrapper package for cross-platform install
 - Windows target in CI release pipeline
 - Startup loading indicator and first-launch help hint in TUI
 

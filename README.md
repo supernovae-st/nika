@@ -192,7 +192,7 @@ tasks:
 # Install Nika (pick one)
 cargo install nika                       # from crates.io
 brew install supernovae-st/tap/nika      # macOS / Linux
-npx @supernovae/nika                     # run without installing
+npx @supernovae-st/nika                     # run without installing
 
 # Configure your LLM provider (interactive wizard)
 nika setup
@@ -964,8 +964,8 @@ brew install supernovae-st/tap/nika
 ### npm
 
 ```bash
-npm install -g @supernovae/nika    # global install
-npx @supernovae/nika               # or run directly
+npm install -g @supernovae-st/nika    # global install
+npx @supernovae-st/nika               # or run directly
 ```
 
 ### Docker

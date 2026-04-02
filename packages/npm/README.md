@@ -1,4 +1,4 @@
-# @supernovae/nika
+# @supernovae-st/nika
 
 Thin npm wrapper for the [Nika CLI](https://github.com/supernovae-st/nika) -- a semantic YAML workflow engine for AI tasks.
 
@@ -8,13 +8,13 @@ This package downloads the pre-built Nika binary for your platform during `npm i
 
 ```bash
 # Global install
-npm install -g @supernovae/nika
+npm install -g @supernovae-st/nika
 
 # Or run directly
-npx @supernovae/nika
+npx @supernovae-st/nika
 
 # Or as a project dependency
-npm install @supernovae/nika
+npm install @supernovae-st/nika
 ```
 
 ## Usage
