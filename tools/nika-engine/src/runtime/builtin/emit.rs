@@ -42,16 +42,24 @@ struct EmitParams {
     /// Alias for `payload` — many users pass `data` instead.
     #[serde(default)]
     data: Option<Value>,
+    /// Alias for `payload_json` as string (OpenAI strict mode compat).
+    #[serde(default)]
+    data_json: Option<String>,
 }
 
 impl EmitParams {
-    /// Get the payload as a JSON Value, parsing from payload_json if needed.
-    /// Priority: payload_json > payload > data > null
+    /// Get the payload as a JSON Value, parsing from payload_json/data_json if needed.
+    /// Priority: payload_json > data_json > payload > data > null
     fn get_payload(&self) -> Result<Value, NikaError> {
         if let Some(ref json_str) = self.payload_json {
             serde_json::from_str(json_str).map_err(|e| NikaError::BuiltinInvalidParams {
                 tool: "nika_emit".into(),
                 reason: format!("Invalid payload_json: {}", e),
+            })
+        } else if let Some(ref json_str) = self.data_json {
+            serde_json::from_str(json_str).map_err(|e| NikaError::BuiltinInvalidParams {
+                tool: "nika_emit".into(),
+                reason: format!("Invalid data_json: {}", e),
             })
         } else if let Some(ref value) = self.payload {
             Ok(value.clone())
@@ -103,9 +111,13 @@ impl BuiltinTool for EmitTool {
                 "payload_json": {
                     "type": "string",
                     "description": "Event payload as JSON string (e.g., '{\"key\": \"value\"}' or '123' or '\"text\"')"
+                },
+                "data_json": {
+                    "type": "string",
+                    "description": "Alias for payload_json — event payload as JSON string"
                 }
             },
-            "required": ["name", "payload_json"],
+            "required": ["name"],
             "additionalProperties": false
         })
     }
@@ -180,13 +192,16 @@ mod tests {
         let schema = tool.parameters_schema();
         assert_eq!(schema["type"], "object");
         assert!(schema["properties"]["name"].is_object());
-        // payload_json for OpenAI compatibility
+        // payload_json + data_json for OpenAI compatibility
         assert!(schema["properties"]["payload_json"].is_object());
+        assert!(schema["properties"]["data_json"].is_object());
         assert_eq!(schema["additionalProperties"], false);
         assert!(schema["required"]
             .as_array()
             .unwrap()
             .contains(&serde_json::json!("name")));
+        // Only name is required — payload/data are optional
+        assert_eq!(schema["required"].as_array().unwrap().len(), 1);
     }
 
     #[tokio::test]
