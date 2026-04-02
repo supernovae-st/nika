@@ -30,6 +30,29 @@ tools/
 
 ---
 
+## Project Structure
+
+Nika follows the `.git` principle: zero imposed directory names. Only `nika.toml` and `.nika/` are Nika's territory.
+
+```
+project/
+├── nika.toml              Project config (versioned, committed)
+├── .nika/                 Runtime state (gitignored)
+│   ├── traces/            Execution traces
+│   ├── cache/             LLM response cache
+│   ├── media/store/       CAS blobs
+│   └── sessions/          Editor state
+├── *.nika.yaml            Workflows (anywhere in project)
+├── artifacts/             Output dir (configurable via [artifacts] dir)
+└── AGENTS.md              AI context (nika init)
+```
+
+**Root detection:** Walk up from cwd to find `nika.toml` (primary) > `.nika/` (legacy fallback).
+
+**Config merge:** CLI flags > env vars > `nika.toml` > `~/.nika/config.toml` > defaults.
+
+---
+
 ## Build
 
 ```bash
