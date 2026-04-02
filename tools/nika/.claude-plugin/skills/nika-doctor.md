@@ -96,11 +96,14 @@ nika lsp --help 2>/dev/null && echo "LSP: available" || echo "LSP: not available
 #### MCP Configuration
 
 ```bash
+# Check project .mcp.json (preferred, Claude Code convention)
+cat .mcp.json 2>/dev/null || echo "No .mcp.json at project root"
+
 # Check global MCP config
 cat ~/.nika/mcp.yaml 2>/dev/null || echo "No global MCP config"
 
-# Check project MCP config
-cat .nika/mcp.yaml 2>/dev/null || echo "No project MCP config"
+# Check legacy project MCP config
+cat .nika/mcp.yaml 2>/dev/null || echo "No legacy project MCP config"
 ```
 
 ### Step 3: Report

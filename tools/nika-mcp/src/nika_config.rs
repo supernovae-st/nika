@@ -1,31 +1,26 @@
-//! SuperNovae CLI MCP Configuration Loader
+//! Nika MCP Configuration Loader
 //!
-//! Loads MCP server configurations from `~/.nika/mcp.yaml` - the single source
-//! of truth for MCP servers in the SuperNovae ecosystem.
+//! Loads MCP server configurations from multiple sources with priority:
 //!
-//! This module bridges the global MCP configuration with Nika's MCP client,
-//! allowing workflows to use globally configured MCP servers without duplication.
+//! 1. `.mcp.json` at project root (Claude Code convention — preferred)
+//! 2. `.nika/mcp.yaml` at project root (legacy fallback)
+//! 3. `~/.nika/mcp.yaml` (global user config)
 //!
-//! ## Usage
+//! ## .mcp.json Format (Claude Code Convention)
 //!
-//! ```rust,ignore
-//! use nika_mcp::nika_config::{load_nika_mcp_servers, NikaMcpConfigManager};
-//!
-//! // Load all enabled servers from ~/.nika/mcp.yaml
-//! let servers = load_nika_mcp_servers()?;
-//! for (name, config) in &servers {
-//!     println!("Server: {} -> {}", name, config.command);
+//! ```json
+//! {
+//!   "mcpServers": {
+//!     "novanet": {
+//!       "command": "cargo",
+//!       "args": ["run", "--manifest-path", "../novanet/Cargo.toml", "--", "mcp"],
+//!       "env": { "NEO4J_URI": "bolt://localhost:7687" }
+//!     }
+//!   }
 //! }
-//!
-//! // Or use the manager for more control
-//! let manager = NikaMcpConfigManager::new();
-//! let config = manager.load_global()?;
-//! println!("Found {} servers", config.servers.len());
 //! ```
 //!
-//! ## File Format
-//!
-//! The `~/.nika/mcp.yaml` file follows this format:
+//! ## Legacy ~/.nika/mcp.yaml Format
 //!
 //! ```yaml
 //! version: 1
@@ -35,34 +30,20 @@
 //!     args: ["-y", "@neo4j/mcp-server"]
 //!     env:
 //!       NEO4J_URI: bolt://localhost:7687
-//!     description: "Neo4j graph database"
-//!     enabled: true
-//!   novanet:
-//!     command: novanet-mcp
 //!     enabled: true
 //! ```
 //!
-//! ## Integration with Nika Workflows
+//! ## Usage
 //!
-//! Workflows can use globally-configured servers by name:
+//! ```rust,ignore
+//! use nika_mcp::nika_config::{load_nika_mcp_servers, NikaMcpConfigManager};
 //!
-//! ```yaml
-//! schema: nika/workflow@0.9
-//! workflow: example
+//! // Load all enabled servers (merges .mcp.json + global YAML)
+//! let servers = load_nika_mcp_servers()?;
 //!
-//! # Optional: explicitly list which servers to use
-//! # If omitted, all enabled servers are available
-//! mcp_servers:
-//!   - neo4j
-//!   - novanet
-//!
-//! tasks:
-//!   - id: query
-//!     invoke:
-//!       mcp: neo4j  # Uses server from ~/.nika/mcp.yaml
-//!       tool: query
-//!       params:
-//!         cypher: "MATCH (n) RETURN n LIMIT 10"
+//! // Or use the manager for more control
+//! let manager = NikaMcpConfigManager::with_project("/my/project".into());
+//! let config = manager.load_merged()?;
 //! ```
 
 use std::collections::HashMap;
