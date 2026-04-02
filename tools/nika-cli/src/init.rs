@@ -31,12 +31,19 @@ tasks:
 
 /// Initialize a Nika project config in the current directory.
 ///
+/// When `interactive` is true (TTY + no --yes), uses cliclack prompts.
+/// When false, uses defaults from CLI flags directly.
+///
 /// Creates nika.toml, .nika/, hello.nika.yaml, AGENTS.md, and .gitignore.
 /// Delegates to `init_project_at()` for the actual file creation.
-pub async fn init_project(permission: &str, migrate_keys: bool) -> Result<(), NikaError> {
+pub async fn init_project(
+    permission: &str,
+    migrate_keys: bool,
+    interactive: bool,
+) -> Result<(), NikaError> {
     let cwd = std::env::current_dir()?;
 
-    // Check if already initialized (nika.toml or legacy .nika/config.toml)
+    // Check if already initialized
     if cwd.join("nika.toml").exists() {
         return Err(NikaError::ValidationError {
             reason: format!(
@@ -46,8 +53,19 @@ pub async fn init_project(permission: &str, migrate_keys: bool) -> Result<(), Ni
         });
     }
 
+    // Determine project name and permission — interactive or defaults
+    let (project_name, final_permission) = if interactive {
+        run_interactive_init(&cwd, permission)?
+    } else {
+        let dir_name = cwd
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| "my-project".to_string());
+        (dir_name, permission.to_string())
+    };
+
     // Create project
-    init_project_at(&cwd, permission, migrate_keys).await?;
+    init_project_at_named(&cwd, &project_name, &final_permission, migrate_keys).await?;
 
     // Create CLAUDE.md symlink pointing to AGENTS.md
     let agents_md_path = cwd.join("AGENTS.md");
@@ -57,28 +75,32 @@ pub async fn init_project(permission: &str, migrate_keys: bool) -> Result<(), Ni
         std::os::unix::fs::symlink("AGENTS.md", &claude_md_path).ok();
     }
 
-    // Display summary
-    println!();
-    println!("  {} nika.toml", StatusIcon::Ok);
-    println!("  {} .nika/", StatusIcon::Ok);
-    println!("  {} hello.nika.yaml", StatusIcon::Ok);
-    println!("  {} AGENTS.md", StatusIcon::Ok);
-    println!("  {} .gitignore", StatusIcon::Ok);
-    println!();
-    println!("  {}", "Next steps:".bold());
-    println!(
-        "    nika run hello.nika.yaml       {}",
-        "# Run your first workflow".dimmed()
-    );
-    println!(
-        "    nika provider set anthropic     {}",
-        "# Configure an LLM provider".dimmed()
-    );
-    println!(
-        "    nika showcase list              {}",
-        "# Browse 115 example workflows".dimmed()
-    );
-    println!();
+    if interactive {
+        cliclack::outro("Next: nika run hello.nika.yaml").ok();
+    } else {
+        // Non-interactive summary
+        println!();
+        println!("  {} nika.toml", StatusIcon::Ok);
+        println!("  {} .nika/", StatusIcon::Ok);
+        println!("  {} hello.nika.yaml", StatusIcon::Ok);
+        println!("  {} AGENTS.md", StatusIcon::Ok);
+        println!("  {} .gitignore", StatusIcon::Ok);
+        println!();
+        println!("  {}", "Next steps:".bold());
+        println!(
+            "    nika run hello.nika.yaml       {}",
+            "# Run your first workflow".dimmed()
+        );
+        println!(
+            "    nika provider set anthropic     {}",
+            "# Configure an LLM provider".dimmed()
+        );
+        println!(
+            "    nika showcase list              {}",
+            "# Browse 115 example workflows".dimmed()
+        );
+        println!();
+    }
 
     // Migrate API keys if requested
     if migrate_keys {
@@ -102,12 +124,91 @@ pub async fn init_project(permission: &str, migrate_keys: bool) -> Result<(), Ni
     Ok(())
 }
 
+/// Interactive init wizard using cliclack prompts.
+///
+/// Returns (project_name, permission_mode).
+fn run_interactive_init(
+    cwd: &std::path::Path,
+    default_permission: &str,
+) -> Result<(String, String), NikaError> {
+    let dir_name = cwd
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "my-project".to_string());
+
+    cliclack::intro("Initialize a new Nika project").map_err(|e| NikaError::ValidationError {
+        reason: format!("Interactive init failed: {e}"),
+    })?;
+
+    let name: String = cliclack::input("Project name")
+        .default_input(&dir_name)
+        .interact()
+        .map_err(|e| NikaError::ValidationError {
+            reason: format!("Input cancelled: {e}"),
+        })?;
+
+    let permission: String = cliclack::select("Permission mode")
+        .item(
+            "plan".to_string(),
+            "plan",
+            "Show plan, ask before running (recommended)",
+        )
+        .item(
+            "deny".to_string(),
+            "deny",
+            "Block all exec/fetch (safest)",
+        )
+        .item(
+            "accept-edits".to_string(),
+            "accept-edits",
+            "Auto-approve file edits, ask for exec",
+        )
+        .item(
+            "yolo".to_string(),
+            "yolo",
+            "Auto-approve everything (experts only)",
+        )
+        .initial_value(default_permission.to_string())
+        .interact()
+        .map_err(|e| NikaError::ValidationError {
+            reason: format!("Selection cancelled: {e}"),
+        })?;
+
+    let spinner = cliclack::spinner();
+    spinner.start("Creating project...");
+
+    // Brief pause so the spinner feels intentional
+    std::thread::sleep(std::time::Duration::from_millis(150));
+
+    spinner.stop("Project created");
+
+    Ok((name, permission))
+}
+
 /// Initialize a Nika project at a specific path (testable, no cwd dependency).
 ///
+/// Uses the directory name as the project name.
 /// Creates `nika.toml` (project config), `.nika/` (runtime dir),
 /// `hello.nika.yaml` (starter workflow), `AGENTS.md`, and `.gitignore`.
 pub async fn init_project_at(
     root: &std::path::Path,
+    permission: &str,
+    _migrate_keys: bool,
+) -> Result<(), NikaError> {
+    let name = root
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "my-project".to_string());
+    init_project_at_named(root, &name, permission, _migrate_keys).await
+}
+
+/// Initialize a Nika project at a specific path with an explicit project name.
+///
+/// Creates `nika.toml` (project config), `.nika/` (runtime dir),
+/// `hello.nika.yaml` (starter workflow), `AGENTS.md`, and `.gitignore`.
+pub async fn init_project_at_named(
+    root: &std::path::Path,
+    project_name: &str,
     permission: &str,
     _migrate_keys: bool,
 ) -> Result<(), NikaError> {
@@ -156,10 +257,7 @@ permission = "{perm}"
 default = "anthropic"
 # model = "claude-sonnet-4-6"
 "#,
-        name = root
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_else(|| "my-project".to_string()),
+        name = project_name,
         perm = perm_str,
     );
     fs::write(root.join("nika.toml"), nika_toml_content)?;
