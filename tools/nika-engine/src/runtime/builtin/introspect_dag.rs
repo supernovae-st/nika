@@ -68,6 +68,7 @@ impl BuiltinTool for DagInfoTool {
         _args: String,
     ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + 'a>> {
         Box::pin(async move {
+            let mut total_task_count: Option<usize> = None;
             let mut scheduled: FxHashSet<String> = FxHashSet::default();
             let mut started: FxHashSet<String> = FxHashSet::default();
             let mut completed: FxHashSet<String> = FxHashSet::default();
@@ -76,6 +77,9 @@ impl BuiltinTool for DagInfoTool {
             self.event_log.with_events(|events| {
                 for event in events {
                     match &event.kind {
+                        EventKind::WorkflowStarted { task_count, .. } => {
+                            total_task_count = Some(*task_count);
+                        }
                         EventKind::TaskScheduled { task_id, .. } => {
                             scheduled.insert(task_id.to_string());
                         }
@@ -93,8 +97,8 @@ impl BuiltinTool for DagInfoTool {
                 }
             });
 
-            // All known tasks = union of all sets
-            let all_tasks: FxHashSet<String> = scheduled
+            // All known tasks = union of event-observed tasks
+            let observed_tasks: FxHashSet<String> = scheduled
                 .iter()
                 .chain(started.iter())
                 .chain(completed.iter())
@@ -102,14 +106,15 @@ impl BuiltinTool for DagInfoTool {
                 .cloned()
                 .collect();
 
-            // Pending = known tasks that are neither completed nor failed
-            let pending = all_tasks
-                .iter()
-                .filter(|t| !completed.contains(t.as_str()) && !failed.contains(t.as_str()))
-                .count();
+            // Use total from WorkflowStarted (all DAG tasks) if available,
+            // otherwise fall back to observed tasks count
+            let task_count = total_task_count.unwrap_or(observed_tasks.len());
+
+            // Pending = total tasks minus completed and failed
+            let pending = task_count.saturating_sub(completed.len() + failed.len());
 
             let response = DagInfoResponse {
-                task_count: all_tasks.len(),
+                task_count,
                 completed: completed.len(),
                 failed: failed.len(),
                 pending,
@@ -144,6 +149,14 @@ mod tests {
     #[tokio::test]
     async fn test_dag_info_with_events() {
         let log = EventLog::new();
+
+        // Emit workflow start with total task count
+        log.emit(EventKind::WorkflowStarted {
+            task_count: 3,
+            generation_id: "test".into(),
+            workflow_hash: "abc".into(),
+            nika_version: "0.61.0".into(),
+        });
 
         // Schedule 3 tasks
         log.emit(EventKind::TaskScheduled {
