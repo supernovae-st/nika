@@ -273,16 +273,17 @@ fn find_frame_boundary(buf: &str) -> Option<(usize, usize)> {
 }
 
 /// Map reqwest errors to SdkError with appropriate variants.
+#[allow(clippy::needless_pass_by_value)]
 fn map_reqwest_error(e: reqwest::Error) -> SdkError {
     if e.is_timeout() {
         // Duration not available from reqwest error — report what we know
         SdkError::Timeout(
             e.url()
-                .and_then(|u| {
+                .map(|u| {
                     if u.path().contains("/events/") {
-                        Some(std::time::Duration::from_secs(3600))
+                        std::time::Duration::from_secs(3600)
                     } else {
-                        Some(std::time::Duration::from_secs(30))
+                        std::time::Duration::from_secs(30)
                     }
                 })
                 .unwrap_or(std::time::Duration::from_secs(30)),

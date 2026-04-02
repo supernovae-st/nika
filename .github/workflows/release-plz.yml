@@ -58,6 +58,9 @@ jobs:
       - name: Run clippy
         run: cargo clippy --all-targets --all-features --manifest-path tools/nika/Cargo.toml -- -D warnings
 
+      - name: Install cargo-nextest
+        run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+
       - name: Run tests
         run: cargo nextest run --workspace --lib --manifest-path tools/Cargo.toml
 

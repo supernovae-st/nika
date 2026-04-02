@@ -15,6 +15,7 @@ use tokio::sync::Mutex;
 // ERROR MAPPING
 // ═══════════════════════════════════════════════════════════════════════════
 
+#[allow(clippy::needless_pass_by_value)]
 fn sdk_err(e: nika_sdk::SdkError) -> napi::Error {
     napi::Error::from_reason(e.to_string())
 }

@@ -132,6 +132,7 @@ impl Job {
     ///
     /// Returns the final result on success, or an error if the job
     /// fails or is cancelled.
+    #[allow(clippy::wildcard_enum_match_arm)]
     pub async fn wait(&self) -> Result<JobResult, SdkError> {
         let mut stream = self.events().await?;
         while let Some(event) = stream.next().await {

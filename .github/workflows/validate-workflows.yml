@@ -52,10 +52,9 @@ jobs:
 
       - name: Validate workflows
         run: |
-          cd tools/nika
           for f in examples/*.nika.yaml; do
             echo "Validating $f..."
-            cargo run --release -- validate "$f"
+            ./tools/target/release/nika validate "$f"
           done
 
   check-extension:

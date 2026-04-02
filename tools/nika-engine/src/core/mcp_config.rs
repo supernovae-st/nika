@@ -735,8 +735,10 @@ mod tests {
     // ═══════════════════════════════════════════════════════════════════════════
 
     fn make_config(servers: Vec<(&str, &str)>) -> McpConfig {
-        let mut config = McpConfig::default();
-        config.version = 1;
+        let mut config = McpConfig {
+            version: 1,
+            ..McpConfig::default()
+        };
         for (name, cmd) in servers {
             config.servers.insert(
                 name.to_string(),

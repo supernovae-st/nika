@@ -328,7 +328,7 @@ mod tests {
 
     #[tokio::test]
     async fn status_not_found() {
-        let client = mock_client();
+        let _client = mock_client();
         let job = Job {
             job_id: "nonexistent".into(),
             transport: Arc::new(MockTransport::default()),
