@@ -1,25 +1,14 @@
 //! MCP server configuration management — global and project-level configs.
 //!
-//! This module provides types and functions for managing MCP server configurations
-//! at both global (~/.nika/mcp.yaml) and project (.nika/mcp.yaml) levels.
-//!
-//! ## Architecture
+//! ## Priority (project overrides global)
 //!
 //! ```text
-//! ┌─────────────────────────────────────────────────────────────────────────────┐
-//! │  MCP CONFIG HIERARCHY (lowest wins)                                         │
-//! ├─────────────────────────────────────────────────────────────────────────────┤
-//! │                                                                             │
-//! │  Global:   ~/.nika/mcp.yaml        ← User's personal MCP servers            │
-//! │              ↑                                                              │
-//! │  Project:  ./.nika/mcp.yaml        ← Project-specific servers               │
-//! │              ↑                                                              │
-//! │  Workflow: (inline in .nika.yaml)  ← Workflow-specific servers              │
-//! │                                                                             │
-//! │  Resolution: project overrides global, workflow overrides both              │
-//! │                                                                             │
-//! └─────────────────────────────────────────────────────────────────────────────┘
+//! 1. .mcp.json       (project root — Claude Code convention, preferred)
+//! 2. .nika/mcp.yaml  (project root — legacy fallback)
+//! 3. ~/.nika/mcp.yaml (global user config)
 //! ```
+//!
+//! When `.mcp.json` exists, writes go there. Otherwise falls back to `.nika/mcp.yaml`.
 //!
 //! ## Usage
 //!
@@ -136,16 +125,29 @@ pub fn global_config_path() -> Option<PathBuf> {
     global_config_dir().map(|d| d.join("mcp.yaml"))
 }
 
-/// Get the project MCP config file path (.nika/mcp.yaml).
+/// Get the project MCP config file path.
 ///
-/// Searches upward from current directory for a .nika directory.
+/// Prefers `.mcp.json` (Claude Code convention). Falls back to `.nika/mcp.yaml`.
 pub fn project_config_path() -> Option<PathBuf> {
-    find_project_root().map(|r| r.join(".nika").join("mcp.yaml"))
+    let root = find_project_root()?;
+    let mcp_json = root.join(".mcp.json");
+    if mcp_json.exists() {
+        Some(mcp_json)
+    } else {
+        Some(root.join(".nika").join("mcp.yaml"))
+    }
 }
 
 /// Get the project config path relative to a specific directory.
+///
+/// Prefers `.mcp.json` (Claude Code convention). Falls back to `.nika/mcp.yaml`.
 pub fn project_config_path_from(dir: &Path) -> PathBuf {
-    dir.join(".nika").join("mcp.yaml")
+    let mcp_json = dir.join(".mcp.json");
+    if mcp_json.exists() {
+        mcp_json
+    } else {
+        dir.join(".nika").join("mcp.yaml")
+    }
 }
 
 /// Find the project root by searching for .nika, .git, or nika.yaml.
@@ -182,11 +184,24 @@ pub fn load_global_config() -> Result<Option<McpConfig>, McpConfigError> {
     load_config_from_path(global_config_path())
 }
 
-/// Load the project MCP config (.nika/mcp.yaml).
+/// Load the project MCP config.
 ///
-/// Returns `None` if the file doesn't exist, `Err` on parse errors.
+/// Tries `.mcp.json` first (Claude Code convention), falls back to `.nika/mcp.yaml`.
+/// Returns `None` if neither file exists, `Err` on parse errors.
 pub fn load_project_config() -> Result<Option<McpConfig>, McpConfigError> {
-    load_config_from_path(project_config_path())
+    let root = match find_project_root() {
+        Some(r) => r,
+        None => return Ok(None),
+    };
+
+    // Try .mcp.json first
+    let mcp_json_path = root.join(".mcp.json");
+    if mcp_json_path.exists() {
+        return load_mcp_json(&mcp_json_path).map(Some);
+    }
+
+    // Fallback: .nika/mcp.yaml
+    load_config_from_path(Some(root.join(".nika").join("mcp.yaml")))
 }
 
 /// Load an MCP config from a specific path.
@@ -221,12 +236,19 @@ pub fn save_global_config(config: &McpConfig) -> Result<(), McpConfigError> {
     save_config_to_path(config, &path)
 }
 
-/// Save the project MCP config (.nika/mcp.yaml).
+/// Save the project MCP config.
 ///
-/// Creates the directory if it doesn't exist.
+/// Writes to `.mcp.json` if it exists at project root, otherwise `.nika/mcp.yaml`.
 pub fn save_project_config(config: &McpConfig) -> Result<(), McpConfigError> {
-    let path = project_config_path().ok_or(McpConfigError::NoProjectRoot)?;
-    save_config_to_path(config, &path)
+    let root = find_project_root().ok_or(McpConfigError::NoProjectRoot)?;
+    let mcp_json_path = root.join(".mcp.json");
+
+    if mcp_json_path.exists() {
+        save_mcp_json(config, &mcp_json_path)
+    } else {
+        let yaml_path = root.join(".nika").join("mcp.yaml");
+        save_config_to_path(config, &yaml_path)
+    }
 }
 
 /// Save an MCP config to a specific path.
@@ -242,6 +264,87 @@ pub fn save_config_to_path(config: &McpConfig, path: &Path) -> Result<(), McpCon
     let content =
         serde_yaml::to_string(config).map_err(|e| McpConfigError::Serialize(e.to_string()))?;
     std::fs::write(path, content).map_err(|e| McpConfigError::Io {
+        path: path.to_path_buf(),
+        source: e,
+    })?;
+
+    Ok(())
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// .mcp.json SUPPORT (Claude Code Convention)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Claude Code `.mcp.json` format (used internally for parse/write).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct McpJsonFile {
+    #[serde(rename = "mcpServers")]
+    mcp_servers: HashMap<String, McpJsonServer>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct McpJsonServer {
+    command: String,
+    #[serde(default)]
+    args: Vec<String>,
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    env: HashMap<String, String>,
+}
+
+/// Load an MCP config from a `.mcp.json` file, converting to internal `McpConfig`.
+fn load_mcp_json(path: &Path) -> Result<McpConfig, McpConfigError> {
+    let content = std::fs::read_to_string(path).map_err(|e| McpConfigError::Io {
+        path: path.to_path_buf(),
+        source: e,
+    })?;
+
+    let json: McpJsonFile =
+        serde_json::from_str(&content).map_err(|e| McpConfigError::Parse {
+            path: path.to_path_buf(),
+            message: e.to_string(),
+        })?;
+
+    let mut servers = HashMap::new();
+    for (name, s) in json.mcp_servers {
+        servers.insert(
+            name,
+            McpServer {
+                command: s.command,
+                args: s.args,
+                env: s.env,
+                description: None,
+                enabled: true,
+                source: Some(McpSource::Project),
+            },
+        );
+    }
+
+    Ok(McpConfig {
+        version: 1,
+        servers,
+    })
+}
+
+/// Save an MCP config to a `.mcp.json` file (Claude Code convention).
+fn save_mcp_json(config: &McpConfig, path: &Path) -> Result<(), McpConfigError> {
+    let mut mcp_servers = HashMap::new();
+    for (name, server) in &config.servers {
+        mcp_servers.insert(
+            name.clone(),
+            McpJsonServer {
+                command: server.command.clone(),
+                args: server.args.clone(),
+                env: server.env.clone(),
+            },
+        );
+    }
+
+    let json = McpJsonFile { mcp_servers };
+    let content = serde_json::to_string_pretty(&json).map_err(|e| {
+        McpConfigError::Serialize(e.to_string())
+    })?;
+
+    std::fs::write(path, format!("{content}\n")).map_err(|e| McpConfigError::Io {
         path: path.to_path_buf(),
         source: e,
     })?;

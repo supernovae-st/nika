@@ -8,8 +8,8 @@ use nika_engine::{McpClient, McpConfig};
 
 /// MCP server management actions
 ///
-/// Manage MCP servers at project (.mcp.json), global (~/.nika/mcp.yaml),
-/// or workflow levels. Supports 100 aliases for common MCP servers.
+/// Manage MCP servers at project (.mcp.json preferred, .nika/mcp.yaml fallback),
+/// global (~/.nika/mcp.yaml), or workflow levels. 100 aliases available.
 #[derive(Subcommand)]
 pub enum McpAction {
     /// Add an MCP server to global or project config
