@@ -267,18 +267,6 @@ pub fn handle_config_command(action: ConfigAction, quiet: bool) -> Result<(), Ni
                             }
                         }
 
-                        // [mcp.*]
-                        if !config.mcp.is_empty() {
-                            println!();
-                            println!("  {}", "[mcp]".bold());
-                            for (name, server) in &config.mcp {
-                                println!(
-                                    "    {}  {}",
-                                    name.cyan(),
-                                    server.command.dimmed()
-                                );
-                            }
-                        }
                     }
                     Err(_) => {
                         // Fallback: raw TOML
