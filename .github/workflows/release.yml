@@ -864,6 +864,9 @@ jobs:
             os: macos-latest
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            use_zig: true
           - target: x86_64-pc-windows-msvc
             os: windows-latest
 
@@ -884,12 +887,18 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - name: Setup Zig (for cross-compilation)
+        if: matrix.use_zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: 0.13.0
+
       - name: Install napi-rs CLI
         run: npm install -g @napi-rs/cli@3
 
       - name: Build native module
         working-directory: tools/nika-napi
-        run: napi build --release --target ${{ matrix.target }}
+        run: napi build --release --target ${{ matrix.target }} ${{ matrix.use_zig && '--zig' || '' }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
@@ -938,9 +947,11 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
+          cp index.d.ts index.d.ts.handwritten
           napi create-npm-dirs
           napi artifacts
           napi prepublish --skip-gh-release
+          cp index.d.ts.handwritten index.d.ts
           npm publish --access public
 
   # ─────────────────────────────────────────────────────────────────────────────
