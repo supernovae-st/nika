@@ -1248,6 +1248,20 @@ impl LiveRenderer {
                 ));
             }
 
+            // ── Provider auto-retry (always show) ────────────────
+            EventKind::ProviderAutoRetried {
+                task_id,
+                attempt,
+                max_attempts,
+                delay_ms,
+                error,
+            } => {
+                self.log(&format!(
+                    "  ⟳ {} provider retry {}/{} (backoff {}ms): {}",
+                    task_id, attempt, max_attempts, delay_ms, error,
+                ));
+            }
+
             // ── Routing (always show) ────────────────────────────
             EventKind::FallbackTriggered {
                 task_id: _,
