@@ -4524,17 +4524,50 @@ fn p09_fetch_selector_special_chars() {
 }
 
 #[test]
-fn p10_fetch_extract_and_response_both_validate_ok() {
-    // Bug 32: response + extract combination is now correctly rejected
+fn p10_fetch_response_full_with_extract_validates_ok() {
+    // ENG-015: response: full + extract modes are now ALLOWED (except binary + llm_txt)
     let w = ok(&wrap(
         "fetch:\n  url: \"https://example.com\"\n  extract: markdown\n  response: full",
     ));
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
+            fetch.validate().expect("full + markdown should validate");
+            assert_eq!(fetch.response, Some(ResponseMode::Full));
+            assert_eq!(fetch.extract, Some(ExtractMode::Markdown));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn p10b_fetch_response_binary_with_extract_rejected() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com\"\n  extract: metadata\n  response: binary",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
             let err = fetch.validate().unwrap_err();
             assert!(
-                err.to_string().contains("cannot combine"),
-                "expected conflict error, got: {}",
+                err.to_string().contains("binary"),
+                "expected binary conflict error, got: {}",
+                err
+            );
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn p10c_fetch_response_full_with_llm_txt_rejected() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com\"\n  extract: llm_txt\n  response: full",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            let err = fetch.validate().unwrap_err();
+            assert!(
+                err.to_string().contains("llm_txt"),
+                "expected llm_txt conflict error, got: {}",
                 err
             );
         }

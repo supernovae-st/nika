@@ -430,12 +430,26 @@ impl FetchParams {
             });
         }
         if let (Some(resp), Some(ext)) = (&self.response, &self.extract) {
-            return Err(NikaError::ValidationError {
-                reason: format!(
-                    "fetch cannot combine 'response: {}' with 'extract: {}' — response modes bypass extraction",
-                    resp, ext
-                ),
-            });
+            use nika_core::ast::extract::{ExtractMode, ResponseMode};
+            // Binary stores raw bytes — extract modes need text. Always incompatible.
+            if *resp == ResponseMode::Binary {
+                return Err(NikaError::ValidationError {
+                    reason: format!(
+                        "fetch cannot combine 'response: binary' with 'extract: {}' — binary stores raw bytes",
+                        ext
+                    ),
+                });
+            }
+            // llm_txt makes its own sub-requests — it ignores the fetched body entirely.
+            if *ext == ExtractMode::LlmTxt {
+                return Err(NikaError::ValidationError {
+                    reason: "fetch cannot combine 'response: full' with 'extract: llm_txt' — \
+                             llm_txt performs its own requests"
+                        .into(),
+                });
+            }
+            // response: full + other extract modes: ALLOWED (ENG-015)
+            // Output: { status, headers, url, elapsed_ms, body, extracted }
         }
         Ok(())
     }
