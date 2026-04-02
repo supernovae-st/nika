@@ -48,6 +48,18 @@ pub fn record_active_jobs(count: usize) {
     metrics::gauge!("nika_jobs_active").set(count as f64);
 }
 
+/// Axum middleware that records HTTP request metrics.
+pub async fn http_metrics_middleware(
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let method = req.method().to_string();
+    let path = req.uri().path().to_string();
+    let response = next.run(req).await;
+    record_http_request(&method, &path, response.status().as_u16());
+    response
+}
+
 /// Record an HTTP request.
 pub fn record_http_request(method: &str, path: &str, status: u16) {
     metrics::counter!(
