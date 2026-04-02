@@ -1,5 +1,6 @@
 //! Route construction for the Nika HTTP API.
 
+pub mod artifacts;
 pub mod health;
 pub mod workflows;
 
@@ -18,6 +19,14 @@ pub fn build_router(state: AppState) -> Router {
         .route("/v1/run", post(workflows::run_workflow))
         .route("/v1/status/{id}", get(workflows::get_status))
         .route("/v1/cancel/{id}", post(workflows::cancel_job))
+        .route(
+            "/v1/jobs/{id}/artifacts",
+            get(artifacts::list_artifacts),
+        )
+        .route(
+            "/v1/jobs/{id}/artifacts/{name}",
+            get(artifacts::download_artifact),
+        )
         .with_state(state)
 }
 

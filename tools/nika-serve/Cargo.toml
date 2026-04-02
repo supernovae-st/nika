@@ -11,6 +11,7 @@ publish = true
 
 [dependencies]
 nika-engine = { workspace = true }
+nika-event = { workspace = true }
 nika-storage = { workspace = true }
 
 axum = { workspace = true }

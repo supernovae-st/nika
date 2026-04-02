@@ -219,10 +219,32 @@ pub fn spawn_worker(
         }
 
         match result {
-            Ok(output) => {
-                let truncated = safe_truncate(&output, max_output_bytes);
+            Ok(exec_result) => {
+                let truncated = safe_truncate(&exec_result.output, max_output_bytes);
                 if let Err(e) = storage.complete_job(&id, truncated).await {
                     error!(job_id = %id, error = %e, "failed to mark job completed");
+                }
+                // Store artifact metadata in DB
+                if !exec_result.artifacts.is_empty() {
+                    let db_artifacts: Vec<nika_storage::JobArtifact> = exec_result
+                        .artifacts
+                        .iter()
+                        .map(|a| nika_storage::JobArtifact {
+                            job_id: id.clone(),
+                            name: a.name.clone(),
+                            path: a.path.clone(),
+                            size: a.size,
+                            format: a.format.clone(),
+                            checksum: a.checksum.clone(),
+                            content_type: mime_from_name(&a.name, &a.format),
+                        })
+                        .collect();
+                    let count = db_artifacts.len();
+                    if let Err(e) = storage.add_artifacts(&id, db_artifacts).await {
+                        error!(job_id = %id, error = %e, "failed to store artifacts");
+                    } else {
+                        info!(job_id = %id, count, "artifacts stored");
+                    }
                 }
                 let _ = tx.send(crate::events::ServeEvent::Completed {
                     job_id: id.clone(),
@@ -412,6 +434,49 @@ pub(crate) async fn run_subprocess(
             Err("server shutting down".into())
         }
     }
+}
+
+/// Derive MIME content-type from artifact name and format.
+fn mime_from_name(name: &str, format: &str) -> String {
+    // Try extension first
+    if let Some(ext) = std::path::Path::new(name).extension().and_then(|e| e.to_str()) {
+        let mime = match ext {
+            "json" => "application/json",
+            "yaml" | "yml" => "application/yaml",
+            "md" | "markdown" => "text/markdown",
+            "txt" => "text/plain",
+            "html" | "htm" => "text/html",
+            "css" => "text/css",
+            "js" => "application/javascript",
+            "png" => "image/png",
+            "jpg" | "jpeg" => "image/jpeg",
+            "gif" => "image/gif",
+            "webp" => "image/webp",
+            "svg" => "image/svg+xml",
+            "pdf" => "application/pdf",
+            "mp3" => "audio/mpeg",
+            "mp4" => "video/mp4",
+            "wav" => "audio/wav",
+            "zip" => "application/zip",
+            "csv" => "text/csv",
+            "xml" => "application/xml",
+            _ => return format_to_mime(format),
+        };
+        return mime.to_string();
+    }
+    format_to_mime(format)
+}
+
+fn format_to_mime(format: &str) -> String {
+    match format {
+        "json" => "application/json",
+        "yaml" => "application/yaml",
+        "markdown" => "text/markdown",
+        "text" => "text/plain",
+        "binary" => "application/octet-stream",
+        _ => "application/octet-stream",
+    }
+    .to_string()
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
