@@ -1,0 +1,44 @@
+# Nika Serve — systemd service
+#
+# Install:
+#   sudo cp deploy/nika-serve.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now nika-serve
+#
+# Logs:
+#   journalctl -u nika-serve -f
+#
+# Required env vars in EnvironmentFile:
+#   NIKA_SERVE_TOKEN=<64-char hex token>
+#   ANTHROPIC_API_KEY=sk-ant-...
+#   # (optional) NIKA_VAULT_PASSPHRASE=...
+
+[Unit]
+Description=Nika Workflow Engine — HTTP API Server
+Documentation=https://github.com/supernovae-st/nika
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nika
+Group=nika
+WorkingDirectory=/home/nika/nk-jungo
+EnvironmentFile=/home/nika/.nika/.env
+ExecStart=/home/nika/.nika/bin/nika serve
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/nika/.nika /home/nika/nk-jungo/.nika /home/nika/nk-jungo/artifacts
+PrivateTmp=yes
+
+# Resource limits
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
