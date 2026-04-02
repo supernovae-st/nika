@@ -32,6 +32,7 @@
 //! save_global_config(&config)?;
 //! ```
 
+use crate::core::paths::MCP_JSON;
 use crate::serde_yaml;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -130,7 +131,7 @@ pub fn global_config_path() -> Option<PathBuf> {
 /// Prefers `.mcp.json` (Claude Code convention). Falls back to `.nika/mcp.yaml`.
 pub fn project_config_path() -> Option<PathBuf> {
     let root = find_project_root()?;
-    let mcp_json = root.join(".mcp.json");
+    let mcp_json = root.join(MCP_JSON);
     if mcp_json.exists() {
         Some(mcp_json)
     } else {
@@ -142,7 +143,7 @@ pub fn project_config_path() -> Option<PathBuf> {
 ///
 /// Prefers `.mcp.json` (Claude Code convention). Falls back to `.nika/mcp.yaml`.
 pub fn project_config_path_from(dir: &Path) -> PathBuf {
-    let mcp_json = dir.join(".mcp.json");
+    let mcp_json = dir.join(MCP_JSON);
     if mcp_json.exists() {
         mcp_json
     } else {
@@ -195,7 +196,7 @@ pub fn load_project_config() -> Result<Option<McpConfig>, McpConfigError> {
     };
 
     // Try .mcp.json first
-    let mcp_json_path = root.join(".mcp.json");
+    let mcp_json_path = root.join(MCP_JSON);
     if mcp_json_path.exists() {
         return load_mcp_json(&mcp_json_path).map(Some);
     }
@@ -241,7 +242,7 @@ pub fn save_global_config(config: &McpConfig) -> Result<(), McpConfigError> {
 /// Writes to `.mcp.json` if it exists at project root, otherwise `.nika/mcp.yaml`.
 pub fn save_project_config(config: &McpConfig) -> Result<(), McpConfigError> {
     let root = find_project_root().ok_or(McpConfigError::NoProjectRoot)?;
-    let mcp_json_path = root.join(".mcp.json");
+    let mcp_json_path = root.join(MCP_JSON);
 
     if mcp_json_path.exists() {
         save_mcp_json(config, &mcp_json_path)

@@ -82,8 +82,7 @@ pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
         // 2. If Doppler backend: try doppler before daemon/vault
         if backend == nika_core::vault::VaultBackend::Doppler {
             if let Ok(Some(val)) = nika_core::vault::DopplerBackend::get(env_var) {
-                // SAFETY: called during sequential boot before spawning workflow tasks
-                unsafe { std::env::set_var(env_var, &val) };
+                super::inject_secret_to_env(env_var, &val);
                 debug!("{}: loaded from doppler", provider_id);
                 result.from_env.push(provider_id.to_string());
                 continue;
@@ -95,8 +94,7 @@ pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
         #[cfg(unix)]
         if let Some(ref client) = daemon {
             if let Ok(Some(secret)) = client.get_secret(provider_id).await {
-                // SAFETY: called during sequential boot before spawning workflow tasks
-                unsafe { std::env::set_var(env_var, &secret) };
+                super::inject_secret_to_env(env_var, &secret);
                 debug!("{}: loaded from daemon", provider_id);
                 result.from_env.push(provider_id.to_string());
                 continue;
@@ -115,8 +113,7 @@ pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
             let vault = nika_core::vault::NikaVault::new(&nika_home.join("secrets"));
             if let Ok(Some(secret)) = vault.get(provider_id) {
                 let val = secret.expose_secret().to_string();
-                // SAFETY: called during sequential boot before spawning workflow tasks
-                unsafe { std::env::set_var(env_var, &val) };
+                super::inject_secret_to_env(env_var, &val);
                 debug!("{}: loaded from vault", provider_id);
                 result.from_env.push(provider_id.to_string());
                 continue;
@@ -143,8 +140,7 @@ pub async fn get_secret(provider: &str) -> Option<SecretString> {
     // 2. If Doppler backend: try doppler before daemon/vault
     if backend == nika_core::vault::VaultBackend::Doppler {
         if let Ok(Some(val)) = nika_core::vault::DopplerBackend::get(env_var) {
-            // SAFETY: called during boot before spawning workflow tasks
-            unsafe { std::env::set_var(env_var, &val) };
+            super::inject_secret_to_env(env_var, &val);
             debug!("{}: loaded from doppler", provider);
             return Some(SecretString::from(val));
         }
@@ -172,9 +168,7 @@ pub async fn get_secret(provider: &str) -> Option<SecretString> {
     let vault = nika_core::vault::NikaVault::new(&nika_home.join("secrets"));
     if let Ok(Some(secret)) = vault.get(provider) {
         let val = secret.expose_secret().to_string();
-        // Inject into process env for caching
-        // SAFETY: called during boot before spawning workflow tasks
-        unsafe { std::env::set_var(env_var, &val) };
+        super::inject_secret_to_env(env_var, &val);
         debug!("{}: loaded from vault", provider);
         return Some(SecretString::from(val));
     }
@@ -199,6 +193,11 @@ pub async fn has_secret(provider: &str) -> bool {
         if let Ok(Some(_)) = nika_core::vault::DopplerBackend::get(env_var) {
             return true;
         }
+    }
+
+    // Skip daemon + vault when NIKA_NO_DAEMON is set (env-only mode)
+    if std::env::var("NIKA_NO_DAEMON").is_ok() {
+        return false;
     }
 
     // 3. Try daemon

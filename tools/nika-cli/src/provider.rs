@@ -521,8 +521,7 @@ pub async fn handle_provider_command(
                     if client.set_secret(&provider, &api_key).await.is_ok() {
                         let env_var_name =
                             provider_to_env_var(&provider).unwrap_or("UNKNOWN_API_KEY");
-                        // SAFETY: no concurrent tasks reading env vars at this point
-                        unsafe { std::env::set_var(env_var_name, &api_key) };
+                        nika_engine::secrets::inject_secret_to_env(env_var_name, &api_key);
                         println!(
                             "  {} API key for {} stored via daemon",
                             StatusIcon::Ok,
@@ -591,8 +590,7 @@ pub async fn handle_provider_command(
                     .unwrap_or(false)
             {
                 let env_var = provider_to_env_var(&provider).unwrap_or("UNKNOWN_API_KEY");
-                // SAFETY: no concurrent tasks reading env vars at this point
-                unsafe { std::env::set_var(env_var, &api_key) };
+                nika_engine::secrets::inject_secret_to_env(env_var, &api_key);
                 let _ = test_provider_connection(&provider).await;
             }
             println!();

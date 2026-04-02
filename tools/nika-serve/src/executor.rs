@@ -239,7 +239,10 @@ async fn run_embedded(
     tokio::select! {
         result = handle => {
             match result {
-                Ok((Ok(Ok(output)), artifacts)) => Ok(ExecutionResult { output, artifacts }),
+                Ok((Ok(Ok(output)), artifacts)) => Ok(ExecutionResult {
+                    output: strip_ansi_escapes(&output),
+                    artifacts,
+                }),
                 Ok((Ok(Err(e)), _)) => Err(format!("workflow failed: {e}")),
                 Ok((Err(_), _)) => {
                     cancel_clone.cancel();
@@ -344,6 +347,34 @@ fn spawn_event_forwarder(
     });
 }
 
+/// Strip ANSI escape sequences from a string.
+///
+/// The embedded executor runs workflows in-process where the `colored` crate
+/// and child processes may emit ANSI SGR codes. API responses must be clean text.
+fn strip_ansi_escapes(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars();
+    while let Some(c) = chars.next() {
+        if c == '\x1b' {
+            // Consume CSI sequence: ESC [ ... (letter)
+            if let Some(next) = chars.next() {
+                if next == '[' {
+                    // Skip until we hit a letter (the terminator)
+                    for ch in chars.by_ref() {
+                        if ch.is_ascii_alphabetic() {
+                            break;
+                        }
+                    }
+                }
+                // OSC or other sequences: ESC ] ... BEL/ST — skip
+            }
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -409,5 +440,17 @@ mod tests {
         };
 
         assert_eq!(ctx.child_pid.load(std::sync::atomic::Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn strip_ansi_removes_color_codes() {
+        assert_eq!(strip_ansi_escapes("\x1b[31mred\x1b[0m"), "red");
+        assert_eq!(strip_ansi_escapes("\x1b[1;32mbold green\x1b[0m"), "bold green");
+        assert_eq!(strip_ansi_escapes("no escapes here"), "no escapes here");
+        assert_eq!(strip_ansi_escapes(""), "");
+        assert_eq!(
+            strip_ansi_escapes("before\x1b[38;5;196mcolored\x1b[0mafter"),
+            "beforecoloredafter"
+        );
     }
 }

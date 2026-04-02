@@ -35,9 +35,10 @@ pub enum PermissionMode {
     #[default]
     Plan,
 
-    /// Auto-approve edits, ask for create/delete
+    /// Auto-approve file edits and writes (create/modify), ask for delete
     ///
-    /// Good for refactoring sessions where edits are trusted.
+    /// Allows builtin tools like `nika:write` and `nika:edit` to operate
+    /// without prompting. Good for workflow execution where file output is expected.
     AcceptEdits,
 
     /// Auto-approve all operations (Yolo mode)

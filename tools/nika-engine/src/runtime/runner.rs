@@ -1363,8 +1363,10 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             }
         };
 
-        // Process artifacts if task succeeded and has artifact config
-        if task_result.is_success() {
+        // Process artifacts if task succeeded and has artifact config.
+        // BUG-018 fix: skip per-iteration writes in for_each — the post-aggregation
+        // block writes the complete array output under the parent task ID.
+        if task_result.is_success() && for_each_info.is_none() {
             if let Some(ref artifact_spec) = task.artifact {
                 let output_content = task_result.output_str().into_owned();
 
@@ -3067,9 +3069,23 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 // Sort by index to preserve order
                 results.sort_by_key(|(idx, _)| *idx);
 
-                // Collect outputs into JSON array (direct clone preserves types)
-                let outputs: Vec<Value> =
-                    results.iter().map(|(_, r)| (*r.output).clone()).collect();
+                // Collect outputs into JSON array.
+                // Auto-parse Value::String elements that contain valid JSON objects/arrays
+                // so downstream tasks can access fields directly (e.g. $result[0].title).
+                let outputs: Vec<Value> = results
+                    .iter()
+                    .map(|(_, r)| {
+                        let val = (*r.output).clone();
+                        if let Value::String(ref s) = val {
+                            if s.starts_with('{') || s.starts_with('[') {
+                                if let Ok(parsed) = serde_json::from_str::<Value>(s) {
+                                    return parsed;
+                                }
+                            }
+                        }
+                        val
+                    })
+                    .collect();
 
                 // Calculate aggregate duration and success
                 let total_duration: std::time::Duration =
@@ -4650,6 +4666,56 @@ mod tests {
             task_result.unwrap().is_success(),
             "step2 should succeed — path + pipe transform should produce iterable array"
         );
+    }
+
+    #[tokio::test]
+    async fn for_each_output_auto_parses_json_strings() {
+        // Step1 outputs a JSON array of names. Step2 for_each iterates and echoes JSON objects.
+        // After aggregation, step2's output elements should be Value::Object, not Value::String.
+        let workflow = create_two_step_for_each_workflow(
+            r#"echo '["alice","bob"]'"#,
+            true,
+            "$step1",
+            r#"echo '{"name": "{{with.item}}"}'"#,
+        );
+        let mut runner = Runner::new(workflow).unwrap();
+        let result = runner.run().await;
+        assert!(result.is_ok(), "Workflow failed: {:?}", result.err());
+
+        let step2_result = runner.datastore.get("step2").expect("step2 result");
+        assert!(step2_result.is_success());
+        let output = &*step2_result.output;
+        let arr = output.as_array().expect("for_each output should be array");
+        assert_eq!(arr.len(), 2);
+        // Key assertion: elements should be auto-parsed to Value::Object
+        assert!(
+            arr[0].is_object(),
+            "for_each element should be auto-parsed to object, got: {:?}",
+            arr[0]
+        );
+        assert_eq!(arr[0]["name"], "alice");
+        assert_eq!(arr[1]["name"], "bob");
+    }
+
+    #[tokio::test]
+    async fn for_each_output_preserves_plain_strings() {
+        // Step2 echoes plain text (not JSON). Output should stay as Value::String.
+        let workflow = create_two_step_for_each_workflow(
+            r#"echo '["hello","world"]'"#,
+            true,
+            "$step1",
+            "echo {{with.item}}",
+        );
+        let mut runner = Runner::new(workflow).unwrap();
+        let result = runner.run().await;
+        assert!(result.is_ok());
+
+        let step2_result = runner.datastore.get("step2").expect("step2 result");
+        let arr = step2_result.output.as_array().expect("array");
+        assert_eq!(arr.len(), 2);
+        // Plain strings should stay as strings
+        assert!(arr[0].is_string(), "plain string should stay as string");
+        assert_eq!(arr[0].as_str().unwrap().trim(), "hello");
     }
 
     #[tokio::test]

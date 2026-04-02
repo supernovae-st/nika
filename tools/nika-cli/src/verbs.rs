@@ -58,8 +58,7 @@ pub fn detect_provider() -> Option<String> {
                 // Set env var so downstream RigProvider can find it
                 let env_var =
                     nika_engine::core::provider_to_env_var(provider).unwrap_or("UNKNOWN_API_KEY");
-                // SAFETY: single-threaded CLI startup, no concurrent readers
-                unsafe { std::env::set_var(env_var, secret.expose_secret()) };
+                nika_engine::secrets::inject_secret_to_env(env_var, secret.expose_secret());
                 return Some(provider.to_string());
             }
         }
@@ -793,8 +792,8 @@ mod tests {
     fn restore_provider_env(saved: Vec<(String, Option<String>)>) {
         for (var, val) in saved {
             match val {
-                // SAFETY: single-threaded access guaranteed by ENV_LOCK mutex
-                Some(v) => unsafe { std::env::set_var(&var, &v) },
+                Some(v) => nika_engine::secrets::inject_secret_to_env(&var, &v),
+                // SAFETY: remove_var in single-threaded test context (ENV_LOCK held)
                 None => unsafe { std::env::remove_var(&var) },
             }
         }

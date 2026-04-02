@@ -56,8 +56,11 @@ pub const NIKA_MANIFEST: &str = "nika.yaml";
 /// Lockfile filename.
 pub const NIKA_LOCKFILE: &str = "nika.lock";
 
-/// MCP config filename.
+/// MCP config filename (legacy, user-level at ~/.nika/).
 pub const MCP_CONFIG: &str = "mcp.yaml";
+
+/// MCP config filename (Claude Code convention, project-level).
+pub const MCP_JSON: &str = ".mcp.json";
 
 /// Global config filename.
 pub const GLOBAL_CONFIG: &str = "config.toml";
@@ -180,7 +183,9 @@ pub fn daemon_dir() -> PathBuf {
 // FILE PATHS
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// Returns the global config path (`~/.nika/config.toml`).
+/// Returns the user-level global config path (`~/.nika/config.toml`).
+///
+/// This is the user defaults layer, NOT the project-level `nika.toml`.
 pub fn global_config_path() -> PathBuf {
     nika_home().join(GLOBAL_CONFIG)
 }

@@ -247,7 +247,19 @@ fn contains_unquoted(haystack: &str, needle: &str) -> bool {
 ///
 /// Returns `BlockedCommand` if a shell-mode blocklisted pattern is found.
 pub fn check_shell_mode_blocklist(cmd: &str) -> Result<(), NikaError> {
-    let normalized = normalize_for_blocklist(cmd);
+    // BUG-020: same scan limit as check_blocklist
+    const SCAN_LIMIT: usize = 4096;
+    let scan_input = if cmd.len() > SCAN_LIMIT {
+        let mut end = SCAN_LIMIT;
+        while end > 0 && !cmd.is_char_boundary(end) {
+            end -= 1;
+        }
+        &cmd[..end]
+    } else {
+        cmd
+    };
+
+    let normalized = normalize_for_blocklist(scan_input);
     let lower = normalized.to_lowercase();
 
     for pattern in SHELL_MODE_BLOCKLIST {
@@ -417,8 +429,25 @@ fn normalize_for_blocklist(s: &str) -> String {
 ///
 /// Returns `BlockedCommand` if a blocklisted pattern is found.
 pub fn check_blocklist(cmd: &str) -> Result<(), NikaError> {
+    // BUG-020: Only scan the first 4 KiB of the resolved command.
+    // Blocklist patterns target shell keywords at the start of commands,
+    // not data payloads deep inside interpolated values. Large data from
+    // for_each or infer results can accidentally contain words like "sudo"
+    // or "xargs" causing false positives.
+    const SCAN_LIMIT: usize = 4096;
+    let scan_input = if cmd.len() > SCAN_LIMIT {
+        // Find a safe UTF-8 char boundary at or before SCAN_LIMIT
+        let mut end = SCAN_LIMIT;
+        while end > 0 && !cmd.is_char_boundary(end) {
+            end -= 1;
+        }
+        &cmd[..end]
+    } else {
+        cmd
+    };
+
     // Normalize the command using NFKC to handle Unicode confusables
-    let normalized = normalize_for_blocklist(cmd);
+    let normalized = normalize_for_blocklist(scan_input);
     let lower = normalized.to_lowercase();
 
     // SEC-3: Strip shell quoting characters before pattern matching.

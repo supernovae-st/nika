@@ -172,22 +172,8 @@ pub async fn handle_doctor_command(
 fn check_nika_directory() -> Vec<DiagnosticCheck> {
     let mut checks = vec![];
 
-    let dir = match find_nika_dir() {
-        Ok(dir) if dir.exists() => {
-            checks.push(DiagnosticCheck::pass(
-                "Project",
-                format!(".nika directory found at {}", dir.display()),
-            ));
-            dir
-        }
-        Ok(dir) => {
-            checks.push(DiagnosticCheck::warn(
-                "Project",
-                format!("No .nika directory at {}", dir.display()),
-                "Run 'nika init' to create project structure",
-            ));
-            return checks;
-        }
+    let cwd = match std::env::current_dir() {
+        Ok(d) => d,
         Err(_) => {
             checks.push(DiagnosticCheck::fail(
                 "Project",
@@ -198,61 +184,111 @@ fn check_nika_directory() -> Vec<DiagnosticCheck> {
         }
     };
 
-    // Check for config.toml inside .nika/
-    if !dir.join("config.toml").exists() {
-        checks.push(DiagnosticCheck::warn(
-            "Project",
-            "config.toml missing from .nika/",
-            "Run 'nika init' to regenerate project structure",
-        ));
-    }
+    let project = match find_project_root_from(&cwd) {
+        Ok(p) => p,
+        Err(_) => {
+            checks.push(DiagnosticCheck::fail(
+                "Project",
+                "Cannot determine project root",
+                "Check filesystem permissions",
+            ));
+            return checks;
+        }
+    };
 
-    // Check for workflows/ directory inside .nika/
-    if !dir.join("workflows").exists() {
-        checks.push(DiagnosticCheck::warn(
-            "Project",
-            "workflows/ directory missing from .nika/",
-            "Run 'nika init' to regenerate project structure",
-        ));
+    match project.source {
+        ProjectRootSource::NikaToml => {
+            let nika_dir = project.root.join(".nika");
+            if nika_dir.exists() {
+                checks.push(DiagnosticCheck::pass(
+                    "Project",
+                    format!(".nika/ runtime directory at {}", nika_dir.display()),
+                ));
+            } else {
+                checks.push(DiagnosticCheck::warn(
+                    "Project",
+                    format!("No .nika/ runtime directory at {}", project.root.display()),
+                    "It will be created on first 'nika run'",
+                ));
+            }
+        }
+        ProjectRootSource::DotNika => {
+            checks.push(DiagnosticCheck::warn(
+                "Project",
+                format!(
+                    "Legacy project (no nika.toml, using .nika/ at {})",
+                    project.root.display()
+                ),
+                "Run 'nika init' to create nika.toml",
+            ));
+        }
+        ProjectRootSource::Fallback => {
+            checks.push(DiagnosticCheck::warn(
+                "Project",
+                "No nika.toml or .nika/ found",
+                "Run 'nika init' to initialize a Nika project",
+            ));
+        }
     }
 
     checks
 }
 
 fn check_config_file() -> DiagnosticCheck {
-    let nika_dir = match find_nika_dir() {
+    let cwd = match std::env::current_dir() {
         Ok(d) => d,
         Err(_) => {
             return DiagnosticCheck::warn(
                 "Config",
-                "Cannot locate .nika directory",
+                "Cannot determine current directory",
                 "Run 'nika init' first",
             )
         }
     };
 
-    let config_path = nika_dir.join("config.toml");
-    if !config_path.exists() {
-        return DiagnosticCheck::warn(
-            "Config",
-            "No config.toml found",
-            "Run 'nika init' to create default config",
-        );
-    }
+    let project = match find_project_root_from(&cwd) {
+        Ok(p) => p,
+        Err(_) => {
+            return DiagnosticCheck::warn(
+                "Config",
+                "Cannot locate project root",
+                "Run 'nika init' first",
+            )
+        }
+    };
+
+    // Determine config path based on discovery source
+    let config_path = match project.source {
+        ProjectRootSource::NikaToml => project.root.join("nika.toml"),
+        ProjectRootSource::DotNika => project.root.join(".nika").join("config.toml"),
+        ProjectRootSource::Fallback => {
+            return DiagnosticCheck::warn(
+                "Config",
+                "No nika.toml found",
+                "Run 'nika init' to create project config",
+            );
+        }
+    };
 
     // Try to parse the config
     match fs::read_to_string(&config_path) {
         Ok(content) => match toml::from_str::<toml::Value>(&content) {
-            Ok(_) => DiagnosticCheck::pass("Config", "config.toml is valid TOML"),
-            Err(e) => DiagnosticCheck::fail(
-                "Config",
-                format!("config.toml has syntax errors: {e}"),
-                "Run 'nika config edit' to fix",
-            ),
+            Ok(_) => {
+                let label = config_path.file_name().unwrap_or_default().to_string_lossy();
+                DiagnosticCheck::pass("Config", format!("{label} is valid TOML"))
+            }
+            Err(e) => {
+                let label = config_path.file_name().unwrap_or_default().to_string_lossy();
+                DiagnosticCheck::fail(
+                    "Config",
+                    format!("{label} has syntax errors: {e}"),
+                    "Run 'nika config edit' to fix",
+                )
+            }
         },
         Err(e) => DiagnosticCheck::fail(
             "Config",
-            format!("Cannot read config.toml: {e}"),
+            format!("Cannot read {}: {e}", config_path.display()),
             "Check file permissions",
         ),
     }
@@ -1498,7 +1534,7 @@ mod tests {
 
     #[test]
     fn check_nika_directory_handles_missing() {
-        // This runs in test env where ~/.nika/ may or may not exist
+        // This runs in test env where nika.toml may or may not exist
         let checks = check_nika_directory();
         assert!(
             !checks.is_empty(),

@@ -15,8 +15,7 @@
 //! | GET    | `/v1/status/{id}` | Poll job status           |
 //! | POST   | `/v1/cancel/{id}` | Cancel running job        |
 //!
-//! TODO(v0.57): Job GC -- cleanup completed/failed jobs > 7 days
-//! TODO(v0.57): \[serve\] section in config.toml
+//! Configuration is loaded from `[serve]` section in `nika.toml`, with env var overrides.
 
 pub mod auth;
 pub mod config;

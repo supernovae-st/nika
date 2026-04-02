@@ -5,8 +5,6 @@
 //! - `GET  /v1/status/{id}`   -- Poll job status
 //! - `POST /v1/cancel/{id}`   -- Cancel a running job (ERRATA-3)
 //! - `GET  /v1/events/{id}`   -- SSE streaming (see `events.rs`)
-//!
-//! TODO(v0.58): Add idempotency keys (Idempotency-Key header)
 
 use axum::extract::{Path, State};
 use axum::Json;

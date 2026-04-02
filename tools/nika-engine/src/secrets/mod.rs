@@ -16,6 +16,26 @@ pub fn provider_env_var(provider: &str) -> &'static str {
     crate::core::provider_to_env_var(provider).unwrap_or("UNKNOWN_API_KEY")
 }
 
+/// Inject a secret into the process environment.
+///
+/// # Safety contract
+///
+/// `std::env::set_var` is unsafe because it is not thread-safe: concurrent
+/// reads/writes to the process environment from multiple threads cause UB.
+///
+/// This function is safe to call ONLY when one of these conditions holds:
+/// 1. **Sequential boot** — called during `BootSequence::run()` (phases 1-4)
+///    before any worker threads or Tokio tasks are spawned.
+/// 2. **Single-threaded CLI** — called from the main CLI thread before
+///    workflow execution begins (e.g., `nika provider set`, onboarding).
+///
+/// It MUST NOT be called from `nika serve` worker threads, Tokio task pools,
+/// or any context where concurrent env reads are possible.
+pub fn inject_secret_to_env(env_var: &str, value: &str) {
+    // SAFETY: callers guarantee single-threaded context (see doc above)
+    unsafe { std::env::set_var(env_var, value) };
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -80,11 +100,18 @@ mod tests {
     async fn test_has_secret_false_when_env_empty() {
         let key = "XAI_API_KEY";
         let orig = std::env::var(key).ok();
+        let orig_no_daemon = std::env::var("NIKA_NO_DAEMON").ok();
         std::env::set_var(key, "");
+        // Prevent fallback to daemon/vault which may have the real key
+        std::env::set_var("NIKA_NO_DAEMON", "1");
         assert!(!has_secret("xai").await);
         match orig {
             Some(v) => std::env::set_var(key, v),
             None => unsafe { std::env::remove_var(key) },
+        }
+        match orig_no_daemon {
+            Some(v) => std::env::set_var("NIKA_NO_DAEMON", v),
+            None => unsafe { std::env::remove_var("NIKA_NO_DAEMON") },
         }
     }
     #[tokio::test]
