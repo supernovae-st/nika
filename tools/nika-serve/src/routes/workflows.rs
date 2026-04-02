@@ -277,6 +277,29 @@ pub async fn list_workflows(
     Ok(Json(ListWorkflowsResponse { workflows, count }))
 }
 
+/// `POST /v1/reload` — Rescan workflows directory.
+///
+/// After `git pull` or adding new workflow files, call this endpoint
+/// to confirm the serve sees the updated files. Returns the refreshed
+/// workflow list (same format as `GET /v1/workflows`).
+pub async fn reload_workflows(
+    State(state): State<AppState>,
+) -> Result<Json<ListWorkflowsResponse>, ServeError> {
+    let base = state
+        .config
+        .workflows_dir
+        .canonicalize()
+        .map_err(|e| ServeError::Config(format!("workflows_dir canonicalize: {e}")))?;
+
+    let mut workflows = Vec::new();
+    collect_workflows(&base, &base, &mut workflows).await?;
+    workflows.sort_by(|a, b| a.name.cmp(&b.name));
+
+    let count = workflows.len();
+    tracing::info!(count, "workflows reloaded");
+    Ok(Json(ListWorkflowsResponse { workflows, count }))
+}
+
 /// Recursively collect `.nika.yaml` files, skipping hidden directories.
 async fn collect_workflows(
     base: &std::path::Path,
