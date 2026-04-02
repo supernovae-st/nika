@@ -1286,6 +1286,11 @@ impl EventLog {
             if events.len() >= MAX_EVENTS {
                 // Drop oldest half to amortize eviction cost
                 let drain_to = events.len() / 2;
+                tracing::warn!(
+                    evicted = drain_to,
+                    limit = MAX_EVENTS,
+                    "EventLog full — evicting oldest {drain_to} events (limit: {MAX_EVENTS})"
+                );
                 events.drain(..drain_to);
             }
             events.push(for_vec);
@@ -1294,6 +1299,11 @@ impl EventLog {
             let mut events = self.events.write();
             if events.len() >= MAX_EVENTS {
                 let drain_to = events.len() / 2;
+                tracing::warn!(
+                    evicted = drain_to,
+                    limit = MAX_EVENTS,
+                    "EventLog full — evicting oldest {drain_to} events (limit: {MAX_EVENTS})"
+                );
                 events.drain(..drain_to);
             }
             events.push(event);
@@ -4307,5 +4317,34 @@ mod tests {
         let json = serde_json::to_string(&event).unwrap();
         assert!(json.contains("orchestrator_failed"));
         assert!(json.contains("Budget exceeded"));
+    }
+
+    #[test]
+    fn eventlog_eviction_preserves_recent_events() {
+        // SCALE-001: verify eviction keeps the most recent half
+        let log = EventLog::new();
+        // Fill beyond MAX_EVENTS
+        for i in 0..(MAX_EVENTS + 100) {
+            log.emit(EventKind::Log {
+                task_id: Some(Arc::from(format!("task_{i}").as_str())),
+                message: format!("event {i}"),
+                level: "info".to_string(),
+            });
+        }
+        let events = log.events();
+        // After eviction of oldest half, we should have roughly MAX_EVENTS/2 + 100
+        assert!(
+            events.len() < MAX_EVENTS,
+            "Events should have been evicted, got {}",
+            events.len()
+        );
+        // Most recent events should be preserved
+        let last = events.last().unwrap();
+        if let EventKind::Log { message, .. } = &last.kind {
+            let expected = format!("event {}", MAX_EVENTS + 99);
+            assert_eq!(message, &expected);
+        } else {
+            panic!("Expected Log event");
+        }
     }
 }
