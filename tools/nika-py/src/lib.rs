@@ -260,8 +260,90 @@ impl Job {
     })
   }
 
+  /// Stream events as an async iterator.
+  ///
+  /// ```python
+  /// async for event in job.stream_events():
+  ///     print(event["type"], event.get("task_id"))
+  /// ```
+  fn stream_events(&self, _py: Python<'_>) -> PyResult<EventStream> {
+    let inner = Arc::clone(&self.inner);
+    let (tx, rx) = std::sync::mpsc::sync_channel(64);
+
+    // Spawn background task to forward events
+    let rt = runtime();
+    rt.spawn(async move {
+      match inner.events().await {
+        Ok(mut stream) => {
+          while let Some(event) = stream.next().await {
+            match event {
+              Ok(e) => {
+                let terminal = e.is_terminal();
+                if tx.send(Ok(e)).is_err() {
+                  break;
+                }
+                if terminal {
+                  break;
+                }
+              }
+              Err(e) => {
+                let _ = tx.send(Err(e.to_string()));
+                break;
+              }
+            }
+          }
+        }
+        Err(e) => {
+          let _ = tx.send(Err(e.to_string()));
+        }
+      }
+    });
+
+    Ok(EventStream {
+      receiver: std::sync::Mutex::new(Some(rx)),
+    })
+  }
+
   fn __repr__(&self) -> String {
     format!("Job(job_id={:?})", self.inner.job_id())
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EVENT STREAM (async for)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Async iterator over job events — use with `async for event in stream`.
+#[pyclass]
+pub struct EventStream {
+  receiver: std::sync::Mutex<Option<std::sync::mpsc::Receiver<std::result::Result<nika_sdk::Event, String>>>>,
+}
+
+#[pymethods]
+impl EventStream {
+  fn __aiter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+    slf
+  }
+
+  fn __anext__(&self, py: Python<'_>) -> PyResult<Option<PyObject>> {
+    let mut guard = self.receiver.lock().map_err(|_| NikaError::new_err("lock poisoned"))?;
+    let rx = guard
+      .as_ref()
+      .ok_or_else(|| NikaError::new_err("stream exhausted"))?;
+
+    match rx.recv() {
+      Ok(Ok(event)) => Ok(Some(event_to_dict(py, event))),
+      Ok(Err(e)) => Err(NikaError::new_err(e)),
+      Err(_) => {
+        // Channel closed — stream ended
+        *guard = None;
+        Ok(None) // raises StopAsyncIteration
+      }
+    }
+  }
+
+  fn __repr__(&self) -> String {
+    "EventStream(...)".to_string()
   }
 }
 
@@ -432,6 +514,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
   m.add_class::<JobInfo>()?;
   m.add_class::<JobResult>()?;
   m.add_class::<ArtifactInfo>()?;
+  m.add_class::<EventStream>()?;
   m.add("NikaError", m.py().get_type::<NikaError>())?;
   Ok(())
 }

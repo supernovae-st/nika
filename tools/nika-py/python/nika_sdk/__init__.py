@@ -1,6 +1,6 @@
 """Nika SDK — Python bindings for the Nika workflow engine."""
 
-from nika_sdk._native import Client, Job, JobInfo, JobResult, ArtifactInfo, NikaError
+from nika_sdk._native import Client, Job, JobInfo, JobResult, ArtifactInfo, EventStream, NikaError
 
 __all__ = [
     "Client",
@@ -8,5 +8,6 @@ __all__ = [
     "JobInfo",
     "JobResult",
     "ArtifactInfo",
+    "EventStream",
     "NikaError",
 ]

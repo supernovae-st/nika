@@ -9,7 +9,6 @@
 
 pub mod client;
 pub mod error;
-pub mod nika_config;
 pub mod pool;
 pub mod protocol;
 pub mod retry;
@@ -21,11 +20,6 @@ pub mod validation;
 // Re-export public types
 pub use client::{CacheConfig, McpClient, McpPingError, McpPingResult, ResponseCacheStats};
 pub use error::{McpError, Result};
-pub use nika_config::{
-    list_nika_mcp_servers, load_nika_mcp_servers, load_nika_mcp_servers_by_name,
-    load_nika_mcp_servers_with_manager, nika_mcp_config_exists, NikaMcpConfig,
-    NikaMcpConfigManager, NikaMcpServer, NikaMcpSource,
-};
 pub use pool::McpClientPool;
 pub use protocol::{JsonRpcError, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse};
 pub use retry::{is_retryable_mcp_error, retry_mcp_call, McpRetryConfig};
