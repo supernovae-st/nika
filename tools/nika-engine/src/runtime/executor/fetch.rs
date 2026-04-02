@@ -609,11 +609,13 @@ impl TaskExecutor {
                                 }
                                 None => None,
                             };
-                            let extract_result = super::extract::apply_extract(
-                                &body,
-                                fetch.extract,
-                                resolved_selector.as_deref(),
-                            );
+                            let extract_result =
+                                super::extract::apply_extract_with_base(
+                                    &body,
+                                    fetch.extract,
+                                    resolved_selector.as_deref(),
+                                    Some(&final_url),
+                                );
                             if let Some(mode) = fetch.extract {
                                 let output_len =
                                     extract_result.as_ref().map(|s| s.len()).unwrap_or(0);
@@ -813,16 +815,18 @@ impl TaskExecutor {
                         return Ok(serde_json::json!({ "found": false }).to_string());
                     }
 
+                    let response_url = response.url().to_string();
                     let raw_body = read_body_with_limit(response, MAX_TEXT_RESPONSE_SIZE).await?;
                     // Resolve templates in selector (e.g. {{with.css_query}})
                     let resolved_selector = match &fetch.selector {
                         Some(s) => Some(template_resolve(s, bindings, datastore)?.into_owned()),
                         None => None,
                     };
-                    let extract_result = super::extract::apply_extract(
+                    let extract_result = super::extract::apply_extract_with_base(
                         &raw_body,
                         fetch.extract,
                         resolved_selector.as_deref(),
+                        Some(&response_url),
                     );
                     // EMIT: ExtractApplied (if an extract mode was specified)
                     if let Some(mode) = fetch.extract {

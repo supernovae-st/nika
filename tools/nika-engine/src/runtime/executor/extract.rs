@@ -11,12 +11,23 @@ use crate::error::NikaError;
 )))]
 use crate::error_domains::ExecutionError;
 
-/// Apply extraction to a fetch response body.
-/// Returns processed text or original body if no extraction configured.
+/// Apply extraction to a fetch response body (without base URL).
+/// Convenience wrapper for tests and callers that don't have a base URL.
+#[cfg(test)]
 pub(crate) fn apply_extract(
     body: &str,
     extract: Option<ExtractMode>,
     selector: Option<&str>,
+) -> Result<String, NikaError> {
+    apply_extract_with_base(body, extract, selector, None)
+}
+
+/// Apply extraction with an optional base URL for resolving relative links.
+pub(crate) fn apply_extract_with_base(
+    body: &str,
+    extract: Option<ExtractMode>,
+    selector: Option<&str>,
+    base_url: Option<&str>,
 ) -> Result<String, NikaError> {
     let mode = match extract {
         None => return Ok(body.to_string()),
@@ -49,7 +60,7 @@ pub(crate) fn apply_extract(
         ExtractMode::Metadata => extract_metadata_json(body),
 
         #[cfg(feature = "fetch-html")]
-        ExtractMode::Links => extract_links_json(body, None),
+        ExtractMode::Links => extract_links_json(body, base_url),
 
         #[cfg(feature = "fetch-article")]
         ExtractMode::Article => {
@@ -314,23 +325,50 @@ fn extract_metadata_json(html: &str) -> Result<String, NikaError> {
         meta.insert("feeds".into(), feeds.into());
     }
 
+    // Hreflang alternate language links (link[rel=alternate][hreflang])
+    let hreflang_sel =
+        scraper::Selector::parse("link[rel=alternate][hreflang]").expect("static CSS selector");
+    let hreflang: Vec<serde_json::Value> = document
+        .select(&hreflang_sel)
+        .filter_map(|el| {
+            let lang = el.value().attr("hreflang")?;
+            let href = el.value().attr("href")?;
+            Some(serde_json::json!({
+                "lang": lang,
+                "href": href,
+            }))
+        })
+        .collect();
+    if !hreflang.is_empty() {
+        meta.insert("hreflang".into(), hreflang.into());
+    }
+
     serde_json::to_string(&meta).map_err(|e| NikaError::ExtractError {
         reason: format!("JSON serialize: {e}"),
     })
 }
 
 #[cfg(feature = "fetch-html")]
-fn extract_links_json(html: &str, _base_url: Option<&str>) -> Result<String, NikaError> {
+fn extract_links_json(html: &str, base_url: Option<&str>) -> Result<String, NikaError> {
     let document = scraper::Html::parse_document(html);
     let a_sel = scraper::Selector::parse("a[href]").expect("static CSS selector");
+    let parsed_base = base_url.and_then(|u| url::Url::parse(u).ok());
     let links: Vec<serde_json::Value> = document
         .select(&a_sel)
         .map(|el| {
             let href = el.value().attr("href").unwrap_or_default();
+            // Resolve relative URLs against the fetched page URL
+            let resolved = if let Some(ref base) = parsed_base {
+                base.join(href)
+                    .map(|u| u.to_string())
+                    .unwrap_or_else(|_| href.to_string())
+            } else {
+                href.to_string()
+            };
             let anchor = el.text().collect::<Vec<_>>().join(" ").trim().to_string();
             let rel = el.value().attr("rel").unwrap_or_default();
             serde_json::json!({
-                "url": href,
+                "url": resolved,
                 "anchor": anchor,
                 "rel": rel,
             })
@@ -622,5 +660,44 @@ mod tests {
         assert_eq!(links[0]["anchor"], "Example");
         assert_eq!(links[1]["url"], "/about");
         assert_eq!(links[1]["rel"], "nofollow");
+    }
+
+    #[cfg(feature = "fetch-html")]
+    #[test]
+    fn links_resolves_relative_urls_with_base() {
+        let html = r##"<html><body>
+            <a href="/docs/">Docs</a>
+            <a href="../other">Other</a>
+            <a href="./sub">Sub</a>
+            <a href="https://external.com">External</a>
+            <a href="#fragment">Fragment</a>
+        </body></html>"##;
+        let result = apply_extract_with_base(
+            html,
+            Some(ExtractMode::Links),
+            None,
+            Some("https://example.com/blog/post"),
+        )
+        .unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        let links = parsed["links"].as_array().unwrap();
+        assert_eq!(links[0]["url"], "https://example.com/docs/");
+        assert_eq!(links[1]["url"], "https://example.com/other");
+        assert_eq!(links[2]["url"], "https://example.com/blog/sub");
+        // Absolute URLs stay unchanged (url::Url normalizes trailing slash on bare domains)
+        assert_eq!(links[3]["url"], "https://external.com/");
+        // Fragment-only resolves against base
+        assert_eq!(links[4]["url"], "https://example.com/blog/post#fragment");
+    }
+
+    #[cfg(feature = "fetch-html")]
+    #[test]
+    fn links_no_base_keeps_raw_href() {
+        let html = r#"<html><body><a href="/path">Link</a></body></html>"#;
+        let result =
+            apply_extract_with_base(html, Some(ExtractMode::Links), None, None).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        let links = parsed["links"].as_array().unwrap();
+        assert_eq!(links[0]["url"], "/path");
     }
 }

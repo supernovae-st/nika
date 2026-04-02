@@ -38,8 +38,8 @@ serde_json = { workspace = true }
 # Nika core (catalogs, AST types)
 nika-core = { workspace = true }
 
-# Nika engine (only needs AST + source types — no default features to minimize deps)
-nika-engine = { workspace = true, default-features = false }
+# Nika engine (AST + source types)
+nika-engine = { workspace = true }
 
 # Protocol-agnostic LSP intelligence
 nika-lsp-core = { workspace = true }
@@ -56,7 +56,7 @@ regex = { workspace = true }
 
 # Daemon client (unix only — daemon uses Unix sockets)
 [target.'cfg(unix)'.dependencies]
-nika-daemon = { workspace = true, default-features = false }
+nika-daemon = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }

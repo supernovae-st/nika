@@ -399,6 +399,65 @@ async fn wiremock_fetch_extract_metadata_with_og_tags() {
 }
 
 #[tokio::test]
+async fn wiremock_fetch_extract_metadata_hreflang() {
+    let server = MockServer::start().await;
+    let html = r#"<html><head>
+        <title>Page</title>
+        <link rel="alternate" hreflang="en" href="https://example.com/en/page">
+        <link rel="alternate" hreflang="fr" href="https://example.com/fr/page">
+        <link rel="alternate" hreflang="x-default" href="https://example.com/page">
+    </head><body></body></html>"#;
+    Mock::given(method("GET"))
+        .and(path("/hreflang"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(html))
+        .mount(&server)
+        .await;
+
+    let (executor, bindings, datastore, _) = setup();
+    let task_id: Arc<str> = Arc::from("wm_hreflang");
+    let mut params = fetch_params(&format!("{}/hreflang", server.uri()), "GET");
+    params.extract = Some(nika_core::ast::extract::ExtractMode::Metadata);
+    let action = TaskAction::Fetch { fetch: params };
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await
+        .unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+    assert_eq!(parsed["title"], "Page");
+    let hreflang = parsed["hreflang"].as_array().expect("hreflang should be array");
+    assert_eq!(hreflang.len(), 3);
+    assert_eq!(hreflang[0]["lang"], "en");
+    assert_eq!(hreflang[0]["href"], "https://example.com/en/page");
+    assert_eq!(hreflang[1]["lang"], "fr");
+    assert_eq!(hreflang[2]["lang"], "x-default");
+}
+
+#[tokio::test]
+async fn wiremock_fetch_extract_metadata_no_hreflang() {
+    let server = MockServer::start().await;
+    let html = r#"<html><head><title>Simple</title></head><body></body></html>"#;
+    Mock::given(method("GET"))
+        .and(path("/simple"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(html))
+        .mount(&server)
+        .await;
+
+    let (executor, bindings, datastore, _) = setup();
+    let task_id: Arc<str> = Arc::from("wm_no_hreflang");
+    let mut params = fetch_params(&format!("{}/simple", server.uri()), "GET");
+    params.extract = Some(nika_core::ast::extract::ExtractMode::Metadata);
+    let action = TaskAction::Fetch { fetch: params };
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await
+        .unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+    assert_eq!(parsed["title"], "Simple");
+    // hreflang should be absent (not empty array)
+    assert!(parsed.get("hreflang").is_none());
+}
+
+#[tokio::test]
 async fn wiremock_fetch_extract_jsonpath() {
     let server = MockServer::start().await;
     let json = r#"{"users": [{"name": "Alice"}, {"name": "Bob"}]}"#;
